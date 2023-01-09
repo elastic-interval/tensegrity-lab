@@ -3,6 +3,7 @@ use std::{iter, mem};
 use bytemuck::{cast_slice, Pod, Zeroable};
 #[allow(unused_imports)]
 use log::info;
+use log::LevelFilter;
 use wgpu::util::DeviceExt;
 use winit::{
     event::*,
@@ -375,7 +376,7 @@ pub fn run() {
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                         state.resize(**new_inner_size);
                     }
-                    WindowEvent::KeyboardInput { input, .. } => {
+                    WindowEvent::KeyboardInput { input, .. } =>
                         match input.virtual_keycode {
                             Some(VirtualKeyCode::F) => {
                                 #[cfg(target_arch = "wasm32")]
@@ -397,8 +398,7 @@ pub fn run() {
                                     });
                             }
                             _ => {}
-                        }
-                    }
+                        },
                     WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. } => {
                         state.camera.window_event(event)
                     }

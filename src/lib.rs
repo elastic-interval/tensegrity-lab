@@ -28,4 +28,4 @@ pub mod expression;
 pub mod tenscript;
 pub mod init;
 
-pub use init::*;
+pub use init::run;
