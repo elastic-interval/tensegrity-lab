@@ -21,3 +21,13 @@ genius of Darwinian evolution that brought about life on Earth.
 ## Contact
 
 If you find this interesting and you want to know more, drop us a line at **pretenst@gmail.com**. 
+
+## Running on web
+
+1. `wasm-pack build --target web`
+2. Serve website locally from project directory using e.g. miniserve
+   1. `brew install miniserve`
+   2. `miniserve . --index index.html`
+3. Navigate to `http://127.0.0.1:8080`
+
+Press F for fullscreen.
