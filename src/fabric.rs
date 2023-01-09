@@ -11,7 +11,7 @@ use cgmath::{EuclideanSpace, Matrix4, MetricSpace, Point3, Transform, Vector3};
 use cgmath::num_traits::zero;
 use crate::fabric::Stage::{*};
 use crate::face::Face;
-use crate::interval::{Interval, Role, Material, StrainLimits};
+use crate::interval::{Interval, Role, Material};
 use crate::interval::Span::{Approaching, Fixed};
 use crate::joint::Joint;
 use crate::tenscript::Spin;
@@ -271,14 +271,6 @@ impl Fabric {
         }
         self.progress.step();
         self.age += 1;
-    }
-
-    pub fn strain_limits(&self) -> StrainLimits {
-        let mut limits = StrainLimits::default();
-        for interval in self.intervals.values() {
-            limits.expand_for(interval);
-        }
-        limits
     }
 
     pub fn midpoint(&self) -> Point3<f32> {

@@ -114,7 +114,7 @@ impl Fabric {
                 .iter()
                 .map(|id| self.interval(*id).ideal_length())
                 .sum();
-            let side_length = radius * ROOT3 / 2.5;
+            let side_length = radius * ROOT3 / 2.0;
             let radial_joints = face.radial_joints(self);
             for (alpha, omega) in [(0, 1), (1, 2), (2, 0)] {
                 self.create_interval(radial_joints[alpha], radial_joints[omega], Pull, side_length);

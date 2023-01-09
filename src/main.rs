@@ -16,7 +16,7 @@ use eig::fabric::Stage::{*};
 
 use eig::graphics::{get_depth_stencil_state, get_primitive_state, GraphicsWindow};
 use eig::growth::Growth;
-use eig::interval::{Interval, StrainLimits};
+use eig::interval::Interval;
 use eig::interval::Span::{Approaching, Fixed};
 use eig::parser::parse;
 use eig::world::World;
@@ -29,25 +29,12 @@ struct Vertex {
 }
 
 impl Vertex {
-    pub fn for_interval(interval: &Interval, fabric: &Fabric, strain_limits: Option<StrainLimits>) -> [Vertex; 2] {
+    pub fn for_interval(interval: &Interval, fabric: &Fabric) -> [Vertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
-        let color = match strain_limits {
-            None => {
-                if interval.role.is_push() {
-                    [1.0, 1.0, 1.0, 1.0]
-                } else {
-                    [0.2, 0.2, 1.0, 1.0]
-                }
-            }
-            Some(limits) => {
-                const AMBIENT: f32 = 0.05;
-                let nuance = limits.nuance(interval);
-                if interval.role.is_push() {
-                    [AMBIENT + nuance * (1.0 - AMBIENT), AMBIENT, AMBIENT, 1.0]
-                } else {
-                    [AMBIENT, AMBIENT + nuance * (1.0 - AMBIENT) * 0.5, AMBIENT + nuance * (1.0 - AMBIENT), 1.0]
-                }
-            }
+        let color = if interval.role.is_push() {
+            [1.0, 0.4, 0.4, 1.0]
+        } else {
+            [0.3, 0.3, 1.0, 1.0]
         };
         [
             Vertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color },
@@ -167,12 +154,8 @@ impl State {
         if self.vertices.len() != num_vertices {
             self.vertices = vec![Vertex::default(); num_vertices];
         }
-        let strain_limits = match fabric.stage() {
-            Pretensing { .. } | Pretenst => Some(fabric.strain_limits()),
-            _ => None
-        };
         let updated_vertices = fabric.interval_values()
-            .flat_map(|interval| Vertex::for_interval(interval, fabric, strain_limits));
+            .flat_map(|interval| Vertex::for_interval(interval, fabric));
         for (vertex, slot) in updated_vertices.zip(self.vertices.iter_mut()) {
             *slot = vertex;
         }
@@ -277,7 +260,6 @@ impl ElasticInterval {
             }
             Shaped => {
                 self.growth.complete_shapers(&mut self.fabric);
-                self.fabric.triangulate_faces();
                 self.fabric.set_stage(ShapedApproach);
             }
             ShapedApproach => {
