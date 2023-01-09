@@ -27,7 +27,11 @@ impl GraphicsWindow {
             &wgpu::DeviceDescriptor {
                 label: None,
                 features: wgpu::Features::empty(),
-                limits: wgpu::Limits::default(),
+                limits: wgpu::Limits {
+                    max_texture_dimension_1d: 3024,
+                    max_texture_dimension_2d: 3024,
+                    ..wgpu::Limits::downlevel_webgl2_defaults()
+                },
             },
             None,
         )
