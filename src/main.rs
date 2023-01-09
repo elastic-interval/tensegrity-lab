@@ -277,6 +277,7 @@ impl ElasticInterval {
             }
             Shaped => {
                 self.growth.complete_shapers(&mut self.fabric);
+                self.fabric.triangulate_faces();
                 self.fabric.set_stage(ShapedApproach);
             }
             ShapedApproach => {
