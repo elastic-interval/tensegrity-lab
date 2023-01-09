@@ -57,7 +57,6 @@ pub struct Interval {
     pub material: Material,
     pub span: Span,
     pub unit: Vector3<f32>,
-    pub strain: f32,
 }
 
 impl Interval {
@@ -75,7 +74,6 @@ impl Interval {
             material,
             span,
             unit: zero(),
-            strain: 0.0,
         }
     }
 
@@ -104,6 +102,12 @@ impl Interval {
         1.0 / inverse_square_root
     }
 
+    pub fn ideal_length(&self) -> f32 {
+        match self.span {
+            Span::Fixed { length, .. } | Span::Approaching {length, .. } => length
+        }
+    }
+
     pub fn iterate(&mut self, world: &World, joints: &mut [Joint], stage: Stage, progress: Progress) {
         let ideal_length = match self.span {
             Span::Fixed { length } => { length }
@@ -113,16 +117,16 @@ impl Interval {
             }
         };
         let real_length = self.length(joints);
-        self.strain = match self.role {
-            Push if self.strain > 0.0 => 0.0,
-            Pull if self.strain < 0.0 => 0.0,
+        let strain = match self.role {
+            Push if real_length > ideal_length => 0.0, // do not pull
+            Pull if real_length < ideal_length => 0.0, // do not push
             _ => (real_length - ideal_length) / ideal_length
         };
         let stiffness_factor = match stage {
             Pretensing { .. } | Pretenst => world.pretenst_physics.stiffness,
             _ => world.safe_physics.stiffness,
         };
-        let force = self.strain * self.material.stiffness * stiffness_factor;
+        let force = strain * self.material.stiffness * stiffness_factor;
         let force_vector: Vector3<f32> = self.unit * force / 2.0;
         joints[self.alpha_index].force += force_vector;
         joints[self.omega_index].force -= force_vector;
@@ -139,49 +143,5 @@ impl Interval {
         } else {
             panic!()
         }
-    }
-}
-
-#[derive(Clone, Debug, Copy)]
-pub struct StrainLimits {
-    push_lo: f32,
-    push_hi: f32,
-    pull_lo: f32,
-    pull_hi: f32,
-}
-
-impl Default for StrainLimits {
-    fn default() -> Self {
-        Self {
-            push_lo: f32::MAX,
-            push_hi: 0.0,
-            pull_lo: f32::MAX,
-            pull_hi: 0.0,
-        }
-    }
-}
-
-impl StrainLimits {
-    pub fn expand_for(&mut self, Interval { role, strain, .. }: &Interval) {
-        let margin = 1e-3;
-        let value = if *role == Push { -*strain } else { *strain };
-        let (lo, hi) = ((value - margin).clamp(0.0, f32::MAX), value + margin);
-        match role {
-            Push if lo < self.push_lo => { self.push_lo = lo }
-            Push if hi > self.push_hi => { self.push_hi = hi }
-            Pull if lo < self.pull_lo => { self.pull_lo = lo }
-            Pull if hi > self.pull_hi => { self.pull_hi = hi }
-            _ => {}
-        };
-    }
-
-    pub fn nuance(&self, Interval { role, strain, .. }: &Interval) -> f32 {
-        let value = if *role == Push { -*strain } else { *strain };
-        let (lo, hi) = if role.is_push() {
-            (self.push_lo, self.push_hi)
-        } else {
-            (self.pull_lo, self.pull_hi)
-        };
-        (value - lo) / (hi - lo)
     }
 }
