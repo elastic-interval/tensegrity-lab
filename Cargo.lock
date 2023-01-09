@@ -557,32 +557,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "eig"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytemuck",
- "cgmath",
- "chrono",
- "console_error_panic_hook",
- "console_log",
- "env_logger",
- "fast_inv_sqrt",
- "futures",
- "gfx-hal",
- "image",
- "log",
- "pollster",
- "rand",
- "serde",
- "tracing-subscriber",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wgpu",
- "winit",
-]
-
-[[package]]
 name = "either"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1933,6 +1907,34 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "tensegrity-lab"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "cfg-if",
+ "cgmath",
+ "chrono",
+ "console_error_panic_hook",
+ "console_log",
+ "env_logger",
+ "fast_inv_sqrt",
+ "futures",
+ "gfx-hal",
+ "image",
+ "log",
+ "pollster",
+ "rand",
+ "serde",
+ "tracing-subscriber",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "wgpu",
+ "winit",
 ]
 
 [[package]]

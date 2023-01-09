@@ -22,7 +22,7 @@ impl GraphicsWindow {
                 force_fallback_adapter: false,
             })
             .await
-            .unwrap();
+            .expect("Could not request adapter");
         let (device, queue) = adapter.request_device(
             &wgpu::DeviceDescriptor {
                 label: None,
@@ -30,7 +30,9 @@ impl GraphicsWindow {
                 limits: wgpu::Limits::default(),
             },
             None,
-        ).await.unwrap();
+        )
+            .await
+            .expect("Could not request device");
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface.get_supported_formats(&adapter)[0],
