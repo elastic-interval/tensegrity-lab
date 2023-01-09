@@ -23,7 +23,7 @@ use crate::fabric::Fabric;
 use crate::fabric::Stage::{*};
 use crate::graphics::{get_depth_stencil_state, get_primitive_state, GraphicsWindow};
 use crate::growth::Growth;
-use crate::interval::{Interval, StrainLimits};
+use crate::interval::Interval;
 use crate::interval::Span::{Approaching, Fixed};
 use crate::parser::parse;
 use crate::world::World;
@@ -59,25 +59,12 @@ struct Vertex {
 }
 
 impl Vertex {
-    pub fn for_interval(interval: &Interval, fabric: &Fabric, strain_limits: Option<StrainLimits>) -> [Vertex; 2] {
+    pub fn for_interval(interval: &Interval, fabric: &Fabric) -> [Vertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
-        let color = match strain_limits {
-            None => {
-                if interval.role.is_push() {
-                    [1.0, 1.0, 1.0, 1.0]
-                } else {
-                    [0.2, 0.2, 1.0, 1.0]
-                }
-            }
-            Some(limits) => {
-                const AMBIENT: f32 = 0.05;
-                let nuance = limits.nuance(interval);
-                if interval.role.is_push() {
-                    [AMBIENT + nuance * (1.0 - AMBIENT), AMBIENT, AMBIENT, 1.0]
-                } else {
-                    [AMBIENT, AMBIENT + nuance * (1.0 - AMBIENT) * 0.5, AMBIENT + nuance * (1.0 - AMBIENT), 1.0]
-                }
-            }
+        let color = if interval.role.is_push() {
+            [1.0, 0.4, 0.4, 1.0]
+        } else {
+            [0.3, 0.3, 1.0, 1.0]
         };
         [
             Vertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color },
@@ -197,12 +184,8 @@ impl State {
         if self.vertices.len() != num_vertices {
             self.vertices = vec![Vertex::default(); num_vertices];
         }
-        let strain_limits = match fabric.stage() {
-            Pretensing { .. } | Pretenst => Some(fabric.strain_limits()),
-            _ => None
-        };
         let updated_vertices = fabric.interval_values()
-            .flat_map(|interval| Vertex::for_interval(interval, fabric, strain_limits));
+            .flat_map(|interval| Vertex::for_interval(interval, fabric));
         for (vertex, slot) in updated_vertices.zip(self.vertices.iter_mut()) {
             *slot = vertex;
         }
@@ -351,40 +334,13 @@ impl ElasticInterval {
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn run() {
-    cfg_if::cfg_if! {
-        if #[cfg(target_arch = "wasm32")] {
-            std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-            console_log::init_with_level(log::Level::Warn).expect("Couldn't initialize logger");
-        } else {
-            env_logger::init();
-        }
-    }
-
+    env_logger::init();
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_inner_size(PhysicalSize::new(1600, 1200))
         .build(&event_loop)
         .unwrap();
-    #[cfg(target_arch = "wasm32")]
-    {
-        // Winit prevents sizing with CSS, so we have to set
-        // the size manually when on web.
-        use winit::dpi::PhysicalSize;
-        window.set_inner_size(PhysicalSize::new(450, 400));
-
-        use winit::platform::web::WindowExtWebSys;
-        web_sys::window()
-            .and_then(|win| win.document())
-            .and_then(|doc| {
-                let dst = doc.get_element_by_id("canvas")?;
-                let canvas = web_sys::Element::from(window.canvas());
-                dst.append_child(&canvas).ok()?;
-                Some(())
-            })
-            .expect("Couldn't append canvas to document body.");
-    }
-
-    window.set_title("Tensegrity Lab");
+    window.set_title("Elastic Interval Geometry");
     let graphics = pollster::block_on(GraphicsWindow::new(&window));
     let mut state = State::new(graphics);
     let mut elastic = ElasticInterval::new(CODE);
