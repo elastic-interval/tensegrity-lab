@@ -104,6 +104,12 @@ impl Interval {
         1.0 / inverse_square_root
     }
 
+    pub fn ideal_length(&self) -> f32 {
+        match self.span {
+            Span::Fixed { length, .. } | Span::Approaching {length, .. } => length
+        }
+    }
+
     pub fn iterate(&mut self, world: &World, joints: &mut [Joint], stage: Stage, progress: Progress) {
         let ideal_length = match self.span {
             Span::Fixed { length } => { length }

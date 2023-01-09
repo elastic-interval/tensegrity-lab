@@ -17,7 +17,7 @@ const ROOT6: f32 = 2.449_489_8;
 const PHI: f32 = (1f32 + ROOT5) / 2f32;
 
 impl Fabric {
-    pub fn single_twist(&mut self, spin: Spin, pretenst_factor:f32, scale_factor: f32, face_id: Option<UniqueId>) -> [(FaceName, UniqueId); 2] {
+    pub fn single_twist(&mut self, spin: Spin, pretenst_factor: f32, scale_factor: f32, face_id: Option<UniqueId>) -> [(FaceName, UniqueId); 2] {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
         let base = self.base_triangle(face);
@@ -42,7 +42,10 @@ impl Fabric {
         });
         let a_plus_face = self.create_face(scale, spin, omega_radials, push_intervals);
         for index in 0..=2 {
-            let offset = match spin { Left => 1, Right => -1 };
+            let offset = match spin {
+                Left => 1,
+                Right => -1
+            };
             let alpha = ends[index as usize].0;
             let omega = ends[(ends.len() as isize + index + offset) as usize % ends.len()].1;
             self.create_interval(alpha, omega, TwistVerticalPull, ROOT3 * scale);
@@ -51,7 +54,7 @@ impl Fabric {
         [(Aneg, a_minus_face), (Apos, a_plus_face)]
     }
 
-    pub fn double_twist(&mut self, spin: Spin, pretenst_factor:f32, scale_factor: f32, face_id: Option<UniqueId>) -> [(FaceName, UniqueId); 8] {
+    pub fn double_twist(&mut self, spin: Spin, pretenst_factor: f32, scale_factor: f32, face_id: Option<UniqueId>) -> [(FaceName, UniqueId); 8] {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
         let base = self.base_triangle(face);
@@ -105,7 +108,22 @@ impl Fabric {
         faces
     }
 
-    pub fn faces_to_loop(&mut self, face_a_id: UniqueId, face_b_id: UniqueId) {
+    pub fn triangulate_faces(&mut self) {
+        for (id, face) in self.faces.clone() {
+            let radius: f32 = face.radial_intervals
+                .iter()
+                .map(|id| self.interval(*id).ideal_length())
+                .sum();
+            let side_length = radius * ROOT3 / 2.5;
+            let radial_joints = face.radial_joints(self);
+            for (alpha, omega) in [(0, 1), (1, 2), (2, 0)] {
+                self.create_interval(radial_joints[alpha], radial_joints[omega], Pull, side_length);
+            }
+            self.remove_face(id);
+        }
+    }
+
+    fn faces_to_loop(&mut self, face_a_id: UniqueId, face_b_id: UniqueId) {
         let (face_a, face_b) = (self.face(face_a_id), self.face(face_b_id));
         let scale = (face_a.scale + face_b.scale) / 2.0;
         let (a, b) = (face_a.radial_joints(self), face_b.radial_joints(self));
@@ -150,7 +168,10 @@ fn create_pairs(base: [Point3<f32>; 3], spin: Spin, alpha_scale: f32, omega_scal
         let from_mid = |offset| base[(index + 3 + offset) as usize % 3].to_vec() - mid;
         let between = |idx1, idx2| (from_mid(idx1) + from_mid(idx2)) * 0.5 * radius_factor;
         let alpha = mid + between(0, 1) * alpha_scale;
-        let offset = match spin { Left => 0, Right => 1 };
+        let offset = match spin {
+            Left => 0,
+            Right => 1
+        };
         let omega = mid + up + from_mid(offset) * omega_scale;
         (Point3::from_vec(alpha), Point3::from_vec(omega))
     })
