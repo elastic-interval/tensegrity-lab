@@ -7,6 +7,8 @@
 use std::{iter, mem};
 
 use bytemuck::{cast_slice, Pod, Zeroable};
+#[allow(unused_imports)]
+use log::info;
 use wgpu::util::DeviceExt;
 use winit::{
     event::*,
@@ -49,7 +51,6 @@ pub mod parser;
 pub mod scanner;
 pub mod expression;
 pub mod tenscript;
-
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable, Default)]
@@ -337,30 +338,36 @@ pub fn run() {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-            console_log::init_with_level(log::Level::Warn).expect("Couldn't initialize logger");
+            console_log::init_with_level(log::Level::Info).expect("Couldn't initialize logger");
         } else {
             env_logger::init();
         }
     }
+    #[cfg(target_arch = "wasm32")]
+    use instant::Instant;
+    #[cfg(not(target_arch = "wasm32"))]
+    use std::time::Instant;
+
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_inner_size(PhysicalSize::new(1600, 1200))
         .build(&event_loop)
-        .unwrap();
+        .expect("Could not build window");
+
     window.set_title("Elastic Interval Geometry");
     #[cfg(target_arch = "wasm32")]
     {
         // Winit prevents sizing with CSS, so we have to set
         // the size manually when on web.
-        use winit::dpi::PhysicalSize;
-        window.set_inner_size(PhysicalSize::new(450, 400));
+        window.set_inner_size(PhysicalSize::new(2048, 1600));
 
         use winit::platform::web::WindowExtWebSys;
         web_sys::window()
             .and_then(|win| win.document())
             .and_then(|doc| {
-                let dst = doc.get_element_by_id("canvas")?;
+                let dst = doc.get_element_by_id("body")?;
                 let canvas = web_sys::Element::from(window.canvas());
+                canvas.set_id("canvas");
                 dst.append_child(&canvas).ok()?;
                 Some(())
             })
@@ -370,8 +377,8 @@ pub fn run() {
     let mut state = State::new(graphics);
     let mut elastic = ElasticInterval::new(CODE);
 
-    let start_time = std::time::Instant::now();
-    let mut last_frame = std::time::Instant::now();
+    let start_time = Instant::now();
+    let mut last_frame = Instant::now();
     let mut frame_no = 0;
 
     event_loop.run(move |event, _, control_flow| {
@@ -395,6 +402,27 @@ pub fn run() {
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                         state.resize(**new_inner_size);
                     }
+                    WindowEvent::KeyboardInput { input, .. } => {
+                        match input.virtual_keycode {
+                            Some(VirtualKeyCode::F) => {
+                                #[cfg(target_arch = "wasm32")]
+                                web_sys::window()
+                                    .and_then(|win| {
+                                        let canvas = win.document()?.get_element_by_id("canvas")?;
+                                        match canvas.request_fullscreen() {
+                                            Ok(_) => {
+                                                info!("FULLSCREEN!!");
+                                            }
+                                            Err(e) => {
+                                                info!("Could not request fullscreen: {e:?}");
+                                            }
+                                        }
+                                        Some(())
+                                    });
+                            }
+                            _ => {}
+                        }
+                    }
                     WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. } => {
                         state.camera.window_event(event)
                     }
@@ -402,7 +430,7 @@ pub fn run() {
                 }
             }
             Event::RedrawRequested(_) => {
-                let now = std::time::Instant::now();
+                let now = Instant::now();
                 let dt = now - start_time;
                 elastic.iterate(&mut state.camera);
                 state.update(&elastic.fabric);
@@ -411,7 +439,7 @@ pub fn run() {
                 let avg_time = dt.as_secs_f64() / (frame_no as f64);
                 last_frame = now;
                 if frame_no % 100 == 0 {
-                    println!("frame {:<8} {}µs/frame ({:.1} FPS avg)",
+                    info!("frame {:<8} {}µs/frame ({:.1} FPS avg)",
                              frame_no, frame_time.as_micros(), 1.0 / avg_time);
                 }
                 match state.render() {

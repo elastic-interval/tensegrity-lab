@@ -39,6 +39,8 @@ web-sys = { version = "0.3", features = [
     "Window",
     "Element",
 ]}
+instant = { version = "0.1.12", features = [ "stdweb" ] }
+
 
 [profile.release]
 opt-level = 2 # fast and small wasm
