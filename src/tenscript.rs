@@ -68,7 +68,7 @@ pub enum TenscriptNode {
 #[derive(Debug, Clone, Default)]
 pub struct BuildPhase {
     pub seed: Option<Spin>,
-    pub node: Option<TenscriptNode>,
+    pub root: Option<TenscriptNode>,
 }
 
 #[derive(Debug, Clone, Default)]

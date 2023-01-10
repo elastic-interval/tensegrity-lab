@@ -58,7 +58,10 @@ impl Growth {
     }
 
     pub fn init(&mut self, fabric: &mut Fabric) {
-        let (buds, marks) = self.use_node(fabric, None, None);
+        let BuildPhase { seed, root } = &self.plan.build_phase;
+        let spin = seed.unwrap_or(Spin::Left);
+        let node = root.clone().unwrap();
+        let (buds, marks) = self.execute_node(fabric, true, spin, node, None);
         self.buds = buds;
         self.marks = marks;
     }
@@ -112,25 +115,21 @@ impl Growth {
     }
 
     fn execute_bud(&self, fabric: &mut Fabric, Bud { face_id, forward, scale_factor, node }: Bud) -> (Vec<Bud>, Vec<PostMark>) {
+        let (mut buds, mut marks) = (vec![], vec![]);
         let face = fabric.face(face_id);
-        let Some(next_twist_switch) = forward.chars().next() else { return (vec![], vec![]); };
-        let mut buds = Vec::new();
-        let mut marks = Vec::new();
-        let spin = if next_twist_switch == 'X' { face.spin.opposite() } else { face.spin };
-        let reduced: String = forward[1..].into();
-        if reduced.is_empty() {
-            let spin_node = node.map(|n| (spin, n));
-            let (node_buds, node_marks) = self.use_node(fabric, spin_node, Some(face_id));
-            buds.extend(node_buds);
-            marks.extend(node_marks);
-        } else {
+        let spin = if forward.starts_with('X') { face.spin.opposite() } else { face.spin };
+        if !forward.is_empty() {
             let [_, (_, a_pos_face_id)] = fabric.single_twist(spin, self.pretenst_factor, scale_factor, Some(face_id));
             buds.push(Bud {
                 face_id: a_pos_face_id,
-                forward: reduced,
+                forward: forward[1..].into(),
                 scale_factor,
                 node,
             });
+        } else if let Some(node) = node {
+            let (node_buds, node_marks) = self.execute_node(fabric, false, spin, node, Some(face_id));
+            buds.extend(node_buds);
+            marks.extend(node_marks);
         };
         (buds, marks)
     }
@@ -154,14 +153,7 @@ impl Growth {
         shapers
     }
 
-    fn use_node(&self, fabric: &mut Fabric, spin_node: Option<(Spin, TenscriptNode)>, base_face_id: Option<UniqueId>) -> (Vec<Bud>, Vec<PostMark>) {
-        let root = &spin_node.is_some();
-        let (spin, node) = spin_node.unwrap_or({
-            let BuildPhase { seed, node } = &self.plan.build_phase;
-            let spin = seed.unwrap_or(Spin::Left);
-            let root_node = node.clone().unwrap();
-            (spin, root_node)
-        });
+    fn execute_node(&self, fabric: &mut Fabric, root: bool, spin: Spin, node: TenscriptNode, base_face_id: Option<UniqueId>) -> (Vec<Bud>, Vec<PostMark>) {
         let mut buds: Vec<Bud> = vec![];
         let mut marks: Vec<PostMark> = vec![];
         match node {
@@ -181,7 +173,7 @@ impl Growth {
                 });
                 if needs_double {
                     let faces = fabric.double_twist(spin, self.pretenst_factor, 1.0, base_face_id);
-                    for (sought_face_name, face_id) in if *root { &faces } else { &faces[1..] } {
+                    for (sought_face_name, face_id) in if root { &faces } else { &faces[1..] } {
                         for subtree in &subtrees {
                             match subtree {
                                 Grow { face_name, forward, scale_factor, branch }
@@ -231,7 +223,7 @@ impl Growth {
         let (alpha, omega) = (fabric.face(*alpha_face), fabric.face(*omega_face));
         let (mut alpha_ends, omega_ends) = (alpha.radial_joints(fabric), omega.radial_joints(fabric));
         alpha_ends.reverse();
-        let (mut alpha_points, omega_points) =(
+        let (mut alpha_points, omega_points) = (
             alpha_ends.map(|id| fabric.location(id)),
             omega_ends.map(|id| fabric.location(id))
         );
