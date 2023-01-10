@@ -209,14 +209,14 @@ impl State {
     }
 }
 
-struct ElasticInterval {
+struct PlanRunner {
     world: World,
     fabric: Fabric,
     iterations_per_frame: usize,
     growth: Growth,
 }
 
-impl ElasticInterval {
+impl PlanRunner {
     pub fn new(code: &str) -> Self {
         Self {
             world: World::default(),
@@ -348,7 +348,7 @@ pub fn run() {
     }
     let graphics = pollster::block_on(GraphicsWindow::new(&window));
     let mut state = State::new(graphics);
-    let mut elastic = ElasticInterval::new(CODE);
+    let mut elastic = PlanRunner::new(CODE);
 
     let start_time = Instant::now();
     let mut last_frame = Instant::now();
