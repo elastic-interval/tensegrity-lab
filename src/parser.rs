@@ -143,10 +143,10 @@ fn build(FabricPlan { build_phase, .. }: &mut FabricPlan, expressions: &[Express
                 build_phase.seed = Some(seed_type);
             }
             "branch" | "grow" | "mark" => {
-                if build_phase.node.is_some() {
+                if build_phase.root.is_some() {
                     return Err(AlreadyDefined { property: "growth", expression: expression.clone() });
                 };
-                build_phase.node = Some(tenscript_node(expression)?);
+                build_phase.root = Some(tenscript_node(expression)?);
             }
             _ => return Err(IllegalCall { context: "build phase", expression: expression.clone() })
         }

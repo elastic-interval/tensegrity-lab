@@ -3,7 +3,6 @@ use std::{iter, mem};
 use bytemuck::{cast_slice, Pod, Zeroable};
 #[allow(unused_imports)]
 use log::info;
-use log::LevelFilter;
 use wgpu::util::DeviceExt;
 use winit::{
     event::*,
@@ -433,6 +432,15 @@ pub fn run() {
     });
 }
 
+// const CODE: &str = "
+// (fabric
+//       (name \"Halo by Crane\")
+//       (build
+//             (seed :left)
+//             (grow A+ 5)
+//       )
+// )
+// ";
 const CODE: &str = "
 (fabric
       (name \"Halo by Crane\")
