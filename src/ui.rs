@@ -2,12 +2,12 @@ use iced_wgpu::Renderer;
 use iced_winit::{Command, Element, Length, Program};
 use iced_winit::widget::{Column, Row, slider};
 
-struct Controls {
+pub struct Controls {
     measure_threshold: f32,
 }
 
 #[derive(Debug, Clone)]
-enum Message {
+pub enum Message {
     MeasureThresholdChanged(f32),
 }
 

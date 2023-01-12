@@ -1,6 +1,8 @@
 use std::{iter, mem};
 
 use bytemuck::{cast_slice, Pod, Zeroable};
+use iced_wgpu::{wgpu, Backend, Renderer, Settings, Viewport};
+use iced_winit::{Debug, program, Size};
 #[allow(unused_imports)]
 use log::info;
 use wgpu::util::DeviceExt;
@@ -22,6 +24,7 @@ use crate::growth::Growth;
 use crate::interval::Interval;
 use crate::interval::Span::{Approaching, Fixed};
 use crate::parser::parse;
+use crate::ui;
 use crate::world::World;
 
 #[repr(C)]
@@ -63,6 +66,9 @@ struct State {
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     camera: Camera,
+    staging_belt: wgpu::util::StagingBelt,
+    iced_state: program::State<ui::Controls>,
+    iced_renderer: Renderer,
 }
 
 impl State {
@@ -126,6 +132,24 @@ impl State {
             contents: cast_slice(&vertices),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
+        let staging_belt = wgpu::util::StagingBelt::new(5 * 1024);
+        let mut debug = Debug::new();
+        let mut renderer = Renderer::new(Backend::new(
+            &graphics.device,
+            Settings::default(),
+            graphics.config.format,
+        ));
+        let controls = ui::Controls::new();
+        let viewport = Viewport::with_physical_size( // TODO
+                                                     Size::new(1600, 1200),
+                                                     1.0,
+        );
+        let state = program::State::new(
+            controls,
+            viewport.logical_size(),
+            &mut renderer,
+            &mut debug,
+        );
 
         State {
             vertices,
@@ -135,6 +159,9 @@ impl State {
             uniform_buffer,
             uniform_bind_group,
             camera,
+            staging_belt,
+            iced_state: state,
+            iced_renderer: renderer,
         }
     }
 
@@ -203,6 +230,21 @@ impl State {
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             render_pass.draw(0..self.vertices.len() as u32, 0..1);
         }
+        let viewport = Viewport::with_physical_size(
+            Size::new(1600, 1200),
+            1.0,
+        ); // TODO
+        self.iced_renderer.with_primitives(|backend, primitive| {
+            backend.present(
+                &self.graphics.device,
+                &mut self.staging_belt,
+                &mut encoder,
+                &view,
+                primitive,
+                &viewport,
+                &[""],
+            );
+        });
         self.graphics.queue.submit(iter::once(encoder.finish()));
         output.present();
         Ok(())
