@@ -6,6 +6,28 @@ use crate::interval::Span::{Approaching, Fixed};
 use crate::parser::parse;
 use crate::world::World;
 
+const CODE: &str = "
+(fabric
+      (name \"Halo by Crane\")
+      (build
+            (seed :left)
+            (grow A+ 5 (scale 92%)
+                (branch
+                        (grow B- 12 (scale 92%)
+                             (branch (mark A+ :halo-end))
+                        )
+                        (grow D- 11 (scale 92%)
+                            (branch (mark A+ :halo-end))
+                        )
+                 )
+            )
+      )
+      (shape
+        (pull-together :halo-end)
+      )
+)
+";
+
 pub struct PlanRunner {
     pub world: World,
     pub fabric: Fabric,
@@ -13,16 +35,18 @@ pub struct PlanRunner {
     pub growth: Growth,
 }
 
-impl PlanRunner {
-    pub fn new(code: &str) -> Self {
+impl Default for PlanRunner {
+    fn default() -> Self {
         Self {
             world: World::default(),
             fabric: Fabric::default(),
             iterations_per_frame: 100,
-            growth: Growth::new(parse(code).unwrap()),
+            growth: Growth::new(parse(CODE).unwrap()),
         }
     }
+}
 
+impl PlanRunner {
     pub fn iterate(&mut self, camera: &mut Camera) {
         for _ in 0..self.iterations_per_frame {
             self.fabric.iterate(&self.world);
@@ -67,16 +91,6 @@ impl PlanRunner {
                 self.fabric.set_stage(ShapingDone);
             }
             ShapingDone => {
-                self.fabric.set_stage(Vulcanize);
-            }
-            Vulcanize => {
-                if self.growth.vulcanize(&mut self.fabric) {
-                    self.fabric.set_stage(VulcanizeApproach);
-                } else {
-                    self.set_pretensing(camera);
-                }
-            }
-            VulcanizeApproach => {
                 self.finish_approach();
                 self.set_pretensing(camera);
             }

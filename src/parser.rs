@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 
 use crate::error::Error;
-use crate::tenscript::{FabricPlan, FaceName, Spin, SurfaceCharacterSpec, TenscriptNode, VulcanizeType};
+use crate::tenscript::{FabricPlan, FaceName, Spin, SurfaceCharacterSpec, TenscriptNode};
 use crate::parser::ErrorKind::{AlreadyDefined, BadCall, IllegalCall, IllegalRepetition, Mismatch, MultipleBranches, Unknown};
 use crate::expression;
 use crate::expression::Expression;
@@ -158,19 +158,6 @@ fn shape(FabricPlan { shape_phase, .. }: &mut FabricPlan, expressions: &[Express
     for expression in expressions {
         let Call { head, tail } = expect_call("shape", expression)?;
         match head {
-            "vulcanize" => {
-                if shape_phase.vulcanize.is_some() {
-                    return Err(AlreadyDefined { property: "vulcanize", expression: expression.clone() });
-                };
-                let [ value] = tail else {
-                    return Err(BadCall { context: "shape phase", expected: "(vulcanize <value>)", expression: expression.clone() });
-                };
-                let vulcanize_type = expect_enum!(value, {
-                        "bow-tie" => VulcanizeType::Bowtie,
-                        "snelson" => VulcanizeType::Snelson,
-                    });
-                shape_phase.vulcanize = Some(vulcanize_type);
-            }
             "pull-together" => {
                 for mark in tail {
                     let Expression::Atom(ref mark_name) = mark else {

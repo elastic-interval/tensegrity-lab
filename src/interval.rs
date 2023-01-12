@@ -28,19 +28,6 @@ pub enum Span {
 pub enum Role {
     Push,
     Pull,
-    TwistPush,
-    TwistRingPull,
-    TwistVerticalPull,
-    DoubleTwistPush,
-    DoubleTwistPull,
-    BowtiePull,
-    RadialPull,
-}
-
-impl Role {
-    pub fn is_push(&self) -> bool {
-        matches!(self, Push | TwistPush | DoubleTwistPush)
-    }
 }
 
 #[derive(Clone, Copy, Debug)]
