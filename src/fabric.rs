@@ -63,6 +63,7 @@ pub enum Stage {
     Shaped,
     ShapedApproach,
     ShapingDone,
+    ShapingCalm,
     Pretensing,
     Pretenst,
 }
@@ -119,7 +120,8 @@ impl Fabric {
             Shaped => 0,
             ShapedApproach => 5000,
             ShapingDone => 0,
-            Pretensing => 10000,
+            ShapingCalm => 35000,
+            Pretensing => 20000,
             Pretenst => 0,
         };
         if countdown > 0 {

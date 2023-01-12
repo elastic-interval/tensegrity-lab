@@ -92,6 +92,9 @@ impl PlanRunner {
             }
             ShapingDone => {
                 self.finish_approach();
+                self.fabric.set_stage(ShapingCalm);
+            }
+            ShapingCalm => {
                 self.set_pretensing(camera);
             }
             Pretensing => {
@@ -110,9 +113,9 @@ impl PlanRunner {
     }
 
     fn  set_pretensing(&mut self, camera: &mut Camera) {
+        self.fabric.install_measures();
         let up = self.fabric.prepare_for_pretensing(1.03);
         camera.go_up(up);
-        self.fabric.install_measures();
         self.fabric.set_stage(Pretensing)
     }
 }
