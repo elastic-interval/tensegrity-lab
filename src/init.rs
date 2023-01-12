@@ -67,8 +67,8 @@ struct State {
     uniform_bind_group: wgpu::BindGroup,
     camera: Camera,
     staging_belt: wgpu::util::StagingBelt,
-    iced_state: program::State<ui::Controls>,
-    iced_renderer: Renderer,
+    gui_state: program::State<ui::Controls>,
+    gui_renderer: Renderer,
 }
 
 impl State {
@@ -160,8 +160,8 @@ impl State {
             uniform_bind_group,
             camera,
             staging_belt,
-            iced_state: state,
-            iced_renderer: renderer,
+            gui_state: state,
+            gui_renderer: renderer,
         }
     }
 
@@ -234,20 +234,21 @@ impl State {
             Size::new(1600, 1200),
             1.0,
         ); // TODO
-        self.iced_renderer.with_primitives(|backend, primitive| {
+        self.gui_renderer.with_primitives(|backend, primitives| {
             backend.present(
                 &self.graphics.device,
                 &mut self.staging_belt,
                 &mut encoder,
                 &view,
-                primitive,
+                primitives,
                 &viewport,
-                &[""],
+                &["Tensegrity Lab"],
             );
         });
         self.staging_belt.finish();
         self.graphics.queue.submit(iter::once(encoder.finish()));
         output.present();
+        self.staging_belt.recall();
         Ok(())
     }
 }
