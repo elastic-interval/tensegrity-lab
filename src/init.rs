@@ -18,6 +18,7 @@ use crate::camera::Camera;
 use crate::fabric::Fabric;
 use crate::graphics::{get_depth_stencil_state, get_primitive_state, GraphicsWindow};
 use crate::interval::Interval;
+use crate::interval::Role::{Pull, Push};
 use crate::plan_runner::PlanRunner;
 
 #[repr(C)]
@@ -30,10 +31,9 @@ struct Vertex {
 impl Vertex {
     pub fn for_interval(interval: &Interval, fabric: &Fabric) -> [Vertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
-        let color = if interval.role.is_push() {
-            [1.0, 0.4, 0.4, 1.0]
-        } else {
-            [0.3, 0.3, 1.0, 1.0]
+        let color = match interval.role {
+            Push => [1.0, 0.4, 0.4, 1.0],
+            Pull => [0.3, 0.3, 1.0, 1.0]
         };
         [
             Vertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color },
@@ -249,7 +249,7 @@ pub fn run() {
     }
     let graphics = pollster::block_on(GraphicsWindow::new(&window));
     let mut state = State::new(graphics);
-    let mut elastic = PlanRunner::new(CODE);
+    let mut elastic = PlanRunner::default();
 
     let start_time = Instant::now();
     let mut last_frame = Instant::now();
@@ -332,26 +332,3 @@ pub fn run() {
         }
     });
 }
-
-const CODE: &str = "
-(fabric
-      (name \"Halo by Crane\")
-      (build
-            (seed :left)
-            (grow A+ 5 (scale 92%)
-                (branch
-                        (grow B- 12 (scale 92%)
-                             (branch (mark A+ :halo-end))
-                        )
-                        (grow D- 11 (scale 92%)
-                            (branch (mark A+ :halo-end))
-                        )
-                 )
-            )
-      )
-      (shape
-        (pull-together :halo-end)
-        (vulcanize :bow-tie)
-      )
-)
-";

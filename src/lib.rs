@@ -20,7 +20,6 @@ pub mod ball;
 pub mod camera;
 pub mod graphics;
 pub mod twist;
-pub mod vulcanize;
 pub mod error;
 pub mod parser;
 pub mod scanner;
