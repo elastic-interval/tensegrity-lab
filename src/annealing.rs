@@ -49,6 +49,17 @@ impl JointIncident {
             Measure => panic!("Should be no measures yet"),
         }
     }
+
+    fn adjacent_joints(&self) -> Vec<usize> {
+        let mut vertices: Vec<usize> = vec![];
+        if let Some(push) = &self.push {
+            vertices.push(push.other_joint(self.index));
+        }
+        for pull in &self.pulls {
+            vertices.push(pull.other_joint(self.index));
+        }
+        vertices
+    }
 }
 
 #[derive(Debug)]
@@ -87,27 +98,29 @@ impl PairGenerator {
         }
     }
 
-    fn add_pairs_for(&mut self, JointIncident{index, location, push, pulls}: JointIncident) {
-        let Some(push) = push else {
+    fn add_pairs_for(&mut self, joint: JointIncident) {
+        let Some(push) = &joint.push else {
             return;
         };
         let length_limit = push.ideal_length();
+        let one_step = joint.adjacent_joints();
+        let two_steps: Vec<usize> = one_step.iter().flat_map(|a| self.joint_incident[*a].adjacent_joints()).collect();
         for other_joint in self.joint_incident.clone() {
-            if index == other_joint.index {
+            if joint.index == other_joint.index {
                 continue;
             }
-            if push.other_joint(index) == other_joint.index {
+            if one_step.contains(&other_joint.index) {
                 continue;
             }
-            if pulls.iter().any(|pull| pull.other_joint(index) == other_joint.index) {
+            if two_steps.contains(&other_joint.index) {
                 continue;
             }
-            let length = location.distance(other_joint.location);
+            let length = joint.location.distance(other_joint.location);
             if length > length_limit {
                 continue;
             }
             self.add_pair(MeasurePair {
-                alpha_index: index,
+                alpha_index: joint.index,
                 omega_index: other_joint.index,
                 length,
             });

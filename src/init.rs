@@ -32,9 +32,13 @@ impl Vertex {
     pub fn for_interval(interval: &Interval, fabric: &Fabric) -> [Vertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
         let color = match interval.role {
-            Push => [1.0, 0.4, 0.4, 1.0],
-            Pull => [0.3, 0.3, 1.0, 1.0],
-            Measure => [0.0, 0.8, 0.0, 1.0],
+            Push => [1.0, 1.0, 1.0, 1.0],
+            Pull => [0.2, 0.2, 1.0, 1.0],
+            Measure => if interval.strain < 0.0 {
+                [1.0, 0.8, 0.0, 1.0]
+            } else {
+                [0.0, 1.0, 0.0, 1.0]
+            },
         };
         [
             Vertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color },
