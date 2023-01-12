@@ -28,6 +28,7 @@ pub enum Span {
 pub enum Role {
     Push,
     Pull,
+    Measure,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -44,6 +45,7 @@ pub struct Interval {
     pub material: Material,
     pub span: Span,
     pub unit: Vector3<f32>,
+    pub strain: f32,
 }
 
 impl Interval {
@@ -61,6 +63,7 @@ impl Interval {
             material,
             span,
             unit: zero(),
+            strain: 0.0,
         }
     }
 
@@ -104,16 +107,19 @@ impl Interval {
             }
         };
         let real_length = self.length(joints);
-        let strain = match self.role {
+        self.strain = match self.role {
             Push if real_length > ideal_length => 0.0, // do not pull
             Pull if real_length < ideal_length => 0.0, // do not push
             _ => (real_length - ideal_length) / ideal_length
         };
+        if self.role == Measure { // have no effect
+            return;
+        }
         let stiffness_factor = match stage {
             Pretensing { .. } | Pretenst => world.pretenst_physics.stiffness,
             _ => world.safe_physics.stiffness,
         };
-        let force = strain * self.material.stiffness * stiffness_factor;
+        let force = self.strain * self.material.stiffness * stiffness_factor;
         let force_vector: Vector3<f32> = self.unit * force / 2.0;
         joints[self.alpha_index].force += force_vector;
         joints[self.omega_index].force -= force_vector;

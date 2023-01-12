@@ -18,7 +18,7 @@ use crate::camera::Camera;
 use crate::fabric::Fabric;
 use crate::graphics::{get_depth_stencil_state, get_primitive_state, GraphicsWindow};
 use crate::interval::Interval;
-use crate::interval::Role::{Pull, Push};
+use crate::interval::Role::{Measure, Pull, Push};
 use crate::plan_runner::PlanRunner;
 
 #[repr(C)]
@@ -33,7 +33,8 @@ impl Vertex {
         let (alpha, omega) = interval.locations(&fabric.joints);
         let color = match interval.role {
             Push => [1.0, 0.4, 0.4, 1.0],
-            Pull => [0.3, 0.3, 1.0, 1.0]
+            Pull => [0.3, 0.3, 1.0, 1.0],
+            Measure => [0.0, 0.8, 0.0, 1.0],
         };
         [
             Vertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color },
@@ -116,7 +117,7 @@ impl State {
             multiview: None,
         });
 
-        let vertices = vec![Vertex::default(); 1000]; // TODO: why 1000?
+        let vertices = vec![Vertex::default(); 10000]; // TODO: why 1000?
         let vertex_buffer = graphics.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: cast_slice(&vertices),

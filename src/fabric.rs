@@ -12,7 +12,7 @@ use cgmath::num_traits::zero;
 use crate::fabric::Stage::{*};
 use crate::face::Face;
 use crate::interval::{Interval, Role, Material};
-use crate::interval::Role::{Pull, Push};
+use crate::interval::Role::{Measure, Pull, Push};
 use crate::interval::Span::{Approaching, Fixed};
 use crate::joint::Joint;
 use crate::tenscript::Spin;
@@ -164,7 +164,7 @@ impl Fabric {
         let id = self.create_id();
         let material = match role {
             Push => self.push_material,
-            Pull => self.pull_material
+            Pull | Measure => self.pull_material
         };
         self.intervals.insert(id, Interval::new(alpha_index, omega_index, role, material, span));
         id
@@ -244,7 +244,7 @@ impl Fabric {
             let length = interval.length(&self.joints);
             interval.span = match interval.role {
                 Push => Approaching { initial_length: length, length: length * push_extension },
-                Pull => Fixed { length }
+                Pull | Measure => Fixed { length }
             };
         }
         for joint in self.joints.iter_mut() {

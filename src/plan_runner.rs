@@ -109,9 +109,10 @@ impl PlanRunner {
         }
     }
 
-    fn set_pretensing(&mut self, camera: &mut Camera) {
+    fn  set_pretensing(&mut self, camera: &mut Camera) {
         let up = self.fabric.prepare_for_pretensing(1.03);
         camera.go_up(up);
+        self.fabric.install_measures();
         self.fabric.set_stage(Pretensing)
     }
 }
