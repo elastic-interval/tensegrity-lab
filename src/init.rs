@@ -140,10 +140,10 @@ impl State {
             graphics.config.format,
         ));
         let controls = ui::Controls::new();
-        let viewport = Viewport::with_physical_size( // TODO
-                                                     Size::new(1600, 1200),
-                                                     1.0,
-        );
+        let viewport = Viewport::with_physical_size(
+            Size::new(1600, 1200),
+            1.0,
+        ); // TODO
         let state = program::State::new(
             controls,
             viewport.logical_size(),
@@ -245,6 +245,7 @@ impl State {
                 &[""],
             );
         });
+        self.staging_belt.finish();
         self.graphics.queue.submit(iter::once(encoder.finish()));
         output.present();
         Ok(())
@@ -487,17 +488,17 @@ const CODE: &str = "
 (fabric
       (name \"Halo by Crane\")
       (build
-            (seed :left)
-            (grow A+ 5 (scale 92%)
-                (branch
-                        (grow B- 12 (scale 92%)
-                             (branch (mark A+ :halo-end))
-                        )
-                        (grow D- 11 (scale 92%)
-                            (branch (mark A+ :halo-end))
-                        )
-                 )
-            )
+        (seed :left)
+        (grow A+ 5 (scale 92%)
+            (branch
+                (grow B- 12 (scale 92%)
+                    (branch (mark A+ :halo-end))
+                )
+                (grow D- 11 (scale 92%)
+                    (branch (mark A+ :halo-end))
+                )
+             )
+        )
       )
       (shape
         (pull-together :halo-end)
