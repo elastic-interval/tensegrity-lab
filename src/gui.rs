@@ -184,7 +184,7 @@ impl Program for Controls {
                                     .style(Color::WHITE),
                             )
                             .push(
-                                slider(0.0f32..=1.0, self.measure_threshold, move |new_threshold| {
+                                slider(0.0f32..=1.0, self.measure_threshold, |new_threshold| {
                                     Message::MeasureThresholdChanged(new_threshold)
                                 })
                                     .step(0.01)

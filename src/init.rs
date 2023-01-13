@@ -438,7 +438,6 @@ pub fn run() {
                 }
             }
             Event::MainEventsCleared => {
-                // If there are events pending
                 state.gui.update();
 
                 window.request_redraw();
