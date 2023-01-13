@@ -27,6 +27,6 @@ pub mod scanner;
 pub mod expression;
 pub mod tenscript;
 pub mod init;
-pub mod ui;
+pub mod gui;
 
 pub use init::run;
