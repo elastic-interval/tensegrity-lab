@@ -116,7 +116,7 @@ impl Interval {
             return;
         }
         let stiffness_factor = match stage {
-            Pretensing { .. } | Pretenst => world.pretenst_physics.stiffness,
+            Pretensing { .. } | Pretenst| Evaporating => world.pretenst_physics.stiffness,
             _ => world.safe_physics.stiffness,
         };
         let force = self.strain * self.material.stiffness * stiffness_factor;
