@@ -21,12 +21,6 @@ impl Display for FaceName {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum VulcanizeType {
-    Bowtie,
-    Snelson,
-}
-
-#[derive(Debug, Clone, Copy)]
 pub enum SurfaceCharacterSpec {
     Frozen,
     Bouncy,
@@ -73,7 +67,6 @@ pub struct BuildPhase {
 
 #[derive(Debug, Clone, Default)]
 pub struct ShapePhase {
-    pub vulcanize: Option<VulcanizeType>,
     pub pull_together: Vec<String>,
 }
 

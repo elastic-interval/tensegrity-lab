@@ -8,9 +8,9 @@ use cgmath::num_traits::zero;
 use crate::world::{Physics, SurfaceCharacter};
 
 const RESURFACE: f32 = 0.01;
-const STICKY_UP_DRAG: f32 = 0.03;
-const STICKY_DOWN_DRAG: f32 = 0.3;
 const AMBIENT_MASS: f32 = 0.001;
+const AMBIENT_DRAG_FACTOR: f32 = 0.9999;
+const STICKY_DOWN_DRAG_FACTOR: f32 = 0.8;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Joint {
@@ -47,6 +47,7 @@ impl Joint {
         if altitude >= 0.0 || *gravity == 0.0 {
             self.velocity.y -= gravity;
             self.velocity += self.force / self.interval_mass - self.velocity * self.speed2 * *viscosity;
+            self.velocity *= AMBIENT_DRAG_FACTOR;
         } else {
             let degree_submerged: f32 = if -altitude < 1.0 { -altitude } else { 0.0 };
             let antigravity = antigravity * degree_submerged;
@@ -58,15 +59,13 @@ impl Joint {
                 }
                 SurfaceCharacter::Sticky => {
                     if self.velocity.y < 0.0 {
-                        let sticky_drag = 1.0 - STICKY_DOWN_DRAG; // TODO: use viscosity
-                        self.velocity.x *= sticky_drag;
+                        self.velocity.x *= STICKY_DOWN_DRAG_FACTOR;
                         self.velocity.y += antigravity;
-                        self.velocity.z *= sticky_drag;
+                        self.velocity.z *= STICKY_DOWN_DRAG_FACTOR;
                     } else {
-                        let sticky_drag = 1.0 - STICKY_UP_DRAG; // TODO: use viscosity
-                        self.velocity.x *= sticky_drag;
+                        self.velocity.x *= AMBIENT_DRAG_FACTOR;
                         self.velocity.y += antigravity;
-                        self.velocity.z *= sticky_drag;
+                        self.velocity.z *= AMBIENT_DRAG_FACTOR;
                     }
                 }
                 SurfaceCharacter::Bouncy => {

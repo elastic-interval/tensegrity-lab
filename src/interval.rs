@@ -7,11 +7,10 @@ use cgmath::{InnerSpace, Point3, Vector3};
 use cgmath::num_traits::zero;
 use fast_inv_sqrt::InvSqrt32;
 
-use crate::fabric::{Progress, Stage};
-use crate::fabric::Stage::{*};
+use crate::fabric::Progress;
 use crate::interval::Role::{*};
 use crate::joint::Joint;
-use crate::world::World;
+use crate::world::Physics;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Span {
@@ -28,19 +27,7 @@ pub enum Span {
 pub enum Role {
     Push,
     Pull,
-    TwistPush,
-    TwistRingPull,
-    TwistVerticalPull,
-    DoubleTwistPush,
-    DoubleTwistPull,
-    BowtiePull,
-    RadialPull,
-}
-
-impl Role {
-    pub fn is_push(&self) -> bool {
-        matches!(self, Push | TwistPush | DoubleTwistPush)
-    }
+    Measure,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -57,6 +44,7 @@ pub struct Interval {
     pub material: Material,
     pub span: Span,
     pub unit: Vector3<f32>,
+    pub strain: f32,
 }
 
 impl Interval {
@@ -74,6 +62,7 @@ impl Interval {
             material,
             span,
             unit: zero(),
+            strain: 0.0,
         }
     }
 
@@ -108,7 +97,7 @@ impl Interval {
         }
     }
 
-    pub fn iterate(&mut self, world: &World, joints: &mut [Joint], stage: Stage, progress: Progress) {
+    pub fn iterate(&mut self, joints: &mut [Joint], progress: &Progress, physics: &Physics) {
         let ideal_length = match self.span {
             Span::Fixed { length } => { length }
             Span::Approaching { initial_length, length, .. } => {
@@ -117,16 +106,15 @@ impl Interval {
             }
         };
         let real_length = self.length(joints);
-        let strain = match self.role {
+        self.strain = match self.role {
             Push if real_length > ideal_length => 0.0, // do not pull
             Pull if real_length < ideal_length => 0.0, // do not push
             _ => (real_length - ideal_length) / ideal_length
         };
-        let stiffness_factor = match stage {
-            Pretensing { .. } | Pretenst => world.pretenst_physics.stiffness,
-            _ => world.safe_physics.stiffness,
-        };
-        let force = strain * self.material.stiffness * stiffness_factor;
+        if self.role == Measure { // have no effect
+            return;
+        }
+        let force = self.strain * self.material.stiffness * physics.stiffness;
         let force_vector: Vector3<f32> = self.unit * force / 2.0;
         joints[self.alpha_index].force += force_vector;
         joints[self.omega_index].force -= force_vector;
