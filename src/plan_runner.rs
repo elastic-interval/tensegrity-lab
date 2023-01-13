@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use crate::camera::Camera;
 use crate::fabric::Fabric;
 use crate::growth::Growth;
@@ -51,7 +50,7 @@ enum Stage {
 pub struct PlanRunner {
     pub world: World,
     pub fabric: Fabric,
-    pub frozen_fabric: Fabric,
+    pub frozen: Option<Fabric>,
     pub iterations_per_frame: usize,
     pub growth: Growth,
     stage: Stage,
@@ -62,7 +61,7 @@ impl Default for PlanRunner {
         Self {
             world: World::default(),
             fabric: Fabric::default(),
-            frozen_fabric: Fabric::default(),
+            frozen: None,
             iterations_per_frame: 100,
             growth: Growth::new(parse(CODE).unwrap()),
             stage: Empty,
@@ -120,8 +119,7 @@ impl PlanRunner {
                 self.set_stage(ShapingCalm);
             }
             ShapingCalm => {
-                self.frozen_fabric = self.fabric.clone();
-                println!("Fabric frozen");
+                self.frozen = Some(self.fabric.clone());
                 self.start_pretensing(camera);
             }
             Pretensing => {
@@ -142,13 +140,7 @@ impl PlanRunner {
         let min_pull = self.fabric.intervals
             .iter()
             .filter(|(_, Interval { role, .. })| *role == Measure)
-            .min_by(|(_, a), (_, b)| if a.strain < b.strain {
-                Ordering::Less
-            } else if a.strain > b.strain {
-                Ordering::Greater
-            } else {
-                Ordering::Equal
-            });
+            .min_by(|(_, a), (_, b)|  a.strain.partial_cmp(&b.strain).unwrap());
         if let Some((pushiest, _)) = min_pull {
             dbg!(&pushiest);
             self.fabric.remove_interval(*pushiest)
