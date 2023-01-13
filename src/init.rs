@@ -1,8 +1,8 @@
 use std::{iter, mem};
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use iced_wgpu::{wgpu, Backend, Renderer, Settings, Viewport};
-use iced_winit::{Debug, program, Size};
+use iced_wgpu::{Viewport, wgpu};
+use iced_winit::{Clipboard, Color, conversion, Debug, renderer, Size};
 #[allow(unused_imports)]
 use log::info;
 use wgpu::util::DeviceExt;
@@ -11,8 +11,10 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
-use winit::dpi::PhysicalSize;
+use winit::dpi::{PhysicalPosition, PhysicalSize};
+use winit::window::Window;
 
+use gui::GUI;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
@@ -21,10 +23,10 @@ use crate::fabric::Fabric;
 use crate::fabric::Stage::{*};
 use crate::graphics::{get_depth_stencil_state, get_primitive_state, GraphicsWindow};
 use crate::growth::Growth;
+use crate::gui;
 use crate::interval::Interval;
 use crate::interval::Span::{Approaching, Fixed};
 use crate::parser::parse;
-use crate::ui;
 use crate::world::World;
 
 #[repr(C)]
@@ -66,13 +68,11 @@ struct State {
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     camera: Camera,
-    staging_belt: wgpu::util::StagingBelt,
-    gui_state: program::State<ui::Controls>,
-    gui_renderer: Renderer,
+    gui: GUI,
 }
 
 impl State {
-    fn new(graphics: GraphicsWindow) -> State {
+    fn new(graphics: GraphicsWindow, window: &Window) -> State {
         let shader = graphics.get_shader_module();
         let scale = 3.0;
         let aspect = graphics.config.width as f32 / graphics.config.height as f32;
@@ -132,24 +132,7 @@ impl State {
             contents: cast_slice(&vertices),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
-        let staging_belt = wgpu::util::StagingBelt::new(5 * 1024);
-        let mut debug = Debug::new();
-        let mut renderer = Renderer::new(Backend::new(
-            &graphics.device,
-            Settings::default(),
-            graphics.config.format,
-        ));
-        let controls = ui::Controls::new();
-        let viewport = Viewport::with_physical_size(
-            Size::new(1600, 1200),
-            1.0,
-        ); // TODO
-        let state = program::State::new(
-            controls,
-            viewport.logical_size(),
-            &mut renderer,
-            &mut debug,
-        );
+        let gui = GUI::new(&graphics, window);
 
         State {
             vertices,
@@ -159,9 +142,7 @@ impl State {
             uniform_buffer,
             uniform_bind_group,
             camera,
-            staging_belt,
-            gui_state: state,
-            gui_renderer: renderer,
+            gui,
         }
     }
 
@@ -230,25 +211,14 @@ impl State {
             render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
             render_pass.draw(0..self.vertices.len() as u32, 0..1);
         }
-        let viewport = Viewport::with_physical_size(
-            Size::new(1600, 1200),
-            1.0,
-        ); // TODO
-        self.gui_renderer.with_primitives(|backend, primitives| {
-            backend.present(
-                &self.graphics.device,
-                &mut self.staging_belt,
-                &mut encoder,
-                &view,
-                primitives,
-                &viewport,
-                &["Tensegrity Lab"],
-            );
-        });
-        self.staging_belt.finish();
+        self.gui.render(
+            &self.graphics.device,
+            &mut encoder,
+            &view,
+        );
         self.graphics.queue.submit(iter::once(encoder.finish()));
         output.present();
-        self.staging_belt.recall();
+        self.gui.recall();
         Ok(())
     }
 }
@@ -379,9 +349,7 @@ pub fn run() {
                 let [width, height] = [win.inner_width(), win.inner_height()]
                     .map(|x| x.unwrap().as_f64().unwrap() * 2.0);
                 window.set_inner_size(PhysicalSize::new(width, height));
-                win.document()
-            })
-            .and_then(|doc| {
+                let doc = win.document()?;
                 let dst = doc.get_element_by_id("body")?;
                 let canvas = web_sys::Element::from(window.canvas());
                 canvas.set_id("canvas");
@@ -391,9 +359,8 @@ pub fn run() {
             .expect("Couldn't append canvas to document body.");
     }
     let graphics = pollster::block_on(GraphicsWindow::new(&window));
-    let mut state = State::new(graphics);
+    let mut state = State::new(graphics, &window);
     let mut elastic = PlanRunner::new(CODE);
-
     let start_time = Instant::now();
     let mut last_frame = Instant::now();
     let mut frame_no = 0;
@@ -404,6 +371,7 @@ pub fn run() {
                 ref event,
                 window_id,
             } if window_id == window.id() => {
+                state.gui.window_event(&window, event);
                 match event {
                     WindowEvent::CloseRequested | WindowEvent::KeyboardInput {
                         input: KeyboardInput {
@@ -469,6 +437,9 @@ pub fn run() {
                 }
             }
             Event::MainEventsCleared => {
+                // If there are events pending
+                state.gui.update();
+
                 window.request_redraw();
             }
             _ => {}
