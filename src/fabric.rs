@@ -9,15 +9,15 @@ use std::collections::HashMap;
 
 use cgmath::{EuclideanSpace, Matrix4, MetricSpace, Point3, Transform, Vector3};
 use cgmath::num_traits::zero;
-use crate::fabric::Stage::{*};
 use crate::face::Face;
 use crate::interval::{Interval, Role, Material};
+use crate::interval::Role::{Measure, Pull, Push};
 use crate::interval::Span::{Approaching, Fixed};
 use crate::joint::Joint;
 use crate::tenscript::Spin;
 use crate::world::World;
 
-#[derive(Clone, Debug, Copy, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Progress {
     limit: usize,
     count: usize,
@@ -51,28 +51,12 @@ impl Progress {
     }
 }
 
-#[derive(Clone, Debug, Copy, PartialEq)]
-pub enum Stage {
-    Empty,
-    GrowStep,
-    GrowApproach,
-    GrowCalm,
-    ShapingStart,
-    ShapingApproach,
-    Shaped,
-    ShapedApproach,
-    ShapingDone,
-    Vulcanize,
-    VulcanizeApproach,
-    Pretensing,
-    Pretenst,
-}
-
 #[derive(Clone, Debug, Copy, PartialEq, Default, Hash, Eq)]
 pub struct UniqueId {
     pub id: usize,
 }
 
+#[derive(Clone)]
 pub struct Fabric {
     pub age: u64,
     pub progress: Progress,
@@ -81,7 +65,6 @@ pub struct Fabric {
     pub faces: HashMap<UniqueId, Face>,
     pub push_material: Material,
     pub pull_material: Material,
-    stage: Stage,
     unique_id: usize,
 }
 
@@ -89,7 +72,6 @@ impl Default for Fabric {
     fn default() -> Fabric {
         Fabric {
             age: 0,
-            stage: Empty,
             progress: Progress::default(),
             joints: Vec::new(),
             intervals: HashMap::new(),
@@ -108,32 +90,6 @@ impl Default for Fabric {
 }
 
 impl Fabric {
-    pub fn set_stage(&mut self, stage: Stage) {
-        self.stage = stage;
-        let countdown = match stage {
-            Empty => 0,
-            GrowStep => 0,
-            GrowApproach => 1000,
-            GrowCalm => 1000,
-            ShapingStart => 0,
-            ShapingApproach => 20000,
-            Shaped => 0,
-            ShapedApproach => 5000,
-            ShapingDone => 0,
-            Vulcanize => 0,
-            VulcanizeApproach => 2000,
-            Pretensing => 10000,
-            Pretenst => 0,
-        };
-        if countdown > 0 {
-            self.progress.start(countdown);
-        }
-    }
-
-    pub fn stage(&self) -> Stage {
-        self.stage
-    }
-
     pub fn get_joint_count(&self) -> u16 {
         self.joints.len() as u16
     }
@@ -165,7 +121,10 @@ impl Fabric {
         let initial_length = self.joints[alpha_index].location.distance(self.joints[omega_index].location);
         let span = Approaching { initial_length, length };
         let id = self.create_id();
-        let material = if role.is_push() { self.push_material } else { self.pull_material};
+        let material = match role {
+            Push => self.push_material,
+            Pull | Measure => self.pull_material
+        };
         self.intervals.insert(id, Interval::new(alpha_index, omega_index, role, material, span));
         id
     }
@@ -242,10 +201,9 @@ impl Fabric {
     pub fn prepare_for_pretensing(&mut self, push_extension: f32) -> f32 {
         for interval in self.intervals.values_mut() {
             let length = interval.length(&self.joints);
-            interval.span = if interval.role.is_push() {
-                Approaching { initial_length: length, length: length * push_extension }
-            } else {
-                Fixed { length }
+            interval.span = match interval.role {
+                Push => Approaching { initial_length: length, length: length * push_extension },
+                Pull | Measure => Fixed { length }
             };
         }
         for joint in self.joints.iter_mut() {
@@ -255,17 +213,18 @@ impl Fabric {
         self.set_altitude(1.0)
     }
 
-    pub fn iterate(&mut self, world: &World) {
+    pub fn iterate(&mut self, world: &World, safe: bool) {
         for joint in &mut self.joints {
             joint.reset();
         }
-        for interval in self.intervals.values_mut() {
-            interval.iterate(world, &mut self.joints, self.stage, self.progress);
-        }
-        let physics = match self.stage {
-            Pretensing { .. } | Pretenst => &world.pretenst_physics,
-            _ => &world.safe_physics,
+        let physics = if safe {
+            &world.safe_physics
+        } else {
+            &world.pretenst_physics
         };
+        for interval in self.intervals.values_mut() {
+            interval.iterate(&mut self.joints, &self.progress, physics);
+        }
         for joint in &mut self.joints {
             joint.iterate(world.surface_character, physics)
         }
