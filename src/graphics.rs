@@ -23,15 +23,19 @@ impl GraphicsWindow {
             })
             .await
             .expect("Could not request adapter");
+
+        #[cfg(target_arch = "wasm32")]
+        let limits = wgpu::Limits::downlevel_webgl2_defaults()
+            .using_resolution(adapter.limits());
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let limits = wgpu::Limits::default();
+
         let (device, queue) = adapter.request_device(
             &wgpu::DeviceDescriptor {
                 label: None,
                 features: wgpu::Features::empty(),
-                limits: wgpu::Limits {
-                    max_texture_dimension_1d: 3024,
-                    max_texture_dimension_2d: 3024,
-                    ..wgpu::Limits::downlevel_webgl2_defaults()
-                },
+                limits,
             },
             None,
         )
