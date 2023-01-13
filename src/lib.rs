@@ -15,6 +15,7 @@ pub mod fabric;
 pub mod face;
 pub mod graphics;
 pub mod growth;
+pub mod gui;
 pub mod init;
 pub mod interval;
 pub mod joint;
