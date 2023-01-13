@@ -4,7 +4,7 @@ use cgmath::{MetricSpace, Point3};
 
 use crate::fabric::Fabric;
 use crate::interval::{Interval, Role};
-use crate::interval::Role::{Measure};
+use crate::interval::Role::Measure;
 
 impl Fabric {
     pub fn install_measures(&mut self) {
@@ -34,11 +34,18 @@ struct JointIncident {
     location: Point3<f32>,
     push: Option<Interval>,
     pulls: Vec<Interval>,
+    adjacent_joints: HashSet<usize>,
 }
 
 impl JointIncident {
     fn new(index: usize, location: Point3<f32>) -> Self {
-        Self { index, location, push: None, pulls: vec![] }
+        Self {
+            index,
+            location,
+            push: None,
+            pulls: vec![],
+            adjacent_joints: HashSet::new(),
+        }
     }
 
     fn add(&mut self, interval: &Interval) {
@@ -47,17 +54,7 @@ impl JointIncident {
             Role::Pull => self.pulls.push(interval.clone()),
             Measure => panic!("Should be no measures yet"),
         }
-    }
-
-    fn adjacent_joints(&self) -> Vec<usize> {
-        let mut vertices: Vec<usize> = vec![];
-        if let Some(push) = &self.push {
-            vertices.push(push.other_joint(self.index));
-        }
-        for pull in &self.pulls {
-            vertices.push(pull.other_joint(self.index));
-        }
-        vertices
+        self.adjacent_joints.insert(interval.other_joint(self.index));
     }
 }
 
@@ -103,10 +100,9 @@ impl PairGenerator {
             return;
         };
         let length_limit = push.ideal_length() * 0.66;
-        let one_step = joint.adjacent_joints();
-        let two_steps: HashSet<_> = one_step
+        let two_steps: HashSet<_> = joint.adjacent_joints
             .iter()
-            .flat_map(|a| self.joints[*a].adjacent_joints())
+            .flat_map(|&adjacent| self.joints[adjacent].adjacent_joints.iter())
             .collect();
         let new_pairs = self.joints
             .iter()
@@ -114,7 +110,7 @@ impl PairGenerator {
                 if joint.index == other_joint.index {
                     return None;
                 }
-                if one_step.contains(&other_joint.index) {
+                if joint.adjacent_joints.contains(&other_joint.index) {
                     return None;
                 }
                 if two_steps.contains(&other_joint.index) {

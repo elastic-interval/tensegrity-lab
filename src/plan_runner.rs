@@ -140,9 +140,8 @@ impl PlanRunner {
         let min_pull = self.fabric.intervals
             .iter()
             .filter(|(_, Interval { role, .. })| *role == Measure)
-            .min_by(|(_, a), (_, b)|  a.strain.partial_cmp(&b.strain).unwrap());
+            .min_by(|(_, a), (_, b)| a.strain.partial_cmp(&b.strain).unwrap());
         if let Some((pushiest, _)) = min_pull {
-            dbg!(&pushiest);
             self.fabric.remove_interval(*pushiest)
         }
     }
