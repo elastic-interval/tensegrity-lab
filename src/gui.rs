@@ -8,6 +8,9 @@ use winit::window::Window;
 
 use crate::graphics::GraphicsWindow;
 
+///
+/// Largely adapted from https://github.com/iced-rs/iced/blob/master/examples/integration_wgpu/src/main.rs
+///
 pub struct GUI {
     renderer: Renderer,
     debug: Debug,
@@ -33,7 +36,7 @@ impl GUI {
             graphics.config.format,
         ));
         let mut debug = Default::default();
-        let controls = Controls::new();
+        let controls = Controls::default();
         let state = program::State::new(
             controls,
             viewport.logical_size(),
@@ -141,8 +144,8 @@ pub enum Message {
     MeasureThresholdChanged(f32),
 }
 
-impl Controls {
-    pub fn new() -> Self {
+impl Default for Controls {
+    fn default() -> Self {
         Self {
             measure_threshold: 0.0,
         }
