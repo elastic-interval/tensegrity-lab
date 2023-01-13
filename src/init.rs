@@ -1,8 +1,7 @@
 use std::{iter, mem};
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use iced_wgpu::{Viewport, wgpu};
-use iced_winit::{Clipboard, Color, conversion, Debug, renderer, Size};
+use iced_wgpu::wgpu;
 #[allow(unused_imports)]
 use log::info;
 use wgpu::util::DeviceExt;
@@ -11,7 +10,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
-use winit::dpi::{PhysicalPosition, PhysicalSize};
+use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
 use gui::GUI;
@@ -218,7 +217,7 @@ impl State {
         );
         self.graphics.queue.submit(iter::once(encoder.finish()));
         output.present();
-        self.gui.recall();
+        self.gui.post_render();
         Ok(())
     }
 }
@@ -410,7 +409,8 @@ pub fn run() {
                             }
                             _ => {}
                         },
-                    WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. } => {
+                    WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
+                    if !state.gui.capturing_mouse() => {
                         state.camera.window_event(event)
                     }
                     _ => {}
@@ -429,6 +429,7 @@ pub fn run() {
                     info!("frame {:<8} {}µs/frame ({:.1} FPS avg)",
                              frame_no, frame_time.as_micros(), 1.0 / avg_time);
                 }
+                state.gui.update_viewport(&window);
                 match state.render() {
                     Ok(_) => {}
                     Err(wgpu::SurfaceError::Lost) => state.resize(state.graphics.size),

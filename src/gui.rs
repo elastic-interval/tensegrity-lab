@@ -1,10 +1,9 @@
 use iced_wgpu::{Backend, Renderer, Settings};
-use iced_winit::{Alignment, Clipboard, Color, Command, conversion, Debug, Element, Length, Program, program, renderer, Size, Viewport};
-use iced_winit::widget::{Column, Row, slider, Text};
+use iced_winit::{Alignment, Clipboard, Color, Command, conversion, Debug, Element, Length, mouse, Program, program, renderer, Size, Viewport};
+use iced_winit::widget::{button, Column, Row, slider, Text};
 use wgpu::{CommandEncoder, Device, TextureView};
 use winit::dpi::PhysicalPosition;
 use winit::event::{ModifiersState, WindowEvent};
-use winit::event_loop::ControlFlow;
 use winit::window::Window;
 
 use crate::graphics::GraphicsWindow;
@@ -73,7 +72,7 @@ impl GUI {
         self.staging_belt.finish();
     }
 
-    pub fn recall(&mut self) {
+    pub fn post_render(&mut self) {
         self.staging_belt.recall();
     }
 
@@ -100,21 +99,36 @@ impl GUI {
     }
 
     pub fn update(&mut self) {
-        if !self.state.is_queue_empty() {
-            // We update iced
-            let _ = self.state.update(
-                self.viewport.logical_size(),
-                conversion::cursor_position(
-                    self.cursor_position,
-                    self.viewport.scale_factor(),
-                ),
-                &mut self.renderer,
-                &iced_wgpu::Theme::Dark,
-                &renderer::Style { text_color: Color::WHITE },
-                &mut self.clipboard,
-                &mut self.debug,
-            );
+        if self.state.is_queue_empty() {
+            return;
         }
+        self.state.update(
+            self.viewport.logical_size(),
+            conversion::cursor_position(
+                self.cursor_position,
+                self.viewport.scale_factor(),
+            ),
+            &mut self.renderer,
+            &iced_wgpu::Theme::Dark,
+            &renderer::Style { text_color: Color::WHITE },
+            &mut self.clipboard,
+            &mut self.debug,
+        );
+    }
+
+    pub fn update_viewport(&mut self, window: &Window) {
+        if !self.resized {
+            return;
+        }
+        let size = window.inner_size();
+        self.viewport = Viewport::with_physical_size(
+            Size::new(size.width, size.height),
+            window.scale_factor(),
+        );
+    }
+
+    pub fn capturing_mouse(&self) -> bool {
+        !matches!(self.state.mouse_interaction(), mouse::Interaction::Idle)
     }
 }
 
@@ -150,20 +164,10 @@ impl Program for Controls {
     }
 
     fn view(&self) -> Element<'_, Self::Message, Self::Renderer> {
-        let sliders =
-            Row::new()
-                .width(Length::Units(500))
-                .push(
-                    slider(0.0f32..=1.0, self.measure_threshold, move |new_threshold| {
-                        Message::MeasureThresholdChanged(new_threshold)
-                    })
-                        .step(0.01)
-                );
-
         Row::new()
-            .width(Length::Fill)
+            .width(Length::Units(200))
             .height(Length::Fill)
-            .align_items(Alignment::End)
+            .align_items(Alignment::Start)
             .push(
                 Column::new()
                     .width(Length::Fill)
@@ -173,10 +177,18 @@ impl Program for Controls {
                             .padding(10)
                             .spacing(10)
                             .push(
-                                Text::new("Background color")
+                                Text::new("Measure threshold")
                                     .style(Color::WHITE),
                             )
-                            .push(sliders)
+                            .push(
+                                slider(0.0f32..=1.0, self.measure_threshold, move |new_threshold| {
+                                    Message::MeasureThresholdChanged(new_threshold)
+                                })
+                                    .step(0.01)
+                            )
+                            .push(
+                                button("Anneal")
+                            )
                     ),
             )
             .into()
