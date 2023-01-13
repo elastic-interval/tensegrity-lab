@@ -1,12 +1,12 @@
 use std::cmp::Ordering;
 use crate::camera::Camera;
 use crate::fabric::Fabric;
-use crate::fabric::Stage::{*};
 use crate::growth::Growth;
 use crate::interval::Interval;
 use crate::interval::Role::Measure;
 use crate::interval::Span::{Approaching, Fixed};
 use crate::parser::parse;
+use crate::plan_runner::Stage::{*};
 use crate::world::World;
 
 const CODE: &str = "
@@ -31,11 +31,30 @@ const CODE: &str = "
 )
 ";
 
+#[derive(Clone, Debug, Copy, PartialEq)]
+enum Stage {
+    Empty,
+    GrowStep,
+    GrowApproach,
+    GrowCalm,
+    ShapingStart,
+    ShapingApproach,
+    Shaped,
+    ShapedApproach,
+    ShapingDone,
+    ShapingCalm,
+    Pretensing,
+    Pretenst,
+    Evaporating,
+}
+
 pub struct PlanRunner {
     pub world: World,
     pub fabric: Fabric,
+    pub frozen_fabric: Fabric,
     pub iterations_per_frame: usize,
     pub growth: Growth,
+    stage: Stage,
 }
 
 impl Default for PlanRunner {
@@ -43,73 +62,78 @@ impl Default for PlanRunner {
         Self {
             world: World::default(),
             fabric: Fabric::default(),
+            frozen_fabric: Fabric::default(),
             iterations_per_frame: 100,
             growth: Growth::new(parse(CODE).unwrap()),
+            stage: Empty,
         }
     }
 }
 
 impl PlanRunner {
     pub fn iterate(&mut self, camera: &mut Camera) {
+        let safe = !matches!(self.stage, Pretensing { .. } | Pretenst| Evaporating);
         for _ in 0..self.iterations_per_frame {
-            self.fabric.iterate(&self.world);
+            self.fabric.iterate(&self.world, safe);
         }
         if self.fabric.progress.busy() {
             return;
         }
-        match self.fabric.stage() {
+        match self.stage {
             Empty => {
                 self.growth.init(&mut self.fabric);
-                self.fabric.set_stage(GrowStep);
+                self.set_stage(GrowStep);
             }
             GrowStep => {
                 if self.growth.is_growing() {
                     self.growth.growth_step(&mut self.fabric);
-                    self.fabric.set_stage(GrowApproach);
+                    self.set_stage(GrowApproach);
                 } else if self.growth.needs_shaping() {
                     self.growth.create_shapers(&mut self.fabric);
-                    self.fabric.set_stage(ShapingStart);
+                    self.set_stage(ShapingStart);
                 }
             }
             GrowApproach => {
                 self.finish_approach();
-                self.fabric.set_stage(GrowCalm);
+                self.set_stage(GrowCalm);
             }
             GrowCalm => {
-                self.fabric.set_stage(GrowStep);
+                self.set_stage(GrowStep);
             }
             ShapingStart => {
-                self.fabric.set_stage(ShapingApproach);
+                self.set_stage(ShapingApproach);
             }
             ShapingApproach => {
                 self.finish_approach();
-                self.fabric.set_stage(Shaped);
+                self.set_stage(Shaped);
             }
             Shaped => {
                 self.growth.complete_shapers(&mut self.fabric);
-                self.fabric.set_stage(ShapedApproach);
+                self.set_stage(ShapedApproach);
             }
             ShapedApproach => {
                 self.finish_approach();
-                self.fabric.set_stage(ShapingDone);
+                self.set_stage(ShapingDone);
             }
             ShapingDone => {
                 self.finish_approach();
-                self.fabric.set_stage(ShapingCalm);
+                self.set_stage(ShapingCalm);
             }
             ShapingCalm => {
+                self.frozen_fabric = self.fabric.clone();
+                println!("Fabric frozen");
                 self.start_pretensing(camera);
             }
             Pretensing => {
                 self.finish_approach();
-                self.fabric.set_stage(Evaporating);
+                self.set_stage(Evaporating);
             }
             Pretenst => {
-                self.fabric.set_stage(Evaporating);
+                self.set_stage(Evaporating);
             }
             Evaporating => {
                 self.evaporate();
-                self.fabric.set_stage(Pretenst);
+                self.set_stage(Pretenst);
             }
         }
     }
@@ -143,10 +167,32 @@ impl PlanRunner {
         self.fabric.install_measures();
         let up = self.fabric.prepare_for_pretensing(1.03);
         camera.go_up(up);
-        self.fabric.set_stage(Pretensing)
+        self.set_stage(Pretensing)
     }
 
     fn finish_pretensing(&mut self) {
-        self.fabric.set_stage(Evaporating)
+        self.set_stage(Evaporating)
+    }
+
+    fn set_stage(&mut self, stage: Stage) {
+        self.stage = stage;
+        let countdown = match stage {
+            Empty => 0,
+            GrowStep => 0,
+            GrowApproach => 1000,
+            GrowCalm => 1000,
+            ShapingStart => 0,
+            ShapingApproach => 20000,
+            Shaped => 0,
+            ShapedApproach => 5000,
+            ShapingDone => 0,
+            ShapingCalm => 50000,
+            Pretensing => 20000,
+            Pretenst => 0,
+            Evaporating => 5000,
+        };
+        if countdown > 0 {
+            self.fabric.progress.start(countdown);
+        }
     }
 }

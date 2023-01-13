@@ -7,11 +7,10 @@ use cgmath::{InnerSpace, Point3, Vector3};
 use cgmath::num_traits::zero;
 use fast_inv_sqrt::InvSqrt32;
 
-use crate::fabric::{Progress, Stage};
-use crate::fabric::Stage::{*};
+use crate::fabric::Progress;
 use crate::interval::Role::{*};
 use crate::joint::Joint;
-use crate::world::World;
+use crate::world::Physics;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Span {
@@ -98,7 +97,7 @@ impl Interval {
         }
     }
 
-    pub fn iterate(&mut self, world: &World, joints: &mut [Joint], stage: Stage, progress: Progress) {
+    pub fn iterate(&mut self, joints: &mut [Joint], progress: &Progress, physics: &Physics) {
         let ideal_length = match self.span {
             Span::Fixed { length } => { length }
             Span::Approaching { initial_length, length, .. } => {
@@ -115,11 +114,7 @@ impl Interval {
         if self.role == Measure { // have no effect
             return;
         }
-        let stiffness_factor = match stage {
-            Pretensing { .. } | Pretenst| Evaporating => world.pretenst_physics.stiffness,
-            _ => world.safe_physics.stiffness,
-        };
-        let force = self.strain * self.material.stiffness * stiffness_factor;
+        let force = self.strain * self.material.stiffness * physics.stiffness;
         let force_vector: Vector3<f32> = self.unit * force / 2.0;
         joints[self.alpha_index].force += force_vector;
         joints[self.omega_index].force -= force_vector;
