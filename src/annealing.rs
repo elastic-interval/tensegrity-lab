@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use cgmath::{MetricSpace, Point3};
 
@@ -8,10 +8,9 @@ use crate::interval::Role::{Measure};
 
 impl Fabric {
     pub fn install_measures(&mut self) {
-        let mut measures = PairGenerator::new(self.joint_incident());
-        measures.generate_pairs();
-        for MeasurePair { alpha_index, omega_index, length } in measures.measure_pairs.values() {
-            self.create_interval(*alpha_index, *omega_index, Measure, *length);
+        let measures = PairGenerator::new(self.joint_incident());
+        for MeasurePair { alpha_index, omega_index, length } in measures.generate_pairs() {
+            self.create_interval(alpha_index, omega_index, Measure, length);
         }
     }
 
@@ -80,22 +79,23 @@ impl MeasurePair {
 }
 
 struct PairGenerator {
-    joint_incident: Vec<JointIncident>,
-    measure_pairs: HashMap<(usize, usize), MeasurePair>,
+    joints: Vec<JointIncident>,
+    pairs: HashMap<(usize, usize), MeasurePair>,
 }
 
 impl PairGenerator {
-    fn new(joint_incident: Vec<JointIncident>) -> Self {
+    fn new(joints: Vec<JointIncident>) -> Self {
         Self {
-            joint_incident,
-            measure_pairs: HashMap::new(),
+            joints,
+            pairs: HashMap::new(),
         }
     }
 
-    fn generate_pairs(&mut self) {
-        for joint_incident in self.joint_incident.clone() {
-            self.add_pairs_for(joint_incident)
+    fn generate_pairs(mut self) -> impl Iterator<Item=MeasurePair> {
+        for joint in self.joints.clone() {
+            self.add_pairs_for(joint)
         }
+        self.pairs.into_values()
     }
 
     fn add_pairs_for(&mut self, joint: JointIncident) {
@@ -104,30 +104,33 @@ impl PairGenerator {
         };
         let length_limit = push.ideal_length() * 0.66;
         let one_step = joint.adjacent_joints();
-        let two_steps: Vec<usize> = one_step.iter().flat_map(|a| self.joint_incident[*a].adjacent_joints()).collect();
-        for other_joint in self.joint_incident.clone() {
-            if joint.index == other_joint.index {
-                continue;
-            }
-            if one_step.contains(&other_joint.index) {
-                continue;
-            }
-            if two_steps.contains(&other_joint.index) {
-                continue;
-            }
-            let length = joint.location.distance(other_joint.location);
-            if length > length_limit {
-                continue;
-            }
-            self.add_pair(MeasurePair {
-                alpha_index: joint.index,
-                omega_index: other_joint.index,
-                length,
-            });
-        }
-    }
-
-    fn add_pair(&mut self, pair: MeasurePair) {
-        self.measure_pairs.insert(pair.key(), pair);
+        let two_steps: HashSet<_> = one_step
+            .iter()
+            .flat_map(|a| self.joints[*a].adjacent_joints())
+            .collect();
+        let new_pairs = self.joints
+            .iter()
+            .filter_map(|other_joint| {
+                if joint.index == other_joint.index {
+                    return None;
+                }
+                if one_step.contains(&other_joint.index) {
+                    return None;
+                }
+                if two_steps.contains(&other_joint.index) {
+                    return None;
+                }
+                let length = joint.location.distance(other_joint.location);
+                if length > length_limit {
+                    return None;
+                }
+                Some(MeasurePair {
+                    alpha_index: joint.index,
+                    omega_index: other_joint.index,
+                    length,
+                })
+            })
+            .map(|pair| (pair.key(), pair));
+        self.pairs.extend(new_pairs);
     }
 }
