@@ -102,7 +102,7 @@ impl PairGenerator {
         let Some(push) = &joint.push else {
             return;
         };
-        let length_limit = push.ideal_length();
+        let length_limit = push.ideal_length() * 0.66;
         let one_step = joint.adjacent_joints();
         let two_steps: Vec<usize> = one_step.iter().flat_map(|a| self.joint_incident[*a].adjacent_joints()).collect();
         for other_joint in self.joint_incident.clone() {

@@ -66,6 +66,7 @@ pub enum Stage {
     ShapingCalm,
     Pretensing,
     Pretenst,
+    Evaporating,
 }
 
 #[derive(Clone, Debug, Copy, PartialEq, Default, Hash, Eq)]
@@ -123,6 +124,7 @@ impl Fabric {
             ShapingCalm => 35000,
             Pretensing => 20000,
             Pretenst => 0,
+            Evaporating => 5000,
         };
         if countdown > 0 {
             self.progress.start(countdown);
@@ -264,7 +266,7 @@ impl Fabric {
             interval.iterate(world, &mut self.joints, self.stage, self.progress);
         }
         let physics = match self.stage {
-            Pretensing { .. } | Pretenst => &world.pretenst_physics,
+            Pretensing { .. } | Pretenst| Evaporating => &world.pretenst_physics,
             _ => &world.safe_physics,
         };
         for joint in &mut self.joints {

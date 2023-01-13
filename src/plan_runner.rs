@@ -1,7 +1,10 @@
+use std::cmp::Ordering;
 use crate::camera::Camera;
 use crate::fabric::Fabric;
 use crate::fabric::Stage::{*};
 use crate::growth::Growth;
+use crate::interval::Interval;
+use crate::interval::Role::Measure;
 use crate::interval::Span::{Approaching, Fixed};
 use crate::parser::parse;
 use crate::world::World;
@@ -95,12 +98,36 @@ impl PlanRunner {
                 self.fabric.set_stage(ShapingCalm);
             }
             ShapingCalm => {
-                self.set_pretensing(camera);
+                self.start_pretensing(camera);
             }
             Pretensing => {
+                self.finish_approach();
+                self.fabric.set_stage(Evaporating);
+            }
+            Pretenst => {
+                self.fabric.set_stage(Evaporating);
+            }
+            Evaporating => {
+                self.evaporate();
                 self.fabric.set_stage(Pretenst);
             }
-            Pretenst => {}
+        }
+    }
+
+    fn evaporate(&mut self) {
+        let min_pull = self.fabric.intervals
+            .iter()
+            .filter(|(_, Interval { role, .. })| *role == Measure)
+            .min_by(|(_, a), (_, b)| if a.strain < b.strain {
+                Ordering::Less
+            } else if a.strain > b.strain {
+                Ordering::Greater
+            } else {
+                Ordering::Equal
+            });
+        if let Some((pushiest, _)) = min_pull {
+            dbg!(&pushiest);
+            self.fabric.remove_interval(*pushiest)
         }
     }
 
@@ -112,10 +139,14 @@ impl PlanRunner {
         }
     }
 
-    fn  set_pretensing(&mut self, camera: &mut Camera) {
+    fn start_pretensing(&mut self, camera: &mut Camera) {
         self.fabric.install_measures();
         let up = self.fabric.prepare_for_pretensing(1.03);
         camera.go_up(up);
         self.fabric.set_stage(Pretensing)
+    }
+
+    fn finish_pretensing(&mut self) {
+        self.fabric.set_stage(Evaporating)
     }
 }
