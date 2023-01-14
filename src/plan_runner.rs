@@ -1,12 +1,10 @@
 use crate::camera::Camera;
 use crate::fabric::Fabric;
 use crate::growth::Growth;
-use crate::interval::Interval;
-use crate::interval::Role::Measure;
-use crate::interval::Span::{Approaching, Fixed};
 use crate::parser::parse;
+use crate::physics::Environment::{AirGravity, Liquid};
+use crate::physics::Physics;
 use crate::plan_runner::Stage::{*};
-use crate::world::World;
 
 const CODE: &str = "
 (fabric
@@ -44,13 +42,11 @@ enum Stage {
     ShapingCalm,
     Pretensing,
     Pretenst,
-    Evaporating,
 }
 
 pub struct PlanRunner {
-    pub world: World,
+    pub physics: Physics,
     pub fabric: Fabric,
-    pub frozen: Option<Fabric>,
     pub iterations_per_frame: usize,
     pub growth: Growth,
     stage: Stage,
@@ -59,9 +55,8 @@ pub struct PlanRunner {
 impl Default for PlanRunner {
     fn default() -> Self {
         Self {
-            world: World::default(),
+            physics: Physics::new(Liquid),
             fabric: Fabric::default(),
-            frozen: None,
             iterations_per_frame: 100,
             growth: Growth::new(parse(CODE).unwrap()),
             stage: Empty,
@@ -71,11 +66,10 @@ impl Default for PlanRunner {
 
 impl PlanRunner {
     pub fn iterate(&mut self, camera: &mut Camera) {
-        let safe = !matches!(self.stage, Pretensing { .. } | Pretenst| Evaporating);
         for _ in 0..self.iterations_per_frame {
-            self.fabric.iterate(&self.world, safe);
+            self.fabric.iterate(&self.physics);
         }
-        if self.fabric.progress.busy() {
+        if self.fabric.progress.is_busy() {
             return;
         }
         match self.stage {
@@ -92,98 +86,39 @@ impl PlanRunner {
                     self.set_stage(ShapingStart);
                 }
             }
-            GrowApproach => {
-                self.finish_approach();
-                self.set_stage(GrowCalm);
-            }
-            GrowCalm => {
-                self.set_stage(GrowStep);
-            }
-            ShapingStart => {
-                self.set_stage(ShapingApproach);
-            }
-            ShapingApproach => {
-                self.finish_approach();
-                self.set_stage(Shaped);
-            }
+            GrowApproach => self.set_stage(GrowCalm),
+            GrowCalm => self.set_stage(GrowStep),
+            ShapingStart => self.set_stage(ShapingApproach),
+            ShapingApproach => self.set_stage(Shaped),
             Shaped => {
                 self.growth.complete_shapers(&mut self.fabric);
                 self.set_stage(ShapedApproach);
             }
-            ShapedApproach => {
-                self.finish_approach();
-                self.set_stage(ShapingDone);
-            }
-            ShapingDone => {
-                self.finish_approach();
-                self.set_stage(ShapingCalm);
-            }
+            ShapedApproach => self.set_stage(ShapingDone),
+            ShapingDone => self.set_stage(ShapingCalm),
             ShapingCalm => {
-                self.frozen = Some(self.fabric.clone());
-                self.start_pretensing(camera);
+                self.physics = Physics::new(AirGravity);
+                self.fabric.install_measures();
+                let up = self.fabric.prepare_for_pretensing(1.03);
+                camera.go_up(up);
+                self.set_stage(Pretensing);
             }
-            Pretensing => {
-                self.finish_approach();
-                self.set_stage(Evaporating);
-            }
-            Pretenst => {
-                self.set_stage(Evaporating);
-            }
-            Evaporating => {
-                self.evaporate();
-                self.set_stage(Pretenst);
-            }
+            Pretensing => self.set_stage(Pretenst),
+            Pretenst => {}
         }
-    }
-
-    fn evaporate(&mut self) {
-        let min_pull = self.fabric.intervals
-            .iter()
-            .filter(|(_, Interval { role, .. })| *role == Measure)
-            .min_by(|(_, a), (_, b)| a.strain.partial_cmp(&b.strain).unwrap());
-        if let Some((pushiest, _)) = min_pull {
-            self.fabric.remove_interval(*pushiest)
-        }
-    }
-
-    fn finish_approach(&mut self) {
-        for interval in self.fabric.intervals.values_mut() {
-            if let Approaching { length, .. } = interval.span {
-                interval.span = Fixed { length }
-            }
-        }
-    }
-
-    fn start_pretensing(&mut self, camera: &mut Camera) {
-        self.fabric.install_measures();
-        let up = self.fabric.prepare_for_pretensing(1.03);
-        camera.go_up(up);
-        self.set_stage(Pretensing)
-    }
-
-    fn finish_pretensing(&mut self) {
-        self.set_stage(Evaporating)
     }
 
     fn set_stage(&mut self, stage: Stage) {
         self.stage = stage;
         let countdown = match stage {
-            Empty => 0,
-            GrowStep => 0,
             GrowApproach => 1000,
             GrowCalm => 1000,
-            ShapingStart => 0,
             ShapingApproach => 20000,
-            Shaped => 0,
             ShapedApproach => 5000,
-            ShapingDone => 0,
             ShapingCalm => 50000,
             Pretensing => 20000,
-            Pretenst => 0,
-            Evaporating => 5000,
+            Empty | GrowStep | ShapingStart | Shaped | ShapingDone | Pretenst => 0,
         };
-        if countdown > 0 {
-            self.fabric.progress.start(countdown);
-        }
+        self.fabric.progress.start(countdown);
     }
 }

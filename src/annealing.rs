@@ -99,7 +99,7 @@ impl PairGenerator {
         let Some(push) = &joint.push else {
             return;
         };
-        let length_limit = push.ideal_length() * 0.66;
+        let length_limit = push.ideal_length();
         let two_steps: HashSet<_> = joint.adjacent_joints
             .iter()
             .flat_map(|&adjacent| self.joints[adjacent].adjacent_joints.iter())

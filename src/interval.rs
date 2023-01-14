@@ -9,8 +9,9 @@ use fast_inv_sqrt::InvSqrt32;
 
 use crate::fabric::Progress;
 use crate::interval::Role::{*};
+use crate::interval::Span::{*};
 use crate::joint::Joint;
-use crate::world::Physics;
+use crate::physics::Physics;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Span {
@@ -93,14 +94,14 @@ impl Interval {
 
     pub fn ideal_length(&self) -> f32 {
         match self.span {
-            Span::Fixed { length, .. } | Span::Approaching {length, .. } => length
+            Fixed { length, .. } | Approaching { length, .. } => length
         }
     }
 
     pub fn iterate(&mut self, joints: &mut [Joint], progress: &Progress, physics: &Physics) {
         let ideal_length = match self.span {
-            Span::Fixed { length } => { length }
-            Span::Approaching { initial_length, length, .. } => {
+            Fixed { length } => { length }
+            Approaching { initial_length, length, .. } => {
                 let nuance = progress.nuance();
                 initial_length * (1.0 - nuance) + length * nuance
             }

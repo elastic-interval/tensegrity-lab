@@ -22,12 +22,12 @@ pub mod joint;
 pub mod klein;
 pub mod mobius;
 pub mod parser;
+pub mod physics;
 pub mod plan_runner;
 pub mod scanner;
 pub mod sphere;
 pub mod tenscript;
 pub mod test;
 pub mod twist;
-pub mod world;
 
 pub use init::run;

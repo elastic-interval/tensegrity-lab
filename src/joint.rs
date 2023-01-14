@@ -5,7 +5,8 @@
 
 use cgmath::{InnerSpace, Point3, Vector3};
 use cgmath::num_traits::zero;
-use crate::world::{Physics, SurfaceCharacter};
+use crate::physics::Physics;
+use crate::physics::SurfaceCharacter::{*};
 
 const RESURFACE: f32 = 0.01;
 const AMBIENT_MASS: f32 = 0.001;
@@ -37,7 +38,7 @@ impl Joint {
         self.interval_mass = AMBIENT_MASS;
     }
 
-    pub fn iterate(&mut self, surface_character: SurfaceCharacter, physics: &Physics) {
+    pub fn iterate(&mut self, physics: &Physics) {
         let Physics { gravity, antigravity, viscosity, .. } = physics;
         let altitude = self.location.y;
         self.speed2 = self.velocity.magnitude2();
@@ -52,12 +53,13 @@ impl Joint {
             let degree_submerged: f32 = if -altitude < 1.0 { -altitude } else { 0.0 };
             let antigravity = antigravity * degree_submerged;
             self.velocity += self.force / self.interval_mass;
-            match surface_character {
-                SurfaceCharacter::Frozen => {
+            match physics.surface_character {
+                Absent => {}
+                Frozen => {
                     self.velocity = zero();
                     self.location.y = -RESURFACE;
                 }
-                SurfaceCharacter::Sticky => {
+                Sticky => {
                     if self.velocity.y < 0.0 {
                         self.velocity.x *= STICKY_DOWN_DRAG_FACTOR;
                         self.velocity.y += antigravity;
@@ -68,7 +70,7 @@ impl Joint {
                         self.velocity.z *= AMBIENT_DRAG_FACTOR;
                     }
                 }
-                SurfaceCharacter::Bouncy => {
+                Bouncy => {
                     let degree_cushioned: f32 = 1.0 - degree_submerged;
                     self.velocity *= degree_cushioned;
                     self.velocity.y += antigravity;
