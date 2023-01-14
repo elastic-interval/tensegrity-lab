@@ -10,6 +10,7 @@ pub mod ball;
 pub mod camera;
 pub mod error;
 pub mod example;
+pub mod experiment;
 pub mod expression;
 pub mod fabric;
 pub mod face;
