@@ -1,10 +1,16 @@
+
 use iced_wgpu::{Backend, Renderer, Settings};
 use iced_winit::{Alignment, Clipboard, Color, Command, conversion, Debug, Element, Length, mouse, Program, program, renderer, Size, Viewport};
-use iced_winit::widget::{button, Column, Row, slider, Text};
+use iced_winit::widget::{Column, Row, slider, Text};
 use wgpu::{CommandEncoder, Device, TextureView};
 use winit::dpi::PhysicalPosition;
 use winit::event::{ModifiersState, WindowEvent};
 use winit::window::Window;
+
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
+#[cfg(target_arch = "wasm32")]
+use instant::Instant;
 
 use crate::graphics::GraphicsWindow;
 
@@ -21,6 +27,9 @@ pub struct GUI {
     clipboard: Clipboard,
     modifiers: ModifiersState,
     resized: bool,
+
+    start_time: Instant,
+    frame_number: usize,
 }
 
 
@@ -57,6 +66,9 @@ impl GUI {
             clipboard,
             modifiers,
             resized: false,
+
+            start_time: Instant::now(),
+            frame_number: 0,
         }
     }
 
@@ -102,6 +114,8 @@ impl GUI {
     }
 
     pub fn update(&mut self) {
+        self.update_frame_rate();
+
         if self.state.is_queue_empty() {
             return;
         }
@@ -117,6 +131,18 @@ impl GUI {
             &mut self.clipboard,
             &mut self.debug,
         );
+    }
+
+    fn update_frame_rate(&mut self) {
+        self.frame_number += 1;
+        if self.frame_number % 100 != 0 {
+            return;
+        }
+        let now = Instant::now();
+        let time_elapsed = now - self.start_time;
+        let average_time_per_frame = time_elapsed.as_secs_f64() / (self.frame_number as f64);
+        let frame_rate = 1.0 / average_time_per_frame;
+        self.state.queue_message(Message::FrameRateUpdated(frame_rate))
     }
 
     pub fn update_viewport(&mut self, window: &Window) {
@@ -137,17 +163,20 @@ impl GUI {
 
 pub struct Controls {
     measure_threshold: f32,
+    frame_rate: f64,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     MeasureThresholdChanged(f32),
+    FrameRateUpdated(f64),
 }
 
 impl Default for Controls {
     fn default() -> Self {
         Self {
             measure_threshold: 0.0,
+            frame_rate: 0.0,
         }
     }
 }
@@ -161,38 +190,48 @@ impl Program for Controls {
             Message::MeasureThresholdChanged(new_threshold) => {
                 self.measure_threshold = new_threshold;
             }
+
+            Message::FrameRateUpdated(frame_rate) => {
+                self.frame_rate = frame_rate;
+            }
         }
 
         Command::none()
     }
 
     fn view(&self) -> Element<'_, Self::Message, Self::Renderer> {
+        let Self { frame_rate, .. } = self;
         Row::new()
-            .width(Length::Units(200))
+            .width(Length::Fill)
             .height(Length::Fill)
+            .padding(10)
             .align_items(Alignment::Start)
+            .push(
+                Column::new()
+                    .width(Length::Fill)
+                    .align_items(Alignment::Start)
+                    .spacing(10)
+                    .push(
+                        Text::new("Measure threshold")
+                            .style(Color::WHITE)
+                            .size(14),
+                    )
+                    .push(
+                        slider(0.0f32..=1.0, self.measure_threshold, |new_threshold| {
+                            Message::MeasureThresholdChanged(new_threshold)
+                        })
+                            .step(0.01)
+                    )
+            )
             .push(
                 Column::new()
                     .width(Length::Fill)
                     .align_items(Alignment::End)
                     .push(
-                        Column::new()
-                            .padding(10)
-                            .spacing(10)
-                            .push(
-                                Text::new("Measure threshold")
-                                    .style(Color::WHITE),
-                            )
-                            .push(
-                                slider(0.0f32..=1.0, self.measure_threshold, |new_threshold| {
-                                    Message::MeasureThresholdChanged(new_threshold)
-                                })
-                                    .step(0.01)
-                            )
-                            .push(
-                                button("Anneal")
-                            )
-                    ),
+                        Text::new(format!("{frame_rate:.01} FPS"))
+                            .style(Color::WHITE)
+                            .size(12),
+                    )
             )
             .into()
     }
