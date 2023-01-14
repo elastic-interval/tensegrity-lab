@@ -3,13 +3,6 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use crate::physics::SurfaceCharacter::{Absent, Frozen};
-
-pub enum Environment {
-    Liquid,
-    AirGravity,
-}
-
 #[derive(Debug, Clone, Copy)]
 pub enum SurfaceCharacter {
     Absent,
@@ -26,23 +19,24 @@ pub struct Physics {
     pub stiffness: f32,
 }
 
-impl Physics {
-    pub fn new(environment: Environment) -> Self {
-        match environment {
-            Environment::Liquid => Self {
-                surface_character: Absent,
-                gravity: 0.0,
-                antigravity: 0.0,
-                viscosity: 1e4,
-                stiffness: 5e-5,
-            },
-            Environment::AirGravity => Self{
-                surface_character: Frozen,
-                gravity: 2e-8,
-                antigravity: 1e-3,
-                viscosity: 1e3,
-                stiffness: 1e-2,
-            },
-        }
-    }
+pub mod presets {
+    use crate::physics::Physics;
+    use crate::physics::SurfaceCharacter::{Absent, Frozen};
+
+    pub const LIQUID: Physics = Physics {
+        surface_character: Absent,
+        gravity: 0.0,
+        antigravity: 0.0,
+        viscosity: 1e4,
+        stiffness: 5e-5,
+    };
+
+    pub const AIR_GRAVITY: Physics = Physics {
+        surface_character: Frozen,
+        gravity: 4e-8,
+        antigravity: 1e-3,
+        viscosity: 1e3,
+        stiffness: 1e-2,
+    };
 }
+
