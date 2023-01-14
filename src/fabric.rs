@@ -14,19 +14,13 @@ use crate::interval::{Interval, Role, Material};
 use crate::interval::Role::{Measure, Pull, Push};
 use crate::interval::Span::{Approaching, Fixed};
 use crate::joint::Joint;
+use crate::physics::Physics;
 use crate::tenscript::Spin;
-use crate::world::World;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub struct Progress {
     limit: usize,
     count: usize,
-}
-
-impl Default for Progress {
-    fn default() -> Self {
-        Self { count: 1, limit: 1 }
-    }
 }
 
 impl Progress {
@@ -35,19 +29,26 @@ impl Progress {
         self.limit = countdown;
     }
 
-    pub fn step(&mut self) {
+    fn step(&mut self) -> bool { // true if it takes the final step
         let count = self.count + 1;
         if count <= self.limit {
             self.count = count;
+            self.count == self.limit // final step?
+        } else {
+            false
         }
     }
 
-    pub fn busy(&self) -> bool {
+    pub fn is_busy(&self) -> bool {
         self.count < self.limit
     }
 
     pub fn nuance(&self) -> f32 {
-        (self.count as f32) / (self.limit as f32)
+        if self.limit == 0 {
+            1.0
+        } else {
+            (self.count as f32) / (self.limit as f32)
+        }
     }
 }
 
@@ -213,22 +214,23 @@ impl Fabric {
         self.set_altitude(1.0)
     }
 
-    pub fn iterate(&mut self, world: &World, safe: bool) {
+    pub fn iterate(&mut self, physics: &Physics) {
         for joint in &mut self.joints {
             joint.reset();
         }
-        let physics = if safe {
-            &world.safe_physics
-        } else {
-            &world.pretenst_physics
-        };
         for interval in self.intervals.values_mut() {
             interval.iterate(&mut self.joints, &self.progress, physics);
         }
         for joint in &mut self.joints {
-            joint.iterate(world.surface_character, physics)
+            joint.iterate(physics)
         }
-        self.progress.step();
+        if self.progress.step() { // final step
+            for interval in self.intervals.values_mut() {
+                if let Approaching { length, .. } = interval.span {
+                    interval.span = Fixed { length }
+                }
+            }
+        }
         self.age += 1;
     }
 
