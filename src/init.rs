@@ -285,29 +285,15 @@ pub fn run() {
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                         state.resize(**new_inner_size);
                     }
-                    WindowEvent::KeyboardInput { input, .. } =>
+                    WindowEvent::KeyboardInput { input, .. } => {
                         match input.virtual_keycode {
+                            #[cfg(target_arch = "wasm32")]
                             Some(VirtualKeyCode::F) => {
-                                #[cfg(target_arch = "wasm32")]
-                                web_sys::window()
-                                    .and_then(|win| {
-                                        let document = win.document()?;
-                                        if document.fullscreen_element().is_none() {
-                                            let canvas = document.get_element_by_id("canvas")?;
-                                            match canvas.request_fullscreen() {
-                                                Ok(_) => {}
-                                                Err(e) => {
-                                                    info!("Could not request fullscreen: {e:?}");
-                                                }
-                                            }
-                                        } else {
-                                            document.exit_fullscreen();
-                                        }
-                                        Some(())
-                                    });
+                                fullscreen_web();
                             }
                             _ => {}
-                        },
+                        }
+                    },
                     WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
                     if !state.gui.capturing_mouse() => {
                         state.camera.window_event(event)
@@ -328,6 +314,8 @@ pub fn run() {
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                     Err(e) => eprintln!("{e:?}"),
                 }
+
+                window.set_cursor_icon(state.gui.cursor_icon());
             }
             Event::MainEventsCleared => {
                 state.gui.update();
@@ -337,4 +325,24 @@ pub fn run() {
             _ => {}
         }
     });
+}
+
+fn fullscreen_web() {
+    #[cfg(target_arch = "wasm32")]
+    web_sys::window()
+        .and_then(|win| {
+            let document = win.document()?;
+            if document.fullscreen_element().is_none() {
+                let canvas = document.get_element_by_id("canvas")?;
+                match canvas.request_fullscreen() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        info!("Could not request fullscreen: {e:?}");
+                    }
+                }
+            } else {
+                document.exit_fullscreen();
+            }
+            Some(())
+        });
 }
