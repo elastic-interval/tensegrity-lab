@@ -1,3 +1,5 @@
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
 
 use iced_wgpu::{Backend, Renderer, Settings};
 use iced_winit::{Alignment, Clipboard, Color, Command, conversion, Debug, Element, Length, mouse, Program, program, renderer, Size, Viewport};
@@ -5,10 +7,8 @@ use iced_winit::widget::{Column, Row, slider, Text};
 use wgpu::{CommandEncoder, Device, TextureView};
 use winit::dpi::PhysicalPosition;
 use winit::event::{ModifiersState, WindowEvent};
-use winit::window::Window;
+use winit::window::{CursorIcon, Window};
 
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Instant;
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
 
@@ -31,7 +31,6 @@ pub struct GUI {
     start_time: Instant,
     frame_number: usize,
 }
-
 
 impl GUI {
     pub fn new(graphics: &GraphicsWindow, window: &Window) -> Self {
@@ -142,6 +141,7 @@ impl GUI {
         let time_elapsed = now - self.start_time;
         let average_time_per_frame = time_elapsed.as_secs_f64() / (self.frame_number as f64);
         let frame_rate = 1.0 / average_time_per_frame;
+        log::info!("update_frame_rate: {now:?} {time_elapsed:?} {average_time_per_frame} {frame_rate}");
         self.state.queue_message(Message::FrameRateUpdated(frame_rate))
     }
 
@@ -158,6 +158,12 @@ impl GUI {
 
     pub fn capturing_mouse(&self) -> bool {
         !matches!(self.state.mouse_interaction(), mouse::Interaction::Idle)
+    }
+
+    pub fn cursor_icon(&self) -> CursorIcon {
+        conversion::mouse_interaction(
+            self.state.mouse_interaction(),
+        )
     }
 }
 
@@ -192,6 +198,7 @@ impl Program for Controls {
             }
 
             Message::FrameRateUpdated(frame_rate) => {
+                log::info!("FrameRateUpdated({frame_rate})");
                 self.frame_rate = frame_rate;
             }
         }
@@ -200,7 +207,9 @@ impl Program for Controls {
     }
 
     fn view(&self) -> Element<'_, Self::Message, Self::Renderer> {
-        let Self { frame_rate, .. } = self;
+        let Self { frame_rate, .. } = *self;
+        let frame_rate = frame_rate as i32;
+        log::info!("Updating view with frame_rate={frame_rate}");
         Row::new()
             .width(Length::Fill)
             .height(Length::Fill)
@@ -217,7 +226,7 @@ impl Program for Controls {
                             .size(14),
                     )
                     .push(
-                        slider(0.0f32..=1.0, self.measure_threshold, |new_threshold| {
+                        slider(0.0..=1.0, self.measure_threshold, |new_threshold| {
                             Message::MeasureThresholdChanged(new_threshold)
                         })
                             .step(0.01)
@@ -228,7 +237,7 @@ impl Program for Controls {
                     .width(Length::Fill)
                     .align_items(Alignment::End)
                     .push(
-                        Text::new(format!("{frame_rate:.01} FPS"))
+                        Text::new(format!("{frame_rate} FPS"))
                             .style(Color::WHITE)
                             .size(12),
                     )
