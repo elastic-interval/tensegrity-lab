@@ -18,12 +18,12 @@ use gui::GUI;
 use wasm_bindgen::prelude::*;
 
 use crate::camera::Camera;
+use crate::experiment::Experiment;
 use crate::fabric::Fabric;
 use crate::graphics::{get_depth_stencil_state, get_primitive_state, GraphicsWindow};
 use crate::gui;
 use crate::interval::Interval;
 use crate::interval::Role::{Measure, Pull, Push};
-use crate::plan_runner::PlanRunner;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable, Default)]
@@ -265,7 +265,7 @@ pub fn run() {
     }
     let graphics = pollster::block_on(GraphicsWindow::new(&window));
     let mut state = State::new(graphics, &window);
-    let mut elastic = PlanRunner::default();
+    let mut experiment = Experiment::default();
     let start_time = Instant::now();
     let mut last_frame = Instant::now();
     let mut frame_no = 0;
@@ -325,8 +325,11 @@ pub fn run() {
             Event::RedrawRequested(_) => {
                 let now = Instant::now();
                 let dt = now - start_time;
-                elastic.iterate(&mut state.camera);
-                state.update(&elastic.fabric);
+                let up = experiment.iterate();
+                if let Some(up) = up {
+                    state.camera.go_up(up);
+                }
+                state.update(experiment.fabric());
                 let frame_time = now - last_frame;
                 frame_no += 1;
                 let avg_time = dt.as_secs_f64() / (frame_no as f64);

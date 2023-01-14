@@ -1,9 +1,7 @@
-use crate::camera::Camera;
 use crate::fabric::Fabric;
 use crate::growth::Growth;
 use crate::parser::parse;
-use crate::physics::Environment::{AirGravity, Liquid};
-use crate::physics::Physics;
+use crate::physics::presets::LIQUID;
 use crate::plan_runner::Stage::{*};
 
 const CODE: &str = "
@@ -40,14 +38,10 @@ enum Stage {
     ShapedApproach,
     ShapingDone,
     ShapingCalm,
-    Pretensing,
-    Pretenst,
+    Completed,
 }
 
 pub struct PlanRunner {
-    pub physics: Physics,
-    pub fabric: Fabric,
-    pub iterations_per_frame: usize,
     pub growth: Growth,
     stage: Stage,
 }
@@ -55,9 +49,6 @@ pub struct PlanRunner {
 impl Default for PlanRunner {
     fn default() -> Self {
         Self {
-            physics: Physics::new(Liquid),
-            fabric: Fabric::default(),
-            iterations_per_frame: 100,
             growth: Growth::new(parse(CODE).unwrap()),
             stage: Empty,
         }
@@ -65,60 +56,53 @@ impl Default for PlanRunner {
 }
 
 impl PlanRunner {
-    pub fn iterate(&mut self, camera: &mut Camera) {
-        for _ in 0..self.iterations_per_frame {
-            self.fabric.iterate(&self.physics);
-        }
-        if self.fabric.progress.is_busy() {
+    pub fn iterate(&mut self, fabric: &mut Fabric) {
+        fabric.iterate(&LIQUID);
+        if fabric.progress.is_busy() {
             return;
         }
-        match self.stage {
+        let next_stage = match self.stage {
             Empty => {
-                self.growth.init(&mut self.fabric);
-                self.set_stage(GrowStep);
+                self.growth.init(fabric);
+                GrowStep
             }
             GrowStep => {
                 if self.growth.is_growing() {
-                    self.growth.growth_step(&mut self.fabric);
-                    self.set_stage(GrowApproach);
+                    self.growth.growth_step(fabric);
+                    GrowApproach
                 } else if self.growth.needs_shaping() {
-                    self.growth.create_shapers(&mut self.fabric);
-                    self.set_stage(ShapingStart);
+                    self.growth.create_shapers(fabric);
+                    ShapingStart
+                } else {
+                    ShapingDone
                 }
             }
-            GrowApproach => self.set_stage(GrowCalm),
-            GrowCalm => self.set_stage(GrowStep),
-            ShapingStart => self.set_stage(ShapingApproach),
-            ShapingApproach => self.set_stage(Shaped),
+            GrowApproach => GrowCalm,
+            GrowCalm => GrowStep,
+            ShapingStart => ShapingApproach,
+            ShapingApproach => Shaped,
             Shaped => {
-                self.growth.complete_shapers(&mut self.fabric);
-                self.set_stage(ShapedApproach);
+                self.growth.complete_shapers(fabric);
+                ShapedApproach
             }
-            ShapedApproach => self.set_stage(ShapingDone),
-            ShapingDone => self.set_stage(ShapingCalm),
-            ShapingCalm => {
-                self.physics = Physics::new(AirGravity);
-                self.fabric.install_measures();
-                let up = self.fabric.prepare_for_pretensing(1.03);
-                camera.go_up(up);
-                self.set_stage(Pretensing);
-            }
-            Pretensing => self.set_stage(Pretenst),
-            Pretenst => {}
-        }
-    }
-
-    fn set_stage(&mut self, stage: Stage) {
-        self.stage = stage;
-        let countdown = match stage {
+            ShapedApproach => ShapingDone,
+            ShapingDone => ShapingCalm,
+            ShapingCalm => Completed,
+            Completed => Completed,
+        };
+        let countdown = match next_stage {
             GrowApproach => 1000,
             GrowCalm => 1000,
             ShapingApproach => 20000,
             ShapedApproach => 5000,
             ShapingCalm => 50000,
-            Pretensing => 20000,
-            Empty | GrowStep | ShapingStart | Shaped | ShapingDone | Pretenst => 0,
+            Empty | GrowStep | ShapingStart | Shaped | ShapingDone | Completed => 0,
         };
-        self.fabric.progress.start(countdown);
+        fabric.progress.start(countdown);
+        self.stage = next_stage;
+    }
+
+    pub fn is_done(&self) -> bool {
+        self.stage == Completed
     }
 }
