@@ -325,8 +325,11 @@ pub fn run() {
             Event::RedrawRequested(_) => {
                 let now = Instant::now();
                 let dt = now - start_time;
-                experiment.iterate(&mut state.camera);
-                state.update(&experiment.fabric);
+                let up = experiment.iterate();
+                if let Some(up) = up {
+                    state.camera.go_up(up);
+                }
+                state.update(experiment.fabric());
                 let frame_time = now - last_frame;
                 frame_no += 1;
                 let avg_time = dt.as_secs_f64() / (frame_no as f64);

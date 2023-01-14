@@ -1,8 +1,7 @@
 use crate::fabric::Fabric;
 use crate::growth::Growth;
 use crate::parser::parse;
-use crate::physics::Environment::Liquid;
-use crate::physics::Physics;
+use crate::physics::presets::LIQUID;
 use crate::plan_runner::Stage::{*};
 
 const CODE: &str = "
@@ -43,8 +42,6 @@ enum Stage {
 }
 
 pub struct PlanRunner {
-    pub physics: Physics,
-    pub iterations_per_frame: usize,
     pub growth: Growth,
     stage: Stage,
 }
@@ -52,8 +49,6 @@ pub struct PlanRunner {
 impl Default for PlanRunner {
     fn default() -> Self {
         Self {
-            physics: Physics::new(Liquid),
-            iterations_per_frame: 100,
             growth: Growth::new(parse(CODE).unwrap()),
             stage: Empty,
         }
@@ -62,9 +57,7 @@ impl Default for PlanRunner {
 
 impl PlanRunner {
     pub fn iterate(&mut self, fabric: &mut Fabric) {
-        for _ in 0..self.iterations_per_frame {
-            fabric.iterate(&self.physics);
-        }
+        fabric.iterate(&LIQUID);
         if fabric.progress.is_busy() {
             return;
         }
