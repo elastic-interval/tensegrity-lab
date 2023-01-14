@@ -1,8 +1,6 @@
 use crate::camera::Camera;
 use crate::fabric::Fabric;
 use crate::growth::Growth;
-use crate::interval::Interval;
-use crate::interval::Role::Measure;
 use crate::parser::parse;
 use crate::physics::Environment::{AirGravity, Liquid};
 use crate::physics::Physics;
@@ -49,7 +47,6 @@ enum Stage {
 pub struct PlanRunner {
     pub physics: Physics,
     pub fabric: Fabric,
-    pub frozen: Option<Fabric>,
     pub iterations_per_frame: usize,
     pub growth: Growth,
     stage: Stage,
@@ -60,7 +57,6 @@ impl Default for PlanRunner {
         Self {
             physics: Physics::new(Liquid),
             fabric: Fabric::default(),
-            frozen: None,
             iterations_per_frame: 100,
             growth: Growth::new(parse(CODE).unwrap()),
             stage: Empty,
@@ -101,7 +97,6 @@ impl PlanRunner {
             ShapedApproach => self.set_stage(ShapingDone),
             ShapingDone => self.set_stage(ShapingCalm),
             ShapingCalm => {
-                self.frozen = Some(self.fabric.clone());
                 self.physics = Physics::new(AirGravity);
                 self.fabric.install_measures();
                 let up = self.fabric.prepare_for_pretensing(1.03);
