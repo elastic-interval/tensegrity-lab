@@ -14,8 +14,8 @@ use wasm_bindgen::prelude::*;
 use crate::camera::Camera;
 use crate::fabric::Fabric;
 use crate::graphics::{get_depth_stencil_state, get_primitive_state, GraphicsWindow};
-use crate::interval::Interval;
-use crate::interval::Role::{Measure, Pull, Push};
+use crate::fabric::interval::Interval;
+use crate::fabric::interval::Role::{Measure, Pull, Push};
 
 pub struct Scene {
     camera: Camera,

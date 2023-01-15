@@ -5,3 +5,4 @@ pub mod mobius;
 pub mod plan_runner;
 pub mod sphere;
 pub mod tenscript;
+pub mod example;

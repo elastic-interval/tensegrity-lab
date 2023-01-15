@@ -5,8 +5,8 @@ mod tests {
     use cgmath::num_traits::abs;
     use crate::build::ball::generate_ball;
     use crate::fabric::Fabric;
-    use crate::interval::{Interval, Role};
-    use crate::joint::Joint;
+    use crate::fabric::interval::{Interval, Role};
+    use crate::fabric::joint::Joint;
     use crate::build::klein::generate_klein;
     use crate::build::mobius::generate_mobius;
     use crate::parser::parse;

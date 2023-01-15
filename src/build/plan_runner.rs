@@ -2,7 +2,7 @@ use crate::build::growth::Growth;
 use crate::build::plan_runner::Stage::{*};
 use crate::build::tenscript::parse;
 use crate::fabric::Fabric;
-use crate::physics::presets::LIQUID;
+use crate::fabric::physics::presets::LIQUID;
 
 const CODE: &str = "
 (fabric

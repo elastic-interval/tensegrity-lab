@@ -20,8 +20,8 @@ pub struct Physics {
 }
 
 pub mod presets {
-    use crate::physics::Physics;
-    use crate::physics::SurfaceCharacter::{Absent, Frozen};
+    use crate::fabric::physics::Physics;
+    use crate::fabric::physics::SurfaceCharacter::{Absent, Frozen};
 
     pub const LIQUID: Physics = Physics {
         surface_character: Absent,
