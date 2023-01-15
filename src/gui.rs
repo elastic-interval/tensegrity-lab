@@ -1,12 +1,20 @@
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
+
 use iced_wgpu::{Backend, Renderer, Settings};
 use iced_winit::{Alignment, Clipboard, Color, Command, conversion, Debug, Element, Length, mouse, Program, program, renderer, Size, Viewport};
-use iced_winit::widget::{button, Column, Row, slider, Text};
+use iced_winit::widget::{Column, Row, slider, Text};
 use wgpu::{CommandEncoder, Device, TextureView};
 use winit::dpi::PhysicalPosition;
 use winit::event::{ModifiersState, WindowEvent};
-use winit::window::Window;
+use winit::window::{CursorIcon, Window};
+
+#[cfg(target_arch = "wasm32")]
+use instant::Instant;
 
 use crate::graphics::GraphicsWindow;
+
+const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
 
 ///
 /// Largely adapted from https://github.com/iced-rs/iced/blob/master/examples/integration_wgpu/src/main.rs
@@ -21,8 +29,10 @@ pub struct GUI {
     clipboard: Clipboard,
     modifiers: ModifiersState,
     resized: bool,
-}
 
+    last_measure_time: Instant,
+    frame_number: usize,
+}
 
 impl GUI {
     pub fn new(graphics: &GraphicsWindow, window: &Window) -> Self {
@@ -57,6 +67,9 @@ impl GUI {
             clipboard,
             modifiers,
             resized: false,
+
+            last_measure_time: Instant::now(),
+            frame_number: 0,
         }
     }
 
@@ -102,6 +115,8 @@ impl GUI {
     }
 
     pub fn update(&mut self) {
+        self.update_frame_rate();
+
         if self.state.is_queue_empty() {
             return;
         }
@@ -119,6 +134,20 @@ impl GUI {
         );
     }
 
+    fn update_frame_rate(&mut self) {
+        self.frame_number += 1;
+        let now = Instant::now();
+        let time_elapsed = now - self.last_measure_time;
+        if time_elapsed.as_secs_f64() < FRAME_RATE_MEASURE_INTERVAL_SECS {
+            return;
+        }
+        self.last_measure_time = now;
+        let average_time_per_frame = time_elapsed.as_secs_f64() / (self.frame_number as f64);
+        self.frame_number = 0;
+        let frame_rate = 1.0 / average_time_per_frame;
+        self.state.queue_message(Message::FrameRateUpdated(frame_rate))
+    }
+
     pub fn update_viewport(&mut self, window: &Window) {
         if !self.resized {
             return;
@@ -133,21 +162,30 @@ impl GUI {
     pub fn capturing_mouse(&self) -> bool {
         !matches!(self.state.mouse_interaction(), mouse::Interaction::Idle)
     }
+
+    pub fn cursor_icon(&self) -> CursorIcon {
+        conversion::mouse_interaction(
+            self.state.mouse_interaction(),
+        )
+    }
 }
 
 pub struct Controls {
     measure_threshold: f32,
+    frame_rate: f64,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     MeasureThresholdChanged(f32),
+    FrameRateUpdated(f64),
 }
 
 impl Default for Controls {
     fn default() -> Self {
         Self {
             measure_threshold: 0.0,
+            frame_rate: 0.0,
         }
     }
 }
@@ -161,39 +199,51 @@ impl Program for Controls {
             Message::MeasureThresholdChanged(new_threshold) => {
                 self.measure_threshold = new_threshold;
             }
+
+            Message::FrameRateUpdated(frame_rate) => {
+                self.frame_rate = frame_rate;
+            }
         }
 
         Command::none()
     }
 
     fn view(&self) -> Element<'_, Self::Message, Self::Renderer> {
+        let Self { frame_rate, .. } = *self;
+        let mut right_column = Column::new()
+            .width(Length::Fill)
+            .align_items(Alignment::End);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            right_column = right_column.push(
+                Text::new(format!("{frame_rate:.01} FPS"))
+                    .style(Color::WHITE)
+                    .size(12),
+            );
+        }
         Row::new()
-            .width(Length::Units(200))
+            .width(Length::Fill)
             .height(Length::Fill)
+            .padding(10)
             .align_items(Alignment::Start)
             .push(
                 Column::new()
                     .width(Length::Fill)
-                    .align_items(Alignment::End)
+                    .align_items(Alignment::Start)
+                    .spacing(10)
                     .push(
-                        Column::new()
-                            .padding(10)
-                            .spacing(10)
-                            .push(
-                                Text::new("Measure threshold")
-                                    .style(Color::WHITE),
-                            )
-                            .push(
-                                slider(0.0f32..=1.0, self.measure_threshold, |new_threshold| {
-                                    Message::MeasureThresholdChanged(new_threshold)
-                                })
-                                    .step(0.01)
-                            )
-                            .push(
-                                button("Anneal")
-                            )
-                    ),
+                        Text::new("Measure threshold")
+                            .style(Color::WHITE)
+                            .size(14),
+                    )
+                    .push(
+                        slider(0.0..=1.0, self.measure_threshold, |new_threshold| {
+                            Message::MeasureThresholdChanged(new_threshold)
+                        })
+                            .step(0.01)
+                    )
             )
+            .push(right_column)
             .into()
     }
 }

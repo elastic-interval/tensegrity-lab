@@ -234,14 +234,10 @@ pub fn run() {
             env_logger::init();
         }
     }
-    #[cfg(target_arch = "wasm32")]
-    use instant::Instant;
-    #[cfg(not(target_arch = "wasm32"))]
-    use std::time::Instant;
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
-        .with_inner_size(PhysicalSize::new(1600, 1200))
+        .with_inner_size(PhysicalSize::new(2048, 1600))
         .build(&event_loop)
         .expect("Could not build window");
 
@@ -266,9 +262,6 @@ pub fn run() {
     let graphics = pollster::block_on(GraphicsWindow::new(&window));
     let mut state = State::new(graphics, &window);
     let mut experiment = Experiment::default();
-    let start_time = Instant::now();
-    let mut last_frame = Instant::now();
-    let mut frame_no = 0;
 
     event_loop.run(move |event, _, control_flow| {
         match event {
@@ -292,29 +285,15 @@ pub fn run() {
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                         state.resize(**new_inner_size);
                     }
-                    WindowEvent::KeyboardInput { input, .. } =>
+                    WindowEvent::KeyboardInput { input, .. } => {
                         match input.virtual_keycode {
+                            #[cfg(target_arch = "wasm32")]
                             Some(VirtualKeyCode::F) => {
-                                #[cfg(target_arch = "wasm32")]
-                                web_sys::window()
-                                    .and_then(|win| {
-                                        let document = win.document()?;
-                                        if document.fullscreen_element().is_none() {
-                                            let canvas = document.get_element_by_id("canvas")?;
-                                            match canvas.request_fullscreen() {
-                                                Ok(_) => {}
-                                                Err(e) => {
-                                                    info!("Could not request fullscreen: {e:?}");
-                                                }
-                                            }
-                                        } else {
-                                            document.exit_fullscreen();
-                                        }
-                                        Some(())
-                                    });
+                                fullscreen_web();
                             }
                             _ => {}
-                        },
+                        }
+                    },
                     WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
                     if !state.gui.capturing_mouse() => {
                         state.camera.window_event(event)
@@ -323,21 +302,11 @@ pub fn run() {
                 }
             }
             Event::RedrawRequested(_) => {
-                let now = Instant::now();
-                let dt = now - start_time;
                 let up = experiment.iterate();
                 if let Some(up) = up {
                     state.camera.go_up(up);
                 }
                 state.update(experiment.fabric());
-                let frame_time = now - last_frame;
-                frame_no += 1;
-                let avg_time = dt.as_secs_f64() / (frame_no as f64);
-                last_frame = now;
-                if frame_no % 100 == 0 {
-                    info!("frame {:<8} {}µs/frame ({:.1} FPS avg)",
-                             frame_no, frame_time.as_micros(), 1.0 / avg_time);
-                }
                 state.gui.update_viewport(&window);
                 match state.render() {
                     Ok(_) => {}
@@ -345,6 +314,8 @@ pub fn run() {
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                     Err(e) => eprintln!("{e:?}"),
                 }
+
+                window.set_cursor_icon(state.gui.cursor_icon());
             }
             Event::MainEventsCleared => {
                 state.gui.update();
@@ -354,4 +325,24 @@ pub fn run() {
             _ => {}
         }
     });
+}
+
+fn fullscreen_web() {
+    #[cfg(target_arch = "wasm32")]
+    web_sys::window()
+        .and_then(|win| {
+            let document = win.document()?;
+            if document.fullscreen_element().is_none() {
+                let canvas = document.get_element_by_id("canvas")?;
+                match canvas.request_fullscreen() {
+                    Ok(_) => {}
+                    Err(e) => {
+                        info!("Could not request fullscreen: {e:?}");
+                    }
+                }
+            } else {
+                document.exit_fullscreen();
+            }
+            Some(())
+        });
 }
