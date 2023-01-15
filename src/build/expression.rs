@@ -1,10 +1,10 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use crate::error::Error;
-use crate::scanner;
-use crate::scanner::Token::{Atom, Float, Ident, Integer, Paren, Percent, EOF};
-use crate::scanner::{ScannedToken, Token};
-use crate::expression::ErrorKind::{ConsumeFailed, MatchExhausted};
+use crate::build::error::Error;
+use crate::build::scanner;
+use crate::build::scanner::Token::{Atom, Float, Ident, Integer, Paren, Percent, EOF};
+use crate::build::scanner::{ScannedToken, Token};
+use crate::build::expression::ErrorKind::{ConsumeFailed, MatchExhausted};
 
 #[derive(Clone)]
 pub enum Expression {

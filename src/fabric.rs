@@ -15,7 +15,7 @@ use crate::interval::Role::{Measure, Pull, Push};
 use crate::interval::Span::{Approaching, Fixed};
 use crate::joint::Joint;
 use crate::physics::Physics;
-use crate::tenscript::Spin;
+use crate::build::tenscript::Spin;
 
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Progress {

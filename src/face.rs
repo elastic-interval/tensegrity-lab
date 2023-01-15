@@ -7,7 +7,7 @@ use crate::fabric::{Fabric, UniqueId};
 
 use crate::interval::Interval;
 use crate::joint::Joint;
-use crate::tenscript::Spin;
+use crate::build::tenscript::Spin;
 
 #[derive(Clone, Debug)]
 pub struct Face {

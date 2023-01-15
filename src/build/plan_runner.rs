@@ -1,8 +1,8 @@
+use crate::build::growth::Growth;
+use crate::build::parser::parse;
+use crate::build::plan_runner::Stage::{*};
 use crate::fabric::Fabric;
-use crate::growth::Growth;
-use crate::parser::parse;
 use crate::physics::presets::LIQUID;
-use crate::plan_runner::Stage::{*};
 
 const CODE: &str = "
 (fabric

@@ -5,11 +5,11 @@ use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 use crate::fabric::{Fabric, UniqueId};
 use crate::face::Face;
 use crate::interval::Role::{*};
-use crate::tenscript::{FaceName, Spin};
-use crate::tenscript::FaceName::{*};
-use crate::tenscript::Spin::{Left, Right};
-use crate::tenscript::TenscriptNode;
-use crate::tenscript::TenscriptNode::{Branch, Grow, Mark};
+use crate::build::tenscript::{FaceName, Spin};
+use crate::build::tenscript::FaceName::{*};
+use crate::build::tenscript::Spin::{Left, Right};
+use crate::build::tenscript::TenscriptNode;
+use crate::build::tenscript::TenscriptNode::{Branch, Grow, Mark};
 
 const ROOT3: f32 = 1.732_050_8;
 const ROOT5: f32 = 2.236_068;

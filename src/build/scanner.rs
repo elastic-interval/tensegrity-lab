@@ -2,9 +2,9 @@ use std::fmt::{Display, Formatter};
 use std::num::{ParseFloatError, ParseIntError};
 use std::str::FromStr;
 
-use crate::error;
-use crate::scanner::ErrorKind::{FloatParseFailed, IllegalChar, IntParseFailed};
-use crate::scanner::Token::{
+use crate::build::error;
+use crate::build::scanner::ErrorKind::{FloatParseFailed, IllegalChar, IntParseFailed};
+use crate::build::scanner::Token::{
     Atom, Float, Ident, Integer, Paren, Percent, String as StringLit, EOF,
 };
 
