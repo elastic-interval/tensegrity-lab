@@ -88,7 +88,7 @@ pub fn run() {
         .build(&event_loop)
         .expect("Could not build window");
 
-    window.set_title("Elastic Interval Geometry");
+    window.set_title("Tensegrity Lab");
     #[cfg(target_arch = "wasm32")]
     {
         use winit::platform::web::WindowExtWebSys;
