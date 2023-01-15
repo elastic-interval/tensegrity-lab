@@ -6,6 +6,7 @@
 
 
 pub mod annealing;
+pub mod application;
 pub mod ball;
 pub mod camera;
 pub mod error;
@@ -17,7 +18,6 @@ pub mod face;
 pub mod graphics;
 pub mod growth;
 pub mod gui;
-pub mod application;
 pub mod interval;
 pub mod joint;
 pub mod klein;
@@ -26,6 +26,7 @@ pub mod parser;
 pub mod physics;
 pub mod plan_runner;
 pub mod scanner;
+pub mod scene;
 pub mod sphere;
 pub mod tenscript;
 pub mod test;
