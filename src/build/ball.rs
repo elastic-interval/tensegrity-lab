@@ -1,6 +1,6 @@
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Quaternion, Rad, Rotation3, VectorSpace};
 use crate::fabric::{Fabric};
-use crate::interval::Role;
+use crate::fabric::interval::Role;
 use crate::build::sphere::{SphereScaffold, Vertex};
 
 const TWIST_ANGLE: f32 = 0.52;

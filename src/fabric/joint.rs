@@ -5,8 +5,8 @@
 
 use cgmath::{InnerSpace, Point3, Vector3};
 use cgmath::num_traits::zero;
-use crate::physics::Physics;
-use crate::physics::SurfaceCharacter::{*};
+use crate::fabric::physics::Physics;
+use crate::fabric::physics::SurfaceCharacter::{*};
 
 const RESURFACE: f32 = 0.01;
 const AMBIENT_MASS: f32 = 0.001;

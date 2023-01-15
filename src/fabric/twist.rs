@@ -3,8 +3,8 @@ use std::f32::consts::PI;
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 
 use crate::fabric::{Fabric, UniqueId};
-use crate::face::Face;
-use crate::interval::Role::{*};
+use crate::fabric::face::Face;
+use crate::fabric::interval::Role::{*};
 use crate::build::tenscript::{FaceName, Spin};
 use crate::build::tenscript::FaceName::{*};
 use crate::build::tenscript::Spin::{Left, Right};

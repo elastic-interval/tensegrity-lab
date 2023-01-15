@@ -6,8 +6,8 @@ use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 
 use crate::build::tenscript::Spin;
 use crate::fabric::{Fabric, UniqueId};
-use crate::interval::Interval;
-use crate::joint::Joint;
+use crate::fabric::interval::Interval;
+use crate::fabric::joint::Joint;
 
 #[derive(Clone, Debug)]
 pub struct Face {
