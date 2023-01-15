@@ -17,7 +17,7 @@ pub mod face;
 pub mod graphics;
 pub mod growth;
 pub mod gui;
-pub mod init;
+pub mod application;
 pub mod interval;
 pub mod joint;
 pub mod klein;
@@ -31,4 +31,4 @@ pub mod tenscript;
 pub mod test;
 pub mod twist;
 
-pub use init::run;
+pub use application::run;
