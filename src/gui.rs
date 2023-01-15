@@ -141,7 +141,6 @@ impl GUI {
         let time_elapsed = now - self.start_time;
         let average_time_per_frame = time_elapsed.as_secs_f64() / (self.frame_number as f64);
         let frame_rate = 1.0 / average_time_per_frame;
-        log::info!("update_frame_rate: {now:?} {time_elapsed:?} {average_time_per_frame} {frame_rate}");
         self.state.queue_message(Message::FrameRateUpdated(frame_rate))
     }
 
@@ -198,7 +197,6 @@ impl Program for Controls {
             }
 
             Message::FrameRateUpdated(frame_rate) => {
-                log::info!("FrameRateUpdated({frame_rate})");
                 self.frame_rate = frame_rate;
             }
         }
@@ -208,8 +206,17 @@ impl Program for Controls {
 
     fn view(&self) -> Element<'_, Self::Message, Self::Renderer> {
         let Self { frame_rate, .. } = *self;
-        let frame_rate = frame_rate as i32;
-        log::info!("Updating view with frame_rate={frame_rate}");
+        let mut right_column = Column::new()
+            .width(Length::Fill)
+            .align_items(Alignment::End);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            right_column = right_column.push(
+                Text::new(format!("{frame_rate:.01} FPS"))
+                    .style(Color::WHITE)
+                    .size(12),
+            );
+        }
         Row::new()
             .width(Length::Fill)
             .height(Length::Fill)
@@ -232,16 +239,7 @@ impl Program for Controls {
                             .step(0.01)
                     )
             )
-            .push(
-                Column::new()
-                    .width(Length::Fill)
-                    .align_items(Alignment::End)
-                    .push(
-                        Text::new(format!("{frame_rate} FPS"))
-                            .style(Color::WHITE)
-                            .size(12),
-                    )
-            )
+            .push(right_column)
             .into()
     }
 }
