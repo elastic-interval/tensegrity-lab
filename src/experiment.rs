@@ -1,7 +1,7 @@
 use crate::experiment::Stage::{Pretensing, Pretenst, RunningPlan};
 use crate::fabric::Fabric;
-use crate::physics::presets::AIR_GRAVITY;
-use crate::plan_runner::PlanRunner;
+use crate::fabric::physics::presets::AIR_GRAVITY;
+use crate::build::plan_runner::PlanRunner;
 
 enum Stage {
     RunningPlan,

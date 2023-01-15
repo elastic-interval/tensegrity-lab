@@ -1,7 +1,7 @@
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 use crate::fabric::{Fabric, UniqueId};
 use rand::prelude::*;
-use crate::interval::Role;
+use crate::fabric::interval::Role;
 
 struct KleinFabric {
     fabric: Fabric,

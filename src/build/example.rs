@@ -1,7 +1,7 @@
 use cgmath::{EuclideanSpace, MetricSpace, Point3, Vector3};
 
 use crate::fabric::Fabric;
-use crate::interval::Role;
+use crate::fabric::interval::Role;
 
 impl Fabric {
     pub fn mitosis_example() -> Fabric {

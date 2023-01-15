@@ -9,13 +9,21 @@ use std::collections::HashMap;
 
 use cgmath::{EuclideanSpace, Matrix4, MetricSpace, Point3, Transform, Vector3};
 use cgmath::num_traits::zero;
-use crate::face::Face;
-use crate::interval::{Interval, Role, Material};
-use crate::interval::Role::{Measure, Pull, Push};
-use crate::interval::Span::{Approaching, Fixed};
-use crate::joint::Joint;
-use crate::physics::Physics;
-use crate::tenscript::Spin;
+
+use crate::build::tenscript::Spin;
+use crate::fabric::face::Face;
+use crate::fabric::interval::{Interval, Material, Role};
+use crate::fabric::interval::Role::{Measure, Pull, Push};
+use crate::fabric::interval::Span::{Approaching, Fixed};
+use crate::fabric::joint::Joint;
+use crate::fabric::physics::Physics;
+
+pub mod annealing;
+pub mod face;
+pub mod interval;
+pub mod joint;
+pub mod physics;
+pub mod twist;
 
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Progress {

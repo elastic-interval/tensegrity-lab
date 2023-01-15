@@ -8,10 +8,10 @@ use cgmath::num_traits::zero;
 use fast_inv_sqrt::InvSqrt32;
 
 use crate::fabric::Progress;
-use crate::interval::Role::{*};
-use crate::interval::Span::{*};
-use crate::joint::Joint;
-use crate::physics::Physics;
+use crate::fabric::interval::Role::{*};
+use crate::fabric::interval::Span::{*};
+use crate::fabric::joint::Joint;
+use crate::fabric::physics::Physics;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Span {

@@ -1,10 +1,10 @@
 use cgmath::MetricSpace;
 use crate::fabric::{Fabric, UniqueId};
-use crate::interval::Role::Pull;
-use crate::tenscript::{BuildPhase, FabricPlan, ShapePhase, Spin};
-use crate::tenscript::FaceName::Apos;
-use crate::tenscript::TenscriptNode;
-use crate::tenscript::TenscriptNode::{Branch, Grow, Mark};
+use crate::fabric::interval::Role::Pull;
+use crate::build::tenscript::{BuildPhase, FabricPlan, ShapePhase, Spin};
+use crate::build::tenscript::FaceName::Apos;
+use crate::build::tenscript::TenscriptNode;
+use crate::build::tenscript::TenscriptNode::{Branch, Grow, Mark};
 
 #[allow(dead_code)]
 #[derive(Clone)]

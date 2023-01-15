@@ -3,8 +3,8 @@ use std::collections::{HashMap, HashSet};
 use cgmath::{MetricSpace, Point3};
 
 use crate::fabric::Fabric;
-use crate::interval::{Interval, Role};
-use crate::interval::Role::Measure;
+use crate::fabric::interval::{Interval, Role};
+use crate::fabric::interval::Role::Measure;
 
 impl Fabric {
     pub fn install_measures(&mut self) {
