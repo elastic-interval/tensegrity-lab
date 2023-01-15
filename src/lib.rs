@@ -14,5 +14,3 @@ pub mod graphics;
 pub mod gui;
 pub mod scene;
 pub mod test;
-
-pub use application::run;

@@ -1,3 +1,3 @@
 fn main() {
-    tensegrity_lab::run();
+    tensegrity_lab::application::run();
 }
