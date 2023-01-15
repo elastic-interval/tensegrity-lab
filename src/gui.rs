@@ -14,6 +14,8 @@ use instant::Instant;
 
 use crate::graphics::GraphicsWindow;
 
+const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
+
 ///
 /// Largely adapted from https://github.com/iced-rs/iced/blob/master/examples/integration_wgpu/src/main.rs
 ///
@@ -28,7 +30,7 @@ pub struct GUI {
     modifiers: ModifiersState,
     resized: bool,
 
-    start_time: Instant,
+    last_measure_time: Instant,
     frame_number: usize,
 }
 
@@ -66,7 +68,7 @@ impl GUI {
             modifiers,
             resized: false,
 
-            start_time: Instant::now(),
+            last_measure_time: Instant::now(),
             frame_number: 0,
         }
     }
@@ -134,12 +136,14 @@ impl GUI {
 
     fn update_frame_rate(&mut self) {
         self.frame_number += 1;
-        if self.frame_number % 100 != 0 {
+        let now = Instant::now();
+        let time_elapsed = now - self.last_measure_time;
+        if time_elapsed.as_secs_f64() < FRAME_RATE_MEASURE_INTERVAL_SECS {
             return;
         }
-        let now = Instant::now();
-        let time_elapsed = now - self.start_time;
+        self.last_measure_time = now;
         let average_time_per_frame = time_elapsed.as_secs_f64() / (self.frame_number as f64);
+        self.frame_number = 0;
         let frame_rate = 1.0 / average_time_per_frame;
         self.state.queue_message(Message::FrameRateUpdated(frame_rate))
     }
