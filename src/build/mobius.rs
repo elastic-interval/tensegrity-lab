@@ -1,7 +1,7 @@
 use std::f32::consts::PI;
 use cgmath::{EuclideanSpace, InnerSpace, Point3, vec3, Vector3};
 use crate::fabric::Fabric;
-use crate::interval::Role;
+use crate::fabric::interval::Role;
 
 struct MobiusFabric {
     fabric: Fabric,

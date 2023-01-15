@@ -5,30 +5,12 @@
 #![feature(iter_collect_into)]
 
 
-pub mod annealing;
-pub mod ball;
+pub mod application;
+pub mod build;
 pub mod camera;
-pub mod error;
-pub mod example;
 pub mod experiment;
-pub mod expression;
 pub mod fabric;
-pub mod face;
 pub mod graphics;
-pub mod growth;
 pub mod gui;
-pub mod init;
-pub mod interval;
-pub mod joint;
-pub mod klein;
-pub mod mobius;
-pub mod parser;
-pub mod physics;
-pub mod plan_runner;
-pub mod scanner;
-pub mod sphere;
-pub mod tenscript;
+pub mod scene;
 pub mod test;
-pub mod twist;
-
-pub use init::run;
