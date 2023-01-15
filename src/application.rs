@@ -151,7 +151,7 @@ pub fn run() {
             Event::RedrawRequested(_) => {
                 let up = experiment.iterate();
                 if let Some(up) = up {
-                    application.scene.camera.go_up(up);
+                    application.scene.adjust_camera_up(up);
                 }
                 application.scene.update(&application.graphics, experiment.fabric());
                 application.gui.update_viewport(&window);

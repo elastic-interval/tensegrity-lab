@@ -18,7 +18,7 @@ use crate::interval::Interval;
 use crate::interval::Role::{Measure, Pull, Push};
 
 pub struct Scene {
-    pub camera: Camera,
+    camera: Camera,
     vertices: Vec<Vertex>,
     pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
@@ -156,6 +156,10 @@ impl Scene {
         let mvp_mat = self.camera.mvp_matrix();
         let mvp_ref: &[f32; 16] = mvp_mat.as_ref();
         graphics.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));
+    }
+
+    pub fn adjust_camera_up(&mut self, up: f32) {
+        self.camera.go_up(up);
     }
 }
 
