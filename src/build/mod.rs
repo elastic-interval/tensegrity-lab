@@ -1,11 +1,7 @@
 pub mod ball;
-pub mod error;
-pub mod expression;
 pub mod growth;
 pub mod klein;
 pub mod mobius;
-pub mod parser;
 pub mod plan_runner;
-pub mod scanner;
 pub mod sphere;
 pub mod tenscript;

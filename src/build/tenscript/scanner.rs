@@ -2,10 +2,10 @@ use std::fmt::{Display, Formatter};
 use std::num::{ParseFloatError, ParseIntError};
 use std::str::FromStr;
 
-use crate::build::error;
-use crate::build::scanner::ErrorKind::{FloatParseFailed, IllegalChar, IntParseFailed};
-use crate::build::scanner::Token::{
-    Atom, Float, Ident, Integer, Paren, Percent, String as StringLit, EOF,
+use crate::build::tenscript::error;
+use crate::build::tenscript::scanner::ErrorKind::{FloatParseFailed, IllegalChar, IntParseFailed};
+use crate::build::tenscript::scanner::Token::{
+    Atom, EOF, Float, Ident, Integer, Paren, Percent, String as StringLit,
 };
 
 #[derive(Debug, Clone)]
@@ -221,7 +221,7 @@ impl Scanner {
         let name = self.lexeme();
         self.add(Ident(name));
     }
-    
+
     fn string(&mut self) -> Result<(), ErrorKind> {
         self.increment();
         while self.current() != '"' {

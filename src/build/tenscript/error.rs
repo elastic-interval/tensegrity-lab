@@ -1,7 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use crate::build::{expression, parser};
-use crate::build::scanner;
+use crate::build::tenscript::{expression, parser, scanner};
 
 #[derive(Debug)]
 pub enum Error {
