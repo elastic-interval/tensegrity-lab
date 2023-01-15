@@ -3,11 +3,11 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
-use crate::fabric::{Fabric, UniqueId};
 
+use crate::build::tenscript::Spin;
+use crate::fabric::{Fabric, UniqueId};
 use crate::interval::Interval;
 use crate::joint::Joint;
-use crate::build::tenscript::Spin;
 
 #[derive(Clone, Debug)]
 pub struct Face {

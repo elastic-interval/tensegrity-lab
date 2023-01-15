@@ -11,7 +11,7 @@ mod tests {
     use crate::build::mobius::generate_mobius;
     use crate::parser::parse;
     use crate::build::sphere::{SphereScaffold, Vertex};
-    use crate::build::tenscript::TenscriptNode::Grow;
+    use crate::build::r#mod::TenscriptNode::Grow;
 
     #[test]
     fn simple_parse() {
