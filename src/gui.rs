@@ -245,7 +245,7 @@ impl Program for Controls {
                 .width(Length::Fill)
                 .align_items(Alignment::Start)
                 .spacing(10)
-                .push(Text::new("Measure threshold")
+                .push(Text::new("Strain threshold")
                     .style(Color::WHITE)
                     .size(14))
                 .push(Slider::new(
