@@ -1,44 +1,48 @@
-use crate::experiment::Stage::{Pretensing, Pretenst, RunningPlan};
+use crate::experiment::Stage::{AddPulls, Pretensing, Pretenst, RunningPlan};
 use crate::fabric::Fabric;
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::build::plan_runner::PlanRunner;
+use crate::fabric::interval::Role::Pull;
 
 enum Stage {
     RunningPlan,
     Pretensing,
     Pretenst,
+    AddPulls { strain_lower_limit: f32 },
 }
 
 pub struct Experiment {
     fabric: Fabric,
     plan_runner: PlanRunner,
+    frozen_fabric: Option<Fabric>,
     iterations_per_frame: usize,
     stage: Stage,
+    add_pulls: Option<f32>,
 }
 
 impl Default for Experiment {
     fn default() -> Self {
         Self {
-            plan_runner: PlanRunner::default(),
             fabric: Fabric::default(),
+            plan_runner: PlanRunner::default(),
+            frozen_fabric: None,
             iterations_per_frame: 100,
             stage: RunningPlan,
+            add_pulls: None,
         }
     }
 }
 
 impl Experiment {
     pub fn iterate(&mut self) -> Option<f32> {
-        match &mut self.stage {
+        match self.stage {
             RunningPlan => {
                 for _ in 0..self.iterations_per_frame {
                     self.plan_runner.iterate(&mut self.fabric);
                 }
                 if self.plan_runner.is_done() {
-                    self.fabric.install_measures();
-                    self.fabric.progress.start(20000);
-                    self.stage = Pretensing;
                     let up = self.fabric.prepare_for_pretensing(1.03);
+                    self.start_pretensing();
                     return Some(up);
                 }
             }
@@ -50,12 +54,42 @@ impl Experiment {
                     self.stage = Pretenst;
                 }
             }
-            Pretenst => {}
+            Pretenst => {
+                for _ in 0..self.iterations_per_frame {
+                    self.fabric.iterate(&AIR_GRAVITY);
+                }
+                match self.add_pulls {
+                    None => {}
+                    Some(strain_lower_limit) => {
+                        self.stage = AddPulls { strain_lower_limit }
+                    }
+                }
+            }
+            AddPulls { strain_lower_limit } => {
+                self.add_pulls = None;
+                let new_pulls = self.fabric.measures_to_pulls(strain_lower_limit);
+                self.fabric = self.frozen_fabric.take().unwrap();
+                for (alpha_index, omega_index, ideal_length) in new_pulls {
+                    self.fabric.create_interval(alpha_index, omega_index, Pull, ideal_length);
+                }
+                self.start_pretensing()
+            }
         }
         None
     }
 
+    pub fn add_pulls(&mut self, strain_lower_limit: f32) {
+        self.add_pulls = Some(strain_lower_limit);
+    }
+
     pub fn fabric(&self) -> &Fabric {
         &self.fabric
+    }
+
+    fn start_pretensing(&mut self) {
+        self.frozen_fabric = Some(self.fabric.clone());
+        self.fabric.install_measures();
+        self.fabric.progress.start(20000);
+        self.stage = Pretensing;
     }
 }

@@ -18,6 +18,7 @@ use wasm_bindgen::prelude::*;
 use crate::experiment::Experiment;
 use crate::graphics::GraphicsWindow;
 use crate::gui;
+use crate::gui::Action;
 use crate::scene::Scene;
 
 struct Application {
@@ -166,11 +167,17 @@ pub fn run() {
             }
             Event::MainEventsCleared => {
                 application.gui.update();
-
                 for action in application.gui.controls().take_actions() {
-                    dbg!(action);
+                    match action {
+                        Action::AddPulls { measure_nuance: measure_threshold } => {
+                            let strain_lower_limit = match experiment.fabric().measure_limits() {
+                                Some(limits) => limits.interpolate(measure_threshold),
+                                None => f32::NEG_INFINITY,
+                            };
+                            experiment.add_pulls(strain_lower_limit);
+                        }
+                    }
                 }
-
                 window.request_redraw();
             }
             _ => {}
