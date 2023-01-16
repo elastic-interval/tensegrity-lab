@@ -22,8 +22,7 @@ const MAX_INTERVALS: usize = 5000;
 
 pub struct Scene {
     camera: Camera,
-    vertices: [Vertex; MAX_INTERVALS * 2],
-    vertex_count: usize,
+    vertices: Vec<Vertex>,
     pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
@@ -80,7 +79,7 @@ impl Scene {
             multiview: None,
         });
 
-        let vertices = [Vertex::default(); MAX_INTERVALS * 2];
+        let vertices = vec![Vertex::default(); MAX_INTERVALS * 2];
         let vertex_buffer = graphics.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: cast_slice(&vertices),
@@ -89,7 +88,6 @@ impl Scene {
         Self {
             camera,
             vertices,
-            vertex_count: 0,
             pipeline,
             vertex_buffer,
             uniform_buffer,
@@ -120,7 +118,7 @@ impl Scene {
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
-        render_pass.draw(0..self.vertex_count as u32, 0..1);
+        render_pass.draw(0..self.vertices.len() as u32, 0..1);
     }
 
     pub fn window_event(&mut self, event: &WindowEvent) {
@@ -142,11 +140,8 @@ impl Scene {
         let updated_vertices = fabric.interval_values()
             .filter(|Interval { strain, role, .. }| *role != Measure || *strain > measure_lower_limit)
             .flat_map(|interval| Vertex::for_interval(interval, fabric));
-        self.vertex_count = 0;
-        for (vertex, slot) in updated_vertices.zip(self.vertices.iter_mut()) {
-            *slot = vertex;
-            self.vertex_count += 1;
-        }
+        self.vertices.clear();
+        self.vertices.extend(updated_vertices);
         self.camera.target_approach(fabric.midpoint())
     }
 
