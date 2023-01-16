@@ -13,9 +13,9 @@ use wasm_bindgen::prelude::*;
 
 use crate::camera::Camera;
 use crate::fabric::Fabric;
-use crate::graphics::{get_depth_stencil_state, get_primitive_state, GraphicsWindow};
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Measure, Pull, Push};
+use crate::graphics::{get_depth_stencil_state, get_primitive_state, GraphicsWindow};
 use crate::gui::Controls;
 
 pub struct Scene {
@@ -67,10 +67,7 @@ impl Scene {
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: graphics.config.format,
-                    blend: Some(wgpu::BlendState {
-                        color: wgpu::BlendComponent::REPLACE,
-                        alpha: wgpu::BlendComponent::REPLACE,
-                    }),
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -182,13 +179,14 @@ impl Vertex {
         let color = match interval.role {
             Push => [1.0, 1.0, 1.0, 1.0],
             Pull => [0.2, 0.2, 1.0, 1.0],
-            Measure => if interval.strain < measure_lower_limit {
-                [0.0, 0.0, 0.0, 1.0]
-            } else if interval.strain < 0.0 {
-                [1.0, 0.8, 0.0, 1.0]
-            } else {
-                [0.0, 1.0, 0.0, 1.0]
-            },
+            Measure =>
+                if interval.strain < measure_lower_limit {
+                    [0.0, 0.0, 0.0, 0.0]
+                } else if interval.strain < 0.0 {
+                    [1.0, 0.8, 0.0, 1.0]
+                } else {
+                    [0.0, 1.0, 0.0, 1.0]
+                },
         };
         [
             Vertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color },
