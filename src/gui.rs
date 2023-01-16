@@ -1,3 +1,4 @@
+use std::cell::{Ref, RefCell};
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 use iced_wgpu::{Backend, Renderer, Settings};
@@ -171,9 +172,15 @@ impl GUI {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum Action {
+    AddPulls,
+}
+
 pub struct Controls {
     pub measure_threshold: f32,
     frame_rate: f64,
+    action_queue: RefCell<Vec<Action>>
 }
 
 #[derive(Debug, Clone)]
@@ -188,7 +195,14 @@ impl Default for Controls {
         Self {
             measure_threshold: 0.0,
             frame_rate: 0.0,
+            action_queue: RefCell::new(Vec::new()),
         }
+    }
+}
+
+impl Controls {
+    pub fn take_actions(&self) -> Vec<Action> {
+        self.action_queue.borrow_mut().split_off(0)
     }
 }
 
@@ -202,7 +216,7 @@ impl Program for Controls {
                 self.measure_threshold = new_threshold;
             }
             Message::AddPulls => {
-                println!("Add pulls, baby!");
+                self.action_queue.borrow_mut().push(Action::AddPulls);
             }
             Message::FrameRateUpdated(frame_rate) => {
                 self.frame_rate = frame_rate;
