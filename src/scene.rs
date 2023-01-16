@@ -18,9 +18,12 @@ use crate::fabric::interval::Role::{Measure, Pull, Push};
 use crate::graphics::{get_depth_stencil_state, get_primitive_state, GraphicsWindow};
 use crate::gui::Controls;
 
+const MAX_INTERVALS: usize = 5000;
+
 pub struct Scene {
     camera: Camera,
-    vertices: Vec<Vertex>,
+    vertices: [Vertex; MAX_INTERVALS * 2],
+    vertex_count: usize,
     pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
@@ -77,7 +80,7 @@ impl Scene {
             multiview: None,
         });
 
-        let vertices = vec![Vertex::default(); 10000]; // TODO: why 1000?
+        let vertices = [Vertex::default(); MAX_INTERVALS * 2];
         let vertex_buffer = graphics.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: cast_slice(&vertices),
@@ -86,6 +89,7 @@ impl Scene {
         Self {
             camera,
             vertices,
+            vertex_count: 0,
             pipeline,
             vertex_buffer,
             uniform_buffer,
@@ -116,7 +120,7 @@ impl Scene {
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
-        render_pass.draw(0..self.vertices.len() as u32, 0..1);
+        render_pass.draw(0..self.vertex_count as u32, 0..1);
     }
 
     pub fn window_event(&mut self, event: &WindowEvent) {
@@ -130,19 +134,18 @@ impl Scene {
     }
 
     fn update_from_fabric(&mut self, fabric: &Fabric, controls: &Controls) {
-        let num_vertices = fabric.intervals.len() * 2;
-        if self.vertices.len() != num_vertices {
-            self.vertices = vec![Vertex::default(); num_vertices];
-        }
         let measure_limits = fabric.measure_limits();
         let measure_lower_limit = match measure_limits {
             Some(limits) => limits.interpolate(controls.measure_threshold),
             None => f32::NEG_INFINITY,
         };
         let updated_vertices = fabric.interval_values()
-            .flat_map(|interval| Vertex::for_interval(interval, fabric, measure_lower_limit));
+            .filter(|Interval { strain, role, .. }| *role != Measure || *strain > measure_lower_limit)
+            .flat_map(|interval| Vertex::for_interval(interval, fabric));
+        self.vertex_count = 0;
         for (vertex, slot) in updated_vertices.zip(self.vertices.iter_mut()) {
             *slot = vertex;
+            self.vertex_count += 1;
         }
         self.camera.target_approach(fabric.midpoint())
     }
@@ -174,19 +177,16 @@ struct Vertex {
 }
 
 impl Vertex {
-    pub fn for_interval(interval: &Interval, fabric: &Fabric, measure_lower_limit: f32) -> [Vertex; 2] {
+    pub fn for_interval(interval: &Interval, fabric: &Fabric) -> [Vertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
         let color = match interval.role {
             Push => [1.0, 1.0, 1.0, 1.0],
             Pull => [0.2, 0.2, 1.0, 1.0],
-            Measure =>
-                if interval.strain < measure_lower_limit {
-                    [0.0, 0.0, 0.0, 0.0]
-                } else if interval.strain < 0.0 {
-                    [1.0, 0.8, 0.0, 1.0]
-                } else {
-                    [0.0, 1.0, 0.0, 1.0]
-                },
+            Measure => if interval.strain < 0.0 {
+                [1.0, 0.8, 0.0, 1.0]
+            } else {
+                [0.0, 1.0, 0.0, 1.0]
+            },
         };
         [
             Vertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color },
