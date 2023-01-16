@@ -4,7 +4,6 @@
  */
 
 use std::cmp::Ordering;
-use std::collections::hash_map::Values;
 use std::collections::HashMap;
 
 use cgmath::{EuclideanSpace, Matrix4, MetricSpace, Point3, Transform, Vector3};
@@ -145,8 +144,12 @@ impl Fabric {
         self.intervals.remove(&id);
     }
 
-    pub fn interval_values(&self) -> Values<'_, UniqueId, Interval> {
+    pub fn interval_values(&self) -> impl Iterator<Item=&Interval> {
         self.intervals.values()
+    }
+
+    pub fn interval_measures(&self) -> impl Iterator<Item=&Interval> {
+        self.intervals.values().filter(|Interval { role, .. }| *role == Measure)
     }
 
     pub fn create_face(&mut self, scale: f32, spin: Spin, radial_intervals: [UniqueId; 3], push_intervals: [UniqueId; 3]) -> UniqueId {

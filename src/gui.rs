@@ -29,7 +29,6 @@ pub struct GUI {
     clipboard: Clipboard,
     modifiers: ModifiersState,
     resized: bool,
-
     last_measure_time: Instant,
     frame_number: usize,
 }
@@ -67,10 +66,13 @@ impl GUI {
             clipboard,
             modifiers,
             resized: false,
-
             last_measure_time: Instant::now(),
             frame_number: 0,
         }
+    }
+
+    pub fn controls(&self) -> &Controls {
+        self.state.program()
     }
 
     pub fn render(&mut self, device: &Device, encoder: &mut CommandEncoder, frame: &TextureView) {
@@ -171,7 +173,7 @@ impl GUI {
 }
 
 pub struct Controls {
-    measure_threshold: f32,
+    pub measure_threshold: f32,
     frame_rate: f64,
 }
 
@@ -215,34 +217,27 @@ impl Program for Controls {
             .align_items(Alignment::End);
         #[cfg(not(target_arch = "wasm32"))]
         {
-            right_column = right_column.push(
-                Text::new(format!("{frame_rate:.01} FPS"))
-                    .style(Color::WHITE)
-                    .size(12),
-            );
+            right_column = right_column.push(Text::new(format!("{frame_rate:.01} FPS"))
+                .style(Color::WHITE)
+                .size(12));
         }
         Row::new()
             .width(Length::Fill)
             .height(Length::Fill)
             .padding(10)
             .align_items(Alignment::Start)
-            .push(
-                Column::new()
-                    .width(Length::Fill)
-                    .align_items(Alignment::Start)
-                    .spacing(10)
-                    .push(
-                        Text::new("Measure threshold")
-                            .style(Color::WHITE)
-                            .size(14),
-                    )
-                    .push(
-                        slider(0.0..=1.0, self.measure_threshold, |new_threshold| {
-                            Message::MeasureThresholdChanged(new_threshold)
-                        })
-                            .step(0.01)
-                    )
-            )
+            .push(Column::new()
+                .width(Length::Fill)
+                .align_items(Alignment::Start)
+                .spacing(10)
+                .push(Text::new("Measure threshold")
+                    .style(Color::WHITE)
+                    .size(14))
+                .push(slider(
+                    0.0..=1.0,
+                    self.measure_threshold,
+                    Message::MeasureThresholdChanged)
+                    .step(0.01)))
             .push(right_column)
             .into()
     }
