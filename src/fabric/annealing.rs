@@ -14,6 +14,21 @@ impl Fabric {
         }
     }
 
+    pub fn measure_limits(&self) -> Option<MeasureLimits> {
+        let mut limits = MeasureLimits { low: f32::MAX, high: f32::MIN };
+        let mut measures_present = false;
+        for Interval { strain, .. } in self.interval_measures() {
+            measures_present = true;
+            if *strain > limits.high {
+                limits.high = *strain;
+            }
+            if *strain < limits.low {
+                limits.low = *strain;
+            }
+        }
+        measures_present.then_some(limits)
+    }
+
     fn joint_incident(&self) -> Vec<JointIncident> {
         let mut incidents: Vec<JointIncident> = self.joints
             .iter()
@@ -25,6 +40,18 @@ impl Fabric {
             incidents[*omega_index].add(interval);
         }
         incidents
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MeasureLimits {
+    low: f32,
+    high: f32,
+}
+
+impl MeasureLimits {
+    pub fn interpolate(&self, nuance: f32) -> f32 {
+        self.low * (1.0 - nuance) + self.high * nuance
     }
 }
 
