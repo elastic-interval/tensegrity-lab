@@ -132,16 +132,14 @@ impl Scene {
     }
 
     fn update_from_fabric(&mut self, fabric: &Fabric, controls: &Controls) {
-        let measure_limits = fabric.measure_limits();
-        let measure_lower_limit = match measure_limits {
+        let measure_lower_limit = match fabric.measure_limits() {
             Some(limits) => limits.interpolate(controls.measure_threshold),
             None => f32::NEG_INFINITY,
         };
-        let updated_vertices = fabric.interval_values()
-            .filter(|Interval { strain, role, .. }| *role != Measure || *strain > measure_lower_limit)
-            .flat_map(|interval| Vertex::for_interval(interval, fabric));
         self.vertices.clear();
-        self.vertices.extend(updated_vertices);
+        self.vertices.extend(fabric.interval_values()
+            .filter(|Interval { strain, role, .. }| *role != Measure || *strain > measure_lower_limit)
+            .flat_map(|interval| Vertex::for_interval(interval, fabric)));
         self.camera.target_approach(fabric.midpoint())
     }
 
