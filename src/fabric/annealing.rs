@@ -1,10 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use cgmath::{MetricSpace, Point3};
-
 use crate::fabric::Fabric;
-use crate::fabric::interval::{Interval, Role};
-use crate::fabric::interval::Role::Measure;
+use crate::fabric::interval::Interval;
+use crate::fabric::interval::Role::{Measure, Pull, Push};
 
 impl Fabric {
     pub fn install_measures(&mut self) {
@@ -27,6 +26,18 @@ impl Fabric {
             }
         }
         measures_present.then_some(limits)
+    }
+
+    pub fn measures_to_pulls(&mut self, strain_lower_limit: f32) -> Vec<(usize, usize, f32)> {
+        self.interval_values()
+            .filter_map(|interval|
+                (interval.role == Measure && interval.strain > strain_lower_limit)
+                    .then_some((
+                        interval.alpha_index,
+                        interval.omega_index,
+                        interval.ideal_length() - interval.strain,
+                    )))
+            .collect()
     }
 
     fn joint_incident(&self) -> Vec<JointIncident> {
@@ -77,8 +88,8 @@ impl JointIncident {
 
     fn add(&mut self, interval: &Interval) {
         match interval.role {
-            Role::Push => self.push = Some(interval.clone()),
-            Role::Pull => self.pulls.push(interval.clone()),
+            Push => self.push = Some(interval.clone()),
+            Pull => self.pulls.push(interval.clone()),
             Measure => panic!("Should be no measures yet"),
         }
         self.adjacent_joints.insert(interval.other_joint(self.index));
