@@ -1,9 +1,8 @@
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
-
 use iced_wgpu::{Backend, Renderer, Settings};
 use iced_winit::{Alignment, Clipboard, Color, Command, conversion, Debug, Element, Length, mouse, Program, program, renderer, Size, Viewport};
-use iced_winit::widget::{Column, Row, slider, Text};
+use iced_winit::widget::{Button, Column, Row, Slider, Text};
 use wgpu::{CommandEncoder, Device, TextureView};
 use winit::dpi::PhysicalPosition;
 use winit::event::{ModifiersState, WindowEvent};
@@ -180,6 +179,7 @@ pub struct Controls {
 #[derive(Debug, Clone)]
 pub enum Message {
     MeasureThresholdChanged(f32),
+    AddPulls,
     FrameRateUpdated(f64),
 }
 
@@ -201,12 +201,13 @@ impl Program for Controls {
             Message::MeasureThresholdChanged(new_threshold) => {
                 self.measure_threshold = new_threshold;
             }
-
+            Message::AddPulls => {
+                println!("Add pulls, baby!");
+            }
             Message::FrameRateUpdated(frame_rate) => {
                 self.frame_rate = frame_rate;
             }
         }
-
         Command::none()
     }
 
@@ -233,11 +234,15 @@ impl Program for Controls {
                 .push(Text::new("Measure threshold")
                     .style(Color::WHITE)
                     .size(14))
-                .push(slider(
+                .push(Slider::new(
                     0.0..=1.0,
                     self.measure_threshold,
                     Message::MeasureThresholdChanged)
-                    .step(0.01)))
+                    .step(0.01))
+                .push(Button::new(Text::new("Add Pulls"))
+                    .on_press(Message::AddPulls))
+            )
+
             .push(right_column)
             .into()
     }
