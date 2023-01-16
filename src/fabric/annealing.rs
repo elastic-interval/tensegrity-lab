@@ -15,7 +15,7 @@ impl Fabric {
     }
 
     pub fn measure_limits(&self) -> Option<MeasureLimits> {
-        let mut limits: MeasureLimits = MeasureLimits { low: f32::MAX, high: f32::MIN };
+        let mut limits = MeasureLimits { low: f32::MAX, high: f32::MIN };
         let mut measures_present = false;
         for Interval { strain, .. } in self.interval_measures() {
             measures_present = true;
