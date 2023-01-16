@@ -16,6 +16,7 @@ use crate::fabric::Fabric;
 use crate::graphics::{get_depth_stencil_state, get_primitive_state, GraphicsWindow};
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Measure, Pull, Push};
+use crate::gui::Controls;
 
 pub struct Scene {
     camera: Camera,
@@ -99,7 +100,7 @@ impl Scene {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
+                view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }),
@@ -107,7 +108,7 @@ impl Scene {
                 },
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &depth_view,
+                view: depth_view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
                     store: false,
@@ -125,19 +126,24 @@ impl Scene {
         self.camera.window_event(event);
     }
 
-    pub fn update(&mut self, graphics: &GraphicsWindow, fabric: &Fabric) {
-        self.update_from_fabric(fabric);
+    pub fn update(&mut self, graphics: &GraphicsWindow, controls: &Controls, fabric: &Fabric) {
+        self.update_from_fabric(fabric, controls);
         self.update_from_camera(graphics);
         graphics.queue.write_buffer(&self.vertex_buffer, 0, cast_slice(&self.vertices));
     }
 
-    fn update_from_fabric(&mut self, fabric: &Fabric) {
+    fn update_from_fabric(&mut self, fabric: &Fabric, controls: &Controls) {
         let num_vertices = fabric.intervals.len() * 2;
         if self.vertices.len() != num_vertices {
             self.vertices = vec![Vertex::default(); num_vertices];
         }
+        let measure_limits = fabric.measure_limits();
+        let measure_lower_limit = match measure_limits {
+            Some(limits) => limits.interpolate(controls.measure_threshold),
+            None => f32::NEG_INFINITY,
+        };
         let updated_vertices = fabric.interval_values()
-            .flat_map(|interval| Vertex::for_interval(interval, fabric));
+            .flat_map(|interval| Vertex::for_interval(interval, fabric, measure_lower_limit));
         for (vertex, slot) in updated_vertices.zip(self.vertices.iter_mut()) {
             *slot = vertex;
         }
@@ -171,12 +177,14 @@ struct Vertex {
 }
 
 impl Vertex {
-    pub fn for_interval(interval: &Interval, fabric: &Fabric) -> [Vertex; 2] {
+    pub fn for_interval(interval: &Interval, fabric: &Fabric, measure_lower_limit: f32) -> [Vertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
         let color = match interval.role {
             Push => [1.0, 1.0, 1.0, 1.0],
             Pull => [0.2, 0.2, 1.0, 1.0],
-            Measure => if interval.strain < 0.0 {
+            Measure => if interval.strain < measure_lower_limit {
+                [0.0, 0.0, 0.0, 1.0]
+            } else if interval.strain < 0.0 {
                 [1.0, 0.8, 0.0, 1.0]
             } else {
                 [0.0, 1.0, 0.0, 1.0]
