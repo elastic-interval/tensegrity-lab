@@ -167,6 +167,10 @@ pub fn run() {
             Event::MainEventsCleared => {
                 application.gui.update();
 
+                for action in application.gui.controls().take_actions() {
+                    dbg!(action);
+                }
+
                 window.request_redraw();
             }
             _ => {}
