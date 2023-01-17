@@ -19,6 +19,7 @@ use crate::experiment::Experiment;
 use crate::graphics::GraphicsWindow;
 use crate::gui;
 use crate::gui::Action;
+use crate::gui::Message::ShowControls;
 use crate::scene::Scene;
 
 struct Application {
@@ -108,7 +109,7 @@ pub fn run() {
             .expect("Couldn't append canvas to document body.");
     }
     let graphics = pollster::block_on(GraphicsWindow::new(&window));
-    let mut application = Application::new(graphics, &window);
+    let mut app = Application::new(graphics, &window);
     let mut experiment = Experiment::default();
 
     event_loop.run(move |event, _, control_flow| {
@@ -117,7 +118,7 @@ pub fn run() {
                 ref event,
                 window_id,
             } if window_id == window.id() => {
-                application.gui.window_event(&window, event);
+                app.gui.window_event(&window, event);
                 match event {
                     WindowEvent::CloseRequested | WindowEvent::KeyboardInput {
                         input: KeyboardInput {
@@ -128,10 +129,10 @@ pub fn run() {
                         ..
                     } => *control_flow = ControlFlow::Exit,
                     WindowEvent::Resized(physical_size) => {
-                        application.resize(*physical_size);
+                        app.resize(*physical_size);
                     }
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                        application.resize(**new_inner_size);
+                        app.resize(**new_inner_size);
                     }
                     WindowEvent::KeyboardInput { input, .. } => {
                         match input.virtual_keycode {
@@ -143,8 +144,8 @@ pub fn run() {
                         }
                     }
                     WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
-                    if !application.gui.capturing_mouse() => {
-                        application.scene.window_event(event)
+                    if !app.gui.capturing_mouse() => {
+                        app.scene.window_event(event)
                     }
                     _ => {}
                 }
@@ -152,24 +153,27 @@ pub fn run() {
             Event::RedrawRequested(_) => {
                 let up = experiment.iterate();
                 if let Some(up) = up {
-                    application.scene.adjust_camera_up(up);
+                    app.scene.adjust_camera_up(up);
+                    app.gui.change_state(ShowControls);
                 }
-                application.scene.update(&application.graphics, application.gui.controls(), experiment.fabric());
-                application.gui.update_viewport(&window);
-                match application.render() {
+                let message = app.scene.update(&app.graphics, app.gui.controls(), experiment.fabric());
+                if let Some(message) = message {
+                    app.gui.change_state(message)
+                }
+                app.gui.update_viewport(&window);
+                match app.render() {
                     Ok(_) => {}
-                    Err(wgpu::SurfaceError::Lost) => application.resize(application.graphics.size),
+                    Err(wgpu::SurfaceError::Lost) => app.resize(app.graphics.size),
                     Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                     Err(e) => eprintln!("{e:?}"),
                 }
-
-                window.set_cursor_icon(application.gui.cursor_icon());
+                window.set_cursor_icon(app.gui.cursor_icon());
             }
             Event::MainEventsCleared => {
-                application.gui.update();
-                for action in application.gui.controls().take_actions() {
+                app.gui.update();
+                for action in app.gui.controls().take_actions() {
                     match action {
-                        Action::AddPulls { measure_nuance } => {
+                        Action::AddPulls { strain_nuance: measure_nuance } => {
                             let strain_lower_limit = match experiment.fabric().measure_limits() {
                                 Some(limits) => limits.interpolate(measure_nuance),
                                 None => f32::NEG_INFINITY,

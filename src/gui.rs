@@ -11,14 +11,13 @@ use winit::window::{CursorIcon, Window};
 use instant::Instant;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
+use crate::fabric::annealing::MeasureLimits;
 
 use crate::graphics::GraphicsWindow;
 
 const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
 
-///
 /// Largely adapted from https://github.com/iced-rs/iced/blob/master/examples/integration_wgpu/src/main.rs
-///
 pub struct GUI {
     renderer: Renderer,
     debug: Debug,
@@ -36,7 +35,7 @@ pub struct GUI {
 impl GUI {
     pub fn new(graphics: &GraphicsWindow, window: &Window) -> Self {
         let viewport = Viewport::with_physical_size(
-            Size::new(1600, 1200),
+            Size::new(graphics.size.width, graphics.size.height),
             1.0,
         );
         let mut renderer = Renderer::new(Backend::new(
@@ -92,6 +91,10 @@ impl GUI {
 
     pub fn post_render(&mut self) {
         self.staging_belt.recall();
+    }
+
+    pub fn change_state(&mut self, message: Message) {
+        self.state.queue_message(message);
     }
 
     pub fn window_event(&mut self, window: &Window, event: &WindowEvent) {
@@ -173,18 +176,28 @@ impl GUI {
 }
 
 #[derive(Clone, Copy, Debug)]
+pub enum Showing {
+    Nothing,
+    StrainThreshold,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub enum Action {
-    AddPulls { measure_nuance: f32 },
+    AddPulls { strain_nuance: f32 },
 }
 
 pub struct Controls {
-    pub measure_nuance: f32,
+    showing: Showing,
+    strain_nuance: f32,
+    strain_lower_limit: f32,
     frame_rate: f64,
     action_queue: RefCell<Vec<Action>>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    ShowControls,
+    StrainLowerLimit(f32),
     MeasureNuanceChanged(f32),
     AddPulls,
     FrameRateUpdated(f64),
@@ -193,7 +206,9 @@ pub enum Message {
 impl Default for Controls {
     fn default() -> Self {
         Self {
-            measure_nuance: 0.0,
+            showing: Showing::Nothing,
+            strain_nuance: 0.0,
+            strain_lower_limit: f32::MIN,
             frame_rate: 0.0,
             action_queue: RefCell::new(Vec::new()),
         }
@@ -204,6 +219,10 @@ impl Controls {
     pub fn take_actions(&self) -> Vec<Action> {
         self.action_queue.borrow_mut().split_off(0)
     }
+
+    pub fn strain_lower_limit(&self, limits: MeasureLimits) -> f32 {
+        limits.interpolate(self.strain_nuance)
+    }
 }
 
 impl Program for Controls {
@@ -212,11 +231,17 @@ impl Program for Controls {
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
+            Message::ShowControls => {
+                self.showing = Showing::StrainThreshold;
+            }
             Message::MeasureNuanceChanged(nuance) => {
-                self.measure_nuance = nuance;
+                self.strain_nuance = nuance;
+            }
+            Message::StrainLowerLimit(limit) => {
+                self.strain_lower_limit = limit;
             }
             Message::AddPulls => {
-                self.action_queue.borrow_mut().push(Action::AddPulls { measure_nuance: self.measure_nuance });
+                self.action_queue.borrow_mut().push(Action::AddPulls { strain_nuance: self.strain_nuance });
             }
             Message::FrameRateUpdated(frame_rate) => {
                 self.frame_rate = frame_rate;
@@ -232,31 +257,52 @@ impl Program for Controls {
             .align_items(Alignment::End);
         #[cfg(not(target_arch = "wasm32"))]
         {
-            right_column = right_column.push(Text::new(format!("{frame_rate:.01} FPS"))
-                .style(Color::WHITE)
-                .size(12));
+            right_column = right_column
+                .push(
+                    Text::new(format!("{frame_rate:.01} FPS"))
+                        .style(Color::WHITE)
+                );
         }
-        Row::new()
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .padding(10)
-            .align_items(Alignment::Start)
-            .push(Column::new()
-                .width(Length::Fill)
-                .align_items(Alignment::Start)
-                .spacing(10)
-                .push(Text::new("Strain threshold")
-                    .style(Color::WHITE)
-                    .size(14))
-                .push(Slider::new(
-                    0.0..=1.0,
-                    self.measure_nuance,
-                    Message::MeasureNuanceChanged)
-                    .step(0.01))
-                .push(Button::new(Text::new("Add Pulls"))
-                    .on_press(Message::AddPulls))
-            )
-            .push(right_column)
-            .into()
+        let strain_limit = self.strain_lower_limit;
+        let element: Element<'_, Self::Message, Self::Renderer> =
+            Column::new()
+                .padding(10)
+                .height(Length::Fill)
+                .align_items(Alignment::End)
+                .push(
+                    Row::new()
+                        .height(Length::Fill)
+                        .width(Length::Fill)
+                        .push(right_column)
+                )
+                .push(
+                    match self.showing {
+                        Showing::Nothing => Row::new(),
+                        Showing::StrainThreshold => {
+                            Row::new()
+                                .padding(20)
+                                .spacing(20)
+                                .push(
+                                    Text::new("Strain threshold")
+                                        .style(Color::WHITE)
+                                )
+                                .push(
+                                    Slider::new(0.0..=1.0, self.strain_nuance, Message::MeasureNuanceChanged)
+                                        .step(0.01)
+                                )
+                                .push(
+                                    Text::new(format!("{strain_limit:.05}"))
+                                        .style(Color::WHITE)
+                                )
+                                .push(
+                                    Button::new(Text::new("Add Pulls"))
+                                        .on_press(Message::AddPulls)
+                                )
+                        }
+                    }
+                )
+                .into();
+        // element.explain(Color::WHITE)
+        element
     }
 }
