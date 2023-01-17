@@ -16,7 +16,7 @@ use crate::fabric::Fabric;
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Measure, Pull, Push};
 use crate::graphics::{get_depth_stencil_state, get_primitive_state, GraphicsWindow};
-use crate::gui::Controls;
+use crate::gui::{Controls, Message};
 
 const MAX_INTERVALS: usize = 5000;
 
@@ -125,22 +125,27 @@ impl Scene {
         self.camera.window_event(event);
     }
 
-    pub fn update(&mut self, graphics: &GraphicsWindow, controls: &Controls, fabric: &Fabric) {
-        self.update_from_fabric(fabric, controls);
+    pub fn update(&mut self, graphics: &GraphicsWindow, controls: &Controls, fabric: &Fabric) -> Option<Message> {
+        let message = self.update_from_fabric(fabric, controls);
         self.update_from_camera(graphics);
         graphics.queue.write_buffer(&self.vertex_buffer, 0, cast_slice(&self.vertices));
+        message
     }
 
-    fn update_from_fabric(&mut self, fabric: &Fabric, controls: &Controls) {
-        let strain_lower_limit = match fabric.measure_limits() {
-            Some(limits) => limits.interpolate(controls.measure_nuance),
-            None => f32::NEG_INFINITY,
+    fn update_from_fabric(&mut self, fabric: &Fabric, controls: &Controls) -> Option<Message> {
+        let (strain_lower_limit, message) = match fabric.measure_limits() {
+            Some(limits) => {
+                let limit = controls.strain_lower_limit(limits);
+                (limit, Some(Message::StrainLowerLimit(limit)))
+            }
+            None => (f32::NEG_INFINITY, None),
         };
         self.vertices.clear();
         self.vertices.extend(fabric.interval_values()
             .filter(|Interval { strain, role, .. }| *role != Measure || *strain > strain_lower_limit)
             .flat_map(|interval| Vertex::for_interval(interval, fabric)));
-        self.camera.target_approach(fabric.midpoint())
+        self.camera.target_approach(fabric.midpoint());
+        message
     }
 
 
