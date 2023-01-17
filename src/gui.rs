@@ -92,11 +92,11 @@ impl GUI {
     pub fn post_render(&mut self) {
         self.staging_belt.recall();
     }
-    
+
     pub fn change_state(&mut self, message: Message) {
         self.state.queue_message(message);
     }
-    
+
     pub fn window_event(&mut self, window: &Window, event: &WindowEvent) {
         match event {
             WindowEvent::CursorMoved { position, .. } => {
@@ -183,13 +183,13 @@ pub enum Showing {
 
 #[derive(Clone, Copy, Debug)]
 pub enum Action {
-    AddPulls { measure_nuance: f32 },
+    AddPulls { strain_nuance: f32 },
 }
 
 pub struct Controls {
     showing: Showing,
-    measure_nuance: f32,
-    lower_limit: f32,
+    strain_nuance: f32,
+    strain_lower_limit: f32,
     frame_rate: f64,
     action_queue: RefCell<Vec<Action>>,
 }
@@ -207,8 +207,8 @@ impl Default for Controls {
     fn default() -> Self {
         Self {
             showing: Showing::Nothing,
-            measure_nuance: 0.0,
-            lower_limit: f32::MIN,
+            strain_nuance: 0.0,
+            strain_lower_limit: f32::MIN,
             frame_rate: 0.0,
             action_queue: RefCell::new(Vec::new()),
         }
@@ -221,7 +221,7 @@ impl Controls {
     }
 
     pub fn strain_lower_limit(&self, limits: MeasureLimits) -> f32 {
-        limits.interpolate(self.measure_nuance)
+        limits.interpolate(self.strain_nuance)
     }
 }
 
@@ -235,13 +235,13 @@ impl Program for Controls {
                 self.showing = Showing::StrainThreshold;
             }
             Message::MeasureNuanceChanged(nuance) => {
-                self.measure_nuance = nuance;
+                self.strain_nuance = nuance;
             }
             Message::StrainLowerLimit(limit) => {
-                self.lower_limit = limit;
+                self.strain_lower_limit = limit;
             }
             Message::AddPulls => {
-                self.action_queue.borrow_mut().push(Action::AddPulls { measure_nuance: self.measure_nuance });
+                self.action_queue.borrow_mut().push(Action::AddPulls { strain_nuance: self.strain_nuance });
             }
             Message::FrameRateUpdated(frame_rate) => {
                 self.frame_rate = frame_rate;
@@ -263,7 +263,7 @@ impl Program for Controls {
                         .style(Color::WHITE)
                 );
         }
-        let strain_limit = self.lower_limit;
+        let strain_limit = self.strain_lower_limit;
         let element: Element<'_, Self::Message, Self::Renderer> =
             Column::new()
                 .padding(10)
@@ -287,7 +287,7 @@ impl Program for Controls {
                                         .style(Color::WHITE)
                                 )
                                 .push(
-                                    Slider::new(0.0..=1.0, self.measure_nuance, Message::MeasureNuanceChanged)
+                                    Slider::new(0.0..=1.0, self.strain_nuance, Message::MeasureNuanceChanged)
                                         .step(0.01)
                                 )
                                 .push(
