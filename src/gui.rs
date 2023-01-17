@@ -1,9 +1,7 @@
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Instant;
-
+use std::cell::RefCell;
 use iced_wgpu::{Backend, Renderer, Settings};
 use iced_winit::{Alignment, Clipboard, Color, Command, conversion, Debug, Element, Length, mouse, Program, program, renderer, Size, Viewport};
-use iced_winit::widget::{Column, Row, slider, Text};
+use iced_winit::widget::{Button, Column, Row, Slider, Text};
 use wgpu::{CommandEncoder, Device, TextureView};
 use winit::dpi::PhysicalPosition;
 use winit::event::{ModifiersState, WindowEvent};
@@ -11,6 +9,8 @@ use winit::window::{CursorIcon, Window};
 
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
 
 use crate::graphics::GraphicsWindow;
 
@@ -172,23 +172,37 @@ impl GUI {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum Action {
+    AddPulls { measure_nuance: f32 },
+}
+
 pub struct Controls {
-    pub measure_threshold: f32,
+    pub measure_nuance: f32,
     frame_rate: f64,
+    action_queue: RefCell<Vec<Action>>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    MeasureThresholdChanged(f32),
+    MeasureNuanceChanged(f32),
+    AddPulls,
     FrameRateUpdated(f64),
 }
 
 impl Default for Controls {
     fn default() -> Self {
         Self {
-            measure_threshold: 0.0,
+            measure_nuance: 0.0,
             frame_rate: 0.0,
+            action_queue: RefCell::new(Vec::new()),
         }
+    }
+}
+
+impl Controls {
+    pub fn take_actions(&self) -> Vec<Action> {
+        self.action_queue.borrow_mut().split_off(0)
     }
 }
 
@@ -198,15 +212,16 @@ impl Program for Controls {
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
-            Message::MeasureThresholdChanged(new_threshold) => {
-                self.measure_threshold = new_threshold;
+            Message::MeasureNuanceChanged(nuance) => {
+                self.measure_nuance = nuance;
             }
-
+            Message::AddPulls => {
+                self.action_queue.borrow_mut().push(Action::AddPulls { measure_nuance: self.measure_nuance });
+            }
             Message::FrameRateUpdated(frame_rate) => {
                 self.frame_rate = frame_rate;
             }
         }
-
         Command::none()
     }
 
@@ -230,14 +245,17 @@ impl Program for Controls {
                 .width(Length::Fill)
                 .align_items(Alignment::Start)
                 .spacing(10)
-                .push(Text::new("Measure threshold")
+                .push(Text::new("Strain threshold")
                     .style(Color::WHITE)
                     .size(14))
-                .push(slider(
+                .push(Slider::new(
                     0.0..=1.0,
-                    self.measure_threshold,
-                    Message::MeasureThresholdChanged)
-                    .step(0.01)))
+                    self.measure_nuance,
+                    Message::MeasureNuanceChanged)
+                    .step(0.01))
+                .push(Button::new(Text::new("Add Pulls"))
+                    .on_press(Message::AddPulls))
+            )
             .push(right_column)
             .into()
     }
