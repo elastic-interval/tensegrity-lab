@@ -93,7 +93,10 @@ impl GUI {
     }
 
     pub fn show_controls(&mut self) {
-        self.state.queue_message(Message::ShowControls)
+        match self.state.program().showing {
+            Showing::Nothing => self.state.queue_message(Message::ShowControls),
+            Showing::StrainThreshold => {}
+        }
     }
 
     pub fn window_event(&mut self, window: &Window, event: &WindowEvent) {
