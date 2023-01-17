@@ -16,9 +16,7 @@ use crate::graphics::GraphicsWindow;
 
 const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
 
-///
 /// Largely adapted from https://github.com/iced-rs/iced/blob/master/examples/integration_wgpu/src/main.rs
-///
 pub struct GUI {
     renderer: Renderer,
     debug: Debug,
@@ -36,7 +34,7 @@ pub struct GUI {
 impl GUI {
     pub fn new(graphics: &GraphicsWindow, window: &Window) -> Self {
         let viewport = Viewport::with_physical_size(
-            Size::new(1600, 1200),
+            Size::new(graphics.size.width, graphics.size.height),
             1.0,
         );
         let mut renderer = Renderer::new(Backend::new(
@@ -173,11 +171,18 @@ impl GUI {
 }
 
 #[derive(Clone, Copy, Debug)]
+pub enum Showing {
+    Nothing,
+    StrainThreshold,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub enum Action {
     AddPulls { measure_nuance: f32 },
 }
 
 pub struct Controls {
+    showing: Showing,
     pub measure_nuance: f32,
     frame_rate: f64,
     action_queue: RefCell<Vec<Action>>,
@@ -193,6 +198,7 @@ pub enum Message {
 impl Default for Controls {
     fn default() -> Self {
         Self {
+            showing: Showing::Nothing,
             measure_nuance: 0.0,
             frame_rate: 0.0,
             action_queue: RefCell::new(Vec::new()),
@@ -232,31 +238,42 @@ impl Program for Controls {
             .align_items(Alignment::End);
         #[cfg(not(target_arch = "wasm32"))]
         {
-            right_column = right_column.push(Text::new(format!("{frame_rate:.01} FPS"))
-                .style(Color::WHITE)
-                .size(12));
+            right_column = right_column
+                .push(
+                    Text::new(format!("{frame_rate:.01} FPS"))
+                        .style(Color::WHITE)
+                );
         }
-        Row::new()
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .padding(10)
-            .align_items(Alignment::Start)
-            .push(Column::new()
-                .width(Length::Fill)
-                .align_items(Alignment::Start)
-                .spacing(10)
-                .push(Text::new("Strain threshold")
-                    .style(Color::WHITE)
-                    .size(14))
-                .push(Slider::new(
-                    0.0..=1.0,
-                    self.measure_nuance,
-                    Message::MeasureNuanceChanged)
-                    .step(0.01))
-                .push(Button::new(Text::new("Add Pulls"))
-                    .on_press(Message::AddPulls))
-            )
-            .push(right_column)
-            .into()
+        let element: Element<'_, Self::Message, Self::Renderer> =
+            Column::new()
+                .padding(10)
+                .height(Length::Fill)
+                .align_items(Alignment::End)
+                .push(
+                    Row::new()
+                        .height(Length::Fill)
+                        .width(Length::Fill)
+                        .push(right_column)
+                )
+                .push(
+                    Row::new()
+                        .padding(20)
+                        .spacing(20)
+                        .push(
+                            Text::new("Strain threshold")
+                                .style(Color::WHITE)
+                        )
+                        .push(
+                            Slider::new(0.0..=1.0, self.measure_nuance, Message::MeasureNuanceChanged)
+                                .step(0.01)
+                        )
+                        .push(
+                            Button::new(Text::new("Add Pulls"))
+                                .on_press(Message::AddPulls)
+                        )
+                )
+                .into();
+        // element.explain(Color::WHITE)
+        element
     }
 }
