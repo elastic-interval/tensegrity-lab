@@ -173,7 +173,7 @@ pub fn run() {
                 app.gui.update();
                 for action in app.gui.controls().take_actions() {
                     match action {
-                        Action::AddPulls { measure_nuance } => {
+                        Action::AddPulls { strain_nuance: measure_nuance } => {
                             let strain_lower_limit = match experiment.fabric().measure_limits() {
                                 Some(limits) => limits.interpolate(measure_nuance),
                                 None => f32::NEG_INFINITY,
