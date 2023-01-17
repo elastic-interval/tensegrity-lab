@@ -153,6 +153,7 @@ pub fn run() {
                 let up = experiment.iterate();
                 if let Some(up) = up {
                     application.scene.adjust_camera_up(up);
+                    application.gui.show_controls();
                 }
                 application.scene.update(&application.graphics, application.gui.controls(), experiment.fabric());
                 application.gui.update_viewport(&window);
