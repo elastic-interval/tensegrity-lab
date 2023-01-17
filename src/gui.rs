@@ -11,6 +11,7 @@ use winit::window::{CursorIcon, Window};
 use instant::Instant;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
+use crate::fabric::annealing::MeasureLimits;
 
 use crate::graphics::GraphicsWindow;
 
@@ -91,14 +92,11 @@ impl GUI {
     pub fn post_render(&mut self) {
         self.staging_belt.recall();
     }
-
-    pub fn show_controls(&mut self) {
-        match self.state.program().showing {
-            Showing::Nothing => self.state.queue_message(Message::ShowControls),
-            Showing::StrainThreshold => {}
-        }
+    
+    pub fn change_state(&mut self, message: Message) {
+        self.state.queue_message(message);
     }
-
+    
     pub fn window_event(&mut self, window: &Window, event: &WindowEvent) {
         match event {
             WindowEvent::CursorMoved { position, .. } => {
@@ -190,7 +188,8 @@ pub enum Action {
 
 pub struct Controls {
     showing: Showing,
-    pub measure_nuance: f32,
+    measure_nuance: f32,
+    lower_limit: f32,
     frame_rate: f64,
     action_queue: RefCell<Vec<Action>>,
 }
@@ -198,6 +197,7 @@ pub struct Controls {
 #[derive(Debug, Clone)]
 pub enum Message {
     ShowControls,
+    StrainLowerLimit(f32),
     MeasureNuanceChanged(f32),
     AddPulls,
     FrameRateUpdated(f64),
@@ -208,6 +208,7 @@ impl Default for Controls {
         Self {
             showing: Showing::Nothing,
             measure_nuance: 0.0,
+            lower_limit: f32::MIN,
             frame_rate: 0.0,
             action_queue: RefCell::new(Vec::new()),
         }
@@ -217,6 +218,10 @@ impl Default for Controls {
 impl Controls {
     pub fn take_actions(&self) -> Vec<Action> {
         self.action_queue.borrow_mut().split_off(0)
+    }
+
+    pub fn strain_lower_limit(&self, limits: MeasureLimits) -> f32 {
+        limits.interpolate(self.measure_nuance)
     }
 }
 
@@ -231,6 +236,9 @@ impl Program for Controls {
             }
             Message::MeasureNuanceChanged(nuance) => {
                 self.measure_nuance = nuance;
+            }
+            Message::StrainLowerLimit(limit) => {
+                self.lower_limit = limit;
             }
             Message::AddPulls => {
                 self.action_queue.borrow_mut().push(Action::AddPulls { measure_nuance: self.measure_nuance });
@@ -255,6 +263,7 @@ impl Program for Controls {
                         .style(Color::WHITE)
                 );
         }
+        let strain_limit = self.lower_limit;
         let element: Element<'_, Self::Message, Self::Renderer> =
             Column::new()
                 .padding(10)
@@ -280,6 +289,10 @@ impl Program for Controls {
                                 .push(
                                     Slider::new(0.0..=1.0, self.measure_nuance, Message::MeasureNuanceChanged)
                                         .step(0.01)
+                                )
+                                .push(
+                                    Text::new(format!("{strain_limit:.05}"))
+                                        .style(Color::WHITE)
                                 )
                                 .push(
                                     Button::new(Text::new("Add Pulls"))
