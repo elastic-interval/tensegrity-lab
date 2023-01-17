@@ -92,6 +92,10 @@ impl GUI {
         self.staging_belt.recall();
     }
 
+    pub fn show_controls(&mut self) {
+        self.state.queue_message(Message::ShowControls)
+    }
+
     pub fn window_event(&mut self, window: &Window, event: &WindowEvent) {
         match event {
             WindowEvent::CursorMoved { position, .. } => {
@@ -190,6 +194,7 @@ pub struct Controls {
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    ShowControls,
     MeasureNuanceChanged(f32),
     AddPulls,
     FrameRateUpdated(f64),
@@ -218,6 +223,9 @@ impl Program for Controls {
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
+            Message::ShowControls => {
+                self.showing = Showing::StrainThreshold;
+            }
             Message::MeasureNuanceChanged(nuance) => {
                 self.measure_nuance = nuance;
             }
@@ -256,21 +264,26 @@ impl Program for Controls {
                         .push(right_column)
                 )
                 .push(
-                    Row::new()
-                        .padding(20)
-                        .spacing(20)
-                        .push(
-                            Text::new("Strain threshold")
-                                .style(Color::WHITE)
-                        )
-                        .push(
-                            Slider::new(0.0..=1.0, self.measure_nuance, Message::MeasureNuanceChanged)
-                                .step(0.01)
-                        )
-                        .push(
-                            Button::new(Text::new("Add Pulls"))
-                                .on_press(Message::AddPulls)
-                        )
+                    match self.showing {
+                        Showing::Nothing => Row::new(),
+                        Showing::StrainThreshold => {
+                            Row::new()
+                                .padding(20)
+                                .spacing(20)
+                                .push(
+                                    Text::new("Strain threshold")
+                                        .style(Color::WHITE)
+                                )
+                                .push(
+                                    Slider::new(0.0..=1.0, self.measure_nuance, Message::MeasureNuanceChanged)
+                                        .step(0.01)
+                                )
+                                .push(
+                                    Button::new(Text::new("Add Pulls"))
+                                        .on_press(Message::AddPulls)
+                                )
+                        }
+                    }
                 )
                 .into();
         // element.explain(Color::WHITE)
