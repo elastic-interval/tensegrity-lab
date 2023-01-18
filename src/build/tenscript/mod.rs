@@ -91,3 +91,18 @@ pub fn fabric_plan(plan_name: &str) -> FabricPlan {
     let (_, code) = BOOTSTRAP.iter().find(|(name, _)| *name == plan_name).unwrap();
     parse(code).unwrap()
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::build::tenscript::bootstrap::BOOTSTRAP;
+    use crate::build::tenscript::parser;
+
+    #[test]
+    fn parse() {
+        for (name, code) in BOOTSTRAP {
+            let plan = parser::parse(code);
+            let parsed = plan.is_ok();
+            println!("{name}: {parsed}");
+        }
+    }
+}
