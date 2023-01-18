@@ -81,7 +81,6 @@ pub struct ShapePhase {
 
 #[derive(Debug, Clone, Default)]
 pub struct FabricPlan {
-    pub name: Option<String>,
     pub surface: Option<SurfaceCharacterSpec>,
     pub build_phase: BuildPhase,
     pub shape_phase: ShapePhase,
@@ -101,8 +100,8 @@ mod tests {
     fn parse() {
         for (name, code) in BOOTSTRAP {
             let plan = parser::parse(code);
-            let parsed = plan.is_ok();
-            println!("{name}: {parsed}");
+            let parsed = plan.err();
+            println!("{name}: {parsed:?}");
         }
     }
 }

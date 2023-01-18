@@ -100,15 +100,6 @@ fn fabric_plan(expression: &Expression) -> Result<FabricPlan, ErrorKind> {
                     });
                 plan.surface = Some(surface);
             }
-            "name" => {
-                if plan.name.is_some() {
-                    return Err(AlreadyDefined { property: "name", expression: expression.clone() });
-                };
-                let &[Expression::String(ref name)] = tail else {
-                    return Err(BadCall { context: "fabric plan", expected: "(name <string>)", expression: expression.clone() });
-                };
-                plan.name = Some(name.clone());
-            }
             "build" => {
                 build(&mut plan, tail)?;
             }
@@ -182,16 +173,16 @@ fn tenscript_node(expression: &Expression) -> Result<TenscriptNode, ErrorKind> {
             };
             let face_name = expect_face_name(face_atom, face_name)?;
             let forward = "X".repeat(forward_count as usize);
-            let mut branch = None;
+            let mut post_growth_node = None;
             let mut scale_factor = 1f32;
             for post_growth_op in post_growth {
                 let Call { head: op_head, tail: op_tail } = expect_call("tenscript_node", post_growth_op)?;
                 match op_head {
-                    "branch" => {
-                        if branch.is_some() {
+                    "branch" | "mark" | "grow" => {
+                        if post_growth_node.is_some() {
                             return Err(MultipleBranches);
                         }
-                        branch = Some(Box::new(tenscript_node(post_growth_op)?));
+                        post_growth_node = Some(Box::new(tenscript_node(post_growth_op)?));
                     }
                     "scale" => {
                         let &[Expression::Percent(percent)] = op_tail else {
@@ -199,10 +190,10 @@ fn tenscript_node(expression: &Expression) -> Result<TenscriptNode, ErrorKind> {
                         };
                         scale_factor = percent / 100.0;
                     }
-                    _ => return Err(Mismatch { rule: "tenscript_node", expected: "mark | branch", expression: expression.clone() }),
+                    _ => return Err(Mismatch { rule: "tenscript_node", expected: "mark | branch | scale", expression: expression.clone() }),
                 }
             }
-            Ok(TenscriptNode::Grow { face_name, scale_factor, forward, branch })
+            Ok(TenscriptNode::Grow { face_name, scale_factor, forward, branch: post_growth_node })
         }
         "mark" => {
             let [ face_expression @ Expression::Atom(ref face_name_atom), Expression::Atom(ref mark_name) ] = tail else {
