@@ -119,7 +119,7 @@ impl Parser {
             terms.push(term);
         }
         let Paren(')') = self.current() else {
-            return Err(ConsumeFailed { expected: "right paren" });
+            return Err(ConsumeFailed { expected: "right bracket" });
         };
         self.increment();
         Ok(Expression::List(terms))
