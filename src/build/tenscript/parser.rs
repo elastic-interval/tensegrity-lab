@@ -1,11 +1,10 @@
-use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 
 use crate::build::tenscript::{FabricPlan, FaceName, Spin, SurfaceCharacterSpec, TenscriptNode};
 use crate::build::tenscript::error::Error;
 use crate::build::tenscript::expression;
 use crate::build::tenscript::expression::Expression;
-use crate::build::tenscript::parser::ErrorKind::{AlreadyDefined, BadCall, IllegalCall, IllegalRepetition, Mismatch, MultipleBranches, Unknown};
+use crate::build::tenscript::parser::ErrorKind::{AlreadyDefined, BadCall, IllegalCall, Mismatch, MultipleBranches};
 
 #[derive(Debug, Clone)]
 pub struct ParseError {
@@ -24,7 +23,6 @@ pub enum ErrorKind {
     BadCall { context: &'static str, expected: &'static str, expression: Expression },
     TypeError { expected: &'static str, expression: Expression },
     AlreadyDefined { property: &'static str, expression: Expression },
-    IllegalRepetition { kind: &'static str, value: String },
     MultipleBranches,
     IllegalCall { context: &'static str, expression: Expression },
     Unknown,
@@ -163,15 +161,25 @@ fn shape(FabricPlan { shape_phase, .. }: &mut FabricPlan, expressions: &[Express
 fn tenscript_node(expression: &Expression) -> Result<TenscriptNode, ErrorKind> {
     let Call { head, tail } = expect_call("tenscript_node", expression)?;
     match head {
+        "face" => {
+            let [ face_expression @ Expression::Atom(ref face_name_atom), subexpression ] = tail else {
+                return Err(Mismatch { rule: "tenscript_node", expected: "(face <face-name> <non-face>)", expression: expression.clone() });
+            };
+            let face_name = expect_face_name(face_expression, face_name_atom)?;
+            let Call { head, .. } = expect_call("tenscript_node", subexpression)?;
+            if head == "face" {
+                return Err(Mismatch { rule: "tenscript_node", expected: "face may not contain face", expression: subexpression.clone() });
+            }
+            let node = tenscript_node(subexpression)?;
+            Ok(TenscriptNode::Face { face_name, node: Box::new(node) })
+        }
         "grow" => {
             let &[
-            ref face_atom @ Expression::Atom(ref face_name),
             Expression::Integer(forward_count), // TODO: must check if this is a string and then use it instead, checking chars
             ref post_growth @ ..,
             ] = tail else {
                 return Err(Mismatch { rule: "tenscript_node", expected: "face name and forward count", expression: expression.clone() });
             };
-            let face_name = expect_face_name(face_atom, face_name)?;
             let forward = "X".repeat(forward_count as usize);
             let mut post_growth_node = None;
             let mut scale_factor = 1f32;
@@ -193,44 +201,25 @@ fn tenscript_node(expression: &Expression) -> Result<TenscriptNode, ErrorKind> {
                     _ => return Err(Mismatch { rule: "tenscript_node", expected: "mark | branch | scale", expression: expression.clone() }),
                 }
             }
-            Ok(TenscriptNode::Grow { face_name, scale_factor, forward, branch: post_growth_node })
+            Ok(TenscriptNode::Grow { scale_factor, forward, branch: post_growth_node })
         }
         "mark" => {
-            let [ face_expression @ Expression::Atom(ref face_name_atom), Expression::Atom(ref mark_name) ] = tail else {
+            let [ Expression::Atom(ref mark_name) ] = tail else {
                 return Err(Mismatch { rule: "tenscript_node", expected: "(mark <face_name> <name>)", expression: expression.clone() });
             };
-            let face_name = expect_face_name(face_expression, face_name_atom)?;
-            Ok(TenscriptNode::Mark { face_name, mark_name: mark_name.clone() })
+            Ok(TenscriptNode::Mark { mark_name: mark_name.clone() })
         }
         "branch" => {
             let mut subtrees = Vec::new();
-            let mut existing_face_names = HashSet::new();
             for subexpression in tail {
                 let Call { head, .. } = expect_call("tenscript_node", subexpression)?;
-                if head != "grow" && head != "mark" {
-                    return Err(Mismatch { rule: "tenscript_node", expected: "(grow ..) or (mark ..) under (branch ..)", expression: subexpression.clone() });
+                if head != "face" {
+                    return Err(Mismatch { rule: "tenscript_node", expected: "(face ..) under (branch ..)", expression: subexpression.clone() });
                 }
                 let subtree = tenscript_node(subexpression)?;
-                match subtree {
-                    TenscriptNode::Grow { face_name, .. } => {
-                        if existing_face_names.contains(&face_name) {
-                            return Err(IllegalRepetition { kind: "face name", value: face_name.to_string() });
-                        }
-                        existing_face_names.insert(face_name);
-                    }
-                    TenscriptNode::Mark { face_name, .. } => {
-                        if existing_face_names.contains(&face_name) {
-                            return Err(IllegalRepetition { kind: "face name", value: face_name.to_string() });
-                        }
-                        existing_face_names.insert(face_name);
-                    }
-                    _ => {
-                        return Err(Unknown);
-                    }
-                }
                 subtrees.push(subtree);
             }
-            Ok(TenscriptNode::Branch { subtrees })
+            Ok(TenscriptNode::Branch { face_nodes: subtrees })
         }
         _ => Err(Mismatch { rule: "tenscript_node", expected: "grow | branch", expression: expression.clone() }),
     }

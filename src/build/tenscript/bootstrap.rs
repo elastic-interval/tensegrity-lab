@@ -28,20 +28,19 @@ pub const BOOTSTRAP: [(&str, &str); 5] = [
         "
         (fabric
               (build
-                    (seed :left)
-                    (grow A+ 5 (scale 92%)
+                    (grow 5 (scale 92%)
                         (branch
-                                (grow B- 12 (scale 92%)
-                                     (branch (mark A+ :halo-end))
+                                (face B-
+                                    (grow 12 (scale 92%) (mark :halo-end))
                                 )
-                                (grow D- 11 (scale 92%)
-                                    (branch (mark A+ :halo-end))
+                                (face D-
+                                    (grow 11 (scale 92%) (mark :halo-end))
                                 )
                          )
                     )
               )
               (shape
-                (pull-together :halo-end)
+                    (pull-together :halo-end)
               )
         )
         "

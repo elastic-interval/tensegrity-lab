@@ -8,8 +8,6 @@ use crate::fabric::interval::Role::{*};
 use crate::build::tenscript::{FaceName, Spin};
 use crate::build::tenscript::FaceName::{*};
 use crate::build::tenscript::Spin::{Left, Right};
-use crate::build::tenscript::TenscriptNode;
-use crate::build::tenscript::TenscriptNode::{Branch, Grow, Mark};
 
 const ROOT3: f32 = 1.732_050_8;
 const ROOT5: f32 = 2.236_068;
@@ -144,20 +142,6 @@ impl Fabric {
             })
         }
     }
-}
-
-fn find_node(nodes: &[TenscriptNode], sought_face_name: &FaceName) -> Option<TenscriptNode> {
-    nodes.iter().find(|node|
-        match node {
-            Grow { face_name, .. } => {
-                face_name == sought_face_name
-            }
-            Mark { face_name, .. } => {
-                face_name == sought_face_name
-            }
-            Branch { .. } => { false }
-        }
-    ).cloned()
 }
 
 fn create_pairs(base: [Point3<f32>; 3], spin: Spin, alpha_scale: f32, omega_scale: f32) -> [(Point3<f32>, Point3<f32>); 3] {
