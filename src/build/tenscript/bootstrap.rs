@@ -1,4 +1,4 @@
-pub const BOOTSTRAP: [(&str, &str); 7] = [
+pub const BOOTSTRAP: [(&str, &str); 6] = [
     (
         "Flagellum",
         "
@@ -141,9 +141,5 @@ pub const BOOTSTRAP: [(&str, &str); 7] = [
             )
         )
         "
-    ),
-    (
-        "",
-        ""
     ),
 ];
