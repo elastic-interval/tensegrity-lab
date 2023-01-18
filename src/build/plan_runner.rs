@@ -1,30 +1,8 @@
 use crate::build::growth::Growth;
 use crate::build::plan_runner::Stage::{*};
-use crate::build::tenscript::parse;
+use crate::build::tenscript::fabric_plan;
 use crate::fabric::Fabric;
 use crate::fabric::physics::presets::LIQUID;
-
-const CODE: &str = "
-(fabric
-      (name \"Halo by Crane\")
-      (build
-            (seed :left)
-            (grow A+ 5 (scale 92%)
-                (branch
-                        (grow B- 12 (scale 92%)
-                             (branch (mark A+ :halo-end))
-                        )
-                        (grow D- 11 (scale 92%)
-                            (branch (mark A+ :halo-end))
-                        )
-                 )
-            )
-      )
-      (shape
-        (pull-together :halo-end)
-      )
-)
-";
 
 #[derive(Clone, Debug, Copy, PartialEq)]
 enum Stage {
@@ -49,7 +27,7 @@ pub struct PlanRunner {
 impl Default for PlanRunner {
     fn default() -> Self {
         Self {
-            growth: Growth::new(parse(CODE).unwrap()),
+            growth: Growth::new(fabric_plan("Halo by Crane")),
             stage: Empty,
         }
     }

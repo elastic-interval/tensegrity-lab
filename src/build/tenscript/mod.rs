@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
 
 pub use parser::parse;
+use crate::build::tenscript::bootstrap::BOOTSTRAP;
 
 use crate::build::tenscript::FaceName::{*};
 
@@ -8,6 +9,7 @@ mod error;
 mod expression;
 mod parser;
 mod scanner;
+mod bootstrap;
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum FaceName { Apos, Bpos, Cpos, Dpos, Aneg, Bneg, Cneg, Dneg }
@@ -78,27 +80,14 @@ pub struct ShapePhase {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct Features {
-    pub iterations_per_frame: Option<u32>,
-    pub visual_strain: Option<f32>,
-    pub gravity: Option<f32>,
-    pub pretenst_factor: Option<f32>,
-    pub stiffness_factor: Option<f32>,
-    pub push_over_pull: Option<f32>,
-    pub viscosity: Option<f32>,
-    pub shaping_pretenst_factor: Option<f32>,
-    pub shaping_viscosity: Option<f32>,
-    pub shaping_stiffness_factor: Option<f32>,
-    pub antigravity: Option<f32>,
-    pub interval_countdown: Option<f32>,
-    pub pretensing_countdown: Option<f32>,
-}
-
-#[derive(Debug, Clone, Default)]
 pub struct FabricPlan {
     pub name: Option<String>,
     pub surface: Option<SurfaceCharacterSpec>,
-    pub features: Features,
     pub build_phase: BuildPhase,
     pub shape_phase: ShapePhase,
+}
+
+pub fn fabric_plan(plan_name: &str) -> FabricPlan {
+    let (_, code) = BOOTSTRAP.iter().find(|(name, _)| *name == plan_name).unwrap();
+    parse(code).unwrap()
 }
