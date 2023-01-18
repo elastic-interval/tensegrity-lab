@@ -1,10 +1,10 @@
 use cgmath::MetricSpace;
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::Role::Pull;
-use crate::build::tenscript::{BuildPhase, FabricPlan, ShapePhase, Spin};
+use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, ShapePhase, Spin};
 use crate::build::tenscript::FaceName::Apos;
 use crate::build::tenscript::TenscriptNode;
-use crate::build::tenscript::TenscriptNode::{Branch, Grow, Mark};
+use crate::build::tenscript::TenscriptNode::{Branch, Face, Grow, Mark};
 
 #[allow(dead_code)]
 #[derive(Clone)]
@@ -60,7 +60,7 @@ impl Growth {
         let BuildPhase { seed, root } = &self.plan.build_phase;
         let spin = seed.unwrap_or(Spin::Left);
         let node = root.clone().unwrap();
-        let (buds, marks) = self.execute_node(fabric, true, spin, node, None);
+        let (buds, marks) = self.execute_node(fabric, spin, Apos, node, vec![]);
         self.buds = buds;
         self.marks = marks;
     }
@@ -103,7 +103,8 @@ impl Growth {
         let face = fabric.face(face_id);
         let spin = if forward.starts_with('X') { face.spin.opposite() } else { face.spin };
         if !forward.is_empty() {
-            let [_, (_, a_pos_face_id)] = fabric.single_twist(spin, self.pretenst_factor, scale_factor, Some(face_id));
+            let [_, (_, a_pos_face_id)] =
+                fabric.single_twist(spin, self.pretenst_factor, scale_factor, Some(face_id));
             buds.push(Bud {
                 face_id: a_pos_face_id,
                 forward: forward[1..].into(),
@@ -111,7 +112,8 @@ impl Growth {
                 node,
             });
         } else if let Some(node) = node {
-            let (node_buds, node_marks) = self.execute_node(fabric, false, spin, node, Some(face_id));
+            let (node_buds, node_marks) =
+                self.execute_node(fabric, spin, Apos, node, vec![(Apos, face_id)]);
             buds.extend(node_buds);
             marks.extend(node_marks);
         };
@@ -137,13 +139,19 @@ impl Growth {
         shapers
     }
 
-    fn execute_node(&self, fabric: &mut Fabric, root: bool, spin: Spin, node: TenscriptNode, base_face_id: Option<UniqueId>) -> (Vec<Bud>, Vec<PostMark>) {
+    fn execute_node(&self, fabric: &mut Fabric, spin: Spin, face_name: FaceName, node: TenscriptNode, faces: Vec<(FaceName, UniqueId)>) -> (Vec<Bud>, Vec<PostMark>) {
         let mut buds: Vec<Bud> = vec![];
         let mut marks: Vec<PostMark> = vec![];
         match node {
+            Face { face_name, node } => {
+                let (new_buds, new_marks) = self.execute_node(fabric, spin, face_name, *node, faces);
+                buds.extend(new_buds);
+                marks.extend(new_marks);
+            }
             Grow { forward, scale_factor, branch, .. } => {
-                let [_, (_, a_pos_face)] = fabric.single_twist(spin, self.pretenst_factor, scale_factor, base_face_id);
-                let node = branch.map(|boxy| *boxy);
+                let face_id = faces.iter().find(|(name, _)| *name == face_name).map(|(_, face_id)| *face_id);
+                let [_, (_, a_pos_face)] = fabric.single_twist(spin, self.pretenst_factor, scale_factor, face_id);
+                let node = branch.map(|node_box| *node_box);
                 buds.push(Bud {
                     face_id: a_pos_face,
                     forward,
@@ -151,53 +159,40 @@ impl Growth {
                     node,
                 })
             }
-            Branch { subtrees, .. } => {
-                let needs_double = subtrees.iter().any(|node| {
-                    matches!(node, Grow { face_name, .. }| Mark { face_name, .. } if *face_name != Apos)
-                });
-                if needs_double {
-                    let faces = fabric.double_twist(spin, self.pretenst_factor, 1.0, base_face_id);
-                    for (sought_face_name, face_id) in if root { &faces } else { &faces[1..] } {
-                        for subtree in &subtrees {
-                            match subtree {
-                                Grow { face_name, forward, scale_factor, branch }
-                                if face_name == sought_face_name => {
-                                    let node = branch.clone().map(|boxy| *boxy);
-                                    buds.push(Bud {
-                                        face_id: *face_id,
-                                        forward: forward.clone(),
-                                        scale_factor: *scale_factor,
-                                        node,
-                                    })
-                                }
-                                Mark { face_name, mark_name }
-                                if face_name == sought_face_name => {
-                                    marks.push(PostMark {
-                                        face_id: *face_id,
-                                        mark_name: mark_name.clone(),
-                                    })
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
+            Branch { face_nodes } => {
+                let pairs: Vec<(FaceName, &TenscriptNode)> = face_nodes
+                    .iter()
+                    .map(|face_node| {
+                        let Face { face_name, node } = face_node else {
+                            panic!("Branch may only contain Face nodes");
+                        };
+                        (*face_name, node.as_ref())
+                    })
+                    .collect();
+                let needs_double = pairs
+                    .iter()
+                    .any(|(face_name, _)| *face_name != Apos);
+                let base_face_id = faces
+                    .iter()
+                    .find(|(face_name, _)| *face_name == Apos)
+                    .map(|(_, face_id)| *face_id);
+                let twist_faces = if needs_double {
+                    fabric.double_twist(spin, self.pretenst_factor, 1.0, base_face_id).to_vec()
                 } else {
-                    let [_, (_, a_pos_face_id)] = fabric.single_twist(spin, self.pretenst_factor, 1.0, base_face_id);
-                    for node in subtrees {
-                        match node {
-                            Mark { face_name, mark_name } if face_name == Apos => {
-                                marks.push(PostMark {
-                                    face_id: a_pos_face_id,
-                                    mark_name,
-                                });
-                            }
-                            _ => {}
-                        }
-                    }
+                    fabric.single_twist(spin, self.pretenst_factor, 1.0, base_face_id).to_vec()
+                };
+                for (face_name, node) in pairs {
+                    let (new_buds, new_marks) =
+                        self.execute_node(fabric, spin, face_name, node.clone(), twist_faces.clone());
+                    buds.extend(new_buds);
+                    marks.extend(new_marks);
                 }
             }
-            Mark { .. } => {
-                panic!("Build cannot be a mark statement")
+            Mark { mark_name } => {
+                let face = faces.iter().find(|(name, _)| *name == face_name);
+                if let Some((_, face_id)) = face {
+                    marks.push(PostMark { face_id: *face_id, mark_name });
+                }
             }
         }
         (buds, marks)

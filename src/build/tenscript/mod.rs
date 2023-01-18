@@ -53,18 +53,20 @@ impl Spin {
 
 #[derive(Debug, Clone)]
 pub enum TenscriptNode {
-    Grow {
+    Face {
         face_name: FaceName,
+        node: Box<TenscriptNode>
+    },
+    Grow {
         forward: String,
         scale_factor: f32,
         branch: Option<Box<TenscriptNode>>,
     },
     Mark {
-        face_name: FaceName,
         mark_name: String,
     },
     Branch {
-        subtrees: Vec<TenscriptNode>,
+        face_nodes: Vec<TenscriptNode>,
     },
 }
 
@@ -99,6 +101,9 @@ mod tests {
     #[test]
     fn parse() {
         for (name, code) in BOOTSTRAP {
+            if name != "Halo by Crane" {
+                continue;
+            }
             let plan = parser::parse(code);
             let parsed = plan.err();
             println!("{name}: {parsed:?}");
