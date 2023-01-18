@@ -109,9 +109,6 @@ fn fabric_plan(expression: &Expression) -> Result<FabricPlan, ErrorKind> {
                 };
                 plan.name = Some(name.clone());
             }
-            "features" => {
-                features(&mut plan, tail)?;
-            }
             "build" => {
                 build(&mut plan, tail)?;
             }
@@ -262,98 +259,4 @@ fn expect_face_name(expression: &Expression, face_name: &str) -> Result<FaceName
     })
 }
 
-fn features(FabricPlan { features, .. }: &mut FabricPlan, expressions: &[Expression]) -> Result<(), ErrorKind> {
-    let mut feature_defined = HashSet::new();
-    for expression in expressions {
-        let Call { head: key, tail: &[ref val] } = expect_call("features", expression)? else {
-            return Err(BadCall { context: "features", expected: "(<feature-name> <value>)", expression: expression.clone() });
-        };
-        if feature_defined.contains(key) {
-            return Err(IllegalRepetition { kind: "feature name", value: key.to_string() });
-        }
-        feature_defined.insert(key.to_string());
-        match key {
-            "iterations-per-frame" => {
-                let Expression::Integer(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(iterations-per-frame <integer>)", expression: expression.clone() });
-                };
-                features.iterations_per_frame = Some(*value as u32);
-            }
-            "visual-strain" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(visual-strain <percent>)", expression: expression.clone() });
-                };
-                features.visual_strain = Some(*value);
-            }
-            "gravity" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(gravity <percent>)", expression: expression.clone() });
-                };
-                features.gravity = Some(*value);
-            }
-            "pretenst-factor" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(pretenst-factor <percent>)", expression: expression.clone() });
-                };
-                features.pretenst_factor = Some(*value);
-            }
-            "stiffness-factor" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(stiffness-factor <percent>)", expression: expression.clone() });
-                };
-                features.stiffness_factor = Some(*value);
-            }
-            "push-over-pull" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(push-over-pull <percent>)", expression: expression.clone() });
-                };
-                features.push_over_pull = Some(*value);
-            }
-            "viscosity" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(viscosity <percent>)", expression: expression.clone() });
-                };
-                features.viscosity = Some(*value);
-            }
-            "shaping-pretenst-factor" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(shaping-pretenst-factor <percent>)", expression: expression.clone() });
-                };
-                features.shaping_pretenst_factor = Some(*value);
-            }
-            "shaping-viscosity" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(shaping-viscosity <percent>)", expression: expression.clone() });
-                };
-                features.shaping_viscosity = Some(*value);
-            }
-            "shaping-stiffness-factor" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(shaping-stiffness-factor <percent>)", expression: expression.clone() });
-                };
-                features.shaping_stiffness_factor = Some(*value);
-            }
-            "antigravity" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(antigravity <percent>)", expression: expression.clone() });
-                };
-                features.antigravity = Some(*value);
-            }
-            "interval-countdown" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(interval-countdown <percent>)", expression: expression.clone() });
-                };
-                features.interval_countdown = Some(*value);
-            }
-            "pretensing-countdown" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(pretensing-countdown <percent>)", expression: expression.clone() });
-                };
-                features.pretensing_countdown = Some(*value);
-            }
-            _ => return Err(BadCall { context: "features", expected: "legal feature name", expression: expression.clone() }),
-        }
-    }
-    Ok(())
-}
 
