@@ -5,7 +5,7 @@ pub const BOOTSTRAP: [(&str, &str); 5] = [
         (fabric
             (build
                 (seed :left)
-                (grow A- 30 (scale 90%))
+                (grow 30 (scale 90%))
             )
         )
         "
@@ -14,11 +14,11 @@ pub const BOOTSTRAP: [(&str, &str); 5] = [
         "Knee",
         "
         (fabric
-            (surface :frozen)
             (build
-            (branch
-                (grow :A+ 3)
-                (grow :B+ 3))
+                (branch
+                    (face :A+ (grow 'XXX'))
+                    (face :B+ (grow 3))
+                )
             )
         )
         "
@@ -30,17 +30,17 @@ pub const BOOTSTRAP: [(&str, &str); 5] = [
               (build
                     (grow 5 (scale 92%)
                         (branch
-                                (face B-
+                                (face :B-
                                     (grow 12 (scale 92%) (mark :halo-end))
                                 )
-                                (face D-
+                                (face :D-
                                     (grow 11 (scale 92%) (mark :halo-end))
                                 )
                          )
                     )
               )
               (shape
-                    (pull-together :halo-end)
+                    (join :halo-end)
               )
         )
         "
@@ -50,26 +50,23 @@ pub const BOOTSTRAP: [(&str, &str); 5] = [
         "
         (fabric
             (build
-                (seed :left)
                 (branch
-                    (grow C- 3
-                        (mark A+ :end)
-                    )
-                    (grow D- 7
-                        (grow B- 7
-                            (grow C- 7
-                                (grow D- 7
-                                    (grow C- 7
-                                        (grow D- 3 (mark A+ :end))
-                                    )
-                                )
-                            )
-                        )
-                    )
+                    (face :C- (grow  3 (mark :end)))
+                    (face :D- (grow 7
+                        (face :B- (grow 7
+                            (face :C- (grow 7
+                                (face :D- (grow 7
+                                    (face :C- (grow 7
+                                        (face :D- (grow 3 (mark :end)))
+                                    ))
+                                ))
+                            ))
+                        ))
+                    ))
                 )
             )
             (shape
-                (pull-together :end)
+                (join :end)
             )
         )
         "
@@ -79,48 +76,27 @@ pub const BOOTSTRAP: [(&str, &str); 5] = [
         "
         (fabric
             (build
-                (seed :left)
                 (branch
-                    (grow A+
-                        (scale 95%)
-                        (twist 0 0 0 0 1 0 0)
-                        (mark A+ :legs)
-                     )
-                    (grow B-
-                        (scale 95%)
-                        (twist 0 0 0 0 1 0 0)
-                        (mark A+ :legs)
-                    )
-                    (grow A-
-                        (scale 90%)
+                    (face :A+ (grow '....X..' (scale 95%) (mark :legs) ))
+                    (face :B- (grow '....X..' (scale 95%) (mark :legs) ))
+                    (face :A- (grow 3 (scale 90%)
                         (branch
-                            (grow A+ 3
-                            (mark A+ :shoulders)
+                            (face :A+ (mark :shoulders))
+                            (face :C+ (grow '...X..' (scale 93%) (mark :hands)))
                         )
-                        (grow C+
-                            (scale 93%)
-                            (twist 1 0 0 0 1 0 0)
-                            (mark A+ :hands)
-                        )
-                    )
-                    (grow B+
-                        (scale 90%)
+                    ))
+                    (face :B+ (grow 3 (scale 90%)
                         (branch
-                            (grow A+ 3
-                                (mark A+ :shoulders)
-                            )
-                            (grow C+
-                                (scale 93%)
-                                (twist 1 0 0 0 1 0 0)
-                                (mark A+ :hands)
-                            )
+                            (face :A+ (mark :shoulders))
+                            (face :C+ (grow '...X..' (scale 93%) (mark :hands)))
                         )
-                    )
+                    ))
+                )
             )
             (shape
-                (pull-together :legs 5%)
-                (pull-together :hands 7%)
-                (pull-together :shoulders 5%)
+                (space :legs 5%)
+                (space :hands 7%)
+                (space :shoulders 5%)
             )
         )
         "

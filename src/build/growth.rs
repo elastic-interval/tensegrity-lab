@@ -84,8 +84,8 @@ impl Growth {
     }
 
     pub fn create_shapers(&mut self, fabric: &mut Fabric) {
-        let ShapePhase { pull_together, .. } = &self.plan.shape_phase;
-        for mark_name in pull_together {
+        let ShapePhase { join, .. } = &self.plan.shape_phase;
+        for mark_name in join {
             self.shapers.extend(self.attach_shapers(fabric, mark_name));
         }
         self.marks.clear();
@@ -148,10 +148,10 @@ impl Growth {
                 buds.extend(new_buds);
                 marks.extend(new_marks);
             }
-            Grow { forward, scale_factor, branch, .. } => {
+            Grow { forward, scale_factor, post_growth_node, .. } => {
                 let face_id = faces.iter().find(|(name, _)| *name == face_name).map(|(_, face_id)| *face_id);
                 let [_, (_, a_pos_face)] = fabric.single_twist(spin, self.pretenst_factor, scale_factor, face_id);
-                let node = branch.map(|node_box| *node_box);
+                let node = post_growth_node.map(|node_box| *node_box);
                 buds.push(Bud {
                     face_id: a_pos_face,
                     forward,
