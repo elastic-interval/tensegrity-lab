@@ -11,7 +11,6 @@ use winit::window::{CursorIcon, Window};
 use instant::Instant;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
-use crate::fabric::annealing::MeasureLimits;
 
 use crate::graphics::GraphicsWindow;
 
@@ -189,7 +188,7 @@ pub enum Action {
 pub struct Controls {
     showing: Showing,
     strain_nuance: f32,
-    strain_lower_limit: f32,
+    strain_threshold: f32,
     frame_rate: f64,
     action_queue: RefCell<Vec<Action>>,
 }
@@ -197,7 +196,7 @@ pub struct Controls {
 #[derive(Debug, Clone)]
 pub enum Message {
     ShowControls,
-    StrainLowerLimit(f32),
+    StrainThreshold(f32),
     MeasureNuanceChanged(f32),
     AddPulls,
     FrameRateUpdated(f64),
@@ -208,7 +207,7 @@ impl Default for Controls {
         Self {
             showing: Showing::Nothing,
             strain_nuance: 0.0,
-            strain_lower_limit: f32::MIN,
+            strain_threshold: 0.0,
             frame_rate: 0.0,
             action_queue: RefCell::new(Vec::new()),
         }
@@ -220,8 +219,8 @@ impl Controls {
         self.action_queue.borrow_mut().split_off(0)
     }
 
-    pub fn strain_lower_limit(&self, limits: MeasureLimits) -> f32 {
-        limits.interpolate(self.strain_nuance)
+    pub fn strain_threshold(&self, maximum_strain: f32) -> f32 {
+        maximum_strain * self.strain_nuance
     }
 }
 
@@ -237,8 +236,8 @@ impl Program for Controls {
             Message::MeasureNuanceChanged(nuance) => {
                 self.strain_nuance = nuance;
             }
-            Message::StrainLowerLimit(limit) => {
-                self.strain_lower_limit = limit;
+            Message::StrainThreshold(limit) => {
+                self.strain_threshold = limit;
             }
             Message::AddPulls => {
                 self.action_queue.borrow_mut().push(Action::AddPulls { strain_nuance: self.strain_nuance });
@@ -263,7 +262,7 @@ impl Program for Controls {
                         .style(Color::WHITE)
                 );
         }
-        let strain_limit = self.strain_lower_limit;
+        let strain_limit = self.strain_threshold;
         let element: Element<'_, Self::Message, Self::Renderer> =
             Column::new()
                 .padding(10)

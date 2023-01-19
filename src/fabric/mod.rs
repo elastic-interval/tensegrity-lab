@@ -224,15 +224,19 @@ impl Fabric {
         self.set_altitude(1.0)
     }
 
-    pub fn iterate(&mut self, physics: &Physics) {
+    pub fn iterate(&mut self, physics: &Physics) -> f32 {
         for joint in &mut self.joints {
             joint.reset();
         }
         for interval in self.intervals.values_mut() {
             interval.iterate(&mut self.joints, &self.progress, physics);
         }
+        let mut max_speed_squared = 0.0;
         for joint in &mut self.joints {
-            joint.iterate(physics)
+            let speed_squared = joint.iterate(physics);
+            if speed_squared > max_speed_squared {
+                max_speed_squared = speed_squared;
+            }
         }
         if self.progress.step() { // final step
             for interval in self.intervals.values_mut() {
@@ -242,6 +246,7 @@ impl Fabric {
             }
         }
         self.age += 1;
+        max_speed_squared
     }
 
     pub fn midpoint(&self) -> Point3<f32> {

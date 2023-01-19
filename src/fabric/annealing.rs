@@ -13,25 +13,18 @@ impl Fabric {
         }
     }
 
-    pub fn measure_limits(&self) -> Option<MeasureLimits> {
-        let mut limits = MeasureLimits { low: f32::MAX, high: f32::MIN };
-        let mut measures_present = false;
-        for Interval { strain, .. } in self.interval_measures() {
-            measures_present = true;
-            if *strain > limits.high {
-                limits.high = *strain;
-            }
-            if *strain < limits.low {
-                limits.low = *strain;
-            }
-        }
-        measures_present.then_some(limits)
+    pub fn max_measure_strain(&self) -> f32 {
+        self.interval_measures()
+            .map(|Interval { strain, .. }| strain)
+            .max_by(|a, b| a.partial_cmp(&b).unwrap())
+            .cloned()
+            .unwrap_or(0.0)
     }
 
-    pub fn measures_to_pulls(&mut self, strain_lower_limit: f32) -> Vec<(usize, usize, f32)> {
+    pub fn measures_to_pulls(&mut self, strain_threshold: f32) -> Vec<(usize, usize, f32)> {
         self.interval_values()
             .filter_map(|interval|
-                (interval.role == Measure && interval.strain > strain_lower_limit)
+                (interval.role == Measure && interval.strain > strain_threshold)
                     .then_some((
                         interval.alpha_index,
                         interval.omega_index,
@@ -51,18 +44,6 @@ impl Fabric {
             incidents[*omega_index].add(interval);
         }
         incidents
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct MeasureLimits {
-    low: f32,
-    high: f32,
-}
-
-impl MeasureLimits {
-    pub fn interpolate(&self, nuance: f32) -> f32 {
-        self.low * (1.0 - nuance) + self.high * nuance
     }
 }
 
