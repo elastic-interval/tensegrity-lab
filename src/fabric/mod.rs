@@ -89,18 +89,18 @@ impl Fabric {
 
     pub fn create_interval(&mut self, alpha_index: usize, omega_index: usize, link: Link) -> UniqueId {
         let id = self.create_id();
-        let initial_length = self.joints[alpha_index].location.distance(self.joints[omega_index].location);
+        let initial = self.joints[alpha_index].location.distance(self.joints[omega_index].location);
         let interval = match link {
             Link::Push { ideal } => {
-                Interval::new(alpha_index, omega_index, Push, self.push_material, Approaching { initial_length, length: ideal })
+                Interval::new(alpha_index, omega_index, Push, self.push_material, Approaching { initial, length: ideal })
             }
             Link::Pull { ideal } => {
-                Interval::new(alpha_index, omega_index, Pull, self.push_material, Approaching { initial_length, length: ideal })
+                Interval::new(alpha_index, omega_index, Pull, self.push_material, Approaching { initial, length: ideal })
             }
             Link::PullStiffness { ideal, stiffness_factor } => {
                 let mut material = self.pull_material.clone();
                 material.stiffness *= stiffness_factor;
-                Interval::new(alpha_index, omega_index, Pull, material, Approaching { initial_length, length: ideal })
+                Interval::new(alpha_index, omega_index, Pull, material, Approaching { initial, length: ideal })
             }
             Link::Measure { length } => {
                 Interval::new(alpha_index, omega_index, Measure, self.push_material, Fixed { length })
@@ -187,7 +187,7 @@ impl Fabric {
         for interval in self.intervals.values_mut() {
             let length = interval.length(&self.joints);
             interval.span = match interval.role {
-                Push => Approaching { initial_length: length, length: length * push_extension },
+                Push => Approaching { initial: length, length: length * push_extension },
                 Pull | Measure => Fixed { length }
             };
         }
