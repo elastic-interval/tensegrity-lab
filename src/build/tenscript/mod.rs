@@ -60,7 +60,7 @@ pub enum TenscriptNode {
     Grow {
         forward: String,
         scale_factor: f32,
-        branch: Option<Box<TenscriptNode>>,
+        post_growth_node: Option<Box<TenscriptNode>>,
     },
     Mark {
         mark_name: String,
@@ -77,8 +77,15 @@ pub struct BuildPhase {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct Space {
+    pub mark_name: String,
+    pub scale_factor: f32,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct ShapePhase {
-    pub pull_together: Vec<String>,
+    pub join: Vec<String>,
+    pub space: Vec<Space>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -101,9 +108,6 @@ mod tests {
     #[test]
     fn parse() {
         for (name, code) in BOOTSTRAP {
-            if name != "Halo by Crane" {
-                continue;
-            }
             let plan = parser::parse(code);
             let parsed = plan.err();
             println!("{name}: {parsed:?}");

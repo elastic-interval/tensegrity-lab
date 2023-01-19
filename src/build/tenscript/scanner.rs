@@ -5,7 +5,7 @@ use std::str::FromStr;
 use crate::build::tenscript::error;
 use crate::build::tenscript::scanner::ErrorKind::{FloatParseFailed, IllegalChar, IntParseFailed};
 use crate::build::tenscript::scanner::Token::{
-    Atom, EOF, Float, Ident, Integer, Paren, Percent, String as StringLit,
+    Atom, EndOfFile, Float, Ident, Integer, Paren, Percent, String as StringLit,
 };
 
 #[derive(Debug, Clone)]
@@ -14,10 +14,10 @@ pub enum Token {
     Paren(char),
     Atom(String),
     String(String),
-    Integer(i64),
+    Integer(usize),
     Float(f32),
     Percent(f32),
-    EOF,
+    EndOfFile,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -93,7 +93,7 @@ impl Scanner {
                 loc: self.loc.clone(),
             })?;
         }
-        self.add(EOF);
+        self.add(EndOfFile);
         Ok(self.tokens)
     }
 
@@ -101,9 +101,8 @@ impl Scanner {
         match self.current() {
             '0'..='9' | '-' => self.number()?,
             'a'..='z' => self.ident(),
-            'A'..='Z' => self.atom(false),
-            ':' => self.atom(true),
-            '"' => self.string()?,
+            ':' => self.atom(),
+            '\'' => self.string()?,
             '\n' => {
                 self.loc.line += 1;
                 self.loc.col = 0;
@@ -154,12 +153,6 @@ impl Scanner {
     }
 
     fn number(&mut self) -> Result<(), ErrorKind> {
-        let negative = if let '-' = self.current() {
-            self.increment();
-            true
-        } else {
-            false
-        };
         let mut num_string = String::new();
         while let ch @ ('0'..='9' | '_') = self.current() {
             if ch != '_' {
@@ -173,11 +166,8 @@ impl Scanner {
             while let ch @ '0'..='9' = self.current() {
                 num_string.push(ch);
                 self.increment();
-                let mut value =
+                let value =
                     f32::from_str(&num_string).map_err(|err| FloatParseFailed { err })?;
-                if negative {
-                    value = -value;
-                }
                 match self.current() {
                     '%' => {
                         self.increment();
@@ -187,11 +177,7 @@ impl Scanner {
                 };
             }
         } else {
-            let mut value = i64::from_str(&num_string).map_err(|err| IntParseFailed { err })?;
-
-            if negative {
-                value = -value;
-            }
+            let value = usize::from_str(&num_string).map_err(|err| IntParseFailed { err })?;
             match self.current() {
                 '%' => {
                     self.increment();
@@ -204,15 +190,11 @@ impl Scanner {
         Ok(())
     }
 
-    fn atom(&mut self, start_with_colon: bool) {
-        if start_with_colon {
-            self.increment();
-        }
+    fn atom(&mut self) {
+        self.increment();
         self.consume_ident_chars();
         let mut name = self.lexeme();
-        if start_with_colon {
-            name.remove(0); // remove prefix ':'
-        }
+        name.remove(0); // remove prefix ':'
         self.add(Atom(name));
     }
 
@@ -224,7 +206,7 @@ impl Scanner {
 
     fn string(&mut self) -> Result<(), ErrorKind> {
         self.increment();
-        while self.current() != '"' {
+        while self.current() != '\'' {
             self.increment();
             if self.at_end() {
                 return Err(ErrorKind::UnterminatedString);

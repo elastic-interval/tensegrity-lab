@@ -4,7 +4,7 @@ use crate::build::tenscript::error::Error;
 use crate::build::tenscript::expression::ErrorKind::{ConsumeFailed, MatchExhausted};
 use crate::build::tenscript::scanner;
 use crate::build::tenscript::scanner::{ScannedToken, Token};
-use crate::build::tenscript::scanner::Token::{Atom, EOF, Float, Ident, Integer, Paren, Percent};
+use crate::build::tenscript::scanner::Token::{Atom, EndOfFile, Float, Ident, Integer, Paren, Percent};
 
 #[derive(Clone)]
 pub enum Expression {
@@ -12,7 +12,7 @@ pub enum Expression {
     Ident(String),
     Atom(String),
     String(String),
-    Integer(i64),
+    Integer(usize),
     Float(f32),
     Percent(f32),
 }
@@ -114,7 +114,7 @@ impl Parser {
 
     fn list(&mut self) -> Result<Expression, ErrorKind> {
         let mut terms = Vec::new();
-        while !matches!(self.current(), Paren(')') | EOF) {
+        while !matches!(self.current(), Paren(')') | EndOfFile) {
             let term = self.expression()?;
             terms.push(term);
         }
