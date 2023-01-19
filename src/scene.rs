@@ -133,19 +133,13 @@ impl Scene {
     }
 
     fn update_from_fabric(&mut self, fabric: &Fabric, controls: &Controls) -> Option<Message> {
-        let (strain_lower_limit, message) = match fabric.measure_limits() {
-            Some(limits) => {
-                let limit = controls.strain_lower_limit(limits);
-                (limit, Some(Message::StrainLowerLimit(limit)))
-            }
-            None => (f32::NEG_INFINITY, None),
-        };
+        let strain_threshold = controls.strain_threshold(fabric.max_measure_strain());
         self.vertices.clear();
         self.vertices.extend(fabric.interval_values()
-            .filter(|Interval { strain, role, .. }| *role != Measure || *strain > strain_lower_limit)
+            .filter(|Interval { strain, role, .. }| *role != Measure || *strain > strain_threshold)
             .flat_map(|interval| Vertex::for_interval(interval, fabric)));
         self.camera.target_approach(fabric.midpoint());
-        message
+        (strain_threshold > 0.0).then_some(Message::StrainThreshold(strain_threshold))
     }
 
 
@@ -180,11 +174,7 @@ impl Vertex {
         let color = match interval.role {
             Push => [1.0, 1.0, 1.0, 1.0],
             Pull => [0.2, 0.2, 1.0, 1.0],
-            Measure => if interval.strain < 0.0 {
-                [1.0, 0.8, 0.0, 1.0]
-            } else {
-                [0.0, 1.0, 0.0, 1.0]
-            },
+            Measure => [0.0, 0.5, 0.0, 1.0],
         };
         [
             Vertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color },
