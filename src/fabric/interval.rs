@@ -20,7 +20,7 @@ pub enum Span {
     },
     Approaching {
         length: f32,
-        initial_length: f32,
+        initial: f32,
     },
 }
 
@@ -101,9 +101,9 @@ impl Interval {
     pub fn iterate(&mut self, joints: &mut [Joint], progress: &Progress, physics: &Physics) {
         let ideal = match self.span {
             Fixed { length } => { length }
-            Approaching { initial_length, length, .. } => {
+            Approaching { initial, length, .. } => {
                 let nuance = progress.nuance();
-                initial_length * (1.0 - nuance) + length * nuance
+                initial * (1.0 - nuance) + length * nuance
             }
         };
         let real_length = self.length(joints);
