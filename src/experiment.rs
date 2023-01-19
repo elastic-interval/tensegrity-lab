@@ -1,8 +1,7 @@
 use crate::experiment::Stage::{AddPulls, Pretensing, Pretenst, RunningPlan};
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, Link};
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::build::plan_runner::PlanRunner;
-use crate::fabric::interval::Role::Pull;
 
 enum Stage {
     RunningPlan,
@@ -69,8 +68,8 @@ impl Experiment {
                 self.add_pulls = None;
                 let new_pulls = self.fabric.measures_to_pulls(strain_threshold);
                 self.fabric = self.frozen_fabric.take().unwrap();
-                for (alpha_index, omega_index, ideal_length) in new_pulls {
-                    self.fabric.create_interval(alpha_index, omega_index, Pull, ideal_length);
+                for (alpha_index, omega_index, ideal) in new_pulls {
+                    self.fabric.create_interval(alpha_index, omega_index, Link::Pull { ideal });
                 }
                 self.start_pretensing()
             }

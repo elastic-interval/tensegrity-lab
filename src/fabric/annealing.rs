@@ -1,15 +1,14 @@
 use std::collections::{HashMap, HashSet};
 
 use cgmath::{MetricSpace, Point3};
-use crate::fabric::Fabric;
-use crate::fabric::interval::Interval;
-use crate::fabric::interval::Role::{Measure, Pull, Push};
+use crate::fabric::{Fabric, Link};
+use crate::fabric::interval::{Interval, Role};
 
 impl Fabric {
     pub fn install_measures(&mut self) {
         let measures = PairGenerator::new(self.joint_incident());
         for MeasurePair { alpha_index, omega_index, length } in measures.generate_pairs() {
-            self.create_interval(alpha_index, omega_index, Measure, length);
+            self.create_interval(alpha_index, omega_index, Link::Measure { length });
         }
     }
 
@@ -24,11 +23,11 @@ impl Fabric {
     pub fn measures_to_pulls(&mut self, strain_threshold: f32) -> Vec<(usize, usize, f32)> {
         self.interval_values()
             .filter_map(|interval|
-                (interval.role == Measure && interval.strain > strain_threshold)
+                (interval.role == Role::Measure && interval.strain > strain_threshold)
                     .then_some((
                         interval.alpha_index,
                         interval.omega_index,
-                        interval.ideal_length() - interval.strain,
+                        interval.ideal() - interval.strain,
                     )))
             .collect()
     }
@@ -69,9 +68,9 @@ impl JointIncident {
 
     fn add(&mut self, interval: &Interval) {
         match interval.role {
-            Push => self.push = Some(interval.clone()),
-            Pull => self.pulls.push(interval.clone()),
-            Measure => panic!("Should be no measures yet"),
+            Role::Push => self.push = Some(interval.clone()),
+            Role::Pull => self.pulls.push(interval.clone()),
+            Role::Measure => panic!("Should be no measures yet"),
         }
         self.adjacent_joints.insert(interval.other_joint(self.index));
     }
@@ -118,7 +117,7 @@ impl PairGenerator {
         let Some(push) = &joint.push else {
             return;
         };
-        let length_limit = push.ideal_length();
+        let length_limit = push.ideal();
         let two_steps: HashSet<_> = joint.adjacent_joints
             .iter()
             .flat_map(|&adjacent| self.joints[adjacent].adjacent_joints.iter())
