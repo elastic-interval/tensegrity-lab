@@ -42,7 +42,7 @@ impl PlanRunner {
         let next_stage = match self.stage {
             Empty => {
                 self.growth.init(fabric);
-                GrowStep
+                GrowApproach
             }
             GrowStep => {
                 if self.growth.is_growing() {

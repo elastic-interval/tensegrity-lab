@@ -1,4 +1,5 @@
 use cgmath::MetricSpace;
+use crate::build::growth::Launch::{IdentifiedFace, NamedFace, SeedSpin};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::Role::Pull;
 use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, ShapePhase, Spin};
@@ -36,6 +37,12 @@ pub struct Shaper {
     omega_face: UniqueId,
 }
 
+enum Launch {
+    SeedSpin { spin: Spin },
+    NamedFace { face_name: FaceName },
+    IdentifiedFace { face_id: UniqueId },
+}
+
 #[derive(Debug)]
 pub struct Growth {
     pub plan: FabricPlan,
@@ -58,9 +65,9 @@ impl Growth {
 
     pub fn init(&mut self, fabric: &mut Fabric) {
         let BuildPhase { seed, root } = &self.plan.build_phase;
-        let spin = seed.unwrap_or(Spin::Left);
         let node = root.clone().unwrap();
-        let (buds, marks) = self.execute_node(fabric, spin, Apos, node, vec![]);
+        let (buds, marks) =
+            self.execute_node(fabric, SeedSpin { spin: *seed }, &node, vec![]);
         self.buds = buds;
         self.marks = marks;
     }
@@ -103,20 +110,77 @@ impl Growth {
         let face = fabric.face(face_id);
         let spin = if forward.starts_with('X') { face.spin.opposite() } else { face.spin };
         if !forward.is_empty() {
-            let [_, (_, a_pos_face_id)] =
-                fabric.single_twist(spin, self.pretenst_factor, scale_factor, Some(face_id));
+            let faces = fabric.single_twist(spin, self.pretenst_factor, scale_factor, Some(face_id));
             buds.push(Bud {
-                face_id: a_pos_face_id,
+                face_id: Growth::find_face_id(Apos, faces),
                 forward: forward[1..].into(),
                 scale_factor,
                 node,
             });
         } else if let Some(node) = node {
             let (node_buds, node_marks) =
-                self.execute_node(fabric, spin, Apos, node, vec![(Apos, face_id)]);
+                self.execute_node(fabric, IdentifiedFace { face_id }, &node, vec![]);
             buds.extend(node_buds);
             marks.extend(node_marks);
         };
+        (buds, marks)
+    }
+
+    fn execute_node(&self, fabric: &mut Fabric, launch: Launch, node: &TenscriptNode, faces: Vec<(FaceName, UniqueId)>) -> (Vec<Bud>, Vec<PostMark>) {
+        let mut buds: Vec<Bud> = vec![];
+        let mut marks: Vec<PostMark> = vec![];
+        match node {
+            Face { face_name, node } => {
+                return self.execute_node(fabric, NamedFace { face_name: *face_name }, node, faces);
+            }
+            Grow { forward, scale_factor, post_growth_node, .. } => {
+                let face_id = match launch {
+                    SeedSpin { spin } => {
+                        let faces = fabric.single_twist(spin, self.pretenst_factor, *scale_factor, None);
+                        return self.execute_node(fabric, NamedFace { face_name: Apos }, node, faces);
+                    }
+                    NamedFace { face_name } => Growth::find_face_id(face_name, faces),
+                    IdentifiedFace { face_id } => face_id,
+                };
+                let node = post_growth_node.clone().map(|node_box| *node_box);
+                buds.push(Bud { face_id, forward: forward.clone(), scale_factor: *scale_factor, node })
+            }
+            Branch { face_nodes } => {
+                let pairs = Growth::branch_pairs(face_nodes);
+                let needs_double = pairs.iter().any(|(face_name, _)| *face_name != Apos);
+                let (spin, face_id) = match launch {
+                    SeedSpin { spin } => (spin, None),
+                    NamedFace { face_name } => {
+                        let face_id = Growth::find_face_id(face_name, faces);
+                        let spin = fabric.face(face_id).spin.opposite();
+                        (spin, Some(face_id))
+                    }
+                    IdentifiedFace { face_id } => {
+                        let spin = fabric.face(face_id).spin.opposite();
+                        (spin, Some(face_id))
+                    }
+                };
+                let twist_faces = if needs_double {
+                    fabric.double_twist(spin, self.pretenst_factor, 1.0, face_id)
+                } else {
+                    fabric.single_twist(spin, self.pretenst_factor, 1.0, face_id)
+                };
+                for (face_name, node) in pairs {
+                    let (new_buds, new_marks) =
+                        self.execute_node(fabric, NamedFace { face_name }, node, twist_faces.clone());
+                    buds.extend(new_buds);
+                    marks.extend(new_marks);
+                }
+            }
+            Mark { mark_name } => {
+                let face_id = match launch {
+                    NamedFace { face_name } => Growth::find_face_id(face_name, faces),
+                    IdentifiedFace { face_id } => face_id,
+                    SeedSpin { .. } => panic!("Need launch face"),
+                };
+                marks.push(PostMark { face_id, mark_name: mark_name.clone() });
+            }
+        }
         (buds, marks)
     }
 
@@ -137,65 +201,6 @@ impl Growth {
             _ => panic!()
         }
         shapers
-    }
-
-    fn execute_node(&self, fabric: &mut Fabric, spin: Spin, face_name: FaceName, node: TenscriptNode, faces: Vec<(FaceName, UniqueId)>) -> (Vec<Bud>, Vec<PostMark>) {
-        let mut buds: Vec<Bud> = vec![];
-        let mut marks: Vec<PostMark> = vec![];
-        match node {
-            Face { face_name, node } => {
-                let (new_buds, new_marks) = self.execute_node(fabric, spin, face_name, *node, faces);
-                buds.extend(new_buds);
-                marks.extend(new_marks);
-            }
-            Grow { forward, scale_factor, post_growth_node, .. } => {
-                let face_id = faces.iter().find(|(name, _)| *name == face_name).map(|(_, face_id)| *face_id);
-                let [_, (_, a_pos_face)] = fabric.single_twist(spin, self.pretenst_factor, scale_factor, face_id);
-                let node = post_growth_node.map(|node_box| *node_box);
-                buds.push(Bud {
-                    face_id: a_pos_face,
-                    forward,
-                    scale_factor,
-                    node,
-                })
-            }
-            Branch { face_nodes } => {
-                let pairs: Vec<(FaceName, &TenscriptNode)> = face_nodes
-                    .iter()
-                    .map(|face_node| {
-                        let Face { face_name, node } = face_node else {
-                            panic!("Branch may only contain Face nodes");
-                        };
-                        (*face_name, node.as_ref())
-                    })
-                    .collect();
-                let needs_double = pairs
-                    .iter()
-                    .any(|(face_name, _)| *face_name != Apos);
-                let base_face_id = faces
-                    .iter()
-                    .find(|(face_name, _)| *face_name == Apos)
-                    .map(|(_, face_id)| *face_id);
-                let twist_faces = if needs_double {
-                    fabric.double_twist(spin, self.pretenst_factor, 1.0, base_face_id).to_vec()
-                } else {
-                    fabric.single_twist(spin, self.pretenst_factor, 1.0, base_face_id).to_vec()
-                };
-                for (face_name, node) in pairs {
-                    let (new_buds, new_marks) =
-                        self.execute_node(fabric, spin, face_name, node.clone(), twist_faces.clone());
-                    buds.extend(new_buds);
-                    marks.extend(new_marks);
-                }
-            }
-            Mark { mark_name } => {
-                let face = faces.iter().find(|(name, _)| *name == face_name);
-                if let Some((_, face_id)) = face {
-                    marks.push(PostMark { face_id: *face_id, mark_name });
-                }
-            }
-        }
-        (buds, marks)
     }
 
     fn complete_shaper(&self, fabric: &mut Fabric, Shaper { interval, alpha_face, omega_face }: &Shaper) {
@@ -227,5 +232,25 @@ impl Growth {
         fabric.remove_interval(*interval);
         fabric.remove_face(*alpha_face);
         fabric.remove_face(*omega_face);
+    }
+
+    fn branch_pairs(nodes: &[TenscriptNode]) -> Vec<(FaceName, &TenscriptNode)> {
+        nodes
+            .iter()
+            .map(|face_node| {
+                let Face { face_name, node } = face_node else {
+                    panic!("Branch may only contain Face nodes");
+                };
+                (*face_name, node.as_ref())
+            })
+            .collect()
+    }
+
+    fn find_face_id(face_name: FaceName, face_list: Vec<(FaceName, UniqueId)>) -> UniqueId {
+        face_list
+            .iter()
+            .find(|(name, _)| *name == face_name)
+            .map(|(_, face_id)| *face_id)
+            .unwrap()
     }
 }

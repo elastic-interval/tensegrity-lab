@@ -1,9 +1,12 @@
+;Seed
+(fabric
+  (build
+    (seed :right-left)))
 ;Flagellum
 (fabric
   (build
     (seed :left)
-    (grow 30 (scale .9)))
-  )
+    (grow 30 (scale .9))))
 ;Knee
 (fabric
   (build
@@ -15,7 +18,7 @@
 ;Halo by Crane
 (fabric
   (build
-    (grow 5 (scale .92)
+    (grow 4 (scale .92)
       (branch
         (face :B- (grow 12 (scale .92) (mark :halo-end)))
         (face :D- (grow 11 (scale .92) (mark :halo-end))))
