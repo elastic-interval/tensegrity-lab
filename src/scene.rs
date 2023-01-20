@@ -2,6 +2,7 @@ use std::f32::consts::PI;
 use std::mem;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
+use cgmath::Vector3;
 use iced_wgpu::wgpu;
 #[allow(unused_imports)]
 use log::info;
@@ -39,9 +40,9 @@ pub struct Scene {
 impl Scene {
     pub fn new(graphics: &GraphicsWindow) -> Self {
         let shader = graphics.get_shader_module();
-        let scale = 3.0;
+        let scale = 6.0;
         let aspect = graphics.config.width as f32 / graphics.config.height as f32;
-        let camera = Camera::new((3.0 * scale, 1.5 * scale, 3.0 * scale).into(), aspect);
+        let camera = Camera::new((2.0 * scale, 1.0 * scale, 2.0 * scale).into(), aspect);
         let uniform_buffer = graphics.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("MVP"),
             contents: cast_slice(&[0.0f32; 16]),
@@ -92,7 +93,7 @@ impl Scene {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
-        let surface_vertices = SurfaceVertex::for_radius(5.0).to_vec();
+        let surface_vertices = SurfaceVertex::for_radius(10.0).to_vec();
         let surface_pipeline = graphics.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Surface Pipeline"),
             layout: Some(&pipeline_layout),
@@ -212,9 +213,12 @@ impl Scene {
         graphics.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));
     }
 
-    pub fn adjust_camera_up(&mut self, up: f32) {
+    pub fn move_camera(&mut self, jump: Vector3<f32>) {
+        self.camera.jump(jump);
+    }
+
+    pub fn show_surface(&mut self) {
         self.show_surface = true;
-        self.camera.go_up(up);
     }
 }
 
