@@ -35,8 +35,9 @@ pub enum SurfaceCharacterSpec {
     Sticky,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Spin {
+    #[default]
     Left,
     Right,
 }
@@ -71,7 +72,7 @@ pub enum TenscriptNode {
 
 #[derive(Debug, Clone, Default)]
 pub struct BuildPhase {
-    pub seed: Option<Spin>,
+    pub seed: Spin,
     pub root: Option<TenscriptNode>,
 }
 

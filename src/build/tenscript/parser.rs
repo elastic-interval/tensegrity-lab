@@ -116,17 +116,16 @@ fn build(FabricPlan { build_phase, .. }: &mut FabricPlan, expressions: &[Express
         let Call { head, tail } = expect_call(expression)?;
         match head {
             "seed" => {
-                if build_phase.seed.is_some() {
-                    return Err(AlreadyDefined { property: "seed", expression: expression.clone() });
+                let [ Expression::Atom(seed_string)] = tail else {
+                    return Err(BadCall { expected: "(seed <atom>)", expression: expression.clone() });
                 };
-                let [ value] = tail else {
-                    return Err(BadCall { expected: "(seed <value>)", expression: expression.clone() });
+                build_phase.seed = match seed_string.as_str() {
+                    "left" => Spin::Left,
+                    "right" => Spin::Right,
+                    _ => {
+                        return Err(BadCall { expected: "(seed <left | right>)", expression: expression.clone() });
+                    }
                 };
-                let seed_type = expect_enum!(value, {
-                        "left" => Spin::Left,
-                        "right" => Spin::Right,
-                    });
-                build_phase.seed = Some(seed_type);
             }
             "branch" | "grow" | "mark" => {
                 if build_phase.root.is_some() {
