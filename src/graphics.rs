@@ -111,9 +111,17 @@ impl GraphicsWindow {
     }
 }
 
-pub fn get_primitive_state() -> PrimitiveState {
+pub fn line_list_primitive_state() -> PrimitiveState {
     PrimitiveState {
         topology: wgpu::PrimitiveTopology::LineList,
+        strip_index_format: None,
+        ..Default::default()
+    }
+}
+
+pub fn triangle_list_primitive_state() -> PrimitiveState {
+    PrimitiveState {
+        topology: wgpu::PrimitiveTopology::TriangleList,
         strip_index_format: None,
         ..Default::default()
     }
