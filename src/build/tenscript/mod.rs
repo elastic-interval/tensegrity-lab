@@ -1,7 +1,7 @@
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
 pub use parser::parse;
-use crate::build::tenscript::bootstrap::BOOTSTRAP;
 
 use crate::build::tenscript::FaceName::{*};
 
@@ -9,7 +9,6 @@ mod error;
 mod expression;
 mod parser;
 mod scanner;
-mod bootstrap;
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum FaceName { Apos, Bpos, Cpos, Dpos, Aneg, Bneg, Cneg, Dneg }
@@ -55,7 +54,7 @@ impl Spin {
 pub enum TenscriptNode {
     Face {
         face_name: FaceName,
-        node: Box<TenscriptNode>
+        node: Box<TenscriptNode>,
     },
     Grow {
         forward: String,
@@ -95,22 +94,39 @@ pub struct FabricPlan {
     pub shape_phase: ShapePhase,
 }
 
+fn bootstrap() -> HashMap<&'static str, &'static str> {
+    include_str!("bootstrap.scm")
+        .split(';')
+        .filter(|chunk| !chunk.is_empty())
+        .map(|chunk| {
+            let line_end = chunk.find('\n').unwrap_or_else(|| {
+                panic!("bootstrap.scm not structured properly");
+            });
+            (&chunk[0..line_end], &chunk[(line_end + 1)..])
+        })
+        .collect()
+}
+
 pub fn fabric_plan(plan_name: &str) -> FabricPlan {
-    let (_, code) = BOOTSTRAP.iter().find(|(name, _)| *name == plan_name).unwrap();
+    let map = bootstrap();
+    let code = map.get(plan_name).unwrap_or_else(|| {
+        panic!("{plan_name} not found")
+    });
     parse(code).unwrap()
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::build::tenscript::bootstrap::BOOTSTRAP;
-    use crate::build::tenscript::parser;
+    use crate::build::tenscript::{bootstrap, parser};
 
     #[test]
     fn parse() {
-        for (name, code) in BOOTSTRAP {
-            let plan = parser::parse(code);
-            let parsed = plan.err();
-            println!("{name}: {parsed:?}");
+        let map = bootstrap();
+        for (name, code) in map.into_iter() {
+            match parser::parse(code) {
+                Ok(_) => println!("[{name}] Good plan!"),
+                Err(error) => println!("[{name}] Error: {error:?}"),
+            }
         }
     }
 }

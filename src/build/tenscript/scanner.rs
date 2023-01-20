@@ -4,19 +4,16 @@ use std::str::FromStr;
 
 use crate::build::tenscript::error;
 use crate::build::tenscript::scanner::ErrorKind::{FloatParseFailed, IllegalChar, IntParseFailed};
-use crate::build::tenscript::scanner::Token::{
-    Atom, EndOfFile, Float, Ident, Integer, Paren, Percent, String as StringLit,
-};
+use crate::build::tenscript::scanner::Token::{*};
 
 #[derive(Debug, Clone)]
 pub enum Token {
-    Ident(String),
-    Paren(char),
     Atom(String),
-    String(String),
-    Integer(usize),
-    Float(f32),
-    Percent(f32),
+    Identifier(String),
+    Parenthesis(char),
+    QuotedString(String),
+    WholeNumber(usize),
+    FloatingPoint(f32),
     EndOfFile,
 }
 
@@ -99,10 +96,10 @@ impl Scanner {
 
     fn scan_token(&mut self) -> Result<(), ErrorKind> {
         match self.current() {
-            '0'..='9' | '-' => self.number()?,
+            '0'..='9' | '-' | '.' => self.number()?,
             'a'..='z' => self.ident(),
             ':' => self.atom(),
-            '\'' => self.string()?,
+            '"' => self.string()?,
             '\n' => {
                 self.loc.line += 1;
                 self.loc.col = 0;
@@ -111,7 +108,7 @@ impl Scanner {
             ' ' | '\t' => self.increment(),
             ch @ ('(' | ')') => {
                 self.increment();
-                self.add(Paren(ch));
+                self.add(Parenthesis(ch));
             }
             ch => return Err(IllegalChar { ch }),
         }
@@ -154,39 +151,28 @@ impl Scanner {
 
     fn number(&mut self) -> Result<(), ErrorKind> {
         let mut num_string = String::new();
-        while let ch @ ('0'..='9' | '_') = self.current() {
-            if ch != '_' {
-                num_string.push(ch);
-            }
+        while let ch @ ('0'..='9') = self.current() {
+            num_string.push(ch);
             self.increment();
         }
         if let '.' = self.current() {
+            if num_string.is_empty() {
+                num_string.push('0');
+            }
             num_string.push('.');
             self.increment();
             while let ch @ '0'..='9' = self.current() {
                 num_string.push(ch);
                 self.increment();
-                let value =
-                    f32::from_str(&num_string).map_err(|err| FloatParseFailed { err })?;
-                match self.current() {
-                    '%' => {
-                        self.increment();
-                        self.add(Percent(value));
-                    }
-                    _ => self.add(Float(value)),
-                };
             }
+            let value = f32::from_str(&num_string)
+                .map_err(|err| FloatParseFailed { err })?;
+            self.add(FloatingPoint(value));
         } else {
-            let value = usize::from_str(&num_string).map_err(|err| IntParseFailed { err })?;
-            match self.current() {
-                '%' => {
-                    self.increment();
-                    self.add(Percent(value as f32));
-                }
-                _ => self.add(Integer(value)),
-            };
+            let value = usize::from_str(&num_string)
+                .map_err(|err| IntParseFailed { err })?;
+            self.add(WholeNumber(value));
         }
-
         Ok(())
     }
 
@@ -201,12 +187,12 @@ impl Scanner {
     fn ident(&mut self) {
         self.consume_ident_chars();
         let name = self.lexeme();
-        self.add(Ident(name));
+        self.add(Identifier(name));
     }
 
     fn string(&mut self) -> Result<(), ErrorKind> {
         self.increment();
-        while self.current() != '\'' {
+        while self.current() != '"' {
             self.increment();
             if self.at_end() {
                 return Err(ErrorKind::UnterminatedString);
@@ -216,7 +202,7 @@ impl Scanner {
         let mut string = self.lexeme();
         string.remove(0);
         string.remove(string.len() - 1);
-        self.add(StringLit(string));
+        self.add(QuotedString(string));
         Ok(())
     }
 }

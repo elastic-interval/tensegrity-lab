@@ -4,7 +4,7 @@ use crate::build::tenscript::{FabricPlan, FaceName, Space, Spin, SurfaceCharacte
 use crate::build::tenscript::error::Error;
 use crate::build::tenscript::expression;
 use crate::build::tenscript::expression::Expression;
-use crate::build::tenscript::parser::ErrorKind::{AlreadyDefined, BadCall, IllegalCall, Mismatch, MultipleBranches};
+use crate::build::tenscript::parser::ErrorKind::{*};
 
 #[derive(Debug, Clone)]
 pub struct ParseError {
@@ -69,7 +69,7 @@ fn expect_call(expression: &Expression) -> Result<Call, ErrorKind> {
     let [ref head, ref tail @ ..] = terms[..] else {
         return Err(Mismatch { expected: "(<head> ..)", expression: expression.clone() });
     };
-    let Expression::Ident(ref head) = head else {
+    let Expression::Identifier(ref head) = head else {
         return Err(Mismatch { expected: "(<head:ident> ..)", expression: expression.clone() });
     };
     Ok(Call { head, tail })
@@ -151,8 +151,8 @@ fn shape(FabricPlan { shape_phase, .. }: &mut FabricPlan, expressions: &[Express
                 shape_phase.join.push(mark_name.clone())
             }
             "space" => {
-                let [Expression::Atom(ref mark_name), Expression::Percent(scale_factor) ] = tail else {
-                    return Err(BadCall { expected: "(space <atom> <percent>)", expression: expression.clone() });
+                let [Expression::Atom(ref mark_name), Expression::FloatingPoint(scale_factor) ] = tail else {
+                    return Err(BadCall { expected: "(space <atom> <scale>)", expression: expression.clone() });
                 };
                 shape_phase.space.push(Space { mark_name: mark_name.clone(), scale_factor: *scale_factor });
             }
@@ -180,9 +180,9 @@ fn tenscript_node(expression: &Expression) -> Result<TenscriptNode, ErrorKind> {
         "grow" => {
             let (forward, post_growth) =
                 match tail {
-                    [ Expression::String(forward_string), ref post_growth @ .. ] =>
+                    [ Expression::QuotedString(forward_string), ref post_growth @ .. ] =>
                         (forward_string.clone(), post_growth),
-                    [ Expression::Integer(forward_count), ref post_growth @ .. ] =>
+                    [ Expression::WholeNumber(forward_count), ref post_growth @ .. ] =>
                         ("X".repeat(*forward_count), post_growth),
                     _ => {
                         return Err(Mismatch { expected: "(grow <number|string> <node|scale>)", expression: expression.clone() });
@@ -200,10 +200,10 @@ fn tenscript_node(expression: &Expression) -> Result<TenscriptNode, ErrorKind> {
                         post_growth_node = Some(Box::new(tenscript_node(post_growth_op)?));
                     }
                     "scale" => {
-                        let &[Expression::Percent(percent)] = op_tail else {
-                            return Err(BadCall { expected: "(scale <percent>)", expression: expression.clone() });
+                        let &[Expression::FloatingPoint(scale)] = op_tail else {
+                            return Err(BadCall { expected: "(scale <scale>)", expression: expression.clone() });
                         };
-                        scale_factor = percent / 100.0;
+                        scale_factor = scale;
                     }
                     _ => return Err(Mismatch { expected: "face | grow | mark | branch | scale", expression: expression.clone() }),
                 }
