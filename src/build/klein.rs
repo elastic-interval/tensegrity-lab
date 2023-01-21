@@ -1,7 +1,6 @@
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::{Fabric, Link, UniqueId};
 use rand::prelude::*;
-use crate::fabric::interval::Role;
 
 struct KleinFabric {
     fabric: Fabric,
@@ -24,11 +23,11 @@ impl KleinFabric {
     }
 
     fn push(&mut self, alpha: isize, omega: isize) -> UniqueId {
-        self.fabric.create_interval(alpha as usize, omega as usize, Role::Push, 8.0)
+        self.fabric.create_interval(alpha as usize, omega as usize, Link::Push { ideal: 8.0 })
     }
 
     fn pull(&mut self, alpha: isize, omega: isize) -> UniqueId {
-        self.fabric.create_interval(alpha as usize, omega as usize, Role::Pull, 1.0)
+        self.fabric.create_interval(alpha as usize, omega as usize, Link::Pull { ideal: 1.0 })
     }
 
     fn coord(&mut self) -> f32 {

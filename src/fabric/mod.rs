@@ -11,11 +11,12 @@ use cgmath::num_traits::zero;
 
 use crate::build::tenscript::Spin;
 use crate::fabric::face::Face;
-use crate::fabric::interval::{Interval, Material, Role};
+use crate::fabric::interval::{Interval, Material};
 use crate::fabric::interval::Role::{Measure, Pull, Push};
 use crate::fabric::interval::Span::{Approaching, Fixed};
 use crate::fabric::joint::Joint;
 use crate::fabric::physics::Physics;
+use crate::fabric::progress::Progress;
 
 pub mod annealing;
 pub mod face;
@@ -23,45 +24,7 @@ pub mod interval;
 pub mod joint;
 pub mod physics;
 pub mod twist;
-
-#[derive(Clone, Default, Debug, PartialEq)]
-pub struct Progress {
-    limit: usize,
-    count: usize,
-}
-
-impl Progress {
-    pub fn start(&mut self, countdown: usize) {
-        self.count = 0;
-        self.limit = countdown;
-    }
-
-    fn step(&mut self) -> bool { // true if it takes the final step
-        let count = self.count + 1;
-        if count > self.limit {
-            return false;
-        }
-        self.count = count;
-        self.count == self.limit // final step?
-    }
-
-    pub fn is_busy(&self) -> bool {
-        self.count < self.limit
-    }
-
-    pub fn nuance(&self) -> f32 {
-        if self.limit == 0 {
-            1.0
-        } else {
-            (self.count as f32) / (self.limit as f32)
-        }
-    }
-}
-
-#[derive(Clone, Debug, Copy, PartialEq, Default, Hash, Eq)]
-pub struct UniqueId {
-    pub id: usize,
-}
+pub mod progress;
 
 #[derive(Clone)]
 pub struct Fabric {
@@ -124,15 +87,26 @@ impl Fabric {
         self.intervals.values_mut().for_each(|interval| interval.joint_removed(index));
     }
 
-    pub fn create_interval(&mut self, alpha_index: usize, omega_index: usize, role: Role, length: f32) -> UniqueId {
-        let initial_length = self.joints[alpha_index].location.distance(self.joints[omega_index].location);
-        let span = Approaching { initial_length, length };
+    pub fn create_interval(&mut self, alpha_index: usize, omega_index: usize, link: Link) -> UniqueId {
         let id = self.create_id();
-        let material = match role {
-            Push => self.push_material,
-            Pull | Measure => self.pull_material
+        let initial = self.joints[alpha_index].location.distance(self.joints[omega_index].location);
+        let interval = match link {
+            Link::Push { ideal } => {
+                Interval::new(alpha_index, omega_index, Push, self.push_material, Approaching { initial, length: ideal })
+            }
+            Link::Pull { ideal } => {
+                Interval::new(alpha_index, omega_index, Pull, self.push_material, Approaching { initial, length: ideal })
+            }
+            Link::PullStiffness { ideal, stiffness_factor } => {
+                let mut material = self.pull_material.clone();
+                material.stiffness *= stiffness_factor;
+                Interval::new(alpha_index, omega_index, Pull, material, Approaching { initial, length: ideal })
+            }
+            Link::Measure { length } => {
+                Interval::new(alpha_index, omega_index, Measure, self.push_material, Fixed { length })
+            }
         };
-        self.intervals.insert(id, Interval::new(alpha_index, omega_index, role, material, span));
+        self.intervals.insert(id, interval);
         id
     }
 
@@ -213,7 +187,7 @@ impl Fabric {
         for interval in self.intervals.values_mut() {
             let length = interval.length(&self.joints);
             interval.span = match interval.role {
-                Push => Approaching { initial_length: length, length: length * push_extension },
+                Push => Approaching { initial: length, length: length * push_extension },
                 Pull | Measure => Fixed { length }
             };
         }
@@ -225,15 +199,19 @@ impl Fabric {
         self.centralize();
     }
 
-    pub fn iterate(&mut self, physics: &Physics) {
+    pub fn iterate(&mut self, physics: &Physics) -> f32 {
         for joint in &mut self.joints {
             joint.reset();
         }
         for interval in self.intervals.values_mut() {
             interval.iterate(&mut self.joints, &self.progress, physics);
         }
+        let mut max_speed_squared = 0.0;
         for joint in &mut self.joints {
-            joint.iterate(physics)
+            let speed_squared = joint.iterate(physics);
+            if speed_squared > max_speed_squared {
+                max_speed_squared = speed_squared;
+            }
         }
         if self.progress.step() { // final step
             for interval in self.intervals.values_mut() {
@@ -243,6 +221,7 @@ impl Fabric {
             }
         }
         self.age += 1;
+        max_speed_squared
     }
 
     pub fn midpoint(&self) -> Point3<f32> {
@@ -259,4 +238,16 @@ impl Fabric {
         self.unique_id += 1;
         id
     }
+}
+
+#[derive(Clone, Debug, Copy, PartialEq, Default, Hash, Eq)]
+pub struct UniqueId {
+    pub id: usize,
+}
+
+pub enum Link {
+    Push { ideal: f32 },
+    Pull { ideal: f32 },
+    PullStiffness { ideal: f32, stiffness_factor: f32 },
+    Measure { length: f32 },
 }

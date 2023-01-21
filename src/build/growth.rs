@@ -1,6 +1,5 @@
 use cgmath::MetricSpace;
-use crate::fabric::{Fabric, UniqueId};
-use crate::fabric::interval::Role::Pull;
+use crate::fabric::{Fabric, Link, UniqueId};
 use crate::build::tenscript::{BuildPhase, FabricPlan, ShapePhase, Spin};
 use crate::build::tenscript::FaceName::Apos;
 use crate::build::tenscript::TenscriptNode;
@@ -128,7 +127,7 @@ impl Growth {
         match *marks.as_slice() {
             [alpha_id, omega_id] => {
                 let (alpha, omega) = (fabric.face(*alpha_id).middle_joint(fabric), fabric.face(*omega_id).middle_joint(fabric));
-                let interval = fabric.create_interval(alpha, omega, Pull, 0.3);
+                let interval = fabric.create_interval(alpha, omega, Link::Pull { ideal: 0.3 });
                 shapers.push(Shaper { interval, alpha_face: *alpha_id, omega_face: *omega_id })
             }
             [_, _, _] => unimplemented!(),
@@ -225,9 +224,9 @@ impl Growth {
             })
             .min_by(|(length_a, _), (length_b, _)| length_a.partial_cmp(length_b).unwrap())
             .unwrap();
-        let scale = (alpha.scale + omega.scale) / 2.0;
+        let ideal = (alpha.scale + omega.scale) / 2.0;
         for (a, b) in links {
-            fabric.create_interval(alpha_rotated[a], omega_ends[b], Pull, scale);
+            fabric.create_interval(alpha_rotated[a], omega_ends[b], Link::Pull { ideal });
         }
         fabric.remove_interval(*interval);
         fabric.remove_face(*alpha_face);

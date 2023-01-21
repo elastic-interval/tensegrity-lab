@@ -10,7 +10,6 @@ use crate::fabric::physics::SurfaceCharacter::{*};
 
 const RESURFACE: f32 = 0.01;
 const AMBIENT_MASS: f32 = 0.001;
-const AMBIENT_DRAG_FACTOR: f32 = 0.9999;
 const STICKY_DOWN_DRAG_FACTOR: f32 = 0.8;
 
 #[derive(Clone, Copy, Debug)]
@@ -18,7 +17,6 @@ pub struct Joint {
     pub location: Point3<f32>,
     pub force: Vector3<f32>,
     pub velocity: Vector3<f32>,
-    pub speed2: f32,
     pub interval_mass: f32,
 }
 
@@ -28,7 +26,6 @@ impl Joint {
             location,
             force: zero(),
             velocity: zero(),
-            speed2: 0.0,
             interval_mass: AMBIENT_MASS,
         }
     }
@@ -38,22 +35,21 @@ impl Joint {
         self.interval_mass = AMBIENT_MASS;
     }
 
-    pub fn iterate(&mut self, physics: &Physics) {
-        let Physics { gravity, antigravity, viscosity, .. } = physics;
+    pub fn iterate(&mut self, Physics { surface_character, gravity, antigravity, viscosity, drag, .. }: &Physics) -> f32 {
         let altitude = self.location.y;
-        self.speed2 = self.velocity.magnitude2();
-        if self.speed2 > 0.01 {
-            panic!("speed too high {:?}", self);
+        let speed_squared = self.velocity.magnitude2();
+        if speed_squared > 0.01 {
+            panic!("speed too high. speed_squared={speed_squared}");
         }
         if altitude >= 0.0 || *gravity == 0.0 {
             self.velocity.y -= gravity;
-            self.velocity += self.force / self.interval_mass - self.velocity * self.speed2 * *viscosity;
-            self.velocity *= AMBIENT_DRAG_FACTOR;
+            self.velocity += self.force / self.interval_mass - self.velocity * speed_squared * *viscosity;
+            self.velocity *= *drag;
         } else {
             let degree_submerged: f32 = if -altitude < 1.0 { -altitude } else { 0.0 };
             let antigravity = antigravity * degree_submerged;
             self.velocity += self.force / self.interval_mass;
-            match physics.surface_character {
+            match surface_character {
                 Absent => {}
                 Frozen => {
                     self.velocity = zero();
@@ -65,9 +61,9 @@ impl Joint {
                         self.velocity.y += antigravity;
                         self.velocity.z *= STICKY_DOWN_DRAG_FACTOR;
                     } else {
-                        self.velocity.x *= AMBIENT_DRAG_FACTOR;
+                        self.velocity.x *= drag;
                         self.velocity.y += antigravity;
-                        self.velocity.z *= AMBIENT_DRAG_FACTOR;
+                        self.velocity.z *= drag;
                     }
                 }
                 Bouncy => {
@@ -77,6 +73,7 @@ impl Joint {
                 }
             }
         }
-        self.location += self.velocity
+        self.location += self.velocity;
+        speed_squared
     }
 }
