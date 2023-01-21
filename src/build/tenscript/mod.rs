@@ -100,16 +100,15 @@ pub struct BuildPhase {
     pub root: Option<TenscriptNode>,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct Space {
-    pub mark_name: String,
-    pub scale_factor: f32,
+#[derive(Debug, Clone)]
+pub enum ShaperSpec {
+    Join{ mark_name: String},
+    Distance{ mark_name: String, distance_factor: f32},
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct ShapePhase {
-    pub join: Vec<String>,
-    pub space: Vec<Space>,
+    pub shaper_specs: Vec<ShaperSpec>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -121,7 +120,7 @@ pub struct FabricPlan {
 
 fn bootstrap() -> HashMap<&'static str, &'static str> {
     include_str!("bootstrap.scm")
-        .split(';')
+        .split(";;;")
         .filter(|chunk| !chunk.is_empty())
         .map(|chunk| {
             let line_end = chunk.find('\n').unwrap_or_else(|| {
