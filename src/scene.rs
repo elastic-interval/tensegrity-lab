@@ -1,6 +1,8 @@
+use std::f32::consts::PI;
 use std::mem;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
+use cgmath::Vector3;
 use iced_wgpu::wgpu;
 #[allow(unused_imports)]
 use log::info;
@@ -15,16 +17,22 @@ use crate::camera::Camera;
 use crate::fabric::Fabric;
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Measure, Pull, Push};
-use crate::graphics::{get_depth_stencil_state, get_primitive_state, GraphicsWindow};
+use crate::graphics::{get_depth_stencil_state, line_list_primitive_state, GraphicsWindow, triangle_list_primitive_state};
 use crate::gui::{Controls, Message};
 
 const MAX_INTERVALS: usize = 5000;
 
+struct Drawing<V> {
+    pipeline: wgpu::RenderPipeline,
+    vertices: Vec<V>,
+    buffer: wgpu::Buffer,
+}
+
 pub struct Scene {
     camera: Camera,
-    vertices: Vec<Vertex>,
-    pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
+    show_surface: bool,
+    fabric_drawing: Drawing<FabricVertex>,
+    surface_drawing: Drawing<SurfaceVertex>,
     uniform_bind_group: wgpu::BindGroup,
     uniform_buffer: wgpu::Buffer,
 }
@@ -32,9 +40,9 @@ pub struct Scene {
 impl Scene {
     pub fn new(graphics: &GraphicsWindow) -> Self {
         let shader = graphics.get_shader_module();
-        let scale = 3.0;
+        let scale = 6.0;
         let aspect = graphics.config.width as f32 / graphics.config.height as f32;
-        let camera = Camera::new((3.0 * scale, 1.5 * scale, 3.0 * scale).into(), aspect);
+        let camera = Camera::new((2.0 * scale, 1.0 * scale, 2.0 * scale).into(), aspect);
         let uniform_buffer = graphics.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("MVP"),
             contents: cast_slice(&[0.0f32; 16]),
@@ -56,40 +64,77 @@ impl Scene {
             push_constant_ranges: &[],
         });
 
-        let pipeline = graphics.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
+        let fabric_vertices = vec![FabricVertex::default(); MAX_INTERVALS * 2];
+        let fabric_pipeline = graphics.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Fabric Pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: "vs_main",
-                buffers: &[Vertex::desc()],
+                entry_point: "fabric_vertex",
+                buffers: &[FabricVertex::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: "fs_main",
+                entry_point: "fabric_fragment",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: graphics.config.format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
-            primitive: get_primitive_state(),
+            primitive: line_list_primitive_state(),
             depth_stencil: Some(get_depth_stencil_state()),
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });
-
-        let vertices = vec![Vertex::default(); MAX_INTERVALS * 2];
-        let vertex_buffer = graphics.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let fabric_buffer = graphics.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: cast_slice(&vertices),
+            contents: cast_slice(&fabric_vertices),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
+
+        let surface_vertices = SurfaceVertex::for_radius(10.0).to_vec();
+        let surface_pipeline = graphics.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Surface Pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "surface_vertex",
+                buffers: &[SurfaceVertex::desc()],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "surface_fragment",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: graphics.config.format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: triangle_list_primitive_state(),
+            depth_stencil: Some(get_depth_stencil_state()),
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+        });
+        let surface_buffer = graphics.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Surface Buffer"),
+            contents: cast_slice(&surface_vertices),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        });
+
         Self {
             camera,
-            vertices,
-            pipeline,
-            vertex_buffer,
+            show_surface: false,
+            fabric_drawing: Drawing {
+                pipeline: fabric_pipeline,
+                vertices: fabric_vertices,
+                buffer: fabric_buffer,
+            },
+            surface_drawing: Drawing {
+                pipeline: surface_pipeline,
+                vertices: surface_vertices,
+                buffer: surface_buffer,
+            },
             uniform_buffer,
             uniform_bind_group,
         }
@@ -115,10 +160,17 @@ impl Scene {
                 stencil_ops: None,
             }),
         });
-        render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
-        render_pass.draw(0..self.vertices.len() as u32, 0..1);
+
+        render_pass.set_pipeline(&self.fabric_drawing.pipeline);
+        render_pass.set_vertex_buffer(0, self.fabric_drawing.buffer.slice(..));
+        render_pass.draw(0..self.fabric_drawing.vertices.len() as u32, 0..1);
+
+        if self.show_surface {
+            render_pass.set_pipeline(&self.surface_drawing.pipeline);
+            render_pass.set_vertex_buffer(0, self.surface_drawing.buffer.slice(..));
+            render_pass.draw(0..self.surface_drawing.vertices.len() as u32, 0..1);
+        }
     }
 
     pub fn window_event(&mut self, event: &WindowEvent) {
@@ -128,7 +180,7 @@ impl Scene {
     pub fn update(&mut self, graphics: &GraphicsWindow, controls: &Controls, fabric: &Fabric) -> Option<Message> {
         let message = self.update_from_fabric(fabric, controls);
         self.update_from_camera(graphics);
-        graphics.queue.write_buffer(&self.vertex_buffer, 0, cast_slice(&self.vertices));
+        graphics.queue.write_buffer(&self.fabric_drawing.buffer, 0, cast_slice(&self.fabric_drawing.vertices));
         message
     }
 
@@ -140,14 +192,13 @@ impl Scene {
             }
             None => (f32::NEG_INFINITY, None),
         };
-        self.vertices.clear();
-        self.vertices.extend(fabric.interval_values()
+        self.fabric_drawing.vertices.clear();
+        self.fabric_drawing.vertices.extend(fabric.interval_values()
             .filter(|Interval { strain, role, .. }| *role != Measure || *strain > strain_lower_limit)
-            .flat_map(|interval| Vertex::for_interval(interval, fabric)));
+            .flat_map(|interval| FabricVertex::for_interval(interval, fabric)));
         self.camera.target_approach(fabric.midpoint());
         message
     }
-
 
     pub fn resize(&mut self, graphics: &GraphicsWindow) {
         let new_size = graphics.size;
@@ -162,20 +213,24 @@ impl Scene {
         graphics.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));
     }
 
-    pub fn adjust_camera_up(&mut self, up: f32) {
-        self.camera.go_up(up);
+    pub fn move_camera(&mut self, jump: Vector3<f32>) {
+        self.camera.jump(jump);
+    }
+
+    pub fn show_surface(&mut self) {
+        self.show_surface = true;
     }
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable, Default)]
-struct Vertex {
+struct FabricVertex {
     position: [f32; 4],
     color: [f32; 4],
 }
 
-impl Vertex {
-    pub fn for_interval(interval: &Interval, fabric: &Fabric) -> [Vertex; 2] {
+impl FabricVertex {
+    pub fn for_interval(interval: &Interval, fabric: &Fabric) -> [FabricVertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
         let color = match interval.role {
             Push => [1.0, 1.0, 1.0, 1.0],
@@ -187,15 +242,49 @@ impl Vertex {
             },
         };
         [
-            Vertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color },
-            Vertex { position: [omega.x, omega.y, omega.z, 1.0], color }
+            FabricVertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color },
+            FabricVertex { position: [omega.x, omega.y, omega.z, 1.0], color }
         ]
     }
 
     const ATTRIBUTES: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![0=>Float32x4, 1=>Float32x4];
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            array_stride: mem::size_of::<FabricVertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &Self::ATTRIBUTES,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Pod, Zeroable, Default)]
+struct SurfaceVertex {
+    position: [f32; 4],
+}
+
+impl SurfaceVertex {
+    pub fn for_radius(radius: f32) -> [SurfaceVertex; 18] {
+        let origin = [0f32, 0.0, 0.0, 1.0];
+        let point: Vec<[f32; 4]> = (0..6)
+            .map(|index| index as f32 * PI / 3.0)
+            .map(|angle| [radius * angle.cos(), 0.0, radius * angle.sin(), 1.0])
+            .collect();
+        let triangles = [
+            origin, point[0], point[1],
+            origin, point[1], point[2],
+            origin, point[2], point[3],
+            origin, point[3], point[4],
+            origin, point[4], point[5],
+            origin, point[5], point[0],
+        ];
+        triangles.map(|position| SurfaceVertex { position })
+    }
+
+    const ATTRIBUTES: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![0=>Float32x4, 1=>Float32x4];
+    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
+        wgpu::VertexBufferLayout {
+            array_stride: mem::size_of::<SurfaceVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &Self::ATTRIBUTES,
         }
