@@ -20,7 +20,7 @@ pub enum Span {
     },
     Approaching {
         length: f32,
-        initial_length: f32,
+        initial: f32,
     },
 }
 
@@ -92,25 +92,25 @@ impl Interval {
         1.0 / inverse_square_root
     }
 
-    pub fn ideal_length(&self) -> f32 {
+    pub fn ideal(&self) -> f32 {
         match self.span {
             Fixed { length, .. } | Approaching { length, .. } => length
         }
     }
 
     pub fn iterate(&mut self, joints: &mut [Joint], progress: &Progress, physics: &Physics) {
-        let ideal_length = match self.span {
+        let ideal = match self.span {
             Fixed { length } => { length }
-            Approaching { initial_length, length, .. } => {
+            Approaching { initial, length, .. } => {
                 let nuance = progress.nuance();
-                initial_length * (1.0 - nuance) + length * nuance
+                initial * (1.0 - nuance) + length * nuance
             }
         };
         let real_length = self.length(joints);
         self.strain = match self.role {
-            Push if real_length > ideal_length => 0.0, // do not pull
-            Pull if real_length < ideal_length => 0.0, // do not push
-            _ => (real_length - ideal_length) / ideal_length
+            Push if real_length > ideal => 0.0, // do not pull
+            Pull if real_length < ideal => 0.0, // do not push
+            _ => (real_length - ideal) / ideal
         };
         if self.role == Measure { // have no effect
             return;

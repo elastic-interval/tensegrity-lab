@@ -16,6 +16,7 @@ pub struct Physics {
     pub gravity: f32,
     pub antigravity: f32,
     pub viscosity: f32,
+    pub drag: f32,
     pub stiffness: f32,
 }
 
@@ -28,6 +29,7 @@ pub mod presets {
         gravity: 0.0,
         antigravity: 0.0,
         viscosity: 1e4,
+        drag: 1.0 - 1e-4,
         stiffness: 5e-5,
     };
 
@@ -36,6 +38,7 @@ pub mod presets {
         gravity: 2e-8,
         antigravity: 1e-3,
         viscosity: 1e3,
+        drag: 1.0 - 1e-5,
         stiffness: 1e-2,
     };
 }

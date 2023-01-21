@@ -1,7 +1,6 @@
 use cgmath::{EuclideanSpace, MetricSpace, Point3, Vector3};
 
-use crate::fabric::Fabric;
-use crate::fabric::interval::Role;
+use crate::fabric::{Fabric, Link};
 
 impl Fabric {
     pub fn mitosis_example() -> Fabric {
@@ -14,8 +13,8 @@ impl Fabric {
         let mut push = |alpha: Vector3<f32>, omega: Vector3<f32>| {
             let alpha_joint = fab.create_joint(Point3::from_vec(alpha));
             let omega_joint = fab.create_joint(Point3::from_vec(omega));
-            let length = alpha.distance(omega);
-            let interval = fab.create_interval(alpha_joint, omega_joint, Role::Push, length);
+            let ideal = alpha.distance(omega);
+            let interval = fab.create_interval(alpha_joint, omega_joint, Link::Push { ideal });
             (alpha_joint, omega_joint, interval)
         };
         let middle = push(v(0f32, -short / 2f32, 0f32), v(0f32, short / 2f32, 0f32));
@@ -32,8 +31,8 @@ impl Fabric {
         let bot_right = push(v(outward_ofs, -outward_sep, -short / 2f32), v(outward_ofs, -outward_sep, short / 2f32));
         let mut pull = |hub: usize, spokes: &[usize]| {
             for spoke in spokes {
-                let length = fab.joints[hub].location.distance(fab.joints[*spoke].location);
-                fab.create_interval(hub, *spoke, Role::Pull, length);
+                let ideal = fab.joints[hub].location.distance(fab.joints[*spoke].location);
+                fab.create_interval(hub, *spoke, Link::Pull { ideal });
             }
         };
         pull(middle.1, &[top_right.0, top_right.1, top_left.0, top_left.1]);

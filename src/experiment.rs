@@ -1,15 +1,14 @@
 use cgmath::Vector3;
 use crate::experiment::Stage::{AddPulls, Pretensing, Pretenst, RunningPlan};
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, Link};
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::build::plan_runner::PlanRunner;
-use crate::fabric::interval::Role::Pull;
 
 enum Stage {
     RunningPlan,
     Pretensing,
     Pretenst,
-    AddPulls { strain_lower_limit: f32 },
+    AddPulls { strain_threshold: f32 },
 }
 
 pub struct Experiment {
@@ -64,17 +63,17 @@ impl Experiment {
                 }
                 match self.add_pulls {
                     None => {}
-                    Some(strain_lower_limit) => {
-                        self.stage = AddPulls { strain_lower_limit }
+                    Some(strain_threshold) => {
+                        self.stage = AddPulls { strain_threshold }
                     }
                 }
             }
-            AddPulls { strain_lower_limit } => {
+            AddPulls { strain_threshold } => {
                 self.add_pulls = None;
-                let new_pulls = self.fabric.measures_to_pulls(strain_lower_limit);
+                let new_pulls = self.fabric.measures_to_pulls(strain_threshold);
                 self.fabric = self.frozen_fabric.take().unwrap();
-                for (alpha_index, omega_index, ideal_length) in new_pulls {
-                    self.fabric.create_interval(alpha_index, omega_index, Pull, ideal_length);
+                for (alpha_index, omega_index, ideal) in new_pulls {
+                    self.fabric.create_interval(alpha_index, omega_index, Link::Pull { ideal });
                 }
                 self.start_pretensing()
             }
@@ -85,8 +84,8 @@ impl Experiment {
         self.camera_jump.take()
     }
 
-    pub fn add_pulls(&mut self, strain_lower_limit: f32) {
-        self.add_pulls = Some(strain_lower_limit);
+    pub fn add_pulls(&mut self, strain_threshold: f32) {
+        self.add_pulls = Some(strain_threshold);
     }
 
     pub fn fabric(&self) -> &Fabric {
