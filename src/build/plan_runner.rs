@@ -27,7 +27,7 @@ pub struct PlanRunner {
 impl Default for PlanRunner {
     fn default() -> Self {
         Self {
-            growth: Growth::new(fabric_plan("Halo by Crane")),
+            growth: Growth::new(fabric_plan("Headless Hug")),
             stage: Empty,
         }
     }
@@ -69,9 +69,9 @@ impl PlanRunner {
             Completed => Completed,
         };
         let countdown = match next_stage {
-            GrowApproach => 1000,
-            GrowCalm => 1000,
-            ShapingApproach => 20000,
+            GrowApproach => 1500,
+            GrowCalm => 1500,
+            ShapingApproach => 30000,
             ShapedApproach => 5000,
             ShapingCalm => 50000,
             Empty | GrowStep | ShapingStart | Shaped | ShapingDone | Completed => 0,

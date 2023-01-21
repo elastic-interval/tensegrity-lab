@@ -2,7 +2,7 @@ use cgmath::MetricSpace;
 use crate::build::growth::Launch::{IdentifiedFace, NamedFace, Seeded};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::Role::Pull;
-use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, Seed, ShapePhase};
+use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, Seed, ShapePhase, ShaperSpec};
 use crate::build::tenscript::FaceName::Apos;
 use crate::build::tenscript::TenscriptNode;
 use crate::build::tenscript::TenscriptNode::{Branch, Face, Grow, Mark};
@@ -35,6 +35,7 @@ pub struct Shaper {
     interval: UniqueId,
     alpha_face: UniqueId,
     omega_face: UniqueId,
+    join: bool,
 }
 
 enum Launch {
@@ -91,9 +92,9 @@ impl Growth {
     }
 
     pub fn create_shapers(&mut self, fabric: &mut Fabric) {
-        let ShapePhase { join, .. } = &self.plan.shape_phase;
-        for mark_name in join {
-            self.shapers.extend(self.attach_shapers(fabric, mark_name));
+        let ShapePhase { shaper_specs } = &self.plan.shape_phase;
+        for shaper_spec in shaper_specs {
+            self.shapers.extend(self.attach_shapers_for(fabric, shaper_spec))
         }
         self.marks.clear();
     }
@@ -184,27 +185,60 @@ impl Growth {
         (buds, marks)
     }
 
-    fn attach_shapers(&self, fabric: &mut Fabric, sought_mark_name: &str) -> Vec<Shaper> {
-        let marks: Vec<_> = self.marks
-            .iter()
-            .filter(|PostMark { mark_name, .. }| sought_mark_name == *mark_name)
-            .map(|PostMark { face_id, .. }| face_id)
-            .collect();
+    fn attach_shapers_for(&self, fabric: &mut Fabric, shaper_spec: &ShaperSpec) -> Vec<Shaper> {
         let mut shapers: Vec<Shaper> = vec![];
-        match *marks.as_slice() {
-            [alpha_id, omega_id] => {
-                let (alpha, omega) = (fabric.face(*alpha_id).middle_joint(fabric), fabric.face(*omega_id).middle_joint(fabric));
-                let interval = fabric.create_interval(alpha, omega, Pull, 0.3);
-                shapers.push(Shaper { interval, alpha_face: *alpha_id, omega_face: *omega_id })
+        match shaper_spec {
+            ShaperSpec::Join { mark_name } => {
+                let faces = self.marked_faces(mark_name);
+                let joints = self.marked_middle_joints(fabric, &faces);
+                match joints.len() {
+                    2 => {
+                        let interval = fabric.create_interval(joints[0], joints[1], Pull, 0.3);
+                        shapers.push(Shaper { interval, alpha_face: faces[0], omega_face: faces[1], join: true })
+                    }
+                    _ => unimplemented!()
+                }
             }
-            [_, _, _] => unimplemented!(),
-            _ => panic!()
+            ShaperSpec::Distance { mark_name, distance_factor } => {
+                let faces = self.marked_faces(mark_name);
+                let joints = self.marked_middle_joints(fabric, &faces);
+                match joints.len() {
+                    2 => {
+                        let length = fabric.joints[0].location.distance(fabric.joints[1].location) * distance_factor;
+                        let interval = fabric.create_interval(joints[0], joints[1], Pull, length);
+                        shapers.push(Shaper { interval, alpha_face: faces[0], omega_face: faces[1], join: false })
+                    }
+                    _ => println!("Wrong number of faces for mark {mark_name}"),
+                }
+            }
         }
         shapers
     }
 
-    fn complete_shaper(&self, fabric: &mut Fabric, Shaper { interval, alpha_face, omega_face }: &Shaper) {
-        let (alpha, omega) = (fabric.face(*alpha_face), fabric.face(*omega_face));
+    fn marked_middle_joints(&self, fabric: &Fabric, face_ids: &[UniqueId]) -> Vec<usize> {
+        face_ids
+            .iter()
+            .map(|face_id| fabric.face(*face_id).middle_joint(fabric))
+            .collect()
+    }
+
+    fn marked_faces(&self, mark_name: &String) -> Vec<UniqueId> {
+        self.marks
+            .iter()
+            .filter(|post_mark| *mark_name == post_mark.mark_name)
+            .map(|PostMark { face_id, .. }| *face_id)
+            .collect()
+    }
+
+    fn complete_shaper(&self, fabric: &mut Fabric, Shaper { interval, alpha_face, omega_face, join }: &Shaper) {
+        if *join {
+            self.join_faces(fabric, *alpha_face, *omega_face);
+        }
+        fabric.remove_interval(*interval);
+    }
+
+    fn join_faces(&self, fabric: &mut Fabric, alpha_id: UniqueId, omega_id: UniqueId) {
+        let (alpha, omega) = (fabric.face(alpha_id), fabric.face(omega_id));
         let (mut alpha_ends, omega_ends) = (alpha.radial_joints(fabric), omega.radial_joints(fabric));
         alpha_ends.reverse();
         let (mut alpha_points, omega_points) = (
@@ -229,9 +263,8 @@ impl Growth {
         for (a, b) in links {
             fabric.create_interval(alpha_rotated[a], omega_ends[b], Pull, scale);
         }
-        fabric.remove_interval(*interval);
-        fabric.remove_face(*alpha_face);
-        fabric.remove_face(*omega_face);
+        fabric.remove_face(alpha_id);
+        fabric.remove_face(omega_id);
     }
 
     fn branch_pairs(nodes: &[TenscriptNode]) -> Vec<(FaceName, &TenscriptNode)> {

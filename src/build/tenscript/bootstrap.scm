@@ -1,13 +1,13 @@
-;Seed
+;;;Seed
 (fabric
   (build
     (seed :right-left)))
-;Flagellum
+;;;Flagellum
 (fabric
   (build
     (seed :left)
     (grow 30 (scale .9))))
-;Knee
+;;;Knee
 (fabric
   (build
     (branch
@@ -15,7 +15,7 @@
       (face :B+ (grow 3)))
     )
   )
-;Halo by Crane
+;;;Halo by Crane
 (fabric
   (build
     (grow 4 (scale .92)
@@ -25,7 +25,7 @@
       )
     )
   (shape (join :halo-end)))
-;Zig Zag
+;;;Zig Zag
 (fabric
   (build
     (branch
@@ -43,23 +43,26 @@
                           (face :D- (grow 3 (mark :end))))))))))))))
     )
   (shape (join :end)))
-;Headless Hug
+;;;Headless Hug
 (fabric
   (build
+    (seed :right-left)
     (branch
-      (face :A+ (grow "....X.." (scale .95) (mark :legs)))
-      (face :B- (grow "....X.." (scale .95) (mark :legs)))
-      (face :A-
+      (face :A- (grow "....X.." (scale .95) (mark :legs)))
+      (face :B+ (grow "....X.." (scale .95) (mark :legs)))
+      (face :A+
         (grow 3 (scale .9)
           (branch
-            (face :A+ (mark :shoulders))
-            (face :C+ (grow "...X.." (scale .93) (mark :hands))))
+            (face :C+ (mark :shoulders))
+            (face :B+ (grow "...X.." (scale .93) (mark :hands)))
+            )
           ))
-      (face :B+
+      (face :B-
         (grow 3 (scale .9)
           (branch
-            (face :A+ (mark :shoulders))
-            (face :C+ (grow "...X.." (scale .93) (mark :hands))))
+            (face :D+ (mark :shoulders))
+            (face :C+ (grow "...X.." (scale .93) (mark :hands)))
+            )
           ))
       )
     )

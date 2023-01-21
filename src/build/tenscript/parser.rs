@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use crate::build::tenscript::{FabricPlan, FaceName, Seed, Space, SurfaceCharacterSpec, TenscriptNode};
+use crate::build::tenscript::{FabricPlan, FaceName, Seed, ShaperSpec, SurfaceCharacterSpec, TenscriptNode};
 use crate::build::tenscript::error::Error;
 use crate::build::tenscript::expression;
 use crate::build::tenscript::expression::Expression;
@@ -147,13 +147,13 @@ fn shape(FabricPlan { shape_phase, .. }: &mut FabricPlan, expressions: &[Express
                 let [Expression::Atom(ref mark_name)] = tail else {
                     return Err(BadCall { expected: "(join <atom>)", expression: expression.clone() });
                 };
-                shape_phase.join.push(mark_name.clone())
+                shape_phase.shaper_specs.push(ShaperSpec::Join{ mark_name: mark_name.clone()})
             }
             "space" => {
-                let [Expression::Atom(ref mark_name), Expression::FloatingPoint(scale_factor) ] = tail else {
-                    return Err(BadCall { expected: "(space <atom> <scale>)", expression: expression.clone() });
+                let [Expression::Atom(ref mark_name), Expression::FloatingPoint(distance_factor) ] = tail else {
+                    return Err(BadCall { expected: "(space <atom> <distance-factor>)", expression: expression.clone() });
                 };
-                shape_phase.space.push(Space { mark_name: mark_name.clone(), scale_factor: *scale_factor });
+                shape_phase.shaper_specs.push(ShaperSpec::Distance { mark_name: mark_name.clone(), distance_factor: *distance_factor });
             }
             _ => return Err(IllegalCall { context: "shape phase", expression: expression.clone() })
         }
