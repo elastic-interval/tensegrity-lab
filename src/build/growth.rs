@@ -192,7 +192,7 @@ impl Growth {
                 let joints = self.marked_middle_joints(fabric, &faces);
                 match joints.len() {
                     2 => {
-                        let interval = fabric.create_interval(joints[0], joints[1], Pull, 0.3);
+                        let interval = fabric.create_interval(joints[0], joints[1], Link::Pull { ideal: 0.3 });
                         shapers.push(Shaper { interval, alpha_face: faces[0], omega_face: faces[1], join: true })
                     }
                     _ => unimplemented!()
@@ -204,7 +204,7 @@ impl Growth {
                 match joints.len() {
                     2 => {
                         let length = fabric.joints[0].location.distance(fabric.joints[1].location) * distance_factor;
-                        let interval = fabric.create_interval(joints[0], joints[1], Pull, length);
+                        let interval = fabric.create_interval(joints[0], joints[1], Link::Pull { ideal: length });
                         shapers.push(Shaper { interval, alpha_face: faces[0], omega_face: faces[1], join: false })
                     }
                     _ => println!("Wrong number of faces for mark {mark_name}"),
