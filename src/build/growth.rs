@@ -1,8 +1,8 @@
 use cgmath::MetricSpace;
-use crate::build::growth::Launch::{IdentifiedFace, NamedFace, SeedSpin};
+use crate::build::growth::Launch::{IdentifiedFace, NamedFace, Seeded};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::Role::Pull;
-use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, ShapePhase, Spin};
+use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, Seed, ShapePhase};
 use crate::build::tenscript::FaceName::Apos;
 use crate::build::tenscript::TenscriptNode;
 use crate::build::tenscript::TenscriptNode::{Branch, Face, Grow, Mark};
@@ -38,7 +38,7 @@ pub struct Shaper {
 }
 
 enum Launch {
-    SeedSpin { spin: Spin },
+    Seeded { seed: Seed },
     NamedFace { face_name: FaceName },
     IdentifiedFace { face_id: UniqueId },
 }
@@ -67,7 +67,7 @@ impl Growth {
         let BuildPhase { seed, root } = &self.plan.build_phase;
         let node = root.clone().unwrap();
         let (buds, marks) =
-            self.execute_node(fabric, SeedSpin { spin: *seed }, &node, vec![]);
+            self.execute_node(fabric, Seeded { seed: *seed }, &node, vec![]);
         self.buds = buds;
         self.marks = marks;
     }
@@ -135,8 +135,8 @@ impl Growth {
             }
             Grow { forward, scale_factor, post_growth_node, .. } => {
                 let face_id = match launch {
-                    SeedSpin { spin } => {
-                        let faces = fabric.single_twist(spin, self.pretenst_factor, *scale_factor, None);
+                    Seeded { seed } => {
+                        let faces = fabric.single_twist(seed.spin(), self.pretenst_factor, *scale_factor, None);
                         return self.execute_node(fabric, NamedFace { face_name: Apos }, node, faces);
                     }
                     NamedFace { face_name } => Growth::find_face_id(face_name, faces),
@@ -147,17 +147,17 @@ impl Growth {
             }
             Branch { face_nodes } => {
                 let pairs = Growth::branch_pairs(face_nodes);
-                let needs_double = pairs.iter().any(|(face_name, _)| *face_name != Apos);
-                let (spin, face_id) = match launch {
-                    SeedSpin { spin } => (spin, None),
+                let any_special_face = pairs.iter().any(|(face_name, _)| *face_name != Apos);
+                let (spin, face_id, needs_double) = match launch {
+                    Seeded { seed } => (seed.spin(), None, seed.double()),
                     NamedFace { face_name } => {
                         let face_id = Growth::find_face_id(face_name, faces);
                         let spin = fabric.face(face_id).spin.opposite();
-                        (spin, Some(face_id))
+                        (spin, Some(face_id), any_special_face)
                     }
                     IdentifiedFace { face_id } => {
                         let spin = fabric.face(face_id).spin.opposite();
-                        (spin, Some(face_id))
+                        (spin, Some(face_id), any_special_face)
                     }
                 };
                 let twist_faces = if needs_double {
@@ -176,7 +176,7 @@ impl Growth {
                 let face_id = match launch {
                     NamedFace { face_name } => Growth::find_face_id(face_name, faces),
                     IdentifiedFace { face_id } => face_id,
-                    SeedSpin { .. } => panic!("Need launch face"),
+                    Seeded { .. } => panic!("Need launch face"),
                 };
                 marks.push(PostMark { face_id, mark_name: mark_name.clone() });
             }

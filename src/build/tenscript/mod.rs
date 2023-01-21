@@ -35,9 +35,8 @@ pub enum SurfaceCharacterSpec {
     Sticky,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Spin {
-    #[default]
     Left,
     Right,
 }
@@ -70,9 +69,34 @@ pub enum TenscriptNode {
     },
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub enum Seed {
+    #[default]
+    Left,
+    Right,
+    LeftRight,
+    RightLeft,
+}
+
+impl Seed {
+    pub fn spin(&self) -> Spin {
+        match self {
+            Seed::Left | Seed::LeftRight => Spin::Left,
+            Seed::Right | Seed::RightLeft => Spin::Right,
+        }
+    }
+
+    pub fn double(&self) -> bool {
+        match self {
+            Seed::Left | Seed::Right => false,
+            Seed::LeftRight | Seed::RightLeft => true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct BuildPhase {
-    pub seed: Spin,
+    pub seed: Seed,
     pub root: Option<TenscriptNode>,
 }
 
