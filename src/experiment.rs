@@ -3,6 +3,7 @@ use crate::experiment::Stage::{AddPulls, Pretensing, Pretenst, RunningPlan};
 use crate::fabric::{Fabric, Link};
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::build::plan_runner::PlanRunner;
+use crate::fabric::annealing::PairStrategy;
 
 enum Stage {
     RunningPlan,
@@ -94,7 +95,7 @@ impl Experiment {
 
     fn start_pretensing(&mut self) {
         self.frozen_fabric = Some(self.fabric.clone());
-        self.fabric.install_measures();
+        self.fabric.install_measures(PairStrategy::BowTie);
         self.fabric.progress.start(20000);
         self.stage = Pretensing;
     }

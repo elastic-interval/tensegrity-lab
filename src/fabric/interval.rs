@@ -67,6 +67,14 @@ impl Interval {
         }
     }
 
+    pub fn key(&self) -> (usize, usize) {
+        if self.alpha_index < self.omega_index {
+            (self.alpha_index, self.omega_index)
+        } else {
+            (self.omega_index, self.alpha_index)
+        }
+    }
+
     pub fn joint_removed(&mut self, index: usize) {
         if self.alpha_index > index {
             self.alpha_index -= 1;
