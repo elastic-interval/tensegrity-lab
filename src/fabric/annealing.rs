@@ -1,41 +1,33 @@
 use std::collections::{HashMap, HashSet};
 
 use cgmath::{MetricSpace, Point3};
-use crate::fabric::Fabric;
-use crate::fabric::interval::Interval;
-use crate::fabric::interval::Role::{Measure, Pull, Push};
+use crate::fabric::{Fabric, Link};
+use crate::fabric::interval::{Interval, Role};
 
 impl Fabric {
     pub fn install_measures(&mut self) {
         let measures = PairGenerator::new(self.joint_incident());
         for MeasurePair { alpha_index, omega_index, length } in measures.generate_pairs() {
-            self.create_interval(alpha_index, omega_index, Measure, length);
+            self.create_interval(alpha_index, omega_index, Link::Measure { length });
         }
     }
 
-    pub fn measure_limits(&self) -> Option<MeasureLimits> {
-        let mut limits = MeasureLimits { low: f32::MAX, high: f32::MIN };
-        let mut measures_present = false;
-        for Interval { strain, .. } in self.interval_measures() {
-            measures_present = true;
-            if *strain > limits.high {
-                limits.high = *strain;
-            }
-            if *strain < limits.low {
-                limits.low = *strain;
-            }
-        }
-        measures_present.then_some(limits)
+    pub fn max_measure_strain(&self) -> f32 {
+        self.interval_measures()
+            .map(|Interval { strain, .. }| strain)
+            .max_by(|a, b| a.partial_cmp(&b).unwrap())
+            .cloned()
+            .unwrap_or(0.0)
     }
 
-    pub fn measures_to_pulls(&mut self, strain_lower_limit: f32) -> Vec<(usize, usize, f32)> {
+    pub fn measures_to_pulls(&mut self, strain_threshold: f32) -> Vec<(usize, usize, f32)> {
         self.interval_values()
             .filter_map(|interval|
-                (interval.role == Measure && interval.strain > strain_lower_limit)
+                (interval.role == Role::Measure && interval.strain > strain_threshold)
                     .then_some((
                         interval.alpha_index,
                         interval.omega_index,
-                        interval.ideal_length() - interval.strain,
+                        interval.ideal() - interval.strain,
                     )))
             .collect()
     }
@@ -50,18 +42,6 @@ impl Fabric {
             incidents[*omega_index].add(interval);
         }
         incidents
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct MeasureLimits {
-    low: f32,
-    high: f32,
-}
-
-impl MeasureLimits {
-    pub fn interpolate(&self, nuance: f32) -> f32 {
-        self.low * (1.0 - nuance) + self.high * nuance
     }
 }
 
@@ -87,9 +67,9 @@ impl JointIncident {
 
     fn add(&mut self, interval: &Interval) {
         match interval.role {
-            Push => self.push = Some(interval.clone()),
-            Pull => self.pulls.push(interval.clone()),
-            Measure => panic!("Should be no measures yet"),
+            Role::Push => self.push = Some(interval.clone()),
+            Role::Pull => self.pulls.push(interval.clone()),
+            Role::Measure => panic!("Should be no measures yet"),
         }
         self.adjacent_joints.insert(interval.other_joint(self.index));
     }
@@ -136,7 +116,7 @@ impl PairGenerator {
         let Some(push) = &joint.push else {
             return;
         };
-        let length_limit = push.ideal_length();
+        let length_limit = push.ideal();
         let two_steps: HashSet<_> = joint.adjacent_joints
             .iter()
             .flat_map(|&adjacent| self.joints[adjacent].adjacent_joints.iter())

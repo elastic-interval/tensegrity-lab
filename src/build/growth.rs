@@ -1,7 +1,6 @@
 use cgmath::MetricSpace;
 use crate::build::growth::Launch::{IdentifiedFace, NamedFace, Seeded};
-use crate::fabric::{Fabric, UniqueId};
-use crate::fabric::interval::Role::Pull;
+use crate::fabric::{Fabric, Link, UniqueId};
 use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, Seed, ShapePhase, ShaperSpec};
 use crate::build::tenscript::FaceName::Apos;
 use crate::build::tenscript::TenscriptNode;
@@ -259,9 +258,9 @@ impl Growth {
             })
             .min_by(|(length_a, _), (length_b, _)| length_a.partial_cmp(length_b).unwrap())
             .unwrap();
-        let scale = (alpha.scale + omega.scale) / 2.0;
+        let ideal = (alpha.scale + omega.scale) / 2.0;
         for (a, b) in links {
-            fabric.create_interval(alpha_rotated[a], omega_ends[b], Pull, scale);
+            fabric.create_interval(alpha_rotated[a], omega_ends[b], Link::Pull { ideal });
         }
         fabric.remove_face(alpha_id);
         fabric.remove_face(omega_id);
