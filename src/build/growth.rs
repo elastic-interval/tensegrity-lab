@@ -150,7 +150,7 @@ impl Growth {
                 let pairs = Growth::branch_pairs(face_nodes);
                 let any_special_face = pairs.iter().any(|(face_name, _)| *face_name != Apos);
                 let (spin, face_id, needs_double) = match launch {
-                    Seeded { seed } => (seed.spin(), None, seed.double()),
+                    Seeded { seed } => (seed.spin(), None, seed.needs_double()),
                     NamedFace { face_name } => {
                         let face_id = Growth::find_face_id(face_name, faces);
                         let spin = fabric.face(face_id).spin.opposite();
