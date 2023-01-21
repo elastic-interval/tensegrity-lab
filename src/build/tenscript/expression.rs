@@ -59,8 +59,8 @@ pub enum ErrorKind {
 
 pub fn parse(source: &str) -> Result<Expression, Error> {
     let lines: Vec<&str> = source.split('\n')
-        .map(|line|line.trim())
-        .filter(|line|!line.starts_with(';'))
+        .map(|line| line.trim())
+        .filter(|line| !line.starts_with(';'))
         .collect();
     let tokens = scanner::scan(lines.join("").as_str())?;
     parse_tokens(tokens)

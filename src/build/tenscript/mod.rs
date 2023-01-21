@@ -86,7 +86,7 @@ impl Seed {
         }
     }
 
-    pub fn double(&self) -> bool {
+    pub fn needs_double(&self) -> bool {
         match self {
             Seed::Left | Seed::Right => false,
             Seed::LeftRight | Seed::RightLeft => true,
@@ -102,8 +102,8 @@ pub struct BuildPhase {
 
 #[derive(Debug, Clone)]
 pub enum ShaperSpec {
-    Join{ mark_name: String},
-    Distance{ mark_name: String, distance_factor: f32},
+    Join { mark_name: String },
+    Distance { mark_name: String, distance_factor: f32 },
 }
 
 #[derive(Debug, Clone, Default)]
