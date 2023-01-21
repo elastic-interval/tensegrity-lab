@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use crate::build::tenscript::{FabricPlan, FaceName, Space, Spin, SurfaceCharacterSpec, TenscriptNode};
+use crate::build::tenscript::{FabricPlan, FaceName, Seed, Space, SurfaceCharacterSpec, TenscriptNode};
 use crate::build::tenscript::error::Error;
 use crate::build::tenscript::expression;
 use crate::build::tenscript::expression::Expression;
@@ -40,22 +40,22 @@ pub fn parse(source: &str) -> Result<FabricPlan, Error> {
         .map_err(|kind| Error::ParseError(ParseError { kind }))
 }
 
-macro_rules! expect_enum {
-        ($value:expr, { $($name:pat => $enum_val:expr,)+ }) => {
-            {
-                let expected = stringify!($($name)|+);
-                let $crate::build::tenscript::expression::Expression::Atom(ref name) = $value else {
-                    return Err($crate::build::tenscript::parser::ErrorKind::TypeError { expected, expression: $value.clone() })
-                };
-                match name.as_str() {
-                    $(
-                        $name => $enum_val,
-                    )+
-                    _ => return Err($crate::build::tenscript::parser::ErrorKind::TypeError { expected, expression: $value.clone() })
-                }
-            }
-        }
-    }
+// macro_rules! expect_enum {
+//         ($value:expr, { $($name:pat => $enum_val:expr,)+ }) => {
+//             {
+//                 let expected = stringify!($($name)|+);
+//                 let $crate::build::tenscript::expression::Expression::Atom(ref name) = $value else {
+//                     return Err($crate::build::tenscript::parser::ErrorKind::TypeError { expected, expression: $value.clone() })
+//                 };
+//                 match name.as_str() {
+//                     $(
+//                         $name => $enum_val,
+//                     )+
+//                     _ => return Err($crate::build::tenscript::parser::ErrorKind::TypeError { expected, expression: $value.clone() })
+//                 }
+//             }
+//         }
+//     }
 
 struct Call<'a> {
     head: &'a str,
@@ -85,17 +85,15 @@ fn fabric_plan(expression: &Expression) -> Result<FabricPlan, ErrorKind> {
         let Call { head, tail } = expect_call(expression)?;
         match head {
             "surface" => {
-                if plan.surface.is_some() {
-                    return Err(AlreadyDefined { property: "surface", expression: expression.clone() });
-                };
-                let [ value] = tail else {
+                let [ Expression::Atom(surface_string)] = tail else {
                     return Err(BadCall { expected: "(surface <value>)", expression: expression.clone() });
                 };
-                let surface = expect_enum!(value, {
-                        "bouncy" => SurfaceCharacterSpec::Bouncy,
-                        "frozen" => SurfaceCharacterSpec::Frozen,
-                        "sticky" => SurfaceCharacterSpec::Sticky,
-                    });
+                let surface = match surface_string.as_str() {
+                    "bouncy" => SurfaceCharacterSpec::Bouncy,
+                    "frozen" => SurfaceCharacterSpec::Frozen,
+                    "sticky" => SurfaceCharacterSpec::Sticky,
+                    _ => return Err(BadCall { expected: "(surface <bouncy | frozen | sticky>)", expression: expression.clone() }),
+                };
                 plan.surface = Some(surface);
             }
             "build" => {
@@ -120,10 +118,12 @@ fn build(FabricPlan { build_phase, .. }: &mut FabricPlan, expressions: &[Express
                     return Err(BadCall { expected: "(seed <atom>)", expression: expression.clone() });
                 };
                 build_phase.seed = match seed_string.as_str() {
-                    "left" => Spin::Left,
-                    "right" => Spin::Right,
+                    "left" => Seed::Left,
+                    "right" => Seed::Right,
+                    "left-right" => Seed::LeftRight,
+                    "right-left" => Seed::RightLeft,
                     _ => {
-                        return Err(BadCall { expected: "(seed <left | right>)", expression: expression.clone() });
+                        return Err(BadCall { expected: "(seed <left | right | left-right | right-left>)", expression: expression.clone() });
                     }
                 };
             }
