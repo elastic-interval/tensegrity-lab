@@ -151,9 +151,10 @@ pub fn run() {
                 }
             }
             Event::RedrawRequested(_) => {
-                let up = experiment.iterate();
-                if let Some(up) = up {
-                    app.scene.adjust_camera_up(up);
+                experiment.iterate();
+                if let Some(jump) = experiment.camera_jump() {
+                    app.scene.move_camera(jump);
+                    app.scene.show_surface();
                     app.gui.change_state(ShowControls);
                 }
                 let message = app.scene.update(&app.graphics, app.gui.controls(), experiment.fabric());

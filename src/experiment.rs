@@ -1,3 +1,4 @@
+use cgmath::Vector3;
 use crate::experiment::Stage::{AddPulls, Pretensing, Pretenst, RunningPlan};
 use crate::fabric::Fabric;
 use crate::fabric::physics::presets::AIR_GRAVITY;
@@ -14,6 +15,7 @@ enum Stage {
 pub struct Experiment {
     fabric: Fabric,
     plan_runner: PlanRunner,
+    camera_jump: Option<Vector3<f32>>,
     frozen_fabric: Option<Fabric>,
     iterations_per_frame: usize,
     stage: Stage,
@@ -25,6 +27,7 @@ impl Default for Experiment {
         Self {
             fabric: Fabric::default(),
             plan_runner: PlanRunner::default(),
+            camera_jump: None,
             frozen_fabric: None,
             iterations_per_frame: 100,
             stage: RunningPlan,
@@ -34,16 +37,17 @@ impl Default for Experiment {
 }
 
 impl Experiment {
-    pub fn iterate(&mut self) -> Option<f32> {
+    pub fn iterate(&mut self) {
         match self.stage {
             RunningPlan => {
                 for _ in 0..self.iterations_per_frame {
                     self.plan_runner.iterate(&mut self.fabric);
                 }
                 if self.plan_runner.is_done() {
-                    let up = self.fabric.prepare_for_pretensing(1.03);
+                    let old_midpoint = self.fabric.midpoint();
+                    self.fabric.prepare_for_pretensing(1.03);
                     self.start_pretensing();
-                    return Some(up);
+                    self.camera_jump = Some(self.fabric.midpoint() - old_midpoint);
                 }
             }
             Pretensing => {
@@ -75,7 +79,10 @@ impl Experiment {
                 self.start_pretensing()
             }
         }
-        None
+    }
+
+    pub fn camera_jump(&mut self) -> Option<Vector3<f32>> {
+        self.camera_jump.take()
     }
 
     pub fn add_pulls(&mut self, strain_lower_limit: f32) {
