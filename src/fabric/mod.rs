@@ -183,7 +183,7 @@ impl Fabric {
         }
     }
 
-    pub fn prepare_for_pretensing(&mut self, push_extension: f32) -> f32 {
+    pub fn prepare_for_pretensing(&mut self, push_extension: f32) {
         for interval in self.intervals.values_mut() {
             let length = interval.length(&self.joints);
             interval.span = match interval.role {
@@ -195,7 +195,8 @@ impl Fabric {
             joint.force = zero();
             joint.velocity = zero();
         }
-        self.set_altitude(1.0)
+        self.set_altitude(1.0);
+        self.centralize();
     }
 
     pub fn iterate(&mut self, physics: &Physics) -> f32 {

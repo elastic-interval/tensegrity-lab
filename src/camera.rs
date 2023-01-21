@@ -65,9 +65,9 @@ impl Camera {
         self.projection_matrix() * self.view_matrix()
     }
 
-    pub fn go_up(&mut self, up: f32) {
-        self.position.y += up;
-        self.target.y += up;
+    pub fn jump(&mut self, vector: Vector3<f32>) {
+        self.position += vector;
+        self.target += vector;
     }
 
     fn view_matrix(&self) -> Matrix4<f32> {
