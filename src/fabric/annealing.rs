@@ -43,8 +43,8 @@ impl Fabric {
             .enumerate()
             .map(|(index, joint)| JointIncident::new(index, joint.location)).collect();
         for interval @ Interval { alpha_index, omega_index, .. } in self.interval_values() {
-            incidents[*alpha_index].add(interval);
-            incidents[*omega_index].add(interval);
+            incidents[*alpha_index].add_interval(interval);
+            incidents[*omega_index].add_interval(interval);
         }
         incidents
     }
@@ -78,13 +78,27 @@ impl JointIncident {
         }
     }
 
-    fn add(&mut self, interval: &Interval) {
+    fn add_interval(&mut self, interval: &Interval) {
         match interval.role {
             Role::Push => self.push = Some(interval.clone()),
             Role::Pull => self.pulls.push(interval.clone()),
             Role::Measure => panic!("Should be no measures yet"),
         }
         self.adjacent_joints.insert(interval.other_joint(self.index));
+    }
+
+    fn pull_steps(&self, so_far: &[usize]) -> Vec<Vec<usize>> {
+        let mut paths = vec![];
+        for pull in &self.pulls {
+            let other = pull.other_joint(self.index);
+            if so_far.contains(&other) {
+                continue;
+            }
+            let mut fresh = so_far.to_vec();
+            fresh.push(other);
+            paths.push(fresh)
+        }
+        paths
     }
 }
 
@@ -166,32 +180,8 @@ impl PairGenerator {
     }
 
     fn bow_tie(&mut self, joint: JointIncident) {
-        if joint.push.is_none() {
-            return;
-        };
-        for (remote, _) in self.across_pulls(joint.index) {
-            for (across_remote, remote_ray) in self.across_pulls(remote) {
-                if across_remote == joint.index { // not back to us
-                    continue;
-                }
-                for (local, local_ray) in self.across_pulls(joint.index) {
-                    if local == remote { // different from the main loop
-                        continue;
-                    }
-                    if self.interval_exists(local, across_remote) {
-                        continue;
-                    }
-                    let dot = local_ray.dot(remote_ray);
-                    if dot < 0.85 { // not similar enough direction
-                        continue;
-                    } else {
-                        dbg!(dot);
-                    }
-                    let length = self.joints[remote].location.distance(self.joints[across_remote].location);
-                    let pair = MeasurePair { alpha_index: remote, omega_index: local, length };
-                    self.pairs.insert(pair.key(), pair);
-                }
-            }
+        if joint.index == 14 {
+            dbg!(self.hexagons(joint.index));
         }
     }
 
@@ -212,5 +202,38 @@ impl PairGenerator {
                 (other_index, to_other)
             })
             .collect()
+    }
+
+    fn hexagons(&self, joint_index: usize) -> Vec<[usize; 6]> {
+        let mut hexagons = vec![];
+        let mut ends: HashMap<usize, Vec<usize>> = HashMap::new();
+        let collection = vec![vec![joint_index]];
+        for arm in self.paths_via_pulls(&collection, 1, 4) {
+            let last = arm.last().unwrap();
+            match ends.get(last) {
+                None => {
+                    ends.insert(*last, arm);
+                }
+                Some(other_arm) => {
+                    hexagons.push([other_arm[0], other_arm[1], other_arm[2], arm[3], arm[2], arm[1]]);
+                }
+            }
+        }
+        hexagons
+    }
+
+    fn paths_via_pulls(&self, collection: &[Vec<usize>], size: usize, max_size: usize) -> Vec<Vec<usize>> {
+        if size == max_size {
+            collection.to_vec()
+        } else {
+            let bigger: Vec<Vec<usize>> = collection
+                .iter()
+                .flat_map(|path| {
+                    let last = path.last().unwrap();
+                    self.joints[*last].pull_steps(path)
+                })
+                .collect();
+            self.paths_via_pulls(&bigger, size + 1, max_size)
+        }
     }
 }
