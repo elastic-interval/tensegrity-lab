@@ -51,7 +51,7 @@ impl Fabric {
         vec![(Aneg, a_minus_face), (Apos, a_plus_face)]
     }
 
-    pub fn double_twist(&mut self, spin: Spin, pretenst_factor: f32, scale_factor: f32, face_id: Option<UniqueId>) ->  Vec<(FaceName, UniqueId)>  {
+    pub fn double_twist(&mut self, spin: Spin, pretenst_factor: f32, scale_factor: f32, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
         let base = self.base_triangle(face);
@@ -107,14 +107,11 @@ impl Fabric {
 
     pub fn triangulate_faces(&mut self) {
         for (id, face) in self.faces.clone() {
-            let radius: f32 = face.radial_intervals
-                .iter()
-                .map(|id| self.interval(*id).ideal())
-                .sum();
-            let side_length = radius * ROOT3 / 2.0;
+            let side_length = face.scale * ROOT3;
             let radial_joints = face.radial_joints(self);
             for (alpha, omega) in [(0, 1), (1, 2), (2, 0)] {
-                self.create_interval(radial_joints[alpha], radial_joints[omega], Link::Pull { ideal: side_length });
+                let (alpha_index, omega_index) = (radial_joints[alpha], radial_joints[omega]);
+                self.create_interval(alpha_index, omega_index, Link::Pull { ideal: side_length });
             }
             self.remove_face(id);
         }
