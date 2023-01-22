@@ -99,12 +99,8 @@ impl Path {
     }
 
     fn to_hexagon(&self) -> Option<[usize; 6]> {
-        if self.joint_indices.len() == 6 && self.cycle {
-            let hexagon: [usize; 6] = self.joint_indices.clone().try_into().unwrap();
-            Some(hexagon)
-        } else {
-            None
-        }
+        (self.joint_indices.len() == 6 && self.cycle)
+            .then_some(self.joint_indices.clone().try_into().unwrap())
     }
 }
 
