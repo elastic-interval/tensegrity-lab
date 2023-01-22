@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
+use cgmath::num_traits::abs;
 use crate::fabric::{Fabric, Link};
 use crate::fabric::interval::{Interval, Role};
 
@@ -122,6 +123,7 @@ impl MeasurePair {
 struct PairGenerator {
     joints: Vec<JointIncident>,
     intervals: HashSet<(usize, usize)>,
+    hexagons: HashMap<[usize; 6], [usize; 6]>,
     pairs: HashMap<(usize, usize), MeasurePair>,
 }
 
@@ -130,15 +132,38 @@ impl PairGenerator {
         Self {
             joints,
             intervals,
+            hexagons: HashMap::new(),
             pairs: HashMap::new(),
         }
     }
 
     fn generate_pairs(mut self, pair_strategy: PairStrategy) -> impl Iterator<Item=MeasurePair> {
-        for joint in self.joints.clone() {
-            match pair_strategy {
-                PairStrategy::PushProximity => self.push_proximity(joint),
-                PairStrategy::BowTie => self.bow_tie(joint),
+        match pair_strategy {
+            PairStrategy::PushProximity => {
+                for joint in self.joints.clone() {
+                    self.push_proximity(joint);
+                }
+            }
+            PairStrategy::BowTie => {
+                for joint in self.joints.clone() {
+                    self.add_hexagons_for(joint);
+                }
+                for hexagon in self.hexagons.values() {
+                    let mut diagonals: Vec<(usize, usize, f32)> = (0..3)
+                        .map(|index| {
+                            let (alpha_index, omega_index) = (hexagon[index], hexagon[(index + 3) % hexagon.len()]);
+                            let distance = self.joints[alpha_index].location.distance(self.joints[omega_index].location);
+                            (alpha_index, omega_index, distance)
+                        })
+                        .collect();
+                    diagonals.sort_by(|(_, _, a), (_, _, b)| a.partial_cmp(b).unwrap());
+                    let unequal_enough = abs(diagonals[0].2 * 2.0 - diagonals[1].2 - diagonals[2].2) > diagonals[0].2 / 2.0;
+                    if unequal_enough {
+                        let (alpha_index, omega_index, length) = diagonals[0];
+                        let pair = MeasurePair { alpha_index, omega_index, length };
+                        self.pairs.insert(pair.key(), pair);
+                    }
+                }
             }
         }
         self.pairs.into_values()
@@ -179,9 +204,14 @@ impl PairGenerator {
         self.pairs.extend(new_pairs);
     }
 
-    fn bow_tie(&mut self, joint: JointIncident) {
-        if joint.index == 14 {
-            dbg!(self.hexagons(joint.index));
+    fn add_hexagons_for(&mut self, joint: JointIncident) {
+        if joint.push.is_none() {
+            return;
+        }
+        for hexagon in self.hexagons(joint.index) {
+            let mut key = hexagon;
+            key.sort();
+            self.hexagons.insert(key, hexagon);
         }
     }
 
