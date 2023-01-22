@@ -103,6 +103,7 @@ impl Growth {
             self.complete_shaper(fabric, shaper)
         }
         self.shapers.clear();
+        fabric.triangulate_faces();
     }
 
     fn execute_bud(&self, fabric: &mut Fabric, Bud { face_id, forward, scale_factor, node }: Bud) -> (Vec<Bud>, Vec<PostMark>) {
