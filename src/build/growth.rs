@@ -190,9 +190,9 @@ impl Growth {
             ShaperSpec::Join { mark_name } => {
                 let faces = self.marked_faces(mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
-                match joints.len() {
-                    2 => {
-                        let interval = fabric.create_interval(joints[0], joints[1], Link::Pull { ideal: 0.3 });
+                match joints.as_slice() {
+                    &[alpha_index, omega_index] => {
+                        let interval = fabric.create_interval(alpha_index, omega_index, Link::Pull { ideal: 0.3 });
                         shapers.push(Shaper { interval, alpha_face: faces[0], omega_face: faces[1], join: true })
                     }
                     _ => unimplemented!()
