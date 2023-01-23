@@ -4,20 +4,17 @@ use std::str::FromStr;
 
 use crate::build::tenscript::error;
 use crate::build::tenscript::scanner::ErrorKind::{FloatParseFailed, IllegalChar, IntParseFailed};
-use crate::build::tenscript::scanner::Token::{
-    Atom, EOF, Float, Ident, Integer, Paren, Percent, String as StringLit,
-};
+use crate::build::tenscript::scanner::Token::{*};
 
 #[derive(Debug, Clone)]
 pub enum Token {
-    Ident(String),
-    Paren(char),
     Atom(String),
-    String(String),
-    Integer(i64),
-    Float(f32),
-    Percent(f32),
-    EOF,
+    Identifier(String),
+    Parenthesis(char),
+    QuotedString(String),
+    WholeNumber(usize),
+    FloatingPoint(f32),
+    EndOfFile,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -93,16 +90,15 @@ impl Scanner {
                 loc: self.loc.clone(),
             })?;
         }
-        self.add(EOF);
+        self.add(EndOfFile);
         Ok(self.tokens)
     }
 
     fn scan_token(&mut self) -> Result<(), ErrorKind> {
         match self.current() {
-            '0'..='9' | '-' => self.number()?,
+            '0'..='9' | '-' | '.' => self.number()?,
             'a'..='z' => self.ident(),
-            'A'..='Z' => self.atom(false),
-            ':' => self.atom(true),
+            ':' => self.atom(),
             '"' => self.string()?,
             '\n' => {
                 self.loc.line += 1;
@@ -112,7 +108,7 @@ impl Scanner {
             ' ' | '\t' => self.increment(),
             ch @ ('(' | ')') => {
                 self.increment();
-                self.add(Paren(ch));
+                self.add(Parenthesis(ch));
             }
             ch => return Err(IllegalChar { ch }),
         }
@@ -154,72 +150,44 @@ impl Scanner {
     }
 
     fn number(&mut self) -> Result<(), ErrorKind> {
-        let negative = if let '-' = self.current() {
-            self.increment();
-            true
-        } else {
-            false
-        };
         let mut num_string = String::new();
-        while let ch @ ('0'..='9' | '_') = self.current() {
-            if ch != '_' {
-                num_string.push(ch);
-            }
+        while let ch @ ('0'..='9') = self.current() {
+            num_string.push(ch);
             self.increment();
         }
         if let '.' = self.current() {
+            if num_string.is_empty() {
+                num_string.push('0');
+            }
             num_string.push('.');
             self.increment();
             while let ch @ '0'..='9' = self.current() {
                 num_string.push(ch);
                 self.increment();
-                let mut value =
-                    f32::from_str(&num_string).map_err(|err| FloatParseFailed { err })?;
-                if negative {
-                    value = -value;
-                }
-                match self.current() {
-                    '%' => {
-                        self.increment();
-                        self.add(Percent(value));
-                    }
-                    _ => self.add(Float(value)),
-                };
             }
+            let value = f32::from_str(&num_string)
+                .map_err(|err| FloatParseFailed { err })?;
+            self.add(FloatingPoint(value));
         } else {
-            let mut value = i64::from_str(&num_string).map_err(|err| IntParseFailed { err })?;
-
-            if negative {
-                value = -value;
-            }
-            match self.current() {
-                '%' => {
-                    self.increment();
-                    self.add(Percent(value as f32));
-                }
-                _ => self.add(Integer(value)),
-            };
+            let value = usize::from_str(&num_string)
+                .map_err(|err| IntParseFailed { err })?;
+            self.add(WholeNumber(value));
         }
-
         Ok(())
     }
 
-    fn atom(&mut self, start_with_colon: bool) {
-        if start_with_colon {
-            self.increment();
-        }
+    fn atom(&mut self) {
+        self.increment();
         self.consume_ident_chars();
         let mut name = self.lexeme();
-        if start_with_colon {
-            name.remove(0); // remove prefix ':'
-        }
+        name.remove(0); // remove prefix ':'
         self.add(Atom(name));
     }
 
     fn ident(&mut self) {
         self.consume_ident_chars();
         let name = self.lexeme();
-        self.add(Ident(name));
+        self.add(Identifier(name));
     }
 
     fn string(&mut self) -> Result<(), ErrorKind> {
@@ -234,7 +202,7 @@ impl Scanner {
         let mut string = self.lexeme();
         string.remove(0);
         string.remove(string.len() - 1);
-        self.add(StringLit(string));
+        self.add(QuotedString(string));
         Ok(())
     }
 }

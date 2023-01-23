@@ -9,27 +9,7 @@ mod tests {
     use crate::fabric::joint::Joint;
     use crate::build::klein::generate_klein;
     use crate::build::mobius::generate_mobius;
-    use crate::parser::parse;
     use crate::build::sphere::{SphereScaffold, Vertex};
-    use crate::build::r#mod::TenscriptNode::Grow;
-
-    #[test]
-    fn simple_parse() {
-        let source =
-            "
-            (fabric
-              (build
-                (seed :left)
-                (grow A+ 2)))
-            ";
-        let fabric_plan = parse(source).unwrap();
-        println!("{:?}", fabric_plan.build_phase);
-        if let Grow { forward, .. } = fabric_plan.build_phase.root.unwrap() {
-            assert_eq!(forward, "XX")
-        } else {
-            panic!("no growth!")
-        }
-    }
 
     #[test]
     fn example_fabric() {

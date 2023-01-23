@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
 pub use parser::parse;
@@ -51,54 +52,105 @@ impl Spin {
 
 #[derive(Debug, Clone)]
 pub enum TenscriptNode {
-    Grow {
+    Face {
         face_name: FaceName,
+        node: Box<TenscriptNode>,
+    },
+    Grow {
         forward: String,
         scale_factor: f32,
-        branch: Option<Box<TenscriptNode>>,
+        post_growth_node: Option<Box<TenscriptNode>>,
     },
     Mark {
-        face_name: FaceName,
         mark_name: String,
     },
     Branch {
-        subtrees: Vec<TenscriptNode>,
+        face_nodes: Vec<TenscriptNode>,
     },
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub enum Seed {
+    #[default]
+    Left,
+    Right,
+    LeftRight,
+    RightLeft,
+}
+
+impl Seed {
+    pub fn spin(&self) -> Spin {
+        match self {
+            Seed::Left | Seed::LeftRight => Spin::Left,
+            Seed::Right | Seed::RightLeft => Spin::Right,
+        }
+    }
+
+    pub fn needs_double(&self) -> bool {
+        match self {
+            Seed::Left | Seed::Right => false,
+            Seed::LeftRight | Seed::RightLeft => true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct BuildPhase {
-    pub seed: Option<Spin>,
+    pub seed: Seed,
     pub root: Option<TenscriptNode>,
+}
+
+#[derive(Debug, Clone)]
+pub enum ShaperSpec {
+    Join { mark_name: String },
+    Distance { mark_name: String, distance_factor: f32 },
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct ShapePhase {
-    pub pull_together: Vec<String>,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct Features {
-    pub iterations_per_frame: Option<u32>,
-    pub visual_strain: Option<f32>,
-    pub gravity: Option<f32>,
-    pub pretenst_factor: Option<f32>,
-    pub stiffness_factor: Option<f32>,
-    pub push_over_pull: Option<f32>,
-    pub viscosity: Option<f32>,
-    pub shaping_pretenst_factor: Option<f32>,
-    pub shaping_viscosity: Option<f32>,
-    pub shaping_stiffness_factor: Option<f32>,
-    pub antigravity: Option<f32>,
-    pub interval_countdown: Option<f32>,
-    pub pretensing_countdown: Option<f32>,
+    pub shaper_specs: Vec<ShaperSpec>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct FabricPlan {
-    pub name: Option<String>,
     pub surface: Option<SurfaceCharacterSpec>,
-    pub features: Features,
     pub build_phase: BuildPhase,
     pub shape_phase: ShapePhase,
+}
+
+fn bootstrap() -> HashMap<&'static str, &'static str> {
+    include_str!("bootstrap.scm")
+        .split(";;;")
+        .filter(|chunk| !chunk.is_empty())
+        .map(|chunk| {
+            let line_end = chunk.find('\n').unwrap_or_else(|| {
+                panic!("bootstrap.scm not structured properly");
+            });
+            (&chunk[0..line_end], &chunk[(line_end + 1)..])
+        })
+        .collect()
+}
+
+pub fn fabric_plan(plan_name: &str) -> FabricPlan {
+    let map = bootstrap();
+    let code = map.get(plan_name).unwrap_or_else(|| {
+        panic!("{plan_name} not found")
+    });
+    parse(code).unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::build::tenscript::{bootstrap, parser};
+
+    #[test]
+    fn parse() {
+        let map = bootstrap();
+        for (name, code) in map.into_iter() {
+            match parser::parse(code) {
+                Ok(_) => println!("[{name}] Good plan!"),
+                Err(error) => println!("[{name}] Error: {error:?}"),
+            }
+        }
+    }
 }

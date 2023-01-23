@@ -1,11 +1,10 @@
-use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 
-use crate::build::tenscript::{FabricPlan, FaceName, Spin, SurfaceCharacterSpec, TenscriptNode};
+use crate::build::tenscript::{FabricPlan, FaceName, Seed, ShaperSpec, SurfaceCharacterSpec, TenscriptNode};
 use crate::build::tenscript::error::Error;
 use crate::build::tenscript::expression;
 use crate::build::tenscript::expression::Expression;
-use crate::build::tenscript::parser::ErrorKind::{AlreadyDefined, BadCall, IllegalCall, IllegalRepetition, Mismatch, MultipleBranches, Unknown};
+use crate::build::tenscript::parser::ErrorKind::{*};
 
 #[derive(Debug, Clone)]
 pub struct ParseError {
@@ -20,11 +19,10 @@ impl Display for ParseError {
 
 #[derive(Debug, Clone)]
 pub enum ErrorKind {
-    Mismatch { rule: &'static str, expression: Expression, expected: &'static str },
-    BadCall { context: &'static str, expected: &'static str, expression: Expression },
+    Mismatch { expected: &'static str, expression: Expression },
+    BadCall { expected: &'static str, expression: Expression },
     TypeError { expected: &'static str, expression: Expression },
     AlreadyDefined { property: &'static str, expression: Expression },
-    IllegalRepetition { kind: &'static str, value: String },
     MultipleBranches,
     IllegalCall { context: &'static str, expression: Expression },
     Unknown,
@@ -42,75 +40,44 @@ pub fn parse(source: &str) -> Result<FabricPlan, Error> {
         .map_err(|kind| Error::ParseError(ParseError { kind }))
 }
 
-macro_rules! expect_enum {
-        ($value:expr, { $($name:pat => $enum_val:expr,)+ }) => {
-            {
-                let expected = stringify!($($name)|+);
-                let $crate::build::tenscript::expression::Expression::Atom(ref name) = $value else {
-                    return Err($crate::build::tenscript::parser::ErrorKind::TypeError { expected, expression: $value.clone() })
-                };
-                match name.as_str() {
-                    $(
-                        $name => $enum_val,
-                    )+
-                    _ => return Err($crate::build::tenscript::parser::ErrorKind::TypeError { expected, expression: $value.clone() })
-                }
-            }
-        }
-    }
-
 struct Call<'a> {
     head: &'a str,
     tail: &'a [Expression],
 }
 
-fn expect_call<'a>(rule: &'static str, expression: &'a Expression) -> Result<Call<'a>, ErrorKind> {
+fn expect_call(expression: &Expression) -> Result<Call, ErrorKind> {
     let Expression::List(ref terms) = expression else {
-        return Err(Mismatch { rule, expected: "( .. )", expression: expression.clone() });
+        return Err(Mismatch { expected: "( .. )", expression: expression.clone() });
     };
     let [ref head, ref tail @ ..] = terms[..] else {
-        return Err(Mismatch { rule, expected: "(<head> ..)", expression: expression.clone() });
+        return Err(Mismatch { expected: "(<head> ..)", expression: expression.clone() });
     };
-    let Expression::Ident(ref head) = head else {
-        return Err(Mismatch { rule, expected: "(<head:ident> ..)", expression: expression.clone() });
+    let Expression::Identifier(ref head) = head else {
+        return Err(Mismatch { expected: "(<head:ident> ..)", expression: expression.clone() });
     };
     Ok(Call { head, tail })
 }
 
 fn fabric_plan(expression: &Expression) -> Result<FabricPlan, ErrorKind> {
-    let Call { head: "fabric", tail } = expect_call("fabric", expression)? else {
-        return Err(Mismatch { rule: "fabric", expected: "(fabric ..)", expression: expression.clone() });
+    let Call { head: "fabric", tail } = expect_call(expression)? else {
+        return Err(Mismatch { expected: "(fabric ..)", expression: expression.clone() });
     };
 
     let mut plan = FabricPlan::default();
     for expression in tail {
-        let Call { head, tail } = expect_call("fabric", expression)?;
+        let Call { head, tail } = expect_call(expression)?;
         match head {
             "surface" => {
-                if plan.surface.is_some() {
-                    return Err(AlreadyDefined { property: "surface", expression: expression.clone() });
+                let [ Expression::Atom(surface_string)] = tail else {
+                    return Err(BadCall { expected: "(surface <value>)", expression: expression.clone() });
                 };
-                let [ value] = tail else {
-                    return Err(BadCall { context: "fabric plan", expected: "(surface <value>)", expression: expression.clone() });
+                let surface = match surface_string.as_str() {
+                    "bouncy" => SurfaceCharacterSpec::Bouncy,
+                    "frozen" => SurfaceCharacterSpec::Frozen,
+                    "sticky" => SurfaceCharacterSpec::Sticky,
+                    _ => return Err(BadCall { expected: "(surface <bouncy | frozen | sticky>)", expression: expression.clone() }),
                 };
-                let surface = expect_enum!(value, {
-                        "bouncy" => SurfaceCharacterSpec::Bouncy,
-                        "frozen" => SurfaceCharacterSpec::Frozen,
-                        "sticky" => SurfaceCharacterSpec::Sticky,
-                    });
                 plan.surface = Some(surface);
-            }
-            "name" => {
-                if plan.name.is_some() {
-                    return Err(AlreadyDefined { property: "name", expression: expression.clone() });
-                };
-                let &[Expression::String(ref name)] = tail else {
-                    return Err(BadCall { context: "fabric plan", expected: "(name <string>)", expression: expression.clone() });
-                };
-                plan.name = Some(name.clone());
-            }
-            "features" => {
-                features(&mut plan, tail)?;
             }
             "build" => {
                 build(&mut plan, tail)?;
@@ -127,20 +94,21 @@ fn fabric_plan(expression: &Expression) -> Result<FabricPlan, ErrorKind> {
 
 fn build(FabricPlan { build_phase, .. }: &mut FabricPlan, expressions: &[Expression]) -> Result<(), ErrorKind> {
     for expression in expressions {
-        let Call { head, tail } = expect_call("build", expression)?;
+        let Call { head, tail } = expect_call(expression)?;
         match head {
             "seed" => {
-                if build_phase.seed.is_some() {
-                    return Err(AlreadyDefined { property: "seed", expression: expression.clone() });
+                let [ Expression::Atom(seed_string)] = tail else {
+                    return Err(BadCall { expected: "(seed <atom>)", expression: expression.clone() });
                 };
-                let [ value] = tail else {
-                    return Err(BadCall { context: "build phase", expected: "(seed <value>)", expression: expression.clone() });
+                build_phase.seed = match seed_string.as_str() {
+                    "left" => Seed::Left,
+                    "right" => Seed::Right,
+                    "left-right" => Seed::LeftRight,
+                    "right-left" => Seed::RightLeft,
+                    _ => {
+                        return Err(BadCall { expected: "(seed <left | right | left-right | right-left>)", expression: expression.clone() });
+                    }
                 };
-                let seed_type = expect_enum!(value, {
-                        "left" => Spin::Left,
-                        "right" => Spin::Right,
-                    });
-                build_phase.seed = Some(seed_type);
             }
             "branch" | "grow" | "mark" => {
                 if build_phase.root.is_some() {
@@ -156,15 +124,19 @@ fn build(FabricPlan { build_phase, .. }: &mut FabricPlan, expressions: &[Express
 
 fn shape(FabricPlan { shape_phase, .. }: &mut FabricPlan, expressions: &[Expression]) -> Result<(), ErrorKind> {
     for expression in expressions {
-        let Call { head, tail } = expect_call("shape", expression)?;
+        let Call { head, tail } = expect_call(expression)?;
         match head {
-            "pull-together" => {
-                for mark in tail {
-                    let Expression::Atom(ref mark_name) = mark else {
-                        return Err(BadCall { context: "shape phase", expected: "(pull-together <atom>+)", expression: expression.clone() });
-                    };
-                    shape_phase.pull_together.push(mark_name.clone())
-                }
+            "join" => {
+                let [Expression::Atom(ref mark_name)] = tail else {
+                    return Err(BadCall { expected: "(join <atom>)", expression: expression.clone() });
+                };
+                shape_phase.shaper_specs.push(ShaperSpec::Join{ mark_name: mark_name.clone()})
+            }
+            "space" => {
+                let [Expression::Atom(ref mark_name), Expression::FloatingPoint(distance_factor) ] = tail else {
+                    return Err(BadCall { expected: "(space <atom> <distance-factor>)", expression: expression.clone() });
+                };
+                shape_phase.shaper_specs.push(ShaperSpec::Distance { mark_name: mark_name.clone(), distance_factor: *distance_factor });
             }
             _ => return Err(IllegalCall { context: "shape phase", expression: expression.clone() })
         }
@@ -173,78 +145,72 @@ fn shape(FabricPlan { shape_phase, .. }: &mut FabricPlan, expressions: &[Express
 }
 
 fn tenscript_node(expression: &Expression) -> Result<TenscriptNode, ErrorKind> {
-    let Call { head, tail } = expect_call("tenscript_node", expression)?;
+    let Call { head, tail } = expect_call(expression)?;
     match head {
-        "grow" => {
-            let &[
-            ref face_atom @ Expression::Atom(ref face_name),
-            Expression::Integer(forward_count), // TODO: must check if this is a string and then use it instead, checking chars
-            ref post_growth @ ..,
-            ] = tail else {
-                return Err(Mismatch { rule: "tenscript_node", expected: "face name and forward count", expression: expression.clone() });
-            };
-            let face_name = expect_face_name(face_atom, face_name)?;
-            let forward = "X".repeat(forward_count as usize);
-            let mut branch = None;
-            let mut scale_factor = 1f32;
-            for post_growth_op in post_growth {
-                let Call { head: op_head, tail: op_tail } = expect_call("tenscript_node", post_growth_op)?;
-                match op_head {
-                    "branch" => {
-                        if branch.is_some() {
-                            return Err(MultipleBranches);
-                        }
-                        branch = Some(Box::new(tenscript_node(post_growth_op)?));
-                    }
-                    "scale" => {
-                        let &[Expression::Percent(percent)] = op_tail else {
-                            return Err(BadCall { context: "tenscript node", expected: "(scale <percent>)", expression: expression.clone() });
-                        };
-                        scale_factor = percent / 100.0;
-                    }
-                    _ => return Err(Mismatch { rule: "tenscript_node", expected: "mark | branch", expression: expression.clone() }),
-                }
-            }
-            Ok(TenscriptNode::Grow { face_name, scale_factor, forward, branch })
-        }
-        "mark" => {
-            let [ face_expression @ Expression::Atom(ref face_name_atom), Expression::Atom(ref mark_name) ] = tail else {
-                return Err(Mismatch { rule: "tenscript_node", expected: "(mark <face_name> <name>)", expression: expression.clone() });
+        "face" => {
+            let [ face_expression @ Expression::Atom(ref face_name_atom), subexpression ] = tail else {
+                return Err(Mismatch { expected: "(face <face-name> <node>)", expression: expression.clone() });
             };
             let face_name = expect_face_name(face_expression, face_name_atom)?;
-            Ok(TenscriptNode::Mark { face_name, mark_name: mark_name.clone() })
+            let Call { head, .. } = expect_call(subexpression)?;
+            if head != "grow" && head != "mark" {
+                return Err(Mismatch { expected: "(face <grow | mark>)", expression: subexpression.clone() });
+            }
+            let node = tenscript_node(subexpression)?;
+            Ok(TenscriptNode::Face { face_name, node: Box::new(node) })
+        }
+        "grow" => {
+            let (forward, post_growth) =
+                match tail {
+                    [ Expression::QuotedString(forward_string), ref post_growth @ .. ] =>
+                        (forward_string.clone(), post_growth),
+                    [ Expression::WholeNumber(forward_count), ref post_growth @ .. ] =>
+                        ("X".repeat(*forward_count), post_growth),
+                    _ => {
+                        return Err(Mismatch { expected: "(grow <number|string> <node|scale>)", expression: expression.clone() });
+                    }
+                };
+            let mut post_growth_node = None;
+            let mut scale_factor = 1f32;
+            for post_growth_op in post_growth {
+                let Call { head: op_head, tail: op_tail } = expect_call(post_growth_op)?;
+                match op_head {
+                    "face" | "branch" | "mark" | "grow" => {
+                        if post_growth_node.is_some() {
+                            return Err(MultipleBranches);
+                        }
+                        post_growth_node = Some(Box::new(tenscript_node(post_growth_op)?));
+                    }
+                    "scale" => {
+                        let &[Expression::FloatingPoint(scale)] = op_tail else {
+                            return Err(BadCall { expected: "(scale <scale>)", expression: expression.clone() });
+                        };
+                        scale_factor = scale;
+                    }
+                    _ => return Err(Mismatch { expected: "face | grow | mark | branch | scale", expression: expression.clone() }),
+                }
+            }
+            Ok(TenscriptNode::Grow { scale_factor, forward, post_growth_node })
+        }
+        "mark" => {
+            let [ Expression::Atom(ref mark_name) ] = tail else {
+                return Err(Mismatch { expected: "(mark <name>)", expression: expression.clone() });
+            };
+            Ok(TenscriptNode::Mark { mark_name: mark_name.clone() })
         }
         "branch" => {
             let mut subtrees = Vec::new();
-            let mut existing_face_names = HashSet::new();
             for subexpression in tail {
-                let Call { head, .. } = expect_call("tenscript_node", subexpression)?;
-                if head != "grow" && head != "mark" {
-                    return Err(Mismatch { rule: "tenscript_node", expected: "(grow ..) or (mark ..) under (branch ..)", expression: subexpression.clone() });
+                let Call { head, .. } = expect_call(subexpression)?;
+                if head != "face" {
+                    return Err(Mismatch { expected: "(branch (face ..)+)", expression: subexpression.clone() });
                 }
                 let subtree = tenscript_node(subexpression)?;
-                match subtree {
-                    TenscriptNode::Grow { face_name, .. } => {
-                        if existing_face_names.contains(&face_name) {
-                            return Err(IllegalRepetition { kind: "face name", value: face_name.to_string() });
-                        }
-                        existing_face_names.insert(face_name);
-                    }
-                    TenscriptNode::Mark { face_name, .. } => {
-                        if existing_face_names.contains(&face_name) {
-                            return Err(IllegalRepetition { kind: "face name", value: face_name.to_string() });
-                        }
-                        existing_face_names.insert(face_name);
-                    }
-                    _ => {
-                        return Err(Unknown);
-                    }
-                }
                 subtrees.push(subtree);
             }
-            Ok(TenscriptNode::Branch { subtrees })
+            Ok(TenscriptNode::Branch { face_nodes: subtrees })
         }
-        _ => Err(Mismatch { rule: "tenscript_node", expected: "grow | branch", expression: expression.clone() }),
+        _ => Err(Mismatch { expected: "face | grow | branch | mark", expression: expression.clone() }),
     }
 }
 
@@ -258,102 +224,8 @@ fn expect_face_name(expression: &Expression, face_name: &str) -> Result<FaceName
         "B-" => FaceName::Bneg,
         "C-" => FaceName::Cneg,
         "D-" => FaceName::Dneg,
-        _ => return Err(Mismatch { rule: "tenscript_node", expected: "unrecognized face name", expression: expression.clone() }),
+        _ => return Err(Mismatch { expected: "face name", expression: expression.clone() }),
     })
 }
 
-fn features(FabricPlan { features, .. }: &mut FabricPlan, expressions: &[Expression]) -> Result<(), ErrorKind> {
-    let mut feature_defined = HashSet::new();
-    for expression in expressions {
-        let Call { head: key, tail: &[ref val] } = expect_call("features", expression)? else {
-            return Err(BadCall { context: "features", expected: "(<feature-name> <value>)", expression: expression.clone() });
-        };
-        if feature_defined.contains(key) {
-            return Err(IllegalRepetition { kind: "feature name", value: key.to_string() });
-        }
-        feature_defined.insert(key.to_string());
-        match key {
-            "iterations-per-frame" => {
-                let Expression::Integer(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(iterations-per-frame <integer>)", expression: expression.clone() });
-                };
-                features.iterations_per_frame = Some(*value as u32);
-            }
-            "visual-strain" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(visual-strain <percent>)", expression: expression.clone() });
-                };
-                features.visual_strain = Some(*value);
-            }
-            "gravity" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(gravity <percent>)", expression: expression.clone() });
-                };
-                features.gravity = Some(*value);
-            }
-            "pretenst-factor" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(pretenst-factor <percent>)", expression: expression.clone() });
-                };
-                features.pretenst_factor = Some(*value);
-            }
-            "stiffness-factor" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(stiffness-factor <percent>)", expression: expression.clone() });
-                };
-                features.stiffness_factor = Some(*value);
-            }
-            "push-over-pull" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(push-over-pull <percent>)", expression: expression.clone() });
-                };
-                features.push_over_pull = Some(*value);
-            }
-            "viscosity" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(viscosity <percent>)", expression: expression.clone() });
-                };
-                features.viscosity = Some(*value);
-            }
-            "shaping-pretenst-factor" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(shaping-pretenst-factor <percent>)", expression: expression.clone() });
-                };
-                features.shaping_pretenst_factor = Some(*value);
-            }
-            "shaping-viscosity" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(shaping-viscosity <percent>)", expression: expression.clone() });
-                };
-                features.shaping_viscosity = Some(*value);
-            }
-            "shaping-stiffness-factor" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(shaping-stiffness-factor <percent>)", expression: expression.clone() });
-                };
-                features.shaping_stiffness_factor = Some(*value);
-            }
-            "antigravity" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(antigravity <percent>)", expression: expression.clone() });
-                };
-                features.antigravity = Some(*value);
-            }
-            "interval-countdown" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(interval-countdown <percent>)", expression: expression.clone() });
-                };
-                features.interval_countdown = Some(*value);
-            }
-            "pretensing-countdown" => {
-                let Expression::Percent(value) = val else {
-                    return Err(Mismatch { rule: "features", expected: "(pretensing-countdown <percent>)", expression: expression.clone() });
-                };
-                features.pretensing_countdown = Some(*value);
-            }
-            _ => return Err(BadCall { context: "features", expected: "legal feature name", expression: expression.clone() }),
-        }
-    }
-    Ok(())
-}
 
