@@ -14,7 +14,7 @@ const ROOT6: f32 = 2.449_489_8;
 const PHI: f32 = (1f32 + ROOT5) / 2f32;
 
 impl Fabric {
-    pub fn single_twist(&mut self, spin: Spin, pretenst_factor: f32, scale_factor: f32, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
+    pub fn single_twist(&mut self, spin: Spin, pretenst_factor: f32, scale_factor: f32, face_id: Option<UniqueId>) -> [(FaceName, UniqueId); 2] {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
         let base = self.base_triangle(face);
@@ -48,10 +48,10 @@ impl Fabric {
             self.create_interval(alpha, omega, Link::Pull { ideal: ROOT3 * scale });
         }
         if let Some(id) = face_id { self.faces_to_loop(id, a_minus_face) }
-        vec![(Aneg, a_minus_face), (Apos, a_plus_face)]
+        [(Aneg, a_minus_face), (Apos, a_plus_face)]
     }
 
-    pub fn double_twist(&mut self, spin: Spin, pretenst_factor: f32, scale_factor: f32, face_id: Option<UniqueId>) ->  Vec<(FaceName, UniqueId)>  {
+    pub fn double_twist(&mut self, spin: Spin, pretenst_factor: f32, scale_factor: f32, face_id: Option<UniqueId>) -> [(FaceName, UniqueId); 8] {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
         let base = self.base_triangle(face);
@@ -102,7 +102,7 @@ impl Fabric {
                 (name, face)
             });
         if let Some(id) = face_id { self.faces_to_loop(id, faces[0].1) }
-        faces.to_vec()
+        faces
     }
 
     pub fn triangulate_faces(&mut self) {
