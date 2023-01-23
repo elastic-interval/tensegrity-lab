@@ -37,7 +37,6 @@ impl Fabric {
             .iter()
             .enumerate()
             .map(|(index, joint)| JointIncident::new(index, joint.location)).collect();
-
         for interval @ Interval { alpha_index, omega_index, .. } in self.interval_values() {
             incidents[*alpha_index].add(interval);
             incidents[*omega_index].add(interval);

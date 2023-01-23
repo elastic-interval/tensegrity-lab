@@ -4,17 +4,16 @@ use crate::build::tenscript::error::Error;
 use crate::build::tenscript::expression::ErrorKind::{ConsumeFailed, MatchExhausted};
 use crate::build::tenscript::scanner;
 use crate::build::tenscript::scanner::{ScannedToken, Token};
-use crate::build::tenscript::scanner::Token::{Atom, EOF, Float, Ident, Integer, Paren, Percent};
+use crate::build::tenscript::scanner::Token::{*};
 
 #[derive(Clone)]
 pub enum Expression {
-    List(Vec<Expression>),
-    Ident(String),
     Atom(String),
-    String(String),
-    Integer(i64),
-    Float(f32),
-    Percent(f32),
+    FloatingPoint(f32),
+    Identifier(String),
+    List(Vec<Expression>),
+    QuotedString(String),
+    WholeNumber(usize),
 }
 
 impl Debug for Expression {
@@ -37,12 +36,11 @@ impl Display for Expression {
                 f.write_str(")")?;
                 Ok(())
             }
-            Expression::Ident(name) => write!(f, "{name}"),
+            Expression::Identifier(name) => write!(f, "{name}"),
             Expression::Atom(value) => write!(f, ":{value}"),
-            Expression::String(value) => write!(f, "\"{value}\""),
-            Expression::Percent(value) => write!(f, "{value}%"),
-            Expression::Float(value) => write!(f, "{value}"),
-            Expression::Integer(value) => write!(f, "{value}"),
+            Expression::QuotedString(value) => write!(f, "\"{value}\""),
+            Expression::FloatingPoint(value) => write!(f, "{value}"),
+            Expression::WholeNumber(value) => write!(f, "{value}"),
         }
     }
 }
@@ -60,7 +58,11 @@ pub enum ErrorKind {
 }
 
 pub fn parse(source: &str) -> Result<Expression, Error> {
-    let tokens = scanner::scan(source)?;
+    let lines: Vec<&str> = source.split('\n')
+        .map(|line| line.trim())
+        .filter(|line| !line.starts_with(';'))
+        .collect();
+    let tokens = scanner::scan(lines.join("").as_str())?;
     parse_tokens(tokens)
 }
 
@@ -101,25 +103,24 @@ impl Parser {
         let token = self.current().clone();
         self.increment();
         match token {
-            Paren('(') => self.list(),
-            Ident(name) => Ok(Expression::Ident(name)),
-            Float(value) => Ok(Expression::Float(value)),
-            Integer(value) => Ok(Expression::Integer(value)),
-            Percent(value) => Ok(Expression::Percent(value)),
             Atom(value) => Ok(Expression::Atom(value)),
-            Token::String(value) => Ok(Expression::String(value)),
+            FloatingPoint(value) => Ok(Expression::FloatingPoint(value)),
+            Identifier(name) => Ok(Expression::Identifier(name)),
+            Parenthesis('(') => self.list(),
+            QuotedString(value) => Ok(Expression::QuotedString(value)),
+            WholeNumber(value) => Ok(Expression::WholeNumber(value)),
             _ => Err(MatchExhausted),
         }
     }
 
     fn list(&mut self) -> Result<Expression, ErrorKind> {
         let mut terms = Vec::new();
-        while !matches!(self.current(), Paren(')') | EOF) {
+        while !matches!(self.current(), Parenthesis(')') | EndOfFile) {
             let term = self.expression()?;
             terms.push(term);
         }
-        let Paren(')') = self.current() else {
-            return Err(ConsumeFailed { expected: "right paren" });
+        let Parenthesis(')') = self.current() else {
+            return Err(ConsumeFailed { expected: "right bracket" });
         };
         self.increment();
         Ok(Expression::List(terms))
