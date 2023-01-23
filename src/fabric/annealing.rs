@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
 use cgmath::{MetricSpace, Point3};
@@ -98,9 +99,11 @@ impl Path {
         }
     }
 
-    fn to_hexagon(&self) -> Option<[usize; 6]> {
-        (self.joint_indices.len() == 6 && self.cycle)
-            .then_some(self.joint_indices.clone().try_into().unwrap())
+    fn to_hexagon(&self) -> Option<Hexagon> {
+        if self.joint_indices.len() != 6 || !self.cycle {
+            return None;
+        }
+        Some(Hexagon::new(self.joint_indices.clone().try_into().unwrap()))
     }
 }
 
@@ -149,10 +152,49 @@ impl MeasurePair {
     }
 }
 
+struct Hexagon {
+    key: [usize; 6],
+    joints: [usize; 6],
+}
+
+impl Hexagon {
+    fn new(joints: [usize; 6]) -> Self {
+        let mut key = joints;
+        key.sort();
+        Self { key, joints }
+    }
+
+    fn diagonals(&self, joints: &[JointIncident]) -> [(usize, usize, f32, bool); 3] {
+        let mut diagonals: Vec<(usize, usize, f32, bool)> = (0..3)
+            .map(|index| {
+                let other_index = (index + 3) % self.joints.len();
+                let (alpha_index, omega_index) = (self.joints[index], self.joints[other_index]);
+                let (alpha, omega) = (&joints[alpha_index], &joints[omega_index]);
+                let distance = alpha.location.distance(omega.location);
+                let push = match (alpha.push.clone(), omega.push.clone()) {
+                    (Some(a), Some(b)) => a.key() == b.key(),
+                    _ => false,
+                };
+                (alpha_index, omega_index, distance, push)
+            })
+            .collect();
+        diagonals.sort_by(|(_, _, a, push_a), (_, _, b, push_b)| {
+            if *push_a {
+                return Ordering::Less;
+            }
+            if *push_b {
+                return Ordering::Greater;
+            }
+            a.partial_cmp(b).unwrap()
+        });
+        diagonals.try_into().unwrap()
+    }
+}
+
 struct PairGenerator {
     joints: Vec<JointIncident>,
     intervals: HashSet<(usize, usize)>,
-    hexagons: HashMap<[usize; 6], [usize; 6]>,
+    hexagons: HashMap<[usize; 6], Hexagon>,
     pairs: HashMap<(usize, usize), MeasurePair>,
 }
 
@@ -178,18 +220,9 @@ impl PairGenerator {
                     self.add_hexagons_for(joint);
                 }
                 for hexagon in self.hexagons.values() {
-                    let mut diagonals: Vec<(usize, usize, f32)> = (0..3)
-                        .map(|index| {
-                            let other_index = (index + 3) % hexagon.len();
-                            let (alpha_index, omega_index) = (hexagon[index], hexagon[other_index]);
-                            let distance = self.joints[alpha_index].location.distance(self.joints[omega_index].location);
-                            (alpha_index, omega_index, distance)
-                        })
-                        .collect();
-                    diagonals.sort_by(|(_, _, a), (_, _, b)| a.partial_cmp(b).unwrap());
-                    let (short, long1, long2) = (diagonals[0].2, diagonals[1].2, diagonals[2].2);
-                    if (long1 + long2) / 2.0 > short * 1.3 {
-                        let (alpha_index, omega_index, length) = diagonals[0];
+                    let [(_, _, _, push), (alpha_index, omega_index, length, _), _] =
+                        hexagon.diagonals(&self.joints);
+                    if push {
                         let pair = MeasurePair { alpha_index, omega_index, length };
                         self.pairs.insert(pair.key(), pair);
                     }
@@ -239,9 +272,7 @@ impl PairGenerator {
             return;
         }
         for hexagon in self.hexagons(joint.index) {
-            let mut key = hexagon;
-            key.sort();
-            self.hexagons.insert(key, hexagon);
+            self.hexagons.insert(hexagon.key, hexagon);
         }
     }
 
@@ -253,7 +284,7 @@ impl PairGenerator {
         }
     }
 
-    fn hexagons(&self, joint_index: usize) -> Vec<[usize; 6]> {
+    fn hexagons(&self, joint_index: usize) -> Vec<Hexagon> {
         let collection = vec![Path { joint_indices: vec![joint_index], cycle: false }];
         self.paths_via_pulls(&collection, 1, 7)
             .iter()
