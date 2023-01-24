@@ -37,7 +37,7 @@ pub struct Material {
     pub mass: f32,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Interval {
     pub alpha_index: usize,
     pub omega_index: usize,
@@ -140,5 +140,21 @@ impl Interval {
         } else {
             panic!()
         }
+    }
+
+    pub fn joint_with(&self, Interval { alpha_index, omega_index, .. }: &Interval) -> Option<usize> {
+        if self.alpha_index == *alpha_index || self.alpha_index == *omega_index {
+            Some(self.alpha_index)
+        } else if self.omega_index == *alpha_index || self.omega_index == *omega_index {
+            Some(self.omega_index)
+        } else {
+            None
+        }
+    }
+}
+
+impl PartialEq for Interval {
+    fn eq(&self, other: &Self) -> bool {
+        self.key() == other.key()
     }
 }
