@@ -40,23 +40,6 @@ pub fn parse(source: &str) -> Result<FabricPlan, Error> {
         .map_err(|kind| Error::ParseError(ParseError { kind }))
 }
 
-// macro_rules! expect_enum {
-//         ($value:expr, { $($name:pat => $enum_val:expr,)+ }) => {
-//             {
-//                 let expected = stringify!($($name)|+);
-//                 let $crate::build::tenscript::expression::Expression::Atom(ref name) = $value else {
-//                     return Err($crate::build::tenscript::parser::ErrorKind::TypeError { expected, expression: $value.clone() })
-//                 };
-//                 match name.as_str() {
-//                     $(
-//                         $name => $enum_val,
-//                     )+
-//                     _ => return Err($crate::build::tenscript::parser::ErrorKind::TypeError { expected, expression: $value.clone() })
-//                 }
-//             }
-//         }
-//     }
-
 struct Call<'a> {
     head: &'a str,
     tail: &'a [Expression],
