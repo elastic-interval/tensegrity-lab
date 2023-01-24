@@ -113,7 +113,7 @@ impl Growth {
         if !forward.is_empty() {
             let faces = fabric.single_twist(spin, self.pretenst_factor, scale_factor, Some(face_id));
             buds.push(Bud {
-                face_id: Growth::find_face_id(Apos, faces),
+                face_id: Growth::find_face_id(Apos, faces.to_vec()),
                 forward: forward[1..].into(),
                 scale_factor,
                 node,
@@ -138,7 +138,7 @@ impl Growth {
                 let face_id = match launch {
                     Seeded { seed } => {
                         let faces = fabric.single_twist(seed.spin(), self.pretenst_factor, *scale_factor, None);
-                        return self.execute_node(fabric, NamedFace { face_name: Apos }, node, faces);
+                        return self.execute_node(fabric, NamedFace { face_name: Apos }, node, faces.to_vec());
                     }
                     NamedFace { face_name } => Growth::find_face_id(face_name, faces),
                     IdentifiedFace { face_id } => face_id,
@@ -162,9 +162,9 @@ impl Growth {
                     }
                 };
                 let twist_faces = if needs_double {
-                    fabric.double_twist(spin, self.pretenst_factor, 1.0, face_id)
+                    fabric.double_twist(spin, self.pretenst_factor, 1.0, face_id).to_vec()
                 } else {
-                    fabric.single_twist(spin, self.pretenst_factor, 1.0, face_id)
+                    fabric.single_twist(spin, self.pretenst_factor, 1.0, face_id).to_vec()
                 };
                 for (face_name, node) in pairs {
                     let (new_buds, new_marks) =
@@ -191,9 +191,9 @@ impl Growth {
             ShaperSpec::Join { mark_name } => {
                 let faces = self.marked_faces(mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
-                match joints.len() {
-                    2 => {
-                        let interval = fabric.create_interval(joints[0], joints[1], Link::Pull { ideal: 0.3 });
+                match joints.as_slice() {
+                    &[alpha_index, omega_index] => {
+                        let interval = fabric.create_interval(alpha_index, omega_index, Link::Pull { ideal: 0.3 });
                         shapers.push(Shaper { interval, alpha_face: faces[0], omega_face: faces[1], join: true })
                     }
                     _ => unimplemented!()
