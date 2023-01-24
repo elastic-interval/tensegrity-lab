@@ -245,6 +245,7 @@ pub struct UniqueId {
     pub id: usize,
 }
 
+#[derive(Clone, Debug, Copy)]
 pub enum Link {
     Push { ideal: f32 },
     Pull { ideal: f32 },

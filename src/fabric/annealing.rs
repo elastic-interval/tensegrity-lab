@@ -1,31 +1,27 @@
-use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
 use cgmath::{MetricSpace, Point3};
 use crate::fabric::{Fabric, Link};
 use crate::fabric::interval::{Interval, Role};
 
-pub enum PairStrategy {
-    PushProximity,
-    BowTie,
-}
-
 impl Fabric {
-    pub fn install_measures(&mut self, pair_strategy: PairStrategy) {
-        let measures = PairGenerator::new(self.joint_incident(), self.interval_keys());
-        for MeasurePair { alpha_index, omega_index, length } in measures.generate_pairs(pair_strategy) {
-            self.create_interval(alpha_index, omega_index, Link::Measure { length });
+    pub fn install_bow_ties(&mut self) {
+        let pairs = PairGenerator::new(self.joint_incident(), self.interval_map());
+        for Pair { alpha_index, omega_index, link } in pairs.bow_tie_pulls() {
+            self.create_interval(alpha_index, omega_index, link);
+        }
+    }
+
+    pub fn install_measures(&mut self) {
+        let pairs = PairGenerator::new(self.joint_incident(), self.interval_map());
+        for Pair { alpha_index, omega_index, link } in pairs.proximity_measures() {
+            self.create_interval(alpha_index, omega_index, link);
         }
     }
 
     pub fn max_measure_strain(&self) -> f32 {
         self.interval_measures()
-            .map(|Interval { strain, .. }| {
-                if strain > &1.0 {
-                    panic!("Strain {strain}")
-                }
-                strain
-            })
+            .map(|Interval { strain, .. }| strain)
             .max_by(|a, b| a.partial_cmp(b).unwrap())
             .cloned()
             .unwrap_or(0.0)
@@ -55,12 +51,12 @@ impl Fabric {
         incidents
     }
 
-    fn interval_keys(&self) -> HashSet<(usize, usize)> {
-        let mut set = HashSet::new();
+    fn interval_map(&self) -> HashMap<(usize, usize), Interval> {
+        let mut hashmap = HashMap::new();
         for interval in self.interval_values() {
-            set.insert(interval.key());
+            hashmap.insert(interval.key(), *interval);
         }
-        set
+        hashmap
     }
 }
 
@@ -71,40 +67,6 @@ struct JointIncident {
     push: Option<Interval>,
     pulls: Vec<Interval>,
     adjacent_joints: HashSet<usize>,
-}
-
-#[derive(Debug, Clone)]
-struct Path {
-    joint_indices: Vec<usize>,
-    cycle: bool,
-}
-
-impl Path {
-    fn add(&self, joint_index: usize) -> Option<Path> {
-        if self.cycle {
-            return None;
-        }
-        if self.joint_indices.contains(&joint_index) {
-            if self.joint_indices.first().unwrap() == &joint_index {
-                let mut fresh = self.clone();
-                fresh.cycle = true;
-                Some(fresh)
-            } else {
-                None
-            }
-        } else {
-            let mut fresh = self.clone();
-            fresh.joint_indices.push(joint_index);
-            Some(fresh)
-        }
-    }
-
-    fn to_hexagon(&self) -> Option<Hexagon> {
-        if self.joint_indices.len() != 6 || !self.cycle {
-            return None;
-        }
-        Some(Hexagon::new(self.joint_indices.clone().try_into().unwrap()))
-    }
 }
 
 impl JointIncident {
@@ -120,29 +82,85 @@ impl JointIncident {
 
     fn add_interval(&mut self, interval: &Interval) {
         match interval.role {
-            Role::Push => self.push = Some(interval.clone()),
-            Role::Pull => self.pulls.push(interval.clone()),
+            Role::Push => self.push = Some(*interval),
+            Role::Pull => self.pulls.push(*interval),
             Role::Measure => panic!("Should be no measures yet"),
         }
         self.adjacent_joints.insert(interval.other_joint(self.index));
     }
 
-    fn pull_steps(&self, path: &Path) -> Vec<Path> {
+    fn extended_paths(&self, path: &Path) -> Vec<Path> {
         self.pulls
             .iter()
-            .flat_map(|pull| path.add(pull.other_joint(self.index)))
+            .flat_map(|pull| path.add(*pull))
             .collect()
+    }
+
+    fn across_push(&self) -> Option<usize> {
+        self.push.map(|push| push.other_joint(self.index))
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Path {
+    joint_indices: Vec<usize>,
+    intervals: Vec<Interval>,
+}
+
+impl Path {
+    fn new(joint_index: usize, interval: Interval) -> Self {
+        Self { joint_indices: vec![joint_index], intervals: vec![interval] }
+    }
+
+    fn add(&self, interval: Interval) -> Option<Path> {
+        if self.is_cycle() {
+            return None;
+        }
+        let last_joint = self.last().joint_with(&interval)?;
+        let mut path = self.clone();
+        path.joint_indices.push(last_joint);
+        path.intervals.push(interval);
+        Some(path)
+    }
+
+    fn is_cycle(&self) -> bool {
+        self.first_joint() == self.last_joint()
+    }
+
+    fn first(&self) -> &Interval {
+        self.intervals.first().unwrap()
+    }
+
+    fn last(&self) -> &Interval {
+        self.intervals.last().unwrap()
+    }
+
+    fn first_joint(&self) -> usize {
+        self.joint_indices[0]
+    }
+
+    fn last_joint(&self) -> usize {
+        self.last().other_joint(self.joint_indices[self.joint_indices.len() - 1])
+    }
+
+    fn hexagon_key(&self) -> Option<[usize; 6]> {
+        if self.joint_indices.len() != 6 || !self.is_cycle() {
+            return None;
+        }
+        let mut key: [usize; 6] = self.joint_indices.clone().try_into().unwrap();
+        key.sort();
+        Some(key)
     }
 }
 
 #[derive(Debug)]
-struct MeasurePair {
+struct Pair {
     alpha_index: usize,
     omega_index: usize,
-    length: f32,
+    link: Link,
 }
 
-impl MeasurePair {
+impl Pair {
     fn key(&self) -> (usize, usize) {
         if self.alpha_index < self.omega_index {
             (self.alpha_index, self.omega_index)
@@ -152,156 +170,134 @@ impl MeasurePair {
     }
 }
 
-struct Hexagon {
-    key: [usize; 6],
-    joints: [usize; 6],
-}
-
-impl Hexagon {
-    fn new(joints: [usize; 6]) -> Self {
-        let mut key = joints;
-        key.sort();
-        Self { key, joints }
-    }
-
-    fn diagonals(&self, joints: &[JointIncident]) -> [(usize, usize, f32, bool); 3] {
-        let mut diagonals: Vec<(usize, usize, f32, bool)> = (0..3)
-            .map(|index| {
-                let other_index = (index + 3) % self.joints.len();
-                let (alpha_index, omega_index) = (self.joints[index], self.joints[other_index]);
-                let (alpha, omega) = (&joints[alpha_index], &joints[omega_index]);
-                let distance = alpha.location.distance(omega.location);
-                let push = match (alpha.push.clone(), omega.push.clone()) {
-                    (Some(a), Some(b)) => a.key() == b.key(),
-                    _ => false,
-                };
-                (alpha_index, omega_index, distance, push)
-            })
-            .collect();
-        diagonals.sort_by(|(_, _, a, push_a), (_, _, b, push_b)| {
-            if *push_a {
-                return Ordering::Less;
-            }
-            if *push_b {
-                return Ordering::Greater;
-            }
-            a.partial_cmp(b).unwrap()
-        });
-        diagonals.try_into().unwrap()
-    }
-}
-
 struct PairGenerator {
     joints: Vec<JointIncident>,
-    intervals: HashSet<(usize, usize)>,
-    hexagons: HashMap<[usize; 6], Hexagon>,
-    pairs: HashMap<(usize, usize), MeasurePair>,
+    intervals: HashMap<(usize, usize), Interval>,
+    pairs: HashMap<(usize, usize), Pair>,
 }
 
 impl PairGenerator {
-    fn new(joints: Vec<JointIncident>, intervals: HashSet<(usize, usize)>) -> Self {
+    fn new(joints: Vec<JointIncident>, intervals: HashMap<(usize, usize), Interval>) -> Self {
         Self {
             joints,
             intervals,
-            hexagons: HashMap::new(),
             pairs: HashMap::new(),
         }
     }
 
-    fn generate_pairs(mut self, pair_strategy: PairStrategy) -> impl Iterator<Item=MeasurePair> {
-        match pair_strategy {
-            PairStrategy::PushProximity => {
-                for joint in self.joints.clone() {
-                    self.push_proximity(joint);
-                }
-            }
-            PairStrategy::BowTie => {
-                for joint in self.joints.clone() {
-                    self.add_hexagons_for(joint);
-                }
-                for hexagon in self.hexagons.values() {
-                    let [(_, _, _, push), (alpha_index, omega_index, length, _), _] =
-                        hexagon.diagonals(&self.joints);
-                    if push {
-                        let pair = MeasurePair { alpha_index, omega_index, length };
-                        self.pairs.insert(pair.key(), pair);
-                    }
-                }
-            }
+    fn proximity_measures(mut self) -> impl Iterator<Item=Pair> {
+        for joint in 0..self.joints.len() {
+            self.push_proximity(joint);
         }
         self.pairs.into_values()
     }
 
-    fn push_proximity(&mut self, joint: JointIncident) {
-        let Some(push) = &joint.push else {
+    fn push_proximity(&mut self, joint_index: usize) {
+        let Some(push) = &self.joints[joint_index].push else {
             return;
         };
         let length_limit = push.ideal();
-        let two_steps: HashSet<_> = joint.adjacent_joints
+        let two_steps: HashSet<_> = self.joints[joint_index].adjacent_joints
             .iter()
             .flat_map(|&adjacent| self.joints[adjacent].adjacent_joints.iter())
             .collect();
         let new_pairs = self.joints
             .iter()
             .filter_map(|other_joint| {
-                if joint.index == other_joint.index {
+                if joint_index == other_joint.index {
                     return None;
                 }
-                if joint.adjacent_joints.contains(&other_joint.index) {
+                if self.joints[joint_index].adjacent_joints.contains(&other_joint.index) {
                     return None;
                 }
                 if two_steps.contains(&other_joint.index) {
                     return None;
                 }
-                let length = joint.location.distance(other_joint.location);
+                let length = self.joints[joint_index].location.distance(other_joint.location);
                 if length > length_limit {
                     return None;
                 }
-                Some(MeasurePair {
-                    alpha_index: joint.index,
+                Some(Pair {
+                    alpha_index: joint_index,
                     omega_index: other_joint.index,
-                    length,
+                    link: Link::Measure { length },
                 })
             })
             .map(|pair| (pair.key(), pair));
         self.pairs.extend(new_pairs);
     }
 
-    fn add_hexagons_for(&mut self, joint: JointIncident) {
-        if joint.push.is_none() {
-            return;
+    fn bow_tie_pulls(mut self) -> impl Iterator<Item=Pair> {
+        for interval in self.intervals.values() {
+            if interval.role != Role::Push {
+                continue;
+            }
+            let mut meeting_pairs: Vec<(Path, Path)> = vec![];
+            for alpha_path in self.paths_for(interval.alpha_index, 2) {
+                for omega_path in self.paths_for(interval.omega_index, 2) {
+                    if alpha_path.last() == omega_path.last() { // second one is the bridge
+                        meeting_pairs.push((alpha_path.clone(), omega_path.clone()))
+                    }
+                }
+            }
+            let [(alpha1, omega1), (alpha2, omega2)] = meeting_pairs.as_slice() else {
+                continue;
+            };
+            let diagonals = [
+                (alpha1.last_joint(), omega2.last_joint()),
+                (alpha2.last_joint(), omega1.last_joint())
+            ];
+            let candidates: Vec<(usize, usize)> = diagonals
+                .iter()
+                .filter_map(|&(a, b)| {
+                    match (self.joints[a].across_push(), self.joints[b].across_push()) {
+                        (Some(joint_a), Some(joint_b)) => {
+                            (!self.interval_exists(joint_a, joint_b)).then_some((a, b))
+                        }
+                        _ => None
+                    }
+                })
+                .collect();
+            if let &[(alpha_index, omega_index)] = candidates.as_slice() {
+                let link = Link::Pull {ideal: interval.ideal() / 3.0};
+                let pair = Pair { alpha_index, omega_index, link};
+                self.pairs.insert(pair.key(), pair);
+            }
         }
-        for hexagon in self.hexagons(joint.index) {
-            self.hexagons.insert(hexagon.key, hexagon);
-        }
+        self.pairs.into_values()
     }
 
     fn interval_exists(&self, a: usize, b: usize) -> bool {
         if a < b {
-            self.intervals.contains(&(a, b))
+            self.intervals.contains_key(&(a, b))
         } else {
-            self.intervals.contains(&(b, a))
+            self.intervals.contains_key(&(b, a))
         }
     }
 
-    fn hexagons(&self, joint_index: usize) -> Vec<Hexagon> {
-        let collection = vec![Path { joint_indices: vec![joint_index], cycle: false }];
-        self.paths_via_pulls(&collection, 1, 7)
-            .iter()
-            .flat_map(|path| path.to_hexagon())
-            .collect()
+    fn get_interval(&self, a: usize, b: usize) -> Option<&Interval> {
+        if a < b {
+            self.intervals.get(&(a, b))
+        } else {
+            self.intervals.get(&(b, a))
+        }
     }
 
-    fn paths_via_pulls(&self, collection: &[Path], size: usize, max_size: usize) -> Vec<Path> {
+    fn paths_for(&self, joint_index: usize, max_size: usize) -> Vec<Path> {
+        let paths: Vec<Path> = self.joints[joint_index].pulls
+            .iter()
+            .map(|pull| Path::new(joint_index, *pull))
+            .collect();
+        self.paths_via_pulls(&paths, 1, max_size)
+    }
+
+    fn paths_via_pulls(&self, paths: &[Path], size: usize, max_size: usize) -> Vec<Path> {
         if size == max_size {
-            collection.to_vec()
+            paths.to_vec()
         } else {
-            let bigger: Vec<Path> = collection
+            let bigger: Vec<Path> = paths
                 .iter()
-                .flat_map(|path| {
-                    let last = path.joint_indices.last().unwrap();
-                    self.joints[*last].pull_steps(path)
-                })
+                .flat_map(|path| self.joints[path.last_joint()].extended_paths(path))
                 .collect();
             self.paths_via_pulls(&bigger, size + 1, max_size)
         }
