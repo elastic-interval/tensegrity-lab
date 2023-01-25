@@ -188,8 +188,7 @@ impl Scene {
         let strain_threshold = controls.strain_threshold(fabric.max_measure_strain());
         self.fabric_drawing.vertices.clear();
         self.fabric_drawing.vertices.extend(fabric.interval_values()
-            .filter(|Interval { strain, role, .. }| *role != Measure || *strain > strain_threshold)
-            .flat_map(|interval| FabricVertex::for_interval(interval, fabric)));
+            .flat_map(|interval| FabricVertex::for_interval(interval, fabric, strain_threshold)));
         self.camera.target_approach(fabric.midpoint());
         (strain_threshold > 0.0).then_some(Message::StrainThreshold(strain_threshold))
     }
@@ -224,12 +223,15 @@ struct FabricVertex {
 }
 
 impl FabricVertex {
-    pub fn for_interval(interval: &Interval, fabric: &Fabric) -> [FabricVertex; 2] {
+    pub fn for_interval(interval: &Interval, fabric: &Fabric, strain_threshold: f32) -> [FabricVertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
         let color = match interval.role {
             Push => [1.0, 1.0, 1.0, 1.0],
             Pull => [0.2, 0.2, 1.0, 1.0],
-            Measure => [0.0, 0.5, 0.0, 1.0],
+            Measure => {
+                let green = if interval.strain > strain_threshold { 1.0 } else { 0.2 };
+                [0.0, green, 0.0, 1.0]
+            },
         };
         [
             FabricVertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color },

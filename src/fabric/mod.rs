@@ -98,7 +98,7 @@ impl Fabric {
                 Interval::new(alpha_index, omega_index, Pull, self.push_material, Approaching { initial, length: ideal })
             }
             Link::PullStiffness { ideal, stiffness_factor } => {
-                let mut material = self.pull_material.clone();
+                let mut material = self.pull_material;
                 material.stiffness *= stiffness_factor;
                 Interval::new(alpha_index, omega_index, Pull, material, Approaching { initial, length: ideal })
             }
@@ -245,6 +245,7 @@ pub struct UniqueId {
     pub id: usize,
 }
 
+#[derive(Clone, Debug, Copy)]
 pub enum Link {
     Push { ideal: f32 },
     Pull { ideal: f32 },

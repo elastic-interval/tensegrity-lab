@@ -69,8 +69,8 @@ impl PlanRunner {
             Completed => Completed,
         };
         let countdown = match next_stage {
-            GrowApproach => 1500,
-            GrowCalm => 1500,
+            GrowApproach => 1000,
+            GrowCalm => 1000,
             ShapingApproach => 30000,
             ShapedApproach => 5000,
             ShapingCalm => 50000,

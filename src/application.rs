@@ -134,11 +134,14 @@ pub fn run() {
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                         app.resize(**new_inner_size);
                     }
-                    WindowEvent::KeyboardInput { input, .. } => {
-                        match input.virtual_keycode {
+                    WindowEvent::KeyboardInput { input: KeyboardInput { virtual_keycode, state, .. }, .. } => {
+                        match virtual_keycode {
                             #[cfg(target_arch = "wasm32")]
                             Some(VirtualKeyCode::F) => {
                                 fullscreen_web();
+                            }
+                            Some(VirtualKeyCode::Space) if *state == ElementState::Pressed => {
+                                experiment.toggle_pause();
                             }
                             _ => {}
                         }
