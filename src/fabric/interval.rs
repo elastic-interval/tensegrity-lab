@@ -152,9 +152,3 @@ impl Interval {
         }
     }
 }
-
-impl PartialEq for Interval {
-    fn eq(&self, other: &Self) -> bool {
-        self.key() == other.key()
-    }
-}
