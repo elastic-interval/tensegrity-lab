@@ -140,7 +140,7 @@ pub fn run() {
                             Some(VirtualKeyCode::F) => {
                                 fullscreen_web();
                             }
-                            Some(VirtualKeyCode::Space) if state == &ElementState::Pressed => {
+                            Some(VirtualKeyCode::Space) if *state == ElementState::Pressed => {
                                 experiment.toggle_pause();
                             }
                             _ => {}
