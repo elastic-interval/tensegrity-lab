@@ -103,6 +103,8 @@ impl Growth {
             self.complete_shaper(fabric, shaper)
         }
         self.shapers.clear();
+        // todo: make the following actions depend on the plan
+        // fabric.install_bow_ties();
     }
 
     fn execute_bud(&self, fabric: &mut Fabric, Bud { face_id, forward, scale_factor, node }: Bud) -> (Vec<Bud>, Vec<PostMark>) {
@@ -190,10 +192,10 @@ impl Growth {
             ShaperSpec::Join { mark_name } => {
                 let faces = self.marked_faces(mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
-                match joints.as_slice() {
-                    &[alpha_index, omega_index] => {
+                match (joints.as_slice(), faces.as_slice()) {
+                    (&[alpha_index, omega_index], &[alpha_face, omega_face]) => {
                         let interval = fabric.create_interval(alpha_index, omega_index, Link::Pull { ideal: 0.3 });
-                        shapers.push(Shaper { interval, alpha_face: faces[0], omega_face: faces[1], join: true })
+                        shapers.push(Shaper { interval, alpha_face, omega_face, join: true })
                     }
                     _ => unimplemented!()
                 }
@@ -201,11 +203,11 @@ impl Growth {
             ShaperSpec::Distance { mark_name, distance_factor } => {
                 let faces = self.marked_faces(mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
-                match joints.len() {
-                    2 => {
-                        let length = fabric.joints[0].location.distance(fabric.joints[1].location) * distance_factor;
-                        let interval = fabric.create_interval(joints[0], joints[1], Link::Pull { ideal: length });
-                        shapers.push(Shaper { interval, alpha_face: faces[0], omega_face: faces[1], join: false })
+                match (joints.as_slice(), faces.as_slice()) {
+                    (&[alpha_index, omega_index], &[alpha_face, omega_face]) => {
+                        let length = fabric.joints[alpha_index].location.distance(fabric.joints[omega_index].location) * distance_factor;
+                        let interval = fabric.create_interval(alpha_index, omega_index, Link::Pull { ideal: length });
+                        shapers.push(Shaper { interval, alpha_face, omega_face, join: false })
                     }
                     _ => println!("Wrong number of faces for mark {mark_name}"),
                 }

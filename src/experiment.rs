@@ -17,6 +17,7 @@ pub struct Experiment {
     camera_jump: Option<Vector3<f32>>,
     frozen_fabric: Option<Fabric>,
     iterations_per_frame: usize,
+    paused: bool,
     stage: Stage,
     add_pulls: Option<f32>,
 }
@@ -29,6 +30,7 @@ impl Default for Experiment {
             camera_jump: None,
             frozen_fabric: None,
             iterations_per_frame: 100,
+            paused: false,
             stage: RunningPlan,
             add_pulls: None,
         }
@@ -37,6 +39,9 @@ impl Default for Experiment {
 
 impl Experiment {
     pub fn iterate(&mut self) {
+        if self.paused {
+            return;
+        }
         match self.stage {
             RunningPlan => {
                 for _ in 0..self.iterations_per_frame {
@@ -80,6 +85,10 @@ impl Experiment {
         }
     }
 
+    pub fn toggle_pause(&mut self) {
+        self.paused = !self.paused;
+    }
+
     pub fn camera_jump(&mut self) -> Option<Vector3<f32>> {
         self.camera_jump.take()
     }
@@ -94,7 +103,6 @@ impl Experiment {
 
     fn start_pretensing(&mut self) {
         self.frozen_fabric = Some(self.fabric.clone());
-        self.fabric.install_measures();
         self.fabric.progress.start(20000);
         self.stage = Pretensing;
     }
