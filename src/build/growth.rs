@@ -104,8 +104,7 @@ impl Growth {
         }
         self.shapers.clear();
         // todo: make the following actions depend on the plan
-        fabric.triangulate_faces();
-        fabric.install_bow_ties();
+        // fabric.install_bow_ties();
     }
 
     fn execute_bud(&self, fabric: &mut Fabric, Bud { face_id, forward, scale_factor, node }: Bud) -> (Vec<Bud>, Vec<PostMark>) {
