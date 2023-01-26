@@ -24,7 +24,11 @@
         (face :D- (grow 11 (scale .92) (mark :halo-end))))
       )
     )
-  (shape (join :halo-end)))
+  (shape
+    (join :halo-end)
+    (finally :bow-tie-pulls)
+    (finally :faces-to-triangles)
+    ))
 ;;;Zig Zag
 (fabric
   (build

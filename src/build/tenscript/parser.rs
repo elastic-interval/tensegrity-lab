@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use crate::build::tenscript::{FabricPlan, FaceName, Seed, ShaperSpec, SurfaceCharacterSpec, TenscriptNode};
+use crate::build::tenscript::{FabricPlan, FaceName, PostShapeOperation, Seed, ShaperSpec, SurfaceCharacterSpec, TenscriptNode};
 use crate::build::tenscript::error::Error;
 use crate::build::tenscript::expression;
 use crate::build::tenscript::expression::Expression;
@@ -130,13 +130,26 @@ fn shape(FabricPlan { shape_phase, .. }: &mut FabricPlan, expressions: &[Express
                 let [Expression::Atom(ref mark_name)] = tail else {
                     return Err(BadCall { expected: "(join <atom>)", expression: expression.clone() });
                 };
-                shape_phase.shaper_specs.push(ShaperSpec::Join{ mark_name: mark_name.clone()})
+                shape_phase.shaper_specs.push(ShaperSpec::Join { mark_name: mark_name.clone() })
             }
             "space" => {
                 let [Expression::Atom(ref mark_name), Expression::FloatingPoint(distance_factor) ] = tail else {
                     return Err(BadCall { expected: "(space <atom> <distance-factor>)", expression: expression.clone() });
                 };
                 shape_phase.shaper_specs.push(ShaperSpec::Distance { mark_name: mark_name.clone(), distance_factor: *distance_factor });
+            }
+            "finally" => {
+                let [Expression::Atom(ref operation_string) ] = tail else {
+                    return Err(BadCall { expected: "(finally <operation>)", expression: expression.clone() });
+                };
+                let operation = match operation_string.as_str() {
+                    "bow-tie-pulls" => PostShapeOperation::BowTiePulls,
+                    "faces-to-triangles" => PostShapeOperation::FacesToTriangles,
+                    _ => {
+                        return Err(BadCall { expected: "(finally <bow-tie-pulls | faces-to-triangles>)", expression: expression.clone() });
+                    }
+                };
+                shape_phase.post_shape_operations.push(operation);
             }
             _ => return Err(IllegalCall { context: "shape phase", expression: expression.clone() })
         }

@@ -105,7 +105,7 @@ impl Fabric {
         faces
     }
 
-    pub fn triangulate_faces(&mut self) {
+    pub fn faces_to_triangles(&mut self) {
         for (id, face) in self.faces.clone() {
             let side_length = face.scale * ROOT3;
             let radial_joints = face.radial_joints(self);
