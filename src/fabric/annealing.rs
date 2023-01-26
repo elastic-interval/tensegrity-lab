@@ -253,12 +253,10 @@ impl PairGenerator {
                     let candidates: Vec<_> = diagonals
                         .iter()
                         .filter_map(|&(a, b)| {
-                            match (self.joints[a].across_push(), self.joints[b].across_push()) {
-                                (Some(joint_a), Some(joint_b)) => {
-                                    (!self.interval_exists(joint_a, joint_b)).then_some((a, b))
-                                }
-                                _ => None
+                            if self.interval_exists(self.joints[a].across_push()?, self.joints[b].across_push()?) {
+                                return None;
                             }
+                            Some((a, b))
                         })
                         .collect();
                     if let &[(alpha_index, omega_index)] = candidates.as_slice() {
@@ -284,8 +282,7 @@ impl PairGenerator {
                         self.pairs.insert(pair.key(), pair);
                     }
                 }
-                _ => {
-                }
+                _ => {}
             }
         }
         self.pairs.into_values()
