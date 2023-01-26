@@ -250,7 +250,7 @@ impl PairGenerator {
                         (alpha1.last_joint(), omega2.last_joint()),
                         (alpha2.last_joint(), omega1.last_joint()),
                     ];
-                    let candidates: Vec<_> = diagonals
+                    let cross_twist_diagonals: Vec<_> = diagonals
                         .iter()
                         .filter_map(|&(a, b)| {
                             if self.interval_exists(self.joints[a].across_push()?, self.joints[b].across_push()?) {
@@ -259,10 +259,31 @@ impl PairGenerator {
                             Some((a, b))
                         })
                         .collect();
-                    if let &[(alpha_index, omega_index)] = candidates.as_slice() {
+                    if let &[(alpha_index, omega_index)] = cross_twist_diagonals.as_slice() {
                         let link = Link::Pull { ideal: interval.ideal() / 3.0 };
                         let pair = Pair { alpha_index, omega_index, link };
                         self.pairs.insert(pair.key(), pair);
+                    } else {
+                        let candidate_completions = [
+                            (alpha1.joint_indices[1], interval.omega_index, alpha2.last_joint(), omega1.intervals[0].ideal()),
+                            (alpha2.joint_indices[1], interval.omega_index, alpha1.last_joint(), omega2.intervals[0].ideal()),
+                            (omega1.joint_indices[1], interval.alpha_index, omega2.last_joint(), alpha1.intervals[0].ideal()),
+                            (omega2.joint_indices[1], interval.alpha_index, omega1.last_joint(), alpha2.intervals[0].ideal()),
+                        ];
+                        let triangle_completions: Vec<_> = candidate_completions
+                            .iter()
+                            .filter_map(|&(a, b, check_push, ideal)| {
+                                if self.joints[check_push].push.is_some() {
+                                    return None;
+                                }
+                                Some((a, b, ideal))
+                            })
+                            .collect();
+                        if let &[(alpha_index, omega_index, ideal)] = triangle_completions.as_slice() {
+                            let link = Link::Pull { ideal };
+                            let pair = Pair { alpha_index, omega_index, link };
+                            self.pairs.insert(pair.key(), pair);
+                        }
                     }
                 }
                 [(8, alpha1, omega1), (8, alpha2, omega2)] => {
