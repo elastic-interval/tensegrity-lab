@@ -18,13 +18,13 @@ use crate::fabric::joint::Joint;
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
 
-pub mod annealing;
 pub mod face;
 pub mod interval;
 pub mod joint;
 pub mod physics;
-pub mod twist;
 pub mod progress;
+pub mod twist;
+pub mod vulcanize;
 
 #[derive(Clone)]
 pub struct Fabric {
