@@ -1,6 +1,5 @@
-use std::collections::{HashMap, HashSet};
-
 use cgmath::{MetricSpace, Point3};
+use hashbrown::{HashMap, HashSet};
 use crate::fabric::{Fabric, Link};
 use crate::fabric::interval::{Interval, Role};
 
