@@ -265,18 +265,16 @@ impl PairGenerator {
                         self.pairs.insert(pair.key(), pair);
                     } else {
                         let candidate_completions = [
-                            (alpha1.joint_indices[1], interval.omega_index, alpha2.last_joint(), omega1.intervals[0].ideal()),
-                            (alpha2.joint_indices[1], interval.omega_index, alpha1.last_joint(), omega2.intervals[0].ideal()),
-                            (omega1.joint_indices[1], interval.alpha_index, omega2.last_joint(), alpha1.intervals[0].ideal()),
-                            (omega2.joint_indices[1], interval.alpha_index, omega1.last_joint(), alpha2.intervals[0].ideal()),
+                            (alpha1, alpha2), (alpha2, alpha1),
+                            (omega1, omega2), (omega2, omega1),
                         ];
                         let triangle_completions: Vec<_> = candidate_completions
                             .iter()
-                            .filter_map(|&(a, b, check_push, ideal)| {
-                                if self.joints[check_push].push.is_some() {
+                            .filter_map(|&(path, other_path)| {
+                                if self.joints[other_path.joint_indices[1]].push.is_some() {
                                     return None;
                                 }
-                                Some((a, b, ideal))
+                                Some((path.joint_indices[0], path.last_joint(), path.intervals[0].ideal()))
                             })
                             .collect();
                         if let &[(alpha_index, omega_index, ideal)] = triangle_completions.as_slice() {
