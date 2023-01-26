@@ -235,33 +235,54 @@ impl PairGenerator {
             let mut meeting_pairs = vec![];
             for alpha_path in self.paths_for(interval.alpha_index, 2) {
                 for omega_path in self.paths_for(interval.omega_index, 2) {
-                    if alpha_path.last().key() == omega_path.last().key() { // second interval is the bridge
-                        meeting_pairs.push((alpha_path.clone(), omega_path.clone()))
+                    if alpha_path.last_joint() == omega_path.last_joint() {
+                        meeting_pairs.push((8, alpha_path.clone(), omega_path.clone()))
+                    } else if alpha_path.last().key() == omega_path.last().key() { // second interval is the bridge
+                        meeting_pairs.push((6, alpha_path.clone(), omega_path.clone()))
                     }
                 }
             }
-            let [(alpha1, omega1), (alpha2, omega2)] = meeting_pairs.as_slice() else {
-                continue;
-            };
-            let diagonals = [
-                (alpha1.last_joint(), omega2.last_joint()),
-                (alpha2.last_joint(), omega1.last_joint())
-            ];
-            let candidates: Vec<_> = diagonals
-                .iter()
-                .filter_map(|&(a, b)| {
-                    match (self.joints[a].across_push(), self.joints[b].across_push()) {
-                        (Some(joint_a), Some(joint_b)) => {
-                            (!self.interval_exists(joint_a, joint_b)).then_some((a, b))
-                        }
-                        _ => None
+            match meeting_pairs.as_slice() {
+                [(6, alpha1, omega1), (6, alpha2, omega2)] => {
+                    let diagonals = [
+                        (alpha1.last_joint(), omega2.last_joint()),
+                        (alpha2.last_joint(), omega1.last_joint())
+                    ];
+                    let candidates: Vec<_> = diagonals
+                        .iter()
+                        .filter_map(|&(a, b)| {
+                            match (self.joints[a].across_push(), self.joints[b].across_push()) {
+                                (Some(joint_a), Some(joint_b)) => {
+                                    (!self.interval_exists(joint_a, joint_b)).then_some((a, b))
+                                }
+                                _ => None
+                            }
+                        })
+                        .collect();
+                    if let &[(alpha_index, omega_index)] = candidates.as_slice() {
+                        let link = Link::Pull { ideal: interval.ideal() / 3.0 };
+                        let pair = Pair { alpha_index, omega_index, link };
+                        self.pairs.insert(pair.key(), pair);
                     }
-                })
-                .collect();
-            if let &[(alpha_index, omega_index)] = candidates.as_slice() {
-                let link = Link::Pull { ideal: interval.ideal() / 3.0 };
-                let pair = Pair { alpha_index, omega_index, link };
-                self.pairs.insert(pair.key(), pair);
+                }
+                [(8, alpha1, omega1), (8, alpha2, omega2)] => {
+                    let candidates = [
+                        (alpha1, alpha2.last_joint()),
+                        (alpha2, alpha1.last_joint()),
+                        (omega1, omega2.last_joint()),
+                        (omega2, omega1.last_joint()),
+                    ];
+                    for (path, omega_index) in candidates {
+                        let alpha_index = path.joint_indices[1];
+                        if self.joints[alpha_index].push.is_none() {
+                            continue;
+                        }
+                        let link = Link::Pull { ideal: interval.ideal() / 4.0 };
+                        let pair = Pair { alpha_index, omega_index, link };
+                        self.pairs.insert(pair.key(), pair);
+                    }
+                }
+                _ => {}
             }
         }
         self.pairs.into_values()
