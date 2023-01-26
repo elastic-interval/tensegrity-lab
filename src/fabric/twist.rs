@@ -105,18 +105,6 @@ impl Fabric {
         faces
     }
 
-    pub fn faces_to_triangles(&mut self) {
-        for (id, face) in self.faces.clone() {
-            let side_length = face.scale * ROOT3;
-            let radial_joints = face.radial_joints(self);
-            for (alpha, omega) in [(0, 1), (1, 2), (2, 0)] {
-                let (alpha_index, omega_index) = (radial_joints[alpha], radial_joints[omega]);
-                self.create_interval(alpha_index, omega_index, Link::Pull { ideal: side_length });
-            }
-            self.remove_face(id);
-        }
-    }
-
     fn faces_to_loop(&mut self, face_a_id: UniqueId, face_b_id: UniqueId) {
         let (face_a, face_b) = (self.face(face_a_id), self.face(face_b_id));
         let scale = (face_a.scale + face_b.scale) / 2.0;

@@ -4,6 +4,8 @@ use cgmath::{MetricSpace, Point3};
 use crate::fabric::{Fabric, Link};
 use crate::fabric::interval::{Interval, Role};
 
+const ROOT3: f32 = 1.732_050_8;
+
 impl Fabric {
     pub fn install_bow_ties(&mut self) {
         for Pair { alpha_index, omega_index, link } in self.pair_generator().bow_tie_pulls() {
@@ -14,6 +16,25 @@ impl Fabric {
     pub fn install_measures(&mut self) {
         for Pair { alpha_index, omega_index, link } in self.pair_generator().proximity_measures() {
             self.create_interval(alpha_index, omega_index, link);
+        }
+    }
+
+    pub fn faces_to_triangles(&mut self) {
+        let joint_incident = self.joint_incident();
+        for (id, face) in self.faces.clone() {
+            let side_length = face.scale * ROOT3;
+            let radial_joints = face.radial_joints(self);
+            for (alpha, omega) in [(0, 1), (1, 2), (2, 0)] {
+                let (alpha_index, omega_index) = (radial_joints[alpha], radial_joints[omega]);
+                let overlap = joint_incident[alpha_index].pull_adjacent_joints
+                    .intersection(&joint_incident[omega_index].pull_adjacent_joints)
+                    .count();
+                if overlap == 2 {
+                    continue;
+                }
+                self.create_interval(alpha_index, omega_index, Link::Pull { ideal: side_length });
+            }
+            self.remove_face(id);
         }
     }
 
@@ -66,6 +87,7 @@ struct JointIncident {
     location: Point3<f32>,
     push: Option<Interval>,
     pulls: Vec<Interval>,
+    pull_adjacent_joints: HashSet<usize>,
     adjacent_joints: HashSet<usize>,
 }
 
@@ -76,6 +98,7 @@ impl JointIncident {
             location,
             push: None,
             pulls: vec![],
+            pull_adjacent_joints: HashSet::new(),
             adjacent_joints: HashSet::new(),
         }
     }
@@ -83,7 +106,10 @@ impl JointIncident {
     fn add_interval(&mut self, interval: &Interval) {
         match interval.role {
             Role::Push => self.push = Some(*interval),
-            Role::Pull => self.pulls.push(*interval),
+            Role::Pull => {
+                self.pulls.push(*interval);
+                self.pull_adjacent_joints.insert(interval.other_joint(self.index));
+            }
             Role::Measure => panic!("Should be no measures yet"),
         }
         self.adjacent_joints.insert(interval.other_joint(self.index));
@@ -304,6 +330,7 @@ impl PairGenerator {
                 _ => {}
             }
         }
+
         self.pairs.into_values()
     }
 
