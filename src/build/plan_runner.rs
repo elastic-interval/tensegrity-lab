@@ -27,7 +27,7 @@ pub struct PlanRunner {
 impl Default for PlanRunner {
     fn default() -> Self {
         Self {
-            growth: Growth::new(fabric_plan("Halo by Crane")),
+            growth: Growth::new(fabric_plan("Headless Hug")),
             stage: Empty,
         }
     }

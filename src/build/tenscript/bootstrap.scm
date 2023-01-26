@@ -73,5 +73,8 @@
   (shape
     (space :legs .05)
     (space :hands .07)
-    (space :shoulders .05)))
+    (space :shoulders .05)
+    (finally :bow-tie-pulls)
+    (finally :faces-to-triangles)
+    ))
 
