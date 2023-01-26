@@ -106,9 +106,16 @@ pub enum ShaperSpec {
     Distance { mark_name: String, distance_factor: f32 },
 }
 
+#[derive(Debug, Clone)]
+pub enum PostShapeOperation {
+    BowTiePulls,
+    FacesToTriangles,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ShapePhase {
     pub shaper_specs: Vec<ShaperSpec>,
+    pub post_shape_operations: Vec<PostShapeOperation>
 }
 
 #[derive(Debug, Clone, Default)]

@@ -1,7 +1,7 @@
 use cgmath::MetricSpace;
 use crate::build::growth::Launch::{IdentifiedFace, NamedFace, Seeded};
 use crate::fabric::{Fabric, Link, UniqueId};
-use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, Seed, ShapePhase, ShaperSpec};
+use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, PostShapeOperation, Seed, ShapePhase, ShaperSpec};
 use crate::build::tenscript::FaceName::Apos;
 use crate::build::tenscript::TenscriptNode;
 use crate::build::tenscript::TenscriptNode::{Branch, Face, Grow, Mark};
@@ -91,7 +91,7 @@ impl Growth {
     }
 
     pub fn create_shapers(&mut self, fabric: &mut Fabric) {
-        let ShapePhase { shaper_specs } = &self.plan.shape_phase;
+        let ShapePhase { shaper_specs, .. } = &self.plan.shape_phase;
         for shaper_spec in shaper_specs {
             self.shapers.extend(self.attach_shapers_for(fabric, shaper_spec))
         }
@@ -103,9 +103,13 @@ impl Growth {
             self.complete_shaper(fabric, shaper)
         }
         self.shapers.clear();
-        // todo: make the following actions depend on the plan
-        fabric.install_bow_ties();
-        fabric.triangulate_faces();
+        let ShapePhase { post_shape_operations, .. } = &self.plan.shape_phase;
+        for post_shape_operation in post_shape_operations {
+            match  post_shape_operation {
+                PostShapeOperation::BowTiePulls => fabric.install_bow_ties(),
+                PostShapeOperation::FacesToTriangles => fabric.faces_to_triangles(),
+            }
+        }
     }
 
     fn execute_bud(&self, fabric: &mut Fabric, Bud { face_id, forward, scale_factor, node }: Bud) -> (Vec<Bud>, Vec<PostMark>) {
