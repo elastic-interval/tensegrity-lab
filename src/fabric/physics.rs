@@ -35,7 +35,7 @@ pub mod presets {
 
     pub const AIR_GRAVITY: Physics = Physics {
         surface_character: Frozen,
-        gravity: 2e-8,
+        gravity: 1e-7,
         antigravity: 1e-3,
         viscosity: 1e3,
         drag: 1.0 - 1e-5,
