@@ -235,15 +235,17 @@ impl PairGenerator {
             let mut meeting_pairs = vec![];
             for alpha_path in self.paths_for(interval.alpha_index, 2) {
                 for omega_path in self.paths_for(interval.omega_index, 2) {
+                    if alpha_path.last().key() == omega_path.last().key() { // second interval is the bridge
+                        meeting_pairs.push((6, alpha_path.clone(), omega_path.clone()))
+                    }
                     if alpha_path.last_joint() == omega_path.last_joint() {
                         meeting_pairs.push((8, alpha_path.clone(), omega_path.clone()))
-                    } else if alpha_path.last().key() == omega_path.last().key() { // second interval is the bridge
-                        meeting_pairs.push((6, alpha_path.clone(), omega_path.clone()))
                     }
                 }
             }
+            meeting_pairs.sort_by_key(|(size, _, _)| *size);
             match meeting_pairs.as_slice() {
-                [(6, alpha1, omega1), (6, alpha2, omega2)] => {
+                [(6, alpha1, omega1), (6, alpha2, omega2), ..] => {
                     let diagonals = [
                         (alpha1.last_joint(), omega2.last_joint()),
                         (alpha2.last_joint(), omega1.last_joint())
@@ -282,7 +284,8 @@ impl PairGenerator {
                         self.pairs.insert(pair.key(), pair);
                     }
                 }
-                _ => {}
+                _ => {
+                }
             }
         }
         self.pairs.into_values()
