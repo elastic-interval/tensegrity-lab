@@ -116,7 +116,7 @@ impl Path {
         if self.is_cycle() {
             return None;
         }
-        let last_joint = self.last().joint_with(&interval)?;
+        let last_joint = self.last_interval().joint_with(&interval)?;
         let mut path = self.clone();
         path.joint_indices.push(last_joint);
         path.intervals.push(interval);
@@ -131,7 +131,7 @@ impl Path {
         self.intervals.first().unwrap()
     }
 
-    fn last(&self) -> &Interval {
+    fn last_interval(&self) -> &Interval {
         self.intervals.last().unwrap()
     }
 
@@ -140,7 +140,7 @@ impl Path {
     }
 
     fn last_joint(&self) -> usize {
-        self.last().other_joint(self.joint_indices[self.joint_indices.len() - 1])
+        self.last_interval().other_joint(self.joint_indices[self.joint_indices.len() - 1])
     }
 
     fn hexagon_key(&self) -> Option<[usize; 6]> {
@@ -235,7 +235,7 @@ impl PairGenerator {
             let mut meeting_pairs = vec![];
             for alpha_path in self.paths_for(interval.alpha_index, 2) {
                 for omega_path in self.paths_for(interval.omega_index, 2) {
-                    if alpha_path.last().key() == omega_path.last().key() { // second interval is the bridge
+                    if alpha_path.last_interval().key() == omega_path.last_interval().key() { // second interval is the bridge
                         meeting_pairs.push((6, alpha_path.clone(), omega_path.clone()))
                     }
                     if alpha_path.last_joint() == omega_path.last_joint() {
