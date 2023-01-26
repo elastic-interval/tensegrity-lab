@@ -73,7 +73,7 @@ impl PlanRunner {
             GrowCalm => 1000,
             ShapingApproach => 30000,
             ShapedApproach => 5000,
-            ShapingCalm => 50000,
+            ShapingCalm => 30000,
             Empty | GrowStep | ShapingStart | Shaped | ShapingDone | Completed => 0,
         };
         fabric.progress.start(countdown);
