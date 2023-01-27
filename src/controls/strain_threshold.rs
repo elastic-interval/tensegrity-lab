@@ -2,29 +2,29 @@ use iced_wgpu::Renderer;
 use iced_winit::Color;
 use iced_winit::widget::{Button, Row, Slider, Text};
 use crate::controls::{Action, Message};
-use crate::controls::strain_control::StrainControlMessage::{*};
+use crate::controls::strain_threshold::StrainThresholdMessage::{*};
 
 #[derive(Debug, Clone)]
-pub enum StrainControlMessage {
+pub enum StrainThresholdMessage {
     StrainThresholdChanged(f32),
     MeasureNuanceChanged(f32),
     AddPulls,
 }
 
-impl From<StrainControlMessage> for Message {
-    fn from(value: StrainControlMessage) -> Self {
-        Message::StrainControl(value)
+impl From<StrainThresholdMessage> for Message {
+    fn from(value: StrainThresholdMessage) -> Self {
+        Message::StrainThreshold(value)
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct StrainControl {
+pub struct StrainThresholdState {
     pub strain_nuance: f32,
     pub strain_threshold: f32,
 }
 
-impl StrainControl {
-    pub fn update(&mut self, message: StrainControlMessage) -> Option<Action> {
+impl StrainThresholdState {
+    pub fn update(&mut self, message: StrainThresholdMessage) -> Option<Action> {
         match message {
             MeasureNuanceChanged(nuance) => {
                 self.strain_nuance = nuance;

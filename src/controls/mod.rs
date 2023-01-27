@@ -1,4 +1,5 @@
-mod strain_control;
+mod strain_threshold;
+mod fabric_choice;
 
 use std::cell::RefCell;
 use iced_wgpu::{Backend, Renderer, Settings};
@@ -13,8 +14,10 @@ use winit::window::{CursorIcon, Window};
 use instant::Instant;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
-use crate::controls::strain_control::{StrainControl, StrainControlMessage};
-use crate::controls::strain_control::StrainControlMessage::StrainThresholdChanged;
+use crate::build::tenscript::bootstrap_fabric_plans;
+use crate::controls::fabric_choice::{FabricChoiceState, FabricChoiceMessage};
+use crate::controls::strain_threshold::{StrainThresholdState, StrainThresholdMessage};
+use crate::controls::strain_threshold::StrainThresholdMessage::StrainThresholdChanged;
 
 use crate::graphics::GraphicsWindow;
 
@@ -181,6 +184,7 @@ impl GUI {
 #[derive(Clone, Copy, Debug)]
 pub enum Showing {
     Nothing,
+    FabricChoice,
     StrainThreshold,
 }
 
@@ -192,7 +196,8 @@ pub enum Action {
 #[derive(Clone, Debug)]
 pub struct ControlState {
     showing: Showing,
-    strain_control: StrainControl,
+    fabric_choice_control: FabricChoiceState,
+    strain_threshold_control: StrainThresholdState,
     frame_rate: f64,
     action_queue: RefCell<Vec<Action>>,
 }
@@ -202,11 +207,16 @@ impl ControlState {
 
 impl Default for ControlState {
     fn default() -> Self {
+        let bootstrap = bootstrap_fabric_plans();
         Self {
-            showing: Showing::Nothing,
-            strain_control: StrainControl {
+            showing: Showing::FabricChoice,
+            strain_threshold_control: StrainThresholdState {
                 strain_nuance: 0.0,
                 strain_threshold: 0.0,
+            },
+            fabric_choice_control: FabricChoiceState {
+                current: "Headless Hug",
+                choices: bootstrap,
             },
             frame_rate: 0.0,
             action_queue: RefCell::new(Vec::new()),
@@ -220,9 +230,9 @@ impl ControlState {
     }
 
     pub fn get_strain_threshold(&self, maximum_strain: f32) -> f32 {
-        maximum_strain * self.strain_control.strain_nuance
+        maximum_strain * self.strain_threshold_control.strain_nuance
     }
-    
+
     pub fn strain_threshold_changed(&self, strain_threshold: f32) -> Message {
         StrainThresholdChanged(strain_threshold).into()
     }
@@ -231,7 +241,8 @@ impl ControlState {
 #[derive(Debug, Clone)]
 pub enum Message {
     ShowControls,
-    StrainControl(StrainControlMessage),
+    FabricChoice(FabricChoiceMessage),
+    StrainThreshold(StrainThresholdMessage),
     FrameRateUpdated(f64),
 }
 
@@ -244,8 +255,13 @@ impl Program for ControlState {
             Message::ShowControls => {
                 self.showing = Showing::StrainThreshold;
             }
-            Message::StrainControl(message) => {
-                if let Some(action) = self.strain_control.update(message) {
+            Message::FabricChoice(message) => {
+                if let Some(action) = self.fabric_choice_control.update(message) {
+                    self.action_queue.borrow_mut().push(action);
+                }
+            }
+            Message::StrainThreshold(message) => {
+                if let Some(action) = self.strain_threshold_control.update(message) {
                     self.action_queue.borrow_mut().push(action);
                 }
             }
@@ -284,7 +300,8 @@ impl Program for ControlState {
                 .push(
                     match self.showing {
                         Showing::Nothing => Row::new(),
-                        Showing::StrainThreshold => self.strain_control.view(),
+                        Showing::FabricChoice => self.fabric_choice_control.view(),
+                        Showing::StrainThreshold => self.strain_threshold_control.view(),
                     }
                 )
                 .into();
