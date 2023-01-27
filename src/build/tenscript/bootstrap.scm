@@ -1,12 +1,14 @@
 ;;;Seed
 (fabric
   (build
-    (seed :right-left)))
+    (seed :right-left)
+    (grow 0)
+    ))
 ;;;Flagellum
 (fabric
   (build
     (seed :left)
-    (grow 30 (scale .9))))
+    (grow 20 (scale .9))))
 ;;;Knee
 (fabric
   (build
