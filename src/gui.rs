@@ -185,10 +185,14 @@ pub enum Action {
     AddPulls { strain_nuance: f32 },
 }
 
-pub struct Controls {
-    showing: Showing,
+pub struct StrainControl {
     strain_nuance: f32,
     strain_threshold: f32,
+}
+
+pub struct Controls {
+    showing: Showing,
+    strain_control: StrainControl,
     frame_rate: f64,
     action_queue: RefCell<Vec<Action>>,
 }
@@ -206,8 +210,10 @@ impl Default for Controls {
     fn default() -> Self {
         Self {
             showing: Showing::Nothing,
-            strain_nuance: 0.0,
-            strain_threshold: 0.0,
+            strain_control: StrainControl {
+                strain_nuance: 0.0,
+                strain_threshold: 0.0,
+            },
             frame_rate: 0.0,
             action_queue: RefCell::new(Vec::new()),
         }
@@ -220,7 +226,7 @@ impl Controls {
     }
 
     pub fn strain_threshold(&self, maximum_strain: f32) -> f32 {
-        maximum_strain * self.strain_nuance
+        maximum_strain * self.strain_control.strain_nuance
     }
 }
 
@@ -234,13 +240,13 @@ impl Program for Controls {
                 self.showing = Showing::StrainThreshold;
             }
             Message::MeasureNuanceChanged(nuance) => {
-                self.strain_nuance = nuance;
+                self.strain_control.strain_nuance = nuance;
             }
             Message::StrainThreshold(limit) => {
-                self.strain_threshold = limit;
+                self.strain_control.strain_threshold = limit;
             }
             Message::AddPulls => {
-                self.action_queue.borrow_mut().push(Action::AddPulls { strain_nuance: self.strain_nuance });
+                self.action_queue.borrow_mut().push(Action::AddPulls { strain_nuance: self.strain_control.strain_nuance });
             }
             Message::FrameRateUpdated(frame_rate) => {
                 self.frame_rate = frame_rate;
@@ -262,7 +268,7 @@ impl Program for Controls {
                         .style(Color::WHITE)
                 );
         }
-        let strain_limit = self.strain_threshold;
+
         let element: Element<'_, Self::Message, Self::Renderer> =
             Column::new()
                 .padding(10)
@@ -277,31 +283,39 @@ impl Program for Controls {
                 .push(
                     match self.showing {
                         Showing::Nothing => Row::new(),
-                        Showing::StrainThreshold => {
-                            Row::new()
-                                .padding(20)
-                                .spacing(20)
-                                .push(
-                                    Text::new("Strain threshold")
-                                        .style(Color::WHITE)
-                                )
-                                .push(
-                                    Slider::new(0.0..=1.0, self.strain_nuance, Message::MeasureNuanceChanged)
-                                        .step(0.01)
-                                )
-                                .push(
-                                    Text::new(format!("{strain_limit:.05}"))
-                                        .style(Color::WHITE)
-                                )
-                                .push(
-                                    Button::new(Text::new("Add Pulls"))
-                                        .on_press(Message::AddPulls)
-                                )
-                        }
+                        Showing::StrainThreshold => self.strain_control.view(),
                     }
                 )
                 .into();
         // element.explain(Color::WHITE)
         element
     }
+
+}
+
+impl StrainControl {
+
+    fn view(&self) -> Row<'_, Message, Renderer> {
+        let strain_limit = self.strain_threshold;
+        Row::new()
+            .padding(20)
+            .spacing(20)
+            .push(
+                Text::new("Strain threshold")
+                    .style(Color::WHITE)
+            )
+            .push(
+                Slider::new(0.0..=1.0, self.strain_nuance, Message::MeasureNuanceChanged)
+                    .step(0.01)
+            )
+            .push(
+                Text::new(format!("{strain_limit:.05}"))
+                    .style(Color::WHITE)
+            )
+            .push(
+                Button::new(Text::new("Add Pulls"))
+                    .on_press(Message::AddPulls)
+            )
+    }
+
 }
