@@ -1,7 +1,21 @@
 use iced_wgpu::Renderer;
 use iced_winit::Color;
-use iced_winit::widget::{Button,  Row, Slider, Text};
+use iced_winit::widget::{Button, Row, Slider, Text};
 use crate::controls::{Action, Message};
+use crate::controls::strain_control::StrainControlMessage::{*};
+
+#[derive(Debug, Clone)]
+pub enum StrainControlMessage {
+    StrainThresholdChanged(f32),
+    MeasureNuanceChanged(f32),
+    AddPulls,
+}
+
+impl From<StrainControlMessage> for Message {
+    fn from(value: StrainControlMessage) -> Self {
+        Message::StrainControl(value)
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct StrainControl {
@@ -10,18 +24,17 @@ pub struct StrainControl {
 }
 
 impl StrainControl {
-    pub fn update(&mut self, message: Message) -> Option<Action> {
+    pub fn update(&mut self, message: StrainControlMessage) -> Option<Action> {
         match message {
-            Message::MeasureNuanceChanged(nuance) => {
+            MeasureNuanceChanged(nuance) => {
                 self.strain_nuance = nuance;
             }
-            Message::StrainThreshold(limit) => {
+            StrainThresholdChanged(limit) => {
                 self.strain_threshold = limit;
             }
-            Message::AddPulls => {
+            AddPulls => {
                 return Some(Action::AddPulls { strain_nuance: self.strain_nuance });
             }
-            _ => {}
         }
         None
     }
@@ -36,7 +49,7 @@ impl StrainControl {
                     .style(Color::WHITE)
             )
             .push(
-                Slider::new(0.0..=1.0, self.strain_nuance, Message::MeasureNuanceChanged)
+                Slider::new(0.0..=1.0, self.strain_nuance, |value| MeasureNuanceChanged(value).into())
                     .step(0.01)
             )
             .push(
@@ -45,7 +58,7 @@ impl StrainControl {
             )
             .push(
                 Button::new(Text::new("Add Pulls"))
-                    .on_press(Message::AddPulls)
+                    .on_press(AddPulls.into())
             )
     }
 }

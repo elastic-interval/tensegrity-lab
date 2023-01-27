@@ -13,7 +13,8 @@ use winit::window::{CursorIcon, Window};
 use instant::Instant;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
-use crate::controls::strain_control::StrainControl;
+use crate::controls::strain_control::{StrainControl, StrainControlMessage};
+use crate::controls::strain_control::StrainControlMessage::StrainThresholdChanged;
 
 use crate::graphics::GraphicsWindow;
 
@@ -196,13 +197,7 @@ pub struct ControlState {
     action_queue: RefCell<Vec<Action>>,
 }
 
-#[derive(Debug, Clone)]
-pub enum Message {
-    ShowControls,
-    StrainThreshold(f32),
-    MeasureNuanceChanged(f32),
-    AddPulls,
-    FrameRateUpdated(f64),
+impl ControlState {
 }
 
 impl Default for ControlState {
@@ -224,9 +219,20 @@ impl ControlState {
         self.action_queue.borrow_mut().split_off(0)
     }
 
-    pub fn strain_threshold(&self, maximum_strain: f32) -> f32 {
+    pub fn get_strain_threshold(&self, maximum_strain: f32) -> f32 {
         maximum_strain * self.strain_control.strain_nuance
     }
+    
+    pub fn strain_threshold_changed(&self, strain_threshold: f32) -> Message {
+        StrainThresholdChanged(strain_threshold).into()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    ShowControls,
+    StrainControl(StrainControlMessage),
+    FrameRateUpdated(f64),
 }
 
 impl Program for ControlState {
@@ -238,8 +244,8 @@ impl Program for ControlState {
             Message::ShowControls => {
                 self.showing = Showing::StrainThreshold;
             }
-            Message::MeasureNuanceChanged { .. } | Message::StrainThreshold { .. } |Message::AddPulls => {
-                if let Some(action )= self.strain_control.update(message) {
+            Message::StrainControl(message) => {
+                if let Some(action) = self.strain_control.update(message) {
                     self.action_queue.borrow_mut().push(action);
                 }
             }
