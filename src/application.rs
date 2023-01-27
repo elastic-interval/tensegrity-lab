@@ -11,15 +11,14 @@ use winit::{
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
-use gui::GUI;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
 use crate::experiment::Experiment;
 use crate::graphics::GraphicsWindow;
-use crate::gui;
-use crate::gui::Action;
-use crate::gui::Message::ShowControls;
+use crate::controls::GUI;
+use crate::controls::Action;
+use crate::controls::Message::ShowControls;
 use crate::scene::Scene;
 
 struct Application {
@@ -177,6 +176,9 @@ pub fn run() {
                 app.gui.update();
                 for action in app.gui.controls().take_actions() {
                     match action {
+                        Action::BuildFabric(fabric_plan) => {
+                            experiment.build_fabric(fabric_plan);
+                        }
                         Action::AddPulls { strain_nuance } => {
                             let maximum = experiment.fabric().max_measure_strain();
                             experiment.add_pulls(strain_nuance * maximum);

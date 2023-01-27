@@ -65,7 +65,7 @@ impl Growth {
 
     pub fn init(&mut self, fabric: &mut Fabric) {
         let BuildPhase { seed, root } = &self.plan.build_phase;
-        let node = root.clone().unwrap();
+        let node = root.clone().unwrap_or(Grow {forward: "".into(), scale_factor: 1.0, post_growth_node: None});
         let (buds, marks) =
             self.execute_node(fabric, Seeded { seed: *seed }, &node, vec![]);
         self.buds = buds;

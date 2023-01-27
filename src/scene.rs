@@ -18,7 +18,7 @@ use crate::fabric::Fabric;
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Measure, Pull, Push};
 use crate::graphics::{get_depth_stencil_state, line_list_primitive_state, GraphicsWindow, triangle_list_primitive_state};
-use crate::gui::{Controls, Message};
+use crate::controls::{ControlState, Message};
 
 const MAX_INTERVALS: usize = 5000;
 
@@ -177,20 +177,20 @@ impl Scene {
         self.camera.window_event(event);
     }
 
-    pub fn update(&mut self, graphics: &GraphicsWindow, controls: &Controls, fabric: &Fabric) -> Option<Message> {
+    pub fn update(&mut self, graphics: &GraphicsWindow, controls: &ControlState, fabric: &Fabric) -> Option<Message> {
         let message = self.update_from_fabric(fabric, controls);
         self.update_from_camera(graphics);
         graphics.queue.write_buffer(&self.fabric_drawing.buffer, 0, cast_slice(&self.fabric_drawing.vertices));
         message
     }
 
-    fn update_from_fabric(&mut self, fabric: &Fabric, controls: &Controls) -> Option<Message> {
-        let strain_threshold = controls.strain_threshold(fabric.max_measure_strain());
+    fn update_from_fabric(&mut self, fabric: &Fabric, controls: &ControlState) -> Option<Message> {
+        let strain_threshold = controls.get_strain_threshold(fabric.max_measure_strain());
         self.fabric_drawing.vertices.clear();
         self.fabric_drawing.vertices.extend(fabric.interval_values()
             .flat_map(|interval| FabricVertex::for_interval(interval, fabric, strain_threshold)));
         self.camera.target_approach(fabric.midpoint());
-        (strain_threshold > 0.0).then_some(Message::StrainThreshold(strain_threshold))
+        (strain_threshold > 0.0).then_some(controls.strain_threshold_changed(strain_threshold))
     }
 
     pub fn resize(&mut self, graphics: &GraphicsWindow) {

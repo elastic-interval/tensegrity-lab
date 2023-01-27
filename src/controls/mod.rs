@@ -1,7 +1,10 @@
+mod strain_threshold;
+mod fabric_choice;
+
 use std::cell::RefCell;
 use iced_wgpu::{Backend, Renderer, Settings};
 use iced_winit::{Alignment, Clipboard, Color, Command, conversion, Debug, Element, Length, mouse, Program, program, renderer, Size, Viewport};
-use iced_winit::widget::{Button, Column, Row, Slider, Text};
+use iced_winit::widget::{Column, Row, Text};
 use wgpu::{CommandEncoder, Device, TextureView};
 use winit::dpi::PhysicalPosition;
 use winit::event::{ModifiersState, WindowEvent};
@@ -11,6 +14,10 @@ use winit::window::{CursorIcon, Window};
 use instant::Instant;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
+use crate::build::tenscript::{bootstrap_fabric_plans, FabricPlan};
+use crate::controls::fabric_choice::{FabricChoiceState, FabricChoiceMessage};
+use crate::controls::strain_threshold::{StrainThresholdState, StrainThresholdMessage};
+use crate::controls::strain_threshold::StrainThresholdMessage::StrainThresholdChanged;
 
 use crate::graphics::GraphicsWindow;
 
@@ -22,7 +29,7 @@ pub struct GUI {
     debug: Debug,
     viewport: Viewport,
     staging_belt: wgpu::util::StagingBelt,
-    state: program::State<Controls>,
+    state: program::State<ControlState>,
     cursor_position: PhysicalPosition<f64>,
     clipboard: Clipboard,
     modifiers: ModifiersState,
@@ -43,7 +50,7 @@ impl GUI {
             graphics.config.format,
         ));
         let mut debug = Default::default();
-        let controls = Controls::default();
+        let controls = ControlState::default();
         let state = program::State::new(
             controls,
             viewport.logical_size(),
@@ -69,7 +76,7 @@ impl GUI {
         }
     }
 
-    pub fn controls(&self) -> &Controls {
+    pub fn controls(&self) -> &ControlState {
         self.state.program()
     }
 
@@ -177,54 +184,67 @@ impl GUI {
 #[derive(Clone, Copy, Debug)]
 pub enum Showing {
     Nothing,
+    FabricChoice,
     StrainThreshold,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum Action {
+    BuildFabric(FabricPlan),
     AddPulls { strain_nuance: f32 },
 }
 
-pub struct Controls {
+#[derive(Clone, Debug)]
+pub struct ControlState {
     showing: Showing,
-    strain_nuance: f32,
-    strain_threshold: f32,
+    fabric_choice_control: FabricChoiceState,
+    strain_threshold_control: StrainThresholdState,
     frame_rate: f64,
     action_queue: RefCell<Vec<Action>>,
 }
 
-#[derive(Debug, Clone)]
-pub enum Message {
-    ShowControls,
-    StrainThreshold(f32),
-    MeasureNuanceChanged(f32),
-    AddPulls,
-    FrameRateUpdated(f64),
-}
-
-impl Default for Controls {
+impl Default for ControlState {
     fn default() -> Self {
+        let bootstrap = bootstrap_fabric_plans();
         Self {
-            showing: Showing::Nothing,
-            strain_nuance: 0.0,
-            strain_threshold: 0.0,
+            showing: Showing::FabricChoice,
+            strain_threshold_control: StrainThresholdState {
+                strain_nuance: 0.0,
+                strain_threshold: 0.0,
+            },
+            fabric_choice_control: FabricChoiceState {
+                current: None,
+                choices: bootstrap,
+            },
             frame_rate: 0.0,
             action_queue: RefCell::new(Vec::new()),
         }
     }
 }
 
-impl Controls {
+impl ControlState {
     pub fn take_actions(&self) -> Vec<Action> {
         self.action_queue.borrow_mut().split_off(0)
     }
 
-    pub fn strain_threshold(&self, maximum_strain: f32) -> f32 {
-        maximum_strain * self.strain_nuance
+    pub fn get_strain_threshold(&self, maximum_strain: f32) -> f32 {
+        maximum_strain * self.strain_threshold_control.strain_nuance
+    }
+
+    pub fn strain_threshold_changed(&self, strain_threshold: f32) -> Message {
+        StrainThresholdChanged(strain_threshold).into()
     }
 }
 
-impl Program for Controls {
+#[derive(Debug, Clone)]
+pub enum Message {
+    ShowControls,
+    FabricChoice(FabricChoiceMessage),
+    StrainThreshold(StrainThresholdMessage),
+    FrameRateUpdated(f64),
+}
+
+impl Program for ControlState {
     type Renderer = Renderer;
     type Message = Message;
 
@@ -233,14 +253,15 @@ impl Program for Controls {
             Message::ShowControls => {
                 self.showing = Showing::StrainThreshold;
             }
-            Message::MeasureNuanceChanged(nuance) => {
-                self.strain_nuance = nuance;
+            Message::FabricChoice(message) => {
+                if let Some(action) = self.fabric_choice_control.update(message) {
+                    self.action_queue.borrow_mut().push(action);
+                }
             }
-            Message::StrainThreshold(limit) => {
-                self.strain_threshold = limit;
-            }
-            Message::AddPulls => {
-                self.action_queue.borrow_mut().push(Action::AddPulls { strain_nuance: self.strain_nuance });
+            Message::StrainThreshold(message) => {
+                if let Some(action) = self.strain_threshold_control.update(message) {
+                    self.action_queue.borrow_mut().push(action);
+                }
             }
             Message::FrameRateUpdated(frame_rate) => {
                 self.frame_rate = frame_rate;
@@ -249,7 +270,7 @@ impl Program for Controls {
         Command::none()
     }
 
-    fn view(&self) -> Element<'_, Self::Message, Self::Renderer> {
+    fn view(&self) -> Element<'_, Message, Renderer> {
         let Self { frame_rate, .. } = *self;
         let mut right_column = Column::new()
             .width(Length::Fill)
@@ -262,8 +283,8 @@ impl Program for Controls {
                         .style(Color::WHITE)
                 );
         }
-        let strain_limit = self.strain_threshold;
-        let element: Element<'_, Self::Message, Self::Renderer> =
+
+        let element: Element<'_, Message, Renderer> =
             Column::new()
                 .padding(10)
                 .height(Length::Fill)
@@ -277,27 +298,8 @@ impl Program for Controls {
                 .push(
                     match self.showing {
                         Showing::Nothing => Row::new(),
-                        Showing::StrainThreshold => {
-                            Row::new()
-                                .padding(20)
-                                .spacing(20)
-                                .push(
-                                    Text::new("Strain threshold")
-                                        .style(Color::WHITE)
-                                )
-                                .push(
-                                    Slider::new(0.0..=1.0, self.strain_nuance, Message::MeasureNuanceChanged)
-                                        .step(0.01)
-                                )
-                                .push(
-                                    Text::new(format!("{strain_limit:.05}"))
-                                        .style(Color::WHITE)
-                                )
-                                .push(
-                                    Button::new(Text::new("Add Pulls"))
-                                        .on_press(Message::AddPulls)
-                                )
-                        }
+                        Showing::FabricChoice => self.fabric_choice_control.view(),
+                        Showing::StrainThreshold => self.strain_threshold_control.view(),
                     }
                 )
                 .into();
@@ -305,3 +307,4 @@ impl Program for Controls {
         element
     }
 }
+

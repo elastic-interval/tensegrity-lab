@@ -125,7 +125,7 @@ pub struct FabricPlan {
     pub shape_phase: ShapePhase,
 }
 
-fn bootstrap() -> HashMap<&'static str, &'static str> {
+pub fn bootstrap_fabric_plans() -> HashMap<&'static str, &'static str> {
     include_str!("bootstrap.scm")
         .split(";;;")
         .filter(|chunk| !chunk.is_empty())
@@ -139,7 +139,7 @@ fn bootstrap() -> HashMap<&'static str, &'static str> {
 }
 
 pub fn fabric_plan(plan_name: &str) -> FabricPlan {
-    let map = bootstrap();
+    let map = bootstrap_fabric_plans();
     let code = map.get(plan_name).unwrap_or_else(|| {
         panic!("{plan_name} not found")
     });
@@ -148,15 +148,15 @@ pub fn fabric_plan(plan_name: &str) -> FabricPlan {
 
 #[cfg(test)]
 mod tests {
-    use crate::build::tenscript::{bootstrap, parser};
+    use crate::build::tenscript::{bootstrap_fabric_plans, parser};
 
     #[test]
     fn parse() {
-        let map = bootstrap();
+        let map = bootstrap_fabric_plans();
         for (name, code) in map.into_iter() {
             match parser::parse(code) {
                 Ok(_) => println!("[{name}] Good plan!"),
-                Err(error) => println!("[{name}] Error: {error:?}"),
+                Err(error) => panic!("[{name}] Error: {error:?}"),
             }
         }
     }
