@@ -14,7 +14,7 @@ use winit::window::{CursorIcon, Window};
 use instant::Instant;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
-use crate::build::tenscript::bootstrap_fabric_plans;
+use crate::build::tenscript::{bootstrap_fabric_plans, FabricPlan};
 use crate::controls::fabric_choice::{FabricChoiceState, FabricChoiceMessage};
 use crate::controls::strain_threshold::{StrainThresholdState, StrainThresholdMessage};
 use crate::controls::strain_threshold::StrainThresholdMessage::StrainThresholdChanged;
@@ -188,8 +188,9 @@ pub enum Showing {
     StrainThreshold,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum Action {
+    BuildFabric(FabricPlan),
     AddPulls { strain_nuance: f32 },
 }
 
@@ -202,9 +203,6 @@ pub struct ControlState {
     action_queue: RefCell<Vec<Action>>,
 }
 
-impl ControlState {
-}
-
 impl Default for ControlState {
     fn default() -> Self {
         let bootstrap = bootstrap_fabric_plans();
@@ -215,7 +213,7 @@ impl Default for ControlState {
                 strain_threshold: 0.0,
             },
             fabric_choice_control: FabricChoiceState {
-                current: "Headless Hug",
+                current: None,
                 choices: bootstrap,
             },
             frame_rate: 0.0,
@@ -305,8 +303,8 @@ impl Program for ControlState {
                     }
                 )
                 .into();
-        // element.explain(Color::WHITE)
-        element
+        element.explain(Color::WHITE)
+        // element
     }
 }
 
