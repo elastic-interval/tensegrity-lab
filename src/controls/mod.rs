@@ -1,7 +1,9 @@
+mod strain_control;
+
 use std::cell::RefCell;
 use iced_wgpu::{Backend, Renderer, Settings};
 use iced_winit::{Alignment, Clipboard, Color, Command, conversion, Debug, Element, Length, mouse, Program, program, renderer, Size, Viewport};
-use iced_winit::widget::{Button, Column, Row, Slider, Text};
+use iced_winit::widget::{Column, Row, Text};
 use wgpu::{CommandEncoder, Device, TextureView};
 use winit::dpi::PhysicalPosition;
 use winit::event::{ModifiersState, WindowEvent};
@@ -11,6 +13,7 @@ use winit::window::{CursorIcon, Window};
 use instant::Instant;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
+use crate::controls::strain_control::StrainControl;
 
 use crate::graphics::GraphicsWindow;
 
@@ -185,11 +188,7 @@ pub enum Action {
     AddPulls { strain_nuance: f32 },
 }
 
-pub struct StrainControl {
-    strain_nuance: f32,
-    strain_threshold: f32,
-}
-
+#[derive(Clone, Debug)]
 pub struct ControlState {
     showing: Showing,
     strain_control: StrainControl,
@@ -239,14 +238,10 @@ impl Program for ControlState {
             Message::ShowControls => {
                 self.showing = Showing::StrainThreshold;
             }
-            Message::MeasureNuanceChanged(nuance) => {
-                self.strain_control.strain_nuance = nuance;
-            }
-            Message::StrainThreshold(limit) => {
-                self.strain_control.strain_threshold = limit;
-            }
-            Message::AddPulls => {
-                self.action_queue.borrow_mut().push(Action::AddPulls { strain_nuance: self.strain_control.strain_nuance });
+            Message::MeasureNuanceChanged { .. } | Message::StrainThreshold { .. } |Message::AddPulls => {
+                if let Some(action )= self.strain_control.update(message) {
+                    self.action_queue.borrow_mut().push(action);
+                }
             }
             Message::FrameRateUpdated(frame_rate) => {
                 self.frame_rate = frame_rate;
@@ -255,7 +250,7 @@ impl Program for ControlState {
         Command::none()
     }
 
-    fn view(&self) -> Element<'_, Self::Message, Self::Renderer> {
+    fn view(&self) -> Element<'_, Message, Renderer> {
         let Self { frame_rate, .. } = *self;
         let mut right_column = Column::new()
             .width(Length::Fill)
@@ -269,7 +264,7 @@ impl Program for ControlState {
                 );
         }
 
-        let element: Element<'_, Self::Message, Self::Renderer> =
+        let element: Element<'_, Message, Renderer> =
             Column::new()
                 .padding(10)
                 .height(Length::Fill)
@@ -290,32 +285,5 @@ impl Program for ControlState {
         // element.explain(Color::WHITE)
         element
     }
-
 }
 
-impl StrainControl {
-
-    fn view(&self) -> Row<'_, Message, Renderer> {
-        let strain_limit = self.strain_threshold;
-        Row::new()
-            .padding(20)
-            .spacing(20)
-            .push(
-                Text::new("Strain threshold")
-                    .style(Color::WHITE)
-            )
-            .push(
-                Slider::new(0.0..=1.0, self.strain_nuance, Message::MeasureNuanceChanged)
-                    .step(0.01)
-            )
-            .push(
-                Text::new(format!("{strain_limit:.05}"))
-                    .style(Color::WHITE)
-            )
-            .push(
-                Button::new(Text::new("Add Pulls"))
-                    .on_press(Message::AddPulls)
-            )
-    }
-
-}
