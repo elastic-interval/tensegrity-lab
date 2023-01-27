@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+use hashbrown::HashMap;
 
 pub use parser::parse;
 
