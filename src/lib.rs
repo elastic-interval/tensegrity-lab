@@ -8,9 +8,9 @@
 pub mod application;
 pub mod build;
 pub mod camera;
+pub mod controls;
 pub mod experiment;
 pub mod fabric;
 pub mod graphics;
-pub mod gui;
 pub mod scene;
 pub mod test;

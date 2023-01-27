@@ -22,7 +22,7 @@ pub struct GUI {
     debug: Debug,
     viewport: Viewport,
     staging_belt: wgpu::util::StagingBelt,
-    state: program::State<Controls>,
+    state: program::State<ControlState>,
     cursor_position: PhysicalPosition<f64>,
     clipboard: Clipboard,
     modifiers: ModifiersState,
@@ -43,7 +43,7 @@ impl GUI {
             graphics.config.format,
         ));
         let mut debug = Default::default();
-        let controls = Controls::default();
+        let controls = ControlState::default();
         let state = program::State::new(
             controls,
             viewport.logical_size(),
@@ -69,7 +69,7 @@ impl GUI {
         }
     }
 
-    pub fn controls(&self) -> &Controls {
+    pub fn controls(&self) -> &ControlState {
         self.state.program()
     }
 
@@ -190,7 +190,7 @@ pub struct StrainControl {
     strain_threshold: f32,
 }
 
-pub struct Controls {
+pub struct ControlState {
     showing: Showing,
     strain_control: StrainControl,
     frame_rate: f64,
@@ -206,7 +206,7 @@ pub enum Message {
     FrameRateUpdated(f64),
 }
 
-impl Default for Controls {
+impl Default for ControlState {
     fn default() -> Self {
         Self {
             showing: Showing::Nothing,
@@ -220,7 +220,7 @@ impl Default for Controls {
     }
 }
 
-impl Controls {
+impl ControlState {
     pub fn take_actions(&self) -> Vec<Action> {
         self.action_queue.borrow_mut().split_off(0)
     }
@@ -230,7 +230,7 @@ impl Controls {
     }
 }
 
-impl Program for Controls {
+impl Program for ControlState {
     type Renderer = Renderer;
     type Message = Message;
 

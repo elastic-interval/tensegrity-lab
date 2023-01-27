@@ -11,15 +11,14 @@ use winit::{
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
-use gui::GUI;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
 use crate::experiment::Experiment;
 use crate::graphics::GraphicsWindow;
-use crate::gui;
-use crate::gui::Action;
-use crate::gui::Message::ShowControls;
+use crate::controls::GUI;
+use crate::controls::Action;
+use crate::controls::Message::ShowControls;
 use crate::scene::Scene;
 
 struct Application {
