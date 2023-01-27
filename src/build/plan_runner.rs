@@ -1,12 +1,12 @@
 use crate::build::growth::Growth;
 use crate::build::plan_runner::Stage::{*};
-use crate::build::tenscript::fabric_plan;
+use crate::build::tenscript::FabricPlan;
 use crate::fabric::Fabric;
 use crate::fabric::physics::presets::LIQUID;
 
 #[derive(Clone, Debug, Copy, PartialEq)]
 enum Stage {
-    Empty,
+    Initialize,
     GrowStep,
     GrowApproach,
     GrowCalm,
@@ -20,15 +20,15 @@ enum Stage {
 }
 
 pub struct PlanRunner {
-    pub growth: Growth,
     stage: Stage,
+    pub growth: Growth,
 }
 
-impl Default for PlanRunner {
-    fn default() -> Self {
+impl PlanRunner {
+    pub fn new(fabric_plan: FabricPlan) -> Self {
         Self {
-            growth: Growth::new(fabric_plan("Headless Hug")),
-            stage: Empty,
+            stage: Initialize,
+            growth: Growth::new(fabric_plan),
         }
     }
 }
@@ -40,7 +40,7 @@ impl PlanRunner {
             return;
         }
         let next_stage = match self.stage {
-            Empty => {
+            Initialize => {
                 self.growth.init(fabric);
                 GrowApproach
             }
@@ -74,7 +74,7 @@ impl PlanRunner {
             ShapingApproach => 30000,
             ShapedApproach => 5000,
             ShapingCalm => 30000,
-            Empty | GrowStep | ShapingStart | Shaped | ShapingDone | Completed => 0,
+            Initialize | GrowStep | ShapingStart | Shaped | ShapingDone | Completed => 0,
         };
         fabric.progress.start(countdown);
         self.stage = next_stage;

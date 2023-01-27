@@ -1,10 +1,13 @@
 use cgmath::Vector3;
-use crate::experiment::Stage::{AddPulls, Pretensing, Pretenst, RunningPlan};
+use crate::experiment::Stage::{*};
 use crate::fabric::{Fabric, Link};
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::build::plan_runner::PlanRunner;
+use crate::build::tenscript::FabricPlan;
 
 enum Stage {
+    Empty,
+    AcceptingPlan(FabricPlan),
     RunningPlan,
     Pretensing,
     Pretenst,
@@ -13,7 +16,7 @@ enum Stage {
 
 pub struct Experiment {
     fabric: Fabric,
-    plan_runner: PlanRunner,
+    plan_runner: Option<PlanRunner>,
     camera_jump: Option<Vector3<f32>>,
     frozen_fabric: Option<Fabric>,
     iterations_per_frame: usize,
@@ -26,12 +29,12 @@ impl Default for Experiment {
     fn default() -> Self {
         Self {
             fabric: Fabric::default(),
-            plan_runner: PlanRunner::default(),
+            plan_runner: None,
             camera_jump: None,
             frozen_fabric: None,
             iterations_per_frame: 100,
             paused: false,
-            stage: RunningPlan,
+            stage: Empty,
             add_pulls: None,
         }
     }
@@ -42,16 +45,30 @@ impl Experiment {
         if self.paused {
             return;
         }
-        match self.stage {
+        match &self.stage {
+            Empty => {}
+            AcceptingPlan(fabric_plan) => {
+                self.fabric = Fabric::default();
+                self.frozen_fabric = None;
+                self.plan_runner = Some(PlanRunner::new(fabric_plan.clone()));
+                self.stage = RunningPlan;
+            }
             RunningPlan => {
-                for _ in 0..self.iterations_per_frame {
-                    self.plan_runner.iterate(&mut self.fabric);
-                }
-                if self.plan_runner.is_done() {
-                    let old_midpoint = self.fabric.midpoint();
-                    self.fabric.prepare_for_pretensing(1.03);
-                    self.start_pretensing();
-                    self.camera_jump = Some(self.fabric.midpoint() - old_midpoint);
+                match &mut self.plan_runner {
+                    None => {
+                        self.stage = Empty;
+                    }
+                    Some(plan_runner) => {
+                        for _ in 0..self.iterations_per_frame {
+                            plan_runner.iterate(&mut self.fabric);
+                        }
+                        if plan_runner.is_done() {
+                            let old_midpoint = self.fabric.midpoint();
+                            self.fabric.prepare_for_pretensing(1.03);
+                            self.start_pretensing();
+                            self.camera_jump = Some(self.fabric.midpoint() - old_midpoint);
+                        }
+                    }
                 }
             }
             Pretensing => {
@@ -75,7 +92,7 @@ impl Experiment {
             }
             AddPulls { strain_threshold } => {
                 self.add_pulls = None;
-                let new_pulls = self.fabric.measures_to_pulls(strain_threshold);
+                let new_pulls = self.fabric.measures_to_pulls(*strain_threshold);
                 self.fabric = self.frozen_fabric.take().unwrap();
                 for (alpha_index, omega_index, ideal) in new_pulls {
                     self.fabric.create_interval(alpha_index, omega_index, Link::Pull { ideal });
@@ -95,6 +112,10 @@ impl Experiment {
 
     pub fn add_pulls(&mut self, strain_threshold: f32) {
         self.add_pulls = Some(strain_threshold);
+    }
+
+    pub fn build_fabric(&mut self, fabric_plan: FabricPlan) {
+        self.stage = AcceptingPlan(fabric_plan);
     }
 
     pub fn fabric(&self) -> &Fabric {

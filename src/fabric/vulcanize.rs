@@ -222,10 +222,6 @@ impl PairGenerator {
             return;
         };
         let length_limit = push.ideal();
-        let two_steps: HashSet<_> = self.joints[joint_index].adjacent_joints
-            .iter()
-            .flat_map(|&adjacent| self.joints[adjacent].adjacent_joints.iter())
-            .collect();
         let new_pairs = self.joints
             .iter()
             .filter_map(|other_joint| {
@@ -233,9 +229,6 @@ impl PairGenerator {
                     return None;
                 }
                 if self.joints[joint_index].adjacent_joints.contains(&other_joint.index) {
-                    return None;
-                }
-                if two_steps.contains(&other_joint.index) {
                     return None;
                 }
                 let length = self.joints[joint_index].location.distance(other_joint.location);
