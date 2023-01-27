@@ -185,12 +185,12 @@ impl Scene {
     }
 
     fn update_from_fabric(&mut self, fabric: &Fabric, controls: &ControlState) -> Option<Message> {
-        let strain_threshold = controls.strain_threshold(fabric.max_measure_strain());
+        let strain_threshold = controls.get_strain_threshold(fabric.max_measure_strain());
         self.fabric_drawing.vertices.clear();
         self.fabric_drawing.vertices.extend(fabric.interval_values()
             .flat_map(|interval| FabricVertex::for_interval(interval, fabric, strain_threshold)));
         self.camera.target_approach(fabric.midpoint());
-        (strain_threshold > 0.0).then_some(Message::StrainThreshold(strain_threshold))
+        (strain_threshold > 0.0).then_some(controls.strain_threshold_changed(strain_threshold))
     }
 
     pub fn resize(&mut self, graphics: &GraphicsWindow) {
