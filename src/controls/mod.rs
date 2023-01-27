@@ -303,8 +303,8 @@ impl Program for ControlState {
                     }
                 )
                 .into();
-        element.explain(Color::WHITE)
-        // element
+        // element.explain(Color::WHITE)
+        element
     }
 }
 
