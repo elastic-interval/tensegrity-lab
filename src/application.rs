@@ -14,10 +14,10 @@ use winit::window::Window;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use crate::experiment::Experiment;
-use crate::graphics::GraphicsWindow;
 use crate::controls::{GUI, Message, VisibleControl};
 use crate::controls::Action;
+use crate::experiment::Experiment;
+use crate::graphics::GraphicsWindow;
 use crate::scene::Scene;
 
 struct Application {
@@ -121,19 +121,24 @@ pub fn run() {
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                         app.resize(**new_inner_size);
                     }
-                    WindowEvent::KeyboardInput { input: KeyboardInput { virtual_keycode, state, .. }, .. } => {
-                        match virtual_keycode {
+                    WindowEvent::KeyboardInput {
+                        input: KeyboardInput {
+                            virtual_keycode: Some(keycode),
+                            state: ElementState::Pressed, ..
+                        }, ..
+                    } => {
+                        match keycode {
                             #[cfg(target_arch = "wasm32")]
-                            Some(VirtualKeyCode::F) => {
+                            VirtualKeyCode::F => {
                                 fullscreen_web();
                             }
-                            Some(VirtualKeyCode::Escape) if *state == ElementState::Pressed => {
+                            VirtualKeyCode::Escape => {
                                 app.gui.change_state(Message::ShowControl(VisibleControl::ControlChoice));
                             }
-                            Some(VirtualKeyCode::Space) if *state == ElementState::Pressed => {
+                            VirtualKeyCode::Space => {
                                 experiment.toggle_pause();
                             }
-                            Some(VirtualKeyCode::D) if *state == ElementState::Pressed => {
+                            VirtualKeyCode::D => {
                                 app.gui.change_state(Message::ToggleDebugMode);
                             }
                             _ => {}
