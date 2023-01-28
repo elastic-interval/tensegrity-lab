@@ -1,5 +1,6 @@
 mod strain_threshold;
 mod fabric_choice;
+mod gravity;
 
 use std::cell::RefCell;
 use iced_wgpu::{Backend, Renderer, Settings};
@@ -184,6 +185,7 @@ impl GUI {
 #[derive(Clone, Copy, Debug)]
 pub enum VisibleControl {
     ControlChoice,
+    Gravity,
     FabricChoice,
     StrainThreshold,
 }
