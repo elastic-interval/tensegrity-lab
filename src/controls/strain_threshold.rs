@@ -39,11 +39,9 @@ impl StrainThresholdState {
         None
     }
 
-    pub fn view(&self) -> Row<'_, Message, Renderer> {
+    pub fn row(&self) -> Row<'_, Message, Renderer> {
         let strain_limit = self.strain_threshold;
         Row::new()
-            .padding(20)
-            .spacing(20)
             .push(
                 Text::new("Strain threshold")
                     .style(Color::WHITE)

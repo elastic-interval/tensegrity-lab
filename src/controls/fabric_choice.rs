@@ -1,6 +1,4 @@
-use iced::{Alignment, Length};
 use iced_wgpu::Renderer;
-use iced_winit::Color;
 use iced_winit::widget::{Button, Row, Text};
 use crate::build::tenscript::fabric_plan;
 use crate::controls::{Action, Message};
@@ -32,33 +30,14 @@ impl FabricChoiceState {
         }
     }
 
-    pub fn view(&self) -> Row<'_, Message, Renderer> {
-        let mut row = Row::new()
-            .padding(5)
-            .spacing(10)
-            .width(Length::Fill)
-            .align_items(Alignment::End);
+    pub fn row(&self) -> Row<'_, Message, Renderer> {
+        let mut row = Row::new();
         for (choice, _) in &self.choices {
             row = row.push(
-                Button::new(Text::new(choice)
-                    .style(
-                        match &self.current {
-                            None => {
-                                Color::WHITE
-                            }
-                            Some(current) => {
-                                if choice == current {
-                                    Color::WHITE
-                                } else {
-                                    Color::from_rgb(0.0, 1.0, 0.0)
-                                }
-                            }
-                        }
-                    )
-                )
+                Button::new(Text::new(choice))
                     .on_press(FabricChoiceMessage::ChooseFabric(choice.clone()).into())
             );
-        }
+        };
         row
     }
 }

@@ -16,9 +16,8 @@ use wasm_bindgen::prelude::*;
 
 use crate::experiment::Experiment;
 use crate::graphics::GraphicsWindow;
-use crate::controls::GUI;
+use crate::controls::{GUI, Message, VisibleControl};
 use crate::controls::Action;
-use crate::controls::Message::ShowControls;
 use crate::scene::Scene;
 
 struct Application {
@@ -142,6 +141,9 @@ pub fn run() {
                             Some(VirtualKeyCode::Space) if *state == ElementState::Pressed => {
                                 experiment.toggle_pause();
                             }
+                            Some(VirtualKeyCode::D) if *state == ElementState::Pressed => {
+                                app.gui.change_state(Message::ToggleDebugMode);
+                            }
                             _ => {}
                         }
                     }
@@ -157,7 +159,6 @@ pub fn run() {
                 if let Some(jump) = experiment.camera_jump() {
                     app.scene.move_camera(jump);
                     app.scene.show_surface();
-                    app.gui.change_state(ShowControls);
                 }
                 let message = app.scene.update(&app.graphics, app.gui.controls(), experiment.fabric());
                 if let Some(message) = message {
@@ -177,6 +178,7 @@ pub fn run() {
                 for action in app.gui.controls().take_actions() {
                     match action {
                         Action::BuildFabric(fabric_plan) => {
+                            app.gui.change_state(Message::ShowControl(VisibleControl::ControlChoice));
                             experiment.build_fabric(fabric_plan);
                         }
                         Action::AddPulls { strain_nuance } => {
