@@ -30,7 +30,6 @@ impl Application {
     fn new(graphics: GraphicsWindow, window: &Window) -> Application {
         let gui = GUI::new(&graphics, window);
         let scene = Scene::new(&graphics);
-
         Application {
             graphics,
             scene,
@@ -112,20 +111,10 @@ pub fn run() {
 
     event_loop.run(move |event, _, control_flow| {
         match event {
-            Event::WindowEvent {
-                ref event,
-                window_id,
-            } if window_id == window.id() => {
+            Event::WindowEvent { ref event, window_id } if window_id == window.id() => {
                 app.gui.window_event(&window, event);
                 match event {
-                    WindowEvent::CloseRequested | WindowEvent::KeyboardInput {
-                        input: KeyboardInput {
-                            state: ElementState::Pressed,
-                            virtual_keycode: Some(VirtualKeyCode::Escape),
-                            ..
-                        },
-                        ..
-                    } => *control_flow = ControlFlow::Exit,
+                    WindowEvent::CloseRequested { .. } => *control_flow = ControlFlow::Exit,
                     WindowEvent::Resized(physical_size) => {
                         app.resize(*physical_size);
                     }
@@ -137,6 +126,9 @@ pub fn run() {
                             #[cfg(target_arch = "wasm32")]
                             Some(VirtualKeyCode::F) => {
                                 fullscreen_web();
+                            }
+                            Some(VirtualKeyCode::Escape) if *state == ElementState::Pressed => {
+                                app.gui.change_state(Message::ShowControl(VisibleControl::ControlChoice));
                             }
                             Some(VirtualKeyCode::Space) if *state == ElementState::Pressed => {
                                 experiment.toggle_pause();
