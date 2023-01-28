@@ -1,7 +1,7 @@
 use cgmath::MetricSpace;
 use crate::build::growth::Launch::{IdentifiedFace, NamedFace, Seeded};
 use crate::fabric::{Fabric, Link, UniqueId};
-use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, PostShapeOperation, Seed, ShapePhase, ShaperSpec};
+use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, PostShapeOperation, Seed, ShapePhase, ShaperSpec, Spin};
 use crate::build::tenscript::FaceName::Apos;
 use crate::build::tenscript::TenscriptNode;
 use crate::build::tenscript::TenscriptNode::{Branch, Face, Grow, Mark};
@@ -65,11 +65,17 @@ impl Growth {
 
     pub fn init(&mut self, fabric: &mut Fabric) {
         let BuildPhase { seed, root } = &self.plan.build_phase;
-        let node = root.clone().unwrap_or(Grow {forward: "".into(), scale_factor: 1.0, post_growth_node: None});
-        let (buds, marks) =
-            self.execute_node(fabric, Seeded { seed: *seed }, &node, vec![]);
-        self.buds = buds;
-        self.marks = marks;
+        match root {
+            None => {
+                self.twist(fabric, seed.needs_double(), seed.spin(), None);
+            }
+            Some(node) => {
+                let (buds, marks) =
+                    self.execute_node(fabric, Seeded { seed: *seed }, node, vec![]);
+                self.buds = buds;
+                self.marks = marks;
+            }
+        }
     }
 
     pub fn is_growing(&self) -> bool {
@@ -103,9 +109,12 @@ impl Growth {
             self.complete_shaper(fabric, shaper)
         }
         self.shapers.clear();
+    }
+
+    pub fn post_shaping(&mut self, fabric: &mut Fabric) {
         let ShapePhase { post_shape_operations, .. } = &self.plan.shape_phase;
         for post_shape_operation in post_shape_operations {
-            match  post_shape_operation {
+            match post_shape_operation {
                 PostShapeOperation::BowTiePulls => fabric.install_bow_ties(),
                 PostShapeOperation::FacesToTriangles => fabric.faces_to_triangles(),
             }
@@ -167,11 +176,7 @@ impl Growth {
                         (spin, Some(face_id), any_special_face)
                     }
                 };
-                let twist_faces = if needs_double {
-                    fabric.double_twist(spin, self.pretenst_factor, 1.0, face_id).to_vec()
-                } else {
-                    fabric.single_twist(spin, self.pretenst_factor, 1.0, face_id).to_vec()
-                };
+                let twist_faces = self.twist(fabric, needs_double, spin, face_id);
                 for (face_name, node) in pairs {
                     let (new_buds, new_marks) =
                         self.execute_node(fabric, NamedFace { face_name }, node, twist_faces.clone());
@@ -189,6 +194,14 @@ impl Growth {
             }
         }
         (buds, marks)
+    }
+
+    fn twist(&self, fabric: &mut Fabric, needs_double: bool, spin: Spin, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
+        if needs_double {
+            fabric.double_twist(spin, self.pretenst_factor, 1.0, face_id).to_vec()
+        } else {
+            fabric.single_twist(spin, self.pretenst_factor, 1.0, face_id).to_vec()
+        }
     }
 
     fn attach_shapers_for(&self, fabric: &mut Fabric, shaper_spec: &ShaperSpec) -> Vec<Shaper> {
