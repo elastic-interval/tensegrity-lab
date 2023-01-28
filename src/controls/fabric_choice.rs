@@ -1,4 +1,3 @@
-use hashbrown::HashMap;
 use iced::{Alignment, Length};
 use iced_wgpu::Renderer;
 use iced_winit::Color;
@@ -8,7 +7,7 @@ use crate::controls::{Action, Message};
 
 #[derive(Clone, Debug)]
 pub enum FabricChoiceMessage {
-    ChooseFabric(&'static str),
+    ChooseFabric(String),
 }
 
 impl From<FabricChoiceMessage> for Message {
@@ -19,16 +18,16 @@ impl From<FabricChoiceMessage> for Message {
 
 #[derive(Clone, Debug)]
 pub struct FabricChoiceState {
-    pub current: Option<&'static str>,
-    pub choices: HashMap<&'static str, &'static str>,
+    pub current: Option<String>,
+    pub choices: Vec<(String, String)>,
 }
 
 impl FabricChoiceState {
     pub fn update(&mut self, message: FabricChoiceMessage) -> Option<Action> {
         match message {
             FabricChoiceMessage::ChooseFabric(choice) => {
-                self.current = Some(choice);
-                Some(Action::BuildFabric(fabric_plan(choice)))
+                self.current = Some(choice.clone());
+                Some(Action::BuildFabric(fabric_plan(&choice)))
             }
         }
     }
@@ -39,11 +38,11 @@ impl FabricChoiceState {
             .spacing(10)
             .width(Length::Fill)
             .align_items(Alignment::End);
-        for &choice in self.choices.keys() {
+        for (choice, _) in &self.choices {
             row = row.push(
                 Button::new(Text::new(choice)
                     .style(
-                        match self.current {
+                        match &self.current {
                             None => {
                                 Color::WHITE
                             }
@@ -57,7 +56,7 @@ impl FabricChoiceState {
                         }
                     )
                 )
-                    .on_press(FabricChoiceMessage::ChooseFabric(choice).into())
+                    .on_press(FabricChoiceMessage::ChooseFabric(choice.clone()).into())
             );
         }
         row

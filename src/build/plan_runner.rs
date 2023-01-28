@@ -64,7 +64,10 @@ impl PlanRunner {
                 ShapedApproach
             }
             ShapedApproach => ShapingDone,
-            ShapingDone => ShapingCalm,
+            ShapingDone => {
+                self.growth.post_shaping(fabric);
+                ShapingCalm
+            },
             ShapingCalm => Completed,
             Completed => Completed,
         };
