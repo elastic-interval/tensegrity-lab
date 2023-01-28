@@ -303,12 +303,14 @@ impl Program for ControlState {
                 )
                 .push(Self::layout_row(
                     match self.visible_controls {
-                        VisibleControl::ControlChoice => Row::new()
-                            .push(Button::new(Text::new("Fabrics"))
-                                .on_press(Message::ShowControl(VisibleControl::FabricChoice)))
-                            .push(Button::new(Text::new("Strain Threshold"))
-                                .on_press(Message::ShowControl(VisibleControl::StrainThreshold)))
-                        ,
+                        VisibleControl::ControlChoice => {
+                            Row::new()
+                                .push(Button::new(Text::new("Fabrics"))
+                                    .on_press(Message::ShowControl(VisibleControl::FabricChoice)))
+                                .push(Button::new(Text::new("Measure"))
+                                    .on_press(Message::ShowControl(VisibleControl::StrainThreshold)))
+
+                        }
                         VisibleControl::FabricChoice => self.fabric_choice_control.row(),
                         VisibleControl::StrainThreshold => self.strain_threshold_control.row(),
                     }
