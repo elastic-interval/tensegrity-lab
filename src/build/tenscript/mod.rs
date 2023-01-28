@@ -139,9 +139,9 @@ pub fn bootstrap_fabric_plans() -> Vec<(String, String)> {
 
 pub fn fabric_plan(plan_name: &str) -> FabricPlan {
     let plans = bootstrap_fabric_plans();
-    let (_, code) = plans.iter().find(|&(name, _)| *name == plan_name).unwrap_or_else(|| {
-        panic!("{plan_name} not found")
-    });
+    let Some((_, code)) = plans.iter().find(|&(name, _)| *name == plan_name) else {
+        panic!("{plan_name} not found");
+    };
     parse(code).unwrap()
 }
 
