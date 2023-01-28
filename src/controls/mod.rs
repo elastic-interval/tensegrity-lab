@@ -4,7 +4,7 @@ mod fabric_choice;
 use std::cell::RefCell;
 use iced_wgpu::{Backend, Renderer, Settings};
 use iced_winit::{Alignment, Clipboard, Color, Command, conversion, Debug, Element, Length, mouse, Program, program, renderer, Size, Viewport};
-use iced_winit::widget::{Column, Row, Text};
+use iced_winit::widget::{Button, Column, Row, Text};
 use wgpu::{CommandEncoder, Device, TextureView};
 use winit::dpi::PhysicalPosition;
 use winit::event::{ModifiersState, WindowEvent};
@@ -182,8 +182,8 @@ impl GUI {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum Showing {
-    Nothing,
+pub enum VisibleControl {
+    ControlChoice,
     FabricChoice,
     StrainThreshold,
 }
@@ -196,7 +196,8 @@ pub enum Action {
 
 #[derive(Clone, Debug)]
 pub struct ControlState {
-    showing: Showing,
+    debug_mode: bool,
+    visible_controls: VisibleControl,
     fabric_choice_control: FabricChoiceState,
     strain_threshold_control: StrainThresholdState,
     frame_rate: f64,
@@ -207,7 +208,8 @@ impl Default for ControlState {
     fn default() -> Self {
         let bootstrap = bootstrap_fabric_plans();
         Self {
-            showing: Showing::FabricChoice,
+            debug_mode: false,
+            visible_controls: VisibleControl::FabricChoice,
             strain_threshold_control: StrainThresholdState {
                 strain_nuance: 0.0,
                 strain_threshold: 0.0,
@@ -238,7 +240,8 @@ impl ControlState {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ShowControls,
+    ToggleDebugMode,
+    ShowControl(VisibleControl),
     FabricChoice(FabricChoiceMessage),
     StrainThreshold(StrainThresholdMessage),
     FrameRateUpdated(f64),
@@ -250,8 +253,11 @@ impl Program for ControlState {
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
-            Message::ShowControls => {
-                self.showing = Showing::StrainThreshold;
+            Message::ToggleDebugMode => {
+                self.debug_mode = !self.debug_mode;
+            }
+            Message::ShowControl(visible_control) => {
+                self.visible_controls = visible_control;
             }
             Message::FabricChoice(message) => {
                 if let Some(action) = self.fabric_choice_control.update(message) {
@@ -295,16 +301,36 @@ impl Program for ControlState {
                         .width(Length::Fill)
                         .push(right_column)
                 )
-                .push(
-                    match self.showing {
-                        Showing::Nothing => Row::new(),
-                        Showing::FabricChoice => self.fabric_choice_control.view(),
-                        Showing::StrainThreshold => self.strain_threshold_control.view(),
+                .push(Self::layout_row(
+                    match self.visible_controls {
+                        VisibleControl::ControlChoice => {
+                            Row::new()
+                                .push(Button::new(Text::new("Fabrics"))
+                                    .on_press(Message::ShowControl(VisibleControl::FabricChoice)))
+                                .push(Button::new(Text::new("Measure"))
+                                    .on_press(Message::ShowControl(VisibleControl::StrainThreshold)))
+
+                        }
+                        VisibleControl::FabricChoice => self.fabric_choice_control.row(),
+                        VisibleControl::StrainThreshold => self.strain_threshold_control.row(),
                     }
-                )
+                ))
                 .into();
-        // element.explain(Color::WHITE)
-        element
+        if self.debug_mode {
+            element.explain(Color::WHITE)
+        } else {
+            element
+        }
+    }
+}
+
+impl ControlState {
+    fn layout_row(row: Row<'_, Message, Renderer>) -> Row<'_, Message, Renderer> {
+        row
+            .padding(5)
+            .spacing(10)
+            .width(Length::Fill)
+            .align_items(Alignment::Center)
     }
 }
 

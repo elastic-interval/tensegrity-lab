@@ -1,5 +1,4 @@
 use std::fmt::{Display, Formatter};
-use hashbrown::HashMap;
 
 pub use parser::parse;
 
@@ -125,7 +124,7 @@ pub struct FabricPlan {
     pub shape_phase: ShapePhase,
 }
 
-pub fn bootstrap_fabric_plans() -> HashMap<&'static str, &'static str> {
+pub fn bootstrap_fabric_plans() -> Vec<(String, String)> {
     include_str!("bootstrap.scm")
         .split(";;;")
         .filter(|chunk| !chunk.is_empty())
@@ -133,16 +132,16 @@ pub fn bootstrap_fabric_plans() -> HashMap<&'static str, &'static str> {
             let line_end = chunk.find('\n').unwrap_or_else(|| {
                 panic!("bootstrap.scm not structured properly");
             });
-            (&chunk[0..line_end], &chunk[(line_end + 1)..])
+            (chunk[0..line_end].to_string(), chunk[(line_end + 1)..].to_string())
         })
         .collect()
 }
 
 pub fn fabric_plan(plan_name: &str) -> FabricPlan {
-    let map = bootstrap_fabric_plans();
-    let code = map.get(plan_name).unwrap_or_else(|| {
-        panic!("{plan_name} not found")
-    });
+    let plans = bootstrap_fabric_plans();
+    let Some((_, code)) = plans.iter().find(|&(name, _)| *name == plan_name) else {
+        panic!("{plan_name} not found");
+    };
     parse(code).unwrap()
 }
 
@@ -153,7 +152,7 @@ mod tests {
     #[test]
     fn parse() {
         let map = bootstrap_fabric_plans();
-        for (name, code) in map.into_iter() {
+        for (name, code) in map.iter() {
             match parser::parse(code) {
                 Ok(_) => println!("[{name}] Good plan!"),
                 Err(error) => panic!("[{name}] Error: {error:?}"),

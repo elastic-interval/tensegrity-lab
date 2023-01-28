@@ -2,19 +2,23 @@ use cgmath::{MetricSpace, Point3};
 use hashbrown::{HashMap, HashSet};
 use crate::fabric::{Fabric, Link};
 use crate::fabric::interval::{Interval, Role};
+use crate::fabric::Link::{Measure, PullStiffness};
 
 const ROOT3: f32 = 1.732_050_8;
+const BOW_TIE_STIFFNESS_FACTOR: f32 = 0.7;
+const BOW_TIE_PUSH_LENGTH_FACTOR_HEXAGON: f32 = 0.2;
+const BOW_TIE_PUSH_LENGTH_FACTOR_OCTAGON: f32 = 0.12;
 
 impl Fabric {
     pub fn install_bow_ties(&mut self) {
-        for Pair { alpha_index, omega_index, link } in self.pair_generator().bow_tie_pulls() {
-            self.create_interval(alpha_index, omega_index, link);
+        for Pair { alpha_index, omega_index, length } in self.pair_generator().bow_tie_pulls() {
+            self.create_interval(alpha_index, omega_index, PullStiffness { ideal: length, stiffness_factor: BOW_TIE_STIFFNESS_FACTOR });
         }
     }
 
     pub fn install_measures(&mut self) {
-        for Pair { alpha_index, omega_index, link } in self.pair_generator().proximity_measures() {
-            self.create_interval(alpha_index, omega_index, link);
+        for Pair { alpha_index, omega_index, length } in self.pair_generator().proximity_measures() {
+            self.create_interval(alpha_index, omega_index, Measure { length });
         }
     }
 
@@ -182,7 +186,7 @@ impl Path {
 struct Pair {
     alpha_index: usize,
     omega_index: usize,
-    link: Link,
+    length: f32,
 }
 
 impl Pair {
@@ -238,7 +242,7 @@ impl PairGenerator {
                 Some(Pair {
                     alpha_index: joint_index,
                     omega_index: other_joint.index,
-                    link: Link::Measure { length },
+                    length,
                 })
             })
             .map(|pair| (pair.key(), pair));
@@ -278,8 +282,7 @@ impl PairGenerator {
                         })
                         .collect();
                     if let &[(alpha_index, omega_index)] = cross_twist_diagonals.as_slice() {
-                        let link = Link::Pull { ideal: interval.ideal() / 3.0 };
-                        let pair = Pair { alpha_index, omega_index, link };
+                        let pair = Pair { alpha_index, omega_index, length: interval.ideal() * BOW_TIE_PUSH_LENGTH_FACTOR_HEXAGON };
                         self.pairs.insert(pair.key(), pair);
                     } else {
                         let candidate_completions = [
@@ -292,12 +295,11 @@ impl PairGenerator {
                                 if self.joints[other_path.joint_indices[1]].push.is_some() {
                                     return None;
                                 }
-                                Some((path.joint_indices[0], path.last_joint(), path.intervals[0].ideal()))
+                                Some((path.joint_indices[0], path.last_joint(), path.intervals[0].ideal() * BOW_TIE_PUSH_LENGTH_FACTOR_OCTAGON))
                             })
                             .collect();
-                        if let &[(alpha_index, omega_index, ideal)] = triangle_completions.as_slice() {
-                            let link = Link::Pull { ideal };
-                            let pair = Pair { alpha_index, omega_index, link };
+                        if let &[(alpha_index, omega_index, length)] = triangle_completions.as_slice() {
+                            let pair = Pair { alpha_index, omega_index, length };
                             self.pairs.insert(pair.key(), pair);
                         }
                     }
@@ -314,8 +316,7 @@ impl PairGenerator {
                         if self.joints[alpha_index].push.is_none() {
                             continue;
                         }
-                        let link = Link::Pull { ideal: interval.ideal() / 4.0 };
-                        let pair = Pair { alpha_index, omega_index, link };
+                        let pair = Pair { alpha_index, omega_index, length: interval.ideal() / 4.0 };
                         self.pairs.insert(pair.key(), pair);
                     }
                 }

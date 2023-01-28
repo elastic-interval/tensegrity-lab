@@ -14,11 +14,10 @@ use winit::window::Window;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
+use crate::controls::{GUI, Message, VisibleControl};
+use crate::controls::Action;
 use crate::experiment::Experiment;
 use crate::graphics::GraphicsWindow;
-use crate::controls::GUI;
-use crate::controls::Action;
-use crate::controls::Message::ShowControls;
 use crate::scene::Scene;
 
 struct Application {
@@ -31,7 +30,6 @@ impl Application {
     fn new(graphics: GraphicsWindow, window: &Window) -> Application {
         let gui = GUI::new(&graphics, window);
         let scene = Scene::new(&graphics);
-
         Application {
             graphics,
             scene,
@@ -113,34 +111,35 @@ pub fn run() {
 
     event_loop.run(move |event, _, control_flow| {
         match event {
-            Event::WindowEvent {
-                ref event,
-                window_id,
-            } if window_id == window.id() => {
+            Event::WindowEvent { ref event, window_id } if window_id == window.id() => {
                 app.gui.window_event(&window, event);
                 match event {
-                    WindowEvent::CloseRequested | WindowEvent::KeyboardInput {
-                        input: KeyboardInput {
-                            state: ElementState::Pressed,
-                            virtual_keycode: Some(VirtualKeyCode::Escape),
-                            ..
-                        },
-                        ..
-                    } => *control_flow = ControlFlow::Exit,
+                    WindowEvent::CloseRequested { .. } => *control_flow = ControlFlow::Exit,
                     WindowEvent::Resized(physical_size) => {
                         app.resize(*physical_size);
                     }
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                         app.resize(**new_inner_size);
                     }
-                    WindowEvent::KeyboardInput { input: KeyboardInput { virtual_keycode, state, .. }, .. } => {
-                        match virtual_keycode {
+                    WindowEvent::KeyboardInput {
+                        input: KeyboardInput {
+                            virtual_keycode: Some(keycode),
+                            state: ElementState::Pressed, ..
+                        }, ..
+                    } => {
+                        match keycode {
                             #[cfg(target_arch = "wasm32")]
-                            Some(VirtualKeyCode::F) => {
+                            VirtualKeyCode::F => {
                                 fullscreen_web();
                             }
-                            Some(VirtualKeyCode::Space) if *state == ElementState::Pressed => {
+                            VirtualKeyCode::Escape => {
+                                app.gui.change_state(Message::ShowControl(VisibleControl::ControlChoice));
+                            }
+                            VirtualKeyCode::Space => {
                                 experiment.toggle_pause();
+                            }
+                            VirtualKeyCode::D => {
+                                app.gui.change_state(Message::ToggleDebugMode);
                             }
                             _ => {}
                         }
@@ -157,7 +156,6 @@ pub fn run() {
                 if let Some(jump) = experiment.camera_jump() {
                     app.scene.move_camera(jump);
                     app.scene.show_surface();
-                    app.gui.change_state(ShowControls);
                 }
                 let message = app.scene.update(&app.graphics, app.gui.controls(), experiment.fabric());
                 if let Some(message) = message {
@@ -177,6 +175,7 @@ pub fn run() {
                 for action in app.gui.controls().take_actions() {
                     match action {
                         Action::BuildFabric(fabric_plan) => {
+                            app.gui.change_state(Message::ShowControl(VisibleControl::ControlChoice));
                             experiment.build_fabric(fabric_plan);
                         }
                         Action::AddPulls { strain_nuance } => {
