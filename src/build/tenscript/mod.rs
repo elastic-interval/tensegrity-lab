@@ -132,7 +132,7 @@ pub fn bootstrap_fabric_plans() -> Vec<(String, String)> {
             let line_end = chunk.find('\n').unwrap_or_else(|| {
                 panic!("bootstrap.scm not structured properly");
             });
-            (String::from(&chunk[0..line_end]), String::from(&chunk[(line_end + 1)..].to_string()))
+            (chunk[0..line_end].to_string(), chunk[(line_end + 1)..].to_string())
         })
         .collect()
 }
