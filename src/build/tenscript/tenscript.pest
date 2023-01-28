@@ -1,0 +1,67 @@
+// Created by intellij-pest on 2023-01-25
+// tenscript
+// Author: mitch
+//
+
+fabric_plan = {
+    "(" ~
+        "fabric" ~
+        surface? ~
+        build? ~
+    ")"
+}
+
+build = {
+    "(" ~
+        "build" ~
+        seed? ~
+    ")"
+}
+
+seed = {
+    "(" ~
+    "seed" ~
+    seed_value ~
+    ")"
+}
+
+seed_value = {
+    ":left" |
+    ":right" |
+    ":left-right" |
+    ":right-left"
+}
+
+surface = {
+    "(" ~
+        "surface" ~
+        surface_character ~
+    ")"
+}
+
+surface_character = {
+    ":bouncy" |
+    ":frozen" |
+    ":sticky"
+}
+
+ident = @{
+    XID_START ~ XID_CONTINUE*
+}
+
+atom = @{ ":" ~ ident }
+
+number = @{
+    "-"? ~
+    integer ~
+    ("." ~ mantissa)?
+}
+integer = { ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+ | ASCII_DIGIT }
+mantissa = { ASCII_DIGIT+ }
+
+string = @{
+    "\"" ~ (!"\"" ~ ANY)* ~ "\""
+}
+
+WHITESPACE = _{ " " | "\n" }
+COMMENT = _{ ";" ~ (!NEWLINE ~ ANY)* }

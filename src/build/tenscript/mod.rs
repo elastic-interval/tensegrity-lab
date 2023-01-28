@@ -8,6 +8,7 @@ mod error;
 mod expression;
 mod parser;
 mod scanner;
+mod pest_parser;
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum FaceName { Apos, Bpos, Cpos, Dpos, Aneg, Bneg, Cneg, Dneg }
