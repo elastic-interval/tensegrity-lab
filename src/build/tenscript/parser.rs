@@ -102,7 +102,7 @@ impl FabricPlan {
                             _ => unreachable!()
                         };
                 }
-                Rule::node => {
+                Rule::build_node => {
                     phase.root = Some(Self::parse_build_node(pair).unwrap());
                 }
                 _ => unreachable!("build phase: {pair:?}"),
