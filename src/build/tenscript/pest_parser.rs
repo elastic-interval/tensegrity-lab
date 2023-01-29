@@ -4,7 +4,7 @@ use pest::error::Error;
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
-use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, Seed, ShapePhase, SurfaceCharacterSpec, TenscriptNode};
+use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, PostShapeOperation, Seed, ShapePhase, ShaperSpec, SurfaceCharacterSpec, TenscriptNode};
 
 #[derive(Parser)]
 #[grammar = "build/tenscript/tenscript.pest"] // relative to src
@@ -43,8 +43,31 @@ fn fabric_plan(fabric_plan_pair: Pair<Rule>) -> Result<FabricPlan, ParseError> {
     Ok(plan)
 }
 
-fn shape(shape_pair: Pair<Rule>) -> Result<ShapePhase, ParseError> {
-    Ok(ShapePhase::default())
+fn shape(shape_phase_pair: Pair<Rule>) -> Result<ShapePhase, ParseError> {
+    let mut shape_phase = ShapePhase::default();
+    for pair in shape_phase_pair.into_inner() {
+        match pair.as_rule() {
+            Rule::join_statement => {
+                let mark_name = pair.into_inner().next().unwrap().as_str();
+                shape_phase.shaper_specs.push(ShaperSpec::Join { mark_name: mark_name.into() })
+            }
+            Rule::finally_statement => {
+                match pair.into_inner().next().unwrap().as_str() {
+                    ":bow-tie-pulls" => {
+                        shape_phase.post_shape_operations.push(PostShapeOperation::BowTiePulls)
+                    }
+                    ":faces-to-triangles" => {
+                        shape_phase.post_shape_operations.push(PostShapeOperation::FacesToTriangles)
+                    }
+                    _ => {
+                        return Err(ParseError::Something("finally what?".into()));
+                    }
+                }
+            }
+            _ => unreachable!("shape phase")
+        }
+    }
+    Ok(shape_phase)
 }
 
 fn build(build_phase_pair: Pair<Rule>) -> Result<BuildPhase, ParseError> {
@@ -87,19 +110,23 @@ fn node(node_pair: Pair<Rule>) -> Result<TenscriptNode, ParseError> {
             let mut inner = pair.into_inner();
             let count = inner.next().unwrap().as_str().parse().unwrap();
             let scale_factor = scale(inner.next());
+            let post_growth_node = inner.next()
+                .map(|post_growth| Box::new(node(post_growth).unwrap()));
             Ok(TenscriptNode::Grow {
                 forward: "X".repeat(count),
                 scale_factor,
-                post_growth_node: None,
+                post_growth_node,
             })
         }
         Rule::mark => {
-            Err(ParseError::ToBeDone)
+            let mark_name = pair.into_inner().next().unwrap().as_str();
+            Ok(TenscriptNode::Mark {mark_name: mark_name.into()})
         }
         Rule::branch => {
-            Ok(TenscriptNode::Branch{
-                face_nodes:pair.into_inner()
-                    .map(|face_node| node(face_node).unwrap()).collect()
+            Ok(TenscriptNode::Branch {
+                face_nodes: pair.into_inner()
+                    .map(|face_node| node(face_node).unwrap())
+                    .collect()
             })
         }
         _ => unreachable!("node"),
@@ -132,7 +159,7 @@ mod tests {
     fn parse_test() {
         let plans = bootstrap_fabric_plans();
         for (name, code) in plans.iter() {
-            if name != "Knee" {
+            if name != "Halo by Crane" {
                 continue;
             }
             match parse(code) {

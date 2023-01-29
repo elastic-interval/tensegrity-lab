@@ -15,11 +15,18 @@ fabric_plan = {
 shape = {
     "(" ~
     "shape" ~
-    shape_statement+ ~
+    (join_statement | finally_statement)+ ~
     ")"
 }
 
-shape_statement = {
+join_statement = {
+    "(" ~
+    "join" ~
+    atom ~
+    ")"
+}
+
+finally_statement = {
     "(" ~
     "finally" ~
     atom ~
