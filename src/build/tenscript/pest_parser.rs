@@ -1,4 +1,5 @@
 #![allow(clippy::result_large_err)]
+
 use pest::error::Error;
 use pest::iterators::Pair;
 use pest::Parser;
@@ -11,6 +12,7 @@ struct PestParser;
 
 #[derive(Debug, Clone)]
 enum ParseError {
+    ToBeDone,
     Something(String),
     PestError(Error<Rule>),
 }
@@ -38,7 +40,7 @@ fn fabric_plan(fabric_plan_pair: Pair<Rule>) -> Result<FabricPlan, ParseError> {
     Ok(plan)
 }
 
-fn build(build_phase_pair: Pair<Rule>)-> Result<BuildPhase, ParseError> {
+fn build(build_phase_pair: Pair<Rule>) -> Result<BuildPhase, ParseError> {
     let mut phase = BuildPhase::default();
     for pair in build_phase_pair.into_inner() {
         match pair.as_rule() {
@@ -52,17 +54,8 @@ fn build(build_phase_pair: Pair<Rule>)-> Result<BuildPhase, ParseError> {
                         _ => unreachable!()
                     };
             }
-            Rule::grow => {
-                let mut inner = pair.into_inner();
-                let count = inner.next().unwrap().as_str().parse().unwrap();
-                let scale_factor = scale(inner.next());
-                phase.root = Some(
-                    TenscriptNode::Grow {
-                        forward: "X".repeat(count),
-                        scale_factor,
-                        post_growth_node: None,
-                    }
-                );
+            Rule::node => {
+                phase.root = Some(node(pair).unwrap());
             }
             _ => unreachable!("build phase: {:?}", pair.as_rule()),
         }
@@ -70,7 +63,33 @@ fn build(build_phase_pair: Pair<Rule>)-> Result<BuildPhase, ParseError> {
     Ok(phase)
 }
 
-fn scale(scale_pair: Option<Pair<Rule>>)-> f32 {
+fn node(node_pair: Pair<Rule>) -> Result<TenscriptNode, ParseError> {
+    let pair = node_pair.into_inner().next().unwrap();
+    match pair.as_rule() {
+        Rule::face => {
+            Err(ParseError::ToBeDone)
+        }
+        Rule::grow => {
+            let mut inner = pair.into_inner();
+            let count = inner.next().unwrap().as_str().parse().unwrap();
+            let scale_factor = scale(inner.next());
+            Ok(TenscriptNode::Grow {
+                forward: "X".repeat(count),
+                scale_factor,
+                post_growth_node: None,
+            })
+        }
+        Rule::mark => {
+            Err(ParseError::ToBeDone)
+        }
+        Rule::branch => {
+            Err(ParseError::ToBeDone)
+        }
+        _ => unreachable!("node"),
+    }
+}
+
+fn scale(scale_pair: Option<Pair<Rule>>) -> f32 {
     match scale_pair {
         None => 1.0,
         Some(scale_pair) => {
@@ -96,14 +115,14 @@ mod tests {
     fn parse_test() {
         let plans = bootstrap_fabric_plans();
         for (name, code) in plans.iter() {
-            if name != "Flagellum" {
+            if name != "Knee" {
                 continue;
             }
             match parse(code) {
                 Ok(plan) => {
                     println!("[{name}] Good plan!");
                     dbg!(plan);
-                },
+                }
                 Err(ParseError::PestError(error)) => panic!("[{name}] Error: {error}"),
                 Err(error) => panic!("[{name}] Error: {error:?}"),
             }

@@ -7,7 +7,7 @@
   (build
     (seed :right-left)
     (branch
-      (face :A+ (grow "XXX"))
+      (face :A+ (grow 3))
       (face :B+ (grow 3))))
   (shape
     (finally :bow-tie-pulls)
