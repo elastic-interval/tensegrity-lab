@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter};
 
 use crate::build::tenscript::FaceName::{*};
 
-mod pest_parser;
+mod parser;
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum FaceName { Apos, Bpos, Cpos, Dpos, Aneg, Bneg, Cneg, Dneg }
@@ -63,21 +63,21 @@ impl Spin {
 }
 
 #[derive(Debug, Clone)]
-pub enum TenscriptNode {
+pub enum BuildNode {
     Face {
         face_name: FaceName,
-        node: Box<TenscriptNode>,
+        node: Box<BuildNode>,
     },
     Grow {
         forward: String,
         scale_factor: f32,
-        post_growth_node: Option<Box<TenscriptNode>>,
+        post_growth_node: Option<Box<BuildNode>>,
     },
     Mark {
         mark_name: String,
     },
     Branch {
-        face_nodes: Vec<TenscriptNode>,
+        face_nodes: Vec<BuildNode>,
     },
 }
 
@@ -109,7 +109,7 @@ impl Seed {
 #[derive(Debug, Clone, Default)]
 pub struct BuildPhase {
     pub seed: Seed,
-    pub root: Option<TenscriptNode>,
+    pub root: Option<BuildNode>,
 }
 
 #[derive(Debug, Clone)]
@@ -155,18 +155,18 @@ pub fn fabric_plan(plan_name: &str) -> FabricPlan {
     let Some((_, code)) = plans.iter().find(|&(name, _)| *name == plan_name) else {
         panic!("{plan_name} not found");
     };
-    pest_parser::parse(code).unwrap()
+    parser::parse(code).unwrap()
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::build::tenscript::{bootstrap_fabric_plans, pest_parser};
+    use crate::build::tenscript::{bootstrap_fabric_plans, parser};
 
     #[test]
     fn parse() {
         let map = bootstrap_fabric_plans();
         for (name, code) in map.iter() {
-            match pest_parser::parse(code) {
+            match parser::parse(code) {
                 Ok(_) => println!("[{name}] Good plan!"),
                 Err(error) => panic!("[{name}] Error: {error:?}"),
             }
