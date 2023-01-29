@@ -26,10 +26,10 @@ seed = {
 }
 
 seed_value = {
-    ":left" |
-    ":right" |
     ":left-right" |
-    ":right-left"
+    ":right-left" |
+    ":left" |
+    ":right"
 }
 
 surface = {
