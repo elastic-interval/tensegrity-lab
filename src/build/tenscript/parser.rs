@@ -5,7 +5,7 @@ use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
 
-use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, PostShapeOperation, Seed, ShapePhase, ShaperSpec, SurfaceCharacterSpec, TenscriptNode};
+use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, PostShapeOperation, Seed, ShapePhase, ShaperSpec, SurfaceCharacterSpec, BuildNode};
 
 #[derive(Parser)]
 #[grammar = "build/tenscript/tenscript.pest"] // relative to src
@@ -13,8 +13,8 @@ struct PestParser;
 
 #[derive(Debug, Clone)]
 pub enum ParseError {
-    Something(String),
-    PestError(Error<Rule>),
+    Syntax(String),
+    Pest(Error<Rule>),
 }
 
 fn fabric_plan(fabric_plan_pair: Pair<Rule>) -> Result<FabricPlan, ParseError> {
@@ -68,7 +68,7 @@ fn shape(shape_phase_pair: Pair<Rule>) -> Result<ShapePhase, ParseError> {
                         shape_phase.post_shape_operations.push(PostShapeOperation::FacesToTriangles)
                     }
                     _ => {
-                        return Err(ParseError::Something("finally what?".into()));
+                        return Err(ParseError::Syntax("finally what?".into()));
                     }
                 }
             }
@@ -95,21 +95,20 @@ fn build(build_phase_pair: Pair<Rule>) -> Result<BuildPhase, ParseError> {
             Rule::node => {
                 phase.root = Some(node(pair).unwrap());
             }
-            _ => unreachable!("build phase: {:?}", pair.as_rule()),
+            _ => unreachable!("build phase: {pair:?}"),
         }
     }
     Ok(phase)
 }
 
-fn node(node_pair: Pair<Rule>) -> Result<TenscriptNode, ParseError> {
+fn node(node_pair: Pair<Rule>) -> Result<BuildNode, ParseError> {
     let pair = node_pair.into_inner().next().unwrap();
     match pair.as_rule() {
         Rule::face => {
             let [face_name_pair, node_pair] = pair.into_inner().next_chunk().unwrap();
-            let face_name_string = face_name_pair.as_str();
-            let face_name: FaceName = face_name_string[1..].try_into().unwrap();
+            let face_name: FaceName = face_name_pair.as_str().try_into().unwrap();
             let node = node(node_pair).unwrap();
-            Ok(TenscriptNode::Face {
+            Ok(BuildNode::Face {
                 face_name,
                 node: Box::new(node),
             })
@@ -124,7 +123,7 @@ fn node(node_pair: Pair<Rule>) -> Result<TenscriptNode, ParseError> {
             let scale_factor = scale(inner.next());
             let post_growth_node = inner.next()
                 .map(|post_growth| Box::new(node(post_growth).unwrap()));
-            Ok(TenscriptNode::Grow {
+            Ok(BuildNode::Grow {
                 forward,
                 scale_factor,
                 post_growth_node,
@@ -132,10 +131,10 @@ fn node(node_pair: Pair<Rule>) -> Result<TenscriptNode, ParseError> {
         }
         Rule::mark => {
             let mark_name = pair.into_inner().next().unwrap().as_str()[1..].into();
-            Ok(TenscriptNode::Mark { mark_name })
+            Ok(BuildNode::Mark { mark_name })
         }
         Rule::branch => {
-            Ok(TenscriptNode::Branch {
+            Ok(BuildNode::Branch {
                 face_nodes: pair.into_inner()
                     .map(|face_node| node(face_node).unwrap())
                     .collect()
@@ -156,16 +155,18 @@ fn scale(scale_pair: Option<Pair<Rule>>) -> f32 {
 }
 
 pub fn parse(source: &str) -> Result<FabricPlan, ParseError> {
-    let mut pairs = PestParser::parse(Rule::fabric_plan, source)
-        .map_err(ParseError::PestError)?;
-    let plan_rule = pairs.next().unwrap();
-    fabric_plan(plan_rule)
+    fabric_plan(
+        PestParser::parse(Rule::fabric_plan, source)
+            .map_err(ParseError::Pest)?
+            .next()
+            .unwrap()
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use crate::build::tenscript::bootstrap_fabric_plans;
-    use crate::build::tenscript::pest_parser::{parse, ParseError};
+    use crate::build::tenscript::parser::{parse, ParseError};
 
     #[test]
     fn parse_test() {
@@ -176,7 +177,7 @@ mod tests {
                     println!("[{name}] Good plan!");
                     dbg!(plan);
                 }
-                Err(ParseError::PestError(error)) => panic!("[{name}] Error: {error}"),
+                Err(ParseError::Pest(error)) => panic!("[{name}] Error: {error}"),
                 Err(error) => panic!("[{name}] Error: {error:?}"),
             }
         }
