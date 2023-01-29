@@ -1,13 +1,8 @@
 use std::fmt::{Display, Formatter};
 
-pub use parser::parse;
-
 use crate::build::tenscript::FaceName::{*};
 
-mod error;
-mod expression;
 mod parser;
-mod scanner;
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum FaceName { Apos, Bpos, Cpos, Dpos, Aneg, Bneg, Cneg, Dneg }
@@ -23,6 +18,24 @@ impl Display for FaceName {
             Bneg => "B-",
             Cneg => "C-",
             Dneg => "D-",
+        })
+    }
+}
+
+impl TryFrom<&str> for FaceName {
+    type Error = ();
+
+    fn try_from(face_name: &str) -> Result<Self, Self::Error> {
+        Ok(match face_name {
+            "A+" => Apos,
+            "B+" => Bpos,
+            "C+" => Cpos,
+            "D+" => Dpos,
+            "A-" => Aneg,
+            "B-" => Bneg,
+            "C-" => Cneg,
+            "D-" => Dneg,
+            _ => return Err(())
         })
     }
 }
@@ -50,21 +63,21 @@ impl Spin {
 }
 
 #[derive(Debug, Clone)]
-pub enum TenscriptNode {
+pub enum BuildNode {
     Face {
         face_name: FaceName,
-        node: Box<TenscriptNode>,
+        node: Box<BuildNode>,
     },
     Grow {
         forward: String,
         scale_factor: f32,
-        post_growth_node: Option<Box<TenscriptNode>>,
+        post_growth_node: Option<Box<BuildNode>>,
     },
     Mark {
         mark_name: String,
     },
     Branch {
-        face_nodes: Vec<TenscriptNode>,
+        face_nodes: Vec<BuildNode>,
     },
 }
 
@@ -96,7 +109,7 @@ impl Seed {
 #[derive(Debug, Clone, Default)]
 pub struct BuildPhase {
     pub seed: Seed,
-    pub root: Option<TenscriptNode>,
+    pub root: Option<BuildNode>,
 }
 
 #[derive(Debug, Clone)]
@@ -114,7 +127,7 @@ pub enum PostShapeOperation {
 #[derive(Debug, Clone, Default)]
 pub struct ShapePhase {
     pub shaper_specs: Vec<ShaperSpec>,
-    pub post_shape_operations: Vec<PostShapeOperation>
+    pub post_shape_operations: Vec<PostShapeOperation>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -142,18 +155,18 @@ pub fn fabric_plan(plan_name: &str) -> FabricPlan {
     let Some((_, code)) = plans.iter().find(|&(name, _)| *name == plan_name) else {
         panic!("{plan_name} not found");
     };
-    parse(code).unwrap()
+    FabricPlan::from_tenscript(code.as_str()).unwrap()
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::build::tenscript::{bootstrap_fabric_plans, parser};
+    use crate::build::tenscript::{bootstrap_fabric_plans, FabricPlan};
 
     #[test]
     fn parse() {
         let map = bootstrap_fabric_plans();
         for (name, code) in map.iter() {
-            match parser::parse(code) {
+            match FabricPlan::from_tenscript(code) {
                 Ok(_) => println!("[{name}] Good plan!"),
                 Err(error) => panic!("[{name}] Error: {error:?}"),
             }
