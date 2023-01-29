@@ -105,10 +105,10 @@ fn node(node_pair: Pair<Rule>) -> Result<TenscriptNode, ParseError> {
     let pair = node_pair.into_inner().next().unwrap();
     match pair.as_rule() {
         Rule::face => {
-            let mut inner_pairs = pair.into_inner();
-            let face_name_string = inner_pairs.next().unwrap().as_str();
+            let [face_name_pair, node_pair] = pair.into_inner().next_chunk().unwrap();
+            let face_name_string = face_name_pair.as_str();
             let face_name: FaceName = face_name_string[1..].try_into().unwrap();
-            let node = node(inner_pairs.next().unwrap()).unwrap();
+            let node = node(node_pair).unwrap();
             Ok(TenscriptNode::Face {
                 face_name,
                 node: Box::new(node),
