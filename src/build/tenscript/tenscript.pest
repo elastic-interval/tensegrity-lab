@@ -15,7 +15,15 @@ fabric_plan = {
 shape = {
     "(" ~
     "shape" ~
-    (join_statement | finally_statement)+ ~
+    (space_statement | join_statement | finally_statement)+ ~
+    ")"
+}
+
+space_statement = {
+    "(" ~
+    "space" ~
+    atom ~
+    number ~
     ")"
 }
 
@@ -63,7 +71,7 @@ face_name = {
 grow = {
     "(" ~
     "grow" ~
-    integer ~
+    (integer | forward) ~
     scale? ~
     node? ~
     ")"
@@ -124,7 +132,6 @@ ident = @{
 atom = @{ ":" ~ ident }
 
 number = @{
-    "-"? ~
     integer? ~
     "." ~
     mantissa
@@ -134,6 +141,10 @@ mantissa = { ASCII_DIGIT+ }
 
 string = @{
     "\"" ~ (!"\"" ~ ANY)* ~ "\""
+}
+
+forward = @{
+    "\"" ~  ("X" | ".")+ ~ "\""
 }
 
 WHITESPACE = _{ " " | "\n" }
