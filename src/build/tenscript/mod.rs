@@ -28,6 +28,24 @@ impl Display for FaceName {
     }
 }
 
+impl TryFrom<&str> for FaceName {
+    type Error = ();
+
+    fn try_from(face_name: &str) -> Result<Self, Self::Error> {
+        Ok(match face_name {
+            "A+" => Apos,
+            "B+" => Bpos,
+            "C+" => Cpos,
+            "D+" => Dpos,
+            "A-" => Aneg,
+            "B-" => Bneg,
+            "C-" => Cneg,
+            "D-" => Dneg,
+            _ => return Err(())
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum SurfaceCharacterSpec {
     Frozen,
@@ -115,7 +133,7 @@ pub enum PostShapeOperation {
 #[derive(Debug, Clone, Default)]
 pub struct ShapePhase {
     pub shaper_specs: Vec<ShaperSpec>,
-    pub post_shape_operations: Vec<PostShapeOperation>
+    pub post_shape_operations: Vec<PostShapeOperation>,
 }
 
 #[derive(Debug, Clone, Default)]
