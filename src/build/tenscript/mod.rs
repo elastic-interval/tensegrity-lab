@@ -155,18 +155,18 @@ pub fn fabric_plan(plan_name: &str) -> FabricPlan {
     let Some((_, code)) = plans.iter().find(|&(name, _)| *name == plan_name) else {
         panic!("{plan_name} not found");
     };
-    parser::parse(code).unwrap()
+    FabricPlan::from_tenscript(code.as_str()).unwrap()
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::build::tenscript::{bootstrap_fabric_plans, parser};
+    use crate::build::tenscript::{bootstrap_fabric_plans, FabricPlan};
 
     #[test]
     fn parse() {
         let map = bootstrap_fabric_plans();
         for (name, code) in map.iter() {
-            match parser::parse(code) {
+            match FabricPlan::from_tenscript(code) {
                 Ok(_) => println!("[{name}] Good plan!"),
                 Err(error) => panic!("[{name}] Error: {error:?}"),
             }
