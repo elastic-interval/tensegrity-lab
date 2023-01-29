@@ -3,6 +3,7 @@
 #![feature(iter_array_chunks)]
 #![allow(dead_code)]
 #![feature(iter_collect_into)]
+#![feature(iter_next_chunk)]
 
 
 pub mod application;

@@ -210,8 +210,8 @@ impl Scene {
         self.camera.jump(jump);
     }
 
-    pub fn show_surface(&mut self) {
-        self.show_surface = true;
+    pub fn show_surface(&mut self, show: bool) {
+        self.show_surface = show;
     }
 }
 
