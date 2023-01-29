@@ -1,13 +1,7 @@
 use std::fmt::{Display, Formatter};
 
-pub use parser::parse;
-
 use crate::build::tenscript::FaceName::{*};
 
-mod error;
-mod expression;
-mod parser;
-mod scanner;
 mod pest_parser;
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
@@ -161,18 +155,18 @@ pub fn fabric_plan(plan_name: &str) -> FabricPlan {
     let Some((_, code)) = plans.iter().find(|&(name, _)| *name == plan_name) else {
         panic!("{plan_name} not found");
     };
-    parse(code).unwrap()
+    pest_parser::parse(code).unwrap()
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::build::tenscript::{bootstrap_fabric_plans, parser};
+    use crate::build::tenscript::{bootstrap_fabric_plans, pest_parser};
 
     #[test]
     fn parse() {
         let map = bootstrap_fabric_plans();
         for (name, code) in map.iter() {
-            match parser::parse(code) {
+            match pest_parser::parse(code) {
                 Ok(_) => println!("[{name}] Good plan!"),
                 Err(error) => panic!("[{name}] Error: {error:?}"),
             }
