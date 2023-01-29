@@ -45,11 +45,11 @@ build = {
     "(" ~
     "build" ~
     seed? ~
-    node? ~
+    build_node? ~
     ")"
 }
 
-node = {
+build_node = {
     face | grow | mark | branch
 }
 
@@ -57,7 +57,7 @@ face = {
     "(" ~
     "face" ~
     face_name ~
-    node ~
+    build_node ~
     ")"
 }
 
@@ -73,7 +73,7 @@ grow = {
     "grow" ~
     (integer | forward) ~
     scale? ~
-    node? ~
+    build_node? ~
     ")"
 }
 
@@ -87,7 +87,7 @@ mark = {
 branch = {
     "(" ~
     "branch" ~
-    node+ ~
+    build_node+ ~
     ")"
 }
 
