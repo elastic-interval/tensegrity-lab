@@ -4,6 +4,7 @@ use pest::error::Error;
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
+
 use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, PostShapeOperation, Seed, ShapePhase, ShaperSpec, SurfaceCharacterSpec, TenscriptNode};
 
 #[derive(Parser)]
@@ -47,9 +48,7 @@ fn shape(shape_phase_pair: Pair<Rule>) -> Result<ShapePhase, ParseError> {
     for pair in shape_phase_pair.into_inner() {
         match pair.as_rule() {
             Rule::space_statement => {
-                let mut inner = pair.into_inner();
-                let mark_name = inner.next().unwrap().as_str();
-                let distance_string = inner.next().unwrap().as_str();
+                let [mark_name, distance_string] = pair.into_inner().next_chunk().unwrap().map(|p| p.as_str());
                 let distance_factor = distance_string.parse().unwrap();
                 shape_phase.shaper_specs.push(ShaperSpec::Distance {
                     mark_name: mark_name[1..].into(),
@@ -118,7 +117,7 @@ fn node(node_pair: Pair<Rule>) -> Result<TenscriptNode, ParseError> {
         Rule::grow => {
             let mut inner = pair.into_inner();
             let forward_string = inner.next().unwrap().as_str();
-            let forward = match forward_string.parse::<usize>() {
+            let forward = match forward_string.parse() {
                 Ok(count) => { "X".repeat(count) }
                 Err(_) => { forward_string[1..forward_string.len() - 1].into() }
             };
