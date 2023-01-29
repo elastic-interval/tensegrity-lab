@@ -4,7 +4,7 @@ use pest::error::Error;
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
-use crate::build::tenscript::{BuildPhase, FabricPlan, Seed, SurfaceCharacterSpec, TenscriptNode};
+use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, Seed, ShapePhase, SurfaceCharacterSpec, TenscriptNode};
 
 #[derive(Parser)]
 #[grammar = "build/tenscript/tenscript.pest"] // relative to src
@@ -34,10 +34,17 @@ fn fabric_plan(fabric_plan_pair: Pair<Rule>) -> Result<FabricPlan, ParseError> {
             Rule::build => {
                 plan.build_phase = build(pair)?;
             }
+            Rule::shape => {
+                plan.shape_phase = shape(pair)?;
+            }
             _ => unreachable!("fabric plan"),
         }
     }
     Ok(plan)
+}
+
+fn shape(shape_pair: Pair<Rule>) -> Result<ShapePhase, ParseError> {
+    Ok(ShapePhase::default())
 }
 
 fn build(build_phase_pair: Pair<Rule>) -> Result<BuildPhase, ParseError> {
@@ -67,7 +74,14 @@ fn node(node_pair: Pair<Rule>) -> Result<TenscriptNode, ParseError> {
     let pair = node_pair.into_inner().next().unwrap();
     match pair.as_rule() {
         Rule::face => {
-            Err(ParseError::ToBeDone)
+            let mut inner_pairs = pair.into_inner();
+            let face_name_string = inner_pairs.next().unwrap().as_str();
+            let face_name: FaceName = face_name_string[1..].try_into().unwrap();
+            let node = node(inner_pairs.next().unwrap()).unwrap();
+            Ok(TenscriptNode::Face {
+                face_name,
+                node: Box::new(node),
+            })
         }
         Rule::grow => {
             let mut inner = pair.into_inner();
@@ -83,7 +97,10 @@ fn node(node_pair: Pair<Rule>) -> Result<TenscriptNode, ParseError> {
             Err(ParseError::ToBeDone)
         }
         Rule::branch => {
-            Err(ParseError::ToBeDone)
+            Ok(TenscriptNode::Branch{
+                face_nodes:pair.into_inner()
+                    .map(|face_node| node(face_node).unwrap()).collect()
+            })
         }
         _ => unreachable!("node"),
     }
