@@ -5,32 +5,81 @@
 
 fabric_plan = {
     "(" ~
-        "fabric" ~
-        surface? ~
-        build? ~
+    "fabric" ~
+    surface? ~
+    build? ~
+    shape? ~
+    ")"
+}
+
+shape = {
+    "(" ~
+    "shape" ~
+    shape_statement+ ~
+    ")"
+}
+
+shape_statement = {
+    "(" ~
+    "finally" ~
+    atom ~
     ")"
 }
 
 build = {
     "(" ~
-        "build" ~
-        seed? ~
-        grow? ~
+    "build" ~
+    seed? ~
+    node? ~
     ")"
+}
+
+node = {
+    face | grow | mark | branch
+}
+
+face = {
+    "(" ~
+    "face" ~
+    face_name ~
+    node ~
+    ")"
+}
+
+face_name = {
+    ":A-" |":B-" |
+    ":C-" |":D-" |
+    ":A+" |":B+" |
+    ":C+" |":D+"
 }
 
 grow = {
     "(" ~
-        "grow" ~
-        integer ~
-        scale? ~
+    "grow" ~
+    integer ~
+    scale? ~
+    node? ~
+    ")"
+}
+
+mark = {
+    "(" ~
+    "mark" ~
+    atom ~
+    ")"
+}
+
+branch = {
+    "(" ~
+    "branch" ~
+    node+ ~
     ")"
 }
 
 scale = {
     "(" ~
-        "scale" ~
-        number ~
+    "scale" ~
+    number ~
     ")"
 }
 
@@ -50,8 +99,8 @@ seed_value = {
 
 surface = {
     "(" ~
-        "surface" ~
-        surface_character ~
+    "surface" ~
+    surface_character ~
     ")"
 }
 
@@ -62,7 +111,7 @@ surface_character = {
 }
 
 ident = @{
-    XID_START ~ XID_CONTINUE*
+    XID_START ~ (XID_CONTINUE | "-")*
 }
 
 atom = @{ ":" ~ ident }
