@@ -3,7 +3,7 @@ use pest::error::Error;
 use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
-use crate::build::tenscript::{BuildPhase, FabricPlan, Seed, SurfaceCharacterSpec};
+use crate::build::tenscript::{BuildPhase, FabricPlan, Seed, SurfaceCharacterSpec, TenscriptNode};
 
 #[derive(Parser)]
 #[grammar = "build/tenscript/tenscript.pest"] // relative to src
@@ -52,15 +52,33 @@ fn build(build_phase_pair: Pair<Rule>)-> Result<BuildPhase, ParseError> {
                         _ => unreachable!()
                     };
             }
+            Rule::grow => {
+                let mut inner = pair.into_inner();
+                let count = inner.next().unwrap().as_str().parse().unwrap();
+                let scale_factor = scale(inner.next());
+                phase.root = Some(
+                    TenscriptNode::Grow {
+                        forward: "X".repeat(count),
+                        scale_factor,
+                        post_growth_node: None,
+                    }
+                );
+            }
             _ => unreachable!("build phase: {:?}", pair.as_rule()),
         }
     }
     Ok(phase)
 }
 
-// fn seed(_seed_pair: Pair<Rule>)-> Result<Seed, ParseError> {
-//     Ok(Seed::default())
-// }
+fn scale(scale_pair: Option<Pair<Rule>>)-> f32 {
+    match scale_pair {
+        None => 1.0,
+        Some(scale_pair) => {
+            let scale_string = scale_pair.into_inner().next().unwrap().as_str();
+            scale_string.parse().unwrap()
+        }
+    }
+}
 
 fn parse(source: &str) -> Result<FabricPlan, ParseError> {
     let mut pairs = PestParser::parse(Rule::fabric_plan, source)
@@ -78,7 +96,7 @@ mod tests {
     fn parse_test() {
         let plans = bootstrap_fabric_plans();
         for (name, code) in plans.iter() {
-            if name != "Seed" {
+            if name != "Flagellum" {
                 continue;
             }
             match parse(code) {

@@ -15,6 +15,22 @@ build = {
     "(" ~
         "build" ~
         seed? ~
+        grow? ~
+    ")"
+}
+
+grow = {
+    "(" ~
+        "grow" ~
+        integer ~
+        scale? ~
+    ")"
+}
+
+scale = {
+    "(" ~
+        "scale" ~
+        number ~
     ")"
 }
 
@@ -53,10 +69,11 @@ atom = @{ ":" ~ ident }
 
 number = @{
     "-"? ~
-    integer ~
-    ("." ~ mantissa)?
+    integer? ~
+    "." ~
+    mantissa
 }
-integer = { ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+ | ASCII_DIGIT }
+integer = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+ | ASCII_DIGIT }
 mantissa = { ASCII_DIGIT+ }
 
 string = @{
