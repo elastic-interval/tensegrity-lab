@@ -11,8 +11,7 @@ use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, PostShapeOperati
 struct PestParser;
 
 #[derive(Debug, Clone)]
-enum ParseError {
-    ToBeDone,
+pub enum ParseError {
     Something(String),
     PestError(Error<Rule>),
 }
@@ -157,7 +156,7 @@ fn scale(scale_pair: Option<Pair<Rule>>) -> f32 {
     }
 }
 
-fn parse(source: &str) -> Result<FabricPlan, ParseError> {
+pub fn parse(source: &str) -> Result<FabricPlan, ParseError> {
     let mut pairs = PestParser::parse(Rule::fabric_plan, source)
         .map_err(ParseError::PestError)?;
     let plan_rule = pairs.next().unwrap();
