@@ -131,8 +131,8 @@ fn node(node_pair: Pair<Rule>) -> Result<TenscriptNode, ParseError> {
             })
         }
         Rule::mark => {
-            let mark_name = pair.into_inner().next().unwrap().as_str();
-            Ok(TenscriptNode::Mark { mark_name: mark_name[1..].into() })
+            let mark_name = pair.into_inner().next().unwrap().as_str()[1..].into();
+            Ok(TenscriptNode::Mark { mark_name })
         }
         Rule::branch => {
             Ok(TenscriptNode::Branch {
