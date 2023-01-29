@@ -47,9 +47,19 @@ fn shape(shape_phase_pair: Pair<Rule>) -> Result<ShapePhase, ParseError> {
     let mut shape_phase = ShapePhase::default();
     for pair in shape_phase_pair.into_inner() {
         match pair.as_rule() {
+            Rule::space_statement => {
+                let mut inner = pair.into_inner();
+                let mark_name = inner.next().unwrap().as_str();
+                let distance_string = inner.next().unwrap().as_str();
+                let distance_factor = distance_string.parse().unwrap();
+                shape_phase.shaper_specs.push(ShaperSpec::Distance {
+                    mark_name: mark_name[1..].into(),
+                    distance_factor,
+                })
+            }
             Rule::join_statement => {
                 let mark_name = pair.into_inner().next().unwrap().as_str();
-                shape_phase.shaper_specs.push(ShaperSpec::Join { mark_name: mark_name.into() })
+                shape_phase.shaper_specs.push(ShaperSpec::Join { mark_name: mark_name[1..].into() })
             }
             Rule::finally_statement => {
                 match pair.into_inner().next().unwrap().as_str() {
@@ -108,19 +118,23 @@ fn node(node_pair: Pair<Rule>) -> Result<TenscriptNode, ParseError> {
         }
         Rule::grow => {
             let mut inner = pair.into_inner();
-            let count = inner.next().unwrap().as_str().parse().unwrap();
+            let forward_string = inner.next().unwrap().as_str();
+            let forward = match forward_string.parse::<usize>() {
+                Ok(count) => { "X".repeat(count) }
+                Err(_) => { forward_string[1..forward_string.len() - 1].into() }
+            };
             let scale_factor = scale(inner.next());
             let post_growth_node = inner.next()
                 .map(|post_growth| Box::new(node(post_growth).unwrap()));
             Ok(TenscriptNode::Grow {
-                forward: "X".repeat(count),
+                forward,
                 scale_factor,
                 post_growth_node,
             })
         }
         Rule::mark => {
             let mark_name = pair.into_inner().next().unwrap().as_str();
-            Ok(TenscriptNode::Mark {mark_name: mark_name.into()})
+            Ok(TenscriptNode::Mark { mark_name: mark_name[1..].into() })
         }
         Rule::branch => {
             Ok(TenscriptNode::Branch {
@@ -159,9 +173,6 @@ mod tests {
     fn parse_test() {
         let plans = bootstrap_fabric_plans();
         for (name, code) in plans.iter() {
-            if name != "Halo by Crane" {
-                continue;
-            }
             match parse(code) {
                 Ok(plan) => {
                     println!("[{name}] Good plan!");
