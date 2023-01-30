@@ -155,7 +155,7 @@ pub fn run() {
                 experiment.iterate();
                 if let Some(jump) = experiment.camera_jump() {
                     app.scene.move_camera(jump);
-                    app.scene.show_surface();
+                    app.scene.show_surface(true);
                 }
                 let message = app.scene.update(&app.graphics, app.gui.controls(), experiment.fabric());
                 if let Some(message) = message {
@@ -175,6 +175,7 @@ pub fn run() {
                 for action in app.gui.controls().take_actions() {
                     match action {
                         Action::BuildFabric(fabric_plan) => {
+                            app.scene.show_surface(false);
                             app.gui.change_state(Message::ShowControl(VisibleControl::ControlChoice));
                             experiment.build_fabric(fabric_plan);
                         }

@@ -1,0 +1,151 @@
+// Created by intellij-pest on 2023-01-25
+// tenscript
+// Author: mitch
+//
+
+fabric_plan = {
+    "(" ~
+    "fabric" ~
+    surface? ~
+    build? ~
+    shape? ~
+    ")"
+}
+
+shape = {
+    "(" ~
+    "shape" ~
+    (space_statement | join_statement | finally_statement)+ ~
+    ")"
+}
+
+space_statement = {
+    "(" ~
+    "space" ~
+    atom ~
+    number ~
+    ")"
+}
+
+join_statement = {
+    "(" ~
+    "join" ~
+    atom ~
+    ")"
+}
+
+finally_statement = {
+    "(" ~
+    "finally" ~
+    atom ~
+    ")"
+}
+
+build = {
+    "(" ~
+    "build" ~
+    seed? ~
+    build_node? ~
+    ")"
+}
+
+build_node = {
+    face | grow | mark | branch
+}
+
+face = {
+    "(" ~
+    "face" ~
+    face_name ~
+    build_node ~
+    ")"
+}
+
+face_name = {
+    "A-" | "B-" |
+    "C-" | "D-" |
+    "A+" | "B+" |
+    "C+" | "D+"
+}
+
+grow = {
+    "(" ~
+    "grow" ~
+    (integer | forward) ~
+    scale? ~
+    build_node? ~
+    ")"
+}
+
+mark = {
+    "(" ~
+    "mark" ~
+    atom ~
+    ")"
+}
+
+branch = {
+    "(" ~
+    "branch" ~
+    build_node+ ~
+    ")"
+}
+
+scale = {
+    "(" ~
+    "scale" ~
+    number ~
+    ")"
+}
+
+seed = {
+    "(" ~
+    "seed" ~
+    seed_value ~
+    ")"
+}
+
+seed_value = {
+    ":left-right" |
+    ":right-left" |
+    ":left" |
+    ":right"
+}
+
+surface = {
+    "(" ~
+    "surface" ~
+    surface_character ~
+    ")"
+}
+
+surface_character = {
+    ":bouncy" |
+    ":frozen" |
+    ":sticky"
+}
+
+ident = @{
+    XID_START ~ (XID_CONTINUE | "-")*
+}
+
+atom = @{ ":" ~ ident }
+
+number = @{
+    integer? ~
+    "." ~
+    mantissa
+}
+integer = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+ | ASCII_DIGIT }
+mantissa = { ASCII_DIGIT+ }
+
+string = @{
+    "\"" ~ (!"\"" ~ ANY)* ~ "\""
+}
+
+forward = @{
+    "\"" ~  ("X" | ".")+ ~ "\""
+}
+
+WHITESPACE = _{ " " | "\n" }
+COMMENT = _{ ";" ~ (!NEWLINE ~ ANY)* }
