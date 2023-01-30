@@ -179,6 +179,9 @@ pub fn run() {
                             app.gui.change_state(Message::ShowControl(VisibleControl::ControlChoice));
                             experiment.build_fabric(fabric_plan);
                         }
+                        Action::GravityChanged(gravity) => {
+                            experiment.set_gravity(gravity);
+                        }
                         Action::AddPulls { strain_nuance } => {
                             let maximum = experiment.fabric().max_measure_strain();
                             experiment.add_pulls(strain_nuance * maximum);

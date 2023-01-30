@@ -17,6 +17,7 @@ use instant::Instant;
 use std::time::Instant;
 use crate::build::tenscript::{bootstrap_fabric_plans, FabricPlan};
 use crate::controls::fabric_choice::{FabricChoiceState, FabricChoiceMessage};
+use crate::controls::gravity::{GravityMessage, GravityState};
 use crate::controls::strain_threshold::{StrainThresholdState, StrainThresholdMessage};
 use crate::controls::strain_threshold::StrainThresholdMessage::StrainThresholdChanged;
 
@@ -193,6 +194,7 @@ pub enum VisibleControl {
 #[derive(Clone, Debug)]
 pub enum Action {
     BuildFabric(FabricPlan),
+    GravityChanged(f32),
     AddPulls { strain_nuance: f32 },
 }
 
@@ -202,6 +204,7 @@ pub struct ControlState {
     visible_controls: VisibleControl,
     fabric_choice_control: FabricChoiceState,
     strain_threshold_control: StrainThresholdState,
+    gravity_control: GravityState,
     frame_rate: f64,
     action_queue: RefCell<Vec<Action>>,
 }
@@ -212,13 +215,18 @@ impl Default for ControlState {
         Self {
             debug_mode: false,
             visible_controls: VisibleControl::FabricChoice,
-            strain_threshold_control: StrainThresholdState {
-                strain_nuance: 0.0,
-                strain_threshold: 0.0,
-            },
             fabric_choice_control: FabricChoiceState {
                 current: None,
                 choices: bootstrap,
+            },
+            strain_threshold_control: StrainThresholdState {
+                nuance: 0.0,
+                strain_threshold: 0.0,
+            },
+            gravity_control: GravityState {
+                nuance: 0.0,
+                min_gravity: 1e-8,
+                max_gravity: 5e-7,
             },
             frame_rate: 0.0,
             action_queue: RefCell::new(Vec::new()),
@@ -232,7 +240,7 @@ impl ControlState {
     }
 
     pub fn get_strain_threshold(&self, maximum_strain: f32) -> f32 {
-        maximum_strain * self.strain_threshold_control.strain_nuance
+        maximum_strain * self.strain_threshold_control.nuance
     }
 
     pub fn strain_threshold_changed(&self, strain_threshold: f32) -> Message {
@@ -246,6 +254,7 @@ pub enum Message {
     ShowControl(VisibleControl),
     FabricChoice(FabricChoiceMessage),
     StrainThreshold(StrainThresholdMessage),
+    Gravity(GravityMessage),
     FrameRateUpdated(f64),
 }
 
@@ -268,6 +277,11 @@ impl Program for ControlState {
             }
             Message::StrainThreshold(message) => {
                 if let Some(action) = self.strain_threshold_control.update(message) {
+                    self.action_queue.borrow_mut().push(action);
+                }
+            }
+            Message::Gravity(message) => {
+                if let Some(action) = self.gravity_control.update(message) {
                     self.action_queue.borrow_mut().push(action);
                 }
             }
@@ -311,10 +325,13 @@ impl Program for ControlState {
                                     .on_press(Message::ShowControl(VisibleControl::FabricChoice)))
                                 .push(Button::new(Text::new("Measure"))
                                     .on_press(Message::ShowControl(VisibleControl::StrainThreshold)))
+                                .push(Button::new(Text::new("Gravity"))
+                                    .on_press(Message::ShowControl(VisibleControl::Gravity)))
 
                         }
                         VisibleControl::FabricChoice => self.fabric_choice_control.row(),
                         VisibleControl::StrainThreshold => self.strain_threshold_control.row(),
+                        VisibleControl::Gravity => self.gravity_control.row(),
                     }
                 ))
                 .into();
