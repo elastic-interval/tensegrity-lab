@@ -3,8 +3,8 @@ use crate::build::growth::Launch::{IdentifiedFace, NamedFace, Seeded};
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, PostShapeOperation, Seed, ShapePhase, ShaperSpec, Spin};
 use crate::build::tenscript::FaceName::Apos;
-use crate::build::tenscript::TenscriptNode;
-use crate::build::tenscript::TenscriptNode::{Branch, Face, Grow, Mark};
+use crate::build::tenscript::BuildNode;
+use crate::build::tenscript::BuildNode::{Branch, Face, Grow, Mark};
 
 #[allow(dead_code)]
 #[derive(Clone)]
@@ -12,7 +12,7 @@ pub enum MarkAction {
     Join,
     ShapingDistance { length_factor: f32 },
     PretenstDistance { length_factor: f32 },
-    Subtree { node: TenscriptNode },
+    Subtree { node: BuildNode },
 }
 
 #[derive(Clone, Debug)]
@@ -20,7 +20,7 @@ pub struct Bud {
     face_id: UniqueId,
     forward: String,
     scale_factor: f32,
-    node: Option<TenscriptNode>,
+    node: Option<BuildNode>,
 }
 
 #[derive(Clone, Debug)]
@@ -142,7 +142,7 @@ impl Growth {
         (buds, marks)
     }
 
-    fn execute_node(&self, fabric: &mut Fabric, launch: Launch, node: &TenscriptNode, faces: Vec<(FaceName, UniqueId)>) -> (Vec<Bud>, Vec<PostMark>) {
+    fn execute_node(&self, fabric: &mut Fabric, launch: Launch, node: &BuildNode, faces: Vec<(FaceName, UniqueId)>) -> (Vec<Bud>, Vec<PostMark>) {
         let mut buds: Vec<Bud> = vec![];
         let mut marks: Vec<PostMark> = vec![];
         match node {
@@ -286,7 +286,7 @@ impl Growth {
         fabric.remove_face(omega_id);
     }
 
-    fn branch_pairs(nodes: &[TenscriptNode]) -> Vec<(FaceName, &TenscriptNode)> {
+    fn branch_pairs(nodes: &[BuildNode]) -> Vec<(FaceName, &BuildNode)> {
         nodes
             .iter()
             .map(|face_node| {
