@@ -234,3 +234,16 @@ impl Link {
         Self { ideal, material: 1 }
     }
 }
+
+const DEFAULT_MATERIALS: [Material; 2] = [
+    Material {
+        role: Push,
+        stiffness: 3.0,
+        mass: 1.0,
+    },
+    Material {
+        role: Pull,
+        stiffness: 1.0,
+        mass: 0.1,
+    },
+];
