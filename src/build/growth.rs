@@ -198,11 +198,12 @@ impl Growth {
     }
 
     fn twist(&self, fabric: &mut Fabric, needs_double: bool, spin: Spin, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
-        let faces = if needs_double {
-            fabric.double_twist(spin, self.pretenst_factor, 1.0, face_id).to_vec()
-        } else {
-            fabric.single_twist(spin, self.pretenst_factor, 1.0, face_id).to_vec()
-        };
+        let faces =
+            if needs_double {
+                fabric.double_twist(spin, self.pretenst_factor, 1.0, face_id).to_vec()
+            } else {
+                fabric.single_twist(spin, self.pretenst_factor, 1.0, face_id).to_vec()
+            };
         let Seed { down_faces, .. } = &self.plan.build_phase.seed;
         if face_id.is_none() && !down_faces.is_empty() {
             Self::orient_fabric(fabric, &faces, down_faces);
