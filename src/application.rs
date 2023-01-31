@@ -176,7 +176,7 @@ pub fn run() {
                     match action {
                         Action::BuildFabric(fabric_plan) => {
                             app.scene.show_surface(false);
-                            app.gui.change_state(Message::ShowControl(VisibleControl::ControlChoice));
+                            app.gui.change_state(Message::Reset);
                             experiment.build_fabric(fabric_plan);
                         }
                         Action::GravityChanged(gravity) => {
