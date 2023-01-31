@@ -212,16 +212,16 @@ impl Growth {
     }
 
     fn orient_fabric(fabric: &mut Fabric, faces: &[(FaceName, UniqueId)], down_faces: &[FaceName]) {
-        let mut down: Vector3<f32> = faces
+        let mut new_down: Vector3<f32> = faces
             .iter()
             .filter(|(face_name, _)| down_faces.contains(face_name))
             .map(|(_, face_id)| fabric.face(*face_id).normal(&fabric.joints, fabric))
             .sum();
-        down = down.normalize();
+        new_down = new_down.normalize();
         let midpoint = fabric.midpoint().to_vec();
         let rotation =
             Matrix4::from_translation(midpoint) *
-                Matrix4::from(Quaternion::between_vectors(down, -Vector3::unit_y())) *
+                Matrix4::from(Quaternion::between_vectors(new_down, -Vector3::unit_y())) *
                 Matrix4::from_translation(-midpoint);
         fabric.apply_matrix4(rotation);
     }
