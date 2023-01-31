@@ -51,7 +51,7 @@ impl Experiment {
         match &self.stage {
             Empty => {}
             AcceptingPlan(fabric_plan) => {
-                self.fabric = Fabric::default();
+                self.fabric = Fabric::default_bow_tie();
                 self.frozen_fabric = None;
                 self.plan_runner = Some(PlanRunner::new(fabric_plan.clone()));
                 self.stage = RunningPlan;
