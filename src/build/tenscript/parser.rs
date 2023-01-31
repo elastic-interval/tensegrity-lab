@@ -5,7 +5,11 @@ use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
 
-use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, PostShapeOperation, Seed, ShapePhase, ShaperSpec, SurfaceCharacterSpec, BuildNode};
+use crate::build::tenscript::{BuildNode, BuildPhase, FabricPlan, PostShapeOperation, Seed, ShapePhase, ShaperSpec, SurfaceCharacterSpec};
+
+pub macro tenscript($($t:tt)*) {
+    stringify!($($t)*)
+}
 
 #[derive(Parser)]
 #[grammar = "build/tenscript/tenscript.pest"] // relative to src
@@ -116,7 +120,7 @@ impl FabricPlan {
         match pair.as_rule() {
             Rule::face => {
                 let [face_name_pair, node_pair] = pair.into_inner().next_chunk().unwrap();
-                let face_name: FaceName = face_name_pair.as_str().try_into().unwrap();
+                let face_name = face_name_pair.as_str().try_into().unwrap();
                 let node = Self::parse_build_node(node_pair).unwrap();
                 Ok(BuildNode::Face {
                     face_name,
