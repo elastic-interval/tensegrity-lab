@@ -27,14 +27,11 @@ pub struct Experiment {
     add_pulls: Option<f32>,
 }
 
-impl Experiment {
-}
-
 impl Default for Experiment {
     fn default() -> Self {
         Self {
             fabric: Fabric::default(),
-            physics: AIR_GRAVITY.clone(),
+            physics: AIR_GRAVITY,
             plan_runner: None,
             camera_jump: None,
             frozen_fabric: None,

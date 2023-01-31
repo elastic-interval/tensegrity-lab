@@ -264,6 +264,11 @@ impl Program for ControlState {
     type Message = Message;
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
+        let queue_action = |action: Option<Action>|{
+            if let Some(action) = action {
+                self.action_queue.borrow_mut().push(action);
+            }
+        };
         match message {
             Message::ToggleDebugMode => {
                 self.debug_mode = !self.debug_mode;
@@ -276,19 +281,13 @@ impl Program for ControlState {
                 self.visible_controls = visible_control;
             }
             Message::FabricChoice(message) => {
-                if let Some(action) = self.fabric_choice_control.update(message) {
-                    self.action_queue.borrow_mut().push(action);
-                }
+                queue_action(self.fabric_choice_control.update(message))
             }
             Message::StrainThreshold(message) => {
-                if let Some(action) = self.strain_threshold_control.update(message) {
-                    self.action_queue.borrow_mut().push(action);
-                }
+                queue_action(self.strain_threshold_control.update(message))
             }
             Message::Gravity(message) => {
-                if let Some(action) = self.gravity_control.update(message) {
-                    self.action_queue.borrow_mut().push(action);
-                }
+                queue_action(self.gravity_control.update(message))
             }
             Message::FrameRateUpdated(frame_rate) => {
                 self.frame_rate = frame_rate;
