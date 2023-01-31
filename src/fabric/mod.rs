@@ -33,8 +33,8 @@ pub struct Fabric {
     pub joints: Vec<Joint>,
     pub intervals: HashMap<UniqueId, Interval>,
     pub faces: HashMap<UniqueId, Face>,
-    pub push_material: Material,
-    pub pull_material: Material,
+    pub push_material: Vec<Material>,
+    pub pull_material: Vec<Material>,
     unique_id: usize,
 }
 
@@ -46,14 +46,22 @@ impl Default for Fabric {
             joints: Vec::new(),
             intervals: HashMap::new(),
             faces: HashMap::new(),
-            push_material: Material {
-                stiffness: 3.0,
-                mass: 1.0,
-            },
-            pull_material: Material {
-                stiffness: 1.0,
-                mass: 0.1,
-            },
+            push_material: vec![
+                Material {
+                    stiffness: 3.0,
+                    mass: 1.0,
+                }
+            ],
+            pull_material: vec![
+                Material {
+                    stiffness: 1.0,
+                    mass: 0.1,
+                },
+                Material {
+                    stiffness: 0.7,
+                    mass: 0.1,
+                },
+            ],
             unique_id: 0,
         }
     }
@@ -91,19 +99,14 @@ impl Fabric {
         let id = self.create_id();
         let initial = self.joints[alpha_index].location.distance(self.joints[omega_index].location);
         let interval = match link {
-            Link::Push { ideal } => {
-                Interval::new(alpha_index, omega_index, Push, self.push_material, Approaching { initial, length: ideal })
+            Link::Push { ideal, material } => {
+                Interval::new(alpha_index, omega_index, Push, self.push_material[material], Approaching { initial, length: ideal })
             }
-            Link::Pull { ideal } => {
-                Interval::new(alpha_index, omega_index, Pull, self.push_material, Approaching { initial, length: ideal })
-            }
-            Link::PullStiffness { ideal, stiffness_factor } => {
-                let mut material = self.pull_material;
-                material.stiffness *= stiffness_factor;
-                Interval::new(alpha_index, omega_index, Pull, material, Approaching { initial, length: ideal })
+            Link::Pull { ideal, material } => {
+                Interval::new(alpha_index, omega_index, Pull, self.push_material[material], Approaching { initial, length: ideal })
             }
             Link::Measure { length } => {
-                Interval::new(alpha_index, omega_index, Measure, self.push_material, Fixed { length })
+                Interval::new(alpha_index, omega_index, Measure, self.push_material[0], Fixed { length })
             }
         };
         self.intervals.insert(id, interval);
@@ -247,8 +250,17 @@ pub struct UniqueId {
 
 #[derive(Clone, Debug, Copy)]
 pub enum Link {
-    Push { ideal: f32 },
-    Pull { ideal: f32 },
-    PullStiffness { ideal: f32, stiffness_factor: f32 },
+    Push { ideal: f32, material: usize },
+    Pull { ideal: f32, material: usize },
     Measure { length: f32 },
+}
+
+impl Link {
+    pub fn push(ideal: f32) -> Self {
+        Self::Push { ideal, material: 0 }
+    }
+
+    pub fn pull(ideal: f32) -> Self {
+        Self::Pull { ideal, material: 0 }
+    }
 }

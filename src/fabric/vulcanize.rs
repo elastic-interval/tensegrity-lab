@@ -1,24 +1,23 @@
 use cgmath::{MetricSpace, Point3};
 use hashbrown::{HashMap, HashSet};
-use crate::fabric::{Fabric, Link};
+use crate::fabric::Fabric;
 use crate::fabric::interval::{Interval, Role};
-use crate::fabric::Link::{Measure, PullStiffness};
+use crate::fabric::Link;
 
 const ROOT3: f32 = 1.732_050_8;
-const BOW_TIE_STIFFNESS_FACTOR: f32 = 0.7;
 const BOW_TIE_PUSH_LENGTH_FACTOR_HEXAGON: f32 = 0.2;
 const BOW_TIE_PUSH_LENGTH_FACTOR_OCTAGON: f32 = 0.12;
 
 impl Fabric {
     pub fn install_bow_ties(&mut self) {
         for Pair { alpha_index, omega_index, length } in self.pair_generator().bow_tie_pulls() {
-            self.create_interval(alpha_index, omega_index, PullStiffness { ideal: length, stiffness_factor: BOW_TIE_STIFFNESS_FACTOR });
+            self.create_interval(alpha_index, omega_index, Link::Pull { ideal: length, material: 1 });
         }
     }
 
     pub fn install_measures(&mut self) {
         for Pair { alpha_index, omega_index, length } in self.pair_generator().proximity_measures() {
-            self.create_interval(alpha_index, omega_index, Measure { length });
+            self.create_interval(alpha_index, omega_index, Link::Measure { length });
         }
     }
 
@@ -35,7 +34,7 @@ impl Fabric {
                 if overlap == 2 {
                     continue;
                 }
-                self.create_interval(alpha_index, omega_index, Link::Pull { ideal: side_length });
+                self.create_interval(alpha_index, omega_index, Link::pull(side_length));
             }
             self.remove_face(id);
         }

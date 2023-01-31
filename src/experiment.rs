@@ -95,7 +95,7 @@ impl Experiment {
                 let new_pulls = self.fabric.measures_to_pulls(*strain_threshold);
                 self.fabric = self.frozen_fabric.take().unwrap();
                 for (alpha_index, omega_index, ideal) in new_pulls {
-                    self.fabric.create_interval(alpha_index, omega_index, Link::Pull { ideal });
+                    self.fabric.create_interval(alpha_index, omega_index, Link::Pull { ideal, material: 1 });
                 }
                 self.start_pretensing()
             }
