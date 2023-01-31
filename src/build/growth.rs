@@ -1,10 +1,11 @@
 use cgmath::MetricSpace;
+
 use crate::build::growth::Launch::{IdentifiedFace, NamedFace, Seeded};
-use crate::fabric::{Fabric, Link, UniqueId};
 use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, PostShapeOperation, Seed, ShapePhase, ShaperSpec, Spin};
-use crate::build::tenscript::FaceName::Apos;
 use crate::build::tenscript::BuildNode;
 use crate::build::tenscript::BuildNode::{Branch, Face, Grow, Mark};
+use crate::build::tenscript::FaceName::Apos;
+use crate::fabric::{Fabric, Link, UniqueId};
 
 #[allow(dead_code)]
 #[derive(Clone)]
@@ -64,7 +65,8 @@ impl Growth {
     }
 
     pub fn init(&mut self, fabric: &mut Fabric) {
-        let BuildPhase { seed, root } = &self.plan.build_phase;
+        let BuildPhase { seed, root, .. } = &self.plan.build_phase;
+        // TODO: orient-down
         match root {
             None => {
                 self.twist(fabric, seed.needs_double(), seed.spin(), None);

@@ -93,14 +93,25 @@ impl FabricPlan {
         for pair in build_phase_pair.into_inner() {
             match pair.as_rule() {
                 Rule::seed => {
-                    phase.seed =
-                        match pair.into_inner().next().unwrap().as_str() {
-                            ":left-right" => Seed::LeftRight,
-                            ":right-left" => Seed::RightLeft,
-                            ":left" => Seed::Left,
-                            ":right" => Seed::Right,
-                            _ => unreachable!()
-                        };
+                    let mut inner = pair.into_inner();
+                    phase.seed = match inner.next().unwrap().as_str() {
+                        ":left-right" => Seed::LeftRight,
+                        ":right-left" => Seed::RightLeft,
+                        ":left" => Seed::Left,
+                        ":right" => Seed::Right,
+                        _ => unreachable!()
+                    };
+                    for sub_pair in inner {
+                        match sub_pair.as_rule() {
+                            Rule::orient_down => {
+                                phase.orient_down = sub_pair
+                                    .into_inner()
+                                    .map(|face_name| face_name.as_str().try_into().unwrap())
+                                    .collect();
+                            }
+                            _ => unreachable!("build phase seed: {sub_pair:?}")
+                        }
+                    }
                 }
                 Rule::build_node => {
                     phase.root = Some(Self::parse_build_node(pair).unwrap());

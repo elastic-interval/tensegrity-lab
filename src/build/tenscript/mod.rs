@@ -109,6 +109,7 @@ impl Seed {
 #[derive(Debug, Clone, Default)]
 pub struct BuildPhase {
     pub seed: Seed,
+    pub orient_down: Vec<FaceName>,
     pub root: Option<BuildNode>,
 }
 
