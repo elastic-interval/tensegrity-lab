@@ -9,7 +9,7 @@ const BOW_TIE_PUSH_LENGTH_FACTOR_HEXAGON: f32 = 0.2;
 const BOW_TIE_PUSH_LENGTH_FACTOR_OCTAGON: f32 = 0.12;
 
 impl Fabric {
-    pub const BOW_TIE_MATERIAL: usize = 1;
+    const BOW_TIE_MATERIAL: usize = 1;
 
     pub fn default_bow_tie() -> Self {
         let mut fabric = Fabric::default();
@@ -19,6 +19,10 @@ impl Fabric {
             mass: 0.1,
         });
         fabric
+    }
+
+    pub fn bow_tie_strain(&self) -> f32 {
+        self.max_strain(Fabric::BOW_TIE_MATERIAL)
     }
 
     pub fn install_bow_ties(&mut self) {

@@ -185,7 +185,7 @@ impl Scene {
     }
 
     fn update_from_fabric(&mut self, fabric: &Fabric, controls: &ControlState) -> Option<Message> {
-        let strain_threshold = controls.get_strain_threshold(fabric.max_strain(Fabric::BOW_TIE_MATERIAL));
+        let strain_threshold = controls.get_strain_threshold(fabric.bow_tie_strain());
         self.fabric_drawing.vertices.clear();
         self.fabric_drawing.vertices.extend(fabric.interval_values()
             .flat_map(|interval| FabricVertex::for_interval(interval, fabric, strain_threshold)));
