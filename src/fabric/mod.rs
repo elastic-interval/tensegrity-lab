@@ -45,18 +45,7 @@ impl Default for Fabric {
             joints: Vec::new(),
             intervals: HashMap::new(),
             faces: HashMap::new(),
-            materials: vec![
-                Material {
-                    role: Push,
-                    stiffness: 3.0,
-                    mass: 1.0,
-                },
-                Material {
-                    role: Pull,
-                    stiffness: 1.0,
-                    mass: 0.1,
-                },
-            ],
+            materials: DEFAULT_MATERIALS.into(),
             unique_id: 0,
         }
     }
