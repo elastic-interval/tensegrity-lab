@@ -12,7 +12,7 @@ use hashbrown::HashMap;
 use crate::build::tenscript::Spin;
 use crate::fabric::face::Face;
 use crate::fabric::interval::{Interval, Material};
-use crate::fabric::interval::Role::{Measure, Pull, Push};
+use crate::fabric::interval::Role::{Pull, Push};
 use crate::fabric::interval::Span::{Approaching, Fixed};
 use crate::fabric::joint::Joint;
 use crate::fabric::physics::Physics;
@@ -33,8 +33,7 @@ pub struct Fabric {
     pub joints: Vec<Joint>,
     pub intervals: HashMap<UniqueId, Interval>,
     pub faces: HashMap<UniqueId, Face>,
-    pub push_material: Material,
-    pub pull_material: Material,
+    pub materials: Vec<Material>,
     unique_id: usize,
 }
 
@@ -46,14 +45,7 @@ impl Default for Fabric {
             joints: Vec::new(),
             intervals: HashMap::new(),
             faces: HashMap::new(),
-            push_material: Material {
-                stiffness: 3.0,
-                mass: 1.0,
-            },
-            pull_material: Material {
-                stiffness: 1.0,
-                mass: 0.1,
-            },
+            materials: DEFAULT_MATERIALS.into(),
             unique_id: 0,
         }
     }
@@ -87,25 +79,10 @@ impl Fabric {
         self.intervals.values_mut().for_each(|interval| interval.joint_removed(index));
     }
 
-    pub fn create_interval(&mut self, alpha_index: usize, omega_index: usize, link: Link) -> UniqueId {
+    pub fn create_interval(&mut self, alpha_index: usize, omega_index: usize, Link { ideal, material }: Link) -> UniqueId {
         let id = self.create_id();
         let initial = self.joints[alpha_index].location.distance(self.joints[omega_index].location);
-        let interval = match link {
-            Link::Push { ideal } => {
-                Interval::new(alpha_index, omega_index, Push, self.push_material, Approaching { initial, length: ideal })
-            }
-            Link::Pull { ideal } => {
-                Interval::new(alpha_index, omega_index, Pull, self.push_material, Approaching { initial, length: ideal })
-            }
-            Link::PullStiffness { ideal, stiffness_factor } => {
-                let mut material = self.pull_material;
-                material.stiffness *= stiffness_factor;
-                Interval::new(alpha_index, omega_index, Pull, material, Approaching { initial, length: ideal })
-            }
-            Link::Measure { length } => {
-                Interval::new(alpha_index, omega_index, Measure, self.push_material, Fixed { length })
-            }
-        };
+        let interval = Interval::new(alpha_index, omega_index, material, Approaching { initial, length: ideal });
         self.intervals.insert(id, interval);
         id
     }
@@ -120,10 +97,6 @@ impl Fabric {
 
     pub fn interval_values(&self) -> impl Iterator<Item=&Interval> {
         self.intervals.values()
-    }
-
-    pub fn interval_measures(&self) -> impl Iterator<Item=&Interval> {
-        self.intervals.values().filter(|Interval { role, .. }| *role == Measure)
     }
 
     pub fn create_face(&mut self, scale: f32, spin: Spin, radial_intervals: [UniqueId; 3], push_intervals: [UniqueId; 3]) -> UniqueId {
@@ -186,9 +159,10 @@ impl Fabric {
     pub fn prepare_for_pretensing(&mut self, push_extension: f32) {
         for interval in self.intervals.values_mut() {
             let length = interval.length(&self.joints);
-            interval.span = match interval.role {
+            let Material { role, .. } = self.materials[interval.material];
+            interval.span = match role {
                 Push => Approaching { initial: length, length: length * push_extension },
-                Pull | Measure => Fixed { length }
+                Pull => Fixed { length }
             };
         }
         for joint in self.joints.iter_mut() {
@@ -204,7 +178,7 @@ impl Fabric {
             joint.reset();
         }
         for interval in self.intervals.values_mut() {
-            interval.iterate(&mut self.joints, &self.progress, physics);
+            interval.iterate(&mut self.joints, &self.materials, &self.progress, physics);
         }
         let mut max_speed_squared = 0.0;
         for joint in &mut self.joints {
@@ -246,9 +220,33 @@ pub struct UniqueId {
 }
 
 #[derive(Clone, Debug, Copy)]
-pub enum Link {
-    Push { ideal: f32 },
-    Pull { ideal: f32 },
-    PullStiffness { ideal: f32, stiffness_factor: f32 },
-    Measure { length: f32 },
+pub struct Link {
+    ideal: f32,
+    material: usize,
 }
+
+const DEFAULT_MATERIALS: [Material; 2] = [
+    Material {
+        role: Push,
+        stiffness: 3.0,
+        mass: 1.0,
+    },
+    Material {
+        role: Pull,
+        stiffness: 1.0,
+        mass: 0.1,
+    },
+];
+
+const DEFAULT_PUSH_MATERIAL: usize = 0;
+const DEFAULT_PULL_MATERIAL: usize = 1;
+impl Link {
+    pub fn push(ideal: f32) -> Self {
+        Self { ideal, material: DEFAULT_PUSH_MATERIAL }
+    }
+
+    pub fn pull(ideal: f32) -> Self {
+        Self { ideal, material: DEFAULT_PULL_MATERIAL }
+    }
+}
+

@@ -28,9 +28,9 @@ pub fn generate_mobius(segments: usize) -> Fabric {
     }
     for joint_index in 0..joint_count {
         let joint = |offset: usize| (joint_index * 2 + offset) % joint_count;
-        mf.fabric.create_interval(joint(0), joint(2), Link::Pull { ideal: 0.4 });
-        mf.fabric.create_interval(joint(0), joint(1), Link::Pull { ideal: 1.0 });
-        mf.fabric.create_interval(joint(0), joint(3), Link::Pull { ideal: 3.0 });
+        mf.fabric.create_interval(joint(0), joint(2), Link::pull(0.4));
+        mf.fabric.create_interval(joint(0), joint(1), Link::pull(1.0));
+        mf.fabric.create_interval(joint(0), joint(3), Link::pull(3.0));
         // mf.fabric.create_face(joint(0), joint(1), joint(2))
     }
     mf.fabric
