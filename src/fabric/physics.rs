@@ -11,6 +11,7 @@ pub enum SurfaceCharacter {
     Bouncy,
 }
 
+#[derive(Debug, Clone)]
 pub struct Physics {
     pub surface_character: SurfaceCharacter,
     pub gravity: f32,

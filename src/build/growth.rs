@@ -212,7 +212,7 @@ impl Growth {
                 let joints = self.marked_middle_joints(fabric, &faces);
                 match (joints.as_slice(), faces.as_slice()) {
                     (&[alpha_index, omega_index], &[alpha_face, omega_face]) => {
-                        let interval = fabric.create_interval(alpha_index, omega_index, Link::Pull { ideal: 0.3 });
+                        let interval = fabric.create_interval(alpha_index, omega_index, Link::pull(0.3));
                         shapers.push(Shaper { interval, alpha_face, omega_face, join: true })
                     }
                     _ => unimplemented!()
@@ -224,7 +224,7 @@ impl Growth {
                 match (joints.as_slice(), faces.as_slice()) {
                     (&[alpha_index, omega_index], &[alpha_face, omega_face]) => {
                         let length = fabric.joints[alpha_index].location.distance(fabric.joints[omega_index].location) * distance_factor;
-                        let interval = fabric.create_interval(alpha_index, omega_index, Link::Pull { ideal: length });
+                        let interval = fabric.create_interval(alpha_index, omega_index, Link::pull(length));
                         shapers.push(Shaper { interval, alpha_face, omega_face, join: false })
                     }
                     _ => println!("Wrong number of faces for mark {mark_name}"),
@@ -280,7 +280,7 @@ impl Growth {
             .unwrap();
         let ideal = (alpha.scale + omega.scale) / 2.0;
         for (a, b) in links {
-            fabric.create_interval(alpha_rotated[a], omega_ends[b], Link::Pull { ideal });
+            fabric.create_interval(alpha_rotated[a], omega_ends[b], Link::pull(ideal));
         }
         fabric.remove_face(alpha_id);
         fabric.remove_face(omega_id);
