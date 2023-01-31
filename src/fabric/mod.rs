@@ -225,16 +225,6 @@ pub struct Link {
     material: usize,
 }
 
-impl Link {
-    pub fn push(ideal: f32) -> Self {
-        Self { ideal, material: 0 }
-    }
-
-    pub fn pull(ideal: f32) -> Self {
-        Self { ideal, material: 1 }
-    }
-}
-
 const DEFAULT_MATERIALS: [Material; 2] = [
     Material {
         role: Push,
@@ -247,3 +237,16 @@ const DEFAULT_MATERIALS: [Material; 2] = [
         mass: 0.1,
     },
 ];
+
+const DEFAULT_PUSH_MATERIAL: usize = 0;
+const DEFAULT_PULL_MATERIAL: usize = 1;
+impl Link {
+    pub fn push(ideal: f32) -> Self {
+        Self { ideal, material: DEFAULT_PUSH_MATERIAL }
+    }
+
+    pub fn pull(ideal: f32) -> Self {
+        Self { ideal, material: DEFAULT_PULL_MATERIAL }
+    }
+}
+

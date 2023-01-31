@@ -225,9 +225,8 @@ struct FabricVertex {
 impl FabricVertex {
     pub fn for_interval(interval: &Interval, fabric: &Fabric, strain_threshold: f32) -> [FabricVertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
-        let Material { role, .. } = fabric.materials[interval.material];
         let below_threshold = interval.strain < strain_threshold;
-        let color = match role {
+        let color = match fabric.materials[interval.material].role {
             Push => [1.0, 1.0, 1.0, 1.0],
             Pull => [if below_threshold { 1.0 } else { 0.2 }, 0.2, 1.0, 1.0],
         };
