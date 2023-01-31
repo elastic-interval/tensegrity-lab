@@ -1,7 +1,7 @@
 use cgmath::{MetricSpace, Point3};
 use hashbrown::{HashMap, HashSet};
 use crate::fabric::Fabric;
-use crate::fabric::interval::{Interval, Role};
+use crate::fabric::interval::{Interval, Material, Role};
 use crate::fabric::Link;
 
 const ROOT3: f32 = 1.732_050_8;
@@ -9,15 +9,27 @@ const BOW_TIE_PUSH_LENGTH_FACTOR_HEXAGON: f32 = 0.2;
 const BOW_TIE_PUSH_LENGTH_FACTOR_OCTAGON: f32 = 0.12;
 
 impl Fabric {
+    pub const BOW_TIE_MATERIAL: usize = 1;
+
+    pub fn default_bow_tie() -> Self {
+        let mut fabric = Fabric::default();
+        fabric.materials.push(Material {
+            role: Role::Pull,
+            stiffness: 0.7,
+            mass: 0.1,
+        });
+        fabric
+    }
+
     pub fn install_bow_ties(&mut self) {
-        for Pair { alpha_index, omega_index, length } in self.pair_generator().bow_tie_pulls() {
-            self.create_interval(alpha_index, omega_index, Link::Pull { ideal: length, material: 1 });
+        for Pair { alpha_index, omega_index, length } in self.pair_generator().bow_tie_pulls(&self.materials) {
+            self.create_interval(alpha_index, omega_index, Link { ideal: length, material: Fabric::BOW_TIE_MATERIAL });
         }
     }
 
     pub fn install_measures(&mut self) {
         for Pair { alpha_index, omega_index, length } in self.pair_generator().proximity_measures() {
-            self.create_interval(alpha_index, omega_index, Link::Measure { length });
+            self.create_interval(alpha_index, omega_index, Link::pull(length)); // todo: how to do measuring?
         }
     }
 
@@ -40,24 +52,12 @@ impl Fabric {
         }
     }
 
-    pub fn max_measure_strain(&self) -> f32 {
-        self.interval_measures()
-            .map(|Interval { strain, .. }| strain)
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .cloned()
-            .unwrap_or(0.0)
-    }
-
-    pub fn measures_to_pulls(&mut self, strain_threshold: f32) -> Vec<(usize, usize, f32)> {
+    pub fn max_strain(&self, target_material: usize) -> f32 { // todo: make this min/max
         self.interval_values()
-            .filter_map(|interval|
-                (interval.role == Role::Measure && interval.strain > strain_threshold)
-                    .then_some((
-                        interval.alpha_index,
-                        interval.omega_index,
-                        interval.ideal() - interval.strain,
-                    )))
-            .collect()
+            .filter_map(|&Interval { strain, material, .. }|
+                (material == target_material).then_some(strain))
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or(0.0)
     }
 
     fn pair_generator(&self) -> PairGenerator {
@@ -70,8 +70,8 @@ impl Fabric {
             .enumerate()
             .map(|(index, joint)| JointIncident::new(index, joint.location)).collect();
         for interval @ Interval { alpha_index, omega_index, .. } in self.interval_values() {
-            incidents[*alpha_index].add_interval(interval);
-            incidents[*omega_index].add_interval(interval);
+            incidents[*alpha_index].add_interval(interval, &self.materials);
+            incidents[*omega_index].add_interval(interval, &self.materials);
         }
         incidents
     }
@@ -105,14 +105,13 @@ impl JointIncident {
         }
     }
 
-    fn add_interval(&mut self, interval: &Interval) {
-        match interval.role {
+    fn add_interval(&mut self, interval: &Interval, materials: &[Material]) {
+        match materials[interval.material].role {
             Role::Push => self.push = Some(*interval),
             Role::Pull => {
                 self.pulls.push(*interval);
                 self.pull_adjacent_joints.insert(interval.other_joint(self.index));
             }
-            Role::Measure => panic!("Should be no measures yet"),
         }
         self.adjacent_joints.insert(interval.other_joint(self.index));
     }
@@ -248,9 +247,9 @@ impl PairGenerator {
         self.pairs.extend(new_pairs);
     }
 
-    fn bow_tie_pulls(mut self) -> impl Iterator<Item=Pair> {
+    fn bow_tie_pulls(mut self, materials: &[Material]) -> impl Iterator<Item=Pair> {
         for interval in self.intervals.values() {
-            if interval.role != Role::Push {
+            if materials[interval.material].role != Role::Push {
                 continue;
             }
             let mut meeting_pairs = vec![];
