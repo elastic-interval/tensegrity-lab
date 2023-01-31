@@ -72,7 +72,7 @@ impl Growth {
             }
             Some(node) => {
                 let (buds, marks) =
-                    self.execute_node(fabric, Seeded { seed: *seed }, node, vec![]);
+                    self.execute_node(fabric, Seeded { seed: seed.clone() }, node, vec![]);
                 self.buds = buds;
                 self.marks = marks;
             }
@@ -203,22 +203,26 @@ impl Growth {
         } else {
             fabric.single_twist(spin, self.pretenst_factor, 1.0, face_id).to_vec()
         };
-        let BuildPhase { orient_down, .. } = &self.plan.build_phase;
-        if face_id.is_none() && !orient_down.is_empty() {
-            let mut down: Vector3<f32> = faces
-                .iter()
-                .filter(|(face_name, _)| orient_down.contains(face_name))
-                .map(|(_, face_id)| fabric.face(*face_id).normal(&fabric.joints, fabric))
-                .sum();
-            down = down.normalize();
-            let midpoint = fabric.midpoint().to_vec();
-            let rotation =
-                Matrix4::from_translation(midpoint) *
-                    Matrix4::from(Quaternion::between_vectors(down, -Vector3::unit_y())) *
-                    Matrix4::from_translation(-midpoint);
-            fabric.apply_matrix4(rotation);
+        let Seed { down_faces, .. } = &self.plan.build_phase.seed;
+        if face_id.is_none() && !down_faces.is_empty() {
+            Self::orient_fabric(fabric, &faces, down_faces);
         }
         faces
+    }
+
+    fn orient_fabric(fabric: &mut Fabric, faces: &[(FaceName, UniqueId)], down_faces: &[FaceName]) {
+        let mut down: Vector3<f32> = faces
+            .iter()
+            .filter(|(face_name, _)| down_faces.contains(face_name))
+            .map(|(_, face_id)| fabric.face(*face_id).normal(&fabric.joints, fabric))
+            .sum();
+        down = down.normalize();
+        let midpoint = fabric.midpoint().to_vec();
+        let rotation =
+            Matrix4::from_translation(midpoint) *
+                Matrix4::from(Quaternion::between_vectors(down, -Vector3::unit_y())) *
+                Matrix4::from_translation(-midpoint);
+        fabric.apply_matrix4(rotation);
     }
 
     fn attach_shapers_for(&self, fabric: &mut Fabric, shaper_spec: &ShaperSpec) -> Vec<Shaper> {
