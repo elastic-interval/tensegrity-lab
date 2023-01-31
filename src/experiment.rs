@@ -1,6 +1,6 @@
 use cgmath::Vector3;
 use crate::experiment::Stage::{*};
-use crate::fabric::{Fabric, Link};
+use crate::fabric::Fabric;
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::build::plan_runner::PlanRunner;
 use crate::build::tenscript::FabricPlan;
@@ -30,7 +30,7 @@ pub struct Experiment {
 impl Default for Experiment {
     fn default() -> Self {
         Self {
-            fabric: Fabric::default(),
+            fabric: Fabric::default_bow_tie(),
             physics: AIR_GRAVITY,
             plan_runner: None,
             camera_jump: None,
@@ -93,14 +93,15 @@ impl Experiment {
                     }
                 }
             }
-            AddPulls { strain_threshold } => {
-                self.add_pulls = None;
-                let new_pulls = self.fabric.measures_to_pulls(*strain_threshold);
-                self.fabric = self.frozen_fabric.take().unwrap();
-                for (alpha_index, omega_index, ideal) in new_pulls {
-                    self.fabric.create_interval(alpha_index, omega_index, Link::Pull { ideal, material: 1 });
-                }
-                self.start_pretensing()
+            AddPulls { .. } => {
+                unimplemented!();
+                // self.add_pulls = None;
+                // let new_pulls = self.fabric.measures_to_pulls(*strain_threshold);
+                // self.fabric = self.frozen_fabric.take().unwrap();
+                // for (alpha_index, omega_index, ideal) in new_pulls {
+                //     self.fabric.create_interval(alpha_index, omega_index, Link::Pull { ideal, material: 1 });
+                // }
+                // self.start_pretensing()
             }
         }
     }

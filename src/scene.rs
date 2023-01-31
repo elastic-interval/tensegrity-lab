@@ -15,8 +15,8 @@ use wasm_bindgen::prelude::*;
 
 use crate::camera::Camera;
 use crate::fabric::Fabric;
-use crate::fabric::interval::Interval;
-use crate::fabric::interval::Role::{Measure, Pull, Push};
+use crate::fabric::interval::{Interval, Material};
+use crate::fabric::interval::Role::{Pull, Push};
 use crate::graphics::{get_depth_stencil_state, line_list_primitive_state, GraphicsWindow, triangle_list_primitive_state};
 use crate::controls::{ControlState, Message};
 
@@ -185,7 +185,7 @@ impl Scene {
     }
 
     fn update_from_fabric(&mut self, fabric: &Fabric, controls: &ControlState) -> Option<Message> {
-        let strain_threshold = controls.get_strain_threshold(fabric.max_measure_strain());
+        let strain_threshold = controls.get_strain_threshold(fabric.max_strain(Fabric::BOW_TIE_MATERIAL));
         self.fabric_drawing.vertices.clear();
         self.fabric_drawing.vertices.extend(fabric.interval_values()
             .flat_map(|interval| FabricVertex::for_interval(interval, fabric, strain_threshold)));
@@ -225,13 +225,11 @@ struct FabricVertex {
 impl FabricVertex {
     pub fn for_interval(interval: &Interval, fabric: &Fabric, strain_threshold: f32) -> [FabricVertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
-        let color = match interval.role {
+        let Material { role, .. } = fabric.materials[interval.material];
+        let below_threshold = interval.strain < strain_threshold;
+        let color = match role {
             Push => [1.0, 1.0, 1.0, 1.0],
-            Pull => [0.2, 0.2, 1.0, 1.0],
-            Measure => {
-                let green = if interval.strain > strain_threshold { 1.0 } else { 0.2 };
-                [0.0, green, 0.0, 1.0]
-            },
+            Pull => [if below_threshold { 1.0 } else { 0.2 }, 0.2, 1.0, 1.0],
         };
         [
             FabricVertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color },

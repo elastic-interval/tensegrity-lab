@@ -28,11 +28,11 @@ pub enum Span {
 pub enum Role {
     Push,
     Pull,
-    Measure,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct Material {
+    pub role: Role,
     pub stiffness: f32,
     pub mass: f32,
 }
@@ -41,8 +41,7 @@ pub struct Material {
 pub struct Interval {
     pub alpha_index: usize,
     pub omega_index: usize,
-    pub role: Role,
-    pub material: Material,
+    pub material: usize,
     pub span: Span,
     pub unit: Vector3<f32>,
     pub strain: f32,
@@ -52,14 +51,12 @@ impl Interval {
     pub fn new(
         alpha_index: usize,
         omega_index: usize,
-        role: Role,
-        material: Material,
+        material: usize,
         span: Span,
     ) -> Interval {
         Interval {
             alpha_index,
             omega_index,
-            role,
             material,
             span,
             unit: zero(),
@@ -106,7 +103,7 @@ impl Interval {
         }
     }
 
-    pub fn iterate(&mut self, joints: &mut [Joint], progress: &Progress, physics: &Physics) {
+    pub fn iterate(&mut self, joints: &mut [Joint], materials: &[Material], progress: &Progress, physics: &Physics) {
         let ideal = match self.span {
             Fixed { length } => { length }
             Approaching { initial, length, .. } => {
@@ -115,19 +112,17 @@ impl Interval {
             }
         };
         let real_length = self.length(joints);
-        self.strain = match self.role {
+        let Material{ role, stiffness, mass } = materials[self.material];
+        self.strain = match role {
             Push if real_length > ideal => 0.0, // do not pull
             Pull if real_length < ideal => 0.0, // do not push
             _ => (real_length - ideal) / ideal
         };
-        if self.role == Measure { // have no effect
-            return;
-        }
-        let force = self.strain * self.material.stiffness * physics.stiffness;
+        let force = self.strain * stiffness * physics.stiffness;
         let force_vector: Vector3<f32> = self.unit * force / 2.0;
         joints[self.alpha_index].force += force_vector;
         joints[self.omega_index].force -= force_vector;
-        let half_mass = self.material.mass * real_length / 2.0;
+        let half_mass = mass * real_length / 2.0;
         joints[self.alpha_index].interval_mass += half_mass;
         joints[self.omega_index].interval_mass += half_mass;
     }
