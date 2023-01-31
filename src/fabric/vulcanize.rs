@@ -8,16 +8,18 @@ const ROOT3: f32 = 1.732_050_8;
 const BOW_TIE_PUSH_LENGTH_FACTOR_HEXAGON: f32 = 0.2;
 const BOW_TIE_PUSH_LENGTH_FACTOR_OCTAGON: f32 = 0.12;
 
+const BOW_TIE_MATERIAL: Material = Material {
+    role: Role::Pull,
+    stiffness: 0.7,
+    mass: 0.1,
+};
+
 impl Fabric {
     const BOW_TIE_MATERIAL: usize = 2;
 
     pub fn default_bow_tie() -> Self {
         let mut fabric = Fabric::default();
-        fabric.materials.push(Material {
-            role: Role::Pull,
-            stiffness: 0.7,
-            mass: 0.1,
-        });
+        fabric.materials.push(BOW_TIE_MATERIAL);
         fabric
     }
 
