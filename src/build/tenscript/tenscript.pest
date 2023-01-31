@@ -102,6 +102,7 @@ seed = {
     "(" ~
     "seed" ~
     seed_value ~
+    orient_down? ~
     ")"
 }
 
@@ -110,6 +111,13 @@ seed_value = {
     ":right-left" |
     ":left" |
     ":right"
+}
+
+orient_down = {
+    "(" ~
+    "orient-down" ~
+    face_name+ ~
+    ")"
 }
 
 surface = {
