@@ -4,6 +4,7 @@ use crate::fabric::{Fabric, Link};
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::build::plan_runner::PlanRunner;
 use crate::build::tenscript::FabricPlan;
+use crate::fabric::physics::Physics;
 
 enum Stage {
     Empty,
@@ -16,6 +17,7 @@ enum Stage {
 
 pub struct Experiment {
     fabric: Fabric,
+    physics: Physics,
     plan_runner: Option<PlanRunner>,
     camera_jump: Option<Vector3<f32>>,
     frozen_fabric: Option<Fabric>,
@@ -29,6 +31,7 @@ impl Default for Experiment {
     fn default() -> Self {
         Self {
             fabric: Fabric::default(),
+            physics: AIR_GRAVITY,
             plan_runner: None,
             camera_jump: None,
             frozen_fabric: None,
@@ -73,7 +76,7 @@ impl Experiment {
             }
             Pretensing => {
                 for _ in 0..self.iterations_per_frame {
-                    self.fabric.iterate(&AIR_GRAVITY);
+                    self.fabric.iterate(&self.physics);
                 }
                 if !self.fabric.progress.is_busy() {
                     self.stage = Pretenst;
@@ -81,7 +84,7 @@ impl Experiment {
             }
             Pretenst => {
                 for _ in 0..self.iterations_per_frame {
-                    self.fabric.iterate(&AIR_GRAVITY);
+                    self.fabric.iterate(&self.physics);
                 }
                 match self.add_pulls {
                     None => {}
@@ -116,6 +119,10 @@ impl Experiment {
 
     pub fn build_fabric(&mut self, fabric_plan: FabricPlan) {
         self.stage = AcceptingPlan(fabric_plan);
+    }
+
+    pub fn set_gravity(&mut self, gravity: f32) {
+        self.physics.gravity = gravity;
     }
 
     pub fn fabric(&self) -> &Fabric {
