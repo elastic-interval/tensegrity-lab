@@ -48,7 +48,7 @@ pub fn generate_ball(frequency: usize, radius: f32) -> Fabric {
                     let alpha = ts.fabric.create_joint(Point3::from_vec(quaternion * alpha_base));
                     let omega = ts.fabric.create_joint(Point3::from_vec(quaternion * omega_base));
                     let length = (omega_base - alpha_base).magnitude();
-                    ts.fabric.create_interval(alpha, omega, Link::Push { ideal: length });
+                    ts.fabric.create_interval(alpha, omega, Link::push(length));
                     PushInterval { alpha_vertex: *vertex_here, omega_vertex: *adjacent_vertex, alpha, omega, length }
                 } else {
                     PushPlaceholder { alpha_vertex: *vertex_here, omega_vertex: *adjacent_vertex }
@@ -83,7 +83,7 @@ pub fn generate_ball(frequency: usize, radius: f32) -> Fabric {
     for (hub, spokes) in vertex_spokes.iter().enumerate() {
         for (spoke_index, spoke) in spokes.iter().enumerate() {
             let next_spoke = &spokes[(spoke_index + 1) % spokes.len()];
-            ts.fabric.create_interval(spoke.near_joint, next_spoke.near_joint, Link::Pull { ideal: spoke.length / 3.0 });
+            ts.fabric.create_interval(spoke.near_joint, next_spoke.near_joint, Link::pull(spoke.length / 3.0));
             let next_near = &spokes[(spoke_index + 1) % spokes.len()].near_joint;
             let next_far = {
                 let far_vertex = &vertex_spokes[spoke.far_vertex];
@@ -91,7 +91,7 @@ pub fn generate_ball(frequency: usize, radius: f32) -> Fabric {
                 &far_vertex[(hub_position + 1) % far_vertex.len()].near_joint
             };
             if *next_far > *next_near { // only up-hill
-                ts.fabric.create_interval(*next_near, *next_far, Link::Pull { ideal: spoke.length / 3.0 });
+                ts.fabric.create_interval(*next_near, *next_far, Link::pull(spoke.length / 3.0));
             }
         }
     }

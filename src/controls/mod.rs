@@ -327,7 +327,7 @@ impl Program for ControlState {
                             Row::new()
                                 .push(Button::new(Text::new("Fabrics"))
                                     .on_press(Message::ShowControl(VisibleControl::FabricChoice)))
-                                .push(Button::new(Text::new("Measure"))
+                                .push(Button::new(Text::new("Strain Threshold"))
                                     .on_press(Message::ShowControl(VisibleControl::StrainThreshold)))
                                 .push(Button::new(Text::new("Gravity"))
                                     .on_press(Message::ShowControl(VisibleControl::Gravity)))
