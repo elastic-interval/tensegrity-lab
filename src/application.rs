@@ -112,42 +112,41 @@ pub fn run() {
     event_loop.run(move |event, _, control_flow| {
         match event {
             Event::WindowEvent { ref event, window_id } if window_id == window.id() => {
-                app.gui.window_event(&window, event);
+                app.gui.window_event(event, &window);
                 match event {
-                    WindowEvent::CloseRequested { .. } => *control_flow = ControlFlow::Exit,
-                    WindowEvent::Resized(physical_size) => {
-                        app.resize(*physical_size);
-                    }
-                    WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                        app.resize(**new_inner_size);
-                    }
+                    WindowEvent::CloseRequested { .. } =>
+                        *control_flow = ControlFlow::Exit,
+                    WindowEvent::Resized(physical_size) =>
+                        app.resize(*physical_size),
+                    WindowEvent::ScaleFactorChanged { new_inner_size, .. } =>
+                        app.resize(**new_inner_size),
                     WindowEvent::KeyboardInput {
                         input: KeyboardInput {
                             virtual_keycode: Some(keycode),
                             state: ElementState::Pressed, ..
                         }, ..
-                    } => {
-                        match keycode {
-                            #[cfg(target_arch = "wasm32")]
-                            VirtualKeyCode::F => {
-                                fullscreen_web();
-                            }
-                            VirtualKeyCode::Escape => {
-                                app.gui.change_state(Message::ShowControl(VisibleControl::ControlChoice));
-                            }
-                            VirtualKeyCode::Space => {
-                                experiment.toggle_pause();
-                            }
-                            VirtualKeyCode::D => {
-                                app.gui.change_state(Message::ToggleDebugMode);
-                            }
-                            _ => {}
+                    } => match keycode {
+                        #[cfg(target_arch = "wasm32")]
+                        VirtualKeyCode::F => {
+                            fullscreen_web();
                         }
+                        VirtualKeyCode::Escape => {
+                            app.gui.change_state(Message::ShowControl(VisibleControl::ControlChoice));
+                        }
+                        VirtualKeyCode::Space => {
+                            experiment.toggle_pause();
+                        }
+                        VirtualKeyCode::D => {
+                            app.gui.change_state(Message::ToggleDebugMode);
+                        }
+                        _ => {}
+                    },
+                    WindowEvent::MouseInput { state: ElementState::Released, .. } => {
+                        app.scene.window_event(event);
                     }
                     WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
-                    if !app.gui.capturing_mouse() => {
-                        app.scene.window_event(event)
-                    }
+                    if !app.gui.capturing_mouse() =>
+                        app.scene.window_event(event),
                     _ => {}
                 }
             }
