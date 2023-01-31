@@ -183,7 +183,7 @@ pub fn run() {
                             experiment.set_gravity(gravity);
                         }
                         Action::AddPulls { strain_nuance } => {
-                            let maximum = experiment.fabric().max_measure_strain();
+                            let maximum = experiment.fabric().bow_tie_strain();
                             experiment.add_pulls(strain_nuance * maximum);
                         }
                     }
