@@ -14,11 +14,11 @@ use winit::event::*;
 use wasm_bindgen::prelude::*;
 
 use crate::camera::Camera;
-use crate::fabric::Fabric;
-use crate::fabric::interval::{Interval, Material};
-use crate::fabric::interval::Role::{Pull, Push};
-use crate::graphics::{get_depth_stencil_state, line_list_primitive_state, GraphicsWindow, triangle_list_primitive_state};
 use crate::controls::{ControlState, Message};
+use crate::fabric::Fabric;
+use crate::fabric::interval::Interval;
+use crate::fabric::interval::Role::{Pull, Push};
+use crate::graphics::{get_depth_stencil_state, GraphicsWindow, line_list_primitive_state, triangle_list_primitive_state};
 
 const MAX_INTERVALS: usize = 5000;
 
