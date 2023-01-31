@@ -1,5 +1,6 @@
 use cgmath::{MetricSpace, Point3};
 use hashbrown::{HashMap, HashSet};
+
 use crate::fabric::Fabric;
 use crate::fabric::interval::{Interval, Material, Role};
 use crate::fabric::Link;
@@ -71,10 +72,11 @@ impl Fabric {
     }
 
     fn joint_incident(&self) -> Vec<JointIncident> {
-        let mut incidents: Vec<JointIncident> = self.joints
+        let mut incidents: Vec<_> = self.joints
             .iter()
             .enumerate()
-            .map(|(index, joint)| JointIncident::new(index, joint.location)).collect();
+            .map(|(index, joint)| JointIncident::new(index, joint.location))
+            .collect();
         for interval @ Interval { alpha_index, omega_index, .. } in self.interval_values() {
             incidents[*alpha_index].add_interval(interval, &self.materials);
             incidents[*omega_index].add_interval(interval, &self.materials);
