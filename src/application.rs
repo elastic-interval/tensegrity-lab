@@ -8,7 +8,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
-use winit::dpi::{PhysicalPosition, PhysicalSize};
+use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
 #[cfg(target_arch = "wasm32")]
@@ -21,7 +21,6 @@ use crate::graphics::GraphicsWindow;
 use crate::scene::Scene;
 
 struct Application {
-    mouse_position: PhysicalPosition<f64>,
     graphics: GraphicsWindow,
     scene: Scene,
     gui: GUI,
@@ -32,7 +31,6 @@ impl Application {
         let gui = GUI::new(&graphics, window);
         let scene = Scene::new(&graphics);
         Application {
-            mouse_position: PhysicalPosition::new(-1.0, -1.0),
             graphics,
             scene,
             gui,
@@ -114,9 +112,7 @@ pub fn run() {
     event_loop.run(move |event, _, control_flow| {
         match event {
             Event::WindowEvent { ref event, window_id } if window_id == window.id() => {
-                if let WindowEvent::CursorMoved { position, .. } = event {
-                    app.mouse_position = *position;
-                };
+                app.gui.window_event(event, &window);
                 match event {
                     WindowEvent::CloseRequested { .. } =>
                         *control_flow = ControlFlow::Exit,
@@ -145,13 +141,12 @@ pub fn run() {
                         }
                         _ => {}
                     },
-                    WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. } => {
-                        let gui_y = window.inner_size().height - 200;
-                        if app.mouse_position.y > gui_y as f64 {
-                            app.gui.window_event(event, &window);
-                        } else {
-                            app.scene.window_event(event);
-                        }
+                    WindowEvent::MouseInput { state: ElementState::Released, .. } => {
+                        app.scene.window_event(event);
+                    }
+                    WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
+                    if !app.gui.capturing_mouse() => {
+                        app.scene.window_event(event);
                     }
                     _ => {}
                 }

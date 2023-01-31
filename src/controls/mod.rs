@@ -1,11 +1,8 @@
-mod strain_threshold;
-mod fabric_choice;
-mod gravity;
-
 use std::cell::RefCell;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 
+use iced::mouse;
 use iced_wgpu::{Backend, Renderer, Settings};
 use iced_winit::{Alignment, Clipboard, Color, Command, conversion, Debug, Element, Length, Program, program, renderer, Size, Viewport};
 use iced_winit::widget::{Button, Column, Row, Text};
@@ -23,6 +20,10 @@ use crate::controls::gravity::{GravityMessage, GravityState};
 use crate::controls::strain_threshold::{StrainThresholdMessage, StrainThresholdState};
 use crate::controls::strain_threshold::StrainThresholdMessage::StrainThresholdChanged;
 use crate::graphics::GraphicsWindow;
+
+mod strain_threshold;
+mod fabric_choice;
+mod gravity;
 
 const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
 
@@ -177,6 +178,10 @@ impl GUI {
         conversion::mouse_interaction(
             self.state.mouse_interaction(),
         )
+    }
+
+    pub fn capturing_mouse(&self) -> bool {
+        !matches!(self.state.mouse_interaction(), mouse::Interaction::Idle)
     }
 }
 
