@@ -8,7 +8,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
-use winit::dpi::PhysicalSize;
+use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::window::Window;
 
 #[cfg(target_arch = "wasm32")]
@@ -21,6 +21,7 @@ use crate::graphics::GraphicsWindow;
 use crate::scene::Scene;
 
 struct Application {
+    mouse_position: PhysicalPosition<f64>,
     graphics: GraphicsWindow,
     scene: Scene,
     gui: GUI,
@@ -31,6 +32,7 @@ impl Application {
         let gui = GUI::new(&graphics, window);
         let scene = Scene::new(&graphics);
         Application {
+            mouse_position: PhysicalPosition::new(-1.0, -1.0),
             graphics,
             scene,
             gui,
@@ -112,41 +114,44 @@ pub fn run() {
     event_loop.run(move |event, _, control_flow| {
         match event {
             Event::WindowEvent { ref event, window_id } if window_id == window.id() => {
-                app.gui.window_event(&window, event);
+                if let WindowEvent::CursorMoved { position, .. } = event {
+                    app.mouse_position = *position;
+                };
                 match event {
-                    WindowEvent::CloseRequested { .. } => *control_flow = ControlFlow::Exit,
-                    WindowEvent::Resized(physical_size) => {
-                        app.resize(*physical_size);
-                    }
-                    WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                        app.resize(**new_inner_size);
-                    }
+                    WindowEvent::CloseRequested { .. } =>
+                        *control_flow = ControlFlow::Exit,
+                    WindowEvent::Resized(physical_size) =>
+                        app.resize(*physical_size),
+                    WindowEvent::ScaleFactorChanged { new_inner_size, .. } =>
+                        app.resize(**new_inner_size),
                     WindowEvent::KeyboardInput {
                         input: KeyboardInput {
                             virtual_keycode: Some(keycode),
                             state: ElementState::Pressed, ..
                         }, ..
-                    } => {
-                        match keycode {
-                            #[cfg(target_arch = "wasm32")]
-                            VirtualKeyCode::F => {
-                                fullscreen_web();
-                            }
-                            VirtualKeyCode::Escape => {
-                                app.gui.change_state(Message::ShowControl(VisibleControl::ControlChoice));
-                            }
-                            VirtualKeyCode::Space => {
-                                experiment.toggle_pause();
-                            }
-                            VirtualKeyCode::D => {
-                                app.gui.change_state(Message::ToggleDebugMode);
-                            }
-                            _ => {}
+                    } => match keycode {
+                        #[cfg(target_arch = "wasm32")]
+                        VirtualKeyCode::F => {
+                            fullscreen_web();
                         }
-                    }
-                    WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
-                    if !app.gui.capturing_mouse() => {
-                        app.scene.window_event(event)
+                        VirtualKeyCode::Escape => {
+                            app.gui.change_state(Message::ShowControl(VisibleControl::ControlChoice));
+                        }
+                        VirtualKeyCode::Space => {
+                            experiment.toggle_pause();
+                        }
+                        VirtualKeyCode::D => {
+                            app.gui.change_state(Message::ToggleDebugMode);
+                        }
+                        _ => {}
+                    },
+                    WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. } => {
+                        let gui_y = window.inner_size().height - 200;
+                        if app.mouse_position.y > gui_y as f64 {
+                            app.gui.window_event(event, &window);
+                        } else {
+                            app.scene.window_event(event);
+                        }
                     }
                     _ => {}
                 }

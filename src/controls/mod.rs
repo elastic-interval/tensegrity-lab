@@ -1,9 +1,9 @@
-mod strain_threshold;
-mod fabric_choice;
-
 use std::cell::RefCell;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
+
 use iced_wgpu::{Backend, Renderer, Settings};
-use iced_winit::{Alignment, Clipboard, Color, Command, conversion, Debug, Element, Length, mouse, Program, program, renderer, Size, Viewport};
+use iced_winit::{Alignment, Clipboard, Color, Command, conversion, Debug, Element, Length, Program, program, renderer, Size, Viewport};
 use iced_winit::widget::{Button, Column, Row, Text};
 use wgpu::{CommandEncoder, Device, TextureView};
 use winit::dpi::PhysicalPosition;
@@ -12,14 +12,15 @@ use winit::window::{CursorIcon, Window};
 
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Instant;
-use crate::build::tenscript::{bootstrap_fabric_plans, FabricPlan};
-use crate::controls::fabric_choice::{FabricChoiceState, FabricChoiceMessage};
-use crate::controls::strain_threshold::{StrainThresholdState, StrainThresholdMessage};
-use crate::controls::strain_threshold::StrainThresholdMessage::StrainThresholdChanged;
 
+use crate::build::tenscript::{bootstrap_fabric_plans, FabricPlan};
+use crate::controls::fabric_choice::{FabricChoiceMessage, FabricChoiceState};
+use crate::controls::strain_threshold::{StrainThresholdMessage, StrainThresholdState};
+use crate::controls::strain_threshold::StrainThresholdMessage::StrainThresholdChanged;
 use crate::graphics::GraphicsWindow;
+
+mod strain_threshold;
+mod fabric_choice;
 
 const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
 
@@ -103,7 +104,7 @@ impl GUI {
         self.state.queue_message(message);
     }
 
-    pub fn window_event(&mut self, window: &Window, event: &WindowEvent) {
+    pub fn window_event(&mut self, event: &WindowEvent, window: &Window) {
         match event {
             WindowEvent::CursorMoved { position, .. } => {
                 self.cursor_position = *position;
@@ -168,10 +169,6 @@ impl GUI {
             Size::new(size.width, size.height),
             window.scale_factor(),
         );
-    }
-
-    pub fn capturing_mouse(&self) -> bool {
-        !matches!(self.state.mouse_interaction(), mouse::Interaction::Idle)
     }
 
     pub fn cursor_icon(&self) -> CursorIcon {
@@ -277,19 +274,18 @@ impl Program for ControlState {
     }
 
     fn view(&self) -> Element<'_, Message, Renderer> {
-        let Self { frame_rate, .. } = *self;
         let mut right_column = Column::new()
             .width(Length::Fill)
             .align_items(Alignment::End);
         #[cfg(not(target_arch = "wasm32"))]
         {
+            let Self { frame_rate, .. } = *self;
             right_column = right_column
                 .push(
                     Text::new(format!("{frame_rate:.01} FPS"))
                         .style(Color::WHITE)
                 );
         }
-
         let element: Element<'_, Message, Renderer> =
             Column::new()
                 .padding(10)
@@ -309,7 +305,6 @@ impl Program for ControlState {
                                     .on_press(Message::ShowControl(VisibleControl::FabricChoice)))
                                 .push(Button::new(Text::new("Measure"))
                                     .on_press(Message::ShowControl(VisibleControl::StrainThreshold)))
-
                         }
                         VisibleControl::FabricChoice => self.fabric_choice_control.row(),
                         VisibleControl::StrainThreshold => self.strain_threshold_control.row(),
