@@ -1,10 +1,11 @@
-use cgmath::MetricSpace;
+use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Quaternion, Rotation, Vector3};
+
 use crate::build::growth::Launch::{IdentifiedFace, NamedFace, Seeded};
-use crate::fabric::{Fabric, Link, UniqueId};
 use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, PostShapeOperation, Seed, ShapePhase, ShaperSpec, Spin};
-use crate::build::tenscript::FaceName::Apos;
 use crate::build::tenscript::BuildNode;
 use crate::build::tenscript::BuildNode::{Branch, Face, Grow, Mark};
+use crate::build::tenscript::FaceName::Apos;
+use crate::fabric::{Fabric, Link, UniqueId};
 
 #[allow(dead_code)]
 #[derive(Clone)]
@@ -64,14 +65,14 @@ impl Growth {
     }
 
     pub fn init(&mut self, fabric: &mut Fabric) {
-        let BuildPhase { seed, root } = &self.plan.build_phase;
+        let BuildPhase { seed, root, .. } = &self.plan.build_phase;
         match root {
             None => {
                 self.twist(fabric, seed.needs_double(), seed.spin(), None);
             }
             Some(node) => {
                 let (buds, marks) =
-                    self.execute_node(fabric, Seeded { seed: *seed }, node, vec![]);
+                    self.execute_node(fabric, Seeded { seed: seed.clone() }, node, vec![]);
                 self.buds = buds;
                 self.marks = marks;
             }
@@ -197,11 +198,32 @@ impl Growth {
     }
 
     fn twist(&self, fabric: &mut Fabric, needs_double: bool, spin: Spin, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
-        if needs_double {
-            fabric.double_twist(spin, self.pretenst_factor, 1.0, face_id).to_vec()
-        } else {
-            fabric.single_twist(spin, self.pretenst_factor, 1.0, face_id).to_vec()
+        let faces =
+            if needs_double {
+                fabric.double_twist(spin, self.pretenst_factor, 1.0, face_id).to_vec()
+            } else {
+                fabric.single_twist(spin, self.pretenst_factor, 1.0, face_id).to_vec()
+            };
+        let Seed { down_faces, .. } = &self.plan.build_phase.seed;
+        if face_id.is_none() && !down_faces.is_empty() {
+            Self::orient_fabric(fabric, &faces, down_faces);
         }
+        faces
+    }
+
+    fn orient_fabric(fabric: &mut Fabric, faces: &[(FaceName, UniqueId)], down_faces: &[FaceName]) {
+        let mut new_down: Vector3<f32> = faces
+            .iter()
+            .filter(|(face_name, _)| down_faces.contains(face_name))
+            .map(|(_, face_id)| fabric.face(*face_id).normal(&fabric.joints, fabric))
+            .sum();
+        new_down = new_down.normalize();
+        let midpoint = fabric.midpoint().to_vec();
+        let rotation =
+            Matrix4::from_translation(midpoint) *
+                Matrix4::from(Quaternion::between_vectors(new_down, -Vector3::unit_y())) *
+                Matrix4::from_translation(-midpoint);
+        fabric.apply_matrix4(rotation);
     }
 
     fn attach_shapers_for(&self, fabric: &mut Fabric, shaper_spec: &ShaperSpec) -> Vec<Shaper> {

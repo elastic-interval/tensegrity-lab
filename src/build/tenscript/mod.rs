@@ -82,7 +82,7 @@ pub enum BuildNode {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub enum Seed {
+pub enum SeedType {
     #[default]
     Left,
     Right,
@@ -92,18 +92,24 @@ pub enum Seed {
 
 impl Seed {
     pub fn spin(&self) -> Spin {
-        match self {
-            Seed::Left | Seed::LeftRight => Spin::Left,
-            Seed::Right | Seed::RightLeft => Spin::Right,
+        match self.seed_type {
+            SeedType::Left | SeedType::LeftRight => Spin::Left,
+            SeedType::Right | SeedType::RightLeft => Spin::Right,
         }
     }
 
     pub fn needs_double(&self) -> bool {
-        match self {
-            Seed::Left | Seed::Right => false,
-            Seed::LeftRight | Seed::RightLeft => true,
+        match self.seed_type {
+            SeedType::Left | SeedType::Right => false,
+            SeedType::LeftRight | SeedType::RightLeft => true,
         }
     }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Seed {
+    pub seed_type: SeedType,
+    pub down_faces: Vec<FaceName>,
 }
 
 #[derive(Debug, Clone, Default)]
