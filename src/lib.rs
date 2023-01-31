@@ -4,7 +4,6 @@
 #![allow(dead_code)]
 #![feature(iter_collect_into)]
 #![feature(iter_next_chunk)]
-#![feature(decl_macro)]
 
 
 pub mod application;

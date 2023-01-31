@@ -7,10 +7,6 @@ use pest_derive::Parser;
 
 use crate::build::tenscript::{BuildNode, BuildPhase, FabricPlan, PostShapeOperation, Seed, ShapePhase, ShaperSpec, SurfaceCharacterSpec};
 
-pub macro tenscript($($t:tt)*) {
-    stringify!($($t)*)
-}
-
 #[derive(Parser)]
 #[grammar = "build/tenscript/tenscript.pest"] // relative to src
 struct PestParser;
