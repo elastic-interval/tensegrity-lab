@@ -32,7 +32,7 @@
 (fabric
   (build
     (seed :right-left
-      (orient-down A+ B+))
+      (orient-down A- B+))
     (branch
       (face A- (grow "....X.." (scale .95) (mark :legs)))
       (face B+ (grow "....X.." (scale .95) (mark :legs)))

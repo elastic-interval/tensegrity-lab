@@ -1,4 +1,4 @@
-use cgmath::MetricSpace;
+use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Quaternion, Rotation, Vector3};
 
 use crate::build::growth::Launch::{IdentifiedFace, NamedFace, Seeded};
 use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, PostShapeOperation, Seed, ShapePhase, ShaperSpec, Spin};
@@ -66,7 +66,6 @@ impl Growth {
 
     pub fn init(&mut self, fabric: &mut Fabric) {
         let BuildPhase { seed, root, .. } = &self.plan.build_phase;
-        // TODO: orient-down
         match root {
             None => {
                 self.twist(fabric, seed.needs_double(), seed.spin(), None);
@@ -199,11 +198,27 @@ impl Growth {
     }
 
     fn twist(&self, fabric: &mut Fabric, needs_double: bool, spin: Spin, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
-        if needs_double {
+        let faces = if needs_double {
             fabric.double_twist(spin, self.pretenst_factor, 1.0, face_id).to_vec()
         } else {
             fabric.single_twist(spin, self.pretenst_factor, 1.0, face_id).to_vec()
+        };
+        let BuildPhase { orient_down, .. } = &self.plan.build_phase;
+        if face_id.is_none() && !orient_down.is_empty() {
+            let mut down: Vector3<f32> = faces
+                .iter()
+                .filter(|(face_name, _)| orient_down.contains(face_name))
+                .map(|(_, face_id)| fabric.face(*face_id).normal(&fabric.joints, fabric))
+                .sum();
+            down = down.normalize();
+            let midpoint = fabric.midpoint().to_vec();
+            let rotation =
+                Matrix4::from_translation(midpoint) *
+                    Matrix4::from(Quaternion::between_vectors(down, -Vector3::unit_y())) *
+                    Matrix4::from_translation(-midpoint);
+            fabric.apply_matrix4(rotation);
         }
+        faces
     }
 
     fn attach_shapers_for(&self, fabric: &mut Fabric, shaper_spec: &ShaperSpec) -> Vec<Shaper> {
