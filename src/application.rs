@@ -145,9 +145,8 @@ pub fn run() {
                         app.scene.window_event(event);
                     }
                     WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
-                    if !app.gui.capturing_mouse() => {
-                        app.scene.window_event(event);
-                    }
+                    if !app.gui.capturing_mouse() =>
+                        app.scene.window_event(event),
                     _ => {}
                 }
             }
