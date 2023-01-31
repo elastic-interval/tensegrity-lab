@@ -112,7 +112,7 @@ impl Interval {
             }
         };
         let real_length = self.length(joints);
-        let Material{ role, stiffness, mass } = materials[self.material];
+        let Material { role, stiffness, mass } = materials[self.material];
         self.strain = match role {
             Push if real_length > ideal => 0.0, // do not pull
             Pull if real_length < ideal => 0.0, // do not push
