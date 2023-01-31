@@ -9,7 +9,7 @@ const BOW_TIE_PUSH_LENGTH_FACTOR_HEXAGON: f32 = 0.2;
 const BOW_TIE_PUSH_LENGTH_FACTOR_OCTAGON: f32 = 0.12;
 
 impl Fabric {
-    const BOW_TIE_MATERIAL: usize = 1;
+    const BOW_TIE_MATERIAL: usize = 2;
 
     pub fn default_bow_tie() -> Self {
         let mut fabric = Fabric::default();
