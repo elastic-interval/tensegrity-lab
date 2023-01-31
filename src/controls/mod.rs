@@ -1,10 +1,10 @@
-mod strain_threshold;
-mod fabric_choice;
-mod gravity;
-
 use std::cell::RefCell;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
+
+use iced::mouse;
 use iced_wgpu::{Backend, Renderer, Settings};
-use iced_winit::{Alignment, Clipboard, Color, Command, conversion, Debug, Element, Length, mouse, Program, program, renderer, Size, Viewport};
+use iced_winit::{Alignment, Clipboard, Color, Command, conversion, Debug, Element, Length, Program, program, renderer, Size, Viewport};
 use iced_winit::widget::{Button, Column, Row, Text};
 use wgpu::{CommandEncoder, Device, TextureView};
 use winit::dpi::PhysicalPosition;
@@ -13,15 +13,17 @@ use winit::window::{CursorIcon, Window};
 
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Instant;
-use crate::build::tenscript::{bootstrap_fabric_plans, FabricPlan};
-use crate::controls::fabric_choice::{FabricChoiceState, FabricChoiceMessage};
-use crate::controls::gravity::{GravityMessage, GravityState};
-use crate::controls::strain_threshold::{StrainThresholdState, StrainThresholdMessage};
-use crate::controls::strain_threshold::StrainThresholdMessage::StrainThresholdChanged;
 
+use crate::build::tenscript::{bootstrap_fabric_plans, FabricPlan};
+use crate::controls::fabric_choice::{FabricChoiceMessage, FabricChoiceState};
+use crate::controls::gravity::{GravityMessage, GravityState};
+use crate::controls::strain_threshold::{StrainThresholdMessage, StrainThresholdState};
+use crate::controls::strain_threshold::StrainThresholdMessage::StrainThresholdChanged;
 use crate::graphics::GraphicsWindow;
+
+mod strain_threshold;
+mod fabric_choice;
+mod gravity;
 
 const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
 
@@ -105,7 +107,7 @@ impl GUI {
         self.state.queue_message(message);
     }
 
-    pub fn window_event(&mut self, window: &Window, event: &WindowEvent) {
+    pub fn window_event(&mut self, event: &WindowEvent, window: &Window) {
         match event {
             WindowEvent::CursorMoved { position, .. } => {
                 self.cursor_position = *position;
@@ -172,14 +174,14 @@ impl GUI {
         );
     }
 
-    pub fn capturing_mouse(&self) -> bool {
-        !matches!(self.state.mouse_interaction(), mouse::Interaction::Idle)
-    }
-
     pub fn cursor_icon(&self) -> CursorIcon {
         conversion::mouse_interaction(
             self.state.mouse_interaction(),
         )
+    }
+
+    pub fn capturing_mouse(&self) -> bool {
+        !matches!(self.state.mouse_interaction(), mouse::Interaction::Idle)
     }
 }
 
@@ -297,19 +299,18 @@ impl Program for ControlState {
     }
 
     fn view(&self) -> Element<'_, Message, Renderer> {
-        let Self { frame_rate, .. } = *self;
         let mut right_column = Column::new()
             .width(Length::Fill)
             .align_items(Alignment::End);
         #[cfg(not(target_arch = "wasm32"))]
         {
+            let Self { frame_rate, .. } = *self;
             right_column = right_column
                 .push(
                     Text::new(format!("{frame_rate:.01} FPS"))
                         .style(Color::WHITE)
                 );
         }
-
         let element: Element<'_, Message, Renderer> =
             Column::new()
                 .padding(10)
