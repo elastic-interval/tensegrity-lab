@@ -7,6 +7,7 @@ use crate::controls::gravity::GravityMessage::{*};
 #[derive(Debug, Clone)]
 pub enum GravityMessage {
     NuanceChanged(f32),
+    Reset,
 }
 
 impl From<GravityMessage> for Message {
@@ -28,6 +29,10 @@ impl GravityState {
             NuanceChanged(nuance) => {
                 self.nuance = nuance;
                 Some(Action::GravityChanged(self.min_gravity * (1.0 - nuance) + self.max_gravity * nuance))
+            },
+            Reset => {
+                self.nuance = 0.0;
+                Some(Action::GravityChanged(self.min_gravity))
             }
         }
     }

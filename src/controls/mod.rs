@@ -251,6 +251,7 @@ impl ControlState {
 #[derive(Debug, Clone)]
 pub enum Message {
     ToggleDebugMode,
+    Reset,
     ShowControl(VisibleControl),
     FabricChoice(FabricChoiceMessage),
     StrainThreshold(StrainThresholdMessage),
@@ -266,6 +267,10 @@ impl Program for ControlState {
         match message {
             Message::ToggleDebugMode => {
                 self.debug_mode = !self.debug_mode;
+            }
+            Message::Reset => {
+                self.visible_controls = VisibleControl::ControlChoice;
+                self.gravity_control.update(GravityMessage::Reset);
             }
             Message::ShowControl(visible_control) => {
                 self.visible_controls = visible_control;
