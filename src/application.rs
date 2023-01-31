@@ -17,7 +17,6 @@ use wasm_bindgen::prelude::*;
 use crate::controls::{GUI, Message, VisibleControl};
 use crate::controls::Action;
 use crate::experiment::Experiment;
-use crate::fabric::Fabric;
 use crate::graphics::GraphicsWindow;
 use crate::scene::Scene;
 
@@ -184,7 +183,7 @@ pub fn run() {
                             experiment.set_gravity(gravity);
                         }
                         Action::AddPulls { strain_nuance } => {
-                            let maximum = experiment.fabric().max_strain(Fabric::BOW_TIE_MATERIAL);
+                            let maximum = experiment.fabric().bow_tie_strain();
                             experiment.add_pulls(strain_nuance * maximum);
                         }
                     }
