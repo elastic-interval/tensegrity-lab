@@ -37,15 +37,17 @@
       (face A- (grow "....X.." (scale .95) (mark :legs)))
       (face B+ (grow "....X.." (scale .95) (mark :legs)))
       (face A+
-        (grow 3 (scale .9)
+        (grow 2 (scale .9)
           (branch
-            (face C+ (mark :shoulders))
-            (face B+ (grow "...X.." (scale .93) (mark :hands))))))
+            (face B+ (mark :shoulders))
+            (face D+ (grow "...X..." (scale .93) (mark :hands)))
+            )))
       (face B-
-        (grow 3 (scale .9)
+        (grow 2 (scale .9)
           (branch
-            (face D+ (mark :shoulders))
-            (face C+ (grow "...X.." (scale .93) (mark :hands))))))))
+            (face B+ (mark :shoulders))
+            (face D+ (grow "...X..." (scale .93) (mark :hands)))
+            )))))
   (shape
     (space :legs .05)
     (space :hands .07)
