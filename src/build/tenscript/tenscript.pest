@@ -100,21 +100,16 @@ branch = {
 }
 
 scale = {
-    "(" ~
-    "scale" ~
-    number ~
-    ")"
+    "(" ~ "scale" ~ number ~ ")"
 }
 
 seed = {
-    "(" ~
-    "seed" ~
-    seed_value ~
+    "(" ~ "seed" ~ seed_type ~
     orient_down? ~
     ")"
 }
 
-seed_value = {
+seed_type = {
     ":left-right" |
     ":right-left" |
     ":left" |
@@ -122,15 +117,13 @@ seed_value = {
 }
 
 orient_down = {
-    "(" ~
-    "orient-down" ~
+    "(" ~ "orient-down" ~
     face_name+ ~
     ")"
 }
 
 surface = {
-    "(" ~
-    "surface" ~
+    "(" ~ "surface" ~
     surface_character ~
     ")"
 }
@@ -153,7 +146,7 @@ number = @{
     mantissa
 }
 integer = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+ | ASCII_DIGIT }
-mantissa = { ASCII_DIGIT+ }
+mantissa = @{ ASCII_DIGIT+ }
 
 string = @{
     "\"" ~ (!"\"" ~ ANY)* ~ "\""
