@@ -4,10 +4,10 @@
  */
 
 use std::cmp::Ordering;
+use std::collections::HashMap;
 
 use cgmath::{EuclideanSpace, Matrix4, MetricSpace, Point3, Transform, Vector3};
 use cgmath::num_traits::zero;
-use hashbrown::HashMap;
 
 use crate::build::tenscript::Spin;
 use crate::fabric::face::Face;
