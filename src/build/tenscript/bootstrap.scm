@@ -49,7 +49,7 @@
             (face D+ (grow "...X..." (scale .93) (mark :hands)))
             )))))
   (shape
-    (space :legs .05)
+    (space :legs .3)
     (space :hands .07)
     (space :shoulders .05)
     (finally :bow-tie-pulls)

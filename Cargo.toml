@@ -24,7 +24,6 @@ anyhow = "1.0"
 iced = "0.7.0"
 iced_wgpu = "0.8.0"
 iced_winit = "0.7.0"
-hashbrown = "0.13.2"
 pest = "2.5.3"
 pest_derive = "2.5.3"
 
