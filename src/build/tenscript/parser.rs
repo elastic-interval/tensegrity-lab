@@ -5,7 +5,7 @@ use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
 
-use crate::build::tenscript::{BuildNode, BuildPhase, FabricPlan, PostShapeOperation, SeedType, ShapePhase, ShaperSpec, SurfaceCharacterSpec};
+use crate::build::tenscript::{BuildNode, BuildPhase, FabricPlan, SeedType, ShapeOperation, ShapePhase, SurfaceCharacterSpec};
 
 #[derive(Parser)]
 #[grammar = "build/tenscript/tenscript.pest"] // relative to src
@@ -60,27 +60,24 @@ impl FabricPlan {
                 Rule::space_statement => {
                     let [mark_name, distance_string] = pair.into_inner().next_chunk().unwrap().map(|p| p.as_str());
                     let distance_factor = distance_string.parse().unwrap();
-                    shape_phase.shaper_specs.push(ShaperSpec::Distance {
+                    shape_phase.operations.push(ShapeOperation::Distance {
                         mark_name: mark_name[1..].into(),
                         distance_factor,
                     })
                 }
                 Rule::join_statement => {
                     let mark_name = pair.into_inner().next().unwrap().as_str();
-                    shape_phase.shaper_specs.push(ShaperSpec::Join { mark_name: mark_name[1..].into() })
+                    shape_phase.operations.push(ShapeOperation::Join { mark_name: mark_name[1..].into() })
                 }
-                Rule::finally_statement => {
-                    match pair.into_inner().next().unwrap().as_str() {
-                        ":bow-tie-pulls" => {
-                            shape_phase.post_shape_operations.push(PostShapeOperation::BowTiePulls)
-                        }
-                        ":faces-to-triangles" => {
-                            shape_phase.post_shape_operations.push(PostShapeOperation::FacesToTriangles)
-                        }
-                        _ => {
-                            return Err(ParseError::Syntax("finally what?".into()));
-                        }
-                    }
+                Rule::wait_statement => {
+                    let count = pair.into_inner().next().unwrap().as_str().parse().unwrap();
+                    shape_phase.operations.push(ShapeOperation::Wait { count });
+                }
+                Rule::remove_faces_statement => {
+                    shape_phase.operations.push(ShapeOperation::ReplaceFaces);
+                }
+                Rule::vulcanize_statement => {
+                    shape_phase.operations.push(ShapeOperation::Vulcanize);
                 }
                 _ => unreachable!("shape phase")
             }
