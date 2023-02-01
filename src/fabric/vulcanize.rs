@@ -38,7 +38,7 @@ impl Fabric {
             if interval.strain > strain_threshold {
                 interval.span = match interval.span {
                     Span::Fixed { length } => Span::Fixed { length: length * shortening },
-                    _ => panic!()
+                    _ => unreachable!()
                 }
             }
         }
