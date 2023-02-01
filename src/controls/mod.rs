@@ -19,6 +19,7 @@ use crate::controls::fabric_choice::{FabricChoiceMessage, FabricChoiceState};
 use crate::controls::gravity::{GravityMessage, GravityState};
 use crate::controls::strain_threshold::{StrainThresholdMessage, StrainThresholdState};
 use crate::controls::strain_threshold::StrainThresholdMessage::SetStrainLimits;
+use crate::fabric::Fabric;
 use crate::graphics::GraphicsWindow;
 
 pub mod fabric_choice;
@@ -198,6 +199,7 @@ pub enum Action {
     BuildFabric(FabricPlan),
     GravityChanged(f32),
     CalibrateStrain,
+    ShortenPulls(f32),
 }
 
 #[derive(Clone, Debug)]
@@ -207,6 +209,7 @@ pub struct ControlState {
     fabric_choice_control: FabricChoiceState,
     strain_threshold_control: StrainThresholdState,
     gravity_control: GravityState,
+    show_strain: bool,
     frame_rate: f64,
     action_queue: RefCell<Vec<Action>>,
 }
@@ -230,10 +233,16 @@ impl Default for ControlState {
                 min_gravity: 1e-8,
                 max_gravity: 5e-7,
             },
+            show_strain: false,
             frame_rate: 0.0,
             action_queue: RefCell::new(Vec::new()),
         }
     }
+}
+
+pub struct StrainView {
+    pub threshold: f32,
+    pub material: usize,
 }
 
 impl ControlState {
@@ -241,8 +250,15 @@ impl ControlState {
         self.action_queue.borrow_mut().split_off(0)
     }
 
-    pub fn strain_threshold(&self) -> f32 {
-        self.strain_threshold_control.strain_threshold()
+    pub fn show_strain(&self) -> bool {
+        self.show_strain
+    }
+
+    pub fn strain_view(&self) -> StrainView {
+        StrainView {
+            threshold: self.strain_threshold_control.strain_threshold(),
+            material: Fabric::BOW_TIE_MATERIAL_INDEX,
+        }
     }
 
     pub fn strain_limits_changed(&self, limits: (f32, f32)) -> Message {
@@ -284,8 +300,11 @@ impl Program for ControlState {
                 match visible_control {
                     VisibleControl::StrainThreshold => {
                         queue_action(Some(Action::CalibrateStrain));
+                        self.show_strain = true;
                     }
-                    _ => {}
+                    _ => {
+                        self.show_strain = false;
+                    }
                 }
             }
             Message::FabricChoice(message) => {
@@ -334,7 +353,7 @@ impl Program for ControlState {
                             Row::new()
                                 .push(Button::new(Text::new("Fabrics"))
                                     .on_press(Message::ShowControl(VisibleControl::FabricChoice)))
-                                .push(Button::new(Text::new("Strain Threshold"))
+                                .push(Button::new(Text::new("Strain"))
                                     .on_press(Message::ShowControl(VisibleControl::StrainThreshold)))
                                 .push(Button::new(Text::new("Gravity"))
                                     .on_press(Message::ShowControl(VisibleControl::Gravity)))

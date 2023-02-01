@@ -157,8 +157,13 @@ pub fn run() {
                     app.scene.move_camera(jump);
                     app.scene.show_surface(true);
                 }
-                let strain_threshold = app.gui.controls().strain_threshold();
-                app.scene.update(&app.graphics, strain_threshold, experiment.fabric());
+                let strain_view =
+                    if app.gui.controls().show_strain() {
+                        Some(app.gui.controls().strain_view())
+                    } else {
+                        None
+                    };
+                app.scene.update(&app.graphics, strain_view, experiment.fabric());
                 app.gui.update_viewport(&window);
                 match app.render() {
                     Ok(_) => {}
@@ -183,6 +188,9 @@ pub fn run() {
                         Action::CalibrateStrain => {
                             let strain_limits = experiment.strain_limits();
                             app.gui.change_state(Message::StrainThreshold(StrainThresholdMessage::SetStrainLimits(strain_limits)))
+                        }
+                        Action::ShortenPulls(strain_threshold) => {
+                            experiment.shorten_pulls(strain_threshold);
                         }
                     }
                 }

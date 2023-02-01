@@ -12,7 +12,7 @@ enum Stage {
     RunningPlan,
     Pretensing,
     Pretenst,
-    AddPulls { strain_threshold: f32 },
+    ShortenPulls(f32),
 }
 
 pub struct Experiment {
@@ -24,7 +24,7 @@ pub struct Experiment {
     iterations_per_frame: usize,
     paused: bool,
     stage: Stage,
-    add_pulls: Option<f32>,
+    shorten_pulls: Option<f32>,
 }
 
 impl Default for Experiment {
@@ -38,7 +38,7 @@ impl Default for Experiment {
             iterations_per_frame: 100,
             paused: false,
             stage: Empty,
-            add_pulls: None,
+            shorten_pulls: None,
         }
     }
 }
@@ -86,22 +86,17 @@ impl Experiment {
                 for _ in 0..self.iterations_per_frame {
                     self.fabric.iterate(&self.physics);
                 }
-                match self.add_pulls {
+                match self.shorten_pulls {
                     None => {}
                     Some(strain_threshold) => {
-                        self.stage = AddPulls { strain_threshold }
+                        self.stage = ShortenPulls(strain_threshold)
                     }
                 }
             }
-            AddPulls { .. } => {
-                unimplemented!();
-                // self.add_pulls = None;
-                // let new_pulls = self.fabric.measures_to_pulls(*strain_threshold);
-                // self.fabric = self.frozen_fabric.take().unwrap();
-                // for (alpha_index, omega_index, ideal) in new_pulls {
-                //     self.fabric.create_interval(alpha_index, omega_index, Link::Pull { ideal, material: 1 });
-                // }
-                // self.start_pretensing()
+            ShortenPulls(strain_threshold) => {
+                self.shorten_pulls = None;
+                self.fabric.shorten_pulls(*strain_threshold);
+                self.start_pretensing()
             }
         }
     }
@@ -115,11 +110,11 @@ impl Experiment {
     }
 
     pub fn strain_limits(&self) -> (f32, f32) {
-        self.fabric.strain_limits(Fabric::BOW_TIE_MATERIAL)
+        self.fabric.strain_limits(Fabric::BOW_TIE_MATERIAL_INDEX)
     }
 
-    pub fn add_pulls(&mut self, strain_threshold: f32) {
-        self.add_pulls = Some(strain_threshold);
+    pub fn shorten_pulls(&mut self, strain_threshold: f32) {
+        self.shorten_pulls = Some(strain_threshold);
     }
 
     pub fn build_fabric(&mut self, fabric_plan: FabricPlan) {
