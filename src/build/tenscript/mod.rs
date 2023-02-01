@@ -119,21 +119,21 @@ pub struct BuildPhase {
 }
 
 #[derive(Debug, Clone)]
-pub enum ShaperSpec {
+pub enum ShapeOperation {
+    Countdown {
+        count: usize,
+        operations: Vec<ShapeOperation>,
+    },
     Join { mark_name: String },
     Distance { mark_name: String, distance_factor: f32 },
-}
-
-#[derive(Debug, Clone)]
-pub enum PostShapeOperation {
-    BowTiePulls,
-    FacesToTriangles,
+    RemoveShapers { mark_names: Vec<String> },
+    Vulcanize,
+    ReplaceFaces,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct ShapePhase {
-    pub shaper_specs: Vec<ShaperSpec>,
-    pub post_shape_operations: Vec<PostShapeOperation>,
+    pub operations: Vec<ShapeOperation>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -161,7 +161,10 @@ pub fn fabric_plan(plan_name: &str) -> FabricPlan {
     let Some((_, code)) = plans.iter().find(|&(name, _)| *name == plan_name) else {
         panic!("{plan_name} not found");
     };
-    FabricPlan::from_tenscript(code.as_str()).unwrap()
+    match FabricPlan::from_tenscript(code.as_str()) {
+        Ok(plan) => plan,
+        Err(error) => panic!("error parsing fabric plan: {error}")
+    }
 }
 
 #[cfg(test)]
