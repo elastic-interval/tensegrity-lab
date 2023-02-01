@@ -117,7 +117,11 @@ impl Growth {
         for post_shape_operation in post_shape_operations {
             match post_shape_operation {
                 PostShapeOperation::BowTiePulls => fabric.install_bow_ties(),
-                PostShapeOperation::FacesToTriangles => fabric.faces_to_triangles(),
+                PostShapeOperation::FacesToTriangles => {
+                    for face_to_remove in fabric.replace_faces() {
+                        fabric.remove_face(face_to_remove)
+                    }
+                },
             }
         }
     }
