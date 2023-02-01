@@ -1,19 +1,19 @@
+use std::collections::{HashMap, HashSet};
 use cgmath::{MetricSpace, Point3};
-use hashbrown::{HashMap, HashSet};
 
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::{Interval, Material, Role};
+use crate::fabric::joint::Joint;
 use crate::fabric::Link;
 
 const ROOT3: f32 = 1.732_050_8;
-const BOW_TIE_PUSH_LENGTH_FACTOR_HEXAGON: f32 = 0.2;
-const BOW_TIE_PUSH_LENGTH_FACTOR_OCTAGON: f32 = 0.12;
 
 const BOW_TIE_MATERIAL: Material = Material {
     role: Role::Pull,
     stiffness: 0.7,
     mass: 0.1,
 };
+const BOW_TIE_SHORTEN: f32 = 0.5;
 
 impl Fabric {
     const BOW_TIE_MATERIAL: usize = 2;
@@ -29,7 +29,7 @@ impl Fabric {
     }
 
     pub fn install_bow_ties(&mut self) {
-        for Pair { alpha_index, omega_index, length } in self.pair_generator().bow_tie_pulls(&self.materials) {
+        for Pair { alpha_index, omega_index, length } in self.pair_generator().bow_tie_pulls(&self.joints, &self.materials) {
             self.create_interval(alpha_index, omega_index, Link { ideal: length, material: Fabric::BOW_TIE_MATERIAL });
         }
     }
@@ -40,8 +40,9 @@ impl Fabric {
         }
     }
 
-    pub fn faces_to_triangles(&mut self) {
+    pub fn replace_faces(&mut self) -> Vec<UniqueId> {
         let joint_incident = self.joint_incident();
+        let mut faces_to_remove = vec![];
         for (id, face) in self.faces.clone() {
             let side_length = face.scale * ROOT3;
             let radial_joints = face.radial_joints(self);
@@ -55,8 +56,9 @@ impl Fabric {
                 }
                 self.create_interval(alpha_index, omega_index, Link::pull(side_length));
             }
-            self.remove_face(id);
+            faces_to_remove.push(id);
         }
+        faces_to_remove
     }
 
     pub fn max_strain(&self, target_material: usize) -> f32 { // todo: make this min/max
@@ -255,7 +257,7 @@ impl PairGenerator {
         self.pairs.extend(new_pairs);
     }
 
-    fn bow_tie_pulls(mut self, materials: &[Material]) -> impl Iterator<Item=Pair> {
+    fn bow_tie_pulls(mut self, joints: &[Joint], materials: &[Material]) -> impl Iterator<Item=Pair> {
         for interval in self.intervals.values() {
             if materials[interval.material].role != Role::Push {
                 continue;
@@ -288,7 +290,8 @@ impl PairGenerator {
                         })
                         .collect();
                     if let &[(alpha_index, omega_index)] = cross_twist_diagonals.as_slice() {
-                        let pair = Pair { alpha_index, omega_index, length: interval.ideal() * BOW_TIE_PUSH_LENGTH_FACTOR_HEXAGON };
+                        let distance = joints[alpha_index].location.distance(joints[omega_index].location);
+                        let pair = Pair { alpha_index, omega_index, length: distance * BOW_TIE_SHORTEN};
                         self.pairs.insert(pair.key(), pair);
                     } else {
                         let candidate_completions = [
@@ -301,11 +304,12 @@ impl PairGenerator {
                                 if self.joints[other_path.joint_indices[1]].push.is_some() {
                                     return None;
                                 }
-                                Some((path.joint_indices[0], path.last_joint(), path.intervals[0].ideal() * BOW_TIE_PUSH_LENGTH_FACTOR_OCTAGON))
+                                Some((path.joint_indices[0], path.last_joint()))
                             })
                             .collect();
-                        if let &[(alpha_index, omega_index, length)] = triangle_completions.as_slice() {
-                            let pair = Pair { alpha_index, omega_index, length };
+                        if let &[(alpha_index, omega_index)] = triangle_completions.as_slice() {
+                            let distance = joints[alpha_index].location.distance(joints[omega_index].location);
+                            let pair = Pair { alpha_index, omega_index, length: distance * BOW_TIE_SHORTEN };
                             self.pairs.insert(pair.key(), pair);
                         }
                     }
