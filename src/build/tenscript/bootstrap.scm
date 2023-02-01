@@ -10,8 +10,8 @@
       (face A+ (grow 3))
       (face B+ (grow 3))))
   (shape
-    (finally :bow-tie-pulls)
-    (finally :faces-to-triangles)))
+    (vulcanize)
+    (replace-faces)))
 ;;;Flagellum
 (fabric
   (build
@@ -26,8 +26,8 @@
         (face D- (grow 11 (scale .92) (mark :halo-end))))))
   (shape
     (join :halo-end)
-    (finally :bow-tie-pulls)
-    (finally :faces-to-triangles)))
+    (vulcanize)
+    (replace-faces)))
 ;;;Headless Hug
 (fabric
   (build
@@ -49,9 +49,11 @@
             (face D+ (grow "....X..." (scale .93) (mark :hands)))
             )))))
   (shape
-    (space :legs .3)
-    (space :hands .01)
-    (space :shoulders .05)
-    (finally :bow-tie-pulls)
-    (finally :faces-to-triangles)))
+    (countdown 25000
+      (space :legs .3)
+      (space :hands .01)
+      (space :shoulders .05))
+    (countdown 10000 (vulcanize))
+    (remove-shapers)
+    (replace-faces)))
 
