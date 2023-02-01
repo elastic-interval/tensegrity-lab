@@ -1,8 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use cgmath::{MetricSpace, Point3};
+use chrono::format::Fixed;
 
 use crate::fabric::{Fabric, UniqueId};
-use crate::fabric::interval::{Interval, Material, Role};
+use crate::fabric::interval::{Interval, Material, Role, Span};
 use crate::fabric::joint::Joint;
 use crate::fabric::Link;
 
@@ -16,7 +17,7 @@ const BOW_TIE_MATERIAL: Material = Material {
 const BOW_TIE_SHORTEN: f32 = 0.5;
 
 impl Fabric {
-    pub(crate) const BOW_TIE_MATERIAL: usize = 2;
+    pub const BOW_TIE_MATERIAL_INDEX: usize = 2;
 
     pub fn default_bow_tie() -> Self {
         let mut fabric = Fabric::default();
@@ -26,7 +27,21 @@ impl Fabric {
 
     pub fn install_bow_ties(&mut self) {
         for Pair { alpha_index, omega_index, length } in self.pair_generator().bow_tie_pulls(&self.joints, &self.materials) {
-            self.create_interval(alpha_index, omega_index, Link { ideal: length, material: Fabric::BOW_TIE_MATERIAL });
+            self.create_interval(alpha_index, omega_index, Link { ideal: length, material: Fabric::BOW_TIE_MATERIAL_INDEX });
+        }
+    }
+
+    pub fn shorten_pulls(&mut self, strain_threshold: f32) {
+        for interval in self.intervals.values_mut() {
+            if interval.material != Self::BOW_TIE_MATERIAL_INDEX {
+                continue;
+            }
+            if interval.strain > strain_threshold {
+                interval.span = match interval.span {
+                    Span::Fixed { length } => Span::Fixed { length: length * 0.95 },
+                    _ => panic!()
+                }
+            }
         }
     }
 
@@ -293,7 +308,7 @@ impl PairGenerator {
                         .collect();
                     if let &[(alpha_index, omega_index)] = cross_twist_diagonals.as_slice() {
                         let distance = joints[alpha_index].location.distance(joints[omega_index].location);
-                        let pair = Pair { alpha_index, omega_index, length: distance * BOW_TIE_SHORTEN};
+                        let pair = Pair { alpha_index, omega_index, length: distance * BOW_TIE_SHORTEN };
                         self.pairs.insert(pair.key(), pair);
                     } else {
                         let candidate_completions = [
