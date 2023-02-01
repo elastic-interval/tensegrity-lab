@@ -96,6 +96,10 @@ impl FabricPlan {
                 let operations = inner.map(Self::parse_shape_operation).collect();
                 ShapeOperation::Countdown { count, operations }
             }
+            Rule::remove_shapers => {
+                let mark_names = pair.into_inner().map(|p| p.as_str()[1..].into()).collect();
+                ShapeOperation::RemoveShapers { mark_names }
+            }
             Rule::replace_faces =>
                 ShapeOperation::ReplaceFaces,
             Rule::vulcanize =>

@@ -49,10 +49,11 @@
             (face D+ (grow "....X..." (scale .93) (mark :hands)))
             )))))
   (shape
-    (countdown 2000
+    (countdown 25000
       (space :legs .3)
       (space :hands .01)
       (space :shoulders .05))
-    (vulcanize)
+    (countdown 10000 (vulcanize))
+    (remove-shapers)
     (replace-faces)))
 

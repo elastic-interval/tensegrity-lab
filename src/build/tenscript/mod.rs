@@ -126,6 +126,7 @@ pub enum ShapeOperation {
     },
     Join { mark_name: String },
     Distance { mark_name: String, distance_factor: f32 },
+    RemoveShapers { mark_names: Vec<String> },
     Vulcanize,
     ReplaceFaces,
 }
