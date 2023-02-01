@@ -39,18 +39,18 @@
       (face A+
         (grow 2 (scale .9)
           (branch
-            (face B+ (mark :shoulders))
-            (face D+ (grow "...X..." (scale .93) (mark :hands)))
+            (face C+ (mark :shoulders))
+            (face D+ (grow "....X..." (scale .93) (mark :hands)))
             )))
       (face B-
         (grow 2 (scale .9)
           (branch
-            (face B+ (mark :shoulders))
-            (face D+ (grow "...X..." (scale .93) (mark :hands)))
+            (face C+ (mark :shoulders))
+            (face D+ (grow "....X..." (scale .93) (mark :hands)))
             )))))
   (shape
     (space :legs .3)
-    (space :hands .07)
+    (space :hands .01)
     (space :shoulders .05)
     (finally :bow-tie-pulls)
     (finally :faces-to-triangles)))
