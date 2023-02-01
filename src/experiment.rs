@@ -6,6 +6,8 @@ use crate::build::plan_runner::PlanRunner;
 use crate::build::tenscript::FabricPlan;
 use crate::fabric::physics::Physics;
 
+const PULL_SHORTENING: f32 = 0.95;
+
 enum Stage {
     Empty,
     AcceptingPlan(FabricPlan),
@@ -95,7 +97,7 @@ impl Experiment {
             }
             ShortenPulls(strain_threshold) => {
                 self.shorten_pulls = None;
-                self.fabric.shorten_pulls(*strain_threshold);
+                self.fabric.shorten_pulls(*strain_threshold, PULL_SHORTENING);
                 self.start_pretensing()
             }
         }
