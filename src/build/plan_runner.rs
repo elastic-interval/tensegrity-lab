@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use crate::build::growth::Growth;
 use crate::build::plan_runner::Stage::{*};
 use crate::build::tenscript::FabricPlan;
@@ -10,13 +12,7 @@ enum Stage {
     GrowStep,
     GrowApproach,
     GrowCalm,
-    ShapingStart,
-    ShapingApproach,
-    Shaped,
-    ShapedApproach,
-    ShapingDone,
-    ShapingCalm,
-    VulcanizeCalm,
+    Shaping,
     Completed,
 }
 
@@ -40,47 +36,34 @@ impl PlanRunner {
         if fabric.progress.is_busy() {
             return;
         }
-        let next_stage = match self.stage {
+        let (next_stage, countdown) = match self.stage {
             Initialize => {
                 self.growth.init(fabric);
-                GrowApproach
+                (GrowApproach, 0)
             }
             GrowStep => {
                 if self.growth.is_growing() {
                     self.growth.growth_step(fabric);
-                    GrowApproach
+                    (GrowApproach, 0)
                 } else if self.growth.needs_shaping() {
-                    self.growth.create_shapers(fabric);
-                    ShapingStart
+                    (Shaping, 0)
                 } else {
-                    ShapingDone
+                    (Completed, 0)
                 }
             }
-            GrowApproach => GrowCalm,
-            GrowCalm => GrowStep,
-            ShapingStart => ShapingApproach,
-            ShapingApproach => Shaped,
-            Shaped => {
-                self.growth.complete_shapers(fabric);
-                ShapedApproach
-            }
-            ShapedApproach => ShapingDone,
-            ShapingDone => ShapingCalm,
-            ShapingCalm => {
-                self.growth.post_shaping(fabric);
-                VulcanizeCalm
-            },
-            VulcanizeCalm => Completed,
-            Completed => Completed,
-        };
-        let countdown = match next_stage {
-            GrowApproach => 1500,
-            GrowCalm => 1500,
-            ShapingApproach => 25000,
-            ShapedApproach => 5000,
-            ShapingCalm => 500,
-            VulcanizeCalm => 5000,
-            Initialize | GrowStep | ShapingStart | Shaped | ShapingDone | Completed => 0,
+            GrowApproach =>
+                (GrowCalm, 1500),
+            GrowCalm =>
+                (GrowStep, 1500),
+            Shaping =>
+                match self.growth.shaping_step(fabric) {
+                    ControlFlow::Continue(count) =>
+                        (Shaping, count),
+                    ControlFlow::Break(()) =>
+                        (Completed, 500),
+                }
+            Completed =>
+                (Completed, 0),
         };
         fabric.progress.start(countdown);
         self.stage = next_stage;

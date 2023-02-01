@@ -13,36 +13,42 @@ fabric_plan = {
 
 shape = {
     "(" ~ "shape" ~
-    shape_operation+ ~
+        shape_operation+ ~
     ")"
 }
 
-shape_operation = {
-    space_statement |
-    join_statement |
-    vulcanize_statement |
-    remove_faces_statement |
-    wait_statement
+basic_shape_operation = {
+    space |
+    join |
+    vulcanize |
+    replace_faces
 }
 
-space_statement = {
+shape_operation = {
+    basic_shape_operation |
+    countdown_block
+}
+
+countdown_block = {
+    "(" ~ "countdown" ~ integer ~
+        basic_shape_operation+ ~
+    ")"
+}
+
+space = {
     "(" ~ "space" ~ atom ~ number ~ ")"
 }
 
-join_statement = {
+join = {
     "(" ~ "join" ~ atom ~ ")"
 }
 
-vulcanize_statement = {
+vulcanize = {
     "(" ~ "vulcanize" ~ ")"
 }
 
-remove_faces_statement = {
-    "(" ~ "remove-faces" ~ ")"
-}
-
-wait_statement = {
-    "(" ~ "wait" ~ integer ~ ")"
+replace_faces = {
+    "(" ~ "replace-faces" ~ ")"
 }
 
 build = {

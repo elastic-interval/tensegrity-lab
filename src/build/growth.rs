@@ -1,7 +1,9 @@
+use std::ops::ControlFlow;
+
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Quaternion, Rotation, Vector3};
 
 use crate::build::growth::Launch::{IdentifiedFace, NamedFace, Seeded};
-use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, Seed, ShapePhase, ShapeOperation, Spin};
+use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, Seed, ShapeOperation, ShapePhase, Spin};
 use crate::build::tenscript::BuildNode;
 use crate::build::tenscript::BuildNode::{Branch, Face, Grow, Mark};
 use crate::build::tenscript::FaceName::Apos;
@@ -35,6 +37,7 @@ pub struct Shaper {
     interval: UniqueId,
     alpha_face: UniqueId,
     omega_face: UniqueId,
+    mark_name: String,
     join: bool,
 }
 
@@ -51,6 +54,7 @@ pub struct Growth {
     pub buds: Vec<Bud>,
     pub marks: Vec<PostMark>,
     pub shapers: Vec<Shaper>,
+    shape_operation_index: usize,
 }
 
 impl Growth {
@@ -61,6 +65,7 @@ impl Growth {
             buds: vec![],
             marks: vec![],
             shapers: vec![],
+            shape_operation_index: 0,
         }
     }
 
@@ -94,34 +99,62 @@ impl Growth {
     }
 
     pub fn needs_shaping(&self) -> bool {
-        !self.marks.is_empty()
+        !self.plan.shape_phase.operations.is_empty()
     }
 
-    pub fn create_shapers(&mut self, fabric: &mut Fabric) {
+    pub fn shaping_step(&mut self, fabric: &mut Fabric) -> ControlFlow<(), usize> {
         let ShapePhase { operations } = &self.plan.shape_phase;
-        for shaper_spec in operations {
-            self.shapers.extend(self.attach_shapers_for(fabric, shaper_spec))
+        for shaper in self.shapers.split_off(0) {
+            self.complete_shaper(fabric, shaper);
         }
-        self.marks.clear();
+        let Some(operation) = operations.get(self.shape_operation_index) else {
+            return ControlFlow::Break(());
+        };
+        self.shape_operation_index += 1;
+        let countdown = self.execute_shape_operation(fabric, operation.clone());
+        ControlFlow::Continue(countdown)
     }
 
-    pub fn complete_shapers(&mut self, fabric: &mut Fabric) {
-        for shaper in &self.shapers {
-            self.complete_shaper(fabric, shaper)
-        }
-        self.shapers.clear();
-    }
-
-    pub fn post_shaping(&mut self, fabric: &mut Fabric) {
-        let ShapePhase { post_shape_operations, .. } = &self.plan.shape_phase;
-        for post_shape_operation in post_shape_operations {
-            match post_shape_operation {
-                PostShapeOperation::BowTiePulls => fabric.install_bow_ties(),
-                PostShapeOperation::FacesToTriangles => {
-                    for face_to_remove in fabric.replace_faces() {
-                        fabric.remove_face(face_to_remove)
+    fn execute_shape_operation(&mut self, fabric: &mut Fabric, operation: ShapeOperation) -> usize {
+        match operation {
+            ShapeOperation::Join { mark_name } => {
+                let faces = self.marked_faces(&mark_name);
+                let joints = self.marked_middle_joints(fabric, &faces);
+                match (joints.as_slice(), faces.as_slice()) {
+                    (&[alpha_index, omega_index], &[alpha_face, omega_face]) => {
+                        let interval = fabric.create_interval(alpha_index, omega_index, Link::pull(0.3));
+                        self.shapers.push(Shaper { interval, alpha_face, omega_face, mark_name, join: true })
                     }
-                },
+                    _ => unimplemented!()
+                }
+                20_000 // TODO: const
+            }
+            ShapeOperation::Distance { mark_name, distance_factor } => {
+                let faces = self.marked_faces(&mark_name);
+                let joints = self.marked_middle_joints(fabric, &faces);
+                match (joints.as_slice(), faces.as_slice()) {
+                    (&[alpha_index, omega_index], &[alpha_face, omega_face]) => {
+                        let length = fabric.joints[alpha_index].location.distance(fabric.joints[omega_index].location) * distance_factor;
+                        let interval = fabric.create_interval(alpha_index, omega_index, Link::pull(length));
+                        self.shapers.push(Shaper { interval, alpha_face, omega_face, mark_name, join: false })
+                    }
+                    _ => println!("Wrong number of faces for mark {mark_name}"),
+                }
+                20_000 // TODO: const
+            }
+            ShapeOperation::Countdown { count, operations } => {
+                for operation in operations {
+                    self.execute_shape_operation(fabric, operation);
+                }
+                count
+            }
+            ShapeOperation::Vulcanize => {
+                fabric.install_bow_ties();
+                5_000 // TODO: const
+            }
+            ShapeOperation::ReplaceFaces => {
+                fabric.replace_faces();
+                0
             }
         }
     }
@@ -230,39 +263,6 @@ impl Growth {
         fabric.apply_matrix4(rotation);
     }
 
-    fn attach_shapers_for(&self, fabric: &mut Fabric, shaper_spec: &ShapeOperation) -> Vec<Shaper> {
-        let mut shapers: Vec<Shaper> = vec![];
-        match shaper_spec {
-            ShapeOperation::Join { mark_name } => {
-                let faces = self.marked_faces(mark_name);
-                let joints = self.marked_middle_joints(fabric, &faces);
-                match (joints.as_slice(), faces.as_slice()) {
-                    (&[alpha_index, omega_index], &[alpha_face, omega_face]) => {
-                        let interval = fabric.create_interval(alpha_index, omega_index, Link::pull(0.3));
-                        shapers.push(Shaper { interval, alpha_face, omega_face, join: true })
-                    }
-                    _ => unimplemented!()
-                }
-            }
-            ShapeOperation::Distance { mark_name, distance_factor } => {
-                let faces = self.marked_faces(mark_name);
-                let joints = self.marked_middle_joints(fabric, &faces);
-                match (joints.as_slice(), faces.as_slice()) {
-                    (&[alpha_index, omega_index], &[alpha_face, omega_face]) => {
-                        let length = fabric.joints[alpha_index].location.distance(fabric.joints[omega_index].location) * distance_factor;
-                        let interval = fabric.create_interval(alpha_index, omega_index, Link::pull(length));
-                        shapers.push(Shaper { interval, alpha_face, omega_face, join: false })
-                    }
-                    _ => println!("Wrong number of faces for mark {mark_name}"),
-                }
-            }
-            ShapeOperation::Wait { .. } => {}
-            ShapeOperation::Vulcanize => {}
-            ShapeOperation::ReplaceFaces => {}
-        }
-        shapers
-    }
-
     fn marked_middle_joints(&self, fabric: &Fabric, face_ids: &[UniqueId]) -> Vec<usize> {
         face_ids
             .iter()
@@ -278,11 +278,11 @@ impl Growth {
             .collect()
     }
 
-    fn complete_shaper(&self, fabric: &mut Fabric, Shaper { interval, alpha_face, omega_face, join }: &Shaper) {
-        if *join {
-            self.join_faces(fabric, *alpha_face, *omega_face);
+    fn complete_shaper(&self, fabric: &mut Fabric, Shaper { interval, alpha_face, omega_face, join, .. }: Shaper) {
+        if join {
+            self.join_faces(fabric, alpha_face, omega_face);
         }
-        fabric.remove_interval(*interval);
+        fabric.remove_interval(interval);
     }
 
     fn join_faces(&self, fabric: &mut Fabric, alpha_id: UniqueId, omega_id: UniqueId) {
