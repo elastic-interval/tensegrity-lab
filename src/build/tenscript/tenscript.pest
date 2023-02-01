@@ -4,8 +4,7 @@
 //
 
 fabric_plan = {
-    "(" ~
-    "fabric" ~
+    "(" ~ "fabric" ~
     surface? ~
     build? ~
     shape? ~
@@ -13,37 +12,41 @@ fabric_plan = {
 }
 
 shape = {
-    "(" ~
-    "shape" ~
-    (space_statement | join_statement | finally_statement)+ ~
+    "(" ~ "shape" ~
+    shape_operation+ ~
     ")"
+}
+
+shape_operation = {
+    space_statement |
+    join_statement |
+    vulcanize_statement |
+    remove_faces_statement |
+    wait_statement
 }
 
 space_statement = {
-    "(" ~
-    "space" ~
-    atom ~
-    number ~
-    ")"
+    "(" ~ "space" ~ atom ~ number ~ ")"
 }
 
 join_statement = {
-    "(" ~
-    "join" ~
-    atom ~
-    ")"
+    "(" ~ "join" ~ atom ~ ")"
 }
 
-finally_statement = {
-    "(" ~
-    "finally" ~
-    atom ~
-    ")"
+vulcanize_statement = {
+    "(" ~ "vulcanize" ~ ")"
+}
+
+remove_faces_statement = {
+    "(" ~ "remove-faces" ~ ")"
+}
+
+wait_statement = {
+    "(" ~ "wait" ~ integer ~ ")"
 }
 
 build = {
-    "(" ~
-    "build" ~
+    "(" ~ "build" ~
     seed? ~
     build_node? ~
     ")"
@@ -54,8 +57,7 @@ build_node = {
 }
 
 face = {
-    "(" ~
-    "face" ~
+    "(" ~ "face" ~
     face_name ~
     build_node ~
     ")"
@@ -69,8 +71,7 @@ face_name = {
 }
 
 grow = {
-    "(" ~
-    "grow" ~
+    "(" ~ "grow" ~
     (integer | forward) ~
     scale? ~
     build_node? ~
@@ -78,15 +79,11 @@ grow = {
 }
 
 mark = {
-    "(" ~
-    "mark" ~
-    atom ~
-    ")"
+    "(" ~ "mark" ~ atom ~ ")"
 }
 
 branch = {
-    "(" ~
-    "branch" ~
+    "(" ~ "branch" ~
     build_node+ ~
     ")"
 }

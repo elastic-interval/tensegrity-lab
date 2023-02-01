@@ -119,21 +119,17 @@ pub struct BuildPhase {
 }
 
 #[derive(Debug, Clone)]
-pub enum ShaperSpec {
+pub enum ShapeOperation {
     Join { mark_name: String },
     Distance { mark_name: String, distance_factor: f32 },
-}
-
-#[derive(Debug, Clone)]
-pub enum PostShapeOperation {
-    BowTiePulls,
-    FacesToTriangles,
+    Wait { count: usize },
+    Vulcanize,
+    ReplaceFaces,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct ShapePhase {
-    pub shaper_specs: Vec<ShaperSpec>,
-    pub post_shape_operations: Vec<PostShapeOperation>,
+    pub operations: Vec<ShapeOperation>,
 }
 
 #[derive(Debug, Clone, Default)]

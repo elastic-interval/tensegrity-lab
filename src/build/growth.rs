@@ -1,7 +1,7 @@
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Quaternion, Rotation, Vector3};
 
 use crate::build::growth::Launch::{IdentifiedFace, NamedFace, Seeded};
-use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, PostShapeOperation, Seed, ShapePhase, ShaperSpec, Spin};
+use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, Seed, ShapePhase, ShapeOperation, Spin};
 use crate::build::tenscript::BuildNode;
 use crate::build::tenscript::BuildNode::{Branch, Face, Grow, Mark};
 use crate::build::tenscript::FaceName::Apos;
@@ -98,8 +98,8 @@ impl Growth {
     }
 
     pub fn create_shapers(&mut self, fabric: &mut Fabric) {
-        let ShapePhase { shaper_specs, .. } = &self.plan.shape_phase;
-        for shaper_spec in shaper_specs {
+        let ShapePhase { operations } = &self.plan.shape_phase;
+        for shaper_spec in operations {
             self.shapers.extend(self.attach_shapers_for(fabric, shaper_spec))
         }
         self.marks.clear();
@@ -230,10 +230,10 @@ impl Growth {
         fabric.apply_matrix4(rotation);
     }
 
-    fn attach_shapers_for(&self, fabric: &mut Fabric, shaper_spec: &ShaperSpec) -> Vec<Shaper> {
+    fn attach_shapers_for(&self, fabric: &mut Fabric, shaper_spec: &ShapeOperation) -> Vec<Shaper> {
         let mut shapers: Vec<Shaper> = vec![];
         match shaper_spec {
-            ShaperSpec::Join { mark_name } => {
+            ShapeOperation::Join { mark_name } => {
                 let faces = self.marked_faces(mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
                 match (joints.as_slice(), faces.as_slice()) {
@@ -244,7 +244,7 @@ impl Growth {
                     _ => unimplemented!()
                 }
             }
-            ShaperSpec::Distance { mark_name, distance_factor } => {
+            ShapeOperation::Distance { mark_name, distance_factor } => {
                 let faces = self.marked_faces(mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
                 match (joints.as_slice(), faces.as_slice()) {
@@ -256,6 +256,9 @@ impl Growth {
                     _ => println!("Wrong number of faces for mark {mark_name}"),
                 }
             }
+            ShapeOperation::Wait { .. } => {}
+            ShapeOperation::Vulcanize => {}
+            ShapeOperation::ReplaceFaces => {}
         }
         shapers
     }
