@@ -104,15 +104,19 @@ impl Growth {
 
     pub fn shaping_step(&mut self, fabric: &mut Fabric) -> ControlFlow<(), usize> {
         let ShapePhase { operations } = &self.plan.shape_phase;
-        for shaper in self.shapers.split_off(0) {
-            self.complete_shaper(fabric, shaper);
-        }
         let Some(operation) = operations.get(self.shape_operation_index) else {
+            self.complete_all_shapers(fabric);
             return ControlFlow::Break(());
         };
         self.shape_operation_index += 1;
         let countdown = self.execute_shape_operation(fabric, operation.clone());
         ControlFlow::Continue(countdown)
+    }
+
+    fn complete_all_shapers(&mut self, fabric: &mut Fabric) {
+        for shaper in self.shapers.split_off(0) {
+            self.complete_shaper(fabric, shaper);
+        }
     }
 
     fn execute_shape_operation(&mut self, fabric: &mut Fabric, operation: ShapeOperation) -> usize {
@@ -141,6 +145,23 @@ impl Growth {
                     _ => println!("Wrong number of faces for mark {mark_name}"),
                 }
                 20_000 // TODO: const
+            }
+            ShapeOperation::RemoveShapers { mark_names } => {
+                if mark_names.is_empty() {
+                    self.complete_all_shapers(fabric);
+                } else {
+                    for mark_name in mark_names {
+                        let Some(index) = self.shapers
+                            .iter()
+                            .enumerate()
+                            .find_map(|(index, shaper)| (shaper.mark_name == mark_name).then_some(index)) else {
+                            panic!("no such shaper with mark name: '{mark_name}'")
+                        };
+                        let shaper = self.shapers.remove(index);
+                        self.complete_shaper(fabric, shaper);
+                    }
+                }
+                0
             }
             ShapeOperation::Countdown { count, operations } => {
                 for operation in operations {

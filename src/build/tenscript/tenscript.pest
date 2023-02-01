@@ -21,6 +21,7 @@ basic_shape_operation = {
     space |
     join |
     vulcanize |
+    remove_shapers |
     replace_faces
 }
 
@@ -41,6 +42,10 @@ space = {
 
 join = {
     "(" ~ "join" ~ atom ~ ")"
+}
+
+remove_shapers = {
+    "(" ~ "remove-shapers" ~ atom* ~ ")"
 }
 
 vulcanize = {
