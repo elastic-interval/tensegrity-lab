@@ -21,6 +21,7 @@ use crate::controls::strain_threshold::{StrainThresholdMessage, StrainThresholdS
 use crate::controls::strain_threshold::StrainThresholdMessage::SetStrainLimits;
 use crate::fabric::Fabric;
 use crate::graphics::GraphicsWindow;
+use crate::scene::StrainView;
 
 pub mod fabric_choice;
 pub mod strain_threshold;
@@ -238,11 +239,6 @@ impl Default for ControlState {
             action_queue: RefCell::new(Vec::new()),
         }
     }
-}
-
-pub struct StrainView {
-    pub threshold: f32,
-    pub material: usize,
 }
 
 impl ControlState {

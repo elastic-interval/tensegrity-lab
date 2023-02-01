@@ -14,7 +14,6 @@ use winit::event::*;
 use wasm_bindgen::prelude::*;
 
 use crate::camera::Camera;
-use crate::controls::StrainView;
 use crate::fabric::Fabric;
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push};
@@ -217,6 +216,11 @@ impl Scene {
 struct FabricVertex {
     position: [f32; 4],
     color: [f32; 4],
+}
+
+pub struct StrainView {
+    pub threshold: f32,
+    pub material: usize,
 }
 
 impl FabricVertex {
