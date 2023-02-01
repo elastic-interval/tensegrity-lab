@@ -16,16 +16,12 @@ const BOW_TIE_MATERIAL: Material = Material {
 const BOW_TIE_SHORTEN: f32 = 0.5;
 
 impl Fabric {
-    const BOW_TIE_MATERIAL: usize = 2;
+    pub(crate) const BOW_TIE_MATERIAL: usize = 2;
 
     pub fn default_bow_tie() -> Self {
         let mut fabric = Fabric::default();
         fabric.materials.push(BOW_TIE_MATERIAL);
         fabric
-    }
-
-    pub fn bow_tie_strain(&self) -> f32 {
-        self.max_strain(Fabric::BOW_TIE_MATERIAL)
     }
 
     pub fn install_bow_ties(&mut self) {
@@ -61,12 +57,18 @@ impl Fabric {
         faces_to_remove
     }
 
-    pub fn max_strain(&self, target_material: usize) -> f32 { // todo: make this min/max
-        self.interval_values()
-            .filter_map(|&Interval { strain, material, .. }|
-                (material == target_material).then_some(strain))
+    pub fn strain_limits(&self, target_material: usize) -> (f32, f32) {
+        let choose_target = |&Interval { strain, material, .. }|
+            (material == target_material).then_some(strain);
+        let max_strain = self.interval_values()
+            .filter_map(choose_target)
             .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap_or(0.0)
+            .unwrap_or(1.0);
+        let min_strain = self.interval_values()
+            .filter_map(choose_target)
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or(0.0);
+        (min_strain, max_strain)
     }
 
     fn pair_generator(&self) -> PairGenerator {

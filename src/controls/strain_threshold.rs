@@ -6,9 +6,9 @@ use crate::controls::strain_threshold::StrainThresholdMessage::{*};
 
 #[derive(Debug, Clone)]
 pub enum StrainThresholdMessage {
-    StrainThresholdChanged(f32),
+    SetStrainLimits((f32, f32)),
     NuanceChanged(f32),
-    AddPulls,
+    Calibrate,
 }
 
 impl From<StrainThresholdMessage> for Message {
@@ -20,30 +20,39 @@ impl From<StrainThresholdMessage> for Message {
 #[derive(Clone, Debug)]
 pub struct StrainThresholdState {
     pub nuance: f32,
-    pub strain_threshold: f32,
+    pub strain_limits: (f32, f32),
 }
 
 impl StrainThresholdState {
+    pub fn strain_threshold(&self) -> f32 {
+        let (min_strain, max_strain) = self.strain_limits;
+        min_strain * (1.0 - self.nuance) + max_strain * self.nuance
+    }
+
     pub fn update(&mut self, message: StrainThresholdMessage) -> Option<Action> {
         match message {
             NuanceChanged(nuance) => {
                 self.nuance = nuance;
             }
-            StrainThresholdChanged(limit) => {
-                self.strain_threshold = limit;
+            SetStrainLimits(limits) => {
+                self.strain_limits = limits;
             }
-            AddPulls => {
-                return Some(Action::AddPulls { strain_nuance: self.nuance });
+            Calibrate => {
+                return Some(Action::CalibrateStrain);
             }
         }
         None
     }
 
     pub fn row(&self) -> Row<'_, Message, Renderer> {
-        let strain_limit = self.strain_threshold;
+        let (min_strain, max_strain) = self.strain_limits;
         Row::new()
             .push(
                 Text::new("Strain threshold")
+                    .style(Color::WHITE)
+            )
+            .push(
+                Text::new(format!("{min_strain:.05}"))
                     .style(Color::WHITE)
             )
             .push(
@@ -51,12 +60,12 @@ impl StrainThresholdState {
                     .step(0.01)
             )
             .push(
-                Text::new(format!("{strain_limit:.05}"))
+                Text::new(format!("{max_strain:.05}"))
                     .style(Color::WHITE)
             )
             .push(
-                Button::new(Text::new("Add Pulls"))
-                    .on_press(AddPulls.into())
+                Button::new(Text::new("Calibrate"))
+                    .on_press(Calibrate.into())
             )
     }
 }

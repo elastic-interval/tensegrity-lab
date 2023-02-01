@@ -18,12 +18,12 @@ use crate::build::tenscript::{bootstrap_fabric_plans, FabricPlan};
 use crate::controls::fabric_choice::{FabricChoiceMessage, FabricChoiceState};
 use crate::controls::gravity::{GravityMessage, GravityState};
 use crate::controls::strain_threshold::{StrainThresholdMessage, StrainThresholdState};
-use crate::controls::strain_threshold::StrainThresholdMessage::StrainThresholdChanged;
+use crate::controls::strain_threshold::StrainThresholdMessage::SetStrainLimits;
 use crate::graphics::GraphicsWindow;
 
-mod strain_threshold;
-mod fabric_choice;
-mod gravity;
+pub mod fabric_choice;
+pub mod strain_threshold;
+pub mod gravity;
 
 const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
 
@@ -197,7 +197,7 @@ pub enum VisibleControl {
 pub enum Action {
     BuildFabric(FabricPlan),
     GravityChanged(f32),
-    AddPulls { strain_nuance: f32 },
+    CalibrateStrain,
 }
 
 #[derive(Clone, Debug)]
@@ -223,7 +223,7 @@ impl Default for ControlState {
             },
             strain_threshold_control: StrainThresholdState {
                 nuance: 0.0,
-                strain_threshold: 0.0,
+                strain_limits: (0.0, 1.0),
             },
             gravity_control: GravityState {
                 nuance: 0.0,
@@ -241,12 +241,12 @@ impl ControlState {
         self.action_queue.borrow_mut().split_off(0)
     }
 
-    pub fn get_strain_threshold(&self, maximum_strain: f32) -> f32 {
-        maximum_strain * self.strain_threshold_control.nuance
+    pub fn strain_threshold(&self) -> f32 {
+        self.strain_threshold_control.strain_threshold()
     }
 
-    pub fn strain_threshold_changed(&self, strain_threshold: f32) -> Message {
-        StrainThresholdChanged(strain_threshold).into()
+    pub fn strain_limits_changed(&self, limits: (f32, f32)) -> Message {
+        SetStrainLimits(limits).into()
     }
 }
 
@@ -281,6 +281,12 @@ impl Program for ControlState {
             }
             Message::ShowControl(visible_control) => {
                 self.visible_controls = visible_control;
+                match visible_control {
+                    VisibleControl::StrainThreshold => {
+                        queue_action(Some(Action::CalibrateStrain));
+                    }
+                    _ => {}
+                }
             }
             Message::FabricChoice(message) => {
                 queue_action(self.fabric_choice_control.update(message))

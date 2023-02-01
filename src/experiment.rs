@@ -114,6 +114,10 @@ impl Experiment {
         self.camera_jump.take()
     }
 
+    pub fn strain_limits(&self) -> (f32, f32) {
+        self.fabric.strain_limits(Fabric::BOW_TIE_MATERIAL)
+    }
+
     pub fn add_pulls(&mut self, strain_threshold: f32) {
         self.add_pulls = Some(strain_threshold);
     }
