@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use cgmath::{MetricSpace, Point3};
 
 use crate::fabric::{Fabric, UniqueId};
-use crate::fabric::interval::{Interval, Material, Role};
+use crate::fabric::interval::{Interval, Material, Role, Span};
 use crate::fabric::joint::Joint;
 use crate::fabric::Link;
 
@@ -16,7 +16,7 @@ const BOW_TIE_MATERIAL: Material = Material {
 const BOW_TIE_SHORTEN: f32 = 0.5;
 
 impl Fabric {
-    const BOW_TIE_MATERIAL: usize = 2;
+    pub const BOW_TIE_MATERIAL_INDEX: usize = 2;
 
     pub fn default_bow_tie() -> Self {
         let mut fabric = Fabric::default();
@@ -24,13 +24,23 @@ impl Fabric {
         fabric
     }
 
-    pub fn bow_tie_strain(&self) -> f32 {
-        self.max_strain(Fabric::BOW_TIE_MATERIAL)
-    }
-
     pub fn install_bow_ties(&mut self) {
         for Pair { alpha_index, omega_index, length } in self.pair_generator().bow_tie_pulls(&self.joints, &self.materials) {
-            self.create_interval(alpha_index, omega_index, Link { ideal: length, material: Fabric::BOW_TIE_MATERIAL });
+            self.create_interval(alpha_index, omega_index, Link { ideal: length, material: Fabric::BOW_TIE_MATERIAL_INDEX });
+        }
+    }
+
+    pub fn shorten_pulls(&mut self, strain_threshold: f32, shortening: f32) {
+        for interval in self.intervals.values_mut() {
+            if interval.material != Self::BOW_TIE_MATERIAL_INDEX {
+                continue;
+            }
+            if interval.strain > strain_threshold {
+                interval.span = match interval.span {
+                    Span::Fixed { length } => Span::Fixed { length: length * shortening },
+                    _ => unreachable!()
+                }
+            }
         }
     }
 
@@ -61,12 +71,18 @@ impl Fabric {
         faces_to_remove
     }
 
-    pub fn max_strain(&self, target_material: usize) -> f32 { // todo: make this min/max
-        self.interval_values()
-            .filter_map(|&Interval { strain, material, .. }|
-                (material == target_material).then_some(strain))
+    pub fn strain_limits(&self, target_material: usize) -> (f32, f32) {
+        let choose_target = |&Interval { strain, material, .. }|
+            (material == target_material).then_some(strain);
+        let max_strain = self.interval_values()
+            .filter_map(choose_target)
             .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap_or(0.0)
+            .unwrap_or(1.0);
+        let min_strain = self.interval_values()
+            .filter_map(choose_target)
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or(0.0);
+        (min_strain, max_strain)
     }
 
     fn pair_generator(&self) -> PairGenerator {
@@ -291,7 +307,7 @@ impl PairGenerator {
                         .collect();
                     if let &[(alpha_index, omega_index)] = cross_twist_diagonals.as_slice() {
                         let distance = joints[alpha_index].location.distance(joints[omega_index].location);
-                        let pair = Pair { alpha_index, omega_index, length: distance * BOW_TIE_SHORTEN};
+                        let pair = Pair { alpha_index, omega_index, length: distance * BOW_TIE_SHORTEN };
                         self.pairs.insert(pair.key(), pair);
                     } else {
                         let candidate_completions = [

@@ -14,7 +14,6 @@ use winit::event::*;
 use wasm_bindgen::prelude::*;
 
 use crate::camera::Camera;
-use crate::controls::{ControlState, Message};
 use crate::fabric::Fabric;
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push};
@@ -177,20 +176,17 @@ impl Scene {
         self.camera.window_event(event);
     }
 
-    pub fn update(&mut self, graphics: &GraphicsWindow, controls: &ControlState, fabric: &Fabric) -> Option<Message> {
-        let message = self.update_from_fabric(fabric, controls);
+    pub fn update(&mut self, graphics: &GraphicsWindow, strain_view: Option<StrainView>, fabric: &Fabric) {
+        self.update_from_fabric(fabric, strain_view);
         self.update_from_camera(graphics);
         graphics.queue.write_buffer(&self.fabric_drawing.buffer, 0, cast_slice(&self.fabric_drawing.vertices));
-        message
     }
 
-    fn update_from_fabric(&mut self, fabric: &Fabric, controls: &ControlState) -> Option<Message> {
-        let strain_threshold = controls.get_strain_threshold(fabric.bow_tie_strain());
+    fn update_from_fabric(&mut self, fabric: &Fabric, strain_view: Option<StrainView>) {
         self.fabric_drawing.vertices.clear();
         self.fabric_drawing.vertices.extend(fabric.interval_values()
-            .flat_map(|interval| FabricVertex::for_interval(interval, fabric, strain_threshold)));
+            .flat_map(|interval| FabricVertex::for_interval(interval, fabric, &strain_view)));
         self.camera.target_approach(fabric.midpoint());
-        (strain_threshold > 0.0).then_some(controls.strain_threshold_changed(strain_threshold))
     }
 
     pub fn resize(&mut self, graphics: &GraphicsWindow) {
@@ -222,13 +218,29 @@ struct FabricVertex {
     color: [f32; 4],
 }
 
+pub struct StrainView {
+    pub threshold: f32,
+    pub material: usize,
+}
+
 impl FabricVertex {
-    pub fn for_interval(interval: &Interval, fabric: &Fabric, strain_threshold: f32) -> [FabricVertex; 2] {
+    pub fn for_interval(interval: &Interval, fabric: &Fabric, strain_view: &Option<StrainView>) -> [FabricVertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
-        let below_threshold = interval.strain < strain_threshold;
-        let color = match fabric.materials[interval.material].role {
-            Push => [1.0, 1.0, 1.0, 1.0],
-            Pull => [if below_threshold { 1.0 } else { 0.2 }, 0.2, 1.0, 1.0],
+        let color = match strain_view {
+            None => {
+                match fabric.materials[interval.material].role {
+                    Push => [1.0, 1.0, 1.0, 1.0],
+                    Pull => [0.2, 0.2, 1.0, 1.0],
+                }
+            }
+            Some(StrainView { threshold, material }) => {
+                if fabric.materials[interval.material].role == Pull &&
+                    interval.material == *material && interval.strain > *threshold {
+                    [0.0, 1.0, 0.0, 1.0]
+                } else {
+                    [0.3, 0.3, 0.3, 0.5]
+                }
+            }
         };
         [
             FabricVertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color },
