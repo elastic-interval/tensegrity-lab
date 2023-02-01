@@ -16,6 +16,7 @@ enum Stage {
     ShapedApproach,
     ShapingDone,
     ShapingCalm,
+    VulcanizeCalm,
     Completed,
 }
 
@@ -64,19 +65,21 @@ impl PlanRunner {
                 ShapedApproach
             }
             ShapedApproach => ShapingDone,
-            ShapingDone => {
+            ShapingDone => ShapingCalm,
+            ShapingCalm => {
                 self.growth.post_shaping(fabric);
-                ShapingCalm
+                VulcanizeCalm
             },
-            ShapingCalm => Completed,
+            VulcanizeCalm => Completed,
             Completed => Completed,
         };
         let countdown = match next_stage {
-            GrowApproach => 1000,
-            GrowCalm => 1000,
-            ShapingApproach => 30000,
+            GrowApproach => 1500,
+            GrowCalm => 1500,
+            ShapingApproach => 25000,
             ShapedApproach => 5000,
-            ShapingCalm => 30000,
+            ShapingCalm => 500,
+            VulcanizeCalm => 5000,
             Initialize | GrowStep | ShapingStart | Shaped | ShapingDone | Completed => 0,
         };
         fabric.progress.start(countdown);
