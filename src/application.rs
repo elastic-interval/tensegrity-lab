@@ -158,11 +158,8 @@ pub fn run() {
                     app.scene.show_surface(true);
                 }
                 let strain_view =
-                    if app.gui.controls().show_strain() {
-                        Some(app.gui.controls().strain_view())
-                    } else {
-                        None
-                    };
+                    app.gui.controls().show_strain()
+                    .then(|| app.gui.controls().strain_view());
                 app.scene.update(&app.graphics, strain_view, experiment.fabric());
                 app.gui.update_viewport(&window);
                 match app.render() {
