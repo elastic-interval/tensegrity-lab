@@ -120,9 +120,12 @@ pub struct BuildPhase {
 
 #[derive(Debug, Clone)]
 pub enum ShapeOperation {
+    Countdown {
+        count: usize,
+        operations: Vec<ShapeOperation>,
+    },
     Join { mark_name: String },
     Distance { mark_name: String, distance_factor: f32 },
-    Wait { count: usize },
     Vulcanize,
     ReplaceFaces,
 }
@@ -157,7 +160,10 @@ pub fn fabric_plan(plan_name: &str) -> FabricPlan {
     let Some((_, code)) = plans.iter().find(|&(name, _)| *name == plan_name) else {
         panic!("{plan_name} not found");
     };
-    FabricPlan::from_tenscript(code.as_str()).unwrap()
+    match FabricPlan::from_tenscript(code.as_str()) {
+        Ok(plan) => plan,
+        Err(error) => panic!("error parsing fabric plan: {error}")
+    }
 }
 
 #[cfg(test)]

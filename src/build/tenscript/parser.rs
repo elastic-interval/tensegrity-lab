@@ -1,5 +1,7 @@
 #![allow(clippy::result_large_err)]
 
+use std::fmt::{Display, Formatter};
+
 use pest::error::Error;
 use pest::iterators::Pair;
 use pest::Parser;
@@ -16,6 +18,16 @@ pub enum ParseError {
     Syntax(String),
     Pest(Error<Rule>),
 }
+
+impl Display for ParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParseError::Syntax(message) => write!(f, "syntax error: {message}"),
+            ParseError::Pest(error) => write!(f, "pest parse error: {error}"),
+        }
+    }
+}
+
 
 impl FabricPlan {
     pub fn from_tenscript(source: &str) -> Result<Self, ParseError> {
@@ -54,35 +66,42 @@ impl FabricPlan {
     }
 
     fn parse_shape_phase(shape_phase_pair: Pair<Rule>) -> Result<ShapePhase, ParseError> {
-        let mut shape_phase = ShapePhase::default();
-        for pair in shape_phase_pair.into_inner() {
-            match pair.as_rule() {
-                Rule::space_statement => {
-                    let [mark_name, distance_string] = pair.into_inner().next_chunk().unwrap().map(|p| p.as_str());
-                    let distance_factor = distance_string.parse().unwrap();
-                    shape_phase.operations.push(ShapeOperation::Distance {
-                        mark_name: mark_name[1..].into(),
-                        distance_factor,
-                    })
+        let operations = shape_phase_pair
+            .into_inner()
+            .map(Self::parse_shape_operation)
+            .collect();
+        Ok(ShapePhase { operations })
+    }
+
+    fn parse_shape_operation(pair: Pair<Rule>) -> ShapeOperation {
+        let rule = pair.as_rule();
+        match rule {
+            Rule::basic_shape_operation | Rule::shape_operation =>
+                Self::parse_shape_operation(pair.into_inner().next().unwrap()),
+            Rule::space => {
+                let [mark_name, distance_string] = pair.into_inner().next_chunk().unwrap().map(|p| p.as_str());
+                let distance_factor = distance_string.parse().unwrap();
+                ShapeOperation::Distance {
+                    mark_name: mark_name[1..].into(),
+                    distance_factor,
                 }
-                Rule::join_statement => {
-                    let mark_name = pair.into_inner().next().unwrap().as_str();
-                    shape_phase.operations.push(ShapeOperation::Join { mark_name: mark_name[1..].into() })
-                }
-                Rule::wait_statement => {
-                    let count = pair.into_inner().next().unwrap().as_str().parse().unwrap();
-                    shape_phase.operations.push(ShapeOperation::Wait { count });
-                }
-                Rule::remove_faces_statement => {
-                    shape_phase.operations.push(ShapeOperation::ReplaceFaces);
-                }
-                Rule::vulcanize_statement => {
-                    shape_phase.operations.push(ShapeOperation::Vulcanize);
-                }
-                _ => unreachable!("shape phase")
             }
+            Rule::join => {
+                let mark_name = pair.into_inner().next().unwrap().as_str();
+                ShapeOperation::Join { mark_name: mark_name[1..].into() }
+            }
+            Rule::countdown_block => {
+                let mut inner = pair.into_inner();
+                let count = inner.next().unwrap().as_str().parse().unwrap();
+                let operations = inner.map(Self::parse_shape_operation).collect();
+                ShapeOperation::Countdown { count, operations }
+            }
+            Rule::replace_faces =>
+                ShapeOperation::ReplaceFaces,
+            Rule::vulcanize =>
+                ShapeOperation::Vulcanize,
+            _ => unreachable!("shape phase: {pair}")
         }
-        Ok(shape_phase)
     }
 
     fn parse_build_phase(build_phase_pair: Pair<Rule>) -> Result<BuildPhase, ParseError> {
