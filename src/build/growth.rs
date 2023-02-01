@@ -57,6 +57,9 @@ pub struct Growth {
     shape_operation_index: usize,
 }
 
+const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 20_000;
+const DEFAULT_VULCANIZE_COUNTDOWN: usize = 5_000;
+
 impl Growth {
     pub fn new(plan: FabricPlan) -> Self {
         Self {
@@ -131,7 +134,7 @@ impl Growth {
                     }
                     _ => unimplemented!()
                 }
-                20_000 // TODO: const
+                DEFAULT_ADD_SHAPER_COUNTDOWN
             }
             ShapeOperation::Distance { mark_name, distance_factor } => {
                 let faces = self.marked_faces(&mark_name);
@@ -144,7 +147,7 @@ impl Growth {
                     }
                     _ => println!("Wrong number of faces for mark {mark_name}"),
                 }
-                20_000 // TODO: const
+                DEFAULT_ADD_SHAPER_COUNTDOWN
             }
             ShapeOperation::RemoveShapers { mark_names } => {
                 if mark_names.is_empty() {
@@ -165,13 +168,14 @@ impl Growth {
             }
             ShapeOperation::Countdown { count, operations } => {
                 for operation in operations {
+                    // ignores the countdown returned from each sub-operation
                     self.execute_shape_operation(fabric, operation);
                 }
                 count
             }
             ShapeOperation::Vulcanize => {
                 fabric.install_bow_ties();
-                5_000 // TODO: const
+                DEFAULT_VULCANIZE_COUNTDOWN
             }
             ShapeOperation::ReplaceFaces => {
                 fabric.replace_faces();
