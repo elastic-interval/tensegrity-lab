@@ -16,6 +16,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::controls::{GUI, Message, VisibleControl};
 use crate::controls::Action;
+use crate::controls::strain_threshold::StrainThresholdMessage;
 use crate::experiment::Experiment;
 use crate::graphics::GraphicsWindow;
 use crate::scene::Scene;
@@ -156,10 +157,8 @@ pub fn run() {
                     app.scene.move_camera(jump);
                     app.scene.show_surface(true);
                 }
-                let message = app.scene.update(&app.graphics, app.gui.controls(), experiment.fabric());
-                if let Some(message) = message {
-                    app.gui.change_state(message)
-                }
+                let strain_threshold = app.gui.controls().strain_threshold();
+                app.scene.update(&app.graphics, strain_threshold, experiment.fabric());
                 app.gui.update_viewport(&window);
                 match app.render() {
                     Ok(_) => {}
@@ -181,9 +180,9 @@ pub fn run() {
                         Action::GravityChanged(gravity) => {
                             experiment.set_gravity(gravity);
                         }
-                        Action::AddPulls { strain_nuance } => {
-                            let maximum = experiment.fabric().bow_tie_strain();
-                            experiment.add_pulls(strain_nuance * maximum);
+                        Action::CalibrateStrain => {
+                            let strain_limits = experiment.strain_limits();
+                            app.gui.change_state(Message::StrainThreshold(StrainThresholdMessage::SetStrainLimits(strain_limits)))
                         }
                     }
                 }
