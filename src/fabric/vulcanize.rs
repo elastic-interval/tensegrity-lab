@@ -30,14 +30,14 @@ impl Fabric {
         }
     }
 
-    pub fn shorten_pulls(&mut self, strain_threshold: f32) {
+    pub fn shorten_pulls(&mut self, strain_threshold: f32, shortening: f32) {
         for interval in self.intervals.values_mut() {
             if interval.material != Self::BOW_TIE_MATERIAL_INDEX {
                 continue;
             }
             if interval.strain > strain_threshold {
                 interval.span = match interval.span {
-                    Span::Fixed { length } => Span::Fixed { length: length * 0.95 },
+                    Span::Fixed { length } => Span::Fixed { length: length * shortening },
                     _ => panic!()
                 }
             }
