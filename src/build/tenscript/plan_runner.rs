@@ -1,7 +1,7 @@
+use crate::build::tenscript::{FabricPlan, shape_phase};
 use crate::build::tenscript::build_phase::BuildPhase;
-use crate::build::tenscript::FabricPlan;
 use crate::build::tenscript::plan_runner::Stage::{*};
-use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
+use crate::build::tenscript::shape_phase::ShapePhase;
 use crate::fabric::Fabric;
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::LIQUID;
@@ -62,15 +62,15 @@ impl PlanRunner {
                 (GrowStep, 0),
             Shaping =>
                 match self.shape_phase.shaping_step(fabric) {
-                    ShapeCommand::Noop =>
+                    shape_phase::Command::Noop =>
                         (Shaping, 0),
-                    ShapeCommand::StartCountdown(countdown) =>
+                    shape_phase::Command::StartCountdown(countdown) =>
                         (Shaping, countdown),
-                    ShapeCommand::SetViscosity(viscosity) => {
+                    shape_phase::Command::SetViscosity(viscosity) => {
                         self.physics.viscosity = viscosity;
                         (Shaping, 0)
                     }
-                    ShapeCommand::Terminate =>
+                    shape_phase::Command::Terminate =>
                         (Completed, 0)
                 }
             Completed =>
