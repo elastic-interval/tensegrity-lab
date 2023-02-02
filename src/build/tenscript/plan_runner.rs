@@ -1,6 +1,6 @@
 use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::FabricPlan;
-use crate::build::tenscript::plan_runner::Stage::{Completed, GrowApproach, GrowCalm, GrowStep, Initialize, Shaping};
+use crate::build::tenscript::plan_runner::Stage::{*};
 use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
 use crate::fabric::Fabric;
 use crate::fabric::physics::Physics;
@@ -50,6 +50,7 @@ impl PlanRunner {
                     self.build_phase.growth_step(fabric);
                     (GrowApproach, 1500)
                 } else if self.shape_phase.needs_shaping() {
+                    self.shape_phase.marks = self.build_phase.marks.split_off(0);
                     (Shaping, 0)
                 } else {
                     (Completed, 0)
@@ -75,7 +76,6 @@ impl PlanRunner {
             Completed =>
                 (Completed, 0),
         };
-        dbg!(self.stage, next_stage, countdown);
         fabric.progress.start(countdown);
         self.stage = next_stage;
     }
