@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
 
 use crate::build::tenscript::FaceName::{*};
+use crate::fabric::UniqueId;
 
 mod parser;
 mod growth;
@@ -114,6 +115,12 @@ impl Seed {
 pub struct Seed {
     pub seed_type: SeedType,
     pub down_faces: Vec<FaceName>,
+}
+
+#[derive(Debug, Default)]
+pub struct FaceMark {
+    face_id: UniqueId,
+    mark_name: String,
 }
 
 #[derive(Debug, Clone, Default)]
