@@ -104,6 +104,10 @@ impl FabricPlan {
                 ShapeOperation::ReplaceFaces,
             Rule::vulcanize =>
                 ShapeOperation::Vulcanize,
+            Rule::set_viscosity => {
+                let viscosity = pair.into_inner().next().unwrap().as_str().parse().unwrap();
+                ShapeOperation::SetViscosity { viscosity }
+            }
             _ => unreachable!("shape phase: {pair}")
         }
     }

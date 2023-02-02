@@ -22,7 +22,8 @@ basic_shape_operation = {
     join |
     vulcanize |
     remove_shapers |
-    replace_faces
+    replace_faces |
+    set_viscosity
 }
 
 shape_operation = {
@@ -46,6 +47,10 @@ join = {
 
 remove_shapers = {
     "(" ~ "remove-shapers" ~ atom* ~ ")"
+}
+
+set_viscosity = {
+    "(" ~ "set-viscosity" ~ number ~ ")"
 }
 
 vulcanize = {
@@ -142,8 +147,7 @@ atom = @{ ":" ~ ident }
 
 number = @{
     integer? ~
-    "." ~
-    mantissa
+    ("." ~ mantissa)?
 }
 integer = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+ | ASCII_DIGIT }
 mantissa = @{ ASCII_DIGIT+ }

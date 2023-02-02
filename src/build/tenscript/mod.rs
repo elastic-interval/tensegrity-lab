@@ -129,6 +129,7 @@ pub enum ShapeOperation {
     RemoveShapers { mark_names: Vec<String> },
     Vulcanize,
     ReplaceFaces,
+    SetViscosity { viscosity: f32 },
 }
 
 #[derive(Debug, Clone, Default)]
