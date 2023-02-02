@@ -115,7 +115,7 @@ mod tests {
         for (name, code) in map.iter() {
             match FabricPlan::from_tenscript(code) {
                 Ok(_) => println!("[{name}] Good plan!"),
-                Err(error) => panic!("[{name}] Error: {error:?}"),
+                Err(error) => panic!("[{name}] Error: {error}"),
             }
         }
     }

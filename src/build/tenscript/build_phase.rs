@@ -323,7 +323,7 @@ impl BuildPhase {
             .unwrap()
     }
 
-    fn pretenst_factor(&self ) ->f32 {
+    fn pretenst_factor(&self) -> f32 {
         self.pretenst_factor.unwrap_or(1.3)
     }
 }

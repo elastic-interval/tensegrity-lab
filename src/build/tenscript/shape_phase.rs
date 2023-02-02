@@ -1,15 +1,17 @@
+use std::default::Default;
+
 use cgmath::MetricSpace;
 use pest::iterators::Pair;
 
 use crate::build::tenscript::FaceMark;
 use crate::build::tenscript::parser::{ParseError, Rule};
-use crate::build::tenscript::shape_phase::ShapeCommand::{*};
+use crate::build::tenscript::shape_phase::Command::{*};
 use crate::fabric::{Fabric, Link, UniqueId};
 
 const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 20_000;
 const DEFAULT_VULCANIZE_COUNTDOWN: usize = 5_000;
 
-pub enum ShapeCommand {
+pub enum Command {
     Noop,
     StartCountdown(usize),
     SetViscosity(f32),
@@ -17,10 +19,10 @@ pub enum ShapeCommand {
 }
 
 #[derive(Debug, Clone)]
-pub enum ShapeOperation {
+pub enum Operation {
     Countdown {
         count: usize,
-        operations: Vec<ShapeOperation>,
+        operations: Vec<Operation>,
     },
     Join { mark_name: String },
     Distance { mark_name: String, distance_factor: f32 },
@@ -41,7 +43,7 @@ pub struct Shaper {
 
 #[derive(Debug, Default, Clone)]
 pub struct ShapePhase {
-    pub operations: Vec<ShapeOperation>,
+    pub operations: Vec<Operation>,
     pub marks: Vec<FaceMark>,
     pub shapers: Vec<Shaper>,
     shape_operation_index: usize,
@@ -49,48 +51,49 @@ pub struct ShapePhase {
 
 impl ShapePhase {
     pub(crate) fn from_pair(pair: Pair<Rule>) -> Result<ShapePhase, ParseError> {
-        let mut shape_phase = ShapePhase::default();
-        shape_phase.operations = pair
-            .into_inner()
-            .map(Self::parse_shape_operation)
-            .collect();
+        let shape_phase = ShapePhase {
+            operations: pair
+                .into_inner()
+                .map(Self::parse_shape_operation)
+                .collect(),
+            ..ShapePhase::default()
+        };
         Ok(shape_phase)
     }
 
-    fn parse_shape_operation(pair: Pair<Rule>) -> ShapeOperation {
-        let rule = pair.as_rule();
-        match rule {
+    fn parse_shape_operation(pair: Pair<Rule>) -> Operation {
+        match pair.as_rule() {
             Rule::basic_shape_operation | Rule::shape_operation =>
                 Self::parse_shape_operation(pair.into_inner().next().unwrap()),
             Rule::space => {
                 let [mark_name, distance_string] = pair.into_inner().next_chunk().unwrap().map(|p| p.as_str());
                 let distance_factor = distance_string.parse().unwrap();
-                ShapeOperation::Distance {
+                Operation::Distance {
                     mark_name: mark_name[1..].into(),
                     distance_factor,
                 }
             }
             Rule::join => {
                 let mark_name = pair.into_inner().next().unwrap().as_str();
-                ShapeOperation::Join { mark_name: mark_name[1..].into() }
+                Operation::Join { mark_name: mark_name[1..].into() }
             }
             Rule::countdown_block => {
                 let mut inner = pair.into_inner();
                 let count = inner.next().unwrap().as_str().parse().unwrap();
                 let operations = inner.map(Self::parse_shape_operation).collect();
-                ShapeOperation::Countdown { count, operations }
+                Operation::Countdown { count, operations }
             }
             Rule::remove_shapers => {
                 let mark_names = pair.into_inner().map(|p| p.as_str()[1..].into()).collect();
-                ShapeOperation::RemoveShapers { mark_names }
+                Operation::RemoveShapers { mark_names }
             }
             Rule::replace_faces =>
-                ShapeOperation::ReplaceFaces,
+                Operation::ReplaceFaces,
             Rule::vulcanize =>
-                ShapeOperation::Vulcanize,
+                Operation::Vulcanize,
             Rule::set_viscosity => {
                 let viscosity = pair.into_inner().next().unwrap().as_str().parse().unwrap();
-                ShapeOperation::SetViscosity { viscosity }
+                Operation::SetViscosity { viscosity }
             }
             _ => unreachable!("shape phase: {pair}")
         }
@@ -101,7 +104,7 @@ impl ShapePhase {
         !self.operations.is_empty()
     }
 
-    pub fn shaping_step(&mut self, fabric: &mut Fabric) -> ShapeCommand {
+    pub fn shaping_step(&mut self, fabric: &mut Fabric) -> Command {
         let Some(operation) = self.operations.get(self.shape_operation_index) else {
             self.complete_all_shapers(fabric);
             return Terminate;
@@ -116,9 +119,9 @@ impl ShapePhase {
         }
     }
 
-    fn execute_shape_operation(&mut self, fabric: &mut Fabric, operation: ShapeOperation) -> ShapeCommand {
+    fn execute_shape_operation(&mut self, fabric: &mut Fabric, operation: Operation) -> Command {
         match operation {
-            ShapeOperation::Join { mark_name } => {
+            Operation::Join { mark_name } => {
                 let faces = self.marked_faces(&mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
                 match (joints.as_slice(), faces.as_slice()) {
@@ -130,7 +133,7 @@ impl ShapePhase {
                 }
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
-            ShapeOperation::Distance { mark_name, distance_factor } => {
+            Operation::Distance { mark_name, distance_factor } => {
                 let faces = self.marked_faces(&mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
                 match (joints.as_slice(), faces.as_slice()) {
@@ -143,7 +146,7 @@ impl ShapePhase {
                 }
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
-            ShapeOperation::RemoveShapers { mark_names } => {
+            Operation::RemoveShapers { mark_names } => {
                 if mark_names.is_empty() {
                     self.complete_all_shapers(fabric);
                 } else {
@@ -160,22 +163,22 @@ impl ShapePhase {
                 }
                 Noop
             }
-            ShapeOperation::Countdown { count, operations } => {
+            Operation::Countdown { count, operations } => {
                 for operation in operations {
                     // ignores the countdown returned from each sub-operation
                     self.execute_shape_operation(fabric, operation);
                 }
                 StartCountdown(count)
             }
-            ShapeOperation::Vulcanize => {
+            Operation::Vulcanize => {
                 fabric.install_bow_ties();
                 StartCountdown(DEFAULT_VULCANIZE_COUNTDOWN)
             }
-            ShapeOperation::ReplaceFaces => {
+            Operation::ReplaceFaces => {
                 fabric.replace_faces();
                 Noop
             }
-            ShapeOperation::SetViscosity { viscosity } =>
+            Operation::SetViscosity { viscosity } =>
                 SetViscosity(viscosity),
         }
     }
