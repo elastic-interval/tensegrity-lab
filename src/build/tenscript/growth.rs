@@ -2,12 +2,12 @@ use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Quaternion, Rotat
 
 use ShapeCommand::StartCountdown;
 
-use crate::build::growth::Launch::{IdentifiedFace, NamedFace, Seeded};
-use crate::build::growth::ShapeCommand::{Noop, SetViscosity};
 use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, Seed, ShapeOperation, ShapePhase, Spin};
 use crate::build::tenscript::BuildNode;
 use crate::build::tenscript::BuildNode::{Branch, Face, Grow, Mark};
 use crate::build::tenscript::FaceName::Apos;
+use crate::build::tenscript::growth::Launch::{IdentifiedFace, NamedFace, Seeded};
+use crate::build::tenscript::growth::ShapeCommand::{Noop, SetViscosity};
 use crate::fabric::{Fabric, Link, UniqueId};
 
 #[allow(dead_code)]

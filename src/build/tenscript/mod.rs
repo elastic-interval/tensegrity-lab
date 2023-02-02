@@ -3,6 +3,10 @@ use std::fmt::{Display, Formatter};
 use crate::build::tenscript::FaceName::{*};
 
 mod parser;
+mod growth;
+pub mod plan_runner;
+mod shape_phase;
+mod build_phase;
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum FaceName { Apos, Bpos, Cpos, Dpos, Aneg, Bneg, Cneg, Dneg }

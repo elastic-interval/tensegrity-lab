@@ -1,10 +1,11 @@
 use cgmath::Vector3;
+
+use crate::build::tenscript::FabricPlan;
+use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::experiment::Stage::{*};
 use crate::fabric::Fabric;
-use crate::fabric::physics::presets::AIR_GRAVITY;
-use crate::build::plan_runner::PlanRunner;
-use crate::build::tenscript::FabricPlan;
 use crate::fabric::physics::Physics;
+use crate::fabric::physics::presets::AIR_GRAVITY;
 
 const PULL_SHORTENING: f32 = 0.95;
 
