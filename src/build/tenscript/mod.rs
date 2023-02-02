@@ -1,10 +1,11 @@
 use std::fmt::{Display, Formatter};
 
+use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::FaceName::{*};
+use crate::build::tenscript::shape_phase::ShapePhase;
 use crate::fabric::UniqueId;
 
 mod parser;
-mod growth;
 pub mod plan_runner;
 mod shape_phase;
 mod build_phase;
@@ -67,88 +68,13 @@ impl Spin {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum BuildNode {
-    Face {
-        face_name: FaceName,
-        node: Box<BuildNode>,
-    },
-    Grow {
-        forward: String,
-        scale_factor: f32,
-        post_growth_node: Option<Box<BuildNode>>,
-    },
-    Mark {
-        mark_name: String,
-    },
-    Branch {
-        face_nodes: Vec<BuildNode>,
-    },
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub enum SeedType {
-    #[default]
-    Left,
-    Right,
-    LeftRight,
-    RightLeft,
-}
-
-impl Seed {
-    pub fn spin(&self) -> Spin {
-        match self.seed_type {
-            SeedType::Left | SeedType::LeftRight => Spin::Left,
-            SeedType::Right | SeedType::RightLeft => Spin::Right,
-        }
-    }
-
-    pub fn needs_double(&self) -> bool {
-        match self.seed_type {
-            SeedType::Left | SeedType::Right => false,
-            SeedType::LeftRight | SeedType::RightLeft => true,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct Seed {
-    pub seed_type: SeedType,
-    pub down_faces: Vec<FaceName>,
-}
-
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct FaceMark {
     face_id: UniqueId,
     mark_name: String,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct BuildPhase {
-    pub seed: Seed,
-    pub root: Option<BuildNode>,
-}
-
-#[derive(Debug, Clone)]
-pub enum ShapeOperation {
-    Countdown {
-        count: usize,
-        operations: Vec<ShapeOperation>,
-    },
-    Join { mark_name: String },
-    Distance { mark_name: String, distance_factor: f32 },
-    RemoveShapers { mark_names: Vec<String> },
-    Vulcanize,
-    ReplaceFaces,
-    SetViscosity { viscosity: f32 },
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct ShapePhase {
-    pub operations: Vec<ShapeOperation>,
-}
-
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct FabricPlan {
     pub surface: Option<SurfaceCharacterSpec>,
     pub build_phase: BuildPhase,
