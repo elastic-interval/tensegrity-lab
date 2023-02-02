@@ -1,5 +1,8 @@
 use cgmath::MetricSpace;
+use pest::iterators::Pair;
+
 use crate::build::tenscript::FaceMark;
+use crate::build::tenscript::parser::{ParseError, Rule};
 use crate::build::tenscript::shape_phase::ShapeCommand::{*};
 use crate::fabric::{Fabric, Link, UniqueId};
 
@@ -27,7 +30,7 @@ pub enum ShapeOperation {
     SetViscosity { viscosity: f32 },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Shaper {
     interval: UniqueId,
     alpha_face: UniqueId,
@@ -36,7 +39,7 @@ pub struct Shaper {
     join: bool,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ShapePhase {
     pub operations: Vec<ShapeOperation>,
     pub marks: Vec<FaceMark>,
@@ -45,6 +48,55 @@ pub struct ShapePhase {
 }
 
 impl ShapePhase {
+    pub(crate) fn from_pair(pair: Pair<Rule>) -> Result<ShapePhase, ParseError> {
+        let mut shape_phase = ShapePhase::default();
+        shape_phase.operations = pair
+            .into_inner()
+            .map(Self::parse_shape_operation)
+            .collect();
+        Ok(shape_phase)
+    }
+
+    fn parse_shape_operation(pair: Pair<Rule>) -> ShapeOperation {
+        let rule = pair.as_rule();
+        match rule {
+            Rule::basic_shape_operation | Rule::shape_operation =>
+                Self::parse_shape_operation(pair.into_inner().next().unwrap()),
+            Rule::space => {
+                let [mark_name, distance_string] = pair.into_inner().next_chunk().unwrap().map(|p| p.as_str());
+                let distance_factor = distance_string.parse().unwrap();
+                ShapeOperation::Distance {
+                    mark_name: mark_name[1..].into(),
+                    distance_factor,
+                }
+            }
+            Rule::join => {
+                let mark_name = pair.into_inner().next().unwrap().as_str();
+                ShapeOperation::Join { mark_name: mark_name[1..].into() }
+            }
+            Rule::countdown_block => {
+                let mut inner = pair.into_inner();
+                let count = inner.next().unwrap().as_str().parse().unwrap();
+                let operations = inner.map(Self::parse_shape_operation).collect();
+                ShapeOperation::Countdown { count, operations }
+            }
+            Rule::remove_shapers => {
+                let mark_names = pair.into_inner().map(|p| p.as_str()[1..].into()).collect();
+                ShapeOperation::RemoveShapers { mark_names }
+            }
+            Rule::replace_faces =>
+                ShapeOperation::ReplaceFaces,
+            Rule::vulcanize =>
+                ShapeOperation::Vulcanize,
+            Rule::set_viscosity => {
+                let viscosity = pair.into_inner().next().unwrap().as_str().parse().unwrap();
+                ShapeOperation::SetViscosity { viscosity }
+            }
+            _ => unreachable!("shape phase: {pair}")
+        }
+    }
+
+
     pub fn needs_shaping(&self) -> bool {
         !self.operations.is_empty()
     }

@@ -1,6 +1,7 @@
+use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::FabricPlan;
-use crate::build::tenscript::growth::{Growth, ShapeCommand};
 use crate::build::tenscript::plan_runner::Stage::{Completed, GrowApproach, GrowCalm, GrowStep, Initialize, Shaping};
+use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
 use crate::fabric::Fabric;
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::LIQUID;
@@ -17,15 +18,17 @@ enum Stage {
 
 pub struct PlanRunner {
     stage: Stage,
-    pub growth: Growth,
-    pub physics: Physics,
+    build_phase: BuildPhase,
+    shape_phase: ShapePhase,
+    physics: Physics,
 }
 
 impl PlanRunner {
-    pub fn new(fabric_plan: FabricPlan) -> Self {
+    pub fn new(FabricPlan { shape_phase, build_phase, .. }: FabricPlan) -> Self {
         Self {
+            shape_phase,
+            build_phase,
             stage: Initialize,
-            growth: Growth::new(fabric_plan),
             physics: LIQUID,
         }
     }
@@ -39,14 +42,14 @@ impl PlanRunner {
         }
         let (next_stage, countdown) = match self.stage {
             Initialize => {
-                self.growth.init(fabric);
-                (GrowApproach, 0)
+                self.build_phase.init(fabric);
+                (GrowApproach, 1500)
             }
             GrowStep => {
-                if self.growth.is_growing() {
-                    self.growth.growth_step(fabric);
-                    (GrowApproach, 0)
-                } else if self.growth.needs_shaping() {
+                if self.build_phase.is_growing() {
+                    self.build_phase.growth_step(fabric);
+                    (GrowApproach, 1500)
+                } else if self.shape_phase.needs_shaping() {
                     (Shaping, 0)
                 } else {
                     (Completed, 0)
@@ -55,9 +58,9 @@ impl PlanRunner {
             GrowApproach =>
                 (GrowCalm, 1500),
             GrowCalm =>
-                (GrowStep, 1500),
+                (GrowStep, 0),
             Shaping =>
-                match self.growth.shaping_step(fabric) {
+                match self.shape_phase.shaping_step(fabric) {
                     ShapeCommand::Noop =>
                         (Shaping, 0),
                     ShapeCommand::StartCountdown(countdown) =>
@@ -72,6 +75,7 @@ impl PlanRunner {
             Completed =>
                 (Completed, 0),
         };
+        dbg!(self.stage, next_stage, countdown);
         fabric.progress.start(countdown);
         self.stage = next_stage;
     }
