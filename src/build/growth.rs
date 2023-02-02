@@ -1,8 +1,9 @@
-use std::ops::ControlFlow;
-
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Quaternion, Rotation, Vector3};
 
+use ShapeCommand::StartCountdown;
+
 use crate::build::growth::Launch::{IdentifiedFace, NamedFace, Seeded};
+use crate::build::growth::ShapeCommand::{Noop, SetViscosity};
 use crate::build::tenscript::{BuildPhase, FabricPlan, FaceName, Seed, ShapeOperation, ShapePhase, Spin};
 use crate::build::tenscript::BuildNode;
 use crate::build::tenscript::BuildNode::{Branch, Face, Grow, Mark};
@@ -27,7 +28,7 @@ pub struct Bud {
 }
 
 #[derive(Clone, Debug)]
-pub struct PostMark {
+pub struct FaceMark {
     face_id: UniqueId,
     mark_name: String,
 }
@@ -52,13 +53,20 @@ pub struct Growth {
     pub plan: FabricPlan,
     pub pretenst_factor: f32,
     pub buds: Vec<Bud>,
-    pub marks: Vec<PostMark>,
+    pub marks: Vec<FaceMark>,
     pub shapers: Vec<Shaper>,
     shape_operation_index: usize,
 }
 
 const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 20_000;
 const DEFAULT_VULCANIZE_COUNTDOWN: usize = 5_000;
+
+pub enum ShapeCommand {
+    Noop,
+    StartCountdown(usize),
+    SetViscosity(f32),
+    Terminate,
+}
 
 impl Growth {
     pub fn new(plan: FabricPlan) -> Self {
@@ -105,15 +113,14 @@ impl Growth {
         !self.plan.shape_phase.operations.is_empty()
     }
 
-    pub fn shaping_step(&mut self, fabric: &mut Fabric) -> ControlFlow<(), usize> {
+    pub fn shaping_step(&mut self, fabric: &mut Fabric) -> ShapeCommand {
         let ShapePhase { operations } = &self.plan.shape_phase;
         let Some(operation) = operations.get(self.shape_operation_index) else {
             self.complete_all_shapers(fabric);
-            return ControlFlow::Break(());
+            return ShapeCommand::Terminate;
         };
         self.shape_operation_index += 1;
-        let countdown = self.execute_shape_operation(fabric, operation.clone());
-        ControlFlow::Continue(countdown)
+        self.execute_shape_operation(fabric, operation.clone())
     }
 
     fn complete_all_shapers(&mut self, fabric: &mut Fabric) {
@@ -122,7 +129,7 @@ impl Growth {
         }
     }
 
-    fn execute_shape_operation(&mut self, fabric: &mut Fabric, operation: ShapeOperation) -> usize {
+    fn execute_shape_operation(&mut self, fabric: &mut Fabric, operation: ShapeOperation) -> ShapeCommand {
         match operation {
             ShapeOperation::Join { mark_name } => {
                 let faces = self.marked_faces(&mark_name);
@@ -134,7 +141,7 @@ impl Growth {
                     }
                     _ => unimplemented!()
                 }
-                DEFAULT_ADD_SHAPER_COUNTDOWN
+                StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
             ShapeOperation::Distance { mark_name, distance_factor } => {
                 let faces = self.marked_faces(&mark_name);
@@ -147,7 +154,7 @@ impl Growth {
                     }
                     _ => println!("Wrong number of faces for mark {mark_name}"),
                 }
-                DEFAULT_ADD_SHAPER_COUNTDOWN
+                StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
             ShapeOperation::RemoveShapers { mark_names } => {
                 if mark_names.is_empty() {
@@ -164,27 +171,29 @@ impl Growth {
                         self.complete_shaper(fabric, shaper);
                     }
                 }
-                0
+                Noop
             }
             ShapeOperation::Countdown { count, operations } => {
                 for operation in operations {
                     // ignores the countdown returned from each sub-operation
                     self.execute_shape_operation(fabric, operation);
                 }
-                count
+                StartCountdown(count)
             }
             ShapeOperation::Vulcanize => {
                 fabric.install_bow_ties();
-                DEFAULT_VULCANIZE_COUNTDOWN
+                StartCountdown(DEFAULT_VULCANIZE_COUNTDOWN)
             }
             ShapeOperation::ReplaceFaces => {
                 fabric.replace_faces();
-                0
+                Noop
             }
+            ShapeOperation::SetViscosity { viscosity } =>
+                SetViscosity(viscosity),
         }
     }
 
-    fn execute_bud(&self, fabric: &mut Fabric, Bud { face_id, forward, scale_factor, node }: Bud) -> (Vec<Bud>, Vec<PostMark>) {
+    fn execute_bud(&self, fabric: &mut Fabric, Bud { face_id, forward, scale_factor, node }: Bud) -> (Vec<Bud>, Vec<FaceMark>) {
         let (mut buds, mut marks) = (vec![], vec![]);
         let face = fabric.face(face_id);
         let spin = if forward.starts_with('X') { face.spin.opposite() } else { face.spin };
@@ -205,9 +214,9 @@ impl Growth {
         (buds, marks)
     }
 
-    fn execute_node(&self, fabric: &mut Fabric, launch: Launch, node: &BuildNode, faces: Vec<(FaceName, UniqueId)>) -> (Vec<Bud>, Vec<PostMark>) {
+    fn execute_node(&self, fabric: &mut Fabric, launch: Launch, node: &BuildNode, faces: Vec<(FaceName, UniqueId)>) -> (Vec<Bud>, Vec<FaceMark>) {
         let mut buds: Vec<Bud> = vec![];
-        let mut marks: Vec<PostMark> = vec![];
+        let mut marks: Vec<FaceMark> = vec![];
         match node {
             Face { face_name, node } => {
                 return self.execute_node(fabric, NamedFace { face_name: *face_name }, node, faces);
@@ -253,7 +262,7 @@ impl Growth {
                     IdentifiedFace { face_id } => face_id,
                     Seeded { .. } => panic!("Need launch face"),
                 };
-                marks.push(PostMark { face_id, mark_name: mark_name.clone() });
+                marks.push(FaceMark { face_id, mark_name: mark_name.clone() });
             }
         }
         (buds, marks)
@@ -299,7 +308,7 @@ impl Growth {
         self.marks
             .iter()
             .filter(|post_mark| *mark_name == post_mark.mark_name)
-            .map(|PostMark { face_id, .. }| *face_id)
+            .map(|FaceMark { face_id, .. }| *face_id)
             .collect()
     }
 

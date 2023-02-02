@@ -1,9 +1,8 @@
-use std::ops::ControlFlow;
-
-use crate::build::growth::Growth;
+use crate::build::growth::{Growth, ShapeCommand};
 use crate::build::plan_runner::Stage::{*};
 use crate::build::tenscript::FabricPlan;
 use crate::fabric::Fabric;
+use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::LIQUID;
 
 #[derive(Clone, Debug, Copy, PartialEq)]
@@ -19,6 +18,7 @@ enum Stage {
 pub struct PlanRunner {
     stage: Stage,
     pub growth: Growth,
+    pub physics: Physics,
 }
 
 impl PlanRunner {
@@ -26,13 +26,14 @@ impl PlanRunner {
         Self {
             stage: Initialize,
             growth: Growth::new(fabric_plan),
+            physics: LIQUID,
         }
     }
 }
 
 impl PlanRunner {
     pub fn iterate(&mut self, fabric: &mut Fabric) {
-        fabric.iterate(&LIQUID);
+        fabric.iterate(&self.physics);
         if fabric.progress.is_busy() {
             return;
         }
@@ -57,10 +58,16 @@ impl PlanRunner {
                 (GrowStep, 1500),
             Shaping =>
                 match self.growth.shaping_step(fabric) {
-                    ControlFlow::Continue(count) =>
-                        (Shaping, count),
-                    ControlFlow::Break(()) =>
-                        (Completed, 500),
+                    ShapeCommand::Noop =>
+                        (Shaping, 0),
+                    ShapeCommand::StartCountdown(countdown) =>
+                        (Shaping, countdown),
+                    ShapeCommand::SetViscosity(viscosity) => {
+                        self.physics.viscosity = viscosity;
+                        (Shaping, 0)
+                    }
+                    ShapeCommand::Terminate =>
+                        (Completed, 0)
                 }
             Completed =>
                 (Completed, 0),
