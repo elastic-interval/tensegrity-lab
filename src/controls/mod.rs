@@ -370,7 +370,7 @@ impl Program for ControlState {
 }
 
 trait Component {
-    type Message;
+    type Message: Into<ControlMessage>;
 
     fn update(&mut self, message: Self::Message) -> Option<Action>;
     fn element(&self) -> Element<'_, ControlMessage, Renderer>;
