@@ -1,7 +1,8 @@
 use iced_wgpu::Renderer;
 use iced_winit::Element;
 use iced_winit::widget::{Button, Row, Text};
-use crate::build::tenscript::fabric_plan;
+
+use crate::build::tenscript::FabricPlan;
 use crate::controls::{Action, Component, ControlMessage, format_row};
 
 #[derive(Clone, Debug)]
@@ -28,7 +29,7 @@ impl Component for FabricChoice {
         match message {
             FabricChoiceMessage::ChooseFabric(choice) => {
                 self.current = Some(choice.clone());
-                Some(Action::BuildFabric(fabric_plan(&choice)))
+                Some(Action::BuildFabric(FabricPlan::from_bootstrap(&choice)))
             }
         }
     }
