@@ -119,11 +119,9 @@ impl FabricPlan {
         if let Some(unused_mark) = build_marks.difference(&shape_marks).next() {
             return Err(ParseError::Warning(format!("unused mark in build phase: :{unused_mark}")));
         }
-
         if let Some(undefined_mark) = shape_marks.difference(&build_marks).next() {
             return Err(ParseError::Warning(format!("undefined mark in shape phase: :{undefined_mark}")));
         };
-
         Ok(())
     }
 }
