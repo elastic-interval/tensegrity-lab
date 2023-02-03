@@ -1,6 +1,7 @@
 use iced_wgpu::Renderer;
 use iced_winit::widget::{Button, Row, Text};
-use crate::build::tenscript::fabric_plan;
+
+use crate::build::tenscript::FabricPlan;
 use crate::controls::{Action, Message};
 
 #[derive(Clone, Debug)]
@@ -25,7 +26,7 @@ impl FabricChoiceState {
         match message {
             FabricChoiceMessage::ChooseFabric(choice) => {
                 self.current = Some(choice.clone());
-                Some(Action::BuildFabric(fabric_plan(&choice)))
+                Some(Action::BuildFabric(FabricPlan::from_bootstrap(&choice)))
             }
         }
     }
