@@ -1,7 +1,5 @@
 #![allow(clippy::result_large_err)]
 
-use std::fmt::{Display, Formatter};
-
 use pest::error::Error;
 use pest::Parser;
 use pest_derive::Parser;
@@ -20,20 +18,7 @@ pub struct FabricPlan {
 #[grammar = "build/tenscript/tenscript.pest"] // relative to src
 struct PestParser;
 
-#[derive(Debug, Clone)]
-pub enum ParseError {
-    Syntax(String),
-    Pest(Error<Rule>),
-}
-
-impl Display for ParseError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParseError::Syntax(message) => write!(f, "syntax error: {message}"),
-            ParseError::Pest(error) => write!(f, "pest parse error: {error}"),
-        }
-    }
-}
+pub type ParseError = Error<Rule>;
 
 pub fn fabric_plans_from_bootstrap() -> Vec<(String, String)> {
     include_str!("bootstrap.scm")
@@ -61,8 +46,7 @@ impl FabricPlan {
     }
 
     pub fn from_tenscript(source: &str) -> Result<Self, ParseError> {
-        let fabric_plan_pair = PestParser::parse(Rule::fabric_plan, source)
-            .map_err(ParseError::Pest)?
+        let fabric_plan_pair = PestParser::parse(Rule::fabric_plan, source)?
             .next()
             .unwrap();
         let mut plan = FabricPlan::default();
@@ -79,10 +63,10 @@ impl FabricPlan {
                     );
                 }
                 Rule::build => {
-                    plan.build_phase = BuildPhase::from_pair(pair)?;
+                    plan.build_phase = BuildPhase::from_pair(pair);
                 }
                 Rule::shape => {
-                    plan.shape_phase = ShapePhase::from_pair(pair)?;
+                    plan.shape_phase = ShapePhase::from_pair(pair);
                 }
                 _ => unreachable!("fabric plan"),
             }
@@ -93,7 +77,7 @@ impl FabricPlan {
 
 #[cfg(test)]
 mod tests {
-    use crate::build::tenscript::fabric_plan::{fabric_plans_from_bootstrap, FabricPlan, ParseError};
+    use crate::build::tenscript::fabric_plan::{fabric_plans_from_bootstrap, FabricPlan};
 
     #[test]
     fn parse_test() {
@@ -104,8 +88,7 @@ mod tests {
                     println!("[{name}] Good plan!");
                     dbg!(plan);
                 }
-                Err(ParseError::Pest(error)) => panic!("[{name}] Error: {error}"),
-                Err(error) => panic!("[{name}] Error: {error:?}"),
+                Err(error) => panic!("[{name}] Error: {error}"),
             }
         }
     }

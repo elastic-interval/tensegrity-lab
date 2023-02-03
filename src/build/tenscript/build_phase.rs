@@ -4,7 +4,7 @@ use pest::iterators::Pair;
 use crate::build::tenscript::{FaceMark, FaceName, Spin};
 use crate::build::tenscript::build_phase::BuildNode::{*};
 use crate::build::tenscript::build_phase::Launch::{*};
-use crate::build::tenscript::fabric_plan::{ParseError, Rule};
+use crate::build::tenscript::fabric_plan::Rule;
 use crate::build::tenscript::FaceName::Apos;
 use crate::fabric::{Fabric, UniqueId};
 
@@ -83,7 +83,7 @@ pub struct BuildPhase {
 }
 
 impl BuildPhase {
-    pub(crate) fn from_pair(pair: Pair<Rule>) -> Result<BuildPhase, ParseError> {
+    pub(super) fn from_pair(pair: Pair<Rule>) -> BuildPhase {
         let mut phase = BuildPhase::default();
         for sub_pair in pair.into_inner() {
             match sub_pair.as_rule() {
@@ -109,25 +109,25 @@ impl BuildPhase {
                     }
                 }
                 Rule::build_node => {
-                    phase.root = Some(Self::parse_build_node(sub_pair).unwrap());
+                    phase.root = Some(Self::parse_build_node(sub_pair));
                 }
                 _ => unreachable!("build phase"),
             }
         }
-        Ok(phase)
+        phase
     }
 
-    fn parse_build_node(node_pair: Pair<Rule>) -> Result<BuildNode, ParseError> {
+    fn parse_build_node(node_pair: Pair<Rule>) -> BuildNode {
         let pair = node_pair.into_inner().next().unwrap();
         match pair.as_rule() {
             Rule::face => {
                 let [face_name_pair, node_pair] = pair.into_inner().next_chunk().unwrap();
                 let face_name = face_name_pair.as_str().try_into().unwrap();
-                let node = Self::parse_build_node(node_pair).unwrap();
-                Ok(Face {
+                let node = Self::parse_build_node(node_pair);
+                Face {
                     face_name,
                     node: Box::new(node),
-                })
+                }
             }
             Rule::grow => {
                 let mut inner = pair.into_inner();
@@ -138,23 +138,23 @@ impl BuildPhase {
                 };
                 let scale_factor = Self::parse_scale(inner.next());
                 let post_growth_node = inner.next()
-                    .map(|post_growth| Box::new(Self::parse_build_node(post_growth).unwrap()));
-                Ok(Grow {
+                    .map(|post_growth| Box::new(Self::parse_build_node(post_growth)));
+                Grow {
                     forward,
                     scale_factor,
                     post_growth_node,
-                })
+                }
             }
             Rule::mark => {
                 let mark_name = pair.into_inner().next().unwrap().as_str()[1..].into();
-                Ok(Mark { mark_name })
+                Mark { mark_name }
             }
             Rule::branch => {
-                Ok(Branch {
+                Branch {
                     face_nodes: pair.into_inner()
-                        .map(|face_node| Self::parse_build_node(face_node).unwrap())
+                        .map(Self::parse_build_node)
                         .collect()
-                })
+                }
             }
             _ => unreachable!("node"),
         }

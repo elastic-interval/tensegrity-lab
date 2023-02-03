@@ -3,7 +3,7 @@ use std::default::Default;
 use cgmath::MetricSpace;
 use pest::iterators::Pair;
 
-use crate::build::tenscript::fabric_plan::{ParseError, Rule};
+use crate::build::tenscript::fabric_plan::Rule;
 use crate::build::tenscript::FaceMark;
 use crate::build::tenscript::shape_phase::Command::{*};
 use crate::fabric::{Fabric, Link, UniqueId};
@@ -50,15 +50,14 @@ pub struct ShapePhase {
 }
 
 impl ShapePhase {
-    pub(crate) fn from_pair(pair: Pair<Rule>) -> Result<ShapePhase, ParseError> {
-        let shape_phase = ShapePhase {
+    pub(super) fn from_pair(pair: Pair<Rule>) -> ShapePhase {
+        ShapePhase {
             operations: pair
                 .into_inner()
                 .map(Self::parse_shape_operation)
                 .collect(),
             ..ShapePhase::default()
-        };
-        Ok(shape_phase)
+        }
     }
 
     fn parse_shape_operation(pair: Pair<Rule>) -> Operation {
