@@ -3,8 +3,8 @@ use std::default::Default;
 use cgmath::MetricSpace;
 use pest::iterators::Pair;
 
+use crate::build::tenscript::fabric_plan::{ParseError, Rule};
 use crate::build::tenscript::FaceMark;
-use crate::build::tenscript::parser::{ParseError, Rule};
 use crate::build::tenscript::shape_phase::Command::{*};
 use crate::fabric::{Fabric, Link, UniqueId};
 
