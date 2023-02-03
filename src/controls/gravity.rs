@@ -1,7 +1,7 @@
 use iced_wgpu::Renderer;
-use iced_winit::Color;
+use iced_winit::{Color, Element};
 use iced_winit::widget::{Row, Slider, Text};
-use crate::controls::{Action, Message};
+use crate::controls::{Action, Component, ControlMessage, format_row};
 use crate::controls::gravity::GravityMessage::{*};
 
 #[derive(Debug, Clone)]
@@ -10,26 +10,28 @@ pub enum GravityMessage {
     Reset,
 }
 
-impl From<GravityMessage> for Message {
+impl From<GravityMessage> for ControlMessage {
     fn from(value: GravityMessage) -> Self {
-        Message::Gravity(value)
+        ControlMessage::Gravity(value)
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct GravityState {
+pub struct Gravity {
     pub nuance: f32,
     pub min_gravity: f32,
     pub max_gravity: f32,
 }
 
-impl GravityState {
-    pub fn update(&mut self, message: GravityMessage) -> Option<Action> {
+impl Component for Gravity {
+    type Message = GravityMessage;
+
+    fn update(&mut self, message: Self::Message) -> Option<Action> {
         match message {
             NuanceChanged(nuance) => {
                 self.nuance = nuance;
                 Some(Action::GravityChanged(self.min_gravity * (1.0 - nuance) + self.max_gravity * nuance))
-            },
+            }
             Reset => {
                 self.nuance = 0.0;
                 Some(Action::GravityChanged(self.min_gravity))
@@ -37,16 +39,18 @@ impl GravityState {
         }
     }
 
-    pub fn row(&self) -> Row<'_, Message, Renderer> {
-        Row::new()
-            .padding(20)
-            .spacing(20)
-            .push(
-                Text::new("Gravity").style(Color::WHITE)
-            )
-            .push(
-                Slider::new(0.0..=1.0, self.nuance, |value| NuanceChanged(value).into())
-                    .step(0.01)
-            )
+    fn element(&self) -> Element<'_, ControlMessage, Renderer> {
+        format_row(
+            Row::new()
+                .padding(20)
+                .spacing(20)
+                .push(
+                    Text::new("Gravity").style(Color::WHITE)
+                )
+                .push(
+                    Slider::new(0.0..=1.0, self.nuance, |value| NuanceChanged(value).into())
+                        .step(0.01)
+                )
+        )
     }
 }
