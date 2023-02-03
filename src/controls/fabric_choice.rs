@@ -19,7 +19,7 @@ impl From<FabricChoiceMessage> for ControlMessage {
 #[derive(Clone, Debug)]
 pub struct FabricChoice {
     pub current: Option<String>,
-    pub choices: Vec<(String, String)>,
+    pub choices: Vec<(String, FabricPlan)>,
 }
 
 impl Component for FabricChoice {

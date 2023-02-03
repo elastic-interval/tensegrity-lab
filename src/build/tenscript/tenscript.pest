@@ -3,12 +3,23 @@
 // Author: mitch
 //
 
+fabrics = {
+    "(" ~ "fabrics" ~
+    fabric_plan* ~
+    ")"
+}
+
 fabric_plan = {
     "(" ~ "fabric" ~
+    name ~
     surface? ~
     build? ~
     shape? ~
     ")"
+}
+
+name = {
+    "(" ~ "name" ~ string ~ ")"
 }
 
 shape = {

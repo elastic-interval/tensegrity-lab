@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 
 use pest::error::Error;
+use pest::iterators::Pair;
 use pest::Parser;
 use pest_derive::Parser;
 
@@ -13,6 +14,7 @@ use crate::build::tenscript::shape_phase::{Operation, ShapePhase};
 
 #[derive(Debug, Default, Clone)]
 pub struct FabricPlan {
+    pub name: String,
     pub surface: Option<SurfaceCharacterSpec>,
     pub build_phase: BuildPhase,
     pub shape_phase: ShapePhase,
@@ -22,6 +24,7 @@ pub struct FabricPlan {
 #[grammar = "build/tenscript/tenscript.pest"] // relative to src
 struct PestParser;
 
+#[derive(Debug)]
 pub enum ParseError {
     Pest(Error<Rule>),
     Warning(String),
@@ -36,27 +39,24 @@ impl Display for ParseError {
     }
 }
 
-pub fn fabric_plans_from_bootstrap() -> Vec<(String, String)> {
-    include_str!("bootstrap.scm")
-        .split(";;;")
-        .filter(|chunk| !chunk.is_empty())
-        .map(|chunk| {
-            let line_end = chunk.find('\n').unwrap_or_else(|| {
-                panic!("bootstrap.scm not structured properly");
-            });
-            (chunk[0..line_end].to_string(), chunk[(line_end + 1)..].to_string())
-        })
+pub fn fabric_plans_from_bootstrap() -> Vec<(String, FabricPlan)> {
+    PestParser::parse(Rule::fabrics, include_str!("bootstrap.scm"))
+        .expect("could not parse")
+        .next()
+        .expect("no (fabrics ..)")
+        .into_inner()
+        .map(|pair| FabricPlan::from_pair(pair).unwrap())
+        .map(|plan| (plan.name.clone(), plan))
         .collect()
 }
 
 impl FabricPlan {
     pub fn from_bootstrap(plan_name: &str) -> Option<Self> {
-        let plans = fabric_plans_from_bootstrap();
-        let (_, code) = plans.iter().find(|&(name, _)| *name == plan_name)?;
-        match Self::from_tenscript(code.as_str()) {
-            Ok(plan) => Some(plan),
-            Err(error) => panic!("error parsing bootstrap fabric plan: {error}")
-        }
+        fabric_plans_from_bootstrap()
+            .iter()
+            .find(|&(name, _)| *name == plan_name)
+            .map(|(_, plan)| plan)
+            .cloned()
     }
 
     pub fn from_tenscript(source: &str) -> Result<Self, ParseError> {
@@ -64,9 +64,17 @@ impl FabricPlan {
             .map_err(ParseError::Pest)?
             .next()
             .unwrap();
+        Self::from_pair(fabric_plan_pair)
+    }
+
+    fn from_pair(fabric_plan_pair: Pair<Rule>) -> Result<FabricPlan, ParseError> {
         let mut plan = FabricPlan::default();
         for pair in fabric_plan_pair.into_inner() {
             match pair.as_rule() {
+                Rule::name => {
+                    let name_string = pair.into_inner().next().unwrap().as_str();
+                    plan.name = name_string[1..name_string.len() - 1].to_string();
+                }
                 Rule::surface => {
                     plan.surface = Some(
                         match pair.into_inner().next().unwrap().as_str() {
@@ -131,19 +139,11 @@ impl FabricPlan {
 
 #[cfg(test)]
 mod tests {
-    use crate::build::tenscript::fabric_plan::{fabric_plans_from_bootstrap, FabricPlan};
+    use crate::build::tenscript::fabric_plan::fabric_plans_from_bootstrap;
 
     #[test]
     fn parse_test() {
         let plans = fabric_plans_from_bootstrap();
-        for (name, code) in plans.iter() {
-            match FabricPlan::from_tenscript(code.as_str()) {
-                Ok(plan) => {
-                    println!("[{name}] Good plan!");
-                    dbg!(plan);
-                }
-                Err(error) => panic!("[{name}] Error: {error}"),
-            }
-        }
+        println!("{plans:?}")
     }
 }
