@@ -112,6 +112,9 @@ impl FabricPlan {
                     Operation::Distance { mark_name, .. } => {
                         shape_marks.insert(mark_name.clone());
                     }
+                    Operation::RemoveShapers { mark_names } => {
+                        shape_marks.extend(mark_names.iter().cloned());
+                    }
                     _ => {}
                 }
             })
