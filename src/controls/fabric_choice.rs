@@ -29,7 +29,7 @@ impl Component for FabricChoice {
         match message {
             FabricChoiceMessage::ChooseFabric(choice) => {
                 self.current = Some(choice.clone());
-                Some(Action::BuildFabric(FabricPlan::from_bootstrap(&choice)))
+                Some(Action::BuildFabric(FabricPlan::from_bootstrap(&choice).expect("no such fabric plan")))
             }
         }
     }
