@@ -14,7 +14,7 @@ use winit::window::{CursorIcon, Window};
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
 
-use crate::build::tenscript::{bootstrap_fabric_plans, FabricPlan};
+use crate::build::tenscript::{fabric_plans_from_bootstrap, FabricPlan};
 use crate::controls::fabric_choice::{FabricChoiceMessage, FabricChoiceState};
 use crate::controls::gravity::{GravityMessage, GravityState};
 use crate::controls::strain_threshold::{StrainThresholdMessage, StrainThresholdState};
@@ -217,7 +217,7 @@ pub struct ControlState {
 
 impl Default for ControlState {
     fn default() -> Self {
-        let bootstrap = bootstrap_fabric_plans();
+        let bootstrap = fabric_plans_from_bootstrap();
         Self {
             debug_mode: false,
             visible_controls: VisibleControl::FabricChoice,
@@ -278,7 +278,7 @@ impl Program for ControlState {
     type Message = Message;
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
-        let queue_action = |action: Option<Action>|{
+        let queue_action = |action: Option<Action>| {
             if let Some(action) = action {
                 self.action_queue.borrow_mut().push(action);
             }
@@ -353,7 +353,6 @@ impl Program for ControlState {
                                     .on_press(Message::ShowControl(VisibleControl::StrainThreshold)))
                                 .push(Button::new(Text::new("Gravity"))
                                     .on_press(Message::ShowControl(VisibleControl::Gravity)))
-
                         }
                         VisibleControl::FabricChoice => self.fabric_choice_control.row(),
                         VisibleControl::StrainThreshold => self.strain_threshold_control.row(),
