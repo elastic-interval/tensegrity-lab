@@ -3,7 +3,7 @@ use std::default::Default;
 use cgmath::MetricSpace;
 use pest::iterators::Pair;
 
-use crate::build::tenscript::fabric_plan::{ParseError, Rule};
+use crate::build::tenscript::fabric_plan::Rule;
 use crate::build::tenscript::FaceMark;
 use crate::build::tenscript::shape_phase::Command::{*};
 use crate::fabric::{Fabric, Link, UniqueId};
@@ -32,6 +32,17 @@ pub enum Operation {
     SetViscosity { viscosity: f32 },
 }
 
+impl Operation {
+    pub fn traverse(&self, f: &mut impl FnMut(&Self)) {
+        f(self);
+        if let Operation::Countdown { operations, .. } = self {
+            for operation in operations {
+                operation.traverse(f);
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Shaper {
     interval: UniqueId,
@@ -50,15 +61,14 @@ pub struct ShapePhase {
 }
 
 impl ShapePhase {
-    pub(crate) fn from_pair(pair: Pair<Rule>) -> Result<ShapePhase, ParseError> {
-        let shape_phase = ShapePhase {
+    pub(super) fn from_pair(pair: Pair<Rule>) -> ShapePhase {
+        ShapePhase {
             operations: pair
                 .into_inner()
                 .map(Self::parse_shape_operation)
                 .collect(),
             ..ShapePhase::default()
-        };
-        Ok(shape_phase)
+        }
     }
 
     fn parse_shape_operation(pair: Pair<Rule>) -> Operation {
@@ -151,12 +161,11 @@ impl ShapePhase {
                     self.complete_all_shapers(fabric);
                 } else {
                     for mark_name in mark_names {
-                        let Some(index) = self.shapers
+                        let index = self.shapers
                             .iter()
                             .enumerate()
-                            .find_map(|(index, shaper)| (shaper.mark_name == mark_name).then_some(index)) else {
-                            panic!("no such shaper with mark name: '{mark_name}'")
-                        };
+                            .find_map(|(index, shaper)| (shaper.mark_name == mark_name).then_some(index))
+                            .expect("undefined mark");
                         let shaper = self.shapers.remove(index);
                         self.complete_shaper(fabric, shaper);
                     }

@@ -4,7 +4,7 @@ use pest::iterators::Pair;
 use crate::build::tenscript::{FaceMark, FaceName, Spin};
 use crate::build::tenscript::build_phase::BuildNode::{*};
 use crate::build::tenscript::build_phase::Launch::{*};
-use crate::build::tenscript::fabric_plan::{ParseError, Rule};
+use crate::build::tenscript::fabric_plan::Rule;
 use crate::build::tenscript::FaceName::Apos;
 use crate::fabric::{Fabric, UniqueId};
 
@@ -42,6 +42,29 @@ pub enum BuildNode {
     Branch {
         face_nodes: Vec<BuildNode>,
     },
+}
+
+impl BuildNode {
+    pub fn traverse(&self, f: &mut impl FnMut(&Self)) {
+        f(self);
+        match self {
+            Mark { .. } => {}
+            Face { node, .. } => {
+                node.traverse(f);
+            }
+            Grow { post_growth_node, .. } => {
+                let Some(node) = post_growth_node else {
+                    return;
+                };
+                node.traverse(f);
+            }
+            Branch { face_nodes } => {
+                for node in face_nodes {
+                    node.traverse(f);
+                }
+            }
+        };
+    }
 }
 
 impl Seed {
@@ -83,7 +106,7 @@ pub struct BuildPhase {
 }
 
 impl BuildPhase {
-    pub(crate) fn from_pair(pair: Pair<Rule>) -> Result<BuildPhase, ParseError> {
+    pub(super) fn from_pair(pair: Pair<Rule>) -> BuildPhase {
         let mut phase = BuildPhase::default();
         for sub_pair in pair.into_inner() {
             match sub_pair.as_rule() {
@@ -109,25 +132,26 @@ impl BuildPhase {
                     }
                 }
                 Rule::build_node => {
-                    phase.root = Some(Self::parse_build_node(sub_pair).unwrap());
+                    phase.root = Some(Self::parse_build_node(sub_pair));
                 }
                 _ => unreachable!("build phase"),
             }
         }
-        Ok(phase)
+        phase
     }
 
-    fn parse_build_node(node_pair: Pair<Rule>) -> Result<BuildNode, ParseError> {
-        let pair = node_pair.into_inner().next().unwrap();
+    fn parse_build_node(pair: Pair<Rule>) -> BuildNode {
         match pair.as_rule() {
+            Rule::build_node =>
+                Self::parse_build_node(pair.into_inner().next().unwrap()),
             Rule::face => {
                 let [face_name_pair, node_pair] = pair.into_inner().next_chunk().unwrap();
                 let face_name = face_name_pair.as_str().try_into().unwrap();
-                let node = Self::parse_build_node(node_pair).unwrap();
-                Ok(Face {
+                let node = Self::parse_build_node(node_pair);
+                Face {
                     face_name,
                     node: Box::new(node),
-                })
+                }
             }
             Rule::grow => {
                 let mut inner = pair.into_inner();
@@ -138,23 +162,23 @@ impl BuildPhase {
                 };
                 let scale_factor = Self::parse_scale(inner.next());
                 let post_growth_node = inner.next()
-                    .map(|post_growth| Box::new(Self::parse_build_node(post_growth).unwrap()));
-                Ok(Grow {
+                    .map(|post_growth| Box::new(Self::parse_build_node(post_growth)));
+                Grow {
                     forward,
                     scale_factor,
                     post_growth_node,
-                })
+                }
             }
             Rule::mark => {
                 let mark_name = pair.into_inner().next().unwrap().as_str()[1..].into();
-                Ok(Mark { mark_name })
+                Mark { mark_name }
             }
             Rule::branch => {
-                Ok(Branch {
+                Branch {
                     face_nodes: pair.into_inner()
-                        .map(|face_node| Self::parse_build_node(face_node).unwrap())
+                        .map(Self::parse_build_node)
                         .collect()
-                })
+                }
             }
             _ => unreachable!("node"),
         }
@@ -266,7 +290,7 @@ impl BuildPhase {
                 let face_id = match launch {
                     NamedFace { face_name } => Self::find_face_id(face_name, faces),
                     IdentifiedFace { face_id } => face_id,
-                    Seeded { .. } => panic!("Need launch face"),
+                    Seeded { .. } => unreachable!("Need launch face"),
                 };
                 marks.push(FaceMark { face_id, mark_name: mark_name.clone() });
             }
@@ -293,7 +317,7 @@ impl BuildPhase {
             .iter()
             .map(|face_node| {
                 let Face { face_name, node } = face_node else {
-                    panic!("Branch may only contain Face nodes");
+                    unreachable!("Branch can only contain Face nodes");
                 };
                 (*face_name, node.as_ref())
             })
