@@ -2,16 +2,16 @@ use iced_wgpu::Renderer;
 use iced_winit::Element;
 use iced_winit::widget::{Button, Row, Text};
 use crate::build::tenscript::fabric_plan;
-use crate::controls::{Action, Component, Message, format_row};
+use crate::controls::{Action, Component, ControlMessage, format_row};
 
 #[derive(Clone, Debug)]
 pub enum FabricChoiceMessage {
     ChooseFabric(String),
 }
 
-impl From<FabricChoiceMessage> for Message {
+impl From<FabricChoiceMessage> for ControlMessage {
     fn from(value: FabricChoiceMessage) -> Self {
-        Message::FabricChoice(value)
+        ControlMessage::FabricChoice(value)
     }
 }
 
@@ -22,9 +22,9 @@ pub struct FabricChoice {
 }
 
 impl Component for FabricChoice {
-    type LocalMessage = FabricChoiceMessage;
+    type Message = FabricChoiceMessage;
 
-    fn update(&mut self, message: Self::LocalMessage) -> Option<Action> {
+    fn update(&mut self, message: Self::Message) -> Option<Action> {
         match message {
             FabricChoiceMessage::ChooseFabric(choice) => {
                 self.current = Some(choice.clone());
@@ -33,7 +33,7 @@ impl Component for FabricChoice {
         }
     }
 
-    fn element(&self) -> Element<'_, Message, Renderer> {
+    fn element(&self) -> Element<'_, ControlMessage, Renderer> {
         let mut row = Row::new();
         for (choice, _) in &self.choices {
             row = row.push(

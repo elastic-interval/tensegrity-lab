@@ -14,7 +14,7 @@ use winit::window::Window;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use crate::controls::{GUI, Message, VisibleControl};
+use crate::controls::{GUI, ControlMessage, VisibleControl};
 use crate::controls::Action;
 use crate::controls::strain_threshold::StrainThresholdMessage;
 use crate::experiment::Experiment;
@@ -132,13 +132,13 @@ pub fn run() {
                             fullscreen_web();
                         }
                         VirtualKeyCode::Escape => {
-                            app.gui.change_state(Message::ShowControl(VisibleControl::ControlChoice));
+                            app.gui.change_state(ControlMessage::ShowControl(VisibleControl::ControlChoice));
                         }
                         VirtualKeyCode::Space => {
                             experiment.toggle_pause();
                         }
                         VirtualKeyCode::D => {
-                            app.gui.change_state(Message::ToggleDebugMode);
+                            app.gui.change_state(ControlMessage::ToggleDebugMode);
                         }
                         _ => {}
                     },
@@ -176,7 +176,7 @@ pub fn run() {
                     match action {
                         Action::BuildFabric(fabric_plan) => {
                             app.scene.show_surface(false);
-                            app.gui.change_state(Message::Reset);
+                            app.gui.change_state(ControlMessage::Reset);
                             experiment.build_fabric(fabric_plan);
                         }
                         Action::GravityChanged(gravity) => {
@@ -184,7 +184,7 @@ pub fn run() {
                         }
                         Action::CalibrateStrain => {
                             let strain_limits = experiment.strain_limits();
-                            app.gui.change_state(Message::StrainThreshold(StrainThresholdMessage::SetStrainLimits(strain_limits)))
+                            app.gui.change_state(ControlMessage::StrainThreshold(StrainThresholdMessage::SetStrainLimits(strain_limits)))
                         }
                         Action::ShortenPulls(strain_threshold) => {
                             experiment.shorten_pulls(strain_threshold);

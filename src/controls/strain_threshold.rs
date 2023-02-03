@@ -1,7 +1,7 @@
 use iced_wgpu::Renderer;
 use iced_winit::{Color, Element};
 use iced_winit::widget::{Button, Row, Slider, Text};
-use crate::controls::{Action, Component, Message, format_row};
+use crate::controls::{Action, Component, ControlMessage, format_row};
 use crate::controls::strain_threshold::StrainThresholdMessage::{*};
 
 #[derive(Debug, Clone)]
@@ -12,9 +12,9 @@ pub enum StrainThresholdMessage {
     Shorten,
 }
 
-impl From<StrainThresholdMessage> for Message {
+impl From<StrainThresholdMessage> for ControlMessage {
     fn from(value: StrainThresholdMessage) -> Self {
-        Message::StrainThreshold(value)
+        ControlMessage::StrainThreshold(value)
     }
 }
 
@@ -32,7 +32,7 @@ impl StrainThreshold {
 }
 
 impl Component for StrainThreshold {
-    type LocalMessage = StrainThresholdMessage;
+    type Message = StrainThresholdMessage;
 
     fn update(&mut self, message: StrainThresholdMessage) -> Option<Action> {
         match message {
@@ -48,7 +48,7 @@ impl Component for StrainThreshold {
         None
     }
 
-    fn element(&self) -> Element<'_, Message, Renderer> {
+    fn element(&self) -> Element<'_, ControlMessage, Renderer> {
         let (min_strain, max_strain) = self.strain_limits;
         let threshold = self.strain_threshold();
         format_row(
