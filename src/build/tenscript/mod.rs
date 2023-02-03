@@ -2,7 +2,7 @@
 
 use std::fmt::{Display, Formatter};
 
-pub use fabric_plan::{fabric_plans_from_bootstrap, FabricPlan};
+pub use fabric_plan::FabricPlan;
 
 use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::FaceName::{*};
