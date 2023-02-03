@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use std::fmt::{Display, Formatter};
 
 pub use fabric_plan::{fabric_plans_from_bootstrap, FabricPlan};
