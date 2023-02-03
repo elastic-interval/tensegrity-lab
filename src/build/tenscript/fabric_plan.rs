@@ -28,32 +28,36 @@ struct PestParser;
 #[derive(Debug)]
 pub enum ParseError {
     Pest(Error<Rule>),
-    Warning(String),
+    Invalid(String),
 }
 
 impl Display for ParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ParseError::Pest(error) => write!(f, "parse error: {error}"),
-            ParseError::Warning(warning) => write!(f, "warning: {warning}"),
+            ParseError::Invalid(warning) => write!(f, "warning: {warning}"),
         }
     }
 }
 
 pub fn fabric_plans_from_bootstrap() -> Vec<FabricPlan> {
     let bootstrap: LazyCell<Vec<_>> = LazyCell::new(||
-        PestParser::parse(Rule::fabrics, include_str!("bootstrap.scm"))
-            .expect("could not parse")
-            .next()
-            .expect("no (fabrics ..)")
-            .into_inner()
-            .map(|pair| FabricPlan::from_pair(pair).unwrap())
-            .collect()
+        FabricPlan::from_file(include_str!("bootstrap.scm")).unwrap()
     );
     bootstrap.clone()
 }
 
 impl FabricPlan {
+    pub fn from_file(source: &str) -> Result<Vec<Self>, ParseError> {
+        PestParser::parse(Rule::fabrics, source)
+            .map_err(ParseError::Pest)?
+            .next()
+            .expect("no (fabrics ..)")
+            .into_inner()
+            .map(FabricPlan::from_pair)
+            .collect()
+    }
+
     pub fn from_bootstrap(plan_name: &str) -> Option<Self> {
         fabric_plans_from_bootstrap()
             .iter()
@@ -130,10 +134,10 @@ impl FabricPlan {
             })
         }
         if let Some(unused_mark) = build_marks.difference(&shape_marks).next() {
-            return Err(ParseError::Warning(format!("unused mark in build phase: :{unused_mark}")));
+            return Err(ParseError::Invalid(format!("unused mark in build phase: :{unused_mark}")));
         }
         if let Some(undefined_mark) = shape_marks.difference(&build_marks).next() {
-            return Err(ParseError::Warning(format!("undefined mark in shape phase: :{undefined_mark}")));
+            return Err(ParseError::Invalid(format!("undefined mark in shape phase: :{undefined_mark}")));
         };
         Ok(())
     }

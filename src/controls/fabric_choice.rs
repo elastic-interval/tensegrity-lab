@@ -27,7 +27,8 @@ impl Component for FabricChoice {
     fn update(&mut self, message: Self::Message) -> Option<Action> {
         match message {
             FabricChoiceMessage::ChooseFabric(plan_name) => {
-                Some(Action::BuildFabric(FabricPlan::from_bootstrap(&plan_name).expect("no such bootstrap fabric")))
+                let fabric_plan = FabricPlan::from_bootstrap(&plan_name).expect("no such bootstrap fabric");
+                Some(Action::BuildFabric(fabric_plan))
             }
         }
     }
