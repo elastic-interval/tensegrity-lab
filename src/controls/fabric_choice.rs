@@ -18,8 +18,7 @@ impl From<FabricChoiceMessage> for ControlMessage {
 
 #[derive(Clone, Debug)]
 pub struct FabricChoice {
-    pub current: Option<String>,
-    pub choices: Vec<(String, FabricPlan)>,
+    pub choices: Vec<String>,
 }
 
 impl Component for FabricChoice {
@@ -27,18 +26,17 @@ impl Component for FabricChoice {
 
     fn update(&mut self, message: Self::Message) -> Option<Action> {
         match message {
-            FabricChoiceMessage::ChooseFabric(choice) => {
-                self.current = Some(choice.clone());
-                Some(Action::BuildFabric(FabricPlan::from_bootstrap(&choice).expect("no such fabric plan")))
+            FabricChoiceMessage::ChooseFabric(plan_name) => {
+                Some(Action::BuildFabric(FabricPlan::from_bootstrap(&plan_name).expect("no such bootstrap fabric")))
             }
         }
     }
 
     fn element(&self) -> Element<'_, ControlMessage, Renderer> {
         let mut row = Row::new();
-        for (choice, _) in &self.choices {
+        for choice in &self.choices {
             row = row.push(
-                Button::new(Text::new(choice))
+                Button::new(Text::new(choice.clone()))
                     .on_press(FabricChoiceMessage::ChooseFabric(choice.clone()).into())
             );
         };

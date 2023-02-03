@@ -15,9 +15,9 @@ use winit::window::{CursorIcon, Window};
 use instant::Instant;
 
 use crate::build::tenscript::{fabric_plans_from_bootstrap, FabricPlan};
-use crate::controls::fabric_choice::{FabricChoiceMessage, FabricChoice};
-use crate::controls::gravity::{GravityMessage, Gravity};
-use crate::controls::strain_threshold::{StrainThresholdMessage, StrainThreshold};
+use crate::controls::fabric_choice::{FabricChoice, FabricChoiceMessage};
+use crate::controls::gravity::{Gravity, GravityMessage};
+use crate::controls::strain_threshold::{StrainThreshold, StrainThresholdMessage};
 use crate::controls::strain_threshold::StrainThresholdMessage::SetStrainLimits;
 use crate::fabric::Fabric;
 use crate::graphics::GraphicsWindow;
@@ -217,13 +217,15 @@ pub struct ControlState {
 
 impl Default for ControlState {
     fn default() -> Self {
-        let bootstrap = fabric_plans_from_bootstrap();
+        let choices = fabric_plans_from_bootstrap()
+            .into_iter()
+            .map(|plan| plan.name)
+            .collect();
         Self {
             debug_mode: false,
             visible_controls: VisibleControl::FabricChoice,
             fabric_choice: FabricChoice {
-                current: None,
-                choices: bootstrap,
+                choices,
             },
             strain_threshold: StrainThreshold {
                 nuance: 0.0,

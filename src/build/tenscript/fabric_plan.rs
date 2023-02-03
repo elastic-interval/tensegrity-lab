@@ -1,5 +1,6 @@
 #![allow(clippy::result_large_err)]
 
+use std::cell::LazyCell;
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 
@@ -39,23 +40,24 @@ impl Display for ParseError {
     }
 }
 
-pub fn fabric_plans_from_bootstrap() -> Vec<(String, FabricPlan)> {
-    PestParser::parse(Rule::fabrics, include_str!("bootstrap.scm"))
-        .expect("could not parse")
-        .next()
-        .expect("no (fabrics ..)")
-        .into_inner()
-        .map(|pair| FabricPlan::from_pair(pair).unwrap())
-        .map(|plan| (plan.name.clone(), plan))
-        .collect()
+pub fn fabric_plans_from_bootstrap() -> Vec<FabricPlan> {
+    let bootstrap: LazyCell<Vec<_>> = LazyCell::new(||
+        PestParser::parse(Rule::fabrics, include_str!("bootstrap.scm"))
+            .expect("could not parse")
+            .next()
+            .expect("no (fabrics ..)")
+            .into_inner()
+            .map(|pair| FabricPlan::from_pair(pair).unwrap())
+            .collect()
+    );
+    bootstrap.clone()
 }
 
 impl FabricPlan {
     pub fn from_bootstrap(plan_name: &str) -> Option<Self> {
         fabric_plans_from_bootstrap()
             .iter()
-            .find(|&(name, _)| *name == plan_name)
-            .map(|(_, plan)| plan)
+            .find(|plan| plan.name == plan_name)
             .cloned()
     }
 
