@@ -105,7 +105,7 @@ impl GUI {
         self.staging_belt.recall();
     }
 
-    pub fn change_state(&mut self, message: Message) {
+    pub fn change_state(&mut self, message: ControlMessage) {
         self.state.queue_message(message);
     }
 
@@ -162,7 +162,7 @@ impl GUI {
         let average_time_per_frame = time_elapsed.as_secs_f64() / (self.frame_number as f64);
         self.frame_number = 0;
         let frame_rate = 1.0 / average_time_per_frame;
-        self.state.queue_message(Message::FrameRateUpdated(frame_rate))
+        self.state.queue_message(ControlMessage::FrameRateUpdated(frame_rate))
     }
 
     pub fn update_viewport(&mut self, window: &Window) {
@@ -257,13 +257,13 @@ impl ControlState {
         }
     }
 
-    pub fn strain_limits_changed(&self, limits: (f32, f32)) -> Message {
+    pub fn strain_limits_changed(&self, limits: (f32, f32)) -> ControlMessage {
         SetStrainLimits(limits).into()
     }
 }
 
 #[derive(Debug, Clone)]
-pub enum Message {
+pub enum ControlMessage {
     ToggleDebugMode,
     Reset,
     ShowControl(VisibleControl),
@@ -275,7 +275,7 @@ pub enum Message {
 
 impl Program for ControlState {
     type Renderer = Renderer;
-    type Message = Message;
+    type Message = ControlMessage;
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         let queue_action = |action: Option<Action>| {
@@ -284,14 +284,14 @@ impl Program for ControlState {
             }
         };
         match message {
-            Message::ToggleDebugMode => {
+            ControlMessage::ToggleDebugMode => {
                 self.debug_mode = !self.debug_mode;
             }
-            Message::Reset => {
+            ControlMessage::Reset => {
                 self.visible_controls = VisibleControl::ControlChoice;
                 self.gravity.update(GravityMessage::Reset);
             }
-            Message::ShowControl(visible_control) => {
+            ControlMessage::ShowControl(visible_control) => {
                 self.visible_controls = visible_control;
                 match visible_control {
                     VisibleControl::StrainThreshold => {
@@ -303,23 +303,23 @@ impl Program for ControlState {
                     }
                 }
             }
-            Message::FabricChoice(message) => {
+            ControlMessage::FabricChoice(message) => {
                 queue_action(self.fabric_choice.update(message))
             }
-            Message::StrainThreshold(message) => {
+            ControlMessage::StrainThreshold(message) => {
                 queue_action(self.strain_threshold.update(message))
             }
-            Message::Gravity(message) => {
+            ControlMessage::Gravity(message) => {
                 queue_action(self.gravity.update(message))
             }
-            Message::FrameRateUpdated(frame_rate) => {
+            ControlMessage::FrameRateUpdated(frame_rate) => {
                 self.frame_rate = frame_rate;
             }
         }
         Command::none()
     }
 
-    fn view(&self) -> Element<'_, Message, Renderer> {
+    fn view(&self) -> Element<'_, ControlMessage, Renderer> {
         let mut right_column = Column::new()
             .width(Length::Fill)
             .align_items(Alignment::End);
@@ -332,7 +332,7 @@ impl Program for ControlState {
                         .style(Color::WHITE)
                 );
         }
-        let element: Element<'_, Message, Renderer> =
+        let element: Element<'_, ControlMessage, Renderer> =
             Column::new()
                 .padding(10)
                 .height(Length::Fill)
@@ -348,11 +348,11 @@ impl Program for ControlState {
                         VisibleControl::ControlChoice => {
                             Row::new()
                                 .push(Button::new(Text::new("Fabrics"))
-                                    .on_press(Message::ShowControl(VisibleControl::FabricChoice)))
+                                    .on_press(ControlMessage::ShowControl(VisibleControl::FabricChoice)))
                                 .push(Button::new(Text::new("Strain"))
-                                    .on_press(Message::ShowControl(VisibleControl::StrainThreshold)))
+                                    .on_press(ControlMessage::ShowControl(VisibleControl::StrainThreshold)))
                                 .push(Button::new(Text::new("Gravity"))
-                                    .on_press(Message::ShowControl(VisibleControl::Gravity)))
+                                    .on_press(ControlMessage::ShowControl(VisibleControl::Gravity)))
                                 .into()
                         }
                         VisibleControl::FabricChoice => self.fabric_choice.element(),
@@ -370,13 +370,13 @@ impl Program for ControlState {
 }
 
 trait Component {
-    type LocalMessage;
+    type Message;
 
-    fn update(&mut self, message: Self::LocalMessage) -> Option<Action>;
-    fn element(&self) -> Element<'_, Message, Renderer>;
+    fn update(&mut self, message: Self::Message) -> Option<Action>;
+    fn element(&self) -> Element<'_, ControlMessage, Renderer>;
 }
 
-pub fn format_row(row: Row<'_, Message, Renderer>) -> Element<'_, Message, Renderer> {
+pub fn format_row(row: Row<'_, ControlMessage, Renderer>) -> Element<'_, ControlMessage, Renderer> {
     row
         .padding(5)
         .spacing(10)

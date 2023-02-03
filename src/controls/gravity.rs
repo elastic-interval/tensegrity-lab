@@ -1,7 +1,7 @@
 use iced_wgpu::Renderer;
 use iced_winit::{Color, Element};
 use iced_winit::widget::{Row, Slider, Text};
-use crate::controls::{Action, Component, Message, format_row};
+use crate::controls::{Action, Component, ControlMessage, format_row};
 use crate::controls::gravity::GravityMessage::{*};
 
 #[derive(Debug, Clone)]
@@ -10,9 +10,9 @@ pub enum GravityMessage {
     Reset,
 }
 
-impl From<GravityMessage> for Message {
+impl From<GravityMessage> for ControlMessage {
     fn from(value: GravityMessage) -> Self {
-        Message::Gravity(value)
+        ControlMessage::Gravity(value)
     }
 }
 
@@ -24,9 +24,9 @@ pub struct Gravity {
 }
 
 impl Component for Gravity {
-    type LocalMessage = GravityMessage;
+    type Message = GravityMessage;
 
-    fn update(&mut self, message: Self::LocalMessage) -> Option<Action> {
+    fn update(&mut self, message: Self::Message) -> Option<Action> {
         match message {
             NuanceChanged(nuance) => {
                 self.nuance = nuance;
@@ -39,7 +39,7 @@ impl Component for Gravity {
         }
     }
 
-    fn element(&self) -> Element<'_, Message, Renderer> {
+    fn element(&self) -> Element<'_, ControlMessage, Renderer> {
         format_row(
             Row::new()
                 .padding(20)
