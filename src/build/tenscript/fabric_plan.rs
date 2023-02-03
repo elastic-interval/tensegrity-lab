@@ -41,7 +41,7 @@ impl Display for ParseError {
 }
 
 impl FabricPlan {
-    pub fn bootstrap_fabrics() -> Vec<FabricPlan> {
+    pub fn bootstrap() -> Vec<FabricPlan> {
         let bootstrap: LazyCell<Vec<_>> = LazyCell::new(||
             FabricPlan::from_file(include_str!("bootstrap.scm")).unwrap()
         );
@@ -59,7 +59,7 @@ impl FabricPlan {
     }
 
     pub fn boostrap_with_name(plan_name: &str) -> Option<Self> {
-        Self::bootstrap_fabrics()
+        Self::bootstrap()
             .iter()
             .find(|plan| plan.name == plan_name)
             .cloned()
@@ -145,11 +145,11 @@ impl FabricPlan {
 
 #[cfg(test)]
 mod tests {
-    use crate::build::tenscript::fabric_plan::fabric_plans_from_bootstrap;
+    use crate::build::tenscript::fabric_plan::FabricPlan;
 
     #[test]
     fn parse_test() {
-        let plans = fabric_plans_from_bootstrap();
+        let plans = FabricPlan::bootstrap();
         println!("{plans:?}")
     }
 }
