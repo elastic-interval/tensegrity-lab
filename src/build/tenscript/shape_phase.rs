@@ -32,6 +32,17 @@ pub enum Operation {
     SetViscosity { viscosity: f32 },
 }
 
+impl Operation {
+    pub fn traverse(&self, f: &mut impl FnMut(&Self)) {
+        f(self);
+        if let Operation::Countdown { operations, .. } = self {
+            for operation in operations {
+                operation.traverse(f);
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Shaper {
     interval: UniqueId,
@@ -150,12 +161,11 @@ impl ShapePhase {
                     self.complete_all_shapers(fabric);
                 } else {
                     for mark_name in mark_names {
-                        let Some(index) = self.shapers
+                        let index = self.shapers
                             .iter()
                             .enumerate()
-                            .find_map(|(index, shaper)| (shaper.mark_name == mark_name).then_some(index)) else {
-                            panic!("no such shaper with mark name: '{mark_name}'")
-                        };
+                            .find_map(|(index, shaper)| (shaper.mark_name == mark_name).then_some(index))
+                            .expect("undefined mark");
                         let shaper = self.shapers.remove(index);
                         self.complete_shaper(fabric, shaper);
                     }
