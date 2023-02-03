@@ -40,14 +40,14 @@ impl Display for ParseError {
     }
 }
 
-pub fn fabric_plans_from_bootstrap() -> Vec<FabricPlan> {
-    let bootstrap: LazyCell<Vec<_>> = LazyCell::new(||
-        FabricPlan::from_file(include_str!("bootstrap.scm")).unwrap()
-    );
-    bootstrap.clone()
-}
-
 impl FabricPlan {
+    pub fn bootstrap_fabrics() -> Vec<FabricPlan> {
+        let bootstrap: LazyCell<Vec<_>> = LazyCell::new(||
+            FabricPlan::from_file(include_str!("bootstrap.scm")).unwrap()
+        );
+        bootstrap.clone()
+    }
+
     pub fn from_file(source: &str) -> Result<Vec<Self>, ParseError> {
         PestParser::parse(Rule::fabrics, source)
             .map_err(ParseError::Pest)?
@@ -58,8 +58,8 @@ impl FabricPlan {
             .collect()
     }
 
-    pub fn from_bootstrap(plan_name: &str) -> Option<Self> {
-        fabric_plans_from_bootstrap()
+    pub fn boostrap_with_name(plan_name: &str) -> Option<Self> {
+        Self::bootstrap_fabrics()
             .iter()
             .find(|plan| plan.name == plan_name)
             .cloned()

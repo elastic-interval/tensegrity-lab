@@ -14,7 +14,7 @@ use winit::window::{CursorIcon, Window};
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
 
-use crate::build::tenscript::{fabric_plans_from_bootstrap, FabricPlan};
+use crate::build::tenscript::FabricPlan;
 use crate::controls::fabric_choice::{FabricChoice, FabricChoiceMessage};
 use crate::controls::gravity::{Gravity, GravityMessage};
 use crate::controls::strain_threshold::{StrainThreshold, StrainThresholdMessage};
@@ -217,7 +217,7 @@ pub struct ControlState {
 
 impl Default for ControlState {
     fn default() -> Self {
-        let choices = fabric_plans_from_bootstrap()
+        let choices = FabricPlan::bootstrap_fabrics()
             .into_iter()
             .map(|plan| plan.name)
             .collect();
