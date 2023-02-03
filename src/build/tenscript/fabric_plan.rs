@@ -133,12 +133,14 @@ impl FabricPlan {
                 }
             })
         }
-        if let Some(unused_mark) = build_marks.difference(&shape_marks).next() {
-            return Err(ParseError::Invalid(format!("unused mark in build phase: :{unused_mark}")));
+        let unused_marks: Vec<_> = build_marks.difference(&shape_marks).cloned().collect();
+        if !unused_marks.is_empty() {
+            return Err(ParseError::Invalid(format!("unused marks in build phase: {}", unused_marks.join(", "))));
         }
-        if let Some(undefined_mark) = shape_marks.difference(&build_marks).next() {
-            return Err(ParseError::Invalid(format!("undefined mark in shape phase: :{undefined_mark}")));
-        };
+        let undefined_marks: Vec<_> = shape_marks.difference(&build_marks).cloned().collect();
+        if !undefined_marks.is_empty() {
+            return Err(ParseError::Invalid(format!("undefined marks in shape phase: {}", undefined_marks.join(", "))));
+        }
         Ok(())
     }
 }
