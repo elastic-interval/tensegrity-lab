@@ -44,6 +44,29 @@ pub enum BuildNode {
     },
 }
 
+impl BuildNode {
+    pub fn traverse(&self, f: &mut impl FnMut(&Self)) {
+        f(self);
+        match self {
+            Mark { .. } => {}
+            Face { node, .. } => {
+                node.traverse(f);
+            }
+            Grow { post_growth_node, .. } => {
+                let Some(node) = post_growth_node else {
+                    return;
+                };
+                node.traverse(f);
+            }
+            Branch { face_nodes } => {
+                for node in face_nodes {
+                    node.traverse(f);
+                }
+            }
+        };
+    }
+}
+
 impl Seed {
     pub fn spin(&self) -> Spin {
         match self.seed_type {
@@ -117,9 +140,10 @@ impl BuildPhase {
         phase
     }
 
-    fn parse_build_node(node_pair: Pair<Rule>) -> BuildNode {
-        let pair = node_pair.into_inner().next().unwrap();
+    fn parse_build_node(pair: Pair<Rule>) -> BuildNode {
         match pair.as_rule() {
+            Rule::build_node =>
+                Self::parse_build_node(pair.into_inner().next().unwrap()),
             Rule::face => {
                 let [face_name_pair, node_pair] = pair.into_inner().next_chunk().unwrap();
                 let face_name = face_name_pair.as_str().try_into().unwrap();
@@ -266,7 +290,7 @@ impl BuildPhase {
                 let face_id = match launch {
                     NamedFace { face_name } => Self::find_face_id(face_name, faces),
                     IdentifiedFace { face_id } => face_id,
-                    Seeded { .. } => panic!("Need launch face"),
+                    Seeded { .. } => unreachable!("Need launch face"),
                 };
                 marks.push(FaceMark { face_id, mark_name: mark_name.clone() });
             }
@@ -293,7 +317,7 @@ impl BuildPhase {
             .iter()
             .map(|face_node| {
                 let Face { face_name, node } = face_node else {
-                    panic!("Branch may only contain Face nodes");
+                    unreachable!("Branch can only contain Face nodes");
                 };
                 (*face_name, node.as_ref())
             })

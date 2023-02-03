@@ -100,7 +100,7 @@ mark = {
 
 branch = {
     "(" ~ "branch" ~
-    build_node+ ~
+        face+ ~
     ")"
 }
 
