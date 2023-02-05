@@ -118,7 +118,7 @@ impl Fabric {
 
     fn base_triangle(&self, face: Option<&Face>) -> [Point3<f32>; 3] {
         if let Some(face) = face {
-            face.radial_joint_locations(&self.joints, self)
+            face.radial_joint_locations(self)
         } else {
             [0f32, 2f32, 1f32].map(|index| {
                 let angle = index * PI * 2.0 / 3.0;
