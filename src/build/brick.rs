@@ -4,7 +4,7 @@ use cgmath::{EuclideanSpace, Matrix4, MetricSpace, Point3, Quaternion, Rotation,
 use clap::ValueEnum;
 
 use crate::build::tenscript::Spin;
-use crate::build::tenscript::Spin::Left;
+use crate::build::tenscript::Spin::{Left, Right};
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::interval::Role::{Pull, Push};
@@ -92,6 +92,8 @@ pub enum BrickName {
 
 const ROOT3: f32 = 1.732_050_8;
 const ROOT6: f32 = 2.449_489_8;
+const ROOT5: f32 = 2.236_068;
+const PHI: f32 = (1f32 + ROOT5) / 2f32;
 
 impl Brick {
     pub fn new(name: BrickName) -> Brick {
@@ -160,16 +162,20 @@ impl Brick {
     }
 
     pub fn prototype(name: BrickName) -> (Fabric, UniqueId) {
+        let pretenst_factor = 1.3;
         let mut fabric = Fabric::default();
-        let bot = [0, 1, 2].map(|index| {
-            let angle = index as f32 * PI * 2.0 / 3.0;
-            Point3::from([angle.cos(), 0.0, angle.sin()])
-        });
         let face_id = match name {
             BrickName::LeftTwist | BrickName::RightTwist => {
+                let bot = [0, 1, 2].map(|index| {
+                    let angle = index as f32 * PI * 2.0 / 3.0;
+                    Point3::from([angle.cos(), 0.0, angle.sin()])
+                });
                 let top = bot.map(|point| point + Vector3::unit_y());
                 let alpha_joints = bot.map(|point| fabric.create_joint(point));
                 let omega_joints = top.map(|point| fabric.create_joint(point));
+                for (&alpha_index, &omega_index) in alpha_joints.iter().zip(omega_joints.iter()) {
+                    fabric.create_interval(alpha_index, omega_index, Link::push(ROOT6 * pretenst_factor));
+                }
                 let alpha_midpoint = fabric.create_joint(middle(bot));
                 let alpha_radials = alpha_joints.map(|joint| {
                     fabric.create_interval(alpha_midpoint, joint, Link::pull(1.0))
@@ -191,11 +197,54 @@ impl Brick {
                 }
                 alpha_face
             }
-            BrickName::LeftOmniTwist => {
-                unimplemented!()
-            }
-            BrickName::RightOmniTwist => {
-                unimplemented!()
+            BrickName::LeftOmniTwist | BrickName::RightOmniTwist => {
+                let points @ [A, B, C, D] =
+                    [(1.0, 1.0, 1.0), (1.0, -1.0, -1.0), (-1.0, -1.0, 1.0), (-1.0, 1.0, -1.0)]
+                        .map(|(x, y, z)| Point3::new(x, y, z));
+                let opposing @ [BDC, ACD, ADB, BCA] =
+                    [[B, D, C], [A, C, D], [A, D, B], [B, C, A]]
+                        .map(|points| points.map(Point3::to_vec).iter().sum::<Vector3<f32>>() / 3.0)
+                        .map(Point3::from_vec);
+                let mut joint_at = |point: Point3<f32>| fabric.create_joint(point);
+                let [
+                a, ab, ac, ad,
+                b, ba, bc, bd,
+                c, ca, cb, cd,
+                d, da, db, dc
+                ] = points
+                    .into_iter()
+                    .flat_map(|point|
+                        [joint_at(point), joint_at(point), joint_at(point), joint_at(point)])
+                    .next_chunk()
+                    .unwrap();
+                let pairs = [(ab, ba), (ac, ca), (ad, da), (bc, cb), (bd, db), (cd, dc)];
+                for (alpha_index, omega_index) in pairs {
+                    fabric.create_interval(alpha_index, omega_index, Link::push(PHI * ROOT3));
+                }
+                let [bdc, acd, adb, bca] =
+                    opposing.map(|mid| joint_at(mid));
+                let small = [
+                    (a, [ab, ac, ad]),
+                    (b, [ba, bc, bd]),
+                    (c, [ca, cb, cd]),
+                    (d, [da, db, dc]),
+                    (bdc, [bd, dc, cb]),
+                    (acd, [ac, cd, da]),
+                    (adb, [ad, db, ba]),
+                    (bca, [bc, ca, ab]),
+                ];
+                let faces = small
+                    .map(|(alpha_index, omega_indexes)| {
+                        let radials = omega_indexes.map(|omega_index| {
+                            fabric.create_interval(alpha_index, omega_index, Link::pull(1.0))
+                        });
+                        fabric.create_face(1.0, Left, radials)
+                    });
+                match name {
+                    BrickName::LeftOmniTwist => faces[0],
+                    BrickName::RightOmniTwist => faces[4],
+                    _ => unreachable!()
+                }
             }
             BrickName::LeftMitosis => {
                 unimplemented!()
