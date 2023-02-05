@@ -11,7 +11,7 @@ struct Args {
 }
 
 fn main() {
-    let args = Args::parse();
-    let brick_name = args.prototype;
-    tensegrity_lab::application::run_with(brick_name);
+    let Args { prototype } = Args::parse();
+
+    tensegrity_lab::application::run_with(prototype);
 }
