@@ -82,40 +82,56 @@ impl Brick {
         }
     }
 
-    pub fn prototype(name: BrickName) -> Fabric {
+    pub fn prototype(name: BrickName) -> (Fabric, UniqueId) {
         let mut fabric = Fabric::default();
         let bot = [0, 1, 2].map(|index| {
             let angle = index as f32 * PI * 2.0 / 3.0;
             Point3::from([angle.cos(), 0.0, angle.sin()])
         });
-        match name {
+        let face_id = match name {
             BrickName::LeftTwist => {
                 let top = bot.map(|point| point + Vector3::unit_y());
-                let alpha_joints = bot.map(|point|fabric.create_joint(point));
-                let omega_joints = top.map(|point|fabric.create_joint(point));
-                for (&alpha_index, &omega_index) in alpha_joints.iter().zip(omega_joints.iter()) {
-                    fabric.create_interval(alpha_index, omega_index, Link::push(ROOT6));
-                }
+                let alpha_joints = bot.map(|point| fabric.create_joint(point));
+                let omega_joints = top.map(|point| fabric.create_joint(point));
+                let pushes = alpha_joints
+                    .iter()
+                    .zip(omega_joints.iter())
+                    .map(|(&alpha_index, &omega_index)| fabric.create_interval(alpha_index, omega_index, Link::push(ROOT6)))
+                    .next_chunk()
+                    .unwrap();
                 let alpha_midpoint = fabric.create_joint(middle(bot));
-                for outer in alpha_joints {
-                    fabric.create_interval(alpha_midpoint, outer, Link::pull(1.0));
-                }
+                let alpha_radials = alpha_joints.map(|joint| {
+                    fabric.create_interval(alpha_midpoint, joint, Link::pull(1.0))
+                });
+                let alpha_face = fabric.create_face(1.0, Spin::Left, alpha_radials, pushes);
                 let omega_midpoint = fabric.create_joint(middle(top));
-                for outer in omega_joints {
-                    fabric.create_interval(omega_midpoint, outer, Link::pull(1.0));
-                }
+                let omega_radials = omega_joints.map(|joint| {
+                    fabric.create_interval(omega_midpoint, joint, Link::pull(1.0))
+                });
+                fabric.create_face(1.0, Spin::Left, omega_radials, pushes);
                 let advanced_omega = omega_joints.iter().cycle().skip(1).take(3);
                 for (&alpha_index, &omega_index) in alpha_joints.iter().zip(advanced_omega) {
                     fabric.create_interval(alpha_index, omega_index, Link::pull(ROOT3));
                 }
+                alpha_face
             }
-            BrickName::RightTwist => {}
-            BrickName::LeftOmniTwist => {}
-            BrickName::RightOmniTwist => {}
-            BrickName::LeftMitosis => {}
-            BrickName::RightMitosis => {}
-        }
-        fabric
+            BrickName::RightTwist => {
+                unimplemented!()
+            }
+            BrickName::LeftOmniTwist => {
+                unimplemented!()
+            }
+            BrickName::RightOmniTwist => {
+                unimplemented!()
+            }
+            BrickName::LeftMitosis => {
+                unimplemented!()
+            }
+            BrickName::RightMitosis => {
+                unimplemented!()
+            }
+        };
+        (fabric, face_id)
     }
 }
 

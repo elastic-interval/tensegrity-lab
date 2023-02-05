@@ -146,7 +146,7 @@ impl Experiment {
 
     pub fn capture_prototype(&mut self, brick_name: BrickName) {
         println!("Settling and capturing prototype {brick_name:?}");
-        self.stage = CapturingFabric(Brick::prototype(brick_name));
+        // self.stage = CapturingFabric(Brick::prototype(brick_name));
     }
 
     fn start_pretensing(&mut self) {
