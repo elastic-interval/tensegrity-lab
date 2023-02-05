@@ -35,9 +35,9 @@ impl Fabric {
                 Role::Pull => Link::pull(scale),
             });
         }
-        let [a_minus_face, a_plus_face] = faces
+        let faces = faces
             .into_iter()
-            .map(|(joints, spin)| {
+            .map(|(joints, face_name, spin)| {
                 let midpoint = joints
                     .map(|index| self.joints[index].location.to_vec())
                     .into_iter()
@@ -46,12 +46,16 @@ impl Fabric {
                 let radial_intervals = joints.map(|omega_index|
                     self.create_interval(alpha_index, omega_index, Link::pull(scale))
                 );
-                self.create_face(scale, spin, radial_intervals)
+                (face_name, self.create_face(face_name, scale, spin, radial_intervals))
             })
             .next_chunk()
             .unwrap();
-        if let Some(id) = face_id { self.faces_to_loop(id, a_minus_face) }
-        [(Aneg, a_minus_face), (Apos, a_plus_face)]
+        let a_neg_face = faces
+            .into_iter()
+            .find_map(|(face_name, face_id)| (face_name == Aneg).then_some(face_id))
+            .expect("no Aneg face");
+        if let Some(id) = face_id { self.faces_to_loop(id, a_neg_face) }
+        faces
     }
 
     fn translation_matrix_for_base(base: [Point3<f32>; 3]) -> Matrix4<f32> {
@@ -114,7 +118,7 @@ impl Fabric {
                 let mid_joint = self.create_joint(middle);
                 let radial_intervals = indexes
                     .map(|outer| self.create_interval(mid_joint, outer, Link::pull(scale)));
-                let face = self.create_face(scale, spin, radial_intervals);
+                let face = self.create_face(Apos, scale, spin, radial_intervals);
                 (name, face)
             });
         if let Some(id) = face_id { self.faces_to_loop(id, faces[0].1) }
