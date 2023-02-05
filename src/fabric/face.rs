@@ -4,13 +4,14 @@
  */
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 
-use crate::build::tenscript::Spin;
+use crate::build::tenscript::{FaceName, Spin};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 
 #[derive(Clone, Debug)]
 pub struct Face {
+    pub face_name: FaceName,
     pub scale: f32,
     pub spin: Spin,
     pub radial_intervals: [UniqueId; 3],
