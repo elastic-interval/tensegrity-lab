@@ -4,7 +4,7 @@ use cgmath::{EuclideanSpace, Matrix4, MetricSpace, Point3, Quaternion, Rotation,
 use clap::ValueEnum;
 
 use crate::build::tenscript::Spin;
-use crate::build::tenscript::Spin::{Left, Right};
+use crate::build::tenscript::Spin::Left;
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::interval::Role::{Pull, Push};
@@ -218,11 +218,10 @@ impl Brick {
                     .next_chunk()
                     .unwrap();
                 let pairs = [(ab, ba), (ac, ca), (ad, da), (bc, cb), (bd, db), (cd, dc)];
+                let [bdc, acd, adb, bca] = opposing.map(joint_at);
                 for (alpha_index, omega_index) in pairs {
                     fabric.create_interval(alpha_index, omega_index, Link::push(PHI * ROOT3));
                 }
-                let [bdc, acd, adb, bca] =
-                    opposing.map(|mid| joint_at(mid));
                 let small = [
                     (a, [ab, ac, ad]),
                     (b, [ba, bc, bd]),
