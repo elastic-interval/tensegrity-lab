@@ -1,5 +1,7 @@
 use std::f32::consts::PI;
-use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Rotation, Vector3};
+
+use cgmath::{EuclideanSpace, Matrix4, MetricSpace, Point3, Quaternion, Rotation, Vector3};
+
 use crate::build::tenscript::Spin;
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::fabric::interval::{Interval, Role};
@@ -43,6 +45,7 @@ impl From<(Fabric, UniqueId)> for Brick {
     }
 }
 
+#[derive(Debug)]
 pub enum BrickName {
     LeftTwist,
     RightTwist,
