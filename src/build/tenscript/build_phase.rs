@@ -328,7 +328,7 @@ impl BuildPhase {
         let mut new_down: Vector3<f32> = faces
             .iter()
             .filter(|(face_name, _)| down_faces.contains(face_name))
-            .map(|(_, face_id)| fabric.face(*face_id).normal(&fabric.joints, fabric))
+            .map(|(_, face_id)| fabric.face(*face_id).normal(fabric))
             .sum();
         new_down = new_down.normalize();
         let midpoint = fabric.midpoint().to_vec();
