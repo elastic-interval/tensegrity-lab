@@ -1,9 +1,10 @@
 use cgmath::Vector3;
 
+use crate::build::brick::{Brick, BrickName};
 use crate::build::tenscript::FabricPlan;
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::experiment::Stage::{*};
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::AIR_GRAVITY;
 
@@ -12,6 +13,7 @@ const PULL_SHORTENING: f32 = 0.95;
 enum Stage {
     Empty,
     AcceptingPlan(FabricPlan),
+    CapturingFabric(Fabric),
     RunningPlan,
     Pretensing,
     Pretenst,
@@ -77,6 +79,16 @@ impl Experiment {
                     }
                 }
             }
+            CapturingFabric(fabric) => {
+                self.fabric = fabric.clone();
+                for _ in 0..10_000 {
+                    if self.fabric.iterate(&self.physics) < 0.001 {
+                        break;
+                    }
+                }
+                let brick = Brick::from((self.fabric.clone(), UniqueId { id: 0 }));
+                println!("{brick:?}");
+            }
             Pretensing => {
                 for _ in 0..self.iterations_per_frame {
                     self.fabric.iterate(&self.physics);
@@ -130,6 +142,11 @@ impl Experiment {
 
     pub fn fabric(&self) -> &Fabric {
         &self.fabric
+    }
+
+    pub fn capture_prototype(&mut self, brick_name: BrickName) {
+        println!("Settling and capturing prototype {brick_name:?}");
+        self.stage = CapturingFabric(Brick::prototype(brick_name));
     }
 
     fn start_pretensing(&mut self) {
