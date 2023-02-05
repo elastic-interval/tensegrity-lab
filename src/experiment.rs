@@ -89,7 +89,7 @@ impl Experiment {
                     }
                 }
                 let brick = Brick::from((self.fabric.clone(), *face_id));
-                println!("{brick:?}");
+                println!("{}", brick.as_code());
                 self.stage = Empty;
             }
             Pretensing => {
