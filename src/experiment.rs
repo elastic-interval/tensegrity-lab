@@ -13,7 +13,7 @@ const PULL_SHORTENING: f32 = 0.95;
 enum Stage {
     Empty,
     AcceptingPlan(FabricPlan),
-    CapturingFabric(Fabric),
+    CapturingFabric((Fabric, UniqueId)),
     RunningPlan,
     Pretensing,
     Pretenst,
@@ -79,15 +79,18 @@ impl Experiment {
                     }
                 }
             }
-            CapturingFabric(fabric) => {
+            CapturingFabric((fabric, face_id)) => {
                 self.fabric = fabric.clone();
-                for _ in 0..10_000 {
-                    if self.fabric.iterate(&self.physics) < 0.001 {
+                for i in 0..100_000 {
+                    let speed_squared = self.fabric.iterate(&self.physics);
+                    if i > 1 && speed_squared < 1e-8 {
+                        println!("Fabric settled in iteration {i} at speed squared {speed_squared}");
                         break;
                     }
                 }
-                let brick = Brick::from((self.fabric.clone(), UniqueId { id: 0 }));
+                let brick = Brick::from((self.fabric.clone(), *face_id));
                 println!("{brick:?}");
+                self.stage = Empty;
             }
             Pretensing => {
                 for _ in 0..self.iterations_per_frame {
@@ -146,7 +149,7 @@ impl Experiment {
 
     pub fn capture_prototype(&mut self, brick_name: BrickName) {
         println!("Settling and capturing prototype {brick_name:?}");
-        // self.stage = CapturingFabric(Brick::prototype(brick_name));
+        self.stage = CapturingFabric(Brick::prototype(brick_name));
     }
 
     fn start_pretensing(&mut self) {
