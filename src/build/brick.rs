@@ -99,7 +99,7 @@ const PHI: f32 = (1f32 + ROOT5) / 2f32;
 impl Brick {
     pub fn new(name: BrickName) -> Brick {
         match name {
-            BrickName::LeftTwist =>Brick {
+            BrickName::LeftTwist => Brick {
                 joints: vec![
                     Point3::new(-0.499999, 0.000019, 0.866028),
                     Point3::new(-0.500001, -0.000019, -0.866028),
@@ -119,8 +119,8 @@ impl Brick {
                     (2, 4, Pull),
                 ],
                 faces: vec![
-                    ([2, 1, 0], Aneg, Left ),
-                    ([3, 4, 5], Apos, Left ),
+                    ([2, 1, 0], Aneg, Left),
+                    ([3, 4, 5], Apos, Left),
                 ],
             },
             BrickName::RightTwist => Brick {
@@ -143,8 +143,8 @@ impl Brick {
                     (1, 5, Pull),
                 ],
                 faces: vec![
-                    ([2, 1, 0], Aneg, Right ),
-                    ([3, 4, 5], Apos, Right ),
+                    ([2, 1, 0], Aneg, Right),
+                    ([3, 4, 5], Apos, Right),
                 ],
             },
             BrickName::LeftOmniTwist => unimplemented!(),
