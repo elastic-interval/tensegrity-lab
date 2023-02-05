@@ -4,8 +4,10 @@ use cgmath::{EuclideanSpace, Matrix4, MetricSpace, Point3, Quaternion, Rotation,
 use clap::ValueEnum;
 
 use crate::build::tenscript::Spin;
+use crate::build::tenscript::Spin::Left;
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::fabric::interval::{Interval, Role};
+use crate::fabric::interval::Role::{Pull, Push};
 use crate::fabric::joint::Joint;
 
 #[derive(Debug, Clone)]
@@ -13,6 +15,37 @@ pub struct Brick {
     joints: Vec<Point3<f32>>,
     intervals: Vec<(usize, usize, Role)>,
     faces: Vec<([usize; 3], Spin)>,
+}
+
+impl Brick {
+    pub fn as_code(self) -> String {
+        let mut lines = Vec::<String>::new();
+        lines.push("Brick {".to_string());
+
+        lines.push("    joints: vec![".to_string());
+        lines.extend(self.joints
+            .into_iter()
+            .map(|Point3 { x, y, z }|
+                format!("        Point3::new({x:.6}, {y:.6}, {z:.6}),")));
+        lines.push("    ],".to_string());
+
+        lines.push("    intervals: vec![".to_string());
+        lines.extend(self.intervals
+            .into_iter()
+            .map(|(alpha, omega, role)|
+                format!("        ({alpha}, {omega}, {role:?}),")));
+        lines.push("    ],".to_string());
+
+        lines.push("    faces: vec![".to_string());
+        lines.extend(self.faces
+            .into_iter()
+            .map(|(joints, spin)|
+                format!("        ({joints:?}, {spin:?}),")));
+        lines.push("    ],".to_string());
+
+        lines.push("}".to_string());
+        lines.join("\n")
+    }
 }
 
 impl From<(Fabric, UniqueId)> for Brick {
@@ -62,12 +95,66 @@ const ROOT6: f32 = 2.449_489_8;
 impl Brick {
     pub fn new(name: BrickName) -> Brick {
         match name {
-            BrickName::LeftTwist => {
-                unimplemented!()
-            }
-            BrickName::RightTwist => {
-                unimplemented!()
-            }
+            BrickName::LeftTwist => Brick {
+                joints: vec![
+                    Point3::new(1.000000, 0.000000, -0.000000),
+                    Point3::new(-0.500000, 0.000000, 0.866025),
+                    Point3::new(-0.500000, 0.000000, -0.866025),
+                    Point3::new(-0.993272, 1.998635, 0.612987),
+                    Point3::new(-0.034226, 1.998633, -1.166691),
+                    Point3::new(1.027499, 1.998634, 0.553706),
+                    Point3::new(-0.000000, 0.000000, -0.000000),
+                    Point3::new(0.000000, 2.001832, 0.000001),
+                ],
+                intervals: vec![
+                    (2, 5, Push),
+                    (7, 4, Pull),
+                    (6, 0, Pull),
+                    (7, 3, Pull),
+                    (2, 4, Pull),
+                    (1, 3, Pull),
+                    (6, 1, Pull),
+                    (0, 5, Pull),
+                    (7, 5, Pull),
+                    (6, 2, Pull),
+                    (1, 4, Push),
+                    (0, 3, Push),
+                ],
+                faces: vec![
+                    ([0, 1, 2], Left),
+                    ([3, 4, 5], Left),
+                ],
+            },
+            BrickName::RightTwist => Brick {
+                joints: vec![
+                    Point3::new(1.000000, 0.000000, 0.000000),
+                    Point3::new(-0.500000, 0.000000, 0.866025),
+                    Point3::new(-0.500000, 0.000000, -0.866025),
+                    Point3::new(-0.993272, 1.998634, -0.612986),
+                    Point3::new(1.027498, 1.998634, -0.553706),
+                    Point3::new(-0.034226, 1.998634, 1.166691),
+                    Point3::new(-0.000000, 0.000000, 0.000000),
+                    Point3::new(-0.000001, 2.001833, 0.000001),
+                ],
+                intervals: vec![
+                    (1, 5, Pull),
+                    (0, 4, Pull),
+                    (2, 3, Pull),
+                    (1, 4, Push),
+                    (7, 4, Pull),
+                    (7, 5, Pull),
+                    (7, 3, Pull),
+                    (6, 2, Pull),
+                    (0, 3, Push),
+                    (2, 5, Push),
+                    (6, 0, Pull),
+                    (6, 1, Pull),
+                ],
+                faces: vec![
+                    ([3, 4, 5], Left),
+                    ([0, 1, 2], Left),
+                ],
+            },
             BrickName::LeftOmniTwist => {
                 unimplemented!()
             }
@@ -90,14 +177,14 @@ impl Brick {
             Point3::from([angle.cos(), 0.0, angle.sin()])
         });
         let face_id = match name {
-            BrickName::LeftTwist => {
+            BrickName::LeftTwist | BrickName::RightTwist => {
                 let top = bot.map(|point| point + Vector3::unit_y());
                 let alpha_joints = bot.map(|point| fabric.create_joint(point));
                 let omega_joints = top.map(|point| fabric.create_joint(point));
                 let pushes = alpha_joints
                     .iter()
                     .zip(omega_joints.iter())
-                    .map(|(&alpha_index, &omega_index)| fabric.create_interval(alpha_index, omega_index, Link::push(ROOT6)))
+                    .map(|(&alpha_index, &omega_index)| fabric.create_interval(alpha_index, omega_index, Link::push(ROOT6 * 1.3)))
                     .next_chunk()
                     .unwrap();
                 let alpha_midpoint = fabric.create_joint(middle(bot));
@@ -110,14 +197,16 @@ impl Brick {
                     fabric.create_interval(omega_midpoint, joint, Link::pull(1.0))
                 });
                 fabric.create_face(1.0, Spin::Left, omega_radials, pushes);
-                let advanced_omega = omega_joints.iter().cycle().skip(1).take(3);
+                let to_skip = match name {
+                    BrickName::RightTwist => 1,
+                    BrickName::LeftTwist => 2,
+                    _ => unreachable!()
+                };
+                let advanced_omega = omega_joints.iter().cycle().skip(to_skip).take(3);
                 for (&alpha_index, &omega_index) in alpha_joints.iter().zip(advanced_omega) {
                     fabric.create_interval(alpha_index, omega_index, Link::pull(ROOT3));
                 }
                 alpha_face
-            }
-            BrickName::RightTwist => {
-                unimplemented!()
             }
             BrickName::LeftOmniTwist => {
                 unimplemented!()
