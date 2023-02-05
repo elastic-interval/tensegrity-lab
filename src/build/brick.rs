@@ -1,6 +1,7 @@
 use std::f32::consts::PI;
 
 use cgmath::{EuclideanSpace, Matrix4, MetricSpace, Point3, Quaternion, Rotation, Vector3};
+use clap::ValueEnum;
 
 use crate::build::tenscript::Spin;
 use crate::fabric::{Fabric, Link, UniqueId};
@@ -45,7 +46,7 @@ impl From<(Fabric, UniqueId)> for Brick {
     }
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
 pub enum BrickName {
     LeftTwist,
     RightTwist,
