@@ -6,7 +6,7 @@ use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::experiment::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::physics::Physics;
-use crate::fabric::physics::presets::AIR_GRAVITY;
+use crate::fabric::physics::presets::{AIR_GRAVITY, LIQUID};
 
 const PULL_SHORTENING: f32 = 0.95;
 
@@ -40,7 +40,7 @@ impl Default for Experiment {
             plan_runner: None,
             camera_jump: None,
             frozen_fabric: None,
-            iterations_per_frame: 100,
+            iterations_per_frame: 1,
             paused: false,
             stage: Empty,
             shorten_pulls: None,
@@ -81,9 +81,9 @@ impl Experiment {
             }
             CapturingPrototype((fabric, face_id)) => {
                 self.fabric = fabric.clone();
-                for i in 0..100_000 {
-                    let speed_squared = self.fabric.iterate(&self.physics);
-                    if i > 1 && speed_squared < 1e-8 {
+                for i in 0..10000 {
+                    let speed_squared = self.fabric.iterate(&LIQUID);
+                    if i > 1000 && speed_squared < 1e-8 {
                         println!("Fabric settled in iteration {i} at speed squared {speed_squared}");
                         break;
                     }

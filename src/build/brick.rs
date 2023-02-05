@@ -1,10 +1,10 @@
-use std::f32::consts::PI;
+use std::f32::consts::{PI, SQRT_2};
 
 use cgmath::{EuclideanSpace, Matrix4, MetricSpace, Point3, Quaternion, Rotation, Vector3};
 use clap::ValueEnum;
 
 use crate::build::tenscript::Spin;
-use crate::build::tenscript::Spin::Left;
+use crate::build::tenscript::Spin::{Left, Right};
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::interval::Role::{Pull, Push};
@@ -198,10 +198,11 @@ impl Brick {
                 alpha_face
             }
             BrickName::LeftOmniTwist | BrickName::RightOmniTwist => {
-                let points @ [aa, bb, cc, dd] =
+                let factor = PHI * ROOT3 / 2.0 / SQRT_2;
+                let points @ [aaa, bbb, ccc, ddd] =
                     [(1.0, 1.0, 1.0), (1.0, -1.0, -1.0), (-1.0, -1.0, 1.0), (-1.0, 1.0, -1.0)]
-                        .map(|(x, y, z)| Point3::new(x, y, z));
-                let opposing = [[bb, dd, cc], [aa, cc, dd], [aa, dd, bb], [bb, cc, aa]]
+                        .map(|(x, y, z)| Point3::new(x, y, z) * factor);
+                let opposing = [[bbb, ddd, ccc], [aaa, ccc, ddd], [aaa, ddd, bbb], [bbb, ccc, aaa]]
                     .map(|points| points.map(Point3::to_vec).iter().sum::<Vector3<f32>>() / 3.0)
                     .map(Point3::from_vec);
                 let mut joint_at = |point: Point3<f32>| fabric.create_joint(point);
@@ -221,22 +222,22 @@ impl Brick {
                 for (alpha_index, omega_index) in pairs {
                     fabric.create_interval(alpha_index, omega_index, Link::push(PHI * ROOT3));
                 }
-                let small = [
-                    (a, [ab, ac, ad]),
-                    (b, [ba, bc, bd]),
-                    (c, [ca, cb, cd]),
-                    (d, [da, db, dc]),
-                    (bdc, [bd, dc, cb]),
-                    (acd, [ac, cd, da]),
-                    (adb, [ad, db, ba]),
-                    (bca, [bc, ca, ab]),
+                let face_facts = [
+                    (a, [ab, ac, ad], Left),
+                    (b, [ba, bc, bd], Left),
+                    (c, [ca, cb, cd], Left),
+                    (d, [da, db, dc], Left),
+                    (bdc, [bd, dc, cb], Right),
+                    (acd, [ac, cd, da], Right),
+                    (adb, [ad, db, ba], Right),
+                    (bca, [bc, ca, ab], Right),
                 ];
-                let faces = small
-                    .map(|(alpha_index, omega_indexes)| {
+                let faces = face_facts
+                    .map(|(alpha_index, omega_indexes, spin)| {
                         let radials = omega_indexes.map(|omega_index| {
                             fabric.create_interval(alpha_index, omega_index, Link::pull(1.0))
                         });
-                        fabric.create_face(1.0, Left, radials)
+                        fabric.create_face(1.0, spin, radials)
                     });
                 match name {
                     BrickName::LeftOmniTwist => faces[0],
