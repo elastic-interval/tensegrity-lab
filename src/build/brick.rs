@@ -170,22 +170,16 @@ impl Brick {
                 let top = bot.map(|point| point + Vector3::unit_y());
                 let alpha_joints = bot.map(|point| fabric.create_joint(point));
                 let omega_joints = top.map(|point| fabric.create_joint(point));
-                let pushes = alpha_joints
-                    .iter()
-                    .zip(omega_joints.iter())
-                    .map(|(&alpha_index, &omega_index)| fabric.create_interval(alpha_index, omega_index, Link::push(ROOT6 * 1.3)))
-                    .next_chunk()
-                    .unwrap();
                 let alpha_midpoint = fabric.create_joint(middle(bot));
                 let alpha_radials = alpha_joints.map(|joint| {
                     fabric.create_interval(alpha_midpoint, joint, Link::pull(1.0))
                 });
-                let alpha_face = fabric.create_face(1.0, Left, alpha_radials, pushes);
+                let alpha_face = fabric.create_face(1.0, Left, alpha_radials);
                 let omega_midpoint = fabric.create_joint(middle(top));
                 let omega_radials = omega_joints.map(|joint| {
                     fabric.create_interval(omega_midpoint, joint, Link::pull(1.0))
                 });
-                fabric.create_face(1.0, Left, omega_radials, pushes);
+                fabric.create_face(1.0, Left, omega_radials);
                 let to_skip = match name {
                     BrickName::RightTwist => 1,
                     BrickName::LeftTwist => 2,
