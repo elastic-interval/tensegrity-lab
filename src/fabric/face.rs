@@ -2,7 +2,7 @@
  * Copyright (c) 2020. Beautiful Code BV, Rotterdam, Netherlands
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
-use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion, Rotation, Vector3};
 
 use crate::build::tenscript::{FaceName, Spin};
 use crate::fabric::{Fabric, UniqueId};
@@ -44,5 +44,15 @@ impl Face {
         self.radial_intervals
             .map(|id| fabric.interval(id))
             .map(|Interval { omega_index, .. }| *omega_index)
+    }
+
+    pub fn space(&self, fabric: &Fabric) -> Matrix4<f32> {
+        let midpoint = self.midpoint(fabric);
+        let [radial0, radial1, _] = self.radial_joint_locations(fabric);
+        let radial_x = radial0.to_vec() + radial1.to_vec() - midpoint * 2.0;
+        Matrix4::from_translation(midpoint) *
+            Matrix4::from_scale(self.scale) *
+            Matrix4::from(Quaternion::between_vectors(Vector3::unit_y(), -self.normal(fabric))) *
+            Matrix4::from(Quaternion::between_vectors(Vector3::unit_x(), radial_x))
     }
 }
