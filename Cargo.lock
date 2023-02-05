@@ -237,13 +237,13 @@ version = "0.4.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "16b0a3d9ed01224b22057780a37bb8c5dbfe1be8ba48678e7bf57ec4b385411f"
 dependencies = [
-    "iana-time-zone",
-    "js-sys",
-    "num-integer",
-    "num-traits",
-    "time",
-    "wasm-bindgen",
-    "winapi",
+ "iana-time-zone",
+ "js-sys",
+ "num-integer",
+ "num-traits",
+ "time",
+ "wasm-bindgen",
+ "winapi",
 ]
 
 [[package]]
@@ -252,13 +252,13 @@ version = "4.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f13b9c79b5d1dd500d20ef541215a6423c75829ef43117e1b4d17fd8af0b5d76"
 dependencies = [
-    "bitflags",
-    "clap_derive",
-    "clap_lex",
-    "is-terminal",
-    "once_cell",
-    "strsim",
-    "termcolor",
+ "bitflags",
+ "clap_derive",
+ "clap_lex",
+ "is-terminal",
+ "once_cell",
+ "strsim",
+ "termcolor",
 ]
 
 [[package]]
@@ -267,11 +267,11 @@ version = "4.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "684a277d672e91966334af371f1a7b5833f9aa00b07c84e92fbce95e00208ce8"
 dependencies = [
-    "heck",
-    "proc-macro-error",
-    "proc-macro2",
-    "quote",
-    "syn",
+ "heck",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -280,7 +280,7 @@ version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "783fe232adfca04f90f56201b26d79682d4cd2625e0bc7290b95123afe558ade"
 dependencies = [
-    "os_str_bytes",
+ "os_str_bytes",
 ]
 
 [[package]]
@@ -289,9 +289,9 @@ version = "4.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7191c27c2357d9b7ef96baac1773290d4ca63b24205b82a3fd8a0637afcf0362"
 dependencies = [
-    "error-code",
-    "str-buf",
-    "winapi",
+ "error-code",
+ "str-buf",
+ "winapi",
 ]
 
 [[package]]
@@ -1225,7 +1225,7 @@ version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 dependencies = [
-    "ahash",
+ "ahash",
 ]
 
 [[package]]
@@ -1240,7 +1240,7 @@ version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee512640fe35acbfb4bb779db6f0d80704c2cacfa2e39b601ef3e3f47d1ae4c7"
 dependencies = [
-    "libc",
+ "libc",
 ]
 
 [[package]]
@@ -1929,7 +1929,7 @@ version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d84eb1409416d254e4a9c8fa56cc24701755025b458f0fcd8e59e1f5f40c23bf"
 dependencies = [
-    "num-traits",
+ "num-traits",
 ]
 
 [[package]]
@@ -2185,9 +2185,9 @@ version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eda0fc3b0fb7c975631757e14d9049da17374063edb6ebbcbc54d880d4fe94e9"
 dependencies = [
-    "once_cell",
-    "thiserror",
-    "toml",
+ "once_cell",
+ "thiserror",
+ "toml",
 ]
 
 [[package]]
@@ -2196,11 +2196,11 @@ version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da25490ff9892aab3fcf7c36f08cfb902dd3e71ca0f9f9517bea02a73a5ce38c"
 dependencies = [
-    "proc-macro-error-attr",
-    "proc-macro2",
-    "quote",
-    "syn",
-    "version_check",
+ "proc-macro-error-attr",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "version_check",
 ]
 
 [[package]]
@@ -2209,9 +2209,9 @@ version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1be40180e52ecc98ad80b184934baf3d0d29f979574e439af5a55274b35f869"
 dependencies = [
-    "proc-macro2",
-    "quote",
-    "version_check",
+ "proc-macro2",
+ "quote",
+ "version_check",
 ]
 
 [[package]]
@@ -2220,7 +2220,7 @@ version = "1.0.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57a8eca9f9c4ffde41714334dee777596264c7825420f521abc92b5b5deb63a5"
 dependencies = [
-    "unicode-ident",
+ "unicode-ident",
 ]
 
 [[package]]
@@ -2706,22 +2706,22 @@ dependencies = [
 name = "tensegrity-lab"
 version = "0.1.0"
 dependencies = [
-    "anyhow",
-    "bytemuck",
-    "cfg-if",
-    "cgmath",
-    "chrono",
-    "clap",
-    "console_error_panic_hook",
-    "console_log",
-    "env_logger",
-    "fast_inv_sqrt",
-    "futures",
-    "gfx-hal",
-    "iced",
-    "iced_wgpu",
-    "iced_winit",
-    "image",
+ "anyhow",
+ "bytemuck",
+ "cfg-if",
+ "cgmath",
+ "chrono",
+ "clap",
+ "console_error_panic_hook",
+ "console_log",
+ "env_logger",
+ "fast_inv_sqrt",
+ "futures",
+ "gfx-hal",
+ "iced",
+ "iced_wgpu",
+ "iced_winit",
+ "image",
  "instant",
  "log",
  "pest",
