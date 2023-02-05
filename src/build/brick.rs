@@ -198,13 +198,12 @@ impl Brick {
                 alpha_face
             }
             BrickName::LeftOmniTwist | BrickName::RightOmniTwist => {
-                let points @ [A, B, C, D] =
+                let points @ [aa, bb, cc, dd] =
                     [(1.0, 1.0, 1.0), (1.0, -1.0, -1.0), (-1.0, -1.0, 1.0), (-1.0, 1.0, -1.0)]
                         .map(|(x, y, z)| Point3::new(x, y, z));
-                let opposing @ [BDC, ACD, ADB, BCA] =
-                    [[B, D, C], [A, C, D], [A, D, B], [B, C, A]]
-                        .map(|points| points.map(Point3::to_vec).iter().sum::<Vector3<f32>>() / 3.0)
-                        .map(Point3::from_vec);
+                let opposing = [[bb, dd, cc], [aa, cc, dd], [aa, dd, bb], [bb, cc, aa]]
+                    .map(|points| points.map(Point3::to_vec).iter().sum::<Vector3<f32>>() / 3.0)
+                    .map(Point3::from_vec);
                 let mut joint_at = |point: Point3<f32>| fabric.create_joint(point);
                 let [
                 a, ab, ac, ad,
