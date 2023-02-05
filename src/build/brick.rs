@@ -18,7 +18,7 @@ pub struct Brick {
 }
 
 impl Brick {
-    pub fn as_code(self) -> String {
+    pub fn into_code(self) -> String {
         let mut lines = Vec::<String>::new();
         lines.push("Brick {".to_string());
 
