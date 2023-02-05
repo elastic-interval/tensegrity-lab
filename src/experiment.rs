@@ -13,11 +13,12 @@ const PULL_SHORTENING: f32 = 0.95;
 enum Stage {
     Empty,
     AcceptingPlan(FabricPlan),
-    CapturingPrototype((Fabric, UniqueId)),
     RunningPlan,
     Pretensing,
     Pretenst,
     ShortenPulls(f32),
+    AcceptingPrototype((Fabric, UniqueId)),
+    RunningPrototype(UniqueId),
 }
 
 pub struct Experiment {
@@ -40,7 +41,7 @@ impl Default for Experiment {
             plan_runner: None,
             camera_jump: None,
             frozen_fabric: None,
-            iterations_per_frame: 1,
+            iterations_per_frame: 100,
             paused: false,
             stage: Empty,
             shorten_pulls: None,
@@ -79,19 +80,7 @@ impl Experiment {
                     }
                 }
             }
-            CapturingPrototype((fabric, face_id)) => {
-                self.fabric = fabric.clone();
-                for i in 0..10000 {
-                    let speed_squared = self.fabric.iterate(&LIQUID);
-                    if i > 1000 && speed_squared < 1e-8 {
-                        println!("Fabric settled in iteration {i} at speed squared {speed_squared}");
-                        break;
-                    }
-                }
-                let brick = Brick::from((self.fabric.clone(), *face_id));
-                println!("{}", brick.into_code());
-                self.stage = Empty;
-            }
+
             Pretensing => {
                 for _ in 0..self.iterations_per_frame {
                     self.fabric.iterate(&self.physics);
@@ -115,6 +104,23 @@ impl Experiment {
                 self.shorten_pulls = None;
                 self.fabric.shorten_pulls(*strain_threshold, PULL_SHORTENING);
                 self.start_pretensing()
+            }
+            AcceptingPrototype((fabric, face_id)) => {
+                self.fabric = fabric.clone();
+                self.stage = RunningPrototype(*face_id);
+            }
+            RunningPrototype(face_id) => {
+                let mut speed_squared = 1.0;
+                for _ in 0..self.iterations_per_frame {
+                    speed_squared = self.fabric.iterate(&LIQUID);
+                }
+                let age = self.fabric.age;
+                if age > 1000 && speed_squared < 1e-12 {
+                    println!("Fabric settled in iteration {age} at speed squared {speed_squared}");
+                    let brick = Brick::from((self.fabric.clone(), *face_id));
+                    println!("{}", brick.into_code());
+                    self.stage = Empty
+                }
             }
         }
     }
@@ -149,7 +155,7 @@ impl Experiment {
 
     pub fn capture_prototype(&mut self, brick_name: BrickName) {
         println!("Settling and capturing prototype {brick_name:?}");
-        self.stage = CapturingPrototype(Brick::prototype(brick_name));
+        self.stage = AcceptingPrototype(Brick::prototype(brick_name));
     }
 
     fn start_pretensing(&mut self) {
