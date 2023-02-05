@@ -109,12 +109,12 @@ impl Fabric {
             ],
         };
         let faces = face_definitions
-            .map(|(name, spin, indexes, push_intervals)| {
+            .map(|(name, spin, indexes, _push_intervals)| {
                 let middle = middle(indexes.map(|index| self.joints[index].location));
                 let mid_joint = self.create_joint(middle);
                 let radial_intervals = indexes
                     .map(|outer| self.create_interval(mid_joint, outer, Link::pull(scale)));
-                let face = self.create_face(scale, spin, radial_intervals, push_intervals);
+                let face = self.create_face(scale, spin, radial_intervals);
                 (name, face)
             });
         if let Some(id) = face_id { self.faces_to_loop(id, faces[0].1) }
