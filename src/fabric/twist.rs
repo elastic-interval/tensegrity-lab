@@ -32,7 +32,7 @@ impl Fabric {
         for (alpha_index, omega_index, role) in intervals {
             self.create_interval(alpha_index, omega_index, match role {
                 Role::Push => Link::push(scale * ROOT6 * pretenst_factor),
-                Role::Pull => Link::pull(scale),
+                Role::Pull => Link::pull(scale * ROOT3),
             });
         }
         let faces = faces
