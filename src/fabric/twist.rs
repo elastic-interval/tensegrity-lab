@@ -1,12 +1,14 @@
 use std::f32::consts::PI;
 
-use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Rotation, Transform, Vector3};
 
-use crate::fabric::{Fabric, Link, UniqueId};
-use crate::fabric::face::Face;
+use crate::build::brick::{Brick, BrickName};
 use crate::build::tenscript::{FaceName, Spin};
 use crate::build::tenscript::FaceName::{*};
 use crate::build::tenscript::Spin::{Left, Right};
+use crate::fabric::{Fabric, Link, UniqueId};
+use crate::fabric::face::Face;
+use crate::fabric::interval::Role;
 
 const ROOT3: f32 = 1.732_050_8;
 const ROOT5: f32 = 2.236_068;
@@ -18,37 +20,51 @@ impl Fabric {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
         let base = self.base_triangle(face);
-        let pairs = create_pairs(base, spin, scale, scale);
-        let ends = pairs
-            .map(|(alpha, omega)|
-                (self.create_joint(alpha), self.create_joint(omega)));
-        let push_intervals = ends.map(|(alpha, omega)| {
-            self.create_interval(alpha, omega, Link::push(scale * ROOT6 * pretenst_factor))
+        let matrix = Self::translation_matrix_for_base(base);
+
+        let Brick { joints, intervals, faces } = Brick::new(match spin {
+            Left => BrickName::LeftTwist,
+            Right => BrickName::RightTwist,
         });
-        let alpha_joint = self.create_joint(middle(pairs.map(|(alpha, _)| alpha)));
-        let omega_joint = self.create_joint(middle(pairs.map(|(_, omega)| omega)));
-        let alphas_x = ends.map(|(alpha, _)| alpha);
-        let alphas = [alphas_x[2], alphas_x[1], alphas_x[0]];
-        let alpha_radials = alphas.map(|alpha| {
-            self.create_interval(alpha_joint, alpha, Link::pull(scale))
-        });
-        let a_minus_face = self.create_face(scale, spin, alpha_radials, push_intervals);
-        let omegas: [usize; 3] = ends.map(|(_, omega)| omega);
-        let omega_radials = omegas.map(|omega| {
-            self.create_interval(omega_joint, omega, Link::pull(scale))
-        });
-        let a_plus_face = self.create_face(scale, spin, omega_radials, push_intervals);
-        for index in 0..=2 {
-            let offset = match spin {
-                Left => 1,
-                Right => -1
-            };
-            let alpha = ends[index as usize].0;
-            let omega = ends[(ends.len() as isize + index + offset) as usize % ends.len()].1;
-            self.create_interval(alpha, omega, Link::pull(ROOT3 * scale));
+        for point in joints {
+            self.create_joint(matrix.transform_point(point));
         }
+        for (alpha_index, omega_index, role) in intervals {
+            self.create_interval(alpha_index, omega_index, match role {
+                Role::Push => Link::push(scale * ROOT6 * pretenst_factor),
+                Role::Pull => Link::pull(scale),
+            });
+        }
+        let [a_minus_face, a_plus_face] = faces
+            .into_iter()
+            .map(|(joints, spin)| {
+                let midpoint = joints
+                    .map(|index| self.joints[index].location.to_vec())
+                    .into_iter()
+                    .sum::<Vector3<f32>>() / 3.0;
+                let alpha_index = self.create_joint(Point3::from_vec(midpoint));
+                let radial_intervals = joints.map(|omega_index|
+                    self.create_interval(alpha_index, omega_index, Link::pull(scale))
+                );
+                self.create_face(scale, spin, radial_intervals)
+            })
+            .next_chunk()
+            .unwrap();
         if let Some(id) = face_id { self.faces_to_loop(id, a_minus_face) }
         [(Aneg, a_minus_face), (Apos, a_plus_face)]
+    }
+
+    fn translation_matrix_for_base(base: [Point3<f32>; 3]) -> Matrix4<f32> {
+        let radial_x = base[0].to_vec();
+        let midpoint = base.into_iter().map(Point3::to_vec).sum::<Vector3<f32>>() / 3.0;
+        let v1 = base[1] - base[0];
+        let v2 = base[2] - base[0];
+        let normal = v1.cross(v2).normalize();
+        let length = midpoint.distance(radial_x);
+        Matrix4::from_scale(1.0 / length) *
+            Matrix4::from(Quaternion::between_vectors(normal, -Vector3::unit_y())) *
+            Matrix4::from(Quaternion::between_vectors(radial_x - midpoint, Vector3::unit_x())) *
+            Matrix4::from_translation(-midpoint)
     }
 
     pub fn double_twist(&mut self, spin: Spin, pretenst_factor: f32, scale_factor: f32, face_id: Option<UniqueId>) -> [(FaceName, UniqueId); 8] {

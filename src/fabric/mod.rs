@@ -99,9 +99,9 @@ impl Fabric {
         self.intervals.values()
     }
 
-    pub fn create_face(&mut self, scale: f32, spin: Spin, radial_intervals: [UniqueId; 3], push_intervals: [UniqueId; 3]) -> UniqueId {
+    pub fn create_face(&mut self, scale: f32, spin: Spin, radial_intervals: [UniqueId; 3]) -> UniqueId {
         let id = self.create_id();
-        self.faces.insert(id, Face { scale, spin, radial_intervals, push_intervals });
+        self.faces.insert(id, Face { scale, spin, radial_intervals });
         id
     }
 

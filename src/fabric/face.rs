@@ -14,7 +14,6 @@ pub struct Face {
     pub scale: f32,
     pub spin: Spin,
     pub radial_intervals: [UniqueId; 3],
-    pub push_intervals: [UniqueId; 3],
 }
 
 impl Face {
