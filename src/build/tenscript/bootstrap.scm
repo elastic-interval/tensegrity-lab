@@ -47,8 +47,9 @@
         (face B-
           (grow 2 (scale .9)
             (branch
-              (face C+ (mark :shoulders))
-              (face D+ (grow "....X..." (scale .93) (mark :hands))))))))
+              (face D+ (mark :shoulders))
+              (face C+ (grow "....X..." (scale .93) (mark :hands)))
+              )))))
     (shape
       (countdown 25000
         (space :legs .3)
