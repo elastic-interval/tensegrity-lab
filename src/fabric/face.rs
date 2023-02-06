@@ -46,7 +46,7 @@ impl Face {
             .map(|Interval { omega_index, .. }| *omega_index)
     }
 
-    pub fn space(&self, fabric: &Fabric, outward: bool) -> Matrix4<f32> {
+    pub fn vector_space(&self, fabric: &Fabric, outward: bool) -> Matrix4<f32> {
         let midpoint = self.midpoint(fabric);
         let [radial0, radial1, _] = self.radial_joint_locations(fabric);
         let (x_axis, y_axis, scale) = if outward {

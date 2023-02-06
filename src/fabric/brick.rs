@@ -1,4 +1,4 @@
-use cgmath::{EuclideanSpace, MetricSpace, Point3, Transform, Vector3};
+use cgmath::{EuclideanSpace, Point3, Transform, Vector3};
 
 use crate::build::brick::{Brick, BrickName};
 use crate::build::tenscript::FaceName;
@@ -17,13 +17,14 @@ impl Fabric {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
         let brick = Brick::new(brick_name);
-        let matrix = face.map(|face| face.space(self, true));
+        let matrix = face.map(|face| face.vector_space(self, true));
         let joints: Vec<usize> = brick.joints
-            .iter()
+            .into_iter()
             .map(|point| self.create_joint(match matrix {
-                None => *point,
-                Some(matrix) => matrix.transform_point(*point),
-            })).collect();
+                None => point,
+                Some(matrix) => matrix.transform_point(point),
+            }))
+            .collect();
         for (alpha, omega, role) in brick.intervals {
             let (alpha_index, omega_index) = (joints[alpha], joints[omega]);
             let distance = self.distance(alpha_index, omega_index);
@@ -54,35 +55,5 @@ impl Fabric {
             .expect("no Aneg face");
         if let Some(id) = face_id { self.join_faces(id, *a_neg_face) }
         faces
-    }
-
-    pub fn join_faces(&mut self, alpha_id: UniqueId, omega_id: UniqueId) {
-        let (alpha, omega) = (self.face(alpha_id), self.face(omega_id));
-        let (mut alpha_ends, omega_ends) = (alpha.radial_joints(self), omega.radial_joints(self));
-        alpha_ends.reverse();
-        let (mut alpha_points, omega_points) = (
-            alpha_ends.map(|id| self.location(id)),
-            omega_ends.map(|id| self.location(id))
-        );
-        let links = [(0, 0), (0, 1), (1, 1), (1, 2), (2, 2), (2, 0)];
-        let (_, alpha_rotated) = (0..3)
-            .map(|rotation| {
-                let length: f32 = links
-                    .map(|(a, b)| alpha_points[a].distance(omega_points[b]))
-                    .iter()
-                    .sum();
-                alpha_points.rotate_right(1);
-                let mut rotated = alpha_ends;
-                rotated.rotate_right(rotation);
-                (length, rotated)
-            })
-            .min_by(|(length_a, _), (length_b, _)| length_a.partial_cmp(length_b).unwrap())
-            .unwrap();
-        let ideal = (alpha.scale + omega.scale) / 2.0;
-        for (a, b) in links {
-            self.create_interval(alpha_rotated[a], omega_ends[b], Link::pull(ideal));
-        }
-        self.remove_face(alpha_id);
-        self.remove_face(omega_id);
     }
 }

@@ -23,7 +23,7 @@ pub mod interval;
 pub mod joint;
 pub mod physics;
 pub mod progress;
-pub mod twist;
+pub mod brick;
 pub mod vulcanize;
 
 #[derive(Clone)]
@@ -121,6 +121,36 @@ impl Fabric {
         }
         self.remove_joint(middle_joint);
         self.faces.remove(&id);
+    }
+
+    pub fn join_faces(&mut self, alpha_id: UniqueId, omega_id: UniqueId) {
+        let (alpha, omega) = (self.face(alpha_id), self.face(omega_id));
+        let (mut alpha_ends, omega_ends) = (alpha.radial_joints(self), omega.radial_joints(self));
+        alpha_ends.reverse();
+        let (mut alpha_points, omega_points) = (
+            alpha_ends.map(|id| self.location(id)),
+            omega_ends.map(|id| self.location(id))
+        );
+        let links = [(0, 0), (0, 1), (1, 1), (1, 2), (2, 2), (2, 0)];
+        let (_, alpha_rotated) = (0..3)
+            .map(|rotation| {
+                let length: f32 = links
+                    .map(|(a, b)| alpha_points[a].distance(omega_points[b]))
+                    .iter()
+                    .sum();
+                alpha_points.rotate_right(1);
+                let mut rotated = alpha_ends;
+                rotated.rotate_right(rotation);
+                (length, rotated)
+            })
+            .min_by(|(length_a, _), (length_b, _)| length_a.partial_cmp(length_b).unwrap())
+            .unwrap();
+        let ideal = (alpha.scale + omega.scale) / 2.0;
+        for (a, b) in links {
+            self.create_interval(alpha_rotated[a], omega_ends[b], Link::pull(ideal));
+        }
+        self.remove_face(alpha_id);
+        self.remove_face(omega_id);
     }
 
     pub fn apply_matrix4(&mut self, matrix: Matrix4<f32>) {
@@ -244,6 +274,7 @@ const DEFAULT_MATERIALS: [Material; 2] = [
 
 const DEFAULT_PUSH_MATERIAL: usize = 0;
 const DEFAULT_PULL_MATERIAL: usize = 1;
+
 impl Link {
     pub fn push(ideal: f32) -> Self {
         Self { ideal, material: DEFAULT_PUSH_MATERIAL }

@@ -90,7 +90,7 @@ impl Fabric {
         PairGenerator::new(self.joint_incident(), self.interval_map())
     }
 
-    pub(crate) fn joint_incident(&self) -> Vec<JointIncident> {
+    pub fn joint_incident(&self) -> Vec<JointIncident> {
         let mut incidents: Vec<_> = self.joints
             .iter()
             .enumerate()
