@@ -2,7 +2,7 @@
  * Copyright (c) 2020. Beautiful Code BV, Rotterdam, Netherlands
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
-use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion, Rotation, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Vector3};
 
 use crate::build::tenscript::{FaceName, Spin};
 use crate::fabric::{Fabric, UniqueId};
@@ -27,7 +27,7 @@ impl Face {
         let loc = self.radial_joint_locations(fabric);
         let v1 = loc[1] - loc[0];
         let v2 = loc[2] - loc[0];
-        v1.cross(v2).normalize()
+        v2.cross(v1).normalize()
     }
 
     pub fn radial_joint_locations(&self, fabric: &Fabric) -> [Point3<f32>; 3] {
@@ -46,13 +46,25 @@ impl Face {
             .map(|Interval { omega_index, .. }| *omega_index)
     }
 
-    pub fn space(&self, fabric: &Fabric) -> Matrix4<f32> {
+    pub fn space(&self, fabric: &Fabric, outward: bool) -> Matrix4<f32> {
         let midpoint = self.midpoint(fabric);
         let [radial0, radial1, _] = self.radial_joint_locations(fabric);
-        let radial_x = radial0.to_vec() + radial1.to_vec() - midpoint * 2.0;
+        let (x_axis, y_axis, scale) = if outward {
+            (
+                (radial0.to_vec() + radial1.to_vec() - midpoint * 2.0).normalize(),
+                self.normal(fabric),
+                self.scale
+            )
+        } else {
+            (
+                (radial0.to_vec() - midpoint).normalize(),
+                -self.normal(fabric),
+                (radial0.to_vec() - midpoint).magnitude(),
+            )
+        };
+        let z_axis = x_axis.cross(y_axis).normalize();
         Matrix4::from_translation(midpoint) *
-            Matrix4::from_scale(self.scale) *
-            Matrix4::from(Quaternion::between_vectors(Vector3::unit_y(), -self.normal(fabric))) *
-            Matrix4::from(Quaternion::between_vectors(Vector3::unit_x(), radial_x))
+            Matrix4::from(Matrix3::from_cols(x_axis, y_axis, z_axis)) *
+            Matrix4::from_scale(scale)
     }
 }
