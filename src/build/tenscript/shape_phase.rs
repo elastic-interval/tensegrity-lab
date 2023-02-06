@@ -136,7 +136,7 @@ impl ShapePhase {
                 let joints = self.marked_middle_joints(fabric, &faces);
                 match (joints.as_slice(), faces.as_slice()) {
                     (&[alpha_index, omega_index], &[alpha_face, omega_face]) => {
-                        let interval = fabric.create_interval(alpha_index, omega_index, Link::pull(0.3));
+                        let interval = fabric.create_interval(alpha_index, omega_index, Link::pull(0.01));
                         self.shapers.push(Shaper { interval, alpha_face, omega_face, mark_name, join: true })
                     }
                     _ => unimplemented!()

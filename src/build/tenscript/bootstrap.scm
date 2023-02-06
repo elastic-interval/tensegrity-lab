@@ -27,6 +27,7 @@
           (face D- (grow 11 (scale .92) (mark :halo-end))))))
     (shape
       (join :halo-end)
+      (remove-shapers) ; should automatically happen before vulcanize
       (vulcanize)
       (replace-faces)))
   (fabric

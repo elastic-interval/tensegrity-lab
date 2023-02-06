@@ -107,7 +107,7 @@ pub struct BuildPhase {
 }
 
 impl BuildPhase {
-    pub(super) fn from_pair(pair: Pair<Rule>) -> BuildPhase {
+    pub fn from_pair(pair: Pair<Rule>) -> BuildPhase {
         let mut phase = BuildPhase::default();
         for sub_pair in pair.into_inner() {
             match sub_pair.as_rule() {
@@ -199,6 +199,21 @@ impl BuildPhase {
         !self.buds.is_empty()
     }
 
+    pub fn init(&mut self, fabric: &mut Fabric) {
+        let BuildPhase { seed, root, .. } = &self;
+        match root {
+            None => {
+                self.twist(fabric, seed.needs_double(), seed.spin(), None);
+            }
+            Some(node) => {
+                let (buds, marks) =
+                    self.execute_node(fabric, Seeded { seed: seed.clone() }, node, vec![]);
+                self.buds = buds;
+                self.marks = marks;
+            }
+        }
+    }
+
     pub fn growth_step(&mut self, fabric: &mut Fabric) {
         let buds = self.buds.clone();
         self.buds.clear();
@@ -232,21 +247,6 @@ impl BuildPhase {
             marks.extend(node_marks);
         };
         (buds, marks)
-    }
-
-    pub fn init(&mut self, fabric: &mut Fabric) {
-        let BuildPhase { seed, root, .. } = &self;
-        match root {
-            None => {
-                self.twist(fabric, seed.needs_double(), seed.spin(), None);
-            }
-            Some(node) => {
-                let (buds, marks) =
-                    self.execute_node(fabric, Seeded { seed: seed.clone() }, node, vec![]);
-                self.buds = buds;
-                self.marks = marks;
-            }
-        }
     }
 
     fn execute_node(&self, fabric: &mut Fabric, launch: Launch, node: &BuildNode, faces: Vec<(FaceName, UniqueId)>) -> (Vec<Bud>, Vec<FaceMark>) {
