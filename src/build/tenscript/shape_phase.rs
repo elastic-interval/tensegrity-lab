@@ -184,7 +184,9 @@ impl ShapePhase {
                 StartCountdown(DEFAULT_VULCANIZE_COUNTDOWN)
             }
             Operation::ReplaceFaces => {
-                fabric.replace_faces();
+                for face_id in fabric.replace_faces() {
+                    fabric.remove_face(face_id);
+                }
                 Noop
             }
             Operation::SetViscosity { viscosity } =>
