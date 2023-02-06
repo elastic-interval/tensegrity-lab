@@ -1,5 +1,6 @@
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Quaternion, Rotation, Vector3};
 use pest::iterators::Pair;
+use crate::build::brick::BrickName;
 
 use crate::build::tenscript::{FaceMark, FaceName, Spin};
 use crate::build::tenscript::build_phase::BuildNode::{*};
@@ -213,7 +214,11 @@ impl BuildPhase {
         let face = fabric.face(face_id);
         let spin = if forward.starts_with('X') { face.spin.opposite() } else { face.spin };
         if !forward.is_empty() {
-            let faces = fabric.single_twist(spin, self.pretenst_factor(), scale_factor, Some(face_id));
+            let brick_name = match spin {
+                Spin::Left => BrickName::LeftTwist,
+                Spin::Right => BrickName::RightTwist,
+            };
+            let faces = fabric.attach_brick(brick_name, self.pretenst_factor(), scale_factor, Some(face_id));
             buds.push(Bud {
                 face_id: Self::find_face_id(Apos, faces.to_vec()),
                 forward: forward[1..].into(),
@@ -254,7 +259,11 @@ impl BuildPhase {
             Grow { forward, scale_factor, post_growth_node, .. } => {
                 let face_id = match launch {
                     Seeded { seed } => {
-                        let faces = fabric.single_twist(seed.spin(), self.pretenst_factor(), *scale_factor, None);
+                        let brick_name = match seed.spin() {
+                            Spin::Left => BrickName::LeftTwist,
+                            Spin::Right => BrickName::RightTwist,
+                        };
+                        let faces = fabric.attach_brick(brick_name, self.pretenst_factor(), *scale_factor, None);
                         return self.execute_node(fabric, NamedFace { face_name: Apos }, node, faces.to_vec());
                     }
                     NamedFace { face_name } => Self::find_face_id(face_name, faces),
@@ -299,12 +308,13 @@ impl BuildPhase {
     }
 
     fn twist(&self, fabric: &mut Fabric, needs_double: bool, spin: Spin, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
-        let faces =
-            if needs_double {
-                fabric.double_twist(spin, self.pretenst_factor(), 1.0, face_id).to_vec()
-            } else {
-                fabric.single_twist(spin, self.pretenst_factor(), 1.0, face_id).to_vec()
-            };
+        let brick_name = match spin {
+            Spin::Left if needs_double => BrickName::LeftOmniTwist,
+            Spin::Right if needs_double => BrickName::RightOmniTwist,
+            Spin::Left => BrickName::LeftTwist,
+            Spin::Right => BrickName::RightTwist,
+        };
+        let faces = fabric.attach_brick(brick_name, self.pretenst_factor(), 1.0, face_id).to_vec();
         let Seed { down_faces, .. } = &self.seed;
         if face_id.is_none() && !down_faces.is_empty() {
             Self::orient_fabric(fabric, &faces, down_faces);

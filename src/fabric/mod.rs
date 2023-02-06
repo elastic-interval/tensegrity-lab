@@ -79,6 +79,10 @@ impl Fabric {
         self.intervals.values_mut().for_each(|interval| interval.joint_removed(index));
     }
 
+    pub fn distance(&self, alpha_index: usize, omega_index: usize) -> f32 {
+        self.location(alpha_index).distance(self.location(omega_index))
+    }
+
     pub fn create_interval(&mut self, alpha_index: usize, omega_index: usize, Link { ideal, material }: Link) -> UniqueId {
         let id = self.create_id();
         let initial = self.joints[alpha_index].location.distance(self.joints[omega_index].location);
