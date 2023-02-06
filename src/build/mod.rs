@@ -5,3 +5,4 @@ pub mod sphere;
 pub mod tenscript;
 pub mod example;
 pub mod brick;
+pub mod brick_proto;
