@@ -52,7 +52,7 @@
               )))))
     (shape
       (countdown 25000
-        (space :legs .3)
+        (space :legs .5)
         (space :hands .01)
         (space :shoulders .05))
       (countdown 10000 (vulcanize))
