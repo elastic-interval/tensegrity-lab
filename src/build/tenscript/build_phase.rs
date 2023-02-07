@@ -101,7 +101,6 @@ enum Launch {
 pub struct BuildPhase {
     pub seed: Seed,
     pub root: Option<BuildNode>,
-    pub pretenst_factor: Option<f32>,
     pub buds: Vec<Bud>,
     pub marks: Vec<FaceMark>,
 }
@@ -233,7 +232,7 @@ impl BuildPhase {
                 Spin::Left => BrickName::LeftTwist,
                 Spin::Right => BrickName::RightTwist,
             };
-            let faces = fabric.attach_brick(brick_name, self.pretenst_factor(), scale_factor, Some(face_id));
+            let faces = fabric.attach_brick(brick_name, scale_factor, Some(face_id));
             buds.push(Bud {
                 face_id: Self::find_face_id(Apos, faces.to_vec()),
                 forward: forward[1..].into(),
@@ -263,7 +262,7 @@ impl BuildPhase {
                             Spin::Left => BrickName::LeftTwist,
                             Spin::Right => BrickName::RightTwist,
                         };
-                        let faces = fabric.attach_brick(brick_name, self.pretenst_factor(), *scale_factor, None);
+                        let faces = fabric.attach_brick(brick_name, *scale_factor, None);
                         return self.execute_node(fabric, NamedFace { face_name: Apos }, node, faces.to_vec());
                     }
                     NamedFace { face_name } => Self::find_face_id(face_name, faces),
@@ -314,7 +313,7 @@ impl BuildPhase {
             Spin::Left => BrickName::LeftTwist,
             Spin::Right => BrickName::RightTwist,
         };
-        let faces = fabric.attach_brick(brick_name, self.pretenst_factor(), 1.0, face_id).to_vec();
+        let faces = fabric.attach_brick(brick_name, 1.0, face_id).to_vec();
         let Seed { down_faces, .. } = &self.seed;
         if face_id.is_none() && !down_faces.is_empty() {
             Self::orient_fabric(fabric, &faces, down_faces);
@@ -355,9 +354,5 @@ impl BuildPhase {
             .find(|(name, _)| *name == face_name)
             .map(|(_, face_id)| *face_id)
             .unwrap()
-    }
-
-    fn pretenst_factor(&self) -> f32 {
-        self.pretenst_factor.unwrap_or(1.3)
     }
 }

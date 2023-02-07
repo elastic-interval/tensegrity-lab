@@ -8,7 +8,7 @@ use crate::build::tenscript::FaceMark;
 use crate::build::tenscript::shape_phase::Command::{*};
 use crate::fabric::{Fabric, Link, UniqueId};
 
-const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 20_000;
+const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 25_000;
 const DEFAULT_VULCANIZE_COUNTDOWN: usize = 5_000;
 
 pub enum Command {

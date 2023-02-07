@@ -82,6 +82,11 @@ impl Fabric {
     pub fn distance(&self, alpha_index: usize, omega_index: usize) -> f32 {
         self.location(alpha_index).distance(self.location(omega_index))
     }
+    
+    pub fn ideal(&self, alpha_index: usize, omega_index: usize, strain: f32) -> f32 {
+        let distance = self.distance(alpha_index, omega_index);
+        distance * (1.0-strain)
+    }
 
     pub fn create_interval(&mut self, alpha_index: usize, omega_index: usize, Link { ideal, material }: Link) -> UniqueId {
         let id = self.create_id();

@@ -1,6 +1,7 @@
-use std::f32::consts::{PI, SQRT_2};
+use std::f32::consts::PI;
 
 use cgmath::{EuclideanSpace, Point3, SquareMatrix, Vector3};
+use cgmath::num_traits::abs;
 use crate::build::brick::{Brick, BrickName};
 
 use crate::build::tenscript::FaceName::{*};
@@ -10,6 +11,8 @@ use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 
 impl Brick {
+    pub const TARGET_FACE_STRAIN: f32 = 0.1;
+
     pub fn into_code(self) -> String {
         let mut lines = Vec::<String>::new();
         lines.push("Brick {".to_string());
@@ -18,14 +21,14 @@ impl Brick {
         lines.extend(self.joints
             .into_iter()
             .map(|Point3 { x, y, z }|
-                format!("        Point3::new({x:.6}, {y:.6}, {z:.6}),")));
+                format!("        point3({x:.4}, {y:.4}, {z:.4}),")));
         lines.push("    ],".to_string());
 
         lines.push("    intervals: vec![".to_string());
         lines.extend(self.intervals
             .into_iter()
-            .map(|(alpha, omega, role)|
-                format!("        ({alpha}, {omega}, {role:?}),")));
+            .map(|(alpha, omega, role, strain)|
+                format!("        ({alpha}, {omega}, {role:?}, {strain:.4}),")));
         lines.push("    ],".to_string());
 
         lines.push("    faces: vec![".to_string());
@@ -40,39 +43,41 @@ impl Brick {
     }
 }
 
-impl From<(Fabric, UniqueId)> for Brick {
-    fn from((fabric, face_id): (Fabric, UniqueId)) -> Self {
+impl TryFrom<(Fabric, UniqueId)> for Brick {
+    type Error = String;
+
+    fn try_from((fabric, face_id): (Fabric, UniqueId)) -> Result<Self, String> {
         let mut fabric = fabric;
         let face = fabric.face(face_id);
         fabric.apply_matrix4(face.vector_space(&fabric, false).invert().unwrap());
         let joint_incident = fabric.joint_incident();
-        Self {
+        let target_face_strain = Brick::TARGET_FACE_STRAIN;
+        for face in fabric.faces.values() {
+            let strain = face.strain(&fabric);
+            if abs(strain - target_face_strain) > 0.0001 {
+                return Err(format!("Face interval strain too far from {target_face_strain} {strain:.5}"));
+            }
+        }
+        Ok(Self {
             joints: fabric.joints
                 .iter()
                 .map(|Joint { location, .. }| *location)
                 .collect(),
             intervals: fabric.interval_values()
-                .filter_map(|Interval { alpha_index, omega_index, material, .. }|
-                    joint_incident[*alpha_index]
-                        .push
-                        .map(|_| (*alpha_index, *omega_index, fabric.materials[*material].role)))
+                .filter_map(|Interval { alpha_index, omega_index, material, strain, .. }|
+                    joint_incident[*alpha_index].push
+                        .map(|_| (*alpha_index, *omega_index, fabric.materials[*material].role, *strain)))
                 .collect(),
             faces: fabric.faces
                 .values()
                 .map(|face| (face.radial_joints(&fabric), face.face_name, face.spin))
                 .collect(),
-        }
+        })
     }
 }
 
-const ROOT3: f32 = 1.732_050_8;
-const ROOT6: f32 = 2.449_489_8;
-const ROOT5: f32 = 2.236_068;
-const PHI: f32 = (1f32 + ROOT5) / 2f32;
-
 impl Brick {
     pub fn prototype(name: BrickName) -> (Fabric, UniqueId) {
-        let pretenst_factor = 1.3;
         let mut fabric = Fabric::default();
         let face_id = match name {
             BrickName::LeftTwist | BrickName::RightTwist => {
@@ -89,7 +94,7 @@ impl Brick {
                 let alpha_joints = bot.map(|point| fabric.create_joint(point));
                 let omega_joints = top.map(|point| fabric.create_joint(point));
                 for (&alpha_index, &omega_index) in alpha_joints.iter().zip(omega_joints.iter()) {
-                    fabric.create_interval(alpha_index, omega_index, Link::push(ROOT6 * pretenst_factor));
+                    fabric.create_interval(alpha_index, omega_index, Link::push(3.205));
                 }
                 let bot_middle = bot.into_iter().map(|p| p.to_vec()).sum::<Vector3<f32>>() / 3.0;
                 let alpha_midpoint = fabric.create_joint(Point3::from_vec(bot_middle));
@@ -107,15 +112,14 @@ impl Brick {
                 fabric.create_face(Apos, 1.0, spin, omega_radials);
                 let advanced_omega = omega_joints.iter().cycle().skip(to_skip).take(3);
                 for (&alpha_index, &omega_index) in alpha_joints.iter().zip(advanced_omega) {
-                    fabric.create_interval(alpha_index, omega_index, Link::pull(ROOT3));
+                    fabric.create_interval(alpha_index, omega_index, Link::pull(2.0));
                 }
                 alpha_face
             }
             BrickName::LeftOmniTwist | BrickName::RightOmniTwist => {
-                let factor = PHI * ROOT3 / 2.0 / SQRT_2;
                 let points @ [aaa, bbb, ccc, ddd] =
                     [(1.0, 1.0, 1.0), (1.0, -1.0, -1.0), (-1.0, -1.0, 1.0), (-1.0, 1.0, -1.0)]
-                        .map(|(x, y, z)| Point3::new(x, y, z) * factor);
+                        .map(|(x, y, z)| Point3::new(x, y, z));
                 let opposing_points = [[bbb, ddd, ccc], [aaa, ccc, ddd], [aaa, ddd, bbb], [bbb, ccc, aaa]]
                     .map(|points| points.map(Point3::to_vec).iter().sum::<Vector3<f32>>() / 3.0)
                     .map(Point3::from_vec);
@@ -134,7 +138,7 @@ impl Brick {
                 let pairs = [(ab, ba), (ac, ca), (ad, da), (bc, cb), (bd, db), (cd, dc)];
                 let [bdc, acd, adb, bca] = opposing_points.map(joint_at);
                 for (alpha_index, omega_index) in pairs {
-                    fabric.create_interval(alpha_index, omega_index, Link::push(PHI * ROOT3));
+                    fabric.create_interval(alpha_index, omega_index, Link::push(3.271));
                 }
                 let spin = match name {
                     BrickName::LeftOmniTwist => Left,

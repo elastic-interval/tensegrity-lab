@@ -46,6 +46,13 @@ impl Face {
             .map(|Interval { omega_index, .. }| *omega_index)
     }
 
+    pub fn strain(&self, fabric: &Fabric) -> f32 {
+        self.radial_intervals
+            .iter()
+            .map(|id| fabric.interval(*id).strain)
+            .sum::<f32>() / 3.0
+    }
+
     pub fn vector_space(&self, fabric: &Fabric, outward: bool) -> Matrix4<f32> {
         let midpoint = self.midpoint(fabric);
         let [radial0, radial1, _] = self.radial_joint_locations(fabric);
