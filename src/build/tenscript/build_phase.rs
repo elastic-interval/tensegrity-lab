@@ -1,5 +1,6 @@
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Quaternion, Rotation, Vector3};
 use pest::iterators::Pair;
+use crate::build::brick::BrickName;
 
 use crate::build::tenscript::{FaceMark, FaceName, Spin};
 use crate::build::tenscript::build_phase::BuildNode::{*};
@@ -100,13 +101,12 @@ enum Launch {
 pub struct BuildPhase {
     pub seed: Seed,
     pub root: Option<BuildNode>,
-    pub pretenst_factor: Option<f32>,
     pub buds: Vec<Bud>,
     pub marks: Vec<FaceMark>,
 }
 
 impl BuildPhase {
-    pub(super) fn from_pair(pair: Pair<Rule>) -> BuildPhase {
+    pub fn from_pair(pair: Pair<Rule>) -> BuildPhase {
         let mut phase = BuildPhase::default();
         for sub_pair in pair.into_inner() {
             match sub_pair.as_rule() {
@@ -198,6 +198,22 @@ impl BuildPhase {
         !self.buds.is_empty()
     }
 
+    pub fn init(&mut self, fabric: &mut Fabric) {
+        let BuildPhase { seed, root, .. } = &self;
+        match root {
+            None => {
+                // TODO: this should be called attach_brick() and it should take a BrickName 
+                self.twist(fabric, seed.needs_double(), seed.spin(), None);
+            }
+            Some(node) => {
+                let (buds, marks) =
+                    self.execute_node(fabric, Seeded { seed: seed.clone() }, node, vec![]);
+                self.buds = buds;
+                self.marks = marks;
+            }
+        }
+    }
+
     pub fn growth_step(&mut self, fabric: &mut Fabric) {
         let buds = self.buds.clone();
         self.buds.clear();
@@ -213,7 +229,11 @@ impl BuildPhase {
         let face = fabric.face(face_id);
         let spin = if forward.starts_with('X') { face.spin.opposite() } else { face.spin };
         if !forward.is_empty() {
-            let faces = fabric.single_twist(spin, self.pretenst_factor(), scale_factor, Some(face_id));
+            let brick_name = match spin {
+                Spin::Left => BrickName::LeftTwist,
+                Spin::Right => BrickName::RightTwist,
+            };
+            let faces = fabric.attach_brick(brick_name, scale_factor, Some(face_id));
             buds.push(Bud {
                 face_id: Self::find_face_id(Apos, faces.to_vec()),
                 forward: forward[1..].into(),
@@ -229,21 +249,6 @@ impl BuildPhase {
         (buds, marks)
     }
 
-    pub fn init(&mut self, fabric: &mut Fabric) {
-        let BuildPhase { seed, root, .. } = &self;
-        match root {
-            None => {
-                self.twist(fabric, seed.needs_double(), seed.spin(), None);
-            }
-            Some(node) => {
-                let (buds, marks) =
-                    self.execute_node(fabric, Seeded { seed: seed.clone() }, node, vec![]);
-                self.buds = buds;
-                self.marks = marks;
-            }
-        }
-    }
-
     fn execute_node(&self, fabric: &mut Fabric, launch: Launch, node: &BuildNode, faces: Vec<(FaceName, UniqueId)>) -> (Vec<Bud>, Vec<FaceMark>) {
         let mut buds: Vec<Bud> = vec![];
         let mut marks: Vec<FaceMark> = vec![];
@@ -254,7 +259,11 @@ impl BuildPhase {
             Grow { forward, scale_factor, post_growth_node, .. } => {
                 let face_id = match launch {
                     Seeded { seed } => {
-                        let faces = fabric.single_twist(seed.spin(), self.pretenst_factor(), *scale_factor, None);
+                        let brick_name = match seed.spin() {
+                            Spin::Left => BrickName::LeftTwist,
+                            Spin::Right => BrickName::RightTwist,
+                        };
+                        let faces = fabric.attach_brick(brick_name, *scale_factor, None);
                         return self.execute_node(fabric, NamedFace { face_name: Apos }, node, faces.to_vec());
                     }
                     NamedFace { face_name } => Self::find_face_id(face_name, faces),
@@ -299,12 +308,13 @@ impl BuildPhase {
     }
 
     fn twist(&self, fabric: &mut Fabric, needs_double: bool, spin: Spin, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
-        let faces =
-            if needs_double {
-                fabric.double_twist(spin, self.pretenst_factor(), 1.0, face_id).to_vec()
-            } else {
-                fabric.single_twist(spin, self.pretenst_factor(), 1.0, face_id).to_vec()
-            };
+        let brick_name = match spin {
+            Spin::Left if needs_double => BrickName::LeftOmniTwist,
+            Spin::Right if needs_double => BrickName::RightOmniTwist,
+            Spin::Left => BrickName::LeftTwist,
+            Spin::Right => BrickName::RightTwist,
+        };
+        let faces = fabric.attach_brick(brick_name, 1.0, face_id).to_vec();
         let Seed { down_faces, .. } = &self.seed;
         if face_id.is_none() && !down_faces.is_empty() {
             Self::orient_fabric(fabric, &faces, down_faces);
@@ -328,7 +338,7 @@ impl BuildPhase {
         let mut new_down: Vector3<f32> = faces
             .iter()
             .filter(|(face_name, _)| down_faces.contains(face_name))
-            .map(|(_, face_id)| fabric.face(*face_id).normal(&fabric.joints, fabric))
+            .map(|(_, face_id)| fabric.face(*face_id).normal(fabric))
             .sum();
         new_down = new_down.normalize();
         let midpoint = fabric.midpoint().to_vec();
@@ -345,9 +355,5 @@ impl BuildPhase {
             .find(|(name, _)| *name == face_name)
             .map(|(_, face_id)| *face_id)
             .unwrap()
-    }
-
-    fn pretenst_factor(&self) -> f32 {
-        self.pretenst_factor.unwrap_or(1.3)
     }
 }

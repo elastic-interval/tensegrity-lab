@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+
 use cgmath::{MetricSpace, Point3};
 
 use crate::fabric::{Fabric, UniqueId};
@@ -89,7 +90,7 @@ impl Fabric {
         PairGenerator::new(self.joint_incident(), self.interval_map())
     }
 
-    fn joint_incident(&self) -> Vec<JointIncident> {
+    pub fn joint_incident(&self) -> Vec<JointIncident> {
         let mut incidents: Vec<_> = self.joints
             .iter()
             .enumerate()
@@ -110,13 +111,13 @@ impl Fabric {
 }
 
 #[derive(Debug, Clone)]
-struct JointIncident {
-    index: usize,
-    location: Point3<f32>,
-    push: Option<Interval>,
-    pulls: Vec<Interval>,
-    pull_adjacent_joints: HashSet<usize>,
-    adjacent_joints: HashSet<usize>,
+pub struct JointIncident {
+    pub index: usize,
+    pub location: Point3<f32>,
+    pub push: Option<Interval>,
+    pub pulls: Vec<Interval>,
+    pub pull_adjacent_joints: HashSet<usize>,
+    pub adjacent_joints: HashSet<usize>,
 }
 
 impl JointIncident {

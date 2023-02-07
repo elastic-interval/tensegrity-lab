@@ -9,7 +9,7 @@ use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter::{*};
 
 const RESURFACE: f32 = 0.01;
-const AMBIENT_MASS: f32 = 0.001;
+const AMBIENT_MASS: f32 = 0.01;
 const STICKY_DOWN_DRAG_FACTOR: f32 = 0.8;
 
 #[derive(Clone, Copy, Debug)]

@@ -8,7 +8,7 @@ use crate::build::tenscript::FaceMark;
 use crate::build::tenscript::shape_phase::Command::{*};
 use crate::fabric::{Fabric, Link, UniqueId};
 
-const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 20_000;
+const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 25_000;
 const DEFAULT_VULCANIZE_COUNTDOWN: usize = 5_000;
 
 pub enum Command {
@@ -136,7 +136,7 @@ impl ShapePhase {
                 let joints = self.marked_middle_joints(fabric, &faces);
                 match (joints.as_slice(), faces.as_slice()) {
                     (&[alpha_index, omega_index], &[alpha_face, omega_face]) => {
-                        let interval = fabric.create_interval(alpha_index, omega_index, Link::pull(0.3));
+                        let interval = fabric.create_interval(alpha_index, omega_index, Link::pull(0.01));
                         self.shapers.push(Shaper { interval, alpha_face, omega_face, mark_name, join: true })
                     }
                     _ => unimplemented!()
@@ -184,7 +184,9 @@ impl ShapePhase {
                 StartCountdown(DEFAULT_VULCANIZE_COUNTDOWN)
             }
             Operation::ReplaceFaces => {
-                fabric.replace_faces();
+                for face_id in fabric.replace_faces() {
+                    fabric.remove_face(face_id);
+                }
                 Noop
             }
             Operation::SetViscosity { viscosity } =>
@@ -194,39 +196,9 @@ impl ShapePhase {
 
     fn complete_shaper(&self, fabric: &mut Fabric, Shaper { interval, alpha_face, omega_face, join, .. }: Shaper) {
         if join {
-            self.join_faces(fabric, alpha_face, omega_face);
+            fabric.join_faces(alpha_face, omega_face);
         }
         fabric.remove_interval(interval);
-    }
-
-    fn join_faces(&self, fabric: &mut Fabric, alpha_id: UniqueId, omega_id: UniqueId) {
-        let (alpha, omega) = (fabric.face(alpha_id), fabric.face(omega_id));
-        let (mut alpha_ends, omega_ends) = (alpha.radial_joints(fabric), omega.radial_joints(fabric));
-        alpha_ends.reverse();
-        let (mut alpha_points, omega_points) = (
-            alpha_ends.map(|id| fabric.location(id)),
-            omega_ends.map(|id| fabric.location(id))
-        );
-        let links = [(0, 0), (0, 1), (1, 1), (1, 2), (2, 2), (2, 0)];
-        let (_, alpha_rotated) = (0..3)
-            .map(|rotation| {
-                let length: f32 = links
-                    .map(|(a, b)| alpha_points[a].distance(omega_points[b]))
-                    .iter()
-                    .sum();
-                alpha_points.rotate_right(1);
-                let mut rotated = alpha_ends;
-                rotated.rotate_right(rotation);
-                (length, rotated)
-            })
-            .min_by(|(length_a, _), (length_b, _)| length_a.partial_cmp(length_b).unwrap())
-            .unwrap();
-        let ideal = (alpha.scale + omega.scale) / 2.0;
-        for (a, b) in links {
-            fabric.create_interval(alpha_rotated[a], omega_ends[b], Link::pull(ideal));
-        }
-        fabric.remove_face(alpha_id);
-        fabric.remove_face(omega_id);
     }
 
     fn marked_faces(&self, mark_name: &String) -> Vec<UniqueId> {

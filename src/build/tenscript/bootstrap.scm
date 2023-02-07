@@ -2,7 +2,7 @@
   (fabric
     (name "Seed")
     (build
-      (seed :right-left)))
+      (seed :left)))
   (fabric
     (name "Knee")
     (build
@@ -27,6 +27,7 @@
           (face D- (grow 11 (scale .92) (mark :halo-end))))))
     (shape
       (join :halo-end)
+      (remove-shapers) ; TODO: should automatically happen before vulcanize
       (vulcanize)
       (replace-faces)))
   (fabric
@@ -46,11 +47,12 @@
         (face B-
           (grow 2 (scale .9)
             (branch
-              (face C+ (mark :shoulders))
-              (face D+ (grow "....X..." (scale .93) (mark :hands))))))))
+              (face D+ (mark :shoulders))
+              (face C+ (grow "....X..." (scale .93) (mark :hands)))
+              )))))
     (shape
       (countdown 25000
-        (space :legs .3)
+        (space :legs .5)
         (space :hands .01)
         (space :shoulders .05))
       (countdown 10000 (vulcanize))
