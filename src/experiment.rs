@@ -6,7 +6,7 @@ use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::experiment::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::physics::Physics;
-use crate::fabric::physics::presets::{AIR_GRAVITY, LIQUID};
+use crate::fabric::physics::presets::{AIR_GRAVITY, PROTOTYPE_FORMATION};
 
 const PULL_SHORTENING: f32 = 0.95;
 
@@ -80,7 +80,6 @@ impl Experiment {
                     }
                 }
             }
-
             Pretensing => {
                 for _ in 0..self.iterations_per_frame {
                     self.fabric.iterate(&self.physics);
@@ -112,13 +111,20 @@ impl Experiment {
             RunningPrototype(face_id) => {
                 let mut speed_squared = 1.0;
                 for _ in 0..self.iterations_per_frame {
-                    speed_squared = self.fabric.iterate(&LIQUID);
+                    speed_squared = self.fabric.iterate(&PROTOTYPE_FORMATION);
                 }
                 let age = self.fabric.age;
                 if age > 1000 && speed_squared < 1e-12 {
                     println!("Fabric settled in iteration {age} at speed squared {speed_squared}");
-                    let brick = Brick::from((self.fabric.clone(), *face_id));
-                    println!("{}", brick.into_code());
+                    match Brick::try_from((self.fabric.clone(), *face_id)) {
+                        Ok(brick) => {
+                            println!("{}", brick.into_code());
+                        }
+                        Err(problem) => {
+                            println!("Cannot create brick: {problem}");
+                        }
+                    }
+
                     self.stage = Empty
                 }
             }
