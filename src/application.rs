@@ -14,7 +14,8 @@ use winit::window::Window;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use crate::controls::{GUI, ControlMessage, VisibleControl};
+use crate::build::brick::BrickName;
+use crate::controls::{ControlMessage, GUI, VisibleControl};
 use crate::controls::Action;
 use crate::controls::strain_threshold::StrainThresholdMessage;
 use crate::experiment::Experiment;
@@ -70,9 +71,8 @@ impl Application {
     }
 }
 
-
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
-pub fn run() {
+pub fn run_with(brick_name: Option<BrickName>) {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -109,6 +109,9 @@ pub fn run() {
     let graphics = pollster::block_on(GraphicsWindow::new(&window));
     let mut app = Application::new(graphics, &window);
     let mut experiment = Experiment::default();
+    if let Some(brick_name) = brick_name {
+        experiment.capture_prototype(brick_name);
+    }
 
     event_loop.run(move |event, _, control_flow| {
         match event {

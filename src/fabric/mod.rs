@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use cgmath::{EuclideanSpace, Matrix4, MetricSpace, Point3, Transform, Vector3};
 use cgmath::num_traits::zero;
 
-use crate::build::tenscript::Spin;
+use crate::build::tenscript::{FaceName, Spin};
 use crate::fabric::face::Face;
 use crate::fabric::interval::{Interval, Material};
 use crate::fabric::interval::Role::{Pull, Push};
@@ -23,7 +23,7 @@ pub mod interval;
 pub mod joint;
 pub mod physics;
 pub mod progress;
-pub mod twist;
+pub mod brick;
 pub mod vulcanize;
 
 #[derive(Clone)]
@@ -79,6 +79,15 @@ impl Fabric {
         self.intervals.values_mut().for_each(|interval| interval.joint_removed(index));
     }
 
+    pub fn distance(&self, alpha_index: usize, omega_index: usize) -> f32 {
+        self.location(alpha_index).distance(self.location(omega_index))
+    }
+
+    pub fn ideal(&self, alpha_index: usize, omega_index: usize, strain: f32) -> f32 {
+        let distance = self.distance(alpha_index, omega_index);
+        distance / (1.0 + strain)
+    }
+
     pub fn create_interval(&mut self, alpha_index: usize, omega_index: usize, Link { ideal, material }: Link) -> UniqueId {
         let id = self.create_id();
         let initial = self.joints[alpha_index].location.distance(self.joints[omega_index].location);
@@ -99,9 +108,9 @@ impl Fabric {
         self.intervals.values()
     }
 
-    pub fn create_face(&mut self, scale: f32, spin: Spin, radial_intervals: [UniqueId; 3], push_intervals: [UniqueId; 3]) -> UniqueId {
+    pub fn create_face(&mut self, face_name: FaceName, scale: f32, spin: Spin, radial_intervals: [UniqueId; 3]) -> UniqueId {
         let id = self.create_id();
-        self.faces.insert(id, Face { scale, spin, radial_intervals, push_intervals });
+        self.faces.insert(id, Face { face_name, scale, spin, radial_intervals });
         id
     }
 
@@ -117,6 +126,36 @@ impl Fabric {
         }
         self.remove_joint(middle_joint);
         self.faces.remove(&id);
+    }
+
+    pub fn join_faces(&mut self, alpha_id: UniqueId, omega_id: UniqueId) {
+        let (alpha, omega) = (self.face(alpha_id), self.face(omega_id));
+        let (mut alpha_ends, omega_ends) = (alpha.radial_joints(self), omega.radial_joints(self));
+        alpha_ends.reverse();
+        let (mut alpha_points, omega_points) = (
+            alpha_ends.map(|id| self.location(id)),
+            omega_ends.map(|id| self.location(id))
+        );
+        let links = [(0, 0), (0, 1), (1, 1), (1, 2), (2, 2), (2, 0)];
+        let (_, alpha_rotated) = (0..3)
+            .map(|rotation| {
+                let length: f32 = links
+                    .map(|(a, b)| alpha_points[a].distance(omega_points[b]))
+                    .iter()
+                    .sum();
+                alpha_points.rotate_right(1);
+                let mut rotated = alpha_ends;
+                rotated.rotate_right(rotation);
+                (length, rotated)
+            })
+            .min_by(|(length_a, _), (length_b, _)| length_a.partial_cmp(length_b).unwrap())
+            .unwrap();
+        let ideal = (alpha.scale + omega.scale) / 2.0;
+        for (a, b) in links {
+            self.create_interval(alpha_rotated[a], omega_ends[b], Link::pull(ideal));
+        }
+        self.remove_face(alpha_id);
+        self.remove_face(omega_id);
     }
 
     pub fn apply_matrix4(&mut self, matrix: Matrix4<f32>) {
@@ -240,6 +279,7 @@ const DEFAULT_MATERIALS: [Material; 2] = [
 
 const DEFAULT_PUSH_MATERIAL: usize = 0;
 const DEFAULT_PULL_MATERIAL: usize = 1;
+
 impl Link {
     pub fn push(ideal: f32) -> Self {
         Self { ideal, material: DEFAULT_PUSH_MATERIAL }

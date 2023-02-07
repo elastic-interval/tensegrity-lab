@@ -17,7 +17,7 @@ mod tests {
         assert_eq!(fab.intervals.len(), 41);
         let mut pushes = 0usize;
         for interval in fab.interval_values() {
-            if interval.role == Role::Push { pushes += 1 }
+            if fab.materials[interval.material].role == Role::Push { pushes += 1 }
         }
         assert_eq!(pushes, 9);
     }
@@ -110,10 +110,9 @@ mod tests {
         let mut pushes = 0usize;
         let mut pulls = 0usize;
         for interval in ball.interval_values() {
-            match interval.role {
+            match ball.materials[interval.material].role {
                 Role::Push => pushes += 1,
                 Role::Pull => pulls += 1,
-                _=> panic!()
             }
         }
         assert_eq!(pushes, expect_pushes);
@@ -132,10 +131,9 @@ mod tests {
                 let mut pushes = 0usize;
                 let mut pulls = 0usize;
                 for interval in intervals {
-                    match interval.role {
+                    match fabric.materials[interval.material].role {
                         Role::Push => pushes += 1,
                         Role::Pull => pulls += 1,
-                        _=> panic!()
                     }
                 }
                 (pushes, pulls)

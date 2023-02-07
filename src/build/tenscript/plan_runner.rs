@@ -43,12 +43,12 @@ impl PlanRunner {
         let (next_stage, countdown) = match self.stage {
             Initialize => {
                 self.build_phase.init(fabric);
-                (GrowApproach, 1500)
+                (GrowApproach, 200)
             }
             GrowStep => {
                 if self.build_phase.is_growing() {
                     self.build_phase.growth_step(fabric);
-                    (GrowApproach, 1500)
+                    (GrowApproach, 200)
                 } else if self.shape_phase.needs_shaping() {
                     self.shape_phase.marks = self.build_phase.marks.split_off(0);
                     (Shaping, 0)
@@ -57,7 +57,7 @@ impl PlanRunner {
                 }
             }
             GrowApproach =>
-                (GrowCalm, 1500),
+                (GrowCalm, 200),
             GrowCalm =>
                 (GrowStep, 0),
             Shaping =>
