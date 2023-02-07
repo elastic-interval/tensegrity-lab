@@ -202,6 +202,7 @@ impl BuildPhase {
         let BuildPhase { seed, root, .. } = &self;
         match root {
             None => {
+                // TODO: this should be called attach_brick() and it should take a BrickName 
                 self.twist(fabric, seed.needs_double(), seed.spin(), None);
             }
             Some(node) => {
