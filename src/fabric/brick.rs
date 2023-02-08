@@ -2,7 +2,6 @@ use cgmath::{EuclideanSpace, Point3, Transform, Vector3};
 
 use crate::build::brick::{Brick, BrickName};
 use crate::build::tenscript::FaceName;
-use crate::build::tenscript::FaceName::{*};
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::fabric::face::Face;
 use crate::fabric::interval::Role;
@@ -51,7 +50,7 @@ impl Fabric {
             .collect();
         let a_neg_face = faces
             .iter()
-            .find_map(|(face_name, face_id)| (*face_name == Aneg).then_some(face_id))
+            .find_map(|(FaceName(index), face_id)| (*index == 0).then_some(face_id))
             .expect("no Aneg face");
         if let Some(id) = face_id { self.join_faces(id, *a_neg_face) }
         faces

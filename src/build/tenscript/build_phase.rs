@@ -6,7 +6,6 @@ use crate::build::tenscript::{FaceMark, FaceName, Spin};
 use crate::build::tenscript::build_phase::BuildNode::{*};
 use crate::build::tenscript::build_phase::Launch::{*};
 use crate::build::tenscript::fabric_plan::Rule;
-use crate::build::tenscript::FaceName::Apos;
 use crate::fabric::{Fabric, UniqueId};
 
 #[derive(Debug, Default, Clone)]
@@ -235,7 +234,7 @@ impl BuildPhase {
             };
             let faces = fabric.attach_brick(brick_name, scale_factor, Some(face_id));
             buds.push(Bud {
-                face_id: Self::find_face_id(Apos, faces.to_vec()),
+                face_id: Self::find_face_id(FaceName(1), faces.to_vec()),
                 forward: forward[1..].into(),
                 scale_factor,
                 node,
@@ -264,7 +263,7 @@ impl BuildPhase {
                             Spin::Right => BrickName::RightTwist,
                         };
                         let faces = fabric.attach_brick(brick_name, *scale_factor, None);
-                        return self.execute_node(fabric, NamedFace { face_name: Apos }, node, faces.to_vec());
+                        return self.execute_node(fabric, NamedFace { face_name: FaceName(1) }, node, faces.to_vec());
                     }
                     NamedFace { face_name } => Self::find_face_id(face_name, faces),
                     IdentifiedFace { face_id } => face_id,
@@ -274,7 +273,7 @@ impl BuildPhase {
             }
             Branch { face_nodes } => {
                 let pairs = Self::branch_pairs(face_nodes);
-                let any_special_face = pairs.iter().any(|(face_name, _)| *face_name != Apos);
+                let any_special_face = pairs.iter().any(|(FaceName(index), _)| *index > 1);
                 let (spin, face_id, needs_double) = match launch {
                     Seeded { seed } => (seed.spin(), None, seed.needs_double()),
                     NamedFace { face_name } => {

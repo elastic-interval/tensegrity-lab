@@ -90,13 +90,6 @@ face = {
     ")"
 }
 
-face_name = {
-    "A-" | "B-" |
-    "C-" | "D-" |
-    "A+" | "B+" |
-    "C+" | "D+"
-}
-
 grow = {
     "(" ~ "grow" ~
     (integer | forward) ~
@@ -149,6 +142,8 @@ surface_character = {
     ":frozen" |
     ":sticky"
 }
+
+face_name = @{"F" ~ integer}
 
 ident = @{
     XID_START ~ (XID_CONTINUE | "-")*

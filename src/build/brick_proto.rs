@@ -4,9 +4,7 @@ use cgmath::{EuclideanSpace, Point3, SquareMatrix, Vector3};
 use cgmath::num_traits::abs;
 
 use crate::build::brick::{Brick, BrickName};
-use crate::build::brick::BrickName::LeftMitosis;
 use crate::build::tenscript::{FaceName, Spin};
-use crate::build::tenscript::FaceName::{*};
 use crate::build::tenscript::Spin::{Left, Right};
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::fabric::interval::Interval;
@@ -105,13 +103,13 @@ impl Brick {
                 });
                 let mut alpha_radials_reversed = alpha_radials;
                 alpha_radials_reversed.reverse();
-                let alpha_face = fabric.create_face(Aneg, 1.0, spin, alpha_radials_reversed);
+                let alpha_face = fabric.create_face(FaceName(0), 1.0, spin, alpha_radials_reversed);
                 let top_middle = top.into_iter().map(|p| p.to_vec()).sum::<Vector3<f32>>() / 3.0;
                 let omega_midpoint = fabric.create_joint(Point3::from_vec(top_middle));
                 let omega_radials = omega_joints.map(|joint| {
                     fabric.create_interval(omega_midpoint, joint, Link::pull(1.0))
                 });
-                fabric.create_face(Apos, 1.0, spin, omega_radials);
+                fabric.create_face(FaceName(1), 1.0, spin, omega_radials);
                 let advanced_omega = omega_joints.iter().cycle().skip(to_skip).take(3);
                 for (&alpha_index, &omega_index) in alpha_joints.iter().zip(advanced_omega) {
                     fabric.create_interval(alpha_index, omega_index, Link::pull(2.0));
@@ -149,14 +147,14 @@ impl Brick {
                     _ => unreachable!(),
                 };
                 let face_facts = [
-                    (a, [ab, ac, ad], spin.opposite(), Aneg),
-                    (b, [ba, bd, bc], spin.opposite(), Bneg),
-                    (c, [ca, cb, cd], spin.opposite(), Cneg),
-                    (d, [da, dc, db], spin.opposite(), Dneg),
-                    (bdc, if spin == Right { [bd, dc, cb] } else { [db, cd, bc] }, spin, Apos),
-                    (acd, if spin == Right { [ac, cd, da] } else { [ca, dc, ad] }, spin, Bpos),
-                    (adb, if spin == Right { [ad, db, ba] } else { [da, bd, ab] }, spin, Cpos),
-                    (bca, if spin == Right { [bc, ca, ab] } else { [cb, ac, ba] }, spin, Dpos),
+                    (a, [ab, ac, ad], spin.opposite(), FaceName(0)),
+                    (b, [ba, bd, bc], spin.opposite(), FaceName(2)),
+                    (c, [ca, cb, cd], spin.opposite(), FaceName(4)),
+                    (d, [da, dc, db], spin.opposite(), FaceName(6)),
+                    (bdc, if spin == Right { [bd, dc, cb] } else { [db, cd, bc] }, spin, FaceName(1)),
+                    (acd, if spin == Right { [ac, cd, da] } else { [ca, dc, ad] }, spin, FaceName(3)),
+                    (adb, if spin == Right { [ad, db, ba] } else { [da, bd, ab] }, spin, FaceName(5)),
+                    (bca, if spin == Right { [bc, ca, ab] } else { [cb, ac, ba] }, spin, FaceName(7)),
                 ];
                 let faces = face_facts
                     .map(|(alpha_index, omega_indexes, spin, face_name)| {
@@ -195,26 +193,26 @@ impl Brick {
                     (middle_back, back_right_bottom),
                     (middle_back, back_right_top),
                 ]);
-                let left = name == LeftMitosis;
+                let left = name == BrickName::LeftMitosis;
                 p.left(&[
                     ([top_left, left_back, back_left_top],
-                     if left { Aneg } else { Dpos }),
+                     if left { FaceName(0) } else { FaceName(7) }),
                     ([bottom_left, left_front, front_left_bottom],
-                     if left { Bneg } else { Cpos }),
+                     if left { FaceName(2) } else { FaceName(5) }),
                     ([top_right, right_front, front_right_top],
-                     if left { Cneg } else { Bpos }),
+                     if left { FaceName(4) } else { FaceName(3) }),
                     ([bottom_right, right_back, back_right_bottom],
-                     if left { Dneg } else { Apos }),
+                     if left { FaceName(6) } else { FaceName(1) }),
                 ]);
                 p.right(&[
                     ([top_left, front_left_top, left_front],
-                     if left { Dpos } else { Aneg }),
+                     if left { FaceName(7) } else { FaceName(0) }),
                     ([bottom_left, back_left_bottom, left_back],
-                     if left { Cpos } else { Bneg }),
+                     if left { FaceName(5) } else { FaceName(2) }),
                     ([top_right, back_right_top, right_back],
-                     if left { Bpos } else { Cneg }),
+                     if left { FaceName(3) } else { FaceName(4) }),
                     ([bottom_right, front_right_bottom, right_front],
-                     if left { Apos } else { Dneg }),
+                     if left { FaceName(1) } else { FaceName(6) }),
                 ]);
                 p.into()
             }
@@ -280,7 +278,7 @@ impl Prototype {
             let radial_intervals = indices
                 .map(|omega_index| self.fabric.create_interval(alpha_index, omega_index, Link::pull(1.0))); //??)
             let face_id = self.fabric.create_face(face_name, 1.0, spin, radial_intervals);
-            if face_name == Aneg {
+            if face_name == FaceName(0) {
                 self.face_id = Some(face_id);
             }
         }
