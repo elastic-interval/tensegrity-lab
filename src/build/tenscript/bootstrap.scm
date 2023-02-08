@@ -8,8 +8,8 @@
     (build
       (seed :right-left)
       (branch
-        (face A+ (grow 3))
-        (face B+ (grow 3))))
+        (face F1 (grow 3))
+        (face F3 (grow 3))))
     (shape
       (vulcanize)
       (replace-faces)))
@@ -23,8 +23,8 @@
     (build
       (grow 4 (scale .92)
         (branch
-          (face B- (grow 12 (scale .92) (mark :halo-end)))
-          (face D- (grow 11 (scale .92) (mark :halo-end))))))
+          (face F2 (grow 12 (scale .92) (mark :halo-end)))
+          (face F6 (grow 11 (scale .92) (mark :halo-end))))))
     (shape
       (join :halo-end)
       (remove-shapers) ; TODO: should automatically happen before vulcanize
@@ -34,21 +34,21 @@
     (name "Headless Hug")
     (build
       (seed :right-left
-        (orient-down A- B+))
+        (orient-down F0 F3))
       (branch
-        (face A- (grow "....X.." (scale .95) (mark :legs)))
-        (face B+ (grow "....X.." (scale .95) (mark :legs)))
-        (face A+
+        (face F0 (grow "....X.." (scale .95) (mark :legs)))
+        (face F3 (grow "....X.." (scale .95) (mark :legs)))
+        (face F1
           (grow 2 (scale .9)
             (branch
-              (face C+ (mark :shoulders))
-              (face D+ (grow "....X..." (scale .93) (mark :hands)))
+              (face F5 (mark :shoulders))
+              (face F7 (grow "....X..." (scale .93) (mark :hands)))
               )))
-        (face B-
+        (face F2
           (grow 2 (scale .9)
             (branch
-              (face D+ (mark :shoulders))
-              (face C+ (grow "....X..." (scale .93) (mark :hands)))
+              (face F7 (mark :shoulders))
+              (face F5 (grow "....X..." (scale .93) (mark :hands)))
               )))))
     (shape
       (countdown 25000

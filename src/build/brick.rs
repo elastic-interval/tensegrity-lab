@@ -2,7 +2,6 @@ use cgmath::{Point3, point3};
 use clap::ValueEnum;
 
 use crate::build::tenscript::{FaceName, Spin};
-use crate::build::tenscript::FaceName::{*};
 use crate::build::tenscript::Spin::{Left, Right};
 use crate::fabric::interval::Role;
 use crate::fabric::interval::Role::{Pull, Push};
@@ -47,8 +46,8 @@ impl Brick {
                     (0, 5, Pull, 0.1176),
                 ],
                 faces: vec![
-                    ([3, 4, 5], Apos, Left),
-                    ([2, 1, 0], Aneg, Left),
+                    ([3, 4, 5], FaceName(1), Left),
+                    ([2, 1, 0], FaceName(0), Left),
                 ],
             },
             BrickName::RightTwist => Brick {
@@ -71,8 +70,8 @@ impl Brick {
                     (0, 3, Push, -0.0531),
                 ],
                 faces: vec![
-                    ([2, 1, 0], Aneg, Right),
-                    ([3, 4, 5], Apos, Right),
+                    ([2, 1, 0], FaceName(0), Right),
+                    ([3, 4, 5], FaceName(1), Right),
                 ],
             },
             BrickName::LeftOmniTwist => Brick {
@@ -107,14 +106,14 @@ impl Brick {
                     (2, 9, Push, -0.0473),
                 ],
                 faces: vec![
-                    ([13, 15, 14], Dneg, Right),
-                    ([5, 7, 6], Bneg, Right),
-                    ([13, 7, 1], Cpos, Left),
-                    ([9, 10, 11], Cneg, Right),
-                    ([1, 2, 3], Aneg, Right),
-                    ([9, 15, 3], Bpos, Left),
-                    ([10, 2, 5], Dpos, Left),
-                    ([14, 11, 6], Apos, Left),
+                    ([13, 15, 14], FaceName(6), Right),
+                    ([5, 7, 6], FaceName(2), Right),
+                    ([13, 7, 1], FaceName(5), Left),
+                    ([9, 10, 11], FaceName(4), Right),
+                    ([1, 2, 3], FaceName(0), Right),
+                    ([9, 15, 3], FaceName(3), Left),
+                    ([10, 2, 5], FaceName(7), Left),
+                    ([14, 11, 6], FaceName(1), Left),
                 ],
             },
             BrickName::RightOmniTwist => Brick {
@@ -149,14 +148,14 @@ impl Brick {
                     (6, 10, Push, -0.0473),
                 ],
                 faces: vec![
-                    ([1, 2, 3], Aneg, Left),
-                    ([5, 7, 6], Bneg, Left),
-                    ([6, 9, 1], Dpos, Right),
-                    ([3, 14, 5], Cpos, Right),
-                    ([13, 15, 14], Dneg, Left),
-                    ([9, 10, 11], Cneg, Left),
-                    ([2, 11, 13], Bpos, Right),
-                    ([7, 15, 10], Apos, Right),
+                    ([1, 2, 3], FaceName(0), Left),
+                    ([5, 7, 6], FaceName(2), Left),
+                    ([6, 9, 1], FaceName(7), Right),
+                    ([3, 14, 5], FaceName(5), Right),
+                    ([13, 15, 14], FaceName(6), Left),
+                    ([9, 10, 11], FaceName(4), Left),
+                    ([2, 11, 13], FaceName(3), Right),
+                    ([7, 15, 10], FaceName(1), Right),
                 ],
             },
             BrickName::LeftMitosis => Brick {
@@ -208,14 +207,14 @@ impl Brick {
                     (3, 10, Pull, 0.0772),
                 ],
                 faces: vec![
-                    ([14, 1, 11], Aneg, Left),
-                    ([17, 5, 12], Dneg, Left),
-                    ([16, 0, 6], Bneg, Left),
-                    ([14, 7, 0], Dpos, Right),
-                    ([17, 8, 4], Apos, Right),
-                    ([15, 13, 5], Bpos, Right),
-                    ([16, 10, 1], Cpos, Right),
-                    ([15, 4, 9], Cneg, Left),
+                    ([14, 1, 11], FaceName(0), Left),
+                    ([17, 5, 12], FaceName(6), Left),
+                    ([16, 0, 6], FaceName(2), Left),
+                    ([14, 7, 0], FaceName(7), Right),
+                    ([17, 8, 4], FaceName(1), Right),
+                    ([15, 13, 5], FaceName(3), Right),
+                    ([16, 10, 1], FaceName(5), Right),
+                    ([15, 4, 9], FaceName(4), Left),
                 ],
             },
             BrickName::RightMitosis => Brick {
@@ -267,14 +266,14 @@ impl Brick {
                     (2, 3, Push, -0.0229),
                 ],
                 faces: vec![
-                    ([16, 10, 1], Bneg, Right),
-                    ([17, 8, 4], Dneg, Right),
-                    ([15, 13, 5], Cneg, Right),
-                    ([15, 4, 9], Bpos, Left),
-                    ([16, 0, 6], Cpos, Left),
-                    ([14, 7, 0], Aneg, Right),
-                    ([17, 5, 12], Apos, Left),
-                    ([14, 1, 11], Dpos, Left),
+                    ([16, 10, 1], FaceName(2), Right),
+                    ([17, 8, 4], FaceName(6), Right),
+                    ([15, 13, 5], FaceName(4), Right),
+                    ([15, 4, 9], FaceName(3), Left),
+                    ([16, 0, 6], FaceName(5), Left),
+                    ([14, 7, 0], FaceName(0), Right),
+                    ([17, 5, 12], FaceName(1), Left),
+                    ([14, 1, 11], FaceName(7), Left),
                 ],
             },
         }
