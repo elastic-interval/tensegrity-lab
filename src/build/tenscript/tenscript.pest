@@ -113,14 +113,16 @@ scale = {
 }
 
 seed = {
-    "(" ~ "seed" ~ seed_type ~
+    "(" ~ "seed" ~ brick_name ~
     orient_down? ~
     ")"
 }
 
-seed_type = {
-    ":left-right" |
-    ":right-left" |
+brick_name = {
+    ":left-mitosis" |
+    ":right-mitosis" |
+    ":left-omni" |
+    ":right-omni" |
     ":left" |
     ":right"
 }

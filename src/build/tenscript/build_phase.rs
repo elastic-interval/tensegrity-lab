@@ -16,15 +16,6 @@ pub struct Bud {
     node: Option<BuildNode>,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub enum SeedType {
-    #[default]
-    Left,
-    Right,
-    LeftRight,
-    RightLeft,
-}
-
 #[derive(Debug, Clone)]
 pub enum BuildNode {
     Face {
@@ -67,26 +58,26 @@ impl BuildNode {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct Seed {
+    pub brick_name: BrickName,
+    pub down_faces: Vec<FaceName>,
+}
+
 impl Seed {
     pub fn spin(&self) -> Spin {
-        match self.seed_type {
-            SeedType::Left | SeedType::LeftRight => Spin::Left,
-            SeedType::Right | SeedType::RightLeft => Spin::Right,
+        match self.brick_name {
+            BrickName::LeftTwist | BrickName::LeftOmniTwist | BrickName::LeftMitosis => Spin::Left,
+            BrickName::RightTwist | BrickName::RightOmniTwist | BrickName::RightMitosis => Spin::Right,
         }
     }
 
     pub fn needs_double(&self) -> bool {
-        match self.seed_type {
-            SeedType::Left | SeedType::Right => false,
-            SeedType::LeftRight | SeedType::RightLeft => true,
+        match self.brick_name {
+            BrickName::LeftTwist | BrickName::RightTwist => false,
+            BrickName::LeftOmniTwist | BrickName::RightOmniTwist | BrickName::LeftMitosis | BrickName::RightMitosis => true,
         }
     }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct Seed {
-    pub seed_type: SeedType,
-    pub down_faces: Vec<FaceName>,
 }
 
 #[derive(Debug)]
@@ -111,11 +102,13 @@ impl BuildPhase {
             match sub_pair.as_rule() {
                 Rule::seed => {
                     let mut inner = sub_pair.into_inner();
-                    phase.seed.seed_type = match inner.next().unwrap().as_str() {
-                        ":left-right" => SeedType::LeftRight,
-                        ":right-left" => SeedType::RightLeft,
-                        ":left" => SeedType::Left,
-                        ":right" => SeedType::Right,
+                    phase.seed.brick_name = match inner.next().unwrap().as_str() {
+                        ":left-mitosis" => BrickName::LeftMitosis,
+                        ":right-mitosis" => BrickName::RightMitosis,
+                        ":left-omni" => BrickName::LeftOmniTwist,
+                        ":right-omni" => BrickName::RightOmniTwist,
+                        ":left" => BrickName::LeftTwist,
+                        ":right" => BrickName::RightTwist,
                         _ => unreachable!()
                     };
                     for sub_pair in inner {
@@ -201,8 +194,7 @@ impl BuildPhase {
         let BuildPhase { seed, root, .. } = &self;
         match root {
             None => {
-                // TODO: this should be called attach_brick() and it should take a BrickName 
-                self.twist(fabric, seed.needs_double(), seed.spin(), None);
+                self.attach_brick(fabric, seed.brick_name, None);
             }
             Some(node) => {
                 let (buds, marks) =
@@ -273,20 +265,26 @@ impl BuildPhase {
             }
             Branch { face_nodes } => {
                 let pairs = Self::branch_pairs(face_nodes);
-                let any_special_face = pairs.iter().any(|(FaceName(index), _)| *index > 1);
-                let (spin, face_id, needs_double) = match launch {
-                    Seeded { seed } => (seed.spin(), None, seed.needs_double()),
+                let needs_double = pairs.iter().any(|(FaceName(index), _)| *index > 1);
+                let brick_name = |spin: Spin| match spin {
+                    Spin::Left if needs_double => BrickName::LeftOmniTwist,
+                    Spin::Right if needs_double => BrickName::RightOmniTwist,
+                    Spin::Left => BrickName::LeftTwist,
+                    Spin::Right => BrickName::RightTwist,
+                };
+                let (brick_name, face_id) = match launch {
+                    Seeded { seed } => (seed.brick_name, None),
                     NamedFace { face_name } => {
                         let face_id = Self::find_face_id(face_name, faces);
                         let spin = fabric.face(face_id).spin.opposite();
-                        (spin, Some(face_id), any_special_face)
+                        (brick_name(spin), Some(face_id))
                     }
                     IdentifiedFace { face_id } => {
                         let spin = fabric.face(face_id).spin.opposite();
-                        (spin, Some(face_id), any_special_face)
+                        (brick_name(spin), Some(face_id))
                     }
                 };
-                let twist_faces = self.twist(fabric, needs_double, spin, face_id);
+                let twist_faces = self.attach_brick(fabric, brick_name, face_id);
                 for (face_name, node) in pairs {
                     let (new_buds, new_marks) =
                         self.execute_node(fabric, NamedFace { face_name }, node, twist_faces.clone());
@@ -306,13 +304,7 @@ impl BuildPhase {
         (buds, marks)
     }
 
-    fn twist(&self, fabric: &mut Fabric, needs_double: bool, spin: Spin, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
-        let brick_name = match spin {
-            Spin::Left if needs_double => BrickName::LeftOmniTwist,
-            Spin::Right if needs_double => BrickName::RightOmniTwist,
-            Spin::Left => BrickName::LeftTwist,
-            Spin::Right => BrickName::RightTwist,
-        };
+    fn attach_brick(&self, fabric: &mut Fabric, brick_name: BrickName, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
         let faces = fabric.attach_brick(brick_name, 1.0, face_id).to_vec();
         let Seed { down_faces, .. } = &self.seed;
         if face_id.is_none() && !down_faces.is_empty() {
