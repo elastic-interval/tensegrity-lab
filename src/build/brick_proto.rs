@@ -2,8 +2,10 @@ use std::f32::consts::PI;
 
 use cgmath::{EuclideanSpace, Point3, SquareMatrix, Vector3};
 use cgmath::num_traits::abs;
-use crate::build::brick::{Brick, BrickName};
 
+use crate::build::brick::{Brick, BrickName};
+use crate::build::brick::BrickName::LeftMitosis;
+use crate::build::tenscript::{FaceName, Spin};
 use crate::build::tenscript::FaceName::{*};
 use crate::build::tenscript::Spin::{Left, Right};
 use crate::fabric::{Fabric, Link, UniqueId};
@@ -78,9 +80,9 @@ impl TryFrom<(Fabric, UniqueId)> for Brick {
 
 impl Brick {
     pub fn prototype(name: BrickName) -> (Fabric, UniqueId) {
-        let mut fabric = Fabric::default();
-        let face_id = match name {
+        match name {
             BrickName::LeftTwist | BrickName::RightTwist => {
+                let mut fabric = Fabric::default();
                 let (spin, to_skip) = match name {
                     BrickName::RightTwist => (Right, 1),
                     BrickName::LeftTwist => (Left, 2),
@@ -114,9 +116,10 @@ impl Brick {
                 for (&alpha_index, &omega_index) in alpha_joints.iter().zip(advanced_omega) {
                     fabric.create_interval(alpha_index, omega_index, Link::pull(2.0));
                 }
-                alpha_face
+                (fabric, alpha_face)
             }
             BrickName::LeftOmniTwist | BrickName::RightOmniTwist => {
+                let mut fabric = Fabric::default();
                 let points @ [aaa, bbb, ccc, ddd] =
                     [(1.0, 1.0, 1.0), (1.0, -1.0, -1.0), (-1.0, -1.0, 1.0), (-1.0, 1.0, -1.0)]
                         .map(|(x, y, z)| Point3::new(x, y, z));
@@ -162,29 +165,27 @@ impl Brick {
                         });
                         fabric.create_face(face_name, 1.0, spin, radials)
                     });
-                faces[0]
+                (fabric, faces[0])
             }
-            BrickName::LeftMitosis => {
-                unimplemented!()
-            }
-            BrickName::RightMitosis => {
+            BrickName::RightMitosis | BrickName::LeftMitosis => {
                 let mut p = Prototype::default();
+                let normal_push_length = 3.467;
                 let [
                 (left_front, left_back),
                 (middle_front, middle_back),
                 (right_front, right_back)
-                ] = p.x(1.0);
+                ] = p.x(normal_push_length);
                 let [
                 (front_left_bottom, front_left_top),
                 (front_right_bottom, front_right_top),
                 (back_left_bottom, back_left_top),
                 (back_right_bottom, back_right_top)
-                ] = p.y(1.0);
+                ] = p.y(normal_push_length);
                 let [
                 (top_left, top_right),
                 (bottom_left, bottom_right)
-                ] = p.z(2.0);
-                p.pull(0.55, vec![
+                ] = p.z(normal_push_length * 2.0);
+                p.pull(2.5, &[
                     (middle_front, front_left_bottom),
                     (middle_front, front_left_top),
                     (middle_front, front_right_bottom),
@@ -194,27 +195,44 @@ impl Brick {
                     (middle_back, back_right_bottom),
                     (middle_back, back_right_top),
                 ]);
-                p.left(vec![
-                    (top_left, back_left_top, left_back),
-                    (bottom_left, front_left_bottom, left_front),
-                    (top_right, front_right_top, right_front),
-                    (bottom_right, back_right_bottom, right_back),
+                let left = name == LeftMitosis;
+                p.left(&[
+                    ([top_left, back_left_top, left_back],
+                     if left { Aneg } else { Dpos }),
+                    ([bottom_left, front_left_bottom, left_front],
+                     if left { Bneg } else { Cpos }),
+                    ([top_right, front_right_top, right_front],
+                     if left { Cneg } else { Bpos }),
+                    ([bottom_right, back_right_bottom, right_back],
+                     if left { Dneg } else { Apos }),
                 ]);
-                p.right(vec![
-                    (top_left, left_front, front_left_top),
-                    (bottom_left, left_back, back_left_bottom),
-                    (top_right, right_back, back_right_top),
-                    (bottom_right, right_front, front_right_bottom),
+                p.right(&[
+                    ([top_left, left_front, front_left_top],
+                     if left { Dpos } else { Aneg }),
+                    ([bottom_left, left_back, back_left_bottom],
+                     if left { Cpos } else { Bneg }),
+                    ([top_right, right_back, back_right_top],
+                     if left { Bpos } else { Cneg }),
+                    ([bottom_right, right_front, front_right_bottom],
+                     if left { Apos } else { Dneg }),
                 ]);
-                unimplemented!()
+                p.into()
             }
-        };
-        (fabric, face_id)
+        }
     }
 }
 
-#[derive(Debug, Default, Clone)]
-struct Prototype {}
+#[derive(Default, Clone)]
+struct Prototype {
+    fabric: Fabric,
+    face_id: Option<UniqueId>,
+}
+
+impl From<Prototype> for (Fabric, UniqueId) {
+    fn from(value: Prototype) -> Self {
+        (value.fabric, value.face_id.expect("no main face id"))
+    }
+}
 
 impl Prototype {
     pub fn x<const N: usize>(&mut self, length: f32) -> [(usize, usize); N] {
@@ -229,19 +247,42 @@ impl Prototype {
         self.push(length, Vector3::unit_z())
     }
 
-    fn push<const N: usize>(&mut self, length: f32, axis: Vector3<f32>) -> [(usize, usize); N] {
-        unimplemented!()
+    pub fn push<const N: usize>(&mut self, length: f32, axis: Vector3<f32>) -> [(usize, usize); N] {
+        [(); N].map(|()| {
+            let [alpha, omega] = [-length / 2.0, length / 2.0]
+                .map(|offset| self.fabric.create_joint(Point3::from_vec(axis * offset)));
+            self.fabric.create_interval(alpha, omega, Link::push(length));
+            (alpha, omega)
+        })
     }
 
-    pub fn pull(&mut self, length: f32, pairs: Vec<(usize, usize)>) {
-        unimplemented!()
+    pub fn pull(&mut self, length: f32, pairs: &[(usize, usize)]) {
+        for &(alpha_index, omega_index) in pairs {
+            self.fabric.create_interval(alpha_index, omega_index, Link::pull(length));
+        }
     }
 
-    pub fn left(&mut self, triples: Vec<(usize, usize, usize)>) {
-        unimplemented!()
+    pub fn left(&mut self, triples: &[([usize; 3], FaceName)]) {
+        self.add_face(triples, Left);
     }
 
-    pub fn right(&mut self, triples: Vec<(usize, usize, usize)>) {
-        unimplemented!()
+    pub fn right(&mut self, triples: &[([usize; 3], FaceName)]) {
+        self.add_face(triples, Right);
+    }
+
+    fn add_face(&mut self, triples: &[([usize; 3], FaceName)], spin: Spin) {
+        for &(indices, face_name) in triples {
+            let middle_point = indices
+                .into_iter()
+                .map(|index| self.fabric.joints[index].location.to_vec())
+                .sum::<Vector3<_>>() / 3.0;
+            let alpha_index = self.fabric.create_joint(Point3::from_vec(middle_point));
+            let radial_intervals = indices
+                .map(|omega_index| self.fabric.create_interval(alpha_index, omega_index, Link::pull(1.0))); //??)
+            let face_id = self.fabric.create_face(face_name, 1.0, spin, radial_intervals);
+            if face_name == Aneg {
+                self.face_id = Some(face_id);
+            }
+        }
     }
 }
