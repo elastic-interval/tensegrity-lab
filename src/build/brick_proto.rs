@@ -197,23 +197,23 @@ impl Brick {
                 ]);
                 let left = name == LeftMitosis;
                 p.left(&[
-                    ([top_left, back_left_top, left_back],
+                    ([top_left, left_back, back_left_top],
                      if left { Aneg } else { Dpos }),
-                    ([bottom_left, front_left_bottom, left_front],
+                    ([bottom_left, left_front, front_left_bottom],
                      if left { Bneg } else { Cpos }),
-                    ([top_right, front_right_top, right_front],
+                    ([top_right, right_front, front_right_top],
                      if left { Cneg } else { Bpos }),
-                    ([bottom_right, back_right_bottom, right_back],
+                    ([bottom_right, right_back, back_right_bottom],
                      if left { Dneg } else { Apos }),
                 ]);
                 p.right(&[
-                    ([top_left, left_front, front_left_top],
+                    ([top_left, front_left_top, left_front],
                      if left { Dpos } else { Aneg }),
-                    ([bottom_left, left_back, back_left_bottom],
+                    ([bottom_left, back_left_bottom, left_back],
                      if left { Cpos } else { Bneg }),
-                    ([top_right, right_back, back_right_top],
+                    ([top_right, back_right_top, right_back],
                      if left { Bpos } else { Cneg }),
-                    ([bottom_right, right_front, front_right_bottom],
+                    ([bottom_right, front_right_bottom, right_front],
                      if left { Apos } else { Dneg }),
                 ]);
                 p.into()
