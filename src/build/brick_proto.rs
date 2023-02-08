@@ -168,9 +168,80 @@ impl Brick {
                 unimplemented!()
             }
             BrickName::RightMitosis => {
+                let mut p = Prototype::default();
+                let [
+                (left_front, left_back),
+                (middle_front, middle_back),
+                (right_front, right_back)
+                ] = p.x(1.0);
+                let [
+                (front_left_bottom, front_left_top),
+                (front_right_bottom, front_right_top),
+                (back_left_bottom, back_left_top),
+                (back_right_bottom, back_right_top)
+                ] = p.y(1.0);
+                let [
+                (top_left, top_right),
+                (bottom_left, bottom_right)
+                ] = p.z(2.0);
+                p.pull(0.55, vec![
+                    (middle_front, front_left_bottom),
+                    (middle_front, front_left_top),
+                    (middle_front, front_right_bottom),
+                    (middle_front, front_right_top),
+                    (middle_back, back_left_bottom),
+                    (middle_back, back_left_top),
+                    (middle_back, back_right_bottom),
+                    (middle_back, back_right_top),
+                ]);
+                p.left(vec![
+                    (top_left, back_left_top, left_back),
+                    (bottom_left, front_left_bottom, left_front),
+                    (top_right, front_right_top, right_front),
+                    (bottom_right, back_right_bottom, right_back),
+                ]);
+                p.right(vec![
+                    (top_left, left_front, front_left_top),
+                    (bottom_left, left_back, back_left_bottom),
+                    (top_right, right_back, back_right_top),
+                    (bottom_right, right_front, front_right_bottom),
+                ]);
                 unimplemented!()
             }
         };
         (fabric, face_id)
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+struct Prototype {}
+
+impl Prototype {
+    pub fn x<const N: usize>(&mut self, length: f32) -> [(usize, usize); N] {
+        self.push(length, Vector3::unit_x())
+    }
+
+    pub fn y<const N: usize>(&mut self, length: f32) -> [(usize, usize); N] {
+        self.push(length, Vector3::unit_y())
+    }
+
+    pub fn z<const N: usize>(&mut self, length: f32) -> [(usize, usize); N] {
+        self.push(length, Vector3::unit_z())
+    }
+
+    fn push<const N: usize>(&mut self, length: f32, axis: Vector3<f32>) -> [(usize, usize); N] {
+        unimplemented!()
+    }
+
+    pub fn pull(&mut self, length: f32, pairs: Vec<(usize, usize)>) {
+        unimplemented!()
+    }
+
+    pub fn left(&mut self, triples: Vec<(usize, usize, usize)>) {
+        unimplemented!()
+    }
+
+    pub fn right(&mut self, triples: Vec<(usize, usize, usize)>) {
+        unimplemented!()
     }
 }
