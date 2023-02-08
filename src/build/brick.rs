@@ -13,8 +13,9 @@ pub struct Brick {
     pub faces: Vec<([usize; 3], FaceName, Spin)>,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, ValueEnum, Debug, Default)]
 pub enum BrickName {
+    #[default]
     LeftTwist,
     RightTwist,
     LeftOmniTwist,

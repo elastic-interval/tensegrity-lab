@@ -6,7 +6,7 @@
   (fabric
     (name "Knee")
     (build
-      (seed :right-left)
+      (seed :right-omni)
       (branch
         (face F1 (grow 3))
         (face F3 (grow 3))))
@@ -33,7 +33,7 @@
   (fabric
     (name "Headless Hug")
     (build
-      (seed :right-left
+      (seed :right-omni
         (orient-down F0 F3))
       (branch
         (face F0 (grow "....X.." (scale .95) (mark :legs)))
