@@ -1,4 +1,4 @@
-(fabrics
+(collection
   (fabric
     (name "Seed")
     (build
