@@ -6,12 +6,11 @@
 #![feature(iter_next_chunk)]
 #![feature(once_cell)]
 
-
 pub mod application;
 pub mod build;
 pub mod camera;
 pub mod controls;
-pub mod experiment;
+pub mod crucible;
 pub mod fabric;
 pub mod graphics;
 pub mod scene;
