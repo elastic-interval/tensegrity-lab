@@ -61,19 +61,19 @@
   (brick
     (name "Mitosis")
     (proto
-      (pushes X 3 .467
+      (pushes X 3.467
         (push :left_front :left_back)
         (push :middle_front :middle_back)
         (push :right_front :right_back))
-      (pushes Y 3 .467
+      (pushes Y 3.467
         (push :front_left_bottom :front_left_top)
         (push :front_right_bottom :front_right_top)
         (push :back_left_bottom :back_left_top)
         (push :back_right_bottom :back_right_top))
-      (pushes Z 6 .934
+      (pushes Z 6.934
         (push :top_left :top_right)
         (push :bottom_left :bottom_right))
-      (pulls 2 .5
+      (pulls 2.5
         (pull :middle_front :front_left_bottom)
         (pull :middle_front :front_left_top)
         (pull :middle_front :front_right_bottom)
