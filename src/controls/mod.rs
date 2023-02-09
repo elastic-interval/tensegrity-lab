@@ -13,6 +13,7 @@ use winit::window::{CursorIcon, Window};
 
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
+use crate::build::brick::BrickName;
 
 use crate::build::tenscript::{Collection, FabricPlan};
 use crate::controls::fabric_choice::{FabricChoice, FabricChoiceMessage};
@@ -109,6 +110,10 @@ impl GUI {
         self.state.queue_message(message);
     }
 
+    pub fn queue_action(&mut self, action: Action) {
+        self.state.queue_message(ControlMessage::Action(action))
+    }
+
     pub fn window_event(&mut self, event: &WindowEvent, window: &Window) {
         match event {
             WindowEvent::CursorMoved { position, .. } => {
@@ -198,6 +203,8 @@ pub enum VisibleControl {
 #[derive(Clone, Debug)]
 pub enum Action {
     BuildFabric(FabricPlan),
+    SelectFace(UniqueId),
+    AddBrick { brick_name: BrickName, face_id: UniqueId },
     GravityChanged(f32),
     CalibrateStrain,
     ShortenPulls(f32),
@@ -249,6 +256,10 @@ impl ControlState {
         self.action_queue.borrow_mut().split_off(0)
     }
 
+    pub fn queue_action(&self, action: Action) {
+        self.action_queue.borrow_mut().push(action);
+    }
+
     pub fn show_strain(&self) -> bool {
         self.show_strain
     }
@@ -277,6 +288,7 @@ pub enum ControlMessage {
     FabricChoice(FabricChoiceMessage),
     StrainThreshold(StrainThresholdMessage),
     Gravity(GravityMessage),
+    Action(Action),
     FrameRateUpdated(f64),
 }
 
@@ -293,6 +305,9 @@ impl Program for ControlState {
         match message {
             ControlMessage::ToggleDebugMode => {
                 self.debug_mode = !self.debug_mode;
+            }
+            ControlMessage::Action(action) => {
+                queue_action(Some(action));
             }
             ControlMessage::Reset => {
                 self.visible_controls = VisibleControl::ControlChoice;
