@@ -1,4 +1,4 @@
-(fabrics
+(collection
   (fabric
     (name "Seed")
     (surface :bouncy)
@@ -58,5 +58,38 @@
         (space :shoulders .05))
       (countdown 10000 (vulcanize))
       (remove-shapers)
-      (replace-faces))))
+      (replace-faces)))
+  (brick
+    (name "Mitosis")
+    (proto
+      (pushes X 3.467
+        (push :left_front :left_back)
+        (push :middle_front :middle_back)
+        (push :right_front :right_back))
+      (pushes Y 3.467
+        (push :front_left_bottom :front_left_top)
+        (push :front_right_bottom :front_right_top)
+        (push :back_left_bottom :back_left_top)
+        (push :back_right_bottom :back_right_top))
+      (pushes Z 6.934
+        (push :top_left :top_right)
+        (push :bottom_left :bottom_right))
+      (pulls 2.5
+        (pull :middle_front :front_left_bottom)
+        (pull :middle_front :front_left_top)
+        (pull :middle_front :front_right_bottom)
+        (pull :middle_front :front_right_top)
+        (pull :middle_back :back_left_bottom)
+        (pull :middle_back :back_left_top)
+        (pull :middle_back :back_right_bottom)
+        (pull :middle_back :back_right_top))
+      (faces
+        (left :top_left :left_back :back_left_top F0)
+        (left :bottom_left :left_front :front_left_bottom F1)
+        (left :top_right :right_front :front_right_top F2)
+        (left :bottom_right :right_back :back_right_bottom F3)
+        (right :top_left :front_left_top :left_front F3)
+        (right :bottom_left :back_left_bottom :left_back F5)
+        (right :top_right :back_right_top :right_back F6)
+        (right :bottom_right :front_right_bottom :right_front F7)))))
 

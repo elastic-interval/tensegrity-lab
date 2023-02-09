@@ -1,13 +1,158 @@
 use cgmath::{Point3, point3};
 use clap::ValueEnum;
+use pest::iterators::Pair;
 
-use crate::build::tenscript::{FaceName, Spin};
+use crate::build::tenscript::{FaceName, parse_atom, parse_name, ParseError, Spin};
+use crate::build::tenscript::Rule;
 use crate::build::tenscript::Spin::{Left, Right};
 use crate::fabric::interval::Role;
 use crate::fabric::interval::Role::{Pull, Push};
 
-#[derive(Debug, Clone)]
-pub struct Brick {
+#[derive(Copy, Clone, Debug)]
+pub enum Axis {
+    X,
+    Y,
+    Z,
+}
+
+impl Axis {
+    pub fn from_pair(pair: Pair<Rule>) -> Self {
+        match pair.as_rule() {
+            Rule::axis => Self::from_pair(pair.into_inner().next().unwrap()),
+            Rule::axis_x => Axis::X,
+            Rule::axis_y => Axis::Y,
+            Rule::axis_z => Axis::Z,
+            _ => unreachable!("{:?}", pair.as_rule()),
+        }
+    }
+}
+
+impl Spin {
+    pub fn from_pair(pair: Pair<Rule>) -> Self {
+        match pair.as_rule() {
+            Rule::chirality => Self::from_pair(pair.into_inner().next().unwrap()),
+            Rule::left => Left,
+            Rule::right => Right,
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct PushDef {
+    pub axis: Axis,
+    pub ideal: f32,
+    pub alpha_name: String,
+    pub omega_name: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct PullDef {
+    pub ideal: f32,
+    pub alpha_name: String,
+    pub omega_name: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct FaceDef {
+    pub spin: Spin,
+    pub joint_names: [String; 3],
+    pub name: String,
+}
+
+#[derive(Clone, Default, Debug)]
+pub struct Prototype {
+    pub pushes: Vec<PushDef>,
+    pub pulls: Vec<PullDef>,
+    pub faces: Vec<FaceDef>,
+}
+
+#[derive(Clone, Debug)]
+pub struct BrickDefinition {
+    pub name: String,
+    pub proto: Prototype,
+    pub baked: Option<Baked>,
+}
+
+impl Prototype {
+    pub fn from_pair(pair: Pair<Rule>) -> Result<Self, ParseError> {
+        let mut prototype = Self::default();
+        for pair in pair.into_inner() {
+            match pair.as_rule() {
+                Rule::pushes_proto => {
+                    let mut inner = pair.into_inner();
+                    let [axis, ideal] = inner.next_chunk().unwrap();
+                    let axis = Axis::from_pair(axis);
+                    let ideal = ideal.as_str().parse().unwrap();
+                    for push_pair in inner {
+                        let (alpha_name, omega_name) = Self::extract_alpha_and_omega(push_pair);
+                        prototype.pushes.push(PushDef {
+                            alpha_name,
+                            omega_name,
+                            ideal,
+                            axis,
+                        })
+                    }
+                }
+                Rule::pulls_proto => {
+                    let mut inner = pair.into_inner();
+                    let ideal = inner.next().unwrap().as_str().parse().unwrap();
+                    for pull_pair in inner {
+                        let (alpha_name, omega_name) = Self::extract_alpha_and_omega(pull_pair);
+                        prototype.pulls.push(PullDef {
+                            alpha_name,
+                            omega_name,
+                            ideal,
+                        });
+                    }
+                }
+                Rule::faces_proto => {
+                    for face_pair in pair.into_inner() {
+                        let [spin, a, b, c, name] = face_pair.into_inner().next_chunk().unwrap();
+                        let spin = Spin::from_pair(spin);
+                        let joint_names = [a, b, c].map(parse_atom);
+                        let name = parse_atom(name);
+                        prototype.faces.push(FaceDef {
+                            spin,
+                            joint_names,
+                            name,
+                        });
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+        // TODO: validate all the names used
+        Ok(prototype)
+    }
+
+    fn extract_alpha_and_omega(pair: Pair<Rule>) -> (String, String) {
+        let [alpha_name, omega_name] = pair
+            .into_inner()
+            .next_chunk()
+            .unwrap()
+            .map(parse_atom);
+        (alpha_name, omega_name)
+    }
+}
+
+impl BrickDefinition {
+    pub fn from_pair(pair: Pair<Rule>) -> Result<Self, ParseError> {
+        let mut inner = pair.into_inner();
+        let [name, proto] = inner.next_chunk().unwrap();
+        let name = parse_name(name);
+        let proto = Prototype::from_pair(proto)?;
+        let baked = inner.next().map(Baked::from_pair);
+        Ok(Self {
+            name,
+            proto,
+            baked,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Baked {
     pub joints: Vec<Point3<f32>>,
     pub intervals: Vec<(usize, usize, Role, f32)>,
     pub faces: Vec<([usize; 3], FaceName, Spin)>,
@@ -24,10 +169,47 @@ pub enum BrickName {
     RightMitosis,
 }
 
-impl Brick {
-    pub fn new(name: BrickName) -> Brick {
+impl Baked {
+    pub fn from_pair(pair: Pair<Rule>) -> Self {
+        let mut baked = Self::default();
+        for pair in pair.into_inner() {
+            match pair.as_rule() {
+                Rule::joint_baked => {
+                    let [x, y, z] = pair
+                        .into_inner()
+                        .next_chunk()
+                        .unwrap()
+                        .map(|pair| pair.as_str().parse().unwrap());
+                    baked.joints.push(point3(x, y, z));
+                }
+                Rule::interval_baked => {
+                    let [role, alpha_index, omega_index, strain] = pair.into_inner().next_chunk().unwrap();
+                    let role = match role.as_rule() {
+                        Rule::push => Push,
+                        Rule::pull => Pull,
+                        _ => unreachable!()
+                    };
+                    let [alpha_index, omega_index] = [alpha_index, omega_index].map(|pair| pair.as_str().parse().unwrap());
+                    let strain = strain.as_str().parse().unwrap();
+                    baked.intervals.push((alpha_index, omega_index, role, strain));
+                }
+                Rule::face_baked => {
+                    // TODO: use name instead of FaceName(0)
+                    let [spin, a, b, c, _name] = pair.into_inner().next_chunk().unwrap();
+                    let spin = Spin::from_pair(spin);
+                    let joint_indices = [a, b, c].map(|pair| pair.as_str().parse().unwrap());
+                    baked.faces.push((joint_indices, FaceName(0), spin));
+                }
+                _ => unreachable!()
+            }
+        }
+        baked
+    }
+
+
+    pub fn new(name: BrickName) -> Baked {
         match name {
-            BrickName::LeftTwist => Brick {
+            BrickName::LeftTwist => Baked {
                 joints: vec![
                     point3(-0.5000, 0.0000, 0.8660),
                     point3(-0.5000, 0.0000, -0.8660),
@@ -51,7 +233,7 @@ impl Brick {
                     ([2, 1, 0], FaceName(0), Left),
                 ],
             },
-            BrickName::RightTwist => Brick {
+            BrickName::RightTwist => Baked {
                 joints: vec![
                     point3(-0.5000, -0.0000, 0.8660),
                     point3(-0.5000, 0.0000, -0.8660),
@@ -75,7 +257,7 @@ impl Brick {
                     ([3, 4, 5], FaceName(1), Right),
                 ],
             },
-            BrickName::LeftOmniTwist => Brick {
+            BrickName::LeftOmniTwist => Baked {
                 joints: vec![
                     point3(-0.0000, 0.0001, 0.0000),
                     point3(1.0000, 0.0000, 0.0000),
@@ -117,7 +299,7 @@ impl Brick {
                     ([14, 11, 6], FaceName(1), Left),
                 ],
             },
-            BrickName::RightOmniTwist => Brick {
+            BrickName::RightOmniTwist => Baked {
                 joints: vec![
                     point3(0.0000, 0.0002, 0.0000),
                     point3(1.0000, 0.0000, -0.0000),
@@ -159,7 +341,7 @@ impl Brick {
                     ([7, 15, 10], FaceName(1), Right),
                 ],
             },
-            BrickName::LeftMitosis => Brick {
+            BrickName::LeftMitosis => Baked {
                 joints: vec![
                     point3(1.8948, 1.4897, -0.0230),
                     point3(-0.5230, 0.0000, -0.8371),
@@ -218,7 +400,7 @@ impl Brick {
                     ([15, 4, 9], FaceName(4), Left),
                 ],
             },
-            BrickName::RightMitosis => Brick {
+            BrickName::RightMitosis => Baked {
                 joints: vec![
                     point3(-0.5230, 0.0000, 0.8371),
                     point3(1.8948, 1.4897, 0.0230),

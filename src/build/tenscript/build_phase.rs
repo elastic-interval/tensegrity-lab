@@ -1,11 +1,11 @@
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Quaternion, Rotation, Vector3};
 use pest::iterators::Pair;
-use crate::build::brick::BrickName;
 
+use crate::build::brick::BrickName;
 use crate::build::tenscript::{FaceMark, FaceName, Spin};
 use crate::build::tenscript::build_phase::BuildNode::{*};
 use crate::build::tenscript::build_phase::Launch::{*};
-use crate::build::tenscript::fabric_plan::Rule;
+use crate::build::tenscript::Rule;
 use crate::fabric::{Fabric, UniqueId};
 
 #[derive(Debug, Default, Clone)]
