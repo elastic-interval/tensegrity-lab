@@ -1,5 +1,5 @@
-fabrics =
-    { "(" ~ "fabrics" ~ fabric_plan* ~ ")" }
+collection =
+    { "(" ~ "collection" ~ fabric_plan* ~ brick* ~ ")" }
 
 fabric_plan =
     { "(" ~ "fabric" ~ name ~ surface? ~ build? ~ shape? ~ ")" }
@@ -51,9 +51,9 @@ surface_character =
     { ":bouncy" | ":frozen" | ":sticky" }
 
 brick =
-    { "(" ~ "brick" ~ name ~ brick_baked ~ brick_proto ~ ")" }
+    { "(" ~ "brick" ~ name ~ brick_proto ~ brick_baked? ~ ")" }
 brick_proto =
-    { "(" ~ "proto" ~ pushes_proto+ ~ pulls_proto+ ~ ")" }
+    { "(" ~ "proto" ~ pushes_proto+ ~ pulls_proto+ ~ faces_proto+ ~ ")" }
 pushes_proto = // axis, ideal
     { "(" ~ "pushes" ~ axis ~ float ~ push_proto+ ~ ")" }
 axis =
@@ -64,6 +64,8 @@ pulls_proto = // ideal
     { "(" ~ "pulls" ~ float ~ pull_proto+ ~ ")" }
 pull_proto = // alpha, omega
     { "(" ~ "pull" ~ atom ~ atom ~ ")" }
+faces_proto =
+    { "(" ~ "faces" ~ (left_proto | right_proto)+ ~ ")" }
 left_proto = // a, b, c, name
     { "(" ~ "left" ~ atom ~ atom ~ atom ~ atom ~ ")" }
 right_proto = // a, b, c, name
@@ -83,7 +85,8 @@ right_baked = // a, b, c, name
 
 face_name = @{"F" ~ integer}
 ident = @{ XID_START ~ (XID_CONTINUE | "-")* }
-atom = @{ ":" ~ ident }
+ident_uppercase = @{ ASCII_ALPHA_UPPER ~ (XID_CONTINUE | "-")* }
+atom = @{ (":" ~ ident) | ident_uppercase }
 float = @{ (integer? ~ "." ~ mantissa) | integer }
 integer = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+ | ASCII_DIGIT }
 mantissa = @{ ASCII_DIGIT+ }

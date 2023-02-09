@@ -2,14 +2,12 @@
 
 use std::cell::LazyCell;
 use std::collections::HashSet;
-use std::fmt::{Display, Formatter};
+use std::fmt::Display;
 
-use pest::error::Error;
 use pest::iterators::Pair;
 use pest::Parser;
-use pest_derive::Parser;
 
-use crate::build::tenscript::{BuildPhase, SurfaceCharacterSpec};
+use crate::build::tenscript::{BuildPhase, ParseError, Rule, SurfaceCharacterSpec, TenscriptParser};
 use crate::build::tenscript::build_phase::BuildNode;
 use crate::build::tenscript::shape_phase::{Operation, ShapePhase};
 
@@ -21,25 +19,6 @@ pub struct FabricPlan {
     pub shape_phase: ShapePhase,
 }
 
-#[derive(Parser)]
-#[grammar = "build/tenscript/tenscript.pest"] // relative to src
-struct PestParser;
-
-#[derive(Debug)]
-pub enum ParseError {
-    Pest(Error<Rule>),
-    Invalid(String),
-}
-
-impl Display for ParseError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParseError::Pest(error) => write!(f, "parse error: {error}"),
-            ParseError::Invalid(warning) => write!(f, "warning: {warning}"),
-        }
-    }
-}
-
 impl FabricPlan {
     pub fn bootstrap() -> Vec<FabricPlan> {
         let bootstrap: LazyCell<Vec<_>> = LazyCell::new(||
@@ -49,7 +28,7 @@ impl FabricPlan {
     }
 
     pub fn from_file(source: &str) -> Result<Vec<Self>, ParseError> {
-        PestParser::parse(Rule::fabrics, source)
+        TenscriptParser::parse(Rule::collection, source)
             .map_err(ParseError::Pest)?
             .next()
             .expect("no (fabrics ..)")
@@ -66,7 +45,7 @@ impl FabricPlan {
     }
 
     pub fn from_tenscript(source: &str) -> Result<Self, ParseError> {
-        let fabric_plan_pair = PestParser::parse(Rule::fabric_plan, source)
+        let fabric_plan_pair = TenscriptParser::parse(Rule::fabric_plan, source)
             .map_err(ParseError::Pest)?
             .next()
             .unwrap();

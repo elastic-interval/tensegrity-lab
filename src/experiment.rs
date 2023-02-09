@@ -1,6 +1,6 @@
 use cgmath::Vector3;
 
-use crate::build::brick::{Brick, BrickName};
+use crate::build::brick::{Baked, BrickName};
 use crate::build::tenscript::FabricPlan;
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::experiment::Stage::{*};
@@ -116,7 +116,7 @@ impl Experiment {
                 let age = self.fabric.age;
                 if age > 1000 && speed_squared < 1e-12 {
                     println!("Fabric settled in iteration {age} at speed squared {speed_squared}");
-                    match Brick::try_from((self.fabric.clone(), *face_id)) {
+                    match Baked::try_from((self.fabric.clone(), *face_id)) {
                         Ok(brick) => {
                             println!("{}", brick.into_code());
                         }
@@ -161,7 +161,7 @@ impl Experiment {
 
     pub fn capture_prototype(&mut self, brick_name: BrickName) {
         println!("Settling and capturing prototype {brick_name:?}");
-        self.stage = AcceptingPrototype(Brick::prototype(brick_name));
+        self.stage = AcceptingPrototype(Baked::prototype(brick_name));
     }
 
     fn start_pretensing(&mut self) {
