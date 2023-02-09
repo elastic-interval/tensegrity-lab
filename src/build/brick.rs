@@ -18,10 +18,11 @@ pub enum Axis {
 impl Axis {
     pub fn from_pair(pair: Pair<Rule>) -> Self {
         match pair.as_rule() {
+            Rule::axis => Self::from_pair(pair.into_inner().next().unwrap()),
             Rule::axis_x => Axis::X,
             Rule::axis_y => Axis::Y,
             Rule::axis_z => Axis::Z,
-            _ => unreachable!(),
+            _ => unreachable!("{:?}", pair.as_rule()),
         }
     }
 }
@@ -29,6 +30,7 @@ impl Axis {
 impl Spin {
     pub fn from_pair(pair: Pair<Rule>) -> Self {
         match pair.as_rule() {
+            Rule::chirality => Self::from_pair(pair.into_inner().next().unwrap()),
             Rule::left => Left,
             Rule::right => Right,
             _ => unreachable!(),
