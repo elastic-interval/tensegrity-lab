@@ -1,7 +1,7 @@
 #![allow(clippy::result_large_err)]
 
-use std::cell::LazyCell;
 use std::fmt::{Display, Formatter};
+use std::fs;
 
 use pest::error::Error;
 use pest::iterators::Pair;
@@ -97,26 +97,16 @@ pub struct Library {
 
 impl Library {
     pub fn standard() -> Self {
-        let standard: LazyCell<Self> = LazyCell::new(||
-            Self::from_file(include_str!("standard.scm")).unwrap()
-        );
-        standard.clone()
+        let source = fs::read_to_string("src/build/tenscript/library.scm").unwrap();
+        Self::from_tenscript(&source).unwrap()
     }
 
-    pub fn from_file(source: &str) -> Result<Self, ParseError> {
+    pub fn from_tenscript(source: &str) -> Result<Self, ParseError> {
         let pair = TenscriptParser::parse(Rule::library, source)
             .map_err(ParseError::Pest)?
             .next()
             .expect("no (library ..)");
         Self::from_pair(pair)
-    }
-
-    pub fn from_tenscript(source: &str) -> Result<Self, ParseError> {
-        let fabric_plan_pair = TenscriptParser::parse(Rule::fabric_plan, source)
-            .map_err(ParseError::Pest)?
-            .next()
-            .unwrap();
-        Self::from_pair(fabric_plan_pair)
     }
 
     fn from_pair(pair: Pair<Rule>) -> Result<Self, ParseError> {
