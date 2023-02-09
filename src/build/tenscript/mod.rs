@@ -52,10 +52,12 @@ impl TryFrom<&str> for FaceName {
     type Error = ();
 
     fn try_from(face_name: &str) -> Result<Self, Self::Error> {
-        if !face_name.starts_with('F') {
-            return Err(());
-        }
-        face_name[1..].parse().map(FaceName).map_err(|_| ())
+        face_name
+            .strip_prefix('F')
+            .ok_or(())?
+            .parse()
+            .map(FaceName)
+            .map_err(|_| ())
     }
 }
 
