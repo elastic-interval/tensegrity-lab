@@ -7,10 +7,10 @@
   (fabric
     (name "Knee")
     (build
-      (seed :right-omni)
+      (seed :omni)
       (branch
-        (face F1 (grow 3))
-        (face F3 (grow 3))))
+        (face Top (grow 3))
+        (face BotX (grow 3))))
     (shape
       (vulcanize)
       (replace-faces)))
