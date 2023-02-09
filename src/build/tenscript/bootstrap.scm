@@ -2,7 +2,7 @@
   (fabric
     (name "Seed")
     (build
-      (seed :left)))
+      (seed :left-mitosis)))
   (fabric
     (name "Knee")
     (build

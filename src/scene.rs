@@ -15,6 +15,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::camera::Camera;
 use crate::fabric::Fabric;
+use crate::fabric::face::Face;
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push};
 use crate::graphics::{get_depth_stencil_state, GraphicsWindow, line_list_primitive_state, triangle_list_primitive_state};
@@ -186,6 +187,8 @@ impl Scene {
         self.fabric_drawing.vertices.clear();
         self.fabric_drawing.vertices.extend(fabric.interval_values()
             .flat_map(|interval| FabricVertex::for_interval(interval, fabric, &strain_view)));
+        self.fabric_drawing.vertices.extend(fabric.faces.values()
+            .flat_map(|face| FabricVertex::for_face(face, fabric)));
         self.camera.target_approach(fabric.midpoint());
     }
 
@@ -245,6 +248,15 @@ impl FabricVertex {
         [
             FabricVertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color },
             FabricVertex { position: [omega.x, omega.y, omega.z, 1.0], color }
+        ]
+    }
+
+    pub fn for_face(face: &Face, fabric: &Fabric) -> [FabricVertex; 2] {
+        let (alpha, normal) = (face.midpoint(fabric), face.normal(fabric));
+        let omega = alpha + normal;
+        [
+            FabricVertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color:[1.0, 0.0, 0.0, 1.0] },
+            FabricVertex { position: [omega.x, omega.y, omega.z, 1.0], color:[0.0, 1.0, 0.0, 1.0] }
         ]
     }
 
