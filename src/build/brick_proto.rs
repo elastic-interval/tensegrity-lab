@@ -3,14 +3,14 @@ use std::f32::consts::PI;
 use cgmath::{EuclideanSpace, Point3, SquareMatrix, Vector3};
 use cgmath::num_traits::abs;
 
-use crate::build::brick::{Brick, BrickName};
+use crate::build::brick::{Baked, BrickName};
 use crate::build::tenscript::{FaceName, Spin};
 use crate::build::tenscript::Spin::{Left, Right};
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 
-impl Brick {
+impl Baked {
     pub const TARGET_FACE_STRAIN: f32 = 0.1;
 
     pub fn into_code(self) -> String {
@@ -43,7 +43,7 @@ impl Brick {
     }
 }
 
-impl TryFrom<(Fabric, UniqueId)> for Brick {
+impl TryFrom<(Fabric, UniqueId)> for Baked {
     type Error = String;
 
     fn try_from((fabric, face_id): (Fabric, UniqueId)) -> Result<Self, String> {
@@ -51,7 +51,7 @@ impl TryFrom<(Fabric, UniqueId)> for Brick {
         let face = fabric.face(face_id);
         fabric.apply_matrix4(face.vector_space(&fabric, false).invert().unwrap());
         let joint_incident = fabric.joint_incident();
-        let target_face_strain = Brick::TARGET_FACE_STRAIN;
+        let target_face_strain = Baked::TARGET_FACE_STRAIN;
         for face in fabric.faces.values() {
             let strain = face.strain(&fabric);
             if abs(strain - target_face_strain) > 0.0001 {
@@ -76,7 +76,7 @@ impl TryFrom<(Fabric, UniqueId)> for Brick {
     }
 }
 
-impl Brick {
+impl Baked {
     pub fn prototype(name: BrickName) -> (Fabric, UniqueId) {
         match name {
             BrickName::LeftTwist | BrickName::RightTwist => {
@@ -171,17 +171,17 @@ impl Brick {
                 let [
                 (left_front, left_back),
                 (middle_front, middle_back),
-                (right_front, right_back)
+                (right_front, right_back),
                 ] = p.x(normal_push_length);
                 let [
                 (front_left_bottom, front_left_top),
                 (front_right_bottom, front_right_top),
                 (back_left_bottom, back_left_top),
-                (back_right_bottom, back_right_top)
+                (back_right_bottom, back_right_top),
                 ] = p.y(normal_push_length);
                 let [
                 (top_left, top_right),
-                (bottom_left, bottom_right)
+                (bottom_left, bottom_right),
                 ] = p.z(normal_push_length * 2.0);
                 p.pull(2.5, &[
                     (middle_front, front_left_bottom),

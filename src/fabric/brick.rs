@@ -1,6 +1,6 @@
 use cgmath::{EuclideanSpace, Point3, Transform, Vector3};
 
-use crate::build::brick::{Brick, BrickName};
+use crate::build::brick::{Baked, BrickName};
 use crate::build::tenscript::FaceName;
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::fabric::face::Face;
@@ -15,7 +15,7 @@ impl Fabric {
     pub fn attach_brick(&mut self, brick_name: BrickName, scale_factor: f32, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
-        let brick = Brick::new(brick_name);
+        let brick = Baked::new(brick_name);
         let matrix = face.map(|face| face.vector_space(self, true));
         let joints: Vec<usize> = brick.joints
             .into_iter()
@@ -42,7 +42,7 @@ impl Fabric {
                 let alpha_index = self.create_joint(Point3::from_vec(midpoint));
                 let radial_intervals = brick_joints.map(|omega| {
                     let omega_index = joints[omega];
-                    let ideal = self.ideal(alpha_index, omega_index, Brick::TARGET_FACE_STRAIN);
+                    let ideal = self.ideal(alpha_index, omega_index, Baked::TARGET_FACE_STRAIN);
                     self.create_interval(alpha_index, omega_index, Link::pull(ideal))
                 });
                 (face_name, self.create_face(face_name, scale, spin, radial_intervals))
