@@ -318,6 +318,6 @@ impl BuildPhase {
             .iter()
             .find(|(name, _)| *name == face_name)
             .map(|(_, face_id)| *face_id)
-            .unwrap()
+            .expect("no such face")
     }
 }
