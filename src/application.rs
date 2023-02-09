@@ -115,7 +115,7 @@ pub fn run_with(brick_name: Option<String>) {
         crucible.capture_prototype(&BrickName(brick_name));
     }
     let mut library_modified = library_modified_timestamp();
-    let mut current_fabric_plan: Option<String> = None;
+    let mut fabric_plan_name: Option<String> = None;
 
     event_loop.run(move |event, _, control_flow| {
         match event {
@@ -175,16 +175,15 @@ pub fn run_with(brick_name: Option<String>) {
             Event::MainEventsCleared => {
                 app.gui.update();
                 let mut actions = app.gui.controls().take_actions();
-                if library_modified_timestamp() > library_modified &&
-                    let Some(ref plan_name) = current_fabric_plan &&
-                    let Some(fabric_plan) = FabricPlan::preset_with_name(plan_name) {
+                if library_modified_timestamp() > library_modified && let Some(ref plan_name) = fabric_plan_name {
+                    let fabric_plan = FabricPlan::load_preset(plan_name).expect("no such fabric plan");
                     actions.push(Action::BuildFabric(fabric_plan));
                     library_modified = library_modified_timestamp();
                 }
                 for action in actions {
                     match action {
                         Action::BuildFabric(fabric_plan) => {
-                            current_fabric_plan = Some(fabric_plan.name.clone());
+                            fabric_plan_name = Some(fabric_plan.name.clone());
                             app.scene.show_surface(false);
                             app.gui.change_state(ControlMessage::Reset);
                             crucible.build_fabric(fabric_plan);

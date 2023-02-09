@@ -17,12 +17,11 @@ pub struct FabricPlan {
 }
 
 impl FabricPlan {
-    pub fn preset_with_name(plan_name: &str) -> Option<Self> {
+    pub fn load_preset(plan_name: &str) -> Option<Self> {
         Library::standard()
             .fabrics
-            .iter()
+            .into_iter()
             .find(|plan| plan.name == plan_name)
-            .cloned()
     }
 
     pub(crate) fn from_pair(fabric_plan_pair: Pair<Rule>) -> Result<FabricPlan, ParseError> {

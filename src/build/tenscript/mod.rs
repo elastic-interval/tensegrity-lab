@@ -120,6 +120,7 @@ pub fn parse_name(pair: Pair<Rule>) -> String {
 }
 
 pub fn parse_atom(pair: Pair<Rule>) -> String {
+    assert_eq!(pair.as_rule(), Rule::atom);
     let string = pair.as_str();
     string
         .strip_prefix(':')
