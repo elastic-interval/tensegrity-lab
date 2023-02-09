@@ -19,9 +19,9 @@ use crate::controls::fabric_choice::{FabricChoice, FabricChoiceMessage};
 use crate::controls::gravity::{Gravity, GravityMessage};
 use crate::controls::strain_threshold::{StrainThreshold, StrainThresholdMessage};
 use crate::controls::strain_threshold::StrainThresholdMessage::SetStrainLimits;
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, UniqueId};
 use crate::graphics::GraphicsWindow;
-use crate::scene::StrainView;
+use crate::scene::Variation;
 
 pub mod fabric_choice;
 pub mod strain_threshold;
@@ -253,10 +253,14 @@ impl ControlState {
         self.show_strain
     }
 
-    pub fn strain_view(&self) -> StrainView {
-        StrainView {
-            threshold: self.strain_threshold.strain_threshold(),
-            material: Fabric::BOW_TIE_MATERIAL_INDEX,
+    pub fn variation(&self, face_id: Option<UniqueId>) -> Variation {
+        if self.show_strain {
+            Variation::StrainView {
+                threshold: self.strain_threshold.strain_threshold(),
+                material: Fabric::BOW_TIE_MATERIAL_INDEX,
+            }
+        } else {
+            Variation::BuildView { face_id }
         }
     }
 
