@@ -1,6 +1,6 @@
 use cgmath::Vector3;
 
-use crate::build::brick::Baked;
+use crate::build::brick::{Baked, BrickName};
 use crate::build::tenscript::{FabricPlan, Library, SurfaceCharacterSpec};
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::crucible::Stage::{*};
@@ -169,15 +169,16 @@ impl Crucible {
         &self.fabric
     }
 
-    pub fn capture_prototype(&mut self, brick_name: &str) {
+    pub fn capture_prototype(&mut self, brick_name: &BrickName) {
         println!("Settling and capturing prototype {brick_name:?}");
-        let prototype = Library::standard()
+        let fabric_and_face = Library::standard()
             .bricks
             .into_iter()
-            .find(|brick| brick.name == brick_name)
+            .find(|brick| &brick.name == brick_name)
             .expect("no such brick")
-            .proto;
-        self.stage = AcceptingPrototype(prototype);
+            .proto
+            .into();
+        self.stage = AcceptingPrototype(fabric_and_face);
     }
 
     fn start_pretensing(&mut self) {

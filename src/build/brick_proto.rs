@@ -2,6 +2,7 @@ use cgmath::{Point3, SquareMatrix};
 use cgmath::num_traits::abs;
 
 use crate::build::brick::Baked;
+use crate::build::tenscript::FaceName;
 use crate::build::tenscript::Spin::{Left, Right};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::{Interval, Role};
@@ -33,7 +34,7 @@ impl Baked {
                     .join("\n    "),
                 faces = self.faces
                     .into_iter()
-                    .map(|([a, b, c], face_name, spin)|
+                    .map(|([a, b, c], FaceName(face_name), spin)|
                         format!("({} {a} {b} {c} {face_name})", match spin {
                             Left => "left",
                             Right => "right",
@@ -99,8 +100,8 @@ impl TryFrom<(Fabric, UniqueId)> for Baked {
                         .map(|_| (*alpha_index, *omega_index, fabric.materials[*material].role, *strain)))
                 .collect(),
             faces: fabric.faces
-                .into_values()
-                .map(|face| (face.radial_joints(&fabric), face.face_name, face.spin))
+                .values()
+                .map(|face| (face.radial_joints(&fabric), face.face_name.clone(), face.spin))
                 .collect(),
         })
     }

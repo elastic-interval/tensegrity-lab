@@ -39,7 +39,8 @@ impl Display for ParseError {
     }
 }
 
-pub type FaceName = String;
+#[derive(Clone, Debug, PartialEq)]
+pub struct FaceName(pub String);
 
 #[derive(Debug, Clone, Copy)]
 pub enum SurfaceCharacterSpec {
