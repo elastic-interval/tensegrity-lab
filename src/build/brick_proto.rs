@@ -171,17 +171,17 @@ impl Baked {
                 let [
                 (left_front, left_back),
                 (middle_front, middle_back),
-                (right_front, right_back)
+                (right_front, right_back),
                 ] = p.x(normal_push_length);
                 let [
                 (front_left_bottom, front_left_top),
                 (front_right_bottom, front_right_top),
                 (back_left_bottom, back_left_top),
-                (back_right_bottom, back_right_top)
+                (back_right_bottom, back_right_top),
                 ] = p.y(normal_push_length);
                 let [
                 (top_left, top_right),
-                (bottom_left, bottom_right)
+                (bottom_left, bottom_right),
                 ] = p.z(normal_push_length * 2.0);
                 p.pull(2.5, &[
                     (middle_front, front_left_bottom),

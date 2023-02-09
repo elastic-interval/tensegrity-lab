@@ -143,7 +143,11 @@ pub fn parse_name(pair: Pair<Rule>) -> String {
 }
 
 pub fn parse_atom(pair: Pair<Rule>) -> String {
-    pair.as_str()[1..].to_string()
+    let string = pair.as_str();
+    string
+        .strip_prefix(':')
+        .unwrap_or(string)
+        .to_string()
 }
 
 #[cfg(test)]
