@@ -130,8 +130,7 @@ impl Fabric {
 
     pub fn join_faces(&mut self, alpha_id: UniqueId, omega_id: UniqueId) {
         let (alpha, omega) = (self.face(alpha_id), self.face(omega_id));
-        let (mut alpha_ends, omega_ends) = (alpha.radial_joints(self), omega.radial_joints(self));
-        alpha_ends.reverse();
+        let (alpha_ends, omega_ends) = (alpha.radial_joints(self), omega.radial_joints(self));
         let (mut alpha_points, omega_points) = (
             alpha_ends.map(|id| self.location(id)),
             omega_ends.map(|id| self.location(id))
