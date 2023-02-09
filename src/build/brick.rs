@@ -90,7 +90,7 @@ impl From<Prototype> for (Fabric, UniqueId) {
                 Axis::Y => Vector3::unit_y(),
                 Axis::Z => Vector3::unit_z(),
             };
-            let ends = [(alpha_name, vector * ideal / 2.0), (omega_name, -vector * ideal / 2.0)];
+            let ends = [(alpha_name, -vector * ideal / 2.0), (omega_name, vector * ideal / 2.0)];
             let [alpha_index, omega_index] = ends.map(|(name, loc)| {
                 let joint_index = fabric.create_joint(Point3::from_vec(loc));
                 if joints_by_name.insert(name, joint_index).is_some() {
@@ -114,12 +114,13 @@ impl From<Prototype> for (Fabric, UniqueId) {
             let radial_intervals = joint_indices.map(|omega_index| {
                 fabric.create_interval(alpha_index, omega_index, Link::pull(1.0))
             });
-            let _ = face_id.insert(
-                fabric.create_face(name, 1.0, spin, radial_intervals)
-            );
+            let is_bot_face = name.0 == "Bot";
+            let created_face_id = fabric.create_face(name, 1.0, spin, radial_intervals);
+            if is_bot_face {
+                face_id = Some(created_face_id);
+            }
         }
-
-        (fabric, face_id.expect("no faces defined"))
+        (fabric, face_id.expect("no Bot face defined"))
     }
 }
 
