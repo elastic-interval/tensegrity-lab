@@ -59,8 +59,7 @@
       (countdown 10000 (vulcanize))
       (remove-shapers)
       (replace-faces)))
-  (brick
-    (name "Mitosis")
+  (brick :mitosis
     (proto
       (pushes X 3.467
         (push :left_front :left_back)
@@ -85,10 +84,10 @@
         (pull :middle_back :back_right_top))
       (faces
         (left :top_left :left_back :back_left_top F0)
+        (right :top_left :left_front :front_left_top F3)
         (left :bottom_left :left_front :front_left_bottom F1)
         (left :top_right :right_front :front_right_top F2)
         (left :bottom_right :right_back :back_right_bottom F3)
-        (right :top_left :front_left_top :left_front F3)
         (right :bottom_left :back_left_bottom :left_back F5)
         (right :top_right :back_right_top :right_back F6)
         (right :bottom_right :front_right_bottom :right_front F7)))))

@@ -1,7 +1,7 @@
 use cgmath::Vector3;
 
-use crate::build::brick::{Baked, BrickName};
-use crate::build::tenscript::{FabricPlan, SurfaceCharacterSpec};
+use crate::build::brick::Baked;
+use crate::build::tenscript::{FabricPlan, Library, SurfaceCharacterSpec};
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
@@ -128,7 +128,7 @@ impl Crucible {
                     println!("Fabric settled in iteration {age} at speed squared {speed_squared}");
                     match Baked::try_from((self.fabric.clone(), *face_id)) {
                         Ok(brick) => {
-                            println!("{}", brick.into_code());
+                            println!("{}", brick.into_tenscript());
                         }
                         Err(problem) => {
                             println!("Cannot create brick: {problem}");
@@ -169,9 +169,15 @@ impl Crucible {
         &self.fabric
     }
 
-    pub fn capture_prototype(&mut self, brick_name: BrickName) {
+    pub fn capture_prototype(&mut self, brick_name: &str) {
         println!("Settling and capturing prototype {brick_name:?}");
-        self.stage = AcceptingPrototype(Baked::prototype(brick_name));
+        let prototype = Library::standard()
+            .bricks
+            .into_iter()
+            .find(|brick| brick.name == brick_name)
+            .expect("no such brick")
+            .proto;
+        self.stage = AcceptingPrototype(prototype);
     }
 
     fn start_pretensing(&mut self) {

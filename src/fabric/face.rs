@@ -27,7 +27,10 @@ impl Face {
         let loc = self.radial_joint_locations(fabric);
         let v1 = loc[1] - loc[0];
         let v2 = loc[2] - loc[0];
-        v2.cross(v1).normalize()
+        match self.spin {
+            Spin::Left => v2.cross(v1),
+            Spin::Right => v1.cross(v2),
+        }.normalize()
     }
 
     pub fn radial_joint_locations(&self, fabric: &Fabric) -> [Point3<f32>; 3] {

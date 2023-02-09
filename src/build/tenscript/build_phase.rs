@@ -1,7 +1,6 @@
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Quaternion, Rotation, Vector3};
 use pest::iterators::Pair;
 
-use crate::build::brick::BrickName;
 use crate::build::tenscript::{FaceMark, FaceName, Spin};
 use crate::build::tenscript::build_phase::BuildNode::{*};
 use crate::build::tenscript::build_phase::Launch::{*};
@@ -60,7 +59,7 @@ impl BuildNode {
 
 #[derive(Debug, Clone, Default)]
 pub struct Seed {
-    pub brick_name: BrickName,
+    pub brick_name: String,
     pub down_faces: Vec<FaceName>,
 }
 
@@ -221,8 +220,8 @@ impl BuildPhase {
         let spin = if forward.starts_with('X') { face.spin.opposite() } else { face.spin };
         if !forward.is_empty() {
             let brick_name = match spin {
-                Spin::Left => BrickName::LeftTwist,
-                Spin::Right => BrickName::RightTwist,
+                Spin::Left => "single-left",
+                Spin::Right => "single-right",
             };
             let faces = fabric.attach_brick(brick_name, scale_factor, Some(face_id));
             buds.push(Bud {
@@ -320,7 +319,7 @@ impl BuildPhase {
                 let Face { face_name, node } = face_node else {
                     unreachable!("Branch can only contain Face nodes");
                 };
-                (*face_name, node.as_ref())
+                (face_name.clone(), node.as_ref())
             })
             .collect()
     }
