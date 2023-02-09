@@ -1,5 +1,6 @@
 fabrics =
     { "(" ~ "fabrics" ~ fabric_plan* ~ ")" }
+
 fabric_plan =
     { "(" ~ "fabric" ~ name ~ surface? ~ build? ~ shape? ~ ")" }
 name =
@@ -10,13 +11,13 @@ basic_shape_operation =
     { space | join | vulcanize | remove_shapers | replace_faces | set_viscosity }
 shape_operation =
     { basic_shape_operation | countdown_block }
-countdown_block =
+countdown_block = // iteration-count
     { "(" ~ "countdown" ~ integer ~ basic_shape_operation+ ~ ")" }
-space =
+space = // mark-name, spacing-factor
     { "(" ~ "space" ~ atom ~ float ~ ")" }
-join =
+join = // mark-name
     { "(" ~ "join" ~ atom ~ ")" }
-remove_shapers =
+remove_shapers = // shaper-names
     { "(" ~ "remove-shapers" ~ atom* ~ ")" }
 set_viscosity =
     { "(" ~ "set-viscosity" ~ float ~ ")" }
@@ -48,22 +49,37 @@ surface =
     { "(" ~ "surface" ~ surface_character ~ ")" }
 surface_character =
     { ":bouncy" | ":frozen" | ":sticky" }
+
 brick =
     { "(" ~ "brick" ~ name ~ brick_baked ~ brick_proto ~ ")" }
 brick_proto =
-    { "(" ~ "proto" ~ ")" }
+    { "(" ~ "proto" ~ pushes_proto+ ~ pulls_proto+ ~ ")" }
+pushes_proto = // axis, ideal
+    { "(" ~ "pushes" ~ axis ~ float ~ push_proto+ ~ ")" }
+axis =
+    { ":x-axis" | ":y-axis" | ":z-axis" }
+push_proto = // alpha, omega
+    { "(" ~ "push" ~ atom ~ atom ~ ")" }
+pulls_proto = // ideal
+    { "(" ~ "pulls" ~ float ~ pull_proto+ ~ ")" }
+pull_proto = // alpha, omega
+    { "(" ~ "pull" ~ atom ~ atom ~ ")" }
+left_proto = // a, b, c, name
+    { "(" ~ "left" ~ atom ~ atom ~ atom ~ atom ~ ")" }
+right_proto = // a, b, c, name
+    { "(" ~ "right" ~ atom ~ atom ~ atom ~ atom ~ ")" }
 brick_baked =
-    { "(" ~ "baked" ~ joint+ ~ (push_baked | pull_baked)+ ~ (left_baked | right_baked)+ ~ ")" }
-joint =
+    { "(" ~ "baked" ~ joint_baked+ ~ (push_baked | pull_baked)+ ~ (left_baked | right_baked)+ ~ ")" }
+joint_baked = // x, y, z
     { "(" ~ "joint" ~ float ~ float ~ float ~ ")" }
-push_baked =
+push_baked = // alpha_index, omega_index, strain
     { "(" ~ "push" ~ integer ~ integer ~ float ~ ")" }
-pull_baked =
+pull_baked = // alpha_index, omega_index, strain
     { "(" ~ "pull" ~ integer ~ integer ~ float ~ ")" }
-left_baked =
-    { "(" ~ "left" ~ atom ~ integer ~ integer ~ integer ~ ")" }
-right_baked =
-    { "(" ~ "right" ~ atom ~ integer ~ integer ~ integer ~ ")" }
+left_baked = // a, b, c, name
+    { "(" ~ "left" ~ integer ~ integer ~ integer ~ atom ~ ")" }
+right_baked = // a, b, c, name
+    { "(" ~ "right" ~ integer ~ integer ~ integer ~ atom ~ ")" }
 
 face_name = @{"F" ~ integer}
 ident = @{ XID_START ~ (XID_CONTINUE | "-")* }
