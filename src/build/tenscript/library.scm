@@ -117,6 +117,21 @@
       (pull 4 1 0.1171)
       (left 5 3 1 Top)
       (left 0 2 4 Bot)))
+  (brick :omni
+    (proto
+      (pushes X 3.271 (push :bot_alpha_x :bot_omega_x) (push :top_alpha_x :top_omega_x))
+      (pushes Y 3.271 (push :bot_alpha_y :bot_omega_y) (push :top_alpha_y :top_omega_y))
+      (pushes Z 3.271 (push :bot_alpha_z :bot_omega_z) (push :top_alpha_z :top_omega_z))
+      (faces
+        (right :top_omega_x :top_omega_y :top_omega_z Top)
+        (left :top_omega_x :top_alpha_y :bot_omega_z TopX)
+        (left :top_omega_y :top_alpha_z :bot_omega_x TopY)
+        (left :top_omega_z :top_alpha_x :bot_omega_y TopZ)
+
+        (right :bot_alpha_z :bot_omega_x :top_alpha_y BotZ)
+        (right :bot_alpha_y :bot_omega_z :top_alpha_x BotY)
+        (right :bot_alpha_x :bot_omega_y :top_alpha_z BotX)
+        (left :bot_alpha_x :bot_alpha_y :bot_alpha_z Bot))))
   (brick :mitosis
     (proto
       (pushes X 3.467

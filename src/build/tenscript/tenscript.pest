@@ -51,7 +51,7 @@ surface_character =
 brick_definition =
     { "(" ~ "brick" ~ atom ~ brick_proto ~ brick_baked? ~ ")" }
 brick_proto =
-    { "(" ~ "proto" ~ pushes_proto+ ~ pulls_proto+ ~ faces_proto+ ~ ")" }
+    { "(" ~ "proto" ~ pushes_proto+ ~ pulls_proto* ~ faces_proto+ ~ ")" }
 pushes_proto = // axis, ideal
     { "(" ~ "pushes" ~ axis ~ float ~ push_proto+ ~ ")" }
 axis = { axis_x | axis_y | axis_z }
