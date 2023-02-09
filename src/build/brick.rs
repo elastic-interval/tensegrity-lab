@@ -15,13 +15,28 @@ pub enum Axis {
     Z,
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum Chirality {
-    Left,
-    Right,
+impl Axis {
+    pub fn from_pair(pair: Pair<Rule>) -> Self {
+        match pair.as_rule() {
+            Rule::axis_x => Axis::X,
+            Rule::axis_y => Axis::Y,
+            Rule::axis_z => Axis::Z,
+            _ => unreachable!(),
+        }
+    }
 }
 
-#[derive(Clone)]
+impl Spin {
+    pub fn from_pair(pair: Pair<Rule>) -> Self {
+        match pair.as_rule() {
+            Rule::left => Left,
+            Rule::right => Right,
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct PushDef {
     pub axis: Axis,
     pub ideal: f32,
@@ -29,32 +44,32 @@ pub struct PushDef {
     pub omega_name: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PullDef {
     pub ideal: f32,
     pub alpha_name: String,
     pub omega_name: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FaceDef {
-    pub chirality: Chirality,
+    pub spin: Spin,
     pub joint_names: [String; 3],
     pub name: String,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct Prototype {
     pub pushes: Vec<PushDef>,
     pub pulls: Vec<PullDef>,
     pub faces: Vec<FaceDef>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BrickDefinition {
     pub name: String,
     pub proto: Prototype,
-    pub baked: Baked,
+    pub baked: Option<Baked>,
 }
 
 impl Prototype {
@@ -65,12 +80,7 @@ impl Prototype {
                 Rule::pushes_proto => {
                     let mut inner = pair.into_inner();
                     let [axis, ideal] = inner.next_chunk().unwrap();
-                    let axis = match axis.as_rule() {
-                        Rule::axis_x => Axis::X,
-                        Rule::axis_y => Axis::Y,
-                        Rule::axis_z => Axis::Z,
-                        _ => unreachable!(),
-                    };
+                    let axis = Axis::from_pair(axis);
                     let ideal = ideal.as_str().parse().unwrap();
                     for push_pair in inner {
                         let (alpha_name, omega_name) = Self::extract_alpha_and_omega(push_pair);
@@ -96,32 +106,30 @@ impl Prototype {
                 }
                 Rule::faces_proto => {
                     for face_pair in pair.into_inner() {
-                        let [chirality, a, b, c, name] = face_pair.into_inner().next_chunk().unwrap();
-                        let chirality = match chirality.as_rule() {
-                            Rule::left => Chirality::Left,
-                            Rule::right => Chirality::Left,
-                            _ => unreachable!(),
-                        };
+                        let [spin, a, b, c, name] = face_pair.into_inner().next_chunk().unwrap();
+                        let spin = Spin::from_pair(spin);
                         let joint_names = [a, b, c].map(parse_atom);
                         let name = parse_atom(name);
                         prototype.faces.push(FaceDef {
-                            chirality,
+                            spin,
                             joint_names,
                             name,
                         });
                     }
                 }
+                _ => unreachable!(),
             }
         }
+        // TODO: validate all the names used
         Ok(prototype)
     }
 
-    fn extract_alpha_and_omega(push_pair: Pair<Rule>) -> (String, String) {
-        let [alpha_name, omega_name] = push_pair
+    fn extract_alpha_and_omega(pair: Pair<Rule>) -> (String, String) {
+        let [alpha_name, omega_name] = pair
             .into_inner()
             .next_chunk()
             .unwrap()
-            .map(|pair| pair.as_str()[1..].to_string());
+            .map(parse_atom);
         (alpha_name, omega_name)
     }
 }
@@ -133,10 +141,15 @@ impl BrickDefinition {
         let name = parse_name(name);
         let proto = Prototype::from_pair(proto)?;
         let baked = inner.next().map(Baked::from_pair);
+        Ok(Self {
+            name,
+            proto,
+            baked,
+        })
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Baked {
     pub joints: Vec<Point3<f32>>,
     pub intervals: Vec<(usize, usize, Role, f32)>,
@@ -155,7 +168,42 @@ pub enum BrickName {
 }
 
 impl Baked {
-    pub fn from_pair(pair: Pair<Rule>) -> Self {}
+    pub fn from_pair(pair: Pair<Rule>) -> Self {
+        let mut baked = Self::default();
+        for pair in pair.into_inner() {
+            match pair.as_rule() {
+                Rule::joint_baked => {
+                    let [x, y, z] = pair
+                        .into_inner()
+                        .next_chunk()
+                        .unwrap()
+                        .map(|pair| pair.as_str().parse().unwrap());
+                    baked.joints.push(point3(x, y, z));
+                }
+                Rule::interval_baked => {
+                    let [role, alpha_index, omega_index, strain] = pair.into_inner().next_chunk().unwrap();
+                    let role = match role.as_rule() {
+                        Rule::push => Push,
+                        Rule::pull => Pull,
+                        _ => unreachable!()
+                    };
+                    let [alpha_index, omega_index] = [alpha_index, omega_index].map(|pair| pair.as_str().parse().unwrap());
+                    let strain = strain.as_str().parse().unwrap();
+                    baked.intervals.push((alpha_index, omega_index, role, strain));
+                }
+                Rule::face_baked => {
+                    // TODO: use name instead of FaceName(0)
+                    let [spin, a, b, c, _name] = pair.into_inner().next_chunk().unwrap();
+                    let spin = Spin::from_pair(spin);
+                    let joint_indices = [a, b, c].map(|pair| pair.as_str().parse().unwrap());
+                    baked.faces.push((joint_indices, FaceName(0), spin));
+                }
+                _ => unreachable!()
+            }
+        }
+        baked
+    }
+
 
     pub fn new(name: BrickName) -> Baked {
         match name {

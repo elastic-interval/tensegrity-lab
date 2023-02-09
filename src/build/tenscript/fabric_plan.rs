@@ -1,10 +1,8 @@
 #![allow(clippy::result_large_err)]
 
 use std::collections::HashSet;
-use std::fmt::Display;
 
 use pest::iterators::Pair;
-use pest::Parser;
 
 use crate::build::tenscript::{BuildPhase, Collection, parse_name, ParseError, Rule, SurfaceCharacterSpec};
 use crate::build::tenscript::build_phase::BuildNode;
@@ -50,7 +48,7 @@ impl FabricPlan {
                 Rule::shape => {
                     plan.shape_phase = ShapePhase::from_pair(pair);
                 }
-                _ => unreachable!("fabric plan"),
+                _ => unreachable!("fabric plan {:?}", pair.as_rule()),
             }
         }
         Self::validate_fabric_plan(&plan)?;
@@ -95,16 +93,5 @@ impl FabricPlan {
             return Err(ParseError::Invalid(format!("undefined marks in shape phase: {}", undefined_marks.join(", "))));
         }
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::build::tenscript::fabric_plan::FabricPlan;
-
-    #[test]
-    fn parse_test() {
-        let plans = FabricPlan::bootstrap();
-        println!("{plans:?}")
     }
 }

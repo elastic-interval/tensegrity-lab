@@ -2,7 +2,6 @@ use std::default::Default;
 
 use cgmath::MetricSpace;
 use pest::iterators::Pair;
-use pest::Parser;
 
 use crate::build::tenscript::FaceMark;
 use crate::build::tenscript::Rule;

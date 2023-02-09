@@ -87,10 +87,10 @@ pub struct FaceMark {
     mark_name: String,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct Collection {
-    fabrics: Vec<FabricPlan>,
-    bricks: Vec<BrickDefinition>,
+    pub(crate) fabrics: Vec<FabricPlan>,
+    pub(crate) bricks: Vec<BrickDefinition>,
 }
 
 impl Collection {
@@ -122,13 +122,11 @@ impl Collection {
         for definition in pair.into_inner() {
             match definition.as_rule() {
                 Rule::fabric_plan => {
-                    let fabric_plan_pair = definition.into_inner().next().unwrap();
-                    let fabric_plan = FabricPlan::from_pair(fabric_plan_pair)?;
+                    let fabric_plan = FabricPlan::from_pair(definition)?;
                     collection.fabrics.push(fabric_plan);
                 }
-                Rule::brick => {
-                    let brick_pair = definition.into_inner().next().unwrap();
-                    let brick = BrickDefinition::from_pair(brick_pair)?;
+                Rule::brick_definition => {
+                    let brick = BrickDefinition::from_pair(definition)?;
                     collection.bricks.push(brick);
                 }
                 _ => unreachable!()
@@ -146,4 +144,15 @@ pub fn parse_name(pair: Pair<Rule>) -> String {
 
 pub fn parse_atom(pair: Pair<Rule>) -> String {
     pair.as_str()[1..].to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::build::tenscript::Collection;
+
+    #[test]
+    fn parse_test() {
+        let plans = Collection::bootstrap();
+        println!("{plans:?}")
+    }
 }
