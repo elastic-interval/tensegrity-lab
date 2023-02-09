@@ -130,10 +130,6 @@ pub fn run_with(brick_name: Option<BrickName>) {
                             state: ElementState::Pressed, ..
                         }, ..
                     } => match keycode {
-                        #[cfg(target_arch = "wasm32")]
-                        VirtualKeyCode::F => {
-                            fullscreen_web();
-                        }
                         VirtualKeyCode::Escape => {
                             app.gui.change_state(ControlMessage::ShowControl(VisibleControl::ControlChoice));
                         }
@@ -143,14 +139,16 @@ pub fn run_with(brick_name: Option<BrickName>) {
                         VirtualKeyCode::D => {
                             app.gui.change_state(ControlMessage::ToggleDebugMode);
                         }
-                        _ => {}
+                        _ => {
+                            app.scene.window_event(event, experiment.fabric());
+                        }
                     },
                     WindowEvent::MouseInput { state: ElementState::Released, .. } => {
-                        app.scene.window_event(event);
+                        app.scene.window_event(event, experiment.fabric());
                     }
                     WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
                     if !app.gui.capturing_mouse() =>
-                        app.scene.window_event(event),
+                        app.scene.window_event(event, experiment.fabric()),
                     _ => {}
                 }
             }
@@ -160,10 +158,7 @@ pub fn run_with(brick_name: Option<BrickName>) {
                     app.scene.move_camera(jump);
                     app.scene.show_surface(true);
                 }
-                let strain_view =
-                    app.gui.controls().show_strain()
-                    .then(|| app.gui.controls().strain_view());
-                app.scene.update(&app.graphics, strain_view, experiment.fabric());
+                app.scene.update(&app.graphics, app.gui.controls().variation(app.scene.target_face_id()), experiment.fabric());
                 app.gui.update_viewport(&window);
                 match app.render() {
                     Ok(_) => {}

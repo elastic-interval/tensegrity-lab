@@ -1,11 +1,11 @@
 use cgmath::Vector3;
 
 use crate::build::brick::{Brick, BrickName};
-use crate::build::tenscript::FabricPlan;
+use crate::build::tenscript::{FabricPlan, SurfaceCharacterSpec};
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::experiment::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
-use crate::fabric::physics::Physics;
+use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::fabric::physics::presets::{AIR_GRAVITY, PROTOTYPE_FORMATION};
 
 const PULL_SHORTENING: f32 = 0.95;
@@ -58,6 +58,16 @@ impl Experiment {
             Empty => {}
             AcceptingPlan(fabric_plan) => {
                 self.fabric = Fabric::default_bow_tie();
+                match fabric_plan.surface {
+                    None => {}
+                    Some(surface_character) => {
+                        self.physics.surface_character = match surface_character {
+                            SurfaceCharacterSpec::Bouncy => SurfaceCharacter::Bouncy,
+                            SurfaceCharacterSpec::Sticky => SurfaceCharacter::Sticky,
+                            _ => SurfaceCharacter::Frozen,
+                        }
+                    }
+                }
                 self.frozen_fabric = None;
                 self.plan_runner = Some(PlanRunner::new(fabric_plan.clone()));
                 self.stage = RunningPlan;
