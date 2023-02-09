@@ -196,11 +196,10 @@ impl Scene {
                                 .keys()
                                 .position(|&id| face_id == id)
                                 .expect("Face id not found");
-                            let [&new_face_id] = fabric.faces.keys()
+                            let &new_face_id = fabric.faces.keys()
                                 .cycle()
                                 .skip(found + 1)
-                                .take(1)
-                                .next_chunk()
+                                .next()
                                 .unwrap();
                             Target::Face(new_face_id)
                         }
