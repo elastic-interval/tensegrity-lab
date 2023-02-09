@@ -2,9 +2,10 @@ use std::default::Default;
 
 use cgmath::MetricSpace;
 use pest::iterators::Pair;
+use pest::Parser;
 
-use crate::build::tenscript::fabric_plan::Rule;
 use crate::build::tenscript::FaceMark;
+use crate::build::tenscript::Rule;
 use crate::build::tenscript::shape_phase::Command::{*};
 use crate::fabric::{Fabric, Link, UniqueId};
 

@@ -1,13 +1,12 @@
 #![allow(clippy::result_large_err)]
 
-use std::cell::LazyCell;
 use std::collections::HashSet;
 use std::fmt::Display;
 
 use pest::iterators::Pair;
 use pest::Parser;
 
-use crate::build::tenscript::{BuildPhase, ParseError, Rule, SurfaceCharacterSpec, TenscriptParser};
+use crate::build::tenscript::{BuildPhase, Collection, parse_name, ParseError, Rule, SurfaceCharacterSpec};
 use crate::build::tenscript::build_phase::BuildNode;
 use crate::build::tenscript::shape_phase::{Operation, ShapePhase};
 
@@ -20,45 +19,20 @@ pub struct FabricPlan {
 }
 
 impl FabricPlan {
-    pub fn bootstrap() -> Vec<FabricPlan> {
-        let bootstrap: LazyCell<Vec<_>> = LazyCell::new(||
-            FabricPlan::from_file(include_str!("bootstrap.scm")).unwrap()
-        );
-        bootstrap.clone()
-    }
-
-    pub fn from_file(source: &str) -> Result<Vec<Self>, ParseError> {
-        TenscriptParser::parse(Rule::collection, source)
-            .map_err(ParseError::Pest)?
-            .next()
-            .expect("no (fabrics ..)")
-            .into_inner()
-            .map(FabricPlan::from_pair)
-            .collect()
-    }
-
     pub fn boostrap_with_name(plan_name: &str) -> Option<Self> {
-        Self::bootstrap()
+        Collection::bootstrap()
+            .fabrics
             .iter()
             .find(|plan| plan.name == plan_name)
             .cloned()
     }
 
-    pub fn from_tenscript(source: &str) -> Result<Self, ParseError> {
-        let fabric_plan_pair = TenscriptParser::parse(Rule::fabric_plan, source)
-            .map_err(ParseError::Pest)?
-            .next()
-            .unwrap();
-        Self::from_pair(fabric_plan_pair)
-    }
-
-    fn from_pair(fabric_plan_pair: Pair<Rule>) -> Result<FabricPlan, ParseError> {
+    pub(crate) fn from_pair(fabric_plan_pair: Pair<Rule>) -> Result<FabricPlan, ParseError> {
         let mut plan = FabricPlan::default();
         for pair in fabric_plan_pair.into_inner() {
             match pair.as_rule() {
                 Rule::name => {
-                    let name_string = pair.into_inner().next().unwrap().as_str();
-                    plan.name = name_string[1..name_string.len() - 1].to_string();
+                    plan.name = parse_name(pair);
                 }
                 Rule::surface => {
                     plan.surface = Some(

@@ -56,8 +56,10 @@ brick_proto =
     { "(" ~ "proto" ~ pushes_proto+ ~ pulls_proto+ ~ faces_proto+ ~ ")" }
 pushes_proto = // axis, ideal
     { "(" ~ "pushes" ~ axis ~ float ~ push_proto+ ~ ")" }
-axis =
-    { ":x-axis" | ":y-axis" | ":z-axis" }
+axis = { axis_x | axis_y | axis_z }
+axis_x = { ":x-axis" | "X" }
+axis_y = { ":y-axis" | "Y" }
+axis_z = { ":z-axis" | "Z" }
 push_proto = // alpha, omega
     { "(" ~ "push" ~ atom ~ atom ~ ")" }
 pulls_proto = // ideal
@@ -65,11 +67,12 @@ pulls_proto = // ideal
 pull_proto = // alpha, omega
     { "(" ~ "pull" ~ atom ~ atom ~ ")" }
 faces_proto =
-    { "(" ~ "faces" ~ (left_proto | right_proto)+ ~ ")" }
-left_proto = // a, b, c, name
-    { "(" ~ "left" ~ atom ~ atom ~ atom ~ atom ~ ")" }
-right_proto = // a, b, c, name
-    { "(" ~ "right" ~ atom ~ atom ~ atom ~ atom ~ ")" }
+    { "(" ~ "faces" ~ face_proto+ ~ ")" }
+chirality = { left | right }
+left = { "left" }
+right = { "right" }
+face_proto = // a, b, c, name
+    { "(" ~ chirality ~ atom ~ atom ~ atom ~ atom ~ ")" }
 brick_baked =
     { "(" ~ "baked" ~ joint_baked+ ~ (push_baked | pull_baked)+ ~ (left_baked | right_baked)+ ~ ")" }
 joint_baked = // x, y, z

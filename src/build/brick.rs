@@ -2,23 +2,26 @@ use cgmath::{Point3, point3};
 use clap::ValueEnum;
 use pest::iterators::Pair;
 
-use crate::build::tenscript::{FaceName, Spin};
-use crate::build::tenscript::fabric_plan::Rule;
+use crate::build::tenscript::{FaceName, parse_atom, parse_name, ParseError, Spin};
+use crate::build::tenscript::Rule;
 use crate::build::tenscript::Spin::{Left, Right};
 use crate::fabric::interval::Role;
 use crate::fabric::interval::Role::{Pull, Push};
 
+#[derive(Copy, Clone, Debug)]
 pub enum Axis {
     X,
     Y,
     Z,
 }
 
+#[derive(Copy, Clone, Debug)]
 pub enum Chirality {
     Left,
     Right,
 }
 
+#[derive(Clone)]
 pub struct PushDef {
     pub axis: Axis,
     pub ideal: f32,
@@ -26,27 +29,111 @@ pub struct PushDef {
     pub omega_name: String,
 }
 
+#[derive(Clone)]
 pub struct PullDef {
     pub ideal: f32,
     pub alpha_name: String,
     pub omega_name: String,
 }
 
-pub struct Face {
+#[derive(Clone)]
+pub struct FaceDef {
     pub chirality: Chirality,
     pub joint_names: [String; 3],
     pub name: String,
 }
 
+#[derive(Clone, Default)]
 pub struct Prototype {
     pub pushes: Vec<PushDef>,
     pub pulls: Vec<PullDef>,
-    pub faces: Vec<Face>,
+    pub faces: Vec<FaceDef>,
 }
 
-pub struct Definition {
+#[derive(Clone)]
+pub struct BrickDefinition {
+    pub name: String,
     pub proto: Prototype,
     pub baked: Baked,
+}
+
+impl Prototype {
+    pub fn from_pair(pair: Pair<Rule>) -> Result<Self, ParseError> {
+        let mut prototype = Self::default();
+        for pair in pair.into_inner() {
+            match pair.as_rule() {
+                Rule::pushes_proto => {
+                    let mut inner = pair.into_inner();
+                    let [axis, ideal] = inner.next_chunk().unwrap();
+                    let axis = match axis.as_rule() {
+                        Rule::axis_x => Axis::X,
+                        Rule::axis_y => Axis::Y,
+                        Rule::axis_z => Axis::Z,
+                        _ => unreachable!(),
+                    };
+                    let ideal = ideal.as_str().parse().unwrap();
+                    for push_pair in inner {
+                        let (alpha_name, omega_name) = Self::extract_alpha_and_omega(push_pair);
+                        prototype.pushes.push(PushDef {
+                            alpha_name,
+                            omega_name,
+                            ideal,
+                            axis,
+                        })
+                    }
+                }
+                Rule::pulls_proto => {
+                    let mut inner = pair.into_inner();
+                    let ideal = inner.next().unwrap().as_str().parse().unwrap();
+                    for pull_pair in inner {
+                        let (alpha_name, omega_name) = Self::extract_alpha_and_omega(pull_pair);
+                        prototype.pulls.push(PullDef {
+                            alpha_name,
+                            omega_name,
+                            ideal,
+                        });
+                    }
+                }
+                Rule::faces_proto => {
+                    for face_pair in pair.into_inner() {
+                        let [chirality, a, b, c, name] = face_pair.into_inner().next_chunk().unwrap();
+                        let chirality = match chirality.as_rule() {
+                            Rule::left => Chirality::Left,
+                            Rule::right => Chirality::Left,
+                            _ => unreachable!(),
+                        };
+                        let joint_names = [a, b, c].map(parse_atom);
+                        let name = parse_atom(name);
+                        prototype.faces.push(FaceDef {
+                            chirality,
+                            joint_names,
+                            name,
+                        });
+                    }
+                }
+            }
+        }
+        Ok(prototype)
+    }
+
+    fn extract_alpha_and_omega(push_pair: Pair<Rule>) -> (String, String) {
+        let [alpha_name, omega_name] = push_pair
+            .into_inner()
+            .next_chunk()
+            .unwrap()
+            .map(|pair| pair.as_str()[1..].to_string());
+        (alpha_name, omega_name)
+    }
+}
+
+impl BrickDefinition {
+    pub fn from_pair(pair: Pair<Rule>) -> Result<Self, ParseError> {
+        let mut inner = pair.into_inner();
+        let [name, proto] = inner.next_chunk().unwrap();
+        let name = parse_name(name);
+        let proto = Prototype::from_pair(proto)?;
+        let baked = inner.next().map(Baked::from_pair);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -68,7 +155,7 @@ pub enum BrickName {
 }
 
 impl Baked {
-    pub fn from_pair(pair: Pair<Rule>)
+    pub fn from_pair(pair: Pair<Rule>) -> Self {}
 
     pub fn new(name: BrickName) -> Baked {
         match name {
