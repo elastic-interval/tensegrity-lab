@@ -1,6 +1,6 @@
 use cgmath::{EuclideanSpace, Point3, Transform, Vector3};
 
-use crate::build::brick::{Baked, BrickName};
+use crate::build::brick::Baked;
 use crate::build::tenscript::FaceName;
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::fabric::face::Face;
@@ -12,7 +12,7 @@ const ROOT6: f32 = 2.449_489_8;
 const PHI: f32 = (1f32 + ROOT5) / 2f32;
 
 impl Fabric {
-    pub fn attach_brick(&mut self, brick_name: BrickName, scale_factor: f32, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
+    pub fn attach_brick(&mut self, brick_name: &str, scale_factor: f32, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
         let brick = Baked::new(brick_name);

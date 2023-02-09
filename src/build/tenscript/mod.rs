@@ -39,27 +39,7 @@ impl Display for ParseError {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct FaceName(pub usize);
-
-impl Display for FaceName {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("F{}", self.0))
-    }
-}
-
-impl TryFrom<&str> for FaceName {
-    type Error = ();
-
-    fn try_from(face_name: &str) -> Result<Self, Self::Error> {
-        face_name
-            .strip_prefix('F')
-            .ok_or(())?
-            .parse()
-            .map(FaceName)
-            .map_err(|_| ())
-    }
-}
+pub type FaceName = String;
 
 #[derive(Debug, Clone, Copy)]
 pub enum SurfaceCharacterSpec {
