@@ -114,13 +114,13 @@ impl From<Prototype> for (Fabric, UniqueId) {
             let radial_intervals = joint_indices.map(|omega_index| {
                 fabric.create_interval(alpha_index, omega_index, Link::pull(1.0))
             });
-            let bottom = name == FaceName("Bot".to_string());
+            let is_bot_face = name.0 == "Bot";
             let created_face_id = fabric.create_face(name, 1.0, spin, radial_intervals);
-            if bottom {
+            if is_bot_face {
                 face_id = Some(created_face_id);
             }
         }
-        (fabric, face_id.expect("no faces defined"))
+        (fabric, face_id.expect("no Bot face defined"))
     }
 }
 
