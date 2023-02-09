@@ -38,7 +38,7 @@ impl Component for FabricChoice {
                 Button::new(Text::new(name))
                     .on_press(FabricChoiceMessage::ChooseFabric(plan.clone()).into())
             );
-        };
+        }
         format_row(row)
     }
 }
