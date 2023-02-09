@@ -40,9 +40,7 @@ branch =
 scale =
     { "(" ~ "scale" ~ float ~ ")" }
 seed =
-    { "(" ~ "seed" ~ brick_name ~ orient_down? ~ ")" }
-brick_name =
-    { ":left-mitosis" | ":right-mitosis" | ":left-omni" | ":right-omni" | ":left" | ":right" }
+    { "(" ~ "seed" ~ atom ~ orient_down? ~ ")" }
 orient_down =
     { "(" ~ "orient-down" ~ face_name+ ~ ")" }
 surface =

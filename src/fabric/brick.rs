@@ -1,6 +1,6 @@
 use cgmath::{EuclideanSpace, Point3, Transform, Vector3};
 
-use crate::build::brick::Baked;
+use crate::build::brick::{Baked, BrickName};
 use crate::build::tenscript::FaceName;
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::fabric::face::Face;
@@ -12,7 +12,7 @@ const ROOT6: f32 = 2.449_489_8;
 const PHI: f32 = (1f32 + ROOT5) / 2f32;
 
 impl Fabric {
-    pub fn attach_brick(&mut self, brick_name: &str, scale_factor: f32, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
+    pub fn attach_brick(&mut self, brick_name: &BrickName, scale_factor: f32, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
         let brick = Baked::new(brick_name);
@@ -45,13 +45,13 @@ impl Fabric {
                     let ideal = self.ideal(alpha_index, omega_index, Baked::TARGET_FACE_STRAIN);
                     self.create_interval(alpha_index, omega_index, Link::pull(ideal))
                 });
-                (face_name, self.create_face(face_name, scale, spin, radial_intervals))
+                (face_name.clone(), self.create_face(face_name, scale, spin, radial_intervals))
             })
             .collect();
         let a_neg_face = faces
             .iter()
-            .find_map(|(FaceName(index), face_id)| (*index == 0).then_some(face_id))
-            .expect("no Aneg face");
+            .find_map(|(FaceName(name), face_id)| (name == "Bot").then_some(face_id))
+            .expect("no Bot face");
         if let Some(id) = face_id { self.join_faces(id, *a_neg_face) }
         faces
     }

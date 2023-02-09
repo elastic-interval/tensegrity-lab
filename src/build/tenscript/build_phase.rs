@@ -1,7 +1,8 @@
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Quaternion, Rotation, Vector3};
 use pest::iterators::Pair;
 
-use crate::build::tenscript::{FaceMark, FaceName, Spin};
+use crate::build::brick::BrickName;
+use crate::build::tenscript::{FaceMark, FaceName, parse_atom, Spin};
 use crate::build::tenscript::build_phase::BuildNode::{*};
 use crate::build::tenscript::build_phase::Launch::{*};
 use crate::build::tenscript::Rule;
@@ -59,24 +60,8 @@ impl BuildNode {
 
 #[derive(Debug, Clone, Default)]
 pub struct Seed {
-    pub brick_name: String,
+    pub brick_name: BrickName,
     pub down_faces: Vec<FaceName>,
-}
-
-impl Seed {
-    pub fn spin(&self) -> Spin {
-        match self.brick_name {
-            BrickName::LeftTwist | BrickName::LeftOmniTwist | BrickName::LeftMitosis => Spin::Left,
-            BrickName::RightTwist | BrickName::RightOmniTwist | BrickName::RightMitosis => Spin::Right,
-        }
-    }
-
-    pub fn needs_double(&self) -> bool {
-        match self.brick_name {
-            BrickName::LeftTwist | BrickName::RightTwist => false,
-            BrickName::LeftOmniTwist | BrickName::RightOmniTwist | BrickName::LeftMitosis | BrickName::RightMitosis => true,
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -101,21 +86,13 @@ impl BuildPhase {
             match sub_pair.as_rule() {
                 Rule::seed => {
                     let mut inner = sub_pair.into_inner();
-                    phase.seed.brick_name = match inner.next().unwrap().as_str() {
-                        ":left-mitosis" => BrickName::LeftMitosis,
-                        ":right-mitosis" => BrickName::RightMitosis,
-                        ":left-omni" => BrickName::LeftOmniTwist,
-                        ":right-omni" => BrickName::RightOmniTwist,
-                        ":left" => BrickName::LeftTwist,
-                        ":right" => BrickName::RightTwist,
-                        _ => unreachable!()
-                    };
+                    phase.seed.brick_name = BrickName(parse_atom(inner.next().unwrap()));
                     for sub_pair in inner {
                         match sub_pair.as_rule() {
                             Rule::orient_down => {
                                 phase.seed.down_faces = sub_pair
                                     .into_inner()
-                                    .map(|face_name| face_name.as_str().try_into().unwrap())
+                                    .map(|face_name| FaceName(parse_atom(face_name)))
                                     .collect();
                             }
                             _ => unreachable!("build phase seed: {sub_pair:?}")
@@ -137,7 +114,7 @@ impl BuildPhase {
                 Self::parse_build_node(pair.into_inner().next().unwrap()),
             Rule::on_face => {
                 let [face_name_pair, node_pair] = pair.into_inner().next_chunk().unwrap();
-                let face_name = face_name_pair.as_str().try_into().unwrap();
+                let face_name = FaceName(parse_atom(face_name_pair));
                 let node = Self::parse_build_node(node_pair);
                 Face {
                     face_name,
@@ -193,7 +170,7 @@ impl BuildPhase {
         let BuildPhase { seed, root, .. } = &self;
         match root {
             None => {
-                self.attach_brick(fabric, seed.brick_name, None);
+                self.attach_brick(fabric, &seed.brick_name, None);
             }
             Some(node) => {
                 let (buds, marks) =
@@ -219,13 +196,14 @@ impl BuildPhase {
         let face = fabric.face(face_id);
         let spin = if forward.starts_with('X') { face.spin.opposite() } else { face.spin };
         if !forward.is_empty() {
+            // TODO: don't hardcode these names, look them up somewhere
             let brick_name = match spin {
-                Spin::Left => "single-left",
-                Spin::Right => "single-right",
+                Spin::Left => BrickName("single-left".to_string()),
+                Spin::Right => BrickName("single-right".to_string()),
             };
-            let faces = fabric.attach_brick(brick_name, scale_factor, Some(face_id));
+            let faces = fabric.attach_brick(&brick_name, scale_factor, Some(face_id));
             buds.push(Bud {
-                face_id: Self::find_face_id(FaceName(1), faces.to_vec()),
+                face_id: Self::find_face_id(FaceName("Top".to_string()), faces.to_vec()),
                 forward: forward[1..].into(),
                 scale_factor,
                 node,
@@ -244,17 +222,13 @@ impl BuildPhase {
         let mut marks: Vec<FaceMark> = vec![];
         match node {
             Face { face_name, node } => {
-                return self.execute_node(fabric, NamedFace { face_name: *face_name }, node, faces);
+                return self.execute_node(fabric, NamedFace { face_name: face_name.clone() }, node, faces);
             }
             Grow { forward, scale_factor, post_growth_node, .. } => {
                 let face_id = match launch {
                     Seeded { seed } => {
-                        let brick_name = match seed.spin() {
-                            Spin::Left => BrickName::LeftTwist,
-                            Spin::Right => BrickName::RightTwist,
-                        };
-                        let faces = fabric.attach_brick(brick_name, *scale_factor, None);
-                        return self.execute_node(fabric, NamedFace { face_name: FaceName(1) }, node, faces.to_vec());
+                        let faces = fabric.attach_brick(&seed.brick_name, *scale_factor, None);
+                        return self.execute_node(fabric, NamedFace { face_name: FaceName("Top".to_string()) }, node, faces.to_vec());
                     }
                     NamedFace { face_name } => Self::find_face_id(face_name, faces),
                     IdentifiedFace { face_id } => face_id,
@@ -264,13 +238,13 @@ impl BuildPhase {
             }
             Branch { face_nodes } => {
                 let pairs = Self::branch_pairs(face_nodes);
-                let needs_double = pairs.iter().any(|(FaceName(index), _)| *index > 1);
-                let brick_name = |spin: Spin| match spin {
-                    Spin::Left if needs_double => BrickName::LeftOmniTwist,
-                    Spin::Right if needs_double => BrickName::RightOmniTwist,
-                    Spin::Left => BrickName::LeftTwist,
-                    Spin::Right => BrickName::RightTwist,
-                };
+                let needs_double = pairs.iter().any(|(FaceName(name), _)| !["Top", "Bot"].contains(&name.as_str()));
+                let brick_name = |spin: Spin| BrickName(match spin {
+                    Spin::Left if needs_double => "omni-left",
+                    Spin::Right if needs_double => "omni-right",
+                    Spin::Left => "single-left",
+                    Spin::Right => "single-right",
+                }.to_string());
                 let (brick_name, face_id) = match launch {
                     Seeded { seed } => (seed.brick_name, None),
                     NamedFace { face_name } => {
@@ -283,7 +257,7 @@ impl BuildPhase {
                         (brick_name(spin), Some(face_id))
                     }
                 };
-                let twist_faces = self.attach_brick(fabric, brick_name, face_id);
+                let twist_faces = self.attach_brick(fabric, &brick_name, face_id);
                 for (face_name, node) in pairs {
                     let (new_buds, new_marks) =
                         self.execute_node(fabric, NamedFace { face_name }, node, twist_faces.clone());
@@ -303,7 +277,7 @@ impl BuildPhase {
         (buds, marks)
     }
 
-    fn attach_brick(&self, fabric: &mut Fabric, brick_name: BrickName, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
+    fn attach_brick(&self, fabric: &mut Fabric, brick_name: &BrickName, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
         let faces = fabric.attach_brick(brick_name, 1.0, face_id).to_vec();
         let Seed { down_faces, .. } = &self.seed;
         if face_id.is_none() && !down_faces.is_empty() {

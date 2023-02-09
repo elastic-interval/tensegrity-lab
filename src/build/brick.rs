@@ -60,7 +60,7 @@ pub struct PullDef {
 pub struct FaceDef {
     pub spin: Spin,
     pub joint_names: [String; 3],
-    pub name: String,
+    pub name: FaceName,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -70,9 +70,12 @@ pub struct Prototype {
     pub faces: Vec<FaceDef>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
+pub struct BrickName(pub String);
+
 #[derive(Clone, Debug)]
 pub struct BrickDefinition {
-    pub name: String,
+    pub name: BrickName,
     pub proto: Prototype,
     pub baked: Option<Baked>,
 }
@@ -155,7 +158,7 @@ impl Prototype {
                         let [spin, a, b, c, name] = face_pair.into_inner().next_chunk().unwrap();
                         let spin = Spin::from_pair(spin);
                         let joint_names = [a, b, c].map(parse_atom);
-                        let name = parse_atom(name);
+                        let name = FaceName(parse_atom(name));
                         prototype.faces.push(FaceDef {
                             spin,
                             joint_names,
@@ -184,7 +187,7 @@ impl BrickDefinition {
     pub fn from_pair(pair: Pair<Rule>) -> Result<Self, ParseError> {
         let mut inner = pair.into_inner();
         let [name, proto] = inner.next_chunk().unwrap();
-        let name = parse_atom(name);
+        let name = BrickName(parse_atom(name));
         let proto = Prototype::from_pair(proto)?;
         let baked = inner.next().map(Baked::from_pair);
         Ok(Self {
@@ -228,7 +231,7 @@ impl Baked {
                 }
                 Rule::face_baked => {
                     let [spin, a, b, c, name] = pair.into_inner().next_chunk().unwrap();
-                    let name = parse_atom(name);
+                    let name = FaceName(parse_atom(name));
                     let spin = Spin::from_pair(spin);
                     let joint_indices = [a, b, c].map(|pair| pair.as_str().parse().unwrap());
                     baked.faces.push((joint_indices, name, spin));
@@ -239,8 +242,8 @@ impl Baked {
         baked
     }
 
-    pub fn new(name: &str) -> Baked {
-        let baked_bricks: LazyCell<HashMap<String, Baked>> = LazyCell::new(||
+    pub fn new(name: &BrickName) -> Baked {
+        let baked_bricks: LazyCell<HashMap<BrickName, Baked>> = LazyCell::new(||
             Library::standard()
                 .bricks
                 .into_iter()
