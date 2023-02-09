@@ -79,7 +79,11 @@ pub struct Library {
 impl Library {
     pub fn standard() -> Self {
         let source = fs::read_to_string("src/build/tenscript/library.scm").unwrap();
-        Self::from_tenscript(&source).unwrap()
+        match Self::from_tenscript(&source) {
+            Ok(library) => library,
+            Err(ParseError::Pest(error)) => panic!("pest parse error: \n{error}"),
+            Err(e) => panic!("{e:?}")
+        }
     }
 
     pub fn from_tenscript(source: &str) -> Result<Self, ParseError> {

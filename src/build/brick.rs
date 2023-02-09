@@ -91,11 +91,13 @@ impl From<Prototype> for (Fabric, UniqueId) {
                 Axis::Z => Vector3::unit_z(),
             };
             let ends = [(alpha_name, vector * ideal / 2.0), (omega_name, -vector * ideal / 2.0)];
-            let [alpha_index, omega_index] = ends.map(|(name, loc)|
-                joints_by_name
-                    .insert(name, fabric.create_joint(Point3::from_vec(loc)))
-                    .expect("joint with that name already exists")
-            );
+            let [alpha_index, omega_index] = ends.map(|(name, loc)| {
+                let joint_index = fabric.create_joint(Point3::from_vec(loc));
+                if joints_by_name.insert(name, joint_index).is_some() {
+                    panic!("joint with that name already exists")
+                }
+                joint_index
+            });
             fabric.create_interval(alpha_index, omega_index, Link::push(ideal));
         }
         for PullDef { alpha_name, omega_name, ideal } in proto.pulls {
@@ -112,7 +114,7 @@ impl From<Prototype> for (Fabric, UniqueId) {
             let radial_intervals = joint_indices.map(|omega_index| {
                 fabric.create_interval(alpha_index, omega_index, Link::pull(1.0))
             });
-            face_id.insert(
+            let _ = face_id.insert(
                 fabric.create_face(name, 1.0, spin, radial_intervals)
             );
         }
@@ -220,7 +222,7 @@ impl Baked {
                 }
                 Rule::interval_baked => {
                     let [role, alpha_index, omega_index, strain] = pair.into_inner().next_chunk().unwrap();
-                    let role = match role.as_rule() {
+                    let role = match role.into_inner().next().unwrap().as_rule() {
                         Rule::push => Push,
                         Rule::pull => Pull,
                         _ => unreachable!()
@@ -247,7 +249,7 @@ impl Baked {
             Library::standard()
                 .bricks
                 .into_iter()
-                .map(|brick| (brick.name.clone(), brick.baked.expect("brick is not baked")))
+                .filter_map(|brick| brick.baked.map(|baked| (brick.name.clone(), baked)))
                 .collect()
         );
         baked_bricks

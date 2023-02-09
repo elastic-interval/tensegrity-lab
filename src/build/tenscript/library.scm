@@ -17,7 +17,7 @@
   (fabric
     (name "Flagellum")
     (build
-      (seed :left)
+      (seed :single-left)
       (grow 20 (scale .9))))
   (fabric
     (name "Halo by Crane")
@@ -59,6 +59,64 @@
       (countdown 10000 (vulcanize))
       (remove-shapers)
       (replace-faces)))
+  (brick :single-right
+    (proto
+      (pushes X 3.204 (push :alpha_x :omega_x))
+      (pushes Y 3.204 (push :alpha_y :omega_y))
+      (pushes Z 3.204 (push :alpha_z :omega_z))
+      (pulls 2.0
+        (pull :alpha_x :omega_y)
+        (pull :alpha_y :omega_z)
+        (pull :alpha_z :omega_x))
+      (faces
+        (right :alpha_x :alpha_y :alpha_z Bot)
+        (right :omega_z :omega_y :omega_x Top)))
+    (baked
+      (joint 0.0068 1.9619 1.0000)
+      (joint -0.5000 0.0000 -0.8660)
+      (joint 0.8626 1.9619 -0.5059)
+      (joint -0.5000 0.0000 0.8660)
+      (joint -0.8694 1.9619 -0.4941)
+      (joint 1.0000 0.0000 -0.0000)
+      (joint -0.0000 1.9618 -0.0000)
+      (joint 0.0000 0.0001 0.0000)
+      (pull 2 5 0.1171)
+      (push 0 1 -0.0531)
+      (push 4 5 -0.0531)
+      (pull 4 1 0.1171)
+      (push 2 3 -0.0531)
+      (pull 0 3 0.1171)
+      (right 0 2 4 Bot)
+      (right 5 3 1 Top)))
+  (brick :single-left
+    (proto
+      (pushes X 3.204 (push :alpha_x :omega_x))
+      (pushes Y 3.204 (push :alpha_y :omega_y))
+      (pushes Z 3.204 (push :alpha_z :omega_z))
+      (pulls 2.0
+        (pull :alpha_x :omega_z)
+        (pull :alpha_y :omega_x)
+        (pull :alpha_z :omega_y))
+      (faces
+        (left :alpha_z :alpha_y :alpha_x Bot)
+        (left :omega_x :omega_y :omega_z Top)))
+    (baked
+      (joint -0.8694 1.9619 0.4941)
+      (joint 1.0000 0.0000 0.0000)
+      (joint 0.8626 1.9619 0.5059)
+      (joint -0.5000 0.0000 -0.8660)
+      (joint 0.0068 1.9619 -1.0000)
+      (joint -0.5000 -0.0000 0.8660)
+      (joint -0.0000 1.9618 0.0000)
+      (joint -0.0000 0.0001 -0.0000)
+      (pull 0 5 0.1171)
+      (push 2 3 -0.0531)
+      (pull 4 3 0.1171)
+      (push 4 5 -0.0531)
+      (push 0 1 -0.0531)
+      (pull 2 1 0.1171)
+      (left 4 2 0 Bot)
+      (left 1 3 5 Top)))
   (brick :mitosis
     (proto
       (pushes X 3.467
