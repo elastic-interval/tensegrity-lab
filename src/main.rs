@@ -5,11 +5,11 @@ use clap::Parser;
 struct Args {
     /// Name of the prototype to settle and capture
     #[arg(long)]
-    brick_name: Option<String>,
+    prototype: Option<String>,
 }
 
 fn main() {
-    let Args { brick_name } = Args::parse();
+    let Args { prototype } = Args::parse();
 
-    tensegrity_lab::application::run_with(brick_name);
+    tensegrity_lab::application::run_with(prototype);
 }
