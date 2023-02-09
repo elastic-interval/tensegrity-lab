@@ -1,4 +1,4 @@
-(collection
+(library
   (fabric
     (name "Seed")
     (surface :bouncy)

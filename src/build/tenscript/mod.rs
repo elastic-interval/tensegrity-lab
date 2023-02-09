@@ -88,12 +88,12 @@ pub struct FaceMark {
 }
 
 #[derive(Clone, Default, Debug)]
-pub struct Collection {
+pub struct Library {
     pub(crate) fabrics: Vec<FabricPlan>,
     pub(crate) bricks: Vec<BrickDefinition>,
 }
 
-impl Collection {
+impl Library {
     pub fn bootstrap() -> Self {
         let bootstrap: LazyCell<Self> = LazyCell::new(||
             Self::from_file(include_str!("bootstrap.scm")).unwrap()
@@ -102,10 +102,10 @@ impl Collection {
     }
 
     pub fn from_file(source: &str) -> Result<Self, ParseError> {
-        let pair = TenscriptParser::parse(Rule::collection, source)
+        let pair = TenscriptParser::parse(Rule::library, source)
             .map_err(ParseError::Pest)?
             .next()
-            .expect("no (collection ..)");
+            .expect("no (library ..)");
         Self::from_pair(pair)
     }
 
@@ -117,22 +117,22 @@ impl Collection {
         Self::from_pair(fabric_plan_pair)
     }
 
-    pub fn from_pair(pair: Pair<Rule>) -> Result<Self, ParseError> {
-        let mut collection = Self::default();
+    fn from_pair(pair: Pair<Rule>) -> Result<Self, ParseError> {
+        let mut library = Self::default();
         for definition in pair.into_inner() {
             match definition.as_rule() {
                 Rule::fabric_plan => {
                     let fabric_plan = FabricPlan::from_pair(definition)?;
-                    collection.fabrics.push(fabric_plan);
+                    library.fabrics.push(fabric_plan);
                 }
                 Rule::brick_definition => {
                     let brick = BrickDefinition::from_pair(definition)?;
-                    collection.bricks.push(brick);
+                    library.bricks.push(brick);
                 }
                 _ => unreachable!()
             }
         }
-        Ok(collection)
+        Ok(library)
     }
 }
 
@@ -152,11 +152,11 @@ pub fn parse_atom(pair: Pair<Rule>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::build::tenscript::Collection;
+    use crate::build::tenscript::Library;
 
     #[test]
     fn parse_test() {
-        let plans = Collection::bootstrap();
+        let plans = Library::bootstrap();
         println!("{plans:?}")
     }
 }

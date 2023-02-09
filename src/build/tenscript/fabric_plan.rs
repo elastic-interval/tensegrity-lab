@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use pest::iterators::Pair;
 
-use crate::build::tenscript::{BuildPhase, Collection, parse_name, ParseError, Rule, SurfaceCharacterSpec};
+use crate::build::tenscript::{BuildPhase, Library, parse_name, ParseError, Rule, SurfaceCharacterSpec};
 use crate::build::tenscript::build_phase::BuildNode;
 use crate::build::tenscript::shape_phase::{Operation, ShapePhase};
 
@@ -18,7 +18,7 @@ pub struct FabricPlan {
 
 impl FabricPlan {
     pub fn boostrap_with_name(plan_name: &str) -> Option<Self> {
-        Collection::bootstrap()
+        Library::bootstrap()
             .fabrics
             .iter()
             .find(|plan| plan.name == plan_name)
