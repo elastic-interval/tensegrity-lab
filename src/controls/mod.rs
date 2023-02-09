@@ -220,7 +220,7 @@ impl Default for ControlState {
         let choices = Library::standard()
             .fabrics
             .into_iter()
-            .map(|plan| plan.name)
+            .map(|plan| (plan.name.clone(), plan))
             .collect();
         Self {
             debug_mode: false,

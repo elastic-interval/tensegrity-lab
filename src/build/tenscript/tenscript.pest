@@ -30,7 +30,7 @@ build =
 build_node =
     { on_face | grow | mark | branch }
 on_face =
-    { "(" ~ "face" ~ face_name ~ build_node ~ ")" }
+    { "(" ~ "face" ~ atom ~ build_node ~ ")" }
 grow =
     { "(" ~ "grow" ~ (integer | forward) ~ scale? ~ build_node? ~ ")" }
 mark =
@@ -42,7 +42,7 @@ scale =
 seed =
     { "(" ~ "seed" ~ atom ~ orient_down? ~ ")" }
 orient_down =
-    { "(" ~ "orient-down" ~ face_name+ ~ ")" }
+    { "(" ~ "orient-down" ~ atom+ ~ ")" }
 surface =
     { "(" ~ "surface" ~ surface_character ~ ")" }
 surface_character =
@@ -83,7 +83,6 @@ pull = { "pull" }
 face_baked = // a, b, c, name
     { "(" ~ chirality ~ integer ~ integer ~ integer ~ atom ~ ")" }
 
-face_name = @{"F" ~ integer}
 ident = @{ XID_START ~ (XID_CONTINUE | "-")* }
 ident_uppercase = @{ ASCII_ALPHA_UPPER ~ (XID_CONTINUE | "-")* }
 atom = @{ (":" ~ ident) | ident_uppercase }
