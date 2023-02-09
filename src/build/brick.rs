@@ -1,13 +1,56 @@
 use cgmath::{Point3, point3};
 use clap::ValueEnum;
+use pest::iterators::Pair;
 
 use crate::build::tenscript::{FaceName, Spin};
+use crate::build::tenscript::fabric_plan::Rule;
 use crate::build::tenscript::Spin::{Left, Right};
 use crate::fabric::interval::Role;
 use crate::fabric::interval::Role::{Pull, Push};
 
+pub enum Axis {
+    X,
+    Y,
+    Z,
+}
+
+pub enum Chirality {
+    Left,
+    Right,
+}
+
+pub struct PushDef {
+    pub axis: Axis,
+    pub ideal: f32,
+    pub alpha_name: String,
+    pub omega_name: String,
+}
+
+pub struct PullDef {
+    pub ideal: f32,
+    pub alpha_name: String,
+    pub omega_name: String,
+}
+
+pub struct Face {
+    pub chirality: Chirality,
+    pub joint_names: [String; 3],
+    pub name: String,
+}
+
+pub struct Prototype {
+    pub pushes: Vec<PushDef>,
+    pub pulls: Vec<PullDef>,
+    pub faces: Vec<Face>,
+}
+
+pub struct Definition {
+    pub proto: Prototype,
+    pub baked: Baked,
+}
+
 #[derive(Debug, Clone)]
-pub struct Brick {
+pub struct Baked {
     pub joints: Vec<Point3<f32>>,
     pub intervals: Vec<(usize, usize, Role, f32)>,
     pub faces: Vec<([usize; 3], FaceName, Spin)>,
@@ -24,10 +67,12 @@ pub enum BrickName {
     RightMitosis,
 }
 
-impl Brick {
-    pub fn new(name: BrickName) -> Brick {
+impl Baked {
+    pub fn from_pair(pair: Pair<Rule>)
+
+    pub fn new(name: BrickName) -> Baked {
         match name {
-            BrickName::LeftTwist => Brick {
+            BrickName::LeftTwist => Baked {
                 joints: vec![
                     point3(-0.5000, 0.0000, 0.8660),
                     point3(-0.5000, 0.0000, -0.8660),
@@ -51,7 +96,7 @@ impl Brick {
                     ([2, 1, 0], FaceName(0), Left),
                 ],
             },
-            BrickName::RightTwist => Brick {
+            BrickName::RightTwist => Baked {
                 joints: vec![
                     point3(-0.5000, -0.0000, 0.8660),
                     point3(-0.5000, 0.0000, -0.8660),
@@ -75,7 +120,7 @@ impl Brick {
                     ([3, 4, 5], FaceName(1), Right),
                 ],
             },
-            BrickName::LeftOmniTwist => Brick {
+            BrickName::LeftOmniTwist => Baked {
                 joints: vec![
                     point3(-0.0000, 0.0001, 0.0000),
                     point3(1.0000, 0.0000, 0.0000),
@@ -117,7 +162,7 @@ impl Brick {
                     ([14, 11, 6], FaceName(1), Left),
                 ],
             },
-            BrickName::RightOmniTwist => Brick {
+            BrickName::RightOmniTwist => Baked {
                 joints: vec![
                     point3(0.0000, 0.0002, 0.0000),
                     point3(1.0000, 0.0000, -0.0000),
@@ -159,7 +204,7 @@ impl Brick {
                     ([7, 15, 10], FaceName(1), Right),
                 ],
             },
-            BrickName::LeftMitosis => Brick {
+            BrickName::LeftMitosis => Baked {
                 joints: vec![
                     point3(1.8948, 1.4897, -0.0230),
                     point3(-0.5230, 0.0000, -0.8371),
@@ -218,7 +263,7 @@ impl Brick {
                     ([15, 4, 9], FaceName(4), Left),
                 ],
             },
-            BrickName::RightMitosis => Brick {
+            BrickName::RightMitosis => Baked {
                 joints: vec![
                     point3(-0.5230, 0.0000, 0.8371),
                     point3(1.8948, 1.4897, 0.0230),

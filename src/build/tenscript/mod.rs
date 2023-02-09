@@ -2,6 +2,10 @@
 
 use std::fmt::{Display, Formatter};
 
+use pest::error::Error;
+use pest::Parser;
+use pest_derive::Parser;
+
 pub use fabric_plan::FabricPlan;
 
 use crate::build::tenscript::build_phase::BuildPhase;
@@ -11,6 +15,25 @@ pub mod fabric_plan;
 pub mod plan_runner;
 mod shape_phase;
 mod build_phase;
+
+#[derive(Parser)]
+#[grammar = "build/tenscript/tenscript.pest"] // relative to src
+struct TenscriptParser;
+
+#[derive(Debug)]
+pub enum ParseError {
+    Pest(Error<Rule>),
+    Invalid(String),
+}
+
+impl Display for ParseError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParseError::Pest(error) => write!(f, "parse error: {error}"),
+            ParseError::Invalid(warning) => write!(f, "warning: {warning}"),
+        }
+    }
+}
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct FaceName(pub usize);
@@ -58,4 +81,11 @@ impl Spin {
 pub struct FaceMark {
     face_id: UniqueId,
     mark_name: String,
+}
+
+mod brick {}
+
+pub struct Collection {
+    fabric_plans: Vec<FabricPlan>,
+    bricks: Vec<brick::Definition>,
 }
