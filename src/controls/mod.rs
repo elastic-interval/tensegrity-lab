@@ -217,7 +217,7 @@ pub struct ControlState {
 
 impl Default for ControlState {
     fn default() -> Self {
-        let choices = Library::bootstrap()
+        let choices = Library::standard()
             .fabrics
             .into_iter()
             .map(|plan| plan.name)

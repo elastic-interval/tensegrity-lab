@@ -94,11 +94,11 @@ pub struct Library {
 }
 
 impl Library {
-    pub fn bootstrap() -> Self {
-        let bootstrap: LazyCell<Self> = LazyCell::new(||
-            Self::from_file(include_str!("bootstrap.scm")).unwrap()
+    pub fn standard() -> Self {
+        let standard: LazyCell<Self> = LazyCell::new(||
+            Self::from_file(include_str!("standard.scm")).unwrap()
         );
-        bootstrap.clone()
+        standard.clone()
     }
 
     pub fn from_file(source: &str) -> Result<Self, ParseError> {
@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     fn parse_test() {
-        let plans = Library::bootstrap();
+        let plans = Library::standard();
         println!("{plans:?}")
     }
 }

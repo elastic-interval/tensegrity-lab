@@ -17,8 +17,8 @@ pub struct FabricPlan {
 }
 
 impl FabricPlan {
-    pub fn boostrap_with_name(plan_name: &str) -> Option<Self> {
-        Library::bootstrap()
+    pub fn preset_with_name(plan_name: &str) -> Option<Self> {
+        Library::standard()
             .fabrics
             .iter()
             .find(|plan| plan.name == plan_name)
