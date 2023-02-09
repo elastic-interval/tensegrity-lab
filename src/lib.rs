@@ -5,6 +5,7 @@
 #![feature(iter_collect_into)]
 #![feature(iter_next_chunk)]
 #![feature(once_cell)]
+#![feature(let_chains)]
 
 pub mod application;
 pub mod build;

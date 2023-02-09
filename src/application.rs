@@ -1,4 +1,5 @@
-use std::iter;
+use std::{fs, iter};
+use std::time::SystemTime;
 
 use iced_wgpu::wgpu;
 #[allow(unused_imports)]
@@ -15,6 +16,7 @@ use winit::window::Window;
 use wasm_bindgen::prelude::*;
 
 use crate::build::brick::BrickName;
+use crate::build::tenscript::FabricPlan;
 use crate::controls::{ControlMessage, GUI, VisibleControl};
 use crate::controls::Action;
 use crate::controls::strain_threshold::StrainThresholdMessage;
@@ -112,6 +114,8 @@ pub fn run_with(brick_name: Option<BrickName>) {
     if let Some(brick_name) = brick_name {
         crucible.capture_prototype(brick_name);
     }
+    let mut library_modified = library_modified_timestamp();
+    let mut current_fabric_plan: Option<String> = None;
 
     event_loop.run(move |event, _, control_flow| {
         match event {
@@ -170,9 +174,17 @@ pub fn run_with(brick_name: Option<BrickName>) {
             }
             Event::MainEventsCleared => {
                 app.gui.update();
-                for action in app.gui.controls().take_actions() {
+                let mut actions = app.gui.controls().take_actions();
+                if library_modified_timestamp() > library_modified &&
+                    let Some(ref plan_name) = current_fabric_plan &&
+                    let Some(fabric_plan) = FabricPlan::preset_with_name(plan_name) {
+                    actions.push(Action::BuildFabric(fabric_plan));
+                    library_modified = library_modified_timestamp();
+                }
+                for action in actions {
                     match action {
                         Action::BuildFabric(fabric_plan) => {
+                            current_fabric_plan = Some(fabric_plan.name.clone());
                             app.scene.show_surface(false);
                             app.gui.change_state(ControlMessage::Reset);
                             crucible.build_fabric(fabric_plan);
@@ -194,6 +206,13 @@ pub fn run_with(brick_name: Option<BrickName>) {
             _ => {}
         }
     });
+}
+
+fn library_modified_timestamp() -> SystemTime {
+    fs::metadata("./src/build/tenscript/library.scm")
+        .unwrap()
+        .modified()
+        .unwrap()
 }
 
 fn fullscreen_web() {
