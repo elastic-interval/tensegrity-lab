@@ -3,7 +3,7 @@ use cgmath::Vector3;
 use crate::build::brick::{Baked, BrickName};
 use crate::build::tenscript::{FabricPlan, SurfaceCharacterSpec};
 use crate::build::tenscript::plan_runner::PlanRunner;
-use crate::experiment::Stage::{*};
+use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::fabric::physics::presets::{AIR_GRAVITY, PROTOTYPE_FORMATION};
@@ -21,7 +21,7 @@ enum Stage {
     RunningPrototype(UniqueId),
 }
 
-pub struct Experiment {
+pub struct Crucible {
     fabric: Fabric,
     physics: Physics,
     plan_runner: Option<PlanRunner>,
@@ -33,7 +33,7 @@ pub struct Experiment {
     shorten_pulls: Option<f32>,
 }
 
-impl Default for Experiment {
+impl Default for Crucible {
     fn default() -> Self {
         Self {
             fabric: Fabric::default_bow_tie(),
@@ -49,7 +49,7 @@ impl Default for Experiment {
     }
 }
 
-impl Experiment {
+impl Crucible {
     pub fn iterate(&mut self) {
         if self.paused {
             return;

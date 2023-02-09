@@ -18,7 +18,7 @@ use crate::build::brick::BrickName;
 use crate::controls::{ControlMessage, GUI, VisibleControl};
 use crate::controls::Action;
 use crate::controls::strain_threshold::StrainThresholdMessage;
-use crate::experiment::Experiment;
+use crate::crucible::Crucible;
 use crate::graphics::GraphicsWindow;
 use crate::scene::Scene;
 
@@ -108,9 +108,9 @@ pub fn run_with(brick_name: Option<BrickName>) {
     }
     let graphics = pollster::block_on(GraphicsWindow::new(&window));
     let mut app = Application::new(graphics, &window);
-    let mut experiment = Experiment::default();
+    let mut crucible = Crucible::default();
     if let Some(brick_name) = brick_name {
-        experiment.capture_prototype(brick_name);
+        crucible.capture_prototype(brick_name);
     }
 
     event_loop.run(move |event, _, control_flow| {
@@ -134,31 +134,31 @@ pub fn run_with(brick_name: Option<BrickName>) {
                             app.gui.change_state(ControlMessage::ShowControl(VisibleControl::ControlChoice));
                         }
                         VirtualKeyCode::Space => {
-                            experiment.toggle_pause();
+                            crucible.toggle_pause();
                         }
                         VirtualKeyCode::D => {
                             app.gui.change_state(ControlMessage::ToggleDebugMode);
                         }
                         _ => {
-                            app.scene.window_event(event, experiment.fabric());
+                            app.scene.window_event(event, crucible.fabric());
                         }
                     },
                     WindowEvent::MouseInput { state: ElementState::Released, .. } => {
-                        app.scene.window_event(event, experiment.fabric());
+                        app.scene.window_event(event, crucible.fabric());
                     }
                     WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
                     if !app.gui.capturing_mouse() =>
-                        app.scene.window_event(event, experiment.fabric()),
+                        app.scene.window_event(event, crucible.fabric()),
                     _ => {}
                 }
             }
             Event::RedrawRequested(_) => {
-                experiment.iterate();
-                if let Some(jump) = experiment.camera_jump() {
+                crucible.iterate();
+                if let Some(jump) = crucible.camera_jump() {
                     app.scene.move_camera(jump);
                     app.scene.show_surface(true);
                 }
-                app.scene.update(&app.graphics, app.gui.controls().variation(app.scene.target_face_id()), experiment.fabric());
+                app.scene.update(&app.graphics, app.gui.controls().variation(app.scene.target_face_id()), crucible.fabric());
                 app.gui.update_viewport(&window);
                 match app.render() {
                     Ok(_) => {}
@@ -175,17 +175,17 @@ pub fn run_with(brick_name: Option<BrickName>) {
                         Action::BuildFabric(fabric_plan) => {
                             app.scene.show_surface(false);
                             app.gui.change_state(ControlMessage::Reset);
-                            experiment.build_fabric(fabric_plan);
+                            crucible.build_fabric(fabric_plan);
                         }
                         Action::GravityChanged(gravity) => {
-                            experiment.set_gravity(gravity);
+                            crucible.set_gravity(gravity);
                         }
                         Action::CalibrateStrain => {
-                            let strain_limits = experiment.strain_limits();
+                            let strain_limits = crucible.strain_limits();
                             app.gui.change_state(ControlMessage::StrainThreshold(StrainThresholdMessage::SetStrainLimits(strain_limits)))
                         }
                         Action::ShortenPulls(strain_threshold) => {
-                            experiment.shorten_pulls(strain_threshold);
+                            crucible.shorten_pulls(strain_threshold);
                         }
                     }
                 }
