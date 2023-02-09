@@ -1,171 +1,78 @@
-// Created by intellij-pest on 2023-01-25
-// tenscript
-// Author: mitch
-//
-
-fabrics = {
-    "(" ~ "fabrics" ~
-    fabric_plan* ~
-    ")"
-}
-
-fabric_plan = {
-    "(" ~ "fabric" ~
-    name ~
-    surface? ~
-    build? ~
-    shape? ~
-    ")"
-}
-
-name = {
-    "(" ~ "name" ~ string ~ ")"
-}
-
-shape = {
-    "(" ~ "shape" ~
-        shape_operation+ ~
-    ")"
-}
-
-basic_shape_operation = {
-    space |
-    join |
-    vulcanize |
-    remove_shapers |
-    replace_faces |
-    set_viscosity
-}
-
-shape_operation = {
-    basic_shape_operation |
-    countdown_block
-}
-
-countdown_block = {
-    "(" ~ "countdown" ~ integer ~
-        basic_shape_operation+ ~
-    ")"
-}
-
-space = {
-    "(" ~ "space" ~ atom ~ float ~ ")"
-}
-
-join = {
-    "(" ~ "join" ~ atom ~ ")"
-}
-
-remove_shapers = {
-    "(" ~ "remove-shapers" ~ atom* ~ ")"
-}
-
-set_viscosity = {
-    "(" ~ "set-viscosity" ~ float ~ ")"
-}
-
-vulcanize = {
-    "(" ~ "vulcanize" ~ ")"
-}
-
-replace_faces = {
-    "(" ~ "replace-faces" ~ ")"
-}
-
-build = {
-    "(" ~ "build" ~
-    seed? ~
-    build_node? ~
-    ")"
-}
-
-build_node = {
-    face | grow | mark | branch
-}
-
-face = {
-    "(" ~ "face" ~
-    face_name ~
-    build_node ~
-    ")"
-}
-
-grow = {
-    "(" ~ "grow" ~
-    (integer | forward) ~
-    scale? ~
-    build_node? ~
-    ")"
-}
-
-mark = {
-    "(" ~ "mark" ~ atom ~ ")"
-}
-
-branch = {
-    "(" ~ "branch" ~
-        face+ ~
-    ")"
-}
-
-scale = {
-    "(" ~ "scale" ~ float ~ ")"
-}
-
-seed = {
-    "(" ~ "seed" ~ brick_name ~
-    orient_down? ~
-    ")"
-}
-
-brick_name = {
-    ":left-mitosis" |
-    ":right-mitosis" |
-    ":left-omni" |
-    ":right-omni" |
-    ":left" |
-    ":right"
-}
-
-orient_down = {
-    "(" ~ "orient-down" ~
-    face_name+ ~
-    ")"
-}
-
-surface = {
-    "(" ~ "surface" ~
-    surface_character ~
-    ")"
-}
-
-surface_character = {
-    ":bouncy" |
-    ":frozen" |
-    ":sticky"
-}
+fabrics =
+    { "(" ~ "fabrics" ~ fabric_plan* ~ ")" }
+fabric_plan =
+    { "(" ~ "fabric" ~ name ~ surface? ~ build? ~ shape? ~ ")" }
+name =
+    { "(" ~ "name" ~ string ~ ")" }
+shape =
+    { "(" ~ "shape" ~ shape_operation+ ~ ")" }
+basic_shape_operation =
+    { space | join | vulcanize | remove_shapers | replace_faces | set_viscosity }
+shape_operation =
+    { basic_shape_operation | countdown_block }
+countdown_block =
+    { "(" ~ "countdown" ~ integer ~ basic_shape_operation+ ~ ")" }
+space =
+    { "(" ~ "space" ~ atom ~ float ~ ")" }
+join =
+    { "(" ~ "join" ~ atom ~ ")" }
+remove_shapers =
+    { "(" ~ "remove-shapers" ~ atom* ~ ")" }
+set_viscosity =
+    { "(" ~ "set-viscosity" ~ float ~ ")" }
+vulcanize =
+    { "(" ~ "vulcanize" ~ ")" }
+replace_faces =
+    { "(" ~ "replace-faces" ~ ")" }
+build =
+    { "(" ~ "build" ~ seed? ~ build_node? ~ ")" }
+build_node =
+    { on_face | grow | mark | branch }
+on_face =
+    { "(" ~ "face" ~ face_name ~ build_node ~ ")" }
+grow =
+    { "(" ~ "grow" ~ (integer | forward) ~ scale? ~ build_node? ~ ")" }
+mark =
+    { "(" ~ "mark" ~ atom ~ ")" }
+branch =
+    { "(" ~ "branch" ~ on_face+ ~ ")" }
+scale =
+    { "(" ~ "scale" ~ float ~ ")" }
+seed =
+    { "(" ~ "seed" ~ brick_name ~ orient_down? ~ ")" }
+brick_name =
+    { ":left-mitosis" | ":right-mitosis" | ":left-omni" | ":right-omni" | ":left" | ":right" }
+orient_down =
+    { "(" ~ "orient-down" ~ face_name+ ~ ")" }
+surface =
+    { "(" ~ "surface" ~ surface_character ~ ")" }
+surface_character =
+    { ":bouncy" | ":frozen" | ":sticky" }
+brick =
+    { "(" ~ "brick" ~ name ~ brick_baked ~ brick_proto ~ ")" }
+brick_proto =
+    { "(" ~ "proto" ~ ")" }
+brick_baked =
+    { "(" ~ "baked" ~ joint+ ~ (push_baked | pull_baked)+ ~ (left_baked | right_baked)+ ~ ")" }
+joint =
+    { "(" ~ "joint" ~ float ~ float ~ float ~ ")" }
+push_baked =
+    { "(" ~ "push" ~ integer ~ integer ~ float ~ ")" }
+pull_baked =
+    { "(" ~ "pull" ~ integer ~ integer ~ float ~ ")" }
+left_baked =
+    { "(" ~ "left" ~ atom ~ integer ~ integer ~ integer ~ ")" }
+right_baked =
+    { "(" ~ "right" ~ atom ~ integer ~ integer ~ integer ~ ")" }
 
 face_name = @{"F" ~ integer}
-
-ident = @{
-    XID_START ~ (XID_CONTINUE | "-")*
-}
-
+ident = @{ XID_START ~ (XID_CONTINUE | "-")* }
 atom = @{ ":" ~ ident }
-
-float = @{
-    (integer? ~ "." ~ mantissa) | integer
-}
+float = @{ (integer? ~ "." ~ mantissa) | integer }
 integer = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+ | ASCII_DIGIT }
 mantissa = @{ ASCII_DIGIT+ }
-
-string = @{
-    "\"" ~ (!"\"" ~ ANY)* ~ "\""
-}
-
-forward = @{
-    "\"" ~  ("X" | ".")+ ~ "\""
-}
+string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+forward = @{ "\"" ~  ("X" | ".")+ ~ "\"" }
 
 WHITESPACE = _{ " " | "\n" }
 COMMENT = _{ ";" ~ (!NEWLINE ~ ANY)* }
