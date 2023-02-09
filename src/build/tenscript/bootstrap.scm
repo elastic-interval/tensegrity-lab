@@ -1,6 +1,7 @@
 (fabrics
   (fabric
     (name "Seed")
+    (surface :bouncy)
     (build
       (seed :left-mitosis)))
   (fabric

@@ -13,8 +13,8 @@ use winit::event::*;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use crate::camera::Camera;
-use crate::fabric::Fabric;
+use crate::camera::{Camera, Target};
+use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::Face;
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push};
@@ -173,23 +173,64 @@ impl Scene {
         }
     }
 
-    pub fn window_event(&mut self, event: &WindowEvent) {
+    pub fn window_event(&mut self, event: &WindowEvent, fabric: &Fabric) {
+        if let WindowEvent::KeyboardInput {
+            input: KeyboardInput {
+                virtual_keycode: Some(keycode),
+                state: ElementState::Pressed, ..
+            }, ..
+        } = event {
+            match keycode {
+                VirtualKeyCode::F => {
+                    self.camera.target = match self.camera.target {
+                        Target::Origin | Target::FabricMidpoint => {
+                            let [face_id] = fabric.faces
+                                .keys()
+                                .take(1)
+                                .next_chunk()
+                                .unwrap();
+                            Target::Face(*face_id)
+                        }
+                        Target::Face(face_id) => {
+                            let found = fabric.faces
+                                .keys()
+                                .position(|&id| face_id == id)
+                                .expect("Face id not found");
+                            let [&new_face_id] = fabric.faces.keys()
+                                .cycle()
+                                .skip(found + 1)
+                                .take(1)
+                                .next_chunk()
+                                .unwrap();
+                            Target::Face(new_face_id)
+                        }
+                    }
+                }
+                VirtualKeyCode::M => {
+                    self.camera.target = Target::FabricMidpoint
+                }
+                VirtualKeyCode::O => {
+                    self.camera.target = Target::Origin
+                }
+                _ => {}
+            }
+        };
         self.camera.window_event(event);
     }
 
-    pub fn update(&mut self, graphics: &GraphicsWindow, strain_view: Option<StrainView>, fabric: &Fabric) {
-        self.update_from_fabric(fabric, strain_view);
+    pub fn update(&mut self, graphics: &GraphicsWindow, variation: Variation, fabric: &Fabric) {
+        self.update_from_fabric(fabric, variation);
         self.update_from_camera(graphics);
         graphics.queue.write_buffer(&self.fabric_drawing.buffer, 0, cast_slice(&self.fabric_drawing.vertices));
     }
 
-    fn update_from_fabric(&mut self, fabric: &Fabric, strain_view: Option<StrainView>) {
+    fn update_from_fabric(&mut self, fabric: &Fabric, variation: Variation) {
         self.fabric_drawing.vertices.clear();
         self.fabric_drawing.vertices.extend(fabric.interval_values()
-            .flat_map(|interval| FabricVertex::for_interval(interval, fabric, &strain_view)));
-        self.fabric_drawing.vertices.extend(fabric.faces.values()
-            .flat_map(|face| FabricVertex::for_face(face, fabric)));
-        self.camera.target_approach(fabric.midpoint());
+            .flat_map(|interval| FabricVertex::for_interval(interval, fabric, &variation)));
+        self.fabric_drawing.vertices.extend(fabric.faces.iter()
+            .flat_map(|(face_id, face)| FabricVertex::for_face(*face_id, face, fabric, &variation)));
+        self.camera.target_approach(fabric);
     }
 
     pub fn resize(&mut self, graphics: &GraphicsWindow) {
@@ -203,6 +244,13 @@ impl Scene {
         let mvp_mat = self.camera.mvp_matrix();
         let mvp_ref: &[f32; 16] = mvp_mat.as_ref();
         graphics.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));
+    }
+
+    pub fn target_face_id(&self) -> Option<UniqueId> {
+        match self.camera.target {
+            Target::Origin | Target::FabricMidpoint => None,
+            Target::Face(face_id) => Some(face_id),
+        }
     }
 
     pub fn move_camera(&mut self, jump: Vector3<f32>) {
@@ -221,22 +269,22 @@ struct FabricVertex {
     color: [f32; 4],
 }
 
-pub struct StrainView {
-    pub threshold: f32,
-    pub material: usize,
+pub enum Variation {
+    StrainView { threshold: f32, material: usize },
+    BuildView { face_id: Option<UniqueId> },
 }
 
 impl FabricVertex {
-    pub fn for_interval(interval: &Interval, fabric: &Fabric, strain_view: &Option<StrainView>) -> [FabricVertex; 2] {
+    pub fn for_interval(interval: &Interval, fabric: &Fabric, variation: &Variation) -> [FabricVertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
-        let color = match strain_view {
-            None => {
+        let color = match variation {
+            Variation::BuildView { .. } => {
                 match fabric.materials[interval.material].role {
                     Push => [1.0, 1.0, 1.0, 1.0],
                     Pull => [0.2, 0.2, 1.0, 1.0],
                 }
             }
-            Some(StrainView { threshold, material }) => {
+            Variation::StrainView { threshold, material } => {
                 if fabric.materials[interval.material].role == Pull &&
                     interval.material == *material && interval.strain > *threshold {
                     [0.0, 1.0, 0.0, 1.0]
@@ -251,12 +299,20 @@ impl FabricVertex {
         ]
     }
 
-    pub fn for_face(face: &Face, fabric: &Fabric) -> [FabricVertex; 2] {
+    pub fn for_face(face_id: UniqueId, face: &Face, fabric: &Fabric, variation: &Variation) -> [FabricVertex; 2] {
         let (alpha, normal) = (face.midpoint(fabric), face.normal(fabric));
         let omega = alpha + normal;
+        let (alpha_color, omega_color) = match variation {
+            Variation::StrainView { .. } =>
+                ([0.3, 0.3, 0.3, 0.5], [0.3, 0.3, 0.3, 0.5]),
+            Variation::BuildView { face_id: Some(selected_face) } if *selected_face == face_id =>
+                ([0.0, 1.0, 0.0, 1.0], [0.0, 1.0, 0.0, 1.0]),
+            Variation::BuildView { .. } =>
+                ([1.0, 0.0, 0.0, 1.0], [1.0, 0.0, 0.0, 1.0]),
+        };
         [
-            FabricVertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color:[1.0, 0.0, 0.0, 1.0] },
-            FabricVertex { position: [omega.x, omega.y, omega.z, 1.0], color:[0.0, 1.0, 0.0, 1.0] }
+            FabricVertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color: alpha_color },
+            FabricVertex { position: [omega.x, omega.y, omega.z, 1.0], color: omega_color }
         ]
     }
 
