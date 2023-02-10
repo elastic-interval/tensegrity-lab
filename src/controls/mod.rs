@@ -110,10 +110,6 @@ impl GUI {
         self.state.queue_message(message);
     }
 
-    pub fn queue_action(&mut self, action: Action) {
-        self.state.queue_message(ControlMessage::Action(action))
-    }
-
     pub fn window_event(&mut self, event: &WindowEvent, window: &Window) {
         match event {
             WindowEvent::CursorMoved { position, .. } => {
