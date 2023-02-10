@@ -170,7 +170,7 @@ impl Crucible {
     }
 
     pub fn capture_prototype(&mut self, brick_name: &BrickName) {
-        println!("Settling and capturing prototype {brick_name:?}");
+        println!("Settling and capturing prototype '{}'", brick_name.0);
         let fabric_and_face = Library::standard()
             .bricks
             .into_iter()
