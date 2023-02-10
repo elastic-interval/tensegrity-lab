@@ -2,7 +2,6 @@ use std::f32::consts::PI;
 use std::mem;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use cgmath::Vector3;
 use iced_wgpu::wgpu;
 use wgpu::{CommandEncoder, TextureView};
 use wgpu::util::DeviceExt;
@@ -249,10 +248,6 @@ impl Scene {
             None => Hold,
             Some(face_id) => SelectedFace(face_id)
         };
-    }
-
-    pub fn move_camera(&mut self, jump: Vector3<f32>) {
-        self.camera.jump(jump);
     }
 
     pub fn show_surface(&mut self, show: bool) {

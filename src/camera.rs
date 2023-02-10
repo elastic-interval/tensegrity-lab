@@ -89,11 +89,6 @@ impl Camera {
         self.projection_matrix() * self.view_matrix()
     }
 
-    pub fn jump(&mut self, vector: Vector3<f32>) {
-        self.position += vector;
-        self.look_at += vector;
-    }
-
     fn view_matrix(&self) -> Matrix4<f32> {
         Matrix4::look_at_rh(self.position, self.look_at, self.up)
     }

@@ -18,12 +18,13 @@ use crate::fabric::joint::Joint;
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
 
+pub mod brick;
 pub mod face;
 pub mod interval;
 pub mod joint;
 pub mod physics;
+pub mod pretenser;
 pub mod progress;
-pub mod brick;
 pub mod vulcanize;
 
 #[derive(Clone)]
@@ -177,20 +178,17 @@ impl Fabric {
         }
     }
 
-    pub fn set_altitude(&mut self, altitude: f32) -> f32 {
-        let bottom = self.joints.iter()
+    pub fn set_altitude(&mut self, altitude: f32) {
+        let Some(low_y) = self.joints
+            .iter()
             .map(|joint| joint.location.y)
-            .min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
-        match bottom {
-            None => 0.0,
-            Some(low_y) => {
-                let up = altitude - low_y;
-                if up > 0.0 {
-                    for joint in &mut self.joints {
-                        joint.location.y += up;
-                    }
-                }
-                up
+            .min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal)) else {
+            return;
+        };
+        let up = altitude - low_y;
+        if up > 0.0 {
+            for joint in &mut self.joints {
+                joint.location.y += up;
             }
         }
     }
@@ -208,8 +206,6 @@ impl Fabric {
             joint.force = zero();
             joint.velocity = zero();
         }
-        self.set_altitude(1.0);
-        self.centralize();
     }
 
     pub fn iterate(&mut self, physics: &Physics) -> f32 {
@@ -225,6 +221,9 @@ impl Fabric {
             if speed_squared > max_speed_squared {
                 max_speed_squared = speed_squared;
             }
+        }
+        if physics.gravity == 0.0 {
+            self.set_altitude(0.1);
         }
         if self.progress.step() { // final step
             for interval in self.intervals.values_mut() {

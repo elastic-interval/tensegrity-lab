@@ -165,12 +165,9 @@ pub fn run_with(brick_name: Option<BrickName>) {
                 }
             }
             Event::RedrawRequested(_) => {
-                if let Some(action) = crucible.iterate() {
+                crucible.iterate();
+                if let Some(action) = crucible.action() {
                     app.gui.change_state(ControlMessage::Action(action))
-                }
-                if let Some(jump) = crucible.camera_jump() {
-                    app.scene.move_camera(jump);
-                    app.scene.show_surface(true);
                 }
                 app.scene.update(&app.graphics, app.gui.controls().variation(app.scene.target_face_id()), crucible.fabric());
                 app.gui.update_viewport(&window);
@@ -206,15 +203,15 @@ pub fn run_with(brick_name: Option<BrickName>) {
                             let strain_limits = crucible.strain_limits();
                             app.gui.change_state(ControlMessage::StrainThreshold(StrainThresholdMessage::SetStrainLimits(strain_limits)))
                         }
-                        Action::ShortenPulls(strain_threshold) => {
-                            crucible.shorten_pulls(strain_threshold);
-                        }
                         Action::SelectFace(face_id) => {
                             app.scene.select_face(Some(face_id));
                         }
                         Action::AddBrick { brick_name, face_id } => {
                             app.scene.select_face(None);
                             crucible.add_brick(brick_name, face_id)
+                        }
+                        Action::ShowSurface => {
+                            app.scene.show_surface(true)
                         }
                     }
                 }
