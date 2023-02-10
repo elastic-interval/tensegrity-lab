@@ -298,8 +298,7 @@ impl FabricVertex {
     }
 
     pub fn for_face(face_id: UniqueId, face: &Face, fabric: &Fabric, variation: &Variation) -> [FabricVertex; 2] {
-        let (alpha, normal) = (face.midpoint(fabric), face.normal(fabric));
-        let omega = alpha + normal;
+        let (alpha, _, omega) = face.visible_points(fabric);
         let (alpha_color, omega_color) = match variation {
             Variation::StrainView { .. } =>
                 ([0.3, 0.3, 0.3, 0.5], [0.3, 0.3, 0.3, 0.5]),
