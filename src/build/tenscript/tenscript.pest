@@ -26,7 +26,7 @@ vulcanize =
 replace_faces =
     { "(" ~ "replace-faces" ~ ")" }
 build =
-    { "(" ~ "build" ~ seed? ~ build_node? ~ ")" }
+    { "(" ~ "build" ~ build_node? ~ ")" }
 build_node =
     { on_face | grow | mark | branch }
 on_face =
@@ -39,8 +39,6 @@ branch =
     { "(" ~ "branch" ~ on_face+ ~ ")" }
 scale =
     { "(" ~ "scale" ~ float ~ ")" }
-seed =
-    { "(" ~ "seed" ~ atom ~ orient_down? ~ ")" }
 orient_down =
     { "(" ~ "orient-down" ~ atom+ ~ ")" }
 surface =

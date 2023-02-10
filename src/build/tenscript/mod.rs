@@ -46,6 +46,13 @@ pub struct FaceAlias {
 }
 
 impl FaceAlias {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            down: false,
+        }
+    }
+    
     pub fn from_pairs(inner: &mut Pairs<Rule>) -> Vec<FaceAlias> {
         inner
             .map(|pair| {

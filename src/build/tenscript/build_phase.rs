@@ -57,22 +57,15 @@ impl BuildNode {
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct Seed {
-    pub brick_name: BrickName,
-    pub down_faces: Vec<FaceAlias>,
-}
-
 #[derive(Debug)]
 enum Launch {
-    Seeded { seed: Seed },
-    NamedFace { face_name: FaceAlias },
+    Seeded { face_alias: FaceAlias },
+    NamedFace { face_alias: FaceAlias },
     IdentifiedFace { face_id: UniqueId },
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct BuildPhase {
-    pub seed: Seed,
     pub root: Option<BuildNode>,
     pub buds: Vec<Bud>,
     pub marks: Vec<FaceMark>,
@@ -83,21 +76,6 @@ impl BuildPhase {
         let mut phase = BuildPhase::default();
         for sub_pair in pair.into_inner() {
             match sub_pair.as_rule() {
-                Rule::seed => {
-                    let mut inner = sub_pair.into_inner();
-                    phase.seed.brick_name = BrickName(parse_atom(inner.next().unwrap()));
-                    for sub_pair in inner {
-                        match sub_pair.as_rule() {
-                            Rule::orient_down => {
-                                phase.seed.down_faces = sub_pair
-                                    .into_inner()
-                                    .map(|face_name| FaceAlias { name: parse_atom(face_name) })
-                                    .collect();
-                            }
-                            _ => unreachable!("build phase seed: {sub_pair:?}")
-                        }
-                    }
-                }
                 Rule::build_node => {
                     phase.root = Some(Self::parse_build_node(sub_pair));
                 }
@@ -166,18 +144,17 @@ impl BuildPhase {
     }
 
     pub fn init(&mut self, fabric: &mut Fabric) {
-        let BuildPhase { seed, root, .. } = &self;
-        match root {
-            None => {
-                self.attach_brick(fabric, &seed.brick_name, None);
-            }
-            Some(node) => {
-                let (buds, marks) =
-                    self.execute_node(fabric, Seeded { seed: seed.clone() }, node, vec![]);
-                self.buds = buds;
-                self.marks = marks;
-            }
-        }
+        let node = self.root.expect("build phase has no root node");
+        let face_alias = match &node {
+            Face { .. } => {}
+            Grow { .. } => {}
+            Branch { .. } => {}
+            Mark { .. } => unreachable!(),
+        };
+        let (buds, marks) =
+            self.execute_node(fabric, Seeded {}, node, vec![]);
+        self.buds = buds;
+        self.marks = marks;
     }
 
     pub fn growth_step(&mut self, fabric: &mut Fabric) {
@@ -196,16 +173,14 @@ impl BuildPhase {
         let spin = if forward.starts_with('X') { face.spin.opposite() } else { face.spin };
         if !forward.is_empty() {
             // TODO: don't hardcode these names, look them up somewhere
-            let face_alias = FaceAlias {
-                name: match spin {
-                    Spin::Left => "Left::Bot",
-                    Spin::Right => "Right::Bot",
-                }.to_string(),
-                down: false,
+
+            let (bot_alias, top_alias) = match spin {
+                Spin::Left => (FaceAlias::new("Left::Bot".to_string()), FaceAlias::new("Left::Top".to_string())),
+                Spin::Right => (FaceAlias::new("Right::Bot".to_string()), FaceAlias::new("Right::Top".to_string())),
             };
-            let faces = fabric.attach_brick(&brick_name, scale_factor, Some(face_id));
+            let faces = fabric.attach_brick(&bot_alias, scale_factor, Some(face_id));
             buds.push(Bud {
-                face_id: Self::find_face_id(FaceAlias { name: "Top".to_string() }, faces.to_vec()),
+                face_id: Self::find_face_id(top_alias, faces),
                 forward: forward[1..].into(),
                 scale_factor,
                 node,
@@ -219,20 +194,21 @@ impl BuildPhase {
         (buds, marks)
     }
 
-    fn execute_node(&self, fabric: &mut Fabric, launch: Launch, node: &BuildNode, faces: Vec<(FaceAlias, UniqueId)>) -> (Vec<Bud>, Vec<FaceMark>) {
+    fn execute_node(&self, fabric: &mut Fabric, launch: Launch, node: &BuildNode, faces: Vec<UniqueId>) -> (Vec<Bud>, Vec<FaceMark>) {
         let mut buds: Vec<Bud> = vec![];
         let mut marks: Vec<FaceMark> = vec![];
         match node {
             Face { face_name, node } => {
-                return self.execute_node(fabric, NamedFace { face_name: face_name.clone() }, node, faces);
+                return self.execute_node(fabric, NamedFace { face_alias: face_name.clone() }, node, faces);
             }
             Grow { forward, scale_factor, post_growth_node, .. } => {
                 let face_id = match launch {
-                    Seeded { seed } => {
-                        let faces = fabric.attach_brick(&seed.brick_name, *scale_factor, None);
-                        return self.execute_node(fabric, NamedFace { face_name: FaceAlias { name: "Top".to_string() } }, node, faces.to_vec());
+                    Seeded { face_alias } => {
+                        let faces = fabric.attach_brick(&face_alias, *scale_factor, None);
+                        // TODO: extract the right next face alias from the newly attached brick
+                        return self.execute_node(fabric, NamedFace { face_alias }, node, faces.to_vec());
                     }
-                    NamedFace { face_name } => Self::find_face_id(face_name, faces),
+                    NamedFace { face_alias } => Self::find_face_id(&face_alias, &faces, fabric),
                     IdentifiedFace { face_id } => face_id,
                 };
                 let node = post_growth_node.clone().map(|node_box| *node_box);
@@ -247,10 +223,10 @@ impl BuildPhase {
                     Spin::Left => "single-left",
                     Spin::Right => "single-right",
                 }.to_string());
-                let (brick_name, face_id) = match launch {
-                    Seeded { seed } => (seed.brick_name, None),
-                    NamedFace { face_name } => {
-                        let face_id = Self::find_face_id(face_name, faces);
+                let (face_alias, face_id) = match launch {
+                    Seeded { face_alias } => (face_alias, None),
+                    NamedFace { face_alias } => {
+                        let face_id = Self::find_face_id(&face_alias, &faces, fabric);
                         let spin = fabric.face(face_id).spin.opposite();
                         (brick_name(spin), Some(face_id))
                     }
@@ -259,17 +235,17 @@ impl BuildPhase {
                         (brick_name(spin), Some(face_id))
                     }
                 };
-                let twist_faces = self.attach_brick(fabric, &brick_name, face_id);
+                let twist_faces = fabric.attach_brick(&face_alias, 1.0, face_id);
                 for (face_name, node) in pairs {
                     let (new_buds, new_marks) =
-                        self.execute_node(fabric, NamedFace { face_name }, node, twist_faces.clone());
+                        self.execute_node(fabric, NamedFace { face_alias: face_name }, node, twist_faces.clone());
                     buds.extend(new_buds);
                     marks.extend(new_marks);
                 }
             }
             Mark { mark_name } => {
                 let face_id = match launch {
-                    NamedFace { face_name } => Self::find_face_id(face_name, faces),
+                    NamedFace { face_alias } => Self::find_face_id(&face_alias, &faces, fabric),
                     IdentifiedFace { face_id } => face_id,
                     Seeded { .. } => unreachable!("Need launch face"),
                 };
@@ -277,15 +253,6 @@ impl BuildPhase {
             }
         }
         (buds, marks)
-    }
-
-    fn attach_brick(&self, fabric: &mut Fabric, brick_name: &BrickName, face_id: Option<UniqueId>) -> Vec<(FaceAlias, UniqueId)> {
-        let faces = fabric.attach_brick(brick_name, 1.0, face_id).to_vec();
-        let Seed { down_faces, .. } = &self.seed;
-        if face_id.is_none() && !down_faces.is_empty() {
-            Self::orient_fabric(fabric, &faces, down_faces);
-        }
-        faces
     }
 
     fn branch_pairs(nodes: &[BuildNode]) -> Vec<(FaceAlias, &BuildNode)> {
@@ -315,11 +282,10 @@ impl BuildPhase {
         fabric.apply_matrix4(rotation);
     }
 
-    fn find_face_id(face_name: FaceAlias, face_list: Vec<(FaceAlias, UniqueId)>) -> UniqueId {
+    fn find_face_id(alias: &FaceAlias, face_list: &[UniqueId], fabric: &Fabric) -> UniqueId {
         face_list
             .iter()
-            .find(|(name, _)| *name == face_name)
-            .map(|(_, face_id)| *face_id)
+            .find_map(|&face_id| fabric.face(face_id).has_alias(&alias.name).then_some(face_id))
             .expect("no such face")
     }
 }
