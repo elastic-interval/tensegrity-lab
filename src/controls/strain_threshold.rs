@@ -9,7 +9,6 @@ pub enum StrainThresholdMessage {
     SetStrainLimits((f32, f32)),
     NuanceChanged(f32),
     Calibrate,
-    Shorten,
 }
 
 impl From<StrainThresholdMessage> for ControlMessage {
@@ -41,9 +40,6 @@ impl Component for StrainThreshold {
             Calibrate => {
                 return Some(Action::CalibrateStrain);
             }
-            Shorten => {
-                return Some(Action::ShortenPulls(self.strain_threshold()));
-            }
         }
         None
     }
@@ -72,10 +68,6 @@ impl Component for StrainThreshold {
                 .push(
                     Button::new(Text::new("Calibrate"))
                         .on_press(Calibrate.into())
-                )
-                .push(
-                    Button::new(Text::new("Shorten"))
-                        .on_press(Shorten.into())
                 )
         )
     }

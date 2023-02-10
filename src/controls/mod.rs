@@ -202,8 +202,8 @@ pub enum Action {
     SelectFace(UniqueId),
     AddBrick { brick_name: BrickName, face_id: UniqueId },
     GravityChanged(f32),
+    ShowSurface,
     CalibrateStrain,
-    ShortenPulls(f32),
 }
 
 #[derive(Clone, Debug)]
