@@ -1,6 +1,6 @@
 use std::f32::consts::PI;
 
-use cgmath::{Deg, EuclideanSpace, InnerSpace, Matrix4, MetricSpace, perspective, Point3, point3, Rad, Transform, vec3, Vector3};
+use cgmath::{Deg, InnerSpace, Matrix4, MetricSpace, perspective, Point3, point3, Rad, Transform, vec3, Vector3};
 use cgmath::num_traits::abs;
 use winit::dpi::PhysicalPosition;
 use winit::event::{ElementState, MouseScrollDelta, WindowEvent};
@@ -66,7 +66,7 @@ impl Camera {
             return;
         };
         let Some(up) = self.target.up(fabric) else {
-            return
+            return;
         };
         self.up = (self.up + up * TARGET_ATTRACTION) / (1.0 + TARGET_ATTRACTION);
         self.look_at += (look_at - self.look_at) * TARGET_ATTRACTION;
@@ -99,7 +99,7 @@ impl Camera {
     }
 
     fn projection_matrix(&self) -> Matrix4<f32> {
-        OPENGL_TO_WGPU_MATRIX * perspective(Rad(2.0 * PI / 5.0), self.aspect, 1.0, 100.0)
+        OPENGL_TO_WGPU_MATRIX * perspective(Rad(2.0 * PI / 5.0), self.aspect, 0.1, 100.0)
     }
 
     fn rotation(&self) -> Option<Matrix4<f32>> {
@@ -135,9 +135,9 @@ const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
 #[derive(Copy, Clone, Debug, Default)]
 pub enum Target {
     #[default]
-    Origin,
     FabricMidpoint,
     SelectedFace(UniqueId),
+    Origin,
     Hold,
 }
 
@@ -149,7 +149,8 @@ impl Target {
             Target::FabricMidpoint => fabric.midpoint(),
             Target::SelectedFace(face_id) => {
                 let face = fabric.face(*face_id);
-                Point3::from_vec(face.midpoint(fabric) + face.normal(fabric) / 2.0)
+                let (_, midpoint, _) = face.visible_points(fabric);
+                midpoint
             }
         })
     }
@@ -165,7 +166,7 @@ impl Target {
     pub fn distance(&self, fabric: &Fabric) -> Option<f32> {
         match self {
             Target::Origin | Target::FabricMidpoint | Target::Hold => None,
-            Target::SelectedFace(face_id) => Some(fabric.face(*face_id).scale * 5.0)
+            Target::SelectedFace(face_id) => Some(fabric.face(*face_id).scale * 7.0)
         }
     }
 
