@@ -10,6 +10,7 @@ use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::fabric::physics::presets::{AIR_GRAVITY, LIQUID, PROTOTYPE_FORMATION};
 
 const PULL_SHORTENING: f32 = 0.95;
+const PRETENST_FACTOR: f32 = 1.03;
 
 enum Stage {
     Empty,
@@ -83,11 +84,11 @@ impl Crucible {
                             plan_runner.iterate(&mut self.fabric);
                         }
                         if plan_runner.is_done() {
-                            self.stage = Building;
-                            // let old_midpoint = self.fabric.midpoint();
-                            // self.fabric.prepare_for_pretensing(1.03);
-                            // self.start_pretensing();
-                            // self.camera_jump = Some(self.fabric.midpoint() - old_midpoint);
+                            self.stage = if self.fabric.faces.is_empty() {
+                                self.start_pretensing()
+                            } else {
+                                Building
+                            }
                         }
                     }
                 }
@@ -113,7 +114,7 @@ impl Crucible {
             }
             ShortenPulls { strain_threshold } => {
                 self.fabric.shorten_pulls(*strain_threshold, PULL_SHORTENING);
-                self.start_pretensing()
+                self.stage = self.start_pretensing();
             }
             AcceptingPrototype((fabric, face_id)) => {
                 self.fabric = fabric.clone();
@@ -187,9 +188,12 @@ impl Crucible {
         self.stage = AcceptingPrototype(Baked::prototype(brick_name));
     }
 
-    fn start_pretensing(&mut self) {
+    fn start_pretensing(&mut self) -> Stage {
         self.frozen_fabric = Some(self.fabric.clone());
+        let old_midpoint = self.fabric.midpoint();
+        self.fabric.prepare_for_pretensing(PRETENST_FACTOR);
+        self.camera_jump = Some(self.fabric.midpoint() - old_midpoint);
         self.fabric.progress.start(20000);
-        self.stage = Pretensing;
+        Pretensing
     }
 }
