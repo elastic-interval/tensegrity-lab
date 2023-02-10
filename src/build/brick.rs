@@ -4,10 +4,10 @@ use std::collections::HashMap;
 use cgmath::{EuclideanSpace, Point3, point3, Vector3};
 use pest::iterators::Pair;
 
-use crate::build::tenscript::{FaceName, Library, parse_atom, ParseError, Spin};
+use crate::build::tenscript::{FaceAlias, Library, parse_atom, ParseError, Spin};
 use crate::build::tenscript::Rule;
 use crate::build::tenscript::Spin::{Left, Right};
-use crate::fabric::{Fabric, Link, UniqueId};
+use crate::fabric::{Fabric, Link};
 use crate::fabric::interval::Role;
 use crate::fabric::interval::Role::{Pull, Push};
 
@@ -60,7 +60,7 @@ pub struct PullDef {
 pub struct FaceDef {
     pub spin: Spin,
     pub joint_names: [String; 3],
-    pub name: FaceName,
+    pub aliases: Vec<FaceAlias>,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -70,17 +70,13 @@ pub struct Prototype {
     pub faces: Vec<FaceDef>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
-pub struct BrickName(pub String);
-
 #[derive(Clone, Debug)]
 pub struct BrickDefinition {
-    pub name: BrickName,
     pub proto: Prototype,
     pub baked: Option<Baked>,
 }
 
-impl From<Prototype> for (Fabric, UniqueId) {
+impl From<Prototype> for Fabric {
     fn from(proto: Prototype) -> Self {
         let mut fabric = Fabric::default();
         let mut joints_by_name = HashMap::new();
@@ -105,8 +101,7 @@ impl From<Prototype> for (Fabric, UniqueId) {
                 .map(|name| *joints_by_name.get(&name).expect("no joint with that name"));
             fabric.create_interval(alpha_index, omega_index, Link::pull(ideal));
         }
-        let mut face_id = None;
-        for FaceDef { name, joint_names, spin } in proto.faces {
+        for FaceDef { aliases, joint_names, spin } in proto.faces {
             let joint_indices = joint_names.map(|name| *joints_by_name.get(&name).expect("no joint with that name"));
             let joints = joint_indices.map(|index| fabric.joints[index].location.to_vec());
             let midpoint = joints.into_iter().sum::<Vector3<_>>() / 3.0;
@@ -114,13 +109,9 @@ impl From<Prototype> for (Fabric, UniqueId) {
             let radial_intervals = joint_indices.map(|omega_index| {
                 fabric.create_interval(alpha_index, omega_index, Link::pull(1.0))
             });
-            let is_bot_face = name.0 == "Bot";
-            let created_face_id = fabric.create_face(name, 1.0, spin, radial_intervals);
-            if is_bot_face {
-                face_id = Some(created_face_id);
-            }
+            fabric.create_face(aliases, 1.0, spin, radial_intervals);
         }
-        (fabric, face_id.expect("no Bot face defined"))
+        fabric
     }
 }
 
@@ -158,14 +149,15 @@ impl Prototype {
                 }
                 Rule::faces_proto => {
                     for face_pair in pair.into_inner() {
-                        let [spin, a, b, c, name] = face_pair.into_inner().next_chunk().unwrap();
-                        let spin = Spin::from_pair(spin);
+                        let mut inner = face_pair.into_inner();
+                        let [spin, a, b, c] = inner.next_chunk().unwrap();
                         let joint_names = [a, b, c].map(parse_atom);
-                        let name = FaceName(parse_atom(name));
+                        let aliases = FaceAlias::from_pairs(&mut inner);
+                        let spin = Spin::from_pair(spin);
                         prototype.faces.push(FaceDef {
                             spin,
                             joint_names,
-                            name,
+                            aliases,
                         });
                     }
                 }
@@ -189,12 +181,10 @@ impl Prototype {
 impl BrickDefinition {
     pub fn from_pair(pair: Pair<Rule>) -> Result<Self, ParseError> {
         let mut inner = pair.into_inner();
-        let [name, proto] = inner.next_chunk().unwrap();
-        let name = BrickName(parse_atom(name));
+        let proto = inner.next().unwrap();
         let proto = Prototype::from_pair(proto)?;
         let baked = inner.next().map(Baked::from_pair);
         Ok(Self {
-            name,
             proto,
             baked,
         })
@@ -202,10 +192,17 @@ impl BrickDefinition {
 }
 
 #[derive(Debug, Clone, Default)]
+pub struct BrickFace {
+    pub joints: [usize; 3],
+    pub aliases: Vec<FaceAlias>,
+    pub spin: Spin,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct Baked {
     pub joints: Vec<Point3<f32>>,
     pub intervals: Vec<(usize, usize, Role, f32)>,
-    pub faces: Vec<([usize; 3], FaceName, Spin)>,
+    pub faces: Vec<BrickFace>,
 }
 
 impl Baked {
@@ -233,11 +230,16 @@ impl Baked {
                     baked.intervals.push((alpha_index, omega_index, role, strain));
                 }
                 Rule::face_baked => {
-                    let [spin, a, b, c, name] = pair.into_inner().next_chunk().unwrap();
-                    let name = FaceName(parse_atom(name));
+                    let mut inner = pair.into_inner();
+                    let [spin, a, b, c] = inner.next_chunk().unwrap();
+                    let aliases = FaceAlias::from_pairs(&mut inner);
                     let spin = Spin::from_pair(spin);
-                    let joint_indices = [a, b, c].map(|pair| pair.as_str().parse().unwrap());
-                    baked.faces.push((joint_indices, name, spin));
+                    let joints = [a, b, c].map(|pair| pair.as_str().parse().unwrap());
+                    baked.faces.push(BrickFace {
+                        joints,
+                        spin,
+                        aliases,
+                    });
                 }
                 _ => unreachable!()
             }
@@ -245,12 +247,15 @@ impl Baked {
         baked
     }
 
-    pub fn new(name: &BrickName) -> Baked {
-        let baked_bricks: LazyCell<HashMap<BrickName, Baked>> = LazyCell::new(||
+    pub fn new(name: &FaceAlias) -> Baked {
+        let baked_bricks: LazyCell<HashMap<FaceAlias, Baked>> = LazyCell::new(||
             Library::standard()
                 .bricks
                 .into_iter()
-                .filter_map(|brick| brick.baked.map(|baked| (brick.name.clone(), baked)))
+                .filter_map(|brick| brick.baked)
+                .flat_map(|baked|
+                    baked.faces.into_iter().flat_map(|face|
+                        face.aliases.into_iter().map(|alias| (alias, baked.clone()))))
                 .collect()
         );
         baked_bricks
@@ -259,3 +264,4 @@ impl Baked {
             .expect("no such brick")
     }
 }
+

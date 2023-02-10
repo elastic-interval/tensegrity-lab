@@ -49,7 +49,7 @@ surface_character =
     { ":bouncy" | ":frozen" | ":sticky" }
 
 brick_definition =
-    { "(" ~ "brick" ~ atom ~ brick_proto ~ brick_baked? ~ ")" }
+    { "(" ~ "brick" ~ brick_proto ~ brick_baked? ~ ")" }
 brick_proto =
     { "(" ~ "proto" ~ pushes_proto+ ~ pulls_proto* ~ faces_proto+ ~ ")" }
 pushes_proto = // axis, ideal
@@ -70,7 +70,11 @@ chirality = { left | right }
 left = { "left" }
 right = { "right" }
 face_proto = // a, b, c, name
-    { "(" ~ chirality ~ atom ~ atom ~ atom ~ atom ~ ")" }
+    { "(" ~ chirality ~ atom ~ atom ~ atom ~ face_alias* ~ ")" }
+face_alias = 
+    { "(" ~ "alias" ~ atom ~ down? ~")" }
+down = 
+    { "(" ~ "down" ~ ")" }
 brick_baked =
     { "(" ~ "baked" ~ joint_baked+ ~ interval_baked+ ~ face_baked+ ~ ")" }
 joint_baked = // x, y, z
@@ -85,7 +89,7 @@ face_baked = // a, b, c, name
 
 ident = @{ XID_START ~ (XID_CONTINUE | "-")* }
 ident_uppercase = @{ ASCII_ALPHA_UPPER ~ (XID_CONTINUE | "-")* }
-atom = @{ (":" ~ ident) | ident_uppercase }
+atom = @{ (":" ~ ident) | (ident_uppercase ~ ("::" ~ ident_uppercase)*) }
 float = @{ "-"? ~ (integer? ~ "." ~ mantissa) | integer }
 integer = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+ | ASCII_DIGIT }
 mantissa = @{ ASCII_DIGIT+ }

@@ -4,20 +4,26 @@
  */
 use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Vector3};
 
-use crate::build::tenscript::{FaceName, Spin};
+use crate::build::tenscript::{FaceAlias, Spin};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 
 #[derive(Clone, Debug)]
 pub struct Face {
-    pub face_name: FaceName,
+    pub aliases: Vec<FaceAlias>,
     pub scale: f32,
     pub spin: Spin,
     pub radial_intervals: [UniqueId; 3],
 }
 
 impl Face {
+    pub fn has_alias(&self, name: &str) -> bool {
+        self.aliases
+            .iter()
+            .any(|alias| alias.name == name)
+    }
+
     pub fn midpoint(&self, fabric: &Fabric) -> Vector3<f32> {
         let loc = self.radial_joint_locations(fabric);
         (loc[0].to_vec() + loc[1].to_vec() + loc[2].to_vec()) / 3.0

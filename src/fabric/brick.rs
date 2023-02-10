@@ -1,7 +1,7 @@
 use cgmath::{EuclideanSpace, Point3, Transform, Vector3};
 
-use crate::build::brick::{Baked, BrickName};
-use crate::build::tenscript::FaceName;
+use crate::build::brick::{Baked, BrickFace};
+use crate::build::tenscript::FaceAlias;
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::fabric::face::Face;
 use crate::fabric::interval::Role;
@@ -12,10 +12,10 @@ const ROOT6: f32 = 2.449_489_8;
 const PHI: f32 = (1f32 + ROOT5) / 2f32;
 
 impl Fabric {
-    pub fn attach_brick(&mut self, brick_name: &BrickName, scale_factor: f32, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
+    pub fn attach_brick(&mut self, face_alias: &FaceAlias, scale_factor: f32, face_id: Option<UniqueId>) -> Vec<UniqueId> {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
-        let brick = Baked::new(brick_name);
+        let brick = Baked::new(face_alias);
         let matrix = face.map(|face| face.vector_space(self, true));
         let joints: Vec<usize> = brick.joints
             .into_iter()
@@ -32,9 +32,9 @@ impl Fabric {
                 Role::Pull => Link::pull(ideal),
             });
         }
-        let faces: Vec<_> = brick.faces
+        let brick_faces: Vec<_> = brick.faces
             .into_iter()
-            .map(|(brick_joints, face_name, spin)| {
+            .map(|BrickFace { joints: brick_joints, aliases, spin }| {
                 let midpoint = brick_joints
                     .map(|index| self.joints[joints[index]].location.to_vec())
                     .into_iter()
@@ -45,14 +45,14 @@ impl Fabric {
                     let ideal = self.ideal(alpha_index, omega_index, Baked::TARGET_FACE_STRAIN);
                     self.create_interval(alpha_index, omega_index, Link::pull(ideal))
                 });
-                (face_name.clone(), self.create_face(face_name, scale, spin, radial_intervals))
+                self.create_face(aliases, scale, spin, radial_intervals)
             })
             .collect();
-        let a_neg_face = faces
-            .iter()
-            .find_map(|(FaceName(name), face_id)| (name == "Bot").then_some(face_id))
-            .expect("no Bot face");
-        if let Some(id) = face_id { self.join_faces(id, *a_neg_face) }
-        faces
+        let (has_alias, not_has_alias) = brick_faces
+            .into_iter()
+            .partition::<Vec<_>, _>(|&face_id| self.face(face_id).has_alias(&face_alias.name));
+        let brick_face = *has_alias.get(0).expect("no face with that alias");
+        if let Some(id) = face_id { self.join_faces(id, brick_face) }
+        not_has_alias
     }
 }

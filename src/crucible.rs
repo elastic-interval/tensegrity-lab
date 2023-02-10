@@ -1,10 +1,10 @@
 use cgmath::Vector3;
 
-use crate::build::brick::{Baked, BrickName};
+use crate::build::brick::Baked;
 use crate::build::tenscript::{FabricPlan, Library, SurfaceCharacterSpec};
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::crucible::Stage::{*};
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::Fabric;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::fabric::physics::presets::{AIR_GRAVITY, PROTOTYPE_FORMATION};
 
@@ -17,8 +17,8 @@ enum Stage {
     Pretensing,
     Pretenst,
     ShortenPulls(f32),
-    AcceptingPrototype((Fabric, UniqueId)),
-    RunningPrototype(UniqueId),
+    AcceptingPrototype(Fabric),
+    RunningPrototype,
 }
 
 pub struct Crucible {
@@ -114,11 +114,11 @@ impl Crucible {
                 self.fabric.shorten_pulls(*strain_threshold, PULL_SHORTENING);
                 self.start_pretensing()
             }
-            AcceptingPrototype((fabric, face_id)) => {
+            AcceptingPrototype(fabric) => {
                 self.fabric = fabric.clone();
-                self.stage = RunningPrototype(*face_id);
+                self.stage = RunningPrototype;
             }
-            RunningPrototype(face_id) => {
+            RunningPrototype => {
                 let mut speed_squared = 1.0;
                 for _ in 0..self.iterations_per_frame {
                     speed_squared = self.fabric.iterate(&PROTOTYPE_FORMATION);
@@ -126,7 +126,7 @@ impl Crucible {
                 let age = self.fabric.age;
                 if age > 1000 && speed_squared < 1e-12 {
                     println!("Fabric settled in iteration {age} at speed squared {speed_squared}");
-                    match Baked::try_from((self.fabric.clone(), *face_id)) {
+                    match Baked::try_from(self.fabric.clone()) {
                         Ok(brick) => {
                             println!("{}", brick.into_tenscript());
                         }
@@ -169,16 +169,15 @@ impl Crucible {
         &self.fabric
     }
 
-    pub fn capture_prototype(&mut self, brick_name: &BrickName) {
-        println!("Settling and capturing prototype '{}'", brick_name.0);
-        let fabric_and_face = Library::standard()
+    pub fn capture_prototype(&mut self, brick_index: usize) {
+        println!("Settling and capturing prototype number {brick_index}");
+        let fabric = Library::standard()
             .bricks
-            .into_iter()
-            .find(|brick| &brick.name == brick_name)
+            .get(brick_index)
             .expect("no such brick")
             .proto
             .into();
-        self.stage = AcceptingPrototype(fabric_and_face);
+        self.stage = AcceptingPrototype(fabric);
     }
 
     fn start_pretensing(&mut self) {

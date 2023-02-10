@@ -4,7 +4,7 @@ use std::fmt::{Display, Formatter};
 use std::fs;
 
 use pest::error::Error;
-use pest::iterators::Pair;
+use pest::iterators::{Pair, Pairs};
 use pest::Parser;
 use pest_derive::Parser;
 
@@ -39,8 +39,24 @@ impl Display for ParseError {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct FaceName(pub String);
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct FaceAlias {
+    pub name: String,
+    pub down: bool,
+}
+
+impl FaceAlias {
+    pub fn from_pairs(inner: &mut Pairs<Rule>) -> Vec<FaceAlias> {
+        inner
+            .map(|pair| {
+                let mut inner = pair.into_inner();
+                let name = parse_atom(inner.next().unwrap());
+                let down = inner.next().is_some();
+                FaceAlias { name, down }
+            })
+            .collect()
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum SurfaceCharacterSpec {
@@ -49,8 +65,9 @@ pub enum SurfaceCharacterSpec {
     Sticky,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Spin {
+    #[default]
     Left,
     Right,
 }
@@ -126,6 +143,14 @@ pub fn parse_atom(pair: Pair<Rule>) -> String {
         .strip_prefix(':')
         .unwrap_or(string)
         .to_string()
+}
+
+pub fn into_atom(name: String) -> String {
+    if name.chars().next().expect("empty string").is_uppercase() {
+        name
+    } else {
+        format!(":{name}")
+    }
 }
 
 #[cfg(test)]
