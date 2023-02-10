@@ -1,8 +1,7 @@
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Quaternion, Rotation, Vector3};
 use pest::iterators::Pair;
 
-use crate::build::brick::BrickName;
-use crate::build::tenscript::{FaceMark, FaceName, parse_atom, Spin};
+use crate::build::tenscript::{FaceAlias, FaceMark, parse_atom, Spin};
 use crate::build::tenscript::build_phase::BuildNode::{*};
 use crate::build::tenscript::build_phase::Launch::{*};
 use crate::build::tenscript::Rule;
@@ -19,7 +18,7 @@ pub struct Bud {
 #[derive(Debug, Clone)]
 pub enum BuildNode {
     Face {
-        face_name: FaceName,
+        face_name: FaceAlias,
         node: Box<BuildNode>,
     },
     Grow {
@@ -61,13 +60,13 @@ impl BuildNode {
 #[derive(Debug, Clone, Default)]
 pub struct Seed {
     pub brick_name: BrickName,
-    pub down_faces: Vec<FaceName>,
+    pub down_faces: Vec<FaceAlias>,
 }
 
 #[derive(Debug)]
 enum Launch {
     Seeded { seed: Seed },
-    NamedFace { face_name: FaceName },
+    NamedFace { face_name: FaceAlias },
     IdentifiedFace { face_id: UniqueId },
 }
 
@@ -92,7 +91,7 @@ impl BuildPhase {
                             Rule::orient_down => {
                                 phase.seed.down_faces = sub_pair
                                     .into_inner()
-                                    .map(|face_name| FaceName(parse_atom(face_name)))
+                                    .map(|face_name| FaceAlias { name: parse_atom(face_name) })
                                     .collect();
                             }
                             _ => unreachable!("build phase seed: {sub_pair:?}")
@@ -114,7 +113,7 @@ impl BuildPhase {
                 Self::parse_build_node(pair.into_inner().next().unwrap()),
             Rule::on_face => {
                 let [face_name_pair, node_pair] = pair.into_inner().next_chunk().unwrap();
-                let face_name = FaceName(parse_atom(face_name_pair));
+                let face_name = FaceAlias { name: parse_atom(face_name_pair) };
                 let node = Self::parse_build_node(node_pair);
                 Face {
                     face_name,
@@ -197,13 +196,16 @@ impl BuildPhase {
         let spin = if forward.starts_with('X') { face.spin.opposite() } else { face.spin };
         if !forward.is_empty() {
             // TODO: don't hardcode these names, look them up somewhere
-            let brick_name = match spin {
-                Spin::Left => BrickName("single-left".to_string()),
-                Spin::Right => BrickName("single-right".to_string()),
+            let face_alias = FaceAlias {
+                name: match spin {
+                    Spin::Left => "Left::Bot",
+                    Spin::Right => "Right::Bot",
+                }.to_string(),
+                down: false,
             };
             let faces = fabric.attach_brick(&brick_name, scale_factor, Some(face_id));
             buds.push(Bud {
-                face_id: Self::find_face_id(FaceName("Top".to_string()), faces.to_vec()),
+                face_id: Self::find_face_id(FaceAlias { name: "Top".to_string() }, faces.to_vec()),
                 forward: forward[1..].into(),
                 scale_factor,
                 node,
@@ -217,7 +219,7 @@ impl BuildPhase {
         (buds, marks)
     }
 
-    fn execute_node(&self, fabric: &mut Fabric, launch: Launch, node: &BuildNode, faces: Vec<(FaceName, UniqueId)>) -> (Vec<Bud>, Vec<FaceMark>) {
+    fn execute_node(&self, fabric: &mut Fabric, launch: Launch, node: &BuildNode, faces: Vec<(FaceAlias, UniqueId)>) -> (Vec<Bud>, Vec<FaceMark>) {
         let mut buds: Vec<Bud> = vec![];
         let mut marks: Vec<FaceMark> = vec![];
         match node {
@@ -228,7 +230,7 @@ impl BuildPhase {
                 let face_id = match launch {
                     Seeded { seed } => {
                         let faces = fabric.attach_brick(&seed.brick_name, *scale_factor, None);
-                        return self.execute_node(fabric, NamedFace { face_name: FaceName("Top".to_string()) }, node, faces.to_vec());
+                        return self.execute_node(fabric, NamedFace { face_name: FaceAlias { name: "Top".to_string() } }, node, faces.to_vec());
                     }
                     NamedFace { face_name } => Self::find_face_id(face_name, faces),
                     IdentifiedFace { face_id } => face_id,
@@ -238,7 +240,7 @@ impl BuildPhase {
             }
             Branch { face_nodes } => {
                 let pairs = Self::branch_pairs(face_nodes);
-                let needs_double = pairs.iter().any(|(FaceName(name), _)| !["Top", "Bot"].contains(&name.as_str()));
+                let needs_double = pairs.iter().any(|(FaceAlias { name: name }, _)| !["Top", "Bot"].contains(&name.as_str()));
                 let brick_name = |spin: Spin| BrickName(match spin {
                     Spin::Left if needs_double => "omni-left",
                     Spin::Right if needs_double => "omni-right",
@@ -277,7 +279,7 @@ impl BuildPhase {
         (buds, marks)
     }
 
-    fn attach_brick(&self, fabric: &mut Fabric, brick_name: &BrickName, face_id: Option<UniqueId>) -> Vec<(FaceName, UniqueId)> {
+    fn attach_brick(&self, fabric: &mut Fabric, brick_name: &BrickName, face_id: Option<UniqueId>) -> Vec<(FaceAlias, UniqueId)> {
         let faces = fabric.attach_brick(brick_name, 1.0, face_id).to_vec();
         let Seed { down_faces, .. } = &self.seed;
         if face_id.is_none() && !down_faces.is_empty() {
@@ -286,7 +288,7 @@ impl BuildPhase {
         faces
     }
 
-    fn branch_pairs(nodes: &[BuildNode]) -> Vec<(FaceName, &BuildNode)> {
+    fn branch_pairs(nodes: &[BuildNode]) -> Vec<(FaceAlias, &BuildNode)> {
         nodes
             .iter()
             .map(|face_node| {
@@ -298,7 +300,7 @@ impl BuildPhase {
             .collect()
     }
 
-    fn orient_fabric(fabric: &mut Fabric, faces: &[(FaceName, UniqueId)], down_faces: &[FaceName]) {
+    fn orient_fabric(fabric: &mut Fabric, faces: &[(FaceAlias, UniqueId)], down_faces: &[FaceAlias]) {
         let mut new_down: Vector3<f32> = faces
             .iter()
             .filter(|(face_name, _)| down_faces.contains(face_name))
@@ -313,7 +315,7 @@ impl BuildPhase {
         fabric.apply_matrix4(rotation);
     }
 
-    fn find_face_id(face_name: FaceName, face_list: Vec<(FaceName, UniqueId)>) -> UniqueId {
+    fn find_face_id(face_name: FaceAlias, face_list: Vec<(FaceAlias, UniqueId)>) -> UniqueId {
         face_list
             .iter()
             .find(|(name, _)| *name == face_name)

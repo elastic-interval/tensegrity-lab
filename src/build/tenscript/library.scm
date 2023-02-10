@@ -18,14 +18,14 @@
     (name "Flagellum")
     (build
       (seed :single-left)
-      (grow 20 (scale .9))))
+      (grow 20 (scale.9))))
   (fabric
     (name "Halo by Crane")
     (build
-      (grow 4 (scale .92)
+      (grow 4 (scale.92)
         (branch
-          (face F2 (grow 12 (scale .92) (mark :halo-end)))
-          (face F6 (grow 11 (scale .92) (mark :halo-end))))))
+          (face F2 (grow 12 (scale.92) (mark :halo-end)))
+          (face F6 (grow 11 (scale.92) (mark :halo-end))))))
     (shape
       (join :halo-end)
       (remove-shapers) ; TODO: should automatically happen before vulcanize
@@ -37,29 +37,29 @@
       (seed :right-omni
         (orient-down F0 F3))
       (branch
-        (face F0 (grow "....X.." (scale .95) (mark :legs)))
-        (face F3 (grow "....X.." (scale .95) (mark :legs)))
+        (face F0 (grow "....X.." (scale.95) (mark :legs)))
+        (face F3 (grow "....X.." (scale.95) (mark :legs)))
         (face F1
-          (grow 2 (scale .9)
+          (grow 2 (scale.9)
             (branch
               (face F5 (mark :shoulders))
-              (face F7 (grow "....X..." (scale .93) (mark :hands)))
+              (face F7 (grow "....X..." (scale.93) (mark :hands)))
               )))
         (face F2
-          (grow 2 (scale .9)
+          (grow 2 (scale.9)
             (branch
               (face F7 (mark :shoulders))
-              (face F5 (grow "....X..." (scale .93) (mark :hands)))
+              (face F5 (grow "....X..." (scale.93) (mark :hands)))
               )))))
     (shape
       (countdown 25000
-        (space :legs .5)
-        (space :hands .01)
-        (space :shoulders .05))
+        (space :legs.5)
+        (space :hands.01)
+        (space :shoulders.05))
       (countdown 10000 (vulcanize))
       (remove-shapers)
       (replace-faces)))
-  (brick :single-right
+  (brick ; single-right
     (proto
       (pushes X 3.204 (push :alpha_x :omega_x))
       (pushes Y 3.204 (push :alpha_y :omega_y))
@@ -69,8 +69,8 @@
         (pull :alpha_y :omega_x)
         (pull :alpha_z :omega_y))
       (faces
-        (right :alpha_z :alpha_y :alpha_x Bot)
-        (right :omega_x :omega_y :omega_z Top)))
+        (right :alpha_z :alpha_y :alpha_x Right::Down (down))
+        (right :omega_x :omega_y :omega_z Right::Up)))
     (baked
       (joint -0.5000 0.0000 -0.8660)
       (joint 0.0068 1.9619 1.0000)
@@ -88,7 +88,7 @@
       (push 2 3 -0.0531)
       (right 4 2 0 Bot)
       (right 1 3 5 Top)))
-  (brick :single-left
+  (brick ; single-left
     (proto
       (pushes X 3.204 (push :alpha_x :omega_x))
       (pushes Y 3.204 (push :alpha_y :omega_y))
@@ -98,8 +98,8 @@
         (pull :alpha_y :omega_z)
         (pull :alpha_z :omega_x))
       (faces
-        (left :alpha_x :alpha_y :alpha_z Bot)
-        (left :omega_z :omega_y :omega_x Top)))
+        (left :alpha_x :alpha_y :alpha_z Left::Down (down))
+        (left :omega_z :omega_y :omega_x Left::Up)))
     (baked
       (joint 1.0000 -0.0000 -0.0000)
       (joint -0.8694 1.9619 0.4941)
@@ -117,21 +117,20 @@
       (pull 4 1 0.1171)
       (left 5 3 1 Top)
       (left 0 2 4 Bot)))
-  (brick :omni
+  (brick ; omni
     (proto
       (pushes X 3.271 (push :bot_alpha_x :bot_omega_x) (push :top_alpha_x :top_omega_x))
       (pushes Y 3.271 (push :bot_alpha_y :bot_omega_y) (push :top_alpha_y :top_omega_y))
       (pushes Z 3.271 (push :bot_alpha_z :bot_omega_z) (push :top_alpha_z :top_omega_z))
       (faces
-        (right :top_omega_x :top_omega_y :top_omega_z Top)
-        (left :top_omega_x :top_alpha_y :bot_omega_z TopX)
-        (left :top_omega_y :top_alpha_z :bot_omega_x TopY)
-        (left :top_omega_z :top_alpha_x :bot_omega_y TopZ)
-
-        (right :bot_alpha_z :bot_omega_x :top_alpha_y BotZ)
-        (right :bot_alpha_y :bot_omega_z :top_alpha_x BotY)
-        (right :bot_alpha_x :bot_omega_y :top_alpha_z BotX)
-        (left :bot_alpha_x :bot_alpha_y :bot_alpha_z Bot)))
+        (right :top_omega_x :top_omega_y :top_omega_z (alias Omni::Left::Up) (alias Omni::Right::Down (downward)))
+        (left :top_omega_x :top_alpha_y :bot_omega_z Omni::Left::UpX Omni::Right::DownX)
+        (left :top_omega_y :top_alpha_z :bot_omega_x Omni::Left::UpY Omni::Right::DownY)
+        (left :top_omega_z :top_alpha_x :bot_omega_y Omni::Left::UpZ Omni::Right::DownZ)
+        (right :bot_alpha_z :bot_omega_x :top_alpha_y Omni::Left::DownZ Omni::Right::UpZ)
+        (right :bot_alpha_y :bot_omega_z :top_alpha_x Omni::Left::DownY Omni::Right::UpY)
+        (right :bot_alpha_x :bot_omega_y :top_alpha_z Omni::Left::DownX Omni::Right::UpX)
+        (left :bot_alpha_x :bot_alpha_y :bot_alpha_z Omni::Left::Down Omni::Right::Up)))
     (baked
       (joint 1.0000 0.0000 0.0000)
       (joint -1.0048 1.6330 1.1464)
@@ -167,7 +166,7 @@
       (right 4 9 2 BotY)
       (right 0 5 10 BotX)
       (left 7 10 1 TopY)))
-  (brick :mitosis
+  (brick ; mitosis
     (proto
       (pushes X 3.467
         (push :left_front :left_back)

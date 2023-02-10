@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use cgmath::{EuclideanSpace, Matrix4, MetricSpace, Point3, Transform, Vector3};
 use cgmath::num_traits::zero;
 
-use crate::build::tenscript::{FaceName, Spin};
+use crate::build::tenscript::{FaceAlias, Spin};
 use crate::fabric::face::Face;
 use crate::fabric::interval::{Interval, Material};
 use crate::fabric::interval::Role::{Pull, Push};
@@ -108,9 +108,9 @@ impl Fabric {
         self.intervals.values()
     }
 
-    pub fn create_face(&mut self, face_name: FaceName, scale: f32, spin: Spin, radial_intervals: [UniqueId; 3]) -> UniqueId {
+    pub fn create_face(&mut self, aliases: Vec<FaceAlias>, scale: f32, spin: Spin, radial_intervals: [UniqueId; 3]) -> UniqueId {
         let id = self.create_id();
-        self.faces.insert(id, Face { face_name, scale, spin, radial_intervals });
+        self.faces.insert(id, Face { aliases, scale, spin, radial_intervals });
         id
     }
 

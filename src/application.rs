@@ -15,7 +15,6 @@ use winit::window::Window;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use crate::build::brick::BrickName;
 use crate::build::tenscript::FabricPlan;
 use crate::controls::{ControlMessage, GUI, VisibleControl};
 use crate::controls::Action;
@@ -74,7 +73,7 @@ impl Application {
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
-pub fn run_with(brick_name: Option<String>) {
+pub fn run_with(brick_index: Option<usize>) {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -111,8 +110,8 @@ pub fn run_with(brick_name: Option<String>) {
     let graphics = pollster::block_on(GraphicsWindow::new(&window));
     let mut app = Application::new(graphics, &window);
     let mut crucible = Crucible::default();
-    if let Some(brick_name) = brick_name {
-        crucible.capture_prototype(&BrickName(brick_name));
+    if let Some(brick_index) = brick_index {
+        crucible.capture_prototype(brick_index);
     }
     let mut library_modified = library_modified_timestamp();
     let mut fabric_plan_name: Option<String> = None;
