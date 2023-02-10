@@ -23,11 +23,22 @@ impl Face {
         (loc[0].to_vec() + loc[1].to_vec() + loc[2].to_vec()) / 3.0
     }
 
-    pub fn normal(&self, fabric: &Fabric) -> Vector3<f32> {
+    fn normal_to(&self, fabric: &Fabric, length: f32) -> Vector3<f32> {
         let loc = self.radial_joint_locations(fabric);
         let v1 = loc[1] - loc[0];
         let v2 = loc[2] - loc[0];
-        v2.cross(v1).normalize()
+        v2.cross(v1).normalize_to(length)
+    }
+
+    pub fn normal(&self, fabric: &Fabric) -> Vector3<f32> {
+        self.normal_to(fabric, 1.0)
+    }
+
+    pub fn visible_points(&self, fabric: &Fabric) -> (Point3<f32>, Point3<f32>, Point3<f32>) {
+        let alpha = self.midpoint(fabric);
+        let omega = alpha + self.normal_to(fabric, 1.5) * self.scale;
+        let middle = (alpha + omega) / 2.0;
+        (Point3::from_vec(alpha), Point3::from_vec(middle), Point3::from_vec(omega))
     }
 
     pub fn radial_joint_locations(&self, fabric: &Fabric) -> [Point3<f32>; 3] {
