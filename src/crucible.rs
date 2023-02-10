@@ -100,7 +100,7 @@ impl Crucible {
                 let faces = self.fabric.attach_brick(*brick_name, 1.0, Some(*face_id));
                 self.stage = Interactive;
                 self.fabric.progress.start(1000);
-                let (_, new_face_id) = faces.into_iter().find(|&(face_name, _)|face_name == FaceName(1))?;
+                let (_, new_face_id) = faces.into_iter().find(|&(face_name, _)| face_name == FaceName(1))?;
                 return Some(Action::SelectFace(new_face_id));
             }
             Pretensing => {
