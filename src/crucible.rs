@@ -16,7 +16,7 @@ enum Stage {
     Empty,
     AcceptingPlan(FabricPlan),
     RunningPlan,
-    Building,
+    Interactive,
     AddingBrick { brick_name: BrickName, face_id: UniqueId },
     Pretensing,
     Pretenst,
@@ -87,18 +87,18 @@ impl Crucible {
                             self.stage = if self.fabric.faces.is_empty() {
                                 self.start_pretensing()
                             } else {
-                                Building
+                                Interactive
                             }
                         }
                     }
                 }
             }
-            Building => {
+            Interactive => {
                 self.iterate_frame(Some(&LIQUID));
             }
             AddingBrick { brick_name, face_id } => {
                 let faces = self.fabric.attach_brick(*brick_name, 1.0, Some(*face_id));
-                self.stage = Building;
+                self.stage = Interactive;
                 self.fabric.progress.start(1000);
                 let (_, new_face_id) = faces.into_iter().find(|&(face_name, _)|face_name == FaceName(1))?;
                 return Some(Action::SelectFace(new_face_id));
