@@ -1,15 +1,13 @@
 #![allow(clippy::result_large_err)]
 
-use std::fmt::{Display, Formatter};
-use std::fs;
-
+use brick::BrickDefinition;
+pub use fabric_plan::FabricPlan;
 use pest::error::Error;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
 use pest_derive::Parser;
-
-use brick::BrickDefinition;
-pub use fabric_plan::FabricPlan;
+use std::fmt::{Display, Formatter};
+use std::fs;
 
 use crate::build::brick;
 use crate::build::tenscript::build_phase::BuildPhase;
@@ -53,7 +51,7 @@ impl FaceAlias {
         }
     }
     
-    pub fn from_pairs(inner: &mut Pairs<Rule>) -> Vec<FaceAlias> {
+    pub fn from_pairs(inner: &mut impl IntoIterator<Item=Pair<Rule>>) -> Vec<FaceAlias> {
         inner
             .map(|pair| {
                 let mut inner = pair.into_inner();
