@@ -158,7 +158,10 @@ impl BuildPhase {
                 _ => unreachable!("build phase"),
             }
         }
-        BuildPhase::new(face_alias.expect("build must have face alias"), build_node)
+        BuildPhase::new(
+            face_alias.expect("build must have face alias"),
+            build_node
+        )
     }
 
     fn parse_build_node(pair: Pair<Rule>) -> BuildNode {
