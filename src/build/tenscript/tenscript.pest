@@ -70,9 +70,9 @@ right = { "right" }
 face_proto = // a, b, c, name
     { "(" ~ chirality ~ atom ~ atom ~ atom ~ face_alias* ~ ")" }
 face_alias = 
-    { "(" ~ "alias" ~ atom ~ down? ~")" }
-down = 
-    { "(" ~ "down" ~ ")" }
+    { "(" ~ "alias" ~ atom ~")" }
+// down =
+//     { "(" ~ "down" ~ ")" }
 brick_baked =
     { "(" ~ "baked" ~ joint_baked+ ~ interval_baked+ ~ face_baked+ ~ ")" }
 joint_baked = // x, y, z

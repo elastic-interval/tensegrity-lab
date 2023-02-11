@@ -2,7 +2,7 @@ use std::cell::LazyCell;
 use std::collections::HashMap;
 use std::iter;
 
-use cgmath::{EuclideanSpace, Point3, point3, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, point3, SquareMatrix, Transform, Vector3};
 use pest::iterators::Pair;
 
 use crate::build::tenscript::{FaceAlias, Library, parse_atom, ParseError, Spin};
@@ -199,6 +199,27 @@ pub struct BrickFace {
     pub spin: Spin,
 }
 
+impl BrickFace {
+    pub fn vector_space(&self, baked: &Baked) -> Matrix4<f32> {
+        let [radial0, radial1, radial2] =
+            self.joints.map(|index| baked.joints[index].to_vec());
+        let midpoint = (radial0 + radial1 + radial2) / 3.0;
+        let v0 = radial0 - midpoint;
+        let v1 = radial1 - midpoint;
+        let v2 = radial2 - midpoint;
+        let inward = match self.spin {
+            Left => v1.cross(v2),
+            Right => v2.cross(v1),
+        }.normalize();
+        let (x_axis, y_axis, scale) =
+            (v0.normalize(), inward, v0.magnitude());
+        let z_axis = x_axis.cross(y_axis).normalize();
+        Matrix4::from_translation(midpoint) *
+            Matrix4::from(Matrix3::from_cols(x_axis, y_axis, z_axis)) *
+            Matrix4::from_scale(scale)
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Baked {
     pub joints: Vec<Point3<f32>>,
@@ -248,26 +269,42 @@ impl Baked {
         baked
     }
 
-    pub fn new(name: &FaceAlias) -> Baked {
-        let baked_bricks: LazyCell<HashMap<FaceAlias, Baked>> = LazyCell::new(||
-            Library::standard()
-                .bricks
-                .into_iter()
-                .filter_map(|brick| brick.baked)
-                .flat_map(|baked| {
-                    let cloned_bakeds = iter::repeat(baked.clone());
-                    baked
-                        .faces
-                        .into_iter()
-                        .zip(cloned_bakeds)
-                        .flat_map(|(face, baked)|
-                            face.aliases
-                                .into_iter()
-                                .map(move |alias| (alias, baked.clone()))
-                        )
-                })
-                .collect()
-        );
+    fn apply_matrix(&mut self, matrix: Matrix4<f32>) {
+        for joint in &mut self.joints {
+            *joint = matrix.transform_point(*joint)
+        }
+    }
+
+    pub fn new_brick(name: &FaceAlias) -> Baked {
+        let baked_bricks: LazyCell<HashMap<FaceAlias, Baked>> = LazyCell::new(|| {
+            let mut pairs: HashMap<FaceAlias, Baked> =
+                Library::standard()
+                    .bricks
+                    .into_iter()
+                    .filter_map(|brick| brick.baked)
+                    .flat_map(|baked| {
+                        let cloned_bricks = iter::repeat(baked.clone());
+                        baked
+                            .faces
+                            .into_iter()
+                            .zip(cloned_bricks)
+                            .flat_map(|(face, baked)|
+                                face.aliases
+                                    .into_iter()
+                                    .map(move |alias| (alias, baked.clone()))
+                            )
+                    })
+                    .collect();
+            for (face_alias, baked) in pairs.iter_mut() {
+                let brick_face = baked.faces
+                    .iter()
+                    .find(|face| face.aliases.contains(face_alias))
+                    .unwrap();
+                let space = brick_face.vector_space(baked);
+                baked.apply_matrix(space.invert().unwrap());
+            }
+            pairs
+        });
         baked_bricks
             .get(name)
             .cloned()

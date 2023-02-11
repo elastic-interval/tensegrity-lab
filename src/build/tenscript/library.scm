@@ -19,18 +19,19 @@
     (build
       (alias Right::Bot)
       (grow 20 (scale.9))))
-;  (fabric
-;    (name "Halo by Crane")
-;    (build
-;      (grow 4 (scale.92)
-;        (branch
-;          (face F2 (grow 12 (scale.92) (mark :halo-end)))
-;          (face F6 (grow 11 (scale.92) (mark :halo-end))))))
-;    (shape
-;      (join :halo-end)
-;      (remove-shapers) ; TODO: should automatically happen before vulcanize
-;      (vulcanize)
-;      (replace-faces)))
+  (fabric
+    (name "Halo by Crane")
+    (build
+      (alias Right::Bot)
+      (grow 4 (scale.92)
+        (branch
+          (face (alias Omni::Left::TopX) (grow 2 (scale.92) (mark :halo-end)))
+          (face (alias Omni::Left::TopY) (grow 11 (scale.92) (mark :halo-end))))))
+    (shape
+      (join :halo-end)
+      (remove-shapers) ; TODO: should automatically happen before vulcanize
+      (vulcanize)
+      (replace-faces)))
 ;  (fabric
 ;    (name "Headless Hug")
 ;    (build
