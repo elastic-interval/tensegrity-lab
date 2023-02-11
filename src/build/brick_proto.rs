@@ -1,8 +1,8 @@
-use cgmath::Point3;
 use cgmath::num_traits::abs;
+use cgmath::Point3;
 
 use crate::build::brick::{Baked, BrickFace};
-use crate::build::tenscript::{FaceAlias, into_atom};
+use crate::build::tenscript::FaceAlias;
 use crate::build::tenscript::Spin::{Left, Right};
 use crate::fabric::Fabric;
 use crate::fabric::interval::{Interval, Role};
@@ -43,10 +43,7 @@ impl Baked {
                             },
                             aliases = aliases
                                 .into_iter()
-                                .map(|FaceAlias { name, down }|
-                                    format!("(alias {name} {down})",
-                                            name = into_atom(name),
-                                            down = if down { "(down)" } else { "" }))
+                                .map(|FaceAlias(name)| format!("(alias {name})"))
                                 .collect::<Vec<_>>()
                                 .join(" "))
                     )
@@ -60,7 +57,6 @@ impl TryFrom<Fabric> for Baked {
     type Error = String;
 
     fn try_from(fabric: Fabric) -> Result<Self, String> {
-        let mut fabric = fabric;
         let joint_incident = fabric.joint_incident();
         let target_face_strain = Baked::TARGET_FACE_STRAIN;
         for face in fabric.faces.values() {
@@ -84,7 +80,7 @@ impl TryFrom<Fabric> for Baked {
                 .map(|face| BrickFace {
                     joints: face.radial_joints(&fabric),
                     aliases: face.aliases.clone(),
-                    spin: face.spin
+                    spin: face.spin,
                 })
                 .collect(),
         })

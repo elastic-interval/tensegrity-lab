@@ -41,7 +41,7 @@ impl Default for Crucible {
             plan_runner: None,
             camera_jump: None,
             frozen_fabric: None,
-            iterations_per_frame: 100,
+            iterations_per_frame: 5,
             paused: false,
             stage: Empty,
             shorten_pulls: None,
@@ -176,6 +176,7 @@ impl Crucible {
             .get(brick_index)
             .expect("no such brick")
             .proto
+            .clone()
             .into();
         self.stage = AcceptingPrototype(fabric);
     }

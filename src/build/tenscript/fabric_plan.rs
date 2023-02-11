@@ -8,7 +8,7 @@ use crate::build::tenscript::{BuildPhase, Library, parse_name, ParseError, Rule,
 use crate::build::tenscript::build_phase::BuildNode;
 use crate::build::tenscript::shape_phase::{Operation, ShapePhase};
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct FabricPlan {
     pub name: String,
     pub surface: Option<SurfaceCharacterSpec>,
@@ -24,7 +24,7 @@ impl FabricPlan {
             .find(|plan| plan.name == plan_name)
     }
 
-    pub(crate) fn from_pair(fabric_plan_pair: Pair<Rule>) -> Result<FabricPlan, ParseError> {
+    pub fn from_pair(fabric_plan_pair: Pair<Rule>) -> Result<FabricPlan, ParseError> {
         let mut plan = FabricPlan::default();
         for pair in fabric_plan_pair.into_inner() {
             match pair.as_rule() {
