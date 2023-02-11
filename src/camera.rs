@@ -129,8 +129,8 @@ const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
 
 #[derive(Copy, Clone, Debug, Default)]
 pub enum Target {
-    #[default]
     Origin,
+    #[default]
     FabricMidpoint,
     Face(UniqueId),
 }

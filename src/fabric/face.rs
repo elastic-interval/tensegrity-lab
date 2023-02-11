@@ -18,10 +18,8 @@ pub struct Face {
 }
 
 impl Face {
-    pub fn has_alias(&self, name: &str) -> bool {
-        self.aliases
-            .iter()
-            .any(|alias| alias.name == name)
+    pub fn has_alias(&self, alias: &FaceAlias) -> bool {
+        self.aliases.contains(alias)
     }
 
     pub fn midpoint(&self, fabric: &Fabric) -> Vector3<f32> {
@@ -62,22 +60,15 @@ impl Face {
             .sum::<f32>() / 3.0
     }
 
-    pub fn vector_space(&self, fabric: &Fabric, outward: bool) -> Matrix4<f32> {
+    pub fn vector_space(&self, fabric: &Fabric) -> Matrix4<f32> {
         let midpoint = self.midpoint(fabric);
         let [radial0, radial1, _] = self.radial_joint_locations(fabric);
-        let (x_axis, y_axis, scale) = if outward {
+        let (x_axis, y_axis, scale) =
             (
                 (radial0.to_vec() + radial1.to_vec() - midpoint * 2.0).normalize(),
                 self.normal(fabric),
                 self.scale
-            )
-        } else {
-            (
-                (radial0.to_vec() - midpoint).normalize(),
-                -self.normal(fabric),
-                (radial0.to_vec() - midpoint).magnitude(),
-            )
-        };
+            );
         let z_axis = x_axis.cross(y_axis).normalize();
         Matrix4::from_translation(midpoint) *
             Matrix4::from(Matrix3::from_cols(x_axis, y_axis, z_axis)) *

@@ -15,8 +15,8 @@ impl Fabric {
     pub fn attach_brick(&mut self, face_alias: &FaceAlias, scale_factor: f32, face_id: Option<UniqueId>) -> Vec<UniqueId> {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
-        let brick = Baked::new(face_alias);
-        let matrix = face.map(|face| face.vector_space(self, true));
+        let brick = Baked::new_brick(face_alias);
+        let matrix = face.map(|face| face.vector_space(self));
         let joints: Vec<usize> = brick.joints
             .into_iter()
             .map(|point| self.create_joint(match matrix {
@@ -48,11 +48,15 @@ impl Fabric {
                 self.create_face(aliases, scale, spin, radial_intervals)
             })
             .collect();
-        let (has_alias, not_has_alias) = brick_faces
-            .into_iter()
-            .partition::<Vec<_>, _>(|&face_id| self.face(face_id).has_alias(&face_alias.name));
-        let brick_face = *has_alias.get(0).expect("no face with that alias");
-        if let Some(id) = face_id { self.join_faces(id, brick_face) }
-        not_has_alias
+        if let Some(id) = face_id {
+            let (has_alias, not_has_alias) = brick_faces
+                .into_iter()
+                .partition::<Vec<_>, _>(|&face_id| self.face(face_id).has_alias(&face_alias));
+            let brick_face = *has_alias.get(0).expect("no face with that alias");
+            self.join_faces(id, brick_face);
+            not_has_alias
+        } else {
+            brick_faces
+        }
     }
 }
