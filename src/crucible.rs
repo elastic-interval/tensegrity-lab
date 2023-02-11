@@ -41,7 +41,7 @@ impl Default for Crucible {
             plan_runner: None,
             camera_jump: None,
             frozen_fabric: None,
-            iterations_per_frame: 5,
+            iterations_per_frame: 100,
             paused: false,
             stage: Empty,
             shorten_pulls: None,
