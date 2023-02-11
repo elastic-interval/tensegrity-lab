@@ -340,7 +340,7 @@ impl BuildPhase {
     fn find_face_id(alias: &FaceAlias, face_list: &[UniqueId], fabric: &Fabric) -> UniqueId {
         face_list
             .iter()
-            .find_map(|&face_id| fabric.face(face_id).has_alias(&alias).then_some(face_id))
-            .expect(format!("no such face: {alias}").as_str())
+            .find_map(|&face_id| fabric.face(face_id).has_alias(alias).then_some(face_id))
+            .unwrap_or_else(|| panic!("no such face: {alias}"))
     }
 }
