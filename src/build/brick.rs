@@ -255,18 +255,20 @@ impl Baked {
                 .into_iter()
                 .filter_map(|brick| brick.baked)
                 .flat_map(|baked| {
-                    baked.faces
+                    let cloned_bakeds = iter::repeat(baked.clone());
+                    baked
+                        .faces
                         .into_iter()
-                        .zip(iter::repeat(baked.clone()))
+                        .zip(cloned_bakeds)
                         .flat_map(|(face, baked)|
                             face.aliases
                                 .into_iter()
-                                .map(move |alias| (alias, baked))
+                                .map(move |alias| (alias, baked.clone()))
                         )
                 })
                 .collect()
         );
-        baked_bricksπ
+        baked_bricks
             .get(name)
             .cloned()
             .expect("no such brick")
