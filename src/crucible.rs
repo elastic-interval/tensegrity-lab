@@ -172,7 +172,9 @@ impl Crucible {
     pub fn capture_prototype(&mut self, brick_index: usize) {
         println!("Settling and capturing prototype number {brick_index}");
         let fabric = Library::standard().bricks
-            .get(brick_index).expect("no such brick").proto
+            .get(brick_index)
+            .expect("no such brick")
+            .proto
             .clone()
             .into();
         self.stage = AcceptingPrototype(fabric);
