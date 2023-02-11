@@ -166,7 +166,7 @@ impl BuildPhase {
 
     fn parse_build_node(pair: Pair<Rule>) -> BuildNode {
         match pair.as_rule() {
-            Rule::build_node =>
+            Rule::build_node | Rule::first_build_node =>
                 Self::parse_build_node(pair.into_inner().next().unwrap()),
             Rule::on_face => {
                 let [face_name_pair, node_pair] = pair.into_inner().next_chunk().unwrap();
