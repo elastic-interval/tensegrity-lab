@@ -1,13 +1,15 @@
 #![allow(clippy::result_large_err)]
 
-use brick::BrickDefinition;
-pub use fabric_plan::FabricPlan;
-use pest::error::Error;
-use pest::iterators::{Pair, Pairs};
-use pest::Parser;
-use pest_derive::Parser;
 use std::fmt::{Display, Formatter};
 use std::fs;
+
+use pest::error::Error;
+use pest::iterators::Pair;
+use pest::Parser;
+use pest_derive::Parser;
+
+use brick::BrickDefinition;
+pub use fabric_plan::FabricPlan;
 
 use crate::build::brick;
 use crate::build::tenscript::build_phase::BuildPhase;
@@ -37,28 +39,19 @@ impl Display for ParseError {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct FaceAlias {
-    pub name: String,
-    pub down: bool,
-}
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
+pub struct FaceAlias(pub String);
 
 impl FaceAlias {
-    pub fn new(name: String) -> Self {
-        Self {
-            name,
-            down: false,
-        }
+    pub fn from_pair(pair: Pair<Rule>) -> FaceAlias {
+        let mut inner = pair.into_inner();
+        FaceAlias(parse_atom(inner.next().unwrap()))
     }
-    
-    pub fn from_pairs(inner: &mut impl IntoIterator<Item=Pair<Rule>>) -> Vec<FaceAlias> {
-        inner
-            .map(|pair| {
-                let mut inner = pair.into_inner();
-                let name = parse_atom(inner.next().unwrap());
-                let down = inner.next().is_some();
-                FaceAlias { name, down }
-            })
+
+    pub fn from_pairs(pairs: Vec<Pair<Rule>>) -> Vec<FaceAlias> {
+        pairs
+            .into_iter()
+            .map(Self::from_pair)
             .collect()
     }
 }
