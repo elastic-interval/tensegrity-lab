@@ -84,8 +84,8 @@ impl Default for BaseAliases {
             left_top: FaceAlias("Left::Top".to_string()),
             right_bot: FaceAlias("Right::Bot".to_string()),
             right_top: FaceAlias("Right::Top".to_string()),
-            omni_left_bot: FaceAlias("Omni::Left::Top".to_string()),
-            omni_right_bot: FaceAlias("Omni::Right::Top".to_string()),
+            omni_left_bot: FaceAlias("Omni::Left::Bot".to_string()),
+            omni_right_bot: FaceAlias("Omni::Right::Bot".to_string()),
         }
     }
 }
@@ -107,7 +107,7 @@ impl BaseAliases {
         }
     }
 
-    pub fn not_single_top(&self, alias: &FaceAlias) -> bool {
+    pub fn not_top_of_single(&self, alias: &FaceAlias) -> bool {
         !(&self.right_top == alias || &self.left_top == alias)
     }
 
@@ -285,7 +285,7 @@ impl BuildPhase {
                     let pairs = Self::branch_pairs(face_nodes);
                     let needs_double = pairs
                         .iter()
-                        .any(|(face_alias, _)| self.base_aliases.not_single_top(face_alias));
+                        .any(|(face_alias, _)| self.base_aliases.not_top_of_single(face_alias));
                     let (face_alias, face_id) = match launch {
                         Scratch { face_alias } => {
                             (face_alias, None)
