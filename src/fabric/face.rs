@@ -18,10 +18,8 @@ pub struct Face {
 }
 
 impl Face {
-    pub fn has_alias(&self, name: &str) -> bool {
-        self.aliases
-            .iter()
-            .any(|alias| alias.name == name)
+    pub fn has_alias(&self, alias: &FaceAlias) -> bool {
+        self.aliases.contains(alias)
     }
 
     pub fn midpoint(&self, fabric: &Fabric) -> Vector3<f32> {

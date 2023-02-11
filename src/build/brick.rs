@@ -152,7 +152,7 @@ impl Prototype {
                         let mut inner = face_pair.into_inner();
                         let [spin, a, b, c] = inner.next_chunk().unwrap();
                         let joint_names = [a, b, c].map(parse_atom);
-                        let aliases = FaceAlias::from_pairs(&mut inner);
+                        let aliases = FaceAlias::from_pairs(inner.collect());
                         let spin = Spin::from_pair(spin);
                         prototype.faces.push(FaceDef {
                             spin,
@@ -232,7 +232,7 @@ impl Baked {
                 Rule::face_baked => {
                     let mut inner = pair.into_inner();
                     let [spin, a, b, c] = inner.next_chunk().unwrap();
-                    let aliases = FaceAlias::from_pairs(&mut inner);
+                    let aliases = FaceAlias::from_pairs(inner.collect());
                     let spin = Spin::from_pair(spin);
                     let joints = [a, b, c].map(|pair| pair.as_str().parse().unwrap());
                     baked.faces.push(BrickFace {
@@ -254,8 +254,14 @@ impl Baked {
                 .into_iter()
                 .filter_map(|brick| brick.baked)
                 .flat_map(|baked|
-                    baked.faces.into_iter().flat_map(|face|
-                        face.aliases.into_iter().map(|alias| (alias, baked.clone()))))
+                    baked.faces
+                        .into_iter()
+                        .flat_map(|face|
+                            face.aliases
+                                .into_iter()
+                                .map(|alias| (alias, baked.clone()))
+                        )
+                )
                 .collect()
         );
         baked_bricks
