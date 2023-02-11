@@ -18,7 +18,7 @@ pub struct Bud {
 #[derive(Debug, Clone)]
 pub enum BuildNode {
     Face {
-        face_name: FaceAlias,
+        alias: FaceAlias,
         node: Box<BuildNode>,
     },
     Grow {
@@ -91,10 +91,10 @@ impl BuildPhase {
                 Self::parse_build_node(pair.into_inner().next().unwrap()),
             Rule::on_face => {
                 let [face_name_pair, node_pair] = pair.into_inner().next_chunk().unwrap();
-                let face_name = FaceAlias { name: parse_atom(face_name_pair) };
+                let alias = FaceAlias::from_pairs(&mut [face_name_pair]).remove(0);
                 let node = Self::parse_build_node(node_pair);
                 Face {
-                    face_name,
+                    alias,
                     node: Box::new(node),
                 }
             }
@@ -198,7 +198,7 @@ impl BuildPhase {
         let mut buds: Vec<Bud> = vec![];
         let mut marks: Vec<FaceMark> = vec![];
         match node {
-            Face { face_name, node } => {
+            Face { alias: face_name, node } => {
                 return self.execute_node(fabric, NamedFace { face_alias: face_name.clone() }, node, faces);
             }
             Grow { forward, scale_factor, post_growth_node, .. } => {
@@ -259,7 +259,7 @@ impl BuildPhase {
         nodes
             .iter()
             .map(|face_node| {
-                let Face { face_name, node } = face_node else {
+                let Face { alias: face_name, node } = face_node else {
                     unreachable!("Branch can only contain Face nodes");
                 };
                 (face_name.clone(), node.as_ref())
