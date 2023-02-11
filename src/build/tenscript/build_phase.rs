@@ -252,10 +252,6 @@ impl BuildPhase {
     fn execute_node(&self, fabric: &mut Fabric, launch: Launch, node_option: Option<&BuildNode>, faces: Vec<UniqueId>) -> (Vec<Bud>, Vec<FaceMark>) {
         let mut buds: Vec<Bud> = vec![];
         let mut marks: Vec<FaceMark> = vec![];
-        if let Scratch { face_alias } = launch {
-            let faces = fabric.attach_brick(&face_alias, 1.0, None);
-            return self.execute_node(fabric, NamedFace { face_alias }, node_option, faces);
-        }
         if let Some(node) = node_option {
             match node {
                 Face { alias, node } => {
@@ -276,17 +272,20 @@ impl BuildPhase {
                     let needs_double = pairs
                         .iter()
                         .any(|(face_alias, _)| self.base_aliases.not_single_top(face_alias));
-                    let face_name = |spin: Spin| self.base_aliases.spin_double_based(spin, needs_double);
                     let (face_alias, face_id) = match launch {
-                        Scratch { .. } => unreachable!("cannot branch from scratch"),
+                        Scratch { face_alias } => {
+                            (face_alias, None)
+                        }
                         NamedFace { face_alias } => {
                             let face_id = Self::find_face_id(&face_alias, &faces, fabric);
                             let spin = fabric.face(face_id).spin.opposite();
-                            (face_name(spin), Some(face_id))
+                            let brick_face_alias = self.base_aliases.spin_double_based(spin, needs_double);
+                            (brick_face_alias.clone(), Some(face_id))
                         }
                         IdentifiedFace { face_id } => {
                             let spin = fabric.face(face_id).spin.opposite();
-                            (face_name(spin), Some(face_id))
+                            let brick_face_alias = self.base_aliases.spin_double_based(spin, needs_double);
+                            (brick_face_alias.clone(), Some(face_id))
                         }
                     };
                     let twist_faces = fabric.attach_brick(&face_alias, 1.0, face_id);
