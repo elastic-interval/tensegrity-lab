@@ -26,7 +26,9 @@ vulcanize =
 replace_faces =
     { "(" ~ "replace-faces" ~ ")" }
 build =
-    { "(" ~ "build" ~ face_alias ~ build_node? ~ ")" }
+    { "(" ~ "build" ~ face_alias ~ first_build_node? ~ ")" }
+first_build_node =
+    { grow | branch }
 build_node =
     { on_face | grow | mark | branch }
 on_face =
