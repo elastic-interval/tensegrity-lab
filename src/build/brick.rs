@@ -1,5 +1,6 @@
 use std::cell::LazyCell;
 use std::collections::HashMap;
+use std::iter;
 
 use cgmath::{EuclideanSpace, Point3, point3, Vector3};
 use pest::iterators::Pair;
@@ -254,10 +255,9 @@ impl Baked {
                 .into_iter()
                 .filter_map(|brick| brick.baked)
                 .flat_map(|baked| {
-                    let values = vec![baked.clone(); baked.faces.len()];
                     baked.faces
                         .into_iter()
-                        .zip(values.into_iter())
+                        .zip(iter::repeat(baked.clone()))
                         .flat_map(|(face, baked)|
                             face.aliases
                                 .into_iter()
@@ -266,7 +266,7 @@ impl Baked {
                 })
                 .collect()
         );
-        baked_bricks
+        baked_bricksπ
             .get(name)
             .cloned()
             .expect("no such brick")
