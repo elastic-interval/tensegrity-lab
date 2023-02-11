@@ -30,7 +30,7 @@ build =
 build_node =
     { on_face | grow | mark | branch }
 on_face =
-    { "(" ~ "face" ~ atom ~ build_node ~ ")" }
+    { "(" ~ "face" ~ face_alias ~ build_node ~ ")" }
 grow =
     { "(" ~ "grow" ~ (integer | forward) ~ scale? ~ build_node? ~ ")" }
 mark =
@@ -83,7 +83,7 @@ interval_role = { push | pull }
 push = { "push" }
 pull = { "pull" }
 face_baked = // a, b, c, name
-    { "(" ~ chirality ~ integer ~ integer ~ integer ~ atom ~ ")" }
+    { "(" ~ chirality ~ integer ~ integer ~ integer ~ face_alias* ~ ")" }
 
 ident = @{ XID_START ~ (XID_CONTINUE | "-")* }
 ident_uppercase = @{ ASCII_ALPHA_UPPER ~ (XID_CONTINUE | "-")* }

@@ -253,15 +253,17 @@ impl Baked {
                 .bricks
                 .into_iter()
                 .filter_map(|brick| brick.baked)
-                .flat_map(|baked|
+                .flat_map(|baked| {
+                    let values = vec![baked.clone(); baked.faces.len()];
                     baked.faces
                         .into_iter()
-                        .flat_map(|face|
+                        .zip(values.into_iter())
+                        .flat_map(|(face, baked)|
                             face.aliases
                                 .into_iter()
-                                .map(|alias| (alias, baked.clone()))
+                                .map(move |alias| (alias, baked))
                         )
-                )
+                })
                 .collect()
         );
         baked_bricks

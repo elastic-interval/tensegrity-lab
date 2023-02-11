@@ -10,6 +10,6 @@ struct Args {
 
 fn main() {
     let Args { prototype } = Args::parse();
-
-    tensegrity_lab::application::run_with(prototype);
+    let brick_index = prototype.map(|s| s.parse().expect("argument is a brick index"));
+    tensegrity_lab::application::run_with(brick_index);
 }

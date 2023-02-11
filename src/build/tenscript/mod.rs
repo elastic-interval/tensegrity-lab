@@ -42,6 +42,12 @@ impl Display for ParseError {
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct FaceAlias(pub String);
 
+impl Display for FaceAlias {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt("{}", self.0)
+    }
+}
+
 impl FaceAlias {
     pub fn from_pair(pair: Pair<Rule>) -> FaceAlias {
         let mut inner = pair.into_inner();
