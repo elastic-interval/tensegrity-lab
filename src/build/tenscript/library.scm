@@ -14,11 +14,11 @@
     (shape
       (vulcanize)
       (replace-faces)))
-;  (fabric
-;    (name "Flagellum")
-;    (build
-;      (seed :single-left)
-;      (grow 20 (scale.9))))
+  (fabric
+    (name "Flagellum")
+    (build
+      (alias Right::Bot)
+      (grow 20 (scale.9))))
 ;  (fabric
 ;    (name "Halo by Crane")
 ;    (build

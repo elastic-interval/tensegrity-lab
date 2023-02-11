@@ -110,6 +110,16 @@ impl BaseAliases {
     pub fn not_single_top(&self, alias: &FaceAlias) -> bool {
         !(&self.right_top == alias || &self.left_top == alias)
     }
+
+    pub fn other_alias(&self, alias: &FaceAlias) -> &FaceAlias {
+        if alias == &self.right_bot {
+            &self.right_top
+        } else if alias == &self.left_bot {
+            &self.left_top
+        } else {
+            panic!("no other alias found")
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -260,7 +270,11 @@ impl BuildPhase {
                 }
                 Grow { forward, scale_factor, post_growth_node, .. } => {
                     let face_id = match launch {
-                        Scratch { .. } => unreachable!("cannot grow from scratch"),
+                        Scratch { face_alias } => {
+                            let faces = fabric.attach_brick(&face_alias, 1.0, None);
+                            let other_alias = self.base_aliases.other_alias(&face_alias);
+                            Self::find_face_id(other_alias, &faces, fabric)
+                        },
                         NamedFace { face_alias } => Self::find_face_id(&face_alias, &faces, fabric),
                         IdentifiedFace { face_id } => face_id,
                     };
@@ -268,7 +282,7 @@ impl BuildPhase {
                     buds.push(Bud { face_id, forward: forward.clone(), scale_factor: *scale_factor, node })
                 }
                 Branch { face_nodes } => {
-                    let pairs = Self::branch_pairs(&face_nodes);
+                    let pairs = Self::branch_pairs(face_nodes);
                     let needs_double = pairs
                         .iter()
                         .any(|(face_alias, _)| self.base_aliases.not_single_top(face_alias));
@@ -291,7 +305,7 @@ impl BuildPhase {
                     let twist_faces = fabric.attach_brick(&face_alias, 1.0, face_id);
                     for (face_name, node) in pairs {
                         let (new_buds, new_marks) =
-                            self.execute_node(fabric, NamedFace { face_alias: face_name }, Some(&node), twist_faces.clone());
+                            self.execute_node(fabric, NamedFace { face_alias: face_name }, Some(node), twist_faces.clone());
                         buds.extend(new_buds);
                         marks.extend(new_marks);
                     }
