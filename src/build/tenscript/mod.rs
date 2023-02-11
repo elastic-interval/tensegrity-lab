@@ -55,7 +55,7 @@ impl FaceAlias {
         FaceAlias(parse_atom(inner.next().unwrap()))
     }
 
-    pub fn from_pairs(pairs: Vec<Pair<Rule>>) -> Vec<FaceAlias> {
+    pub fn from_pairs(pairs: impl IntoIterator<Item=Pair<Rule>>) -> Vec<FaceAlias> {
         pairs
             .into_iter()
             .map(Self::from_pair)
