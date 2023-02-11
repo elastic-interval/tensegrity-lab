@@ -44,8 +44,8 @@ pub struct FaceAlias(pub String);
 
 impl Display for FaceAlias {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        // f.write_fmt("{}", self.0)
-        Ok(())
+        let alias  = &self.0;
+        write!(f,"FaceAlias(\"{alias}\")")
     }
 }
 
