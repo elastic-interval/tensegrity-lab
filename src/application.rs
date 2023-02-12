@@ -136,11 +136,12 @@ pub fn run_with(brick_index: Option<usize>) {
                         VirtualKeyCode::Escape => {
                             app.gui.change_state(ControlMessage::ShowControl(VisibleControl::ControlChoice));
                         }
-                        VirtualKeyCode::Space => {
-                            crucible.toggle_pause();
-                        }
                         VirtualKeyCode::D => {
                             app.gui.change_state(ControlMessage::ToggleDebugMode);
+                        }
+                        VirtualKeyCode::Key0 | VirtualKeyCode::Key1 | VirtualKeyCode::Key2 |
+                        VirtualKeyCode::Key3 | VirtualKeyCode::Key4 | VirtualKeyCode::Key5 => {
+                            crucible.set_speed(keycode);
                         }
                         _ => {
                             app.scene.window_event(event, crucible.fabric());
