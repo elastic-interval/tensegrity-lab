@@ -43,7 +43,8 @@ impl Baked {
                             },
                             aliases = aliases
                                 .into_iter()
-                                .map(|FaceAlias(name)| format!("(alias {name})"))
+                                .map(|FaceAlias(name)|
+                                    format!("(alias {})", name.join(" ")))
                                 .collect::<Vec<_>>()
                                 .join(" "))
                     )

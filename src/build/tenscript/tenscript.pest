@@ -2,11 +2,11 @@ library =
     { "(" ~ "library" ~ fabric_plan* ~ brick_definition* ~ ")" }
 
 fabric_plan =
-    { "(" ~ "fabric" ~ name ~ surface? ~ build? ~ shape? ~ ")" }
+    { "(" ~ "fabric" ~ name ~ build ~ shape ~ ")" }
 name =
     { "(" ~ "name" ~ string ~ ")" }
 shape =
-    { "(" ~ "shape" ~ shape_operation+ ~ ")" }
+    { "(" ~ "shape" ~ shape_operation* ~ ")" }
 basic_shape_operation =
     { space | join | vulcanize | remove_shapers | replace_faces | set_viscosity }
 shape_operation =
@@ -26,9 +26,7 @@ vulcanize =
 replace_faces =
     { "(" ~ "replace-faces" ~ ")" }
 build =
-    { "(" ~ "build" ~ partial_alias ~ first_build_node? ~ ")" }
-first_build_node =
-    { grow | branch }
+    { "(" ~ "build" ~ branch ~ ")" }
 build_node =
     { on_face | grow | mark | branch }
 on_face =
@@ -38,15 +36,11 @@ grow =
 mark =
     { "(" ~ "mark" ~ atom ~ ")" }
 branch =
-    { "(" ~ "branch" ~ partial_alias? ~ on_face+ ~ ")" }
+    { "(" ~ "branch" ~ partial_alias ~ on_face* ~ ")" }
 scale =
     { "(" ~ "scale" ~ float ~ ")" }
 orient_down =
     { "(" ~ "orient-down" ~ atom+ ~ ")" }
-surface =
-    { "(" ~ "surface" ~ surface_character ~ ")" }
-surface_character =
-    { ":bouncy" | ":frozen" | ":sticky" }
 
 brick_definition =
     { "(" ~ "brick" ~ partial_alias ~ brick_proto ~ brick_baked? ~ ")" }
@@ -74,9 +68,7 @@ chirality = { left | right }
 face_proto = // a, b, c, name
     { "(" ~ chirality ~ atom ~ atom ~ atom ~ face_alias* ~ down? ~ ")" }
 face_alias =
-    { "(" ~ "alias" ~ atom ~ atom? ~ base? ~ ")" }
-base =
-    { "(" ~ ( "base" | "next-base" ) ~ ")" }
+    { "(" ~ "alias" ~ atom+ ~ ")" }
 down =
     { "(" ~ "down" ~ ")" }
 brick_baked =

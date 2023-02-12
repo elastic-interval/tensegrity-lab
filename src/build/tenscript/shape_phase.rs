@@ -1,5 +1,3 @@
-use std::default::Default;
-
 use cgmath::MetricSpace;
 use pest::iterators::Pair;
 
@@ -52,7 +50,7 @@ pub struct Shaper {
     join: bool,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct ShapePhase {
     pub operations: Vec<Operation>,
     pub marks: Vec<FaceMark>,
@@ -67,7 +65,9 @@ impl ShapePhase {
                 .into_inner()
                 .map(Self::parse_shape_operation)
                 .collect(),
-            ..ShapePhase::default()
+            marks: Vec::new(),
+            shapers: Vec::new(),
+            shape_operation_index: 0,
         }
     }
 

@@ -148,8 +148,8 @@ pub fn run_with(brick_index: Option<usize>) {
                                 return;
                             };
                             let face_alias = match crucible.fabric().face(face_id).spin.opposite() {
-                                Spin::Left => FaceAlias("Left::Bot".to_string()),
-                                Spin::Right => FaceAlias("Right::Bot".to_string()),
+                                Spin::Left => FaceAlias::single("Left::Bot"),
+                                Spin::Right => FaceAlias::single("Right::Bot"),
                             };
                             app.gui.change_state(ControlMessage::Action(
                                 Action::AddBrick { face_alias, face_id }

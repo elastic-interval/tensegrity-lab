@@ -1,12 +1,12 @@
 use winit::event::VirtualKeyCode;
 
-use crate::build::brick::{Baked};
-use crate::build::tenscript::{FabricPlan, FaceAlias, Library, SurfaceCharacterSpec};
+use crate::build::brick::Baked;
+use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::controls::Action;
 use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
-use crate::fabric::physics::{Physics, SurfaceCharacter};
+use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::{AIR_GRAVITY, LIQUID, PROTOTYPE_FORMATION};
 use crate::fabric::pretenser::Pretenser;
 
@@ -57,16 +57,6 @@ impl Crucible {
             Empty => {}
             AcceptingPlan(fabric_plan) => {
                 self.fabric = Fabric::default_bow_tie();
-                match fabric_plan.surface {
-                    None => {}
-                    Some(surface_character) => {
-                        self.physics.surface_character = match surface_character {
-                            SurfaceCharacterSpec::Bouncy => SurfaceCharacter::Bouncy,
-                            SurfaceCharacterSpec::Sticky => SurfaceCharacter::Sticky,
-                            _ => SurfaceCharacter::Frozen,
-                        }
-                    }
-                }
                 self.frozen_fabric = None;
                 self.plan_runner = Some(PlanRunner::new(fabric_plan.clone()));
                 self.stage = RunningPlan;
