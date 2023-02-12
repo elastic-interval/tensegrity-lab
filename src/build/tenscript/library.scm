@@ -2,7 +2,8 @@
   (fabric
     (name "Seed")
     (build
-      (branch (alias Omni))))
+      (branch (alias Omni)))
+    (shape))
   (fabric
     (name "Knee")
     (build
