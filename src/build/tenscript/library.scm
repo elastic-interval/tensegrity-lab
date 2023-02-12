@@ -71,8 +71,8 @@
         (pull :alpha_y :omega_x)
         (pull :alpha_z :omega_y))
       (faces
-        (right :alpha_z :alpha_y :alpha_x (alias Right (down) (base)))
-        (right :omega_x :omega_y :omega_z (alias Right (up))))))
+        (right :alpha_z :alpha_y :alpha_x (alias Right (base)) (down))
+        (right :omega_x :omega_y :omega_z (alias Right (next-base))))))
   (brick ; single-left
     (alias Single)
     (proto
@@ -84,8 +84,8 @@
         (pull :alpha_y :omega_z)
         (pull :alpha_z :omega_x))
       (faces
-        (left :alpha_x :alpha_y :alpha_z (alias Left (down) (base)))
-        (left :omega_z :omega_y :omega_x (alias Left (up))))))
+        (left :alpha_x :alpha_y :alpha_z (alias Left (base)) (down))
+        (left :omega_z :omega_y :omega_x (alias Left (next-base))))))
   (brick 
     (alias Omni)
     (proto
@@ -93,14 +93,14 @@
       (pushes Y 3.271 (push :bot_alpha_y :bot_omega_y) (push :top_alpha_y :top_omega_y))
       (pushes Z 3.271 (push :bot_alpha_z :bot_omega_z) (push :top_alpha_z :top_omega_z))
       (faces
-        (right :top_omega_x :top_omega_y :top_omega_z (alias Left Top) (alias Right (down)) (alias Upright FrontLeftTop))
+        (right :top_omega_x :top_omega_y :top_omega_z (alias Left Top) (alias Right (base)) (alias Upright FrontLeftTop))
         (left :top_omega_x :top_alpha_y :bot_omega_z (alias Left TopX) (alias Right BotX) (alias Upright FrontLeftBot))
         (left :top_omega_y :top_alpha_z :bot_omega_x (alias Left TopY) (alias Right BotY) (alias Upright FrontRightTop))
         (left :top_omega_z :top_alpha_x :bot_omega_y (alias Left TopZ) (alias Right BotZ) (alias Upright BackLeftTop))
         (right :bot_alpha_z :bot_omega_x :top_alpha_y (alias Left BotZ) (alias Right TopZ) (alias Upright FrontLeftBot))
         (right :bot_alpha_y :bot_omega_z :top_alpha_x (alias Left BotY) (alias Right TopY) (alias Upright BackRightTop))
         (right :bot_alpha_x :bot_omega_y :top_alpha_z (alias Left BotX) (alias Right TopX) (alias Upright BackLeftBot))
-        (left :bot_alpha_x :bot_alpha_y :bot_alpha_z (alias Left (down)) (alias Right Top) (alias Upright BackRightBot))
+        (left :bot_alpha_x :bot_alpha_y :bot_alpha_z (alias Left (base)) (alias Right Top) (alias Upright BackRightBot))
         )))
   (brick
     (alias Torque)
@@ -127,14 +127,22 @@
         (pull :middle_back :back_right_bottom)
         (pull :middle_back :back_right_top))
       (faces
-        (left :top_left :left_back :back_left_top (alias Left Back:Top:Left) (alias Right Back:Top:Right))
-        (right :top_left :left_front :front_left_top (alias Left Front:Top:Left) (alias Right Front:Top:Left))
-        (left :bottom_left :left_front :front_left_bottom (alias Left Front:Bottom:Left (down) (base)) (alias Right Front::Bottom::Left (down)))
-        (left :top_right :right_front :front_right_top (alias Left Front:Top:Right) (alias Right Front:Top:Right))
-        (left :bottom_right :right_back :back_right_bottom (alias Left Back:Bottom:Right (down)) (alias Right Back:Bottom:Right (down)))
-        (right :bottom_left :left_back :back_left_bottom (alias Left Back:Bottom:Left (down)) (alias Right Back:Bot:Left (down)))
-        (right :top_right :right_back :back_right_top (alias Left Back:Top:Right) (alias Right Back:Top:Right))
-        (right :bottom_right :right_front :front_right_bottom (alias Left Front:Bottom:Right (down)) (alias Right Front:Bottom:Right (down) (base)))
+        (left :top_left :left_back :back_left_top
+          (alias Left Back:Top:Left) (alias Right Back:Top:Right))
+        (right :top_left :left_front :front_left_top
+          (alias Left Front:Top:Left) (alias Right Front:Top:Left))
+        (left :bottom_left :left_front :front_left_bottom
+          (alias Left Front:Bottom:Left (down)) (alias Right Front::Bottom::Left (down)))
+        (left :top_right :right_front :front_right_top
+          (alias Left Front:Top:Right) (alias Right Front:Top:Right))
+        (left :bottom_right :right_back :back_right_bottom
+          (alias Left Back:Bottom:Right (down)) (alias Right Back:Bottom:Right (down)))
+        (right :bottom_left :left_back :back_left_bottom
+          (alias Left Back:Bottom:Left (down)) (alias Right Back:Bot:Left (down)))
+        (right :top_right :right_back :back_right_top
+          (alias Left Back:Top:Right) (alias Right Back:Top:Right))
+        (right :bottom_right :right_front :front_right_bottom (bottom)
+          (alias Left Front:Bottom:Right (down)) (alias Right Front:Bottom:Right (down)))
         ))
     )
   )
