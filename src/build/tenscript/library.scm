@@ -1,7 +1,6 @@
 (library
   (fabric
     (name "Seed")
-    (surface :bouncy)
     (build
       (branch (alias Omni))))
   (fabric
