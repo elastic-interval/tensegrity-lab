@@ -16,6 +16,7 @@ use winit::window::Window;
 use wasm_bindgen::prelude::*;
 
 use crate::build::tenscript::{FabricPlan, FaceAlias, Spin};
+use crate::camera::Target::{FabricMidpoint, Hold, Origin, SelectedFace};
 use crate::controls::{ControlMessage, GUI, VisibleControl};
 use crate::controls::Action;
 use crate::controls::strain_threshold::StrainThresholdMessage;
@@ -27,16 +28,19 @@ struct Application {
     graphics: GraphicsWindow,
     scene: Scene,
     gui: GUI,
+    crucible: Crucible,
 }
 
 impl Application {
     fn new(graphics: GraphicsWindow, window: &Window) -> Application {
         let gui = GUI::new(&graphics, window);
         let scene = Scene::new(&graphics);
+        let crucible = Crucible::default();
         Application {
             graphics,
             scene,
             gui,
+            crucible,
         }
     }
 
@@ -109,10 +113,10 @@ pub fn run_with(brick_index: Option<usize>) {
     }
     let graphics = pollster::block_on(GraphicsWindow::new(&window));
     let mut app = Application::new(graphics, &window);
-    let mut crucible = Crucible::default();
     if let Some(brick_index) = brick_index {
-        crucible.capture_prototype(brick_index);
+        app.crucible.capture_prototype(brick_index); // TODO: should be a method on Application
     }
+    // TODO: move these into Application
     let mut library_modified = library_modified_timestamp();
     let mut fabric_plan_name: Option<String> = None;
 
@@ -121,59 +125,26 @@ pub fn run_with(brick_index: Option<usize>) {
             Event::WindowEvent { ref event, window_id } if window_id == window.id() => {
                 app.gui.window_event(event, &window);
                 match event {
-                    WindowEvent::CloseRequested { .. } =>
-                        *control_flow = ControlFlow::Exit,
-                    WindowEvent::Resized(physical_size) =>
-                        app.resize(*physical_size),
-                    WindowEvent::ScaleFactorChanged { new_inner_size, .. } =>
-                        app.resize(**new_inner_size),
-                    WindowEvent::KeyboardInput {
-                        input: KeyboardInput {
-                            virtual_keycode: Some(keycode),
-                            state: ElementState::Pressed, ..
-                        }, ..
-                    } => match keycode {
-                        VirtualKeyCode::Escape => {
-                            app.gui.change_state(ControlMessage::ShowControl(VisibleControl::ControlChoice));
-                        }
-                        VirtualKeyCode::D => {
-                            app.gui.change_state(ControlMessage::ToggleDebugMode);
-                        }
-                        VirtualKeyCode::Key0 | VirtualKeyCode::Key1 | VirtualKeyCode::Key2 |
-                        VirtualKeyCode::Key3 | VirtualKeyCode::Key4 | VirtualKeyCode::Key5 => {
-                            crucible.set_speed(keycode);
-                        }
-                        VirtualKeyCode::B => {
-                            let Some(face_id) = app.scene.target_face_id() else {
-                                return;
-                            };
-                            let face_alias = match crucible.fabric().face(face_id).spin.opposite() {
-                                Spin::Left => FaceAlias("Left::Bot".to_string()),
-                                Spin::Right => FaceAlias("Right::Bot".to_string()),
-                            };
-                            app.gui.change_state(ControlMessage::Action(
-                                Action::AddBrick { face_alias, face_id }
-                            ));
-                        }
-                        _ => {
-                            app.scene.window_event(event, crucible.fabric());
-                        }
-                    },
-                    WindowEvent::MouseInput { state: ElementState::Released, .. } => {
-                        app.scene.window_event(event, crucible.fabric());
-                    }
-                    WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
-                    if !app.gui.capturing_mouse() =>
-                        app.scene.window_event(event, crucible.fabric()),
+                    WindowEvent::CloseRequested { .. } => *control_flow = ControlFlow::Exit,
+                    WindowEvent::Resized(physical_size) => app.resize(*physical_size),
+                    WindowEvent::ScaleFactorChanged { new_inner_size, .. } => app.resize(**new_inner_size),
+                    WindowEvent::KeyboardInput { .. } => app.handle_keyboard_input(event),
+                    WindowEvent::MouseInput { state: ElementState::Released, .. } => app.scene.window_event(event),
+
+                    WindowEvent::MouseInput { .. } |
+                    WindowEvent::CursorMoved { .. } |
+                    WindowEvent::MouseWheel { .. }
+                    if !app.gui.capturing_mouse() => app.scene.window_event(event),
+
                     _ => {}
                 }
             }
             Event::RedrawRequested(_) => {
-                crucible.iterate();
-                if let Some(action) = crucible.action() {
-                    app.gui.change_state(ControlMessage::Action(action))
+                app.crucible.iterate();
+                if let Some(action) = app.crucible.action() {
+                    app.gui.queue_message(ControlMessage::Action(action))
                 }
-                app.scene.update(&app.graphics, app.gui.controls().variation(app.scene.target_face_id()), crucible.fabric());
+                app.scene.update(&app.graphics, app.gui.controls().variation(app.scene.target_face_id()), app.crucible.fabric());
                 app.gui.update_viewport(&window);
                 match app.render() {
                     Ok(_) => {}
@@ -196,22 +167,22 @@ pub fn run_with(brick_index: Option<usize>) {
                         Action::BuildFabric(fabric_plan) => {
                             fabric_plan_name = Some(fabric_plan.name.clone());
                             app.scene.show_surface(false);
-                            app.gui.change_state(ControlMessage::Reset);
-                            crucible.build_fabric(fabric_plan);
+                            app.gui.queue_message(ControlMessage::Reset);
+                            app.crucible.build_fabric(fabric_plan);
                         }
                         Action::GravityChanged(_gravity) => {
                             // TODO
                         }
                         Action::CalibrateStrain => {
-                            let strain_limits = crucible.strain_limits();
-                            app.gui.change_state(ControlMessage::StrainThreshold(StrainThresholdMessage::SetStrainLimits(strain_limits)))
+                            let strain_limits = app.crucible.strain_limits();
+                            app.gui.queue_message(ControlMessage::StrainThreshold(StrainThresholdMessage::SetStrainLimits(strain_limits)))
                         }
                         Action::SelectFace(face_id) => {
                             app.scene.select_face(Some(face_id));
                         }
                         Action::AddBrick { face_alias, face_id } => {
                             app.scene.select_face(None);
-                            crucible.add_brick(face_alias, face_id)
+                            app.crucible.add_brick(face_alias, face_id)
                         }
                         Action::ShowSurface => {
                             app.scene.show_surface(true)
@@ -223,6 +194,67 @@ pub fn run_with(brick_index: Option<usize>) {
             _ => {}
         }
     });
+}
+
+
+impl Application {
+    fn handle_keyboard_input(&mut self, event: &WindowEvent) {
+        let WindowEvent::KeyboardInput {
+            input: KeyboardInput {
+                virtual_keycode: Some(keycode),
+                state: ElementState::Pressed, ..
+            }, ..
+        } = event else {
+            return;
+        };
+        match keycode {
+            VirtualKeyCode::Escape => self.gui.queue_message(ControlMessage::ShowControl(VisibleControl::ControlChoice)),
+            VirtualKeyCode::D => self.gui.queue_message(ControlMessage::ToggleDebugMode),
+            VirtualKeyCode::Key0 => self.crucible.set_speed(0),
+            VirtualKeyCode::Key1 => self.crucible.set_speed(1),
+            VirtualKeyCode::Key2 => self.crucible.set_speed(5),
+            VirtualKeyCode::Key3 => self.crucible.set_speed(25),
+            VirtualKeyCode::Key4 => self.crucible.set_speed(125),
+            VirtualKeyCode::Key5 => self.crucible.set_speed(625),
+            VirtualKeyCode::B => self.create_brick(),
+            VirtualKeyCode::F => self.select_next_face(),
+            VirtualKeyCode::M => self.scene.camera.target = FabricMidpoint,
+            VirtualKeyCode::O => self.scene.camera.target = Origin,
+            _ => {}
+        }
+    }
+
+    fn select_next_face(&mut self) {
+        let fabric = self.crucible.fabric();
+        self.scene.select_face(Some(match self.scene.camera.target {
+            Origin | FabricMidpoint | Hold => {
+                *fabric.faces.keys().next().unwrap()
+            }
+            SelectedFace(face_id) => {
+                let face_position = fabric.faces.keys()
+                    .position(|&id| face_id == id)
+                    .expect("Face id not found");
+                let &new_face_id = fabric.faces.keys()
+                    .cycle()
+                    .nth(face_position + 1)
+                    .unwrap();
+                new_face_id
+            }
+        }))
+    }
+
+    fn create_brick(&mut self) {
+        let Some(face_id) = self.scene.target_face_id() else {
+            return;
+        };
+        let face_alias = match self.crucible.fabric().face(face_id).spin.opposite() {
+            Spin::Left => FaceAlias("Left::Bot".to_string()),
+            Spin::Right => FaceAlias("Right::Bot".to_string()),
+        };
+        self.gui.queue_message(ControlMessage::Action(
+            Action::AddBrick { face_alias, face_id }
+        ));
+    }
 }
 
 fn library_modified_timestamp() -> SystemTime {
