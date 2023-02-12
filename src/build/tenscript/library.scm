@@ -3,7 +3,7 @@
     (name "Seed")
     (surface :bouncy)
     (build
-      (alias Omni::Left::Bot)))
+      (alias Omni)))
   (fabric
     (name "Knee")
     (build
