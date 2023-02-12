@@ -127,22 +127,14 @@
         (pull :middle_back :back_right_bottom)
         (pull :middle_back :back_right_top))
       (faces
-        (left :top_left :left_back :back_left_top
-          (alias Left Back:Top:Left) (alias Right Back:Top:Right))
-        (right :top_left :left_front :front_left_top
-          (alias Left Front:Top:Left) (alias Right Front:Top:Left))
-        (left :bottom_left :left_front :front_left_bottom
-          (alias Left Front:Bottom:Left (down)) (alias Right Front::Bottom::Left (down)))
-        (left :top_right :right_front :front_right_top
-          (alias Left Front:Top:Right) (alias Right Front:Top:Right))
-        (left :bottom_right :right_back :back_right_bottom
-          (alias Left Back:Bottom:Right (down)) (alias Right Back:Bottom:Right (down)))
-        (right :bottom_left :left_back :back_left_bottom
-          (alias Left Back:Bottom:Left (down)) (alias Right Back:Bot:Left (down)))
-        (right :top_right :right_back :back_right_top
-          (alias Left Back:Top:Right) (alias Right Back:Top:Right))
-        (right :bottom_right :right_front :front_right_bottom (bottom)
-          (alias Left Front:Bottom:Right (down)) (alias Right Front:Bottom:Right (down)))
+        (left  :bottom_left  :left_front  :front_left_bottom  (alias Left (base))     (alias Right Far:Side)  (down))
+        (right :bottom_left  :left_back   :back_left_bottom   (alias Left Base:Back)  (alias Right Far:Back)  (down))
+        (left  :bottom_right :right_back  :back_right_bottom  (alias Left Far:Back)   (alias Right Base:Back) (down))
+        (right :bottom_right :right_front :front_right_bottom (alias Left Far:Side)   (alias Right (base))    (down))
+        (left  :top_left     :left_back   :back_left_top      (alias Left Base:Side)  (alias Right Far:Base)        )
+        (right :top_left     :left_front  :front_left_top     (alias Left Base:Front) (alias Right Far:Front)       )
+        (left  :top_right    :right_front :front_right_top    (alias Left Far:Front)  (alias Right Base:Front)      )
+        (right :top_right    :right_back  :back_right_top     (alias Left Far:Base)   (alias Right Base:Side)       )
         ))
     )
   )
