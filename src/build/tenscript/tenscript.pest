@@ -26,7 +26,7 @@ vulcanize =
 replace_faces =
     { "(" ~ "replace-faces" ~ ")" }
 build =
-    { "(" ~ "build" ~ face_alias ~ first_build_node? ~ ")" }
+    { "(" ~ "build" ~ partial_alias ~ first_build_node? ~ ")" }
 first_build_node =
     { grow | branch }
 build_node =
@@ -38,7 +38,7 @@ grow =
 mark =
     { "(" ~ "mark" ~ atom ~ ")" }
 branch =
-    { "(" ~ "branch" ~ on_face+ ~ ")" }
+    { "(" ~ "branch" ~ partial_alias? ~ on_face+ ~ ")" }
 scale =
     { "(" ~ "scale" ~ float ~ ")" }
 orient_down =
@@ -49,7 +49,9 @@ surface_character =
     { ":bouncy" | ":frozen" | ":sticky" }
 
 brick_definition =
-    { "(" ~ "brick" ~ brick_proto ~ brick_baked? ~ ")" }
+    { "(" ~ "brick" ~ partial_alias ~ brick_proto ~ brick_baked? ~ ")" }
+partial_alias =
+    { "(" ~ "alias" ~ atom ~ ")" }
 brick_proto =
     { "(" ~ "proto" ~ pushes_proto+ ~ pulls_proto* ~ faces_proto+ ~ ")" }
 pushes_proto = // axis, ideal
@@ -66,15 +68,17 @@ pull_proto = // alpha, omega
     { "(" ~ "pull" ~ atom ~ atom ~ ")" }
 faces_proto =
     { "(" ~ "faces" ~ face_proto+ ~ ")" }
-chirality = { left | right }
 left = { "left" }
 right = { "right" }
+chirality = { left | right }
 face_proto = // a, b, c, name
-    { "(" ~ chirality ~ atom ~ atom ~ atom ~ face_alias* ~ ")" }
-face_alias = 
-    { "(" ~ "alias" ~ atom ~")" }
-// down =
-//     { "(" ~ "down" ~ ")" }
+    { "(" ~ chirality ~ atom ~ atom ~ atom ~ face_alias* ~ down? ~ ")" }
+face_alias =
+    { "(" ~ "alias" ~ atom ~ atom? ~ base? ~ ")" }
+base =
+    { "(" ~ ( "base" | "next-base" ) ~ ")" }
+down =
+    { "(" ~ "down" ~ ")" }
 brick_baked =
     { "(" ~ "baked" ~ joint_baked+ ~ interval_baked+ ~ face_baked+ ~ ")" }
 joint_baked = // x, y, z
@@ -89,7 +93,7 @@ face_baked = // a, b, c, name
 
 ident = @{ XID_START ~ (XID_CONTINUE | "-")* }
 ident_uppercase = @{ ASCII_ALPHA_UPPER ~ (XID_CONTINUE | "-")* }
-atom = @{ (":" ~ ident) | (ident_uppercase ~ ("::" ~ ident_uppercase)*) }
+atom = @{ (":" ~ ident) | (ident_uppercase ~ (":" ~ ident_uppercase)*) }
 float = @{ "-"? ~ (integer? ~ "." ~ mantissa) | integer }
 integer = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+ | ASCII_DIGIT }
 mantissa = @{ ASCII_DIGIT+ }
