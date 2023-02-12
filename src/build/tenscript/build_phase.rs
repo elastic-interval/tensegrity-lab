@@ -152,7 +152,7 @@ impl BuildPhase {
                 Rule::face_alias => {
                     face_alias = Some(FaceAlias::from_pair(sub_pair));
                 }
-                Rule::build_node => {
+                Rule::first_build_node => {
                     build_node = Some(Self::parse_build_node(sub_pair));
                 }
                 _ => unreachable!("build phase"),
@@ -160,7 +160,7 @@ impl BuildPhase {
         }
         BuildPhase::new(
             face_alias.expect("build must have face alias"),
-            build_node
+            build_node,
         )
     }
 
@@ -277,7 +277,7 @@ impl BuildPhase {
                             let faces = fabric.attach_brick(&face_alias, 1.0, None);
                             let other_alias = self.base_aliases.other_alias(&face_alias);
                             Self::find_face_id(other_alias, &faces, fabric)
-                        },
+                        }
                         NamedFace { face_alias } => Self::find_face_id(&face_alias, &faces, fabric),
                         IdentifiedFace { face_id } => face_id,
                     };

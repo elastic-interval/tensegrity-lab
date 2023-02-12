@@ -1,4 +1,5 @@
 use cgmath::Vector3;
+use winit::event::VirtualKeyCode;
 
 use crate::build::brick::Baked;
 use crate::build::tenscript::{FabricPlan, Library, SurfaceCharacterSpec};
@@ -28,7 +29,6 @@ pub struct Crucible {
     camera_jump: Option<Vector3<f32>>,
     frozen_fabric: Option<Fabric>,
     iterations_per_frame: usize,
-    paused: bool,
     stage: Stage,
     shorten_pulls: Option<f32>,
 }
@@ -41,8 +41,7 @@ impl Default for Crucible {
             plan_runner: None,
             camera_jump: None,
             frozen_fabric: None,
-            iterations_per_frame: 5,
-            paused: false,
+            iterations_per_frame: 40,
             stage: Empty,
             shorten_pulls: None,
         }
@@ -51,9 +50,6 @@ impl Default for Crucible {
 
 impl Crucible {
     pub fn iterate(&mut self) {
-        if self.paused {
-            return;
-        }
         match &self.stage {
             Empty => {}
             AcceptingPlan(fabric_plan) => {
@@ -141,16 +137,24 @@ impl Crucible {
         }
     }
 
-    pub fn toggle_pause(&mut self) {
-        self.paused = !self.paused;
-    }
-
     pub fn camera_jump(&mut self) -> Option<Vector3<f32>> {
         self.camera_jump.take()
     }
 
     pub fn strain_limits(&self) -> (f32, f32) {
         self.fabric.strain_limits(Fabric::BOW_TIE_MATERIAL_INDEX)
+    }
+
+    pub fn set_speed(&mut self, key: &VirtualKeyCode) {
+        self.iterations_per_frame = match key {
+            VirtualKeyCode::Key0 => 0,
+            VirtualKeyCode::Key1 => 1,
+            VirtualKeyCode::Key2 => 5,
+            VirtualKeyCode::Key3 => 25,
+            VirtualKeyCode::Key4 => 125,
+            VirtualKeyCode::Key5 => 625,
+            _ => unreachable!()
+        };
     }
 
     pub fn shorten_pulls(&mut self, strain_threshold: f32) {
