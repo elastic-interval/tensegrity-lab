@@ -14,7 +14,7 @@ use winit::window::{CursorIcon, Window};
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
 
-use crate::build::tenscript::{FabricPlan, Library};
+use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
 use crate::controls::fabric_choice::{FabricChoice, FabricChoiceMessage};
 use crate::controls::gravity::{Gravity, GravityMessage};
 use crate::controls::strain_threshold::{StrainThreshold, StrainThresholdMessage};
@@ -198,9 +198,11 @@ pub enum VisibleControl {
 #[derive(Clone, Debug)]
 pub enum Action {
     BuildFabric(FabricPlan),
+    SelectFace(UniqueId),
+    AddBrick { face_alias: FaceAlias, face_id: UniqueId },
     GravityChanged(f32),
+    ShowSurface,
     CalibrateStrain,
-    ShortenPulls(f32),
 }
 
 #[derive(Clone, Debug)]
@@ -249,6 +251,10 @@ impl ControlState {
         self.action_queue.borrow_mut().split_off(0)
     }
 
+    pub fn queue_action(&self, action: Action) {
+        self.action_queue.borrow_mut().push(action);
+    }
+
     pub fn show_strain(&self) -> bool {
         self.show_strain
     }
@@ -277,6 +283,7 @@ pub enum ControlMessage {
     FabricChoice(FabricChoiceMessage),
     StrainThreshold(StrainThresholdMessage),
     Gravity(GravityMessage),
+    Action(Action),
     FrameRateUpdated(f64),
 }
 
@@ -293,6 +300,9 @@ impl Program for ControlState {
         match message {
             ControlMessage::ToggleDebugMode => {
                 self.debug_mode = !self.debug_mode;
+            }
+            ControlMessage::Action(action) => {
+                queue_action(Some(action));
             }
             ControlMessage::Reset => {
                 self.visible_controls = VisibleControl::ControlChoice;

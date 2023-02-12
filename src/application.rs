@@ -15,7 +15,7 @@ use winit::window::Window;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use crate::build::tenscript::FabricPlan;
+use crate::build::tenscript::{FabricPlan, FaceAlias, Spin};
 use crate::controls::{ControlMessage, GUI, VisibleControl};
 use crate::controls::Action;
 use crate::controls::strain_threshold::StrainThresholdMessage;
@@ -143,6 +143,18 @@ pub fn run_with(brick_index: Option<usize>) {
                         VirtualKeyCode::Key3 | VirtualKeyCode::Key4 | VirtualKeyCode::Key5 => {
                             crucible.set_speed(keycode);
                         }
+                        VirtualKeyCode::B => {
+                            let Some(face_id) = app.scene.target_face_id() else {
+                                return;
+                            };
+                            let face_alias = match crucible.fabric().face(face_id).spin.opposite() {
+                                Spin::Left => FaceAlias("Left::Bot".to_string()),
+                                Spin::Right => FaceAlias("Right::Bot".to_string()),
+                            };
+                            app.gui.change_state(ControlMessage::Action(
+                                Action::AddBrick { face_alias, face_id }
+                            ));
+                        }
                         _ => {
                             app.scene.window_event(event, crucible.fabric());
                         }
@@ -158,9 +170,8 @@ pub fn run_with(brick_index: Option<usize>) {
             }
             Event::RedrawRequested(_) => {
                 crucible.iterate();
-                if let Some(jump) = crucible.camera_jump() {
-                    app.scene.move_camera(jump);
-                    app.scene.show_surface(true);
+                if let Some(action) = crucible.action() {
+                    app.gui.change_state(ControlMessage::Action(action))
                 }
                 app.scene.update(&app.graphics, app.gui.controls().variation(app.scene.target_face_id()), crucible.fabric());
                 app.gui.update_viewport(&window);
@@ -195,8 +206,15 @@ pub fn run_with(brick_index: Option<usize>) {
                             let strain_limits = crucible.strain_limits();
                             app.gui.change_state(ControlMessage::StrainThreshold(StrainThresholdMessage::SetStrainLimits(strain_limits)))
                         }
-                        Action::ShortenPulls(strain_threshold) => {
-                            crucible.shorten_pulls(strain_threshold);
+                        Action::SelectFace(face_id) => {
+                            app.scene.select_face(Some(face_id));
+                        }
+                        Action::AddBrick { face_alias, face_id } => {
+                            app.scene.select_face(None);
+                            crucible.add_brick(face_alias, face_id)
+                        }
+                        Action::ShowSurface => {
+                            app.scene.show_surface(true)
                         }
                     }
                 }
