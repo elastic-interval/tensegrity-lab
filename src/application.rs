@@ -15,7 +15,7 @@ use winit::window::Window;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use crate::build::tenscript::FabricPlan;
+use crate::build::tenscript::{FabricPlan, FaceAlias, Spin};
 use crate::controls::{ControlMessage, GUI, VisibleControl};
 use crate::controls::Action;
 use crate::controls::strain_threshold::StrainThresholdMessage;
@@ -147,8 +147,12 @@ pub fn run_with(brick_index: Option<usize>) {
                             let Some(face_id) = app.scene.target_face_id() else {
                                 return;
                             };
+                            let face_alias = match crucible.fabric().face(face_id).spin.opposite() {
+                                Spin::Left => FaceAlias("Left::Bot".to_string()),
+                                Spin::Right => FaceAlias("Right::Bot".to_string()),
+                            };
                             app.gui.change_state(ControlMessage::Action(
-                                Action::AddBrick { brick_name: BrickName::LeftTwist, face_id }
+                                Action::AddBrick { face_alias, face_id }
                             ));
                         }
                         _ => {
@@ -205,9 +209,9 @@ pub fn run_with(brick_index: Option<usize>) {
                         Action::SelectFace(face_id) => {
                             app.scene.select_face(Some(face_id));
                         }
-                        Action::AddBrick { brick_name, face_id } => {
+                        Action::AddBrick { face_alias, face_id } => {
                             app.scene.select_face(None);
-                            crucible.add_brick(brick_name, face_id)
+                            crucible.add_brick(face_alias, face_id)
                         }
                         Action::ShowSurface => {
                             app.scene.show_surface(true)

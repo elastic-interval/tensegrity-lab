@@ -265,62 +265,67 @@ impl BuildPhase {
     fn execute_node(&self, fabric: &mut Fabric, launch: Launch, node_option: Option<&BuildNode>, faces: Vec<UniqueId>) -> (Vec<Bud>, Vec<FaceMark>) {
         let mut buds: Vec<Bud> = vec![];
         let mut marks: Vec<FaceMark> = vec![];
-        if let Some(node) = node_option {
-            match node {
-                Face { alias, node } => {
-                    let build_node = node.as_ref();
-                    return self.execute_node(fabric, NamedFace { face_alias: alias.clone() }, Some(build_node), faces);
-                }
-                Grow { forward, scale_factor, post_growth_node, .. } => {
-                    let face_id = match launch {
-                        Scratch { face_alias } => {
-                            let faces = fabric.attach_brick(&face_alias, 1.0, None);
-                            let other_alias = self.base_aliases.other_alias(&face_alias);
-                            Self::find_face_id(other_alias, &faces, fabric)
-                        }
-                        NamedFace { face_alias } => Self::find_face_id(&face_alias, &faces, fabric),
-                        IdentifiedFace { face_id } => face_id,
-                    };
-                    let node = post_growth_node.clone().map(|x| *x);
-                    buds.push(Bud { face_id, forward: forward.clone(), scale_factor: *scale_factor, node })
-                }
-                Branch { face_nodes } => {
-                    let pairs = Self::branch_pairs(face_nodes);
-                    let needs_double = pairs
-                        .iter()
-                        .any(|(face_alias, _)| self.base_aliases.not_top_of_single(face_alias));
-                    let (face_alias, face_id) = match launch {
-                        Scratch { face_alias } => {
-                            (face_alias, None)
-                        }
-                        NamedFace { face_alias } => {
-                            let face_id = Self::find_face_id(&face_alias, &faces, fabric);
-                            let spin = fabric.face(face_id).spin.opposite();
-                            let brick_face_alias = self.base_aliases.spin_double_based(spin, needs_double);
-                            (brick_face_alias.clone(), Some(face_id))
-                        }
-                        IdentifiedFace { face_id } => {
-                            let spin = fabric.face(face_id).spin.opposite();
-                            let brick_face_alias = self.base_aliases.spin_double_based(spin, needs_double);
-                            (brick_face_alias.clone(), Some(face_id))
-                        }
-                    };
-                    let twist_faces = fabric.attach_brick(&face_alias, 1.0, face_id);
-                    for (face_name, node) in pairs {
-                        let (new_buds, new_marks) =
-                            self.execute_node(fabric, NamedFace { face_alias: face_name }, Some(node), twist_faces.clone());
-                        buds.extend(new_buds);
-                        marks.extend(new_marks);
+        let Some(node) = node_option else {
+            let Scratch { face_alias } = launch else {
+                panic!("no node for scratch launch")
+            };
+            fabric.attach_brick(&face_alias, 1.0, None);
+            return (buds, marks);
+        };
+        match node {
+            Face { alias, node } => {
+                let build_node = node.as_ref();
+                return self.execute_node(fabric, NamedFace { face_alias: alias.clone() }, Some(build_node), faces);
+            }
+            Grow { forward, scale_factor, post_growth_node, .. } => {
+                let face_id = match launch {
+                    Scratch { face_alias } => {
+                        let faces = fabric.attach_brick(&face_alias, 1.0, None);
+                        let other_alias = self.base_aliases.other_alias(&face_alias);
+                        Self::find_face_id(other_alias, &faces, fabric)
                     }
+                    NamedFace { face_alias } => Self::find_face_id(&face_alias, &faces, fabric),
+                    IdentifiedFace { face_id } => face_id,
+                };
+                let node = post_growth_node.clone().map(|x| *x);
+                buds.push(Bud { face_id, forward: forward.clone(), scale_factor: *scale_factor, node })
+            }
+            Branch { face_nodes } => {
+                let pairs = Self::branch_pairs(face_nodes);
+                let needs_double = pairs
+                    .iter()
+                    .any(|(face_alias, _)| self.base_aliases.not_top_of_single(face_alias));
+                let (face_alias, face_id) = match launch {
+                    Scratch { face_alias } => {
+                        (face_alias, None)
+                    }
+                    NamedFace { face_alias } => {
+                        let face_id = Self::find_face_id(&face_alias, &faces, fabric);
+                        let spin = fabric.face(face_id).spin.opposite();
+                        let brick_face_alias = self.base_aliases.spin_double_based(spin, needs_double);
+                        (brick_face_alias.clone(), Some(face_id))
+                    }
+                    IdentifiedFace { face_id } => {
+                        let spin = fabric.face(face_id).spin.opposite();
+                        let brick_face_alias = self.base_aliases.spin_double_based(spin, needs_double);
+                        (brick_face_alias.clone(), Some(face_id))
+                    }
+                };
+                let twist_faces = fabric.attach_brick(&face_alias, 1.0, face_id);
+                for (face_name, node) in pairs {
+                    let (new_buds, new_marks) =
+                        self.execute_node(fabric, NamedFace { face_alias: face_name }, Some(node), twist_faces.clone());
+                    buds.extend(new_buds);
+                    marks.extend(new_marks);
                 }
-                Mark { mark_name } => {
-                    let face_id = match launch {
-                        Scratch { .. } => unreachable!("cannot mark from scratch"),
-                        NamedFace { face_alias } => Self::find_face_id(&face_alias, &faces, fabric),
-                        IdentifiedFace { face_id } => face_id,
-                    };
-                    marks.push(FaceMark { face_id, mark_name: mark_name.clone() });
-                }
+            }
+            Mark { mark_name } => {
+                let face_id = match launch {
+                    Scratch { .. } => unreachable!("cannot mark from scratch"),
+                    NamedFace { face_alias } => Self::find_face_id(&face_alias, &faces, fabric),
+                    IdentifiedFace { face_id } => face_id,
+                };
+                marks.push(FaceMark { face_id, mark_name: mark_name.clone() });
             }
         };
         (buds, marks)
