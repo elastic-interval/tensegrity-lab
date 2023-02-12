@@ -40,19 +40,42 @@ impl Display for ParseError {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
-pub struct FaceAlias(pub String);
+pub struct FaceAlias(pub Vec<String>);
+
+impl FaceAlias {
+    pub(crate) fn single(name: &str) -> Self {
+        Self(vec![name.to_string()])
+    }
+
+    fn is_base(&self) -> bool {
+        self.0.iter().any(|part| part == ":base")
+    }
+
+    fn spin(&self) -> Option<Spin> {
+        for part in &self.0 {
+            return Some(
+                match part.as_str() {
+                    ":left" => Spin::Left,
+                    ":right" => Spin::Right,
+                    _ => continue
+                }
+            );
+        }
+        None
+    }
+}
 
 impl Display for FaceAlias {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let alias  = &self.0;
-        write!(f,"FaceAlias(\"{alias}\")")
+        let alias = self.0.join(" ");
+        write!(f, "FaceAlias({alias})")
     }
 }
 
 impl FaceAlias {
     pub fn from_pair(pair: Pair<Rule>) -> FaceAlias {
-        let mut inner = pair.into_inner();
-        FaceAlias(parse_atom(inner.next().unwrap()))
+        let parts = pair.into_inner().map(parse_atom).collect();
+        FaceAlias(parts)
     }
 
     pub fn from_pairs(pairs: impl IntoIterator<Item=Pair<Rule>>) -> Vec<FaceAlias> {
@@ -63,12 +86,6 @@ impl FaceAlias {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum SurfaceCharacterSpec {
-    Frozen,
-    Bouncy,
-    Sticky,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Spin {
@@ -143,11 +160,7 @@ pub fn parse_name(pair: Pair<Rule>) -> String {
 
 pub fn parse_atom(pair: Pair<Rule>) -> String {
     assert_eq!(pair.as_rule(), Rule::atom);
-    let string = pair.as_str();
-    string
-        .strip_prefix(':')
-        .unwrap_or(string)
-        .to_string()
+    pair.as_str().to_string()
 }
 
 pub fn into_atom(name: String) -> String {

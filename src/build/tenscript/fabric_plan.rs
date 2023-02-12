@@ -4,14 +4,13 @@ use std::collections::HashSet;
 
 use pest::iterators::Pair;
 
-use crate::build::tenscript::{BuildPhase, Library, parse_name, ParseError, Rule, SurfaceCharacterSpec};
+use crate::build::tenscript::{BuildPhase, Library, parse_name, ParseError, Rule};
 use crate::build::tenscript::build_phase::BuildNode;
 use crate::build::tenscript::shape_phase::{Operation, ShapePhase};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct FabricPlan {
     pub name: String,
-    pub surface: Option<SurfaceCharacterSpec>,
     pub build_phase: BuildPhase,
     pub shape_phase: ShapePhase,
 }
@@ -25,31 +24,11 @@ impl FabricPlan {
     }
 
     pub fn from_pair(fabric_plan_pair: Pair<Rule>) -> Result<FabricPlan, ParseError> {
-        let mut plan = FabricPlan::default();
-        for pair in fabric_plan_pair.into_inner() {
-            match pair.as_rule() {
-                Rule::name => {
-                    plan.name = parse_name(pair);
-                }
-                Rule::surface => {
-                    plan.surface = Some(
-                        match pair.into_inner().next().unwrap().as_str() {
-                            ":bouncy" => SurfaceCharacterSpec::Bouncy,
-                            ":frozen" => SurfaceCharacterSpec::Frozen,
-                            ":sticky" => SurfaceCharacterSpec::Sticky,
-                            _ => unreachable!()
-                        }
-                    );
-                }
-                Rule::build => {
-                    plan.build_phase = BuildPhase::from_pair(pair);
-                }
-                Rule::shape => {
-                    plan.shape_phase = ShapePhase::from_pair(pair);
-                }
-                _ => unreachable!("fabric plan {:?}", pair.as_rule()),
-            }
-        }
+        let [name, build, shape] = fabric_plan_pair.into_inner().next_chunk().unwrap();
+        let name = parse_name(name);
+        let build_phase = BuildPhase::from_pair(build);
+        let shape_phase = ShapePhase::from_pair(shape);
+        let plan = FabricPlan { name, build_phase, shape_phase };
         Self::validate_fabric_plan(&plan)?;
         Ok(plan)
     }
@@ -61,13 +40,11 @@ impl FabricPlan {
 
     fn validate_marks(plan: &FabricPlan) -> Result<(), ParseError> {
         let mut build_marks = HashSet::new();
-        if let Some(node) = &plan.build_phase.root {
-            node.traverse(&mut |node| {
-                if let BuildNode::Mark { mark_name } = node {
-                    build_marks.insert(mark_name.clone());
-                }
-            });
-        }
+        plan.build_phase.root.traverse(&mut |node| {
+            if let BuildNode::Mark { mark_name } = node {
+                build_marks.insert(mark_name.clone());
+            }
+        });
         let mut shape_marks = HashSet::new();
         for operation in &plan.shape_phase.operations {
             operation.traverse(&mut |op| {

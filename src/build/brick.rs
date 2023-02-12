@@ -62,6 +62,7 @@ pub struct FaceDef {
     pub spin: Spin,
     pub joint_names: [String; 3],
     pub aliases: Vec<FaceAlias>,
+    pub down: bool,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -73,6 +74,7 @@ pub struct Prototype {
 
 #[derive(Clone, Debug)]
 pub struct BrickDefinition {
+    pub alias: FaceAlias,
     pub proto: Prototype,
     pub baked: Option<Baked>,
 }
@@ -102,7 +104,7 @@ impl From<Prototype> for Fabric {
                 .map(|name| *joints_by_name.get(&name).expect("no joint with that name"));
             fabric.create_interval(alpha_index, omega_index, Link::pull(ideal));
         }
-        for FaceDef { aliases, joint_names, spin } in proto.faces {
+        for FaceDef { aliases, joint_names, spin, .. } in proto.faces {
             let joint_indices = joint_names.map(|name| *joints_by_name.get(&name).expect("no joint with that name"));
             let joints = joint_indices.map(|index| fabric.joints[index].location.to_vec());
             let midpoint = joints.into_iter().sum::<Vector3<_>>() / 3.0;
@@ -153,16 +155,22 @@ impl Prototype {
                         let mut inner = face_pair.into_inner();
                         let [spin, a, b, c] = inner.next_chunk().unwrap();
                         let joint_names = [a, b, c].map(parse_atom);
-                        let aliases = FaceAlias::from_pairs(inner);
+                        let (aliases, remainder): (Vec<_>, Vec<_>) = inner
+                            .partition(|pair| matches!(pair.as_rule(), Rule::face_alias));
+                        let down = remainder
+                            .iter()
+                            .any(|pair| matches!(pair.as_rule(), Rule::down));
+                        let aliases = FaceAlias::from_pairs(aliases);
                         let spin = Spin::from_pair(spin);
                         prototype.faces.push(FaceDef {
                             spin,
                             joint_names,
                             aliases,
+                            down,
                         });
                     }
                 }
-                _ => unreachable!(),
+                _ => unreachable!("{:?}", pair.as_rule()),
             }
         }
         // TODO: validate all the names used
@@ -182,10 +190,12 @@ impl Prototype {
 impl BrickDefinition {
     pub fn from_pair(pair: Pair<Rule>) -> Result<Self, ParseError> {
         let mut inner = pair.into_inner();
-        let proto = inner.next().unwrap();
+        let [alias, proto] = inner.next_chunk().unwrap();
+        let alias = FaceAlias::from_pair(alias);
         let proto = Prototype::from_pair(proto)?;
         let baked = inner.next().map(Baked::from_pair);
         Ok(Self {
+            alias,
             proto,
             baked,
         })
