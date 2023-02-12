@@ -27,12 +27,19 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn capture_prototype(&mut self, prototype: usize) {
-        self.crucible.capture_prototype(prototype);
+    pub fn new(graphics: GraphicsWindow, window: &Window) -> Application {
+        let gui = GUI::new(&graphics, window);
+        let scene = Scene::new(&graphics);
+        Application {
+            graphics,
+            scene,
+            gui,
+            crucible: Crucible::default(),
+            library_modified: library_modified_timestamp(),
+            fabric_plan_name: None,
+        }
     }
-}
 
-impl Application {
     pub fn update(&mut self, window: &Window) {
         self.gui.update();
         let mut actions = self.gui.controls().take_actions();
@@ -87,9 +94,7 @@ impl Application {
         let cursor_icon = self.gui.cursor_icon();
         window.set_cursor_icon(cursor_icon);
     }
-}
 
-impl Application {
     pub fn handle_window_event(&mut self, event: &WindowEvent, window: &Window) {
         self.gui.window_event(event, &window);
         match event {
@@ -105,20 +110,9 @@ impl Application {
             _ => {}
         }
     }
-}
 
-impl Application {
-    pub fn new(graphics: GraphicsWindow, window: &Window) -> Application {
-        let gui = GUI::new(&graphics, window);
-        let scene = Scene::new(&graphics);
-        Application {
-            graphics,
-            scene,
-            gui,
-            crucible: Crucible::default(),
-            library_modified: library_modified_timestamp(),
-            fabric_plan_name: None,
-        }
+    pub fn capture_prototype(&mut self, prototype: usize) {
+        self.crucible.capture_prototype(prototype);
     }
 
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
