@@ -2,10 +2,7 @@ use std::f32::consts::PI;
 use std::mem;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use cgmath::Vector3;
 use iced_wgpu::wgpu;
-#[allow(unused_imports)]
-use log::info;
 use wgpu::{CommandEncoder, TextureView};
 use wgpu::util::DeviceExt;
 use winit::event::*;
@@ -13,7 +10,8 @@ use winit::event::*;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use crate::camera::{Camera, Target};
+use crate::camera::Camera;
+use crate::camera::Target::{*};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::Face;
 use crate::fabric::interval::Interval;
@@ -182,34 +180,27 @@ impl Scene {
         } = event {
             match keycode {
                 VirtualKeyCode::F => {
-                    self.camera.target = match self.camera.target {
-                        Target::Origin | Target::FabricMidpoint => {
-                            let [face_id] = fabric.faces
-                                .keys()
-                                .take(1)
-                                .next_chunk()
-                                .unwrap();
-                            Target::Face(*face_id)
+                    self.select_face(Some(match self.camera.target {
+                        Origin | FabricMidpoint | Hold => {
+                            *fabric.faces.keys().next().unwrap()
                         }
-                        Target::Face(face_id) => {
-                            let found = fabric.faces
-                                .keys()
+                        SelectedFace(face_id) => {
+                            let face_position = fabric.faces.keys()
                                 .position(|&id| face_id == id)
                                 .expect("Face id not found");
                             let &new_face_id = fabric.faces.keys()
                                 .cycle()
-                                .skip(found + 1)
-                                .next()
+                                .nth(face_position + 1)
                                 .unwrap();
-                            Target::Face(new_face_id)
+                            new_face_id
                         }
-                    }
+                    }))
                 }
                 VirtualKeyCode::M => {
-                    self.camera.target = Target::FabricMidpoint
+                    self.camera.target = FabricMidpoint
                 }
                 VirtualKeyCode::O => {
-                    self.camera.target = Target::Origin
+                    self.camera.target = Origin
                 }
                 _ => {}
             }
@@ -247,13 +238,16 @@ impl Scene {
 
     pub fn target_face_id(&self) -> Option<UniqueId> {
         match self.camera.target {
-            Target::Origin | Target::FabricMidpoint => None,
-            Target::Face(face_id) => Some(face_id),
+            Origin | FabricMidpoint | Hold => None,
+            SelectedFace(face_id) => Some(face_id),
         }
     }
 
-    pub fn move_camera(&mut self, jump: Vector3<f32>) {
-        self.camera.jump(jump);
+    pub fn select_face(&mut self, face_id: Option<UniqueId>) {
+        self.camera.target = match face_id {
+            None => Hold,
+            Some(face_id) => SelectedFace(face_id)
+        };
     }
 
     pub fn show_surface(&mut self, show: bool) {
@@ -299,8 +293,7 @@ impl FabricVertex {
     }
 
     pub fn for_face(face_id: UniqueId, face: &Face, fabric: &Fabric, variation: &Variation) -> [FabricVertex; 2] {
-        let (alpha, normal) = (face.midpoint(fabric), face.normal(fabric));
-        let omega = alpha + normal;
+        let (alpha, _, omega) = face.visible_points(fabric);
         let (alpha_color, omega_color) = match variation {
             Variation::StrainView { .. } =>
                 ([0.3, 0.3, 0.3, 0.5], [0.3, 0.3, 0.3, 0.5]),

@@ -1,36 +1,39 @@
-use cgmath::Vector3;
 use winit::event::VirtualKeyCode;
 
-use crate::build::brick::Baked;
-use crate::build::tenscript::{FabricPlan, Library, SurfaceCharacterSpec};
+use crate::build::brick::{Baked};
+use crate::build::tenscript::{FabricPlan, FaceAlias, Library, SurfaceCharacterSpec};
 use crate::build::tenscript::plan_runner::PlanRunner;
+use crate::controls::Action;
 use crate::crucible::Stage::{*};
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::physics::{Physics, SurfaceCharacter};
-use crate::fabric::physics::presets::{AIR_GRAVITY, PROTOTYPE_FORMATION};
+use crate::fabric::physics::presets::{AIR_GRAVITY, LIQUID, PROTOTYPE_FORMATION};
+use crate::fabric::pretenser::Pretenser;
 
 const PULL_SHORTENING: f32 = 0.95;
+const PRETENST_FACTOR: f32 = 1.03;
 
 enum Stage {
     Empty,
     AcceptingPlan(FabricPlan),
     RunningPlan,
+    Interactive,
+    AddingBrick { face_alias: FaceAlias, face_id: UniqueId },
     Pretensing,
-    Pretenst,
-    ShortenPulls(f32),
     AcceptingPrototype(Fabric),
     RunningPrototype,
+    Finished,
 }
 
 pub struct Crucible {
     fabric: Fabric,
     physics: Physics,
     plan_runner: Option<PlanRunner>,
-    camera_jump: Option<Vector3<f32>>,
+    pretenser: Option<Pretenser>,
     frozen_fabric: Option<Fabric>,
+    action: Option<Action>,
     iterations_per_frame: usize,
     stage: Stage,
-    shorten_pulls: Option<f32>,
 }
 
 impl Default for Crucible {
@@ -39,11 +42,11 @@ impl Default for Crucible {
             fabric: Fabric::default_bow_tie(),
             physics: AIR_GRAVITY,
             plan_runner: None,
-            camera_jump: None,
+            pretenser: None,
             frozen_fabric: None,
+            action: None,
             iterations_per_frame: 25,
             stage: Empty,
-            shorten_pulls: None,
         }
     }
 }
@@ -78,37 +81,40 @@ impl Crucible {
                             plan_runner.iterate(&mut self.fabric);
                         }
                         if plan_runner.is_done() {
-                            let old_midpoint = self.fabric.midpoint();
-                            self.fabric.prepare_for_pretensing(1.03);
-                            self.start_pretensing();
-                            self.camera_jump = Some(self.fabric.midpoint() - old_midpoint);
+                            self.stage = if self.fabric.faces.is_empty() {
+                                self.pretenser = Some(Pretenser::new(PRETENST_FACTOR));
+                                self.action = Some(Action::ShowSurface);
+                                Pretensing
+                            } else {
+                                Interactive
+                            }
                         }
                     }
                 }
             }
-            Pretensing => {
-                for _ in 0..self.iterations_per_frame {
-                    self.fabric.iterate(&self.physics);
-                }
-                if !self.fabric.progress.is_busy() {
-                    self.stage = Pretenst;
-                }
+            Interactive => {
+                self.iterate_frame(Some(&LIQUID));
             }
-            Pretenst => {
-                for _ in 0..self.iterations_per_frame {
-                    self.fabric.iterate(&self.physics);
-                }
-                match self.shorten_pulls {
-                    None => {}
-                    Some(strain_threshold) => {
-                        self.stage = ShortenPulls(strain_threshold)
+            AddingBrick { face_alias, face_id } => {
+                let faces = self.fabric.attach_brick(face_alias, 1.0, Some(*face_id));
+                self.stage = Interactive;
+                self.fabric.progress.start(1000);
+                self.action = faces.first().map(|&face_id| Action::SelectFace(face_id));
+            }
+            Pretensing => {
+                match &mut self.pretenser {
+                    None => {
+                        self.stage = Empty;
+                    }
+                    Some(pretenser) => {
+                        for _ in 0..self.iterations_per_frame {
+                            pretenser.iterate(&mut self.fabric);
+                        }
+                        if pretenser.is_done() {
+                            self.stage = Finished;
+                        }
                     }
                 }
-            }
-            ShortenPulls(strain_threshold) => {
-                self.shorten_pulls = None;
-                self.fabric.shorten_pulls(*strain_threshold, PULL_SHORTENING);
-                self.start_pretensing()
             }
             AcceptingPrototype(fabric) => {
                 self.fabric = fabric.clone();
@@ -130,15 +136,18 @@ impl Crucible {
                             println!("Cannot create brick: {problem}");
                         }
                     }
-
                     self.stage = Empty
                 }
             }
+            Finished => {}
         }
     }
 
-    pub fn camera_jump(&mut self) -> Option<Vector3<f32>> {
-        self.camera_jump.take()
+    fn iterate_frame(&mut self, special_physics: Option<&Physics>) {
+        let physics = special_physics.unwrap_or(&self.physics);
+        for _ in 0..self.iterations_per_frame {
+            self.fabric.iterate(physics);
+        }
     }
 
     pub fn strain_limits(&self) -> (f32, f32) {
@@ -157,8 +166,8 @@ impl Crucible {
         };
     }
 
-    pub fn shorten_pulls(&mut self, strain_threshold: f32) {
-        self.shorten_pulls = Some(strain_threshold);
+    pub fn add_brick(&mut self, face_alias: FaceAlias, face_id: UniqueId) {
+        self.stage = AddingBrick { face_alias, face_id };
     }
 
     pub fn build_fabric(&mut self, fabric_plan: FabricPlan) {
@@ -167,6 +176,10 @@ impl Crucible {
 
     pub fn set_gravity(&mut self, gravity: f32) {
         self.physics.gravity = gravity;
+    }
+
+    pub fn action(&mut self) -> Option<Action> {
+        self.action.take()
     }
 
     pub fn fabric(&self) -> &Fabric {
@@ -183,11 +196,5 @@ impl Crucible {
             .clone()
             .into();
         self.stage = AcceptingPrototype(fabric);
-    }
-
-    fn start_pretensing(&mut self) {
-        self.frozen_fabric = Some(self.fabric.clone());
-        self.fabric.progress.start(20000);
-        self.stage = Pretensing;
     }
 }
