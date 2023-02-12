@@ -199,8 +199,8 @@ pub fn run_with(brick_index: Option<usize>) {
                             app.gui.change_state(ControlMessage::Reset);
                             crucible.build_fabric(fabric_plan);
                         }
-                        Action::GravityChanged(gravity) => {
-                            crucible.set_gravity(gravity);
+                        Action::GravityChanged(_gravity) => {
+                            // TODO
                         }
                         Action::CalibrateStrain => {
                             let strain_limits = crucible.strain_limits();
