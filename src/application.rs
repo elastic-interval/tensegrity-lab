@@ -15,7 +15,6 @@ use winit::window::Window;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use crate::build::brick::BrickName;
 use crate::build::tenscript::FabricPlan;
 use crate::controls::{ControlMessage, GUI, VisibleControl};
 use crate::controls::Action;
@@ -74,7 +73,7 @@ impl Application {
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
-pub fn run_with(brick_name: Option<BrickName>) {
+pub fn run_with(brick_index: Option<usize>) {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -111,11 +110,11 @@ pub fn run_with(brick_name: Option<BrickName>) {
     let graphics = pollster::block_on(GraphicsWindow::new(&window));
     let mut app = Application::new(graphics, &window);
     let mut crucible = Crucible::default();
-    if let Some(brick_name) = brick_name {
-        crucible.capture_prototype(brick_name);
+    if let Some(brick_index) = brick_index {
+        crucible.capture_prototype(brick_index);
     }
     let mut library_modified = library_modified_timestamp();
-    let mut current_fabric_plan: Option<String> = None;
+    let mut fabric_plan_name: Option<String> = None;
 
     event_loop.run(move |event, _, control_flow| {
         match event {
@@ -137,11 +136,12 @@ pub fn run_with(brick_name: Option<BrickName>) {
                         VirtualKeyCode::Escape => {
                             app.gui.change_state(ControlMessage::ShowControl(VisibleControl::ControlChoice));
                         }
-                        VirtualKeyCode::Space => {
-                            crucible.toggle_pause();
-                        }
                         VirtualKeyCode::D => {
                             app.gui.change_state(ControlMessage::ToggleDebugMode);
+                        }
+                        VirtualKeyCode::Key0 | VirtualKeyCode::Key1 | VirtualKeyCode::Key2 |
+                        VirtualKeyCode::Key3 | VirtualKeyCode::Key4 | VirtualKeyCode::Key5 => {
+                            crucible.set_speed(keycode);
                         }
                         VirtualKeyCode::B => {
                             let Some(face_id) = app.scene.target_face_id() else {
@@ -182,16 +182,15 @@ pub fn run_with(brick_name: Option<BrickName>) {
             Event::MainEventsCleared => {
                 app.gui.update();
                 let mut actions = app.gui.controls().take_actions();
-                if library_modified_timestamp() > library_modified &&
-                    let Some(ref plan_name) = current_fabric_plan &&
-                    let Some(fabric_plan) = FabricPlan::preset_with_name(plan_name) {
+                if library_modified_timestamp() > library_modified && let Some(ref plan_name) = fabric_plan_name {
+                    let fabric_plan = FabricPlan::load_preset(plan_name).expect("no such fabric plan");
                     actions.push(Action::BuildFabric(fabric_plan));
                     library_modified = library_modified_timestamp();
                 }
                 for action in actions {
                     match action {
                         Action::BuildFabric(fabric_plan) => {
-                            current_fabric_plan = Some(fabric_plan.name.clone());
+                            fabric_plan_name = Some(fabric_plan.name.clone());
                             app.scene.show_surface(false);
                             app.gui.change_state(ControlMessage::Reset);
                             crucible.build_fabric(fabric_plan);

@@ -6,6 +6,7 @@
 #![feature(iter_next_chunk)]
 #![feature(once_cell)]
 #![feature(let_chains)]
+#![feature(anonymous_lifetime_in_impl_trait)]
 
 pub mod application;
 pub mod build;

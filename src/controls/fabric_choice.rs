@@ -7,7 +7,7 @@ use crate::controls::{Action, Component, ControlMessage, format_row};
 
 #[derive(Clone, Debug)]
 pub enum FabricChoiceMessage {
-    ChooseFabric(String),
+    ChooseFabric(FabricPlan),
 }
 
 impl From<FabricChoiceMessage> for ControlMessage {
@@ -18,7 +18,7 @@ impl From<FabricChoiceMessage> for ControlMessage {
 
 #[derive(Clone, Debug)]
 pub struct FabricChoice {
-    pub choices: Vec<String>,
+    pub choices: Vec<(String, FabricPlan)>,
 }
 
 impl Component for FabricChoice {
@@ -26,21 +26,19 @@ impl Component for FabricChoice {
 
     fn update(&mut self, message: Self::Message) -> Option<Action> {
         match message {
-            FabricChoiceMessage::ChooseFabric(plan_name) => {
-                let fabric_plan = FabricPlan::preset_with_name(&plan_name).expect("no such fabric");
-                Some(Action::BuildFabric(fabric_plan))
-            }
+            FabricChoiceMessage::ChooseFabric(fabric_plan) =>
+                Some(Action::BuildFabric(fabric_plan)),
         }
     }
 
     fn element(&self) -> Element<'_, ControlMessage, Renderer> {
         let mut row = Row::new();
-        for choice in &self.choices {
+        for (name, plan) in &self.choices {
             row = row.push(
-                Button::new(Text::new(choice.clone()))
-                    .on_press(FabricChoiceMessage::ChooseFabric(choice.clone()).into())
+                Button::new(Text::new(name))
+                    .on_press(FabricChoiceMessage::ChooseFabric(plan.clone()).into())
             );
-        };
+        }
         format_row(row)
     }
 }
