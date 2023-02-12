@@ -1,12 +1,11 @@
-use cgmath::Vector3;
 use winit::event::VirtualKeyCode;
 
-use crate::build::brick::{Baked, BrickName};
-use crate::build::tenscript::{FabricPlan, Library, FaceName, SurfaceCharacterSpec};
+use crate::build::brick::{Baked};
+use crate::build::tenscript::{FabricPlan, FaceAlias, Library, SurfaceCharacterSpec};
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::controls::Action;
 use crate::crucible::Stage::{*};
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::fabric::physics::presets::{AIR_GRAVITY, LIQUID, PROTOTYPE_FORMATION};
 use crate::fabric::pretenser::Pretenser;
@@ -19,7 +18,7 @@ enum Stage {
     AcceptingPlan(FabricPlan),
     RunningPlan,
     Interactive,
-    AddingBrick { brick_name: BrickName, face_id: UniqueId },
+    AddingBrick { face_alias: FaceAlias, face_id: UniqueId },
     Pretensing,
     AcceptingPrototype(Fabric),
     RunningPrototype,
@@ -96,12 +95,11 @@ impl Crucible {
             Interactive => {
                 self.iterate_frame(Some(&LIQUID));
             }
-            AddingBrick { brick_name, face_id } => {
-                let faces = self.fabric.attach_brick(*brick_name, 1.0, Some(*face_id));
+            AddingBrick { face_alias, face_id } => {
+                let faces = self.fabric.attach_brick(face_alias, 1.0, Some(*face_id));
                 self.stage = Interactive;
                 self.fabric.progress.start(1000);
-                let (_, new_face_id) = faces.into_iter().find(|&(face_name, _)| face_name == FaceName(1)).unwrap();
-                self.action = Some(Action::SelectFace(new_face_id));
+                self.action = faces.first().map(|&face_id| Action::SelectFace(face_id));
             }
             Pretensing => {
                 match &mut self.pretenser {
@@ -152,10 +150,6 @@ impl Crucible {
         }
     }
 
-    pub fn camera_jump(&mut self) -> Option<Vector3<f32>> {
-        self.camera_jump.take()
-    }
-
     pub fn strain_limits(&self) -> (f32, f32) {
         self.fabric.strain_limits(Fabric::BOW_TIE_MATERIAL_INDEX)
     }
@@ -172,8 +166,8 @@ impl Crucible {
         };
     }
 
-    pub fn add_brick(&mut self, brick_name: BrickName, face_id: UniqueId) {
-        self.stage = AddingBrick { brick_name, face_id };
+    pub fn add_brick(&mut self, face_alias: FaceAlias, face_id: UniqueId) {
+        self.stage = AddingBrick { face_alias, face_id };
     }
 
     pub fn build_fabric(&mut self, fabric_plan: FabricPlan) {

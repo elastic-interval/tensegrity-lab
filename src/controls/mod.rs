@@ -13,9 +13,8 @@ use winit::window::{CursorIcon, Window};
 
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
-use crate::build::brick::BrickName;
 
-use crate::build::tenscript::{FabricPlan, Library};
+use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
 use crate::controls::fabric_choice::{FabricChoice, FabricChoiceMessage};
 use crate::controls::gravity::{Gravity, GravityMessage};
 use crate::controls::strain_threshold::{StrainThreshold, StrainThresholdMessage};
@@ -200,7 +199,7 @@ pub enum VisibleControl {
 pub enum Action {
     BuildFabric(FabricPlan),
     SelectFace(UniqueId),
-    AddBrick { brick_name: BrickName, face_id: UniqueId },
+    AddBrick { face_alias: FaceAlias, face_id: UniqueId },
     GravityChanged(f32),
     ShowSurface,
     CalibrateStrain,

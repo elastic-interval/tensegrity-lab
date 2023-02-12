@@ -133,7 +133,6 @@ pub enum Target {
     #[default]
     FabricMidpoint,
     SelectedFace(UniqueId),
-    Origin,
     Hold,
 }
 
