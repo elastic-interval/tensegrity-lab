@@ -105,7 +105,7 @@ impl GUI {
         self.staging_belt.recall();
     }
 
-    pub fn change_state(&mut self, message: ControlMessage) {
+    pub fn queue_message(&mut self, message: ControlMessage) {
         self.state.queue_message(message);
     }
 

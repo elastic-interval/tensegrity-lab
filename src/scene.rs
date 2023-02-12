@@ -27,7 +27,7 @@ struct Drawing<V> {
 }
 
 pub struct Scene {
-    camera: Camera,
+    pub(crate) camera: Camera,
     show_surface: bool,
     fabric_drawing: Drawing<FabricVertex>,
     surface_drawing: Drawing<SurfaceVertex>,
@@ -171,40 +171,7 @@ impl Scene {
         }
     }
 
-    pub fn window_event(&mut self, event: &WindowEvent, fabric: &Fabric) {
-        if let WindowEvent::KeyboardInput {
-            input: KeyboardInput {
-                virtual_keycode: Some(keycode),
-                state: ElementState::Pressed, ..
-            }, ..
-        } = event {
-            match keycode {
-                VirtualKeyCode::F => {
-                    self.select_face(Some(match self.camera.target {
-                        Origin | FabricMidpoint | Hold => {
-                            *fabric.faces.keys().next().unwrap()
-                        }
-                        SelectedFace(face_id) => {
-                            let face_position = fabric.faces.keys()
-                                .position(|&id| face_id == id)
-                                .expect("Face id not found");
-                            let &new_face_id = fabric.faces.keys()
-                                .cycle()
-                                .nth(face_position + 1)
-                                .unwrap();
-                            new_face_id
-                        }
-                    }))
-                }
-                VirtualKeyCode::M => {
-                    self.camera.target = FabricMidpoint
-                }
-                VirtualKeyCode::O => {
-                    self.camera.target = Origin
-                }
-                _ => {}
-            }
-        };
+    pub fn window_event(&mut self, event: &WindowEvent) {
         self.camera.window_event(event);
     }
 

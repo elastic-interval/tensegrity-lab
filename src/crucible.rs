@@ -1,5 +1,3 @@
-use winit::event::VirtualKeyCode;
-
 use crate::build::brick::Baked;
 use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
 use crate::build::tenscript::plan_runner::PlanRunner;
@@ -117,16 +115,8 @@ impl Crucible {
         self.fabric.strain_limits(Fabric::BOW_TIE_MATERIAL_INDEX)
     }
 
-    pub fn set_speed(&mut self, key: &VirtualKeyCode) {
-        self.iterations_per_frame = match key {
-            VirtualKeyCode::Key0 => 0,
-            VirtualKeyCode::Key1 => 1,
-            VirtualKeyCode::Key2 => 5,
-            VirtualKeyCode::Key3 => 25,
-            VirtualKeyCode::Key4 => 125,
-            VirtualKeyCode::Key5 => 625,
-            _ => unreachable!()
-        };
+    pub fn set_speed(&mut self, iterations_per_frame: usize) {
+        self.iterations_per_frame = iterations_per_frame;
     }
 
     pub fn add_brick(&mut self, face_alias: FaceAlias, face_id: UniqueId) {
