@@ -3,12 +3,11 @@
     (name "Seed")
     (surface :bouncy)
     (build
-      (alias Omni)))
+      (branch (alias Omni))))
   (fabric
     (name "Knee")
     (build
-      (alias Omni)
-      (branch
+      (branch (alias Omni)
         (face (alias TopX) (grow 3))
         (face (alias TopY) (grow 3))))
     (shape
@@ -17,16 +16,19 @@
   (fabric
     (name "Flagellum")
     (build
-      (alias Right)
-      (grow 20 (scale.9))))
+      (branch (alias Right)
+        (face (alias Top) (grow 20 (scale.9))))
+      ))
   (fabric
     (name "Halo by Crane")
     (build
-      (alias Right)
-      (grow 4 (scale .92)
-        (branch (alias Omni)
-          (face (alias TopX) (grow 12 (scale .92) (mark :halo-end)))
-          (face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))
+      (branch (alias Right)
+        (face (alias Top) (grow 4 (scale .92)
+          (branch (alias Omni)
+            (face (alias TopX) (grow 12 (scale .92) (mark :halo-end)))
+            (face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))
+        ))
+
     (shape
       (join :halo-end)
       (remove-shapers) ; TODO: should automatically happen before vulcanize
@@ -72,7 +74,7 @@
         (pull :alpha_z :omega_y))
       (faces
         (right :alpha_z :alpha_y :alpha_x (alias Right (base)) (down))
-        (right :omega_x :omega_y :omega_z (alias Right (next-base))))))
+        (right :omega_x :omega_y :omega_z (alias Right Top (next-base))))))
   (brick ; single-left
     (alias Single)
     (proto
@@ -85,7 +87,7 @@
         (pull :alpha_z :omega_x))
       (faces
         (left :alpha_x :alpha_y :alpha_z (alias Left (base)) (down))
-        (left :omega_z :omega_y :omega_x (alias Left (next-base))))))
+        (left :omega_z :omega_y :omega_x (alias Left Top (next-base))))))
   (brick 
     (alias Omni)
     (proto
@@ -127,7 +129,7 @@
         (pull :middle_back :back_right_bottom)
         (pull :middle_back :back_right_top))
       (faces
-        (left  :bottom_left  :left_front  :front_left_bottom  (alias Left (base))     (alias Right Far:Side)  (down))
+        (left  :bottom_left  :left_front  :front_left_bottom  (alias :left (base))     (alias Right Far:Side)  (down))
         (right :bottom_left  :left_back   :back_left_bottom   (alias Left Base:Back)  (alias Right Far:Back)  (down))
         (left  :bottom_right :right_back  :back_right_bottom  (alias Left Far:Back)   (alias Right Base:Back) (down))
         (right :bottom_right :right_front :front_right_bottom (alias Left Far:Side)   (alias Right (base))    (down))
