@@ -39,25 +39,27 @@ impl Display for ParseError {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct FaceName(pub usize);
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
+pub struct FaceAlias(pub String);
 
-impl Display for FaceName {
+impl Display for FaceAlias {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("F{}", self.0))
+        let alias  = &self.0;
+        write!(f,"FaceAlias(\"{alias}\")")
     }
 }
 
-impl TryFrom<&str> for FaceName {
-    type Error = ();
+impl FaceAlias {
+    pub fn from_pair(pair: Pair<Rule>) -> FaceAlias {
+        let mut inner = pair.into_inner();
+        FaceAlias(parse_atom(inner.next().unwrap()))
+    }
 
-    fn try_from(face_name: &str) -> Result<Self, Self::Error> {
-        face_name
-            .strip_prefix('F')
-            .ok_or(())?
-            .parse()
-            .map(FaceName)
-            .map_err(|_| ())
+    pub fn from_pairs(pairs: impl IntoIterator<Item=Pair<Rule>>) -> Vec<FaceAlias> {
+        pairs
+            .into_iter()
+            .map(Self::from_pair)
+            .collect()
     }
 }
 
@@ -68,8 +70,9 @@ pub enum SurfaceCharacterSpec {
     Sticky,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Spin {
+    #[default]
     Left,
     Right,
 }
@@ -98,7 +101,11 @@ pub struct Library {
 impl Library {
     pub fn standard() -> Self {
         let source = fs::read_to_string("src/build/tenscript/library.scm").unwrap();
-        Self::from_tenscript(&source).unwrap()
+        match Self::from_tenscript(&source) {
+            Ok(library) => library,
+            Err(ParseError::Pest(error)) => panic!("pest parse error: \n{error}"),
+            Err(e) => panic!("{e:?}")
+        }
     }
 
     pub fn from_tenscript(source: &str) -> Result<Self, ParseError> {
@@ -135,11 +142,20 @@ pub fn parse_name(pair: Pair<Rule>) -> String {
 }
 
 pub fn parse_atom(pair: Pair<Rule>) -> String {
+    assert_eq!(pair.as_rule(), Rule::atom);
     let string = pair.as_str();
     string
         .strip_prefix(':')
         .unwrap_or(string)
         .to_string()
+}
+
+pub fn into_atom(name: String) -> String {
+    if name.chars().next().expect("empty string").is_uppercase() {
+        name
+    } else {
+        format!(":{name}")
+    }
 }
 
 #[cfg(test)]

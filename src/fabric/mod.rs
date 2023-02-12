@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use cgmath::{EuclideanSpace, Matrix4, MetricSpace, Point3, Transform, Vector3};
 use cgmath::num_traits::zero;
 
-use crate::build::tenscript::{FaceName, Spin};
+use crate::build::tenscript::{FaceAlias, Spin};
 use crate::fabric::face::Face;
 use crate::fabric::interval::{Interval, Material};
 use crate::fabric::interval::Role::{Pull, Push};
@@ -109,14 +109,14 @@ impl Fabric {
         self.intervals.values()
     }
 
-    pub fn create_face(&mut self, face_name: FaceName, scale: f32, spin: Spin, radial_intervals: [UniqueId; 3]) -> UniqueId {
+    pub fn create_face(&mut self, aliases: Vec<FaceAlias>, scale: f32, spin: Spin, radial_intervals: [UniqueId; 3]) -> UniqueId {
         let id = self.create_id();
-        self.faces.insert(id, Face { face_name, scale, spin, radial_intervals });
+        self.faces.insert(id, Face { aliases, scale, spin, radial_intervals });
         id
     }
 
     pub fn face(&self, id: UniqueId) -> &Face {
-        self.faces.get(&id).unwrap()
+        self.faces.get(&id).unwrap_or_else(|| panic!("face not found"))
     }
 
     pub fn remove_face(&mut self, id: UniqueId) {
@@ -131,8 +131,7 @@ impl Fabric {
 
     pub fn join_faces(&mut self, alpha_id: UniqueId, omega_id: UniqueId) {
         let (alpha, omega) = (self.face(alpha_id), self.face(omega_id));
-        let (mut alpha_ends, omega_ends) = (alpha.radial_joints(self), omega.radial_joints(self));
-        alpha_ends.reverse();
+        let (alpha_ends, omega_ends) = (alpha.radial_joints(self), omega.radial_joints(self));
         let (mut alpha_points, omega_points) = (
             alpha_ends.map(|id| self.location(id)),
             omega_ends.map(|id| self.location(id))

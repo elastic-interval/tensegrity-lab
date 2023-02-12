@@ -7,7 +7,7 @@ use winit::event::{ElementState, MouseScrollDelta, WindowEvent};
 
 use crate::fabric::{Fabric, UniqueId};
 
-const TARGET_ATTRACTION: f32 = 0.03;
+const TARGET_ATTRACTION: f32 = 0.01;
 const UP_ATTRACTION: f32 = 0.1;
 const TARGET_DOT_UP: f32 = 0.15;
 const TARGET_DISTANCE_MARGIN: f32 = 0.3;
@@ -129,6 +129,7 @@ const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
 
 #[derive(Copy, Clone, Debug, Default)]
 pub enum Target {
+    Origin,
     #[default]
     FabricMidpoint,
     SelectedFace(UniqueId),

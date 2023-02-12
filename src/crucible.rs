@@ -1,9 +1,12 @@
+use cgmath::Vector3;
+use winit::event::VirtualKeyCode;
+
 use crate::build::brick::{Baked, BrickName};
-use crate::build::tenscript::{FabricPlan, FaceName, SurfaceCharacterSpec};
+use crate::build::tenscript::{FabricPlan, Library, FaceName, SurfaceCharacterSpec};
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::controls::Action;
 use crate::crucible::Stage::{*};
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::Fabric;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::fabric::physics::presets::{AIR_GRAVITY, LIQUID, PROTOTYPE_FORMATION};
 use crate::fabric::pretenser::Pretenser;
@@ -18,8 +21,8 @@ enum Stage {
     Interactive,
     AddingBrick { brick_name: BrickName, face_id: UniqueId },
     Pretensing,
-    AcceptingPrototype((Fabric, UniqueId)),
-    RunningPrototype(UniqueId),
+    AcceptingPrototype(Fabric),
+    RunningPrototype,
     Finished,
 }
 
@@ -31,7 +34,6 @@ pub struct Crucible {
     frozen_fabric: Option<Fabric>,
     action: Option<Action>,
     iterations_per_frame: usize,
-    paused: bool,
     stage: Stage,
 }
 
@@ -44,8 +46,7 @@ impl Default for Crucible {
             pretenser: None,
             frozen_fabric: None,
             action: None,
-            iterations_per_frame: 100,
-            paused: false,
+            iterations_per_frame: 25,
             stage: Empty,
         }
     }
@@ -53,9 +54,6 @@ impl Default for Crucible {
 
 impl Crucible {
     pub fn iterate(&mut self) {
-        if self.paused {
-            return;
-        }
         match &self.stage {
             Empty => {}
             AcceptingPlan(fabric_plan) => {
@@ -120,11 +118,11 @@ impl Crucible {
                     }
                 }
             }
-            AcceptingPrototype((fabric, face_id)) => {
+            AcceptingPrototype(fabric) => {
                 self.fabric = fabric.clone();
-                self.stage = RunningPrototype(*face_id);
+                self.stage = RunningPrototype;
             }
-            RunningPrototype(face_id) => {
+            RunningPrototype => {
                 let mut speed_squared = 1.0;
                 for _ in 0..self.iterations_per_frame {
                     speed_squared = self.fabric.iterate(&PROTOTYPE_FORMATION);
@@ -132,9 +130,9 @@ impl Crucible {
                 let age = self.fabric.age;
                 if age > 1000 && speed_squared < 1e-12 {
                     println!("Fabric settled in iteration {age} at speed squared {speed_squared}");
-                    match Baked::try_from((self.fabric.clone(), *face_id)) {
+                    match Baked::try_from(self.fabric.clone()) {
                         Ok(brick) => {
-                            println!("{}", brick.into_code());
+                            println!("{}", brick.into_tenscript());
                         }
                         Err(problem) => {
                             println!("Cannot create brick: {problem}");
@@ -154,12 +152,24 @@ impl Crucible {
         }
     }
 
-    pub fn toggle_pause(&mut self) {
-        self.paused = !self.paused;
+    pub fn camera_jump(&mut self) -> Option<Vector3<f32>> {
+        self.camera_jump.take()
     }
 
     pub fn strain_limits(&self) -> (f32, f32) {
         self.fabric.strain_limits(Fabric::BOW_TIE_MATERIAL_INDEX)
+    }
+
+    pub fn set_speed(&mut self, key: &VirtualKeyCode) {
+        self.iterations_per_frame = match key {
+            VirtualKeyCode::Key0 => 0,
+            VirtualKeyCode::Key1 => 1,
+            VirtualKeyCode::Key2 => 5,
+            VirtualKeyCode::Key3 => 25,
+            VirtualKeyCode::Key4 => 125,
+            VirtualKeyCode::Key5 => 625,
+            _ => unreachable!()
+        };
     }
 
     pub fn add_brick(&mut self, brick_name: BrickName, face_id: UniqueId) {
@@ -182,8 +192,15 @@ impl Crucible {
         &self.fabric
     }
 
-    pub fn capture_prototype(&mut self, brick_name: BrickName) {
-        println!("Settling and capturing prototype {brick_name:?}");
-        self.stage = AcceptingPrototype(Baked::prototype(brick_name));
+    pub fn capture_prototype(&mut self, brick_index: usize) {
+        println!("Settling and capturing prototype number {brick_index}");
+        let fabric = Library::standard()
+            .bricks
+            .get(brick_index)
+            .expect("no such brick")
+            .proto
+            .clone()
+            .into();
+        self.stage = AcceptingPrototype(fabric);
     }
 }

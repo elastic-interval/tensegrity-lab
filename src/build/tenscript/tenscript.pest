@@ -26,11 +26,13 @@ vulcanize =
 replace_faces =
     { "(" ~ "replace-faces" ~ ")" }
 build =
-    { "(" ~ "build" ~ seed? ~ build_node? ~ ")" }
+    { "(" ~ "build" ~ face_alias ~ first_build_node? ~ ")" }
+first_build_node =
+    { grow | branch }
 build_node =
     { on_face | grow | mark | branch }
 on_face =
-    { "(" ~ "face" ~ face_name ~ build_node ~ ")" }
+    { "(" ~ "face" ~ face_alias ~ build_node ~ ")" }
 grow =
     { "(" ~ "grow" ~ (integer | forward) ~ scale? ~ build_node? ~ ")" }
 mark =
@@ -39,21 +41,17 @@ branch =
     { "(" ~ "branch" ~ on_face+ ~ ")" }
 scale =
     { "(" ~ "scale" ~ float ~ ")" }
-seed =
-    { "(" ~ "seed" ~ brick_name ~ orient_down? ~ ")" }
-brick_name =
-    { ":left-mitosis" | ":right-mitosis" | ":left-omni" | ":right-omni" | ":left" | ":right" }
 orient_down =
-    { "(" ~ "orient-down" ~ face_name+ ~ ")" }
+    { "(" ~ "orient-down" ~ atom+ ~ ")" }
 surface =
     { "(" ~ "surface" ~ surface_character ~ ")" }
 surface_character =
     { ":bouncy" | ":frozen" | ":sticky" }
 
 brick_definition =
-    { "(" ~ "brick" ~ name ~ brick_proto ~ brick_baked? ~ ")" }
+    { "(" ~ "brick" ~ brick_proto ~ brick_baked? ~ ")" }
 brick_proto =
-    { "(" ~ "proto" ~ pushes_proto+ ~ pulls_proto+ ~ faces_proto+ ~ ")" }
+    { "(" ~ "proto" ~ pushes_proto+ ~ pulls_proto* ~ faces_proto+ ~ ")" }
 pushes_proto = // axis, ideal
     { "(" ~ "pushes" ~ axis ~ float ~ push_proto+ ~ ")" }
 axis = { axis_x | axis_y | axis_z }
@@ -72,7 +70,11 @@ chirality = { left | right }
 left = { "left" }
 right = { "right" }
 face_proto = // a, b, c, name
-    { "(" ~ chirality ~ atom ~ atom ~ atom ~ atom ~ ")" }
+    { "(" ~ chirality ~ atom ~ atom ~ atom ~ face_alias* ~ ")" }
+face_alias = 
+    { "(" ~ "alias" ~ atom ~")" }
+// down =
+//     { "(" ~ "down" ~ ")" }
 brick_baked =
     { "(" ~ "baked" ~ joint_baked+ ~ interval_baked+ ~ face_baked+ ~ ")" }
 joint_baked = // x, y, z
@@ -83,13 +85,12 @@ interval_role = { push | pull }
 push = { "push" }
 pull = { "pull" }
 face_baked = // a, b, c, name
-    { "(" ~ chirality ~ integer ~ integer ~ integer ~ atom ~ ")" }
+    { "(" ~ chirality ~ integer ~ integer ~ integer ~ face_alias* ~ ")" }
 
-face_name = @{"F" ~ integer}
 ident = @{ XID_START ~ (XID_CONTINUE | "-")* }
 ident_uppercase = @{ ASCII_ALPHA_UPPER ~ (XID_CONTINUE | "-")* }
-atom = @{ (":" ~ ident) | ident_uppercase }
-float = @{ (integer? ~ "." ~ mantissa) | integer }
+atom = @{ (":" ~ ident) | (ident_uppercase ~ ("::" ~ ident_uppercase)*) }
+float = @{ "-"? ~ (integer? ~ "." ~ mantissa) | integer }
 integer = @{ ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+ | ASCII_DIGIT }
 mantissa = @{ ASCII_DIGIT+ }
 string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }

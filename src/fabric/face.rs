@@ -4,20 +4,24 @@
  */
 use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Vector3};
 
-use crate::build::tenscript::{FaceName, Spin};
+use crate::build::tenscript::{FaceAlias, Spin};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 
 #[derive(Clone, Debug)]
 pub struct Face {
-    pub face_name: FaceName,
+    pub aliases: Vec<FaceAlias>,
     pub scale: f32,
     pub spin: Spin,
     pub radial_intervals: [UniqueId; 3],
 }
 
 impl Face {
+    pub fn has_alias(&self, alias: &FaceAlias) -> bool {
+        self.aliases.contains(alias)
+    }
+
     pub fn midpoint(&self, fabric: &Fabric) -> Vector3<f32> {
         let loc = self.radial_joint_locations(fabric);
         (loc[0].to_vec() + loc[1].to_vec() + loc[2].to_vec()) / 3.0
@@ -27,7 +31,10 @@ impl Face {
         let loc = self.radial_joint_locations(fabric);
         let v1 = loc[1] - loc[0];
         let v2 = loc[2] - loc[0];
-        v2.cross(v1).normalize_to(length)
+        match self.spin {
+            Spin::Left => v2.cross(v1),
+            Spin::Right => v1.cross(v2),
+        }.normalize_to(length)
     }
 
     pub fn normal(&self, fabric: &Fabric) -> Vector3<f32> {
@@ -64,22 +71,15 @@ impl Face {
             .sum::<f32>() / 3.0
     }
 
-    pub fn vector_space(&self, fabric: &Fabric, outward: bool) -> Matrix4<f32> {
+    pub fn vector_space(&self, fabric: &Fabric) -> Matrix4<f32> {
         let midpoint = self.midpoint(fabric);
         let [radial0, radial1, _] = self.radial_joint_locations(fabric);
-        let (x_axis, y_axis, scale) = if outward {
+        let (x_axis, y_axis, scale) =
             (
                 (radial0.to_vec() + radial1.to_vec() - midpoint * 2.0).normalize(),
                 self.normal(fabric),
                 self.scale
-            )
-        } else {
-            (
-                (radial0.to_vec() - midpoint).normalize(),
-                -self.normal(fabric),
-                (radial0.to_vec() - midpoint).magnitude(),
-            )
-        };
+            );
         let z_axis = x_axis.cross(y_axis).normalize();
         Matrix4::from_translation(midpoint) *
             Matrix4::from(Matrix3::from_cols(x_axis, y_axis, z_axis)) *
