@@ -119,7 +119,7 @@ impl UserInterface {
         self.state.queue_message(ControlMessage::ShowControl(VisibleControl::ControlChoice))
     }
 
-    pub fn reset(&mut self ) {
+    pub fn reset(&mut self) {
         self.state.queue_message(ControlMessage::Reset);
     }
 
