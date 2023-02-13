@@ -85,7 +85,7 @@ impl Crucible {
                 }
             }
             AcceptingPrototype(prototype) => {
-                let alias = prototype.alias.clone().unwrap();
+                let alias = prototype.alias.clone();
                 self.fabric = Fabric::from(prototype.clone());
                 self.stage = RunningPrototype(alias);
             }

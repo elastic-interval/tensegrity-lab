@@ -67,7 +67,7 @@ pub struct FaceDef {
 
 #[derive(Clone, Default, Debug)]
 pub struct Prototype {
-    pub alias: Option<FaceAlias>,
+    pub alias: FaceAlias,
     pub pushes: Vec<PushDef>,
     pub pulls: Vec<PullDef>,
     pub faces: Vec<FaceDef>,
@@ -120,12 +120,13 @@ impl From<Prototype> for Fabric {
 
 impl Prototype {
     pub fn from_pair(pair: Pair<Rule>) -> Result<Self, ParseError> {
-        let mut prototype = Self::default();
-        for pair in pair.into_inner() {
+        let mut inner = pair.into_inner();
+        let alias = FaceAlias::from_pair(inner.next().unwrap());
+        let mut pushes = Vec::new();
+        let mut pulls = Vec::new();
+        let mut faces = Vec::new();
+        for pair in inner {
             match pair.as_rule() {
-                Rule::partial_alias => {
-                    prototype.alias = Some(FaceAlias::from_pair(pair));
-                }
                 Rule::pushes_proto => {
                     let mut inner = pair.into_inner();
                     let [axis, ideal] = inner.next_chunk().unwrap();
@@ -133,7 +134,7 @@ impl Prototype {
                     let ideal = ideal.as_str().parse().unwrap();
                     for push_pair in inner {
                         let (alpha_name, omega_name) = Self::extract_alpha_and_omega(push_pair);
-                        prototype.pushes.push(PushDef {
+                        pushes.push(PushDef {
                             alpha_name,
                             omega_name,
                             ideal,
@@ -146,7 +147,7 @@ impl Prototype {
                     let ideal = inner.next().unwrap().as_str().parse().unwrap();
                     for pull_pair in inner {
                         let (alpha_name, omega_name) = Self::extract_alpha_and_omega(pull_pair);
-                        prototype.pulls.push(PullDef {
+                        pulls.push(PullDef {
                             alpha_name,
                             omega_name,
                             ideal,
@@ -165,7 +166,7 @@ impl Prototype {
                             .any(|pair| matches!(pair.as_rule(), Rule::down));
                         let aliases = FaceAlias::from_pairs(aliases);
                         let spin = Spin::from_pair(spin);
-                        prototype.faces.push(FaceDef {
+                        faces.push(FaceDef {
                             spin,
                             joint_names,
                             aliases,
@@ -177,7 +178,7 @@ impl Prototype {
             }
         }
         // TODO: validate all the names used
-        Ok(prototype)
+        Ok(Prototype { alias, pushes, pulls, faces })
     }
 
     fn extract_alpha_and_omega(pair: Pair<Rule>) -> (String, String) {
@@ -232,7 +233,7 @@ impl BrickFace {
 
 #[derive(Debug, Clone, Default)]
 pub struct Baked {
-    pub alias: Option<FaceAlias>,
+    pub alias: FaceAlias,
     pub joints: Vec<Point3<f32>>,
     pub intervals: Vec<(usize, usize, Role, f32)>,
     pub faces: Vec<BrickFace>,
@@ -240,19 +241,20 @@ pub struct Baked {
 
 impl Baked {
     pub fn from_pair(pair: Pair<Rule>) -> Self {
-        let mut baked = Self::default();
-        for pair in pair.into_inner() {
+        let mut inner = pair.into_inner();
+        let alias = FaceAlias::from_pair(inner.next().unwrap());
+        let mut joints = Vec::new();
+        let mut intervals = Vec::new();
+        let mut faces = Vec::new();
+        for pair in inner {
             match pair.as_rule() {
-                Rule::partial_alias => {
-                    baked.alias = Some(FaceAlias::from_pair(pair))
-                }
                 Rule::joint_baked => {
                     let [x, y, z] = pair
                         .into_inner()
                         .next_chunk()
                         .unwrap()
                         .map(|pair| pair.as_str().parse().unwrap());
-                    baked.joints.push(point3(x, y, z));
+                    joints.push(point3(x, y, z));
                 }
                 Rule::interval_baked => {
                     let [role, alpha_index, omega_index, strain] = pair.into_inner().next_chunk().unwrap();
@@ -263,7 +265,7 @@ impl Baked {
                     };
                     let [alpha_index, omega_index] = [alpha_index, omega_index].map(|pair| pair.as_str().parse().unwrap());
                     let strain = strain.as_str().parse().unwrap();
-                    baked.intervals.push((alpha_index, omega_index, role, strain));
+                    intervals.push((alpha_index, omega_index, role, strain));
                 }
                 Rule::face_baked => {
                     let mut inner = pair.into_inner();
@@ -271,7 +273,7 @@ impl Baked {
                     let aliases = FaceAlias::from_pairs(inner);
                     let spin = Spin::from_pair(spin);
                     let joints = [a, b, c].map(|pair| pair.as_str().parse().unwrap());
-                    baked.faces.push(BrickFace {
+                    faces.push(BrickFace {
                         joints,
                         spin,
                         aliases,
@@ -280,7 +282,7 @@ impl Baked {
                 _ => unreachable!()
             }
         }
-        baked
+        Baked { alias, joints, intervals, faces }
     }
 
     fn apply_matrix(&mut self, matrix: Matrix4<f32>) {

@@ -43,11 +43,11 @@ orient_down =
     { "(" ~ "orient-down" ~ atom+ ~ ")" }
 
 brick_definition =
-    { "(" ~ "brick" ~ partial_alias ~ brick_proto ~ brick_baked? ~ ")" }
+    { "(" ~ "brick" ~ brick_proto ~ brick_baked? ~ ")" }
 partial_alias =
     { "(" ~ "alias" ~ atom ~ ")" }
 brick_proto =
-    { "(" ~ "proto" ~ pushes_proto+ ~ pulls_proto* ~ faces_proto+ ~ ")" }
+    { "(" ~ "proto" ~ partial_alias ~ pushes_proto+ ~ pulls_proto* ~ faces_proto+ ~ ")" }
 pushes_proto = // axis, ideal
     { "(" ~ "pushes" ~ axis ~ float ~ push_proto+ ~ ")" }
 axis = { axis_x | axis_y | axis_z }

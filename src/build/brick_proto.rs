@@ -12,11 +12,8 @@ impl Baked {
     pub const TARGET_FACE_STRAIN: f32 = 0.1;
 
     pub fn into_tenscript(self) -> String {
-        format!("(baked
-    {joints}
-    {intervals}
-    {faces})
-        ",
+        format!("(baked\n    (alias {alias})\n    {joints}\n    {intervals}\n    {faces})",
+                alias = self.alias,
                 joints = self.joints
                     .into_iter()
                     .map(|Point3 { x, y, z }|
@@ -57,7 +54,7 @@ impl Baked {
 impl TryFrom<(Fabric, FaceAlias)> for Baked {
     type Error = String;
 
-    fn try_from((fabric, face_alias): (Fabric, FaceAlias)) -> Result<Self, String> {
+    fn try_from((fabric, alias): (Fabric, FaceAlias)) -> Result<Self, String> {
         let joint_incident = fabric.joint_incident();
         let target_face_strain = Baked::TARGET_FACE_STRAIN;
         for face in fabric.faces.values() {
@@ -67,7 +64,7 @@ impl TryFrom<(Fabric, FaceAlias)> for Baked {
             }
         }
         Ok(Self {
-            alias: Some(face_alias),
+            alias,
             joints: fabric.joints
                 .iter()
                 .map(|Joint { location, .. }| *location)

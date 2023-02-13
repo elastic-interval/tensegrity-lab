@@ -97,7 +97,7 @@ impl FaceAlias {
 impl Display for FaceAlias {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let alias = self.clone().into_vec().join(" ");
-        write!(f, "FaceAlias({alias})")
+        write!(f, "{alias}")
     }
 }
 
