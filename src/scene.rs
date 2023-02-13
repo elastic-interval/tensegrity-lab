@@ -27,7 +27,7 @@ struct Drawing<V> {
 }
 
 pub struct Scene {
-    pub(crate) camera: Camera,
+    camera: Camera,
     show_surface: bool,
     fabric_drawing: Drawing<FabricVertex>,
     surface_drawing: Drawing<SurfaceVertex>,
@@ -210,7 +210,37 @@ impl Scene {
         }
     }
 
-    pub fn select_face(&mut self, face_id: Option<UniqueId>) {
+    pub fn watch_midpoint(&mut self) {
+        self.camera.target = FabricMidpoint;
+    }
+
+    pub fn watch_origin(&mut self) {
+        self.camera.target = Origin
+    }
+
+    pub fn select_next_face(&mut self, face_id: Option<UniqueId>, fabric: &Fabric) {
+        self.select_face(Some(face_id.unwrap_or(match self.camera.target {
+            Origin | FabricMidpoint | Hold => {
+                *fabric.faces.keys().next().unwrap()
+            }
+            SelectedFace(face_id) => {
+                let face_position = fabric.faces.keys()
+                    .position(|&id| face_id == id)
+                    .expect("Face id not found");
+                let &new_face_id = fabric.faces.keys()
+                    .cycle()
+                    .nth(face_position + 1)
+                    .unwrap();
+                new_face_id
+            }
+        })))
+    }
+
+    pub fn clear_face_selection(&mut self) {
+        self.select_face(None);
+    }
+
+    fn select_face(&mut self, face_id: Option<UniqueId>) {
         self.camera.target = match face_id {
             None => Hold,
             Some(face_id) => SelectedFace(face_id)
