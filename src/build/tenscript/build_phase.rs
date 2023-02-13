@@ -34,6 +34,7 @@ pub enum BuildNode {
     },
     Branch {
         alias: FaceAlias,
+        rotation: usize,
         face_nodes: Vec<BuildNode>,
     },
 }
@@ -184,12 +185,22 @@ impl BuildPhase {
             Rule::branch => {
                 let mut inner = pair.into_inner();
                 let alias = FaceAlias::from_pair(inner.next().unwrap());
-                let face_nodes = inner
-                    .map(Self::parse_build_node)
-                    .collect();
-                Branch { alias, face_nodes }
+                let mut face_nodes = Vec::new();
+                let mut rotation = 0;
+                for node_pair in inner {
+                    match node_pair.as_rule() {
+                        Rule::face_rotation => {
+                            rotation += 1;
+                        }
+                        Rule::on_face => {
+                            face_nodes.push(Self::parse_build_node(node_pair));
+                        }
+                        _ => unreachable!("{:?}", node_pair)
+                    }
+                }
+                Branch { alias, rotation, face_nodes }
             }
-            _ => unreachable!("node"),
+            _ => unreachable!("node {:?}", pair.as_rule()),
         }
     }
 
@@ -259,9 +270,9 @@ impl BuildPhase {
                 let node = post_growth_node.clone().map(|x| *x);
                 buds.push(Bud { face_id, forward: forward.clone(), scale_factor: *scale_factor, node })
             }
-            Branch { face_nodes, alias } => {
+            Branch { face_nodes, rotation, alias } => {
                 let attach_to = Self::find_launch_face(launch, &faces, fabric);
-                let brick_faces = fabric.attach_brick(alias, FaceRotation::Zero, 1.0, attach_to);
+                let brick_faces = fabric.attach_brick(alias, rotation.into(), 1.0, attach_to);
                 for (face_alias, node) in Self::branch_pairs(face_nodes) {
                     let (new_buds, new_marks) =
                         self.execute_node(fabric, NamedFace { face_alias }, node, brick_faces.clone());

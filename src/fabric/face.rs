@@ -15,6 +15,17 @@ pub enum FaceRotation {
     TwoThirds,
 }
 
+impl From<&usize> for FaceRotation {
+    fn from(value: &usize) -> Self {
+        match value % 3 {
+            0 => FaceRotation::Zero,
+            1 => FaceRotation::OneThird,
+            2 => FaceRotation::TwoThirds,
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Face {
     pub aliases: Vec<FaceAlias>,
