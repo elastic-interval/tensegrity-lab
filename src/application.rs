@@ -10,11 +10,11 @@ use winit::window::Window;
 
 use crate::build::tenscript::{FabricPlan, FaceAlias, Spin};
 use crate::camera::Target::{FabricMidpoint, Hold, Origin, SelectedFace};
-use crate::controls::{ControlMessage, GUI, VisibleControl};
-use crate::controls::Action;
-use crate::controls::strain_threshold::StrainThresholdMessage;
+use crate::gui::strain_threshold::StrainThresholdMessage;
 use crate::crucible::Crucible;
 use crate::graphics::GraphicsWindow;
+use crate::gui::control_state::{Action, ControlMessage, VisibleControl};
+use crate::gui::GUI;
 use crate::scene::Scene;
 
 pub struct Application {

@@ -1,8 +1,8 @@
 use iced_wgpu::Renderer;
 use iced_winit::{Color, Element};
 use iced_winit::widget::{Row, Slider, Text};
-use crate::controls::{Action, Component, ControlMessage, format_row};
-use crate::controls::gravity::GravityMessage::{*};
+use crate::gui::control_state::{Action, Component, ControlMessage, format_row};
+use crate::gui::gravity::GravityMessage::{*};
 
 #[derive(Debug, Clone)]
 pub enum GravityMessage {

@@ -3,7 +3,7 @@ use iced_winit::Element;
 use iced_winit::widget::{Button, Row, Text};
 
 use crate::build::tenscript::FabricPlan;
-use crate::controls::{Action, Component, ControlMessage, format_row};
+use crate::gui::control_state::{Action, Component, ControlMessage, format_row};
 
 #[derive(Clone, Debug)]
 pub enum FabricChoiceMessage {
