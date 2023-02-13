@@ -219,7 +219,7 @@ impl Scene {
     }
 
     pub fn select_next_face(&mut self, face_id: Option<UniqueId>, fabric: &Fabric) {
-        self.select_face(Some(face_id.unwrap_or(match self.camera.target {
+        let face_id = face_id.unwrap_or(match self.camera.target {
             Origin | FabricMidpoint | Hold => {
                 *fabric.faces.keys().next().unwrap()
             }
@@ -233,7 +233,8 @@ impl Scene {
                     .unwrap();
                 new_face_id
             }
-        })))
+        });
+        self.select_face(Some(face_id));
     }
 
     pub fn clear_face_selection(&mut self) {
