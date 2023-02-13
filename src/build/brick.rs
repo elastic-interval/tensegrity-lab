@@ -292,7 +292,7 @@ impl Baked {
     }
 
     pub fn new_brick(alias: &FaceAlias) -> Baked {
-        let baked_bricks: LazyCell<HashMap<FaceAlias, Baked>> = LazyCell::new(|| {
+        let baked_bricks: LazyCell<Vec<(FaceAlias, Baked)>> = LazyCell::new(|| {
             Library::standard()
                 .bricks
                 .into_iter()
@@ -310,18 +310,21 @@ impl Baked {
                                 .map(move |alias| {
                                     let alias = alias + &baked.alias;
                                     let mut baked = baked.clone();
+                                    // TODO: use downs
                                     baked.apply_matrix(space);
                                     (alias, baked)
                                 })
-                        }
-                        )
+                        })
                 })
                 .collect()
         });
         baked_bricks
-            .get(alias)
-            .cloned()
-            .unwrap_or_else(|| panic!("no such brick: '{alias}'"))
+            .iter()
+            .filter(|(baked_alias, _)| alias.matches(baked_alias))
+            .min_by_key(|(brick_alias, _)| brick_alias.0.len())
+            .expect(&format!("no such brick: '{alias}'"))
+            .1
+            .clone()
     }
 }
 
