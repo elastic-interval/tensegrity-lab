@@ -11,7 +11,7 @@
 pub mod application;
 pub mod build;
 pub mod camera;
-pub mod controls;
+pub mod user_interface;
 pub mod crucible;
 pub mod fabric;
 pub mod graphics;
