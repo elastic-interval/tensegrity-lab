@@ -3,6 +3,7 @@ use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::face::FaceRotation;
 use crate::fabric::physics::presets::{LIQUID, PROTOTYPE_FORMATION};
 use crate::fabric::pretenser::Pretenser;
 use crate::user_interface::Action;
@@ -71,7 +72,7 @@ impl Crucible {
                 }
             }
             AddingBrick { alias, face_id } => {
-                let faces = self.fabric.attach_brick(alias, 1.0, Some(*face_id));
+                let faces = self.fabric.attach_brick(alias, FaceRotation::Zero, 1.0, Some(*face_id));
                 self.stage = Interactive;
                 self.fabric.progress.start(1000);
                 self.action = faces.first().map(|&face_id| Action::SelectFace(face_id));
