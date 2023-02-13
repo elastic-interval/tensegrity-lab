@@ -22,7 +22,7 @@
   (fabric
     (name "Halo by Crane")
     (build
-      (branch (alias Single)
+      (branch (alias Single) (rotate) (rotate)
         (face (alias :next-base) (grow 4 (scale .92)
           (branch (alias Omni)
             (face (alias TopX) (grow 12 (scale .92) (mark :halo-end)))

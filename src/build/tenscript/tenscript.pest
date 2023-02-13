@@ -36,7 +36,9 @@ grow =
 mark =
     { "(" ~ "mark" ~ atom ~ ")" }
 branch =
-    { "(" ~ "branch" ~ partial_alias ~ on_face* ~ ")" }
+    { "(" ~ "branch" ~ partial_alias ~ face_rotation* ~ on_face* ~ ")" }
+face_rotation =
+    { "(" ~ "rotate" ~ ")" }
 scale =
     { "(" ~ "scale" ~ float ~ ")" }
 orient_down =
