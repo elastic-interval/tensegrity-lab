@@ -2,7 +2,7 @@ use std::convert::Into;
 
 use pest::iterators::Pair;
 
-use crate::build::tenscript::{FaceAlias, FaceMark, Spin};
+use crate::build::tenscript::{FaceAlias, FaceMark};
 use crate::build::tenscript::build_phase::BuildNode::{*};
 use crate::build::tenscript::build_phase::Launch::{*};
 use crate::build::tenscript::Rule;
@@ -69,53 +69,10 @@ enum Launch {
 }
 
 #[derive(Debug, Clone)]
-pub struct BaseAliases {
-    left_bot: FaceAlias,
-    left_top: FaceAlias,
-    right_bot: FaceAlias,
-    right_top: FaceAlias,
-    omni_left_bot: FaceAlias,
-    omni_right_bot: FaceAlias,
-}
-
-impl Default for BaseAliases {
-    fn default() -> Self {
-        Self {
-            left_bot: FaceAlias::single("Left::Bot"),
-            left_top: FaceAlias::single("Left::Top"),
-            right_bot: FaceAlias::single("Right::Bot"),
-            right_top: FaceAlias::single("Right::Top"),
-            omni_left_bot: FaceAlias::single("Omni::Left::Bot"),
-            omni_right_bot: FaceAlias::single("Omni::Right::Bot"),
-        }
-    }
-}
-
-impl BaseAliases {
-    pub fn spin_based(&self, spin: Spin) -> (&FaceAlias, &FaceAlias) {
-        match spin {
-            Spin::Left => (&self.left_bot, &self.left_top),
-            Spin::Right => (&self.right_bot, &self.right_top),
-        }
-    }
-
-    pub fn spin_double_based(&self, spin: Spin, needs_double: bool) -> &FaceAlias {
-        match spin {
-            Spin::Left if needs_double => &self.omni_left_bot,
-            Spin::Right if needs_double => &self.omni_right_bot,
-            Spin::Left => &self.left_bot,
-            Spin::Right => &self.right_bot,
-        }
-    }
-
-}
-
-#[derive(Debug, Clone)]
 pub struct BuildPhase {
     pub root: BuildNode,
     pub buds: Vec<Bud>,
     pub marks: Vec<FaceMark>,
-    pub base_aliases: BaseAliases,
 }
 
 impl BuildPhase {
@@ -124,7 +81,6 @@ impl BuildPhase {
             root,
             buds: Vec::new(),
             marks: Vec::new(),
-            base_aliases: BaseAliases::default(),
         }
     }
 }
@@ -226,10 +182,17 @@ impl BuildPhase {
         let face = fabric.face(face_id);
         let spin = if forward.starts_with('X') { face.spin.opposite() } else { face.spin };
         if !forward.is_empty() {
-            let (bot_alias, top_alias) = self.base_aliases.spin_based(spin);
-            let faces = fabric.attach_brick(bot_alias, FaceRotation::Zero, scale_factor, Some(face_id));
+            let face_alias = FaceAlias::single("Single") + &spin.into_alias();
+            let faces =
+                fabric.attach_brick(
+                    &face_alias,
+                    FaceRotation::Zero,
+                    scale_factor,
+                    Some(face_id),
+                );
+            let top_face_alias = face_alias + &FaceAlias::single(":next-base");
             buds.push(Bud {
-                face_id: Self::find_face_id(top_alias, &faces, fabric),
+                face_id: Self::find_face_id(&top_face_alias, &faces, fabric),
                 forward: forward[1..].into(),
                 scale_factor,
                 node,
@@ -297,10 +260,11 @@ impl BuildPhase {
             .collect()
     }
 
-    fn find_face_id(alias: &FaceAlias, face_list: &[UniqueId], fabric: &Fabric) -> UniqueId {
+    fn find_face_id(needle: &FaceAlias, face_list: &[UniqueId], fabric: &Fabric) -> UniqueId {
+        // TODO: this might be wrong?
         face_list
             .iter()
-            .find_map(|&face_id| fabric.face(face_id).has_alias(alias).then_some(face_id))
-            .unwrap_or_else(|| panic!("no such face: {alias}"))
+            .find_map(|&face_id| needle.matches(fabric.face(face_id).alias()).then_some(face_id))
+            .unwrap_or_else(|| panic!("no such face: {needle}"))
     }
 }

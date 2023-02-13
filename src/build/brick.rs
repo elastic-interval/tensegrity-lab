@@ -310,7 +310,7 @@ impl Baked {
                                 .map(move |alias| {
                                     let alias = alias + &baked.alias;
                                     let mut baked = baked.clone();
-                                    // TODO: use downs
+                                    // TODO: use downs, filter out faces from other 'configurations'
                                     baked.apply_matrix(space);
                                     (alias, baked)
                                 })

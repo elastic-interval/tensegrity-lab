@@ -35,8 +35,9 @@ pub struct Face {
 }
 
 impl Face {
-    pub fn has_alias(&self, alias: &FaceAlias) -> bool {
-        self.aliases.iter().any(|face_alias| alias.matches(face_alias))
+    pub fn alias(&self) -> &FaceAlias {
+        assert_eq!(self.aliases.len(), 1);
+        &self.aliases[0]
     }
 
     pub fn midpoint(&self, fabric: &Fabric) -> Vector3<f32> {

@@ -12,17 +12,24 @@ const ROOT6: f32 = 2.449_489_8;
 const PHI: f32 = (1f32 + ROOT5) / 2f32;
 
 impl Fabric {
-    pub fn attach_brick(&mut self, face_alias: &FaceAlias, rotation: FaceRotation, scale_factor: f32, face_id: Option<UniqueId>) -> Vec<UniqueId> {
+    pub fn attach_brick(
+        &mut self,
+        face_alias: &FaceAlias,
+        rotation: FaceRotation,
+        scale_factor: f32,
+        face_id: Option<UniqueId>,
+    ) -> Vec<UniqueId> {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
-        let spin_alias = face
-            .map(|face| face.spin.opposite())
+        let spin_alias = face_alias
+            .spin()
+            .or(face.map(|face| face.spin.opposite()))
             .unwrap_or_default()
             .into_alias();
-        let full_alias = 
+        let full_alias =
             spin_alias
-            + &FaceAlias::single(":base")
-            + face_alias;
+                + &FaceAlias::single(":base")
+                + face_alias;
 
         let brick = Baked::new_brick(&full_alias);
         let matrix = face.map(|face| face.vector_space(self, rotation));
@@ -54,13 +61,14 @@ impl Fabric {
                     let ideal = self.ideal(alpha_index, omega_index, Baked::TARGET_FACE_STRAIN);
                     self.create_interval(alpha_index, omega_index, Link::pull(ideal))
                 });
+                // TODO: make sure there's only one face left
                 self.create_face(aliases, scale, spin, radial_intervals)
             })
             .collect();
         if let Some(id) = face_id {
             let (has_alias, not_has_alias) = brick_faces
                 .into_iter()
-                .partition::<Vec<_>, _>(|&face_id| self.face(face_id).has_alias(&full_alias));
+                .partition::<Vec<_>, _>(|&face_id| full_alias.matches(self.face(face_id).alias()));
             let brick_face = *has_alias.get(0).expect("no face with that alias");
             self.join_faces(id, brick_face);
             not_has_alias
