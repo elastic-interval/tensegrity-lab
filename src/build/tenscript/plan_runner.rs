@@ -1,9 +1,9 @@
-use crate::build::tenscript::{FabricPlan, shape_phase};
+use crate::build::tenscript::{FabricPlan, shape_phase, SurfaceCharacterSpec};
 use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::plan_runner::Stage::{*};
 use crate::build::tenscript::shape_phase::ShapePhase;
 use crate::fabric::Fabric;
-use crate::fabric::physics::Physics;
+use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::fabric::physics::presets::LIQUID;
 
 #[derive(Clone, Debug, Copy, PartialEq)]
@@ -24,12 +24,18 @@ pub struct PlanRunner {
 }
 
 impl PlanRunner {
-    pub fn new(FabricPlan { shape_phase, build_phase, .. }: FabricPlan) -> Self {
+    pub fn new(FabricPlan { shape_phase, build_phase, surface, .. }: FabricPlan) -> Self {
+        let surface_character = match surface {
+            Some(SurfaceCharacterSpec::Bouncy) => SurfaceCharacter::Bouncy,
+            Some(SurfaceCharacterSpec::Sticky) => SurfaceCharacter::Sticky,
+            _ => SurfaceCharacter::Frozen,
+        };
+        let physics = Physics { surface_character, ..LIQUID };
         Self {
             shape_phase,
             build_phase,
             stage: Initialize,
-            physics: LIQUID,
+            physics,
         }
     }
 }
