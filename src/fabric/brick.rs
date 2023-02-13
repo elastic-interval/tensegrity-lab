@@ -20,8 +20,9 @@ impl Fabric {
             .unwrap_or_default()
             .opposite()
             .into_alias()
+            + &FaceAlias::single(":base")
             + face_alias;
-        
+
         let brick = Baked::new_brick(&full_alias);
         let matrix = face.map(|face| face.vector_space(self));
         let joints: Vec<usize> = brick.joints
