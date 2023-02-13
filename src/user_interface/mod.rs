@@ -11,19 +11,32 @@ use winit::window::{CursorIcon, Window};
 
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
+use crate::build::tenscript::{FabricPlan, FaceAlias};
+use crate::fabric::UniqueId;
 
 use crate::graphics::GraphicsWindow;
-use crate::gui::control_state::{ControlMessage, ControlState};
+use crate::user_interface::control_state::{ControlMessage, ControlState, VisibleControl};
+use crate::user_interface::strain_threshold::StrainThresholdMessage;
 
-pub mod fabric_choice;
-pub mod strain_threshold;
-pub mod gravity;
-pub mod control_state;
+mod fabric_choice;
+mod strain_threshold;
+mod gravity;
+mod control_state;
 
 const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
 
+#[derive(Clone, Debug)]
+pub enum Action {
+    BuildFabric(FabricPlan),
+    SelectFace(UniqueId),
+    AddBrick { face_alias: FaceAlias, face_id: UniqueId },
+    GravityChanged(f32),
+    ShowSurface,
+    CalibrateStrain,
+}
+
 /// Largely adapted from https://github.com/iced-rs/iced/blob/master/examples/integration_wgpu/src/main.rs
-pub struct GUI {
+pub struct UserInterface {
     renderer: Renderer,
     debug: Debug,
     viewport: Viewport,
@@ -37,7 +50,7 @@ pub struct GUI {
     frame_number: usize,
 }
 
-impl GUI {
+impl UserInterface {
     pub fn new(graphics: &GraphicsWindow, window: &Window) -> Self {
         let viewport = Viewport::with_physical_size(
             Size::new(graphics.size.width, graphics.size.height),
@@ -98,8 +111,24 @@ impl GUI {
         self.staging_belt.recall();
     }
 
-    pub fn queue_message(&mut self, message: ControlMessage) {
-        self.state.queue_message(message);
+    pub fn set_strain_limits(&mut self, strain_limits: (f32, f32)) {
+        self.state.queue_message(ControlMessage::StrainThreshold(StrainThresholdMessage::SetStrainLimits(strain_limits)))
+    }
+
+    pub fn main_menu(&mut self) {
+        self.state.queue_message(ControlMessage::ShowControl(VisibleControl::ControlChoice))
+    }
+
+    pub fn reset(&mut self ) {
+        self.state.queue_message(ControlMessage::Reset);
+    }
+
+    pub fn action(&mut self, action: Action) {
+        self.state.queue_message(ControlMessage::Action(action))
+    }
+
+    pub fn toggle_debug_mode(&mut self) {
+        self.state.queue_message(ControlMessage::ToggleDebugMode)
     }
 
     pub fn window_event(&mut self, event: &WindowEvent, window: &Window) {

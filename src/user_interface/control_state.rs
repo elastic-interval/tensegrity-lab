@@ -7,12 +7,13 @@ use iced_winit::widget::{Button, Column, Row, Text};
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
 
-use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
+use crate::build::tenscript::Library;
 use crate::fabric::{Fabric, UniqueId};
-use crate::gui::fabric_choice::{FabricChoice, FabricChoiceMessage};
-use crate::gui::gravity::{Gravity, GravityMessage};
-use crate::gui::strain_threshold::{StrainThreshold, StrainThresholdMessage};
-use crate::gui::strain_threshold::StrainThresholdMessage::SetStrainLimits;
+use crate::user_interface::Action;
+use crate::user_interface::fabric_choice::{FabricChoice, FabricChoiceMessage};
+use crate::user_interface::gravity::{Gravity, GravityMessage};
+use crate::user_interface::strain_threshold::{StrainThreshold, StrainThresholdMessage};
+use crate::user_interface::strain_threshold::StrainThresholdMessage::SetStrainLimits;
 use crate::scene::Variation;
 
 #[derive(Clone, Copy, Debug)]
@@ -21,16 +22,6 @@ pub enum VisibleControl {
     Gravity,
     FabricChoice,
     StrainThreshold,
-}
-
-#[derive(Clone, Debug)]
-pub enum Action {
-    BuildFabric(FabricPlan),
-    SelectFace(UniqueId),
-    AddBrick { face_alias: FaceAlias, face_id: UniqueId },
-    GravityChanged(f32),
-    ShowSurface,
-    CalibrateStrain,
 }
 
 #[derive(Clone, Debug)]
