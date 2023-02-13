@@ -259,7 +259,7 @@ impl BuildPhase {
                 buds.push(Bud { face_id, forward: forward.clone(), scale_factor: *scale_factor, node })
             }
             Branch { face_nodes, alias } => {
-                let attach_to = Self::find_launch_face(launch, &faces, fabric);;
+                let attach_to = Self::find_launch_face(launch, &faces, fabric);
                 let brick_faces = fabric.attach_brick(alias, 1.0, attach_to);
                 for (face_name, node) in Self::branch_pairs(face_nodes) {
                     let (new_buds, new_marks) =
