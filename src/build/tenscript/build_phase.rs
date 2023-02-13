@@ -8,6 +8,7 @@ use crate::build::tenscript::build_phase::BuildNode::{*};
 use crate::build::tenscript::build_phase::Launch::{*};
 use crate::build::tenscript::Rule;
 use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::face::FaceRotation;
 
 #[derive(Debug, Default, Clone)]
 pub struct Bud {
@@ -229,7 +230,7 @@ impl BuildPhase {
         let spin = if forward.starts_with('X') { face.spin.opposite() } else { face.spin };
         if !forward.is_empty() {
             let (bot_alias, top_alias) = self.base_aliases.spin_based(spin);
-            let faces = fabric.attach_brick(bot_alias, scale_factor, Some(face_id));
+            let faces = fabric.attach_brick(bot_alias, FaceRotation::Zero, scale_factor, Some(face_id));
             buds.push(Bud {
                 face_id: Self::find_face_id(top_alias, &faces, fabric),
                 forward: forward[1..].into(),
@@ -260,7 +261,7 @@ impl BuildPhase {
             }
             Branch { face_nodes, alias } => {
                 let attach_to = Self::find_launch_face(launch, &faces, fabric);
-                let brick_faces = fabric.attach_brick(alias, 1.0, attach_to);
+                let brick_faces = fabric.attach_brick(alias, FaceRotation::Zero, 1.0, attach_to);
                 for (face_alias, node) in Self::branch_pairs(face_nodes) {
                     let (new_buds, new_marks) =
                         self.execute_node(fabric, NamedFace { face_alias }, node, brick_faces.clone());

@@ -9,7 +9,7 @@ use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 
-pub enum Rotation {
+pub enum FaceRotation {
     Zero,
     OneThird,
     TwoThirds,
@@ -77,13 +77,13 @@ impl Face {
             .sum::<f32>() / 3.0
     }
 
-    pub fn vector_space(&self, fabric: &Fabric, rotation: Rotation) -> Matrix4<f32> {
+    pub fn vector_space(&self, fabric: &Fabric, rotation: FaceRotation) -> Matrix4<f32> {
         let midpoint = self.midpoint(fabric);
         let radial = self.radial_joint_locations(fabric);
         let (a, b) = match rotation {
-            Rotation::Zero => (radial[0], radial[1]),
-            Rotation::OneThird => (radial[1], radial[2]),
-            Rotation::TwoThirds => (radial[2], radial[0]),
+            FaceRotation::Zero => (radial[0], radial[1]),
+            FaceRotation::OneThird => (radial[1], radial[2]),
+            FaceRotation::TwoThirds => (radial[2], radial[0]),
         };
         let (x_axis, y_axis, scale) =
             (

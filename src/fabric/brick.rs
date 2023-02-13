@@ -3,7 +3,7 @@ use cgmath::{EuclideanSpace, Point3, Transform, Vector3};
 use crate::build::brick::{Baked, BrickFace};
 use crate::build::tenscript::FaceAlias;
 use crate::fabric::{Fabric, Link, UniqueId};
-use crate::fabric::face::{Face, Rotation};
+use crate::fabric::face::{Face, FaceRotation};
 use crate::fabric::interval::Role;
 
 const ROOT3: f32 = 1.732_050_8;
@@ -12,7 +12,7 @@ const ROOT6: f32 = 2.449_489_8;
 const PHI: f32 = (1f32 + ROOT5) / 2f32;
 
 impl Fabric {
-    pub fn attach_brick(&mut self, face_alias: &FaceAlias, scale_factor: f32, face_id: Option<UniqueId>) -> Vec<UniqueId> {
+    pub fn attach_brick(&mut self, face_alias: &FaceAlias, rotation: FaceRotation, scale_factor: f32, face_id: Option<UniqueId>) -> Vec<UniqueId> {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
         let full_alias = face
@@ -24,7 +24,7 @@ impl Fabric {
             + face_alias;
 
         let brick = Baked::new_brick(&full_alias);
-        let matrix = face.map(|face| face.vector_space(self, Rotation::Zero));
+        let matrix = face.map(|face| face.vector_space(self, rotation));
         let joints: Vec<usize> = brick.joints
             .into_iter()
             .map(|point| self.create_joint(match matrix {
