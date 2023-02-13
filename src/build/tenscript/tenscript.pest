@@ -72,7 +72,7 @@ face_alias =
 down =
     { "(" ~ "down" ~ ")" }
 brick_baked =
-    { "(" ~ "baked" ~ joint_baked+ ~ interval_baked+ ~ face_baked+ ~ ")" }
+    { "(" ~ "baked" ~ partial_alias ~ joint_baked+ ~ interval_baked+ ~ face_baked+ ~ ")" }
 joint_baked = // x, y, z
     { "(" ~ "joint" ~ float ~ float ~ float ~ ")" }
 interval_baked = // alpha_index, omega_index, strain

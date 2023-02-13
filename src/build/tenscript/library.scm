@@ -62,8 +62,8 @@
 ;      (remove-shapers)
 ;      (replace-faces)))
   (brick ; single-right
-    (alias Single)
     (proto
+      (alias Single)
       (pushes X 3.204 (push :alpha_x :omega_x))
       (pushes Y 3.204 (push :alpha_y :omega_y))
       (pushes Z 3.204 (push :alpha_z :omega_z))
@@ -75,6 +75,7 @@
         (right :alpha_z :alpha_y :alpha_x (alias :right :base) (down))
         (right :omega_x :omega_y :omega_z (alias :right Top :next-base))))
     (baked
+      (alias Single)
       (joint -1.4913 1.3144 0.0099)
       (joint 1.4913 1.6921 0.3876)
       (joint 0.0099 0.2107 -0.3876)
@@ -92,8 +93,8 @@
       (right 1 3 5 (alias :right Top :next-base))
       (right 4 2 0 (alias :right :base))))
   (brick ; single-left
-    (alias Single)
     (proto
+      (alias Single)
       (pushes X 3.204 (push :alpha_x :omega_x))
       (pushes Y 3.204 (push :alpha_y :omega_y))
       (pushes Z 3.204 (push :alpha_z :omega_z))
@@ -105,6 +106,7 @@
         (left :alpha_x :alpha_y :alpha_z (alias :left :base) (down))
         (left :omega_z :omega_y :omega_x (alias :left Top :next-base))))
     (baked
+      (alias Single)
       (joint -1.4913 1.7119 -0.3876)
       (joint 1.4913 2.0895 -0.0099)
       (joint -0.3876 0.2107 0.0099)
@@ -121,9 +123,9 @@
       (push 2 3 -0.0531)
       (left 0 2 4 (alias :left :base))
       (left 5 3 1 (alias :left Top :next-base))))
-  (brick 
-    (alias Omni)
+  (brick
     (proto
+      (alias Omni)
       (pushes X 3.271 (push :bot_alpha_x :bot_omega_x) (push :top_alpha_x :top_omega_x))
       (pushes Y 3.271 (push :bot_alpha_y :bot_omega_y) (push :top_alpha_y :top_omega_y))
       (pushes Z 3.271 (push :bot_alpha_z :bot_omega_z) (push :top_alpha_z :top_omega_z))
@@ -138,6 +140,7 @@
         (left  :bot_alpha_x :bot_alpha_y :bot_alpha_z (alias :left :base)  (alias :right Top)    (alias Upright Dunno) )
         ))
     (baked
+      (alias Omni)
       (joint -1.5556 1.7355 -0.7722)
       (joint 1.5556 1.7355 -0.7722)
       (joint -1.5556 1.7355 0.7722)
@@ -173,8 +176,8 @@
       (left 0 4 8 (alias :left :base) (alias :right Top) (alias Upright Dunno))
       (left 3 6 9 (alias :left TopX) (alias :right BotX) (alias Upright Dunno))))
   (brick
-    (alias Torque)
     (proto
+      (alias Torque)
       (pushes X 3.467
         (push :left_front :left_back)
         (push :middle_front :middle_back)

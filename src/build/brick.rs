@@ -67,6 +67,7 @@ pub struct FaceDef {
 
 #[derive(Clone, Default, Debug)]
 pub struct Prototype {
+    pub alias: Option<FaceAlias>,
     pub pushes: Vec<PushDef>,
     pub pulls: Vec<PullDef>,
     pub faces: Vec<FaceDef>,
@@ -74,7 +75,6 @@ pub struct Prototype {
 
 #[derive(Clone, Debug)]
 pub struct BrickDefinition {
-    pub alias: FaceAlias,
     pub proto: Prototype,
     pub baked: Option<Baked>,
 }
@@ -123,6 +123,9 @@ impl Prototype {
         let mut prototype = Self::default();
         for pair in pair.into_inner() {
             match pair.as_rule() {
+                Rule::partial_alias => {
+                    prototype.alias = Some(FaceAlias::from_pair(pair));
+                }
                 Rule::pushes_proto => {
                     let mut inner = pair.into_inner();
                     let [axis, ideal] = inner.next_chunk().unwrap();
@@ -190,12 +193,9 @@ impl Prototype {
 impl BrickDefinition {
     pub fn from_pair(pair: Pair<Rule>) -> Result<Self, ParseError> {
         let mut inner = pair.into_inner();
-        let [alias, proto] = inner.next_chunk().unwrap();
-        let alias = FaceAlias::from_pair(alias);
-        let proto = Prototype::from_pair(proto)?;
+        let proto = Prototype::from_pair(inner.next().unwrap())?;
         let baked = inner.next().map(Baked::from_pair);
         Ok(Self {
-            alias,
             proto,
             baked,
         })
@@ -232,6 +232,7 @@ impl BrickFace {
 
 #[derive(Debug, Clone, Default)]
 pub struct Baked {
+    pub alias: Option<FaceAlias>,
     pub joints: Vec<Point3<f32>>,
     pub intervals: Vec<(usize, usize, Role, f32)>,
     pub faces: Vec<BrickFace>,
@@ -242,6 +243,9 @@ impl Baked {
         let mut baked = Self::default();
         for pair in pair.into_inner() {
             match pair.as_rule() {
+                Rule::partial_alias => {
+                    baked.alias = Some(FaceAlias::from_pair(pair))
+                }
                 Rule::joint_baked => {
                     let [x, y, z] = pair
                         .into_inner()
