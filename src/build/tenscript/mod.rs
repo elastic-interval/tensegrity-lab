@@ -67,7 +67,7 @@ impl FaceAlias {
         self.0.iter().collect()
     }
 
-    pub(crate) fn single(name: &str) -> Self {
+    pub fn single(name: &str) -> Self {
         Self(HashSet::from([name.to_string()]))
     }
 
