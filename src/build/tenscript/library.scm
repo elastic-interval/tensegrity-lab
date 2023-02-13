@@ -23,7 +23,7 @@
     (name "Halo by Crane")
     (build
       (branch (alias Single)
-        (face (alias Top) (grow 4 (scale .92)
+        (face (alias :next-base) (grow 4 (scale .92)
           (branch (alias Omni)
             (face (alias TopX) (grow 12 (scale .92) (mark :halo-end)))
             (face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))

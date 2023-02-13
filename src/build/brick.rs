@@ -2,7 +2,7 @@ use std::cell::LazyCell;
 use std::collections::HashMap;
 use std::iter;
 
-use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, point3, SquareMatrix, Transform, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, point3, Transform, Vector3};
 use pest::iterators::Pair;
 
 use crate::build::tenscript::{FaceAlias, Library, parse_atom, ParseError, Spin};
@@ -304,27 +304,27 @@ impl Baked {
                             .faces
                             .into_iter()
                             .zip(cloned_bricks)
-                            .flat_map(|(face, baked)|
+                            .flat_map(|(face, baked)| {
+                                let space = face.vector_space(&baked);
                                 face.aliases
                                     .into_iter()
-                                    .map(move |alias| (alias, baked.clone()))
+                                    .map(move |alias| {
+                                        let alias = alias + &baked.alias;
+                                        let mut baked = baked.clone();
+                                        baked.apply_matrix(space);
+                                        (alias, baked)
+                                    })
+                            }
                             )
                     })
                     .collect();
-            for (face_alias, baked) in pairs.iter_mut() {
-                let brick_face = baked.faces
-                    .iter()
-                    .find(|face| face.aliases.contains(face_alias))
-                    .unwrap();
-                let space = brick_face.vector_space(baked);
-                baked.apply_matrix(space.invert().unwrap());
-            }
+            dbg!(&pairs);
             pairs
         });
         baked_bricks
             .get(name)
             .cloned()
-            .expect("no such brick")
+            .unwrap_or_else(|| panic!("no such brick: '{name}'"))
     }
 }
 

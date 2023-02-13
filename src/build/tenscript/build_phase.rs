@@ -261,9 +261,9 @@ impl BuildPhase {
             Branch { face_nodes, alias } => {
                 let attach_to = Self::find_launch_face(launch, &faces, fabric);
                 let brick_faces = fabric.attach_brick(alias, 1.0, attach_to);
-                for (face_name, node) in Self::branch_pairs(face_nodes) {
+                for (face_alias, node) in Self::branch_pairs(face_nodes) {
                     let (new_buds, new_marks) =
-                        self.execute_node(fabric, NamedFace { face_alias: face_name }, node, brick_faces.clone());
+                        self.execute_node(fabric, NamedFace { face_alias }, node, brick_faces.clone());
                     buds.extend(new_buds);
                     marks.extend(new_marks);
                 }
