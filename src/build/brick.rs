@@ -291,40 +291,37 @@ impl Baked {
         }
     }
 
-    pub fn new_brick(name: &FaceAlias) -> Baked {
+    pub fn new_brick(alias: &FaceAlias) -> Baked {
         let baked_bricks: LazyCell<HashMap<FaceAlias, Baked>> = LazyCell::new(|| {
-            let mut pairs: HashMap<FaceAlias, Baked> =
-                Library::standard()
-                    .bricks
-                    .into_iter()
-                    .filter_map(|brick| brick.baked)
-                    .flat_map(|baked| {
-                        let cloned_bricks = iter::repeat(baked.clone());
-                        baked
-                            .faces
-                            .into_iter()
-                            .zip(cloned_bricks)
-                            .flat_map(|(face, baked)| {
-                                let space = face.vector_space(&baked);
-                                face.aliases
-                                    .into_iter()
-                                    .map(move |alias| {
-                                        let alias = alias + &baked.alias;
-                                        let mut baked = baked.clone();
-                                        baked.apply_matrix(space);
-                                        (alias, baked)
-                                    })
-                            }
-                            )
-                    })
-                    .collect();
-            dbg!(&pairs);
-            pairs
+            Library::standard()
+                .bricks
+                .into_iter()
+                .filter_map(|brick| brick.baked)
+                .flat_map(|baked| {
+                    let cloned_bricks = iter::repeat(baked.clone());
+                    baked
+                        .faces
+                        .into_iter()
+                        .zip(cloned_bricks)
+                        .flat_map(|(face, baked)| {
+                            let space = face.vector_space(&baked);
+                            face.aliases
+                                .into_iter()
+                                .map(move |alias| {
+                                    let alias = alias + &baked.alias;
+                                    let mut baked = baked.clone();
+                                    baked.apply_matrix(space);
+                                    (alias, baked)
+                                })
+                        }
+                        )
+                })
+                .collect()
         });
         baked_bricks
-            .get(name)
+            .get(alias)
             .cloned()
-            .unwrap_or_else(|| panic!("no such brick: '{name}'"))
+            .unwrap_or_else(|| panic!("no such brick: '{alias}'"))
     }
 }
 
