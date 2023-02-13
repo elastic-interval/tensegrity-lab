@@ -16,19 +16,18 @@
   (fabric
     (name "Flagellum")
     (build
-      (branch (alias :right)
+      (branch (alias Single)
         (face (alias Top) (grow 20 (scale .9)))))
     (shape))
   (fabric
     (name "Halo by Crane")
     (build
-      (branch (alias :right)
+      (branch (alias Single)
         (face (alias Top) (grow 4 (scale .92)
           (branch (alias Omni)
             (face (alias TopX) (grow 12 (scale .92) (mark :halo-end)))
             (face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))
         ))
-
     (shape
       (join :halo-end)
       (remove-shapers) ; TODO: should automatically happen before vulcanize

@@ -254,62 +254,47 @@ impl BuildPhase {
                 return self.execute_node(fabric, NamedFace { face_alias: alias.clone() }, build_node, faces);
             }
             Grow { forward, scale_factor, post_growth_node, .. } => {
-                let face_id = match launch {
-                    Scratch => unreachable!(),
-                    NamedFace { face_alias } => Self::find_face_id(&face_alias, &faces, fabric),
-                    IdentifiedFace { face_id } => face_id,
-                };
+                let face_id = Self::find_launch_face(launch, &faces, fabric).unwrap();
                 let node = post_growth_node.clone().map(|x| *x);
                 buds.push(Bud { face_id, forward: forward.clone(), scale_factor: *scale_factor, node })
             }
             Branch { face_nodes, alias } => {
-                // TODO: gerald's problem
-                let pairs = Self::branch_pairs(face_nodes);
-                let needs_double = pairs
-                    .iter()
-                    .any(|(face_alias, _)| self.base_aliases.not_top_of_single(face_alias));
-                let (face_alias, face_id) = match launch {
-                    Scratch => (alias.clone(), None),
-                    NamedFace { face_alias } => {
-                        let face_id = Self::find_face_id(&face_alias, &faces, fabric);
-                        let spin = fabric.face(face_id).spin.opposite();
-                        let brick_face_alias = self.base_aliases.spin_double_based(spin, needs_double);
-                        (brick_face_alias.clone(), Some(face_id))
-                    }
-                    IdentifiedFace { face_id } => {
-                        let spin = fabric.face(face_id).spin.opposite();
-                        let brick_face_alias = self.base_aliases.spin_double_based(spin, needs_double);
-                        (brick_face_alias.clone(), Some(face_id))
-                    }
-                };
-                let twist_faces = fabric.attach_brick(&face_alias, 1.0, face_id);
-                for (face_name, node) in pairs {
+                let attach_to = Self::find_launch_face(launch, &faces, fabric);;
+                let brick_faces = fabric.attach_brick(alias, 1.0, attach_to);
+                for (face_name, node) in Self::branch_pairs(face_nodes) {
                     let (new_buds, new_marks) =
-                        self.execute_node(fabric, NamedFace { face_alias: face_name }, node, twist_faces.clone());
+                        self.execute_node(fabric, NamedFace { face_alias: face_name }, node, brick_faces.clone());
                     buds.extend(new_buds);
                     marks.extend(new_marks);
                 }
             }
             Mark { mark_name } => {
-                let face_id = match launch {
-                    Scratch => unreachable!("cannot mark from scratch"),
-                    NamedFace { face_alias } => Self::find_face_id(&face_alias, &faces, fabric),
-                    IdentifiedFace { face_id } => face_id,
-                };
+                let face_id = Self::find_launch_face(launch, &faces, fabric).expect("cannot mark from scratch");
                 marks.push(FaceMark { face_id, mark_name: mark_name.clone() });
             }
         };
         (buds, marks)
     }
 
+    fn find_launch_face(launch: Launch, faces: &[UniqueId], fabric: &Fabric) -> Option<UniqueId> {
+        match launch {
+            Scratch =>
+                None,
+            NamedFace { face_alias } =>
+                Self::find_face_id(&face_alias, &faces, fabric),
+            IdentifiedFace { face_id } =>
+                Some(face_id),
+        }
+    }
+
     fn branch_pairs(nodes: &[BuildNode]) -> Vec<(FaceAlias, &BuildNode)> {
         nodes
             .iter()
             .map(|face_node| {
-                let Face { alias: face_name, node } = face_node else {
+                let Face { alias, node } = face_node else {
                     unreachable!("Branch can only contain Face nodes");
                 };
-                (face_name.clone(), node.as_ref())
+                (alias.clone(), node.as_ref())
             })
             .collect()
     }
