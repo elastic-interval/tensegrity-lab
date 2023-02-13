@@ -2,7 +2,6 @@ use cgmath::num_traits::abs;
 use cgmath::Point3;
 
 use crate::build::brick::{Baked, BrickFace};
-use crate::build::tenscript::FaceAlias;
 use crate::build::tenscript::Spin::{Left, Right};
 use crate::fabric::Fabric;
 use crate::fabric::interval::{Interval, Role};
@@ -43,8 +42,8 @@ impl Baked {
                             },
                             aliases = aliases
                                 .into_iter()
-                                .map(|FaceAlias(name)|
-                                    format!("(alias {})", name.join(" ")))
+                                .map(|alias|
+                                    format!("(alias {})", alias.into_vec().join(" ")))
                                 .collect::<Vec<_>>()
                                 .join(" "))
                     )

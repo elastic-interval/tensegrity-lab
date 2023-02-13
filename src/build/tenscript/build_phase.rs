@@ -281,7 +281,7 @@ impl BuildPhase {
             Scratch =>
                 None,
             NamedFace { face_alias } =>
-                Self::find_face_id(&face_alias, &faces, fabric),
+                Some(Self::find_face_id(&face_alias, &faces, fabric)),
             IdentifiedFace { face_id } =>
                 Some(face_id),
         }
