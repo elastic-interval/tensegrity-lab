@@ -3,7 +3,6 @@
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::fs;
-use std::hash::{Hash, Hasher};
 use std::ops::Add;
 
 use pest::error::Error;
@@ -42,16 +41,8 @@ impl Display for ParseError {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct FaceAlias(pub HashSet<String>);
-
-impl Hash for FaceAlias {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        let mut vec = self.as_vec();
-        vec.sort();
-        vec.hash(state)
-    }
-}
 
 impl Add<&FaceAlias> for FaceAlias {
     type Output = FaceAlias;
@@ -64,6 +55,10 @@ impl Add<&FaceAlias> for FaceAlias {
 }
 
 impl FaceAlias {
+    pub fn matches(&self, haystack: &FaceAlias) -> bool {
+        self.0.is_subset(&haystack.0)
+    }
+
     pub fn into_vec(self) -> Vec<String> {
         self.0.into_iter().collect()
     }

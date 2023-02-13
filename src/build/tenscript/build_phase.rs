@@ -1,6 +1,5 @@
 use std::convert::Into;
 
-use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Quaternion, Rotation, Vector3};
 use pest::iterators::Pair;
 
 use crate::build::tenscript::{FaceAlias, FaceMark, Spin};
@@ -109,19 +108,6 @@ impl BaseAliases {
         }
     }
 
-    pub fn not_top_of_single(&self, alias: &FaceAlias) -> bool {
-        !(&self.right_top == alias || &self.left_top == alias)
-    }
-
-    pub fn other_alias(&self, alias: &FaceAlias) -> &FaceAlias {
-        if alias == &self.right_bot {
-            &self.right_top
-        } else if alias == &self.left_bot {
-            &self.left_top
-        } else {
-            panic!("no other alias found")
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -309,21 +295,6 @@ impl BuildPhase {
                 (alias.clone(), node.as_ref())
             })
             .collect()
-    }
-
-    fn orient_fabric(fabric: &mut Fabric, faces: &[(FaceAlias, UniqueId)], down_faces: &[FaceAlias]) {
-        let mut new_down: Vector3<f32> = faces
-            .iter()
-            .filter(|(face_name, _)| down_faces.contains(face_name))
-            .map(|(_, face_id)| fabric.face(*face_id).normal(fabric))
-            .sum();
-        new_down = new_down.normalize();
-        let midpoint = fabric.midpoint().to_vec();
-        let rotation =
-            Matrix4::from_translation(midpoint) *
-                Matrix4::from(Quaternion::between_vectors(new_down, -Vector3::unit_y())) *
-                Matrix4::from_translation(-midpoint);
-        fabric.apply_matrix4(rotation);
     }
 
     fn find_face_id(alias: &FaceAlias, face_list: &[UniqueId], fabric: &Fabric) -> UniqueId {

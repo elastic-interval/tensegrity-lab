@@ -15,11 +15,12 @@ impl Fabric {
     pub fn attach_brick(&mut self, face_alias: &FaceAlias, rotation: FaceRotation, scale_factor: f32, face_id: Option<UniqueId>) -> Vec<UniqueId> {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
-        let full_alias = face
-            .map(|face| face.spin)
+        let spin_alias = face
+            .map(|face| face.spin.opposite())
             .unwrap_or_default()
-            .opposite()
-            .into_alias()
+            .into_alias();
+        let full_alias = 
+            spin_alias
             + &FaceAlias::single(":base")
             + face_alias;
 
@@ -59,7 +60,7 @@ impl Fabric {
         if let Some(id) = face_id {
             let (has_alias, not_has_alias) = brick_faces
                 .into_iter()
-                .partition::<Vec<_>, _>(|&face_id| self.face(face_id).has_alias(&face_alias));
+                .partition::<Vec<_>, _>(|&face_id| self.face(face_id).has_alias(&full_alias));
             let brick_face = *has_alias.get(0).expect("no face with that alias");
             self.join_faces(id, brick_face);
             not_has_alias
