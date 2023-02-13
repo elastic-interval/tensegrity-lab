@@ -3,7 +3,7 @@ use cgmath::{EuclideanSpace, Point3, Transform, Vector3};
 use crate::build::brick::{Baked, BrickFace};
 use crate::build::tenscript::FaceAlias;
 use crate::fabric::{Fabric, Link, UniqueId};
-use crate::fabric::face::Face;
+use crate::fabric::face::{Face, Rotation};
 use crate::fabric::interval::Role;
 
 const ROOT3: f32 = 1.732_050_8;
@@ -24,7 +24,7 @@ impl Fabric {
             + face_alias;
 
         let brick = Baked::new_brick(&full_alias);
-        let matrix = face.map(|face| face.vector_space(self));
+        let matrix = face.map(|face| face.vector_space(self, Rotation::Zero));
         let joints: Vec<usize> = brick.joints
             .into_iter()
             .map(|point| self.create_joint(match matrix {
