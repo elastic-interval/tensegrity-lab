@@ -1,7 +1,10 @@
 #![allow(clippy::result_large_err)]
 
+use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::fs;
+use std::hash::{Hash, Hasher};
+use std::ops::Add;
 
 use pest::error::Error;
 use pest::iterators::Pair;
@@ -39,19 +42,45 @@ impl Display for ParseError {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
-pub struct FaceAlias(pub Vec<String>);
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct FaceAlias(pub HashSet<String>);
+
+impl Hash for FaceAlias {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let mut vec = self.as_vec();
+        vec.sort();
+        vec.hash(state)
+    }
+}
+
+impl Add<&FaceAlias> for FaceAlias {
+    type Output = FaceAlias;
+
+    fn add(self, other: &Self) -> Self::Output {
+        let mut combo = self.0;
+        combo.extend(other.0.clone());
+        Self(combo)
+    }
+}
 
 impl FaceAlias {
-    pub(crate) fn single(name: &str) -> Self {
-        Self(vec![name.to_string()])
+    pub fn into_vec(self) -> Vec<String> {
+        self.0.into_iter().collect()
     }
 
-    fn is_base(&self) -> bool {
+    pub fn as_vec(&self) -> Vec<&String> {
+        self.0.iter().collect()
+    }
+
+    pub(crate) fn single(name: &str) -> Self {
+        Self(HashSet::from([name.to_string()]))
+    }
+
+    pub fn is_base(&self) -> bool {
         self.0.iter().any(|part| part == ":base")
     }
 
-    fn spin(&self) -> Option<Spin> {
+    pub fn spin(&self) -> Option<Spin> {
         for part in &self.0 {
             return Some(
                 match part.as_str() {
@@ -67,7 +96,7 @@ impl FaceAlias {
 
 impl Display for FaceAlias {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let alias = self.0.join(" ");
+        let alias = self.clone().into_vec().join(" ");
         write!(f, "FaceAlias({alias})")
     }
 }
@@ -100,6 +129,13 @@ impl Spin {
             Spin::Left => Spin::Right,
             Spin::Right => Spin::Left,
         }
+    }
+
+    pub fn into_alias(self) -> FaceAlias {
+        FaceAlias::single(match self {
+            Spin::Left => ":left",
+            Spin::Right => ":right",
+        })
     }
 }
 
