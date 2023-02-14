@@ -61,9 +61,7 @@ impl Fabric {
                     .into_iter()
                     .filter(|alias| search_alias.matches(alias))
                     .collect();
-                if single_alias.len() != 1 {
-                    panic!("filter must leave exactly one face alias")
-                }
+                assert_eq!(single_alias.len(), 1, "filter must leave exactly one face alias");
                 self.create_face(single_alias, scale, spin, radial_intervals)
             })
             .collect();
