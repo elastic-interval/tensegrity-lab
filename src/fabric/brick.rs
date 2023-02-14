@@ -57,7 +57,7 @@ impl Fabric {
                     let ideal = self.ideal(alpha_index, omega_index, Baked::TARGET_FACE_STRAIN);
                     self.create_interval(alpha_index, omega_index, Link::pull(ideal))
                 });
-                let single_alias:Vec<_> = aliases
+                let single_alias: Vec<_> = aliases
                     .into_iter()
                     .filter(|alias| search_alias.matches(alias))
                     .collect();
