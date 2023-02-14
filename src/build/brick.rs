@@ -2,7 +2,7 @@ use std::cell::LazyCell;
 use std::collections::HashMap;
 use std::iter;
 
-use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, point3, Transform, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, point3, SquareMatrix, Transform, Vector3};
 use pest::iterators::Pair;
 
 use crate::build::tenscript::{FaceAlias, Library, parse_atom, ParseError, Spin};
@@ -164,7 +164,8 @@ impl Prototype {
                         let down = remainder
                             .iter()
                             .any(|pair| matches!(pair.as_rule(), Rule::down));
-                        let aliases = FaceAlias::from_pairs(aliases);
+                        let mut aliases = FaceAlias::from_pairs(aliases);
+                        aliases = aliases.into_iter().map(|a| alias.clone() + &a).collect();
                         let spin = Spin::from_pair(spin);
                         faces.push(FaceDef {
                             spin,
@@ -177,7 +178,6 @@ impl Prototype {
                 _ => unreachable!("{:?}", pair.as_rule()),
             }
         }
-        // TODO: validate all the names used
         Ok(Prototype { alias, pushes, pulls, faces })
     }
 
@@ -291,7 +291,7 @@ impl Baked {
         }
     }
 
-    pub fn new_brick(alias: &FaceAlias) -> Baked {
+    pub fn new_brick(search_alias: &FaceAlias) -> Baked {
         let baked_bricks: LazyCell<Vec<(FaceAlias, Baked)>> = LazyCell::new(|| {
             Library::standard()
                 .bricks
@@ -304,7 +304,7 @@ impl Baked {
                         .into_iter()
                         .zip(cloned_bricks)
                         .flat_map(|(face, baked)| {
-                            let space = face.vector_space(&baked);
+                            let space = face.vector_space(&baked).invert().unwrap();
                             face.aliases
                                 .into_iter()
                                 .map(move |alias| {
@@ -318,13 +318,18 @@ impl Baked {
                 })
                 .collect()
         });
-        baked_bricks
+        let search_base = search_alias.with_base();
+        let mut thawed = baked_bricks
             .iter()
-            .filter(|(baked_alias, _)| alias.matches(baked_alias))
+            .filter(|(baked_alias, _)| search_base.matches(baked_alias))
             .min_by_key(|(brick_alias, _)| brick_alias.0.len())
-            .expect(&format!("no such brick: '{alias}'"))
-            .1
-            .clone()
+            .map(|(_, brick)| brick.clone())
+            .expect(&format!("no such brick: '{search_base}'"));
+        for face in &mut thawed.faces {
+            face.aliases.retain(|candidate| search_alias.matches(candidate));
+            assert_eq!(face.aliases.len(), 1, "exactly one face should be retained");
+        }
+        thawed.clone()
     }
 }
 
