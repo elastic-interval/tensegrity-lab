@@ -347,11 +347,11 @@ impl Baked {
                 .collect()
         });
         let search_with_base = search_alias.with_base();
-        let baked = &baked_bricks
+        let (_, baked) = &baked_bricks
             .iter()
             .filter(|(baked_alias, _)| search_with_base.matches(baked_alias))
             .min_by_key(|(brick_alias, _)| brick_alias.0.len())
-            .expect(&format!("no such brick: '{search_with_base}'")).1;
+            .expect(&format!("no such brick: '{search_with_base}'"));
         let mut thawed = baked.clone();
         for face in &mut thawed.faces {
             face.aliases.retain(|candidate| search_alias.matches(candidate));
