@@ -264,8 +264,10 @@ impl BuildPhase {
     fn find_face_id(search_alias: &FaceAlias, face_list: &[UniqueId], fabric: &Fabric) -> UniqueId {
         face_list
             .iter()
-            .find_map(|&face_id|
-                search_alias.matches(fabric.face(face_id).alias()).then_some(face_id))
-            .unwrap_or_else(|| panic!("no such face: {search_alias} in {face_list:?}"))
+            .find_map(|&face_id| {
+                let alias = fabric.face(face_id).alias();
+                search_alias.matches(alias).then_some(face_id)
+            })
+            .expect(&format!("no such face: {search_alias} in {face_list:?}"))
     }
 }
