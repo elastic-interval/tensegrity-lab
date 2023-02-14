@@ -193,7 +193,7 @@ impl BuildPhase {
             assert!(!faces.is_empty(), "no faces returned from attach brick {face_alias}");
             let top_face_alias = face_alias + &FaceAlias::single(":next-base");
             buds.push(Bud {
-                face_id: Self::find_face_id(&top_face_alias, &faces, fabric),
+                face_id: top_face_alias.find_face_in( &faces, fabric).expect("face matching top face alias"),
                 forward: forward[1..].into(),
                 scale_factor,
                 node,
@@ -216,16 +216,16 @@ impl BuildPhase {
                 return self.execute_node(fabric, NamedFace { face_alias: alias.clone() }, build_node, faces);
             }
             Grow { forward, scale_factor, post_growth_node, .. } => {
-                let face_id = Self::find_launch_face(launch, &faces, fabric).unwrap();
+                let face_id = Self::find_launch_face(launch, &faces, fabric).expect("launch face not found");
                 let node = post_growth_node.clone().map(|x| *x);
                 buds.push(Bud { face_id, forward: forward.clone(), scale_factor: *scale_factor, node })
             }
             Branch { face_nodes, rotation, alias } => {
                 let attach_to = Self::find_launch_face(launch, &faces, fabric);
                 let brick_faces = fabric.attach_brick(alias, rotation.into(), 1.0, attach_to);
-                for (face_alias, node) in Self::branch_pairs(face_nodes) {
+                for (branch_face_alias, branch_node) in Self::branch_pairs(face_nodes) {
                     let (new_buds, new_marks) =
-                        self.execute_node(fabric, NamedFace { face_alias }, node, brick_faces.clone());
+                        self.execute_node(fabric, NamedFace { face_alias: branch_face_alias }, branch_node, brick_faces.clone());
                     buds.extend(new_buds);
                     marks.extend(new_marks);
                 }
@@ -240,12 +240,9 @@ impl BuildPhase {
 
     fn find_launch_face(launch: Launch, faces: &[UniqueId], fabric: &Fabric) -> Option<UniqueId> {
         match launch {
-            Scratch =>
-                None,
-            NamedFace { face_alias } =>
-                Some(Self::find_face_id(&face_alias, &faces, fabric)),
-            IdentifiedFace { face_id } =>
-                Some(face_id),
+            Scratch => None,
+            NamedFace { face_alias } => face_alias.find_face_in( &faces, fabric),
+            IdentifiedFace { face_id } => Some(face_id),
         }
     }
 
@@ -261,13 +258,4 @@ impl BuildPhase {
             .collect()
     }
 
-    fn find_face_id(search_alias: &FaceAlias, face_list: &[UniqueId], fabric: &Fabric) -> UniqueId {
-        face_list
-            .iter()
-            .find_map(|&face_id| {
-                let alias = fabric.face(face_id).alias();
-                search_alias.matches(alias).then_some(face_id)
-            })
-            .expect(&format!("no such face: {search_alias} in {face_list:?}"))
-    }
 }
