@@ -60,11 +60,9 @@ impl FaceAlias {
     }
 
     pub fn into_vec(self) -> Vec<String> {
-        self.0.into_iter().collect()
-    }
-
-    pub fn as_vec(&self) -> Vec<&String> {
-        self.0.iter().collect()
+        let mut sorted: Vec<_> = self.0.into_iter().collect();
+        sorted.sort();
+        sorted
     }
 
     pub fn single(name: &str) -> Self {
@@ -73,6 +71,12 @@ impl FaceAlias {
 
     pub fn is_base(&self) -> bool {
         self.0.iter().any(|part| part == ":base")
+    }
+
+    pub fn with_base(&self) -> Self {
+        let mut set = self.0.clone();
+        set.insert(":base".to_string());
+        Self(set)
     }
 
     pub fn spin(&self) -> Option<Spin> {
