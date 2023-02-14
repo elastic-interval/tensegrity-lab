@@ -2,7 +2,7 @@ use std::cell::LazyCell;
 use std::collections::HashMap;
 use std::iter;
 
-use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, point3, SquareMatrix, Transform, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, point3, Quaternion, Rotation, SquareMatrix, Transform, Vector3};
 use pest::iterators::Pair;
 
 use crate::build::tenscript::{FaceAlias, Library, parse_atom, ParseError, Spin};
@@ -62,7 +62,6 @@ pub struct FaceDef {
     pub spin: Spin,
     pub joint_names: [String; 3],
     pub aliases: Vec<FaceAlias>,
-    pub down: bool,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -104,7 +103,7 @@ impl From<Prototype> for Fabric {
                 .map(|name| *joints_by_name.get(&name).expect("no joint with that name"));
             fabric.create_interval(alpha_index, omega_index, Link::pull(ideal));
         }
-        for FaceDef { aliases, joint_names, spin, .. } in proto.faces {
+        for FaceDef { aliases, joint_names, spin } in proto.faces {
             let joint_indices = joint_names.map(|name| *joints_by_name.get(&name).expect("no joint with that name"));
             let joints = joint_indices.map(|index| fabric.joints[index].location.to_vec());
             let midpoint = joints.into_iter().sum::<Vector3<_>>() / 3.0;
@@ -121,7 +120,7 @@ impl From<Prototype> for Fabric {
 impl Prototype {
     pub fn from_pair(pair: Pair<Rule>) -> Result<Self, ParseError> {
         let mut inner = pair.into_inner();
-        let alias = FaceAlias::from_pair(inner.next().unwrap());
+        let prototype_alias = FaceAlias::from_pair(inner.next().unwrap());
         let mut pushes = Vec::new();
         let mut pulls = Vec::new();
         let mut faces = Vec::new();
@@ -159,26 +158,16 @@ impl Prototype {
                         let mut inner = face_pair.into_inner();
                         let [spin, a, b, c] = inner.next_chunk().unwrap();
                         let joint_names = [a, b, c].map(parse_atom);
-                        let (aliases, remainder): (Vec<_>, Vec<_>) = inner
-                            .partition(|pair| matches!(pair.as_rule(), Rule::face_alias));
-                        let down = remainder
-                            .iter()
-                            .any(|pair| matches!(pair.as_rule(), Rule::down));
-                        let mut aliases = FaceAlias::from_pairs(aliases);
-                        aliases = aliases.into_iter().map(|a| alias.clone() + &a).collect();
+                        let mut aliases = FaceAlias::from_pairs(inner);
+                        aliases = aliases.into_iter().map(|a| prototype_alias.clone() + &a).collect();
                         let spin = Spin::from_pair(spin);
-                        faces.push(FaceDef {
-                            spin,
-                            joint_names,
-                            aliases,
-                            down,
-                        });
+                        faces.push(FaceDef { spin, joint_names, aliases });
                     }
                 }
                 _ => unreachable!("{:?}", pair.as_rule()),
             }
         }
-        Ok(Prototype { alias, pushes, pulls, faces })
+        Ok(Prototype { alias: prototype_alias, pushes, pulls, faces })
     }
 
     fn extract_alpha_and_omega(pair: Pair<Rule>) -> (String, String) {
@@ -212,22 +201,41 @@ pub struct BrickFace {
 
 impl BrickFace {
     pub fn vector_space(&self, baked: &Baked) -> Matrix4<f32> {
-        let [radial0, radial1, radial2] =
-            self.joints.map(|index| baked.joints[index].to_vec());
-        let midpoint = (radial0 + radial1 + radial2) / 3.0;
-        let v0 = radial0 - midpoint;
-        let v1 = radial1 - midpoint;
-        let v2 = radial2 - midpoint;
+        let location = self.radial_locations(baked);
+        let midpoint = Self::midpoint(location);
+        let radial = self.radial_vectors(location);
         let inward = match self.spin {
-            Left => v1.cross(v2),
-            Right => v2.cross(v1),
+            Left => radial[1].cross(radial[2]),
+            Right => radial[2].cross(radial[1]),
         }.normalize();
         let (x_axis, y_axis, scale) =
-            (v0.normalize(), inward, v0.magnitude());
+            (radial[0].normalize(), inward, radial[0].magnitude());
         let z_axis = x_axis.cross(y_axis).normalize();
         Matrix4::from_translation(midpoint) *
             Matrix4::from(Matrix3::from_cols(x_axis, y_axis, z_axis)) *
             Matrix4::from_scale(scale)
+    }
+
+    pub fn normal(&self, baked: &Baked) -> Vector3<f32> {
+        let location = self.radial_locations(baked);
+        let radial = self.radial_vectors(location);
+        match self.spin {
+            Left => radial[2].cross(radial[1]),
+            Right => radial[1].cross(radial[2]),
+        }.normalize()
+    }
+
+    fn radial_locations(&self, baked: &Baked) -> [Vector3<f32>; 3] {
+        self.joints.map(|index| baked.joints[index].to_vec())
+    }
+
+    fn midpoint(radial: [Vector3<f32>; 3]) -> Vector3<f32> {
+        (radial[0] + radial[1] + radial[2]) / 3.0
+    }
+
+    fn radial_vectors(&self, location: [Vector3<f32>; 3]) -> [Vector3<f32>; 3] {
+        let midpoint = Self::midpoint(location);
+        location.map(|location| location - midpoint)
     }
 }
 
@@ -242,7 +250,7 @@ pub struct Baked {
 impl Baked {
     pub fn from_pair(pair: Pair<Rule>) -> Self {
         let mut inner = pair.into_inner();
-        let alias = FaceAlias::from_pair(inner.next().unwrap());
+        let baked_alias = FaceAlias::from_pair(inner.next().unwrap());
         let mut joints = Vec::new();
         let mut intervals = Vec::new();
         let mut faces = Vec::new();
@@ -270,25 +278,35 @@ impl Baked {
                 Rule::face_baked => {
                     let mut inner = pair.into_inner();
                     let [spin, a, b, c] = inner.next_chunk().unwrap();
-                    let aliases = FaceAlias::from_pairs(inner);
+                    let mut aliases = FaceAlias::from_pairs(inner);
+                    aliases = aliases.into_iter().map(|a| baked_alias.clone() + &a).collect();
                     let spin = Spin::from_pair(spin);
                     let joints = [a, b, c].map(|pair| pair.as_str().parse().unwrap());
-                    faces.push(BrickFace {
-                        joints,
-                        spin,
-                        aliases,
-                    });
+                    faces.push(BrickFace { joints, spin, aliases });
                 }
                 _ => unreachable!()
             }
         }
-        Baked { alias, joints, intervals, faces }
+        Baked { alias: baked_alias, joints, intervals, faces }
     }
 
     fn apply_matrix(&mut self, matrix: Matrix4<f32>) {
         for joint in &mut self.joints {
             *joint = matrix.transform_point(*joint)
         }
+    }
+
+    fn down_rotation(&self) -> Matrix4<f32> {
+        let down = self.faces
+            .iter()
+            .filter_map(|face|
+                face.aliases
+                    .iter()
+                    .find(|alias| alias.is_seed() && alias.is_base())
+                    .map(|_| face.normal(self)))
+            .sum::<Vector3<f32>>()
+            .normalize();
+        Matrix4::from(Quaternion::between_vectors(down, -Vector3::unit_y()))
     }
 
     pub fn new_brick(search_alias: &FaceAlias) -> Baked {
@@ -304,13 +322,23 @@ impl Baked {
                         .into_iter()
                         .zip(cloned_bricks)
                         .flat_map(|(face, baked)| {
-                            let space = face.vector_space(&baked).invert().unwrap();
-                            face.aliases
+                            let face_space = face.vector_space(&baked).invert().unwrap();
+                            let aliases: Vec<_> = face.aliases
                                 .into_iter()
-                                .map(move |alias| {
+                                .map(|alias| {
+                                    let space = if alias.is_seed() {
+                                        baked.down_rotation()
+                                    } else {
+                                        face_space
+                                    };
+                                    (alias, space)
+                                })
+                                .collect();
+                            aliases
+                                .into_iter()
+                                .map(move |(alias, space)| {
                                     let alias = alias + &baked.alias;
                                     let mut baked = baked.clone();
-                                    // TODO: use downs, filter out faces from other 'configurations'
                                     baked.apply_matrix(space);
                                     (alias, baked)
                                 })
@@ -318,16 +346,16 @@ impl Baked {
                 })
                 .collect()
         });
-        let search_base = search_alias.with_base();
-        let mut thawed = baked_bricks
+        let search_with_base = search_alias.with_base();
+        let (_, baked) = &baked_bricks
             .iter()
-            .filter(|(baked_alias, _)| search_base.matches(baked_alias))
+            .filter(|(baked_alias, _)| search_with_base.matches(baked_alias))
             .min_by_key(|(brick_alias, _)| brick_alias.0.len())
-            .map(|(_, brick)| brick.clone())
-            .expect(&format!("no such brick: '{search_base}'"));
+            .expect(&format!("no such brick: '{search_with_base}'"));
+        let mut thawed = baked.clone();
         for face in &mut thawed.faces {
             face.aliases.retain(|candidate| search_alias.matches(candidate));
-            assert_eq!(face.aliases.len(), 1, "exactly one face should be retained");
+            assert_eq!(face.aliases.len(), 1, "exactly one face should be retained {:?}", face.aliases);
         }
         thawed.clone()
     }

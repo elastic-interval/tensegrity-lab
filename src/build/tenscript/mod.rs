@@ -70,12 +70,28 @@ impl FaceAlias {
     }
 
     pub fn is_base(&self) -> bool {
-        self.0.iter().any(|part| part == ":base")
+        self.has(":base")
+    }
+
+    pub fn is_seed(&self) -> bool {
+        self.has(":seed")
     }
 
     pub fn with_base(&self) -> Self {
+        self.with(":base")
+    }
+
+    pub fn with_seed(&self) -> Self {
+        self.with(":seed")
+    }
+
+    fn has(&self, sought_part: &str) -> bool {
+        self.0.iter().any(|part| part == sought_part)
+    }
+
+    fn with(&self, extra: &str) -> Self {
         let mut set = self.0.clone();
-        set.insert(":base".to_string());
+        set.insert(extra.to_string());
         Self(set)
     }
 

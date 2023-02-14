@@ -43,7 +43,8 @@ impl Baked {
                                 .map(|alias|
                                     format!("(alias {})", alias.into_vec().join(" ")))
                                 .collect::<Vec<_>>()
-                                .join(" "))
+                                .join(" "),
+                        )
                     )
                     .collect::<Vec<_>>()
                     .join("\n    ")
