@@ -26,12 +26,8 @@ impl Fabric {
             .or(face.map(|face| face.spin.opposite()))
             .unwrap_or_default()
             .into_alias();
-        let full_alias =
-            spin_alias
-                + &FaceAlias::single(":base")
-                + face_alias;
-
-        let brick = Baked::new_brick(&full_alias);
+        let search_alias = spin_alias + face_alias;
+        let brick = Baked::new_brick(&search_alias);
         let matrix = face.map(|face| face.vector_space(self, rotation));
         let joints: Vec<usize> = brick.joints
             .into_iter()
@@ -61,14 +57,21 @@ impl Fabric {
                     let ideal = self.ideal(alpha_index, omega_index, Baked::TARGET_FACE_STRAIN);
                     self.create_interval(alpha_index, omega_index, Link::pull(ideal))
                 });
-                // TODO: make sure there's only one face left
-                self.create_face(aliases, scale, spin, radial_intervals)
+                let single_alias:Vec<_> = aliases
+                    .into_iter()
+                    .filter(|alias| search_alias.matches(alias))
+                    .collect();
+                if single_alias.len() != 1 {
+                    panic!("filter must leave exactly one face alias")
+                }
+                self.create_face(single_alias, scale, spin, radial_intervals)
             })
             .collect();
         if let Some(id) = face_id {
+            let search_base = search_alias.with_base();
             let (has_alias, not_has_alias) = brick_faces
                 .into_iter()
-                .partition::<Vec<_>, _>(|&face_id| full_alias.matches(self.face(face_id).alias()));
+                .partition::<Vec<_>, _>(|&face_id| search_base.matches(self.face(face_id).alias()));
             let brick_face = *has_alias.get(0).expect("no face with that alias");
             self.join_faces(id, brick_face);
             not_has_alias
