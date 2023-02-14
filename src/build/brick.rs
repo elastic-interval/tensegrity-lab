@@ -226,7 +226,7 @@ impl BrickFace {
     }
 
     fn radial_locations(&self, baked: &Baked) -> [Vector3<f32>; 3] {
-        self.joints.map(|index| baked.joints[index].to_vec()).try_into().unwrap()
+        self.joints.map(|index| baked.joints[index].to_vec())
     }
 
     fn midpoint(radial: [Vector3<f32>; 3]) -> Vector3<f32> {
