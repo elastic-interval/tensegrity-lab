@@ -26,9 +26,9 @@
     (build
       (branch (alias Single) (rotate) (rotate)
         (face (alias :next-base) (grow 4 (scale .92)
-          (branch (alias Omni)
-            (face (alias TopX) (grow 12 (scale .92) (mark :halo-end)))
-            (face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))
+                                   (branch (alias Omni)
+                                     (face (alias TopX) (grow 12 (scale .92) (mark :halo-end)))
+                                     (face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))
         ))
     (shape
       (join :halo-end)
@@ -40,9 +40,9 @@
     (build
       (branch (alias Single) (rotate) (rotate)
         (face (alias :next-base) (grow 4 (scale .92)
-          (branch (alias Torque)
-            (face (alias Far:Back) (grow 12 (scale .92) (mark :halo-end)))
-            (face (alias Far:Side) (grow 11 (scale .92) (mark :halo-end))))))
+                                   (branch (alias Torque)
+                                     (face (alias Far:Back) (grow 12 (scale .92) (mark :halo-end)))
+                                     (face (alias Far:Side) (grow 11 (scale .92) (mark :halo-end))))))
         ))
     (shape
       (join :halo-end)
@@ -53,39 +53,49 @@
     (name "K-10")
     (build
       (branch (alias Torque)
-        (face (alias Left:Front:Bottom) (grow 5))
-        (face (alias Left:Back:Bottom) (grow 5))
-        (face (alias Right:Front:Bottom) (grow 5))
-        (face (alias Right:Back:Bottom) (grow 5))))
-    (shape))
-;  (fabric
-;    (name "Headless Hug")
-;    (build
-;      (seed :right-omni
-;        (orient-down F0 F3))
-;      (branch
-;        (face F0 (grow "....X.." (scale.95) (mark :legs)))
-;        (face F3 (grow "....X.." (scale.95) (mark :legs)))
-;        (face F1
-;          (grow 2 (scale.9)
-;            (branch
-;              (face F5 (mark :shoulders))
-;              (face F7 (grow "....X..." (scale.93) (mark :hands)))
-;              )))
-;        (face F2
-;          (grow 2 (scale.9)
-;            (branch
-;              (face F7 (mark :shoulders))
-;              (face F5 (grow "....X..." (scale.93) (mark :hands)))
-;              )))))
-;    (shape
-;      (countdown 25000
-;        (space :legs.5)
-;        (space :hands.01)
-;        (space :shoulders.05))
-;      (countdown 10000 (vulcanize))
-;      (remove-shapers)
-;      (replace-faces)))
+        (face (alias Left:Front:Bottom)
+;          (branch (alias Torque)
+;            (face (alias Far:Base)
+              (grow 5))
+;            ))
+        (face (alias Left:Back:Bottom)
+          (grow 5))
+        (face (alias Right:Front:Bottom)
+          (grow 5))
+        (face (alias Right:Back:Bottom)
+          (grow 5))
+      ))
+    (shape
+      (vulcanize)
+      (replace-faces)))
+  ;  (fabric
+  ;    (name "Headless Hug")
+  ;    (build
+  ;      (seed :right-omni
+  ;        (orient-down F0 F3))
+  ;      (branch
+  ;        (face F0 (grow "....X.." (scale .95) (mark :legs)))
+  ;        (face F3 (grow "....X.." (scale .95) (mark :legs)))
+  ;        (face F1
+  ;          (grow 2 (scale .9)
+  ;            (branch
+  ;              (face F5 (mark :shoulders))
+  ;              (face F7 (grow "....X..." (scale .93) (mark :hands)))
+  ;              )))
+  ;        (face F2
+  ;          (grow 2 (scale .9)
+  ;            (branch
+  ;              (face F7 (mark :shoulders))
+  ;              (face F5 (grow "....X..." (scale .93) (mark :hands)))
+  ;              )))))
+  ;    (shape
+  ;      (countdown 25000
+  ;        (space :legs.5)
+  ;        (space :hands.01)
+  ;        (space :shoulders.05))
+  ;      (countdown 10000 (vulcanize))
+  ;      (remove-shapers)
+  ;      (replace-faces)))
   (brick ; single-right
     (proto
       (alias Single)
@@ -97,7 +107,7 @@
         (pull :alpha_y :omega_x)
         (pull :alpha_z :omega_y))
       (faces
-        (right :alpha_z :alpha_y :alpha_x (alias :right :base)  (alias :seed :base))
+        (right :alpha_z :alpha_y :alpha_x (alias :right :base) (alias :seed :base))
         (right :omega_x :omega_y :omega_z (alias :right Top :next-base) (alias :seed :next-base))))
     (baked
       (alias Single)
@@ -157,14 +167,14 @@
       (pushes Y 3.271 (push :bot_alpha_y :bot_omega_y) (push :top_alpha_y :top_omega_y))
       (pushes Z 3.271 (push :bot_alpha_z :bot_omega_z) (push :top_alpha_z :top_omega_z))
       (faces
-        (right :top_omega_x :top_omega_y :top_omega_z (alias :left Top)    (alias :right :base)  (alias :seed A) )
-        (left  :top_omega_x :top_alpha_y :bot_omega_z (alias :left TopX)   (alias :right BotX)   (alias :seed B) )
-        (left  :top_omega_y :top_alpha_z :bot_omega_x (alias :left TopY)   (alias :right BotY)   (alias :seed C) )
-        (left  :top_omega_z :top_alpha_x :bot_omega_y (alias :left TopZ)   (alias :right BotZ)   (alias :seed D) )
-        (right :bot_alpha_z :bot_omega_x :top_alpha_y (alias :left BotZ)   (alias :right TopZ)   (alias :seed E) )
-        (right :bot_alpha_y :bot_omega_z :top_alpha_x (alias :left BotY)   (alias :right TopY)   (alias :seed F) )
-        (right :bot_alpha_x :bot_omega_y :top_alpha_z (alias :left BotX)   (alias :right TopX)   (alias :seed G) )
-        (left  :bot_alpha_x :bot_alpha_y :bot_alpha_z (alias :left :base)  (alias :right Top)    (alias :seed H) )
+        (right :top_omega_x :top_omega_y :top_omega_z (alias :left Top) (alias :right :base) (alias :seed A))
+        (left :top_omega_x :top_alpha_y :bot_omega_z (alias :left TopX) (alias :right BotX) (alias :seed B))
+        (left :top_omega_y :top_alpha_z :bot_omega_x (alias :left TopY) (alias :right BotY) (alias :seed C))
+        (left :top_omega_z :top_alpha_x :bot_omega_y (alias :left TopZ) (alias :right BotZ) (alias :seed D))
+        (right :bot_alpha_z :bot_omega_x :top_alpha_y (alias :left BotZ) (alias :right TopZ) (alias :seed E))
+        (right :bot_alpha_y :bot_omega_z :top_alpha_x (alias :left BotY) (alias :right TopY) (alias :seed F))
+        (right :bot_alpha_x :bot_omega_y :top_alpha_z (alias :left BotX) (alias :right TopX) (alias :seed G))
+        (left :bot_alpha_x :bot_alpha_y :bot_alpha_z (alias :left :base) (alias :right Top) (alias :seed H))
         ))
     (baked
       (alias Omni)
