@@ -296,7 +296,7 @@ impl Baked {
         }
     }
 
-    fn down_matrix(&self) -> Matrix4<f32> {
+    fn down_rotation(&self) -> Matrix4<f32> {
         let down = self.faces
             .iter()
             .filter_map(|face|
@@ -327,7 +327,7 @@ impl Baked {
                                 .into_iter()
                                 .map(|alias| {
                                     let space = if alias.is_seed() {
-                                        baked.down_matrix()
+                                        baked.down_rotation()
                                     } else {
                                         face_space
                                     };
