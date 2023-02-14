@@ -201,15 +201,16 @@
         (pull :middle_back :back_right_bottom)
         (pull :middle_back :back_right_top))
       (faces
-        (left  :bottom_left  :left_front  :front_left_bottom  (alias :left :base)      (alias :right Far:Side)  (down))
-        (right :bottom_left  :left_back   :back_left_bottom   (alias :left Base:Back)  (alias :right Far:Back)  (down))
-        (left  :bottom_right :right_back  :back_right_bottom  (alias :left Far:Back)   (alias :right Base:Back) (down))
-        (right :bottom_right :right_front :front_right_bottom (alias :left Far:Side)   (alias :right :base)     (down))
-        (left  :top_left     :left_back   :back_left_top      (alias :left Base:Side)  (alias :right Far:Base)        )
-        (right :top_left     :left_front  :front_left_top     (alias :left Base:Front) (alias :right Far:Front)       )
-        (left  :top_right    :right_front :front_right_top    (alias :left Far:Front)  (alias :right Base:Front)      )
-        (right :top_right    :right_back  :back_right_top     (alias :left Far:Base)   (alias :right Base:Side)       )
+        (left :bottom_left :left_front :front_left_bottom (alias :left :base) (alias :right Far:Side) (down))
+        (right :bottom_left :left_back :back_left_bottom (alias :left Base:Back) (alias :right Far:Back) (down))
+        (left :bottom_right :right_back :back_right_bottom (alias :left Far:Back) (alias :right Base:Back) (down))
+        (right :bottom_right :right_front :front_right_bottom (alias :left Far:Side) (alias :right :base) (down))
+        (left :top_left :left_back :back_left_top (alias :left Base:Side) (alias :right Far:Base))
+        (right :top_left :left_front :front_left_top (alias :left Base:Front) (alias :right Far:Front))
+        (left :top_right :right_front :front_right_top (alias :left Far:Front) (alias :right Base:Front))
+        (right :top_right :right_back :back_right_top (alias :left Far:Base) (alias :right Base:Side))
         )
+      )
       (baked
         (alias Torque)
         (joint -1.6518 1.8335 -2.6932)
@@ -263,7 +264,6 @@
         (right 15 5 13 (alias :left Far:Base Torque) (alias :right Base:Side Torque))
         (left 16 0 6 (alias :base :left Torque) (alias :right Far:Side Torque))
         (right 14 0 7 (alias :left Base:Front Torque) (alias :right Far:Front Torque))))
-    )
   )
 
 
