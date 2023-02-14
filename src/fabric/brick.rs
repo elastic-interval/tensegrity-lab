@@ -69,14 +69,12 @@ impl Fabric {
             .collect();
         if let Some(id) = face_id {
             let search_base = search_alias.with_base();
-            let (has_alias, not_has_alias) = brick_faces
-                .into_iter()
-                .partition::<Vec<_>, _>(|&face_id| search_base.matches(self.face(face_id).alias()));
-            let brick_face = *has_alias.get(0).expect("no face with that alias");
-            self.join_faces(id, brick_face);
-            not_has_alias
-        } else {
-            brick_faces
+            let brick_face = brick_faces
+                .iter()
+                .find(|&&face_id| search_base.matches(self.face(face_id).alias()))
+                .expect("missing face after attaching brick");
+            self.join_faces(id, *brick_face);
         }
+        brick_faces
     }
 }

@@ -116,7 +116,7 @@ impl Fabric {
     }
 
     pub fn face(&self, id: UniqueId) -> &Face {
-        self.faces.get(&id).unwrap_or_else(|| panic!("face not found"))
+        self.faces.get(&id).expect(&format!("face not found {id:?}"))
     }
 
     pub fn remove_face(&mut self, id: UniqueId) {

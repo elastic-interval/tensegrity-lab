@@ -15,7 +15,7 @@ pub use fabric_plan::FabricPlan;
 
 use crate::build::brick;
 use crate::build::tenscript::build_phase::BuildPhase;
-use crate::fabric::UniqueId;
+use crate::fabric::{Fabric, UniqueId};
 
 pub mod fabric_plan;
 pub mod plan_runner;
@@ -63,6 +63,15 @@ impl FaceAlias {
         let mut sorted: Vec<_> = self.0.into_iter().collect();
         sorted.sort();
         sorted
+    }
+
+    pub fn find_face_in(&self, face_list: &[UniqueId], fabric: &Fabric) -> Option<UniqueId> {
+        face_list
+            .iter()
+            .find_map(|&face_id| {
+                let face = fabric.faces.get(&face_id)?;
+                self.matches(face.alias()).then_some(face_id)
+            })
     }
 
     pub fn single(name: &str) -> Self {
