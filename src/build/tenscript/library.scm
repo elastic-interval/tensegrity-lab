@@ -89,7 +89,7 @@
         (pull :alpha_z :omega_y))
       (faces
         (right :alpha_z :alpha_y :alpha_x (alias :right :base)  (alias :seed :base))
-        (right :omega_x :omega_y :omega_z (alias :right Top :next-base) (alias :seed Up))))
+        (right :omega_x :omega_y :omega_z (alias :right Top :next-base) (alias :seed :next-base))))
     (baked
       (alias Single)
       (joint -1.4913 1.3143 0.0100)
@@ -106,7 +106,7 @@
       (pull 0 5 0.1171)
       (push 4 5 -0.0531)
       (pull 4 3 0.1171)
-      (right 1 3 5 (alias :next-base :right Single Top) (alias :seed Single Up))
+      (right 1 3 5 (alias :next-base :right Single Top) (alias :seed Single :next-base))
       (right 4 2 0 (alias :base :right Single) (alias :base :seed Single)))
     )
   (brick ; single-left
@@ -121,7 +121,7 @@
         (pull :alpha_z :omega_x))
       (faces
         (left :alpha_x :alpha_y :alpha_z (alias :left :base) (alias :seed :base))
-        (left :omega_z :omega_y :omega_x (alias :left Top :next-base) (alias :seed Up))))
+        (left :omega_z :omega_y :omega_x (alias :left Top :next-base) (alias :seed :next-base))))
     (baked
       (alias Single)
       (joint -1.4913 1.7120 -0.3876)
@@ -139,7 +139,7 @@
       (push 2 3 -0.0531)
       (push 0 1 -0.0531)
       (left 0 2 4 (alias :base :left Single) (alias :base :seed Single))
-      (left 5 3 1 (alias :left :next-base Single Top) (alias :seed Single Up)))
+      (left 5 3 1 (alias :left :next-base Single Top) (alias :seed Single :next-base)))
     )
   (brick
     (proto
