@@ -190,9 +190,7 @@ impl BuildPhase {
                     scale_factor,
                     Some(face_id),
                 );
-            if faces.is_empty() {
-                panic!("no faces returned from attach brick {face_alias}");
-            }
+            assert!(!faces.is_empty(), "no faces returned from attach brick {face_alias}");
             let top_face_alias = face_alias + &FaceAlias::single(":next-base");
             buds.push(Bud {
                 face_id: Self::find_face_id(&top_face_alias, &faces, fabric),
@@ -263,11 +261,11 @@ impl BuildPhase {
             .collect()
     }
 
-    fn find_face_id(alias: &FaceAlias, face_list: &[UniqueId], fabric: &Fabric) -> UniqueId {
+    fn find_face_id(search_alias: &FaceAlias, face_list: &[UniqueId], fabric: &Fabric) -> UniqueId {
         face_list
             .iter()
             .find_map(|&face_id|
-                alias.matches(fabric.face(face_id).alias()).then_some(face_id))
-            .unwrap_or_else(|| panic!("no such face: {alias} in {face_list:?}"))
+                search_alias.matches(fabric.face(face_id).alias()).then_some(face_id))
+            .unwrap_or_else(|| panic!("no such face: {search_alias} in {face_list:?}"))
     }
 }

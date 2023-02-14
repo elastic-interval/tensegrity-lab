@@ -319,18 +319,17 @@ impl Baked {
                 .collect()
         });
         let search_base = search_alias.with_base();
-        let baked = &baked_bricks
+        let mut thawed = baked_bricks
             .iter()
             .filter(|(baked_alias, _)| search_base.matches(baked_alias))
             .min_by_key(|(brick_alias, _)| brick_alias.0.len())
-            .map(|(_, brick)| *brick)
+            .map(|(_, brick)| brick.clone())
             .expect(&format!("no such brick: '{search_base}'"));
-        let mut thawed = baked.clone();
         for face in &mut thawed.faces {
             face.aliases.retain(|candidate| search_alias.matches(candidate));
-            assert_eq!(face.alias.len(), 1, "exactly one face should be retained");
+            assert_eq!(face.aliases.len(), 1, "exactly one face should be retained");
         }
-        baked.clone()
+        thawed.clone()
     }
 }
 
