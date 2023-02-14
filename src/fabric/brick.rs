@@ -24,9 +24,11 @@ impl Fabric {
         let spin_alias = face_alias
             .spin()
             .or(face.map(|face| face.spin.opposite()))
-            .unwrap_or_default()
-            .into_alias();
-        let search_alias = spin_alias + face_alias;
+            .map(|spin| spin.into_alias());
+        let search_alias = match spin_alias {
+            None => face_alias.with_seed(),
+            Some(spin_alias) => spin_alias + face_alias,
+        };
         let brick = Baked::new_brick(&search_alias);
         let matrix = face.map(|face| face.vector_space(self, rotation));
         let joints: Vec<usize> = brick.joints
