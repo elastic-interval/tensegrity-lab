@@ -37,7 +37,7 @@ impl Default for Crucible {
             fabric: Fabric::default_bow_tie(),
             frozen_fabric: None,
             action: None,
-            iterations_per_frame: 25,
+            iterations_per_frame: 125,
             stage: Empty,
         }
     }
