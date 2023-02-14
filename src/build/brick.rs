@@ -328,9 +328,7 @@ impl Baked {
         let mut thawed = baked.clone();
         for face in &mut thawed.faces {
             face.aliases.retain(|candidate| search_alias.matches(candidate));
-            if face.aliases.len() != 1 {
-                panic!("exactly one face should be retained");
-            }
+            assert_eq!(face.alias.len(), 1, "exactly one face should be retained");
         }
         baked.clone()
     }
