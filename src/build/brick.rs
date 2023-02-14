@@ -323,7 +323,8 @@ impl Baked {
             .iter()
             .filter(|(baked_alias, _)| search_base.matches(baked_alias))
             .min_by_key(|(brick_alias, _)| brick_alias.0.len())
-            .expect(&format!("no such brick: '{search_base}'")).1;
+            .map(|(_, brick)| *brick)
+            .expect(&format!("no such brick: '{search_base}'"));
         let mut thawed = baked.clone();
         for face in &mut thawed.faces {
             face.aliases.retain(|candidate| search_alias.matches(candidate));
