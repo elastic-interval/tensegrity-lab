@@ -49,6 +49,15 @@
       (remove-shapers) ; TODO: should automatically happen before vulcanize
       (vulcanize)
       (replace-faces)))
+  (fabric
+    (name "K-10")
+    (build
+      (branch (alias Torque)
+        (face (alias Left:Front:Bottom) (grow 5))
+        (face (alias Left:Back:Bottom) (grow 5))
+        (face (alias Right:Front:Bottom) (grow 5))
+        (face (alias Right:Back:Bottom) (grow 5))))
+    (shape))
 ;  (fabric
 ;    (name "Headless Hug")
 ;    (build

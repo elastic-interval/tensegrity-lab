@@ -1,6 +1,6 @@
-use std::cell::LazyCell;
 use std::collections::HashMap;
 use std::iter;
+use std::sync::LazyLock;
 
 use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, point3, Quaternion, Rotation, SquareMatrix, Transform, Vector3};
 use pest::iterators::Pair;
@@ -310,7 +310,7 @@ impl Baked {
     }
 
     pub fn new_brick(search_alias: &FaceAlias) -> Baked {
-        let baked_bricks: LazyCell<Vec<(FaceAlias, Baked)>> = LazyCell::new(|| {
+        static BAKED_BRICKS: LazyLock<Vec<(FaceAlias, Baked)>> = LazyLock::new(|| {
             Library::standard()
                 .bricks
                 .into_iter()
@@ -347,7 +347,7 @@ impl Baked {
                 .collect()
         });
         let search_with_base = search_alias.with_base();
-        let (_, baked) = &baked_bricks
+        let (_, baked) = &BAKED_BRICKS
             .iter()
             .filter(|(baked_alias, _)| search_with_base.matches(baked_alias))
             .min_by_key(|(brick_alias, _)| brick_alias.0.len())
