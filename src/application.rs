@@ -11,7 +11,7 @@ use winit::window::Window;
 use crate::build::tenscript::{FabricPlan, FaceAlias, Spin};
 use crate::crucible::Crucible;
 use crate::graphics::GraphicsWindow;
-use crate::keyboard::{KeyAct, Keyboard};
+use crate::user_interface::keyboard::Keyboard;
 use crate::user_interface::{Action, UserInterface};
 use crate::scene::Scene;
 
@@ -67,11 +67,32 @@ impl Application {
                 }
                 Action::AddBrick { face_alias, face_id } => {
                     self.scene.clear_face_selection();
-                    self.crucible.add_brick(face_alias, face_id)
+                    self.crucible.add_brick(face_alias, face_id);
                 }
                 Action::ShowSurface => {
-                    self.scene.show_surface(true)
+                    self.scene.show_surface(true);
                 }
+                Action::MainMenu => {
+                    self.user_interface.main_menu();
+                }
+                Action::ToggleDebug => {
+                    self.user_interface.toggle_debug_mode();
+                }
+                Action::SetSpeed(speed) => {
+                    self.crucible.set_speed(speed);
+                }
+                Action::CreateBrick => {
+                    self.create_brick();
+                }
+                Action::SelectNextFace => {
+                    self.scene.select_next_face(None, self.crucible.fabric());
+                },
+                Action::WatchMidpoint => {
+                    self.scene.watch_midpoint();
+                },
+                Action::WatchOrigin => {
+                    self.scene.watch_origin();
+                },
             }
         }
         window.request_redraw();
@@ -151,16 +172,10 @@ impl Application {
         } = event else {
             return;
         };
-        match self.keyboard.act(keycode) {
-            KeyAct::Idle => {}
-            KeyAct::MainMenu => self.user_interface.main_menu(),
-            KeyAct::ToggleDebug => self.user_interface.toggle_debug_mode(),
-            KeyAct::SetSpeed(speed) => self.crucible.set_speed(speed),
-            KeyAct::CreateBrick => self.create_brick(),
-            KeyAct::SelectNextFace => self.scene.select_next_face(None, self.crucible.fabric()),
-            KeyAct::WatchMidpoint => self.scene.watch_midpoint(),
-            KeyAct::WatchOrigin => self.scene.watch_origin(),
-        }
+        let Some(action) = self.keyboard.action(keycode) else {
+            return;
+        };
+        self.user_interface.action(action)
     }
 
     pub(crate) fn create_brick(&mut self) {

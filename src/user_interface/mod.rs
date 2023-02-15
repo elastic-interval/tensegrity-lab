@@ -22,6 +22,7 @@ mod fabric_choice;
 mod strain_threshold;
 mod gravity;
 mod control_state;
+pub mod keyboard;
 
 const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
 
@@ -33,6 +34,13 @@ pub enum Action {
     GravityChanged(f32),
     ShowSurface,
     CalibrateStrain,
+    MainMenu,
+    ToggleDebug,
+    SetSpeed(usize),
+    CreateBrick,
+    SelectNextFace,
+    WatchMidpoint,
+    WatchOrigin,
 }
 
 /// Largely adapted from https://github.com/iced-rs/iced/blob/master/examples/integration_wgpu/src/main.rs

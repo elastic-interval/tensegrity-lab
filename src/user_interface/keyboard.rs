@@ -1,17 +1,7 @@
 use winit::event::VirtualKeyCode;
 use winit::event::VirtualKeyCode::{*};
-use crate::keyboard::KeyAct::{*};
-
-pub enum KeyAct {
-    Idle,
-    MainMenu,
-    ToggleDebug,
-    SetSpeed(usize),
-    CreateBrick,
-    SelectNextFace,
-    WatchMidpoint,
-    WatchOrigin,
-}
+use crate::user_interface::Action;
+use crate::user_interface::Action::{*};
 
 #[derive( Debug, Default)]
 pub struct Keyboard {
@@ -19,8 +9,8 @@ pub struct Keyboard {
 }
 
 impl Keyboard {
-    pub fn act(&mut self, keycode: &VirtualKeyCode) -> KeyAct {
-        match keycode {
+    pub fn action(&mut self, keycode: &VirtualKeyCode) -> Option<Action> {
+        Some(match keycode {
             Escape => MainMenu,
             D => ToggleDebug,
             Key0 => SetSpeed(0),
@@ -33,7 +23,7 @@ impl Keyboard {
             F => SelectNextFace,
             M => WatchMidpoint,
             O => WatchOrigin,
-            _ => Idle
-        }
+            _ => return None,
+        })
     }
 }
