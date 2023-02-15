@@ -2,7 +2,7 @@ use std::convert::Into;
 
 use pest::iterators::Pair;
 
-use crate::build::tenscript::{FaceAlias, FaceMark};
+use crate::build::tenscript::{FaceAlias, FaceMark, TenscriptError};
 use crate::build::tenscript::build_phase::BuildNode::{*};
 use crate::build::tenscript::build_phase::Launch::{*};
 use crate::build::tenscript::Rule;
@@ -86,23 +86,26 @@ impl BuildPhase {
 }
 
 impl BuildPhase {
-    pub fn from_pair(pair: Pair<Rule>) -> BuildPhase {
-        let root = pair.into_inner().next().map(Self::parse_build_node).unwrap();
-        BuildPhase::new(root)
+    pub fn from_pair(pair: Pair<Rule>) -> Result<BuildPhase, TenscriptError> {
+        pair
+            .into_inner()
+            .next()
+            .map(|build_node_pair|
+                Self::parse_build_node(build_node_pair)
+                    .map(|node| BuildPhase::new(node))
+            )
+            .unwrap()
     }
 
-    fn parse_build_node(pair: Pair<Rule>) -> BuildNode {
+    fn parse_build_node(pair: Pair<Rule>) -> Result<BuildNode, TenscriptError> {
         match pair.as_rule() {
             Rule::build_node =>
                 Self::parse_build_node(pair.into_inner().next().unwrap()),
             Rule::on_face => {
                 let [face_name_pair, node_pair] = pair.into_inner().next_chunk().unwrap();
                 let alias = FaceAlias::from_pair(face_name_pair);
-                let node = Self::parse_build_node(node_pair);
-                Face {
-                    alias,
-                    node: Box::new(node),
-                }
+                let node = Self::parse_build_node(node_pair)?;
+                Ok(Face { alias, node: Box::new(node) })
             }
             Rule::grow => {
                 let mut inner = pair.into_inner();
@@ -111,18 +114,31 @@ impl BuildPhase {
                     Ok(count) => { "X".repeat(count) }
                     Err(_) => { forward_string[1..forward_string.len() - 1].into() }
                 };
-                let scale_factor = Self::parse_scale(inner.next());
-                let post_growth_node = inner.next()
-                    .map(|post_growth| Box::new(Self::parse_build_node(post_growth)));
-                Grow {
+                let mut scale = None;
+                let mut post_growth_node = None;
+                for inner_pair in inner {
+                    match inner_pair.as_rule() {
+                        Rule::scale => {
+                            let parsed_scale = TenscriptError::parse_float_inside(inner_pair, "grow/scale")?;
+                            scale = Some(parsed_scale);
+                        }
+                        Rule::build_node => {
+                            let parsed_node = Self::parse_build_node(inner_pair)?;
+                            post_growth_node = Some(Box::new(parsed_node))
+                        }
+                        _ => unreachable!()
+                    }
+                }
+                let scale_factor = scale.unwrap_or(1.0);
+                Ok(Grow {
                     forward,
                     scale_factor,
                     post_growth_node,
-                }
+                })
             }
             Rule::mark => {
                 let mark_name = pair.into_inner().next().unwrap().as_str()[1..].into();
-                Mark { mark_name }
+                Ok(Mark { mark_name })
             }
             Rule::branch => {
                 let mut inner = pair.into_inner();
@@ -135,12 +151,13 @@ impl BuildPhase {
                             rotation += 1;
                         }
                         Rule::on_face => {
-                            face_nodes.push(Self::parse_build_node(node_pair));
+                            let node = Self::parse_build_node(node_pair)?;
+                            face_nodes.push(node);
                         }
                         _ => unreachable!("{:?}", node_pair)
                     }
                 }
-                Branch { alias, rotation, face_nodes }
+                Ok(Branch { alias, rotation, face_nodes })
             }
             _ => unreachable!("node {:?}", pair.as_rule()),
         }
@@ -193,7 +210,7 @@ impl BuildPhase {
             assert!(!faces.is_empty(), "no faces returned from attach brick {face_alias}");
             let top_face_alias = face_alias + &FaceAlias::single(":next-base");
             buds.push(Bud {
-                face_id: top_face_alias.find_face_in( &faces, fabric).expect("face matching top face alias"),
+                face_id: top_face_alias.find_face_in(&faces, fabric).expect("face matching top face alias"),
                 forward: forward[1..].into(),
                 scale_factor,
                 node,
@@ -241,7 +258,7 @@ impl BuildPhase {
     fn find_launch_face(launch: Launch, faces: &[UniqueId], fabric: &Fabric) -> Option<UniqueId> {
         match launch {
             Scratch => None,
-            NamedFace { face_alias } => face_alias.find_face_in( &faces, fabric),
+            NamedFace { face_alias } => face_alias.find_face_in(&faces, fabric),
             IdentifiedFace { face_id } => Some(face_id),
         }
     }
@@ -257,5 +274,4 @@ impl BuildPhase {
             })
             .collect()
     }
-
 }
