@@ -5,7 +5,7 @@ use std::sync::LazyLock;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, point3, Quaternion, Rotation, SquareMatrix, Transform, Vector3};
 use pest::iterators::Pair;
 
-use crate::build::tenscript::{FaceAlias, Library, parse_atom, ParseError, Spin};
+use crate::build::tenscript::{FaceAlias, Library, parse_atom, TenscriptError, Spin};
 use crate::build::tenscript::Rule;
 use crate::build::tenscript::Spin::{Left, Right};
 use crate::fabric::{Fabric, Link};
@@ -118,7 +118,7 @@ impl From<Prototype> for Fabric {
 }
 
 impl Prototype {
-    pub fn from_pair(pair: Pair<Rule>) -> Result<Self, ParseError> {
+    pub fn from_pair(pair: Pair<Rule>) -> Result<Self, TenscriptError> {
         let mut inner = pair.into_inner();
         let prototype_alias = FaceAlias::from_pair(inner.next().unwrap());
         let mut pushes = Vec::new();
@@ -181,7 +181,7 @@ impl Prototype {
 }
 
 impl BrickDefinition {
-    pub fn from_pair(pair: Pair<Rule>) -> Result<Self, ParseError> {
+    pub fn from_pair(pair: Pair<Rule>) -> Result<Self, TenscriptError> {
         let mut inner = pair.into_inner();
         let proto = Prototype::from_pair(inner.next().unwrap())?;
         let baked = inner.next().map(Baked::from_pair);

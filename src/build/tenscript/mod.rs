@@ -27,16 +27,33 @@ mod build_phase;
 pub struct TenscriptParser;
 
 #[derive(Debug)]
-pub enum ParseError {
+pub enum TenscriptError {
     Pest(Error<Rule>),
+    Format(String),
     Invalid(String),
 }
 
-impl Display for ParseError {
+impl TenscriptError {
+    pub fn parse_float(string: &str, spot: &str) -> Result<f32, Self> {
+        string.parse().map_err(|_| TenscriptError::Format(format!("[{spot}]:Not a float: '{string}'")))
+    }
+
+    pub fn parse_usize(string: &str, spot: &str) -> Result<usize, Self> {
+        string.parse().map_err(|_| TenscriptError::Format(format!("[{spot}]Not an int: '{string}'")))
+    }
+
+    pub fn parse_float_inside(pair: Pair<Rule>, spot: &str) -> Result<f32, TenscriptError> {
+        Self::parse_float(pair.into_inner().next().unwrap().as_str(), spot)
+            .map_err(|error|TenscriptError::Format(format!("Not a float pair: [{error}]")))
+    }
+}
+
+impl Display for TenscriptError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParseError::Pest(error) => write!(f, "parse error: {error}"),
-            ParseError::Invalid(warning) => write!(f, "warning: {warning}"),
+            TenscriptError::Pest(error) => write!(f, "parse error: {error}"),
+            TenscriptError::Format(error) => write!(f, "format: {error}"),
+            TenscriptError::Invalid(warning) => write!(f, "warning: {warning}"),
         }
     }
 }
@@ -180,20 +197,20 @@ impl Library {
         let source = fs::read_to_string("src/build/tenscript/library.scm").unwrap();
         match Self::from_tenscript(&source) {
             Ok(library) => library,
-            Err(ParseError::Pest(error)) => panic!("pest parse error: \n{error}"),
+            Err(TenscriptError::Pest(error)) => panic!("pest parse error: \n{}", error),
             Err(e) => panic!("{e:?}")
         }
     }
 
-    pub fn from_tenscript(source: &str) -> Result<Self, ParseError> {
+    pub fn from_tenscript(source: &str) -> Result<Self, TenscriptError> {
         let pair = TenscriptParser::parse(Rule::library, source)
-            .map_err(ParseError::Pest)?
+            .map_err(TenscriptError::Pest)?
             .next()
             .expect("no (library ..)");
         Self::from_pair(pair)
     }
 
-    fn from_pair(pair: Pair<Rule>) -> Result<Self, ParseError> {
+    fn from_pair(pair: Pair<Rule>) -> Result<Self, TenscriptError> {
         let mut library = Self::default();
         for definition in pair.into_inner() {
             match definition.as_rule() {
