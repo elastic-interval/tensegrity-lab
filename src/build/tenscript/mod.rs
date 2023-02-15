@@ -197,8 +197,8 @@ impl Library {
         let source = fs::read_to_string("src/build/tenscript/library.scm").unwrap();
         match Self::from_tenscript(&source) {
             Ok(library) => library,
-            Err(TenscriptError::Pest(error)) => panic!("pest parse error: \n{}", error),
-            Err(e) => panic!("{e:?}")
+            Err(TenscriptError::Pest(_error)) => panic!("pest parse error: \n{_error}"),
+            Err(_error) => panic!("{_error:?}")
         }
     }
 
