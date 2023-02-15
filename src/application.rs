@@ -11,7 +11,7 @@ use winit::window::Window;
 use crate::build::tenscript::{FabricPlan, FaceAlias, Spin};
 use crate::crucible::Crucible;
 use crate::graphics::GraphicsWindow;
-use crate::user_interface::keyboard::Keyboard;
+use crate::user_interface::keyboard::{Keyboard, Menu};
 use crate::user_interface::{Action, UserInterface};
 use crate::scene::Scene;
 
@@ -29,6 +29,23 @@ impl Application {
     pub fn new(graphics: GraphicsWindow, window: &Window) -> Application {
         let user_interface = UserInterface::new(&graphics, window);
         let scene = Scene::new(&graphics);
+        let menu =
+            Menu::new("Space:Menu", VirtualKeyCode::Space, vec![
+                Menu::new("Speed", VirtualKeyCode::S, vec![
+                    Menu::action("0:Paused", VirtualKeyCode::Key0, Action::SetSpeed(0)),
+                    Menu::action("1:Glacial", VirtualKeyCode::Key1, Action::SetSpeed(5)),
+                    Menu::action("2:Slow", VirtualKeyCode::Key2, Action::SetSpeed(25)),
+                    Menu::action("3:Normal", VirtualKeyCode::Key3, Action::SetSpeed(125)),
+                    Menu::action("4:Fast", VirtualKeyCode::Key4, Action::SetSpeed(625)),
+                ]),
+                Menu::new("Camera", VirtualKeyCode::C, vec![
+                    Menu::action("Midpoint", VirtualKeyCode::M, Action::WatchMidpoint),
+                    Menu::action("Origin", VirtualKeyCode::O, Action::WatchOrigin),
+                ]),
+                Menu::action("Debug toggle", VirtualKeyCode::D, Action::ToggleDebug),
+                Menu::action("Brick create", VirtualKeyCode::B, Action::CreateBrick),
+                Menu::action("Face next", VirtualKeyCode::F, Action::SelectNextFace),
+            ]);
         Application {
             scene,
             user_interface,
@@ -36,7 +53,7 @@ impl Application {
             graphics,
             library_modified: library_modified_timestamp(),
             fabric_plan_name: None,
-            keyboard: Keyboard::default(),
+            keyboard: Keyboard::new(menu),
         }
     }
 
@@ -86,13 +103,13 @@ impl Application {
                 }
                 Action::SelectNextFace => {
                     self.scene.select_next_face(None, self.crucible.fabric());
-                },
+                }
                 Action::WatchMidpoint => {
                     self.scene.watch_midpoint();
-                },
+                }
                 Action::WatchOrigin => {
                     self.scene.watch_origin();
-                },
+                }
             }
         }
         window.request_redraw();
@@ -172,7 +189,7 @@ impl Application {
         } = event else {
             return;
         };
-        let Some(action) = self.keyboard.action(keycode) else {
+        let Some(action) = self.keyboard.enum_action(keycode) else {
             return;
         };
         self.user_interface.action(action)
