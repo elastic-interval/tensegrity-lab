@@ -11,16 +11,18 @@ use winit::window::Window;
 use crate::build::tenscript::{FabricPlan, FaceAlias, Spin};
 use crate::crucible::Crucible;
 use crate::graphics::GraphicsWindow;
+use crate::keyboard::{KeyAct, Keyboard};
 use crate::user_interface::{Action, UserInterface};
 use crate::scene::Scene;
 
 pub struct Application {
-    graphics: GraphicsWindow,
     scene: Scene,
     user_interface: UserInterface,
     crucible: Crucible,
+    graphics: GraphicsWindow,
     library_modified: SystemTime,
     fabric_plan_name: Option<String>,
+    keyboard: Keyboard,
 }
 
 impl Application {
@@ -28,12 +30,13 @@ impl Application {
         let user_interface = UserInterface::new(&graphics, window);
         let scene = Scene::new(&graphics);
         Application {
-            graphics,
             scene,
             user_interface,
             crucible: Crucible::default(),
+            graphics,
             library_modified: library_modified_timestamp(),
             fabric_plan_name: None,
+            keyboard: Keyboard::default(),
         }
     }
 
@@ -98,10 +101,7 @@ impl Application {
             WindowEvent::ScaleFactorChanged { new_inner_size, .. } => self.resize(**new_inner_size),
             WindowEvent::KeyboardInput { .. } => self.handle_keyboard_input(event),
             WindowEvent::MouseInput { state: ElementState::Released, .. } => self.scene.window_event(event),
-
-            WindowEvent::MouseInput { .. } |
-            WindowEvent::CursorMoved { .. } |
-            WindowEvent::MouseWheel { .. }
+            WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
             if !self.user_interface.capturing_mouse() => self.scene.window_event(event),
             _ => {}
         }
@@ -151,24 +151,19 @@ impl Application {
         } = event else {
             return;
         };
-        match keycode {
-            VirtualKeyCode::Escape => self.user_interface.main_menu(),
-            VirtualKeyCode::D => self.user_interface.toggle_debug_mode(),
-            VirtualKeyCode::Key0 => self.crucible.set_speed(0),
-            VirtualKeyCode::Key1 => self.crucible.set_speed(1),
-            VirtualKeyCode::Key2 => self.crucible.set_speed(5),
-            VirtualKeyCode::Key3 => self.crucible.set_speed(25),
-            VirtualKeyCode::Key4 => self.crucible.set_speed(125),
-            VirtualKeyCode::Key5 => self.crucible.set_speed(625),
-            VirtualKeyCode::B => self.create_brick(),
-            VirtualKeyCode::F => self.scene.select_next_face(None, self.crucible.fabric()),
-            VirtualKeyCode::M => self.scene.watch_midpoint(),
-            VirtualKeyCode::O => self.scene.watch_origin(),
-            _ => {}
+        match self.keyboard.act(keycode) {
+            KeyAct::Idle => {}
+            KeyAct::MainMenu => self.user_interface.main_menu(),
+            KeyAct::ToggleDebug => self.user_interface.toggle_debug_mode(),
+            KeyAct::SetSpeed(speed) => self.crucible.set_speed(speed),
+            KeyAct::CreateBrick => self.create_brick(),
+            KeyAct::SelectNextFace => self.scene.select_next_face(None, self.crucible.fabric()),
+            KeyAct::WatchMidpoint => self.scene.watch_midpoint(),
+            KeyAct::WatchOrigin => self.scene.watch_origin(),
         }
     }
 
-    fn create_brick(&mut self) {
+    pub(crate) fn create_brick(&mut self) {
         let Some(face_id) = self.scene.target_face_id() else {
             return;
         };
