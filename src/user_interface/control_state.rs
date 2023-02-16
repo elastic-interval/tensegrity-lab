@@ -3,18 +3,20 @@ use std::cell::RefCell;
 use iced_wgpu::Renderer;
 use iced_winit::{Alignment, Color, Command, Element, Length, Program};
 use iced_winit::widget::{Button, Column, Row, Text};
+use winit::event::VirtualKeyCode;
 
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
 
 use crate::build::tenscript::Library;
 use crate::fabric::{Fabric, UniqueId};
-use crate::user_interface::Action;
+use crate::user_interface::{Action, action_menu};
 use crate::user_interface::fabric_choice::{FabricChoice, FabricChoiceMessage};
 use crate::user_interface::gravity::{Gravity, GravityMessage};
 use crate::user_interface::strain_threshold::{StrainThreshold, StrainThresholdMessage};
 use crate::user_interface::strain_threshold::StrainThresholdMessage::SetStrainLimits;
 use crate::scene::Variation;
+use crate::user_interface::keyboard::Keyboard;
 
 #[derive(Clone, Copy, Debug)]
 pub enum VisibleControl {
@@ -24,9 +26,10 @@ pub enum VisibleControl {
     StrainThreshold,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct ControlState {
     debug_mode: bool,
+    keyboard: Keyboard,
     visible_controls: VisibleControl,
     fabric_choice: FabricChoice,
     strain_threshold: StrainThreshold,
@@ -43,7 +46,9 @@ impl Default for ControlState {
             .into_iter()
             .map(|plan| (plan.name.clone(), plan))
             .collect();
+        let keyboard = Keyboard::new(action_menu());
         Self {
+            keyboard,
             debug_mode: false,
             visible_controls: VisibleControl::FabricChoice,
             fabric_choice: FabricChoice {
@@ -66,6 +71,10 @@ impl Default for ControlState {
 }
 
 impl ControlState {
+    pub fn key_action(&self, keycode_pressed: &VirtualKeyCode) -> Option<Keyboard> {
+        self.keyboard.action(keycode_pressed, &self.action_queue)
+    }
+
     pub fn take_actions(&self) -> Vec<Action> {
         self.action_queue.borrow_mut().split_off(0)
     }
@@ -98,6 +107,7 @@ impl ControlState {
 pub enum ControlMessage {
     ToggleDebugMode,
     Reset,
+    KeyboardRefresh(Keyboard),
     ShowControl(VisibleControl),
     FabricChoice(FabricChoiceMessage),
     StrainThreshold(StrainThresholdMessage),
@@ -117,6 +127,9 @@ impl Program for ControlState {
             }
         };
         match message {
+            ControlMessage::KeyboardRefresh(keyboard) => {
+                self.keyboard = keyboard;
+            }
             ControlMessage::ToggleDebugMode => {
                 self.debug_mode = !self.debug_mode;
             }
@@ -195,6 +208,12 @@ impl Program for ControlState {
                         VisibleControl::StrainThreshold => self.strain_threshold.element(),
                         VisibleControl::Gravity => self.gravity.element(),
                     }
+                )
+                .push(
+                    Row::new()
+                        .width(Length::Fill)
+                        .align_items(Alignment::Center)
+                        .push(Text::new(self.keyboard.current().to_string()))
                 )
                 .into();
         if self.debug_mode {
