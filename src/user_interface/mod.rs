@@ -6,7 +6,7 @@ use iced_wgpu::{Backend, Renderer, Settings};
 use iced_winit::{Clipboard, Color, conversion, Debug, program, renderer, Size, Viewport};
 use wgpu::{CommandEncoder, Device, TextureView};
 use winit::dpi::PhysicalPosition;
-use winit::event::{ModifiersState, WindowEvent};
+use winit::event::{ModifiersState, VirtualKeyCode, WindowEvent};
 use winit::window::{CursorIcon, Window};
 
 #[cfg(target_arch = "wasm32")]
@@ -16,6 +16,7 @@ use crate::fabric::UniqueId;
 
 use crate::graphics::GraphicsWindow;
 use crate::user_interface::control_state::{ControlMessage, ControlState, VisibleControl};
+use crate::user_interface::keyboard::Menu;
 use crate::user_interface::strain_threshold::StrainThresholdMessage;
 
 mod fabric_choice;
@@ -41,6 +42,25 @@ pub enum Action {
     SelectNextFace,
     WatchMidpoint,
     WatchOrigin,
+}
+
+fn action_menu() -> Menu {
+    Menu::new("Space:Menu", VirtualKeyCode::Space, vec![
+        Menu::new("Speed", VirtualKeyCode::S, vec![
+            Menu::action("0:Paused", VirtualKeyCode::Key0, Action::SetSpeed(0)),
+            Menu::action("1:Glacial", VirtualKeyCode::Key1, Action::SetSpeed(5)),
+            Menu::action("2:Slow", VirtualKeyCode::Key2, Action::SetSpeed(25)),
+            Menu::action("3:Normal", VirtualKeyCode::Key3, Action::SetSpeed(125)),
+            Menu::action("4:Fast", VirtualKeyCode::Key4, Action::SetSpeed(625)),
+        ]),
+        Menu::new("Camera", VirtualKeyCode::C, vec![
+            Menu::action("Midpoint", VirtualKeyCode::M, Action::WatchMidpoint),
+            Menu::action("Origin", VirtualKeyCode::O, Action::WatchOrigin),
+        ]),
+        Menu::action("Debug toggle", VirtualKeyCode::D, Action::ToggleDebug),
+        Menu::action("Brick create", VirtualKeyCode::B, Action::CreateBrick),
+        Menu::action("Face next", VirtualKeyCode::F, Action::SelectNextFace),
+    ])
 }
 
 /// Largely adapted from https://github.com/iced-rs/iced/blob/master/examples/integration_wgpu/src/main.rs
@@ -117,6 +137,13 @@ impl UserInterface {
 
     pub fn post_render(&mut self) {
         self.staging_belt.recall();
+    }
+
+    pub fn key_action(&mut self, keycode_pressed: &VirtualKeyCode) {
+        let Some(keyboard) = self.controls().key_action(keycode_pressed) else {
+            return;
+        };
+        self.state.queue_message(ControlMessage::KeyboardRefresh(keyboard))
     }
 
     pub fn set_strain_limits(&mut self, strain_limits: (f32, f32)) {

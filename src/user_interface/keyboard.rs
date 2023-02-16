@@ -1,4 +1,5 @@
-use std::fmt::{Display, Formatter, Pointer};
+use std::cell::RefCell;
+use std::fmt::{Display, Formatter};
 use winit::event::VirtualKeyCode;
 
 use crate::user_interface::Action;
@@ -33,7 +34,7 @@ impl Display for Menu {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Keyboard {
     menu: Menu,
     current: Vec<Menu>,
@@ -51,12 +52,14 @@ impl Keyboard {
         self.current.last().unwrap().clone()
     }
 
-    pub fn enum_action(&mut self, keycode_pressed: &VirtualKeyCode) -> Option<Action> {
+    pub fn action(&self, keycode_pressed: &VirtualKeyCode, action_queue: &RefCell<Vec<Action>>) -> Option<Self>  {
+        let mut current = self.current.clone();
         if keycode_pressed == &VirtualKeyCode::Escape {
-            self.current.clear();
-            self.current.push(self.menu.clone());
+            current.clear();
+            current.push(self.menu.clone());
+            return Some(self.clone());
         };
-        self.current
+        let action = current
             .last()
             .unwrap()
             .clone()
@@ -68,15 +71,22 @@ impl Keyboard {
                     return None;
                 }
                 if action.is_some() {
-                    self.current.clear();
-                    self.current.push(self.menu.clone());
+                    current.clear();
+                    current.push(self.menu.clone());
                     return action.clone();
                 }
                 if submenu.is_empty() {
                     panic!("expected submenu");
                 }
-                self.current.push(menu.clone());
+                current.push(menu.clone());
                 None
-            })
+            });
+        if let Some(action) = action  {
+            action_queue.borrow_mut().push(action);
+        };
+        Some(Self {
+            menu: self.menu.clone(),
+            current,
+        })
     }
 }
