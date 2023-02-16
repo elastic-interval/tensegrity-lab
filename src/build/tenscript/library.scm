@@ -19,7 +19,7 @@
     (name "Flagellum")
     (build
       (branch (alias Single)
-        (face (alias Top) (grow 20 (scale .9)))))
+        (face (alias :next-base) (grow 20 (scale .9)))))
     (shape))
   (fabric
     (name "Halo by Crane")
