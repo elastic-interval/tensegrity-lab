@@ -2,27 +2,23 @@ use std::cell::RefCell;
 
 use iced_wgpu::Renderer;
 use iced_winit::{Alignment, Color, Command, Element, Length, Program};
-use iced_winit::widget::{Button, Column, Row, Text};
-use winit::event::VirtualKeyCode;
+use iced_winit::widget::{Column, Row, Text};
 
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
 
-use crate::build::tenscript::Library;
 use crate::fabric::{Fabric, UniqueId};
 use crate::user_interface::{Action, action_menu};
-use crate::user_interface::fabric_choice::{FabricChoice, FabricChoiceMessage};
 use crate::user_interface::gravity::{Gravity, GravityMessage};
 use crate::user_interface::strain_threshold::{StrainThreshold, StrainThresholdMessage};
 use crate::user_interface::strain_threshold::StrainThresholdMessage::SetStrainLimits;
 use crate::scene::Variation;
-use crate::user_interface::keyboard::Keyboard;
+use crate::user_interface::keyboard::{Keyboard, KeyboardMessage};
 
 #[derive(Clone, Copy, Debug)]
 pub enum VisibleControl {
-    ControlChoice,
+    Nothing,
     Gravity,
-    FabricChoice,
     StrainThreshold,
 }
 
@@ -31,7 +27,6 @@ pub struct ControlState {
     debug_mode: bool,
     keyboard: Keyboard,
     visible_controls: VisibleControl,
-    fabric_choice: FabricChoice,
     strain_threshold: StrainThreshold,
     gravity: Gravity,
     show_strain: bool,
@@ -41,19 +36,11 @@ pub struct ControlState {
 
 impl Default for ControlState {
     fn default() -> Self {
-        let choices = Library::standard()
-            .fabrics
-            .into_iter()
-            .map(|plan| (plan.name.clone(), plan))
-            .collect();
         let keyboard = Keyboard::new(action_menu());
         Self {
             keyboard,
             debug_mode: false,
-            visible_controls: VisibleControl::FabricChoice,
-            fabric_choice: FabricChoice {
-                choices,
-            },
+            visible_controls: VisibleControl::Nothing,
             strain_threshold: StrainThreshold {
                 nuance: 0.0,
                 strain_limits: (0.0, 1.0),
@@ -71,10 +58,6 @@ impl Default for ControlState {
 }
 
 impl ControlState {
-    pub fn key_action(&self, keycode_pressed: &VirtualKeyCode) -> Option<Keyboard> {
-        self.keyboard.action(keycode_pressed, &self.action_queue)
-    }
-
     pub fn take_actions(&self) -> Vec<Action> {
         self.action_queue.borrow_mut().split_off(0)
     }
@@ -107,9 +90,8 @@ impl ControlState {
 pub enum ControlMessage {
     ToggleDebugMode,
     Reset,
-    KeyboardRefresh(Keyboard),
     ShowControl(VisibleControl),
-    FabricChoice(FabricChoiceMessage),
+    Keyboard(KeyboardMessage),
     StrainThreshold(StrainThresholdMessage),
     Gravity(GravityMessage),
     Action(Action),
@@ -127,9 +109,6 @@ impl Program for ControlState {
             }
         };
         match message {
-            ControlMessage::KeyboardRefresh(keyboard) => {
-                self.keyboard = keyboard;
-            }
             ControlMessage::ToggleDebugMode => {
                 self.debug_mode = !self.debug_mode;
             }
@@ -137,7 +116,7 @@ impl Program for ControlState {
                 queue_action(Some(action));
             }
             ControlMessage::Reset => {
-                self.visible_controls = VisibleControl::ControlChoice;
+                self.visible_controls = VisibleControl::Nothing;
                 self.gravity.update(GravityMessage::Reset);
             }
             ControlMessage::ShowControl(visible_control) => {
@@ -152,8 +131,8 @@ impl Program for ControlState {
                     }
                 }
             }
-            ControlMessage::FabricChoice(message) => {
-                queue_action(self.fabric_choice.update(message));
+            ControlMessage::Keyboard(message) => {
+                queue_action(self.keyboard.update(message));
             }
             ControlMessage::StrainThreshold(message) => {
                 queue_action(self.strain_threshold.update(message));
@@ -194,17 +173,7 @@ impl Program for ControlState {
                 )
                 .push(
                     match self.visible_controls {
-                        VisibleControl::ControlChoice => {
-                            Row::new()
-                                .push(Button::new(Text::new("Fabrics"))
-                                    .on_press(ControlMessage::ShowControl(VisibleControl::FabricChoice)))
-                                .push(Button::new(Text::new("Strain"))
-                                    .on_press(ControlMessage::ShowControl(VisibleControl::StrainThreshold)))
-                                .push(Button::new(Text::new("Gravity"))
-                                    .on_press(ControlMessage::ShowControl(VisibleControl::Gravity)))
-                                .into()
-                        }
-                        VisibleControl::FabricChoice => self.fabric_choice.element(),
+                        VisibleControl::Nothing => Row::new().into(),
                         VisibleControl::StrainThreshold => self.strain_threshold.element(),
                         VisibleControl::Gravity => self.gravity.element(),
                     }
@@ -213,7 +182,7 @@ impl Program for ControlState {
                     Row::new()
                         .width(Length::Fill)
                         .align_items(Alignment::Center)
-                        .push(Text::new(self.keyboard.current().to_string()))
+                        .push(self.keyboard.element())
                 )
                 .into();
         if self.debug_mode {
@@ -232,8 +201,8 @@ pub trait Component {
 
 pub fn format_row(row: Row<'_, ControlMessage, Renderer>) -> Element<'_, ControlMessage, Renderer> {
     row
-        .padding(5)
-        .spacing(10)
+        .padding(10)
+        .spacing(20)
         .width(Length::Fill)
         .align_items(Alignment::Center)
         .into()

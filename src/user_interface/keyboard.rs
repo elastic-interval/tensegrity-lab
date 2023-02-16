@@ -1,8 +1,11 @@
-use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
+use iced_wgpu::Renderer;
+use iced_winit::Element;
+use iced_winit::widget::{Button, Row, Text};
 use winit::event::VirtualKeyCode;
 
 use crate::user_interface::Action;
+use crate::user_interface::control_state::{Component, ControlMessage, format_row};
 
 #[derive(Debug, Clone)]
 pub struct Menu {
@@ -24,10 +27,10 @@ impl Menu {
 
 impl Display for Menu {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let Menu{label, submenu,..} = self;
+        let Menu { label, submenu, .. } = self;
         let choices = submenu
             .iter()
-            .map(|Menu{label,..}|label.clone())
+            .map(|Menu { label, .. }| label.clone())
             .collect::<Vec<String>>()
             .join(" ");
         write!(f, "{label}: {choices}")
@@ -35,9 +38,69 @@ impl Display for Menu {
 }
 
 #[derive(Debug, Clone)]
+pub enum KeyboardMessage {
+    KeyPressed(VirtualKeyCode),
+    SelectSubmenu(Menu),
+    SelectUpperMenu,
+    SelectRootMenu,
+    SubmitAction(Action),
+}
+
+impl From<KeyboardMessage> for ControlMessage {
+    fn from(value: KeyboardMessage) -> Self {
+        ControlMessage::Keyboard(value)
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Keyboard {
     menu: Menu,
     current: Vec<Menu>,
+}
+
+impl Component for Keyboard {
+    type Message = KeyboardMessage;
+
+    fn update(&mut self, message: Self::Message) -> Option<Action> {
+        match message {
+            KeyboardMessage::SubmitAction(action) => {
+                return Some(action);
+            }
+            KeyboardMessage::KeyPressed(key_code) => {
+                let (current, action) = self.key_pressed(&key_code);
+                self.current = current;
+                return action;
+            }
+            KeyboardMessage::SelectSubmenu(menu) => {
+                self.current.push(menu);
+            }
+            KeyboardMessage::SelectUpperMenu => {
+                self.current.pop();
+            }
+            KeyboardMessage::SelectRootMenu => {
+                self.current.clear();
+                self.current.push(self.menu.clone());
+            }
+        }
+        None
+    }
+
+    fn element(&self) -> Element<'_, ControlMessage, Renderer> {
+        let mut row = Row::new();
+        row = row.push(Text::new(&self.current.last().unwrap().label));
+        for item in &self.current.last().unwrap().submenu {
+            row = row.push(
+                Button::new(Text::new(item.label.clone()))
+                    .on_press(
+                        match &item.action {
+                            None => KeyboardMessage::SelectSubmenu(item.clone()),
+                            Some(action) => KeyboardMessage::SubmitAction(action.clone()),
+                        }.into()
+                    )
+            );
+        }
+        format_row(row)
+    }
 }
 
 impl Keyboard {
@@ -52,12 +115,12 @@ impl Keyboard {
         self.current.last().unwrap().clone()
     }
 
-    pub fn action(&self, keycode_pressed: &VirtualKeyCode, action_queue: &RefCell<Vec<Action>>) -> Option<Self>  {
+    pub fn key_pressed(&self, keycode_pressed: &VirtualKeyCode) -> (Vec<Menu>, Option<Action>) {
         let mut current = self.current.clone();
         if keycode_pressed == &VirtualKeyCode::Escape {
             current.clear();
             current.push(self.menu.clone());
-            return Some(self.clone());
+            return (current, None);
         };
         let action = current
             .last()
@@ -66,7 +129,7 @@ impl Keyboard {
             .submenu
             .iter()
             .find_map(|menu| {
-                let Menu { keycode, action, submenu,.. } = menu;
+                let Menu { keycode, action, submenu, .. } = menu;
                 if keycode != keycode_pressed {
                     return None;
                 }
@@ -81,12 +144,6 @@ impl Keyboard {
                 current.push(menu.clone());
                 None
             });
-        if let Some(action) = action  {
-            action_queue.borrow_mut().push(action);
-        };
-        Some(Self {
-            menu: self.menu.clone(),
-            current,
-        })
+        (current, action)
     }
 }

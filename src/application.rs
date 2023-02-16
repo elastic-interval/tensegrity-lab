@@ -69,9 +69,6 @@ impl Application {
                 Action::ShowSurface => {
                     self.scene.show_surface(true);
                 }
-                Action::MainMenu => {
-                    self.user_interface.main_menu();
-                }
                 Action::ToggleDebug => {
                     self.user_interface.toggle_debug_mode();
                 }
@@ -169,7 +166,7 @@ impl Application {
         } = event else {
             return;
         };
-        self.user_interface.key_action(keycode);
+        self.user_interface.key_pressed(keycode);
     }
 
     pub(crate) fn create_brick(&mut self) {
