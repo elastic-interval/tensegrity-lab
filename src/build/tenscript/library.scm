@@ -10,8 +10,8 @@
     (name "Knee")
     (build
       (branch (alias Omni)
-        (face (alias TopX) (grow 3))
-        (face (alias TopY) (grow 3))))
+        (face (alias A) (grow 3))
+        (face (alias F) (grow 3))))
     (shape
       (vulcanize)
       (replace-faces)))
@@ -196,7 +196,7 @@
         (right :bot_alpha_z :bot_omega_x :top_alpha_y (alias :left BotZ) (alias :right TopZ) (alias :seed E))
         (right :bot_alpha_y :bot_omega_z :top_alpha_x (alias :left BotY) (alias :right TopY) (alias :seed F))
         (right :bot_alpha_x :bot_omega_y :top_alpha_z (alias :left BotX) (alias :right TopX) (alias :seed G))
-        (left :bot_alpha_x :bot_alpha_y :bot_alpha_z (alias :left :base) (alias :right Top) (alias :seed H))
+        (left :bot_alpha_x :bot_alpha_y :bot_alpha_z (alias :left :base) (alias :right Top) (alias :seed :base H))
         ))
     (baked
       (alias Omni)
@@ -232,7 +232,7 @@
       (left 3 6 9 (alias :left Omni TopX) (alias :right BotX Omni) (alias :seed B Omni))
       (right 0 5 10 (alias :left BotX Omni) (alias :right Omni TopX) (alias :seed G Omni))
       (left 11 2 5 (alias :left Omni TopZ) (alias :right BotZ Omni) (alias :seed D Omni))
-      (left 0 4 8 (alias :base :left Omni) (alias :right Omni Top) (alias :seed H Omni))
+      (left 0 4 8 (alias :base :left Omni) (alias :right Omni Top) (alias :seed :base H Omni))
       (right 3 7 11 (alias :left Omni Top) (alias :base :right Omni) (alias :seed A Omni)))
     )
   (brick
