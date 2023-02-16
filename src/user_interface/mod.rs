@@ -7,19 +7,19 @@ use iced_winit::{Clipboard, Color, conversion, Debug, program, renderer, Size, V
 use wgpu::{CommandEncoder, Device, TextureView};
 use winit::dpi::PhysicalPosition;
 use winit::event::{ModifiersState, VirtualKeyCode, WindowEvent};
+use VirtualKeyCode::{*};
 use winit::window::{CursorIcon, Window};
 
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
-use crate::build::tenscript::{FabricPlan, FaceAlias};
+use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
 use crate::fabric::UniqueId;
 
 use crate::graphics::GraphicsWindow;
-use crate::user_interface::control_state::{ControlMessage, ControlState, VisibleControl};
-use crate::user_interface::keyboard::Menu;
+use crate::user_interface::control_state::{ControlMessage, ControlState};
+use crate::user_interface::keyboard::{KeyboardMessage, Menu};
 use crate::user_interface::strain_threshold::StrainThresholdMessage;
 
-mod fabric_choice;
 mod strain_threshold;
 mod gravity;
 mod control_state;
@@ -35,7 +35,6 @@ pub enum Action {
     GravityChanged(f32),
     ShowSurface,
     CalibrateStrain,
-    MainMenu,
     ToggleDebug,
     SetSpeed(usize),
     CreateBrick,
@@ -45,21 +44,34 @@ pub enum Action {
 }
 
 fn action_menu() -> Menu {
-    Menu::new("Space:Menu", VirtualKeyCode::Space, vec![
-        Menu::new("Speed", VirtualKeyCode::S, vec![
-            Menu::action("0:Paused", VirtualKeyCode::Key0, Action::SetSpeed(0)),
-            Menu::action("1:Glacial", VirtualKeyCode::Key1, Action::SetSpeed(5)),
-            Menu::action("2:Slow", VirtualKeyCode::Key2, Action::SetSpeed(25)),
-            Menu::action("3:Normal", VirtualKeyCode::Key3, Action::SetSpeed(125)),
-            Menu::action("4:Fast", VirtualKeyCode::Key4, Action::SetSpeed(625)),
+    let number_keys = [Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9]
+        .into_iter()
+        .enumerate();
+    let choices = Library::standard()
+        .fabrics
+        .into_iter()
+        .zip(number_keys)
+        .map(|(plan, (index, key))| (index, plan.name.clone(), key, plan));
+    Menu::new("Lab", Space, vec![
+        Menu::new("Fabric", F, choices.map(|(index, label, key, plan)| {
+            let key_number = index + 1;
+            let label = format!("{key_number}: {label}");
+            Menu::action(label.as_str(), key, Action::BuildFabric(plan))
+        }).collect()),
+        Menu::new("Speed", S, vec![
+            Menu::action("0:Paused", Key0, Action::SetSpeed(0)),
+            Menu::action("1:Glacial", Key1, Action::SetSpeed(5)),
+            Menu::action("2:Slow", Key2, Action::SetSpeed(25)),
+            Menu::action("3:Normal", Key3, Action::SetSpeed(125)),
+            Menu::action("4:Fast", Key4, Action::SetSpeed(625)),
         ]),
-        Menu::new("Camera", VirtualKeyCode::C, vec![
-            Menu::action("Midpoint", VirtualKeyCode::M, Action::WatchMidpoint),
-            Menu::action("Origin", VirtualKeyCode::O, Action::WatchOrigin),
+        Menu::new("Camera", C, vec![
+            Menu::action("Midpoint", M, Action::WatchMidpoint),
+            Menu::action("Origin", O, Action::WatchOrigin),
         ]),
-        Menu::action("Debug toggle", VirtualKeyCode::D, Action::ToggleDebug),
-        Menu::action("Brick create", VirtualKeyCode::B, Action::CreateBrick),
-        Menu::action("Face next", VirtualKeyCode::F, Action::SelectNextFace),
+        Menu::action("Debug toggle", D, Action::ToggleDebug),
+        Menu::action("Brick create", B, Action::CreateBrick),
+        Menu::action("Next face", N, Action::SelectNextFace),
     ])
 }
 
@@ -139,19 +151,12 @@ impl UserInterface {
         self.staging_belt.recall();
     }
 
-    pub fn key_action(&mut self, keycode_pressed: &VirtualKeyCode) {
-        let Some(keyboard) = self.controls().key_action(keycode_pressed) else {
-            return;
-        };
-        self.state.queue_message(ControlMessage::KeyboardRefresh(keyboard))
+    pub fn key_pressed(&mut self, keycode_pressed: &VirtualKeyCode) {
+        self.state.queue_message(ControlMessage::Keyboard(KeyboardMessage::KeyPressed(*keycode_pressed)));
     }
 
     pub fn set_strain_limits(&mut self, strain_limits: (f32, f32)) {
         self.state.queue_message(ControlMessage::StrainThreshold(StrainThresholdMessage::SetStrainLimits(strain_limits)))
-    }
-
-    pub fn main_menu(&mut self) {
-        self.state.queue_message(ControlMessage::ShowControl(VisibleControl::ControlChoice))
     }
 
     pub fn reset(&mut self) {
