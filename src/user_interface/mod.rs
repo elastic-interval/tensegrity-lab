@@ -44,27 +44,23 @@ pub enum Action {
 }
 
 fn action_menu() -> Menu {
-    let number_keys = [Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9]
+    let number_keys = [Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9];
+    let speeds = [(0usize, "Paused"), (5, "Glacial"), (25, "Slow"), (125, "Normal"), (625, "Fast")];
+
+    let fabric_choices = Library::standard().fabrics
         .into_iter()
-        .enumerate();
-    let choices = Library::standard()
-        .fabrics
+        .zip(number_keys.iter().enumerate())
+        .map(|(plan, (index, key))| (format!("{}: {}", index + 1, plan.name), key, plan));
+    let speed_choices = speeds
         .into_iter()
-        .zip(number_keys)
-        .map(|(plan, (index, key))| (index, plan.name.clone(), key, plan));
+        .zip(number_keys.iter().enumerate())
+        .map(|((speed, label), (index, key))| (format!("{}: {label} ({speed})", index + 1), key, speed));
+
     Menu::new("Lab", Space, vec![
-        Menu::new("Fabric", F, choices.map(|(index, label, key, plan)| {
-            let key_number = index + 1;
-            let label = format!("{key_number}: {label}");
-            Menu::action(label.as_str(), key, Action::BuildFabric(plan))
-        }).collect()),
-        Menu::new("Speed", S, vec![
-            Menu::action("0:Paused", Key0, Action::SetSpeed(0)),
-            Menu::action("1:Glacial", Key1, Action::SetSpeed(5)),
-            Menu::action("2:Slow", Key2, Action::SetSpeed(25)),
-            Menu::action("3:Normal", Key3, Action::SetSpeed(125)),
-            Menu::action("4:Fast", Key4, Action::SetSpeed(625)),
-        ]),
+        Menu::new("Fabric", F, fabric_choices.map(|(label, key, plan)|
+            Menu::action(label.as_str(), *key, Action::BuildFabric(plan))).collect()),
+        Menu::new("Speed", S, speed_choices.map(|(label, key, speed)|
+            Menu::action(label.as_str(), *key, Action::SetSpeed(speed))).collect()),
         Menu::new("Camera", C, vec![
             Menu::action("Midpoint", M, Action::WatchMidpoint),
             Menu::action("Origin", O, Action::WatchOrigin),
