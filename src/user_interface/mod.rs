@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 
@@ -56,10 +55,16 @@ fn fabric_menu(fabrics: &Vec<FabricPlan>, below: Vec<String>) -> Vec<Menu> {
         })
         .collect();
     if sub_fabrics.is_empty() {
-        fabrics
-            .iter()
-            .flat_map(|FabricPlan{name,..}| name.iter().nth(below.len()).cloned())
-            .collect::<HashSet<String>>()
+        let mut unique: Vec<String> = Vec::new();
+        for plan in fabrics {
+            let next_name = plan.name.iter().nth(below.len()).unwrap();
+            match unique.last() {
+                None => unique.push(next_name.clone()),
+                Some(last_next_name) if next_name != last_next_name => unique.push(next_name.clone()),
+                _ => {}
+            }
+        }
+        unique
             .iter()
             .zip(NUMBER_KEYS.into_iter().enumerate())
             .map(|(first, (index,key))| {
