@@ -7,7 +7,6 @@ use iced_winit::{Clipboard, Color, conversion, Debug, program, renderer, Size, V
 use wgpu::{CommandEncoder, Device, TextureView};
 use winit::dpi::PhysicalPosition;
 use winit::event::{ModifiersState, VirtualKeyCode, WindowEvent};
-use VirtualKeyCode::{*};
 use winit::window::{CursorIcon, Window};
 
 #[cfg(target_arch = "wasm32")]
@@ -43,12 +42,10 @@ pub enum Action {
     WatchOrigin,
 }
 
-const NUMBER_KEYS: [VirtualKeyCode; 9] = [Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9];
-
 fn fabric_menu(fabrics: &Vec<FabricPlan>, below: Vec<String>) -> Vec<Menu> {
     let sub_fabrics: Vec<_> = fabrics
         .iter()
-        .filter(|fabric|{
+        .filter(|fabric| {
             let mut compare = below.clone();
             compare.push(fabric.name.last().unwrap().clone());
             compare == fabric.name
@@ -66,21 +63,18 @@ fn fabric_menu(fabrics: &Vec<FabricPlan>, below: Vec<String>) -> Vec<Menu> {
         }
         unique
             .iter()
-            .zip(NUMBER_KEYS.into_iter().enumerate())
-            .map(|(first, (index,key))| {
+            .map(|first| {
                 let mut new_below = below.clone();
                 new_below.push(first.clone());
-                let label = format!("{}: {}", index + 1, first);
-                Menu::new(label.as_str(), key, fabric_menu(fabrics, new_below))
+                Menu::new(first.as_str(), fabric_menu(fabrics, new_below))
             })
             .collect()
     } else {
         sub_fabrics
             .into_iter()
-            .zip(NUMBER_KEYS.into_iter().enumerate())
-            .map(|(fabric_plan, (index, key))|{
-                let label = format!("{}: {}", index + 1, fabric_plan.name.last().unwrap());
-                Menu::action(label.as_str(), key, Action::BuildFabric(fabric_plan.clone()))
+            .map(|fabric_plan| {
+                let label = fabric_plan.name.last().unwrap();
+                Menu::action(label.as_str(), Action::BuildFabric(fabric_plan.clone()))
             })
             .collect()
     }
@@ -89,25 +83,24 @@ fn fabric_menu(fabrics: &Vec<FabricPlan>, below: Vec<String>) -> Vec<Menu> {
 fn speed_menu() -> Vec<Menu> {
     [(0usize, "Paused"), (5, "Glacial"), (25, "Slow"), (125, "Normal"), (625, "Fast")]
         .into_iter()
-        .zip(NUMBER_KEYS.iter().enumerate())
-        .map(|((speed, label), (index, key))|
-            (format!("{}: {label} ({speed})", index + 1), key, speed))
-        .map(|(label, key, speed)|
-            Menu::action(label.as_str(), *key, Action::SetSpeed(speed)))
+        .map(|(speed, label)|
+            Menu::action(label, Action::SetSpeed(speed)))
         .collect()
 }
 
 fn action_menu() -> Menu {
-    Menu::new("Lab", Space, vec![
-        Menu::new("Fabric", F, fabric_menu(&Library::standard().fabrics, Vec::new())),
-        Menu::new("Speed", S, speed_menu()),
-        Menu::new("Camera", C, vec![
-            Menu::action("Midpoint", M, Action::WatchMidpoint),
-            Menu::action("Origin", O, Action::WatchOrigin),
+    Menu::new("Tensegrity Lab", vec![
+        Menu::new("Fabric", fabric_menu(&Library::standard().fabrics, Vec::new())),
+        Menu::new("Speed", speed_menu()),
+        Menu::new("Camera", vec![
+            Menu::action("Midpoint", Action::WatchMidpoint),
+            Menu::action("Origin", Action::WatchOrigin),
         ]),
-        Menu::action("Debug toggle", D, Action::ToggleDebug),
-        Menu::action("Brick create", B, Action::CreateBrick),
-        Menu::action("Next face", N, Action::SelectNextFace),
+        Menu::new("Etc", vec![
+            Menu::action("Debug toggle", Action::ToggleDebug),
+            Menu::action("Next face", Action::SelectNextFace),
+            Menu::action("Brick create", Action::CreateBrick),
+        ]),
     ])
 }
 
