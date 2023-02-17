@@ -1,13 +1,9 @@
 (library
+  (fabric (name "Seed" "Single") (build (branch (alias Single))) (shape))
+  (fabric (name "Seed" "Omni") (build (branch (alias Omni))) (shape))
+  (fabric (name "Seed" "Torque") (build (branch (alias Torque))) (shape))
   (fabric
-    (name "Seed")
-    (build
-      (branch (alias Torque)))
-    (shape
-      (vulcanize)
-      (replace-faces)))
-  (fabric
-    (name "Knee")
+    (name "Simple" "Knee")
     (build
       (branch (alias Omni)
         (face (alias A) (grow 3))
@@ -16,77 +12,60 @@
       (vulcanize)
       (replace-faces)))
   (fabric
-    (name "Flagellum")
+    (name "Simple" "Flagellum")
     (build
       (branch (alias Single)
         (face (alias :next-base) (grow 20 (scale .9)))))
     (shape))
   (fabric
-    (name "Halo by Crane")
+    (name "Art" "Halo by Crane")
     (build
       (branch (alias Single) (rotate) (rotate)
-        (face (alias :next-base) (grow 4 (scale .92)
-                                   (branch (alias Omni)
-                                     (face (alias TopX) (grow 12 (scale .92) (mark :halo-end)))
-                                     (face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))
-        ))
+        (face (alias :next-base)
+          (grow 4 (scale .92)
+             (branch (alias Omni)
+               (face (alias TopX) (grow 12 (scale .92) (mark :halo-end)))
+               (face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))))
     (shape
       (join :halo-end)
       (remove-shapers) ; TODO: should automatically happen before vulcanize
       (vulcanize)
       (replace-faces)))
   (fabric
-    (name "Halo by Torque")
+    (name "Art" "Halo by Torque")
     (build
       (branch (alias Single) (rotate) (rotate)
-        (face (alias :next-base) (grow 4 (scale .92)
-                                   (branch (alias Torque)
-                                     (face (alias Far:Back) (grow 12 (scale .92) (mark :halo-end)))
-                                     (face (alias Far:Side) (grow 11 (scale .92) (mark :halo-end))))))
-        ))
+        (face (alias :next-base)
+          (grow 4 (scale .92)
+          (branch (alias Torque)
+            (face (alias Far:Back) (grow 12 (scale .92) (mark :halo-end)))
+            (face (alias Far:Side) (grow 11 (scale .92) (mark :halo-end))))))))
     (shape
       (join :halo-end)
       (remove-shapers) ; TODO: should automatically happen before vulcanize
       (vulcanize)
       (replace-faces)))
   (fabric
-    (name "K-10")
+    (name "Art" "K-10")
     (build
       (branch (alias Torque)
         (face (alias Left:Front:Bottom)
           (branch (alias Torque)
             (face (alias Far:Front)
-              (grow 3)
-              )
-            )
-          )
+              (grow 3))))
         (face (alias Left:Back:Bottom)
           (branch
             (alias Torque)
-            (face (alias Far:Front)
-              (grow 3)
-              )
-            )
-          )
+            (face (alias Far:Front) (grow 3))))
         (face (alias Right:Front:Bottom)
           (grow 2
-            (branch
-              (alias Torque)
-              (face (alias Far:Front)
-                (grow 1)
-                )
-              ))
-          )
+            (branch (alias Torque)
+              (face (alias Far:Front) (grow 1)))))
         (face (alias Right:Back:Bottom)
           (grow 2
             (branch
               (alias Torque)
-              (face (alias Far:Front)
-                (grow 1)
-                )
-              ))
-          )
-      ))
+              (face (alias Far:Front) (grow 1)))))))
     (shape
       (vulcanize)
       (replace-faces)))

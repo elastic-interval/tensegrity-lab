@@ -44,7 +44,7 @@ impl TenscriptError {
 
     pub fn parse_float_inside(pair: Pair<Rule>, spot: &str) -> Result<f32, TenscriptError> {
         Self::parse_float(pair.into_inner().next().unwrap().as_str(), spot)
-            .map_err(|error|TenscriptError::Format(format!("Not a float pair: [{error}]")))
+            .map_err(|error| TenscriptError::Format(format!("Not a float pair: [{error}]")))
     }
 }
 
@@ -229,10 +229,13 @@ impl Library {
     }
 }
 
-pub fn parse_name(pair: Pair<Rule>) -> String {
+pub fn parse_name(pair: Pair<Rule>) -> Vec<String> {
     assert_eq!(pair.as_rule(), Rule::name);
-    let name_string = pair.into_inner().next().unwrap().as_str();
-    name_string[1..name_string.len() - 1].to_string()
+    pair
+        .into_inner()
+        .map(|pair| pair.as_str())
+        .map(|quoted| quoted[1..quoted.len() - 1].to_string())
+        .collect()
 }
 
 pub fn parse_atom(pair: Pair<Rule>) -> String {

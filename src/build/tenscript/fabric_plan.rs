@@ -10,13 +10,13 @@ use crate::build::tenscript::shape_phase::{Operation, ShapePhase};
 
 #[derive(Debug, Clone)]
 pub struct FabricPlan {
-    pub name: String,
+    pub name: Vec<String>,
     pub build_phase: BuildPhase,
     pub shape_phase: ShapePhase,
 }
 
 impl FabricPlan {
-    pub fn load_preset(plan_name: &str) -> Option<Self> {
+    pub fn load_preset(plan_name: Vec<String>) -> Option<Self> {
         Library::standard()
             .fabrics
             .into_iter()

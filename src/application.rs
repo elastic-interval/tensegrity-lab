@@ -20,7 +20,7 @@ pub struct Application {
     crucible: Crucible,
     graphics: GraphicsWindow,
     library_modified: SystemTime,
-    fabric_plan_name: Option<String>,
+    fabric_plan_name: Vec<String>,
 }
 
 impl Application {
@@ -33,22 +33,23 @@ impl Application {
             crucible: Crucible::default(),
             graphics,
             library_modified: library_modified_timestamp(),
-            fabric_plan_name: None,
+            fabric_plan_name: Vec::new(),
         }
     }
 
     pub fn update(&mut self, window: &Window) {
         self.user_interface.update();
         let mut actions = self.user_interface.controls().take_actions();
-        if library_modified_timestamp() > self.library_modified && let Some(ref plan_name) = self.fabric_plan_name {
-            let fabric_plan = FabricPlan::load_preset(plan_name).expect("no such fabric plan");
+        if library_modified_timestamp() > self.library_modified {
+            let fabric_plan = FabricPlan::load_preset(self.fabric_plan_name.clone())
+                .expect("unable to load fabric plan");
             actions.push(Action::BuildFabric(fabric_plan));
             self.library_modified = library_modified_timestamp();
         }
         for action in actions {
             match action {
                 Action::BuildFabric(fabric_plan) => {
-                    self.fabric_plan_name = Some(fabric_plan.name.clone());
+                    self.fabric_plan_name = fabric_plan.name.clone();
                     self.scene.show_surface(false);
                     self.user_interface.reset();
                     self.crucible.build_fabric(fabric_plan);
