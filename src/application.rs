@@ -54,6 +54,9 @@ impl Application {
                     self.user_interface.reset();
                     self.crucible.build_fabric(fabric_plan);
                 }
+                Action::ShowControl(visible_control) => {
+                    self.user_interface.show_control(visible_control);
+                }
                 Action::GravityChanged(_gravity) => {
                     // TODO
                 }
