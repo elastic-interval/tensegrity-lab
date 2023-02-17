@@ -15,7 +15,7 @@ use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
 use crate::fabric::UniqueId;
 
 use crate::graphics::GraphicsWindow;
-use crate::user_interface::control_state::{ControlMessage, ControlState};
+use crate::user_interface::control_state::{ControlMessage, ControlState, VisibleControl};
 use crate::user_interface::keyboard::{KeyboardMessage, Menu};
 use crate::user_interface::strain_threshold::StrainThresholdMessage;
 
@@ -32,6 +32,7 @@ pub enum Action {
     SelectFace(UniqueId),
     AddBrick { face_alias: FaceAlias, face_id: UniqueId },
     GravityChanged(f32),
+    ShowControl(VisibleControl),
     ShowSurface,
     CalibrateStrain,
     ToggleDebug,
@@ -95,6 +96,11 @@ fn action_menu() -> Menu {
         Menu::new("Camera", vec![
             Menu::action("Midpoint", Action::WatchMidpoint),
             Menu::action("Origin", Action::WatchOrigin),
+        ]),
+        Menu::new("Widget", vec![
+            Menu::action("Gravity", Action::ShowControl(VisibleControl::Gravity)),
+            Menu::action("Strain threshold", Action::ShowControl(VisibleControl::StrainThreshold)),
+            Menu::action("Clear", Action::ShowControl(VisibleControl::Nothing)),
         ]),
         Menu::new("Etc", vec![
             Menu::action("Debug toggle", Action::ToggleDebug),
@@ -190,6 +196,10 @@ impl UserInterface {
 
     pub fn reset(&mut self) {
         self.state.queue_message(ControlMessage::Reset);
+    }
+
+    pub fn show_control(&mut self, visible_control: VisibleControl) {
+        self.state.queue_message(ControlMessage::ShowControl(visible_control))
     }
 
     pub fn action(&mut self, action: Action) {
