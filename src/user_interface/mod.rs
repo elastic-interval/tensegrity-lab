@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 
@@ -45,15 +46,47 @@ pub enum Action {
 
 const NUMBER_KEYS: [VirtualKeyCode; 9] = [Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9];
 
-fn fabric_menu() -> Vec<Menu> {
-    Library::standard().fabrics
-        .into_iter()
-        .zip(NUMBER_KEYS.iter().enumerate())
-        .map(|(plan, (index, key))|
-            (format!("{}: {}", index + 1, plan.name.last().unwrap()), key, plan))
-        .map(|(label, key, plan)|
-            Menu::action(label.as_str(), *key, Action::BuildFabric(plan)))
-        .collect()
+fn fabric_menu(fabrics: &Vec<FabricPlan>, below: Vec<String>) -> Vec<Menu> {
+    let sub_fabrics: Vec<_> = fabrics
+        .iter()
+        .filter(|fabric|{
+            let mut compare = below.clone();
+            compare.push(fabric.name.last().unwrap().clone());
+            compare == fabric.name
+        })
+        .collect();
+    if sub_fabrics.is_empty() {
+        fabrics
+            .iter()
+            .flat_map(|FabricPlan{name,..}| name.iter().nth(below.len()).cloned())
+            .collect::<HashSet<String>>()
+            .iter()
+            .zip(NUMBER_KEYS.into_iter().enumerate())
+            .map(|(first, (index,key))| {
+                let mut new_below = below.clone();
+                new_below.push(first.clone());
+                let label = format!("{}: {}", index + 1, first);
+                Menu::new(label.as_str(), key, fabric_menu(fabrics, new_below))
+            })
+            .collect()
+    } else {
+        sub_fabrics
+            .into_iter()
+            .zip(NUMBER_KEYS.into_iter().enumerate())
+            .map(|(fabric_plan, (index, key))|{
+                let label = format!("{}: {}", index + 1, fabric_plan.name.last().unwrap());
+                Menu::action(label.as_str(), key, Action::BuildFabric(fabric_plan.clone()))
+            })
+            .collect()
+    }
+    // fabrics
+    //     .into_iter()
+    //     .zip(NUMBER_KEYS.iter().enumerate())
+    //     .map(|(plan, (index, key))|
+    //         (format!("{}: {}", index + 1, plan.name.last().unwrap()), key, plan))
+    //     .map(|(label, key, plan)|
+    //         Menu::action(label.as_str(), *key, Action::BuildFabric(plan)))
+    //     .collect()
 }
 
 fn speed_menu() -> Vec<Menu> {
@@ -69,7 +102,7 @@ fn speed_menu() -> Vec<Menu> {
 
 fn action_menu() -> Menu {
     Menu::new("Lab", Space, vec![
-        Menu::new("Fabric", F, fabric_menu()),
+        Menu::new("Fabric", F, fabric_menu(&Library::standard().fabrics, Vec::new())),
         Menu::new("Speed", S, speed_menu()),
         Menu::new("Camera", C, vec![
             Menu::action("Midpoint", M, Action::WatchMidpoint),
