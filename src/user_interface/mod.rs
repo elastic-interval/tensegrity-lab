@@ -84,14 +84,6 @@ fn fabric_menu(fabrics: &Vec<FabricPlan>, below: Vec<String>) -> Vec<Menu> {
             })
             .collect()
     }
-    // fabrics
-    //     .into_iter()
-    //     .zip(NUMBER_KEYS.iter().enumerate())
-    //     .map(|(plan, (index, key))|
-    //         (format!("{}: {}", index + 1, plan.name.last().unwrap()), key, plan))
-    //     .map(|(label, key, plan)|
-    //         Menu::action(label.as_str(), *key, Action::BuildFabric(plan)))
-    //     .collect()
 }
 
 fn speed_menu() -> Vec<Menu> {
