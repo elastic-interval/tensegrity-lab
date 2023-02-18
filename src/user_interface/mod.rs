@@ -12,7 +12,6 @@ use winit::window::{CursorIcon, Window};
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
 
-use crate::build::tenscript::{FabricPlan, Library};
 use crate::crucible::CrucibleAction;
 use crate::fabric::UniqueId;
 use crate::graphics::GraphicsWindow;
@@ -20,7 +19,6 @@ use crate::scene::SceneAction;
 use crate::user_interface::control_state::{ControlState, VisibleControl};
 use crate::user_interface::gravity::GravityMessage;
 use crate::user_interface::keyboard::KeyboardMessage;
-use crate::user_interface::menu::Menu;
 use crate::user_interface::strain_threshold::StrainThresholdMessage;
 
 mod strain_threshold;
