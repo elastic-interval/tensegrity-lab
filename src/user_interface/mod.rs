@@ -11,12 +11,12 @@ use winit::window::{CursorIcon, Window};
 
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
+
 use crate::build::tenscript::{FabricPlan, Library};
 use crate::crucible::CrucibleAction;
 use crate::fabric::UniqueId;
-
 use crate::graphics::GraphicsWindow;
-use crate::scene::SceneVariant;
+use crate::scene::SceneAction;
 use crate::user_interface::control_state::{ControlMessage, ControlState, VisibleControl};
 use crate::user_interface::keyboard::{KeyboardMessage, Menu};
 use crate::user_interface::strain_threshold::StrainThresholdMessage;
@@ -31,16 +31,14 @@ const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
 #[derive(Clone, Debug)]
 pub enum Action {
     Crucible(CrucibleAction),
+    Scene(SceneAction),
     CalibrateStrain,
     GravityChanged(f32),
-    Scene(SceneVariant),
     SelectFace(UniqueId),
     SelectNextFace,
     ShowControl(VisibleControl),
     StartTinkering,
     ToggleDebug,
-    WatchMidpoint,
-    WatchOrigin,
     AddBrick,
 }
 
@@ -95,8 +93,9 @@ fn action_menu() -> Menu {
         Menu::new("Fabric", fabric_menu(&Library::standard().fabrics, Vec::new())),
         Menu::new("Speed", speed_menu()),
         Menu::new("Camera", vec![
-            Menu::action("Midpoint", Action::WatchMidpoint),
-            Menu::action("Origin", Action::WatchOrigin),
+            Menu::action("Next face", Action::SelectNextFace),
+            Menu::action("Watch Fabric Midpoint", Action::Scene(SceneAction::WatchMidpoint)),
+            Menu::action("Watch Origin", Action::Scene(SceneAction::WatchOrigin)),
         ]),
         Menu::new("Widget", vec![
             Menu::action("Gravity", Action::ShowControl(VisibleControl::Gravity)),
@@ -106,7 +105,6 @@ fn action_menu() -> Menu {
         Menu::new("Etc", vec![
             Menu::action("Tinker", Action::StartTinkering),
             Menu::action("Debug toggle", Action::ToggleDebug),
-            Menu::action("Next face", Action::SelectNextFace),
             Menu::action("Add brick", Action::AddBrick),
         ]),
     ])

@@ -11,7 +11,7 @@ use winit::window::Window;
 use crate::build::tenscript::FabricPlan;
 use crate::crucible::{Crucible, CrucibleAction};
 use crate::graphics::GraphicsWindow;
-use crate::scene::{Scene, SceneVariant};
+use crate::scene::{Scene, SceneAction, SceneVariant};
 use crate::user_interface::{Action, UserInterface};
 
 pub struct Application {
@@ -52,7 +52,7 @@ impl Application {
                     match &crucible_action {
                         CrucibleAction::BuildFabric(fabric_plan) => {
                             self.fabric_plan_name = fabric_plan.name.clone();
-                            self.scene.set_variant(SceneVariant::Normal);
+                            self.scene.action(SceneAction::Variant(SceneVariant::Normal));
                             self.user_interface.reset();
                         }
                         CrucibleAction::CreateBrickOnFace { .. } => {
@@ -62,11 +62,14 @@ impl Application {
                     }
                     self.crucible.action(crucible_action);
                 }
+                Action::Scene(scene_action) => {
+                    self.scene.action(scene_action);
+                }
                 Action::ShowControl(visible_control) => {
                     self.user_interface.show_control(visible_control);
                 }
                 Action::GravityChanged(_gravity) => {
-                    // TODO
+                    unimplemented!();
                 }
                 Action::CalibrateStrain => {
                     self.user_interface.set_strain_limits(self.crucible.strain_limits());
@@ -76,10 +79,6 @@ impl Application {
                 }
                 Action::StartTinkering => {
                     unimplemented!();
-                }
-                Action::Scene(variant) => {
-                    // self.user_interface.controls().variation(self.scene.target_face_id()),
-                    self.scene.set_variant(variant);
                 }
                 Action::ToggleDebug => {
                     self.user_interface.toggle_debug_mode();
@@ -92,12 +91,6 @@ impl Application {
                 }
                 Action::SelectNextFace => {
                     self.scene.select_next_face(None, self.crucible.fabric());
-                }
-                Action::WatchMidpoint => {
-                    self.scene.watch_midpoint();
-                }
-                Action::WatchOrigin => {
-                    self.scene.watch_origin();
                 }
             }
         }

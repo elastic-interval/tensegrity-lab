@@ -27,6 +27,13 @@ struct Drawing<V> {
     buffer: wgpu::Buffer,
 }
 
+#[derive(Debug, Clone)]
+pub enum SceneAction {
+    Variant(SceneVariant),
+    WatchMidpoint,
+    WatchOrigin,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum SceneVariant {
     Pretensing,
@@ -230,12 +237,18 @@ impl Scene {
         }
     }
 
-    pub fn watch_midpoint(&mut self) {
-        self.camera.target = FabricMidpoint;
-    }
-
-    pub fn watch_origin(&mut self) {
-        self.camera.target = Origin
+    pub fn action(&mut self, scene_action: SceneAction) {
+        match scene_action {
+            SceneAction::Variant(variant) => {
+                self.variant = variant;
+            }
+            SceneAction::WatchMidpoint => {
+                self.camera.target = FabricMidpoint;
+            }
+            SceneAction::WatchOrigin => {
+                self.camera.target = Origin
+            }
+        }
     }
 
     pub fn select_next_face(&mut self, face_id: Option<UniqueId>, fabric: &Fabric) {
@@ -268,9 +281,6 @@ impl Scene {
         };
     }
 
-    pub fn set_variant(&mut self, variant: SceneVariant) {
-        self.variant = variant;
-    }
 }
 
 #[repr(C)]
