@@ -33,20 +33,7 @@
       (remove-shapers) ; TODO: should automatically happen before vulcanize
       (vulcanize)
       (replace-faces)))
-  (fabric
-    (name "Art" "Halo by Torque")
-    (build
-      (branch (alias Single) (rotate) (rotate)
-        (face (alias :next-base)
-          (grow 4 (scale .92)
-          (branch (alias Torque)
-            (face (alias Far:Back) (grow 12 (scale .92) (mark :halo-end)))
-            (face (alias Far:Side) (grow 11 (scale .92) (mark :halo-end))))))))
-    (shape
-      (join :halo-end)
-      (remove-shapers) ; TODO: should automatically happen before vulcanize
-      (vulcanize)
-      (replace-faces)))
+
   (fabric
     (name "Art" "K-10")
     (build
@@ -71,34 +58,32 @@
     (shape
       (vulcanize)
       (replace-faces)))
-  ;  (fabric
-  ;    (name "Headless Hug")
-  ;    (build
-  ;      (seed :right-omni
-  ;        (orient-down F0 F3))
-  ;      (branch
-  ;        (face F0 (grow "....X.." (scale .95) (mark :legs)))
-  ;        (face F3 (grow "....X.." (scale .95) (mark :legs)))
-  ;        (face F1
-  ;          (grow 2 (scale .9)
-  ;            (branch
-  ;              (face F5 (mark :shoulders))
-  ;              (face F7 (grow "....X..." (scale .93) (mark :hands)))
-  ;              )))
-  ;        (face F2
-  ;          (grow 2 (scale .9)
-  ;            (branch
-  ;              (face F7 (mark :shoulders))
-  ;              (face F5 (grow "....X..." (scale .93) (mark :hands)))
-  ;              )))))
-  ;    (shape
-  ;      (countdown 25000
-  ;        (space :legs.5)
-  ;        (space :hands.01)
-  ;        (space :shoulders.05))
-  ;      (countdown 10000 (vulcanize))
-  ;      (remove-shapers)
-  ;      (replace-faces)))
+    (fabric
+      (name "Art" "Headless Hug")
+      (build
+        (branch (alias Torque)
+          (face (alias Left:Back:Bottom) (grow "....X.." (scale .95) (mark :legs)))
+          (face (alias Right:Back:Bottom) (grow "....X.." (scale .95) (mark :legs)))
+          (face (alias Left:Front:Top)
+            (grow 2 (scale .9)
+              (branch (alias Omni)
+                (face (alias TopY) (mark :shoulders))
+                (face (alias BotX) (grow "....X..." (scale .93) (mark :hands)))
+                )))
+          (face (alias Right:Front:Top)
+            (grow 2 (scale .9)
+              (branch (alias Omni)
+                (face (alias TopY) (mark :shoulders))
+                (face (alias BotX) (grow "....X..." (scale .93) (mark :hands)))
+                )))))
+      (shape
+        (countdown 25000
+          (space :legs.5)
+          (space :hands.01)
+          (space :shoulders.05))
+        (countdown 10000 (vulcanize))
+        (remove-shapers)
+        (replace-faces)))
   (brick ; single-right
     (proto
       (alias Single)

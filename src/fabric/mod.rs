@@ -116,7 +116,7 @@ impl Fabric {
     }
 
     pub fn face(&self, id: UniqueId) -> &Face {
-        self.faces.get(&id).expect(&format!("face not found {id:?}"))
+        self.faces.get(&id).unwrap_or_else(|| panic!("face not found {id:?}"))
     }
 
     pub fn remove_face(&mut self, id: UniqueId) {
@@ -132,7 +132,10 @@ impl Fabric {
     pub fn join_faces(&mut self, alpha_id: UniqueId, omega_id: UniqueId) {
         // TODO: reverse omega face when the faces have the same chirality
         let (alpha, omega) = (self.face(alpha_id), self.face(omega_id));
-        let (alpha_ends, omega_ends) = (alpha.radial_joints(self), omega.radial_joints(self));
+        let (mut alpha_ends, omega_ends) = (alpha.radial_joints(self), omega.radial_joints(self));
+        if alpha.spin == omega.spin {
+            alpha_ends.reverse();
+        }
         let (mut alpha_points, omega_points) = (
             alpha_ends.map(|id| self.location(id)),
             omega_ends.map(|id| self.location(id))
