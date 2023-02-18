@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-use std::fmt::{Display, Formatter};
 use iced_wgpu::Renderer;
 use iced_winit::Element;
 use iced_winit::widget::{Button, Row, Text};
@@ -8,48 +6,7 @@ use winit::event::VirtualKeyCode::{*};
 
 use crate::user_interface::{Action, ControlMessage};
 use crate::user_interface::control_state::{Component, format_row};
-
-#[derive(Debug, Clone)]
-pub struct Menu {
-    pub label: String,
-    pub keycode: Option<VirtualKeyCode>,
-    pub submenu: Vec<Menu>,
-    pub action: Option<Action>,
-}
-
-impl Menu {
-    pub fn new(label: &str, submenu: Vec<Menu>) -> Self {
-        let mut used = HashSet::new();
-        let submenu = submenu
-            .into_iter()
-            .map(|menu| {
-                let (keycode, prefix) = label_key_code(menu.label.as_str(), &used);
-                used.insert(keycode);
-                let keycode = Some(keycode);
-                let mut label = prefix;
-                label.push_str(menu.label.as_str());
-                Menu { keycode, label, ..menu }
-            })
-            .collect();
-        Self { label: label.to_string(), keycode: None, submenu, action: None }
-    }
-
-    pub fn action(label: &str, action: Action) -> Self {
-        Self { label: label.to_string(), keycode: None, action: Some(action), submenu: vec![] }
-    }
-}
-
-impl Display for Menu {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let Menu { label, submenu, .. } = self;
-        let choices = submenu
-            .iter()
-            .map(|Menu { label, .. }| label.clone())
-            .collect::<Vec<String>>()
-            .join(" ");
-        write!(f, "{label}: {choices}")
-    }
-}
+use crate::user_interface::menu::{action_menu, Menu};
 
 #[derive(Debug, Clone)]
 pub enum KeyboardMessage {
@@ -119,14 +76,17 @@ impl Component for Keyboard {
     }
 }
 
-impl Keyboard {
-    pub fn new(menu: Menu) -> Self {
+impl Default for Keyboard {
+    fn default() -> Self {
+        let menu = action_menu();
         Self {
             current: vec!(menu.clone()),
             menu,
         }
     }
+}
 
+impl Keyboard {
     pub fn current(&self) -> Menu {
         self.current.last().unwrap().clone()
     }
@@ -162,47 +122,4 @@ impl Keyboard {
             });
         (current, action)
     }
-}
-
-fn label_key_code(label: &str, used: &HashSet<VirtualKeyCode>) -> (VirtualKeyCode, String) {
-    label
-        .chars()
-        .find_map(|ch| {
-            let key_code = to_key_code(ch)?;
-            (!used.contains(&key_code))
-                .then_some((key_code, format!("{}: ", ch.to_ascii_uppercase())))
-        })
-        .unwrap()
-}
-
-fn to_key_code(ch: char) -> Option<VirtualKeyCode> {
-    Some(match ch.to_ascii_uppercase() {
-        'A' => A,
-        'B' => B,
-        'C' => C,
-        'D' => D,
-        'E' => E,
-        'F' => F,
-        'G' => G,
-        'H' => H,
-        'I' => I,
-        'J' => J,
-        'K' => K,
-        'L' => L,
-        'M' => M,
-        'N' => N,
-        'O' => O,
-        'P' => P,
-        'Q' => Q,
-        'R' => R,
-        'S' => S,
-        'T' => T,
-        'U' => U,
-        'V' => V,
-        'W' => W,
-        'X' => X,
-        'Y' => Y,
-        'Z' => Z,
-        _ => return None
-    })
 }
