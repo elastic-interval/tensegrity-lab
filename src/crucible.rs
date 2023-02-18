@@ -1,10 +1,9 @@
-use crate::build::brick::{Baked, Prototype};
-use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
+use crate::build::oven::Oven;
+use crate::build::tenscript::{FabricPlan, FaceAlias};
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::build::tinkerer::Tinkerer;
 use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
-use crate::fabric::physics::presets::PROTOTYPE_FORMATION;
 use crate::fabric::pretenser::Pretenser;
 use crate::scene::{SceneAction, SceneVariant};
 use crate::user_interface::Action;
@@ -18,13 +17,13 @@ enum Stage {
     RunningPlan(PlanRunner),
     Tinkering(Tinkerer),
     Pretensing(Pretenser),
-    AcceptingPrototype(Prototype),
-    RunningPrototype(FaceAlias),
+    BakingBrick(Oven),
     Finished,
 }
 
 #[derive(Debug, Clone)]
 pub enum CrucibleAction {
+    BakeBrick(usize),
     BuildFabric(FabricPlan),
     CreateBrickOnFace(UniqueId),
     SetSpeed(usize),
@@ -91,28 +90,10 @@ impl Crucible {
                     self.stage = Finished;
                 }
             }
-            AcceptingPrototype(prototype) => {
-                let alias = prototype.alias.clone();
-                self.fabric = Fabric::from(prototype.clone());
-                self.stage = RunningPrototype(alias);
-            }
-            RunningPrototype(alias) => {
-                let mut speed_squared = 1.0;
-                for _ in 0..self.iterations_per_frame {
-                    speed_squared = self.fabric.iterate(&PROTOTYPE_FORMATION);
-                }
-                let age = self.fabric.age;
-                if age > 1000 && speed_squared < 1e-12 {
-                    println!("Fabric settled in iteration {age} at speed squared {speed_squared}");
-                    match Baked::try_from((self.fabric.clone(), alias.clone())) {
-                        Ok(brick) => {
-                            println!("{}", brick.into_tenscript());
-                        }
-                        Err(problem) => {
-                            println!("Cannot create brick: {problem}");
-                        }
-                    }
-                    self.stage = Empty
+            BakingBrick(oven) => {
+                if let Some(baked) = oven.iterate(&mut self.fabric) {
+                    println!("{}", baked.into_tenscript());
+                    self.stage = Finished;
                 }
             }
             Finished => {}
@@ -122,6 +103,11 @@ impl Crucible {
 
     pub fn action(&mut self, crucible_action: CrucibleAction) {
         match crucible_action {
+            CrucibleAction::BakeBrick(brick_index) => {
+                let oven = Oven::new(brick_index);
+                self.fabric = oven.prototype_fabric();
+                self.stage = BakingBrick(oven);
+            }
             CrucibleAction::BuildFabric(fabric_plan) => {
                 self.stage = AcceptingPlan(fabric_plan);
             }
@@ -145,16 +131,5 @@ impl Crucible {
 
     pub fn fabric(&self) -> &Fabric {
         &self.fabric
-    }
-
-    pub fn capture_prototype(&mut self, brick_index: usize) {
-        println!("Settling and capturing prototype number {brick_index}");
-        let proto = Library::standard()
-            .bricks
-            .get(brick_index)
-            .expect("no such brick")
-            .proto
-            .clone();
-        self.stage = AcceptingPrototype(proto);
     }
 }
