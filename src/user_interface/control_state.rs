@@ -9,7 +9,7 @@ use instant::Instant;
 
 use crate::fabric::{Fabric, UniqueId};
 use crate::scene::SceneVariant;
-use crate::user_interface::{Action, action_menu, ControlMessage};
+use crate::user_interface::{Action, ControlMessage};
 use crate::user_interface::gravity::{Gravity, GravityMessage};
 use crate::user_interface::keyboard::Keyboard;
 use crate::user_interface::strain_threshold::StrainThreshold;
@@ -36,9 +36,8 @@ pub struct ControlState {
 
 impl Default for ControlState {
     fn default() -> Self {
-        let keyboard = Keyboard::new(action_menu());
         Self {
-            keyboard,
+            keyboard: Keyboard::default(),
             debug_mode: false,
             visible_controls: VisibleControl::Nothing,
             strain_threshold: StrainThreshold {
