@@ -10,6 +10,7 @@ use winit::window::Window;
 
 use crate::build::tenscript::FabricPlan;
 use crate::crucible::{Crucible, CrucibleAction};
+use crate::fabric::Fabric;
 use crate::graphics::GraphicsWindow;
 use crate::scene::{Scene, SceneAction, SceneVariant};
 use crate::user_interface::{Action, UserInterface};
@@ -72,7 +73,8 @@ impl Application {
                     unimplemented!();
                 }
                 Action::CalibrateStrain => {
-                    self.user_interface.set_strain_limits(self.crucible.strain_limits());
+                    let strain_limits = self.crucible.fabric().strain_limits(Fabric::BOW_TIE_MATERIAL_INDEX);
+                    self.user_interface.set_strain_limits(strain_limits);
                 }
                 Action::SelectFace(face_id) => {
                     self.scene.select_next_face(Some(face_id), self.crucible.fabric());
