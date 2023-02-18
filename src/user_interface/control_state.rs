@@ -9,6 +9,7 @@ use instant::Instant;
 
 use crate::fabric::{Fabric, UniqueId};
 use crate::scene::SceneVariant;
+use crate::scene::SceneVariant::{Tinkering, TinkeringOnFace};
 use crate::user_interface::{Action, ControlMessage};
 use crate::user_interface::gravity::{Gravity, GravityMessage};
 use crate::user_interface::keyboard::Keyboard;
@@ -71,12 +72,15 @@ impl ControlState {
 
     pub fn variation(&self, face_id: Option<UniqueId>) -> SceneVariant {
         if self.show_strain {
-            SceneVariant::StrainView {
+            SceneVariant::ShowingStrain {
                 threshold: self.strain_threshold.strain_threshold(),
                 material: Fabric::BOW_TIE_MATERIAL_INDEX,
             }
         } else {
-            SceneVariant::BuildView { face_id }
+            match face_id {
+                None => Tinkering,
+                Some(face_id) => TinkeringOnFace(face_id),
+            }
         }
     }
 
