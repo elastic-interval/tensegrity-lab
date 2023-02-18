@@ -58,7 +58,7 @@ impl Application {
                         CrucibleAction::CreateBrickOnFace { .. } => {
                             self.scene.clear_face_selection();
                         }
-                        CrucibleAction::SetSpeed(_) => {}
+                        CrucibleAction::SetSpeed(_) | CrucibleAction::BakeBrick(_) => {}
                     }
                     self.crucible.action(crucible_action);
                 }
@@ -126,8 +126,8 @@ impl Application {
         }
     }
 
-    pub fn capture_prototype(&mut self, prototype: usize) {
-        self.crucible.capture_prototype(prototype);
+    pub fn capture_prototype(&mut self, brick_index: usize) {
+        self.crucible.action(CrucibleAction::BakeBrick(brick_index));
     }
 
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
@@ -172,7 +172,6 @@ impl Application {
         };
         self.user_interface.key_pressed(keycode);
     }
-
 }
 
 fn library_modified_timestamp() -> SystemTime {
