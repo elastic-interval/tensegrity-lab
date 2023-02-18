@@ -91,9 +91,7 @@ impl BuildPhase {
             .into_inner()
             .next()
             .map(|build_node_pair|
-                Self::parse_build_node(build_node_pair)
-                    .map(|node| BuildPhase::new(node))
-            )
+                Self::parse_build_node(build_node_pair).map(BuildPhase::new))
             .unwrap()
     }
 
@@ -175,7 +173,7 @@ impl BuildPhase {
 
     pub fn init(&mut self, fabric: &mut Fabric) {
         let (buds, marks) =
-            self.execute_node(fabric, Scratch, &self.root, vec![]);
+            Self::execute_node(fabric, Scratch, &self.root, vec![]);
         self.buds = buds;
         self.marks = marks;
     }
@@ -217,49 +215,49 @@ impl BuildPhase {
             });
         } else if let Some(node) = node {
             let (node_buds, node_marks) =
-                self.execute_node(fabric, IdentifiedFace { face_id }, &node, vec![]);
+                Self::execute_node(fabric, IdentifiedFace { face_id }, &node, vec![]);
             buds.extend(node_buds);
             marks.extend(node_marks);
         };
         (buds, marks)
     }
 
-    fn execute_node(&self, fabric: &mut Fabric, launch: Launch, node: &BuildNode, faces: Vec<UniqueId>) -> (Vec<Bud>, Vec<FaceMark>) {
+    fn execute_node(fabric: &mut Fabric, launch: Launch, node: &BuildNode, faces: Vec<UniqueId>) -> (Vec<Bud>, Vec<FaceMark>) {
         let mut buds: Vec<Bud> = vec![];
         let mut marks: Vec<FaceMark> = vec![];
         match node {
             Face { alias, node } => {
                 let build_node = node.as_ref();
-                return self.execute_node(fabric, NamedFace { face_alias: alias.clone() }, build_node, faces);
+                return Self::execute_node(fabric, NamedFace { face_alias: alias.clone() }, build_node, faces);
             }
             Grow { forward, scale_factor, post_growth_node, .. } => {
-                let face_id = Self::find_launch_face(launch, &faces, fabric).expect("launch face not found");
+                let face_id = Self::find_launch_face(&launch, &faces, fabric).unwrap_or_else(|| panic!("launch face not found: {launch:?}"));
                 let node = post_growth_node.clone().map(|x| *x);
                 buds.push(Bud { face_id, forward: forward.clone(), scale_factor: *scale_factor, node })
             }
             Branch { face_nodes, rotation, alias } => {
-                let attach_to = Self::find_launch_face(launch, &faces, fabric);
+                let attach_to = Self::find_launch_face(&launch, &faces, fabric);
                 let brick_faces = fabric.attach_brick(alias, rotation.into(), 1.0, attach_to);
                 for (branch_face_alias, branch_node) in Self::branch_pairs(face_nodes) {
                     let (new_buds, new_marks) =
-                        self.execute_node(fabric, NamedFace { face_alias: branch_face_alias }, branch_node, brick_faces.clone());
+                        Self::execute_node(fabric, NamedFace { face_alias: branch_face_alias }, branch_node, brick_faces.clone());
                     buds.extend(new_buds);
                     marks.extend(new_marks);
                 }
             }
             Mark { mark_name } => {
-                let face_id = Self::find_launch_face(launch, &faces, fabric).expect("cannot mark from scratch");
+                let face_id = Self::find_launch_face(&launch, &faces, fabric).expect("cannot mark from scratch");
                 marks.push(FaceMark { face_id, mark_name: mark_name.clone() });
             }
         };
         (buds, marks)
     }
 
-    fn find_launch_face(launch: Launch, faces: &[UniqueId], fabric: &Fabric) -> Option<UniqueId> {
+    fn find_launch_face(launch: &Launch, faces: &[UniqueId], fabric: &Fabric) -> Option<UniqueId> {
         match launch {
             Scratch => None,
-            NamedFace { face_alias } => face_alias.find_face_in(&faces, fabric),
-            IdentifiedFace { face_id } => Some(face_id),
+            NamedFace { face_alias } => face_alias.find_face_in(faces, fabric),
+            IdentifiedFace { face_id } => Some(*face_id),
         }
     }
 
