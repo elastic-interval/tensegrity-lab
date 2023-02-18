@@ -43,7 +43,7 @@ pub enum Action {
     WatchOrigin,
 }
 
-fn fabric_menu(fabrics: &Vec<FabricPlan>, below: Vec<String>) -> Vec<Menu> {
+fn fabric_menu(fabrics: &[FabricPlan], below: Vec<String>) -> Vec<Menu> {
     let sub_fabrics: Vec<_> = fabrics
         .iter()
         .filter(|fabric| {
