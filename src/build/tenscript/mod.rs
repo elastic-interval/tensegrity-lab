@@ -35,11 +35,11 @@ pub enum TenscriptError {
 
 impl TenscriptError {
     pub fn parse_float(string: &str, spot: &str) -> Result<f32, Self> {
-        string.parse().map_err(|_| TenscriptError::Format(format!("[{spot}]:Not a float: '{string}'")))
+        string.parse().map_err(|_| TenscriptError::Format(format!("[{spot}]: Not a float: '{string}'")))
     }
 
     pub fn parse_usize(string: &str, spot: &str) -> Result<usize, Self> {
-        string.parse().map_err(|_| TenscriptError::Format(format!("[{spot}]Not an int: '{string}'")))
+        string.parse().map_err(|_| TenscriptError::Format(format!("[{spot}]: Not an int: '{string}'")))
     }
 
     pub fn parse_float_inside(pair: Pair<Rule>, spot: &str) -> Result<f32, TenscriptError> {
