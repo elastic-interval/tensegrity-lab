@@ -36,11 +36,11 @@ pub enum SceneAction {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SceneVariant {
+    Suspended,
     Pretensing,
     Tinkering,
-    Normal,
-    StrainView { threshold: f32, material: usize },
-    BuildView { face_id: Option<UniqueId> },
+    TinkeringOnFace(UniqueId),
+    ShowingStrain { threshold: f32, material: usize },
 }
 
 pub struct Scene {
@@ -138,7 +138,7 @@ impl Scene {
         });
 
         Self {
-            variant: Normal,
+            variant: Suspended,
             camera,
             fabric_drawing: Drawing {
                 pipeline: fabric_pipeline,
@@ -182,8 +182,8 @@ impl Scene {
         render_pass.draw(0..self.fabric_drawing.vertices.len() as u32, 0..1);
 
         let show_surface = match self.variant {
-            Tinkering | Normal | BuildView { .. } => false,
-            Pretensing | StrainView { .. } => true,
+            Tinkering| Suspended | TinkeringOnFace(_) => false,
+            Pretensing | ShowingStrain { .. } => true,
         };
         if show_surface {
             render_pass.set_pipeline(&self.surface_drawing.pipeline);
@@ -207,8 +207,8 @@ impl Scene {
         self.fabric_drawing.vertices.extend(fabric.interval_values()
             .flat_map(|interval| FabricVertex::for_interval(interval, fabric, &self.variant)));
         let show_faces = match self.variant {
-            Normal | Pretensing | StrainView { .. } => false,
-            Tinkering | BuildView { .. } => true,
+            Suspended | Pretensing | ShowingStrain { .. } => false,
+            Tinkering | TinkeringOnFace(_) => true,
         };
         if show_faces {
             self.fabric_drawing.vertices.extend(fabric.faces.iter()
@@ -280,7 +280,6 @@ impl Scene {
             Some(face_id) => SelectedFace(face_id)
         };
     }
-
 }
 
 #[repr(C)]
@@ -294,13 +293,13 @@ impl FabricVertex {
     pub fn for_interval(interval: &Interval, fabric: &Fabric, variation: &SceneVariant) -> [FabricVertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
         let color = match variation {
-            Tinkering | Pretensing | BuildView { .. } | Normal => {
+            Suspended | Tinkering | Pretensing | TinkeringOnFace(_)  => {
                 match fabric.materials[interval.material].role {
                     Push => [1.0, 1.0, 1.0, 1.0],
                     Pull => [0.2, 0.2, 1.0, 1.0],
                 }
             }
-            StrainView { threshold, material } => {
+            ShowingStrain { threshold, material } => {
                 if fabric.materials[interval.material].role == Pull &&
                     interval.material == *material && interval.strain > *threshold {
                     [0.0, 1.0, 0.0, 1.0]
@@ -318,12 +317,13 @@ impl FabricVertex {
     pub fn for_face(face_id: UniqueId, face: &Face, fabric: &Fabric, variation: &SceneVariant) -> [FabricVertex; 2] {
         let (alpha, _, omega) = face.visible_points(fabric);
         let (alpha_color, omega_color) = match variation {
-            Pretensing | Normal | StrainView { .. } => {
+            Pretensing | Suspended | ShowingStrain { .. } => {
                 unreachable!()
             }
-            BuildView { face_id: Some(selected_face) } if *selected_face == face_id =>
-                ([0.0, 1.0, 0.0, 1.0], [0.0, 1.0, 0.0, 1.0]),
-            Tinkering | BuildView { .. } =>
+            TinkeringOnFace(selected_face) if *selected_face == face_id => {
+                ([0.0, 1.0, 0.0, 1.0], [0.0, 1.0, 0.0, 1.0])
+            }
+            Tinkering | TinkeringOnFace (_) =>
                 ([1.0, 0.0, 0.0, 1.0], [1.0, 0.0, 0.0, 1.0]),
         };
         [

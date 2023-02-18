@@ -16,7 +16,9 @@
     (build
       (branch (alias Single)
         (face (alias :next-base) (grow 20 (scale .9)))))
-    (shape))
+    (shape
+      (vulcanize)
+      (replace-faces)))
   (fabric
     (name "Art" "Halo by Crane")
     (build

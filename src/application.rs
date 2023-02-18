@@ -53,7 +53,7 @@ impl Application {
                     match &crucible_action {
                         CrucibleAction::BuildFabric(fabric_plan) => {
                             self.fabric_plan_name = fabric_plan.name.clone();
-                            self.scene.action(SceneAction::Variant(SceneVariant::Normal));
+                            self.scene.action(SceneAction::Variant(SceneVariant::Suspended));
                             self.user_interface.message(ControlMessage::Reset);
                         }
                         CrucibleAction::CreateBrickOnFace { .. } => {
