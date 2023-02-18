@@ -6,7 +6,7 @@ use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::physics::presets::PROTOTYPE_FORMATION;
 use crate::fabric::pretenser::Pretenser;
-use crate::scene::SceneVariant;
+use crate::scene::{SceneAction, SceneVariant};
 use crate::user_interface::Action;
 
 const PULL_SHORTENING: f32 = 0.95;
@@ -65,10 +65,10 @@ impl Crucible {
                 if plan_runner.is_done() {
                     self.stage =
                         if self.fabric.faces.is_empty() {
-                            actions.push(Action::Scene(SceneVariant::Pretensing));
+                            actions.push(Action::Scene(SceneAction::Variant(SceneVariant::Pretensing)));
                             Pretensing(Pretenser::new(PRETENST_FACTOR))
                         } else {
-                            actions.push(Action::Scene(SceneVariant::Tinkering));
+                            actions.push(Action::Scene(SceneAction::Variant(SceneVariant::Tinkering)));
                             Tinkering(Tinkerer::new())
                         }
                 }
