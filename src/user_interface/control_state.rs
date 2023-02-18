@@ -12,7 +12,7 @@ use crate::user_interface::{Action, action_menu};
 use crate::user_interface::gravity::{Gravity, GravityMessage};
 use crate::user_interface::strain_threshold::{StrainThreshold, StrainThresholdMessage};
 use crate::user_interface::strain_threshold::StrainThresholdMessage::SetStrainLimits;
-use crate::scene::Variation;
+use crate::scene::SceneVariant;
 use crate::user_interface::keyboard::{Keyboard, KeyboardMessage};
 
 #[derive(Clone, Copy, Debug)]
@@ -70,14 +70,14 @@ impl ControlState {
         self.show_strain
     }
 
-    pub fn variation(&self, face_id: Option<UniqueId>) -> Variation {
+    pub fn variation(&self, face_id: Option<UniqueId>) -> SceneVariant {
         if self.show_strain {
-            Variation::StrainView {
+            SceneVariant::StrainView {
                 threshold: self.strain_threshold.strain_threshold(),
                 material: Fabric::BOW_TIE_MATERIAL_INDEX,
             }
         } else {
-            Variation::BuildView { face_id }
+            SceneVariant::BuildView { face_id }
         }
     }
 

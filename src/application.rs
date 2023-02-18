@@ -8,11 +8,11 @@ use winit::{
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
-use crate::build::tenscript::{FabricPlan, FaceAlias, Spin};
-use crate::crucible::Crucible;
+use crate::build::tenscript::FabricPlan;
+use crate::crucible::{Crucible, CrucibleAction};
 use crate::graphics::GraphicsWindow;
+use crate::scene::{Scene, SceneVariant};
 use crate::user_interface::{Action, UserInterface};
-use crate::scene::Scene;
 
 pub struct Application {
     scene: Scene,
@@ -43,16 +43,24 @@ impl Application {
         if library_modified_timestamp() > self.library_modified {
             let fabric_plan = FabricPlan::load_preset(self.fabric_plan_name.clone())
                 .expect("unable to load fabric plan");
-            actions.push(Action::BuildFabric(fabric_plan));
+            actions.push(Action::Crucible(CrucibleAction::BuildFabric(fabric_plan)));
             self.library_modified = library_modified_timestamp();
         }
         for action in actions {
             match action {
-                Action::BuildFabric(fabric_plan) => {
-                    self.fabric_plan_name = fabric_plan.name.clone();
-                    self.scene.show_surface(false);
-                    self.user_interface.reset();
-                    self.crucible.build_fabric(fabric_plan);
+                Action::Crucible(crucible_action) => {
+                    match &crucible_action {
+                        CrucibleAction::BuildFabric(fabric_plan) => {
+                            self.fabric_plan_name = fabric_plan.name.clone();
+                            self.scene.set_variant(SceneVariant::Normal);
+                            self.user_interface.reset();
+                        }
+                        CrucibleAction::CreateBrickOnFace { .. } => {
+                            self.scene.clear_face_selection();
+                        }
+                        CrucibleAction::SetSpeed(_) => {}
+                    }
+                    self.crucible.action(crucible_action);
                 }
                 Action::ShowControl(visible_control) => {
                     self.user_interface.show_control(visible_control);
@@ -66,21 +74,21 @@ impl Application {
                 Action::SelectFace(face_id) => {
                     self.scene.select_next_face(Some(face_id), self.crucible.fabric());
                 }
-                Action::AddBrick { face_alias, face_id } => {
-                    self.scene.clear_face_selection();
-                    self.crucible.add_brick(face_alias, face_id);
+                Action::StartTinkering => {
+                    unimplemented!();
                 }
-                Action::ShowSurface => {
-                    self.scene.show_surface(true);
+                Action::Scene(variant) => {
+                    // self.user_interface.controls().variation(self.scene.target_face_id()),
+                    self.scene.set_variant(variant);
                 }
                 Action::ToggleDebug => {
                     self.user_interface.toggle_debug_mode();
                 }
-                Action::SetSpeed(speed) => {
-                    self.crucible.set_speed(speed);
-                }
-                Action::CreateBrick => {
-                    self.create_brick();
+                Action::AddBrick => {
+                    let Some(face_id) = self.scene.target_face_id() else {
+                        return;
+                    };
+                    self.user_interface.action(Action::Crucible(CrucibleAction::CreateBrickOnFace(face_id)));
                 }
                 Action::SelectNextFace => {
                     self.scene.select_next_face(None, self.crucible.fabric());
@@ -97,11 +105,10 @@ impl Application {
     }
 
     pub fn redraw(&mut self, window: &Window) {
-        self.crucible.iterate();
-        if let Some(action) = self.crucible.action() {
+        for action in self.crucible.iterate() {
             self.user_interface.action(action);
         }
-        self.scene.update(&self.graphics, self.user_interface.controls().variation(self.scene.target_face_id()), self.crucible.fabric());
+        self.scene.update(&self.graphics, self.crucible.fabric());
         self.user_interface.update_viewport(window);
         match self.render() {
             Ok(_) => {}
@@ -173,16 +180,6 @@ impl Application {
         self.user_interface.key_pressed(keycode);
     }
 
-    pub(crate) fn create_brick(&mut self) {
-        let Some(face_id) = self.scene.target_face_id() else {
-            return;
-        };
-        let face_alias = match self.crucible.fabric().face(face_id).spin.opposite() {
-            Spin::Left => FaceAlias::single("Left::Bot"),
-            Spin::Right => FaceAlias::single("Right::Bot"),
-        };
-        self.user_interface.action(Action::AddBrick { face_alias, face_id });
-    }
 }
 
 fn library_modified_timestamp() -> SystemTime {
