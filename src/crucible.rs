@@ -13,7 +13,6 @@ const PRETENST_FACTOR: f32 = 1.03;
 
 enum Stage {
     Empty,
-    AcceptingPlan(FabricPlan),
     RunningPlan(PlanRunner),
     Tinkering(Tinkerer),
     Pretensing(Pretenser),
@@ -52,11 +51,6 @@ impl Crucible {
         let mut actions = Vec::new();
         match &mut self.stage {
             Empty => {}
-            AcceptingPlan(fabric_plan) => {
-                self.fabric = Fabric::default_bow_tie();
-                self.frozen_fabric = None;
-                self.stage = RunningPlan(PlanRunner::new(fabric_plan.clone()));
-            }
             RunningPlan(plan_runner) => {
                 for _ in 0..self.iterations_per_frame {
                     plan_runner.iterate(&mut self.fabric);
@@ -109,7 +103,9 @@ impl Crucible {
                 self.stage = BakingBrick(oven);
             }
             CrucibleAction::BuildFabric(fabric_plan) => {
-                self.stage = AcceptingPlan(fabric_plan);
+                self.fabric = Fabric::default_bow_tie();
+                self.frozen_fabric = None;
+                self.stage = RunningPlan(PlanRunner::new(fabric_plan.clone()));
             }
             CrucibleAction::CreateBrickOnFace(face_id) => {
                 let Tinkering(tinkerer) = &mut self.stage else {
@@ -123,10 +119,6 @@ impl Crucible {
                 self.iterations_per_frame = iterations_per_frame;
             }
         }
-    }
-
-    pub fn strain_limits(&self) -> (f32, f32) {
-        self.fabric.strain_limits(Fabric::BOW_TIE_MATERIAL_INDEX)
     }
 
     pub fn fabric(&self) -> &Fabric {
