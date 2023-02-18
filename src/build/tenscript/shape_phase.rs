@@ -1,7 +1,7 @@
 use cgmath::MetricSpace;
 use pest::iterators::Pair;
 
-use crate::build::tenscript::FaceMark;
+use crate::build::tenscript::{FaceMark, TenscriptError};
 use crate::build::tenscript::Rule;
 use crate::build::tenscript::shape_phase::Command::{*};
 use crate::fabric::{Fabric, Link, UniqueId};
@@ -59,51 +59,50 @@ pub struct ShapePhase {
 }
 
 impl ShapePhase {
-    pub(super) fn from_pair(pair: Pair<Rule>) -> ShapePhase {
-        ShapePhase {
-            operations: pair
-                .into_inner()
-                .map(Self::parse_shape_operation)
-                .collect(),
+    pub fn from_pair(pair: Pair<Rule>) -> Result<ShapePhase, TenscriptError> {
+        let operations = Self::parse_shape_operations(pair.into_inner())?;
+        Ok(ShapePhase {
+            operations,
             marks: Vec::new(),
             shapers: Vec::new(),
             shape_operation_index: 0,
-        }
+        })
     }
 
-    fn parse_shape_operation(pair: Pair<Rule>) -> Operation {
+    fn parse_shape_operations(pairs: impl Iterator<Item=Pair<Rule>>) -> Result<Vec<Operation>, TenscriptError> {
+        pairs
+            .map(Self::parse_shape_operation)
+            .collect()
+    }
+
+    fn parse_shape_operation(pair: Pair<Rule>) -> Result<Operation, TenscriptError> {
         match pair.as_rule() {
             Rule::basic_shape_operation | Rule::shape_operation =>
                 Self::parse_shape_operation(pair.into_inner().next().unwrap()),
             Rule::space => {
                 let [mark_name, distance_string] = pair.into_inner().next_chunk().unwrap().map(|p| p.as_str());
-                let distance_factor = distance_string.parse().unwrap();
-                Operation::Distance {
-                    mark_name: mark_name[1..].into(),
-                    distance_factor,
-                }
+                let distance_factor = TenscriptError::parse_float(distance_string, "space: distance_factor")?;
+                Ok(Operation::Distance { mark_name: mark_name[1..].into(), distance_factor })
             }
             Rule::join => {
                 let mark_name = pair.into_inner().next().unwrap().as_str();
-                Operation::Join { mark_name: mark_name[1..].into() }
+                Ok(Operation::Join { mark_name: mark_name[1..].into() })
             }
             Rule::countdown_block => {
                 let mut inner = pair.into_inner();
-                let count = inner.next().unwrap().as_str().parse().unwrap();
-                let operations = inner.map(Self::parse_shape_operation).collect();
-                Operation::Countdown { count, operations }
+                let count = TenscriptError::parse_usize(inner.next().unwrap().as_str(), "countdown_block")?;
+                let operations = Self::parse_shape_operations(inner)?;
+                Ok(Operation::Countdown { count, operations })
             }
             Rule::remove_shapers => {
                 let mark_names = pair.into_inner().map(|p| p.as_str()[1..].into()).collect();
-                Operation::RemoveShapers { mark_names }
+                Ok(Operation::RemoveShapers { mark_names })
             }
-            Rule::replace_faces =>
-                Operation::ReplaceFaces,
-            Rule::vulcanize =>
-                Operation::Vulcanize,
+            Rule::replace_faces => Ok(Operation::ReplaceFaces),
+            Rule::vulcanize => Ok(Operation::Vulcanize),
             Rule::set_viscosity => {
-                let viscosity = pair.into_inner().next().unwrap().as_str().parse().unwrap();
-                Operation::SetViscosity { viscosity }
+                let viscosity = TenscriptError::parse_float_inside(pair, "viscosity")?;
+                Ok(Operation::SetViscosity { viscosity })
             }
             _ => unreachable!("shape phase: {pair}")
         }

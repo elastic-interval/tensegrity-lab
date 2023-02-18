@@ -15,12 +15,12 @@ use crate::user_interface::{Action, UserInterface};
 use crate::scene::Scene;
 
 pub struct Application {
-    graphics: GraphicsWindow,
     scene: Scene,
     user_interface: UserInterface,
     crucible: Crucible,
+    graphics: GraphicsWindow,
     library_modified: SystemTime,
-    fabric_plan_name: Option<String>,
+    fabric_plan_name: Vec<String>,
 }
 
 impl Application {
@@ -28,30 +28,34 @@ impl Application {
         let user_interface = UserInterface::new(&graphics, window);
         let scene = Scene::new(&graphics);
         Application {
-            graphics,
             scene,
             user_interface,
             crucible: Crucible::default(),
+            graphics,
             library_modified: library_modified_timestamp(),
-            fabric_plan_name: None,
+            fabric_plan_name: Vec::new(),
         }
     }
 
     pub fn update(&mut self, window: &Window) {
         self.user_interface.update();
         let mut actions = self.user_interface.controls().take_actions();
-        if library_modified_timestamp() > self.library_modified && let Some(ref plan_name) = self.fabric_plan_name {
-            let fabric_plan = FabricPlan::load_preset(plan_name).expect("no such fabric plan");
+        if library_modified_timestamp() > self.library_modified {
+            let fabric_plan = FabricPlan::load_preset(self.fabric_plan_name.clone())
+                .expect("unable to load fabric plan");
             actions.push(Action::BuildFabric(fabric_plan));
             self.library_modified = library_modified_timestamp();
         }
         for action in actions {
             match action {
                 Action::BuildFabric(fabric_plan) => {
-                    self.fabric_plan_name = Some(fabric_plan.name.clone());
+                    self.fabric_plan_name = fabric_plan.name.clone();
                     self.scene.show_surface(false);
                     self.user_interface.reset();
                     self.crucible.build_fabric(fabric_plan);
+                }
+                Action::ShowControl(visible_control) => {
+                    self.user_interface.show_control(visible_control);
                 }
                 Action::GravityChanged(_gravity) => {
                     // TODO
@@ -64,10 +68,28 @@ impl Application {
                 }
                 Action::AddBrick { face_alias, face_id } => {
                     self.scene.clear_face_selection();
-                    self.crucible.add_brick(face_alias, face_id)
+                    self.crucible.add_brick(face_alias, face_id);
                 }
                 Action::ShowSurface => {
-                    self.scene.show_surface(true)
+                    self.scene.show_surface(true);
+                }
+                Action::ToggleDebug => {
+                    self.user_interface.toggle_debug_mode();
+                }
+                Action::SetSpeed(speed) => {
+                    self.crucible.set_speed(speed);
+                }
+                Action::CreateBrick => {
+                    self.create_brick();
+                }
+                Action::SelectNextFace => {
+                    self.scene.select_next_face(None, self.crucible.fabric());
+                }
+                Action::WatchMidpoint => {
+                    self.scene.watch_midpoint();
+                }
+                Action::WatchOrigin => {
+                    self.scene.watch_origin();
                 }
             }
         }
@@ -98,10 +120,7 @@ impl Application {
             WindowEvent::ScaleFactorChanged { new_inner_size, .. } => self.resize(**new_inner_size),
             WindowEvent::KeyboardInput { .. } => self.handle_keyboard_input(event),
             WindowEvent::MouseInput { state: ElementState::Released, .. } => self.scene.window_event(event),
-
-            WindowEvent::MouseInput { .. } |
-            WindowEvent::CursorMoved { .. } |
-            WindowEvent::MouseWheel { .. }
+            WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
             if !self.user_interface.capturing_mouse() => self.scene.window_event(event),
             _ => {}
         }
@@ -151,24 +170,10 @@ impl Application {
         } = event else {
             return;
         };
-        match keycode {
-            VirtualKeyCode::Escape => self.user_interface.main_menu(),
-            VirtualKeyCode::D => self.user_interface.toggle_debug_mode(),
-            VirtualKeyCode::Key0 => self.crucible.set_speed(0),
-            VirtualKeyCode::Key1 => self.crucible.set_speed(1),
-            VirtualKeyCode::Key2 => self.crucible.set_speed(5),
-            VirtualKeyCode::Key3 => self.crucible.set_speed(25),
-            VirtualKeyCode::Key4 => self.crucible.set_speed(125),
-            VirtualKeyCode::Key5 => self.crucible.set_speed(625),
-            VirtualKeyCode::B => self.create_brick(),
-            VirtualKeyCode::F => self.scene.select_next_face(None, self.crucible.fabric()),
-            VirtualKeyCode::M => self.scene.watch_midpoint(),
-            VirtualKeyCode::O => self.scene.watch_origin(),
-            _ => {}
-        }
+        self.user_interface.key_pressed(keycode);
     }
 
-    fn create_brick(&mut self) {
+    pub(crate) fn create_brick(&mut self) {
         let Some(face_id) = self.scene.target_face_id() else {
             return;
         };
