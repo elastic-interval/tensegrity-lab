@@ -1,11 +1,12 @@
 use crate::build::brick::{Baked, Prototype};
 use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
 use crate::build::tenscript::plan_runner::PlanRunner;
+use crate::build::tinkerer::Tinkerer;
 use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
-use crate::fabric::face::FaceRotation;
-use crate::fabric::physics::presets::{LIQUID, PROTOTYPE_FORMATION};
+use crate::fabric::physics::presets::PROTOTYPE_FORMATION;
 use crate::fabric::pretenser::Pretenser;
+use crate::scene::SceneVariant;
 use crate::user_interface::Action;
 
 const PULL_SHORTENING: f32 = 0.95;
@@ -15,18 +16,23 @@ enum Stage {
     Empty,
     AcceptingPlan(FabricPlan),
     RunningPlan(PlanRunner),
-    Interactive,
-    AddingBrick { alias: FaceAlias, face_id: UniqueId },
+    Tinkering(Tinkerer),
     Pretensing(Pretenser),
     AcceptingPrototype(Prototype),
     RunningPrototype(FaceAlias),
     Finished,
 }
 
+#[derive(Debug, Clone)]
+pub enum CrucibleAction {
+    BuildFabric(FabricPlan),
+    CreateBrickOnFace(UniqueId),
+    SetSpeed(usize),
+}
+
 pub struct Crucible {
     fabric: Fabric,
     frozen_fabric: Option<Fabric>,
-    action: Option<Action>,
     iterations_per_frame: usize,
     stage: Stage,
 }
@@ -36,7 +42,6 @@ impl Default for Crucible {
         Self {
             fabric: Fabric::default_bow_tie(),
             frozen_fabric: None,
-            action: None,
             iterations_per_frame: 125,
             stage: Empty,
         }
@@ -44,7 +49,8 @@ impl Default for Crucible {
 }
 
 impl Crucible {
-    pub fn iterate(&mut self) {
+    pub fn iterate(&mut self) -> Vec<Action> {
+        let mut actions = Vec::new();
         match &mut self.stage {
             Empty => {}
             AcceptingPlan(fabric_plan) => {
@@ -59,23 +65,23 @@ impl Crucible {
                 if plan_runner.is_done() {
                     self.stage =
                         if self.fabric.faces.is_empty() {
-                            self.action = Some(Action::ShowSurface);
+                            actions.push(Action::Scene(SceneVariant::Pretensing));
                             Pretensing(Pretenser::new(PRETENST_FACTOR))
                         } else {
-                            Interactive
+                            actions.push(Action::Scene(SceneVariant::Tinkering));
+                            Tinkering(Tinkerer::new())
                         }
                 }
             }
-            Interactive => {
+            Tinkering(tinkerer) => {
                 for _ in 0..self.iterations_per_frame {
-                    self.fabric.iterate(&LIQUID);
+                    if let Some(tinker_action) = tinkerer.iterate(&mut self.fabric) {
+                        actions.push(tinker_action);
+                    }
                 }
-            }
-            AddingBrick { alias, face_id } => {
-                let faces = self.fabric.attach_brick(alias, FaceRotation::Zero, 1.0, Some(*face_id));
-                self.stage = Interactive;
-                self.fabric.progress.start(1000);
-                self.action = faces.first().map(|&face_id| Action::SelectFace(face_id));
+                if tinkerer.is_done() {
+                    self.stage = Finished;
+                }
             }
             Pretensing(pretenser) => {
                 for _ in 0..self.iterations_per_frame {
@@ -111,26 +117,30 @@ impl Crucible {
             }
             Finished => {}
         }
+        actions
+    }
+
+    pub fn action(&mut self, crucible_action: CrucibleAction) {
+        match crucible_action {
+            CrucibleAction::BuildFabric(fabric_plan) => {
+                self.stage = AcceptingPlan(fabric_plan);
+            }
+            CrucibleAction::CreateBrickOnFace(face_id) => {
+                let Tinkering(tinkerer) = &mut self.stage else {
+                    panic!("cannot add brick unless tinkering");
+                };
+                let spin = self.fabric.face(face_id).spin.opposite();
+                let face_alias = FaceAlias::single("Single") + &spin.into_alias();
+                tinkerer.add_brick(face_alias, face_id);
+            }
+            CrucibleAction::SetSpeed(iterations_per_frame) => {
+                self.iterations_per_frame = iterations_per_frame;
+            }
+        }
     }
 
     pub fn strain_limits(&self) -> (f32, f32) {
         self.fabric.strain_limits(Fabric::BOW_TIE_MATERIAL_INDEX)
-    }
-
-    pub fn set_speed(&mut self, iterations_per_frame: usize) {
-        self.iterations_per_frame = iterations_per_frame;
-    }
-
-    pub fn add_brick(&mut self, alias: FaceAlias, face_id: UniqueId) {
-        self.stage = AddingBrick { alias, face_id };
-    }
-
-    pub fn build_fabric(&mut self, fabric_plan: FabricPlan) {
-        self.stage = AcceptingPlan(fabric_plan);
-    }
-
-    pub fn action(&mut self) -> Option<Action> {
-        self.action.take()
     }
 
     pub fn fabric(&self) -> &Fabric {

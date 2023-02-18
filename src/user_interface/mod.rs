@@ -11,10 +11,12 @@ use winit::window::{CursorIcon, Window};
 
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
-use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
+use crate::build::tenscript::{FabricPlan, Library};
+use crate::crucible::CrucibleAction;
 use crate::fabric::UniqueId;
 
 use crate::graphics::GraphicsWindow;
+use crate::scene::SceneVariant;
 use crate::user_interface::control_state::{ControlMessage, ControlState, VisibleControl};
 use crate::user_interface::keyboard::{KeyboardMessage, Menu};
 use crate::user_interface::strain_threshold::StrainThresholdMessage;
@@ -28,19 +30,18 @@ const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
 
 #[derive(Clone, Debug)]
 pub enum Action {
-    BuildFabric(FabricPlan),
-    SelectFace(UniqueId),
-    AddBrick { face_alias: FaceAlias, face_id: UniqueId },
-    GravityChanged(f32),
-    ShowControl(VisibleControl),
-    ShowSurface,
+    Crucible(CrucibleAction),
     CalibrateStrain,
-    ToggleDebug,
-    SetSpeed(usize),
-    CreateBrick,
+    GravityChanged(f32),
+    Scene(SceneVariant),
+    SelectFace(UniqueId),
     SelectNextFace,
+    ShowControl(VisibleControl),
+    StartTinkering,
+    ToggleDebug,
     WatchMidpoint,
     WatchOrigin,
+    AddBrick,
 }
 
 fn fabric_menu(fabrics: &[FabricPlan], below: Vec<String>) -> Vec<Menu> {
@@ -75,7 +76,7 @@ fn fabric_menu(fabrics: &[FabricPlan], below: Vec<String>) -> Vec<Menu> {
             .into_iter()
             .map(|fabric_plan| {
                 let label = fabric_plan.name.last().unwrap();
-                Menu::action(label.as_str(), Action::BuildFabric(fabric_plan.clone()))
+                Menu::action(label.as_str(), Action::Crucible(CrucibleAction::BuildFabric(fabric_plan.clone())))
             })
             .collect()
     }
@@ -85,7 +86,7 @@ fn speed_menu() -> Vec<Menu> {
     [(0usize, "Paused"), (5, "Glacial"), (25, "Slow"), (125, "Normal"), (625, "Fast")]
         .into_iter()
         .map(|(speed, label)|
-            Menu::action(label, Action::SetSpeed(speed)))
+            Menu::action(label, Action::Crucible(CrucibleAction::SetSpeed(speed))))
         .collect()
 }
 
@@ -103,9 +104,10 @@ fn action_menu() -> Menu {
             Menu::action("Clear", Action::ShowControl(VisibleControl::Nothing)),
         ]),
         Menu::new("Etc", vec![
+            Menu::action("Tinker", Action::StartTinkering),
             Menu::action("Debug toggle", Action::ToggleDebug),
             Menu::action("Next face", Action::SelectNextFace),
-            Menu::action("Brick create", Action::CreateBrick),
+            Menu::action("Add brick", Action::AddBrick),
         ]),
     ])
 }
