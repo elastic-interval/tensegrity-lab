@@ -1,8 +1,8 @@
 use iced_wgpu::Renderer;
 use iced_winit::{Color, Element};
 use iced_winit::widget::{Button, Row, Slider, Text};
-use crate::user_interface::Action;
-use crate::user_interface::control_state::{Component, ControlMessage, format_row};
+use crate::user_interface::{Action, ControlMessage};
+use crate::user_interface::control_state::{Component, format_row};
 use crate::user_interface::strain_threshold::StrainThresholdMessage::{*};
 
 #[derive(Debug, Clone)]

@@ -13,7 +13,7 @@ use crate::crucible::{Crucible, CrucibleAction};
 use crate::fabric::Fabric;
 use crate::graphics::GraphicsWindow;
 use crate::scene::{Scene, SceneAction, SceneVariant};
-use crate::user_interface::{Action, UserInterface};
+use crate::user_interface::{Action, ControlMessage, UserInterface};
 
 pub struct Application {
     scene: Scene,
@@ -54,7 +54,7 @@ impl Application {
                         CrucibleAction::BuildFabric(fabric_plan) => {
                             self.fabric_plan_name = fabric_plan.name.clone();
                             self.scene.action(SceneAction::Variant(SceneVariant::Normal));
-                            self.user_interface.reset();
+                            self.user_interface.message(ControlMessage::Reset);
                         }
                         CrucibleAction::CreateBrickOnFace { .. } => {
                             self.scene.clear_face_selection();
@@ -67,7 +67,7 @@ impl Application {
                     self.scene.action(scene_action);
                 }
                 Action::ShowControl(visible_control) => {
-                    self.user_interface.show_control(visible_control);
+                    self.user_interface.message(ControlMessage::ShowControl(visible_control));
                 }
                 Action::GravityChanged(_gravity) => {
                     unimplemented!();
@@ -83,7 +83,7 @@ impl Application {
                     unimplemented!();
                 }
                 Action::ToggleDebug => {
-                    self.user_interface.toggle_debug_mode();
+                    self.user_interface.message(ControlMessage::ToggleDebugMode);
                 }
                 Action::AddBrick => {
                     let Some(face_id) = self.scene.target_face_id() else {

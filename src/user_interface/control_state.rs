@@ -8,12 +8,12 @@ use iced_winit::widget::{Column, Row, Text};
 use instant::Instant;
 
 use crate::fabric::{Fabric, UniqueId};
-use crate::user_interface::{Action, action_menu};
-use crate::user_interface::gravity::{Gravity, GravityMessage};
-use crate::user_interface::strain_threshold::{StrainThreshold, StrainThresholdMessage};
-use crate::user_interface::strain_threshold::StrainThresholdMessage::SetStrainLimits;
 use crate::scene::SceneVariant;
-use crate::user_interface::keyboard::{Keyboard, KeyboardMessage};
+use crate::user_interface::{Action, action_menu, ControlMessage};
+use crate::user_interface::gravity::{Gravity, GravityMessage};
+use crate::user_interface::keyboard::Keyboard;
+use crate::user_interface::strain_threshold::StrainThreshold;
+use crate::user_interface::strain_threshold::StrainThresholdMessage::SetStrainLimits;
 
 #[derive(Clone, Copy, Debug)]
 pub enum VisibleControl {
@@ -84,18 +84,6 @@ impl ControlState {
     pub fn strain_limits_changed(&self, limits: (f32, f32)) -> ControlMessage {
         SetStrainLimits(limits).into()
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum ControlMessage {
-    ToggleDebugMode,
-    Reset,
-    ShowControl(VisibleControl),
-    Keyboard(KeyboardMessage),
-    StrainThreshold(StrainThresholdMessage),
-    Gravity(GravityMessage),
-    Action(Action),
-    FrameRateUpdated(f64),
 }
 
 impl Program for ControlState {
