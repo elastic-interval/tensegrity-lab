@@ -4,7 +4,7 @@ library =
 fabric_plan =
     { "(" ~ "fabric" ~ name ~ build ~ shape ~ ")" }
 name =
-    { "(" ~ "name" ~ string ~ ")" }
+    { "(" ~ "name" ~ string+ ~ ")" }
 shape =
     { "(" ~ "shape" ~ shape_operation* ~ ")" }
 basic_shape_operation =

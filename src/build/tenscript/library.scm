@@ -1,69 +1,71 @@
 (library
+  (fabric (name "Seed" "Single") (build (branch (alias Single))) (shape))
+  (fabric (name "Seed" "Omni") (build (branch (alias Omni))) (shape))
+  (fabric (name "Seed" "Torque") (build (branch (alias Torque))) (shape))
   (fabric
-    (name "Seed")
-    (build
-      (branch (alias Torque)))
-    (shape
-      (vulcanize)
-      (replace-faces)))
-  (fabric
-    (name "Knee")
+    (name "Simple" "Knee")
     (build
       (branch (alias Omni)
-        (face (alias TopX) (grow 3))
-        (face (alias TopY) (grow 3))))
+        (face (alias A) (grow 3))
+        (face (alias F) (grow 3))))
     (shape
       (vulcanize)
       (replace-faces)))
   (fabric
-    (name "Flagellum")
+    (name "Simple" "Flagellum")
     (build
       (branch (alias Single)
-        (face (alias Top) (grow 20 (scale .9)))))
+        (face (alias :next-base) (grow 20 (scale .9)))))
     (shape))
   (fabric
-    (name "Halo by Crane")
+    (name "Art" "Halo by Crane")
     (build
       (branch (alias Single) (rotate) (rotate)
-        (face (alias :next-base) (grow 4 (scale .92)
-                                   (branch (alias Omni)
-                                     (face (alias TopX) (grow 12 (scale .92) (mark :halo-end)))
-                                     (face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))
-        ))
+        (face (alias :next-base)
+          (grow 4 (scale .92)
+             (branch (alias Omni)
+               (face (alias TopX) (grow 12 (scale .92) (mark :halo-end)))
+               (face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))))
     (shape
       (join :halo-end)
       (remove-shapers) ; TODO: should automatically happen before vulcanize
       (vulcanize)
       (replace-faces)))
   (fabric
-    (name "Halo by Torque")
+    (name "Art" "Halo by Torque")
     (build
       (branch (alias Single) (rotate) (rotate)
-        (face (alias :next-base) (grow 4 (scale .92)
-                                   (branch (alias Torque)
-                                     (face (alias Far:Back) (grow 12 (scale .92) (mark :halo-end)))
-                                     (face (alias Far:Side) (grow 11 (scale .92) (mark :halo-end))))))
-        ))
+        (face (alias :next-base)
+          (grow 4 (scale .92)
+          (branch (alias Torque)
+            (face (alias Far:Back) (grow 12 (scale .92) (mark :halo-end)))
+            (face (alias Far:Side) (grow 11 (scale .92) (mark :halo-end))))))))
     (shape
       (join :halo-end)
       (remove-shapers) ; TODO: should automatically happen before vulcanize
       (vulcanize)
       (replace-faces)))
   (fabric
-    (name "K-10")
+    (name "Art" "K-10")
     (build
       (branch (alias Torque)
         (face (alias Left:Front:Bottom)
           (branch (alias Torque)
-            (face (alias Far:Front) (grow 3))))
+            (face (alias Far:Front)
+              (grow 3))))
         (face (alias Left:Back:Bottom)
-          (branch (alias Torque)
+          (branch
+            (alias Torque)
             (face (alias Far:Front) (grow 3))))
         (face (alias Right:Front:Bottom)
-          (grow 5))
+          (grow 2
+            (branch (alias Torque)
+              (face (alias Far:Front) (grow 1)))))
         (face (alias Right:Back:Bottom)
-          (grow 5))
-      ))
+          (grow 2
+            (branch
+              (alias Torque)
+              (face (alias Far:Front) (grow 1)))))))
     (shape
       (vulcanize)
       (replace-faces)))
@@ -173,7 +175,7 @@
         (right :bot_alpha_z :bot_omega_x :top_alpha_y (alias :left BotZ) (alias :right TopZ) (alias :seed E))
         (right :bot_alpha_y :bot_omega_z :top_alpha_x (alias :left BotY) (alias :right TopY) (alias :seed F))
         (right :bot_alpha_x :bot_omega_y :top_alpha_z (alias :left BotX) (alias :right TopX) (alias :seed G))
-        (left :bot_alpha_x :bot_alpha_y :bot_alpha_z (alias :left :base) (alias :right Top) (alias :seed H))
+        (left :bot_alpha_x :bot_alpha_y :bot_alpha_z (alias :left :base) (alias :right Top) (alias :seed :base H))
         ))
     (baked
       (alias Omni)
@@ -209,7 +211,7 @@
       (left 3 6 9 (alias :left Omni TopX) (alias :right BotX Omni) (alias :seed B Omni))
       (right 0 5 10 (alias :left BotX Omni) (alias :right Omni TopX) (alias :seed G Omni))
       (left 11 2 5 (alias :left Omni TopZ) (alias :right BotZ Omni) (alias :seed D Omni))
-      (left 0 4 8 (alias :base :left Omni) (alias :right Omni Top) (alias :seed H Omni))
+      (left 0 4 8 (alias :base :left Omni) (alias :right Omni Top) (alias :seed :base H Omni))
       (right 3 7 11 (alias :left Omni Top) (alias :base :right Omni) (alias :seed A Omni)))
     )
   (brick
