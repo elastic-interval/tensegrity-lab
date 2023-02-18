@@ -6,8 +6,8 @@ use iced_winit::widget::{Button, Row, Text};
 use winit::event::VirtualKeyCode;
 use winit::event::VirtualKeyCode::{*};
 
-use crate::user_interface::Action;
-use crate::user_interface::control_state::{Component, ControlMessage, format_row};
+use crate::user_interface::{Action, ControlMessage};
+use crate::user_interface::control_state::{Component, format_row};
 
 #[derive(Debug, Clone)]
 pub struct Menu {
@@ -167,7 +167,7 @@ impl Keyboard {
 fn label_key_code(label: &str, used: &HashSet<VirtualKeyCode>) -> (VirtualKeyCode, String) {
     label
         .chars()
-        .find_map(|ch|{
+        .find_map(|ch| {
             let key_code = to_key_code(ch)?;
             (!used.contains(&key_code))
                 .then_some((key_code, format!("{}: ", ch.to_ascii_uppercase())))

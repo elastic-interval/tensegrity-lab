@@ -17,16 +17,29 @@ use crate::crucible::CrucibleAction;
 use crate::fabric::UniqueId;
 use crate::graphics::GraphicsWindow;
 use crate::scene::SceneAction;
-use crate::user_interface::control_state::{ControlMessage, ControlState, VisibleControl};
+use crate::user_interface::control_state::{ControlState, VisibleControl};
+use crate::user_interface::gravity::GravityMessage;
 use crate::user_interface::keyboard::{KeyboardMessage, Menu};
 use crate::user_interface::strain_threshold::StrainThresholdMessage;
 
 mod strain_threshold;
 mod gravity;
+mod keyboard;
 mod control_state;
-pub mod keyboard;
 
 const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
+
+#[derive(Debug, Clone)]
+pub enum ControlMessage {
+    ToggleDebugMode,
+    Reset,
+    ShowControl(VisibleControl),
+    Keyboard(KeyboardMessage),
+    StrainThreshold(StrainThresholdMessage),
+    Gravity(GravityMessage),
+    Action(Action),
+    FrameRateUpdated(f64),
+}
 
 #[derive(Clone, Debug)]
 pub enum Action {
@@ -54,7 +67,7 @@ fn fabric_menu(fabrics: &[FabricPlan], below: Vec<String>) -> Vec<Menu> {
     if sub_fabrics.is_empty() {
         let mut unique: Vec<String> = Vec::new();
         for plan in fabrics {
-            let next_name = plan.name.iter().nth(below.len()).unwrap();
+            let next_name = plan.name.get(below.len()).unwrap();
             match unique.last() {
                 None => unique.push(next_name.clone()),
                 Some(last_next_name) if next_name != last_next_name => unique.push(next_name.clone()),
@@ -186,28 +199,20 @@ impl UserInterface {
         self.staging_belt.recall();
     }
 
+    pub fn message(&mut self, control_message: ControlMessage) {
+        self.state.queue_message(control_message);
+    }
+
     pub fn key_pressed(&mut self, keycode_pressed: &VirtualKeyCode) {
-        self.state.queue_message(ControlMessage::Keyboard(KeyboardMessage::KeyPressed(*keycode_pressed)));
+        self.message(ControlMessage::Keyboard(KeyboardMessage::KeyPressed(*keycode_pressed)));
     }
 
     pub fn set_strain_limits(&mut self, strain_limits: (f32, f32)) {
-        self.state.queue_message(ControlMessage::StrainThreshold(StrainThresholdMessage::SetStrainLimits(strain_limits)))
-    }
-
-    pub fn reset(&mut self) {
-        self.state.queue_message(ControlMessage::Reset);
-    }
-
-    pub fn show_control(&mut self, visible_control: VisibleControl) {
-        self.state.queue_message(ControlMessage::ShowControl(visible_control))
+        self.message(ControlMessage::StrainThreshold(StrainThresholdMessage::SetStrainLimits(strain_limits)))
     }
 
     pub fn action(&mut self, action: Action) {
         self.state.queue_message(ControlMessage::Action(action))
-    }
-
-    pub fn toggle_debug_mode(&mut self) {
-        self.state.queue_message(ControlMessage::ToggleDebugMode)
     }
 
     pub fn window_event(&mut self, event: &WindowEvent, window: &Window) {
