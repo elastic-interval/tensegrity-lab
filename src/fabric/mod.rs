@@ -209,6 +209,7 @@ impl Fabric {
             joint.force = zero();
             joint.velocity = zero();
         }
+        self.set_altitude(1.0);
     }
 
     pub fn iterate(&mut self, physics: &Physics) -> f32 {
@@ -224,9 +225,6 @@ impl Fabric {
             if speed_squared > max_speed_squared {
                 max_speed_squared = speed_squared;
             }
-        }
-        if physics.gravity == 0.0 {
-            self.set_altitude(0.1);
         }
         if self.progress.step() { // final step
             for interval in self.intervals.values_mut() {

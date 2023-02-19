@@ -6,8 +6,8 @@
     (name "Simple" "Knee")
     (build
       (branch (alias Omni)
-        (face (alias A) (grow 3))
-        (face (alias F) (grow 3))))
+        (face (alias Top:Right) (grow 3))
+        (face (alias Front:Left) (grow 3))))
     (shape
       (vulcanize)
       (replace-faces)))
@@ -33,7 +33,6 @@
       (remove-shapers) ; TODO: should automatically happen before vulcanize
       (vulcanize)
       (replace-faces)))
-
   (fabric
     (name "Art" "K-10")
     (build
@@ -61,27 +60,27 @@
     (fabric
       (name "Art" "Headless Hug")
       (build
-        (branch (alias Torque)
-          (face (alias Left:Back:Bottom) (grow "....X.." (scale .95) (mark :legs)))
-          (face (alias Right:Back:Bottom) (grow "....X.." (scale .95) (mark :legs)))
-          (face (alias Left:Front:Top)
+        (branch (alias Omni)
+          (face (alias Bottom:Left) (grow "....X.." (scale .95) (mark :legs)))
+          (face (alias Bottom:Right) (grow "....X.." (scale .95) (mark :legs)))
+          (face (alias Top:Left)
             (grow 2 (scale .9)
               (branch (alias Omni)
-                (face (alias TopY) (mark :shoulders))
-                (face (alias BotX) (grow "....X..." (scale .93) (mark :hands)))
+                (face (alias BotZ) (mark :shoulders))
+                (face (alias BotY) (grow "....X..." (scale .93) (mark :hands)))
                 )))
-          (face (alias Right:Front:Top)
+          (face (alias Top:Right)
             (grow 2 (scale .9)
               (branch (alias Omni)
-                (face (alias TopY) (mark :shoulders))
+                (face (alias BotY) (mark :shoulders))
                 (face (alias BotX) (grow "....X..." (scale .93) (mark :hands)))
                 )))))
       (shape
-        (countdown 25000
+        (countdown 35000
           (space :legs.5)
           (space :hands.01)
           (space :shoulders.05))
-        (countdown 10000 (vulcanize))
+        (countdown 100000 (vulcanize))
         (remove-shapers)
         (replace-faces)))
   (brick ; single-right
@@ -155,14 +154,14 @@
       (pushes Y 3.271 (push :bot_alpha_y :bot_omega_y) (push :top_alpha_y :top_omega_y))
       (pushes Z 3.271 (push :bot_alpha_z :bot_omega_z) (push :top_alpha_z :top_omega_z))
       (faces
-        (right :top_omega_x :top_omega_y :top_omega_z (alias :left Top) (alias :right :base) (alias :seed A))
-        (left :top_omega_x :top_alpha_y :bot_omega_z (alias :left TopX) (alias :right BotX) (alias :seed B))
-        (left :top_omega_y :top_alpha_z :bot_omega_x (alias :left TopY) (alias :right BotY) (alias :seed C))
-        (left :top_omega_z :top_alpha_x :bot_omega_y (alias :left TopZ) (alias :right BotZ) (alias :seed D))
-        (right :bot_alpha_z :bot_omega_x :top_alpha_y (alias :left BotZ) (alias :right TopZ) (alias :seed E))
-        (right :bot_alpha_y :bot_omega_z :top_alpha_x (alias :left BotY) (alias :right TopY) (alias :seed F))
-        (right :bot_alpha_x :bot_omega_y :top_alpha_z (alias :left BotX) (alias :right TopX) (alias :seed G))
-        (left :bot_alpha_x :bot_alpha_y :bot_alpha_z (alias :left :base) (alias :right Top) (alias :seed :base H))
+        (right :top_omega_x :top_omega_y :top_omega_z (alias :left Top) (alias :right :base) (alias :seed Top:Right))
+        (left :top_omega_x :top_alpha_y :bot_omega_z (alias :left TopX) (alias :right BotX) (alias :seed Front:Right))
+        (left :top_omega_y :top_alpha_z :bot_omega_x (alias :left TopY) (alias :right BotY) (alias :seed Back:Right))
+        (left :top_omega_z :top_alpha_x :bot_omega_y (alias :left TopZ) (alias :right BotZ) (alias :seed Top:Left))
+        (right :bot_alpha_z :bot_omega_x :top_alpha_y (alias :left BotZ) (alias :right TopZ) (alias :seed :base Bottom:Right))
+        (right :bot_alpha_y :bot_omega_z :top_alpha_x (alias :left BotY) (alias :right TopY) (alias :seed Front:Left))
+        (right :bot_alpha_x :bot_omega_y :top_alpha_z (alias :left BotX) (alias :right TopX) (alias :seed Back:Left))
+        (left :bot_alpha_x :bot_alpha_y :bot_alpha_z (alias :left :base) (alias :right Top) (alias :seed :base Bottom:Left))
         ))
     (baked
       (alias Omni)
@@ -192,14 +191,14 @@
       (push 10 11 -0.0473)
       (push 4 5 -0.0474)
       (push 8 9 -0.0474)
-      (left 7 10 1 (alias :left Omni TopY) (alias :right BotY Omni) (alias :seed C Omni))
-      (right 4 9 2 (alias :left BotY Omni) (alias :right Omni TopY) (alias :seed F Omni))
-      (right 8 1 6 (alias :left BotZ Omni) (alias :right Omni TopZ) (alias :seed E Omni))
-      (left 3 6 9 (alias :left Omni TopX) (alias :right BotX Omni) (alias :seed B Omni))
-      (right 0 5 10 (alias :left BotX Omni) (alias :right Omni TopX) (alias :seed G Omni))
-      (left 11 2 5 (alias :left Omni TopZ) (alias :right BotZ Omni) (alias :seed D Omni))
-      (left 0 4 8 (alias :base :left Omni) (alias :right Omni Top) (alias :seed :base H Omni))
-      (right 3 7 11 (alias :left Omni Top) (alias :base :right Omni) (alias :seed A Omni)))
+      (left 7 10 1 (alias :left Omni TopY) (alias :right BotY Omni) (alias :seed Back:Right Omni))
+      (right 4 9 2 (alias :left BotY Omni) (alias :right Omni TopY) (alias :seed Front:Left Omni))
+      (right 8 1 6 (alias :left BotZ Omni) (alias :right Omni TopZ) (alias :seed :base Bottom:Right Omni))
+      (left 3 6 9 (alias :left Omni TopX) (alias :right BotX Omni) (alias :seed Front:Right Omni))
+      (right 0 5 10 (alias :left BotX Omni) (alias :right Omni TopX) (alias :seed Back:Left Omni))
+      (left 11 2 5 (alias :left Omni TopZ) (alias :right BotZ Omni) (alias :seed Top:Left Omni))
+      (left 0 4 8 (alias :base :left Omni) (alias :right Omni Top) (alias :seed :base Bottom:Left Omni))
+      (right 3 7 11 (alias :left Omni Top) (alias :base :right Omni) (alias :seed Top:Right Omni)))
     )
   (brick
     (proto
