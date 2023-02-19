@@ -30,7 +30,7 @@
                (face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))))
     (shape
       (join :halo-end)
-      (remove-shapers) ; TODO: should automatically happen before vulcanize
+      (countdown 30000 (remove-shapers)) ; TODO: should automatically happen before vulcanize
       (vulcanize)
       (replace-faces)))
   (fabric
@@ -66,21 +66,25 @@
           (face (alias Top:Left)
             (grow 2 (scale .9)
               (branch (alias Omni)
-                (face (alias BotZ) (mark :shoulders))
+                (face (alias TopZ) (mark :chest-1))
+                (face (alias BotX) (mark :chest-2))
                 (face (alias BotY) (grow "....X..." (scale .93) (mark :hands)))
                 )))
           (face (alias Top:Right)
             (grow 2 (scale .9)
               (branch (alias Omni)
-                (face (alias BotY) (mark :shoulders))
+                (face (alias TopY) (mark :chest-1))
+                (face (alias BotZ) (mark :chest-2))
                 (face (alias BotX) (grow "....X..." (scale .93) (mark :hands)))
                 )))))
       (shape
-        (countdown 35000
-          (space :legs.5)
-          (space :hands.01)
-          (space :shoulders.05))
-        (countdown 100000 (vulcanize))
+        (countdown 15000
+          (space :legs .3)
+          (space :hands .3)
+          (space :chest-1 .8)
+          (space :chest-2 .2)
+          )
+        (countdown 80000 (vulcanize))
         (remove-shapers)
         (replace-faces)))
   (brick ; single-right
