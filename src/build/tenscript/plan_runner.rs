@@ -1,10 +1,11 @@
 use crate::build::tenscript::{FabricPlan, shape_phase};
 use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::plan_runner::Stage::{*};
-use crate::build::tenscript::shape_phase::ShapePhase;
+use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
 use crate::fabric::Fabric;
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::LIQUID;
+use crate::user_interface::Action;
 
 #[derive(Clone, Debug, Copy, PartialEq)]
 enum Stage {
@@ -32,9 +33,7 @@ impl PlanRunner {
             physics: LIQUID,
         }
     }
-}
 
-impl PlanRunner {
     pub fn iterate(&mut self, fabric: &mut Fabric) {
         fabric.iterate(&self.physics);
         if fabric.progress.is_busy() {
@@ -62,15 +61,15 @@ impl PlanRunner {
                 (GrowStep, 0),
             Shaping =>
                 match self.shape_phase.shaping_step(fabric) {
-                    shape_phase::Command::Noop =>
+                    ShapeCommand::Noop =>
                         (Shaping, 0),
-                    shape_phase::Command::StartCountdown(countdown) =>
+                    ShapeCommand::StartCountdown(countdown) =>
                         (Shaping, countdown),
-                    shape_phase::Command::SetViscosity(viscosity) => {
+                    ShapeCommand::SetViscosity(viscosity) => {
                         self.physics.viscosity = viscosity;
                         (Shaping, 0)
                     }
-                    shape_phase::Command::Terminate =>
+                    ShapeCommand::Terminate =>
                         (Completed, 0)
                 }
             Completed =>

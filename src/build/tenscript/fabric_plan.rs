@@ -6,7 +6,7 @@ use pest::iterators::Pair;
 
 use crate::build::tenscript::{BuildPhase, Library, parse_name, TenscriptError, Rule};
 use crate::build::tenscript::build_phase::BuildNode;
-use crate::build::tenscript::shape_phase::{Operation, ShapePhase};
+use crate::build::tenscript::shape_phase::{ShapeOperation, ShapePhase};
 
 #[derive(Debug, Clone)]
 pub struct FabricPlan {
@@ -49,11 +49,11 @@ impl FabricPlan {
         for operation in &plan.shape_phase.operations {
             operation.traverse(&mut |op| {
                 match op {
-                    Operation::Join { mark_name } |
-                    Operation::Distance { mark_name, .. } => {
+                    ShapeOperation::Join { mark_name } |
+                    ShapeOperation::Distance { mark_name, .. } => {
                         shape_marks.insert(mark_name.clone());
                     }
-                    Operation::RemoveShapers { mark_names } => {
+                    ShapeOperation::RemoveShapers { mark_names } => {
                         shape_marks.extend(mark_names.iter().cloned());
                     }
                     _ => {}
