@@ -119,6 +119,10 @@ impl Fabric {
         self.faces.get(&id).unwrap_or_else(|| panic!("face not found {id:?}"))
     }
 
+    pub fn newest_face_id(&self) -> UniqueId {
+        *self.faces.keys().into_iter().max().unwrap()
+    }
+
     pub fn remove_face(&mut self, id: UniqueId) {
         let face = self.face(id);
         let middle_joint = face.middle_joint(self);
@@ -247,16 +251,14 @@ impl Fabric {
     }
 
     fn create_id(&mut self) -> UniqueId {
-        let id = UniqueId { id: self.unique_id };
+        let id = UniqueId(self.unique_id);
         self.unique_id += 1;
         id
     }
 }
 
-#[derive(Clone, Debug, Copy, PartialEq, Default, Hash, Eq)]
-pub struct UniqueId {
-    pub id: usize,
-}
+#[derive(Clone, Debug, Copy, PartialEq, Default, Hash, Eq, Ord, PartialOrd)]
+pub struct UniqueId(usize);
 
 #[derive(Clone, Debug, Copy)]
 pub struct Link {

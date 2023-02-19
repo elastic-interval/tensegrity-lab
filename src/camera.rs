@@ -133,26 +133,24 @@ pub enum Target {
     #[default]
     FabricMidpoint,
     SelectedFace(UniqueId),
-    Hold,
 }
 
 impl Target {
     pub fn look_at(&self, fabric: &Fabric) -> Option<Point3<f32>> {
-        Some(match self {
-            Target::Hold => return None,
-            Target::Origin => point3(0.0, 0.0, 0.0),
-            Target::FabricMidpoint => fabric.midpoint(),
+        match self {
+            Target::Origin => Some(point3(0.0, 0.0, 0.0)),
+            Target::FabricMidpoint => Some(fabric.midpoint()),
             Target::SelectedFace(face_id) => {
-                let face = fabric.face(*face_id);
-                let (_, midpoint, _) = face.visible_points(fabric);
-                midpoint
+                fabric.faces.get(face_id).map(|face| {
+                    let (_, midpoint, _) = face.visible_points(fabric);
+                    midpoint
+                })
             }
-        })
+        }
     }
 
     pub fn up(&self, fabric: &Fabric) -> Option<Vector3<f32>> {
         match self {
-            Target::Hold => None,
             Target::Origin | Target::FabricMidpoint => Some(Vector3::unit_y()),
             Target::SelectedFace(face_id) => Some(fabric.face(*face_id).normal(fabric)),
         }
@@ -160,7 +158,7 @@ impl Target {
 
     pub fn distance(&self, fabric: &Fabric) -> Option<f32> {
         match self {
-            Target::Origin | Target::FabricMidpoint | Target::Hold => None,
+            Target::Origin | Target::FabricMidpoint => None,
             Target::SelectedFace(face_id) => Some(fabric.face(*face_id).scale * 7.0)
         }
     }
@@ -168,7 +166,7 @@ impl Target {
     pub fn allow_vertical_rotation(&self) -> bool {
         match self {
             Target::Origin | Target::FabricMidpoint => true,
-            Target::SelectedFace(_) | Target::Hold => false
+            Target::SelectedFace(_) => false
         }
     }
 }

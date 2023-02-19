@@ -1,11 +1,10 @@
-use crate::build::tenscript::{FabricPlan, shape_phase};
+use crate::build::tenscript::FabricPlan;
 use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::plan_runner::Stage::{*};
 use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
 use crate::fabric::Fabric;
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::LIQUID;
-use crate::user_interface::Action;
 
 #[derive(Clone, Debug, Copy, PartialEq)]
 enum Stage {
