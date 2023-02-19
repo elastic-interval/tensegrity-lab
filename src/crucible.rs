@@ -6,7 +6,7 @@ use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::pretenser::Pretenser;
 use crate::scene::{SceneAction, SceneVariant};
-use crate::user_interface::Action;
+use crate::user_interface::{Action, MenuChoice};
 
 const PULL_SHORTENING: f32 = 0.95;
 const PRETENST_FACTOR: f32 = 1.03;
@@ -61,8 +61,9 @@ impl Crucible {
                             actions.push(Action::Scene(SceneAction::Variant(SceneVariant::Pretensing)));
                             Pretensing(Pretenser::new(PRETENST_FACTOR))
                         } else {
+                            actions.push(Action::Keyboard(MenuChoice::Tinker));
                             actions.push(Action::Scene(SceneAction::Variant(SceneVariant::Tinkering)));
-                            Tinkering(Tinkerer::new())
+                            Tinkering(Tinkerer::default())
                         }
                 }
             }

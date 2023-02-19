@@ -182,7 +182,7 @@ impl Scene {
         render_pass.draw(0..self.fabric_drawing.vertices.len() as u32, 0..1);
 
         let show_surface = match self.variant {
-            Tinkering| Suspended | TinkeringOnFace(_) => false,
+            Tinkering | Suspended | TinkeringOnFace(_) => false,
             Pretensing | ShowingStrain { .. } => true,
         };
         if show_surface {
@@ -230,10 +230,10 @@ impl Scene {
         graphics.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));
     }
 
-    pub fn target_face_id(&self) -> Option<UniqueId> {
+    pub fn target_face_id(&self, fabric: &Fabric) -> Option<UniqueId> {
         match self.camera.target {
-            Origin | FabricMidpoint | Hold => None,
-            SelectedFace(face_id) => Some(face_id),
+            Origin | FabricMidpoint => None,
+            SelectedFace(face_id) => fabric.faces.contains_key(&face_id).then_some(face_id),
         }
     }
 
@@ -253,7 +253,7 @@ impl Scene {
 
     pub fn select_next_face(&mut self, face_id: Option<UniqueId>, fabric: &Fabric) {
         let face_id = face_id.unwrap_or(match self.camera.target {
-            Origin | FabricMidpoint | Hold => {
+            Origin | FabricMidpoint => {
                 *fabric.faces.keys().next().unwrap()
             }
             SelectedFace(face_id) => {
@@ -270,13 +270,9 @@ impl Scene {
         self.select_face(Some(face_id));
     }
 
-    pub fn clear_face_selection(&mut self) {
-        self.select_face(None);
-    }
-
-    fn select_face(&mut self, face_id: Option<UniqueId>) {
+    pub fn select_face(&mut self, face_id: Option<UniqueId>) {
         self.camera.target = match face_id {
-            None => Hold,
+            None => FabricMidpoint,
             Some(face_id) => SelectedFace(face_id)
         };
     }
@@ -293,7 +289,7 @@ impl FabricVertex {
     pub fn for_interval(interval: &Interval, fabric: &Fabric, variation: &SceneVariant) -> [FabricVertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
         let color = match variation {
-            Suspended | Tinkering | Pretensing | TinkeringOnFace(_)  => {
+            Suspended | Tinkering | Pretensing | TinkeringOnFace(_) => {
                 match fabric.materials[interval.material].role {
                     Push => [1.0, 1.0, 1.0, 1.0],
                     Pull => [0.2, 0.2, 1.0, 1.0],
@@ -323,7 +319,7 @@ impl FabricVertex {
             TinkeringOnFace(selected_face) if *selected_face == face_id => {
                 ([0.0, 1.0, 0.0, 1.0], [0.0, 1.0, 0.0, 1.0])
             }
-            Tinkering | TinkeringOnFace (_) =>
+            Tinkering | TinkeringOnFace(_) =>
                 ([1.0, 0.0, 0.0, 1.0], [1.0, 0.0, 0.0, 1.0]),
         };
         [

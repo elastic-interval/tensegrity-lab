@@ -53,11 +53,12 @@ impl Application {
                     match &crucible_action {
                         CrucibleAction::BuildFabric(fabric_plan) => {
                             self.fabric_plan_name = fabric_plan.name.clone();
+                            self.scene.action(SceneAction::WatchMidpoint);
                             self.scene.action(SceneAction::Variant(SceneVariant::Suspended));
                             self.user_interface.message(ControlMessage::Reset);
                         }
                         CrucibleAction::CreateBrickOnFace { .. } => {
-                            self.scene.clear_face_selection();
+                            self.scene.select_face(None);
                         }
                         CrucibleAction::SetSpeed(_) | CrucibleAction::BakeBrick(_) => {}
                     }
@@ -65,6 +66,9 @@ impl Application {
                 }
                 Action::Scene(scene_action) => {
                     self.scene.action(scene_action);
+                }
+                Action::Keyboard(menu_choice) => {
+                    self.user_interface.menu_choice(menu_choice);
                 }
                 Action::ShowControl(visible_control) => {
                     self.user_interface.message(ControlMessage::ShowControl(visible_control));
@@ -86,7 +90,7 @@ impl Application {
                     self.user_interface.message(ControlMessage::ToggleDebugMode);
                 }
                 Action::AddBrick => {
-                    let Some(face_id) = self.scene.target_face_id() else {
+                    let Some(face_id) = self.scene.target_face_id(self.crucible.fabric()) else {
                         return;
                     };
                     self.user_interface.action(Action::Crucible(CrucibleAction::CreateBrickOnFace(face_id)));

@@ -4,16 +4,16 @@ use iced_winit::widget::{Button, Row, Text};
 use winit::event::VirtualKeyCode;
 use winit::event::VirtualKeyCode::{*};
 
-use crate::user_interface::{Action, ControlMessage};
+use crate::user_interface::{Action, ControlMessage, MenuChoice};
 use crate::user_interface::control_state::{Component, format_row};
-use crate::user_interface::menu::{action_menu, Menu};
+use crate::user_interface::menu::Menu;
 
 #[derive(Debug, Clone)]
 pub enum KeyboardMessage {
     KeyPressed(VirtualKeyCode),
     SelectSubmenu(Menu),
     SelectUpperMenu,
-    SelectRootMenu,
+    SelectMenu(MenuChoice),
     SubmitAction(Action),
 }
 
@@ -25,7 +25,6 @@ impl From<KeyboardMessage> for ControlMessage {
 
 #[derive(Debug, Clone)]
 pub struct Keyboard {
-    menu: Menu,
     current: Vec<Menu>,
 }
 
@@ -35,8 +34,6 @@ impl Component for Keyboard {
     fn update(&mut self, message: Self::Message) -> Option<Action> {
         match message {
             KeyboardMessage::SubmitAction(action) => {
-                self.current.clear();
-                self.current.push(self.menu.clone());
                 return Some(action);
             }
             KeyboardMessage::KeyPressed(key_code) => {
@@ -48,11 +45,12 @@ impl Component for Keyboard {
                 self.current.push(menu);
             }
             KeyboardMessage::SelectUpperMenu => {
-                self.current.pop();
+                if self.current.len() > 1 {
+                    self.current.pop();
+                }
             }
-            KeyboardMessage::SelectRootMenu => {
-                self.current.clear();
-                self.current.push(self.menu.clone());
+            KeyboardMessage::SelectMenu(menu_choice) => {
+                self.set_menu(Menu::select(menu_choice));
             }
         }
         None
@@ -78,24 +76,26 @@ impl Component for Keyboard {
 
 impl Default for Keyboard {
     fn default() -> Self {
-        let menu = action_menu();
-        Self {
-            current: vec!(menu.clone()),
-            menu,
-        }
+        Self { current: vec![Menu::select(MenuChoice::Root)] }
     }
 }
 
 impl Keyboard {
+    pub fn set_menu(&mut self, menu: Menu) {
+        self.current.clear();
+        self.current.push(menu);
+    }
+
     pub fn current(&self) -> Menu {
         self.current.last().unwrap().clone()
     }
 
     pub fn key_pressed(&self, keycode_pressed: &VirtualKeyCode) -> (Vec<Menu>, Option<Action>) {
         let mut current = self.current.clone();
-        if keycode_pressed == &Escape {
-            current.clear();
-            current.push(self.menu.clone());
+        if keycode_pressed == &Escape || keycode_pressed == &Back {
+            if current.len() > 1 {
+                current.pop();
+            }
             return (current, None);
         };
         let action = current
@@ -110,8 +110,9 @@ impl Keyboard {
                     return None;
                 }
                 if action.is_some() {
-                    current.clear();
-                    current.push(self.menu.clone());
+                    if current.len() > 1 {
+                        current.pop();
+                    }
                     return action.clone();
                 }
                 if submenu.is_empty() {
