@@ -1,4 +1,4 @@
-use wgpu::{BindGroupLayout, CommandEncoder, DepthStencilState, PrimitiveState, ShaderModule, Texture, TextureView};
+use wgpu::{BindGroupLayout, CommandEncoder, PrimitiveState, ShaderModule};
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
@@ -85,30 +85,6 @@ impl GraphicsWindow {
     pub fn create_command_encoder(&self) -> CommandEncoder {
         self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") })
     }
-
-    pub fn create_depth_view(&self) -> TextureView {
-        self.create_texture().create_view(&wgpu::TextureViewDescriptor::default())
-    }
-
-    fn create_texture(&self) -> Texture {
-        self.device.create_texture(&self.texture_descriptor())
-    }
-
-    fn texture_descriptor(&self) -> wgpu::TextureDescriptor {
-        wgpu::TextureDescriptor {
-            size: wgpu::Extent3d {
-                width: self.config.width,
-                height: self.config.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth24Plus,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            label: None,
-        }
-    }
 }
 
 pub fn line_list_primitive_state() -> PrimitiveState {
@@ -124,15 +100,5 @@ pub fn triangle_list_primitive_state() -> PrimitiveState {
         topology: wgpu::PrimitiveTopology::TriangleList,
         strip_index_format: None,
         ..Default::default()
-    }
-}
-
-pub fn get_depth_stencil_state() -> DepthStencilState {
-    DepthStencilState {
-        format: wgpu::TextureFormat::Depth24Plus,
-        depth_write_enabled: true,
-        depth_compare: wgpu::CompareFunction::LessEqual,
-        stencil: wgpu::StencilState::default(),
-        bias: wgpu::DepthBiasState::default(),
     }
 }

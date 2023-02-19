@@ -17,7 +17,7 @@ use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::Face;
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push};
-use crate::graphics::{get_depth_stencil_state, GraphicsWindow, line_list_primitive_state, triangle_list_primitive_state};
+use crate::graphics::{GraphicsWindow, line_list_primitive_state, triangle_list_primitive_state};
 
 const MAX_INTERVALS: usize = 5000;
 
@@ -98,7 +98,7 @@ impl Scene {
                 })],
             }),
             primitive: line_list_primitive_state(),
-            depth_stencil: Some(get_depth_stencil_state()),
+            depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });
@@ -127,7 +127,7 @@ impl Scene {
                 })],
             }),
             primitive: triangle_list_primitive_state(),
-            depth_stencil: Some(get_depth_stencil_state()),
+            depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });
@@ -155,7 +155,7 @@ impl Scene {
         }
     }
 
-    pub fn render(&self, encoder: &mut CommandEncoder, view: &TextureView, depth_view: &TextureView) {
+    pub fn render(&self, encoder: &mut CommandEncoder, view: &TextureView) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -166,14 +166,7 @@ impl Scene {
                     store: true,
                 },
             })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: depth_view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: false,
-                }),
-                stencil_ops: None,
-            }),
+            depth_stencil_attachment: None,
         });
         render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
 
