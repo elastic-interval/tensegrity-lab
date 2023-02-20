@@ -62,7 +62,7 @@ impl Crucible {
                             Pretensing(Pretenser::new(PRETENST_FACTOR))
                         } else {
                             actions.push(Action::Keyboard(MenuChoice::Tinker));
-                            actions.push(Action::Scene(SceneAction::Variant(SceneVariant::TinkeringOnFace(self.fabric.newest_face_id()))));
+                            actions.push(Action::SelectFace(self.fabric.newest_face_id()));
                             Tinkering(Tinkerer::default())
                         }
                 }
