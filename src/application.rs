@@ -81,7 +81,10 @@ impl Application {
                     self.user_interface.set_strain_limits(strain_limits);
                 }
                 Action::SelectFace(face_id) => {
-                    self.scene.select_next_face(Some(face_id), self.crucible.fabric());
+                    self.scene.select_face(Some(face_id));
+                }
+                Action::SelectNextFace(face_choice) => {
+                    self.scene.select_next_face(face_choice, self.crucible.fabric());
                 }
                 Action::StartTinkering => {
                     unimplemented!();
@@ -94,9 +97,6 @@ impl Application {
                         return;
                     };
                     self.user_interface.action(Action::Crucible(CrucibleAction::CreateBrickOnFace(face_id)));
-                }
-                Action::SelectNextFace => {
-                    self.scene.select_next_face(None, self.crucible.fabric());
                 }
             }
         }

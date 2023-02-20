@@ -48,6 +48,11 @@ pub enum ControlMessage {
 }
 
 #[derive(Clone, Debug)]
+pub enum FaceChoice {
+    Left, Right
+}
+
+#[derive(Clone, Debug)]
 pub enum Action {
     Crucible(CrucibleAction),
     Scene(SceneAction),
@@ -55,7 +60,7 @@ pub enum Action {
     CalibrateStrain,
     GravityChanged(f32),
     SelectFace(UniqueId),
-    SelectNextFace,
+    SelectNextFace(FaceChoice),
     ShowControl(VisibleControl),
     StartTinkering,
     ToggleDebug,
