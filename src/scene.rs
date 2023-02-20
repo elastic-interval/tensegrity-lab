@@ -290,10 +290,12 @@ impl Scene {
     }
 
     pub fn select_face(&mut self, face_id: Option<UniqueId>) {
-        self.camera.target = match face_id {
-            None => FabricMidpoint,
-            Some(face_id) => SelectedFace(face_id)
+        let (target, variant) = match face_id {
+            None => (FabricMidpoint, Suspended),
+            Some(face_id) => (SelectedFace(face_id), TinkeringOnFace(face_id))
         };
+        self.camera.target = target;
+        self.variant = variant;
     }
 }
 
