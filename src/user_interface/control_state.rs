@@ -9,7 +9,7 @@ use instant::Instant;
 
 use crate::fabric::{Fabric, UniqueId};
 use crate::scene::SceneVariant;
-use crate::scene::SceneVariant::{Tinkering, TinkeringOnFace};
+use crate::scene::SceneVariant::{Suspended, TinkeringOnFace};
 use crate::user_interface::{Action, ControlMessage};
 use crate::user_interface::gravity::{Gravity, GravityMessage};
 use crate::user_interface::keyboard::Keyboard;
@@ -78,7 +78,7 @@ impl ControlState {
             }
         } else {
             match face_id {
-                None => Tinkering,
+                None => Suspended,
                 Some(face_id) => TinkeringOnFace(face_id),
             }
         }

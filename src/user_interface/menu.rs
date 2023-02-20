@@ -7,7 +7,7 @@ use crate::build::tenscript::{FabricPlan, Library};
 use crate::crucible::CrucibleAction;
 use crate::scene::SceneAction;
 
-use crate::user_interface::{Action, MenuChoice};
+use crate::user_interface::{Action, FaceChoice, MenuChoice};
 use crate::user_interface::control_state::VisibleControl;
 
 #[derive(Debug, Clone)]
@@ -114,7 +114,8 @@ impl Menu {
 
     fn tinker_menu() -> Menu {
         Menu::new("Tinker", vec![
-            Menu::action("Next face", Action::SelectNextFace),
+            Menu::action("Leftward", Action::SelectNextFace(FaceChoice::Left)),
+            Menu::action("Rightward", Action::SelectNextFace(FaceChoice::Right)),
             Menu::action("Add brick", Action::AddBrick),
             Menu::action("Finished", Action::Keyboard(MenuChoice::Root))
         ])

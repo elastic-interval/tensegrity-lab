@@ -1,11 +1,12 @@
 use std::f32::consts::PI;
 
-use cgmath::{Deg, InnerSpace, Matrix4, MetricSpace, perspective, Point3, point3, Rad, Transform, vec3, Vector3};
+use cgmath::{Deg, EuclideanSpace, InnerSpace, Matrix4, MetricSpace, perspective, Point3, point3, Rad, Transform, vec3, Vector3};
 use cgmath::num_traits::abs;
 use winit::dpi::PhysicalPosition;
 use winit::event::{ElementState, MouseScrollDelta, WindowEvent};
 
 use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::face::Face;
 
 const TARGET_ATTRACTION: f32 = 0.01;
 const UP_ATTRACTION: f32 = 0.1;
@@ -70,7 +71,7 @@ impl Camera {
         };
         self.up = (self.up + up * TARGET_ATTRACTION) / (1.0 + TARGET_ATTRACTION);
         self.look_at += (look_at - self.look_at) * TARGET_ATTRACTION;
-        if let Some(distance) = self.target.distance(fabric) {
+        if let Some(distance) = self.target.ideal_camera_distance(fabric) {
             let current = self.position.distance(self.look_at);
             if abs(current - distance) > TARGET_DISTANCE_MARGIN {
                 let new_distance = (current + distance * TARGET_ATTRACTION) / (1.0 + TARGET_ATTRACTION);
@@ -142,31 +143,33 @@ impl Target {
             Target::FabricMidpoint => Some(fabric.midpoint()),
             Target::SelectedFace(face_id) => {
                 fabric.faces.get(face_id).map(|face| {
-                    let (_, midpoint, _) = face.visible_points(fabric);
-                    midpoint
+                    Point3::from_vec(face.midpoint(fabric))
                 })
             }
         }
     }
 
     pub fn up(&self, fabric: &Fabric) -> Option<Vector3<f32>> {
-        match self {
-            Target::Origin | Target::FabricMidpoint => Some(Vector3::unit_y()),
-            Target::SelectedFace(face_id) => Some(fabric.face(*face_id).normal(fabric)),
-        }
+        self.selected_face(fabric).map(|(_, face)| face.normal(fabric))
     }
 
-    pub fn distance(&self, fabric: &Fabric) -> Option<f32> {
-        match self {
-            Target::Origin | Target::FabricMidpoint => None,
-            Target::SelectedFace(face_id) => Some(fabric.face(*face_id).scale * 7.0)
-        }
+    pub fn ideal_camera_distance(&self, fabric: &Fabric) -> Option<f32> {
+        self.selected_face(fabric).map(|(_, face)| face.scale * 7.0)
     }
 
     pub fn allow_vertical_rotation(&self) -> bool {
+        self.selected_face_id().is_some()
+    }
+
+    pub fn selected_face<'a>(&self, fabric: &'a Fabric) -> Option<(UniqueId, &'a Face)> {
+        let face_id = self.selected_face_id()?;
+        fabric.faces.get(&face_id).map(|face| (face_id, face))
+    }
+
+    pub fn selected_face_id(&self) -> Option<UniqueId> {
         match self {
-            Target::Origin | Target::FabricMidpoint => true,
-            Target::SelectedFace(_) => false
+            Target::Origin | Target::FabricMidpoint => None,
+            Target::SelectedFace(face_id) => Some(*face_id)
         }
     }
 }

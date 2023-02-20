@@ -62,7 +62,7 @@ impl Crucible {
                             Pretensing(Pretenser::new(PRETENST_FACTOR))
                         } else {
                             actions.push(Action::Keyboard(MenuChoice::Tinker));
-                            actions.push(Action::Scene(SceneAction::Variant(SceneVariant::Tinkering)));
+                            actions.push(Action::Scene(SceneAction::Variant(SceneVariant::TinkeringOnFace(self.fabric.newest_face_id()))));
                             Tinkering(Tinkerer::default())
                         }
                 }
@@ -106,7 +106,7 @@ impl Crucible {
             CrucibleAction::BuildFabric(fabric_plan) => {
                 self.fabric = Fabric::default_bow_tie();
                 self.frozen_fabric = None;
-                self.stage = RunningPlan(PlanRunner::new(fabric_plan.clone()));
+                self.stage = RunningPlan(PlanRunner::new(fabric_plan));
             }
             CrucibleAction::CreateBrickOnFace(face_id) => {
                 let Tinkering(tinkerer) = &mut self.stage else {
