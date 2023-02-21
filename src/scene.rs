@@ -6,6 +6,7 @@ use iced_wgpu::wgpu;
 use wgpu::{CommandEncoder, TextureView};
 use wgpu::util::DeviceExt;
 use winit::event::*;
+use SceneVariant::{*};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -26,9 +27,25 @@ struct Drawing<V> {
     buffer: wgpu::Buffer,
 }
 
+#[derive(Debug, Clone)]
+pub enum SceneAction {
+    Variant(SceneVariant),
+    WatchMidpoint,
+    WatchOrigin,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SceneVariant {
+    Suspended,
+    Pretensing,
+    Tinkering,
+    TinkeringOnFace(UniqueId),
+    ShowingStrain { threshold: f32, material: usize },
+}
+
 pub struct Scene {
+    variant: SceneVariant,
     camera: Camera,
-    show_surface: bool,
     fabric_drawing: Drawing<FabricVertex>,
     surface_drawing: Drawing<SurfaceVertex>,
     uniform_bind_group: wgpu::BindGroup,
@@ -121,8 +138,8 @@ impl Scene {
         });
 
         Self {
+            variant: Suspended,
             camera,
-            show_surface: false,
             fabric_drawing: Drawing {
                 pipeline: fabric_pipeline,
                 vertices: fabric_vertices,
@@ -164,7 +181,11 @@ impl Scene {
         render_pass.set_vertex_buffer(0, self.fabric_drawing.buffer.slice(..));
         render_pass.draw(0..self.fabric_drawing.vertices.len() as u32, 0..1);
 
-        if self.show_surface {
+        let show_surface = match self.variant {
+            Tinkering| Suspended | TinkeringOnFace(_) => false,
+            Pretensing | ShowingStrain { .. } => true,
+        };
+        if show_surface {
             render_pass.set_pipeline(&self.surface_drawing.pipeline);
             render_pass.set_vertex_buffer(0, self.surface_drawing.buffer.slice(..));
             render_pass.draw(0..self.surface_drawing.vertices.len() as u32, 0..1);
@@ -175,18 +196,24 @@ impl Scene {
         self.camera.window_event(event);
     }
 
-    pub fn update(&mut self, graphics: &GraphicsWindow, variation: Variation, fabric: &Fabric) {
-        self.update_from_fabric(fabric, variation);
+    pub fn update(&mut self, graphics: &GraphicsWindow, fabric: &Fabric) {
+        self.update_from_fabric(fabric);
         self.update_from_camera(graphics);
         graphics.queue.write_buffer(&self.fabric_drawing.buffer, 0, cast_slice(&self.fabric_drawing.vertices));
     }
 
-    fn update_from_fabric(&mut self, fabric: &Fabric, variation: Variation) {
+    fn update_from_fabric(&mut self, fabric: &Fabric) {
         self.fabric_drawing.vertices.clear();
         self.fabric_drawing.vertices.extend(fabric.interval_values()
-            .flat_map(|interval| FabricVertex::for_interval(interval, fabric, &variation)));
-        self.fabric_drawing.vertices.extend(fabric.faces.iter()
-            .flat_map(|(face_id, face)| FabricVertex::for_face(*face_id, face, fabric, &variation)));
+            .flat_map(|interval| FabricVertex::for_interval(interval, fabric, &self.variant)));
+        let show_faces = match self.variant {
+            Suspended | Pretensing | ShowingStrain { .. } => false,
+            Tinkering | TinkeringOnFace(_) => true,
+        };
+        if show_faces {
+            self.fabric_drawing.vertices.extend(fabric.faces.iter()
+                .flat_map(|(face_id, face)| FabricVertex::for_face(*face_id, face, fabric, &self.variant)));
+        }
         self.camera.target_approach(fabric);
     }
 
@@ -210,12 +237,18 @@ impl Scene {
         }
     }
 
-    pub fn watch_midpoint(&mut self) {
-        self.camera.target = FabricMidpoint;
-    }
-
-    pub fn watch_origin(&mut self) {
-        self.camera.target = Origin
+    pub fn action(&mut self, scene_action: SceneAction) {
+        match scene_action {
+            SceneAction::Variant(variant) => {
+                self.variant = variant;
+            }
+            SceneAction::WatchMidpoint => {
+                self.camera.target = FabricMidpoint;
+            }
+            SceneAction::WatchOrigin => {
+                self.camera.target = Origin
+            }
+        }
     }
 
     pub fn select_next_face(&mut self, face_id: Option<UniqueId>, fabric: &Fabric) {
@@ -247,10 +280,6 @@ impl Scene {
             Some(face_id) => SelectedFace(face_id)
         };
     }
-
-    pub fn show_surface(&mut self, show: bool) {
-        self.show_surface = show;
-    }
 }
 
 #[repr(C)]
@@ -260,22 +289,17 @@ struct FabricVertex {
     color: [f32; 4],
 }
 
-pub enum Variation {
-    StrainView { threshold: f32, material: usize },
-    BuildView { face_id: Option<UniqueId> },
-}
-
 impl FabricVertex {
-    pub fn for_interval(interval: &Interval, fabric: &Fabric, variation: &Variation) -> [FabricVertex; 2] {
+    pub fn for_interval(interval: &Interval, fabric: &Fabric, variation: &SceneVariant) -> [FabricVertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
         let color = match variation {
-            Variation::BuildView { .. } => {
+            Suspended | Tinkering | Pretensing | TinkeringOnFace(_)  => {
                 match fabric.materials[interval.material].role {
                     Push => [1.0, 1.0, 1.0, 1.0],
                     Pull => [0.2, 0.2, 1.0, 1.0],
                 }
             }
-            Variation::StrainView { threshold, material } => {
+            ShowingStrain { threshold, material } => {
                 if fabric.materials[interval.material].role == Pull &&
                     interval.material == *material && interval.strain > *threshold {
                     [0.0, 1.0, 0.0, 1.0]
@@ -290,14 +314,16 @@ impl FabricVertex {
         ]
     }
 
-    pub fn for_face(face_id: UniqueId, face: &Face, fabric: &Fabric, variation: &Variation) -> [FabricVertex; 2] {
+    pub fn for_face(face_id: UniqueId, face: &Face, fabric: &Fabric, variation: &SceneVariant) -> [FabricVertex; 2] {
         let (alpha, _, omega) = face.visible_points(fabric);
         let (alpha_color, omega_color) = match variation {
-            Variation::StrainView { .. } =>
-                ([0.3, 0.3, 0.3, 0.5], [0.3, 0.3, 0.3, 0.5]),
-            Variation::BuildView { face_id: Some(selected_face) } if *selected_face == face_id =>
-                ([0.0, 1.0, 0.0, 1.0], [0.0, 1.0, 0.0, 1.0]),
-            Variation::BuildView { .. } =>
+            Pretensing | Suspended | ShowingStrain { .. } => {
+                unreachable!()
+            }
+            TinkeringOnFace(selected_face) if *selected_face == face_id => {
+                ([0.0, 1.0, 0.0, 1.0], [0.0, 1.0, 0.0, 1.0])
+            }
+            Tinkering | TinkeringOnFace (_) =>
                 ([1.0, 0.0, 0.0, 1.0], [1.0, 0.0, 0.0, 1.0]),
         };
         [

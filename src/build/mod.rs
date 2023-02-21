@@ -1,7 +1,8 @@
 pub mod ball;
+pub mod brick;
 pub mod klein;
 pub mod mobius;
 pub mod sphere;
 pub mod tenscript;
-pub mod example;
-pub mod brick;
+pub mod tinkerer;
+pub mod oven;
