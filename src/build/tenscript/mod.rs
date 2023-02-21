@@ -58,7 +58,7 @@ impl Display for TenscriptError {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct FaceAlias(pub HashSet<String>);
 
 impl Add<&FaceAlias> for FaceAlias {
