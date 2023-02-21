@@ -123,7 +123,6 @@ impl Application {
         self.user_interface.window_event(event, window);
         match event {
             WindowEvent::Resized(physical_size) => self.resize(*physical_size),
-            WindowEvent::ScaleFactorChanged { new_inner_size, .. } => self.resize(**new_inner_size),
             WindowEvent::KeyboardInput { .. } => self.handle_keyboard_input(event),
             WindowEvent::MouseInput { state: ElementState::Released, .. } => self.scene.window_event(event),
             WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
