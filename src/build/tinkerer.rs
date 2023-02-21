@@ -6,15 +6,22 @@ use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::LIQUID;
 use crate::user_interface::Action;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 enum Stage {
     Start,
     Navigating,
-    AddingBrick { alias: FaceAlias, face_id: UniqueId },
+    AddingBrick(BrickOnFace),
     Approaching,
     Reverting,
     Settling,
     Finished,
+}
+
+#[derive(Clone, Debug)]
+pub struct BrickOnFace {
+    pub alias: FaceAlias,
+    pub face_id: UniqueId,
+    pub face_rotation: FaceRotation,
 }
 
 #[derive(Clone, Debug)]
@@ -48,15 +55,15 @@ impl Tinkerer {
                 fabric.iterate(&self.physics);
                 Navigating
             }
-            AddingBrick { alias, face_id } => {
+            AddingBrick(BrickOnFace { alias, face_id, face_rotation }) => {
                 self.history.push(Frozen { fabric: fabric.clone(), selected_face: face_id.clone() });
-                fabric.attach_brick(alias, FaceRotation::Zero, 1.0, Some(*face_id));
+                fabric.attach_brick(alias, *face_rotation, 1.0, Some(*face_id));
                 action = Some(Action::SelectFace(fabric.newest_face_id()));
                 fabric.progress.start(1000);
                 Approaching
             }
             Reverting => {
-                if let Some(frozen)  = self.history.pop() {
+                if let Some(frozen) = self.history.pop() {
                     action = Some(Action::RevertToFrozen(frozen))
                 };
                 Navigating
@@ -83,8 +90,8 @@ impl Tinkerer {
         action
     }
 
-    pub fn add_brick(&mut self, alias: FaceAlias, face_id: UniqueId) {
-        self.stage = AddingBrick { alias, face_id };
+    pub fn add_brick(&mut self, brick_on_face: BrickOnFace) {
+        self.stage = AddingBrick(brick_on_face);
     }
 
     pub fn revert(&mut self) {
@@ -92,6 +99,9 @@ impl Tinkerer {
     }
 
     pub fn is_done(&self) -> bool {
-        self.stage == Finished
+        match self.stage {
+            Finished => true,
+            _ => false
+        }
     }
 }

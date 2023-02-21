@@ -9,6 +9,7 @@ use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 
+#[derive(Clone, Debug, Copy)]
 pub enum FaceRotation {
     Zero,
     OneThird,

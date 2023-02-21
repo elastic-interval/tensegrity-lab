@@ -6,6 +6,7 @@ use winit::event::VirtualKeyCode::{*};
 
 use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
 use crate::crucible::CrucibleAction;
+use crate::fabric::face::FaceRotation;
 use crate::scene::SceneAction;
 use crate::user_interface::{Action, FaceChoice, MenuChoice};
 use crate::user_interface::control_state::VisibleControl;
@@ -116,9 +117,11 @@ impl Menu {
         Menu::new("Tinker", vec![
             Menu::action("Leftward", Action::SelectNextFace(FaceChoice::Left)),
             Menu::action("Rightward", Action::SelectNextFace(FaceChoice::Right)),
-            Menu::action("Single", Action::AddBrick(FaceAlias::single("Single"))),
-            Menu::action("Omni", Action::AddBrick(FaceAlias::single("Omni"))),
-            Menu::action("Torque", Action::AddBrick(FaceAlias::single("Omni"))),
+            Menu::action("Single", Action::AddBrick { alias: FaceAlias::single("Single"), face_rotation: FaceRotation::Zero }),
+            Menu::action("Omni", Action::AddBrick { alias: FaceAlias::single("Omni"), face_rotation: FaceRotation::Zero }),
+            Menu::action("Torque", Action::AddBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::Zero }),
+            Menu::action("Torque1", Action::AddBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::OneThird }),
+            Menu::action("Torque2", Action::AddBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::TwoThirds }),
             Menu::action("Woops", Action::Revert),
             Menu::action("Finished", Action::SelectFace(None)),
         ])

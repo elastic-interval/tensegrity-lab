@@ -1,9 +1,9 @@
 use crate::build::oven::Oven;
-use crate::build::tenscript::{FabricPlan, FaceAlias};
+use crate::build::tenscript::FabricPlan;
 use crate::build::tenscript::plan_runner::PlanRunner;
-use crate::build::tinkerer::{Frozen, Tinkerer};
+use crate::build::tinkerer::{BrickOnFace, Frozen, Tinkerer};
 use crate::crucible::Stage::{*};
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::Fabric;
 use crate::fabric::pretenser::Pretenser;
 use crate::scene::{SceneAction, SceneVariant};
 use crate::user_interface::{Action, MenuChoice};
@@ -24,7 +24,7 @@ enum Stage {
 pub enum CrucibleAction {
     BakeBrick(usize),
     BuildFabric(FabricPlan),
-    CreateBrickOnFace { face_id: UniqueId, face_alias: FaceAlias },
+    CreateBrickOnFace(BrickOnFace),
     SetSpeed(usize),
     Revert,
     RevertTo(Frozen),
@@ -107,13 +107,11 @@ impl Crucible {
                 self.fabric = Fabric::default_bow_tie();
                 self.stage = RunningPlan(PlanRunner::new(fabric_plan));
             }
-            CrucibleAction::CreateBrickOnFace { face_id, face_alias } => {
+            CrucibleAction::CreateBrickOnFace(brick_on_face) => {
                 let Tinkering(tinkerer) = &mut self.stage else {
                     panic!("cannot add brick unless tinkering");
                 };
-                let spin = self.fabric.face(face_id).spin.opposite();
-                let face_alias = face_alias + &spin.into_alias();
-                tinkerer.add_brick(face_alias, face_id);
+                tinkerer.add_brick(brick_on_face);
             }
             CrucibleAction::SetSpeed(iterations_per_frame) => {
                 self.iterations_per_frame = iterations_per_frame;
