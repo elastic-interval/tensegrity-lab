@@ -119,9 +119,11 @@ impl Menu {
             Menu::action("Rightward", Action::SelectNextFace(FaceChoice::Right)),
             Menu::action("Single", Action::AddBrick { alias: FaceAlias::single("Single"), face_rotation: FaceRotation::Zero }),
             Menu::action("Omni", Action::AddBrick { alias: FaceAlias::single("Omni"), face_rotation: FaceRotation::Zero }),
-            Menu::action("Torque", Action::AddBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::Zero }),
-            Menu::action("Torque1", Action::AddBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::OneThird }),
-            Menu::action("Torque2", Action::AddBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::TwoThirds }),
+            Menu::new("Torque", vec![
+                Menu::action("No rotation", Action::AddBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::Zero }),
+                Menu::action("One rotation", Action::AddBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::OneThird }),
+                Menu::action("Two rotations", Action::AddBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::TwoThirds }),
+            ]),
             Menu::action("Woops", Action::Revert),
             Menu::action("Finished", Action::SelectFace(None)),
         ])
