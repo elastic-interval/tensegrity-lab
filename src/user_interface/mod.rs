@@ -15,6 +15,7 @@ use crate::build::tenscript::FaceAlias;
 use crate::build::tinkerer::Frozen;
 
 use crate::crucible::CrucibleAction;
+use crate::fabric::face::FaceRotation;
 use crate::fabric::UniqueId;
 use crate::graphics::GraphicsWindow;
 use crate::scene::SceneAction;
@@ -66,7 +67,7 @@ pub enum Action {
     ShowControl(VisibleControl),
     StartTinkering,
     ToggleDebug,
-    AddBrick(FaceAlias),
+    AddBrick { alias: FaceAlias, face_rotation: FaceRotation },
     Revert,
     RevertToFrozen(Frozen),
 }

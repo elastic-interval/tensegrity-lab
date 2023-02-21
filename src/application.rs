@@ -9,6 +9,7 @@ use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
 use crate::build::tenscript::FabricPlan;
+use crate::build::tinkerer::BrickOnFace;
 use crate::crucible::{Crucible, CrucibleAction};
 use crate::fabric::Fabric;
 use crate::graphics::GraphicsWindow;
@@ -91,11 +92,13 @@ impl Application {
                 Action::ToggleDebug => {
                     self.user_interface.message(ControlMessage::ToggleDebugMode);
                 }
-                Action::AddBrick(face_alias) => {
+                Action::AddBrick { alias, face_rotation } => {
                     let Some(face_id) = self.scene.target_face_id(self.crucible.fabric()) else {
                         return;
                     };
-                    self.user_interface.action(Action::Crucible(CrucibleAction::CreateBrickOnFace { face_id, face_alias }));
+                    let spin = self.crucible.fabric().face(face_id).spin.opposite();
+                    let alias = alias + &spin.into_alias();
+                    self.user_interface.action(Action::Crucible(CrucibleAction::CreateBrickOnFace(BrickOnFace { face_id, alias, face_rotation })));
                 }
                 Action::Revert => {
                     self.crucible.action(CrucibleAction::Revert)
