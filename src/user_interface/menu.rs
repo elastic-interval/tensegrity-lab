@@ -3,10 +3,10 @@ use std::fmt::{Display, Formatter};
 
 use winit::event::VirtualKeyCode;
 use winit::event::VirtualKeyCode::{*};
-use crate::build::tenscript::{FabricPlan, Library};
+
+use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
 use crate::crucible::CrucibleAction;
 use crate::scene::SceneAction;
-
 use crate::user_interface::{Action, FaceChoice, MenuChoice};
 use crate::user_interface::control_state::VisibleControl;
 
@@ -116,8 +116,11 @@ impl Menu {
         Menu::new("Tinker", vec![
             Menu::action("Leftward", Action::SelectNextFace(FaceChoice::Left)),
             Menu::action("Rightward", Action::SelectNextFace(FaceChoice::Right)),
-            Menu::action("Add brick", Action::AddBrick),
-            Menu::action("Finished", Action::Keyboard(MenuChoice::Root))
+            Menu::action("Single", Action::AddBrick(FaceAlias::single("Single"))),
+            Menu::action("Omni", Action::AddBrick(FaceAlias::single("Omni"))),
+            Menu::action("Torque", Action::AddBrick(FaceAlias::single("Omni"))),
+            Menu::action("Woops", Action::Revert),
+            Menu::action("Finished", Action::SelectFace(None)),
         ])
     }
 }

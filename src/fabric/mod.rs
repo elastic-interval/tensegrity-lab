@@ -27,7 +27,7 @@ pub mod pretenser;
 pub mod progress;
 pub mod vulcanize;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Fabric {
     pub age: u64,
     pub progress: Progress,
@@ -119,8 +119,9 @@ impl Fabric {
         self.faces.get(&id).unwrap_or_else(|| panic!("face not found {id:?}"))
     }
 
-    pub fn newest_face_id(&self) -> UniqueId {
-        *self.faces.keys().into_iter().max().unwrap()
+    pub fn newest_face_id(&self) -> Option<UniqueId> {
+        let max = self.faces.keys().max()?;
+        Some(*max)
     }
 
     pub fn remove_face(&mut self, id: UniqueId) {

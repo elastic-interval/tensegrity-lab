@@ -12,13 +12,21 @@ enum Stage {
     Navigating,
     AddingBrick { alias: FaceAlias, face_id: UniqueId },
     Approaching,
+    Reverting,
     Settling,
     Finished,
+}
+
+#[derive(Clone, Debug)]
+pub struct Frozen {
+    pub fabric: Fabric,
+    pub selected_face: UniqueId,
 }
 
 pub struct Tinkerer {
     stage: Stage,
     physics: Physics,
+    history: Vec<Frozen>,
 }
 
 impl Default for Tinkerer {
@@ -26,6 +34,7 @@ impl Default for Tinkerer {
         Self {
             stage: Start,
             physics: LIQUID,
+            history: Vec::default(),
         }
     }
 }
@@ -40,10 +49,17 @@ impl Tinkerer {
                 Navigating
             }
             AddingBrick { alias, face_id } => {
+                self.history.push(Frozen { fabric: fabric.clone(), selected_face: face_id.clone() });
                 fabric.attach_brick(alias, FaceRotation::Zero, 1.0, Some(*face_id));
                 action = Some(Action::SelectFace(fabric.newest_face_id()));
                 fabric.progress.start(1000);
                 Approaching
+            }
+            Reverting => {
+                if let Some(frozen)  = self.history.pop() {
+                    action = Some(Action::RevertToFrozen(frozen))
+                };
+                Navigating
             }
             Approaching => {
                 fabric.iterate(&self.physics);
@@ -53,7 +69,6 @@ impl Tinkerer {
                     fabric.progress.start(1000);
                     Settling
                 }
-
             }
             Settling => {
                 fabric.iterate(&self.physics);
@@ -70,6 +85,10 @@ impl Tinkerer {
 
     pub fn add_brick(&mut self, alias: FaceAlias, face_id: UniqueId) {
         self.stage = AddingBrick { alias, face_id };
+    }
+
+    pub fn revert(&mut self) {
+        self.stage = Reverting;
     }
 
     pub fn is_done(&self) -> bool {

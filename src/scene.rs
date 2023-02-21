@@ -7,8 +7,8 @@ use iced_wgpu::wgpu;
 use wgpu::{CommandEncoder, TextureView};
 use wgpu::util::DeviceExt;
 use winit::event::*;
-use SceneVariant::{*};
 
+use SceneVariant::{*};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
@@ -234,6 +234,14 @@ impl Scene {
     pub fn action(&mut self, scene_action: SceneAction) {
         match scene_action {
             SceneAction::Variant(variant) => {
+                self.camera.target = match variant {
+                    TinkeringOnFace(face_id) => {
+                        SelectedFace(face_id)
+                    }
+                    _ => {
+                        FabricMidpoint
+                    }
+                };
                 self.variant = variant;
             }
             SceneAction::WatchMidpoint => {
@@ -248,7 +256,7 @@ impl Scene {
     pub fn select_next_face(&mut self, face_choice: FaceChoice, fabric: &Fabric) {
         let found = match self.camera.target.selected_face(fabric) {
             None => {
-                Some(fabric.newest_face_id())
+                fabric.newest_face_id()
             }
             Some((current_face_id, current_face)) => {
                 let current_midpoint = current_face.midpoint(fabric);
@@ -284,8 +292,7 @@ impl Scene {
             }
         };
         if let Some(face_id) = found {
-            self.select_face(Some(face_id));
-            self.variant = TinkeringOnFace(face_id);
+            self.action(SceneAction::Variant(TinkeringOnFace(face_id)));
         }
     }
 
