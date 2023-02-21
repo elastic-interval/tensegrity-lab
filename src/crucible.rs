@@ -6,7 +6,7 @@ use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::pretenser::Pretenser;
 use crate::scene::{SceneAction, SceneVariant};
-use crate::user_interface::Action;
+use crate::user_interface::{Action, MenuChoice};
 
 const PULL_SHORTENING: f32 = 0.95;
 const PRETENST_FACTOR: f32 = 1.03;
@@ -61,8 +61,9 @@ impl Crucible {
                             actions.push(Action::Scene(SceneAction::Variant(SceneVariant::Pretensing)));
                             Pretensing(Pretenser::new(PRETENST_FACTOR))
                         } else {
-                            actions.push(Action::Scene(SceneAction::Variant(SceneVariant::Tinkering)));
-                            Tinkering(Tinkerer::new())
+                            actions.push(Action::Keyboard(MenuChoice::Tinker));
+                            actions.push(Action::SelectFace(self.fabric.newest_face_id()));
+                            Tinkering(Tinkerer::default())
                         }
                 }
             }
@@ -105,7 +106,7 @@ impl Crucible {
             CrucibleAction::BuildFabric(fabric_plan) => {
                 self.fabric = Fabric::default_bow_tie();
                 self.frozen_fabric = None;
-                self.stage = RunningPlan(PlanRunner::new(fabric_plan.clone()));
+                self.stage = RunningPlan(PlanRunner::new(fabric_plan));
             }
             CrucibleAction::CreateBrickOnFace(face_id) => {
                 let Tinkering(tinkerer) = &mut self.stage else {

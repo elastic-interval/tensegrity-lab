@@ -3,13 +3,13 @@ use pest::iterators::Pair;
 
 use crate::build::tenscript::{FaceMark, TenscriptError};
 use crate::build::tenscript::Rule;
-use crate::build::tenscript::shape_phase::Command::{*};
+use crate::build::tenscript::shape_phase::ShapeCommand::{*};
 use crate::fabric::{Fabric, Link, UniqueId};
 
 const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 25_000;
 const DEFAULT_VULCANIZE_COUNTDOWN: usize = 5_000;
 
-pub enum Command {
+pub enum ShapeCommand {
     Noop,
     StartCountdown(usize),
     SetViscosity(f32),
@@ -17,11 +17,8 @@ pub enum Command {
 }
 
 #[derive(Debug, Clone)]
-pub enum Operation {
-    Countdown {
-        count: usize,
-        operations: Vec<Operation>,
-    },
+pub enum ShapeOperation {
+    Countdown { count: usize, operations: Vec<ShapeOperation> },
     Join { mark_name: String },
     Distance { mark_name: String, distance_factor: f32 },
     RemoveShapers { mark_names: Vec<String> },
@@ -30,10 +27,10 @@ pub enum Operation {
     SetViscosity { viscosity: f32 },
 }
 
-impl Operation {
+impl ShapeOperation {
     pub fn traverse(&self, f: &mut impl FnMut(&Self)) {
         f(self);
-        if let Operation::Countdown { operations, .. } = self {
+        if let ShapeOperation::Countdown { operations, .. } = self {
             for operation in operations {
                 operation.traverse(f);
             }
@@ -52,7 +49,7 @@ pub struct Shaper {
 
 #[derive(Debug, Clone)]
 pub struct ShapePhase {
-    pub operations: Vec<Operation>,
+    pub operations: Vec<ShapeOperation>,
     pub marks: Vec<FaceMark>,
     pub shapers: Vec<Shaper>,
     shape_operation_index: usize,
@@ -69,40 +66,40 @@ impl ShapePhase {
         })
     }
 
-    fn parse_shape_operations(pairs: impl Iterator<Item=Pair<Rule>>) -> Result<Vec<Operation>, TenscriptError> {
+    fn parse_shape_operations(pairs: impl Iterator<Item=Pair<Rule>>) -> Result<Vec<ShapeOperation>, TenscriptError> {
         pairs
             .map(Self::parse_shape_operation)
             .collect()
     }
 
-    fn parse_shape_operation(pair: Pair<Rule>) -> Result<Operation, TenscriptError> {
+    fn parse_shape_operation(pair: Pair<Rule>) -> Result<ShapeOperation, TenscriptError> {
         match pair.as_rule() {
             Rule::basic_shape_operation | Rule::shape_operation =>
                 Self::parse_shape_operation(pair.into_inner().next().unwrap()),
             Rule::space => {
                 let [mark_name, distance_string] = pair.into_inner().next_chunk().unwrap().map(|p| p.as_str());
                 let distance_factor = TenscriptError::parse_float(distance_string, "space: distance_factor")?;
-                Ok(Operation::Distance { mark_name: mark_name[1..].into(), distance_factor })
+                Ok(ShapeOperation::Distance { mark_name: mark_name[1..].into(), distance_factor })
             }
             Rule::join => {
                 let mark_name = pair.into_inner().next().unwrap().as_str();
-                Ok(Operation::Join { mark_name: mark_name[1..].into() })
+                Ok(ShapeOperation::Join { mark_name: mark_name[1..].into() })
             }
             Rule::countdown_block => {
                 let mut inner = pair.into_inner();
                 let count = TenscriptError::parse_usize(inner.next().unwrap().as_str(), "countdown_block")?;
                 let operations = Self::parse_shape_operations(inner)?;
-                Ok(Operation::Countdown { count, operations })
+                Ok(ShapeOperation::Countdown { count, operations })
             }
             Rule::remove_shapers => {
                 let mark_names = pair.into_inner().map(|p| p.as_str()[1..].into()).collect();
-                Ok(Operation::RemoveShapers { mark_names })
+                Ok(ShapeOperation::RemoveShapers { mark_names })
             }
-            Rule::replace_faces => Ok(Operation::ReplaceFaces),
-            Rule::vulcanize => Ok(Operation::Vulcanize),
+            Rule::replace_faces => Ok(ShapeOperation::ReplaceFaces),
+            Rule::vulcanize => Ok(ShapeOperation::Vulcanize),
             Rule::set_viscosity => {
                 let viscosity = TenscriptError::parse_float_inside(pair, "viscosity")?;
-                Ok(Operation::SetViscosity { viscosity })
+                Ok(ShapeOperation::SetViscosity { viscosity })
             }
             _ => unreachable!("shape phase: {pair}")
         }
@@ -113,7 +110,7 @@ impl ShapePhase {
         !self.operations.is_empty()
     }
 
-    pub fn shaping_step(&mut self, fabric: &mut Fabric) -> Command {
+    pub fn shaping_step(&mut self, fabric: &mut Fabric) -> ShapeCommand {
         let Some(operation) = self.operations.get(self.shape_operation_index) else {
             self.complete_all_shapers(fabric);
             return Terminate;
@@ -128,9 +125,9 @@ impl ShapePhase {
         }
     }
 
-    fn execute_shape_operation(&mut self, fabric: &mut Fabric, operation: Operation) -> Command {
+    fn execute_shape_operation(&mut self, fabric: &mut Fabric, operation: ShapeOperation) -> ShapeCommand {
         match operation {
-            Operation::Join { mark_name } => {
+            ShapeOperation::Join { mark_name } => {
                 let faces = self.marked_faces(&mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
                 match (joints.as_slice(), faces.as_slice()) {
@@ -142,7 +139,7 @@ impl ShapePhase {
                 }
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
-            Operation::Distance { mark_name, distance_factor } => {
+            ShapeOperation::Distance { mark_name, distance_factor } => {
                 let faces = self.marked_faces(&mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
                 match (joints.as_slice(), faces.as_slice()) {
@@ -155,7 +152,7 @@ impl ShapePhase {
                 }
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
-            Operation::RemoveShapers { mark_names } => {
+            ShapeOperation::RemoveShapers { mark_names } => {
                 if mark_names.is_empty() {
                     self.complete_all_shapers(fabric);
                 } else {
@@ -171,24 +168,24 @@ impl ShapePhase {
                 }
                 Noop
             }
-            Operation::Countdown { count, operations } => {
+            ShapeOperation::Countdown { count, operations } => {
                 for operation in operations {
                     // ignores the countdown returned from each sub-operation
                     self.execute_shape_operation(fabric, operation);
                 }
                 StartCountdown(count)
             }
-            Operation::Vulcanize => {
+            ShapeOperation::Vulcanize => {
                 fabric.install_bow_ties();
                 StartCountdown(DEFAULT_VULCANIZE_COUNTDOWN)
             }
-            Operation::ReplaceFaces => {
+            ShapeOperation::ReplaceFaces => {
                 for face_id in fabric.replace_faces() {
                     fabric.remove_face(face_id);
                 }
                 Noop
             }
-            Operation::SetViscosity { viscosity } =>
+            ShapeOperation::SetViscosity { viscosity } =>
                 SetViscosity(viscosity),
         }
     }

@@ -53,11 +53,12 @@ impl Application {
                     match &crucible_action {
                         CrucibleAction::BuildFabric(fabric_plan) => {
                             self.fabric_plan_name = fabric_plan.name.clone();
+                            self.scene.action(SceneAction::WatchMidpoint);
                             self.scene.action(SceneAction::Variant(SceneVariant::Suspended));
                             self.user_interface.message(ControlMessage::Reset);
                         }
                         CrucibleAction::CreateBrickOnFace { .. } => {
-                            self.scene.clear_face_selection();
+                            self.scene.select_face(None);
                         }
                         CrucibleAction::SetSpeed(_) | CrucibleAction::BakeBrick(_) => {}
                     }
@@ -65,6 +66,9 @@ impl Application {
                 }
                 Action::Scene(scene_action) => {
                     self.scene.action(scene_action);
+                }
+                Action::Keyboard(menu_choice) => {
+                    self.user_interface.menu_choice(menu_choice);
                 }
                 Action::ShowControl(visible_control) => {
                     self.user_interface.message(ControlMessage::ShowControl(visible_control));
@@ -77,7 +81,10 @@ impl Application {
                     self.user_interface.set_strain_limits(strain_limits);
                 }
                 Action::SelectFace(face_id) => {
-                    self.scene.select_next_face(Some(face_id), self.crucible.fabric());
+                    self.scene.select_face(Some(face_id));
+                }
+                Action::SelectNextFace(face_choice) => {
+                    self.scene.select_next_face(face_choice, self.crucible.fabric());
                 }
                 Action::StartTinkering => {
                     unimplemented!();
@@ -86,13 +93,10 @@ impl Application {
                     self.user_interface.message(ControlMessage::ToggleDebugMode);
                 }
                 Action::AddBrick => {
-                    let Some(face_id) = self.scene.target_face_id() else {
+                    let Some(face_id) = self.scene.target_face_id(self.crucible.fabric()) else {
                         return;
                     };
                     self.user_interface.action(Action::Crucible(CrucibleAction::CreateBrickOnFace(face_id)));
-                }
-                Action::SelectNextFace => {
-                    self.scene.select_next_face(None, self.crucible.fabric());
                 }
             }
         }
@@ -119,7 +123,6 @@ impl Application {
         self.user_interface.window_event(event, window);
         match event {
             WindowEvent::Resized(physical_size) => self.resize(*physical_size),
-            WindowEvent::ScaleFactorChanged { new_inner_size, .. } => self.resize(**new_inner_size),
             WindowEvent::KeyboardInput { .. } => self.handle_keyboard_input(event),
             WindowEvent::MouseInput { state: ElementState::Released, .. } => self.scene.window_event(event),
             WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
@@ -145,18 +148,9 @@ impl Application {
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.graphics.surface.get_current_texture()?;
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let depth_view = self.graphics.create_depth_view();
         let mut encoder = self.graphics.create_command_encoder();
-        self.scene.render(
-            &mut encoder,
-            &view,
-            &depth_view,
-        );
-        self.user_interface.render(
-            &self.graphics.device,
-            &mut encoder,
-            &view,
-        );
+        self.scene.render(&mut encoder, &view);
+        self.user_interface.render(&self.graphics.device, &mut encoder, &view);
         self.graphics.queue.submit(iter::once(encoder.finish()));
         output.present();
         self.user_interface.post_render();

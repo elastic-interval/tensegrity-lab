@@ -1,7 +1,7 @@
-use crate::build::tenscript::{FabricPlan, shape_phase};
+use crate::build::tenscript::FabricPlan;
 use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::plan_runner::Stage::{*};
-use crate::build::tenscript::shape_phase::ShapePhase;
+use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
 use crate::fabric::Fabric;
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::LIQUID;
@@ -32,9 +32,7 @@ impl PlanRunner {
             physics: LIQUID,
         }
     }
-}
 
-impl PlanRunner {
     pub fn iterate(&mut self, fabric: &mut Fabric) {
         fabric.iterate(&self.physics);
         if fabric.progress.is_busy() {
@@ -43,12 +41,12 @@ impl PlanRunner {
         let (next_stage, countdown) = match self.stage {
             Initialize => {
                 self.build_phase.init(fabric);
-                (GrowApproach, 200)
+                (GrowApproach, 500)
             }
             GrowStep => {
                 if self.build_phase.is_growing() {
                     self.build_phase.growth_step(fabric);
-                    (GrowApproach, 200)
+                    (GrowApproach, 500)
                 } else if self.shape_phase.needs_shaping() {
                     self.shape_phase.marks = self.build_phase.marks.split_off(0);
                     (Shaping, 0)
@@ -57,20 +55,20 @@ impl PlanRunner {
                 }
             }
             GrowApproach =>
-                (GrowCalm, 200),
+                (GrowCalm, 500),
             GrowCalm =>
                 (GrowStep, 0),
             Shaping =>
                 match self.shape_phase.shaping_step(fabric) {
-                    shape_phase::Command::Noop =>
+                    ShapeCommand::Noop =>
                         (Shaping, 0),
-                    shape_phase::Command::StartCountdown(countdown) =>
+                    ShapeCommand::StartCountdown(countdown) =>
                         (Shaping, countdown),
-                    shape_phase::Command::SetViscosity(viscosity) => {
+                    ShapeCommand::SetViscosity(viscosity) => {
                         self.physics.viscosity = viscosity;
                         (Shaping, 0)
                     }
-                    shape_phase::Command::Terminate =>
+                    ShapeCommand::Terminate =>
                         (Completed, 0)
                 }
             Completed =>
