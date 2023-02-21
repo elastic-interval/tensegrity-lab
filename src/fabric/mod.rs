@@ -134,7 +134,6 @@ impl Fabric {
     }
 
     pub fn join_faces(&mut self, alpha_id: UniqueId, omega_id: UniqueId) {
-        // TODO: reverse omega face when the faces have the same chirality
         let (alpha, omega) = (self.face(alpha_id), self.face(omega_id));
         let (mut alpha_ends, omega_ends) = (alpha.radial_joints(self), omega.radial_joints(self));
         if alpha.spin == omega.spin {
