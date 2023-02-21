@@ -53,14 +53,13 @@ impl Application {
                     match &crucible_action {
                         CrucibleAction::BuildFabric(fabric_plan) => {
                             self.fabric_plan_name = fabric_plan.name.clone();
-                            self.scene.action(SceneAction::WatchMidpoint);
                             self.scene.action(SceneAction::Variant(SceneVariant::Suspended));
                             self.user_interface.message(ControlMessage::Reset);
                         }
                         CrucibleAction::CreateBrickOnFace { .. } => {
                             self.scene.select_face(None);
                         }
-                        CrucibleAction::SetSpeed(_) | CrucibleAction::BakeBrick(_) => {}
+                        _ => {}
                     }
                     self.crucible.action(crucible_action);
                 }
@@ -81,7 +80,7 @@ impl Application {
                     self.user_interface.set_strain_limits(strain_limits);
                 }
                 Action::SelectFace(face_id) => {
-                    self.scene.select_face(Some(face_id));
+                    self.scene.select_face(face_id);
                 }
                 Action::SelectNextFace(face_choice) => {
                     self.scene.select_next_face(face_choice, self.crucible.fabric());
@@ -92,11 +91,19 @@ impl Application {
                 Action::ToggleDebug => {
                     self.user_interface.message(ControlMessage::ToggleDebugMode);
                 }
-                Action::AddBrick => {
+                Action::AddBrick(face_alias) => {
                     let Some(face_id) = self.scene.target_face_id(self.crucible.fabric()) else {
                         return;
                     };
-                    self.user_interface.action(Action::Crucible(CrucibleAction::CreateBrickOnFace(face_id)));
+                    self.user_interface.action(Action::Crucible(CrucibleAction::CreateBrickOnFace { face_id, face_alias }));
+                }
+                Action::Revert => {
+                    self.crucible.action(CrucibleAction::Revert)
+                }
+                Action::RevertToFrozen(frozen) => {
+                    let face_id = frozen.selected_face;
+                    self.crucible.action(CrucibleAction::RevertTo(frozen));
+                    self.scene.action(SceneAction::Variant(SceneVariant::TinkeringOnFace(face_id)))
                 }
             }
         }

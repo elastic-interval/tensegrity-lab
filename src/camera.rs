@@ -66,9 +66,7 @@ impl Camera {
         let Some(look_at) = self.target.look_at(fabric) else {
             return;
         };
-        let Some(up) = self.target.up(fabric) else {
-            return;
-        };
+        let up = self.target.up(fabric);
         self.up = (self.up + up * TARGET_ATTRACTION) / (1.0 + TARGET_ATTRACTION);
         self.look_at += (look_at - self.look_at) * TARGET_ATTRACTION;
         if let Some(distance) = self.target.ideal_camera_distance(fabric) {
@@ -149,8 +147,15 @@ impl Target {
         }
     }
 
-    pub fn up(&self, fabric: &Fabric) -> Option<Vector3<f32>> {
-        self.selected_face(fabric).map(|(_, face)| face.normal(fabric))
+    pub fn up(&self, fabric: &Fabric) -> Vector3<f32> {
+        match self {
+            Target::FabricMidpoint | Target::Origin => Vector3::unit_y(),
+            Target::SelectedFace(face_id) =>
+                fabric.faces
+                    .get(face_id)
+                    .map(|face| face.normal(fabric))
+                    .unwrap_or(Vector3::unit_y()),
+        }
     }
 
     pub fn ideal_camera_distance(&self, fabric: &Fabric) -> Option<f32> {
