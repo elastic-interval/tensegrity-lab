@@ -37,7 +37,7 @@ impl Component for Keyboard {
                 return Some(action);
             }
             KeyboardMessage::KeyPressed(key_code) => {
-                let (current, action) = self.key_pressed(&key_code);
+                let (current, action) = self.key_pressed(key_code);
                 self.current = current;
                 return action;
             }
@@ -90,9 +90,9 @@ impl Keyboard {
         self.current.last().unwrap().clone()
     }
 
-    pub fn key_pressed(&self, keycode_pressed: &VirtualKeyCode) -> (Vec<Menu>, Option<Action>) {
+    pub fn key_pressed(&self, keycode_pressed: VirtualKeyCode) -> (Vec<Menu>, Option<Action>) {
         let mut current = self.current.clone();
-        if keycode_pressed == &Escape || keycode_pressed == &Back {
+        if matches!(keycode_pressed, Escape | Back) {
             if current.len() > 1 {
                 current.pop();
             }
@@ -106,7 +106,7 @@ impl Keyboard {
             .iter()
             .find_map(|menu| {
                 let Menu { keycode, action, submenu, .. } = menu;
-                if keycode.unwrap() != *keycode_pressed {
+                if keycode.unwrap() != keycode_pressed {
                     return None;
                 }
                 if action.is_some() {
