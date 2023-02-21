@@ -70,7 +70,7 @@ impl ControlState {
         self.show_strain
     }
 
-    pub fn variation(&self, face_id: Option<UniqueId>) -> SceneVariant {
+    pub fn scene_variant(&self, face_id: Option<UniqueId>) -> SceneVariant {
         if self.show_strain {
             SceneVariant::ShowingStrain {
                 threshold: self.strain_threshold.strain_threshold(),
