@@ -29,9 +29,9 @@ pub mod presets {
         surface_character: Absent,
         gravity: 0.0,
         antigravity: 0.0,
-        viscosity: 1e4,
+        viscosity: 1e3,
         drag: 1.0 - 1e-6,
-        stiffness: 5e-5,
+        stiffness: 1e-3,
     };
 
     pub const PROTOTYPE_FORMATION: Physics = Physics {

@@ -7,76 +7,8 @@ use crate::build::tenscript::{FabricPlan, Library};
 use crate::crucible::CrucibleAction;
 use crate::scene::SceneAction;
 
-use crate::user_interface::Action;
+use crate::user_interface::{Action, FaceChoice, MenuChoice};
 use crate::user_interface::control_state::VisibleControl;
-
-fn fabric_menu(fabrics: &[FabricPlan], below: Vec<String>) -> Vec<Menu> {
-    let sub_fabrics: Vec<_> = fabrics
-        .iter()
-        .filter(|fabric| {
-            let mut compare = below.clone();
-            compare.push(fabric.name.last().unwrap().clone());
-            compare == fabric.name
-        })
-        .collect();
-    if sub_fabrics.is_empty() {
-        let mut unique: Vec<String> = Vec::new();
-        for plan in fabrics {
-            let next_name = plan.name.get(below.len()).unwrap();
-            match unique.last() {
-                None => unique.push(next_name.clone()),
-                Some(last_next_name) if next_name != last_next_name => unique.push(next_name.clone()),
-                _ => {}
-            }
-        }
-        unique
-            .iter()
-            .map(|first| {
-                let mut new_below = below.clone();
-                new_below.push(first.clone());
-                Menu::new(first.as_str(), fabric_menu(fabrics, new_below))
-            })
-            .collect()
-    } else {
-        sub_fabrics
-            .into_iter()
-            .map(|fabric_plan| {
-                let label = fabric_plan.name.last().unwrap();
-                Menu::action(label.as_str(), Action::Crucible(CrucibleAction::BuildFabric(fabric_plan.clone())))
-            })
-            .collect()
-    }
-}
-
-fn speed_menu() -> Vec<Menu> {
-    [(0usize, "Paused"), (5, "Glacial"), (25, "Slow"), (125, "Normal"), (625, "Fast")]
-        .into_iter()
-        .map(|(speed, label)|
-            Menu::action(label, Action::Crucible(CrucibleAction::SetSpeed(speed))))
-        .collect()
-}
-
-pub fn action_menu() -> Menu {
-    Menu::new("Tensegrity Lab", vec![
-        Menu::new("Fabric", fabric_menu(&Library::standard().fabrics, Vec::new())),
-        Menu::new("Speed", speed_menu()),
-        Menu::new("Camera", vec![
-            Menu::action("Next face", Action::SelectNextFace),
-            Menu::action("Watch Fabric Midpoint", Action::Scene(SceneAction::WatchMidpoint)),
-            Menu::action("Watch Origin", Action::Scene(SceneAction::WatchOrigin)),
-        ]),
-        Menu::new("Widget", vec![
-            Menu::action("Gravity", Action::ShowControl(VisibleControl::Gravity)),
-            Menu::action("Strain threshold", Action::ShowControl(VisibleControl::StrainThreshold)),
-            Menu::action("Clear", Action::ShowControl(VisibleControl::Nothing)),
-        ]),
-        Menu::new("Etc", vec![
-            Menu::action("Tinker", Action::StartTinkering),
-            Menu::action("Debug toggle", Action::ToggleDebug),
-            Menu::action("Add brick", Action::AddBrick),
-        ]),
-    ])
-}
 
 #[derive(Debug, Clone)]
 pub struct Menu {
@@ -105,6 +37,88 @@ impl Menu {
 
     pub fn action(label: &str, action: Action) -> Self {
         Self { label: label.to_string(), keycode: None, action: Some(action), submenu: vec![] }
+    }
+
+    pub fn select(menu_choice: MenuChoice) -> Menu {
+        match menu_choice {
+            MenuChoice::Root => Menu::root_menu(),
+            MenuChoice::Tinker => Menu::tinker_menu(),
+        }
+    }
+
+    fn fabric_menu(fabrics: &[FabricPlan], below: Vec<String>) -> Vec<Menu> {
+        let sub_fabrics: Vec<_> = fabrics
+            .iter()
+            .filter(|fabric| {
+                let mut compare = below.clone();
+                compare.push(fabric.name.last().unwrap().clone());
+                compare == fabric.name
+            })
+            .collect();
+        if sub_fabrics.is_empty() {
+            let mut unique: Vec<String> = Vec::new();
+            for plan in fabrics {
+                let next_name = plan.name.get(below.len()).unwrap();
+                match unique.last() {
+                    None => unique.push(next_name.clone()),
+                    Some(last_next_name) if next_name != last_next_name => unique.push(next_name.clone()),
+                    _ => {}
+                }
+            }
+            unique
+                .iter()
+                .map(|first| {
+                    let mut new_below = below.clone();
+                    new_below.push(first.clone());
+                    Menu::new(first.as_str(), Menu::fabric_menu(fabrics, new_below))
+                })
+                .collect()
+        } else {
+            sub_fabrics
+                .into_iter()
+                .map(|fabric_plan| {
+                    let label = fabric_plan.name.last().unwrap();
+                    Menu::action(label.as_str(), Action::Crucible(CrucibleAction::BuildFabric(fabric_plan.clone())))
+                })
+                .collect()
+        }
+    }
+
+    fn speed_menu() -> Vec<Menu> {
+        [(0usize, "Paused"), (5, "Glacial"), (25, "Slow"), (125, "Normal"), (625, "Fast")]
+            .into_iter()
+            .map(|(speed, label)|
+                Menu::action(label, Action::Crucible(CrucibleAction::SetSpeed(speed))))
+            .collect()
+    }
+
+    fn root_menu() -> Menu {
+        Menu::new("Tensegrity Lab", vec![
+            Menu::new("Fabric", Menu::fabric_menu(&Library::standard().fabrics, Vec::new())),
+            Menu::new("Speed", Menu::speed_menu()),
+            Menu::new("Camera", vec![
+                Menu::action("Midpoint", Action::Scene(SceneAction::WatchMidpoint)),
+                Menu::action("Origin", Action::Scene(SceneAction::WatchOrigin)),
+            ]),
+            Menu::new("Widget", vec![
+                Menu::action("Gravity", Action::ShowControl(VisibleControl::Gravity)),
+                Menu::action("Strain threshold", Action::ShowControl(VisibleControl::StrainThreshold)),
+                Menu::action("Clear", Action::ShowControl(VisibleControl::Nothing)),
+            ]),
+            Menu::new("Etc", vec![
+                Menu::action("Tinker", Action::StartTinkering),
+                Menu::action("Debug toggle", Action::ToggleDebug),
+            ]),
+        ])
+    }
+
+    fn tinker_menu() -> Menu {
+        Menu::new("Tinker", vec![
+            Menu::action("Leftward", Action::SelectNextFace(FaceChoice::Left)),
+            Menu::action("Rightward", Action::SelectNextFace(FaceChoice::Right)),
+            Menu::action("Add brick", Action::AddBrick),
+            Menu::action("Finished", Action::Keyboard(MenuChoice::Root))
+        ])
     }
 }
 

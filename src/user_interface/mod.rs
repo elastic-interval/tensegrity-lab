@@ -30,6 +30,12 @@ mod menu;
 const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
 
 #[derive(Debug, Clone)]
+pub enum MenuChoice {
+    Root,
+    Tinker,
+}
+
+#[derive(Debug, Clone)]
 pub enum ControlMessage {
     ToggleDebugMode,
     Reset,
@@ -42,13 +48,19 @@ pub enum ControlMessage {
 }
 
 #[derive(Clone, Debug)]
+pub enum FaceChoice {
+    Left, Right
+}
+
+#[derive(Clone, Debug)]
 pub enum Action {
     Crucible(CrucibleAction),
     Scene(SceneAction),
+    Keyboard(MenuChoice),
     CalibrateStrain,
     GravityChanged(f32),
     SelectFace(UniqueId),
-    SelectNextFace,
+    SelectNextFace(FaceChoice),
     ShowControl(VisibleControl),
     StartTinkering,
     ToggleDebug,
@@ -137,6 +149,10 @@ impl UserInterface {
 
     pub fn key_pressed(&mut self, keycode_pressed: &VirtualKeyCode) {
         self.message(ControlMessage::Keyboard(KeyboardMessage::KeyPressed(*keycode_pressed)));
+    }
+
+    pub fn menu_choice(&mut self, menu_choice: MenuChoice) {
+        self.message(ControlMessage::Keyboard(KeyboardMessage::SelectMenu(menu_choice)))
     }
 
     pub fn set_strain_limits(&mut self, strain_limits: (f32, f32)) {

@@ -21,14 +21,16 @@ pub struct Tinkerer {
     physics: Physics,
 }
 
-impl Tinkerer {
-    pub fn new() -> Self {
+impl Default for Tinkerer {
+    fn default() -> Self {
         Self {
             stage: Start,
             physics: LIQUID,
         }
     }
+}
 
+impl Tinkerer {
     pub fn iterate(&mut self, fabric: &mut Fabric) -> Option<Action> {
         let mut action = None;
         self.stage = match &mut self.stage {
@@ -38,8 +40,8 @@ impl Tinkerer {
                 Navigating
             }
             AddingBrick { alias, face_id } => {
-                let faces = fabric.attach_brick(alias, FaceRotation::Zero, 1.0, Some(*face_id));
-                action = faces.first().map(|&face_id| Action::SelectFace(face_id));
+                fabric.attach_brick(alias, FaceRotation::Zero, 1.0, Some(*face_id));
+                action = Some(Action::SelectFace(fabric.newest_face_id()));
                 fabric.progress.start(1000);
                 Approaching
             }

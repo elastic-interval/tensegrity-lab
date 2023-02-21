@@ -2,6 +2,7 @@ use std::f32::consts::PI;
 use std::mem;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
+use cgmath::{EuclideanSpace, InnerSpace};
 use iced_wgpu::wgpu;
 use wgpu::{CommandEncoder, TextureView};
 use wgpu::util::DeviceExt;
@@ -17,7 +18,8 @@ use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::Face;
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push};
-use crate::graphics::{get_depth_stencil_state, GraphicsWindow, line_list_primitive_state, triangle_list_primitive_state};
+use crate::graphics::{GraphicsWindow, line_list_primitive_state, triangle_list_primitive_state};
+use crate::user_interface::FaceChoice;
 
 const MAX_INTERVALS: usize = 5000;
 
@@ -38,7 +40,6 @@ pub enum SceneAction {
 pub enum SceneVariant {
     Suspended,
     Pretensing,
-    Tinkering,
     TinkeringOnFace(UniqueId),
     ShowingStrain { threshold: f32, material: usize },
 }
@@ -98,7 +99,7 @@ impl Scene {
                 })],
             }),
             primitive: line_list_primitive_state(),
-            depth_stencil: Some(get_depth_stencil_state()),
+            depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });
@@ -127,7 +128,7 @@ impl Scene {
                 })],
             }),
             primitive: triangle_list_primitive_state(),
-            depth_stencil: Some(get_depth_stencil_state()),
+            depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
         });
@@ -155,7 +156,7 @@ impl Scene {
         }
     }
 
-    pub fn render(&self, encoder: &mut CommandEncoder, view: &TextureView, depth_view: &TextureView) {
+    pub fn render(&self, encoder: &mut CommandEncoder, view: &TextureView) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -166,14 +167,7 @@ impl Scene {
                     store: true,
                 },
             })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: depth_view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: false,
-                }),
-                stencil_ops: None,
-            }),
+            depth_stencil_attachment: None,
         });
         render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
 
@@ -182,7 +176,7 @@ impl Scene {
         render_pass.draw(0..self.fabric_drawing.vertices.len() as u32, 0..1);
 
         let show_surface = match self.variant {
-            Tinkering| Suspended | TinkeringOnFace(_) => false,
+            Suspended | TinkeringOnFace(_) => false,
             Pretensing | ShowingStrain { .. } => true,
         };
         if show_surface {
@@ -208,7 +202,7 @@ impl Scene {
             .flat_map(|interval| FabricVertex::for_interval(interval, fabric, &self.variant)));
         let show_faces = match self.variant {
             Suspended | Pretensing | ShowingStrain { .. } => false,
-            Tinkering | TinkeringOnFace(_) => true,
+            TinkeringOnFace(_) => true,
         };
         if show_faces {
             self.fabric_drawing.vertices.extend(fabric.faces.iter()
@@ -230,10 +224,10 @@ impl Scene {
         graphics.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));
     }
 
-    pub fn target_face_id(&self) -> Option<UniqueId> {
+    pub fn target_face_id(&self, fabric: &Fabric) -> Option<UniqueId> {
         match self.camera.target {
-            Origin | FabricMidpoint | Hold => None,
-            SelectedFace(face_id) => Some(face_id),
+            Origin | FabricMidpoint => None,
+            SelectedFace(face_id) => fabric.faces.contains_key(&face_id).then_some(face_id),
         }
     }
 
@@ -251,34 +245,57 @@ impl Scene {
         }
     }
 
-    pub fn select_next_face(&mut self, face_id: Option<UniqueId>, fabric: &Fabric) {
-        let face_id = face_id.unwrap_or(match self.camera.target {
-            Origin | FabricMidpoint | Hold => {
-                *fabric.faces.keys().next().unwrap()
+    pub fn select_next_face(&mut self, face_choice: FaceChoice, fabric: &Fabric) {
+        let found = match self.camera.target.selected_face(fabric) {
+            None => {
+                Some(fabric.newest_face_id())
             }
-            SelectedFace(face_id) => {
-                let face_position = fabric.faces.keys()
-                    .position(|&id| face_id == id)
-                    .expect("Face id not found");
-                let &new_face_id = fabric.faces.keys()
-                    .cycle()
-                    .nth(face_position + 1)
-                    .unwrap();
-                new_face_id
+            Some((current_face_id, current_face)) => {
+                let current_midpoint = current_face.midpoint(fabric);
+                let current_normal = current_face.normal(fabric);
+                let to_current = (current_midpoint - self.camera.position.to_vec()).normalize();
+                let current_up = current_face.normal(fabric);
+                let rightwards = to_current.cross(current_up).normalize();
+                let mut best: Option<(UniqueId, f32)> = None;
+                for (&other_face_id, other_face) in fabric.faces.iter() {
+                    if other_face_id == current_face_id {
+                        continue;
+                    }
+                    let current_to_other = other_face.midpoint(fabric) - current_midpoint;
+                    let dot_right = rightwards.dot(current_to_other);
+                    match face_choice {
+                        FaceChoice::Left if dot_right > 0.0 => continue,
+                        FaceChoice::Right if dot_right < 0.0 => continue,
+                        _ => {}
+                    };
+                    let dot_with_other = other_face.normal(fabric).dot(current_normal);
+                    match best {
+                        None => {
+                            best = Some((other_face_id, dot_with_other))
+                        }
+                        Some((_, existing_dot_with_other)) => {
+                            if dot_with_other > existing_dot_with_other {
+                                best = Some((other_face_id, dot_with_other))
+                            }
+                        }
+                    }
+                }
+                best.map(|(face_id, _)| face_id)
             }
-        });
-        self.select_face(Some(face_id));
-    }
-
-    pub fn clear_face_selection(&mut self) {
-        self.select_face(None);
-    }
-
-    fn select_face(&mut self, face_id: Option<UniqueId>) {
-        self.camera.target = match face_id {
-            None => Hold,
-            Some(face_id) => SelectedFace(face_id)
         };
+        if let Some(face_id) = found {
+            self.select_face(Some(face_id));
+            self.variant = TinkeringOnFace(face_id);
+        }
+    }
+
+    pub fn select_face(&mut self, face_id: Option<UniqueId>) {
+        let (target, variant) = match face_id {
+            None => (FabricMidpoint, Suspended),
+            Some(face_id) => (SelectedFace(face_id), TinkeringOnFace(face_id))
+        };
+        self.camera.target = target;
+        self.variant = variant;
     }
 }
 
@@ -293,7 +310,7 @@ impl FabricVertex {
     pub fn for_interval(interval: &Interval, fabric: &Fabric, variation: &SceneVariant) -> [FabricVertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
         let color = match variation {
-            Suspended | Tinkering | Pretensing | TinkeringOnFace(_)  => {
+            Suspended |  Pretensing | TinkeringOnFace(_) => {
                 match fabric.materials[interval.material].role {
                     Push => [1.0, 1.0, 1.0, 1.0],
                     Pull => [0.2, 0.2, 1.0, 1.0],
@@ -323,7 +340,7 @@ impl FabricVertex {
             TinkeringOnFace(selected_face) if *selected_face == face_id => {
                 ([0.0, 1.0, 0.0, 1.0], [0.0, 1.0, 0.0, 1.0])
             }
-            Tinkering | TinkeringOnFace (_) =>
+            _ =>
                 ([1.0, 0.0, 0.0, 1.0], [1.0, 0.0, 0.0, 1.0]),
         };
         [
