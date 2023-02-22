@@ -17,10 +17,11 @@ pub struct Menu {
     pub keycode: Option<VirtualKeyCode>,
     pub submenu: Vec<Menu>,
     pub action: Option<Action>,
+    pub last_action: bool,
 }
 
 impl Menu {
-    pub fn new(label: &str, submenu: Vec<Menu>) -> Self {
+    pub fn submenu(label: &str, submenu: Vec<Menu>) -> Self {
         let mut used = HashSet::new();
         let submenu = submenu
             .into_iter()
@@ -33,11 +34,15 @@ impl Menu {
                 Menu { keycode, label, ..menu }
             })
             .collect();
-        Self { label: label.to_string(), keycode: None, submenu, action: None }
+        Self { label: label.to_string(), keycode: None, submenu, action: None, last_action: false }
     }
 
     pub fn action(label: &str, action: Action) -> Self {
-        Self { label: label.to_string(), keycode: None, action: Some(action), submenu: vec![] }
+        Self { label: label.to_string(), keycode: None, action: Some(action), submenu: vec![], last_action: false }
+    }
+
+    pub fn last_action(label: &str, action: Action) -> Self {
+        Self { label: label.to_string(), keycode: None, action: Some(action), submenu: vec![], last_action: true }
     }
 
     pub fn select(menu_choice: MenuChoice) -> Menu {
@@ -71,7 +76,7 @@ impl Menu {
                 .map(|first| {
                     let mut new_below = below.clone();
                     new_below.push(first.clone());
-                    Menu::new(first.as_str(), Menu::fabric_menu(fabrics, new_below))
+                    Menu::submenu(first.as_str(), Menu::fabric_menu(fabrics, new_below))
                 })
                 .collect()
         } else {
@@ -94,19 +99,19 @@ impl Menu {
     }
 
     fn root_menu() -> Menu {
-        Menu::new("Tensegrity Lab", vec![
-            Menu::new("Fabric", Menu::fabric_menu(&Library::standard().fabrics, Vec::new())),
-            Menu::new("Speed", Menu::speed_menu()),
-            Menu::new("Camera", vec![
+        Menu::submenu("Tensegrity Lab", vec![
+            Menu::submenu("Fabric", Menu::fabric_menu(&Library::standard().fabrics, Vec::new())),
+            Menu::submenu("Speed", Menu::speed_menu()),
+            Menu::submenu("Camera", vec![
                 Menu::action("Midpoint", Action::Scene(SceneAction::WatchMidpoint)),
                 Menu::action("Origin", Action::Scene(SceneAction::WatchOrigin)),
             ]),
-            Menu::new("Widget", vec![
+            Menu::submenu("Widget", vec![
                 Menu::action("Gravity", Action::ShowControl(VisibleControl::Gravity)),
                 Menu::action("Strain threshold", Action::ShowControl(VisibleControl::StrainThreshold)),
                 Menu::action("Clear", Action::ShowControl(VisibleControl::Nothing)),
             ]),
-            Menu::new("Etc", vec![
+            Menu::submenu("Etc", vec![
                 Menu::action("Tinker", Action::StartTinkering),
                 Menu::action("Debug toggle", Action::ToggleDebug),
             ]),
@@ -114,20 +119,21 @@ impl Menu {
     }
 
     fn tinker_menu() -> Menu {
-        Menu::new("Tinker", vec![
-            Menu::new("Step", vec![
-                Menu::action("Left", Action::SelectNextFace(FaceChoice::Left)),
-                Menu::action("Right", Action::SelectNextFace(FaceChoice::Right)),
+        Menu::submenu("Tinker", vec![
+            Menu::submenu("Step", vec![
+                Menu::last_action("Left", Action::SelectNextFace(FaceChoice::Left)),
+                Menu::last_action("Right", Action::SelectNextFace(FaceChoice::Right)),
             ]),
             Menu::action("Connect", Action::ConnectBrick),
             Menu::action("Revert", Action::Revert),
-            Menu::new("Add", vec![
+            Menu::submenu("Add", vec![
                 Menu::action("Single", Action::ProposeBrick { alias: FaceAlias::single("Single"), face_rotation: FaceRotation::Zero }),
                 Menu::action("Omni", Action::ProposeBrick { alias: FaceAlias::single("Omni"), face_rotation: FaceRotation::Zero }),
                 Menu::action("Torque", Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::Zero }),
                 Menu::action("Torque120", Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::OneThird }),
                 Menu::action("Torque240", Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::TwoThirds }),
-                Menu::action("Revert", Action::Revert),
+                Menu::last_action("Connect", Action::ConnectBrick),
+                Menu::last_action("Revert", Action::Revert),
             ]),
             Menu::action("Finished", Action::SelectFace(None)),
         ])
