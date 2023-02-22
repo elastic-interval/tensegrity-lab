@@ -12,9 +12,9 @@ use crate::user_interface::menu::Menu;
 pub enum KeyboardMessage {
     KeyPressed(VirtualKeyCode),
     SelectSubmenu(Menu),
-    SelectUpperMenu,
     SelectMenu(MenuChoice),
     SubmitAction(Action),
+    SubmitLastAction(Action),
 }
 
 impl From<KeyboardMessage> for ControlMessage {
@@ -36,6 +36,12 @@ impl Component for Keyboard {
             KeyboardMessage::SubmitAction(action) => {
                 return Some(action);
             }
+            KeyboardMessage::SubmitLastAction(action) => {
+                if self.current.len() > 1 {
+                    self.current.pop();
+                }
+                return Some(action);
+            }
             KeyboardMessage::KeyPressed(key_code) => {
                 let (current, action) = self.key_pressed(key_code);
                 self.current = current;
@@ -43,11 +49,6 @@ impl Component for Keyboard {
             }
             KeyboardMessage::SelectSubmenu(menu) => {
                 self.current.push(menu);
-            }
-            KeyboardMessage::SelectUpperMenu => {
-                if self.current.len() > 1 {
-                    self.current.pop();
-                }
             }
             KeyboardMessage::SelectMenu(menu_choice) => {
                 self.set_menu(Menu::select(menu_choice));
@@ -65,7 +66,13 @@ impl Component for Keyboard {
                     .on_press(
                         match &item.action {
                             None => KeyboardMessage::SelectSubmenu(item.clone()),
-                            Some(action) => KeyboardMessage::SubmitAction(action.clone()),
+                            Some(action) => {
+                                if item.last_action {
+                                   KeyboardMessage::SubmitLastAction(action.clone())
+                                } else {
+                                    KeyboardMessage::SubmitAction(action.clone())
+                                }
+                            },
                         }.into()
                     )
             );
@@ -105,12 +112,12 @@ impl Keyboard {
             .submenu
             .iter()
             .find_map(|menu| {
-                let Menu { keycode, action, submenu, .. } = menu;
+                let Menu { keycode, action, submenu, last_action, .. } = menu;
                 if keycode.unwrap() != keycode_pressed {
                     return None;
                 }
                 if action.is_some() {
-                    if current.len() > 1 {
+                    if *last_action && current.len() > 1 {
                         current.pop();
                     }
                     return action.clone();

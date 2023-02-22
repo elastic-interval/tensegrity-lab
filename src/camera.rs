@@ -159,7 +159,7 @@ impl Target {
     }
 
     pub fn ideal_camera_distance(&self, fabric: &Fabric) -> Option<f32> {
-        self.selected_face(fabric).map(|(_, face)| face.scale * 7.0)
+        self.selected_face(fabric).map(|(_, face)| face.scale * 10.0)
     }
 
     pub fn allow_vertical_rotation(&self) -> bool {
