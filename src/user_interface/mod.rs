@@ -67,7 +67,8 @@ pub enum Action {
     ShowControl(VisibleControl),
     StartTinkering,
     ToggleDebug,
-    AddBrick { alias: FaceAlias, face_rotation: FaceRotation },
+    ProposeBrick { alias: FaceAlias, face_rotation: FaceRotation },
+    ConnectBrick,
     Revert,
     RevertToFrozen(Frozen),
 }

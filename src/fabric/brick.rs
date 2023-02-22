@@ -12,13 +12,13 @@ const ROOT6: f32 = 2.449_489_8;
 const PHI: f32 = (1f32 + ROOT5) / 2f32;
 
 impl Fabric {
-    pub fn attach_brick(
+    pub fn create_brick(
         &mut self,
         face_alias: &FaceAlias,
         rotation: FaceRotation,
         scale_factor: f32,
         face_id: Option<UniqueId>,
-    ) -> Vec<UniqueId> {
+    ) -> (UniqueId, Vec<UniqueId>) {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
         let spin_alias = face_alias
@@ -46,7 +46,7 @@ impl Fabric {
                 Role::Pull => Link::pull(ideal),
             });
         }
-        let brick_faces: Vec<_> = brick.faces
+        let brick_faces = brick.faces
             .into_iter()
             .map(|BrickFace { joints: brick_joints, aliases, spin }| {
                 let midpoint = brick_joints
@@ -66,15 +66,12 @@ impl Fabric {
                 assert_eq!(single_alias.len(), 1, "filter must leave exactly one face alias");
                 self.create_face(single_alias, scale, spin, radial_intervals)
             })
-            .collect();
-        if let Some(id) = face_id {
-            let search_base = search_alias.with_base();
-            let brick_face = brick_faces
-                .iter()
-                .find(|&&face_id| search_base.matches(self.face(face_id).alias()))
-                .expect("missing face after attaching brick");
-            self.join_faces(id, *brick_face);
-        }
-        brick_faces
+            .collect::<Vec<_>>();
+        let search_base = search_alias.with_base();
+        let base_face = brick_faces
+            .iter()
+            .find(|&&face_id| search_base.matches(self.face(face_id).alias()))
+            .expect("missing face after creating brick");
+        (*base_face, brick_faces)
     }
 }

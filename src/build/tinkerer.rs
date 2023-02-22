@@ -6,11 +6,13 @@ use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::LIQUID;
 use crate::user_interface::Action;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 enum Stage {
     Start,
     Navigating,
-    AddingBrick(BrickOnFace),
+    ReifyBrick,
+    PendingFaceJoin,
+    JoinFaces,
     Approaching,
     Reverting,
     Settling,
@@ -32,6 +34,8 @@ pub struct Frozen {
 
 pub struct Tinkerer {
     stage: Stage,
+    proposed_brick: Option<BrickOnFace>,
+    pending_join: Option<(UniqueId, UniqueId)>,
     physics: Physics,
     history: Vec<Frozen>,
 }
@@ -40,6 +44,8 @@ impl Default for Tinkerer {
     fn default() -> Self {
         Self {
             stage: Start,
+            proposed_brick: None,
+            pending_join: None,
             physics: LIQUID,
             history: Vec::default(),
         }
@@ -55,14 +61,30 @@ impl Tinkerer {
                 fabric.iterate(&self.physics);
                 Navigating
             }
-            AddingBrick(BrickOnFace { alias, face_id, face_rotation }) => {
-                self.history.push(Frozen { fabric: fabric.clone(), selected_face: face_id.clone() });
-                fabric.attach_brick(alias, *face_rotation, 1.0, Some(*face_id));
-                action = Some(Action::SelectFace(fabric.newest_face_id()));
-                fabric.progress.start(1000);
-                Approaching
+            ReifyBrick => {
+                if let Some(BrickOnFace { alias, face_id, face_rotation }) = &self.proposed_brick {
+                    self.history.push(Frozen { fabric: fabric.clone(), selected_face: *face_id });
+                    let (base_face_id, _) = fabric
+                        .create_brick(alias, *face_rotation, 1.0, Some(*face_id));
+                    self.pending_join = Some((base_face_id, *face_id));
+                    PendingFaceJoin
+                } else {
+                    Navigating
+                }
+            }
+            PendingFaceJoin => PendingFaceJoin,
+            JoinFaces => {
+                if let Some(pair) = self.pending_join {
+                    fabric.join_faces(pair.0, pair.1);
+                    fabric.progress.start(1000);
+                    self.proposed_brick = None;
+                    action = Some(Action::SelectFace(fabric.newest_face_id()));
+                }
+                self.pending_join = None;
+                Navigating
             }
             Reverting => {
+                self.proposed_brick = None;
                 if let Some(frozen) = self.history.pop() {
                     action = Some(Action::RevertToFrozen(frozen))
                 };
@@ -90,8 +112,17 @@ impl Tinkerer {
         action
     }
 
-    pub fn add_brick(&mut self, brick_on_face: BrickOnFace) {
-        self.stage = AddingBrick(brick_on_face);
+    pub fn propose_brick(&mut self, brick_on_face: BrickOnFace) {
+        self.stage = if self.proposed_brick.is_some() {
+            Reverting
+        } else {
+            ReifyBrick
+        };
+        self.proposed_brick = Some(brick_on_face);
+    }
+
+    pub fn join_faces(&mut self) {
+        self.stage = JoinFaces;
     }
 
     pub fn revert(&mut self) {
@@ -99,9 +130,6 @@ impl Tinkerer {
     }
 
     pub fn is_done(&self) -> bool {
-        match self.stage {
-            Finished => true,
-            _ => false
-        }
+        self.stage == Finished
     }
 }
