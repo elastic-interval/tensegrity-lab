@@ -51,16 +51,10 @@ impl Application {
         for action in actions {
             match action {
                 Action::Crucible(crucible_action) => {
-                    match &crucible_action {
-                        CrucibleAction::BuildFabric(fabric_plan) => {
-                            self.fabric_plan_name = fabric_plan.name.clone();
-                            self.scene.action(SceneAction::Variant(SceneVariant::Suspended));
-                            self.user_interface.message(ControlMessage::Reset);
-                        }
-                        CrucibleAction::CreateBrickOnFace { .. } => {
-                            self.scene.select_face(None);
-                        }
-                        _ => {}
+                    if let CrucibleAction::BuildFabric(fabric_plan) = &crucible_action {
+                        self.fabric_plan_name = fabric_plan.name.clone();
+                        self.scene.action(SceneAction::Variant(SceneVariant::Suspended));
+                        self.user_interface.message(ControlMessage::Reset);
                     }
                     self.crucible.action(crucible_action);
                 }
@@ -92,13 +86,16 @@ impl Application {
                 Action::ToggleDebug => {
                     self.user_interface.message(ControlMessage::ToggleDebugMode);
                 }
-                Action::AddBrick { alias, face_rotation } => {
+                Action::ProposeBrick { alias, face_rotation } => {
                     let Some(face_id) = self.scene.target_face_id(self.crucible.fabric()) else {
                         return;
                     };
                     let spin = self.crucible.fabric().face(face_id).spin.opposite();
                     let alias = alias + &spin.into_alias();
-                    self.user_interface.action(Action::Crucible(CrucibleAction::CreateBrickOnFace(BrickOnFace { face_id, alias, face_rotation })));
+                    self.user_interface.action(Action::Crucible(CrucibleAction::ProposeBrick(BrickOnFace { face_id, alias, face_rotation })));
+                }
+                Action::ConnectBrick => {
+                    self.crucible.action(CrucibleAction::ConnectBrick)
                 }
                 Action::Revert => {
                     self.crucible.action(CrucibleAction::Revert)

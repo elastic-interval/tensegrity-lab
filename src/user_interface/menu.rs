@@ -117,15 +117,16 @@ impl Menu {
         Menu::new("Tinker", vec![
             Menu::action("Leftward", Action::SelectNextFace(FaceChoice::Left)),
             Menu::action("Rightward", Action::SelectNextFace(FaceChoice::Right)),
-            Menu::action("Single", Action::AddBrick { alias: FaceAlias::single("Single"), face_rotation: FaceRotation::Zero }),
-            Menu::action("Omni", Action::AddBrick { alias: FaceAlias::single("Omni"), face_rotation: FaceRotation::Zero }),
-            Menu::new("Torque", vec![
-                Menu::action("No rotation", Action::AddBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::Zero }),
-                Menu::action("One rotation", Action::AddBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::OneThird }),
-                Menu::action("Two rotations", Action::AddBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::TwoThirds }),
-            ]),
-            Menu::action("Woops", Action::Revert),
+            Menu::action("Forward", Action::ConnectBrick),
+            Menu::action("Backward", Action::Revert),
             Menu::action("Finished", Action::SelectFace(None)),
+            Menu::action("Single", Action::ProposeBrick { alias: FaceAlias::single("Single"), face_rotation: FaceRotation::Zero }),
+            Menu::action("Omni", Action::ProposeBrick { alias: FaceAlias::single("Omni"), face_rotation: FaceRotation::Zero }),
+            Menu::new("Torque", vec![
+                Menu::action("No rotation", Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::Zero }),
+                Menu::action("One rotation", Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::OneThird }),
+                Menu::action("Two rotations", Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::TwoThirds }),
+            ]),
         ])
     }
 }

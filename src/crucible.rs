@@ -1,3 +1,5 @@
+use CrucibleAction::{*};
+
 use crate::build::oven::Oven;
 use crate::build::tenscript::FabricPlan;
 use crate::build::tenscript::plan_runner::PlanRunner;
@@ -24,7 +26,8 @@ enum Stage {
 pub enum CrucibleAction {
     BakeBrick(usize),
     BuildFabric(FabricPlan),
-    CreateBrickOnFace(BrickOnFace),
+    ProposeBrick(BrickOnFace),
+    ConnectBrick,
     SetSpeed(usize),
     Revert,
     RevertTo(Frozen),
@@ -98,31 +101,37 @@ impl Crucible {
 
     pub fn action(&mut self, crucible_action: CrucibleAction) {
         match crucible_action {
-            CrucibleAction::BakeBrick(brick_index) => {
+            BakeBrick(brick_index) => {
                 let oven = Oven::new(brick_index);
                 self.fabric = oven.prototype_fabric();
                 self.stage = BakingBrick(oven);
             }
-            CrucibleAction::BuildFabric(fabric_plan) => {
+            BuildFabric(fabric_plan) => {
                 self.fabric = Fabric::default_bow_tie();
                 self.stage = RunningPlan(PlanRunner::new(fabric_plan));
             }
-            CrucibleAction::CreateBrickOnFace(brick_on_face) => {
+            ProposeBrick(brick_on_face) => {
                 let Tinkering(tinkerer) = &mut self.stage else {
                     panic!("cannot add brick unless tinkering");
                 };
-                tinkerer.add_brick(brick_on_face);
+                tinkerer.propose_brick(brick_on_face);
             }
-            CrucibleAction::SetSpeed(iterations_per_frame) => {
+            ConnectBrick => {
+                let Tinkering(tinkerer) = &mut self.stage else {
+                    panic!("cannot add brick unless tinkering");
+                };
+                tinkerer.join_faces();
+            }
+            SetSpeed(iterations_per_frame) => {
                 self.iterations_per_frame = iterations_per_frame;
             }
-            CrucibleAction::Revert => {
+            Revert => {
                 let Tinkering(tinkerer) = &mut self.stage else {
                     panic!("cannot add brick unless tinkering");
                 };
                 tinkerer.revert();
             }
-            CrucibleAction::RevertTo(frozen) => {
+            RevertTo(frozen) => {
                 self.fabric = frozen.fabric;
             }
         }
