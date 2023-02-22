@@ -6,6 +6,7 @@ use cgmath::{EuclideanSpace, InnerSpace};
 use iced_wgpu::wgpu;
 use wgpu::{CommandEncoder, TextureView};
 use wgpu::util::DeviceExt;
+use winit::dpi::PhysicalSize;
 use winit::event::*;
 
 use SceneVariant::{*};
@@ -57,8 +58,8 @@ impl Scene {
     pub fn new(graphics: &GraphicsWindow) -> Self {
         let shader = graphics.get_shader_module();
         let scale = 6.0;
-        let aspect = graphics.config.width as f32 / graphics.config.height as f32;
-        let camera = Camera::new((2.0 * scale, 1.0 * scale, 2.0 * scale).into(), aspect);
+        let size = PhysicalSize { width: graphics.config.width as f64, height: graphics.config.height as f64 };
+        let camera = Camera::new((2.0 * scale, 1.0 * scale, 2.0 * scale).into(), size);
         let uniform_buffer = graphics.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("MVP"),
             contents: cast_slice(&[0.0f32; 16]),
@@ -186,8 +187,8 @@ impl Scene {
         }
     }
 
-    pub fn window_event(&mut self, event: &WindowEvent) {
-        self.camera.window_event(event);
+    pub fn window_event(&mut self, event: &WindowEvent, fabric: &Fabric) {
+        self.camera.window_event(event, fabric);
     }
 
     pub fn update(&mut self, graphics: &GraphicsWindow, fabric: &Fabric) {
@@ -213,8 +214,8 @@ impl Scene {
 
     pub fn resize(&mut self, graphics: &GraphicsWindow) {
         let new_size = graphics.size;
-        let aspect = new_size.width as f32 / new_size.height as f32;
-        self.camera.set_aspect(aspect);
+        let size = PhysicalSize { width: new_size.width as f64, height: new_size.height as f64 };
+        self.camera.set_size(size);
         self.update_from_camera(graphics);
     }
 
@@ -317,7 +318,7 @@ impl FabricVertex {
     pub fn for_interval(interval: &Interval, fabric: &Fabric, variation: &SceneVariant) -> [FabricVertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
         let color = match variation {
-            Suspended |  Pretensing | TinkeringOnFace(_) => {
+            Suspended | Pretensing | TinkeringOnFace(_) => {
                 match fabric.materials[interval.material].role {
                     Push => [1.0, 1.0, 1.0, 1.0],
                     Pull => [0.2, 0.2, 1.0, 1.0],

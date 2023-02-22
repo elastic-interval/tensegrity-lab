@@ -1,8 +1,8 @@
 use std::f32::consts::PI;
 
-use cgmath::{Deg, EuclideanSpace, InnerSpace, Matrix4, MetricSpace, perspective, Point3, point3, Rad, Transform, vec3, Vector3};
+use cgmath::{Deg, EuclideanSpace, InnerSpace, Matrix4, MetricSpace, perspective, Point3, point3, Rad, SquareMatrix, Transform, vec3, Vector3};
 use cgmath::num_traits::abs;
-use winit::dpi::PhysicalPosition;
+use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{ElementState, MouseScrollDelta, WindowEvent};
 
 use crate::fabric::{Fabric, UniqueId};
@@ -18,28 +18,34 @@ pub struct Camera {
     pub target: Target,
     pub look_at: Point3<f32>,
     pub up: Vector3<f32>,
-    pub aspect: f32,
+    pub size: PhysicalSize<f64>,
     pub moving_mouse: PhysicalPosition<f64>,
+    pub shift: bool,
     pub pressed_mouse: Option<PhysicalPosition<f64>>,
 }
 
 impl Camera {
-    pub fn new(position: Point3<f32>, aspect: f32) -> Self {
+    pub fn new(position: Point3<f32>, size: PhysicalSize<f64>) -> Self {
         Self {
             position,
             target: Target::default(),
             look_at: point3(0.0, 3.0, 0.0),
             up: Vector3::unit_y(),
-            aspect,
+            size,
             moving_mouse: PhysicalPosition::new(0.0, 0.0),
             pressed_mouse: None,
+            shift: false,
         }
     }
 
-    pub fn window_event(&mut self, event: &WindowEvent) {
+    pub fn window_event(&mut self, event: &WindowEvent, fabric: &Fabric) {
         match event {
+            WindowEvent::ModifiersChanged(state) => {
+                self.shift = state.shift();
+            }
             WindowEvent::MouseInput { state, .. } => {
                 match state {
+                    ElementState::Pressed if self.shift => { self.pick(self.moving_mouse, fabric) }
                     ElementState::Pressed => { self.pressed_mouse = Some(self.moving_mouse) }
                     ElementState::Released => { self.pressed_mouse = None }
                 }
@@ -80,12 +86,25 @@ impl Camera {
         self.position += self.up * UP_ATTRACTION * dot_up;
     }
 
-    pub fn set_aspect(&mut self, aspect: f32) {
-        self.aspect = aspect;
+    pub fn set_size(&mut self, size: PhysicalSize<f64>) {
+        self.size = size;
     }
 
     pub fn mvp_matrix(&self) -> Matrix4<f32> {
         self.projection_matrix() * self.view_matrix()
+    }
+
+    pub fn pick(&self, position: PhysicalPosition<f64>, _fabric: &Fabric) {
+        let width = self.size.width / 2.0;
+        let height = self.size.height / 2.0;
+        let x = (position.x - width) / width;
+        let y = (position.y - height) / height;
+        let position = Point3::new(x as f32, y as f32, 1.0);
+        let point3d = self.mvp_matrix().invert().unwrap().transform_point(position);
+        let ray = (point3d - self.position).normalize();
+        let look = (self.look_at - self.position).normalize();
+        let dot = look.dot(ray);
+        println!("Pick({x}, {y})={dot:?}");
     }
 
     fn view_matrix(&self) -> Matrix4<f32> {
@@ -93,7 +112,8 @@ impl Camera {
     }
 
     fn projection_matrix(&self) -> Matrix4<f32> {
-        OPENGL_TO_WGPU_MATRIX * perspective(Rad(2.0 * PI / 5.0), self.aspect, 0.1, 100.0)
+        let aspect = self.size.width as f32 / self.size.height as f32;
+        OPENGL_TO_WGPU_MATRIX * perspective(Rad(2.0 * PI / 5.0), aspect, 0.1, 100.0)
     }
 
     fn rotation(&self) -> Option<Matrix4<f32>> {
