@@ -134,9 +134,10 @@ impl Application {
         match event {
             WindowEvent::Resized(physical_size) => self.resize(*physical_size),
             WindowEvent::KeyboardInput { .. } => self.handle_keyboard_input(event),
-            WindowEvent::MouseInput { state: ElementState::Released, .. } => self.scene.window_event(event),
+            WindowEvent::ModifiersChanged { .. } => self.scene.window_event(event, self.crucible.fabric()),
+            WindowEvent::MouseInput { state: ElementState::Released, .. } => self.scene.window_event(event, self.crucible.fabric()),
             WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
-            if !self.user_interface.capturing_mouse() => self.scene.window_event(event),
+            if !self.user_interface.capturing_mouse() => self.scene.window_event(event, self.crucible.fabric()),
             _ => {}
         }
     }
