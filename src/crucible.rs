@@ -29,7 +29,7 @@ pub enum CrucibleAction {
     ProposeBrick(BrickOnFace),
     ConnectBrick,
     SetSpeed(usize),
-    Revert,
+    InitiateRevert,
     RevertTo(Frozen),
 }
 
@@ -125,9 +125,9 @@ impl Crucible {
             SetSpeed(iterations_per_frame) => {
                 self.iterations_per_frame = iterations_per_frame;
             }
-            Revert => {
+            InitiateRevert => {
                 let Tinkering(tinkerer) = &mut self.stage else {
-                    panic!("cannot add brick unless tinkering");
+                    panic!("cannot revert unless tinkering");
                 };
                 tinkerer.revert();
             }

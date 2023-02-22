@@ -98,11 +98,14 @@ impl Application {
                     self.crucible.action(CrucibleAction::ConnectBrick)
                 }
                 Action::Revert => {
-                    self.crucible.action(CrucibleAction::Revert)
+                    self.crucible.action(CrucibleAction::InitiateRevert)
                 }
-                Action::RevertToFrozen(frozen) => {
+                Action::RevertToFrozen { frozen, brick_on_face } => {
                     let face_id = frozen.selected_face;
                     self.crucible.action(CrucibleAction::RevertTo(frozen));
+                    if let Some(brick_on_face) = brick_on_face {
+                        self.crucible.action(CrucibleAction::ProposeBrick(brick_on_face))
+                    }
                     self.scene.action(SceneAction::Variant(SceneVariant::TinkeringOnFace(face_id)))
                 }
             }

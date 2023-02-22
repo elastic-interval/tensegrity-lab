@@ -84,9 +84,9 @@ impl Tinkerer {
                 Navigating
             }
             Reverting => {
-                self.proposed_brick = None;
                 if let Some(frozen) = self.history.pop() {
-                    action = Some(Action::RevertToFrozen(frozen))
+                    let brick_on_face = self.proposed_brick.take();
+                    action = Some(Action::RevertToFrozen { frozen, brick_on_face  })
                 };
                 Navigating
             }
@@ -113,12 +113,13 @@ impl Tinkerer {
     }
 
     pub fn propose_brick(&mut self, brick_on_face: BrickOnFace) {
-        self.stage = if self.proposed_brick.is_some() {
+        let proposal_was_active = self.proposed_brick.is_some();
+        self.proposed_brick = Some(brick_on_face);
+        self.stage = if proposal_was_active {
             Reverting
         } else {
             ReifyBrick
         };
-        self.proposed_brick = Some(brick_on_face);
     }
 
     pub fn join_faces(&mut self) {

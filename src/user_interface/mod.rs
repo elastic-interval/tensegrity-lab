@@ -12,7 +12,7 @@ use winit::window::{CursorIcon, Window};
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
 use crate::build::tenscript::FaceAlias;
-use crate::build::tinkerer::Frozen;
+use crate::build::tinkerer::{BrickOnFace, Frozen};
 
 use crate::crucible::CrucibleAction;
 use crate::fabric::face::FaceRotation;
@@ -70,7 +70,7 @@ pub enum Action {
     ProposeBrick { alias: FaceAlias, face_rotation: FaceRotation },
     ConnectBrick,
     Revert,
-    RevertToFrozen(Frozen),
+    RevertToFrozen { frozen: Frozen, brick_on_face: Option<BrickOnFace> },
 }
 
 /// Largely adapted from https://github.com/iced-rs/iced/blob/master/examples/integration_wgpu/src/main.rs
