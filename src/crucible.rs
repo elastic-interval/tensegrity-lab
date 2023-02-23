@@ -5,7 +5,7 @@ use crate::build::tenscript::FabricPlan;
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::build::tinkerer::{BrickOnFace, Frozen, Tinkerer};
 use crate::crucible::Stage::{*};
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::pretenser::Pretenser;
 use crate::scene::{SceneAction, SceneVariant};
 use crate::user_interface::{Action, MenuChoice};
@@ -27,6 +27,7 @@ pub enum CrucibleAction {
     BakeBrick(usize),
     BuildFabric(FabricPlan),
     ProposeBrick(BrickOnFace),
+    JoinFace(UniqueId),
     ConnectBrick,
     SetSpeed(usize),
     InitiateRevert,
@@ -133,6 +134,12 @@ impl Crucible {
             }
             RevertTo(frozen) => {
                 self.fabric = frozen.fabric;
+            }
+            JoinFace(face_id) => {
+                let Tinkering(tinkerer) = &mut self.stage else {
+                    panic!("cannot revert unless tinkering");
+                };
+                tinkerer.hold_face(face_id);
             }
         }
     }

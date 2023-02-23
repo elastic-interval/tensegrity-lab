@@ -105,9 +105,8 @@ impl Camera {
         let point3d = self.mvp_matrix().invert().unwrap().transform_point(position);
         let ray = (point3d - self.position).normalize();
         let best = fabric.faces.iter()
-            .map(|(face_id, face)| {
-                (face_id, (face.midpoint(fabric) - self.position.to_vec()).normalize().dot(ray))
-            })
+            .map(|(face_id, face)|
+                (face_id, (face.midpoint(fabric) - self.position.to_vec()).normalize().dot(ray)))
             .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b));
         if let Some((face_id, _)) = best {
             self.picked = Some(*face_id);

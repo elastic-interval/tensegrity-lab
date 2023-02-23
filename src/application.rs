@@ -94,6 +94,11 @@ impl Application {
                     let alias = alias + &spin.into_alias();
                     self.user_interface.action(Action::Crucible(CrucibleAction::ProposeBrick(BrickOnFace { face_id, alias, face_rotation })));
                 }
+                Action::JoinFace => {
+                    if let Some(face_id) = self.scene.target_face_id(self.crucible.fabric()) {
+                        self.crucible.action(CrucibleAction::JoinFace(face_id))
+                    }
+                }
                 Action::ConnectBrick => {
                     self.crucible.action(CrucibleAction::ConnectBrick)
                 }
