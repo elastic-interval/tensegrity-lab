@@ -35,7 +35,8 @@ pub struct Frozen {
 pub struct Tinkerer {
     stage: Stage,
     proposed_brick: Option<BrickOnFace>,
-    pending_join: Option<(UniqueId, UniqueId)>,
+    holding_face: Option<UniqueId>,
+    proposed_connect: Option<(UniqueId, UniqueId)>,
     physics: Physics,
     history: Vec<Frozen>,
 }
@@ -45,7 +46,8 @@ impl Default for Tinkerer {
         Self {
             stage: Start,
             proposed_brick: None,
-            pending_join: None,
+            holding_face: None,
+            proposed_connect: None,
             physics: LIQUID,
             history: Vec::default(),
         }
@@ -66,7 +68,7 @@ impl Tinkerer {
                     self.history.push(Frozen { fabric: fabric.clone(), selected_face: *face_id });
                     let (base_face_id, _) = fabric
                         .create_brick(alias, *face_rotation, 1.0, Some(*face_id));
-                    self.pending_join = Some((base_face_id, *face_id));
+                    self.proposed_connect = Some((base_face_id, *face_id));
                     PendingFaceJoin
                 } else {
                     Navigating
@@ -74,19 +76,19 @@ impl Tinkerer {
             }
             PendingFaceJoin => PendingFaceJoin,
             JoinFaces => {
-                if let Some(pair) = self.pending_join {
+                if let Some(pair) = self.proposed_connect {
                     fabric.join_faces(pair.0, pair.1);
                     fabric.progress.start(1000);
                     self.proposed_brick = None;
                     action = Some(Action::SelectFace(fabric.newest_face_id()));
                 }
-                self.pending_join = None;
+                self.proposed_connect = None;
                 Navigating
             }
             Reverting => {
                 if let Some(frozen) = self.history.pop() {
                     let brick_on_face = self.proposed_brick.take();
-                    action = Some(Action::RevertToFrozen { frozen, brick_on_face  })
+                    action = Some(Action::RevertToFrozen { frozen, brick_on_face })
                 };
                 Navigating
             }
@@ -110,6 +112,17 @@ impl Tinkerer {
             Finished => Finished
         };
         action
+    }
+
+    pub fn hold_face(&mut self, face_id: UniqueId) {
+        if let Some(holding_face) = self.holding_face {
+            if holding_face != face_id {
+                self.proposed_connect = Some((holding_face, face_id));
+            }
+            self.holding_face = None;
+        } else {
+            self.holding_face = Some(face_id);
+        }
     }
 
     pub fn propose_brick(&mut self, brick_on_face: BrickOnFace) {

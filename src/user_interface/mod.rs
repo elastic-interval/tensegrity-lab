@@ -68,6 +68,7 @@ pub enum Action {
     StartTinkering,
     ToggleDebug,
     ProposeBrick { alias: FaceAlias, face_rotation: FaceRotation },
+    JoinFace,
     ConnectBrick,
     Revert,
     RevertToFrozen { frozen: Frozen, brick_on_face: Option<BrickOnFace> },

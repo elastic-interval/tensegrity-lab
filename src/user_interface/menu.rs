@@ -124,6 +124,7 @@ impl Menu {
                 Menu::last_action("Left", Action::SelectNextFace(FaceChoice::Left)),
                 Menu::last_action("Right", Action::SelectNextFace(FaceChoice::Right)),
             ]),
+            Menu::action("Join", Action::JoinFace),
             Menu::action("Connect", Action::ConnectBrick),
             Menu::action("Revert", Action::Revert),
             Menu::submenu("Add", vec![
