@@ -18,6 +18,7 @@ pub struct Camera {
     pub target: Target,
     pub look_at: Point3<f32>,
     pub up: Vector3<f32>,
+    pub picked: Option<UniqueId>,
     pub size: PhysicalSize<f64>,
     pub moving_mouse: PhysicalPosition<f64>,
     pub shift: bool,
@@ -31,6 +32,7 @@ impl Camera {
             target: Target::default(),
             look_at: point3(0.0, 3.0, 0.0),
             up: Vector3::unit_y(),
+            picked: None,
             size,
             moving_mouse: PhysicalPosition::new(0.0, 0.0),
             pressed_mouse: None,
@@ -94,17 +96,22 @@ impl Camera {
         self.projection_matrix() * self.view_matrix()
     }
 
-    pub fn pick(&self, position: PhysicalPosition<f64>, _fabric: &Fabric) {
+    pub fn pick(&mut self, position: PhysicalPosition<f64>, fabric: &Fabric) {
         let width = self.size.width / 2.0;
         let height = self.size.height / 2.0;
         let x = (position.x - width) / width;
-        let y = (position.y - height) / height;
+        let y = (height - position.y) / height;
         let position = Point3::new(x as f32, y as f32, 1.0);
         let point3d = self.mvp_matrix().invert().unwrap().transform_point(position);
         let ray = (point3d - self.position).normalize();
-        let look = (self.look_at - self.position).normalize();
-        let dot = look.dot(ray);
-        println!("Pick({x}, {y})={dot:?}");
+        let best = fabric.faces.iter()
+            .map(|(face_id, face)| {
+                (face_id, (face.midpoint(fabric) - self.position.to_vec()).normalize().dot(ray))
+            })
+            .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b));
+        if let Some((face_id, _)) = best {
+            self.picked = Some(*face_id);
+        }
     }
 
     fn view_matrix(&self) -> Matrix4<f32> {
