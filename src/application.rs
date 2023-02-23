@@ -118,6 +118,9 @@ impl Application {
             self.user_interface.action(action);
         }
         self.scene.update(&self.graphics, self.crucible.fabric());
+        if let Some(picked) = self.scene.picked() {
+            self.user_interface.action(Action::SelectFace(Some(picked)))
+        }
         self.user_interface.update_viewport(window);
         match self.render() {
             Ok(_) => {}

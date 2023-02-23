@@ -197,6 +197,10 @@ impl Scene {
         graphics.queue.write_buffer(&self.fabric_drawing.buffer, 0, cast_slice(&self.fabric_drawing.vertices));
     }
 
+    pub fn picked(&mut self) -> Option<UniqueId> {
+        self.camera.picked.take()
+    }
+
     fn update_from_fabric(&mut self, fabric: &Fabric) {
         self.fabric_drawing.vertices.clear();
         self.fabric_drawing.vertices.extend(fabric.interval_values()
