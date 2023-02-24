@@ -119,11 +119,6 @@ impl Fabric {
         self.faces.get(&id).unwrap_or_else(|| panic!("face not found {id:?}"))
     }
 
-    pub fn newest_face_id(&self) -> Option<UniqueId> {
-        let max = self.faces.keys().max()?;
-        Some(*max)
-    }
-
     pub fn remove_face(&mut self, id: UniqueId) {
         let face = self.face(id);
         let middle_joint = face.middle_joint(self);

@@ -1,23 +1,19 @@
+use std::collections::HashSet;
 use std::f32::consts::PI;
 
-use cgmath::{Deg, EuclideanSpace, InnerSpace, Matrix4, MetricSpace, perspective, Point3, point3, Rad, SquareMatrix, Transform, vec3, Vector3};
-use cgmath::num_traits::abs;
+use cgmath::{Deg, EuclideanSpace, InnerSpace, Matrix4, perspective, Point3, point3, Rad, SquareMatrix, Transform, vec3, Vector3};
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{ElementState, MouseScrollDelta, WindowEvent};
 
 use crate::fabric::{Fabric, UniqueId};
-use crate::fabric::face::Face;
 
 const TARGET_ATTRACTION: f32 = 0.01;
-const UP_ATTRACTION: f32 = 0.1;
-const TARGET_DOT_UP: f32 = 0.15;
 const TARGET_DISTANCE_MARGIN: f32 = 0.3;
 
 pub struct Camera {
     pub position: Point3<f32>,
     pub target: Target,
     pub look_at: Point3<f32>,
-    pub up: Vector3<f32>,
     pub picked: Option<UniqueId>,
     pub size: PhysicalSize<f64>,
     pub moving_mouse: PhysicalPosition<f64>,
@@ -31,7 +27,6 @@ impl Camera {
             position,
             target: Target::default(),
             look_at: point3(0.0, 3.0, 0.0),
-            up: Vector3::unit_y(),
             picked: None,
             size,
             moving_mouse: PhysicalPosition::new(0.0, 0.0),
@@ -74,18 +69,7 @@ impl Camera {
         let Some(look_at) = self.target.look_at(fabric) else {
             return;
         };
-        let up = self.target.up(fabric);
-        self.up = (self.up + up * TARGET_ATTRACTION) / (1.0 + TARGET_ATTRACTION);
         self.look_at += (look_at - self.look_at) * TARGET_ATTRACTION;
-        if let Some(distance) = self.target.ideal_camera_distance(fabric) {
-            let current = self.position.distance(self.look_at);
-            if abs(current - distance) > TARGET_DISTANCE_MARGIN {
-                let new_distance = (current + distance * TARGET_ATTRACTION) / (1.0 + TARGET_ATTRACTION);
-                self.position = self.look_at + (self.position - self.look_at).normalize() * new_distance
-            }
-        }
-        let dot_up = TARGET_DOT_UP - (self.position - self.look_at).normalize().dot(self.up);
-        self.position += self.up * UP_ATTRACTION * dot_up;
     }
 
     pub fn set_size(&mut self, size: PhysicalSize<f64>) {
@@ -114,7 +98,7 @@ impl Camera {
     }
 
     fn view_matrix(&self) -> Matrix4<f32> {
-        Matrix4::look_at_rh(self.position, self.look_at, self.up)
+        Matrix4::look_at_rh(self.position, self.look_at, Vector3::unit_y())
     }
 
     fn projection_matrix(&self) -> Matrix4<f32> {
@@ -124,14 +108,10 @@ impl Camera {
 
     fn rotation(&self) -> Option<Matrix4<f32>> {
         let (dx, dy) = self.angles()?;
-        let rot_x = Matrix4::from_axis_angle(self.up, dx);
-        if self.target.allow_vertical_rotation() {
-            let axis = Vector3::unit_y().cross((self.look_at - self.position).normalize());
-            let rot_y = Matrix4::from_axis_angle(axis, dy);
-            Some(rot_x * rot_y)
-        } else {
-            Some(rot_x)
-        }
+        let rot_x = Matrix4::from_axis_angle(Vector3::unit_y(), dx);
+        let axis = Vector3::unit_y().cross((self.look_at - self.position).normalize());
+        let rot_y = Matrix4::from_axis_angle(axis, dy);
+        Some(rot_x * rot_y)
     }
 
     fn angles(&self) -> Option<(Deg<f32>, Deg<f32>)> {
@@ -152,12 +132,12 @@ const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
     0.0, 0.0, 0.5, 1.0,
 );
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub enum Target {
     Origin,
     #[default]
     FabricMidpoint,
-    SelectedFace(UniqueId),
+    AroundFaces(HashSet<UniqueId>),
 }
 
 impl Target {
@@ -165,42 +145,18 @@ impl Target {
         match self {
             Target::Origin => Some(point3(0.0, 0.0, 0.0)),
             Target::FabricMidpoint => Some(fabric.midpoint()),
-            Target::SelectedFace(face_id) => {
-                fabric.faces.get(face_id).map(|face| {
-                    Point3::from_vec(face.midpoint(fabric))
-                })
+            Target::AroundFaces(face_set) => {
+                let midpoints = face_set
+                    .iter()
+                    .flat_map(|face_id|
+                        fabric.faces.
+                            get(face_id)
+                            .map(|face| face.midpoint(fabric)));
+                let count = midpoints.clone().count();
+                (count > 0).then_some(
+                    Point3::from_vec(midpoints.sum::<Vector3<f32>>() / (count as f32))
+                )
             }
-        }
-    }
-
-    pub fn up(&self, fabric: &Fabric) -> Vector3<f32> {
-        match self {
-            Target::FabricMidpoint | Target::Origin => Vector3::unit_y(),
-            Target::SelectedFace(face_id) =>
-                fabric.faces
-                    .get(face_id)
-                    .map(|face| face.normal(fabric))
-                    .unwrap_or(Vector3::unit_y()),
-        }
-    }
-
-    pub fn ideal_camera_distance(&self, fabric: &Fabric) -> Option<f32> {
-        self.selected_face(fabric).map(|(_, face)| face.scale * 10.0)
-    }
-
-    pub fn allow_vertical_rotation(&self) -> bool {
-        self.selected_face_id().is_some()
-    }
-
-    pub fn selected_face<'a>(&self, fabric: &'a Fabric) -> Option<(UniqueId, &'a Face)> {
-        let face_id = self.selected_face_id()?;
-        fabric.faces.get(&face_id).map(|face| (face_id, face))
-    }
-
-    pub fn selected_face_id(&self) -> Option<UniqueId> {
-        match self {
-            Target::Origin | Target::FabricMidpoint => None,
-            Target::SelectedFace(face_id) => Some(*face_id)
         }
     }
 }

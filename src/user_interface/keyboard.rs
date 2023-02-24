@@ -39,6 +39,8 @@ impl Component for Keyboard {
             KeyboardMessage::SubmitLastAction(action) => {
                 if self.current.len() > 1 {
                     self.current.pop();
+                } else {
+                    self.current = vec![Menu::select(MenuChoice::Root)];
                 }
                 return Some(action);
             }
@@ -68,11 +70,11 @@ impl Component for Keyboard {
                             None => KeyboardMessage::SelectSubmenu(item.clone()),
                             Some(action) => {
                                 if item.last_action {
-                                   KeyboardMessage::SubmitLastAction(action.clone())
+                                    KeyboardMessage::SubmitLastAction(action.clone())
                                 } else {
                                     KeyboardMessage::SubmitAction(action.clone())
                                 }
-                            },
+                            }
                         }.into()
                     )
             );
@@ -117,8 +119,12 @@ impl Keyboard {
                     return None;
                 }
                 if action.is_some() {
-                    if *last_action && current.len() > 1 {
-                        current.pop();
+                    if *last_action {
+                        if current.len() > 1 {
+                            current.pop();
+                        } else {
+                            current = vec![Menu::select(MenuChoice::Root)];
+                        }
                     }
                     return action.clone();
                 }

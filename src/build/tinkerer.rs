@@ -8,15 +8,13 @@ use crate::user_interface::Action;
 
 #[derive(Clone, PartialEq)]
 enum Stage {
-    Start,
     Navigating,
     ReifyBrick,
     PendingFaceJoin,
-    JoinFaces,
+    Connect,
     Approaching,
     Reverting,
     Settling,
-    Finished,
 }
 
 #[derive(Clone, Debug)]
@@ -26,27 +24,19 @@ pub struct BrickOnFace {
     pub face_rotation: FaceRotation,
 }
 
-#[derive(Clone, Debug)]
-pub struct Frozen {
-    pub fabric: Fabric,
-    pub selected_face: UniqueId,
-}
-
 pub struct Tinkerer {
     stage: Stage,
     proposed_brick: Option<BrickOnFace>,
-    holding_face: Option<UniqueId>,
     proposed_connect: Option<(UniqueId, UniqueId)>,
     physics: Physics,
-    history: Vec<Frozen>,
+    history: Vec<Fabric>,
 }
 
 impl Default for Tinkerer {
     fn default() -> Self {
         Self {
-            stage: Start,
+            stage: Navigating,
             proposed_brick: None,
-            holding_face: None,
             proposed_connect: None,
             physics: LIQUID,
             history: Vec::default(),
@@ -58,14 +48,13 @@ impl Tinkerer {
     pub fn iterate(&mut self, fabric: &mut Fabric) -> Option<Action> {
         let mut action = None;
         self.stage = match &mut self.stage {
-            Start => Navigating,
             Navigating => {
                 fabric.iterate(&self.physics);
                 Navigating
             }
             ReifyBrick => {
                 if let Some(BrickOnFace { alias, face_id, face_rotation }) = &self.proposed_brick {
-                    self.history.push(Frozen { fabric: fabric.clone(), selected_face: *face_id });
+                    self.history.push(fabric.clone());
                     let (base_face_id, _) = fabric
                         .create_brick(alias, *face_rotation, 1.0, Some(*face_id));
                     self.proposed_connect = Some((base_face_id, *face_id));
@@ -75,20 +64,20 @@ impl Tinkerer {
                 }
             }
             PendingFaceJoin => PendingFaceJoin,
-            JoinFaces => {
+            Connect => {
                 if let Some(pair) = self.proposed_connect {
                     fabric.join_faces(pair.0, pair.1);
                     fabric.progress.start(1000);
                     self.proposed_brick = None;
-                    action = Some(Action::SelectFace(fabric.newest_face_id()));
+                    action = Some(Action::SelectFace(None));
                 }
                 self.proposed_connect = None;
                 Navigating
             }
             Reverting => {
-                if let Some(frozen) = self.history.pop() {
+                if let Some(fabric) = self.history.pop() {
                     let brick_on_face = self.proposed_brick.take();
-                    action = Some(Action::RevertToFrozen { frozen, brick_on_face })
+                    action = Some(Action::RevertToFrozen { fabric, brick_on_face })
                 };
                 Navigating
             }
@@ -109,20 +98,13 @@ impl Tinkerer {
                     Navigating
                 }
             }
-            Finished => Finished
         };
         action
     }
 
-    pub fn hold_face(&mut self, face_id: UniqueId) {
-        if let Some(holding_face) = self.holding_face {
-            if holding_face != face_id {
-                self.proposed_connect = Some((holding_face, face_id));
-            }
-            self.holding_face = None;
-        } else {
-            self.holding_face = Some(face_id);
-        }
+    pub fn join_faces(&mut self, a: UniqueId, b: UniqueId) {
+        self.proposed_connect = Some((a, b));
+        self.connect();
     }
 
     pub fn propose_brick(&mut self, brick_on_face: BrickOnFace) {
@@ -135,15 +117,11 @@ impl Tinkerer {
         };
     }
 
-    pub fn join_faces(&mut self) {
-        self.stage = JoinFaces;
+    pub fn connect(&mut self) {
+        self.stage = Connect;
     }
 
     pub fn revert(&mut self) {
         self.stage = Reverting;
-    }
-
-    pub fn is_done(&self) -> bool {
-        self.stage == Finished
     }
 }
