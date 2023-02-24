@@ -8,7 +8,7 @@ name =
 shape =
     { "(" ~ "shape" ~ shape_operation* ~ ")" }
 basic_shape_operation =
-    { space | join | vulcanize | remove_shapers | replace_faces | set_viscosity }
+    { space | join | vulcanize | remove_shapers | replace_faces | set_viscosity | bouncy }
 shape_operation =
     { basic_shape_operation | countdown_block }
 countdown_block = // iteration-count
@@ -23,6 +23,8 @@ set_viscosity =
     { "(" ~ "set-viscosity" ~ float ~ ")" }
 vulcanize =
     { "(" ~ "vulcanize" ~ ")" }
+bouncy =
+    { "(" ~ "bouncy" ~ ")" }
 replace_faces =
     { "(" ~ "replace-faces" ~ ")" }
 build =

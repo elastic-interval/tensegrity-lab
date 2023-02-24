@@ -7,6 +7,7 @@ use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::build::tinkerer::{BrickOnFace, Tinkerer};
 use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::physics::SurfaceCharacter;
 use crate::fabric::pretenser::Pretenser;
 use crate::scene::{SceneAction, SceneVariant};
 use crate::user_interface::{Action, MenuChoice};
@@ -19,7 +20,7 @@ enum Stage {
     RunningPlan(PlanRunner),
     TinkeringLaunch,
     Tinkering(Tinkerer),
-    PretensingLaunch,
+    PretensingLaunch(SurfaceCharacter),
     Pretensing(Pretenser),
     BakingBrick(Oven),
     Finished,
@@ -35,7 +36,7 @@ pub enum CrucibleAction {
     SetSpeed(usize),
     InitiateRevert,
     RevertTo(Fabric),
-    StartPretensing,
+    StartPretensing(SurfaceCharacter),
     StartTinkering,
 }
 
@@ -63,7 +64,7 @@ impl Crucible {
             RunningPlan(plan_runner) => {
                 if plan_runner.is_done() {
                     self.stage = if self.fabric.faces.is_empty() {
-                        PretensingLaunch
+                        PretensingLaunch(plan_runner.surface_character())
                     } else {
                         TinkeringLaunch
                     }
@@ -86,9 +87,9 @@ impl Crucible {
                     }
                 }
             }
-            PretensingLaunch => {
+            PretensingLaunch(surface_character) => {
                 actions.push(Action::Scene(SceneAction::Variant(SceneVariant::Pretensing)));
-                self.stage = Pretensing(Pretenser::new(PRETENST_FACTOR))
+                self.stage = Pretensing(Pretenser::new(PRETENST_FACTOR, *surface_character))
             }
             Pretensing(pretenser) => {
                 for _ in 0..self.iterations_per_frame {
@@ -152,8 +153,8 @@ impl Crucible {
             RevertTo(frozen) => {
                 self.fabric = frozen;
             }
-            StartPretensing => {
-                self.stage = PretensingLaunch;
+            StartPretensing(surface_character) => {
+                self.stage = PretensingLaunch(surface_character);
             }
             StartTinkering => {
                 self.stage = TinkeringLaunch;
