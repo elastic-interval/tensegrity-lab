@@ -208,6 +208,7 @@ impl Fabric {
             joint.force = zero();
             joint.velocity = zero();
         }
+        self.centralize();
         self.set_altitude(1.0);
     }
 

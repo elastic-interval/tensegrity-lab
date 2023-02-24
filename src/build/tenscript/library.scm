@@ -87,6 +87,20 @@
         (countdown 80000 (vulcanize))
         (remove-shapers)
         (replace-faces)))
+  (fabric (name "Art" "Torque Island")
+    (build
+      (branch (alias Torque)
+        (face (alias Left:Front:Bottom)
+          (branch (alias Torque) (rotate) (rotate)
+            (face (alias Far:Side) (mark :loose))))
+        (face (alias Right:Front:Bottom)
+          (branch (alias Torque) (rotate) (rotate)
+            (face (alias Far:Side)
+              (branch (alias Torque)
+                (face (alias Far:Side) (mark :loose))))))))
+    (shape
+      (join :loose)
+      (replace-faces)))
   (brick ; single-right
     (proto
       (alias Single)
