@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 use std::f32::consts::PI;
 
-use cgmath::{Deg, EuclideanSpace, InnerSpace, Matrix4, perspective, Point3, point3, Rad, SquareMatrix, Transform, vec3, Vector3};
+use cgmath::{Deg, EuclideanSpace, InnerSpace, Matrix4, perspective, Point3, point3, Quaternion, Rad, Rotation, Rotation3, SquareMatrix, Transform, vec3, Vector3};
+use cgmath::num_traits::abs;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
 use winit::event::{ElementState, MouseScrollDelta, WindowEvent};
 
@@ -70,6 +71,15 @@ impl Camera {
             return;
         };
         self.look_at += (look_at - self.look_at) * TARGET_ATTRACTION;
+        let gaze = (self.look_at - self.position).normalize();
+        let up_dot_gaze = Vector3::unit_y().dot(gaze);
+        if !(-0.9..=0.9).contains(&up_dot_gaze) {
+            let axis = Vector3::unit_y().cross(gaze).normalize();
+            self.position = Point3::from_vec(
+                Quaternion::from_axis_angle(axis,Rad(0.01 * up_dot_gaze / abs(up_dot_gaze)))
+                    .rotate_vector(self.position.to_vec())
+            );
+        }
     }
 
     pub fn set_size(&mut self, size: PhysicalSize<f64>) {
