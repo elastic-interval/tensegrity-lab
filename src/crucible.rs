@@ -1,9 +1,10 @@
+use std::collections::HashSet;
 use CrucibleAction::{*};
 
 use crate::build::oven::Oven;
 use crate::build::tenscript::FabricPlan;
 use crate::build::tenscript::plan_runner::PlanRunner;
-use crate::build::tinkerer::{BrickOnFace, Frozen, Tinkerer};
+use crate::build::tinkerer::{BrickOnFace, Tinkerer};
 use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::pretenser::Pretenser;
@@ -16,7 +17,9 @@ const PRETENST_FACTOR: f32 = 1.03;
 enum Stage {
     Empty,
     RunningPlan(PlanRunner),
+    TinkeringLaunch,
     Tinkering(Tinkerer),
+    PretensingLaunch,
     Pretensing(Pretenser),
     BakingBrick(Oven),
     Finished,
@@ -27,11 +30,13 @@ pub enum CrucibleAction {
     BakeBrick(usize),
     BuildFabric(FabricPlan),
     ProposeBrick(BrickOnFace),
-    JoinFace(UniqueId),
     ConnectBrick,
+    JoinFaces(HashSet<UniqueId>),
     SetSpeed(usize),
     InitiateRevert,
-    RevertTo(Frozen),
+    RevertTo(Fabric),
+    StartPretensing,
+    StartTinkering,
 }
 
 pub struct Crucible {
@@ -51,7 +56,7 @@ impl Default for Crucible {
 }
 
 impl Crucible {
-    pub fn iterate(&mut self) -> Vec<Action> {
+    pub fn iterate(&mut self, paused: bool) -> Vec<Action> {
         let mut actions = Vec::new();
         match &mut self.stage {
             Empty => {}
@@ -60,26 +65,29 @@ impl Crucible {
                     plan_runner.iterate(&mut self.fabric);
                 }
                 if plan_runner.is_done() {
-                    self.stage =
-                        if self.fabric.faces.is_empty() {
-                            actions.push(Action::Scene(SceneAction::Variant(SceneVariant::Pretensing)));
-                            Pretensing(Pretenser::new(PRETENST_FACTOR))
-                        } else {
-                            actions.push(Action::Keyboard(MenuChoice::Tinker));
-                            actions.push(Action::SelectFace(self.fabric.newest_face_id()));
-                            Tinkering(Tinkerer::default())
-                        }
+                    self.stage = if self.fabric.faces.is_empty() {
+                        PretensingLaunch
+                    } else {
+                        TinkeringLaunch
+                    }
                 }
             }
+            TinkeringLaunch => {
+                actions.push(Action::Keyboard(MenuChoice::Tinker));
+                actions.push(Action::SelectFace(None));
+                self.stage = Tinkering(Tinkerer::default())
+            }
             Tinkering(tinkerer) => {
-                for _ in 0..self.iterations_per_frame {
+                let iterations = if paused { 1 } else { self.iterations_per_frame };
+                for _ in 0..iterations {
                     if let Some(tinker_action) = tinkerer.iterate(&mut self.fabric) {
                         actions.push(tinker_action);
                     }
                 }
-                if tinkerer.is_done() {
-                    self.stage = Finished;
-                }
+            }
+            PretensingLaunch => {
+                actions.push(Action::Scene(SceneAction::Variant(SceneVariant::Pretensing)));
+                self.stage = Pretensing(Pretenser::new(PRETENST_FACTOR))
             }
             Pretensing(pretenser) => {
                 for _ in 0..self.iterations_per_frame {
@@ -121,7 +129,15 @@ impl Crucible {
                 let Tinkering(tinkerer) = &mut self.stage else {
                     panic!("cannot add brick unless tinkering");
                 };
-                tinkerer.join_faces();
+                tinkerer.connect();
+            }
+            JoinFaces(face_set) => {
+                let Tinkering(tinkerer) = &mut self.stage else {
+                    panic!("cannot add brick unless tinkering");
+                };
+                if let Ok([a, b]) = face_set.into_iter().next_chunk() {
+                    tinkerer.join_faces(a, b);
+                }
             }
             SetSpeed(iterations_per_frame) => {
                 self.iterations_per_frame = iterations_per_frame;
@@ -133,13 +149,13 @@ impl Crucible {
                 tinkerer.revert();
             }
             RevertTo(frozen) => {
-                self.fabric = frozen.fabric;
+                self.fabric = frozen;
             }
-            JoinFace(face_id) => {
-                let Tinkering(tinkerer) = &mut self.stage else {
-                    panic!("cannot revert unless tinkering");
-                };
-                tinkerer.hold_face(face_id);
+            StartPretensing => {
+                self.stage = PretensingLaunch;
+            }
+            StartTinkering => {
+                self.stage = TinkeringLaunch;
             }
         }
     }

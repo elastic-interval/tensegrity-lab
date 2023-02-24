@@ -8,7 +8,7 @@ use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
 use crate::crucible::CrucibleAction;
 use crate::fabric::face::FaceRotation;
 use crate::scene::SceneAction;
-use crate::user_interface::{Action, FaceChoice, MenuChoice};
+use crate::user_interface::{Action, MenuChoice};
 use crate::user_interface::control_state::VisibleControl;
 
 #[derive(Debug, Clone)]
@@ -101,6 +101,7 @@ impl Menu {
     fn root_menu() -> Menu {
         Menu::submenu("Tensegrity Lab", vec![
             Menu::submenu("Fabric", Menu::fabric_menu(&Library::standard().fabrics, Vec::new())),
+            Menu::action("Tinker", Action::Crucible(CrucibleAction::StartTinkering)),
             Menu::submenu("Speed", Menu::speed_menu()),
             Menu::submenu("Camera", vec![
                 Menu::action("Midpoint", Action::Scene(SceneAction::WatchMidpoint)),
@@ -112,7 +113,6 @@ impl Menu {
                 Menu::action("Clear", Action::ShowControl(VisibleControl::Nothing)),
             ]),
             Menu::submenu("Etc", vec![
-                Menu::action("Tinker", Action::StartTinkering),
                 Menu::action("Debug toggle", Action::ToggleDebug),
             ]),
         ])
@@ -120,12 +120,8 @@ impl Menu {
 
     fn tinker_menu() -> Menu {
         Menu::submenu("Tinker", vec![
-            Menu::submenu("Step", vec![
-                Menu::last_action("Left", Action::SelectNextFace(FaceChoice::Left)),
-                Menu::last_action("Right", Action::SelectNextFace(FaceChoice::Right)),
-            ]),
-            Menu::action("Join", Action::JoinFace),
-            Menu::action("Connect", Action::ConnectBrick),
+            Menu::action("Connect", Action::Connect),
+            Menu::action("Join", Action::JoinFaces),
             Menu::action("Revert", Action::Revert),
             Menu::submenu("Add", vec![
                 Menu::action("Single", Action::ProposeBrick { alias: FaceAlias::single("Single"), face_rotation: FaceRotation::Zero }),
@@ -133,10 +129,10 @@ impl Menu {
                 Menu::action("Torque", Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::Zero }),
                 Menu::action("Torque120", Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::OneThird }),
                 Menu::action("Torque240", Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::TwoThirds }),
-                Menu::last_action("Connect", Action::ConnectBrick),
+                Menu::last_action("Connect", Action::Connect),
                 Menu::last_action("Revert", Action::Revert),
             ]),
-            Menu::action("Finished", Action::SelectFace(None)),
+            Menu::last_action("Pretense", Action::Crucible(CrucibleAction::StartPretensing)),
         ])
     }
 }

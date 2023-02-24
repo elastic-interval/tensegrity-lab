@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::HashSet;
 
 use iced_wgpu::Renderer;
 use iced_winit::{Alignment, Color, Command, Element, Length, Program};
@@ -9,7 +10,7 @@ use instant::Instant;
 
 use crate::fabric::{Fabric, UniqueId};
 use crate::scene::SceneVariant;
-use crate::scene::SceneVariant::{Suspended, TinkeringOnFace};
+use crate::scene::SceneVariant::{Suspended, TinkeringOnFaces};
 use crate::user_interface::{Action, ControlMessage};
 use crate::user_interface::gravity::{Gravity, GravityMessage};
 use crate::user_interface::keyboard::Keyboard;
@@ -70,17 +71,16 @@ impl ControlState {
         self.show_strain
     }
 
-    pub fn scene_variant(&self, face_id: Option<UniqueId>) -> SceneVariant {
+    pub fn scene_variant(&self, face_set: HashSet<UniqueId>) -> SceneVariant {
         if self.show_strain {
             SceneVariant::ShowingStrain {
                 threshold: self.strain_threshold.strain_threshold(),
                 material: Fabric::BOW_TIE_MATERIAL_INDEX,
             }
+        } else if face_set.is_empty() {
+            Suspended
         } else {
-            match face_id {
-                None => Suspended,
-                Some(face_id) => TinkeringOnFace(face_id),
-            }
+            TinkeringOnFaces(face_set)
         }
     }
 
