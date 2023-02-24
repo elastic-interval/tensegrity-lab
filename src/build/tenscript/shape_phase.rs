@@ -180,6 +180,7 @@ impl ShapePhase {
                 StartCountdown(DEFAULT_VULCANIZE_COUNTDOWN)
             }
             ShapeOperation::ReplaceFaces => {
+                self.complete_all_shapers(fabric);
                 for face_id in fabric.replace_faces() {
                     fabric.remove_face(face_id);
                 }
@@ -191,10 +192,10 @@ impl ShapePhase {
     }
 
     fn complete_shaper(&self, fabric: &mut Fabric, Shaper { interval, alpha_face, omega_face, join, .. }: Shaper) {
+        fabric.remove_interval(interval);
         if join {
             fabric.join_faces(alpha_face, omega_face);
         }
-        fabric.remove_interval(interval);
     }
 
     fn marked_faces(&self, mark_name: &String) -> Vec<UniqueId> {

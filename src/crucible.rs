@@ -61,14 +61,15 @@ impl Crucible {
         match &mut self.stage {
             Empty => {}
             RunningPlan(plan_runner) => {
-                for _ in 0..self.iterations_per_frame {
-                    plan_runner.iterate(&mut self.fabric);
-                }
                 if plan_runner.is_done() {
                     self.stage = if self.fabric.faces.is_empty() {
                         PretensingLaunch
                     } else {
                         TinkeringLaunch
+                    }
+                } else {
+                    for _ in 0..self.iterations_per_frame {
+                        plan_runner.iterate(&mut self.fabric);
                     }
                 }
             }
