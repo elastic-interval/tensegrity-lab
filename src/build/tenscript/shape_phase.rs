@@ -13,6 +13,7 @@ pub enum ShapeCommand {
     Noop,
     StartCountdown(usize),
     SetViscosity(f32),
+    Bouncy,
     Terminate,
 }
 
@@ -25,6 +26,7 @@ pub enum ShapeOperation {
     Vulcanize,
     ReplaceFaces,
     SetViscosity { viscosity: f32 },
+    Bouncy,
 }
 
 impl ShapeOperation {
@@ -100,6 +102,9 @@ impl ShapePhase {
             Rule::set_viscosity => {
                 let viscosity = TenscriptError::parse_float_inside(pair, "viscosity")?;
                 Ok(ShapeOperation::SetViscosity { viscosity })
+            }
+            Rule::bouncy => {
+                Ok(ShapeOperation::Bouncy)
             }
             _ => unreachable!("shape phase: {pair}")
         }
@@ -186,8 +191,8 @@ impl ShapePhase {
                 }
                 Noop
             }
-            ShapeOperation::SetViscosity { viscosity } =>
-                SetViscosity(viscosity),
+            ShapeOperation::SetViscosity { viscosity } => SetViscosity(viscosity),
+            ShapeOperation::Bouncy => Bouncy,
         }
     }
 

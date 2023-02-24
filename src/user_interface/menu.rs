@@ -7,6 +7,7 @@ use winit::event::VirtualKeyCode::{*};
 use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
 use crate::crucible::CrucibleAction;
 use crate::fabric::face::FaceRotation;
+use crate::fabric::physics::SurfaceCharacter;
 use crate::scene::SceneAction;
 use crate::user_interface::{Action, MenuChoice};
 use crate::user_interface::control_state::VisibleControl;
@@ -132,7 +133,8 @@ impl Menu {
                 Menu::last_action("Connect", Action::Connect),
                 Menu::last_action("Revert", Action::Revert),
             ]),
-            Menu::last_action("Pretense", Action::Crucible(CrucibleAction::StartPretensing)),
+            Menu::last_action("Frozen", Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Frozen))),
+            Menu::last_action("Bouncy", Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Bouncy))),
         ])
     }
 }
