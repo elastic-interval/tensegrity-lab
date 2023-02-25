@@ -234,7 +234,7 @@ impl BuildPhase {
                 let launch_face = Self::find_launch_face(&launch, &faces, fabric);
                 let (base_face_id, brick_faces) = 
                     fabric.create_brick(alias, rotation.into(), 1.0, launch_face);
-                launch_face.map(|face_id|fabric.join_faces(base_face_id, face_id));
+                launch_face.map(|face_id| fabric.join_faces(base_face_id, face_id));
                 for (branch_face_alias, branch_node) in Self::branch_pairs(face_nodes) {
                     let (new_buds, new_marks) =
                         Self::execute_node(fabric, NamedFace { face_alias: branch_face_alias }, branch_node, brick_faces.clone());
