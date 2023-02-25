@@ -1,14 +1,15 @@
+use std::collections::HashSet;
 use std::f32::consts::PI;
 use std::mem;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use cgmath::{EuclideanSpace, InnerSpace};
 use iced_wgpu::wgpu;
 use wgpu::{CommandEncoder, TextureView};
 use wgpu::util::DeviceExt;
+use winit::dpi::PhysicalSize;
 use winit::event::*;
-use SceneVariant::{*};
 
+use SceneVariant::{*};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
@@ -19,7 +20,6 @@ use crate::fabric::face::Face;
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push};
 use crate::graphics::{GraphicsWindow, line_list_primitive_state, triangle_list_primitive_state};
-use crate::user_interface::FaceChoice;
 
 const MAX_INTERVALS: usize = 5000;
 
@@ -40,7 +40,7 @@ pub enum SceneAction {
 pub enum SceneVariant {
     Suspended,
     Pretensing,
-    TinkeringOnFace(UniqueId),
+    TinkeringOnFaces(HashSet<UniqueId>),
     ShowingStrain { threshold: f32, material: usize },
 }
 
@@ -57,8 +57,8 @@ impl Scene {
     pub fn new(graphics: &GraphicsWindow) -> Self {
         let shader = graphics.get_shader_module();
         let scale = 6.0;
-        let aspect = graphics.config.width as f32 / graphics.config.height as f32;
-        let camera = Camera::new((2.0 * scale, 1.0 * scale, 2.0 * scale).into(), aspect);
+        let size = PhysicalSize { width: graphics.config.width as f64, height: graphics.config.height as f64 };
+        let camera = Camera::new((2.0 * scale, 1.0 * scale, 2.0 * scale).into(), size);
         let uniform_buffer = graphics.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("MVP"),
             contents: cast_slice(&[0.0f32; 16]),
@@ -175,19 +175,13 @@ impl Scene {
         render_pass.set_vertex_buffer(0, self.fabric_drawing.buffer.slice(..));
         render_pass.draw(0..self.fabric_drawing.vertices.len() as u32, 0..1);
 
-        let show_surface = match self.variant {
-            Suspended | TinkeringOnFace(_) => false,
-            Pretensing | ShowingStrain { .. } => true,
-        };
-        if show_surface {
-            render_pass.set_pipeline(&self.surface_drawing.pipeline);
-            render_pass.set_vertex_buffer(0, self.surface_drawing.buffer.slice(..));
-            render_pass.draw(0..self.surface_drawing.vertices.len() as u32, 0..1);
-        }
+        render_pass.set_pipeline(&self.surface_drawing.pipeline);
+        render_pass.set_vertex_buffer(0, self.surface_drawing.buffer.slice(..));
+        render_pass.draw(0..self.surface_drawing.vertices.len() as u32, 0..1);
     }
 
-    pub fn window_event(&mut self, event: &WindowEvent) {
-        self.camera.window_event(event);
+    pub fn window_event(&mut self, event: &WindowEvent, fabric: &Fabric) {
+        self.camera.window_event(event, fabric);
     }
 
     pub fn update(&mut self, graphics: &GraphicsWindow, fabric: &Fabric) {
@@ -196,15 +190,15 @@ impl Scene {
         graphics.queue.write_buffer(&self.fabric_drawing.buffer, 0, cast_slice(&self.fabric_drawing.vertices));
     }
 
+    pub fn picked(&mut self) -> Option<UniqueId> {
+        self.camera.picked.take()
+    }
+
     fn update_from_fabric(&mut self, fabric: &Fabric) {
         self.fabric_drawing.vertices.clear();
         self.fabric_drawing.vertices.extend(fabric.interval_values()
             .flat_map(|interval| FabricVertex::for_interval(interval, fabric, &self.variant)));
-        let show_faces = match self.variant {
-            Suspended | Pretensing | ShowingStrain { .. } => false,
-            TinkeringOnFace(_) => true,
-        };
-        if show_faces {
+        if matches!(self.variant, TinkeringOnFaces(_)) {
             self.fabric_drawing.vertices.extend(fabric.faces.iter()
                 .flat_map(|(face_id, face)| FabricVertex::for_face(*face_id, face, fabric, &self.variant)));
         }
@@ -213,8 +207,8 @@ impl Scene {
 
     pub fn resize(&mut self, graphics: &GraphicsWindow) {
         let new_size = graphics.size;
-        let aspect = new_size.width as f32 / new_size.height as f32;
-        self.camera.set_aspect(aspect);
+        let size = PhysicalSize { width: new_size.width as f64, height: new_size.height as f64 };
+        self.camera.set_size(size);
         self.update_from_camera(graphics);
     }
 
@@ -224,16 +218,23 @@ impl Scene {
         graphics.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));
     }
 
-    pub fn target_face_id(&self, fabric: &Fabric) -> Option<UniqueId> {
-        match self.camera.target {
-            Origin | FabricMidpoint => None,
-            SelectedFace(face_id) => fabric.faces.contains_key(&face_id).then_some(face_id),
-        }
-    }
-
     pub fn action(&mut self, scene_action: SceneAction) {
         match scene_action {
             SceneAction::Variant(variant) => {
+                match &variant {
+                    TinkeringOnFaces(face_set) => {
+                        if face_set.is_empty() {
+                            self.variant = Suspended;
+                            self.camera.target = FabricMidpoint;
+                        } else {
+                            self.variant = TinkeringOnFaces(face_set.clone());
+                            self.camera.target = AroundFaces(face_set.clone());
+                        }
+                    }
+                    _ => {
+                        self.camera.target = FabricMidpoint;
+                    }
+                }
                 self.variant = variant;
             }
             SceneAction::WatchMidpoint => {
@@ -243,59 +244,6 @@ impl Scene {
                 self.camera.target = Origin
             }
         }
-    }
-
-    pub fn select_next_face(&mut self, face_choice: FaceChoice, fabric: &Fabric) {
-        let found = match self.camera.target.selected_face(fabric) {
-            None => {
-                Some(fabric.newest_face_id())
-            }
-            Some((current_face_id, current_face)) => {
-                let current_midpoint = current_face.midpoint(fabric);
-                let current_normal = current_face.normal(fabric);
-                let to_current = (current_midpoint - self.camera.position.to_vec()).normalize();
-                let current_up = current_face.normal(fabric);
-                let rightwards = to_current.cross(current_up).normalize();
-                let mut best: Option<(UniqueId, f32)> = None;
-                for (&other_face_id, other_face) in fabric.faces.iter() {
-                    if other_face_id == current_face_id {
-                        continue;
-                    }
-                    let current_to_other = other_face.midpoint(fabric) - current_midpoint;
-                    let dot_right = rightwards.dot(current_to_other);
-                    match face_choice {
-                        FaceChoice::Left if dot_right > 0.0 => continue,
-                        FaceChoice::Right if dot_right < 0.0 => continue,
-                        _ => {}
-                    };
-                    let dot_with_other = other_face.normal(fabric).dot(current_normal);
-                    match best {
-                        None => {
-                            best = Some((other_face_id, dot_with_other))
-                        }
-                        Some((_, existing_dot_with_other)) => {
-                            if dot_with_other > existing_dot_with_other {
-                                best = Some((other_face_id, dot_with_other))
-                            }
-                        }
-                    }
-                }
-                best.map(|(face_id, _)| face_id)
-            }
-        };
-        if let Some(face_id) = found {
-            self.select_face(Some(face_id));
-            self.variant = TinkeringOnFace(face_id);
-        }
-    }
-
-    pub fn select_face(&mut self, face_id: Option<UniqueId>) {
-        let (target, variant) = match face_id {
-            None => (FabricMidpoint, Suspended),
-            Some(face_id) => (SelectedFace(face_id), TinkeringOnFace(face_id))
-        };
-        self.camera.target = target;
-        self.variant = variant;
     }
 }
 
@@ -310,7 +258,7 @@ impl FabricVertex {
     pub fn for_interval(interval: &Interval, fabric: &Fabric, variation: &SceneVariant) -> [FabricVertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
         let color = match variation {
-            Suspended |  Pretensing | TinkeringOnFace(_) => {
+            Suspended | Pretensing | TinkeringOnFaces(_) => {
                 match fabric.materials[interval.material].role {
                     Push => [1.0, 1.0, 1.0, 1.0],
                     Pull => [0.2, 0.2, 1.0, 1.0],
@@ -331,13 +279,13 @@ impl FabricVertex {
         ]
     }
 
-    pub fn for_face(face_id: UniqueId, face: &Face, fabric: &Fabric, variation: &SceneVariant) -> [FabricVertex; 2] {
+    pub fn for_face(face_id: UniqueId, face: &Face, fabric: &Fabric, variant: &SceneVariant) -> [FabricVertex; 2] {
         let (alpha, _, omega) = face.visible_points(fabric);
-        let (alpha_color, omega_color) = match variation {
+        let (alpha_color, omega_color) = match variant {
             Pretensing | Suspended | ShowingStrain { .. } => {
                 unreachable!()
             }
-            TinkeringOnFace(selected_face) if *selected_face == face_id => {
+            TinkeringOnFaces(selected_faces) if selected_faces.contains(&face_id) => {
                 ([0.0, 1.0, 0.0, 1.0], [0.0, 1.0, 0.0, 1.0])
             }
             _ =>

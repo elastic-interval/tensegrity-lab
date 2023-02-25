@@ -15,7 +15,7 @@
     (name "Simple" "Flagellum")
     (build
       (branch (alias Single)
-        (face (alias :next-base) (grow 20 (scale .9)))))
+        (face (alias :next-base) (grow 3))))
     (shape
       (vulcanize)
       (replace-faces)))
@@ -40,11 +40,11 @@
         (face (alias Left:Front:Bottom)
           (branch (alias Torque)
             (face (alias Far:Front)
-              (grow 3))))
+              (grow 5))))
         (face (alias Left:Back:Bottom)
           (branch
             (alias Torque)
-            (face (alias Far:Front) (grow 3))))
+            (face (alias Far:Front) (grow 5))))
         (face (alias Right:Front:Bottom)
           (grow 2
             (branch (alias Torque)
@@ -87,6 +87,21 @@
         (countdown 80000 (vulcanize))
         (remove-shapers)
         (replace-faces)))
+  (fabric (name "Art" "Torque Island")
+    (build
+      (branch (alias Torque)
+        (face (alias Left:Front:Bottom)
+          (branch (alias Torque) (rotate) (rotate)
+            (face (alias Far:Side) (mark :loose))))
+        (face (alias Right:Front:Bottom)
+          (branch (alias Torque) (rotate) (rotate)
+            (face (alias Far:Side)
+              (branch (alias Torque)
+                (face (alias Far:Side) (mark :loose))))))))
+    (shape
+      (join :loose)
+      (replace-faces)
+      (bouncy)))
   (brick ; single-right
     (proto
       (alias Single)

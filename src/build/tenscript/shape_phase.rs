@@ -13,6 +13,7 @@ pub enum ShapeCommand {
     Noop,
     StartCountdown(usize),
     SetViscosity(f32),
+    Bouncy,
     Terminate,
 }
 
@@ -25,6 +26,7 @@ pub enum ShapeOperation {
     Vulcanize,
     ReplaceFaces,
     SetViscosity { viscosity: f32 },
+    Bouncy,
 }
 
 impl ShapeOperation {
@@ -100,6 +102,9 @@ impl ShapePhase {
             Rule::set_viscosity => {
                 let viscosity = TenscriptError::parse_float_inside(pair, "viscosity")?;
                 Ok(ShapeOperation::SetViscosity { viscosity })
+            }
+            Rule::bouncy => {
+                Ok(ShapeOperation::Bouncy)
             }
             _ => unreachable!("shape phase: {pair}")
         }
@@ -180,21 +185,22 @@ impl ShapePhase {
                 StartCountdown(DEFAULT_VULCANIZE_COUNTDOWN)
             }
             ShapeOperation::ReplaceFaces => {
+                self.complete_all_shapers(fabric);
                 for face_id in fabric.replace_faces() {
                     fabric.remove_face(face_id);
                 }
                 Noop
             }
-            ShapeOperation::SetViscosity { viscosity } =>
-                SetViscosity(viscosity),
+            ShapeOperation::SetViscosity { viscosity } => SetViscosity(viscosity),
+            ShapeOperation::Bouncy => Bouncy,
         }
     }
 
     fn complete_shaper(&self, fabric: &mut Fabric, Shaper { interval, alpha_face, omega_face, join, .. }: Shaper) {
+        fabric.remove_interval(interval);
         if join {
             fabric.join_faces(alpha_face, omega_face);
         }
-        fabric.remove_interval(interval);
     }
 
     fn marked_faces(&self, mark_name: &String) -> Vec<UniqueId> {
