@@ -121,34 +121,14 @@ impl Crucible {
                 self.fabric = Fabric::default_bow_tie();
                 self.stage = RunningPlan(PlanRunner::new(fabric_plan));
             }
-            ProposeBrick(brick_on_face) => {
+            ProposeBrick(_) | ConnectBrick | JoinFaces(_) | InitiateRevert => {
                 let Tinkering(tinkerer) = &mut self.stage else {
-                    panic!("cannot add brick unless tinkering");
+                    panic!("must be tinkering");
                 };
-                tinkerer.propose_brick(brick_on_face);
-            }
-            ConnectBrick => {
-                let Tinkering(tinkerer) = &mut self.stage else {
-                    panic!("cannot add brick unless tinkering");
-                };
-                tinkerer.connect();
-            }
-            JoinFaces(face_set) => {
-                let Tinkering(tinkerer) = &mut self.stage else {
-                    panic!("cannot add brick unless tinkering");
-                };
-                if let Ok([a, b]) = face_set.into_iter().next_chunk() {
-                    tinkerer.join_faces(a, b);
-                }
+                tinkerer.action(crucible_action);
             }
             SetSpeed(iterations_per_frame) => {
                 self.iterations_per_frame = iterations_per_frame;
-            }
-            InitiateRevert => {
-                let Tinkering(tinkerer) = &mut self.stage else {
-                    panic!("cannot revert unless tinkering");
-                };
-                tinkerer.revert();
             }
             RevertTo(frozen) => {
                 self.fabric = frozen;

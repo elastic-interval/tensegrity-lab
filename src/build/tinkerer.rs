@@ -1,5 +1,7 @@
 use crate::build::tenscript::FaceAlias;
 use crate::build::tinkerer::Stage::{*};
+use crate::crucible::CrucibleAction;
+use crate::crucible::CrucibleAction::{*};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::FaceRotation;
 use crate::fabric::physics::Physics;
@@ -123,5 +125,25 @@ impl Tinkerer {
 
     pub fn revert(&mut self) {
         self.stage = Reverting;
+    }
+
+    pub fn action(&mut self, crucible_action: CrucibleAction) {
+        match crucible_action {
+            ProposeBrick(brick_on_face) => {
+                self.propose_brick(brick_on_face);
+            }
+            ConnectBrick => {
+                self.connect();
+            }
+            JoinFaces(face_set) => {
+                if let Ok([a, b]) = face_set.into_iter().next_chunk() {
+                    self.join_faces(a, b);
+                }
+            }
+            InitiateRevert => {
+                self.revert();
+            }
+            _ => {}
+        }
     }
 }
