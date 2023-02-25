@@ -1,5 +1,5 @@
 use crate::fabric::Fabric;
-use crate::fabric::physics::Physics;
+use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::fabric::pretenser::Stage::{*};
 
@@ -21,13 +21,17 @@ pub struct Pretenser {
 }
 
 impl Pretenser {
-    pub fn new(pretenst_factor: f32) -> Self {
+    pub fn new(pretenst_factor: f32, surface_character: SurfaceCharacter) -> Self {
+        let physics = Physics {
+            surface_character,
+            ..AIR_GRAVITY
+        };
         Self {
             stage: Start,
             pretenst_factor,
             pretensing_countdown: 20000,
             speed_threshold: 1e-6,
-            physics: AIR_GRAVITY,
+            physics,
         }
     }
 

@@ -27,7 +27,7 @@ pub mod pretenser;
 pub mod progress;
 pub mod vulcanize;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Fabric {
     pub age: u64,
     pub progress: Progress,
@@ -119,10 +119,6 @@ impl Fabric {
         self.faces.get(&id).unwrap_or_else(|| panic!("face not found {id:?}"))
     }
 
-    pub fn newest_face_id(&self) -> UniqueId {
-        *self.faces.keys().into_iter().max().unwrap()
-    }
-
     pub fn remove_face(&mut self, id: UniqueId) {
         let face = self.face(id);
         let middle_joint = face.middle_joint(self);
@@ -212,6 +208,7 @@ impl Fabric {
             joint.force = zero();
             joint.velocity = zero();
         }
+        self.centralize();
         self.set_altitude(1.0);
     }
 

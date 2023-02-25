@@ -198,14 +198,9 @@ impl BuildPhase {
         let spin = if forward.starts_with('X') { face.spin.opposite() } else { face.spin };
         if !forward.is_empty() {
             let face_alias = FaceAlias::single("Single") + &spin.into_alias();
-            let faces =
-                fabric.attach_brick(
-                    &face_alias,
-                    FaceRotation::Zero,
-                    scale_factor,
-                    Some(face_id),
-                );
-            assert!(!faces.is_empty(), "no faces returned from attach brick {face_alias}");
+            let (base_face, faces) =
+                fabric.create_brick(&face_alias, FaceRotation::Zero, scale_factor, Some(face_id));
+            fabric.join_faces(base_face, face_id);
             let top_face_alias = face_alias + &FaceAlias::single(":next-base");
             buds.push(Bud {
                 face_id: top_face_alias.find_face_in(&faces, fabric).expect("face matching top face alias"),
@@ -236,8 +231,10 @@ impl BuildPhase {
                 buds.push(Bud { face_id, forward: forward.clone(), scale_factor: *scale_factor, node })
             }
             Branch { face_nodes, rotation, alias } => {
-                let attach_to = Self::find_launch_face(&launch, &faces, fabric);
-                let brick_faces = fabric.attach_brick(alias, rotation.into(), 1.0, attach_to);
+                let launch_face = Self::find_launch_face(&launch, &faces, fabric);
+                let (base_face_id, brick_faces) = 
+                    fabric.create_brick(alias, rotation.into(), 1.0, launch_face);
+                launch_face.map(|face_id| fabric.join_faces(base_face_id, face_id));
                 for (branch_face_alias, branch_node) in Self::branch_pairs(face_nodes) {
                     let (new_buds, new_marks) =
                         Self::execute_node(fabric, NamedFace { face_alias: branch_face_alias }, branch_node, brick_faces.clone());

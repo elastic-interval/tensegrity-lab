@@ -12,8 +12,11 @@ use winit::window::{CursorIcon, Window};
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
 
+use crate::build::tenscript::FaceAlias;
+use crate::build::tinkerer::BrickOnFace;
 use crate::crucible::CrucibleAction;
-use crate::fabric::UniqueId;
+use crate::fabric::face::FaceRotation;
+use crate::fabric::{Fabric, UniqueId};
 use crate::graphics::GraphicsWindow;
 use crate::scene::SceneAction;
 use crate::user_interface::control_state::{ControlState, VisibleControl};
@@ -59,12 +62,15 @@ pub enum Action {
     Keyboard(MenuChoice),
     CalibrateStrain,
     GravityChanged(f32),
-    SelectFace(UniqueId),
-    SelectNextFace(FaceChoice),
+    SelectFace(Option<UniqueId>),
     ShowControl(VisibleControl),
     StartTinkering,
     ToggleDebug,
-    AddBrick,
+    ProposeBrick { alias: FaceAlias, face_rotation: FaceRotation },
+    Connect,
+    JoinFaces,
+    Revert,
+    RevertToFrozen { fabric: Fabric, brick_on_face: Option<BrickOnFace> },
 }
 
 /// Largely adapted from https://github.com/iced-rs/iced/blob/master/examples/integration_wgpu/src/main.rs

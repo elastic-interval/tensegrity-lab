@@ -1,9 +1,13 @@
+use std::collections::HashSet;
+use CrucibleAction::{*};
+
 use crate::build::oven::Oven;
-use crate::build::tenscript::{FabricPlan, FaceAlias};
+use crate::build::tenscript::FabricPlan;
 use crate::build::tenscript::plan_runner::PlanRunner;
-use crate::build::tinkerer::Tinkerer;
+use crate::build::tinkerer::{BrickOnFace, Tinkerer};
 use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::physics::SurfaceCharacter;
 use crate::fabric::pretenser::Pretenser;
 use crate::scene::{SceneAction, SceneVariant};
 use crate::user_interface::{Action, MenuChoice};
@@ -14,7 +18,9 @@ const PRETENST_FACTOR: f32 = 1.03;
 enum Stage {
     Empty,
     RunningPlan(PlanRunner),
+    TinkeringLaunch,
     Tinkering(Tinkerer),
+    PretensingLaunch(SurfaceCharacter),
     Pretensing(Pretenser),
     BakingBrick(Oven),
     Finished,
@@ -24,13 +30,18 @@ enum Stage {
 pub enum CrucibleAction {
     BakeBrick(usize),
     BuildFabric(FabricPlan),
-    CreateBrickOnFace(UniqueId),
+    ProposeBrick(BrickOnFace),
+    ConnectBrick,
+    JoinFaces(HashSet<UniqueId>),
     SetSpeed(usize),
+    InitiateRevert,
+    RevertTo(Fabric),
+    StartPretensing(SurfaceCharacter),
+    StartTinkering,
 }
 
 pub struct Crucible {
     fabric: Fabric,
-    frozen_fabric: Option<Fabric>,
     iterations_per_frame: usize,
     stage: Stage,
 }
@@ -39,7 +50,6 @@ impl Default for Crucible {
     fn default() -> Self {
         Self {
             fabric: Fabric::default_bow_tie(),
-            frozen_fabric: None,
             iterations_per_frame: 125,
             stage: Empty,
         }
@@ -47,35 +57,39 @@ impl Default for Crucible {
 }
 
 impl Crucible {
-    pub fn iterate(&mut self) -> Vec<Action> {
+    pub fn iterate(&mut self, paused: bool) -> Vec<Action> {
         let mut actions = Vec::new();
         match &mut self.stage {
             Empty => {}
             RunningPlan(plan_runner) => {
-                for _ in 0..self.iterations_per_frame {
-                    plan_runner.iterate(&mut self.fabric);
-                }
                 if plan_runner.is_done() {
-                    self.stage =
-                        if self.fabric.faces.is_empty() {
-                            actions.push(Action::Scene(SceneAction::Variant(SceneVariant::Pretensing)));
-                            Pretensing(Pretenser::new(PRETENST_FACTOR))
-                        } else {
-                            actions.push(Action::Keyboard(MenuChoice::Tinker));
-                            actions.push(Action::SelectFace(self.fabric.newest_face_id()));
-                            Tinkering(Tinkerer::default())
-                        }
+                    self.stage = if self.fabric.faces.is_empty() {
+                        PretensingLaunch(plan_runner.surface_character())
+                    } else {
+                        TinkeringLaunch
+                    }
+                } else {
+                    for _ in 0..self.iterations_per_frame {
+                        plan_runner.iterate(&mut self.fabric);
+                    }
                 }
             }
+            TinkeringLaunch => {
+                actions.push(Action::Keyboard(MenuChoice::Tinker));
+                actions.push(Action::SelectFace(None));
+                self.stage = Tinkering(Tinkerer::default())
+            }
             Tinkering(tinkerer) => {
-                for _ in 0..self.iterations_per_frame {
+                let iterations = if paused { 1 } else { self.iterations_per_frame };
+                for _ in 0..iterations {
                     if let Some(tinker_action) = tinkerer.iterate(&mut self.fabric) {
                         actions.push(tinker_action);
                     }
                 }
-                if tinkerer.is_done() {
-                    self.stage = Finished;
-                }
+            }
+            PretensingLaunch(surface_character) => {
+                actions.push(Action::Scene(SceneAction::Variant(SceneVariant::Pretensing)));
+                self.stage = Pretensing(Pretenser::new(PRETENST_FACTOR, *surface_character))
             }
             Pretensing(pretenser) => {
                 for _ in 0..self.iterations_per_frame {
@@ -98,26 +112,32 @@ impl Crucible {
 
     pub fn action(&mut self, crucible_action: CrucibleAction) {
         match crucible_action {
-            CrucibleAction::BakeBrick(brick_index) => {
+            BakeBrick(brick_index) => {
                 let oven = Oven::new(brick_index);
                 self.fabric = oven.prototype_fabric();
                 self.stage = BakingBrick(oven);
             }
-            CrucibleAction::BuildFabric(fabric_plan) => {
+            BuildFabric(fabric_plan) => {
                 self.fabric = Fabric::default_bow_tie();
-                self.frozen_fabric = None;
                 self.stage = RunningPlan(PlanRunner::new(fabric_plan));
             }
-            CrucibleAction::CreateBrickOnFace(face_id) => {
+            ProposeBrick(_) | ConnectBrick | JoinFaces(_) | InitiateRevert => {
                 let Tinkering(tinkerer) = &mut self.stage else {
-                    panic!("cannot add brick unless tinkering");
+                    panic!("must be tinkering");
                 };
-                let spin = self.fabric.face(face_id).spin.opposite();
-                let face_alias = FaceAlias::single("Single") + &spin.into_alias();
-                tinkerer.add_brick(face_alias, face_id);
+                tinkerer.action(crucible_action);
             }
-            CrucibleAction::SetSpeed(iterations_per_frame) => {
+            SetSpeed(iterations_per_frame) => {
                 self.iterations_per_frame = iterations_per_frame;
+            }
+            RevertTo(frozen) => {
+                self.fabric = frozen;
+            }
+            StartPretensing(surface_character) => {
+                self.stage = PretensingLaunch(surface_character);
+            }
+            StartTinkering => {
+                self.stage = TinkeringLaunch;
             }
         }
     }

@@ -3,7 +3,7 @@ use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::plan_runner::Stage::{*};
 use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
 use crate::fabric::Fabric;
-use crate::fabric::physics::Physics;
+use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::fabric::physics::presets::LIQUID;
 
 #[derive(Clone, Debug, Copy, PartialEq)]
@@ -21,6 +21,7 @@ pub struct PlanRunner {
     build_phase: BuildPhase,
     shape_phase: ShapePhase,
     physics: Physics,
+    surface_character: SurfaceCharacter,
 }
 
 impl PlanRunner {
@@ -30,6 +31,7 @@ impl PlanRunner {
             build_phase,
             stage: Initialize,
             physics: LIQUID,
+            surface_character: SurfaceCharacter::Frozen
         }
     }
 
@@ -68,6 +70,10 @@ impl PlanRunner {
                         self.physics.viscosity = viscosity;
                         (Shaping, 0)
                     }
+                    ShapeCommand::Bouncy => {
+                        self.surface_character = SurfaceCharacter::Bouncy;
+                        (Shaping, 0)
+                    }
                     ShapeCommand::Terminate =>
                         (Completed, 0)
                 }
@@ -80,5 +86,9 @@ impl PlanRunner {
 
     pub fn is_done(&self) -> bool {
         self.stage == Completed
+    }
+
+    pub fn surface_character(&self) -> SurfaceCharacter {
+        self.surface_character
     }
 }
