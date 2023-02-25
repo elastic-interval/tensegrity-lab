@@ -159,8 +159,8 @@ impl Target {
                 let midpoints = face_set
                     .iter()
                     .flat_map(|face_id|
-                        fabric.faces.
-                            get(face_id)
+                        fabric.faces
+                            .get(face_id)
                             .map(|face| face.midpoint(fabric)));
                 let count = midpoints.clone().count();
                 (count > 0).then_some(
