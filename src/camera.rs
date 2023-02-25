@@ -158,7 +158,7 @@ impl Target {
             Target::AroundFaces(face_set) => {
                 let midpoints = face_set
                     .iter()
-                    .flat_map(|face_id|
+                    .filter_map(|face_id|
                         fabric.faces
                             .get(face_id)
                             .map(|face| face.midpoint(fabric)));
