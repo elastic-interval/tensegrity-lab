@@ -65,8 +65,8 @@ impl Tinkerer {
             }
             PendingFaceJoin => PendingFaceJoin,
             Connect => {
-                if let Some(pair) = self.proposed_connect {
-                    fabric.join_faces(pair.0, pair.1);
+                if let Some((alpha, omega)) = self.proposed_connect {
+                    fabric.join_faces(alpha, omega);
                     fabric.progress.start(1000);
                     self.proposed_brick = None;
                     action = Some(Action::SelectFace(None));
