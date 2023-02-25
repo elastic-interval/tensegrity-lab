@@ -22,8 +22,10 @@ pub struct Pretenser {
 
 impl Pretenser {
     pub fn new(pretenst_factor: f32, surface_character: SurfaceCharacter) -> Self {
-        let mut physics = AIR_GRAVITY;
-        physics.surface_character = surface_character;
+        let physics = Physics {
+            surface_character,
+            ..AIR_GRAVITY
+        };
         Self {
             stage: Start,
             pretenst_factor,
