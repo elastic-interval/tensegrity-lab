@@ -27,17 +27,22 @@ enum Stage {
 }
 
 #[derive(Debug, Clone)]
+pub enum TinkererAction {
+    Propose(BrickOnFace),
+    Commit,
+    JoinIfPair(HashSet<UniqueId>),
+    InitiateRevert,
+}
+
+#[derive(Debug, Clone)]
 pub enum CrucibleAction {
     BakeBrick(usize),
     BuildFabric(FabricPlan),
-    ProposeBrick(BrickOnFace),
-    ConnectBrick,
-    JoinFaces(HashSet<UniqueId>),
     SetSpeed(usize),
-    InitiateRevert,
     RevertTo(Fabric),
     StartPretensing(SurfaceCharacter),
     StartTinkering,
+    Tinkerer(TinkererAction)
 }
 
 pub struct Crucible {
@@ -121,11 +126,11 @@ impl Crucible {
                 self.fabric = Fabric::default_bow_tie();
                 self.stage = RunningPlan(PlanRunner::new(fabric_plan));
             }
-            ProposeBrick(_) | ConnectBrick | JoinFaces(_) | InitiateRevert => {
+            Tinkerer(tinkerer_action) => {
                 let Tinkering(tinkerer) = &mut self.stage else {
                     panic!("must be tinkering");
                 };
-                tinkerer.action(crucible_action);
+                tinkerer.action(tinkerer_action);
             }
             SetSpeed(iterations_per_frame) => {
                 self.iterations_per_frame = iterations_per_frame;
@@ -144,5 +149,19 @@ impl Crucible {
 
     pub fn fabric(&self) -> &Fabric {
         &self.fabric
+    }
+
+    pub fn is_brick_proposed(&self) -> bool {
+        match &self.stage {
+            Tinkering(tinkerer) => tinkerer.is_brick_proposed(),
+            _ => false
+        }
+    }
+
+    pub fn is_pretenst_complete(&self) -> bool {
+        match &self.stage {
+            Pretensing(pretenser) => pretenser.is_done(),
+            _ => false
+        }
     }
 }

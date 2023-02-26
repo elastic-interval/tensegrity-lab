@@ -1,7 +1,7 @@
 use crate::build::tenscript::FaceAlias;
 use crate::build::tinkerer::Stage::{*};
-use crate::crucible::CrucibleAction;
-use crate::crucible::CrucibleAction::{*};
+use crate::crucible::TinkererAction;
+use crate::crucible::TinkererAction::{*};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::FaceRotation;
 use crate::fabric::physics::Physics;
@@ -104,46 +104,33 @@ impl Tinkerer {
         action
     }
 
-    pub fn join_faces(&mut self, a: UniqueId, b: UniqueId) {
-        self.proposed_connect = Some((a, b));
-        self.connect();
-    }
-
-    pub fn propose_brick(&mut self, brick_on_face: BrickOnFace) {
-        let proposal_was_active = self.proposed_brick.is_some();
-        self.proposed_brick = Some(brick_on_face);
-        self.stage = if proposal_was_active {
-            Reverting
-        } else {
-            ReifyBrick
-        };
-    }
-
-    pub fn connect(&mut self) {
-        self.stage = Connect;
-    }
-
-    pub fn revert(&mut self) {
-        self.stage = Reverting;
-    }
-
-    pub fn action(&mut self, crucible_action: CrucibleAction) {
-        match crucible_action {
-            ProposeBrick(brick_on_face) => {
-                self.propose_brick(brick_on_face);
+    pub fn action(&mut self, tinkerer_action: TinkererAction) {
+        match tinkerer_action {
+            Propose(brick_on_face) => {
+                let proposal_was_active = self.proposed_brick.is_some();
+                self.proposed_brick = Some(brick_on_face);
+                self.stage = if proposal_was_active {
+                    Reverting
+                } else {
+                    ReifyBrick
+                };
             }
-            ConnectBrick => {
-                self.connect();
+            Commit => {
+                self.stage = Connect;
             }
-            JoinFaces(face_set) => {
+            JoinIfPair(face_set) => {
                 if let Ok([a, b]) = face_set.into_iter().next_chunk() {
-                    self.join_faces(a, b);
+                    self.proposed_connect = Some((a, b));
                 }
+                self.stage = Connect;
             }
             InitiateRevert => {
-                self.revert();
+                self.stage = Reverting;
             }
-            _ => {}
         }
+    }
+
+    pub fn is_brick_proposed(&self) -> bool {
+        self.proposed_brick.is_some()
     }
 }
