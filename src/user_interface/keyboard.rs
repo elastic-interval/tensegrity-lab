@@ -4,7 +4,7 @@ use iced_winit::widget::{Button, Row, Text};
 use winit::event::VirtualKeyCode;
 use winit::event::VirtualKeyCode::{*};
 
-use crate::user_interface::{Action, ControlMessage, MenuChoice};
+use crate::user_interface::{Action, ControlMessage, MenuChoice, MenuEnvironment};
 use crate::user_interface::control_state::{Component, format_row};
 use crate::user_interface::menu::Menu;
 
@@ -14,7 +14,8 @@ pub enum KeyboardMessage {
     SelectSubmenu(Menu),
     SelectMenu(MenuChoice),
     SubmitAction(Action),
-    SubmitLastAction(Action),
+    SubmitExitAction(Action),
+    SetEnvironment(MenuEnvironment),
 }
 
 impl From<KeyboardMessage> for ControlMessage {
@@ -26,6 +27,7 @@ impl From<KeyboardMessage> for ControlMessage {
 #[derive(Debug, Clone)]
 pub struct Keyboard {
     current: Vec<Menu>,
+    environment: MenuEnvironment,
 }
 
 impl Component for Keyboard {
@@ -36,7 +38,7 @@ impl Component for Keyboard {
             KeyboardMessage::SubmitAction(action) => {
                 return Some(action);
             }
-            KeyboardMessage::SubmitLastAction(action) => {
+            KeyboardMessage::SubmitExitAction(action) => {
                 if self.current.len() > 1 {
                     self.current.pop();
                 } else {
@@ -55,6 +57,9 @@ impl Component for Keyboard {
             KeyboardMessage::SelectMenu(menu_choice) => {
                 self.set_menu(Menu::select(menu_choice));
             }
+            KeyboardMessage::SetEnvironment(environment) => {
+                self.environment = environment;
+            }
         }
         None
     }
@@ -62,15 +67,15 @@ impl Component for Keyboard {
     fn element(&self) -> Element<'_, ControlMessage, Renderer> {
         let mut row = Row::new();
         row = row.push(Text::new(&self.current.last().unwrap().label));
-        for item in &self.current.last().unwrap().submenu {
+        for item in &self.current.last().unwrap().submenu_in(self.environment) {
             row = row.push(
                 Button::new(Text::new(item.label.clone()))
                     .on_press(
                         match &item.action {
                             None => KeyboardMessage::SelectSubmenu(item.clone()),
                             Some(action) => {
-                                if item.last_action {
-                                    KeyboardMessage::SubmitLastAction(action.clone())
+                                if item.exit_action {
+                                    KeyboardMessage::SubmitExitAction(action.clone())
                                 } else {
                                     KeyboardMessage::SubmitAction(action.clone())
                                 }
@@ -85,7 +90,9 @@ impl Component for Keyboard {
 
 impl Default for Keyboard {
     fn default() -> Self {
-        Self { current: vec![Menu::select(MenuChoice::Root)] }
+        let environment = MenuEnvironment::default();
+        let current = vec![Menu::select(MenuChoice::Root)];
+        Self { current, environment }
     }
 }
 
@@ -111,15 +118,15 @@ impl Keyboard {
             .last()
             .unwrap()
             .clone()
-            .submenu
-            .iter()
+            .submenu_in(self.environment)
+            .into_iter()
             .find_map(|menu| {
-                let Menu { keycode, action, submenu, last_action, .. } = menu;
-                if keycode.unwrap() != keycode_pressed {
+                let Menu { label, keycode, action, submenu, exit_action } = &menu;
+                if keycode.unwrap_or_else(|| panic!("No keycode for {label}")) != keycode_pressed {
                     return None;
                 }
                 if action.is_some() {
-                    if *last_action {
+                    if *exit_action {
                         if current.len() > 1 {
                             current.pop();
                         } else {
@@ -131,7 +138,7 @@ impl Keyboard {
                 if submenu.is_empty() {
                     panic!("expected submenu");
                 }
-                current.push(menu.clone());
+                current.push(menu);
                 None
             });
         (current, action)

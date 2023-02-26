@@ -38,6 +38,14 @@ pub enum MenuChoice {
     Tinker,
 }
 
+#[derive(Debug, Clone, Default, Copy)]
+pub struct MenuEnvironment {
+    pub face_count: usize,
+    pub selection_count: usize,
+    pub brick_proposed: bool,
+    pub pretenst_complete: bool,
+}
+
 #[derive(Debug, Clone)]
 pub enum ControlMessage {
     ToggleDebugMode,
@@ -68,7 +76,7 @@ pub enum Action {
     ToggleDebug,
     ProposeBrick { alias: FaceAlias, face_rotation: FaceRotation },
     Connect,
-    JoinFaces,
+    InitiateJoinFaces,
     Revert,
     RevertToFrozen { fabric: Fabric, brick_on_face: Option<BrickOnFace> },
 }
@@ -155,6 +163,10 @@ impl UserInterface {
 
     pub fn key_pressed(&mut self, keycode_pressed: &VirtualKeyCode) {
         self.message(ControlMessage::Keyboard(KeyboardMessage::KeyPressed(*keycode_pressed)));
+    }
+
+    pub fn set_menu_environment(&mut self, menu_evironment: MenuEnvironment) {
+        self.message(ControlMessage::Keyboard(KeyboardMessage::SetEnvironment(menu_evironment)))
     }
 
     pub fn menu_choice(&mut self, menu_choice: MenuChoice) {
