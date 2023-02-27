@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::fmt::{Display, Formatter};
 
 use winit::event::VirtualKeyCode;
 use winit::event::VirtualKeyCode::{*};
@@ -9,41 +8,86 @@ use crate::crucible::CrucibleAction;
 use crate::fabric::face::FaceRotation;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::scene::SceneAction;
-use crate::user_interface::{Action, MenuChoice};
+use crate::user_interface::{Action, MenuChoice, MenuEnvironment};
 use crate::user_interface::control_state::VisibleControl;
+
+#[derive(Debug, Clone)]
+pub struct MaybeMenu {
+    exists_in: fn(MenuEnvironment) -> bool,
+    menu: Menu,
+}
+
+impl MaybeMenu {
+    pub fn menu_in(&self, environment: MenuEnvironment) -> Option<Menu> {
+        (self.exists_in)(environment).then_some(self.menu.clone())
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Menu {
     pub label: String,
     pub keycode: Option<VirtualKeyCode>,
-    pub submenu: Vec<Menu>,
+    pub submenu: Vec<MaybeMenu>,
     pub action: Option<Action>,
-    pub last_action: bool,
+    pub exit_action: bool,
 }
 
 impl Menu {
-    pub fn submenu(label: &str, submenu: Vec<Menu>) -> Self {
+    pub fn new(label: &str) -> Self {
+        Self {
+            label: label.to_string(),
+            keycode: None,
+            submenu: Vec::new(),
+            action: None,
+            exit_action: false,
+        }
+    }
+
+    pub fn submenu(self, exists_in: fn(MenuEnvironment) -> bool, menu: Menu) -> Self {
+        let mut new = self;
+        new.submenu.push(
+            MaybeMenu {
+                exists_in,
+                menu: Self {
+                    label: menu.label,
+                    keycode: None,
+                    submenu: menu.submenu,
+                    action: None,
+                    exit_action: false,
+                },
+            }
+        );
+        new
+    }
+
+    pub fn action(self, label: &str, exit_action: bool, exists_in: fn(MenuEnvironment) -> bool, action: Action) -> Self {
+        let maybe = MaybeMenu {
+            exists_in,
+            menu: Menu {
+                label: label.to_string(),
+                keycode: None,
+                action: Some(action),
+                submenu: Vec::new(),
+                exit_action,
+            },
+        };
+        let mut new = self;
+        new.submenu.push(maybe);
+        new
+    }
+
+    pub fn submenu_in(&self, environment: MenuEnvironment) -> Vec<Menu> {
         let mut used = HashSet::new();
-        let submenu = submenu
+        let sub: Vec<_> = self.submenu
+            .clone()
             .into_iter()
-            .map(|menu| {
-                let (keycode, prefix) = label_key_code(menu.label.as_str(), &used);
-                used.insert(keycode);
-                let keycode = Some(keycode);
-                let mut label = prefix;
-                label.push_str(menu.label.as_str());
-                Menu { keycode, label, ..menu }
+            .flat_map(|maybe| {
+                let menu = maybe.menu.assign_key(&used);
+                used.insert(menu.keycode.unwrap());
+                (maybe.exists_in)(environment).then_some(menu)
             })
             .collect();
-        Self { label: label.to_string(), keycode: None, submenu, action: None, last_action: false }
-    }
-
-    pub fn action(label: &str, action: Action) -> Self {
-        Self { label: label.to_string(), keycode: None, action: Some(action), submenu: vec![], last_action: false }
-    }
-
-    pub fn last_action(label: &str, action: Action) -> Self {
-        Self { label: label.to_string(), keycode: None, action: Some(action), submenu: vec![], last_action: true }
+        sub
     }
 
     pub fn select(menu_choice: MenuChoice) -> Menu {
@@ -53,10 +97,10 @@ impl Menu {
         }
     }
 
-    fn fabric_menu(fabrics: &[FabricPlan], below: Vec<String>) -> Vec<Menu> {
+    fn fabric_menu_recurse(menu: Menu, fabrics: &[FabricPlan], below: Vec<String>) -> Menu {
         let sub_fabrics: Vec<_> = fabrics
             .iter()
-            .filter(|fabric| {
+            .filter(|&fabric| {
                 let mut compare = below.clone();
                 compare.push(fabric.name.last().unwrap().clone());
                 compare == fabric.name
@@ -72,94 +116,109 @@ impl Menu {
                     _ => {}
                 }
             }
-            unique
-                .iter()
-                .map(|first| {
-                    let mut new_below = below.clone();
-                    new_below.push(first.clone());
-                    Menu::submenu(first.as_str(), Menu::fabric_menu(fabrics, new_below))
-                })
-                .collect()
+            let mut menu = menu;
+            for first in unique {
+                let mut new_below = below.clone();
+                new_below.push(first.clone());
+                menu = menu.submenu(ALWAYS, Menu::fabric_menu_recurse(Menu::new(first.as_str()), fabrics, new_below));
+            }
+            menu
         } else {
-            sub_fabrics
-                .into_iter()
-                .map(|fabric_plan| {
-                    let label = fabric_plan.name.last().unwrap();
-                    Menu::action(label.as_str(), Action::Crucible(CrucibleAction::BuildFabric(fabric_plan.clone())))
-                })
-                .collect()
+            let mut menu = Menu::new(below.last().unwrap());
+            for fabric_plan in sub_fabrics {
+                let label = fabric_plan.name.last().unwrap();
+                menu = menu.action(
+                    label.as_str(), false, ALWAYS,
+                    Action::Crucible(CrucibleAction::BuildFabric(fabric_plan.clone())),
+                );
+            }
+            menu
         }
     }
 
-    fn speed_menu() -> Vec<Menu> {
-        [(0usize, "Paused"), (5, "Glacial"), (25, "Slow"), (125, "Normal"), (625, "Fast")]
-            .into_iter()
-            .map(|(speed, label)|
-                Menu::action(label, Action::Crucible(CrucibleAction::SetSpeed(speed))))
-            .collect()
+    fn fabric_menu(fabrics: &[FabricPlan]) -> Menu {
+        Self::fabric_menu_recurse(Menu::new("Fabrics"), fabrics, Vec::new())
+    }
+
+    fn speed_menu() -> Menu {
+        let mut menu = Menu::new("Speed");
+        for (speed, label) in [(0usize, "Paused"), (5, "Glacial"), (25, "Slow"), (125, "Normal"), (625, "Fast")] {
+            menu = menu.action(label, true, ALWAYS, Action::Crucible(CrucibleAction::SetSpeed(speed)));
+        }
+        menu
     }
 
     fn root_menu() -> Menu {
-        Menu::submenu("Tensegrity Lab", vec![
-            Menu::submenu("Fabric", Menu::fabric_menu(&Library::standard().fabrics, Vec::new())),
-            Menu::action("Tinker", Action::Crucible(CrucibleAction::StartTinkering)),
-            Menu::submenu("Speed", Menu::speed_menu()),
-            Menu::submenu("Camera", vec![
-                Menu::action("Midpoint", Action::Scene(SceneAction::WatchMidpoint)),
-                Menu::action("Origin", Action::Scene(SceneAction::WatchOrigin)),
-            ]),
-            Menu::submenu("Widget", vec![
-                Menu::action("Gravity", Action::ShowControl(VisibleControl::Gravity)),
-                Menu::action("Strain threshold", Action::ShowControl(VisibleControl::StrainThreshold)),
-                Menu::action("Clear", Action::ShowControl(VisibleControl::Nothing)),
-            ]),
-            Menu::submenu("Etc", vec![
-                Menu::action("Debug toggle", Action::ToggleDebug),
-            ]),
-        ])
+        Menu::new("Tensegrity Lab")
+            .submenu(ALWAYS, Menu::fabric_menu(&Library::standard().fabrics))
+            .submenu(ALWAYS, Menu::speed_menu())
+            .submenu(
+                ALWAYS,
+                Menu::new("Camera")
+                    .action("Midpoint", true, ALWAYS, Action::Scene(SceneAction::WatchMidpoint))
+                    .action("Origin", true, ALWAYS, Action::Scene(SceneAction::WatchOrigin)),
+            )
+            .submenu(
+                ALWAYS,
+                Menu::new("Widget")
+                    .action("Gravity", true, |env| env.pretenst_complete, Action::ShowControl(VisibleControl::Gravity))
+                    .action("Strain threshold", true, |env| env.pretenst_complete, Action::ShowControl(VisibleControl::StrainThreshold))
+                    .action("Clear", true, ALWAYS, Action::ShowControl(VisibleControl::Nothing)),
+            )
+            .submenu(
+                ALWAYS,
+                Menu::new("Etc")
+                    .action("Debug toggle", true, ALWAYS, Action::ToggleDebug),
+            )
     }
+
 
     fn tinker_menu() -> Menu {
-        Menu::submenu("Tinker", vec![
-            Menu::action("Connect", Action::Connect),
-            Menu::action("Join", Action::JoinFaces),
-            Menu::action("Revert", Action::Revert),
-            Menu::submenu("Add", vec![
-                Menu::action("Single", Action::ProposeBrick { alias: FaceAlias::single("Single"), face_rotation: FaceRotation::Zero }),
-                Menu::action("Omni", Action::ProposeBrick { alias: FaceAlias::single("Omni"), face_rotation: FaceRotation::Zero }),
-                Menu::action("Torque", Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::Zero }),
-                Menu::action("Torque120", Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::OneThird }),
-                Menu::action("Torque240", Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::TwoThirds }),
-                Menu::last_action("Connect", Action::Connect),
-                Menu::last_action("Revert", Action::Revert),
-            ]),
-            Menu::last_action("Frozen", Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Frozen))),
-            Menu::last_action("Bouncy", Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Bouncy))),
-        ])
+        Menu::new("Tinker")
+            .action("Connect", false, |env| { env.brick_proposed },
+                    Action::Connect)
+            .action("Join", false, |env| env.selection_count == 2,
+                    Action::InitiateJoinFaces)
+            .action("Revert", false, |env| env.face_count > 0,
+                    Action::Revert)
+            .submenu(
+                |env| env.selection_count == 1,
+                Menu::new("Add")
+                    .action("Single", false, ALWAYS,
+                            Action::ProposeBrick { alias: FaceAlias::single("Single"), face_rotation: FaceRotation::Zero })
+                    .action("Omni", false, ALWAYS,
+                            Action::ProposeBrick { alias: FaceAlias::single("Omni"), face_rotation: FaceRotation::Zero })
+                    .action("Torque", false, ALWAYS,
+                            Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::Zero })
+                    .action("Torque120", false, ALWAYS,
+                            Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::OneThird })
+                    .action("Torque240", false, ALWAYS,
+                            Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::TwoThirds })
+                    .action("Connect", true, ALWAYS,
+                            Action::Connect)
+                    .action("Revert", true, ALWAYS,
+                            Action::Revert))
+            .action("Frozen", false, |_| true,
+                    Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Frozen)))
+            .action("Bouncy", false, |_| true,
+                    Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Bouncy)))
     }
-}
 
-impl Display for Menu {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let Menu { label, submenu, .. } = self;
-        let choices = submenu
-            .iter()
-            .map(|Menu { label, .. }| label.clone())
-            .collect::<Vec<String>>()
-            .join(" ");
-        write!(f, "{label}: {choices}")
+    fn assign_key(self, used: &HashSet<VirtualKeyCode>) -> Menu {
+        let label = self.label.clone();
+        let (keycode, prefix) = self.label
+            .chars()
+            .find_map(|ch| {
+                let key_code = to_key_code(ch)?;
+                (!used.contains(&key_code))
+                    .then_some((key_code, format!("{}: ", ch.to_ascii_uppercase())))
+            })
+            .unwrap();
+        let mut new = self;
+        new.keycode = Some(keycode);
+        new.label = format!("{prefix}{label}");
+        new
     }
-}
-
-fn label_key_code(label: &str, used: &HashSet<VirtualKeyCode>) -> (VirtualKeyCode, String) {
-    label
-        .chars()
-        .find_map(|ch| {
-            let key_code = to_key_code(ch)?;
-            (!used.contains(&key_code))
-                .then_some((key_code, format!("{}: ", ch.to_ascii_uppercase())))
-        })
-        .unwrap()
 }
 
 fn to_key_code(ch: char) -> Option<VirtualKeyCode> {
@@ -193,3 +252,5 @@ fn to_key_code(ch: char) -> Option<VirtualKeyCode> {
         _ => return None
     })
 }
+
+const ALWAYS: fn(MenuEnvironment) -> bool = |_| true;
