@@ -143,7 +143,7 @@ impl Menu {
     fn speed_menu() -> Menu {
         let mut menu = Menu::new("Speed");
         for (speed, label) in [(0usize, "Paused"), (5, "Glacial"), (25, "Slow"), (125, "Normal"), (625, "Fast")] {
-            menu = menu.action(label, true, |_| true, Action::Crucible(CrucibleAction::SetSpeed(speed)));
+            menu = menu.action(label, true, ALWAYS, Action::Crucible(CrucibleAction::SetSpeed(speed)));
         }
         menu
     }
