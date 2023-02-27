@@ -10,7 +10,7 @@ use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::physics::SurfaceCharacter;
 use crate::fabric::pretenser::Pretenser;
 use crate::scene::{SceneAction, SceneVariant};
-use crate::user_interface::{Action, MenuChoice};
+use crate::user_interface::{Action, MenuAction};
 
 const PULL_SHORTENING: f32 = 0.95;
 const PRETENST_FACTOR: f32 = 1.03;
@@ -80,7 +80,7 @@ impl Crucible {
                 }
             }
             TinkeringLaunch => {
-                actions.push(Action::Keyboard(MenuChoice::Tinker));
+                actions.push(Action::Keyboard(MenuAction::TinkerMenu));
                 actions.push(Action::SelectFace(None));
                 self.stage = Tinkering(Tinkerer::default())
             }
@@ -151,9 +151,20 @@ impl Crucible {
         &self.fabric
     }
 
+    pub fn is_tinkering(&self) -> bool {
+        matches!(&self.stage, Tinkering(_))
+    }
+
     pub fn is_brick_proposed(&self) -> bool {
         match &self.stage {
             Tinkering(tinkerer) => tinkerer.is_brick_proposed(),
+            _ => false
+        }
+    }
+
+    pub fn is_history_available(&self) -> bool {
+        match &self.stage {
+            Tinkering(tinkerer) => tinkerer.is_history_available(),
             _ => false
         }
     }

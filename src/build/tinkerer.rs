@@ -133,4 +133,8 @@ impl Tinkerer {
     pub fn is_brick_proposed(&self) -> bool {
         self.proposed_brick.is_some()
     }
+
+    pub fn is_history_available(&self) -> bool {
+        !self.history.is_empty()
+    }
 }

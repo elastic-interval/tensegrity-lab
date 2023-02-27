@@ -15,8 +15,7 @@ use crate::crucible::{Crucible, CrucibleAction, TinkererAction};
 use crate::fabric::{Fabric, UniqueId};
 use crate::graphics::GraphicsWindow;
 use crate::scene::{Scene, SceneAction, SceneVariant};
-use crate::scene::SceneVariant::TinkeringOnFaces;
-use crate::user_interface::{Action, ControlMessage, MenuEnvironment, UserInterface};
+use crate::user_interface::{Action, ControlMessage, MenuAction, MenuEnvironment, UserInterface};
 
 pub struct Application {
     selected_faces: HashSet<UniqueId>,
@@ -55,10 +54,16 @@ impl Application {
         for action in actions {
             match action {
                 Action::Crucible(crucible_action) => {
-                    if let CrucibleAction::BuildFabric(fabric_plan) = &crucible_action {
-                        self.fabric_plan_name = fabric_plan.name.clone();
-                        self.scene.action(SceneAction::Variant(SceneVariant::Suspended));
-                        self.user_interface.message(ControlMessage::Reset);
+                    match &crucible_action {
+                        CrucibleAction::BuildFabric(fabric_plan) => {
+                            self.fabric_plan_name = fabric_plan.name.clone();
+                            self.scene.action(SceneAction::Variant(SceneVariant::Suspended));
+                            self.user_interface.message(ControlMessage::Reset);
+                        }
+                        CrucibleAction::StartPretensing(_) => {
+                            self.user_interface.action(Action::Keyboard(MenuAction::ReturnToRoot))
+                        }
+                        _ => {}
                     }
                     self.crucible.action(crucible_action);
                 }
@@ -66,6 +71,19 @@ impl Application {
                     self.scene.action(scene_action);
                 }
                 Action::Keyboard(menu_choice) => {
+                    match menu_choice {
+                        MenuAction::ReturnToRoot => {
+                            self.selected_faces.clear();
+                            self.user_interface.action(
+                                Action::Scene(SceneAction::Variant(SceneVariant::Suspended)))
+                        },
+                        MenuAction::TinkerMenu => {
+                            self.selected_faces.clear();
+                            self.user_interface.action(
+                                Action::Scene(SceneAction::Variant(SceneVariant::TinkeringOnFaces(HashSet::new()))))
+                        },
+                        MenuAction::UpOneLevel => {}
+                    }
                     self.user_interface.menu_choice(menu_choice);
                 }
                 Action::ShowControl(visible_control) => {
@@ -88,16 +106,16 @@ impl Application {
                     } else {
                         self.selected_faces.clear();
                     }
-                    self.scene.action(SceneAction::Variant(TinkeringOnFaces(self.selected_faces.clone())));
-                    self.user_interface.set_menu_environment(MenuEnvironment{
-                        face_count: self.crucible.fabric().faces.len(),
-                        selection_count: self.selected_faces.len(),
-                        brick_proposed: self.crucible.is_brick_proposed(),
-                        pretenst_complete: self.crucible.is_pretenst_complete(),
-                    })
+                    self.scene.action(SceneAction::Variant(SceneVariant::TinkeringOnFaces(self.selected_faces.clone())));
+                    self.update_menu_environment();
                 }
-                Action::StartTinkering => {
-                    unimplemented!();
+                Action::SelectAFace => {
+                    if let Ok([&selected]) = self.selected_faces.iter().next_chunk() {
+                        self.user_interface.action(Action::SelectFace(Some(selected)))
+                    } else {
+                        let pick_one = self.crucible.fabric().faces.keys().next().copied();
+                        self.user_interface.action(Action::SelectFace(pick_one))
+                    }
                 }
                 Action::ToggleDebug => {
                     self.user_interface.message(ControlMessage::ToggleDebugMode);
@@ -116,25 +134,38 @@ impl Application {
                             TinkererAction::JoinIfPair(self.selected_faces.clone())));
                 }
                 Action::Connect => {
+                    self.update_menu_environment();
                     self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::Commit));
                 }
                 Action::Revert => {
+                    self.update_menu_environment();
                     self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::InitiateRevert));
                 }
                 Action::RevertToFrozen { fabric, brick_on_face } => {
+                    self.update_menu_environment();
                     self.selected_faces.clear();
                     self.crucible.action(CrucibleAction::RevertTo(fabric));
                     if let Some(brick_on_face) = brick_on_face {
                         let face_id = brick_on_face.face_id;
                         self.crucible.action(
-                            CrucibleAction::Tinkerer(
-                                TinkererAction::Propose(brick_on_face)));
+                            CrucibleAction::Tinkerer(TinkererAction::Propose(brick_on_face)));
                         self.user_interface.action(Action::SelectFace(Some(face_id)));
                     }
                 }
             }
         }
         window.request_redraw();
+    }
+
+    fn update_menu_environment(&mut self) {
+        self.user_interface.set_menu_environment(MenuEnvironment {
+            face_count: self.crucible.fabric().faces.len(),
+            selection_count: self.selected_faces.len(),
+            tinkering: self.crucible.is_tinkering(),
+            brick_proposed: self.crucible.is_brick_proposed(),
+            pretenst_complete: self.crucible.is_pretenst_complete(),
+            history_available: self.crucible.is_history_available(),
+        })
     }
 
     pub fn redraw(&mut self, window: &Window) {
