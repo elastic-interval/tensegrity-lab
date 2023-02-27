@@ -8,7 +8,7 @@ use crate::crucible::CrucibleAction;
 use crate::fabric::face::FaceRotation;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::scene::SceneAction;
-use crate::user_interface::{Action, MenuChoice, MenuEnvironment};
+use crate::user_interface::{Action, MenuAction, MenuEnvironment};
 use crate::user_interface::control_state::VisibleControl;
 
 #[derive(Debug, Clone)]
@@ -90,13 +90,6 @@ impl Menu {
         sub
     }
 
-    pub fn select(menu_choice: MenuChoice) -> Menu {
-        match menu_choice {
-            MenuChoice::Root => Menu::root_menu(),
-            MenuChoice::Tinker => Menu::tinker_menu(),
-        }
-    }
-
     fn fabric_menu_recurse(menu: Menu, fabrics: &[FabricPlan], below: Vec<String>) -> Menu {
         let sub_fabrics: Vec<_> = fabrics
             .iter()
@@ -148,8 +141,10 @@ impl Menu {
         menu
     }
 
-    fn root_menu() -> Menu {
+    pub fn root_menu() -> Menu {
         Menu::new("Tensegrity Lab")
+            .action("Tinker", false, |env| env.face_count > 0,
+                    Action::SelectAFace)
             .submenu(ALWAYS, Menu::fabric_menu(&Library::standard().fabrics))
             .submenu(ALWAYS, Menu::speed_menu())
             .submenu(
@@ -172,36 +167,44 @@ impl Menu {
             )
     }
 
-
-    fn tinker_menu() -> Menu {
+    pub fn tinker_menu() -> Menu {
         Menu::new("Tinker")
-            .action("Connect", false, |env| { env.brick_proposed },
+            .action("Pick a face with <Shift-click>", false, |env| env.selection_count == 0,
+                    Action::SelectAFace)
+            .action("Connect the new brick", false, |env| env.brick_proposed,
                     Action::Connect)
-            .action("Join", false, |env| env.selection_count == 2,
+            .action("Join the selected faces", false, |env| env.selection_count == 2,
                     Action::InitiateJoinFaces)
-            .action("Revert", false, |env| env.face_count > 0,
+            .action("Revert to previous", false, |env| env.history_available,
                     Action::Revert)
             .submenu(
                 |env| env.selection_count == 1,
-                Menu::new("Add")
+                Menu::new("Add a brick")
                     .action("Single", false, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Single"), face_rotation: FaceRotation::Zero })
                     .action("Omni", false, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Omni"), face_rotation: FaceRotation::Zero })
-                    .action("Torque", false, ALWAYS,
+                    .action("Torque-000", false, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::Zero })
-                    .action("Torque120", false, ALWAYS,
+                    .action("Torque-120", false, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::OneThird })
-                    .action("Torque240", false, ALWAYS,
+                    .action("Torque-240", false, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::TwoThirds })
+                    .action("Skip it", true, ALWAYS,
+                            Action::Keyboard(MenuAction::UpOneLevel))
                     .action("Connect", true, ALWAYS,
                             Action::Connect)
                     .action("Revert", true, ALWAYS,
                             Action::Revert))
-            .action("Frozen", false, |_| true,
-                    Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Frozen)))
-            .action("Bouncy", false, |_| true,
-                    Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Bouncy)))
+            .submenu(
+                ALWAYS, Menu::new("Finish")
+                    .action("Sticky surface", true, |_| true,
+                            Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Frozen)))
+                    .action("Bouncy surface", true, |_| true,
+                            Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Bouncy))),
+            )
+            .action("Exit tinker mode", true, |env| env.tinkering,
+                    Action::Keyboard(MenuAction::ReturnToRoot))
     }
 
     fn assign_key(self, used: &HashSet<VirtualKeyCode>) -> Menu {

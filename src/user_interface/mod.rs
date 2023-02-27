@@ -33,17 +33,20 @@ mod menu;
 const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
 
 #[derive(Debug, Clone)]
-pub enum MenuChoice {
-    Root,
-    Tinker,
+pub enum MenuAction {
+    ReturnToRoot,
+    TinkerMenu,
+    UpOneLevel,
 }
 
 #[derive(Debug, Clone, Default, Copy)]
 pub struct MenuEnvironment {
     pub face_count: usize,
     pub selection_count: usize,
+    pub tinkering: bool,
     pub brick_proposed: bool,
     pub pretenst_complete: bool,
+    pub history_available: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -67,12 +70,12 @@ pub enum FaceChoice {
 pub enum Action {
     Crucible(CrucibleAction),
     Scene(SceneAction),
-    Keyboard(MenuChoice),
+    Keyboard(MenuAction),
     CalibrateStrain,
     GravityChanged(f32),
     SelectFace(Option<UniqueId>),
     ShowControl(VisibleControl),
-    StartTinkering,
+    SelectAFace,
     ToggleDebug,
     ProposeBrick { alias: FaceAlias, face_rotation: FaceRotation },
     Connect,
@@ -169,7 +172,7 @@ impl UserInterface {
         self.message(ControlMessage::Keyboard(KeyboardMessage::SetEnvironment(menu_evironment)))
     }
 
-    pub fn menu_choice(&mut self, menu_choice: MenuChoice) {
+    pub fn menu_choice(&mut self, menu_choice: MenuAction) {
         self.message(ControlMessage::Keyboard(KeyboardMessage::SelectMenu(menu_choice)))
     }
 

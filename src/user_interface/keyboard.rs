@@ -4,7 +4,7 @@ use iced_winit::widget::{Button, Row, Text};
 use winit::event::VirtualKeyCode;
 use winit::event::VirtualKeyCode::{*};
 
-use crate::user_interface::{Action, ControlMessage, MenuChoice, MenuEnvironment};
+use crate::user_interface::{Action, ControlMessage, MenuAction, MenuEnvironment};
 use crate::user_interface::control_state::{Component, format_row};
 use crate::user_interface::menu::Menu;
 
@@ -12,7 +12,7 @@ use crate::user_interface::menu::Menu;
 pub enum KeyboardMessage {
     KeyPressed(VirtualKeyCode),
     SelectSubmenu(Menu),
-    SelectMenu(MenuChoice),
+    SelectMenu(MenuAction),
     SubmitAction(Action),
     SubmitExitAction(Action),
     SetEnvironment(MenuEnvironment),
@@ -42,7 +42,7 @@ impl Component for Keyboard {
                 if self.current.len() > 1 {
                     self.current.pop();
                 } else {
-                    self.current = vec![Menu::select(MenuChoice::Root)];
+                    self.current = vec![Menu::root_menu()];
                 }
                 return Some(action);
             }
@@ -54,8 +54,16 @@ impl Component for Keyboard {
             KeyboardMessage::SelectSubmenu(menu) => {
                 self.current.push(menu);
             }
-            KeyboardMessage::SelectMenu(menu_choice) => {
-                self.set_menu(Menu::select(menu_choice));
+            KeyboardMessage::SelectMenu(menu_action) => {
+                match menu_action {
+                    MenuAction::ReturnToRoot => {
+                        self.reset_menu(Menu::root_menu());
+                    }
+                    MenuAction::TinkerMenu => {
+                        self.reset_menu(Menu::tinker_menu());
+                    }
+                    MenuAction::UpOneLevel => {}
+                }
             }
             KeyboardMessage::SetEnvironment(environment) => {
                 self.environment = environment;
@@ -91,13 +99,13 @@ impl Component for Keyboard {
 impl Default for Keyboard {
     fn default() -> Self {
         let environment = MenuEnvironment::default();
-        let current = vec![Menu::select(MenuChoice::Root)];
+        let current = vec![Menu::root_menu()];
         Self { current, environment }
     }
 }
 
 impl Keyboard {
-    pub fn set_menu(&mut self, menu: Menu) {
+    pub fn reset_menu(&mut self, menu: Menu) {
         self.current.clear();
         self.current.push(menu);
     }
@@ -130,7 +138,7 @@ impl Keyboard {
                         if current.len() > 1 {
                             current.pop();
                         } else {
-                            current = vec![Menu::select(MenuChoice::Root)];
+                            current = vec![Menu::root_menu()];
                         }
                     }
                     return action.clone();
