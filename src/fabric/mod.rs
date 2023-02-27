@@ -53,18 +53,6 @@ impl Default for Fabric {
 }
 
 impl Fabric {
-    pub fn get_joint_count(&self) -> u16 {
-        self.joints.len() as u16
-    }
-
-    pub fn get_interval_count(&self) -> u16 {
-        self.intervals.len() as u16
-    }
-
-    pub fn get_face_count(&self) -> u16 {
-        self.faces.len() as u16
-    }
-
     pub fn create_joint(&mut self, point: Point3<f32>) -> usize {
         let index = self.joints.len();
         self.joints.push(Joint::new(point));
