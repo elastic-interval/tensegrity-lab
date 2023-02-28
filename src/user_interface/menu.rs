@@ -153,13 +153,15 @@ impl Menu {
                     .action("Midpoint", true, ALWAYS, Action::Scene(SceneAction::WatchMidpoint))
                     .action("Origin", true, ALWAYS, Action::Scene(SceneAction::WatchOrigin)),
             )
-            .submenu(
-                ALWAYS,
-                Menu::new("Widget")
-                    .action("Gravity", true, |env| env.pretenst_complete, Action::ShowControl(VisibleControl::Gravity))
-                    .action("Strain threshold", true, |env| env.pretenst_complete, Action::ShowControl(VisibleControl::StrainThreshold))
-                    .action("Clear", true, ALWAYS, Action::ShowControl(VisibleControl::Nothing)),
-            )
+            .action("Gravity control", true,
+                    |env| env.crucible_finished && env.visible_control != VisibleControl::Gravity,
+                    Action::ShowControl(VisibleControl::Gravity))
+            .action("Strain control", true,
+                    |env| env.crucible_finished && env.visible_control != VisibleControl::StrainThreshold,
+                    Action::ShowControl(VisibleControl::StrainThreshold))
+            .action("Hide controls", true,
+                    |env| env.crucible_finished && env.visible_control != VisibleControl::Nothing,
+                    Action::ShowControl(VisibleControl::Nothing))
             .submenu(
                 ALWAYS,
                 Menu::new("Etc")
@@ -179,7 +181,7 @@ impl Menu {
                     Action::Revert)
             .submenu(
                 |env| env.selection_count == 1,
-                Menu::new("Add a brick")
+                Menu::new("Add a brick at the green face")
                     .action("Single", false, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Single"), face_rotation: FaceRotation::Zero })
                     .action("Omni", false, ALWAYS,

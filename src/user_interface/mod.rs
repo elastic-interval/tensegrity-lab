@@ -45,8 +45,9 @@ pub struct MenuEnvironment {
     pub selection_count: usize,
     pub tinkering: bool,
     pub brick_proposed: bool,
-    pub pretenst_complete: bool,
+    pub crucible_finished: bool,
     pub history_available: bool,
+    pub visible_control: VisibleControl,
 }
 
 #[derive(Debug, Clone)]
@@ -69,6 +70,7 @@ pub enum FaceChoice {
 #[derive(Clone, Debug)]
 pub enum Action {
     Crucible(CrucibleAction),
+    CrucibleFinished,
     Scene(SceneAction),
     Keyboard(MenuAction),
     CalibrateStrain,

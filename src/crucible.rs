@@ -101,6 +101,7 @@ impl Crucible {
                     pretenser.iterate(&mut self.fabric);
                 }
                 if pretenser.is_done() {
+                    actions.push(Action::CrucibleFinished);
                     self.stage = Finished;
                 }
             }
@@ -169,10 +170,7 @@ impl Crucible {
         }
     }
 
-    pub fn is_pretenst_complete(&self) -> bool {
-        match &self.stage {
-            Pretensing(pretenser) => pretenser.is_done(),
-            _ => false
-        }
+    pub fn is_finished(&self) -> bool {
+        matches!(self.stage, Finished)
     }
 }

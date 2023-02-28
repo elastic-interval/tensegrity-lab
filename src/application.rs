@@ -67,6 +67,9 @@ impl Application {
                     }
                     self.crucible.action(crucible_action);
                 }
+                Action::CrucibleFinished => {
+                    self.update_menu_environment();
+                }
                 Action::Scene(scene_action) => {
                     self.scene.action(scene_action);
                 }
@@ -76,12 +79,12 @@ impl Application {
                             self.selected_faces.clear();
                             self.user_interface.action(
                                 Action::Scene(SceneAction::Variant(SceneVariant::Suspended)))
-                        },
+                        }
                         MenuAction::TinkerMenu => {
                             self.selected_faces.clear();
                             self.user_interface.action(
                                 Action::Scene(SceneAction::Variant(SceneVariant::TinkeringOnFaces(HashSet::new()))))
-                        },
+                        }
                         MenuAction::UpOneLevel => {}
                     }
                     self.user_interface.menu_choice(menu_choice);
@@ -163,8 +166,9 @@ impl Application {
             selection_count: self.selected_faces.len(),
             tinkering: self.crucible.is_tinkering(),
             brick_proposed: self.crucible.is_brick_proposed(),
-            pretenst_complete: self.crucible.is_pretenst_complete(),
+            crucible_finished: self.crucible.is_finished(),
             history_available: self.crucible.is_history_available(),
+            visible_control: self.user_interface.controls().show_controls(),
         })
     }
 
