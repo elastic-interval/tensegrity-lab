@@ -1,5 +1,5 @@
 use iced_wgpu::Renderer;
-use iced_winit::Element;
+use iced_winit::{Color, Element};
 use iced_winit::widget::{Button, Row, Text};
 use winit::event::VirtualKeyCode;
 use winit::event::VirtualKeyCode::{*};
@@ -39,11 +39,7 @@ impl Component for Keyboard {
                 return Some(action);
             }
             KeyboardMessage::SubmitExitAction(action) => {
-                if self.current.len() > 1 {
-                    self.current.pop();
-                } else {
-                    self.current = vec![Menu::root_menu()];
-                }
+                self.menu_back();
                 return Some(action);
             }
             KeyboardMessage::KeyPressed(key_code) => {
@@ -62,7 +58,9 @@ impl Component for Keyboard {
                     MenuAction::TinkerMenu => {
                         self.reset_menu(Menu::tinker_menu());
                     }
-                    MenuAction::UpOneLevel => {}
+                    MenuAction::UpOneLevel => {
+                        self.menu_back();
+                    }
                 }
             }
             KeyboardMessage::SetEnvironment(environment) => {
@@ -74,10 +72,15 @@ impl Component for Keyboard {
 
     fn element(&self) -> Element<'_, ControlMessage, Renderer> {
         let mut row = Row::new();
-        row = row.push(Text::new(&self.current.last().unwrap().label));
+        row = row.push(
+            Button::new(
+                Text::new(&self.current.last().unwrap().label)
+                    .style(Color::from_rgb(0.0, 1.0, 0.0)))
+                .on_press(KeyboardMessage::SelectMenu(MenuAction::UpOneLevel).into())
+        );
         for item in &self.current.last().unwrap().submenu_in(self.environment) {
             row = row.push(
-                Button::new(Text::new(item.label.clone()))
+                Button::new(Text::new(item.label()))
                     .on_press(
                         match &item.action {
                             None => KeyboardMessage::SelectSubmenu(item.clone()),
@@ -130,7 +133,8 @@ impl Keyboard {
             .into_iter()
             .find_map(|menu| {
                 let Menu { label, keycode, action, submenu, exit_action } = &menu;
-                if keycode.unwrap_or_else(|| panic!("No keycode for {label}")) != keycode_pressed {
+                let (code, _) = keycode.clone().unwrap_or_else(|| panic!("No keycode for {label}"));
+                if code != keycode_pressed {
                     return None;
                 }
                 if action.is_some() {
@@ -150,5 +154,13 @@ impl Keyboard {
                 None
             });
         (current, action)
+    }
+
+    fn menu_back(&mut self) {
+        if self.current.len() > 1 {
+            self.current.pop();
+        } else {
+            self.current = vec![Menu::root_menu()];
+        }
     }
 }

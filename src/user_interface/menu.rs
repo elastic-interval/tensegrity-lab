@@ -26,7 +26,7 @@ impl MaybeMenu {
 #[derive(Debug, Clone)]
 pub struct Menu {
     pub label: String,
-    pub keycode: Option<VirtualKeyCode>,
+    pub keycode: Option<(VirtualKeyCode, String)>,
     pub submenu: Vec<MaybeMenu>,
     pub action: Option<Action>,
     pub exit_action: bool,
@@ -40,6 +40,13 @@ impl Menu {
             submenu: Vec::new(),
             action: None,
             exit_action: false,
+        }
+    }
+
+    pub fn label(&self) -> String {
+        match &self.keycode {
+            None => self.label.clone(),
+            Some((_, prefix)) => format!("{}{}", prefix, self.label)
         }
     }
 
@@ -83,7 +90,8 @@ impl Menu {
             .into_iter()
             .flat_map(|maybe| {
                 let menu = maybe.menu.assign_key(&used);
-                used.insert(menu.keycode.unwrap());
+                let (code, _) = menu.keycode.clone().unwrap();
+                used.insert(code);
                 (maybe.exists_in)(environment).then_some(menu)
             })
             .collect();
@@ -203,13 +211,12 @@ impl Menu {
                     .action("Bouncy surface", true, |_| true,
                             Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Bouncy)))
                     .action("Not yet", true, |_| true,
-                            Action::Keyboard(MenuAction::UpOneLevel))
+                            Action::Keyboard(MenuAction::UpOneLevel)),
             )
     }
 
     fn assign_key(self, used: &HashSet<VirtualKeyCode>) -> Menu {
-        let label = self.label.clone();
-        let (keycode, prefix) = self.label
+        let keycode = self.label
             .chars()
             .find_map(|ch| {
                 let key_code = to_key_code(ch)?;
@@ -219,7 +226,6 @@ impl Menu {
             .unwrap();
         let mut new = self;
         new.keycode = Some(keycode);
-        new.label = format!("{prefix}{label}");
         new
     }
 }
