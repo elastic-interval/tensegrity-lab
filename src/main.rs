@@ -39,7 +39,7 @@ pub fn run(prototype: Option<usize>) {
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
-        .with_inner_size(PhysicalSize::new(2048, 1600))
+        .with_inner_size(PhysicalSize::new(3000, 1600))
         .build(&event_loop)
         .expect("Could not build window");
 

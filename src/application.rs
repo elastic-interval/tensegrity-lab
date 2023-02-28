@@ -129,7 +129,12 @@ impl Application {
                         let alias = alias + &spin.into_alias();
                         let brick_on_face = BrickOnFace { face_id, alias, face_rotation };
                         self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::Propose(brick_on_face)));
+                        self.update_menu_environment()
                     }
+                }
+                Action::RemoveProposedBrick => {
+                    self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::Clear));
+                    self.update_menu_environment();
                 }
                 Action::InitiateJoinFaces => {
                     self.crucible.action(
@@ -137,12 +142,12 @@ impl Application {
                             TinkererAction::JoinIfPair(self.selected_faces.clone())));
                 }
                 Action::Connect => {
-                    self.update_menu_environment();
                     self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::Commit));
+                    self.update_menu_environment();
                 }
                 Action::Revert => {
-                    self.update_menu_environment();
                     self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::InitiateRevert));
+                    self.update_menu_environment();
                 }
                 Action::RevertToFrozen { fabric, brick_on_face } => {
                     self.update_menu_environment();

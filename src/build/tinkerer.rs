@@ -8,7 +8,7 @@ use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::LIQUID;
 use crate::user_interface::Action;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug)]
 enum Stage {
     Navigating,
     ReifyBrick,
@@ -114,6 +114,10 @@ impl Tinkerer {
                 } else {
                     ReifyBrick
                 };
+            }
+            Clear => {
+                self.proposed_brick = None;
+                self.stage = Reverting;
             }
             Commit => {
                 self.stage = Connect;

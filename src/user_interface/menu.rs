@@ -4,7 +4,7 @@ use winit::event::VirtualKeyCode;
 use winit::event::VirtualKeyCode::{*};
 
 use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
-use crate::crucible::CrucibleAction;
+use crate::crucible::{CrucibleAction, TinkererAction};
 use crate::fabric::face::FaceRotation;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::scene::SceneAction;
@@ -192,21 +192,19 @@ impl Menu {
                             Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::OneThird })
                     .action("Torque-240", false, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::TwoThirds })
-                    .action("Skip it", true, ALWAYS,
-                            Action::Keyboard(MenuAction::UpOneLevel))
-                    .action("Connect", true, ALWAYS,
-                            Action::Connect)
-                    .action("Revert", true, ALWAYS,
-                            Action::Revert))
+                    .action("Skip it", true, |env| env.brick_proposed,
+                            Action::Crucible(CrucibleAction::Tinkerer(TinkererAction::Clear)))
+                    .action("Connect", true, |env| env.brick_proposed,
+                            Action::Connect))
             .submenu(
                 ALWAYS, Menu::new("Finish")
                     .action("Sticky surface", true, |_| true,
                             Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Frozen)))
                     .action("Bouncy surface", true, |_| true,
-                            Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Bouncy))),
+                            Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Bouncy)))
+                    .action("Not yet", true, |_| true,
+                            Action::Keyboard(MenuAction::UpOneLevel))
             )
-            .action("Exit tinker mode", true, |env| env.tinkering,
-                    Action::Keyboard(MenuAction::ReturnToRoot))
     }
 
     fn assign_key(self, used: &HashSet<VirtualKeyCode>) -> Menu {
