@@ -8,7 +8,6 @@ enum Stage {
     Start,
     Slacken,
     Pretensing,
-    Settling,
     Pretenst,
 }
 
@@ -48,19 +47,13 @@ impl Pretenser {
                 if fabric.progress.is_busy() {
                     Pretensing
                 } else {
-                    Settling
-                }
-            }
-            Settling => {
-                fabric.iterate(&self.physics);
-                let speed2 = fabric.iterate(&self.physics);
-                if speed2 > self.speed_threshold * self.speed_threshold {
-                    Settling
-                } else {
                     Pretenst
                 }
             }
-            Pretenst => Pretenst
+            Pretenst => {
+                fabric.iterate(&self.physics);
+                Pretenst
+            }
         };
     }
 

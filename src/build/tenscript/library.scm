@@ -15,7 +15,7 @@
     (name "Simple" "Flagellum")
     (build
       (branch (alias Single)
-        (face (alias :next-base) (grow 3))))
+        (face (alias :next-base) (grow 20 (scale .9)))))
     (shape
       (vulcanize)
       (replace-faces)))
