@@ -80,6 +80,7 @@ pub enum Action {
     SelectAFace,
     ToggleDebug,
     ProposeBrick { alias: FaceAlias, face_rotation: FaceRotation },
+    RemoveProposedBrick,
     Connect,
     InitiateJoinFaces,
     Revert,

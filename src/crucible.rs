@@ -29,6 +29,7 @@ enum Stage {
 #[derive(Debug, Clone)]
 pub enum TinkererAction {
     Propose(BrickOnFace),
+    Clear,
     Commit,
     JoinIfPair(HashSet<UniqueId>),
     InitiateRevert,
