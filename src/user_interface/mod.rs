@@ -32,8 +32,9 @@ mod menu;
 
 const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum MenuAction {
+    StickAround,
     ReturnToRoot,
     TinkerMenu,
     UpOneLevel,
@@ -45,7 +46,7 @@ pub struct MenuEnvironment {
     pub selection_count: usize,
     pub tinkering: bool,
     pub brick_proposed: bool,
-    pub crucible_finished: bool,
+    pub experimenting: bool,
     pub history_available: bool,
     pub visible_control: VisibleControl,
 }
@@ -74,7 +75,6 @@ pub enum Action {
     Scene(SceneAction),
     Keyboard(MenuAction),
     CalibrateStrain,
-    GravityChanged(f32),
     SelectFace(Option<UniqueId>),
     ShowControl(VisibleControl),
     SelectAFace,

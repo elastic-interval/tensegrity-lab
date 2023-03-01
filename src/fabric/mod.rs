@@ -26,6 +26,7 @@ pub mod physics;
 pub mod pretenser;
 pub mod progress;
 pub mod vulcanize;
+pub mod lab;
 
 #[derive(Clone, Debug)]
 pub struct Fabric {

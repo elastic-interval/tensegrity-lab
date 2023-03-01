@@ -85,15 +85,12 @@ impl Application {
                             self.user_interface.action(
                                 Action::Scene(SceneAction::Variant(SceneVariant::TinkeringOnFaces(HashSet::new()))))
                         }
-                        MenuAction::UpOneLevel => {}
+                        _ => {}
                     }
                     self.user_interface.menu_choice(menu_choice);
                 }
                 Action::ShowControl(visible_control) => {
                     self.user_interface.message(ControlMessage::ShowControl(visible_control));
-                }
-                Action::GravityChanged(_gravity) => {
-                    unimplemented!();
                 }
                 Action::CalibrateStrain => {
                     let strain_limits = self.crucible.fabric().strain_limits(Fabric::BOW_TIE_MATERIAL_INDEX);
@@ -171,7 +168,7 @@ impl Application {
             selection_count: self.selected_faces.len(),
             tinkering: self.crucible.is_tinkering(),
             brick_proposed: self.crucible.is_brick_proposed(),
-            crucible_finished: self.crucible.is_finished(),
+            experimenting: self.crucible.is_experimenting(),
             history_available: self.crucible.is_history_available(),
             visible_control: self.user_interface.controls().show_controls(),
         })

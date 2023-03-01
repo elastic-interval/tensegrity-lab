@@ -7,6 +7,7 @@ use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::build::tinkerer::{BrickOnFace, Tinkerer};
 use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::lab::Lab;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::fabric::pretenser::Pretenser;
 use crate::scene::{SceneAction, SceneVariant};
@@ -22,6 +23,7 @@ enum Stage {
     Tinkering(Tinkerer),
     PretensingLaunch(SurfaceCharacter),
     Pretensing(Pretenser),
+    Experimenting(Lab),
     BakingBrick(Oven),
     Finished,
 }
@@ -36,6 +38,11 @@ pub enum TinkererAction {
 }
 
 #[derive(Debug, Clone)]
+pub enum LabAction {
+    GravityChanged(f32),
+}
+
+#[derive(Debug, Clone)]
 pub enum CrucibleAction {
     BakeBrick(usize),
     BuildFabric(FabricPlan),
@@ -43,7 +50,8 @@ pub enum CrucibleAction {
     RevertTo(Fabric),
     StartPretensing(SurfaceCharacter),
     StartTinkering,
-    Tinkerer(TinkererAction)
+    Tinkerer(TinkererAction),
+    Experiment(LabAction),
 }
 
 pub struct Crucible {
@@ -103,7 +111,12 @@ impl Crucible {
                 }
                 if pretenser.is_done() {
                     actions.push(Action::CrucibleFinished);
-                    self.stage = Finished;
+                    self.stage = Experimenting(Lab::default());
+                }
+            }
+            Experimenting(lab) => {
+                for _ in 0..self.iterations_per_frame {
+                    lab.iterate(&mut self.fabric);
                 }
             }
             BakingBrick(oven) => {
@@ -133,6 +146,12 @@ impl Crucible {
                     panic!("must be tinkering");
                 };
                 tinkerer.action(tinkerer_action);
+            }
+            Experiment(lab_action) => {
+                let Experimenting(lab) = &mut self.stage else {
+                    panic!("must be experimenting");
+                };
+                lab.action(lab_action);
             }
             SetSpeed(iterations_per_frame) => {
                 self.iterations_per_frame = iterations_per_frame;
@@ -171,7 +190,7 @@ impl Crucible {
         }
     }
 
-    pub fn is_finished(&self) -> bool {
-        matches!(self.stage, Finished)
+    pub fn is_experimenting(&self) -> bool {
+        matches!(self.stage, Experimenting(_))
     }
 }
