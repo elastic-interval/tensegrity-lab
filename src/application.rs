@@ -10,7 +10,7 @@ use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
 use crate::build::tenscript::FabricPlan;
-use crate::build::tinkerer::BrickOnFace;
+use crate::build::tinkerer::{BrickOnFace, Frozen};
 use crate::crucible::{Crucible, CrucibleAction, TinkererAction};
 use crate::fabric::{Fabric, UniqueId};
 use crate::graphics::GraphicsWindow;
@@ -146,8 +146,7 @@ impl Application {
                     self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::InitiateRevert));
                     self.update_menu_environment();
                 }
-                Action::RevertToFrozen { fabric, brick_on_face } => {
-                    self.update_menu_environment();
+                Action::RevertToFrozen { frozen: Frozen { fabric, face_id }, brick_on_face } => {
                     self.selected_faces.clear();
                     self.crucible.action(CrucibleAction::RevertTo(fabric));
                     if let Some(brick_on_face) = brick_on_face {
@@ -155,7 +154,10 @@ impl Application {
                         self.crucible.action(
                             CrucibleAction::Tinkerer(TinkererAction::Propose(brick_on_face)));
                         self.user_interface.action(Action::SelectFace(Some(face_id)));
+                    } else {
+                        face_id.map(|face_id| self.selected_faces.insert(face_id));
                     }
+                    self.update_menu_environment();
                 }
             }
         }

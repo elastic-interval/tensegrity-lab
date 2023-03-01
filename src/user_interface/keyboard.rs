@@ -68,12 +68,23 @@ impl Component for Keyboard {
 
     fn element(&self) -> Element<'_, ControlMessage, Renderer> {
         let mut row = Row::new();
-        row = row.push(
-            Button::new(
-                Text::new(&self.current.last().unwrap().label)
-                    .style(Color::from_rgb(0.0, 1.0, 0.0)))
-                .on_press(KeyboardMessage::SelectMenu(MenuAction::UpOneLevel).into())
-        );
+        let current = self.current.last().unwrap();
+        match current.menu_action {
+            MenuAction::StickAround => {
+                row = row.push(Text::new(&self.current.last().unwrap().label));
+            }
+            MenuAction::ReturnToRoot | MenuAction::TinkerMenu => {
+                unimplemented!()
+            }
+            MenuAction::UpOneLevel => {
+                row = row.push(
+                    Button::new(
+                        Text::new(&self.current.last().unwrap().label)
+                            .style(Color::from_rgb(0.0, 1.0, 0.0))
+                    ).on_press(KeyboardMessage::SelectMenu(MenuAction::UpOneLevel).into())
+                );
+            }
+        };
         for item in &self.current.last().unwrap().submenu_in(self.environment) {
             row = row.push(
                 Button::new(Text::new(item.label()))
