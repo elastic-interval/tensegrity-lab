@@ -26,12 +26,18 @@ pub struct BrickOnFace {
     pub face_rotation: FaceRotation,
 }
 
+#[derive(Clone, Debug)]
+pub struct Frozen {
+    pub fabric: Fabric,
+    pub face_id: Option<UniqueId>,
+}
+
 pub struct Tinkerer {
     stage: Stage,
     proposed_brick: Option<BrickOnFace>,
     proposed_connect: Option<(UniqueId, UniqueId)>,
     physics: Physics,
-    history: Vec<Fabric>,
+    history: Vec<Frozen>,
 }
 
 impl Default for Tinkerer {
@@ -56,7 +62,7 @@ impl Tinkerer {
             }
             ReifyBrick => {
                 if let Some(BrickOnFace { alias, face_id, face_rotation }) = &self.proposed_brick {
-                    self.history.push(fabric.clone());
+                    self.history.push(Frozen { fabric: fabric.clone(), face_id: Some(face_id.clone()) });
                     let (base_face_id, _) = fabric
                         .create_brick(alias, *face_rotation, 1.0, Some(*face_id));
                     self.proposed_connect = Some((base_face_id, *face_id));
@@ -77,9 +83,9 @@ impl Tinkerer {
                 Navigating
             }
             Reverting => {
-                if let Some(fabric) = self.history.pop() {
+                if let Some(frozen) = self.history.pop() {
                     let brick_on_face = self.proposed_brick.take();
-                    action = Some(Action::RevertToFrozen { fabric, brick_on_face })
+                    action = Some(Action::RevertToFrozen { frozen, brick_on_face })
                 };
                 Navigating
             }
