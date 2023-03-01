@@ -33,6 +33,14 @@
       (replace-faces)
       (bouncy)))
   (fabric
+    (name "Simple" "Bulge Ring")
+    (build
+      (branch (alias Single)
+        (face (alias :base) (grow 8 (scale .92) (mark :tip)))
+        (face (alias :next-base) (grow 9 (scale .92) (mark :tip)))
+        ))
+    (shape (join :tip) (bouncy)))
+  (fabric
     (name "Art" "Halo by Crane")
     (build
       (branch (alias Single) (rotate) (rotate)
