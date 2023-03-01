@@ -110,6 +110,7 @@ impl Application {
                     } else {
                         self.selected_faces.clear();
                     }
+                    self.selected_faces.retain(|id| self.crucible.fabric().faces.contains_key(id));
                     self.scene.action(SceneAction::Variant(SceneVariant::TinkeringOnFaces(self.selected_faces.clone())));
                     self.update_menu_environment();
                 }
