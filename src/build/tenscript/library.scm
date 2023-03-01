@@ -39,24 +39,22 @@
       (branch (alias Torque)
         (face (alias Left:Front:Bottom)
           (branch (alias Torque)
-            (face (alias Far:Front)
-              (grow 5))))
+            (face (alias Far:Front) (grow 3))))
         (face (alias Left:Back:Bottom)
-          (branch
-            (alias Torque)
-            (face (alias Far:Front) (grow 5))))
+          (branch (alias Torque)
+            (face (alias Far:Front) (grow 3))))
         (face (alias Right:Front:Bottom)
-          (grow 2
-            (branch (alias Torque)
-              (face (alias Far:Front) (grow 1)))))
+          (grow 1
+            (branch (alias Torque) (rotate)
+              (face (alias Far:Base) (grow 2)))))
         (face (alias Right:Back:Bottom)
-          (grow 2
-            (branch
-              (alias Torque)
-              (face (alias Far:Front) (grow 1)))))))
+          (grow 1
+            (branch (alias Torque) (rotate)
+              (face (alias Far:Base) (grow 2)))))))
     (shape
       (vulcanize)
-      (replace-faces)))
+      (replace-faces)
+      (bouncy)))
     (fabric
       (name "Art" "Headless Hug")
       (build

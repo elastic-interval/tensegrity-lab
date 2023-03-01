@@ -110,8 +110,8 @@ impl Crucible {
                     pretenser.iterate(&mut self.fabric);
                 }
                 if pretenser.is_done() {
-                    actions.push(Action::CrucibleFinished);
-                    self.stage = Experimenting(Lab::default());
+                    actions.push(Action::UpdateMenu);
+                    self.stage = Experimenting(Lab::new(pretenser.physics()));
                 }
             }
             Experimenting(lab) => {

@@ -2,7 +2,6 @@ use crate::crucible::LabAction;
 use crate::fabric::Fabric;
 use crate::fabric::lab::Stage::{*};
 use crate::fabric::physics::Physics;
-use crate::fabric::physics::presets::AIR_GRAVITY;
 
 #[derive(Clone, PartialEq)]
 enum Stage {
@@ -15,16 +14,11 @@ pub struct Lab {
     physics: Physics,
 }
 
-impl Default for Lab {
-    fn default() -> Self {
-        Self {
-            stage: Start,
-            physics: AIR_GRAVITY,
-        }
-    }
-}
-
 impl Lab {
+    pub(crate) fn new(physics: Physics) -> Self {
+        Self { stage: Start, physics }
+    }
+
     pub fn iterate(&mut self, fabric: &mut Fabric) {
         self.stage = match self.stage {
             Start => Running,

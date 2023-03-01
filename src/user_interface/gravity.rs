@@ -20,9 +20,24 @@ impl From<GravityMessage> for ControlMessage {
 
 #[derive(Clone, Debug)]
 pub struct Gravity {
-    pub nuance: f32,
-    pub min_gravity: f32,
-    pub max_gravity: f32,
+    nuance: f32,
+    default: f32,
+    min_gravity: f32,
+    max_gravity: f32,
+}
+
+impl Gravity {
+    pub fn new(default: f32) -> Self {
+        let min_gravity = default * 0.1;
+        let max_gravity = default * 5.0;
+        let nuance = (default - min_gravity) / (max_gravity - min_gravity);
+        Self {
+            nuance,
+            default,
+            min_gravity,
+            max_gravity,
+        }
+    }
 }
 
 impl Component for Gravity {
@@ -35,8 +50,8 @@ impl Component for Gravity {
                 self.min_gravity * (1.0 - nuance) + self.max_gravity * nuance
             }
             Reset => {
-                self.nuance = 0.0;
-                self.min_gravity
+                self.nuance = (self.default - self.min_gravity) / (self.max_gravity - self.min_gravity);
+                self.default
             }
         };
         Some(Action::Crucible(CrucibleAction::Experiment(LabAction::GravityChanged(gravity))))
