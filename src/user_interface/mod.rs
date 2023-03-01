@@ -71,7 +71,7 @@ pub enum FaceChoice {
 #[derive(Clone, Debug)]
 pub enum Action {
     Crucible(CrucibleAction),
-    CrucibleFinished,
+    UpdateMenu,
     Scene(SceneAction),
     Keyboard(MenuAction),
     CalibrateStrain,

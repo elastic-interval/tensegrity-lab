@@ -9,6 +9,7 @@ use iced_winit::widget::{Column, Row, Text};
 use instant::Instant;
 
 use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::scene::SceneVariant;
 use crate::scene::SceneVariant::{Suspended, TinkeringOnFaces};
 use crate::user_interface::{Action, ControlMessage};
@@ -47,11 +48,7 @@ impl Default for ControlState {
                 nuance: 0.0,
                 strain_limits: (0.0, 1.0),
             },
-            gravity: Gravity {
-                nuance: 0.0,
-                min_gravity: 1e-8,
-                max_gravity: 5e-7,
-            },
+            gravity: Gravity::new(AIR_GRAVITY.gravity),
             show_strain: false,
             frame_rate: 0.0,
             action_queue: RefCell::new(Vec::new()),
@@ -114,6 +111,7 @@ impl Program for ControlState {
             ControlMessage::Reset => {
                 self.visible_control = VisibleControl::Nothing;
                 self.gravity.update(GravityMessage::Reset);
+                queue_action(Some(Action::UpdateMenu))
             }
             ControlMessage::ShowControl(visible_control) => {
                 self.visible_control = visible_control;

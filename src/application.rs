@@ -59,6 +59,7 @@ impl Application {
                             self.fabric_plan_name = fabric_plan.name.clone();
                             self.scene.action(SceneAction::Variant(SceneVariant::Suspended));
                             self.user_interface.message(ControlMessage::Reset);
+                            self.update_menu_environment()
                         }
                         CrucibleAction::StartPretensing(_) => {
                             self.user_interface.action(Action::Keyboard(MenuAction::ReturnToRoot))
@@ -67,7 +68,7 @@ impl Application {
                     }
                     self.crucible.action(crucible_action);
                 }
-                Action::CrucibleFinished => {
+                Action::UpdateMenu => {
                     self.update_menu_environment();
                 }
                 Action::Scene(scene_action) => {

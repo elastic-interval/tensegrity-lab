@@ -139,7 +139,7 @@ impl Menu {
     }
 
     fn fabric_menu(fabrics: &[FabricPlan]) -> Menu {
-        Self::fabric_menu_recurse(Menu::new("Tensegrity menu", StickAround), fabrics, Vec::new())
+        Self::fabric_menu_recurse(Menu::new("Tensegrity menu", UpOneLevel), fabrics, Vec::new())
     }
 
     fn speed_menu() -> Menu {
