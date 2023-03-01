@@ -20,6 +20,19 @@
       (vulcanize)
       (replace-faces)))
   (fabric
+    (name "Simple" "Tetrapod")
+    (build
+      (branch (alias Omni)
+        (face (alias Top:Right) (grow 3 (scale .9)))
+        (face (alias Bottom:Right) (grow 3 (scale .9)))
+        (face (alias Back:Left) (grow 3 (scale .9)))
+        (face (alias Front:Left) (grow 3 (scale .9)))
+        ))
+    (shape
+      (vulcanize)
+      (replace-faces)
+      (bouncy)))
+  (fabric
     (name "Art" "Halo by Crane")
     (build
       (branch (alias Single) (rotate) (rotate)
