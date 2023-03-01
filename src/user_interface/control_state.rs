@@ -126,6 +126,7 @@ impl Program for ControlState {
                         self.show_strain = false;
                     }
                 }
+                queue_action(Some(Action::ControlChange));
             }
             ControlMessage::Keyboard(message) => {
                 queue_action(self.keyboard.update(message));

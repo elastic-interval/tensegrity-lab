@@ -92,6 +92,9 @@ impl Application {
                 Action::ShowControl(visible_control) => {
                     self.user_interface.message(ControlMessage::ShowControl(visible_control));
                 }
+                Action::ControlChange => {
+                    self.update_menu_environment();
+                }
                 Action::CalibrateStrain => {
                     let strain_limits = self.crucible.fabric().strain_limits(Fabric::BOW_TIE_MATERIAL_INDEX);
                     self.user_interface.set_strain_limits(strain_limits);
