@@ -11,6 +11,7 @@ use winit::window::Window;
 
 use crate::build::tenscript::FabricPlan;
 use crate::build::tinkerer::{BrickOnFace, Frozen};
+use crate::camera::Pick;
 use crate::crucible::{Crucible, CrucibleAction, TinkererAction};
 use crate::fabric::{Fabric, UniqueId};
 use crate::graphics::GraphicsWindow;
@@ -101,12 +102,11 @@ impl Application {
                     self.user_interface.set_strain_limits(strain_limits);
                 }
                 Action::SelectFace(face_id) => {
-                    if let Some(face_id) = face_id {
-                        if self.selected_faces.contains(&face_id) {
+                    if let Some(Pick { face_id, multiple }) = face_id {
+                        if !multiple {
                             self.selected_faces.clear();
-                        } else {
-                            self.selected_faces.insert(face_id);
                         }
+                        self.selected_faces.insert(face_id);
                     } else {
                         self.selected_faces.clear();
                     }
@@ -116,9 +116,13 @@ impl Application {
                 }
                 Action::SelectAFace => {
                     if let Ok([&selected]) = self.selected_faces.iter().next_chunk() {
-                        self.user_interface.action(Action::SelectFace(Some(selected)))
+                        self.user_interface.action(Action::SelectFace(Some(Pick::just(selected))))
                     } else {
-                        let pick_one = self.crucible.fabric().faces.keys().next().copied();
+                        let pick_one = self.crucible.fabric().faces
+                            .keys()
+                            .next()
+                            .copied()
+                            .map(Pick::just);
                         self.user_interface.action(Action::SelectFace(pick_one))
                     }
                 }
@@ -158,7 +162,7 @@ impl Application {
                         let face_id = brick_on_face.face_id;
                         self.crucible.action(
                             CrucibleAction::Tinkerer(TinkererAction::Propose(brick_on_face)));
-                        self.user_interface.action(Action::SelectFace(Some(face_id)));
+                        self.user_interface.action(Action::SelectFace(Some(Pick::just(face_id))));
                     } else {
                         face_id.map(|face_id| self.selected_faces.insert(face_id));
                     }

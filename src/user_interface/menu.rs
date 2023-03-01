@@ -176,7 +176,7 @@ impl Menu {
 
     pub fn tinker_menu() -> Menu {
         Menu::new("Tinker", StickAround)
-            .action("Pick a face with <Shift-click>", StickAround, |env| env.selection_count == 0,
+            .action("Pick a face with <Command-click>", StickAround, |env| env.selection_count == 0,
                     Action::SelectAFace)
             .action("Join the selected faces", StickAround, |env| env.selection_count == 2,
                     Action::InitiateJoinFaces)

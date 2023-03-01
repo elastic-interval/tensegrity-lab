@@ -14,8 +14,8 @@ use instant::Instant;
 
 use crate::build::tenscript::FaceAlias;
 use crate::build::tinkerer::{BrickOnFace, Frozen};
+use crate::camera::Pick;
 use crate::crucible::CrucibleAction;
-use crate::fabric::UniqueId;
 use crate::fabric::face::FaceRotation;
 use crate::graphics::GraphicsWindow;
 use crate::scene::SceneAction;
@@ -75,7 +75,7 @@ pub enum Action {
     Scene(SceneAction),
     Keyboard(MenuAction),
     CalibrateStrain,
-    SelectFace(Option<UniqueId>),
+    SelectFace(Option<Pick>),
     ShowControl(VisibleControl),
     ControlChange,
     SelectAFace,
