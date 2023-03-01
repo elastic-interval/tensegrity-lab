@@ -2,7 +2,6 @@ use iced_wgpu::Renderer;
 use iced_winit::{Color, Element};
 use iced_winit::widget::{Button, Row, Text};
 use winit::event::VirtualKeyCode;
-use winit::event::VirtualKeyCode::{*};
 
 use crate::user_interface::{Action, ControlMessage, MenuAction, MenuEnvironment};
 use crate::user_interface::control_state::{Component, format_row};
@@ -13,8 +12,7 @@ pub enum KeyboardMessage {
     KeyPressed(VirtualKeyCode),
     SelectSubmenu(Menu),
     SelectMenu(MenuAction),
-    SubmitAction(Action),
-    SubmitExitAction(Action),
+    SubmitAction { action: Action, menu_action: MenuAction },
     SetEnvironment(MenuEnvironment),
 }
 
@@ -35,11 +33,8 @@ impl Component for Keyboard {
 
     fn update(&mut self, message: Self::Message) -> Option<Action> {
         match message {
-            KeyboardMessage::SubmitAction(action) => {
-                return Some(action);
-            }
-            KeyboardMessage::SubmitExitAction(action) => {
-                self.menu_back();
+            KeyboardMessage::SubmitAction { action, menu_action } => {
+                Self::exit(menu_action, &mut self.current);
                 return Some(action);
             }
             KeyboardMessage::KeyPressed(key_code) => {
@@ -52,6 +47,7 @@ impl Component for Keyboard {
             }
             KeyboardMessage::SelectMenu(menu_action) => {
                 match menu_action {
+                    MenuAction::StickAround => {}
                     MenuAction::ReturnToRoot => {
                         self.reset_menu(Menu::root_menu());
                     }
@@ -59,7 +55,7 @@ impl Component for Keyboard {
                         self.reset_menu(Menu::tinker_menu());
                     }
                     MenuAction::UpOneLevel => {
-                        self.menu_back();
+                        Self::menu_back(&mut self.current);
                     }
                 }
             }
@@ -85,10 +81,9 @@ impl Component for Keyboard {
                         match &item.action {
                             None => KeyboardMessage::SelectSubmenu(item.clone()),
                             Some(action) => {
-                                if item.exit_action {
-                                    KeyboardMessage::SubmitExitAction(action.clone())
-                                } else {
-                                    KeyboardMessage::SubmitAction(action.clone())
+                                KeyboardMessage::SubmitAction {
+                                    action: action.clone(),
+                                    menu_action: item.menu_action,
                                 }
                             }
                         }.into()
@@ -117,14 +112,8 @@ impl Keyboard {
         self.current.last().unwrap().clone()
     }
 
-    pub fn key_pressed(&self, keycode_pressed: VirtualKeyCode) -> (Vec<Menu>, Option<Action>) {
+    pub fn key_pressed(&mut self, keycode_pressed: VirtualKeyCode) -> (Vec<Menu>, Option<Action>) {
         let mut current = self.current.clone();
-        if matches!(keycode_pressed, Escape | Back) {
-            if current.len() > 1 {
-                current.pop();
-            }
-            return (current, None);
-        };
         let action = current
             .last()
             .unwrap()
@@ -132,19 +121,13 @@ impl Keyboard {
             .submenu_in(self.environment)
             .into_iter()
             .find_map(|menu| {
-                let Menu { label, keycode, action, submenu, exit_action } = &menu;
+                let Menu { label, keycode, action, submenu, menu_action } = &menu;
                 let (code, _) = keycode.clone().unwrap_or_else(|| panic!("No keycode for {label}"));
                 if code != keycode_pressed {
                     return None;
                 }
                 if action.is_some() {
-                    if *exit_action {
-                        if current.len() > 1 {
-                            current.pop();
-                        } else {
-                            current = vec![Menu::root_menu()];
-                        }
-                    }
+                    Self::exit(*menu_action, &mut current);
                     return action.clone();
                 }
                 if submenu.is_empty() {
@@ -156,11 +139,29 @@ impl Keyboard {
         (current, action)
     }
 
-    fn menu_back(&mut self) {
-        if self.current.len() > 1 {
-            self.current.pop();
+    fn menu_back(current: &mut Vec<Menu>) {
+        if current.len() > 1 {
+            current.pop();
         } else {
-            self.current = vec![Menu::root_menu()];
+            current.clear();
+            current.push(Menu::root_menu());
+        }
+    }
+
+    fn exit(menu_action: MenuAction, current: &mut Vec<Menu>) {
+        match menu_action {
+            MenuAction::StickAround => {}
+            MenuAction::UpOneLevel => {
+                Self::menu_back(current);
+            }
+            MenuAction::ReturnToRoot => {
+                current.clear();
+                current.push(Menu::root_menu());
+            }
+            MenuAction::TinkerMenu => {
+                current.clear();
+                current.push(Menu::tinker_menu());
+            }
         }
     }
 }

@@ -10,6 +10,7 @@ use crate::fabric::physics::SurfaceCharacter;
 use crate::scene::SceneAction;
 use crate::user_interface::{Action, MenuAction, MenuEnvironment};
 use crate::user_interface::control_state::VisibleControl;
+use crate::user_interface::MenuAction::{*};
 
 #[derive(Debug, Clone)]
 pub struct MaybeMenu {
@@ -29,7 +30,7 @@ pub struct Menu {
     pub keycode: Option<(VirtualKeyCode, String)>,
     pub submenu: Vec<MaybeMenu>,
     pub action: Option<Action>,
-    pub exit_action: bool,
+    pub menu_action: MenuAction,
 }
 
 impl Menu {
@@ -39,7 +40,7 @@ impl Menu {
             keycode: None,
             submenu: Vec::new(),
             action: None,
-            exit_action: false,
+            menu_action: StickAround,
         }
     }
 
@@ -60,14 +61,14 @@ impl Menu {
                     keycode: None,
                     submenu: menu.submenu,
                     action: None,
-                    exit_action: false,
+                    menu_action: menu.menu_action,
                 },
             }
         );
         new
     }
 
-    pub fn action(self, label: &str, exit_action: bool, exists_in: fn(MenuEnvironment) -> bool, action: Action) -> Self {
+    pub fn action(self, label: &str, menu_action: MenuAction, exists_in: fn(MenuEnvironment) -> bool, action: Action) -> Self {
         let maybe = MaybeMenu {
             exists_in,
             menu: Menu {
@@ -75,7 +76,7 @@ impl Menu {
                 keycode: None,
                 action: Some(action),
                 submenu: Vec::new(),
-                exit_action,
+                menu_action,
             },
         };
         let mut new = self;
@@ -129,7 +130,7 @@ impl Menu {
             for fabric_plan in sub_fabrics {
                 let label = fabric_plan.name.last().unwrap();
                 menu = menu.action(
-                    label.as_str(), false, ALWAYS,
+                    label.as_str(), ReturnToRoot, ALWAYS,
                     Action::Crucible(CrucibleAction::BuildFabric(fabric_plan.clone())),
                 );
             }
@@ -138,80 +139,76 @@ impl Menu {
     }
 
     fn fabric_menu(fabrics: &[FabricPlan]) -> Menu {
-        Self::fabric_menu_recurse(Menu::new("Fabrics"), fabrics, Vec::new())
+        Self::fabric_menu_recurse(Menu::new("Tensegrity menu"), fabrics, Vec::new())
     }
 
     fn speed_menu() -> Menu {
         let mut menu = Menu::new("Speed");
         for (speed, label) in [(0usize, "Paused"), (5, "Glacial"), (25, "Slow"), (125, "Normal"), (625, "Fast")] {
-            menu = menu.action(label, true, ALWAYS, Action::Crucible(CrucibleAction::SetSpeed(speed)));
+            menu = menu.action(label, ReturnToRoot, ALWAYS, Action::Crucible(CrucibleAction::SetSpeed(speed)));
         }
         menu
     }
 
     pub fn root_menu() -> Menu {
-        Menu::new("Tensegrity Lab")
-            .action("Tinker", false, |env| env.face_count > 0,
-                    Action::SelectAFace)
+        Menu::new("Welcome")
             .submenu(ALWAYS, Menu::fabric_menu(&Library::standard().fabrics))
-            .submenu(ALWAYS, Menu::speed_menu())
-            .submenu(
-                ALWAYS,
-                Menu::new("Camera")
-                    .action("Midpoint", true, ALWAYS, Action::Scene(SceneAction::WatchMidpoint))
-                    .action("Origin", true, ALWAYS, Action::Scene(SceneAction::WatchOrigin)),
-            )
-            .action("Gravity control", true,
-                    |env| env.crucible_finished && env.visible_control != VisibleControl::Gravity,
+            .action("Gravity control", StickAround,
+                    |env| env.experimenting && env.visible_control != VisibleControl::Gravity,
                     Action::ShowControl(VisibleControl::Gravity))
-            .action("Strain control", true,
-                    |env| env.crucible_finished && env.visible_control != VisibleControl::StrainThreshold,
+            .action("Strain control", StickAround,
+                    |env| env.experimenting && env.visible_control != VisibleControl::StrainThreshold,
                     Action::ShowControl(VisibleControl::StrainThreshold))
-            .action("Hide controls", true,
-                    |env| env.crucible_finished && env.visible_control != VisibleControl::Nothing,
+            .action("Hide controls", StickAround,
+                    |env| env.experimenting && env.visible_control != VisibleControl::Nothing,
                     Action::ShowControl(VisibleControl::Nothing))
-            .submenu(
-                ALWAYS,
-                Menu::new("Etc")
-                    .action("Debug toggle", true, ALWAYS, Action::ToggleDebug),
+            .submenu(ALWAYS, Menu::new("Settings")
+                .action("Debug toggle", ReturnToRoot, ALWAYS, Action::ToggleDebug)
+                .submenu(ALWAYS, Menu::speed_menu())
+                .submenu(ALWAYS, Menu::new("Camera")
+                    .action("Midpoint", ReturnToRoot, ALWAYS, Action::Scene(SceneAction::WatchMidpoint))
+                    .action("Origin", ReturnToRoot, ALWAYS, Action::Scene(SceneAction::WatchOrigin)),
+                ),
             )
+            .action("Tinker", StickAround, |env| env.face_count > 0,
+                    Action::SelectAFace)
     }
 
     pub fn tinker_menu() -> Menu {
         Menu::new("Tinker")
-            .action("Pick a face with <Shift-click>", false, |env| env.selection_count == 0,
+            .action("Pick a face with <Shift-click>", StickAround, |env| env.selection_count == 0,
                     Action::SelectAFace)
-            .action("Connect the new brick", false, |env| env.brick_proposed,
+            .action("Connect the new brick", StickAround, |env| env.brick_proposed,
                     Action::Connect)
-            .action("Join the selected faces", false, |env| env.selection_count == 2,
+            .action("Join the selected faces", StickAround, |env| env.selection_count == 2,
                     Action::InitiateJoinFaces)
-            .action("Revert to previous", false, |env| env.history_available,
+            .action("Revert to previous", StickAround, |env| env.history_available,
                     Action::Revert)
             .submenu(
                 |env| env.selection_count == 1,
                 Menu::new("Add a brick at the green face")
-                    .action("Single", false, ALWAYS,
+                    .action("Single", UpOneLevel, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Single"), face_rotation: FaceRotation::Zero })
-                    .action("Omni", false, ALWAYS,
+                    .action("Omni", UpOneLevel, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Omni"), face_rotation: FaceRotation::Zero })
-                    .action("Torque-000", false, ALWAYS,
+                    .action("Torque-000", UpOneLevel, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::Zero })
-                    .action("Torque-120", false, ALWAYS,
+                    .action("Torque-120", UpOneLevel, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::OneThird })
-                    .action("Torque-240", false, ALWAYS,
+                    .action("Torque-240", UpOneLevel, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::TwoThirds })
-                    .action("Skip it", true, |env| env.brick_proposed,
+                    .action("Skip it", UpOneLevel, |env| env.brick_proposed,
                             Action::Crucible(CrucibleAction::Tinkerer(TinkererAction::Clear)))
-                    .action("Connect", true, |env| env.brick_proposed,
+                    .action("Connect", UpOneLevel, |env| env.brick_proposed,
                             Action::Connect))
             .submenu(
                 ALWAYS, Menu::new("Finish")
-                    .action("Sticky surface", true, |_| true,
+                    .action("Sticky surface", ReturnToRoot, |_| true,
                             Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Frozen)))
-                    .action("Bouncy surface", true, |_| true,
+                    .action("Bouncy surface", ReturnToRoot, |_| true,
                             Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Bouncy)))
-                    .action("Not yet", true, |_| true,
-                            Action::Keyboard(MenuAction::UpOneLevel)),
+                    .action("Not yet", UpOneLevel, |_| true,
+                            Action::Keyboard(StickAround)),
             )
     }
 

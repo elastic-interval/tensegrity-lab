@@ -1,6 +1,7 @@
 use iced_wgpu::Renderer;
 use iced_winit::{Color, Element};
 use iced_winit::widget::{Row, Slider, Text};
+use crate::crucible::{CrucibleAction, LabAction};
 use crate::user_interface::{Action, ControlMessage};
 use crate::user_interface::control_state::{Component, format_row};
 use crate::user_interface::gravity::GravityMessage::{*};
@@ -28,16 +29,17 @@ impl Component for Gravity {
     type Message = GravityMessage;
 
     fn update(&mut self, message: Self::Message) -> Option<Action> {
-        match message {
+        let gravity = match message {
             NuanceChanged(nuance) => {
                 self.nuance = nuance;
-                Some(Action::GravityChanged(self.min_gravity * (1.0 - nuance) + self.max_gravity * nuance))
+                self.min_gravity * (1.0 - nuance) + self.max_gravity * nuance
             }
             Reset => {
                 self.nuance = 0.0;
-                Some(Action::GravityChanged(self.min_gravity))
+                self.min_gravity
             }
-        }
+        };
+        Some(Action::Crucible(CrucibleAction::Experiment(LabAction::GravityChanged(gravity))))
     }
 
     fn element(&self) -> Element<'_, ControlMessage, Renderer> {
