@@ -187,15 +187,15 @@ impl Menu {
             .submenu(
                 |env| env.selection_count == 1,
                 Menu::new("Add a brick at the green face")
-                    .action("Single", UpOneLevel, ALWAYS,
+                    .action("Single", StickAround, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Single"), face_rotation: FaceRotation::Zero })
-                    .action("Omni", UpOneLevel, ALWAYS,
+                    .action("Omni", StickAround, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Omni"), face_rotation: FaceRotation::Zero })
-                    .action("Torque-000", UpOneLevel, ALWAYS,
+                    .action("Torque-000", StickAround, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::Zero })
-                    .action("Torque-120", UpOneLevel, ALWAYS,
+                    .action("Torque-120", StickAround, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::OneThird })
-                    .action("Torque-240", UpOneLevel, ALWAYS,
+                    .action("Torque-240", StickAround, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::TwoThirds })
                     .action("Skip it", UpOneLevel, |env| env.brick_proposed,
                             Action::Crucible(CrucibleAction::Tinkerer(TinkererAction::Clear)))
