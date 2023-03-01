@@ -77,6 +77,7 @@ pub enum Action {
     CalibrateStrain,
     SelectFace(Option<UniqueId>),
     ShowControl(VisibleControl),
+    ControlChange,
     SelectAFace,
     ToggleDebug,
     ProposeBrick { alias: FaceAlias, face_rotation: FaceRotation },
