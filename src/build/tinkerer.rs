@@ -1,6 +1,7 @@
 use cgmath::InnerSpace;
 use crate::build::tenscript::FaceAlias;
 use crate::build::tinkerer::Stage::{*};
+use crate::camera::Pick;
 use crate::crucible::TinkererAction;
 use crate::crucible::TinkererAction::{*};
 use crate::fabric::{Fabric, UniqueId};
@@ -89,7 +90,7 @@ impl Tinkerer {
                     fabric.join_faces(alpha, omega);
                     fabric.progress.start(1000);
                     self.proposed_brick = None;
-                    action = Some(Action::SelectFace(face_to_select));
+                    action = Some(Action::SelectFace(face_to_select.map(Pick::just)));
                 }
                 self.proposed_connect = None;
                 Navigating
