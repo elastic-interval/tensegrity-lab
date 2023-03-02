@@ -8,7 +8,6 @@ enum Stage {
     Start,
     Slacken,
     Pretensing,
-    Settling,
     Pretenst,
 }
 
@@ -22,16 +21,12 @@ pub struct Pretenser {
 
 impl Pretenser {
     pub fn new(pretenst_factor: f32, surface_character: SurfaceCharacter) -> Self {
-        let physics = Physics {
-            surface_character,
-            ..AIR_GRAVITY
-        };
         Self {
             stage: Start,
             pretenst_factor,
             pretensing_countdown: 20000,
             speed_threshold: 1e-6,
-            physics,
+            physics: Physics { surface_character, ..AIR_GRAVITY },
         }
     }
 
@@ -48,23 +43,21 @@ impl Pretenser {
                 if fabric.progress.is_busy() {
                     Pretensing
                 } else {
-                    Settling
-                }
-            }
-            Settling => {
-                fabric.iterate(&self.physics);
-                let speed2 = fabric.iterate(&self.physics);
-                if speed2 > self.speed_threshold * self.speed_threshold {
-                    Settling
-                } else {
                     Pretenst
                 }
             }
-            Pretenst => Pretenst
+            Pretenst => {
+                fabric.iterate(&self.physics);
+                Pretenst
+            }
         };
     }
 
     pub fn is_done(&self) -> bool {
         self.stage == Pretenst
+    }
+
+    pub fn physics(&self) -> Physics {
+        self.physics.clone()
     }
 }

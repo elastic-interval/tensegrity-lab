@@ -15,10 +15,31 @@
     (name "Simple" "Flagellum")
     (build
       (branch (alias Single)
-        (face (alias :next-base) (grow 3))))
+        (face (alias :next-base) (grow 20 (scale .9)))))
     (shape
       (vulcanize)
       (replace-faces)))
+  (fabric
+    (name "Simple" "Tetrapod")
+    (build
+      (branch (alias Omni)
+        (face (alias Top:Right) (grow 3 (scale .9)))
+        (face (alias Bottom:Right) (grow 3 (scale .9)))
+        (face (alias Back:Left) (grow 3 (scale .9)))
+        (face (alias Front:Left) (grow 3 (scale .9)))
+        ))
+    (shape
+      (vulcanize)
+      (replace-faces)
+      (bouncy)))
+  (fabric
+    (name "Simple" "Bulge Ring")
+    (build
+      (branch (alias Single)
+        (face (alias :base) (grow 8 (scale .92) (mark :tip)))
+        (face (alias :next-base) (grow 9 (scale .92) (mark :tip)))
+        ))
+    (shape (join :tip) (bouncy)))
   (fabric
     (name "Art" "Halo by Crane")
     (build
@@ -39,24 +60,22 @@
       (branch (alias Torque)
         (face (alias Left:Front:Bottom)
           (branch (alias Torque)
-            (face (alias Far:Front)
-              (grow 5))))
+            (face (alias Far:Front) (grow 3))))
         (face (alias Left:Back:Bottom)
-          (branch
-            (alias Torque)
-            (face (alias Far:Front) (grow 5))))
+          (branch (alias Torque)
+            (face (alias Far:Front) (grow 3))))
         (face (alias Right:Front:Bottom)
-          (grow 2
-            (branch (alias Torque)
-              (face (alias Far:Front) (grow 1)))))
+          (grow 1
+            (branch (alias Torque) (rotate)
+              (face (alias Far:Base) (grow 2)))))
         (face (alias Right:Back:Bottom)
-          (grow 2
-            (branch
-              (alias Torque)
-              (face (alias Far:Front) (grow 1)))))))
+          (grow 1
+            (branch (alias Torque) (rotate)
+              (face (alias Far:Base) (grow 2)))))))
     (shape
       (vulcanize)
-      (replace-faces)))
+      (replace-faces)
+      (bouncy)))
     (fabric
       (name "Art" "Headless Hug")
       (build
