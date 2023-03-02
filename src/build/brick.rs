@@ -1,12 +1,10 @@
 use std::collections::HashMap;
-use std::iter;
-use std::sync::LazyLock;
 
-use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, point3, Quaternion, Rotation, SquareMatrix, Transform, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, point3, Quaternion, Rotation, Transform, Vector3};
 use cgmath::num_traits::abs;
 use pest::iterators::Pair;
 
-use crate::build::tenscript::{FaceAlias, Library, parse_atom, TenscriptError, Spin};
+use crate::build::tenscript::{FaceAlias, parse_atom, Spin, TenscriptError};
 use crate::build::tenscript::Rule;
 use crate::build::tenscript::Spin::{Left, Right};
 use crate::fabric::{Fabric, Link};
@@ -292,13 +290,13 @@ impl Baked {
         Baked { alias: baked_alias, joints, intervals, faces }
     }
 
-    fn apply_matrix(&mut self, matrix: Matrix4<f32>) {
+    pub(crate) fn apply_matrix(&mut self, matrix: Matrix4<f32>) {
         for joint in &mut self.joints {
             *joint = matrix.transform_point(*joint)
         }
     }
 
-    fn down_rotation(&self) -> Matrix4<f32> {
+    pub(crate) fn down_rotation(&self) -> Matrix4<f32> {
         let down = self.faces
             .iter()
             .filter_map(|face|
@@ -309,57 +307,6 @@ impl Baked {
             .sum::<Vector3<f32>>()
             .normalize();
         Matrix4::from(Quaternion::between_vectors(down, -Vector3::unit_y()))
-    }
-
-    pub fn new_brick(search_alias: &FaceAlias) -> Baked {
-        static BAKED_BRICKS: LazyLock<Vec<(FaceAlias, Baked)>> = LazyLock::new(|| {
-            Library::standard()
-                .bricks
-                .into_iter()
-                .filter_map(|brick| brick.baked)
-                .flat_map(|baked| {
-                    let cloned_bricks = iter::repeat(baked.clone());
-                    baked
-                        .faces
-                        .into_iter()
-                        .zip(cloned_bricks)
-                        .flat_map(|(face, baked)| {
-                            let face_space = face.vector_space(&baked).invert().unwrap();
-                            let aliases: Vec<_> = face.aliases
-                                .into_iter()
-                                .map(|alias| {
-                                    let space = if alias.is_seed() {
-                                        baked.down_rotation()
-                                    } else {
-                                        face_space
-                                    };
-                                    (alias, space)
-                                })
-                                .collect();
-                            aliases
-                                .into_iter()
-                                .map(move |(alias, space)| {
-                                    let alias = alias + &baked.alias;
-                                    let mut baked = baked.clone();
-                                    baked.apply_matrix(space);
-                                    (alias, baked)
-                                })
-                        })
-                })
-                .collect()
-        });
-        let search_with_base = search_alias.with_base();
-        let (_, baked) = &BAKED_BRICKS
-            .iter()
-            .filter(|(baked_alias, _)| search_with_base.matches(baked_alias))
-            .min_by_key(|(brick_alias, _)| brick_alias.0.len())
-            .expect(&format!("no such brick: '{search_with_base}'"));
-        let mut thawed = baked.clone();
-        for face in &mut thawed.faces {
-            face.aliases.retain(|candidate| search_alias.matches(candidate));
-            assert_eq!(face.aliases.len(), 1, "exactly one face should be retained {:?}", face.aliases);
-        }
-        thawed.clone()
     }
 
     pub const TARGET_FACE_STRAIN: f32 = 0.1;

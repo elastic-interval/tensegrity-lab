@@ -149,8 +149,9 @@ impl Menu {
     }
 
     fn root_menu() -> Menu {
+        let library = Library::from_source().unwrap();
         Menu::new("Tensegrity Lab")
-            .submenu(ALWAYS, Menu::fabric_menu(&Library::standard().fabrics))
+            .submenu(ALWAYS, Menu::fabric_menu(&library.fabrics))
             .submenu(ALWAYS, Menu::speed_menu())
             .submenu(
                 ALWAYS,

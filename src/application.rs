@@ -9,7 +9,6 @@ use winit::{
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
-use crate::build::tenscript::FabricPlan;
 use crate::build::tinkerer::BrickOnFace;
 use crate::crucible::{Crucible, CrucibleAction, TinkererAction};
 use crate::fabric::{Fabric, UniqueId};
@@ -47,7 +46,7 @@ impl Application {
         self.user_interface.update();
         let mut actions = self.user_interface.controls().take_actions();
         if library_modified_timestamp() > self.library_modified {
-            let fabric_plan = FabricPlan::load_preset(self.fabric_plan_name.clone())
+            let fabric_plan = self.crucible.load_preset(self.fabric_plan_name.clone())
                 .expect("unable to load fabric plan");
             actions.push(Action::Crucible(CrucibleAction::BuildFabric(fabric_plan)));
             self.library_modified = library_modified_timestamp();

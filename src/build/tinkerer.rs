@@ -3,6 +3,7 @@ use crate::build::tinkerer::Stage::{*};
 use crate::crucible::TinkererAction;
 use crate::crucible::TinkererAction::{*};
 use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::brick::BrickLibrary;
 use crate::fabric::face::FaceRotation;
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::LIQUID;
@@ -47,7 +48,7 @@ impl Default for Tinkerer {
 }
 
 impl Tinkerer {
-    pub fn iterate(&mut self, fabric: &mut Fabric) -> Option<Action> {
+    pub fn iterate(&mut self, fabric: &mut Fabric, brick_library: &dyn BrickLibrary) -> Option<Action> {
         let mut action = None;
         self.stage = match &mut self.stage {
             Navigating => {
@@ -58,7 +59,7 @@ impl Tinkerer {
                 if let Some(BrickOnFace { alias, face_id, face_rotation }) = &self.proposed_brick {
                     self.history.push(fabric.clone());
                     let (base_face_id, _) = fabric
-                        .create_brick(alias, *face_rotation, 1.0, Some(*face_id));
+                        .create_brick(alias, *face_rotation, 1.0, Some(*face_id), brick_library);
                     self.proposed_connect = Some((base_face_id, *face_id));
                     PendingFaceJoin
                 } else {
