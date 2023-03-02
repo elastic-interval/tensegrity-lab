@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use pest::iterators::Pair;
 
-use crate::build::tenscript::{BuildPhase, Library, parse_name, TenscriptError, Rule};
+use crate::build::tenscript::{BuildPhase, parse_name, Rule, TenscriptError};
 use crate::build::tenscript::build_phase::BuildNode;
 use crate::build::tenscript::shape_phase::{ShapeOperation, ShapePhase};
 
@@ -16,13 +16,6 @@ pub struct FabricPlan {
 }
 
 impl FabricPlan {
-    pub fn load_preset(plan_name: Vec<String>) -> Option<Self> {
-        Library::standard()
-            .fabrics
-            .into_iter()
-            .find(|plan| plan.name == plan_name)
-    }
-
     pub fn from_pair(fabric_plan_pair: Pair<Rule>) -> Result<FabricPlan, TenscriptError> {
         let [name, build, shape] = fabric_plan_pair.into_inner().next_chunk().unwrap();
         let name = parse_name(name);

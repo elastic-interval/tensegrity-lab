@@ -1,7 +1,8 @@
-use crate::build::tenscript::FabricPlan;
+use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::plan_runner::Stage::{*};
 use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
+use crate::fabric::brick::BrickLibrary;
 use crate::fabric::Fabric;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::fabric::physics::presets::LIQUID;
@@ -35,19 +36,19 @@ impl PlanRunner {
         }
     }
 
-    pub fn iterate(&mut self, fabric: &mut Fabric) {
+    pub fn iterate(&mut self, fabric: &mut Fabric, brick_library: &dyn BrickLibrary) -> Result<(), TenscriptError> {
         fabric.iterate(&self.physics);
         if fabric.progress.is_busy() {
-            return;
+            return Ok(());
         }
         let (next_stage, countdown) = match self.stage {
             Initialize => {
-                self.build_phase.init(fabric);
+                self.build_phase.init(fabric, brick_library)?;
                 (GrowApproach, 500)
             }
             GrowStep => {
                 if self.build_phase.is_growing() {
-                    self.build_phase.growth_step(fabric);
+                    self.build_phase.growth_step(fabric, brick_library)?;
                     (GrowApproach, 500)
                 } else if self.shape_phase.needs_shaping() {
                     self.shape_phase.marks = self.build_phase.marks.split_off(0);
@@ -82,6 +83,7 @@ impl PlanRunner {
         };
         fabric.progress.start(countdown);
         self.stage = next_stage;
+        Ok(())
     }
 
     pub fn is_done(&self) -> bool {

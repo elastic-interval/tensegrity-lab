@@ -1,12 +1,15 @@
 use std::collections::HashSet;
 use CrucibleAction::{*};
+use crate::build::brick::Baked;
 
 use crate::build::oven::Oven;
-use crate::build::tenscript::FabricPlan;
+use crate::build::tenscript::{FabricPlan, FaceAlias, Library, TenscriptError};
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::build::tinkerer::{BrickOnFace, Tinkerer};
 use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::brick::BrickLibrary;
+use crate::fabric::lab::Lab;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::fabric::pretenser::Pretenser;
 use crate::scene::{SceneAction, SceneVariant};
@@ -23,6 +26,7 @@ enum Stage {
     PretensingLaunch(SurfaceCharacter),
     Pretensing(Pretenser),
     BakingBrick(Oven),
+    RefreshLibrary,
     Finished,
 }
 
@@ -46,6 +50,7 @@ pub enum CrucibleAction {
 }
 
 pub struct Crucible {
+    library: Library,
     fabric: Fabric,
     iterations_per_frame: usize,
     stage: Stage,
@@ -54,6 +59,7 @@ pub struct Crucible {
 impl Default for Crucible {
     fn default() -> Self {
         Self {
+            library: Library::from_source().unwrap(),
             fabric: Fabric::default_bow_tie(),
             iterations_per_frame: 125,
             stage: Empty,
@@ -64,8 +70,19 @@ impl Default for Crucible {
 impl Crucible {
     pub fn iterate(&mut self, paused: bool) -> Vec<Action> {
         let mut actions = Vec::new();
+        let brick_library = &self.library;
         match &mut self.stage {
             Empty => {}
+            RefreshLibrary => {
+                match Library::from_source() {
+                    Ok(library) => {
+                        self.library = library
+                    }
+                    Err(tenscript_error) => {
+                        println!("ERROR:{tenscript_error}");
+                    }
+                }
+            }
             RunningPlan(plan_runner) => {
                 if plan_runner.is_done() {
                     self.stage = if self.fabric.faces.is_empty() {
@@ -75,7 +92,9 @@ impl Crucible {
                     }
                 } else {
                     for _ in 0..self.iterations_per_frame {
-                        plan_runner.iterate(&mut self.fabric);
+                        if let Err(tenscript_error) = plan_runner.iterate(&mut self.fabric, brick_library) {
+                            dbg!(tenscript_error);
+                        }
                     }
                 }
             }
@@ -87,7 +106,7 @@ impl Crucible {
             Tinkering(tinkerer) => {
                 let iterations = if paused { 1 } else { self.iterations_per_frame };
                 for _ in 0..iterations {
-                    if let Some(tinker_action) = tinkerer.iterate(&mut self.fabric) {
+                    if let Some(tinker_action) = tinkerer.iterate(&mut self.fabric, brick_library) {
                         actions.push(tinker_action);
                     }
                 }
@@ -118,7 +137,10 @@ impl Crucible {
     pub fn action(&mut self, crucible_action: CrucibleAction) {
         match crucible_action {
             BakeBrick(brick_index) => {
-                let oven = Oven::new(brick_index);
+                let prototype = self.library.bricks
+                    .get(brick_index).expect("no such brick")
+                    .proto.clone();
+                let oven = Oven::new(prototype);
                 self.fabric = oven.prototype_fabric();
                 self.stage = BakingBrick(oven);
             }
@@ -163,5 +185,27 @@ impl Crucible {
             Pretensing(pretenser) => pretenser.is_done(),
             _ => false
         }
+    }
+
+    pub fn is_experimenting(&self) -> bool {
+        matches!(self.stage, Experimenting(_))
+    }
+
+    pub fn library(&self) -> &Library {
+        &self.library
+    }
+
+    pub fn load_preset(&self, plan_name: Vec<String>) -> Result<FabricPlan, TenscriptError> {
+        let plan = self.library.fabrics
+            .iter()
+            .find(|plan| plan.name == plan_name);
+        match plan {
+            None => Err(TenscriptError::Invalid(plan_name.join(","))),
+            Some(plan) => Ok(plan.clone())
+        }
+    }
+
+    pub fn new_brick(&self, search_alias: &FaceAlias) -> Baked {
+        self.library.new_brick(search_alias)
     }
 }

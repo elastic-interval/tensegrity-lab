@@ -97,6 +97,7 @@ impl Default for Keyboard {
 }
 
 impl Keyboard {
+
     pub fn set_menu(&mut self, menu: Menu) {
         self.current.clear();
         self.current.push(menu);
