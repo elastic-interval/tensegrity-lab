@@ -14,7 +14,7 @@ use crate::scene::SceneVariant;
 use crate::scene::SceneVariant::{Suspended, TinkeringOnFaces};
 use crate::user_interface::{Action, ControlMessage};
 use crate::user_interface::gravity::{Gravity, GravityMessage};
-use crate::user_interface::keyboard::Keyboard;
+use crate::user_interface::keyboard::{Keyboard, KeyboardMessage};
 use crate::user_interface::strain_threshold::StrainThreshold;
 use crate::user_interface::strain_threshold::StrainThresholdMessage::SetStrainLimits;
 
@@ -124,7 +124,7 @@ impl Program for ControlState {
                         self.show_strain = false;
                     }
                 }
-                queue_action(Some(Action::ControlChange));
+                queue_action(Some(Action::UpdateMenu));
             }
             ControlMessage::Keyboard(message) => {
                 queue_action(self.keyboard.update(message));
@@ -137,6 +137,9 @@ impl Program for ControlState {
             }
             ControlMessage::FrameRateUpdated(frame_rate) => {
                 self.frame_rate = frame_rate;
+            }
+            ControlMessage::FreshLibrary(library) => {
+                self.keyboard.update(KeyboardMessage::FreshLibrary(library));
             }
         }
         Command::none()

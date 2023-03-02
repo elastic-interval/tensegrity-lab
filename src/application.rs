@@ -23,7 +23,7 @@ pub struct Application {
     user_interface: UserInterface,
     crucible: Crucible,
     graphics: GraphicsWindow,
-    library_modified: SystemTime,
+    library_modified: Option<SystemTime>,
     fabric_plan_name: Vec<String>,
 }
 
@@ -37,7 +37,7 @@ impl Application {
             user_interface,
             crucible: Crucible::default(),
             graphics,
-            library_modified: library_modified_timestamp(),
+            library_modified: None,
             fabric_plan_name: Vec::new(),
         }
     }
@@ -45,11 +45,31 @@ impl Application {
     pub fn update(&mut self, window: &Window) {
         self.user_interface.update();
         let mut actions = self.user_interface.controls().take_actions();
-        if library_modified_timestamp() > self.library_modified {
-            let fabric_plan = self.crucible.load_preset(self.fabric_plan_name.clone())
-                .expect("unable to load fabric plan");
-            actions.push(Action::Crucible(CrucibleAction::BuildFabric(fabric_plan)));
-            self.library_modified = library_modified_timestamp();
+        let time = library_modified_timestamp();
+        match self.library_modified {
+            None => {
+                match self.crucible.refresh_library(time) {
+                    Ok(action) => actions.push(action),
+                    Err(tenscript_error) => {
+                        println!("Tenscript\n{tenscript_error}")
+                    }
+                }
+            }
+            Some(library_modified) if time > library_modified => {
+                match self.crucible.refresh_library(time) {
+                    Ok(action) => {
+                        actions.push(action);
+                        let fabric_plan = self.crucible.load_preset(self.fabric_plan_name.clone())
+                            .expect("unable to load fabric plan");
+                        actions.push(Action::Crucible(CrucibleAction::BuildFabric(fabric_plan)));
+                    },
+                    Err(tenscript_error) => {
+                        println!("Tenscript\n{tenscript_error}");
+                        self.library_modified = Some(time);
+                    }
+                }
+            }
+            _ => {}
         }
         for action in actions {
             match action {
@@ -70,6 +90,16 @@ impl Application {
                 }
                 Action::UpdateMenu => {
                     self.update_menu_environment();
+                }
+                Action::UpdatedLibrary(time) => {
+                    let library = self.crucible.library().clone();
+                    self.library_modified = Some(time);
+                    if !self.fabric_plan_name.is_empty() {
+                        let fabric_plan = self.crucible.load_preset(self.fabric_plan_name.clone())
+                            .expect("unable to load fabric plan");
+                        self.crucible.action(CrucibleAction::BuildFabric(fabric_plan));
+                    }
+                    self.user_interface.message(ControlMessage::FreshLibrary(library));
                 }
                 Action::Scene(scene_action) => {
                     self.scene.action(scene_action);
@@ -92,9 +122,6 @@ impl Application {
                 }
                 Action::ShowControl(visible_control) => {
                     self.user_interface.message(ControlMessage::ShowControl(visible_control));
-                }
-                Action::ControlChange => {
-                    self.update_menu_environment();
                 }
                 Action::CalibrateStrain => {
                     let strain_limits = self.crucible.fabric().strain_limits(Fabric::BOW_TIE_MATERIAL_INDEX);
