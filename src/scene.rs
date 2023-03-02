@@ -13,7 +13,7 @@ use SceneVariant::{*};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use crate::camera::Camera;
+use crate::camera::{Camera, Pick};
 use crate::camera::Target::{*};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::Face;
@@ -190,7 +190,7 @@ impl Scene {
         graphics.queue.write_buffer(&self.fabric_drawing.buffer, 0, cast_slice(&self.fabric_drawing.vertices));
     }
 
-    pub fn picked(&mut self) -> Option<UniqueId> {
+    pub fn picked(&mut self) -> Option<Pick> {
         self.camera.picked.take()
     }
 

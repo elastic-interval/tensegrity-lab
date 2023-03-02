@@ -7,10 +7,11 @@ use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::build::tinkerer::{BrickOnFace, Tinkerer};
 use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::lab::Lab;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::fabric::pretenser::Pretenser;
 use crate::scene::{SceneAction, SceneVariant};
-use crate::user_interface::{Action, MenuChoice};
+use crate::user_interface::{Action, MenuAction};
 
 const PULL_SHORTENING: f32 = 0.95;
 const PRETENST_FACTOR: f32 = 1.03;
@@ -22,6 +23,7 @@ enum Stage {
     Tinkering(Tinkerer),
     PretensingLaunch(SurfaceCharacter),
     Pretensing(Pretenser),
+    Experimenting(Lab),
     BakingBrick(Oven),
     Finished,
 }
@@ -29,9 +31,15 @@ enum Stage {
 #[derive(Debug, Clone)]
 pub enum TinkererAction {
     Propose(BrickOnFace),
+    Clear,
     Commit,
     JoinIfPair(HashSet<UniqueId>),
     InitiateRevert,
+}
+
+#[derive(Debug, Clone)]
+pub enum LabAction {
+    GravityChanged(f32),
 }
 
 #[derive(Debug, Clone)]
@@ -42,7 +50,8 @@ pub enum CrucibleAction {
     RevertTo(Fabric),
     StartPretensing(SurfaceCharacter),
     StartTinkering,
-    Tinkerer(TinkererAction)
+    Tinkerer(TinkererAction),
+    Experiment(LabAction),
 }
 
 pub struct Crucible {
@@ -80,7 +89,7 @@ impl Crucible {
                 }
             }
             TinkeringLaunch => {
-                actions.push(Action::Keyboard(MenuChoice::Tinker));
+                actions.push(Action::Keyboard(MenuAction::TinkerMenu));
                 actions.push(Action::SelectFace(None));
                 self.stage = Tinkering(Tinkerer::default())
             }
@@ -101,7 +110,13 @@ impl Crucible {
                     pretenser.iterate(&mut self.fabric);
                 }
                 if pretenser.is_done() {
-                    self.stage = Finished;
+                    actions.push(Action::UpdateMenu);
+                    self.stage = Experimenting(Lab::new(pretenser.physics()));
+                }
+            }
+            Experimenting(lab) => {
+                for _ in 0..self.iterations_per_frame {
+                    lab.iterate(&mut self.fabric);
                 }
             }
             BakingBrick(oven) => {
@@ -132,6 +147,12 @@ impl Crucible {
                 };
                 tinkerer.action(tinkerer_action);
             }
+            Experiment(lab_action) => {
+                let Experimenting(lab) = &mut self.stage else {
+                    panic!("must be experimenting");
+                };
+                lab.action(lab_action);
+            }
             SetSpeed(iterations_per_frame) => {
                 self.iterations_per_frame = iterations_per_frame;
             }
@@ -151,6 +172,10 @@ impl Crucible {
         &self.fabric
     }
 
+    pub fn is_tinkering(&self) -> bool {
+        matches!(&self.stage, Tinkering(_))
+    }
+
     pub fn is_brick_proposed(&self) -> bool {
         match &self.stage {
             Tinkering(tinkerer) => tinkerer.is_brick_proposed(),
@@ -158,10 +183,14 @@ impl Crucible {
         }
     }
 
-    pub fn is_pretenst_complete(&self) -> bool {
+    pub fn is_history_available(&self) -> bool {
         match &self.stage {
-            Pretensing(pretenser) => pretenser.is_done(),
+            Tinkering(tinkerer) => tinkerer.is_history_available(),
             _ => false
         }
+    }
+
+    pub fn is_experimenting(&self) -> bool {
+        matches!(self.stage, Experimenting(_))
     }
 }
