@@ -11,14 +11,27 @@ use crate::fabric::{Fabric, UniqueId};
 const TARGET_ATTRACTION: f32 = 0.01;
 const TARGET_DISTANCE_MARGIN: f32 = 0.3;
 
+#[derive(Clone, Debug)]
+pub struct Pick {
+    pub face_id: UniqueId,
+    pub multiple: bool,
+}
+
+impl Pick {
+    pub fn just(face_id: UniqueId) -> Self {
+        Self { face_id, multiple: false }
+    }
+}
+
 pub struct Camera {
     pub position: Point3<f32>,
     pub target: Target,
     pub look_at: Point3<f32>,
-    pub picked: Option<UniqueId>,
+    pub picked: Option<Pick>,
     pub size: PhysicalSize<f64>,
     pub moving_mouse: PhysicalPosition<f64>,
-    pub shift: bool,
+    pub pick_mode: bool,
+    pub multiple: bool,
     pub pressed_mouse: Option<PhysicalPosition<f64>>,
 }
 
@@ -32,18 +45,20 @@ impl Camera {
             size,
             moving_mouse: PhysicalPosition::new(0.0, 0.0),
             pressed_mouse: None,
-            shift: false,
+            pick_mode: false,
+            multiple: false,
         }
     }
 
     pub fn window_event(&mut self, event: &WindowEvent, fabric: &Fabric) {
         match event {
             WindowEvent::ModifiersChanged(state) => {
-                self.shift = state.shift();
+                self.pick_mode = state.logo();
+                self.multiple = state.shift();
             }
             WindowEvent::MouseInput { state, .. } => {
                 match state {
-                    ElementState::Pressed if self.shift => { self.pick(self.moving_mouse, fabric) }
+                    ElementState::Pressed if self.pick_mode => { self.pick(self.moving_mouse, self.multiple, fabric) }
                     ElementState::Pressed => { self.pressed_mouse = Some(self.moving_mouse) }
                     ElementState::Released => { self.pressed_mouse = None }
                 }
@@ -76,7 +91,7 @@ impl Camera {
         if !(-0.9..=0.9).contains(&up_dot_gaze) {
             let axis = Vector3::unit_y().cross(gaze).normalize();
             self.position = Point3::from_vec(
-                Quaternion::from_axis_angle(axis,Rad(0.01 * up_dot_gaze / abs(up_dot_gaze)))
+                Quaternion::from_axis_angle(axis, Rad(0.01 * up_dot_gaze / abs(up_dot_gaze)))
                     .rotate_vector(self.position.to_vec())
             );
         }
@@ -90,7 +105,7 @@ impl Camera {
         self.projection_matrix() * self.view_matrix()
     }
 
-    pub fn pick(&mut self, position: PhysicalPosition<f64>, fabric: &Fabric) {
+    pub fn pick(&mut self, position: PhysicalPosition<f64>, multiple: bool, fabric: &Fabric) {
         let width = self.size.width / 2.0;
         let height = self.size.height / 2.0;
         let x = (position.x - width) / width;
@@ -103,7 +118,7 @@ impl Camera {
                 (face_id, (face.midpoint(fabric) - self.position.to_vec()).normalize().dot(ray)))
             .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b));
         if let Some((face_id, _)) = best {
-            self.picked = Some(*face_id);
+            self.picked = Some(Pick { face_id: *face_id, multiple });
         }
     }
 

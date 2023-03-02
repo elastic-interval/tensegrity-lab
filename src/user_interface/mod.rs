@@ -13,10 +13,10 @@ use winit::window::{CursorIcon, Window};
 use instant::Instant;
 
 use crate::build::tenscript::FaceAlias;
-use crate::build::tinkerer::BrickOnFace;
+use crate::build::tinkerer::{BrickOnFace, Frozen};
+use crate::camera::Pick;
 use crate::crucible::CrucibleAction;
 use crate::fabric::face::FaceRotation;
-use crate::fabric::{Fabric, UniqueId};
 use crate::graphics::GraphicsWindow;
 use crate::scene::SceneAction;
 use crate::user_interface::control_state::{ControlState, VisibleControl};
@@ -32,18 +32,23 @@ mod menu;
 
 const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
 
-#[derive(Debug, Clone)]
-pub enum MenuChoice {
-    Root,
-    Tinker,
+#[derive(Debug, Clone, Copy)]
+pub enum MenuAction {
+    StickAround,
+    ReturnToRoot,
+    TinkerMenu,
+    UpOneLevel,
 }
 
 #[derive(Debug, Clone, Default, Copy)]
 pub struct MenuEnvironment {
     pub face_count: usize,
     pub selection_count: usize,
+    pub tinkering: bool,
     pub brick_proposed: bool,
-    pub pretenst_complete: bool,
+    pub experimenting: bool,
+    pub history_available: bool,
+    pub visible_control: VisibleControl,
 }
 
 #[derive(Debug, Clone)]
@@ -66,19 +71,21 @@ pub enum FaceChoice {
 #[derive(Clone, Debug)]
 pub enum Action {
     Crucible(CrucibleAction),
+    UpdateMenu,
     Scene(SceneAction),
-    Keyboard(MenuChoice),
+    Keyboard(MenuAction),
     CalibrateStrain,
-    GravityChanged(f32),
-    SelectFace(Option<UniqueId>),
+    SelectFace(Option<Pick>),
     ShowControl(VisibleControl),
-    StartTinkering,
+    ControlChange,
+    SelectAFace,
     ToggleDebug,
     ProposeBrick { alias: FaceAlias, face_rotation: FaceRotation },
+    RemoveProposedBrick,
     Connect,
     InitiateJoinFaces,
     Revert,
-    RevertToFrozen { fabric: Fabric, brick_on_face: Option<BrickOnFace> },
+    RevertToFrozen { frozen: Frozen, brick_on_face: Option<BrickOnFace> },
 }
 
 /// Largely adapted from https://github.com/iced-rs/iced/blob/master/examples/integration_wgpu/src/main.rs
@@ -169,7 +176,7 @@ impl UserInterface {
         self.message(ControlMessage::Keyboard(KeyboardMessage::SetEnvironment(menu_evironment)))
     }
 
-    pub fn menu_choice(&mut self, menu_choice: MenuChoice) {
+    pub fn menu_choice(&mut self, menu_choice: MenuAction) {
         self.message(ControlMessage::Keyboard(KeyboardMessage::SelectMenu(menu_choice)))
     }
 

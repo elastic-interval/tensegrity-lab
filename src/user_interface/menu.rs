@@ -4,12 +4,13 @@ use winit::event::VirtualKeyCode;
 use winit::event::VirtualKeyCode::{*};
 
 use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
-use crate::crucible::CrucibleAction;
+use crate::crucible::{CrucibleAction, TinkererAction};
 use crate::fabric::face::FaceRotation;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::scene::SceneAction;
-use crate::user_interface::{Action, MenuChoice, MenuEnvironment};
+use crate::user_interface::{Action, MenuAction, MenuEnvironment};
 use crate::user_interface::control_state::VisibleControl;
+use crate::user_interface::MenuAction::{*};
 
 #[derive(Debug, Clone)]
 pub struct MaybeMenu {
@@ -26,20 +27,27 @@ impl MaybeMenu {
 #[derive(Debug, Clone)]
 pub struct Menu {
     pub label: String,
-    pub keycode: Option<VirtualKeyCode>,
+    pub keycode: Option<(VirtualKeyCode, String)>,
     pub submenu: Vec<MaybeMenu>,
     pub action: Option<Action>,
-    pub exit_action: bool,
+    pub menu_action: MenuAction,
 }
 
 impl Menu {
-    pub fn new(label: &str) -> Self {
+    pub fn new(label: &str, menu_action: MenuAction) -> Self {
         Self {
             label: label.to_string(),
             keycode: None,
             submenu: Vec::new(),
             action: None,
-            exit_action: false,
+            menu_action,
+        }
+    }
+
+    pub fn label(&self) -> String {
+        match &self.keycode {
+            None => self.label.clone(),
+            Some((_, prefix)) => format!("{}{}", prefix, self.label)
         }
     }
 
@@ -53,14 +61,14 @@ impl Menu {
                     keycode: None,
                     submenu: menu.submenu,
                     action: None,
-                    exit_action: false,
+                    menu_action: menu.menu_action,
                 },
             }
         );
         new
     }
 
-    pub fn action(self, label: &str, exit_action: bool, exists_in: fn(MenuEnvironment) -> bool, action: Action) -> Self {
+    pub fn action(self, label: &str, menu_action: MenuAction, exists_in: fn(MenuEnvironment) -> bool, action: Action) -> Self {
         let maybe = MaybeMenu {
             exists_in,
             menu: Menu {
@@ -68,7 +76,7 @@ impl Menu {
                 keycode: None,
                 action: Some(action),
                 submenu: Vec::new(),
-                exit_action,
+                menu_action,
             },
         };
         let mut new = self;
@@ -83,18 +91,12 @@ impl Menu {
             .into_iter()
             .flat_map(|maybe| {
                 let menu = maybe.menu.assign_key(&used);
-                used.insert(menu.keycode.unwrap());
+                let (code, _) = menu.keycode.clone().unwrap();
+                used.insert(code);
                 (maybe.exists_in)(environment).then_some(menu)
             })
             .collect();
         sub
-    }
-
-    pub fn select(menu_choice: MenuChoice) -> Menu {
-        match menu_choice {
-            MenuChoice::Root => Menu::root_menu(),
-            MenuChoice::Tinker => Menu::tinker_menu(),
-        }
     }
 
     fn fabric_menu_recurse(menu: Menu, fabrics: &[FabricPlan], below: Vec<String>) -> Menu {
@@ -120,15 +122,15 @@ impl Menu {
             for first in unique {
                 let mut new_below = below.clone();
                 new_below.push(first.clone());
-                menu = menu.submenu(ALWAYS, Menu::fabric_menu_recurse(Menu::new(first.as_str()), fabrics, new_below));
+                menu = menu.submenu(ALWAYS, Menu::fabric_menu_recurse(Menu::new(first.as_str(), UpOneLevel), fabrics, new_below));
             }
             menu
         } else {
-            let mut menu = Menu::new(below.last().unwrap());
+            let mut menu = Menu::new(below.last().unwrap(), UpOneLevel);
             for fabric_plan in sub_fabrics {
                 let label = fabric_plan.name.last().unwrap();
                 menu = menu.action(
-                    label.as_str(), false, ALWAYS,
+                    label.as_str(), ReturnToRoot, ALWAYS,
                     Action::Crucible(CrucibleAction::BuildFabric(fabric_plan.clone())),
                 );
             }
@@ -137,77 +139,80 @@ impl Menu {
     }
 
     fn fabric_menu(fabrics: &[FabricPlan]) -> Menu {
-        Self::fabric_menu_recurse(Menu::new("Fabrics"), fabrics, Vec::new())
+        Self::fabric_menu_recurse(Menu::new("Tensegrity menu", UpOneLevel), fabrics, Vec::new())
     }
 
     fn speed_menu() -> Menu {
-        let mut menu = Menu::new("Speed");
+        let mut menu = Menu::new("Speed", StickAround);
         for (speed, label) in [(0usize, "Paused"), (5, "Glacial"), (25, "Slow"), (125, "Normal"), (625, "Fast")] {
-            menu = menu.action(label, true, ALWAYS, Action::Crucible(CrucibleAction::SetSpeed(speed)));
+            menu = menu.action(label, ReturnToRoot, ALWAYS, Action::Crucible(CrucibleAction::SetSpeed(speed)));
         }
         menu
     }
 
-    fn root_menu() -> Menu {
+    pub fn root_menu() -> Menu {
         let library = Library::from_source().unwrap();
-        Menu::new("Tensegrity Lab")
+        Menu::new("Welcome", StickAround)
             .submenu(ALWAYS, Menu::fabric_menu(&library.fabrics))
-            .submenu(ALWAYS, Menu::speed_menu())
-            .submenu(
-                ALWAYS,
-                Menu::new("Camera")
-                    .action("Midpoint", true, ALWAYS, Action::Scene(SceneAction::WatchMidpoint))
-                    .action("Origin", true, ALWAYS, Action::Scene(SceneAction::WatchOrigin)),
+            .action("Gravity control", StickAround,
+                    |env| env.experimenting && env.visible_control != VisibleControl::Gravity,
+                    Action::ShowControl(VisibleControl::Gravity))
+            .action("Strain control", StickAround,
+                    |env| env.experimenting && env.visible_control != VisibleControl::StrainThreshold,
+                    Action::ShowControl(VisibleControl::StrainThreshold))
+            .action("Hide controls", StickAround,
+                    |env| env.experimenting && env.visible_control != VisibleControl::Nothing,
+                    Action::ShowControl(VisibleControl::Nothing))
+            .submenu(ALWAYS, Menu::new("Settings", StickAround)
+                .action("Debug toggle", ReturnToRoot, ALWAYS, Action::ToggleDebug)
+                .submenu(ALWAYS, Menu::speed_menu())
+                .submenu(ALWAYS, Menu::new("Camera", StickAround)
+                    .action("Midpoint", ReturnToRoot, ALWAYS, Action::Scene(SceneAction::WatchMidpoint))
+                    .action("Origin", ReturnToRoot, ALWAYS, Action::Scene(SceneAction::WatchOrigin)),
+                ),
             )
-            .submenu(
-                ALWAYS,
-                Menu::new("Widget")
-                    .action("Gravity", true, |env| env.pretenst_complete, Action::ShowControl(VisibleControl::Gravity))
-                    .action("Strain threshold", true, |env| env.pretenst_complete, Action::ShowControl(VisibleControl::StrainThreshold))
-                    .action("Clear", true, ALWAYS, Action::ShowControl(VisibleControl::Nothing)),
-            )
-            .submenu(
-                ALWAYS,
-                Menu::new("Etc")
-                    .action("Debug toggle", true, ALWAYS, Action::ToggleDebug),
-            )
+            .action("Tinker", StickAround, |env| env.face_count > 0,
+                    Action::SelectAFace)
     }
 
-
-    fn tinker_menu() -> Menu {
-        Menu::new("Tinker")
-            .action("Connect", false, |env| { env.brick_proposed },
-                    Action::Connect)
-            .action("Join", false, |env| env.selection_count == 2,
+    pub fn tinker_menu() -> Menu {
+        Menu::new("Tinker", StickAround)
+            .action("Pick a face with <Command-click>", StickAround, |env| env.selection_count == 0,
+                    Action::SelectAFace)
+            .action("Join the selected faces", StickAround, |env| env.selection_count == 2,
                     Action::InitiateJoinFaces)
-            .action("Revert", false, |env| env.face_count > 0,
-                    Action::Revert)
             .submenu(
                 |env| env.selection_count == 1,
-                Menu::new("Add")
-                    .action("Single", false, ALWAYS,
+                Menu::new("Add a brick at the green face", StickAround)
+                    .action("Single", StickAround, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Single"), face_rotation: FaceRotation::Zero })
-                    .action("Omni", false, ALWAYS,
+                    .action("Omni", StickAround, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Omni"), face_rotation: FaceRotation::Zero })
-                    .action("Torque", false, ALWAYS,
+                    .action("Torque-000", StickAround, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::Zero })
-                    .action("Torque120", false, ALWAYS,
+                    .action("Torque-120", StickAround, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::OneThird })
-                    .action("Torque240", false, ALWAYS,
+                    .action("Torque-240", StickAround, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::TwoThirds })
-                    .action("Connect", true, ALWAYS,
-                            Action::Connect)
-                    .action("Revert", true, ALWAYS,
-                            Action::Revert))
-            .action("Frozen", false, |_| true,
-                    Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Frozen)))
-            .action("Bouncy", false, |_| true,
-                    Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Bouncy)))
+                    .action("Skip it", UpOneLevel, |env| env.brick_proposed,
+                            Action::Crucible(CrucibleAction::Tinkerer(TinkererAction::Clear)))
+                    .action("Connect", UpOneLevel, |env| env.brick_proposed,
+                            Action::Connect))
+            .action("Revert to previous", StickAround, |env| env.history_available,
+                    Action::Revert)
+            .submenu(
+                ALWAYS, Menu::new("Finish", StickAround)
+                    .action("Sticky surface", ReturnToRoot, ALWAYS,
+                            Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Frozen)))
+                    .action("Bouncy surface", ReturnToRoot, ALWAYS,
+                            Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Bouncy)))
+                    .action("Not yet", UpOneLevel, ALWAYS,
+                            Action::Keyboard(StickAround)),
+            )
     }
 
     fn assign_key(self, used: &HashSet<VirtualKeyCode>) -> Menu {
-        let label = self.label.clone();
-        let (keycode, prefix) = self.label
+        let keycode = self.label
             .chars()
             .find_map(|ch| {
                 let key_code = to_key_code(ch)?;
@@ -217,7 +222,6 @@ impl Menu {
             .unwrap();
         let mut new = self;
         new.keycode = Some(keycode);
-        new.label = format!("{prefix}{label}");
         new
     }
 }

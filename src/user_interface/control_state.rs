@@ -9,6 +9,7 @@ use iced_winit::widget::{Column, Row, Text};
 use instant::Instant;
 
 use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::scene::SceneVariant;
 use crate::scene::SceneVariant::{Suspended, TinkeringOnFaces};
 use crate::user_interface::{Action, ControlMessage};
@@ -17,8 +18,9 @@ use crate::user_interface::keyboard::Keyboard;
 use crate::user_interface::strain_threshold::StrainThreshold;
 use crate::user_interface::strain_threshold::StrainThresholdMessage::SetStrainLimits;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Default, Clone, Copy, Debug, PartialEq)]
 pub enum VisibleControl {
+    #[default]
     Nothing,
     Gravity,
     StrainThreshold,
@@ -28,7 +30,7 @@ pub enum VisibleControl {
 pub struct ControlState {
     debug_mode: bool,
     keyboard: Keyboard,
-    visible_controls: VisibleControl,
+    visible_control: VisibleControl,
     strain_threshold: StrainThreshold,
     gravity: Gravity,
     show_strain: bool,
@@ -41,16 +43,12 @@ impl Default for ControlState {
         Self {
             keyboard: Keyboard::default(),
             debug_mode: false,
-            visible_controls: VisibleControl::Nothing,
+            visible_control: VisibleControl::Nothing,
             strain_threshold: StrainThreshold {
                 nuance: 0.0,
                 strain_limits: (0.0, 1.0),
             },
-            gravity: Gravity {
-                nuance: 0.0,
-                min_gravity: 1e-8,
-                max_gravity: 5e-7,
-            },
+            gravity: Gravity::new(AIR_GRAVITY.gravity),
             show_strain: false,
             frame_rate: 0.0,
             action_queue: RefCell::new(Vec::new()),
@@ -84,6 +82,10 @@ impl ControlState {
         }
     }
 
+    pub fn show_controls(&self) -> VisibleControl {
+        self.visible_control
+    }
+
     pub fn strain_limits_changed(&self, limits: (f32, f32)) -> ControlMessage {
         SetStrainLimits(limits).into()
     }
@@ -107,11 +109,12 @@ impl Program for ControlState {
                 queue_action(Some(action));
             }
             ControlMessage::Reset => {
-                self.visible_controls = VisibleControl::Nothing;
+                self.visible_control = VisibleControl::Nothing;
                 self.gravity.update(GravityMessage::Reset);
+                queue_action(Some(Action::UpdateMenu))
             }
             ControlMessage::ShowControl(visible_control) => {
-                self.visible_controls = visible_control;
+                self.visible_control = visible_control;
                 match visible_control {
                     VisibleControl::StrainThreshold => {
                         queue_action(Some(Action::CalibrateStrain));
@@ -121,6 +124,7 @@ impl Program for ControlState {
                         self.show_strain = false;
                     }
                 }
+                queue_action(Some(Action::ControlChange));
             }
             ControlMessage::Keyboard(message) => {
                 queue_action(self.keyboard.update(message));
@@ -163,7 +167,7 @@ impl Program for ControlState {
                         .push(right_column)
                 )
                 .push(
-                    match self.visible_controls {
+                    match self.visible_control {
                         VisibleControl::Nothing => Row::new().into(),
                         VisibleControl::StrainThreshold => self.strain_threshold.element(),
                         VisibleControl::Gravity => self.gravity.element(),
