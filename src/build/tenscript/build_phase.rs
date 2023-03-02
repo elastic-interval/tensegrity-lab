@@ -229,36 +229,43 @@ impl BuildPhase {
                 return Self::execute_node(fabric, NamedFace { face_alias: alias.clone() }, build_node, faces, brick_library);
             }
             Grow { forward, scale_factor, post_growth_node, .. } => {
-                let face_id = Self::find_launch_face(&launch, &faces, fabric).unwrap_or_else(|| panic!("launch face not found: {launch:?}"));
+                let face_id = Self::find_launch_face(&launch, &faces, fabric)?;
+                let face_id = face_id.ok_or(TenscriptError::FaceAlias("grow".to_string()))?;
                 let node = post_growth_node.clone().map(|x| *x);
                 buds.push(Bud { face_id, forward: forward.clone(), scale_factor: *scale_factor, node })
             }
             Branch { face_nodes, rotation, alias } => {
-                let launch_face = Self::find_launch_face(&launch, &faces, fabric);
+                let launch_face = Self::find_launch_face(&launch, &faces, fabric)?;
                 let (base_face_id, brick_faces) =
                     fabric.create_brick(alias, rotation.into(), 1.0, launch_face, brick_library);
                 if let Some(face_id) = launch_face { fabric.join_faces(base_face_id, face_id) }
                 for (branch_face_alias, branch_node) in Self::branch_pairs(face_nodes) {
                     let (new_buds, new_marks) =
                         Self::execute_node(fabric, NamedFace { face_alias: branch_face_alias },
-                            branch_node, brick_faces.clone(), brick_library)?;
+                                           branch_node, brick_faces.clone(), brick_library)?;
                     buds.extend(new_buds);
                     marks.extend(new_marks);
                 }
             }
             Mark { mark_name } => {
-                let face_id = Self::find_launch_face(&launch, &faces, fabric).expect("cannot mark from scratch");
+                let maybe_face_id = Self::find_launch_face(&launch, &faces, fabric)?;
+                let face_id = maybe_face_id.ok_or(TenscriptError::Mark(mark_name.clone()))?;
                 marks.push(FaceMark { face_id, mark_name: mark_name.clone() });
             }
         };
         Ok((buds, marks))
     }
 
-    fn find_launch_face(launch: &Launch, faces: &[UniqueId], fabric: &Fabric) -> Option<UniqueId> {
+    fn find_launch_face(launch: &Launch, faces: &[UniqueId], fabric: &Fabric) -> Result<Option<UniqueId>, TenscriptError> {
         match launch {
-            Scratch => None,
-            NamedFace { face_alias } => face_alias.find_face_in(faces, fabric),
-            IdentifiedFace { face_id } => Some(*face_id),
+            Scratch => Ok(None),
+            NamedFace { face_alias } => {
+                match face_alias.find_face_in(faces, fabric) {
+                    None => Err(TenscriptError::FaceAlias(face_alias.to_string())),
+                    Some(face_alias) => Ok(Some(face_alias)),
+                }
+            },
+            IdentifiedFace { face_id } => Ok(Some(*face_id)),
         }
     }
 

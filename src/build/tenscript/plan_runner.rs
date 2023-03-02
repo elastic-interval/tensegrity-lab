@@ -23,6 +23,7 @@ pub struct PlanRunner {
     shape_phase: ShapePhase,
     physics: Physics,
     surface_character: SurfaceCharacter,
+    disabled: Option<TenscriptError>,
 }
 
 impl PlanRunner {
@@ -32,13 +33,14 @@ impl PlanRunner {
             build_phase,
             stage: Initialize,
             physics: LIQUID,
-            surface_character: SurfaceCharacter::Frozen
+            surface_character: SurfaceCharacter::Frozen,
+            disabled: None,
         }
     }
 
     pub fn iterate(&mut self, fabric: &mut Fabric, brick_library: &dyn BrickLibrary) -> Result<(), TenscriptError> {
         fabric.iterate(&self.physics);
-        if fabric.progress.is_busy() {
+        if fabric.progress.is_busy() || self.disabled.is_some() {
             return Ok(());
         }
         let (next_stage, countdown) = match self.stage {
@@ -84,6 +86,10 @@ impl PlanRunner {
         fabric.progress.start(countdown);
         self.stage = next_stage;
         Ok(())
+    }
+
+    pub fn disable(&mut self, error: TenscriptError) {
+        self.disabled = Some(error);
     }
 
     pub fn is_done(&self) -> bool {
