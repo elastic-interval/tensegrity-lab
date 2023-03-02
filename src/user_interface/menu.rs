@@ -201,11 +201,11 @@ impl Menu {
                     Action::Revert)
             .submenu(
                 ALWAYS, Menu::new("Finish", StickAround)
-                    .action("Sticky surface", ReturnToRoot, |_| true,
+                    .action("Sticky surface", ReturnToRoot, ALWAYS,
                             Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Frozen)))
-                    .action("Bouncy surface", ReturnToRoot, |_| true,
+                    .action("Bouncy surface", ReturnToRoot, ALWAYS,
                             Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Bouncy)))
-                    .action("Not yet", UpOneLevel, |_| true,
+                    .action("Not yet", UpOneLevel, ALWAYS,
                             Action::Keyboard(StickAround)),
             )
     }
