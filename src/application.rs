@@ -8,11 +8,14 @@ use winit::{
 };
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
+use crate::build::brick::Baked;
+use crate::build::tenscript::{FabricPlan, FaceAlias, Library, TenscriptError};
 
 use crate::build::tinkerer::{BrickOnFace, Frozen};
 use crate::camera::Pick;
 use crate::crucible::{Crucible, CrucibleAction, TinkererAction};
 use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::brick::BrickLibrary;
 use crate::graphics::GraphicsWindow;
 use crate::scene::{Scene, SceneAction, SceneVariant};
 use crate::user_interface::{Action, ControlMessage, MenuAction, MenuEnvironment, UserInterface};
@@ -23,13 +26,15 @@ pub struct Application {
     user_interface: UserInterface,
     crucible: Crucible,
     graphics: GraphicsWindow,
-    library_modified: Option<SystemTime>,
     fabric_plan_name: Vec<String>,
+    library: Library,
+    library_modified: SystemTime,
 }
 
 impl Application {
     pub fn new(graphics: GraphicsWindow, window: &Window) -> Application {
-        let user_interface = UserInterface::new(&graphics, window);
+        let library = Library::from_source().unwrap();
+        let user_interface = UserInterface::new(&graphics, window, &library.fabrics);
         let scene = Scene::new(&graphics);
         Application {
             selected_faces: HashSet::new(),
@@ -37,8 +42,9 @@ impl Application {
             user_interface,
             crucible: Crucible::default(),
             graphics,
-            library_modified: None,
             fabric_plan_name: Vec::new(),
+            library,
+            library_modified: library_modified_timestamp(),
         }
     }
 
@@ -46,30 +52,16 @@ impl Application {
         self.user_interface.update();
         let mut actions = self.user_interface.controls().take_actions();
         let time = library_modified_timestamp();
-        match self.library_modified {
-            None => {
-                match self.crucible.refresh_library(time) {
-                    Ok(action) => actions.push(action),
-                    Err(tenscript_error) => {
-                        println!("Tenscript\n{tenscript_error}")
-                    }
+        if time > self.library_modified {
+            match self.refresh_library(time) {
+                Ok(action) => {
+                    actions.push(action);
+                },
+                Err(tenscript_error) => {
+                    println!("Tenscript\n{tenscript_error}");
+                    self.library_modified = time;
                 }
             }
-            Some(library_modified) if time > library_modified => {
-                match self.crucible.refresh_library(time) {
-                    Ok(action) => {
-                        actions.push(action);
-                        let fabric_plan = self.crucible.load_preset(self.fabric_plan_name.clone())
-                            .expect("unable to load fabric plan");
-                        actions.push(Action::Crucible(CrucibleAction::BuildFabric(fabric_plan)));
-                    },
-                    Err(tenscript_error) => {
-                        println!("Tenscript\n{tenscript_error}");
-                        self.library_modified = Some(time);
-                    }
-                }
-            }
-            _ => {}
         }
         for action in actions {
             match action {
@@ -92,10 +84,10 @@ impl Application {
                     self.update_menu_environment();
                 }
                 Action::UpdatedLibrary(time) => {
-                    let library = self.crucible.library().clone();
-                    self.library_modified = Some(time);
+                    let library = self.library.clone();
+                    self.library_modified = time;
                     if !self.fabric_plan_name.is_empty() {
-                        let fabric_plan = self.crucible.load_preset(self.fabric_plan_name.clone())
+                        let fabric_plan = self.load_preset(self.fabric_plan_name.clone())
                             .expect("unable to load fabric plan");
                         self.crucible.action(CrucibleAction::BuildFabric(fabric_plan));
                     }
@@ -208,11 +200,12 @@ impl Application {
             experimenting: self.crucible.is_experimenting(),
             history_available: self.crucible.is_history_available(),
             visible_control: self.user_interface.controls().show_controls(),
+            fabric_menu: self.user_interface.create_fabric_menu(&self.library.fabrics),
         })
     }
 
     pub fn redraw(&mut self, window: &Window) {
-        for action in self.crucible.iterate(!self.selected_faces.is_empty()) {
+        for action in self.crucible.iterate(!self.selected_faces.is_empty(), &self.library) {
             self.user_interface.action(action);
         }
         self.scene.update(&self.graphics, self.crucible.fabric());
@@ -244,7 +237,10 @@ impl Application {
     }
 
     pub fn capture_prototype(&mut self, brick_index: usize) {
-        self.crucible.action(CrucibleAction::BakeBrick(brick_index));
+        let prototype = self.library.bricks
+            .get(brick_index).expect("no such brick")
+            .proto.clone();
+        self.crucible.action(CrucibleAction::BakeBrick(prototype));
     }
 
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
@@ -286,6 +282,25 @@ impl Application {
             return None;
         };
         Some(face_id)
+    }
+
+    pub fn refresh_library(&mut self, time: SystemTime) -> Result<Action, TenscriptError> {
+        self.library = Library::from_source()?;
+        Ok(Action::UpdatedLibrary(time))
+    }
+
+    pub fn load_preset(&self, plan_name: Vec<String>) -> Result<FabricPlan, TenscriptError> {
+        let plan = self.library.fabrics
+            .iter()
+            .find(|plan| plan.name == plan_name);
+        match plan {
+            None => Err(TenscriptError::Invalid(plan_name.join(","))),
+            Some(plan) => Ok(plan.clone())
+        }
+    }
+
+    pub fn new_brick(&self, search_alias: &FaceAlias) -> Baked {
+        self.library.new_brick(search_alias)
     }
 }
 

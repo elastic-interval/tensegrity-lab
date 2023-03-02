@@ -13,7 +13,7 @@ use winit::window::{CursorIcon, Window};
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
 
-use crate::build::tenscript::{FaceAlias, Library};
+use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
 use crate::build::tinkerer::{BrickOnFace, Frozen};
 use crate::camera::Pick;
 use crate::crucible::CrucibleAction;
@@ -23,6 +23,7 @@ use crate::scene::SceneAction;
 use crate::user_interface::control_state::{ControlState, VisibleControl};
 use crate::user_interface::gravity::GravityMessage;
 use crate::user_interface::keyboard::KeyboardMessage;
+use crate::user_interface::menu::Menu;
 use crate::user_interface::strain_threshold::StrainThresholdMessage;
 
 mod strain_threshold;
@@ -41,7 +42,7 @@ pub enum MenuAction {
     UpOneLevel,
 }
 
-#[derive(Debug, Clone, Default, Copy)]
+#[derive(Debug, Clone)]
 pub struct MenuEnvironment {
     pub face_count: usize,
     pub selection_count: usize,
@@ -50,6 +51,22 @@ pub struct MenuEnvironment {
     pub experimenting: bool,
     pub history_available: bool,
     pub visible_control: VisibleControl,
+    pub fabric_menu: Menu,
+}
+
+impl MenuEnvironment {
+    pub fn new(fabric_menu: Menu) -> Self {
+        Self {
+            face_count: 0,
+            selection_count: 0,
+            tinkering: false,
+            brick_proposed: false,
+            experimenting: false,
+            history_available: false,
+            visible_control: Default::default(),
+            fabric_menu,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -106,7 +123,7 @@ pub struct UserInterface {
 }
 
 impl UserInterface {
-    pub fn new(graphics: &GraphicsWindow, window: &Window) -> Self {
+    pub fn new(graphics: &GraphicsWindow, window: &Window, fabrics: &[FabricPlan]) -> Self {
         let viewport = Viewport::with_physical_size(
             Size::new(graphics.size.width, graphics.size.height),
             1.0,
@@ -117,7 +134,8 @@ impl UserInterface {
             graphics.config.format,
         ));
         let mut debug = Default::default();
-        let controls = ControlState::default();
+        let menu_environment = MenuEnvironment::new(Menu::fabric_menu(fabrics));
+        let controls = ControlState::new(menu_environment);
         let state = program::State::new(
             controls,
             viewport.logical_size(),
@@ -265,5 +283,9 @@ impl UserInterface {
 
     pub fn capturing_mouse(&self) -> bool {
         !matches!(self.state.mouse_interaction(), mouse::Interaction::Idle)
+    }
+
+    pub fn create_fabric_menu(&self, fabrics: &[FabricPlan]) -> Menu {
+        Menu::fabric_menu(fabrics)
     }
 }

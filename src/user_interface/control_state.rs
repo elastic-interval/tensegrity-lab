@@ -12,7 +12,7 @@ use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::scene::SceneVariant;
 use crate::scene::SceneVariant::{Suspended, TinkeringOnFaces};
-use crate::user_interface::{Action, ControlMessage};
+use crate::user_interface::{Action, ControlMessage, MenuEnvironment};
 use crate::user_interface::gravity::{Gravity, GravityMessage};
 use crate::user_interface::keyboard::{Keyboard, KeyboardMessage};
 use crate::user_interface::strain_threshold::StrainThreshold;
@@ -26,7 +26,6 @@ pub enum VisibleControl {
     StrainThreshold,
 }
 
-#[derive(Debug)]
 pub struct ControlState {
     debug_mode: bool,
     keyboard: Keyboard,
@@ -38,10 +37,10 @@ pub struct ControlState {
     action_queue: RefCell<Vec<Action>>,
 }
 
-impl Default for ControlState {
-    fn default() -> Self {
+impl ControlState {
+    pub fn new(environment: MenuEnvironment) -> Self {
         Self {
-            keyboard: Keyboard::default(),
+            keyboard: Keyboard::new(environment),
             debug_mode: false,
             visible_control: VisibleControl::Nothing,
             strain_threshold: StrainThreshold {
@@ -54,9 +53,7 @@ impl Default for ControlState {
             action_queue: RefCell::new(Vec::new()),
         }
     }
-}
 
-impl ControlState {
     pub fn take_actions(&self) -> Vec<Action> {
         self.action_queue.borrow_mut().split_off(0)
     }
