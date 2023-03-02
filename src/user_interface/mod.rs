@@ -1,5 +1,6 @@
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
+use std::time::SystemTime;
 
 use iced::mouse;
 use iced_wgpu::{Backend, Renderer, Settings};
@@ -12,7 +13,7 @@ use winit::window::{CursorIcon, Window};
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
 
-use crate::build::tenscript::FaceAlias;
+use crate::build::tenscript::{FaceAlias, Library};
 use crate::build::tinkerer::{BrickOnFace, Frozen};
 use crate::camera::Pick;
 use crate::crucible::CrucibleAction;
@@ -61,6 +62,7 @@ pub enum ControlMessage {
     Gravity(GravityMessage),
     Action(Action),
     FrameRateUpdated(f64),
+    FreshLibrary(Library),
 }
 
 #[derive(Clone, Debug)]
@@ -77,7 +79,6 @@ pub enum Action {
     CalibrateStrain,
     SelectFace(Option<Pick>),
     ShowControl(VisibleControl),
-    ControlChange,
     SelectAFace,
     ToggleDebug,
     ProposeBrick { alias: FaceAlias, face_rotation: FaceRotation },
@@ -86,6 +87,7 @@ pub enum Action {
     InitiateJoinFaces,
     Revert,
     RevertToFrozen { frozen: Frozen, brick_on_face: Option<BrickOnFace> },
+    UpdatedLibrary(SystemTime)
 }
 
 /// Largely adapted from https://github.com/iced-rs/iced/blob/master/examples/integration_wgpu/src/main.rs

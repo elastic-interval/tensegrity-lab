@@ -2,6 +2,7 @@ use iced_wgpu::Renderer;
 use iced_winit::{Color, Element};
 use iced_winit::widget::{Button, Row, Text};
 use winit::event::VirtualKeyCode;
+use crate::build::tenscript::Library;
 
 use crate::user_interface::{Action, ControlMessage, MenuAction, MenuEnvironment};
 use crate::user_interface::control_state::{Component, format_row};
@@ -14,6 +15,7 @@ pub enum KeyboardMessage {
     SelectMenu(MenuAction),
     SubmitAction { action: Action, menu_action: MenuAction },
     SetEnvironment(MenuEnvironment),
+    FreshLibrary(Library),
 }
 
 impl From<KeyboardMessage> for ControlMessage {
@@ -26,6 +28,8 @@ impl From<KeyboardMessage> for ControlMessage {
 pub struct Keyboard {
     current: Vec<Menu>,
     environment: MenuEnvironment,
+    library: Library,
+    fabric_menu: Menu,
 }
 
 impl Component for Keyboard {
@@ -34,7 +38,7 @@ impl Component for Keyboard {
     fn update(&mut self, message: Self::Message) -> Option<Action> {
         match message {
             KeyboardMessage::SubmitAction { action, menu_action } => {
-                Self::exit(menu_action, &mut self.current);
+                Self::exit(menu_action, &mut self.current, self.fabric_menu.clone());
                 return Some(action);
             }
             KeyboardMessage::KeyPressed(key_code) => {
@@ -49,7 +53,7 @@ impl Component for Keyboard {
                 match menu_action {
                     MenuAction::StickAround => {}
                     MenuAction::ReturnToRoot => {
-                        self.reset_menu(Menu::root_menu());
+                        self.reset_menu(Menu::root_menu(self.fabric_menu.clone()));
                     }
                     MenuAction::TinkerMenu => {
                         self.reset_menu(Menu::tinker_menu());
@@ -61,6 +65,11 @@ impl Component for Keyboard {
             }
             KeyboardMessage::SetEnvironment(environment) => {
                 self.environment = environment;
+            }
+            KeyboardMessage::FreshLibrary(library) => {
+                self.library = library;
+                self.fabric_menu = Menu::fabric_menu(&self.library.fabrics);
+                self.current = vec![Menu::root_menu(self.fabric_menu.clone())];
             }
         }
         None
@@ -108,13 +117,14 @@ impl Component for Keyboard {
 impl Default for Keyboard {
     fn default() -> Self {
         let environment = MenuEnvironment::default();
-        let current = vec![Menu::root_menu()];
-        Self { current, environment }
+        let library = Library::default();
+        let fabric_menu = Menu::fabric_menu(&library.fabrics);
+        let current = vec![Menu::root_menu(fabric_menu.clone())];
+        Self { current, environment, library, fabric_menu }
     }
 }
 
 impl Keyboard {
-
     pub fn reset_menu(&mut self, menu: Menu) {
         self.current.clear();
         self.current.push(menu);
@@ -133,17 +143,14 @@ impl Keyboard {
             .submenu_in(self.environment)
             .into_iter()
             .find_map(|menu| {
-                let Menu { label, keycode, action, submenu, menu_action } = &menu;
+                let Menu { label, keycode, action, menu_action, .. } = &menu;
                 let (code, _) = keycode.clone().unwrap_or_else(|| panic!("No keycode for {label}"));
                 if code != keycode_pressed {
                     return None;
                 }
                 if action.is_some() {
-                    Self::exit(*menu_action, &mut current);
+                    Self::exit(*menu_action, &mut current, self.fabric_menu.clone());
                     return action.clone();
-                }
-                if submenu.is_empty() {
-                    panic!("expected submenu");
                 }
                 current.push(menu);
                 None
@@ -154,13 +161,10 @@ impl Keyboard {
     fn menu_back(current: &mut Vec<Menu>) {
         if current.len() > 1 {
             current.pop();
-        } else {
-            current.clear();
-            current.push(Menu::root_menu());
         }
     }
 
-    fn exit(menu_action: MenuAction, current: &mut Vec<Menu>) {
+    fn exit(menu_action: MenuAction, current: &mut Vec<Menu>, fabric_menu: Menu) {
         match menu_action {
             MenuAction::StickAround => {}
             MenuAction::UpOneLevel => {
@@ -168,7 +172,7 @@ impl Keyboard {
             }
             MenuAction::ReturnToRoot => {
                 current.clear();
-                current.push(Menu::root_menu());
+                current.push(Menu::root_menu(fabric_menu));
             }
             MenuAction::TinkerMenu => {
                 current.clear();

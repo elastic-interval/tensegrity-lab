@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::time::SystemTime;
 use CrucibleAction::{*};
 use crate::build::brick::Baked;
 
@@ -27,7 +28,6 @@ enum Stage {
     Pretensing(Pretenser),
     Experimenting(Lab),
     BakingBrick(Oven),
-    RefreshLibrary,
     Finished,
 }
 
@@ -81,16 +81,6 @@ impl Crucible {
         let brick_library = &self.library;
         match &mut self.stage {
             Empty => {}
-            RefreshLibrary => {
-                match Library::from_source() {
-                    Ok(library) => {
-                        self.library = library
-                    }
-                    Err(tenscript_error) => {
-                        println!("ERROR:{tenscript_error}");
-                    }
-                }
-            }
             RunningPlan(plan_runner) => {
                 if plan_runner.is_done() {
                     self.stage = if self.fabric.faces.is_empty() {
@@ -213,6 +203,11 @@ impl Crucible {
 
     pub fn is_experimenting(&self) -> bool {
         matches!(self.stage, Experimenting(_))
+    }
+
+    pub fn refresh_library(&mut self, time: SystemTime) -> Result<Action, TenscriptError> {
+        self.library = Library::from_source()?;
+        Ok(Action::UpdatedLibrary(time))
     }
 
     pub fn library(&self) -> &Library {

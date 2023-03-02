@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use winit::event::VirtualKeyCode;
 use winit::event::VirtualKeyCode::{*};
 
-use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
+use crate::build::tenscript::{FabricPlan, FaceAlias};
 use crate::crucible::{CrucibleAction, TinkererAction};
 use crate::fabric::face::FaceRotation;
 use crate::fabric::physics::SurfaceCharacter;
@@ -138,7 +138,7 @@ impl Menu {
         }
     }
 
-    fn fabric_menu(fabrics: &[FabricPlan]) -> Menu {
+    pub(crate) fn fabric_menu(fabrics: &[FabricPlan]) -> Menu {
         Self::fabric_menu_recurse(Menu::new("Tensegrity menu", UpOneLevel), fabrics, Vec::new())
     }
 
@@ -150,10 +150,9 @@ impl Menu {
         menu
     }
 
-    pub fn root_menu() -> Menu {
-        let library = Library::from_source().unwrap();
+    pub fn root_menu(fabric_menu: Menu) -> Menu {
         Menu::new("Welcome", StickAround)
-            .submenu(ALWAYS, Menu::fabric_menu(&library.fabrics))
+            .submenu(ALWAYS, fabric_menu)
             .action("Gravity control", StickAround,
                     |env| env.experimenting && env.visible_control != VisibleControl::Gravity,
                     Action::ShowControl(VisibleControl::Gravity))
