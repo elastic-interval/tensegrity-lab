@@ -76,6 +76,29 @@
       (vulcanize)
       (replace-faces)
       (bouncy)))
+  (fabric
+    (name "Art" "Tommy Torque")
+    (build
+      (branch (alias Omni)
+        (face (alias Bottom:Left)
+          (branch (alias Torque)
+            (face (alias Far:Base) (grow 3))
+            ))
+        (face (alias Bottom:Right)
+          (branch (alias Torque) (rotate)
+            (face (alias Far:Base) (grow 3))
+            ))
+        (face (alias Top:Left)
+          (branch (alias Torque) (rotate)
+            (face (alias Far:Back) (grow 3))
+            ))
+        (face (alias Top:Right)
+          (branch (alias Torque)
+            (face (alias Far:Back) (grow 3))
+            ))
+      ))
+    (shape
+      (bouncy)))
     (fabric
       (name "Art" "Headless Hug")
       (build
