@@ -9,13 +9,13 @@ use winit::{
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
-use crate::build::tinkerer::BrickOnFace;
+use crate::build::tinkerer::{BrickOnFace, Frozen};
+use crate::camera::Pick;
 use crate::crucible::{Crucible, CrucibleAction, TinkererAction};
 use crate::fabric::{Fabric, UniqueId};
 use crate::graphics::GraphicsWindow;
 use crate::scene::{Scene, SceneAction, SceneVariant};
-use crate::scene::SceneVariant::TinkeringOnFaces;
-use crate::user_interface::{Action, ControlMessage, MenuEnvironment, UserInterface};
+use crate::user_interface::{Action, ControlMessage, MenuAction, MenuEnvironment, UserInterface};
 
 pub struct Application {
     selected_faces: HashSet<UniqueId>,
@@ -54,49 +54,76 @@ impl Application {
         for action in actions {
             match action {
                 Action::Crucible(crucible_action) => {
-                    if let CrucibleAction::BuildFabric(fabric_plan) = &crucible_action {
-                        self.fabric_plan_name = fabric_plan.name.clone();
-                        self.scene.action(SceneAction::Variant(SceneVariant::Suspended));
-                        self.user_interface.message(ControlMessage::Reset);
+                    match &crucible_action {
+                        CrucibleAction::BuildFabric(fabric_plan) => {
+                            self.fabric_plan_name = fabric_plan.name.clone();
+                            self.scene.action(SceneAction::Variant(SceneVariant::Suspended));
+                            self.user_interface.message(ControlMessage::Reset);
+                            self.update_menu_environment()
+                        }
+                        CrucibleAction::StartPretensing(_) => {
+                            self.user_interface.action(Action::Keyboard(MenuAction::ReturnToRoot))
+                        }
+                        _ => {}
                     }
                     self.crucible.action(crucible_action);
+                }
+                Action::UpdateMenu => {
+                    self.update_menu_environment();
                 }
                 Action::Scene(scene_action) => {
                     self.scene.action(scene_action);
                 }
                 Action::Keyboard(menu_choice) => {
+                    match menu_choice {
+                        MenuAction::ReturnToRoot => {
+                            self.selected_faces.clear();
+                            self.user_interface.action(
+                                Action::Scene(SceneAction::Variant(SceneVariant::Suspended)))
+                        }
+                        MenuAction::TinkerMenu => {
+                            self.selected_faces.clear();
+                            self.user_interface.action(
+                                Action::Scene(SceneAction::Variant(SceneVariant::TinkeringOnFaces(HashSet::new()))))
+                        }
+                        _ => {}
+                    }
                     self.user_interface.menu_choice(menu_choice);
                 }
                 Action::ShowControl(visible_control) => {
                     self.user_interface.message(ControlMessage::ShowControl(visible_control));
                 }
-                Action::GravityChanged(_gravity) => {
-                    unimplemented!();
+                Action::ControlChange => {
+                    self.update_menu_environment();
                 }
                 Action::CalibrateStrain => {
                     let strain_limits = self.crucible.fabric().strain_limits(Fabric::BOW_TIE_MATERIAL_INDEX);
                     self.user_interface.set_strain_limits(strain_limits);
                 }
                 Action::SelectFace(face_id) => {
-                    if let Some(face_id) = face_id {
-                        if self.selected_faces.contains(&face_id) {
+                    if let Some(Pick { face_id, multiple }) = face_id {
+                        if !multiple {
                             self.selected_faces.clear();
-                        } else {
-                            self.selected_faces.insert(face_id);
                         }
+                        self.selected_faces.insert(face_id);
                     } else {
                         self.selected_faces.clear();
                     }
-                    self.scene.action(SceneAction::Variant(TinkeringOnFaces(self.selected_faces.clone())));
-                    self.user_interface.set_menu_environment(MenuEnvironment{
-                        face_count: self.crucible.fabric().faces.len(),
-                        selection_count: self.selected_faces.len(),
-                        brick_proposed: self.crucible.is_brick_proposed(),
-                        pretenst_complete: self.crucible.is_pretenst_complete(),
-                    })
+                    self.selected_faces.retain(|id| self.crucible.fabric().faces.contains_key(id));
+                    self.scene.action(SceneAction::Variant(SceneVariant::TinkeringOnFaces(self.selected_faces.clone())));
+                    self.update_menu_environment();
                 }
-                Action::StartTinkering => {
-                    unimplemented!();
+                Action::SelectAFace => {
+                    if let Some(&selected) = self.selected_faces.iter().next() {
+                        self.user_interface.action(Action::SelectFace(Some(Pick::just(selected))))
+                    } else {
+                        let pick_one = self.crucible.fabric().faces
+                            .keys()
+                            .next()
+                            .copied()
+                            .map(Pick::just);
+                        self.user_interface.action(Action::SelectFace(pick_one))
+                    }
                 }
                 Action::ToggleDebug => {
                     self.user_interface.message(ControlMessage::ToggleDebugMode);
@@ -107,7 +134,12 @@ impl Application {
                         let alias = alias + &spin.into_alias();
                         let brick_on_face = BrickOnFace { face_id, alias, face_rotation };
                         self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::Propose(brick_on_face)));
+                        self.update_menu_environment()
                     }
+                }
+                Action::RemoveProposedBrick => {
+                    self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::Clear));
+                    self.update_menu_environment();
                 }
                 Action::InitiateJoinFaces => {
                     self.crucible.action(
@@ -116,24 +148,40 @@ impl Application {
                 }
                 Action::Connect => {
                     self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::Commit));
+                    self.update_menu_environment();
                 }
                 Action::Revert => {
                     self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::InitiateRevert));
+                    self.update_menu_environment();
                 }
-                Action::RevertToFrozen { fabric, brick_on_face } => {
+                Action::RevertToFrozen { frozen: Frozen { fabric, face_id }, brick_on_face } => {
                     self.selected_faces.clear();
                     self.crucible.action(CrucibleAction::RevertTo(fabric));
                     if let Some(brick_on_face) = brick_on_face {
                         let face_id = brick_on_face.face_id;
                         self.crucible.action(
-                            CrucibleAction::Tinkerer(
-                                TinkererAction::Propose(brick_on_face)));
-                        self.user_interface.action(Action::SelectFace(Some(face_id)));
+                            CrucibleAction::Tinkerer(TinkererAction::Propose(brick_on_face)));
+                        self.user_interface.action(Action::SelectFace(Some(Pick::just(face_id))));
+                    } else {
+                        face_id.map(|face_id| self.selected_faces.insert(face_id));
                     }
+                    self.update_menu_environment();
                 }
             }
         }
         window.request_redraw();
+    }
+
+    fn update_menu_environment(&mut self) {
+        self.user_interface.set_menu_environment(MenuEnvironment {
+            face_count: self.crucible.fabric().faces.len(),
+            selection_count: self.selected_faces.len(),
+            tinkering: self.crucible.is_tinkering(),
+            brick_proposed: self.crucible.is_brick_proposed(),
+            experimenting: self.crucible.is_experimenting(),
+            history_available: self.crucible.is_history_available(),
+            visible_control: self.user_interface.controls().show_controls(),
+        })
     }
 
     pub fn redraw(&mut self, window: &Window) {
