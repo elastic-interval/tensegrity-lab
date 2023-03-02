@@ -1,15 +1,14 @@
 use std::collections::HashSet;
-use std::time::SystemTime;
-use CrucibleAction::{*};
-use crate::build::brick::Baked;
 
+use CrucibleAction::{*};
+
+use crate::build::brick::Prototype;
 use crate::build::oven::Oven;
-use crate::build::tenscript::{FabricPlan, FaceAlias, Library, TenscriptError};
+use crate::build::tenscript::{FabricPlan, Library};
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::build::tinkerer::{BrickOnFace, Tinkerer};
 use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
-use crate::fabric::brick::BrickLibrary;
 use crate::fabric::lab::Lab;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::fabric::pretenser::Pretenser;
@@ -47,7 +46,7 @@ pub enum LabAction {
 
 #[derive(Debug, Clone)]
 pub enum CrucibleAction {
-    BakeBrick(usize),
+    BakeBrick(Prototype),
     BuildFabric(FabricPlan),
     SetSpeed(usize),
     RevertTo(Fabric),
@@ -58,7 +57,6 @@ pub enum CrucibleAction {
 }
 
 pub struct Crucible {
-    library: Library,
     fabric: Fabric,
     iterations_per_frame: usize,
     stage: Stage,
@@ -67,7 +65,6 @@ pub struct Crucible {
 impl Default for Crucible {
     fn default() -> Self {
         Self {
-            library: Library::from_source().unwrap(),
             fabric: Fabric::default_bow_tie(),
             iterations_per_frame: 125,
             stage: Empty,
@@ -76,9 +73,8 @@ impl Default for Crucible {
 }
 
 impl Crucible {
-    pub fn iterate(&mut self, paused: bool) -> Vec<Action> {
+    pub fn iterate(&mut self, paused: bool, brick_library: &Library) -> Vec<Action> {
         let mut actions = Vec::new();
-        let brick_library = &self.library;
         match &mut self.stage {
             Empty => {}
             RunningPlan(plan_runner) => {
@@ -140,10 +136,7 @@ impl Crucible {
 
     pub fn action(&mut self, crucible_action: CrucibleAction) {
         match crucible_action {
-            BakeBrick(brick_index) => {
-                let prototype = self.library.bricks
-                    .get(brick_index).expect("no such brick")
-                    .proto.clone();
+            BakeBrick(prototype) => {
                 let oven = Oven::new(prototype);
                 self.fabric = oven.prototype_fabric();
                 self.stage = BakingBrick(oven);
@@ -203,28 +196,5 @@ impl Crucible {
 
     pub fn is_experimenting(&self) -> bool {
         matches!(self.stage, Experimenting(_))
-    }
-
-    pub fn refresh_library(&mut self, time: SystemTime) -> Result<Action, TenscriptError> {
-        self.library = Library::from_source()?;
-        Ok(Action::UpdatedLibrary(time))
-    }
-
-    pub fn library(&self) -> &Library {
-        &self.library
-    }
-
-    pub fn load_preset(&self, plan_name: Vec<String>) -> Result<FabricPlan, TenscriptError> {
-        let plan = self.library.fabrics
-            .iter()
-            .find(|plan| plan.name == plan_name);
-        match plan {
-            None => Err(TenscriptError::Invalid(plan_name.join(","))),
-            Some(plan) => Ok(plan.clone())
-        }
-    }
-
-    pub fn new_brick(&self, search_alias: &FaceAlias) -> Baked {
-        self.library.new_brick(search_alias)
     }
 }

@@ -28,7 +28,6 @@ impl From<KeyboardMessage> for ControlMessage {
 pub struct Keyboard {
     current: Vec<Menu>,
     environment: MenuEnvironment,
-    library: Library,
     fabric_menu: Menu,
 }
 
@@ -67,8 +66,7 @@ impl Component for Keyboard {
                 self.environment = environment;
             }
             KeyboardMessage::FreshLibrary(library) => {
-                self.library = library;
-                self.fabric_menu = Menu::fabric_menu(&self.library.fabrics);
+                self.fabric_menu = Menu::fabric_menu(&library.fabrics);
                 self.current = vec![Menu::root_menu(self.fabric_menu.clone())];
             }
         }
@@ -94,7 +92,7 @@ impl Component for Keyboard {
                 );
             }
         };
-        for item in &self.current.last().unwrap().submenu_in(self.environment) {
+        for item in &self.current.last().unwrap().submenu_in(&self.environment) {
             row = row.push(
                 Button::new(Text::new(item.label()))
                     .on_press(
@@ -114,17 +112,15 @@ impl Component for Keyboard {
     }
 }
 
-impl Default for Keyboard {
-    fn default() -> Self {
-        let environment = MenuEnvironment::default();
-        let library = Library::default();
-        let fabric_menu = Menu::fabric_menu(&library.fabrics);
-        let current = vec![Menu::root_menu(fabric_menu.clone())];
-        Self { current, environment, library, fabric_menu }
-    }
-}
-
 impl Keyboard {
+
+    pub fn new(environment: MenuEnvironment) -> Self {
+        let fabric_menu = environment.fabric_menu.clone();
+        let current = vec![Menu::root_menu(fabric_menu.clone())];
+        Self { current, environment, fabric_menu }
+
+    }
+
     pub fn reset_menu(&mut self, menu: Menu) {
         self.current.clear();
         self.current.push(menu);
@@ -140,7 +136,7 @@ impl Keyboard {
             .last()
             .unwrap()
             .clone()
-            .submenu_in(self.environment)
+            .submenu_in(&self.environment)
             .into_iter()
             .find_map(|menu| {
                 let Menu { label, keycode, action, menu_action, .. } = &menu;
