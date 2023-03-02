@@ -115,7 +115,7 @@ impl Application {
                     self.update_menu_environment();
                 }
                 Action::SelectAFace => {
-                    if let Ok([&selected]) = self.selected_faces.iter().next_chunk() {
+                    if let Some(&selected) = self.selected_faces.iter().next() {
                         self.user_interface.action(Action::SelectFace(Some(Pick::just(selected))))
                     } else {
                         let pick_one = self.crucible.fabric().faces
