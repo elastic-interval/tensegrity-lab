@@ -35,6 +35,7 @@ pub enum BuildNode {
     Branch {
         alias: FaceAlias,
         rotation: usize,
+        scale_factor: f32,
         face_nodes: Vec<BuildNode>,
     },
 }
@@ -142,12 +143,17 @@ impl BuildPhase {
             Rule::branch => {
                 let mut inner = pair.into_inner();
                 let alias = FaceAlias::from_pair(inner.next().unwrap());
+                let mut scale = None;
                 let mut face_nodes = Vec::new();
                 let mut rotation = 0;
                 for node_pair in inner {
                     match node_pair.as_rule() {
                         Rule::face_rotation => {
                             rotation += 1;
+                        }
+                        Rule::scale => {
+                            let parsed_scale = TenscriptError::parse_float_inside(node_pair, "branch/scale")?;
+                            scale = Some(parsed_scale);
                         }
                         Rule::on_face => {
                             let node = Self::parse_build_node(node_pair)?;
@@ -156,7 +162,8 @@ impl BuildPhase {
                         _ => unreachable!("{:?}", node_pair)
                     }
                 }
-                Ok(Branch { alias, rotation, face_nodes })
+                let scale_factor = scale.unwrap_or(1.0);
+                Ok(Branch { alias, rotation, face_nodes, scale_factor })
             }
             _ => unreachable!("node {:?}", pair.as_rule()),
         }
@@ -234,10 +241,10 @@ impl BuildPhase {
                 let node = post_growth_node.clone().map(|x| *x);
                 buds.push(Bud { face_id, forward: forward.clone(), scale_factor: *scale_factor, node })
             }
-            Branch { face_nodes, rotation, alias } => {
+            Branch { face_nodes, rotation, alias, scale_factor } => {
                 let launch_face = Self::find_launch_face(&launch, &faces, fabric)?;
                 let (base_face_id, brick_faces) =
-                    fabric.create_brick(alias, rotation.into(), 1.0, launch_face, brick_library);
+                    fabric.create_brick(alias, rotation.into(), *scale_factor, launch_face, brick_library);
                 if let Some(face_id) = launch_face { fabric.join_faces(base_face_id, face_id) }
                 for (branch_face_alias, branch_node) in Self::branch_pairs(face_nodes) {
                     let (new_buds, new_marks) =
