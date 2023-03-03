@@ -22,7 +22,7 @@ impl Fabric {
         rotation: FaceRotation,
         scale_factor: f32,
         face_id: Option<UniqueId>,
-        brick_library: &dyn BrickLibrary,
+        brick_library: &impl BrickLibrary,
     ) -> (UniqueId, Vec<UniqueId>) {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
