@@ -1,4 +1,4 @@
-use cgmath::MetricSpace;
+use cgmath::{InnerSpace, Matrix4, MetricSpace, Quaternion, Vector3};
 use pest::iterators::Pair;
 
 use crate::build::tenscript::{FaceMark, TenscriptError};
@@ -21,6 +21,7 @@ pub enum ShapeCommand {
 pub enum ShapeOperation {
     Countdown { count: usize, operations: Vec<ShapeOperation> },
     Join { mark_name: String },
+    PointDownwards { mark_name: String },
     Distance { mark_name: String, distance_factor: f32 },
     RemoveShapers { mark_names: Vec<String> },
     Vulcanize,
@@ -87,6 +88,10 @@ impl ShapePhase {
                 let mark_name = pair.into_inner().next().unwrap().as_str();
                 Ok(ShapeOperation::Join { mark_name: mark_name[1..].into() })
             }
+            Rule::down => {
+                let mark_name = pair.into_inner().next().unwrap().as_str();
+                Ok(ShapeOperation::PointDownwards { mark_name: mark_name[1..].into() })
+            }
             Rule::countdown_block => {
                 let mut inner = pair.into_inner();
                 let count = TenscriptError::parse_usize(inner.next().unwrap().as_str(), "countdown_block")?;
@@ -143,6 +148,19 @@ impl ShapePhase {
                     _ => unimplemented!()
                 }
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
+            }
+            ShapeOperation::PointDownwards { mark_name } => {
+                let faces = self.marked_faces(&mark_name);
+                let down = faces
+                    .into_iter()
+                    .map(|id| fabric.face(id).normal(fabric))
+                    .sum::<Vector3<f32>>()
+                    .normalize();
+                let quaternion = Quaternion::from_arc(down, -Vector3::unit_y(), None);
+                fabric.apply_matrix4(Matrix4::from(quaternion));
+                fabric.centralize();
+                fabric.set_altitude(1.0);
+                Noop
             }
             ShapeOperation::Distance { mark_name, distance_factor } => {
                 let faces = self.marked_faces(&mark_name);
