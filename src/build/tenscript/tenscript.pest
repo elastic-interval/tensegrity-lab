@@ -8,7 +8,7 @@ name =
 shape =
     { "(" ~ "shape" ~ shape_operation* ~ ")" }
 basic_shape_operation =
-    { space | join | vulcanize | remove_shapers | replace_faces | set_viscosity | bouncy }
+    { space | join | vulcanize | remove_shapers | replace_faces | set_viscosity | bouncy | down }
 shape_operation =
     { basic_shape_operation | countdown_block }
 countdown_block = // iteration-count
@@ -17,6 +17,8 @@ space = // mark-name, spacing-factor
     { "(" ~ "space" ~ atom ~ float ~ ")" }
 join = // mark-name
     { "(" ~ "join" ~ atom ~ ")" }
+down = // mark-name
+    { "(" ~ "down" ~ atom ~ ")" }
 remove_shapers = // shaper-names
     { "(" ~ "remove-shapers" ~ atom* ~ ")" }
 set_viscosity =

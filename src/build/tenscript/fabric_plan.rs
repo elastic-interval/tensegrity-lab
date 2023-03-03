@@ -43,6 +43,7 @@ impl FabricPlan {
             operation.traverse(&mut |op| {
                 match op {
                     ShapeOperation::Join { mark_name } |
+                    ShapeOperation::PointDownwards { mark_name } |
                     ShapeOperation::Distance { mark_name, .. } => {
                         shape_marks.insert(mark_name.clone());
                     }
