@@ -61,7 +61,7 @@ impl Default for Tinkerer {
 }
 
 impl Tinkerer {
-    pub fn iterate(&mut self, fabric: &mut Fabric, brick_library: &dyn BrickLibrary) -> Option<Action> {
+    pub fn iterate(&mut self, fabric: &mut Fabric, brick_library: &impl BrickLibrary) -> Option<Action> {
         let mut action = None;
         self.stage = match &mut self.stage {
             Navigating => {

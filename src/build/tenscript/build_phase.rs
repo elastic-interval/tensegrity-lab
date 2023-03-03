@@ -172,7 +172,7 @@ impl BuildPhase {
         }
     }
 
-    pub fn init(&mut self, fabric: &mut Fabric, brick_library: &dyn BrickLibrary) -> Result<(), TenscriptError> {
+    pub fn init(&mut self, fabric: &mut Fabric, brick_library: &impl BrickLibrary) -> Result<(), TenscriptError> {
         let (buds, marks) =
             Self::execute_node(fabric, Scratch, &self.root, vec![], brick_library)?;
         self.buds = buds;
@@ -184,7 +184,7 @@ impl BuildPhase {
         !self.buds.is_empty()
     }
 
-    pub fn growth_step(&mut self, fabric: &mut Fabric, brick_library: &dyn BrickLibrary) -> Result<(), TenscriptError> {
+    pub fn growth_step(&mut self, fabric: &mut Fabric, brick_library: &impl BrickLibrary) -> Result<(), TenscriptError> {
         let buds = self.buds.clone();
         self.buds.clear();
         for bud in buds {
@@ -195,7 +195,7 @@ impl BuildPhase {
         Ok(())
     }
 
-    fn execute_bud(&self, fabric: &mut Fabric, Bud { face_id, forward, scale_factor, node }: Bud, brick_library: &dyn BrickLibrary) -> Result<(Vec<Bud>, Vec<FaceMark>), TenscriptError> {
+    fn execute_bud(&self, fabric: &mut Fabric, Bud { face_id, forward, scale_factor, node }: Bud, brick_library: &impl BrickLibrary) -> Result<(Vec<Bud>, Vec<FaceMark>), TenscriptError> {
         let (mut buds, mut marks) = (vec![], vec![]);
         let face = fabric.expect_face(face_id)?;
         let spin = if forward.starts_with('X') { face.spin.opposite() } else { face.spin };
@@ -220,7 +220,7 @@ impl BuildPhase {
         Ok((buds, marks))
     }
 
-    fn execute_node(fabric: &mut Fabric, launch: Launch, node: &BuildNode, faces: Vec<UniqueId>, brick_library: &dyn BrickLibrary) -> Result<(Vec<Bud>, Vec<FaceMark>), TenscriptError> {
+    fn execute_node(fabric: &mut Fabric, launch: Launch, node: &BuildNode, faces: Vec<UniqueId>, brick_library: &impl BrickLibrary) -> Result<(Vec<Bud>, Vec<FaceMark>), TenscriptError> {
         let mut buds: Vec<Bud> = vec![];
         let mut marks: Vec<FaceMark> = vec![];
         match node {

@@ -38,7 +38,7 @@ impl PlanRunner {
         }
     }
 
-    pub fn iterate(&mut self, fabric: &mut Fabric, brick_library: &dyn BrickLibrary) -> Result<(), TenscriptError> {
+    pub fn iterate(&mut self, fabric: &mut Fabric, brick_library: &impl BrickLibrary) -> Result<(), TenscriptError> {
         fabric.iterate(&self.physics);
         if fabric.progress.is_busy() || self.disabled.is_some() {
             return Ok(());
