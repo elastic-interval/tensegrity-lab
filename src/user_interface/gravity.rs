@@ -29,7 +29,7 @@ pub struct Gravity {
 impl Gravity {
     pub fn new(default: f32) -> Self {
         let min_gravity = default * 0.1;
-        let max_gravity = default * 5.0;
+        let max_gravity = default * 3.0;
         let nuance = (default - min_gravity) / (max_gravity - min_gravity);
         Self {
             nuance,

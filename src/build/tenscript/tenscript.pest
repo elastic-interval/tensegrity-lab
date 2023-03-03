@@ -45,7 +45,7 @@ grow =
 mark =
     { "(" ~ "mark" ~ atom ~ ")" }
 branch =
-    { "(" ~ "branch" ~ partial_alias ~ face_rotation* ~ on_face* ~ ")" }
+    { "(" ~ "branch" ~ partial_alias ~ scale? ~ face_rotation* ~ on_face* ~ ")" }
 face_rotation =
     { "(" ~ "rotate" ~ ")" }
 scale =
