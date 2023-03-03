@@ -73,8 +73,8 @@ impl PlanRunner {
                         self.physics.viscosity = viscosity;
                         (Shaping, 0)
                     }
-                    ShapeCommand::Bouncy => {
-                        self.surface_character = SurfaceCharacter::Bouncy;
+                    ShapeCommand::SetSurface(surface_character) => {
+                        self.surface_character = surface_character;
                         (Shaping, 0)
                     }
                     ShapeCommand::Terminate =>
