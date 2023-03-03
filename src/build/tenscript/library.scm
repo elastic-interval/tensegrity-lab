@@ -31,7 +31,7 @@
     (shape
       (vulcanize)
       (replace-faces)
-      (bouncy)))
+      (surface :bouncy)))
   (fabric
     (name "Simple" "Bulge Ring")
     (build
@@ -39,7 +39,7 @@
         (face (alias :base) (grow 8 (scale .92) (mark :tip)))
         (face (alias :next-base) (grow 9 (scale .92) (mark :tip)))
         ))
-    (shape (join :tip) (bouncy)))
+    (shape (join :tip) (surface :bouncy)))
   (fabric
     (name "Art" "Halo by Crane")
     (build
@@ -75,7 +75,7 @@
     (shape
       (vulcanize)
       (replace-faces)
-      (bouncy)))
+      (surface :bouncy)))
   (fabric
     (name "Art" "Tommy Torque")
     (build
@@ -106,7 +106,9 @@
                 ))))))
     (shape
       (down :sole)
-      (replace-faces)))
+      (replace-faces)
+      (surface :frozen)
+      ))
     (fabric
       (name "Art" "Headless Hug")
       (build
@@ -151,7 +153,7 @@
     (shape
       (join :loose)
       (replace-faces)
-      (bouncy)))
+      (surface :bouncy)))
   (brick ; single-right
     (proto
       (alias Single)
