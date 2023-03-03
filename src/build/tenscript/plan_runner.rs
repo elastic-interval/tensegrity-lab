@@ -64,7 +64,7 @@ impl PlanRunner {
             GrowCalm =>
                 (GrowStep, 0),
             Shaping =>
-                match self.shape_phase.shaping_step(fabric) {
+                match self.shape_phase.shaping_step(fabric)? {
                     ShapeCommand::Noop =>
                         (Shaping, 0),
                     ShapeCommand::StartCountdown(countdown) =>
