@@ -20,6 +20,7 @@ use crate::build::brick::Baked;
 use crate::build::tenscript::build_phase::BuildPhase;
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::brick::BrickLibrary;
+use crate::fabric::face::Face;
 
 pub mod fabric_plan;
 pub mod plan_runner;
@@ -52,6 +53,12 @@ impl TenscriptError {
     pub fn parse_float_inside(pair: Pair<Rule>, spot: &str) -> Result<f32, TenscriptError> {
         Self::parse_float(pair.into_inner().next().unwrap().as_str(), spot)
             .map_err(|error| TenscriptError::Format(format!("Not a float pair: [{error}]")))
+    }
+}
+
+impl Fabric {
+    pub fn expect_face(&self, face_id: UniqueId) -> Result<&Face, TenscriptError> {
+        self.faces.get(&face_id).ok_or(TenscriptError::Invalid("Face missing".to_string()))
     }
 }
 

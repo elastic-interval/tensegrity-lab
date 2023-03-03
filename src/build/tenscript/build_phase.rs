@@ -197,7 +197,7 @@ impl BuildPhase {
 
     fn execute_bud(&self, fabric: &mut Fabric, Bud { face_id, forward, scale_factor, node }: Bud, brick_library: &dyn BrickLibrary) -> Result<(Vec<Bud>, Vec<FaceMark>), TenscriptError> {
         let (mut buds, mut marks) = (vec![], vec![]);
-        let face = fabric.face(face_id);
+        let face = fabric.expect_face(face_id)?;
         let spin = if forward.starts_with('X') { face.spin.opposite() } else { face.spin };
         if !forward.is_empty() {
             let face_alias = FaceAlias::single("Single") + &spin.into_alias();

@@ -120,10 +120,10 @@ impl ShapePhase {
         !self.operations.is_empty()
     }
 
-    pub fn shaping_step(&mut self, fabric: &mut Fabric) -> ShapeCommand {
+    pub fn shaping_step(&mut self, fabric: &mut Fabric) -> Result<ShapeCommand, TenscriptError> {
         let Some(operation) = self.operations.get(self.shape_operation_index) else {
             self.complete_all_shapers(fabric);
-            return Terminate;
+            return Ok(Terminate);
         };
         self.shape_operation_index += 1;
         self.execute_shape_operation(fabric, operation.clone())
@@ -135,8 +135,8 @@ impl ShapePhase {
         }
     }
 
-    fn execute_shape_operation(&mut self, fabric: &mut Fabric, operation: ShapeOperation) -> ShapeCommand {
-        match operation {
+    fn execute_shape_operation(&mut self, fabric: &mut Fabric, operation: ShapeOperation) -> Result<ShapeCommand, TenscriptError> {
+        Ok(match operation {
             ShapeOperation::Join { mark_name } => {
                 let faces = self.marked_faces(&mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
@@ -150,10 +150,16 @@ impl ShapePhase {
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
             ShapeOperation::PointDownwards { mark_name } => {
-                let faces = self.marked_faces(&mark_name);
+                let results: Result<Vec<_>, TenscriptError> = self
+                    .marked_faces(&mark_name)
+                    .into_iter()
+                    .map(|id| fabric.expect_face(id))
+                    .into_iter()
+                    .collect();
+                let faces = results?;
                 let down = faces
                     .into_iter()
-                    .map(|id| fabric.face(id).normal(fabric))
+                    .map(|face| face.normal(fabric))
                     .sum::<Vector3<f32>>()
                     .normalize();
                 let quaternion = Quaternion::from_arc(down, -Vector3::unit_y(), None);
@@ -194,7 +200,7 @@ impl ShapePhase {
             ShapeOperation::Countdown { count, operations } => {
                 for operation in operations {
                     // ignores the countdown returned from each sub-operation
-                    self.execute_shape_operation(fabric, operation);
+                    let _ = self.execute_shape_operation(fabric, operation);
                 }
                 StartCountdown(count)
             }
@@ -211,7 +217,7 @@ impl ShapePhase {
             }
             ShapeOperation::SetViscosity { viscosity } => SetViscosity(viscosity),
             ShapeOperation::Bouncy => Bouncy,
-        }
+        })
     }
 
     fn complete_shaper(&self, fabric: &mut Fabric, Shaper { interval, alpha_face, omega_face, join, .. }: Shaper) {
