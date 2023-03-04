@@ -1,5 +1,6 @@
 use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::build::tenscript::build_phase::BuildPhase;
+use crate::build::tenscript::fabric_plan::PretensePhase;
 use crate::build::tenscript::plan_runner::Stage::{*};
 use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
 use crate::fabric::brick::BrickLibrary;
@@ -21,19 +22,19 @@ pub struct PlanRunner {
     stage: Stage,
     build_phase: BuildPhase,
     shape_phase: ShapePhase,
+    pretense_phase: PretensePhase,
     physics: Physics,
-    surface_character: SurfaceCharacter,
     disabled: Option<TenscriptError>,
 }
 
 impl PlanRunner {
-    pub fn new(FabricPlan { shape_phase, build_phase, .. }: FabricPlan) -> Self {
+    pub fn new(FabricPlan { shape_phase, build_phase, pretense_phase, .. }: FabricPlan) -> Self {
         Self {
             shape_phase,
             build_phase,
+            pretense_phase,
             stage: Initialize,
             physics: LIQUID,
-            surface_character: SurfaceCharacter::Frozen,
             disabled: None,
         }
     }
@@ -73,10 +74,6 @@ impl PlanRunner {
                         self.physics.viscosity = viscosity;
                         (Shaping, 0)
                     }
-                    ShapeCommand::SetSurface(surface_character) => {
-                        self.surface_character = surface_character;
-                        (Shaping, 0)
-                    }
                     ShapeCommand::Terminate =>
                         (Completed, 0)
                 }
@@ -97,6 +94,6 @@ impl PlanRunner {
     }
 
     pub fn surface_character(&self) -> SurfaceCharacter {
-        self.surface_character
+        self.pretense_phase.surface_character
     }
 }

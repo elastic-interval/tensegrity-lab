@@ -1,7 +1,7 @@
 (library
-  (fabric (name "Seed" "Single") (build (branch (alias Single))) (shape))
-  (fabric (name "Seed" "Omni") (build (branch (alias Omni))) (shape))
-  (fabric (name "Seed" "Torque") (build (branch (alias Torque))) (shape))
+  (fabric (name "Seed" "Single") (build (branch (alias Single))))
+  (fabric (name "Seed" "Omni") (build (branch (alias Omni))))
+  (fabric (name "Seed" "Torque") (build (branch (alias Torque))))
   (fabric
     (name "Simple" "Knee")
     (build
@@ -18,7 +18,8 @@
         (face (alias :next-base) (grow 20 (scale .9)))))
     (shape
       (vulcanize)
-      (replace-faces)))
+      (replace-faces))
+    (pretense :frozen))
   (fabric
     (name "Simple" "Tetrapod")
     (build
@@ -30,8 +31,8 @@
         ))
     (shape
       (vulcanize)
-      (replace-faces)
-      (surface :bouncy)))
+      (replace-faces))
+    (pretense :bouncy))
   (fabric
     (name "Simple" "Twist8")
     (build
@@ -42,16 +43,19 @@
         (face (alias Front:Left) (grow 13 (scale .92) (mark :ring-b)))
         ))
     (shape
-      (countdown 20000 (join :ring-a) (join :ring-b))
-      (replace-faces)
-      (surface :bouncy)))
+      (countdown 15000 (join :ring-a) (join :ring-b))
+      (remove-shapers)
+      (countdown 20000 (vulcanize))
+      (replace-faces))
+    (pretense :bouncy))
   (fabric
     (name "Simple" "Bulge Ring")
     (build
       (branch (alias Single)
         (face (alias :base) (grow 8 (scale .92) (mark :tip)))
         (face (alias :next-base) (grow 9 (scale .92) (mark :tip)))))
-    (shape (join :tip) (surface :bouncy)))
+    (shape (join :tip))
+    (pretense :bouncy))
   (fabric
     (name "Art" "Halo by Crane")
     (build
@@ -86,8 +90,8 @@
               (face (alias Far:Base) (grow 2)))))))
     (shape
       (vulcanize)
-      (replace-faces)
-      (surface :bouncy)))
+      (replace-faces))
+    (pretense :bouncy))
   (fabric
     (name "Art" "Tommy Torque")
     (build
@@ -116,7 +120,10 @@
                 (face (alias Far:Back) (grow 1 (scale .5)))
                 (face (alias Far:Front) (mark :sole))
                 (face (alias Far:Base) (mark :sole))))))))
-    (shape (down :sole) (replace-faces) (surface :frozen)))
+    (shape
+      (down :sole)
+      (replace-faces))
+    (pretense :frozen))
     (fabric
       (name "Art" "Headless Hug")
       (build
@@ -153,8 +160,8 @@
                 (face (alias Far:Side) (mark :loose))))))))
     (shape
       (join :loose)
-      (replace-faces)
-      (surface :bouncy)))
+      (replace-faces))
+    (pretense :bouncy))
   (brick ; single-right
     (proto
       (alias Single)

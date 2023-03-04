@@ -21,12 +21,13 @@ pub struct Pretenser {
 
 impl Pretenser {
     pub fn new(pretenst_factor: f32, surface_character: SurfaceCharacter) -> Self {
+        let gravity = if surface_character == SurfaceCharacter::Absent {0.0} else { AIR_GRAVITY.gravity };
         Self {
             stage: Start,
             pretenst_factor,
             pretensing_countdown: 20000,
             speed_threshold: 1e-6,
-            physics: Physics { surface_character, ..AIR_GRAVITY },
+            physics: Physics { surface_character, gravity, ..AIR_GRAVITY },
         }
     }
 
