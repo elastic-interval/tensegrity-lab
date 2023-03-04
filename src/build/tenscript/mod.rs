@@ -291,7 +291,8 @@ impl BrickLibrary for Library {
             face.aliases.retain(|candidate| search_alias.matches(candidate));
             assert_eq!(face.aliases.len(), 1, "exactly one face should be retained {:?}", face.aliases);
         }
-        thawed.clone()    }
+        thawed.clone()
+    }
 }
 
 pub fn parse_name(pair: Pair<Rule>) -> Vec<String> {
