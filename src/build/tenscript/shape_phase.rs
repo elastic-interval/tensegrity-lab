@@ -161,7 +161,6 @@ impl ShapePhase {
                     .marked_faces(&mark_name)
                     .into_iter()
                     .map(|id| fabric.expect_face(id))
-                    .into_iter()
                     .collect();
                 let faces = results?;
                 let down = faces
