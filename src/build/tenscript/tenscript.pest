@@ -2,14 +2,13 @@ library =
     { "(" ~ "library" ~ fabric_plan* ~ brick_definition* ~ ")" }
 
 fabric_plan =
-    { "(" ~ "fabric" ~ name ~ build ~ shape ~ ")" }
+    { "(" ~ "fabric" ~ name ~ build ~ shape? ~ pretense? ~ ")" }
 name =
     { "(" ~ "name" ~ string+ ~ ")" }
 shape =
     { "(" ~ "shape" ~ shape_operation* ~ ")" }
 basic_shape_operation =
-    { space | join | vulcanize | remove_shapers | replace_faces | set_viscosity
-      | surface_frozen | surface_absent | surface_bouncy | down }
+    { space | join | vulcanize | remove_shapers | replace_faces | set_viscosity | down }
 shape_operation =
     { basic_shape_operation | countdown_block }
 countdown_block = // iteration-count
@@ -26,12 +25,10 @@ set_viscosity =
     { "(" ~ "set-viscosity" ~ float ~ ")" }
 vulcanize =
     { "(" ~ "vulcanize" ~ ")" }
-surface_bouncy =
-    { "(" ~ "surface" ~ ":bouncy" ~  ")" }
-surface_frozen =
-    { "(" ~ "surface" ~ ":frozen" ~  ")" }
-surface_absent =
-    { "(" ~ "surface" ~ ":absent" ~  ")" }
+pretense =
+    { "(" ~ "pretense" ~ surface_character ~ ")" }
+surface_character =
+    { ":frozen" | ":bouncy" | ":absent"  }
 replace_faces =
     { "(" ~ "replace-faces" ~ ")" }
 build =

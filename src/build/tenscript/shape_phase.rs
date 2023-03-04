@@ -5,7 +5,6 @@ use crate::build::tenscript::{FaceMark, TenscriptError};
 use crate::build::tenscript::Rule;
 use crate::build::tenscript::shape_phase::ShapeCommand::{*};
 use crate::fabric::{Fabric, Link, UniqueId};
-use crate::fabric::physics::SurfaceCharacter;
 
 const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 25_000;
 const DEFAULT_VULCANIZE_COUNTDOWN: usize = 5_000;
@@ -14,7 +13,6 @@ pub enum ShapeCommand {
     Noop,
     StartCountdown(usize),
     SetViscosity(f32),
-    SetSurface(SurfaceCharacter),
     Terminate,
 }
 
@@ -28,7 +26,6 @@ pub enum ShapeOperation {
     Vulcanize,
     ReplaceFaces,
     SetViscosity { viscosity: f32 },
-    Surface(SurfaceCharacter),
 }
 
 impl ShapeOperation {
@@ -60,8 +57,11 @@ pub struct ShapePhase {
 }
 
 impl ShapePhase {
-    pub fn from_pair(pair: Pair<Rule>) -> Result<ShapePhase, TenscriptError> {
-        let operations = Self::parse_shape_operations(pair.into_inner())?;
+    pub fn from_pair(pair: Option<Pair<Rule>>) -> Result<ShapePhase, TenscriptError> {
+        let operations = match pair {
+            None => Vec::new(),
+            Some(pair) => Self::parse_shape_operations(pair.into_inner())?,
+        };
         Ok(ShapePhase {
             operations,
             marks: Vec::new(),
@@ -108,15 +108,6 @@ impl ShapePhase {
             Rule::set_viscosity => {
                 let viscosity = TenscriptError::parse_float_inside(pair, "viscosity")?;
                 Ok(ShapeOperation::SetViscosity { viscosity })
-            }
-            Rule::surface_bouncy => {
-                Ok(ShapeOperation::Surface(SurfaceCharacter::Bouncy))
-            }
-            Rule::surface_frozen => {
-                Ok(ShapeOperation::Surface(SurfaceCharacter::Frozen))
-            }
-            Rule::surface_absent => {
-                Ok(ShapeOperation::Surface(SurfaceCharacter::Absent))
             }
             _ => unreachable!("shape phase: {pair}")
         }
@@ -222,7 +213,6 @@ impl ShapePhase {
                 Noop
             }
             ShapeOperation::SetViscosity { viscosity } => SetViscosity(viscosity),
-            ShapeOperation::Surface(character) => SetSurface(character),
         })
     }
 

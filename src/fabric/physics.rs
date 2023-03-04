@@ -3,8 +3,9 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub enum SurfaceCharacter {
+    #[default]
     Absent,
     Frozen,
     Sticky,
