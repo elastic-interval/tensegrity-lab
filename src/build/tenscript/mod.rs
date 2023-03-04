@@ -69,8 +69,8 @@ impl Display for TenscriptError {
             TenscriptError::Pest(error) => write!(f, "parse error: {error}"),
             TenscriptError::Format(error) => write!(f, "format: {error}"),
             TenscriptError::Invalid(warning) => write!(f, "warning: {warning}"),
-            TenscriptError::FaceAlias(warning) => write!(f, "alias: {warning}"),
-            TenscriptError::Mark(warning) => write!(f, "mark: {warning}"),
+            TenscriptError::FaceAlias(name) => write!(f, "alias: {name}"),
+            TenscriptError::Mark(name) => write!(f, "mark: {name}"),
         }
     }
 }
