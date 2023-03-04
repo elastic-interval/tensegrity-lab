@@ -33,12 +33,24 @@
       (replace-faces)
       (surface :bouncy)))
   (fabric
+    (name "Simple" "Twist8")
+    (build
+      (branch (alias Omni)
+        (face (alias Top:Right) (grow 12 (scale .92) (mark :ring-a)))
+        (face (alias Bottom:Right) (grow 13 (scale .92) (mark :ring-a)))
+        (face (alias Back:Left) (grow 12 (scale .92) (mark :ring-b)))
+        (face (alias Front:Left) (grow 13 (scale .92) (mark :ring-b)))
+        ))
+    (shape
+      (countdown 20000 (join :ring-a) (join :ring-b))
+      (replace-faces)
+      (surface :bouncy)))
+  (fabric
     (name "Simple" "Bulge Ring")
     (build
       (branch (alias Single)
         (face (alias :base) (grow 8 (scale .92) (mark :tip)))
-        (face (alias :next-base) (grow 9 (scale .92) (mark :tip)))
-        ))
+        (face (alias :next-base) (grow 9 (scale .92) (mark :tip)))))
     (shape (join :tip) (surface :bouncy)))
   (fabric
     (name "Art" "Halo by Crane")
@@ -95,8 +107,7 @@
                 (face (alias Far:Side) (grow 1 (scale .5)))
                 (face (alias Far:Back) (grow 1 (scale .5)))
                 (face (alias Far:Front) (mark :sole))
-                (face (alias Far:Base) (mark :sole))
-                ))))
+                (face (alias Far:Base) (mark :sole))))))
         (face (alias Back:Left)
           (branch (alias Torque)
             (face (alias Far:Back)
@@ -104,13 +115,8 @@
                 (face (alias Far:Side) (grow 1 (scale .5)))
                 (face (alias Far:Back) (grow 1 (scale .5)))
                 (face (alias Far:Front) (mark :sole))
-                (face (alias Far:Base) (mark :sole))
-                ))))))
-    (shape
-      (down :sole)
-      (replace-faces)
-      (surface :frozen)
-      ))
+                (face (alias Far:Base) (mark :sole))))))))
+    (shape (down :sole) (replace-faces) (surface :frozen)))
     (fabric
       (name "Art" "Headless Hug")
       (build
@@ -122,22 +128,15 @@
               (branch (alias Omni)
                 (face (alias TopZ) (mark :chest-1))
                 (face (alias BotX) (mark :chest-2))
-                (face (alias BotY) (grow "....X..." (scale .93) (mark :hands)))
-                )))
+                (face (alias BotY) (grow "....X..." (scale .93) (mark :hands))))))
           (face (alias Top:Right)
             (grow 2 (scale .9)
               (branch (alias Omni)
                 (face (alias TopY) (mark :chest-1))
                 (face (alias BotZ) (mark :chest-2))
-                (face (alias BotX) (grow "....X..." (scale .93) (mark :hands)))
-                )))))
+                (face (alias BotX) (grow "....X..." (scale .93) (mark :hands))))))))
       (shape
-        (countdown 15000
-          (space :legs .3)
-          (space :hands .3)
-          (space :chest-1 .8)
-          (space :chest-2 .2)
-          )
+        (countdown 15000 (space :legs .3) (space :hands .3) (space :chest-1 .8) (space :chest-2 .2))
         (countdown 80000 (vulcanize))
         (remove-shapers)
         (replace-faces)))
