@@ -10,6 +10,7 @@ use crate::fabric::Link;
 const ROOT3: f32 = 1.732_050_8;
 
 const BOW_TIE_MATERIAL: Material = Material {
+    name: "Bow Tie",
     role: Role::Pull,
     stiffness: 0.7,
     mass: 0.1,

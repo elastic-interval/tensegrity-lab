@@ -30,8 +30,9 @@ pub enum Role {
     Pull,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Material {
+    pub name: &'static str,
     pub role: Role,
     pub stiffness: f32,
     pub mass: f32,
@@ -112,7 +113,7 @@ impl Interval {
             }
         };
         let real_length = self.length(joints);
-        let Material { role, stiffness, mass } = materials[self.material];
+        let Material { role, stiffness, mass, .. } = materials[self.material];
         self.strain = (real_length - ideal) / ideal;
         let strain = match role {
             Push if real_length > ideal => 0.0, // do not pull

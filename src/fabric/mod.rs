@@ -247,25 +247,27 @@ pub struct UniqueId(usize);
 
 #[derive(Clone, Debug, Copy)]
 pub struct Link {
-    ideal: f32,
-    material: usize,
+    pub(crate) ideal: f32,
+    pub(crate) material: usize,
 }
 
 const DEFAULT_MATERIALS: [Material; 2] = [
     Material {
+        name: "Basic Push",
         role: Push,
         stiffness: 3.0,
         mass: 1.0,
     },
     Material {
+        name: "Basic Pull",
         role: Pull,
         stiffness: 1.0,
         mass: 0.1,
     },
 ];
 
-const DEFAULT_PUSH_MATERIAL: usize = 0;
-const DEFAULT_PULL_MATERIAL: usize = 1;
+pub const DEFAULT_PUSH_MATERIAL: usize = 0;
+pub const DEFAULT_PULL_MATERIAL: usize = 1;
 
 impl Link {
     pub fn push(ideal: f32) -> Self {
