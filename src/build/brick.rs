@@ -54,7 +54,7 @@ pub struct PullDef {
     pub alpha_name: String,
     pub omega_name: String,
     pub ideal: f32,
-    pub material: usize,
+    pub material: String,
 }
 
 impl PullDef {
@@ -63,12 +63,7 @@ impl PullDef {
         let alpha_name = parse_atom(walk.next().unwrap());
         let omega_name = parse_atom(walk.next().unwrap());
         let material = walk.next().unwrap().as_str().parse().unwrap();
-        Self {
-            alpha_name,
-            omega_name,
-            ideal,
-            material,
-        }
+        Self { alpha_name, omega_name, ideal, material }
     }
 }
 
@@ -93,25 +88,27 @@ pub struct BrickDefinition {
     pub baked: Option<Baked>,
 }
 
+const MUSCLE_MATERIALS: [Material; 2] = [
+    Material {
+        name: ":north",
+        role: Role::Pull,
+        stiffness: 0.5,
+        mass: 0.01,
+    },
+    Material {
+        name: ":south",
+        role: Role::Pull,
+        stiffness: 0.5,
+        mass: 0.01,
+    },
+];
 const NORTH_MATERIAL_INDEX: usize = DEFAULT_PULL_MATERIAL + 1;
-const NORTH_MATERIAL: Material = Material {
-    name: ":north",
-    role: Role::Pull,
-    stiffness: 0.5,
-    mass: 0.01,
-};
 const SOUTH_MATERIAL_INDEX: usize = NORTH_MATERIAL_INDEX + 1;
-const SOUTH_MATERIAL: Material = Material {
-    name: ":south",
-    role: Role::Pull,
-    stiffness: 0.5,
-    mass: 0.01,
-};
 
 impl From<Prototype> for Fabric {
     fn from(proto: Prototype) -> Self {
         let mut fabric = Fabric::default();
-
+        fabric.materials.extend(MUSCLE_MATERIALS);
         let mut joints_by_name = HashMap::new();
         for PushDef { alpha_name, omega_name, axis, ideal } in proto.pushes {
             let vector = match axis {
@@ -132,6 +129,10 @@ impl From<Prototype> for Fabric {
         for PullDef { alpha_name, omega_name, ideal, material, .. } in proto.pulls {
             let [alpha_index, omega_index] = [alpha_name, omega_name]
                 .map(|name| *joints_by_name.get(&name).expect("no joint with that name"));
+            let material = fabric.materials
+                .iter()
+                .position(|&Material{ name, ..}| name == material)
+                .unwrap_or_else(|| { panic!("material not found: {material}") });
             fabric.create_interval(alpha_index, omega_index, Link { ideal, material });
         }
         for FaceDef { aliases, joint_names, spin } in proto.faces {
@@ -262,7 +263,7 @@ impl BrickFace {
 pub struct BakedInterval {
     pub alpha_index: usize,
     pub omega_index: usize,
-    pub material: usize,
+    pub material: String,
     pub strain: f32,
 }
 
@@ -294,10 +295,10 @@ impl Baked {
                 Rule::interval_baked => {
                     let [alpha_index, omega_index, strain, material] =
                         pair.into_inner().next_chunk().unwrap();
-                    let [alpha_index, omega_index, material] =
-                        [alpha_index, omega_index, material]
+                    let [alpha_index, omega_index] = [alpha_index, omega_index]
                             .map(|pair| pair.as_str().parse().unwrap());
                     let strain = strain.as_str().parse().unwrap();
+                    let material = material.as_str().to_string();
                     intervals.push(BakedInterval { alpha_index, omega_index, strain, material });
                 }
                 Rule::face_baked => {
@@ -394,9 +395,11 @@ impl TryFrom<(Fabric, FaceAlias)> for Baked {
                 .map(|Joint { location, .. }| *location)
                 .collect(),
             intervals: fabric.interval_values()
-                .filter_map(|&Interval { alpha_index, omega_index, material, strain, .. }|
+                .filter_map(|&Interval { alpha_index, omega_index, material, strain, .. }| {
+                    let material = fabric.materials[material].name.to_string();
                     joint_incident[alpha_index].push
-                        .map(|_| BakedInterval { alpha_index, omega_index, strain, material }))
+                        .map(|_| BakedInterval { alpha_index, omega_index, strain, material })
+                })
                 .collect(),
             faces: fabric.faces
                 .values()

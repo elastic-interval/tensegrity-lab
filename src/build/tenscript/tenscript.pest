@@ -64,8 +64,8 @@ push_proto = // alpha, omega
     { "(" ~ "push" ~ atom ~ atom ~ ")" }
 pulls_proto = // ideal
     { "(" ~ "pulls" ~ float ~ pull_proto+ ~ ")" }
-pull_proto = // alpha, omega
-    { "(" ~ "pull" ~ atom ~ atom ~ integer ~ ")" }
+pull_proto = // alpha, omega, material-name
+    { "(" ~ "pull" ~ atom ~ atom ~ atom ~ ")" }
 faces_proto =
     { "(" ~ "faces" ~ face_proto+ ~ ")" }
 left = { "left" }
@@ -79,8 +79,8 @@ brick_baked =
     { "(" ~ "baked" ~ partial_alias ~ joint_baked+ ~ interval_baked+ ~ face_baked+ ~ ")" }
 joint_baked = // x, y, z
     { "(" ~ "joint" ~ float ~ float ~ float ~ ")" }
-interval_baked = // alpha_index, omega_index, strain, material
-    { "(" ~ "interval" ~ integer ~ integer ~ float ~ integer ~ ")" }
+interval_baked = // alpha_index, omega_index, strain, material-name
+    { "(" ~ "interval" ~ integer ~ integer ~ float ~ atom ~ ")" }
 face_baked = // a, b, c, name
     { "(" ~ chirality ~ integer ~ integer ~ integer ~ face_alias* ~ ")" }
 

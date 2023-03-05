@@ -253,13 +253,13 @@ pub struct Link {
 
 const DEFAULT_MATERIALS: [Material; 2] = [
     Material {
-        name: "Basic Push",
+        name: ":push",
         role: Push,
         stiffness: 3.0,
         mass: 1.0,
     },
     Material {
-        name: "Basic Pull",
+        name: ":pull",
         role: Pull,
         stiffness: 1.0,
         mass: 0.1,
