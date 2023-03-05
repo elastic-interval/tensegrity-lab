@@ -1,10 +1,9 @@
 use cgmath::{EuclideanSpace, Point3, Transform, Vector3};
 
-use crate::build::brick::{Baked, BrickFace};
+use crate::build::brick::{Baked, BakedInterval, BrickFace};
 use crate::build::tenscript::{FaceAlias, Spin};
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::fabric::face::{Face, FaceRotation};
-use crate::fabric::interval::Role;
 
 const ROOT3: f32 = 1.732_050_8;
 const ROOT5: f32 = 2.236_068;
@@ -43,13 +42,10 @@ impl Fabric {
                 Some(matrix) => matrix.transform_point(point),
             }))
             .collect();
-        for (alpha, omega, role, strain) in brick.intervals {
-            let (alpha_index, omega_index) = (joints[alpha], joints[omega]);
+        for BakedInterval { alpha_index, omega_index, material, strain } in brick.intervals {
+            let (alpha_index, omega_index) = (joints[alpha_index], joints[omega_index]);
             let ideal = self.ideal(alpha_index, omega_index, strain);
-            self.create_interval(alpha_index, omega_index, match role {
-                Role::Push => Link::push(ideal),
-                Role::Pull => Link::pull(ideal),
-            });
+            self.create_interval(alpha_index, omega_index, Link { ideal, material });
         }
         let brick_faces = brick.faces
             .into_iter()

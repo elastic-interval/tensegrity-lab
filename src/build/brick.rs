@@ -7,9 +7,8 @@ use pest::iterators::Pair;
 use crate::build::tenscript::{FaceAlias, parse_atom, Spin, TenscriptError};
 use crate::build::tenscript::Rule;
 use crate::build::tenscript::Spin::{Left, Right};
-use crate::fabric::{Fabric, Link};
-use crate::fabric::interval::{Interval, Role};
-use crate::fabric::interval::Role::{Pull, Push};
+use crate::fabric::{DEFAULT_PULL_MATERIAL, Fabric, Link};
+use crate::fabric::interval::{Interval, Material, Role};
 use crate::fabric::joint::Joint;
 
 #[derive(Copy, Clone, Debug)]
@@ -52,9 +51,25 @@ pub struct PushDef {
 
 #[derive(Clone, Debug)]
 pub struct PullDef {
-    pub ideal: f32,
     pub alpha_name: String,
     pub omega_name: String,
+    pub ideal: f32,
+    pub material: usize,
+}
+
+impl PullDef {
+    fn from_pair(pair: Pair<Rule>, ideal: f32) -> Self {
+        let mut walk = pair.into_inner();
+        let alpha_name = parse_atom(walk.next().unwrap());
+        let omega_name = parse_atom(walk.next().unwrap());
+        let material = walk.next().unwrap().as_str().parse().unwrap();
+        Self {
+            alpha_name,
+            omega_name,
+            ideal,
+            material,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -78,9 +93,25 @@ pub struct BrickDefinition {
     pub baked: Option<Baked>,
 }
 
+const NORTH_MATERIAL_INDEX: usize = DEFAULT_PULL_MATERIAL + 1;
+const NORTH_MATERIAL: Material = Material {
+    name: ":north",
+    role: Role::Pull,
+    stiffness: 0.5,
+    mass: 0.01,
+};
+const SOUTH_MATERIAL_INDEX: usize = NORTH_MATERIAL_INDEX + 1;
+const SOUTH_MATERIAL: Material = Material {
+    name: ":south",
+    role: Role::Pull,
+    stiffness: 0.5,
+    mass: 0.01,
+};
+
 impl From<Prototype> for Fabric {
     fn from(proto: Prototype) -> Self {
         let mut fabric = Fabric::default();
+
         let mut joints_by_name = HashMap::new();
         for PushDef { alpha_name, omega_name, axis, ideal } in proto.pushes {
             let vector = match axis {
@@ -98,10 +129,10 @@ impl From<Prototype> for Fabric {
             });
             fabric.create_interval(alpha_index, omega_index, Link::push(ideal));
         }
-        for PullDef { alpha_name, omega_name, ideal } in proto.pulls {
+        for PullDef { alpha_name, omega_name, ideal, material, .. } in proto.pulls {
             let [alpha_index, omega_index] = [alpha_name, omega_name]
                 .map(|name| *joints_by_name.get(&name).expect("no joint with that name"));
-            fabric.create_interval(alpha_index, omega_index, Link::pull(ideal));
+            fabric.create_interval(alpha_index, omega_index, Link { ideal, material });
         }
         for FaceDef { aliases, joint_names, spin } in proto.faces {
             let joint_indices = joint_names.map(|name| *joints_by_name.get(&name).expect("no joint with that name"));
@@ -132,7 +163,9 @@ impl Prototype {
                     let axis = Axis::from_pair(axis);
                     let ideal = ideal.as_str().parse().unwrap();
                     for push_pair in inner {
-                        let (alpha_name, omega_name) = Self::extract_alpha_and_omega(push_pair);
+                        let mut walk = push_pair.into_inner();
+                        let alpha_name = parse_atom(walk.next().unwrap());
+                        let omega_name = parse_atom(walk.next().unwrap());
                         pushes.push(PushDef {
                             alpha_name,
                             omega_name,
@@ -145,12 +178,7 @@ impl Prototype {
                     let mut inner = pair.into_inner();
                     let ideal = inner.next().unwrap().as_str().parse().unwrap();
                     for pull_pair in inner {
-                        let (alpha_name, omega_name) = Self::extract_alpha_and_omega(pull_pair);
-                        pulls.push(PullDef {
-                            alpha_name,
-                            omega_name,
-                            ideal,
-                        });
+                        pulls.push(PullDef::from_pair(pull_pair, ideal));
                     }
                 }
                 Rule::faces_proto => {
@@ -168,15 +196,6 @@ impl Prototype {
             }
         }
         Ok(Prototype { alias: prototype_alias, pushes, pulls, faces })
-    }
-
-    fn extract_alpha_and_omega(pair: Pair<Rule>) -> (String, String) {
-        let [alpha_name, omega_name] = pair
-            .into_inner()
-            .next_chunk()
-            .unwrap()
-            .map(parse_atom);
-        (alpha_name, omega_name)
     }
 }
 
@@ -239,11 +258,19 @@ impl BrickFace {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct BakedInterval {
+    pub alpha_index: usize,
+    pub omega_index: usize,
+    pub material: usize,
+    pub strain: f32,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Baked {
     pub alias: FaceAlias,
     pub joints: Vec<Point3<f32>>,
-    pub intervals: Vec<(usize, usize, Role, f32)>,
+    pub intervals: Vec<BakedInterval>,
     pub faces: Vec<BrickFace>,
 }
 
@@ -265,15 +292,13 @@ impl Baked {
                     joints.push(point3(x, y, z));
                 }
                 Rule::interval_baked => {
-                    let [role, alpha_index, omega_index, strain] = pair.into_inner().next_chunk().unwrap();
-                    let role = match role.into_inner().next().unwrap().as_rule() {
-                        Rule::push => Push,
-                        Rule::pull => Pull,
-                        _ => unreachable!()
-                    };
-                    let [alpha_index, omega_index] = [alpha_index, omega_index].map(|pair| pair.as_str().parse().unwrap());
+                    let [alpha_index, omega_index, strain, material] =
+                        pair.into_inner().next_chunk().unwrap();
+                    let [alpha_index, omega_index, material] =
+                        [alpha_index, omega_index, material]
+                            .map(|pair| pair.as_str().parse().unwrap());
                     let strain = strain.as_str().parse().unwrap();
-                    intervals.push((alpha_index, omega_index, role, strain));
+                    intervals.push(BakedInterval { alpha_index, omega_index, strain, material });
                 }
                 Rule::face_baked => {
                     let mut inner = pair.into_inner();
@@ -322,11 +347,9 @@ impl Baked {
                     .join("\n    "),
                 intervals = self.intervals
                     .into_iter()
-                    .map(|(alpha, omega, role, strain)|
-                        format!("({} {alpha} {omega} {strain:.4})", match role {
-                            Push => "push",
-                            Pull => "pull",
-                        }))
+                    .map(|BakedInterval { alpha_index, omega_index, material, strain }| {
+                        format!("(interval {alpha_index} {omega_index} {strain:.4} {material})")
+                    })
                     .collect::<Vec<_>>()
                     .join("\n    "),
                 faces = self.faces
@@ -371,9 +394,9 @@ impl TryFrom<(Fabric, FaceAlias)> for Baked {
                 .map(|Joint { location, .. }| *location)
                 .collect(),
             intervals: fabric.interval_values()
-                .filter_map(|Interval { alpha_index, omega_index, material, strain, .. }|
-                    joint_incident[*alpha_index].push
-                        .map(|_| (*alpha_index, *omega_index, fabric.materials[*material].role, *strain)))
+                .filter_map(|&Interval { alpha_index, omega_index, material, strain, .. }|
+                    joint_incident[alpha_index].push
+                        .map(|_| BakedInterval { alpha_index, omega_index, strain, material }))
                 .collect(),
             faces: fabric.faces
                 .values()
