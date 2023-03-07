@@ -1,9 +1,9 @@
 use crate::build::tenscript::{FabricPlan, TenscriptError};
+use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::plan_runner::Stage::{*};
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
-use crate::fabric::brick::BrickLibrary;
 use crate::fabric::Fabric;
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::LIQUID;
@@ -39,7 +39,7 @@ impl PlanRunner {
         }
     }
 
-    pub fn iterate(&mut self, fabric: &mut Fabric, brick_library: &impl BrickLibrary) -> Result<(), TenscriptError> {
+    pub fn iterate(&mut self, fabric: &mut Fabric, brick_library: &BrickLibrary) -> Result<(), TenscriptError> {
         fabric.iterate(&self.physics);
         if fabric.progress.is_busy() || self.disabled.is_some() {
             return Ok(());

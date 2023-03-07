@@ -1,7 +1,8 @@
 use cgmath::{EuclideanSpace, Point3, Transform, Vector3};
 
-use crate::build::brick::{Baked, BakedInterval, BrickFace};
 use crate::build::tenscript::{FaceAlias, Spin};
+use crate::build::tenscript::brick::{Baked, BakedInterval, BrickFace};
+use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::fabric::face::{Face, FaceRotation};
 
@@ -10,10 +11,6 @@ const ROOT5: f32 = 2.236_068;
 const ROOT6: f32 = 2.449_489_8;
 const PHI: f32 = (1f32 + ROOT5) / 2f32;
 
-pub trait BrickLibrary {
-    fn new_brick(&self, alias: &FaceAlias) -> Baked;
-}
-
 impl Fabric {
     pub fn create_brick(
         &mut self,
@@ -21,7 +18,7 @@ impl Fabric {
         rotation: FaceRotation,
         scale_factor: f32,
         face_id: Option<UniqueId>,
-        brick_library: &impl BrickLibrary,
+        brick_library: &BrickLibrary,
     ) -> (UniqueId, Vec<UniqueId>) {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;

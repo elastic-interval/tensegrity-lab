@@ -13,7 +13,8 @@ use winit::window::{CursorIcon, Window};
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
 
-use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
+use crate::build::tenscript::{FabricPlan, FaceAlias};
+use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tinkerer::{BrickOnFace, Frozen};
 use crate::camera::Pick;
 use crate::crucible::CrucibleAction;
@@ -82,7 +83,7 @@ pub enum ControlMessage {
     Muscle(MuscleMessage),
     Action(Action),
     FrameRateUpdated(f64),
-    FreshLibrary(Library),
+    FreshLibrary(FabricLibrary),
 }
 
 #[derive(Clone, Debug)]
