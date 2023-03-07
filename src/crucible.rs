@@ -41,6 +41,7 @@ pub enum TinkererAction {
 #[derive(Debug, Clone)]
 pub enum LabAction {
     GravityChanged(f32),
+    MuscleChanged(f32),
 }
 
 #[derive(Debug, Clone)]
@@ -156,7 +157,7 @@ impl Crucible {
                 let Experimenting(lab) = &mut self.stage else {
                     panic!("must be experimenting");
                 };
-                lab.action(lab_action);
+                lab.action(lab_action, &mut self.fabric);
             }
             SetSpeed(iterations_per_frame) => {
                 self.iterations_per_frame = iterations_per_frame;
