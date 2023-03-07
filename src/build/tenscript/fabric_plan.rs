@@ -6,8 +6,8 @@ use pest::iterators::Pair;
 
 use crate::build::tenscript::{BuildPhase, parse_name, Rule, TenscriptError};
 use crate::build::tenscript::build_phase::BuildNode;
+use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeOperation, ShapePhase};
-use crate::fabric::physics::SurfaceCharacter;
 
 #[derive(Debug, Clone)]
 pub struct FabricPlan {
@@ -67,33 +67,5 @@ impl FabricPlan {
             return Err(TenscriptError::Invalid(format!("undefined marks in shape phase: {}", undefined_marks.join(", "))));
         }
         Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct PretensePhase {
-    pub(crate) surface_character: SurfaceCharacter,
-}
-
-impl PretensePhase {
-    pub fn from_pair(pair: Option<Pair<Rule>>) -> Result<PretensePhase, TenscriptError> {
-        let mut pretense = PretensePhase::default();
-        if let Some(pair) = pair {
-            match pair.as_rule() {
-                Rule::pretense => {
-                    let surface_character = match pair.into_inner().next().unwrap().as_str() {
-                        ":frozen" => SurfaceCharacter::Frozen,
-                        ":bouncy" => SurfaceCharacter::Bouncy,
-                        ":absent" => SurfaceCharacter::Absent,
-                        _ => unreachable!("surface character")
-                    };
-                    pretense.surface_character = surface_character
-                }
-                _ => {
-                    unreachable!()
-                }
-            }
-        };
-        Ok(pretense)
     }
 }

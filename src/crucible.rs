@@ -6,24 +6,23 @@ use crate::build::brick::Prototype;
 use crate::build::oven::Oven;
 use crate::build::tenscript::{FabricPlan, Library};
 use crate::build::tenscript::plan_runner::PlanRunner;
+use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tinkerer::{BrickOnFace, Tinkerer};
 use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::lab::Lab;
-use crate::fabric::physics::SurfaceCharacter;
-use crate::fabric::pretenser::Pretenser;
+use crate::build::tenscript::pretenser::Pretenser;
 use crate::scene::{SceneAction, SceneVariant};
 use crate::user_interface::{Action, MenuAction};
 
 const PULL_SHORTENING: f32 = 0.95;
-const PRETENST_FACTOR: f32 = 1.03;
 
 enum Stage {
     Empty,
     RunningPlan(PlanRunner),
     TinkeringLaunch,
     Tinkering(Tinkerer),
-    PretensingLaunch(SurfaceCharacter),
+    PretensingLaunch(PretensePhase),
     Pretensing(Pretenser),
     Experimenting(Lab),
     BakingBrick(Oven),
@@ -50,7 +49,7 @@ pub enum CrucibleAction {
     BuildFabric(FabricPlan),
     SetSpeed(usize),
     RevertTo(Fabric),
-    StartPretensing(SurfaceCharacter),
+    StartPretensing(PretensePhase),
     StartTinkering,
     Tinkerer(TinkererAction),
     Experiment(LabAction),
@@ -80,7 +79,7 @@ impl Crucible {
             RunningPlan(plan_runner) => {
                 if plan_runner.is_done() {
                     self.stage = if self.fabric.faces.is_empty() {
-                        PretensingLaunch(plan_runner.surface_character())
+                        PretensingLaunch(plan_runner.pretense_phase())
                     } else {
                         TinkeringLaunch
                     }
@@ -107,9 +106,9 @@ impl Crucible {
                     }
                 }
             }
-            PretensingLaunch(surface_character) => {
+            PretensingLaunch(pretense_phase) => {
                 actions.push(Action::Scene(SceneAction::Variant(SceneVariant::Pretensing)));
-                self.stage = Pretensing(Pretenser::new(PRETENST_FACTOR, *surface_character))
+                self.stage = Pretensing(Pretenser::new(pretense_phase.clone()))
             }
             Pretensing(pretenser) => {
                 for _ in 0..self.iterations_per_frame {
@@ -165,8 +164,8 @@ impl Crucible {
             RevertTo(frozen) => {
                 self.fabric = frozen;
             }
-            StartPretensing(surface_character) => {
-                self.stage = PretensingLaunch(surface_character);
+            StartPretensing(pretenst_phase) => {
+                self.stage = PretensingLaunch(pretenst_phase);
             }
             StartTinkering => {
                 self.stage = TinkeringLaunch;

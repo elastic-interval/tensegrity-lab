@@ -19,7 +19,7 @@
     (shape
       (vulcanize)
       (replace-faces))
-    (pretense :frozen))
+    (pretense (surface :frozen)))
   (fabric
     (name "Simple" "Tetrapod")
     (build
@@ -32,7 +32,7 @@
     (shape
       (vulcanize)
       (replace-faces))
-    (pretense :bouncy))
+    (pretense (surface :bouncy)))
   (fabric
     (name "Simple" "Twist8")
     (build
@@ -47,7 +47,7 @@
       (remove-shapers)
       (countdown 20000 (vulcanize))
       (replace-faces))
-    (pretense :bouncy))
+    (pretense (surface :bouncy)))
   (fabric
     (name "Simple" "Bulge Ring")
     (build
@@ -55,7 +55,7 @@
         (face (alias :base) (grow 8 (scale .92) (mark :tip)))
         (face (alias :next-base) (grow 9 (scale .92) (mark :tip)))))
     (shape (join :tip))
-    (pretense :bouncy))
+    (pretense (surface :bouncy)))
   (fabric
     (name "Art" "Halo by Crane")
     (build
@@ -91,7 +91,7 @@
     (shape
       (vulcanize)
       (replace-faces))
-    (pretense :bouncy))
+    (pretense (surface :bouncy)))
   (fabric
     (name "Art" "Tommy Torque")
     (build
@@ -123,7 +123,10 @@
     (shape
       (down :sole)
       (replace-faces))
-    (pretense :frozen))
+    (pretense
+      (surface :frozen)
+      (muscle 0.98)
+      ))
     (fabric
       (name "Art" "Headless Hug")
       (build
@@ -161,7 +164,7 @@
     (shape
       (join :loose)
       (replace-faces))
-    (pretense :bouncy))
+    (pretense (surface :bouncy)))
   (brick ; single-right
     (proto
       (alias Single)

@@ -26,8 +26,10 @@ use crate::fabric::interval::Span::Muscle;
 
 pub mod fabric_plan;
 pub mod plan_runner;
-mod shape_phase;
-mod build_phase;
+pub mod shape_phase;
+pub mod build_phase;
+pub mod pretense_phase;
+pub mod pretenser;
 
 #[derive(Parser)]
 #[grammar = "build/tenscript/tenscript.pest"] // relative to src

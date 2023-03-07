@@ -5,6 +5,7 @@ use winit::event::VirtualKeyCode;
 use winit::event::VirtualKeyCode::{*};
 
 use crate::build::tenscript::{FabricPlan, FaceAlias};
+use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::crucible::{CrucibleAction, TinkererAction};
 use crate::fabric::face::FaceRotation;
 use crate::fabric::physics::SurfaceCharacter;
@@ -209,9 +210,13 @@ impl Menu {
             .submenu(
                 ALWAYS, Menu::new("Finish", StickAround)
                     .action("Sticky surface", ReturnToRoot, ALWAYS,
-                            Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Frozen)))
+                            Action::Crucible(
+                                CrucibleAction::StartPretensing(
+                                    PretensePhase::new(SurfaceCharacter::Frozen))))
                     .action("Bouncy surface", ReturnToRoot, ALWAYS,
-                            Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Bouncy)))
+                            Action::Crucible(
+                                CrucibleAction::StartPretensing(
+                                    PretensePhase::new(SurfaceCharacter::Bouncy))))
                     .action("Not yet", UpOneLevel, ALWAYS,
                             Action::Keyboard(StickAround)),
             )
