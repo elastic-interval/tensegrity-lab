@@ -2,16 +2,17 @@ use std::collections::HashSet;
 
 use CrucibleAction::{*};
 
-use crate::build::brick::Prototype;
 use crate::build::oven::Oven;
-use crate::build::tenscript::{FabricPlan, Library};
+use crate::build::tenscript::brick::Prototype;
+use crate::build::tenscript::brick_library::BrickLibrary;
+use crate::build::tenscript::FabricPlan;
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::build::tenscript::pretense_phase::PretensePhase;
+use crate::build::tenscript::pretenser::Pretenser;
 use crate::build::tinkerer::{BrickOnFace, Tinkerer};
 use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::lab::Lab;
-use crate::build::tenscript::pretenser::Pretenser;
 use crate::scene::{SceneAction, SceneVariant};
 use crate::user_interface::{Action, MenuAction};
 
@@ -73,7 +74,7 @@ impl Default for Crucible {
 }
 
 impl Crucible {
-    pub fn iterate(&mut self, paused: bool, brick_library: &Library) -> Vec<Action> {
+    pub fn iterate(&mut self, paused: bool, brick_library: &BrickLibrary) -> Vec<Action> {
         let mut actions = Vec::new();
         match &mut self.stage {
             Empty => {}

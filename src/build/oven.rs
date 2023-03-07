@@ -1,4 +1,4 @@
-use crate::build::brick::{Baked, Prototype};
+use crate::build::tenscript::brick::{Baked, Prototype};
 use crate::build::tenscript::FaceAlias;
 use crate::fabric::Fabric;
 use crate::fabric::physics::presets::PROTOTYPE_FORMATION;

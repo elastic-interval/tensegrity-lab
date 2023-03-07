@@ -2,7 +2,7 @@ use iced_wgpu::Renderer;
 use iced_winit::{Color, Element};
 use iced_winit::widget::{Button, Row, Text};
 use winit::event::VirtualKeyCode;
-use crate::build::tenscript::Library;
+use crate::build::tenscript::fabric_library::FabricLibrary;
 
 use crate::user_interface::{Action, ControlMessage, MenuAction, MenuEnvironment};
 use crate::user_interface::control_state::{Component, format_row};
@@ -15,7 +15,7 @@ pub enum KeyboardMessage {
     SelectMenu(MenuAction),
     SubmitAction { action: Action, menu_action: MenuAction },
     SetEnvironment(MenuEnvironment),
-    FreshLibrary(Library),
+    FreshLibrary(FabricLibrary),
 }
 
 impl From<KeyboardMessage> for ControlMessage {
@@ -66,7 +66,7 @@ impl Component for Keyboard {
                 self.environment = environment;
             }
             KeyboardMessage::FreshLibrary(library) => {
-                self.fabric_menu = Menu::fabric_menu(&library.fabrics);
+                self.fabric_menu = Menu::fabric_menu(&library.fabric_plans);
                 self.current = vec![Menu::root_menu(self.fabric_menu.clone())];
             }
         }

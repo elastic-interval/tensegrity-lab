@@ -1,11 +1,11 @@
 use cgmath::InnerSpace;
+use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::FaceAlias;
 use crate::build::tinkerer::Stage::{*};
 use crate::camera::Pick;
 use crate::crucible::TinkererAction;
 use crate::crucible::TinkererAction::{*};
 use crate::fabric::{Fabric, UniqueId};
-use crate::fabric::brick::BrickLibrary;
 use crate::fabric::face::FaceRotation;
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::LIQUID;
@@ -61,7 +61,7 @@ impl Default for Tinkerer {
 }
 
 impl Tinkerer {
-    pub fn iterate(&mut self, fabric: &mut Fabric, brick_library: &impl BrickLibrary) -> Option<Action> {
+    pub fn iterate(&mut self, fabric: &mut Fabric, brick_library: &BrickLibrary) -> Option<Action> {
         let mut action = None;
         self.stage = match &mut self.stage {
             Navigating => {

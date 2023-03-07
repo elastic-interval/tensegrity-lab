@@ -9,13 +9,14 @@ use winit::{
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
-use crate::build::brick::Baked;
-use crate::build::tenscript::{FabricPlan, FaceAlias, Library, TenscriptError};
+use crate::build::tenscript::{FabricPlan, FaceAlias, TenscriptError};
+use crate::build::tenscript::brick::Baked;
+use crate::build::tenscript::brick_library::BrickLibrary;
+use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tinkerer::{BrickOnFace, Frozen};
 use crate::camera::Pick;
 use crate::crucible::{Crucible, CrucibleAction, TinkererAction};
 use crate::fabric::UniqueId;
-use crate::fabric::brick::BrickLibrary;
 use crate::graphics::GraphicsWindow;
 use crate::scene::{Scene, SceneAction, SceneVariant};
 use crate::user_interface::{Action, ControlMessage, MenuAction, MenuEnvironment, UserInterface};
@@ -27,14 +28,16 @@ pub struct Application {
     crucible: Crucible,
     graphics: GraphicsWindow,
     fabric_plan_name: Vec<String>,
-    library: Library,
-    library_modified: SystemTime,
+    fabric_library: FabricLibrary,
+    fabric_library_modified: SystemTime,
+    brick_library: BrickLibrary,
 }
 
 impl Application {
     pub fn new(graphics: GraphicsWindow, window: &Window) -> Application {
-        let library = Library::from_source().unwrap();
-        let user_interface = UserInterface::new(&graphics, window, &library.fabrics);
+        let brick_library = BrickLibrary::from_source().unwrap();
+        let fabric_library = FabricLibrary::from_source().unwrap();
+        let user_interface = UserInterface::new(&graphics, window, &fabric_library.fabric_plans);
         let scene = Scene::new(&graphics);
         Application {
             selected_faces: HashSet::new(),
@@ -43,23 +46,24 @@ impl Application {
             crucible: Crucible::default(),
             graphics,
             fabric_plan_name: Vec::new(),
-            library,
-            library_modified: library_modified_timestamp(),
+            brick_library,
+            fabric_library,
+            fabric_library_modified: fabric_library_modified(),
         }
     }
 
     pub fn update(&mut self, window: &Window) {
         self.user_interface.update();
         let mut actions = self.user_interface.controls().take_actions();
-        let time = library_modified_timestamp();
-        if time > self.library_modified {
+        let time = fabric_library_modified();
+        if time > self.fabric_library_modified {
             match self.refresh_library(time) {
                 Ok(action) => {
                     actions.push(action);
-                },
+                }
                 Err(tenscript_error) => {
                     println!("Tenscript\n{tenscript_error}");
-                    self.library_modified = time;
+                    self.fabric_library_modified = time;
                 }
             }
         }
@@ -84,14 +88,14 @@ impl Application {
                     self.update_menu_environment();
                 }
                 Action::UpdatedLibrary(time) => {
-                    let library = self.library.clone();
-                    self.library_modified = time;
+                    let fabric_library = self.fabric_library.clone();
+                    self.fabric_library_modified = time;
                     if !self.fabric_plan_name.is_empty() {
                         let fabric_plan = self.load_preset(self.fabric_plan_name.clone())
                             .expect("unable to load fabric plan");
                         self.crucible.action(CrucibleAction::BuildFabric(fabric_plan));
                     }
-                    self.user_interface.message(ControlMessage::FreshLibrary(library));
+                    self.user_interface.message(ControlMessage::FreshLibrary(fabric_library));
                 }
                 Action::Scene(scene_action) => {
                     self.scene.action(scene_action);
@@ -200,12 +204,12 @@ impl Application {
             experimenting: self.crucible.is_experimenting(),
             history_available: self.crucible.is_history_available(),
             visible_control: self.user_interface.controls().show_controls(),
-            fabric_menu: self.user_interface.create_fabric_menu(&self.library.fabrics),
+            fabric_menu: self.user_interface.create_fabric_menu(&self.fabric_library.fabric_plans),
         })
     }
 
     pub fn redraw(&mut self, window: &Window) {
-        for action in self.crucible.iterate(!self.selected_faces.is_empty(), &self.library) {
+        for action in self.crucible.iterate(!self.selected_faces.is_empty(), &self.brick_library) {
             self.user_interface.action(action);
         }
         self.scene.update(&self.graphics, self.crucible.fabric());
@@ -237,7 +241,7 @@ impl Application {
     }
 
     pub fn capture_prototype(&mut self, brick_index: usize) {
-        let prototype = self.library.bricks
+        let prototype = self.brick_library.brick_definitions
             .get(brick_index).expect("no such brick")
             .proto.clone();
         self.crucible.action(CrucibleAction::BakeBrick(prototype));
@@ -285,12 +289,12 @@ impl Application {
     }
 
     pub fn refresh_library(&mut self, time: SystemTime) -> Result<Action, TenscriptError> {
-        self.library = Library::from_source()?;
+        self.fabric_library = FabricLibrary::from_source()?;
         Ok(Action::UpdatedLibrary(time))
     }
 
     pub fn load_preset(&self, plan_name: Vec<String>) -> Result<FabricPlan, TenscriptError> {
-        let plan = self.library.fabrics
+        let plan = self.fabric_library.fabric_plans
             .iter()
             .find(|plan| plan.name == plan_name);
         match plan {
@@ -300,12 +304,12 @@ impl Application {
     }
 
     pub fn new_brick(&self, search_alias: &FaceAlias) -> Baked {
-        self.library.new_brick(search_alias)
+        self.brick_library.new_brick(search_alias)
     }
 }
 
-fn library_modified_timestamp() -> SystemTime {
-    fs::metadata("./src/build/tenscript/library.scm")
+fn fabric_library_modified() -> SystemTime {
+    fs::metadata("fabric_library.scm")
         .unwrap()
         .modified()
         .unwrap()
