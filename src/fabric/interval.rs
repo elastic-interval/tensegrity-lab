@@ -22,6 +22,10 @@ pub enum Span {
         length: f32,
         initial: f32,
     },
+    Muscle {
+        max: f32,
+        min: f32,
+    },
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -100,7 +104,8 @@ impl Interval {
 
     pub fn ideal(&self) -> f32 {
         match self.span {
-            Fixed { length, .. } | Approaching { length, .. } => length
+            Fixed { length, .. } | Approaching { length, .. } => length,
+            Muscle { max, min, .. } => (max + min) / 2.0,
         }
     }
 
@@ -110,6 +115,10 @@ impl Interval {
             Approaching { initial, length, .. } => {
                 let nuance = progress.nuance();
                 initial * (1.0 - nuance) + length * nuance
+            }
+            Muscle { max, min } => {
+                let nuance = progress.nuance();
+                min * (1.0 - nuance) + max * nuance
             }
         };
         let real_length = self.length(joints);

@@ -21,6 +21,8 @@ use crate::build::tenscript::build_phase::BuildPhase;
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::brick::BrickLibrary;
 use crate::fabric::face::Face;
+use crate::fabric::interval::Span;
+use crate::fabric::interval::Span::Muscle;
 
 pub mod fabric_plan;
 pub mod plan_runner;
@@ -59,6 +61,26 @@ impl TenscriptError {
 impl Fabric {
     pub fn expect_face(&self, face_id: UniqueId) -> Result<&Face, TenscriptError> {
         self.faces.get(&face_id).ok_or(TenscriptError::Invalid("Face missing".to_string()))
+    }
+
+    pub fn activate_muscles(&mut self, shortening: f32) {
+        self.progress.middle();
+        let north_material = self.material(":north".to_string());
+        let south_material = self.material(":south".to_string());
+        for interval in self.intervals.values_mut() {
+            let Span::Fixed { length } = interval.span else {
+                continue;
+            };
+            let divergence = length * shortening;
+            let low = length - divergence;
+            let high = length + divergence;
+            if interval.material == north_material {
+                interval.span = Muscle { min: low, max: high };
+            }
+            if interval.material == south_material {
+                interval.span = Muscle { min: high, max: low };
+            }
+        }
     }
 }
 
@@ -210,7 +232,6 @@ pub struct Library {
 }
 
 impl Library {
-
     pub fn from_source() -> Result<Self, TenscriptError> {
         let source = fs::read_to_string("src/build/tenscript/library.scm")
             .map_err(TenscriptError::FileRead)?;
