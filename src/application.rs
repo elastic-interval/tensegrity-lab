@@ -8,13 +8,13 @@ use winit::{
 };
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
+
 use crate::build::brick::Baked;
 use crate::build::tenscript::{FabricPlan, FaceAlias, Library, TenscriptError};
-
 use crate::build::tinkerer::{BrickOnFace, Frozen};
 use crate::camera::Pick;
 use crate::crucible::{Crucible, CrucibleAction, TinkererAction};
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::UniqueId;
 use crate::fabric::brick::BrickLibrary;
 use crate::graphics::GraphicsWindow;
 use crate::scene::{Scene, SceneAction, SceneVariant};
@@ -116,7 +116,7 @@ impl Application {
                     self.user_interface.message(ControlMessage::ShowControl(visible_control));
                 }
                 Action::CalibrateStrain => {
-                    let strain_limits = self.crucible.fabric().strain_limits(Fabric::BOW_TIE_MATERIAL_INDEX);
+                    let strain_limits = self.crucible.fabric().strain_limits(":bow-tie".to_string());
                     self.user_interface.set_strain_limits(strain_limits);
                 }
                 Action::SelectFace(face_id) => {

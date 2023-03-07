@@ -115,12 +115,12 @@ impl Interval {
         let real_length = self.length(joints);
         let Material { role, stiffness, mass, .. } = materials[self.material];
         self.strain = (real_length - ideal) / ideal;
-        let strain = match role {
-            Push if real_length > ideal => 0.0, // do not pull
-            Pull if real_length < ideal => 0.0, // do not push
-            _ => self.strain
+        match role {
+            Push if real_length > ideal => self.strain = 0.0, // do not pull
+            Pull if real_length < ideal => self.strain = 0.0, // do not push
+            _ => {}
         };
-        let force = strain * stiffness * physics.stiffness;
+        let force = self.strain * stiffness * physics.stiffness;
         let force_vector: Vector3<f32> = self.unit * force / 2.0;
         joints[self.alpha_index].force += force_vector;
         joints[self.omega_index].force -= force_vector;

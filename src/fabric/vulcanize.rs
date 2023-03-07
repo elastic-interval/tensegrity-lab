@@ -9,32 +9,18 @@ use crate::fabric::Link;
 
 const ROOT3: f32 = 1.732_050_8;
 
-const BOW_TIE_MATERIAL: Material = Material {
-    name: "Bow Tie",
-    role: Role::Pull,
-    stiffness: 0.7,
-    mass: 0.1,
-};
 const BOW_TIE_SHORTEN: f32 = 0.5;
 
 impl Fabric {
-    pub const BOW_TIE_MATERIAL_INDEX: usize = 2;
-
-    pub fn default_bow_tie() -> Self {
-        let mut fabric = Fabric::default();
-        fabric.materials.push(BOW_TIE_MATERIAL);
-        fabric
-    }
-
     pub fn install_bow_ties(&mut self) {
         for Pair { alpha_index, omega_index, length } in self.pair_generator().bow_tie_pulls(&self.joints, &self.materials) {
-            self.create_interval(alpha_index, omega_index, Link { ideal: length, material: Fabric::BOW_TIE_MATERIAL_INDEX });
+            self.create_interval(alpha_index, omega_index, Link { ideal: length, material: ":bow-tie".to_string() });
         }
     }
 
     pub fn shorten_pulls(&mut self, strain_threshold: f32, shortening: f32) {
         for interval in self.intervals.values_mut() {
-            if interval.material != Self::BOW_TIE_MATERIAL_INDEX {
+            if self.materials[interval.material].name != ":bow-tie" {
                 continue;
             }
             if interval.strain > strain_threshold {
@@ -73,7 +59,8 @@ impl Fabric {
         faces_to_remove
     }
 
-    pub fn strain_limits(&self, target_material: usize) -> (f32, f32) {
+    pub fn strain_limits(&self, material_name: String) -> (f32, f32) {
+        let target_material = self.material(material_name);
         let choose_target = |&Interval { strain, material, .. }|
             (material == target_material).then_some(strain);
         let max_strain = self.interval_values()
