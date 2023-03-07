@@ -24,6 +24,7 @@ use crate::user_interface::control_state::{ControlState, VisibleControl};
 use crate::user_interface::gravity::GravityMessage;
 use crate::user_interface::keyboard::KeyboardMessage;
 use crate::user_interface::menu::Menu;
+use crate::user_interface::muscle::MuscleMessage;
 use crate::user_interface::strain_threshold::StrainThresholdMessage;
 
 mod strain_threshold;
@@ -31,6 +32,7 @@ mod gravity;
 mod keyboard;
 mod control_state;
 mod menu;
+mod muscle;
 
 const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
 
@@ -77,6 +79,7 @@ pub enum ControlMessage {
     Keyboard(KeyboardMessage),
     StrainThreshold(StrainThresholdMessage),
     Gravity(GravityMessage),
+    Muscle(MuscleMessage),
     Action(Action),
     FrameRateUpdated(f64),
     FreshLibrary(Library),

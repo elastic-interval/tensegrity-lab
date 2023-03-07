@@ -29,10 +29,13 @@ impl Lab {
         };
     }
 
-    pub fn action(&mut self,action: LabAction) {
+    pub fn action(&mut self, action: LabAction, fabric: &mut Fabric) {
         match action {
             LabAction::GravityChanged(gravity) => {
                 self.physics.gravity = gravity
+            }
+            LabAction::MuscleChanged(nuance) => {
+                fabric.muscle_nuance = nuance;
             }
         }
     }
