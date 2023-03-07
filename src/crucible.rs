@@ -65,7 +65,7 @@ pub struct Crucible {
 impl Default for Crucible {
     fn default() -> Self {
         Self {
-            fabric: Fabric::default_bow_tie(),
+            fabric: Fabric::default(),
             iterations_per_frame: 125,
             stage: Empty,
         }
@@ -144,7 +144,7 @@ impl Crucible {
                 self.stage = BakingBrick(oven);
             }
             BuildFabric(fabric_plan) => {
-                self.fabric = Fabric::default_bow_tie();
+                self.fabric = Fabric::default();
                 self.stage = RunningPlan(PlanRunner::new(fabric_plan));
             }
             Tinkerer(tinkerer_action) => {

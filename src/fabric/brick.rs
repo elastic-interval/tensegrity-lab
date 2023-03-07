@@ -4,7 +4,6 @@ use crate::build::brick::{Baked, BakedInterval, BrickFace};
 use crate::build::tenscript::{FaceAlias, Spin};
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::fabric::face::{Face, FaceRotation};
-use crate::fabric::interval::Material;
 
 const ROOT3: f32 = 1.732_050_8;
 const ROOT5: f32 = 2.236_068;
@@ -46,10 +45,6 @@ impl Fabric {
         for BakedInterval { alpha_index, omega_index, material, strain } in brick.intervals {
             let (alpha_index, omega_index) = (joints[alpha_index], joints[omega_index]);
             let ideal = self.ideal(alpha_index, omega_index, strain);
-            let material = self.materials
-                .iter()
-                .position(|&Material{name,..}| material.as_str() == name)
-                .unwrap_or_else(|| panic!("material not found: {material}"));
             self.create_interval(alpha_index, omega_index, Link { ideal, material });
         }
         let brick_faces = brick.faces

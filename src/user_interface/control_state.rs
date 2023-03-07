@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::collections::HashSet;
 
 use iced_wgpu::Renderer;
 use iced_winit::{Alignment, Color, Command, Element, Length, Program};
@@ -8,10 +7,7 @@ use iced_winit::widget::{Column, Row, Text};
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
 
-use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::physics::presets::AIR_GRAVITY;
-use crate::scene::SceneVariant;
-use crate::scene::SceneVariant::{Suspended, TinkeringOnFaces};
 use crate::user_interface::{Action, ControlMessage, MenuEnvironment};
 use crate::user_interface::gravity::{Gravity, GravityMessage};
 use crate::user_interface::keyboard::{Keyboard, KeyboardMessage};
@@ -64,19 +60,6 @@ impl ControlState {
 
     pub fn show_strain(&self) -> bool {
         self.show_strain
-    }
-
-    pub fn scene_variant(&self, face_set: HashSet<UniqueId>) -> SceneVariant {
-        if self.show_strain {
-            SceneVariant::ShowingStrain {
-                threshold: self.strain_threshold.strain_threshold(),
-                material: Fabric::BOW_TIE_MATERIAL_INDEX,
-            }
-        } else if face_set.is_empty() {
-            Suspended
-        } else {
-            TinkeringOnFaces(face_set)
-        }
     }
 
     pub fn show_controls(&self) -> VisibleControl {

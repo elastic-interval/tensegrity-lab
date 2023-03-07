@@ -7,8 +7,8 @@ use pest::iterators::Pair;
 use crate::build::tenscript::{FaceAlias, parse_atom, Spin, TenscriptError};
 use crate::build::tenscript::Rule;
 use crate::build::tenscript::Spin::{Left, Right};
-use crate::fabric::{DEFAULT_PULL_MATERIAL, Fabric, Link};
-use crate::fabric::interval::{Interval, Material, Role};
+use crate::fabric::{Fabric, Link};
+use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 
 #[derive(Copy, Clone, Debug)]
@@ -88,27 +88,9 @@ pub struct BrickDefinition {
     pub baked: Option<Baked>,
 }
 
-const MUSCLE_MATERIALS: [Material; 2] = [
-    Material {
-        name: ":north",
-        role: Role::Pull,
-        stiffness: 0.5,
-        mass: 0.01,
-    },
-    Material {
-        name: ":south",
-        role: Role::Pull,
-        stiffness: 0.5,
-        mass: 0.01,
-    },
-];
-const NORTH_MATERIAL_INDEX: usize = DEFAULT_PULL_MATERIAL + 1;
-const SOUTH_MATERIAL_INDEX: usize = NORTH_MATERIAL_INDEX + 1;
-
 impl From<Prototype> for Fabric {
     fn from(proto: Prototype) -> Self {
         let mut fabric = Fabric::default();
-        fabric.materials.extend(MUSCLE_MATERIALS);
         let mut joints_by_name = HashMap::new();
         for PushDef { alpha_name, omega_name, axis, ideal } in proto.pushes {
             let vector = match axis {
@@ -128,11 +110,8 @@ impl From<Prototype> for Fabric {
         }
         for PullDef { alpha_name, omega_name, ideal, material, .. } in proto.pulls {
             let [alpha_index, omega_index] = [alpha_name, omega_name]
-                .map(|name| *joints_by_name.get(&name).expect("no joint with that name"));
-            let material = fabric.materials
-                .iter()
-                .position(|&Material{ name, ..}| name == material)
-                .unwrap_or_else(|| { panic!("material not found: {material}") });
+                .map(|name| *joints_by_name.get(&name)
+                    .expect(&name));
             fabric.create_interval(alpha_index, omega_index, Link { ideal, material });
         }
         for FaceDef { aliases, joint_names, spin } in proto.faces {
@@ -296,7 +275,7 @@ impl Baked {
                     let [alpha_index, omega_index, strain, material] =
                         pair.into_inner().next_chunk().unwrap();
                     let [alpha_index, omega_index] = [alpha_index, omega_index]
-                            .map(|pair| pair.as_str().parse().unwrap());
+                        .map(|pair| pair.as_str().parse().unwrap());
                     let strain = strain.as_str().parse().unwrap();
                     let material = material.as_str().to_string();
                     intervals.push(BakedInterval { alpha_index, omega_index, strain, material });
