@@ -109,7 +109,7 @@ impl Interval {
         }
     }
 
-    pub fn iterate(&mut self, joints: &mut [Joint], materials: &[Material], progress: &Progress, physics: &Physics) {
+    pub fn iterate(&mut self, joints: &mut [Joint], materials: &[Material], progress: &Progress, muscle_nuance: f32, physics: &Physics) {
         let ideal = match self.span {
             Fixed { length } => { length }
             Approaching { initial, length, .. } => {
@@ -117,8 +117,7 @@ impl Interval {
                 initial * (1.0 - nuance) + length * nuance
             }
             Muscle { max, min } => {
-                let nuance = progress.nuance();
-                min * (1.0 - nuance) + max * nuance
+                min * (1.0 - muscle_nuance) + max * muscle_nuance
             }
         };
         let real_length = self.length(joints);

@@ -23,7 +23,6 @@ pub mod face;
 pub mod interval;
 pub mod joint;
 pub mod physics;
-pub mod pretenser;
 pub mod progress;
 pub mod vulcanize;
 pub mod lab;
@@ -32,6 +31,7 @@ pub mod lab;
 pub struct Fabric {
     pub age: u64,
     pub progress: Progress,
+    pub muscle_nuance: f32,
     pub joints: Vec<Joint>,
     pub intervals: HashMap<UniqueId, Interval>,
     pub faces: HashMap<UniqueId, Face>,
@@ -44,6 +44,7 @@ impl Default for Fabric {
         Fabric {
             age: 0,
             progress: Progress::default(),
+            muscle_nuance: 0.5,
             joints: Vec::new(),
             intervals: HashMap::new(),
             faces: HashMap::new(),
@@ -214,7 +215,7 @@ impl Fabric {
             joint.reset();
         }
         for interval in self.intervals.values_mut() {
-            interval.iterate(&mut self.joints, &self.materials, &self.progress, physics);
+            interval.iterate(&mut self.joints, &self.materials, &self.progress, self.muscle_nuance, physics);
         }
         let mut max_speed_squared = 0.0;
         for joint in &mut self.joints {

@@ -1,11 +1,11 @@
 use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::build::tenscript::build_phase::BuildPhase;
-use crate::build::tenscript::fabric_plan::PretensePhase;
 use crate::build::tenscript::plan_runner::Stage::{*};
+use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
 use crate::fabric::brick::BrickLibrary;
 use crate::fabric::Fabric;
-use crate::fabric::physics::{Physics, SurfaceCharacter};
+use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::LIQUID;
 
 #[derive(Clone, Debug, Copy, PartialEq)]
@@ -93,7 +93,7 @@ impl PlanRunner {
         self.stage == Completed
     }
 
-    pub fn surface_character(&self) -> SurfaceCharacter {
-        self.pretense_phase.surface_character
+    pub fn pretense_phase(&self) -> PretensePhase {
+        self.pretense_phase.clone()
     }
 }
