@@ -44,7 +44,6 @@
         ))
     (shape
       (during 15000 (join :ring-a) (join :ring-b))
-      (remove-spacers)
       (during 20000 (vulcanize))
       (faces-to-triangles))
     (pretense (surface :bouncy)))

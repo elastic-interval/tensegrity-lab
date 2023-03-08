@@ -19,10 +19,10 @@ pub enum ShapeCommand {
 #[derive(Debug, Clone)]
 pub enum ShapeOperation {
     Countdown { count: usize, operations: Vec<ShapeOperation> },
-    Join { mark_name: String },
+    Joiner { mark_name: String },
     PointDownwards { mark_name: String },
-    Distance { mark_name: String, distance_factor: f32 },
-    RemoveShapers { mark_names: Vec<String> },
+    Spacer { mark_name: String, distance_factor: f32 },
+    RemoveSpacers { mark_names: Vec<String> },
     Vulcanize,
     FacesToTriangles,
     SetViscosity { viscosity: f32 },
@@ -45,14 +45,14 @@ pub struct Shaper {
     alpha_face: UniqueId,
     omega_face: UniqueId,
     mark_name: String,
-    join: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct ShapePhase {
     pub operations: Vec<ShapeOperation>,
     pub marks: Vec<FaceMark>,
-    pub shapers: Vec<Shaper>,
+    pub joiners: Vec<Shaper>,
+    pub spacers: Vec<Shaper>,
     shape_operation_index: usize,
 }
 
@@ -65,7 +65,8 @@ impl ShapePhase {
         Ok(ShapePhase {
             operations,
             marks: Vec::new(),
-            shapers: Vec::new(),
+            joiners: Vec::new(),
+            spacers: Vec::new(),
             shape_operation_index: 0,
         })
     }
@@ -83,11 +84,11 @@ impl ShapePhase {
             Rule::spacer => {
                 let [mark_name, distance_string] = pair.into_inner().next_chunk().unwrap().map(|p| p.as_str());
                 let distance_factor = TenscriptError::parse_float(distance_string, "(space ..)")?;
-                Ok(ShapeOperation::Distance { mark_name: mark_name[1..].into(), distance_factor })
+                Ok(ShapeOperation::Spacer { mark_name: mark_name[1..].into(), distance_factor })
             }
             Rule::joiner => {
                 let mark_name = pair.into_inner().next().unwrap().as_str();
-                Ok(ShapeOperation::Join { mark_name: mark_name[1..].into() })
+                Ok(ShapeOperation::Joiner { mark_name: mark_name[1..].into() })
             }
             Rule::down => {
                 let mark_name = pair.into_inner().next().unwrap().as_str();
@@ -101,7 +102,7 @@ impl ShapePhase {
             }
             Rule::remove_spacers => {
                 let mark_names = pair.into_inner().map(|p| p.as_str()[1..].into()).collect();
-                Ok(ShapeOperation::RemoveShapers { mark_names })
+                Ok(ShapeOperation::RemoveSpacers { mark_names })
             }
             Rule::faces_to_triangles => Ok(ShapeOperation::FacesToTriangles),
             Rule::vulcanize => Ok(ShapeOperation::Vulcanize),
@@ -119,29 +120,31 @@ impl ShapePhase {
     }
 
     pub fn shaping_step(&mut self, fabric: &mut Fabric) -> Result<ShapeCommand, TenscriptError> {
+        self.complete_joiners(fabric);
         let Some(operation) = self.operations.get(self.shape_operation_index) else {
-            self.complete_all_shapers(fabric);
+            self.remove_spacers(fabric);
             return Ok(Terminate);
         };
         self.shape_operation_index += 1;
         self.execute_shape_operation(fabric, operation.clone())
     }
 
-    fn complete_all_shapers(&mut self, fabric: &mut Fabric) {
-        for shaper in self.shapers.split_off(0) {
-            self.complete_shaper(fabric, shaper);
+    pub fn complete_joiners(&mut self, fabric: &mut Fabric) {
+        for Shaper { interval, alpha_face, omega_face, .. } in self.joiners.split_off(0) {
+            fabric.remove_interval(interval);
+            fabric.join_faces(alpha_face, omega_face);
         }
     }
 
     fn execute_shape_operation(&mut self, fabric: &mut Fabric, operation: ShapeOperation) -> Result<ShapeCommand, TenscriptError> {
         Ok(match operation {
-            ShapeOperation::Join { mark_name } => {
+            ShapeOperation::Joiner { mark_name } => {
                 let faces = self.marked_faces(&mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
                 match (joints.as_slice(), faces.as_slice()) {
                     (&[alpha_index, omega_index], &[alpha_face, omega_face]) => {
                         let interval = fabric.create_interval(alpha_index, omega_index, Link::pull(0.01));
-                        self.shapers.push(Shaper { interval, alpha_face, omega_face, mark_name, join: true })
+                        self.joiners.push(Shaper { interval, alpha_face, omega_face, mark_name })
                     }
                     _ => unimplemented!()
                 }
@@ -165,31 +168,31 @@ impl ShapePhase {
                 fabric.set_altitude(1.0);
                 Noop
             }
-            ShapeOperation::Distance { mark_name, distance_factor } => {
+            ShapeOperation::Spacer { mark_name, distance_factor } => {
                 let faces = self.marked_faces(&mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
                 match (joints.as_slice(), faces.as_slice()) {
                     (&[alpha_index, omega_index], &[alpha_face, omega_face]) => {
                         let length = fabric.joints[alpha_index].location.distance(fabric.joints[omega_index].location) * distance_factor;
                         let interval = fabric.create_interval(alpha_index, omega_index, Link::pull(length));
-                        self.shapers.push(Shaper { interval, alpha_face, omega_face, mark_name, join: false })
+                        self.spacers.push(Shaper { interval, alpha_face, omega_face, mark_name })
                     }
                     _ => println!("Wrong number of faces for mark {mark_name}"),
                 }
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
-            ShapeOperation::RemoveShapers { mark_names } => {
+            ShapeOperation::RemoveSpacers { mark_names } => {
                 if mark_names.is_empty() {
-                    self.complete_all_shapers(fabric);
+                    self.remove_spacers(fabric);
                 } else {
                     for mark_name in mark_names {
-                        let index = self.shapers
+                        let index = self.spacers
                             .iter()
                             .enumerate()
                             .find_map(|(index, shaper)| (shaper.mark_name == mark_name).then_some(index))
                             .expect("undefined mark");
-                        let shaper = self.shapers.remove(index);
-                        self.complete_shaper(fabric, shaper);
+                        let Shaper { interval, .. } = self.spacers.remove(index);
+                        fabric.remove_interval(interval);
                     }
                 }
                 Noop
@@ -206,7 +209,7 @@ impl ShapePhase {
                 StartCountdown(DEFAULT_VULCANIZE_COUNTDOWN)
             }
             ShapeOperation::FacesToTriangles => {
-                self.complete_all_shapers(fabric);
+                self.remove_spacers(fabric);
                 for face_id in fabric.faces_to_triangles() {
                     fabric.remove_face(face_id);
                 }
@@ -214,13 +217,6 @@ impl ShapePhase {
             }
             ShapeOperation::SetViscosity { viscosity } => SetViscosity(viscosity),
         })
-    }
-
-    fn complete_shaper(&self, fabric: &mut Fabric, Shaper { interval, alpha_face, omega_face, join, .. }: Shaper) {
-        fabric.remove_interval(interval);
-        if join {
-            fabric.join_faces(alpha_face, omega_face);
-        }
     }
 
     fn marked_faces(&self, mark_name: &String) -> Vec<UniqueId> {
@@ -236,5 +232,11 @@ impl ShapePhase {
             .iter()
             .map(|face_id| fabric.face(*face_id).middle_joint(fabric))
             .collect()
+    }
+
+    fn remove_spacers(&mut self, fabric: &mut Fabric) {
+        for Shaper { interval, .. } in self.spacers.split_off(0) {
+            fabric.remove_interval(interval);
+        }
     }
 }
