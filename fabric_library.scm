@@ -1,4 +1,4 @@
-(fabrics
+(fabric-library
   (fabric (name "Seed" "Single") (build (branch (alias Single))))
   (fabric (name "Seed" "Omni") (build (branch (alias Omni))))
   (fabric (name "Seed" "Torque") (build (branch (alias Torque))))

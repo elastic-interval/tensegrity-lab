@@ -1,7 +1,7 @@
-bricks =
-    { "(" ~ "bricks" ~ fabric_plan* ~ brick_definition* ~ ")" }
-fabrics =
-    { "(" ~ "fabrics" ~ fabric_plan* ~ brick_definition* ~ ")" }
+brick_library =
+    { "(" ~ "brick-library" ~ fabric_plan* ~ brick_definition* ~ ")" }
+fabric_library =
+    { "(" ~ "fabric-library" ~ fabric_plan* ~ brick_definition* ~ ")" }
 
 fabric_plan =
     { "(" ~ "fabric" ~ name ~ build ~ shape? ~ pretense? ~ ")" }

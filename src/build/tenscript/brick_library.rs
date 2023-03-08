@@ -19,7 +19,7 @@ impl BrickLibrary {
     }
 
     fn from_tenscript(source: &str) -> Result<Self, TenscriptError> {
-        let pair = TenscriptParser::parse(Rule::bricks, source)
+        let pair = TenscriptParser::parse(Rule::brick_library, source)
             .map_err(TenscriptError::Pest)?
             .next()
             .expect("no (bricks ..)");
