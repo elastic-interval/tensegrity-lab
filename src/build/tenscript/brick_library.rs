@@ -5,9 +5,10 @@ use pest::Parser;
 use crate::build::tenscript::{FaceAlias, Rule, TenscriptError, TenscriptParser};
 use crate::build::tenscript::brick::{Baked, BrickDefinition};
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct BrickLibrary {
     pub brick_definitions: Vec<BrickDefinition>,
+    pub baked_bricks: Vec<(FaceAlias, Baked)>,
 }
 
 impl BrickLibrary {
@@ -26,22 +27,17 @@ impl BrickLibrary {
     }
 
     fn from_pair(pair: Pair<Rule>) -> Result<Self, TenscriptError> {
-        let mut library = Self::default();
+        let mut brick_definitions = Vec::new();
         for definition in pair.into_inner() {
             match definition.as_rule() {
                 Rule::brick_definition => {
                     let brick = BrickDefinition::from_pair(definition)?;
-                    library.brick_definitions.push(brick);
+                    brick_definitions.push(brick);
                 }
                 _ => unreachable!()
             }
         }
-        Ok(library)
-    }
-
-    pub fn new_brick(&self, search_alias: &FaceAlias) -> Baked {
-        let baked_bricks: Vec<_> = self
-            .brick_definitions
+        let baked_bricks: Vec<_> = brick_definitions
             .iter()
             .filter_map(|brick| brick.baked.clone())
             .flat_map(|baked| {
@@ -74,12 +70,16 @@ impl BrickLibrary {
                     })
             })
             .collect();
+        Ok(BrickLibrary { brick_definitions, baked_bricks })
+    }
+
+    pub fn new_brick(&self, search_alias: &FaceAlias) -> Baked {
         let search_with_base = search_alias.with_base();
-        let (_, baked) = baked_bricks
+        let (_, baked) = self.baked_bricks
             .iter()
             .filter(|(baked_alias, _)| search_with_base.matches(baked_alias))
             .min_by_key(|(brick_alias, _)| brick_alias.0.len())
-            .expect(&format!("no such brick: '{search_with_base}'"));
+            .unwrap_or_else(|| panic!("no such brick: '{search_with_base}'"));
         let mut thawed = baked.clone();
         for face in &mut thawed.faces {
             face.aliases.retain(|candidate| search_alias.matches(candidate));
