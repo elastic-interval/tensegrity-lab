@@ -62,7 +62,7 @@ impl Fabric {
     }
 
     pub fn activate_muscles(&mut self, shortening: f32) {
-        self.progress.middle();
+        self.muscle_nuance = 0.5;
         let north_material = self.material(":north".to_string());
         let south_material = self.material(":south".to_string());
         for interval in self.intervals.values_mut() {
