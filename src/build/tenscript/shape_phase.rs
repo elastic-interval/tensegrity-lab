@@ -57,7 +57,7 @@ pub struct ShapePhase {
 }
 
 impl ShapePhase {
-    pub fn from_pair(pair: Option<Pair<Rule>>) -> Result<ShapePhase, TenscriptError> {
+    pub fn from_pair_option(pair: Option<Pair<Rule>>) -> Result<ShapePhase, TenscriptError> {
         let operations = match pair {
             None => Vec::new(),
             Some(pair) => Self::parse_shape_operations(pair.into_inner())?,
