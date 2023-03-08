@@ -2,8 +2,8 @@ use iced_wgpu::Renderer;
 use iced_winit::{Color, Element};
 use iced_winit::widget::{Button, Row, Text};
 use winit::event::VirtualKeyCode;
-use crate::build::tenscript::fabric_library::FabricLibrary;
 
+use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::user_interface::{Action, ControlMessage, MenuAction, MenuEnvironment};
 use crate::user_interface::control_state::{Component, format_row};
 use crate::user_interface::menu::Menu;
@@ -113,12 +113,10 @@ impl Component for Keyboard {
 }
 
 impl Keyboard {
-
     pub fn new(environment: MenuEnvironment) -> Self {
         let fabric_menu = environment.fabric_menu.clone();
         let current = vec![Menu::root_menu(fabric_menu.clone())];
         Self { current, environment, fabric_menu }
-
     }
 
     pub fn reset_menu(&mut self, menu: Menu) {
@@ -139,7 +137,7 @@ impl Keyboard {
             .submenu_in(&self.environment)
             .into_iter()
             .find_map(|menu| {
-                let Menu { label, keycode, action, menu_action, .. } = &menu;
+                let Menu { keycode, action, menu_action, .. } = &menu;
                 let (code, _) = keycode.clone().unwrap_or_else(|| panic!("No keycode for {label}"));
                 if code != keycode_pressed {
                     return None;
