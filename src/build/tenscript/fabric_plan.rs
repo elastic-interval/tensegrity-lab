@@ -46,12 +46,12 @@ impl FabricPlan {
         for operation in &plan.shape_phase.operations {
             operation.traverse(&mut |op| {
                 match op {
-                    ShapeOperation::Join { mark_name } |
+                    ShapeOperation::Joiner { mark_name } |
                     ShapeOperation::PointDownwards { mark_name } |
-                    ShapeOperation::Distance { mark_name, .. } => {
+                    ShapeOperation::Spacer { mark_name, .. } => {
                         shape_marks.insert(mark_name.clone());
                     }
-                    ShapeOperation::RemoveShapers { mark_names } => {
+                    ShapeOperation::RemoveSpacers { mark_names } => {
                         shape_marks.extend(mark_names.iter().cloned());
                     }
                     _ => {}
