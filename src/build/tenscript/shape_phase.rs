@@ -24,7 +24,7 @@ pub enum ShapeOperation {
     Distance { mark_name: String, distance_factor: f32 },
     RemoveShapers { mark_names: Vec<String> },
     Vulcanize,
-    ReplaceFaces,
+    FacesToTriangles,
     SetViscosity { viscosity: f32 },
 }
 
@@ -80,12 +80,12 @@ impl ShapePhase {
         match pair.as_rule() {
             Rule::basic_shape_operation | Rule::shape_operation =>
                 Self::parse_shape_operation(pair.into_inner().next().unwrap()),
-            Rule::space => {
+            Rule::spacer => {
                 let [mark_name, distance_string] = pair.into_inner().next_chunk().unwrap().map(|p| p.as_str());
-                let distance_factor = TenscriptError::parse_float(distance_string, "space: distance_factor")?;
+                let distance_factor = TenscriptError::parse_float(distance_string, "(space ..)")?;
                 Ok(ShapeOperation::Distance { mark_name: mark_name[1..].into(), distance_factor })
             }
-            Rule::join => {
+            Rule::joiner => {
                 let mark_name = pair.into_inner().next().unwrap().as_str();
                 Ok(ShapeOperation::Join { mark_name: mark_name[1..].into() })
             }
@@ -93,20 +93,20 @@ impl ShapePhase {
                 let mark_name = pair.into_inner().next().unwrap().as_str();
                 Ok(ShapeOperation::PointDownwards { mark_name: mark_name[1..].into() })
             }
-            Rule::countdown_block => {
+            Rule::during_count => {
                 let mut inner = pair.into_inner();
-                let count = TenscriptError::parse_usize(inner.next().unwrap().as_str(), "countdown_block")?;
+                let count = TenscriptError::parse_usize(inner.next().unwrap().as_str(), "(during ...)")?;
                 let operations = Self::parse_shape_operations(inner)?;
                 Ok(ShapeOperation::Countdown { count, operations })
             }
-            Rule::remove_shapers => {
+            Rule::remove_spacers => {
                 let mark_names = pair.into_inner().map(|p| p.as_str()[1..].into()).collect();
                 Ok(ShapeOperation::RemoveShapers { mark_names })
             }
-            Rule::replace_faces => Ok(ShapeOperation::ReplaceFaces),
+            Rule::faces_to_triangles => Ok(ShapeOperation::FacesToTriangles),
             Rule::vulcanize => Ok(ShapeOperation::Vulcanize),
             Rule::set_viscosity => {
-                let viscosity = TenscriptError::parse_float_inside(pair, "viscosity")?;
+                let viscosity = TenscriptError::parse_float_inside(pair, "(viscosity ..)")?;
                 Ok(ShapeOperation::SetViscosity { viscosity })
             }
             _ => unreachable!("shape phase: {pair}")
@@ -205,9 +205,9 @@ impl ShapePhase {
                 fabric.install_bow_ties();
                 StartCountdown(DEFAULT_VULCANIZE_COUNTDOWN)
             }
-            ShapeOperation::ReplaceFaces => {
+            ShapeOperation::FacesToTriangles => {
                 self.complete_all_shapers(fabric);
-                for face_id in fabric.replace_faces() {
+                for face_id in fabric.faces_to_triangles() {
                     fabric.remove_face(face_id);
                 }
                 Noop

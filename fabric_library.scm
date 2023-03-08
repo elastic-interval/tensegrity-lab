@@ -10,7 +10,7 @@
         (face (alias Front:Left) (grow 3))))
     (shape
       (vulcanize)
-      (replace-faces)))
+      (faces-to-triangles)))
   (fabric
     (name "Simple" "Flagellum")
     (build
@@ -18,7 +18,7 @@
         (face (alias :next-base) (grow 20 (scale .9)))))
     (shape
       (vulcanize)
-      (replace-faces))
+      (faces-to-triangles))
     (pretense (surface :frozen)))
   (fabric
     (name "Simple" "Tetrapod")
@@ -31,7 +31,7 @@
         ))
     (shape
       (vulcanize)
-      (replace-faces))
+      (faces-to-triangles))
     (pretense (surface :bouncy)))
   (fabric
     (name "Simple" "Twist8")
@@ -43,10 +43,10 @@
         (face (alias Front:Left) (grow 13 (scale .92) (mark :ring-b)))
         ))
     (shape
-      (countdown 15000 (join :ring-a) (join :ring-b))
-      (remove-shapers)
-      (countdown 20000 (vulcanize))
-      (replace-faces))
+      (during 15000 (join :ring-a) (join :ring-b))
+      (remove-spacers)
+      (during 20000 (vulcanize))
+      (faces-to-triangles))
     (pretense (surface :bouncy)))
   (fabric
     (name "Simple" "Bulge Ring")
@@ -67,9 +67,9 @@
               (face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))))
     (shape
       (join :halo-end)
-      (countdown 30000 (remove-shapers)) ; TODO: should automatically happen before vulcanize
+      (during 30000 (remove-spacers)) ; TODO: should automatically happen before vulcanize
       (vulcanize)
-      (replace-faces)))
+      (faces-to-triangles)))
   (fabric
     (name "Art" "K-10")
     (build
@@ -90,7 +90,7 @@
               (face (alias Far:Base) (grow 2)))))))
     (shape
       (vulcanize)
-      (replace-faces))
+      (faces-to-triangles))
     (pretense (surface :bouncy)))
   (fabric
     (name "Art" "Tommy Torque")
@@ -122,7 +122,7 @@
                 (face (alias Far:Base) (mark :sole))))))))
     (shape
       (down :sole)
-      (replace-faces))
+      (faces-to-triangles))
     (pretense
       (surface :frozen)
       (muscle 0.1)
@@ -146,10 +146,10 @@
               (face (alias BotZ) (mark :chest-2))
               (face (alias BotX) (grow "....X..." (scale .93) (mark :hands))))))))
     (shape
-      (countdown 15000 (space :legs .3) (space :hands .3) (space :chest-1 .8) (space :chest-2 .2))
-      (countdown 80000 (vulcanize))
-      (remove-shapers)
-      (replace-faces)))
+      (during 15000 (space :legs .3) (space :hands .3) (space :chest-1 .8) (space :chest-2 .2))
+      (during 80000 (vulcanize))
+      (remove-spacers)
+      (faces-to-triangles)))
   (fabric (name "Art" "Torque Island")
     (build
       (branch (alias Torque)
@@ -163,6 +163,6 @@
                 (face (alias Far:Side) (mark :loose))))))))
     (shape
       (join :loose)
-      (replace-faces))
+      (faces-to-triangles))
     (pretense (surface :bouncy)))
   )

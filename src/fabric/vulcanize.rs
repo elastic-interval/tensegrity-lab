@@ -38,7 +38,7 @@ impl Fabric {
         }
     }
 
-    pub fn replace_faces(&mut self) -> Vec<UniqueId> {
+    pub fn faces_to_triangles(&mut self) -> Vec<UniqueId> {
         let joint_incident = self.joint_incident();
         let mut faces_to_remove = vec![];
         for (id, face) in self.faces.clone() {

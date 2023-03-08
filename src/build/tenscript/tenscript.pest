@@ -10,19 +10,19 @@ name =
 shape =
     { "(" ~ "shape" ~ shape_operation* ~ ")" }
 basic_shape_operation =
-    { space | join | vulcanize | remove_shapers | replace_faces | set_viscosity | down }
+    { spacer | joiner | vulcanize | remove_spacers | faces_to_triangles | set_viscosity | down }
 shape_operation =
-    { basic_shape_operation | countdown_block }
-countdown_block = // iteration-count
-    { "(" ~ "countdown" ~ integer ~ basic_shape_operation+ ~ ")" }
-space = // mark-name, spacing-factor
+    { basic_shape_operation | during_count }
+during_count = // iteration-count
+    { "(" ~ "during" ~ integer ~ basic_shape_operation+ ~ ")" }
+spacer = // mark-name, spacing-factor
     { "(" ~ "space" ~ atom ~ float ~ ")" }
-join = // mark-name
+joiner = // mark-name
     { "(" ~ "join" ~ atom ~ ")" }
 down = // mark-name
     { "(" ~ "down" ~ atom ~ ")" }
-remove_shapers = // shaper-names
-    { "(" ~ "remove-shapers" ~ atom* ~ ")" }
+remove_spacers = // spacer-names
+    { "(" ~ "remove-spacers" ~ atom* ~ ")" }
 set_viscosity =
     { "(" ~ "set-viscosity" ~ float ~ ")" }
 vulcanize =
@@ -38,9 +38,9 @@ surface_character =
 muscle =
     { "(" ~ "muscle" ~ float ~ ")" }
 pretense_factor =
-    { "(" ~ "pretense_factor" ~ float ~ ")" }
-replace_faces =
-    { "(" ~ "replace-faces" ~ ")" }
+    { "(" ~ "pretense-factor" ~ float ~ ")" }
+faces_to_triangles =
+    { "(" ~ "faces-to-triangles" ~ ")" }
 build =
     { "(" ~ "build" ~ branch ~ ")" }
 build_node =
