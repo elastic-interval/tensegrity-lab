@@ -1,4 +1,4 @@
-(bricks
+(brick-library
   (brick ; single-right
     (proto
       (alias Single)

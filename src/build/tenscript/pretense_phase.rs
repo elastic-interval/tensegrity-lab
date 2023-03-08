@@ -25,7 +25,7 @@ impl PretensePhase {
         Self::parse_pretense(pair)
     }
 
-    fn parse_pretense(pair: Pair<Rule>) -> Result<PretensePhase, TenscriptError> {§
+    fn parse_pretense(pair: Pair<Rule>) -> Result<PretensePhase, TenscriptError> {
         match pair.as_rule() {
             Rule::pretense => {
                 Self::parse_features(pair.into_inner())
