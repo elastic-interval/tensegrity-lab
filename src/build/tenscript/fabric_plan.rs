@@ -23,8 +23,8 @@ impl FabricPlan {
         let [name, build] = inner.next_chunk().unwrap();
         let name = parse_name(name);
         let build_phase = BuildPhase::from_pair(build)?;
-        let shape_phase = ShapePhase::from_pair(inner.next())?;
-        let pretense_phase = PretensePhase::from_pair(inner.next())?;
+        let shape_phase = ShapePhase::from_pair_option(inner.next())?;
+        let pretense_phase = PretensePhase::from_pair_option(inner.next())?;
         let plan = FabricPlan { name, build_phase, shape_phase, pretense_phase };
         Self::validate_fabric_plan(&plan)?;
         Ok(plan)
