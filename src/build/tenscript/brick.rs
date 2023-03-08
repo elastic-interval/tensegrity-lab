@@ -12,11 +12,7 @@ use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 
 #[derive(Copy, Clone, Debug)]
-pub enum Axis {
-    X,
-    Y,
-    Z,
-}
+pub enum Axis { X, Y, Z }
 
 impl Axis {
     pub fn from_pair(pair: Pair<Rule>) -> Self {
@@ -47,6 +43,15 @@ pub struct PushDef {
     pub ideal: f32,
     pub alpha_name: String,
     pub omega_name: String,
+}
+
+impl PushDef {
+    fn from_pair(pair: Pair<Rule>, axis: Axis, ideal: f32) -> Self {
+        let mut walk = pair.into_inner();
+        let alpha_name = parse_atom(walk.next().unwrap());
+        let omega_name = parse_atom(walk.next().unwrap());
+        Self { alpha_name, omega_name, ideal, axis }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -143,15 +148,7 @@ impl Prototype {
                     let axis = Axis::from_pair(axis);
                     let ideal = ideal.as_str().parse().unwrap();
                     for push_pair in inner {
-                        let mut walk = push_pair.into_inner();
-                        let alpha_name = parse_atom(walk.next().unwrap());
-                        let omega_name = parse_atom(walk.next().unwrap());
-                        pushes.push(PushDef {
-                            alpha_name,
-                            omega_name,
-                            ideal,
-                            axis,
-                        })
+                        pushes.push(PushDef::from_pair(push_pair, axis, ideal));
                     }
                 }
                 Rule::pulls_proto => {
