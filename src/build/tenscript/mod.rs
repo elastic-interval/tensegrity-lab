@@ -12,6 +12,7 @@ use pest_derive::Parser;
 pub use fabric_plan::FabricPlan;
 
 use crate::build::tenscript::build_phase::BuildPhase;
+use crate::build::tenscript::pretense_phase::MuscleMovement;
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::Face;
 use crate::fabric::interval::Span;
@@ -61,7 +62,7 @@ impl Fabric {
         self.faces.get(&face_id).ok_or(TenscriptError::Invalid("Face missing".to_string()))
     }
 
-    pub fn activate_muscles(&mut self, shortening: f32) {
+    pub fn activate_muscles(&mut self, muscle_movement: &MuscleMovement) {
         self.muscle_nuance = 0.5;
         let north_material = self.material(":north".to_string());
         let south_material = self.material(":south".to_string());
@@ -69,7 +70,7 @@ impl Fabric {
             let Span::Fixed { length } = interval.span else {
                 continue;
             };
-            let divergence = length * shortening;
+            let divergence = length * muscle_movement.amplitude;
             let low = length - divergence;
             let high = length + divergence;
             if interval.material == north_material {

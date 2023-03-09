@@ -42,7 +42,7 @@ pub enum TinkererAction {
 #[derive(Debug, Clone)]
 pub enum LabAction {
     GravityChanged(f32),
-    MuscleTest(f32),
+    MuscleTest,
     MuscleChanged(f32),
 }
 
@@ -56,7 +56,7 @@ pub enum CrucibleAction {
     StartTinkering,
     Tinkerer(TinkererAction),
     Experiment(LabAction),
-    ActivateMuscles(f32),
+    ActivateMuscles,
 }
 
 pub struct Crucible {
@@ -120,7 +120,7 @@ impl Crucible {
                 }
                 if pretenser.is_done() {
                     actions.push(Action::UpdateMenu);
-                    self.stage = Experimenting(Lab::new(pretenser.physics()));
+                    self.stage = Experimenting(Lab::new(pretenser.clone()));
                 }
             }
             Experimenting(lab) => {
@@ -174,11 +174,11 @@ impl Crucible {
             StartTinkering => {
                 self.stage = TinkeringLaunch;
             }
-            ActivateMuscles(increment) => {
+            ActivateMuscles => {
                 let Experimenting(lab) = &mut self.stage else {
                     panic!("must be experimenting");
                 };
-                lab.action(LabAction::MuscleTest(increment), &mut self.fabric);
+                lab.action(LabAction::MuscleTest, &mut self.fabric);
             }
         }
     }

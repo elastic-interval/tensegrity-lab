@@ -1,3 +1,5 @@
+use crate::build::tenscript::pretense_phase::PretensePhase;
+use crate::build::tenscript::pretenser::Pretenser;
 use crate::crucible::LabAction;
 use crate::fabric::Fabric;
 use crate::fabric::lab::Stage::{*};
@@ -13,11 +15,16 @@ enum Stage {
 pub struct Lab {
     stage: Stage,
     physics: Physics,
+    pretense_phase: PretensePhase,
 }
 
 impl Lab {
-    pub(crate) fn new(physics: Physics) -> Self {
-        Self { stage: Start, physics }
+    pub fn new(Pretenser { pretense_phase, physics, .. }: Pretenser) -> Self {
+        Self {
+            stage: Start,
+            physics,
+            pretense_phase,
+        }
     }
 
     pub fn iterate(&mut self, fabric: &mut Fabric) {
@@ -51,10 +58,12 @@ impl Lab {
             LabAction::MuscleChanged(nuance) => {
                 fabric.muscle_nuance = nuance;
             }
-            LabAction::MuscleTest(increment) => {
+            LabAction::MuscleTest => {
                 match self.stage {
                     Standing => {
-                        self.stage = MuscleCycle(increment)
+                        if let Some(movement) = &self.pretense_phase.muscle_movement {
+                            self.stage = MuscleCycle(1.0 / movement.countdown as f32)
+                        }
                     }
                     MuscleCycle(_) => {
                         fabric.muscle_nuance = 0.5;
