@@ -6,7 +6,8 @@ use crate::fabric::physics::Physics;
 #[derive(Clone, PartialEq)]
 enum Stage {
     Start,
-    Running,
+    Standing,
+    MuscleCycle(f32),
 }
 
 pub struct Lab {
@@ -21,10 +22,23 @@ impl Lab {
 
     pub fn iterate(&mut self, fabric: &mut Fabric) {
         self.stage = match self.stage {
-            Start => Running,
-            Running => {
+            Start => Standing,
+            Standing => {
                 fabric.iterate(&self.physics);
-                Running
+                Standing
+            }
+            MuscleCycle(increment) => {
+                fabric.iterate(&self.physics);
+                fabric.muscle_nuance += increment;
+                if fabric.muscle_nuance < 0.0 {
+                    fabric.muscle_nuance = 0.0;
+                    MuscleCycle(-increment)
+                } else if fabric.muscle_nuance > 1.0 {
+                    fabric.muscle_nuance = 1.0;
+                    MuscleCycle(-increment)
+                } else {
+                    MuscleCycle(increment)
+                }
             }
         };
     }
@@ -36,6 +50,9 @@ impl Lab {
             }
             LabAction::MuscleChanged(nuance) => {
                 fabric.muscle_nuance = nuance;
+            }
+            LabAction::MuscleTest(increment) => {
+                self.stage = MuscleCycle(increment)
             }
         }
     }

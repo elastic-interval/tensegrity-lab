@@ -39,10 +39,10 @@ impl Fabric {
                 Some(matrix) => matrix.transform_point(point),
             }))
             .collect();
-        for BakedInterval { alpha_index, omega_index, material, strain } in brick.intervals {
+        for BakedInterval { alpha_index, omega_index, material_name, strain } in brick.intervals {
             let (alpha_index, omega_index) = (joints[alpha_index], joints[omega_index]);
             let ideal = self.ideal(alpha_index, omega_index, strain);
-            self.create_interval(alpha_index, omega_index, Link { ideal, material });
+            self.create_interval(alpha_index, omega_index, Link { ideal, material_name });
         }
         let brick_faces = brick.faces
             .into_iter()

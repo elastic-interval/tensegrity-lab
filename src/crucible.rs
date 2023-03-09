@@ -42,6 +42,7 @@ pub enum TinkererAction {
 #[derive(Debug, Clone)]
 pub enum LabAction {
     GravityChanged(f32),
+    MuscleTest(f32),
     MuscleChanged(f32),
 }
 
@@ -55,6 +56,7 @@ pub enum CrucibleAction {
     StartTinkering,
     Tinkerer(TinkererAction),
     Experiment(LabAction),
+    ActivateMuscles(f32),
 }
 
 pub struct Crucible {
@@ -171,6 +173,12 @@ impl Crucible {
             }
             StartTinkering => {
                 self.stage = TinkeringLaunch;
+            }
+            ActivateMuscles(increment) => {
+                let Experimenting(lab) = &mut self.stage else {
+                    panic!("must be experimenting");
+                };
+                lab.action(LabAction::MuscleTest(increment), &mut self.fabric);
             }
         }
     }

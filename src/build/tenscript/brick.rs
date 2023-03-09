@@ -59,7 +59,7 @@ pub struct PullDef {
     pub alpha_name: String,
     pub omega_name: String,
     pub ideal: f32,
-    pub material: String,
+    pub material_name: String,
 }
 
 impl PullDef {
@@ -67,8 +67,8 @@ impl PullDef {
         let mut walk = pair.into_inner();
         let alpha_name = parse_atom(walk.next().unwrap());
         let omega_name = parse_atom(walk.next().unwrap());
-        let material = walk.next().unwrap().as_str().parse().unwrap();
-        Self { alpha_name, omega_name, ideal, material }
+        let material_name = walk.next().unwrap().as_str().parse().unwrap();
+        Self { alpha_name, omega_name, ideal, material_name }
     }
 }
 
@@ -113,11 +113,11 @@ impl From<Prototype> for Fabric {
             });
             fabric.create_interval(alpha_index, omega_index, Link::push(ideal));
         }
-        for PullDef { alpha_name, omega_name, ideal, material, .. } in proto.pulls {
+        for PullDef { alpha_name, omega_name, ideal, material_name, .. } in proto.pulls {
             let [alpha_index, omega_index] = [alpha_name, omega_name]
                 .map(|name| *joints_by_name.get(&name)
                     .expect(&name));
-            fabric.create_interval(alpha_index, omega_index, Link { ideal, material });
+            fabric.create_interval(alpha_index, omega_index, Link { ideal, material_name });
         }
         for FaceDef { aliases, joint_names, spin } in proto.faces {
             let joint_indices = joint_names.map(|name| *joints_by_name.get(&name).expect("no joint with that name"));
@@ -239,7 +239,7 @@ impl BrickFace {
 pub struct BakedInterval {
     pub alpha_index: usize,
     pub omega_index: usize,
-    pub material: String,
+    pub material_name: String,
     pub strain: f32,
 }
 
@@ -275,7 +275,7 @@ impl Baked {
                         .map(|pair| pair.as_str().parse().unwrap());
                     let strain = strain.as_str().parse().unwrap();
                     let material = material.as_str().to_string();
-                    intervals.push(BakedInterval { alpha_index, omega_index, strain, material });
+                    intervals.push(BakedInterval { alpha_index, omega_index, strain, material_name: material });
                 }
                 Rule::face_baked => {
                     let mut inner = pair.into_inner();
@@ -324,7 +324,7 @@ impl Baked {
                     .join("\n    "),
                 intervals = self.intervals
                     .into_iter()
-                    .map(|BakedInterval { alpha_index, omega_index, material, strain }| {
+                    .map(|BakedInterval { alpha_index, omega_index, material_name: material, strain }| {
                         format!("(interval {alpha_index} {omega_index} {strain:.4} {material})")
                     })
                     .collect::<Vec<_>>()
@@ -374,7 +374,7 @@ impl TryFrom<(Fabric, FaceAlias)> for Baked {
                 .filter_map(|&Interval { alpha_index, omega_index, material, strain, .. }| {
                     let material = fabric.materials[material].name.to_string();
                     joint_incident[alpha_index].push
-                        .map(|_| BakedInterval { alpha_index, omega_index, strain, material })
+                        .map(|_| BakedInterval { alpha_index, omega_index, strain, material_name: material })
                 })
                 .collect(),
             faces: fabric.faces

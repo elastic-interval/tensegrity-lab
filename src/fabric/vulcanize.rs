@@ -14,7 +14,7 @@ const BOW_TIE_SHORTEN: f32 = 0.5;
 impl Fabric {
     pub fn install_bow_ties(&mut self) {
         for Pair { alpha_index, omega_index, length } in self.pair_generator().bow_tie_pulls(&self.joints, &self.materials) {
-            self.create_interval(alpha_index, omega_index, Link { ideal: length, material: ":bow-tie".to_string() });
+            self.create_interval(alpha_index, omega_index, Link { ideal: length, material_name: ":bow-tie".to_string() });
         }
     }
 

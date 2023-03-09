@@ -86,7 +86,7 @@ impl Fabric {
         distance / (1.0 + strain)
     }
 
-    pub fn create_interval(&mut self, alpha_index: usize, omega_index: usize, Link { ideal, material }: Link) -> UniqueId {
+    pub fn create_interval(&mut self, alpha_index: usize, omega_index: usize, Link { ideal, material_name: material }: Link) -> UniqueId {
         let id = self.create_id();
         let initial = self.joints[alpha_index].location.distance(self.joints[omega_index].location);
         let material = self.material(material);
@@ -290,16 +290,16 @@ const MATERIALS: [Material;5] = [
 #[derive(Clone, Debug)]
 pub struct Link {
     pub ideal: f32,
-    pub material: String,
+    pub material_name: String,
 }
 
 impl Link {
     pub fn push(ideal: f32) -> Self {
-        Self { ideal, material: ":push".to_string() }
+        Self { ideal, material_name: ":push".to_string() }
     }
 
     pub fn pull(ideal: f32) -> Self {
-        Self { ideal, material: ":pull".to_string() }
+        Self { ideal, material_name: ":pull".to_string() }
     }
 }
 
