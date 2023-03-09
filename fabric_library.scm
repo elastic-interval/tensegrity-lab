@@ -116,7 +116,7 @@
       (faces-to-triangles))
     (pretense
       (surface :frozen)
-      (muscle 0.25)
+      (muscle 0.3 12000)
       ))
   (fabric
     (name "Art" "Headless Hug")

@@ -36,7 +36,7 @@ surface =
 surface_character =
     { ":frozen" | ":bouncy" | ":absent" }
 muscle =
-    { "(" ~ "muscle" ~ float ~ ")" }
+    { "(" ~ "muscle" ~ float ~ integer ~ ")" }
 pretense_factor =
     { "(" ~ "pretense-factor" ~ float ~ ")" }
 faces_to_triangles =

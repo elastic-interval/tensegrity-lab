@@ -163,7 +163,7 @@ impl Menu {
             .submenu(ALWAYS, fabric_menu)
             .action("Muscle test", StickAround,
                     |env| env.experimenting,
-                    Action::Crucible(CrucibleAction::ActivateMuscles(1.0 / 10000.0)))
+                    Action::Crucible(CrucibleAction::ActivateMuscles))
             .action("Muscle control", StickAround,
                     |env| env.experimenting && env.visible_control != VisibleControl::Muscle,
                     Action::ShowControl(VisibleControl::Muscle))

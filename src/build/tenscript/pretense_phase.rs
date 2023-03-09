@@ -3,9 +3,15 @@ use crate::build::tenscript::{Rule, TenscriptError};
 use crate::fabric::physics::SurfaceCharacter;
 
 #[derive(Debug, Clone, Default)]
+pub struct MuscleMovement{
+    pub(crate) amplitude: f32,
+    pub(crate) countdown: usize,
+}
+
+#[derive(Debug, Clone, Default)]
 pub struct PretensePhase {
     pub surface_character: SurfaceCharacter,
-    pub muscle_shortening: Option<f32>,
+    pub muscle_movement: Option<MuscleMovement>,
     pub pretense_factor: Option<f32>,
 }
 
@@ -13,7 +19,7 @@ impl PretensePhase {
     pub fn new(surface_character: SurfaceCharacter) -> Self {
         Self {
             surface_character,
-            muscle_shortening: None,
+            muscle_movement: None,
             pretense_factor: None,
         }
     }
@@ -52,8 +58,10 @@ impl PretensePhase {
                                 }
                             }
                             Rule::muscle => {
-                                let shortening = TenscriptError::parse_float_inside(pretense_pair, "muscle")?;
-                                pretense.muscle_shortening = Some(shortening)
+                                let [amplitude, countdown] = pretense_pair.into_inner().next_chunk().unwrap();
+                                let amplitude = TenscriptError::parse_float(amplitude.as_str(), "muscle amplitude")?;
+                                let countdown = TenscriptError::parse_usize(countdown.as_str(), "muscle countdown")?;
+                                pretense.muscle_movement = Some(MuscleMovement{ amplitude, countdown })
                             }
                             Rule::pretense_factor => {
                                 let factor = TenscriptError::parse_float_inside(pretense_pair, "pretense-factor")?;

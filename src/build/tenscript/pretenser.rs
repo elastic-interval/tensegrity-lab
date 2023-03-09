@@ -12,12 +12,13 @@ enum Stage {
     Pretenst,
 }
 
+#[derive(Clone)]
 pub struct Pretenser {
     stage: Stage,
-    pretense_phase: PretensePhase,
     pretensing_countdown: usize,
     speed_threshold: f32,
-    physics: Physics,
+    pub pretense_phase: PretensePhase,
+    pub physics: Physics,
 }
 
 const DEFAULT_PRETENSE_FACTOR: f32 = 1.03;
@@ -49,8 +50,8 @@ impl Pretenser {
                 if fabric.progress.is_busy() {
                     Pretensing
                 } else {
-                    if let Some(shortening) = self.pretense_phase.muscle_shortening {
-                        fabric.activate_muscles(shortening);
+                    if let Some(muscle_movement) = &self.pretense_phase.muscle_movement {
+                        fabric.activate_muscles(muscle_movement);
                     };
                     Pretenst
                 }
