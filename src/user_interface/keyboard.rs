@@ -138,7 +138,7 @@ impl Keyboard {
             .into_iter()
             .find_map(|menu| {
                 let Menu { keycode, action, menu_action, .. } = &menu;
-                let (code, _) = keycode.clone().unwrap_or_else(|| panic!("No keycode for {label}"));
+                let (code, _) = keycode.clone().unwrap_or_else(|| panic!("No keycode for label"));
                 if code != keycode_pressed {
                     return None;
                 }

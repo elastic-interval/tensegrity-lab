@@ -98,7 +98,7 @@
         (face (alias Bottom:Left)
           (grow 1
             (branch (alias Torque) (scale .7) (rotate)
-              (face (alias Far:Front) (grow 1  (mark :sole))))))
+              (face (alias Far:Front) (grow 1 (mark :sole))))))
         (face (alias Bottom:Right)
           (grow 1
             (branch (alias Torque) (scale .7)
