@@ -161,6 +161,9 @@ impl Menu {
     pub fn root_menu(fabric_menu: Menu) -> Menu {
         Menu::new("Welcome", StickAround)
             .submenu(ALWAYS, fabric_menu)
+            .action("Muscle test", StickAround,
+                    |env| env.experimenting,
+                    Action::Crucible(CrucibleAction::ActivateMuscles(1.0 / 10000.0)))
             .action("Muscle control", StickAround,
                     |env| env.experimenting && env.visible_control != VisibleControl::Muscle,
                     Action::ShowControl(VisibleControl::Muscle))
