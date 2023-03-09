@@ -240,6 +240,14 @@ impl Application {
         }
     }
 
+    pub fn run_fabric(&mut self, fabric_name: &String) {
+        let fabric_plan = self.fabric_library.fabric_plans
+            .iter()
+            .find(|FabricPlan{name,..}| name.contains(fabric_name))
+            .expect(fabric_name);
+        self.user_interface.action(Action::Crucible(CrucibleAction::BuildFabric(fabric_plan.clone())))
+    }
+
     pub fn capture_prototype(&mut self, brick_index: usize) {
         let prototype = self.brick_library.brick_definitions
             .get(brick_index).expect("no such brick")
