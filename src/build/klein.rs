@@ -9,7 +9,10 @@ struct KleinFabric {
 
 impl KleinFabric {
     fn new() -> KleinFabric {
-        KleinFabric { fabric: Fabric::default(), random: thread_rng() }
+        KleinFabric {
+            fabric: Fabric::default(),
+            random: thread_rng(),
+        }
     }
 
     fn random_joint(&mut self) {

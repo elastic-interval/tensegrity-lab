@@ -22,6 +22,10 @@ pub enum Span {
         length: f32,
         initial: f32,
     },
+    Muscle {
+        max: f32,
+        min: f32,
+    },
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -30,8 +34,9 @@ pub enum Role {
     Pull,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Material {
+    pub name: &'static str,
     pub role: Role,
     pub stiffness: f32,
     pub mass: f32,
@@ -99,27 +104,31 @@ impl Interval {
 
     pub fn ideal(&self) -> f32 {
         match self.span {
-            Fixed { length, .. } | Approaching { length, .. } => length
+            Fixed { length, .. } | Approaching { length, .. } => length,
+            Muscle { max, min, .. } => (max + min) / 2.0,
         }
     }
 
-    pub fn iterate(&mut self, joints: &mut [Joint], materials: &[Material], progress: &Progress, physics: &Physics) {
+    pub fn iterate(&mut self, joints: &mut [Joint], materials: &[Material], progress: &Progress, muscle_nuance: f32, physics: &Physics) {
         let ideal = match self.span {
             Fixed { length } => { length }
             Approaching { initial, length, .. } => {
                 let nuance = progress.nuance();
                 initial * (1.0 - nuance) + length * nuance
             }
+            Muscle { max, min } => {
+                min * (1.0 - muscle_nuance) + max * muscle_nuance
+            }
         };
         let real_length = self.length(joints);
-        let Material { role, stiffness, mass } = materials[self.material];
+        let Material { role, stiffness, mass, .. } = materials[self.material];
         self.strain = (real_length - ideal) / ideal;
-        let strain = match role {
-            Push if real_length > ideal => 0.0, // do not pull
-            Pull if real_length < ideal => 0.0, // do not push
-            _ => self.strain
+        match role {
+            Push if real_length > ideal => self.strain = 0.0, // do not pull
+            Pull if real_length < ideal => self.strain = 0.0, // do not push
+            _ => {}
         };
-        let force = strain * stiffness * physics.stiffness;
+        let force = self.strain * stiffness * physics.stiffness;
         let force_vector: Vector3<f32> = self.unit * force / 2.0;
         joints[self.alpha_index].force += force_vector;
         joints[self.omega_index].force -= force_vector;

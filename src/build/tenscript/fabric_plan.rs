@@ -4,8 +4,9 @@ use std::collections::HashSet;
 
 use pest::iterators::Pair;
 
-use crate::build::tenscript::{BuildPhase, Library, parse_name, TenscriptError, Rule};
+use crate::build::tenscript::{BuildPhase, parse_name, Rule, TenscriptError};
 use crate::build::tenscript::build_phase::BuildNode;
+use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeOperation, ShapePhase};
 
 #[derive(Debug, Clone)]
@@ -13,22 +14,18 @@ pub struct FabricPlan {
     pub name: Vec<String>,
     pub build_phase: BuildPhase,
     pub shape_phase: ShapePhase,
+    pub pretense_phase: PretensePhase,
 }
 
 impl FabricPlan {
-    pub fn load_preset(plan_name: Vec<String>) -> Option<Self> {
-        Library::standard()
-            .fabrics
-            .into_iter()
-            .find(|plan| plan.name == plan_name)
-    }
-
     pub fn from_pair(fabric_plan_pair: Pair<Rule>) -> Result<FabricPlan, TenscriptError> {
-        let [name, build, shape] = fabric_plan_pair.into_inner().next_chunk().unwrap();
+        let mut inner = fabric_plan_pair.into_inner();
+        let [name, build] = inner.next_chunk().unwrap();
         let name = parse_name(name);
         let build_phase = BuildPhase::from_pair(build)?;
-        let shape_phase = ShapePhase::from_pair(shape)?;
-        let plan = FabricPlan { name, build_phase, shape_phase };
+        let shape_phase = ShapePhase::from_pair_option(inner.next())?;
+        let pretense_phase = PretensePhase::from_pair_option(inner.next())?;
+        let plan = FabricPlan { name, build_phase, shape_phase, pretense_phase };
         Self::validate_fabric_plan(&plan)?;
         Ok(plan)
     }
@@ -49,11 +46,12 @@ impl FabricPlan {
         for operation in &plan.shape_phase.operations {
             operation.traverse(&mut |op| {
                 match op {
-                    ShapeOperation::Join { mark_name } |
-                    ShapeOperation::Distance { mark_name, .. } => {
+                    ShapeOperation::Joiner { mark_name } |
+                    ShapeOperation::PointDownwards { mark_name } |
+                    ShapeOperation::Spacer { mark_name, .. } => {
                         shape_marks.insert(mark_name.clone());
                     }
-                    ShapeOperation::RemoveShapers { mark_names } => {
+                    ShapeOperation::RemoveSpacers { mark_names } => {
                         shape_marks.extend(mark_names.iter().cloned());
                     }
                     _ => {}

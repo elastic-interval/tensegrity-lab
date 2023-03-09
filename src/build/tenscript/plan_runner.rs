@@ -1,9 +1,11 @@
-use crate::build::tenscript::FabricPlan;
+use crate::build::tenscript::{FabricPlan, TenscriptError};
+use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::plan_runner::Stage::{*};
+use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
 use crate::fabric::Fabric;
-use crate::fabric::physics::{Physics, SurfaceCharacter};
+use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::LIQUID;
 
 #[derive(Clone, Debug, Copy, PartialEq)]
@@ -20,34 +22,36 @@ pub struct PlanRunner {
     stage: Stage,
     build_phase: BuildPhase,
     shape_phase: ShapePhase,
+    pretense_phase: PretensePhase,
     physics: Physics,
-    surface_character: SurfaceCharacter,
+    disabled: Option<TenscriptError>,
 }
 
 impl PlanRunner {
-    pub fn new(FabricPlan { shape_phase, build_phase, .. }: FabricPlan) -> Self {
+    pub fn new(FabricPlan { shape_phase, build_phase, pretense_phase, .. }: FabricPlan) -> Self {
         Self {
             shape_phase,
             build_phase,
+            pretense_phase,
             stage: Initialize,
             physics: LIQUID,
-            surface_character: SurfaceCharacter::Frozen
+            disabled: None,
         }
     }
 
-    pub fn iterate(&mut self, fabric: &mut Fabric) {
+    pub fn iterate(&mut self, fabric: &mut Fabric, brick_library: &BrickLibrary) -> Result<(), TenscriptError> {
         fabric.iterate(&self.physics);
-        if fabric.progress.is_busy() {
-            return;
+        if fabric.progress.is_busy() || self.disabled.is_some() {
+            return Ok(());
         }
         let (next_stage, countdown) = match self.stage {
             Initialize => {
-                self.build_phase.init(fabric);
+                self.build_phase.init(fabric, brick_library)?;
                 (GrowApproach, 500)
             }
             GrowStep => {
                 if self.build_phase.is_growing() {
-                    self.build_phase.growth_step(fabric);
+                    self.build_phase.growth_step(fabric, brick_library)?;
                     (GrowApproach, 500)
                 } else if self.shape_phase.needs_shaping() {
                     self.shape_phase.marks = self.build_phase.marks.split_off(0);
@@ -60,8 +64,9 @@ impl PlanRunner {
                 (GrowCalm, 500),
             GrowCalm =>
                 (GrowStep, 0),
-            Shaping =>
-                match self.shape_phase.shaping_step(fabric) {
+            Shaping => {
+                self.shape_phase.complete_joiners(fabric);
+                match self.shape_phase.shaping_step(fabric)? {
                     ShapeCommand::Noop =>
                         (Shaping, 0),
                     ShapeCommand::StartCountdown(countdown) =>
@@ -70,25 +75,27 @@ impl PlanRunner {
                         self.physics.viscosity = viscosity;
                         (Shaping, 0)
                     }
-                    ShapeCommand::Bouncy => {
-                        self.surface_character = SurfaceCharacter::Bouncy;
-                        (Shaping, 0)
-                    }
                     ShapeCommand::Terminate =>
                         (Completed, 0)
                 }
+            }
             Completed =>
                 (Completed, 0),
         };
         fabric.progress.start(countdown);
         self.stage = next_stage;
+        Ok(())
+    }
+
+    pub fn disable(&mut self, error: TenscriptError) {
+        self.disabled = Some(error);
     }
 
     pub fn is_done(&self) -> bool {
         self.stage == Completed
     }
 
-    pub fn surface_character(&self) -> SurfaceCharacter {
-        self.surface_character
+    pub fn pretense_phase(&self) -> PretensePhase {
+        self.pretense_phase.clone()
     }
 }

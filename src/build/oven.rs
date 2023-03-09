@@ -1,5 +1,5 @@
-use crate::build::brick::Baked;
-use crate::build::tenscript::{FaceAlias, Library};
+use crate::build::tenscript::brick::{Baked, Prototype};
+use crate::build::tenscript::FaceAlias;
 use crate::fabric::Fabric;
 use crate::fabric::physics::presets::PROTOTYPE_FORMATION;
 
@@ -9,14 +9,8 @@ pub struct Oven {
 }
 
 impl Oven {
-    pub fn new(brick_index: usize) -> Self {
-        println!("Settling and capturing prototype number {brick_index}");
-        let prototype = Library::standard()
-            .bricks
-            .get(brick_index)
-            .expect("no such brick")
-            .proto
-            .clone();
+    pub fn new(prototype: Prototype) -> Self {
+        println!("Settling and capturing prototype number {:?}", prototype.alias);
         let alias = prototype.alias.clone();
         let prototype_fabric = Fabric::from(prototype);
         Self { prototype_fabric, alias }

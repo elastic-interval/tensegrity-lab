@@ -46,6 +46,8 @@ impl Joint {
             self.velocity += self.force / self.interval_mass - self.velocity * speed_squared * *viscosity;
             self.velocity *= *drag;
         } else {
+            let degree_submerged: f32 = if -altitude < 1.0 { -altitude } else { 0.0 };
+            let antigravity = antigravity * degree_submerged;
             self.velocity += self.force / self.interval_mass;
             match surface_character {
                 Absent => {}
@@ -65,8 +67,7 @@ impl Joint {
                     }
                 }
                 Bouncy => {
-                    let degree_submerged: f32 = if -altitude < 1.0 { -altitude } else { 0.0 };
-                    let degree_cushioned = 1.0 - degree_submerged;
+                    let degree_cushioned: f32 = 1.0 - degree_submerged;
                     self.velocity *= degree_cushioned;
                     self.velocity.y += antigravity;
                 }

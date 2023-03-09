@@ -1,4 +1,5 @@
 use cgmath::InnerSpace;
+use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::FaceAlias;
 use crate::build::tinkerer::Stage::{*};
 use crate::camera::Pick;
@@ -60,7 +61,7 @@ impl Default for Tinkerer {
 }
 
 impl Tinkerer {
-    pub fn iterate(&mut self, fabric: &mut Fabric) -> Option<Action> {
+    pub fn iterate(&mut self, fabric: &mut Fabric, brick_library: &BrickLibrary) -> Option<Action> {
         let mut action = None;
         self.stage = match &mut self.stage {
             Navigating => {
@@ -72,7 +73,7 @@ impl Tinkerer {
                     let base_normal = fabric.face(*face_id).normal(fabric);
                     self.history.push(Frozen { fabric: fabric.clone(), face_id: Some(face_id.clone()) });
                     let (base_face_id, faces) = fabric
-                        .create_brick(alias, *face_rotation, 1.0, Some(*face_id));
+                        .create_brick(alias, *face_rotation, 1.0, Some(*face_id), brick_library);
                     let face_to_select = faces
                         .iter()
                         .map(|&id| (id, fabric.face(id).normal(fabric).dot(base_normal)))

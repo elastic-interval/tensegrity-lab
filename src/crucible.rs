@@ -1,27 +1,29 @@
 use std::collections::HashSet;
+
 use CrucibleAction::{*};
 
 use crate::build::oven::Oven;
+use crate::build::tenscript::brick::Prototype;
+use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::FabricPlan;
 use crate::build::tenscript::plan_runner::PlanRunner;
+use crate::build::tenscript::pretense_phase::PretensePhase;
+use crate::build::tenscript::pretenser::Pretenser;
 use crate::build::tinkerer::{BrickOnFace, Tinkerer};
 use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::lab::Lab;
-use crate::fabric::physics::SurfaceCharacter;
-use crate::fabric::pretenser::Pretenser;
 use crate::scene::{SceneAction, SceneVariant};
 use crate::user_interface::{Action, MenuAction};
 
 const PULL_SHORTENING: f32 = 0.95;
-const PRETENST_FACTOR: f32 = 1.03;
 
 enum Stage {
     Empty,
     RunningPlan(PlanRunner),
     TinkeringLaunch,
     Tinkering(Tinkerer),
-    PretensingLaunch(SurfaceCharacter),
+    PretensingLaunch(PretensePhase),
     Pretensing(Pretenser),
     Experimenting(Lab),
     BakingBrick(Oven),
@@ -40,18 +42,21 @@ pub enum TinkererAction {
 #[derive(Debug, Clone)]
 pub enum LabAction {
     GravityChanged(f32),
+    MuscleTest(f32),
+    MuscleChanged(f32),
 }
 
 #[derive(Debug, Clone)]
 pub enum CrucibleAction {
-    BakeBrick(usize),
+    BakeBrick(Prototype),
     BuildFabric(FabricPlan),
     SetSpeed(usize),
     RevertTo(Fabric),
-    StartPretensing(SurfaceCharacter),
+    StartPretensing(PretensePhase),
     StartTinkering,
     Tinkerer(TinkererAction),
     Experiment(LabAction),
+    ActivateMuscles(f32),
 }
 
 pub struct Crucible {
@@ -63,7 +68,7 @@ pub struct Crucible {
 impl Default for Crucible {
     fn default() -> Self {
         Self {
-            fabric: Fabric::default_bow_tie(),
+            fabric: Fabric::default(),
             iterations_per_frame: 125,
             stage: Empty,
         }
@@ -71,20 +76,24 @@ impl Default for Crucible {
 }
 
 impl Crucible {
-    pub fn iterate(&mut self, paused: bool) -> Vec<Action> {
+    pub fn iterate(&mut self, paused: bool, brick_library: &BrickLibrary) -> Vec<Action> {
         let mut actions = Vec::new();
         match &mut self.stage {
             Empty => {}
             RunningPlan(plan_runner) => {
                 if plan_runner.is_done() {
                     self.stage = if self.fabric.faces.is_empty() {
-                        PretensingLaunch(plan_runner.surface_character())
+                        PretensingLaunch(plan_runner.pretense_phase())
                     } else {
                         TinkeringLaunch
                     }
                 } else {
                     for _ in 0..self.iterations_per_frame {
-                        plan_runner.iterate(&mut self.fabric);
+                        if let Err(tenscript_error) = plan_runner.iterate(&mut self.fabric, brick_library) {
+                            println!("Error:\n{tenscript_error}");
+                            plan_runner.disable(tenscript_error);
+                            break;
+                        }
                     }
                 }
             }
@@ -96,14 +105,14 @@ impl Crucible {
             Tinkering(tinkerer) => {
                 let iterations = if paused { 1 } else { self.iterations_per_frame };
                 for _ in 0..iterations {
-                    if let Some(tinker_action) = tinkerer.iterate(&mut self.fabric) {
+                    if let Some(tinker_action) = tinkerer.iterate(&mut self.fabric, brick_library) {
                         actions.push(tinker_action);
                     }
                 }
             }
-            PretensingLaunch(surface_character) => {
+            PretensingLaunch(pretense_phase) => {
                 actions.push(Action::Scene(SceneAction::Variant(SceneVariant::Pretensing)));
-                self.stage = Pretensing(Pretenser::new(PRETENST_FACTOR, *surface_character))
+                self.stage = Pretensing(Pretenser::new(pretense_phase.clone()))
             }
             Pretensing(pretenser) => {
                 for _ in 0..self.iterations_per_frame {
@@ -132,13 +141,13 @@ impl Crucible {
 
     pub fn action(&mut self, crucible_action: CrucibleAction) {
         match crucible_action {
-            BakeBrick(brick_index) => {
-                let oven = Oven::new(brick_index);
+            BakeBrick(prototype) => {
+                let oven = Oven::new(prototype);
                 self.fabric = oven.prototype_fabric();
                 self.stage = BakingBrick(oven);
             }
             BuildFabric(fabric_plan) => {
-                self.fabric = Fabric::default_bow_tie();
+                self.fabric = Fabric::default();
                 self.stage = RunningPlan(PlanRunner::new(fabric_plan));
             }
             Tinkerer(tinkerer_action) => {
@@ -151,7 +160,7 @@ impl Crucible {
                 let Experimenting(lab) = &mut self.stage else {
                     panic!("must be experimenting");
                 };
-                lab.action(lab_action);
+                lab.action(lab_action, &mut self.fabric);
             }
             SetSpeed(iterations_per_frame) => {
                 self.iterations_per_frame = iterations_per_frame;
@@ -159,11 +168,17 @@ impl Crucible {
             RevertTo(frozen) => {
                 self.fabric = frozen;
             }
-            StartPretensing(surface_character) => {
-                self.stage = PretensingLaunch(surface_character);
+            StartPretensing(pretenst_phase) => {
+                self.stage = PretensingLaunch(pretenst_phase);
             }
             StartTinkering => {
                 self.stage = TinkeringLaunch;
+            }
+            ActivateMuscles(increment) => {
+                let Experimenting(lab) = &mut self.stage else {
+                    panic!("must be experimenting");
+                };
+                lab.action(LabAction::MuscleTest(increment), &mut self.fabric);
             }
         }
     }

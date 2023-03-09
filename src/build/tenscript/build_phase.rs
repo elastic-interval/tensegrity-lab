@@ -3,6 +3,7 @@ use std::convert::Into;
 use pest::iterators::Pair;
 
 use crate::build::tenscript::{FaceAlias, FaceMark, TenscriptError};
+use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::build_phase::BuildNode::{*};
 use crate::build::tenscript::build_phase::Launch::{*};
 use crate::build::tenscript::Rule;
@@ -34,6 +35,7 @@ pub enum BuildNode {
     Branch {
         alias: FaceAlias,
         rotation: usize,
+        scale_factor: f32,
         face_nodes: Vec<BuildNode>,
     },
 }
@@ -141,12 +143,17 @@ impl BuildPhase {
             Rule::branch => {
                 let mut inner = pair.into_inner();
                 let alias = FaceAlias::from_pair(inner.next().unwrap());
+                let mut scale = None;
                 let mut face_nodes = Vec::new();
                 let mut rotation = 0;
                 for node_pair in inner {
                     match node_pair.as_rule() {
                         Rule::face_rotation => {
                             rotation += 1;
+                        }
+                        Rule::scale => {
+                            let parsed_scale = TenscriptError::parse_float_inside(node_pair, "branch/scale")?;
+                            scale = Some(parsed_scale);
                         }
                         Rule::on_face => {
                             let node = Self::parse_build_node(node_pair)?;
@@ -155,7 +162,8 @@ impl BuildPhase {
                         _ => unreachable!("{:?}", node_pair)
                     }
                 }
-                Ok(Branch { alias, rotation, face_nodes })
+                let scale_factor = scale.unwrap_or(1.0);
+                Ok(Branch { alias, rotation, face_nodes, scale_factor })
             }
             _ => unreachable!("node {:?}", pair.as_rule()),
         }
@@ -171,35 +179,37 @@ impl BuildPhase {
         }
     }
 
-    pub fn init(&mut self, fabric: &mut Fabric) {
+    pub fn init(&mut self, fabric: &mut Fabric, brick_library: &BrickLibrary) -> Result<(), TenscriptError> {
         let (buds, marks) =
-            Self::execute_node(fabric, Scratch, &self.root, vec![]);
+            Self::execute_node(fabric, Scratch, &self.root, vec![], brick_library)?;
         self.buds = buds;
         self.marks = marks;
+        Ok(())
     }
 
     pub fn is_growing(&self) -> bool {
         !self.buds.is_empty()
     }
 
-    pub fn growth_step(&mut self, fabric: &mut Fabric) {
+    pub fn growth_step(&mut self, fabric: &mut Fabric, brick_library: &BrickLibrary) -> Result<(), TenscriptError> {
         let buds = self.buds.clone();
         self.buds.clear();
         for bud in buds {
-            let (new_buds, new_marks) = self.execute_bud(fabric, bud);
+            let (new_buds, new_marks) = self.execute_bud(fabric, bud, brick_library)?;
             self.buds.extend(new_buds);
             self.marks.extend(new_marks);
         }
+        Ok(())
     }
 
-    fn execute_bud(&self, fabric: &mut Fabric, Bud { face_id, forward, scale_factor, node }: Bud) -> (Vec<Bud>, Vec<FaceMark>) {
+    fn execute_bud(&self, fabric: &mut Fabric, Bud { face_id, forward, scale_factor, node }: Bud, brick_library: &BrickLibrary) -> Result<(Vec<Bud>, Vec<FaceMark>), TenscriptError> {
         let (mut buds, mut marks) = (vec![], vec![]);
-        let face = fabric.face(face_id);
+        let face = fabric.expect_face(face_id)?;
         let spin = if forward.starts_with('X') { face.spin.opposite() } else { face.spin };
         if !forward.is_empty() {
             let face_alias = FaceAlias::single("Single") + &spin.into_alias();
             let (base_face, faces) =
-                fabric.create_brick(&face_alias, FaceRotation::Zero, scale_factor, Some(face_id));
+                fabric.create_brick(&face_alias, FaceRotation::Zero, scale_factor, Some(face_id), brick_library);
             fabric.join_faces(base_face, face_id);
             let top_face_alias = face_alias + &FaceAlias::single(":next-base");
             buds.push(Bud {
@@ -210,51 +220,59 @@ impl BuildPhase {
             });
         } else if let Some(node) = node {
             let (node_buds, node_marks) =
-                Self::execute_node(fabric, IdentifiedFace { face_id }, &node, vec![]);
+                Self::execute_node(fabric, IdentifiedFace { face_id }, &node, vec![], brick_library)?;
             buds.extend(node_buds);
             marks.extend(node_marks);
         };
-        (buds, marks)
+        Ok((buds, marks))
     }
 
-    fn execute_node(fabric: &mut Fabric, launch: Launch, node: &BuildNode, faces: Vec<UniqueId>) -> (Vec<Bud>, Vec<FaceMark>) {
+    fn execute_node(fabric: &mut Fabric, launch: Launch, node: &BuildNode, faces: Vec<UniqueId>, brick_library: &BrickLibrary) -> Result<(Vec<Bud>, Vec<FaceMark>), TenscriptError> {
         let mut buds: Vec<Bud> = vec![];
         let mut marks: Vec<FaceMark> = vec![];
         match node {
             Face { alias, node } => {
                 let build_node = node.as_ref();
-                return Self::execute_node(fabric, NamedFace { face_alias: alias.clone() }, build_node, faces);
+                return Self::execute_node(fabric, NamedFace { face_alias: alias.clone() }, build_node, faces, brick_library);
             }
             Grow { forward, scale_factor, post_growth_node, .. } => {
-                let face_id = Self::find_launch_face(&launch, &faces, fabric).unwrap_or_else(|| panic!("launch face not found: {launch:?}"));
+                let face_id = Self::find_launch_face(&launch, &faces, fabric)?;
+                let face_id = face_id.ok_or(TenscriptError::FaceAlias("grow".to_string()))?;
                 let node = post_growth_node.clone().map(|x| *x);
                 buds.push(Bud { face_id, forward: forward.clone(), scale_factor: *scale_factor, node })
             }
-            Branch { face_nodes, rotation, alias } => {
-                let launch_face = Self::find_launch_face(&launch, &faces, fabric);
-                let (base_face_id, brick_faces) = 
-                    fabric.create_brick(alias, rotation.into(), 1.0, launch_face);
-                launch_face.map(|face_id| fabric.join_faces(base_face_id, face_id));
+            Branch { face_nodes, rotation, alias, scale_factor } => {
+                let launch_face = Self::find_launch_face(&launch, &faces, fabric)?;
+                let (base_face_id, brick_faces) =
+                    fabric.create_brick(alias, rotation.into(), *scale_factor, launch_face, brick_library);
+                if let Some(face_id) = launch_face { fabric.join_faces(base_face_id, face_id) }
                 for (branch_face_alias, branch_node) in Self::branch_pairs(face_nodes) {
                     let (new_buds, new_marks) =
-                        Self::execute_node(fabric, NamedFace { face_alias: branch_face_alias }, branch_node, brick_faces.clone());
+                        Self::execute_node(fabric, NamedFace { face_alias: branch_face_alias },
+                                           branch_node, brick_faces.clone(), brick_library)?;
                     buds.extend(new_buds);
                     marks.extend(new_marks);
                 }
             }
             Mark { mark_name } => {
-                let face_id = Self::find_launch_face(&launch, &faces, fabric).expect("cannot mark from scratch");
+                let maybe_face_id = Self::find_launch_face(&launch, &faces, fabric)?;
+                let face_id = maybe_face_id.ok_or(TenscriptError::Mark(mark_name.clone()))?;
                 marks.push(FaceMark { face_id, mark_name: mark_name.clone() });
             }
         };
-        (buds, marks)
+        Ok((buds, marks))
     }
 
-    fn find_launch_face(launch: &Launch, faces: &[UniqueId], fabric: &Fabric) -> Option<UniqueId> {
+    fn find_launch_face(launch: &Launch, faces: &[UniqueId], fabric: &Fabric) -> Result<Option<UniqueId>, TenscriptError> {
         match launch {
-            Scratch => None,
-            NamedFace { face_alias } => face_alias.find_face_in(faces, fabric),
-            IdentifiedFace { face_id } => Some(*face_id),
+            Scratch => Ok(None),
+            NamedFace { face_alias } => {
+                match face_alias.find_face_in(faces, fabric) {
+                    None => Err(TenscriptError::FaceAlias(face_alias.to_string())),
+                    Some(face_alias) => Ok(Some(face_alias)),
+                }
+            },
+            IdentifiedFace { face_id } => Ok(Some(*face_id)),
         }
     }
 
