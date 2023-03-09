@@ -1,10 +1,10 @@
 use cgmath::{EuclideanSpace, Point3, Transform, Vector3};
 
-use crate::build::brick::{Baked, BrickFace};
 use crate::build::tenscript::{FaceAlias, Spin};
+use crate::build::tenscript::brick::{Baked, BakedInterval, BrickFace};
+use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::fabric::face::{Face, FaceRotation};
-use crate::fabric::interval::Role;
 
 const ROOT3: f32 = 1.732_050_8;
 const ROOT5: f32 = 2.236_068;
@@ -18,6 +18,7 @@ impl Fabric {
         rotation: FaceRotation,
         scale_factor: f32,
         face_id: Option<UniqueId>,
+        brick_library: &BrickLibrary,
     ) -> (UniqueId, Vec<UniqueId>) {
         let face = face_id.map(|id| self.face(id));
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
@@ -29,7 +30,7 @@ impl Fabric {
             None => face_alias.with_seed(),
             Some(spin_alias) => spin_alias + face_alias,
         };
-        let brick = Baked::new_brick(&search_alias);
+        let brick = brick_library.new_brick(&search_alias);
         let matrix = face.map(|face| face.vector_space(self, rotation));
         let joints: Vec<usize> = brick.joints
             .into_iter()
@@ -38,13 +39,10 @@ impl Fabric {
                 Some(matrix) => matrix.transform_point(point),
             }))
             .collect();
-        for (alpha, omega, role, strain) in brick.intervals {
-            let (alpha_index, omega_index) = (joints[alpha], joints[omega]);
+        for BakedInterval { alpha_index, omega_index, material_name, strain } in brick.intervals {
+            let (alpha_index, omega_index) = (joints[alpha_index], joints[omega_index]);
             let ideal = self.ideal(alpha_index, omega_index, strain);
-            self.create_interval(alpha_index, omega_index, match role {
-                Role::Push => Link::push(ideal),
-                Role::Pull => Link::pull(ideal),
-            });
+            self.create_interval(alpha_index, omega_index, Link { ideal, material_name });
         }
         let brick_faces = brick.faces
             .into_iter()

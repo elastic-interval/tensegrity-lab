@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::collections::HashSet;
 
 use iced_wgpu::Renderer;
 use iced_winit::{Alignment, Color, Command, Element, Length, Program};
@@ -8,13 +7,11 @@ use iced_winit::widget::{Column, Row, Text};
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
 
-use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::physics::presets::AIR_GRAVITY;
-use crate::scene::SceneVariant;
-use crate::scene::SceneVariant::{Suspended, TinkeringOnFaces};
-use crate::user_interface::{Action, ControlMessage};
+use crate::user_interface::{Action, ControlMessage, MenuEnvironment};
 use crate::user_interface::gravity::{Gravity, GravityMessage};
-use crate::user_interface::keyboard::Keyboard;
+use crate::user_interface::keyboard::{Keyboard, KeyboardMessage};
+use crate::user_interface::muscle::Muscle;
 use crate::user_interface::strain_threshold::StrainThreshold;
 use crate::user_interface::strain_threshold::StrainThresholdMessage::SetStrainLimits;
 
@@ -23,25 +20,26 @@ pub enum VisibleControl {
     #[default]
     Nothing,
     Gravity,
+    Muscle,
     StrainThreshold,
 }
 
-#[derive(Debug)]
 pub struct ControlState {
     debug_mode: bool,
     keyboard: Keyboard,
     visible_control: VisibleControl,
     strain_threshold: StrainThreshold,
     gravity: Gravity,
+    muscle: Muscle,
     show_strain: bool,
     frame_rate: f64,
     action_queue: RefCell<Vec<Action>>,
 }
 
-impl Default for ControlState {
-    fn default() -> Self {
+impl ControlState {
+    pub fn new(environment: MenuEnvironment) -> Self {
         Self {
-            keyboard: Keyboard::default(),
+            keyboard: Keyboard::new(environment),
             debug_mode: false,
             visible_control: VisibleControl::Nothing,
             strain_threshold: StrainThreshold {
@@ -49,14 +47,13 @@ impl Default for ControlState {
                 strain_limits: (0.0, 1.0),
             },
             gravity: Gravity::new(AIR_GRAVITY.gravity),
+            muscle: Muscle::new(),
             show_strain: false,
             frame_rate: 0.0,
             action_queue: RefCell::new(Vec::new()),
         }
     }
-}
 
-impl ControlState {
     pub fn take_actions(&self) -> Vec<Action> {
         self.action_queue.borrow_mut().split_off(0)
     }
@@ -67,19 +64,6 @@ impl ControlState {
 
     pub fn show_strain(&self) -> bool {
         self.show_strain
-    }
-
-    pub fn scene_variant(&self, face_set: HashSet<UniqueId>) -> SceneVariant {
-        if self.show_strain {
-            SceneVariant::ShowingStrain {
-                threshold: self.strain_threshold.strain_threshold(),
-                material: Fabric::BOW_TIE_MATERIAL_INDEX,
-            }
-        } else if face_set.is_empty() {
-            Suspended
-        } else {
-            TinkeringOnFaces(face_set)
-        }
     }
 
     pub fn show_controls(&self) -> VisibleControl {
@@ -124,7 +108,7 @@ impl Program for ControlState {
                         self.show_strain = false;
                     }
                 }
-                queue_action(Some(Action::ControlChange));
+                queue_action(Some(Action::UpdateMenu));
             }
             ControlMessage::Keyboard(message) => {
                 queue_action(self.keyboard.update(message));
@@ -135,8 +119,14 @@ impl Program for ControlState {
             ControlMessage::Gravity(message) => {
                 queue_action(self.gravity.update(message));
             }
+            ControlMessage::Muscle(message) => {
+                queue_action(self.muscle.update(message));
+            }
             ControlMessage::FrameRateUpdated(frame_rate) => {
                 self.frame_rate = frame_rate;
+            }
+            ControlMessage::FreshLibrary(library) => {
+                self.keyboard.update(KeyboardMessage::FreshLibrary(library));
             }
         }
         Command::none()
@@ -171,6 +161,7 @@ impl Program for ControlState {
                         VisibleControl::Nothing => Row::new().into(),
                         VisibleControl::StrainThreshold => self.strain_threshold.element(),
                         VisibleControl::Gravity => self.gravity.element(),
+                        VisibleControl::Muscle => self.muscle.element(),
                     }
                 )
                 .push(

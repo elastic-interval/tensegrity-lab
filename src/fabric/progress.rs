@@ -10,7 +10,7 @@ impl Progress {
         self.limit = countdown;
     }
 
-    pub(crate) fn step(&mut self) -> bool { // true if it takes the final step
+    pub fn step(&mut self) -> bool { // true if it takes the final step
         let count = self.count + 1;
         if count > self.limit {
             return false;

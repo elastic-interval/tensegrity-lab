@@ -23,7 +23,6 @@ pub mod face;
 pub mod interval;
 pub mod joint;
 pub mod physics;
-pub mod pretenser;
 pub mod progress;
 pub mod vulcanize;
 pub mod lab;
@@ -32,6 +31,7 @@ pub mod lab;
 pub struct Fabric {
     pub age: u64,
     pub progress: Progress,
+    pub muscle_nuance: f32,
     pub joints: Vec<Joint>,
     pub intervals: HashMap<UniqueId, Interval>,
     pub faces: HashMap<UniqueId, Face>,
@@ -44,16 +44,24 @@ impl Default for Fabric {
         Fabric {
             age: 0,
             progress: Progress::default(),
+            muscle_nuance: 0.5,
             joints: Vec::new(),
             intervals: HashMap::new(),
             faces: HashMap::new(),
-            materials: DEFAULT_MATERIALS.into(),
+            materials: MATERIALS.into(),
             unique_id: 0,
         }
     }
 }
 
 impl Fabric {
+    pub fn material(&self, sought_name: String) -> usize {
+        self.materials
+            .iter()
+            .position(|&Material{name,..}| name == sought_name)
+            .unwrap_or_else(|| panic!("missing material {sought_name}"))
+    }
+
     pub fn create_joint(&mut self, point: Point3<f32>) -> usize {
         let index = self.joints.len();
         self.joints.push(Joint::new(point));
@@ -78,9 +86,10 @@ impl Fabric {
         distance / (1.0 + strain)
     }
 
-    pub fn create_interval(&mut self, alpha_index: usize, omega_index: usize, Link { ideal, material }: Link) -> UniqueId {
+    pub fn create_interval(&mut self, alpha_index: usize, omega_index: usize, Link { ideal, material_name: material }: Link) -> UniqueId {
         let id = self.create_id();
         let initial = self.joints[alpha_index].location.distance(self.joints[omega_index].location);
+        let material = self.material(material);
         let interval = Interval::new(alpha_index, omega_index, material, Approaching { initial, length: ideal });
         self.intervals.insert(id, interval);
         id
@@ -206,7 +215,7 @@ impl Fabric {
             joint.reset();
         }
         for interval in self.intervals.values_mut() {
-            interval.iterate(&mut self.joints, &self.materials, &self.progress, physics);
+            interval.iterate(&mut self.joints, &self.materials, &self.progress, self.muscle_nuance, physics);
         }
         let mut max_speed_squared = 0.0;
         for joint in &mut self.joints {
@@ -245,35 +254,52 @@ impl Fabric {
 #[derive(Clone, Debug, Copy, PartialEq, Default, Hash, Eq, Ord, PartialOrd)]
 pub struct UniqueId(usize);
 
-#[derive(Clone, Debug, Copy)]
-pub struct Link {
-    ideal: f32,
-    material: usize,
-}
-
-const DEFAULT_MATERIALS: [Material; 2] = [
+const MATERIALS: [Material;5] = [
     Material {
+        name: ":push",
         role: Push,
         stiffness: 3.0,
         mass: 1.0,
     },
     Material {
+        name: ":pull",
         role: Pull,
         stiffness: 1.0,
         mass: 0.1,
     },
+    Material {
+        name: ":bow-tie",
+        role: Pull,
+        stiffness: 0.7,
+        mass: 0.1,
+    },
+    Material {
+        name: ":north",
+        role: Pull,
+        stiffness: 0.5,
+        mass: 0.01,
+    },
+    Material {
+        name: ":south",
+        role: Pull,
+        stiffness: 0.5,
+        mass: 0.01,
+    }
 ];
 
-const DEFAULT_PUSH_MATERIAL: usize = 0;
-const DEFAULT_PULL_MATERIAL: usize = 1;
+#[derive(Clone, Debug)]
+pub struct Link {
+    pub ideal: f32,
+    pub material_name: String,
+}
 
 impl Link {
     pub fn push(ideal: f32) -> Self {
-        Self { ideal, material: DEFAULT_PUSH_MATERIAL }
+        Self { ideal, material_name: ":push".to_string() }
     }
 
     pub fn pull(ideal: f32) -> Self {
-        Self { ideal, material: DEFAULT_PULL_MATERIAL }
+        Self { ideal, material_name: ":pull".to_string() }
     }
 }
 

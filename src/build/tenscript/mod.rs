@@ -2,25 +2,30 @@
 
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
-use std::fs;
+use std::io::Error as IOError;
 use std::ops::Add;
 
-use pest::error::Error;
+use pest::error::Error as PestError;
 use pest::iterators::Pair;
-use pest::Parser;
 use pest_derive::Parser;
 
-use brick::BrickDefinition;
 pub use fabric_plan::FabricPlan;
 
-use crate::build::brick;
 use crate::build::tenscript::build_phase::BuildPhase;
 use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::face::Face;
+use crate::fabric::interval::Span;
+use crate::fabric::interval::Span::Muscle;
 
+pub mod brick;
+pub mod brick_library;
+pub mod build_phase;
+pub mod fabric_library;
 pub mod fabric_plan;
 pub mod plan_runner;
-mod shape_phase;
-mod build_phase;
+pub mod pretense_phase;
+pub mod pretenser;
+pub mod shape_phase;
 
 #[derive(Parser)]
 #[grammar = "build/tenscript/tenscript.pest"] // relative to src
@@ -28,9 +33,12 @@ pub struct TenscriptParser;
 
 #[derive(Debug)]
 pub enum TenscriptError {
-    Pest(Error<Rule>),
+    FileRead(IOError),
+    Pest(PestError<Rule>),
     Format(String),
     Invalid(String),
+    FaceAlias(String),
+    Mark(String),
 }
 
 impl TenscriptError {
@@ -48,12 +56,41 @@ impl TenscriptError {
     }
 }
 
+impl Fabric {
+    pub fn expect_face(&self, face_id: UniqueId) -> Result<&Face, TenscriptError> {
+        self.faces.get(&face_id).ok_or(TenscriptError::Invalid("Face missing".to_string()))
+    }
+
+    pub fn activate_muscles(&mut self, shortening: f32) {
+        self.muscle_nuance = 0.5;
+        let north_material = self.material(":north".to_string());
+        let south_material = self.material(":south".to_string());
+        for interval in self.intervals.values_mut() {
+            let Span::Fixed { length } = interval.span else {
+                continue;
+            };
+            let divergence = length * shortening;
+            let low = length - divergence;
+            let high = length + divergence;
+            if interval.material == north_material {
+                interval.span = Muscle { min: low, max: high };
+            }
+            if interval.material == south_material {
+                interval.span = Muscle { min: high, max: low };
+            }
+        }
+    }
+}
+
 impl Display for TenscriptError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            TenscriptError::FileRead(error) => write!(f, "file read error: {error}"),
             TenscriptError::Pest(error) => write!(f, "parse error: {error}"),
             TenscriptError::Format(error) => write!(f, "format: {error}"),
             TenscriptError::Invalid(warning) => write!(f, "warning: {warning}"),
+            TenscriptError::FaceAlias(name) => write!(f, "alias: {name}"),
+            TenscriptError::Mark(name) => write!(f, "mark: {name}"),
         }
     }
 }
@@ -186,49 +223,6 @@ pub struct FaceMark {
     mark_name: String,
 }
 
-#[derive(Clone, Default, Debug)]
-pub struct Library {
-    pub(crate) fabrics: Vec<FabricPlan>,
-    pub(crate) bricks: Vec<BrickDefinition>,
-}
-
-impl Library {
-    pub fn standard() -> Self {
-        let source = fs::read_to_string("src/build/tenscript/library.scm").unwrap();
-        match Self::from_tenscript(&source) {
-            Ok(library) => library,
-            Err(TenscriptError::Pest(error)) => panic!("pest parse error: \n{error}"),
-            Err(error) => panic!("{error:?}")
-        }
-    }
-
-    pub fn from_tenscript(source: &str) -> Result<Self, TenscriptError> {
-        let pair = TenscriptParser::parse(Rule::library, source)
-            .map_err(TenscriptError::Pest)?
-            .next()
-            .expect("no (library ..)");
-        Self::from_pair(pair)
-    }
-
-    fn from_pair(pair: Pair<Rule>) -> Result<Self, TenscriptError> {
-        let mut library = Self::default();
-        for definition in pair.into_inner() {
-            match definition.as_rule() {
-                Rule::fabric_plan => {
-                    let fabric_plan = FabricPlan::from_pair(definition)?;
-                    library.fabrics.push(fabric_plan);
-                }
-                Rule::brick_definition => {
-                    let brick = BrickDefinition::from_pair(definition)?;
-                    library.bricks.push(brick);
-                }
-                _ => unreachable!()
-            }
-        }
-        Ok(library)
-    }
-}
-
 pub fn parse_name(pair: Pair<Rule>) -> Vec<String> {
     assert_eq!(pair.as_rule(), Rule::name);
     pair
@@ -248,16 +242,5 @@ pub fn into_atom(name: String) -> String {
         name
     } else {
         format!(":{name}")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::build::tenscript::Library;
-
-    #[test]
-    fn parse_test() {
-        let plans = Library::standard();
-        println!("{plans:?}")
     }
 }

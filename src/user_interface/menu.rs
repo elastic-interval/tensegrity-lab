@@ -1,9 +1,11 @@
 use std::collections::HashSet;
+use std::fmt::{Debug, Formatter};
 
 use winit::event::VirtualKeyCode;
 use winit::event::VirtualKeyCode::{*};
 
-use crate::build::tenscript::{FabricPlan, FaceAlias, Library};
+use crate::build::tenscript::{FabricPlan, FaceAlias};
+use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::crucible::{CrucibleAction, TinkererAction};
 use crate::fabric::face::FaceRotation;
 use crate::fabric::physics::SurfaceCharacter;
@@ -12,14 +14,20 @@ use crate::user_interface::{Action, MenuAction, MenuEnvironment};
 use crate::user_interface::control_state::VisibleControl;
 use crate::user_interface::MenuAction::{*};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MaybeMenu {
-    exists_in: fn(MenuEnvironment) -> bool,
+    exists_in: fn(&MenuEnvironment) -> bool,
     menu: Menu,
 }
 
+impl Debug for MaybeMenu {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Maybe{:?}", self.menu)
+    }
+}
+
 impl MaybeMenu {
-    pub fn menu_in(&self, environment: MenuEnvironment) -> Option<Menu> {
+    pub fn menu_in(&self, environment: &MenuEnvironment) -> Option<Menu> {
         (self.exists_in)(environment).then_some(self.menu.clone())
     }
 }
@@ -51,7 +59,7 @@ impl Menu {
         }
     }
 
-    pub fn submenu(self, exists_in: fn(MenuEnvironment) -> bool, menu: Menu) -> Self {
+    pub fn submenu(self, exists_in: fn(&MenuEnvironment) -> bool, menu: Menu) -> Self {
         let mut new = self;
         new.submenu.push(
             MaybeMenu {
@@ -68,7 +76,7 @@ impl Menu {
         new
     }
 
-    pub fn action(self, label: &str, menu_action: MenuAction, exists_in: fn(MenuEnvironment) -> bool, action: Action) -> Self {
+    pub fn action(self, label: &str, menu_action: MenuAction, exists_in: fn(&MenuEnvironment) -> bool, action: Action) -> Self {
         let maybe = MaybeMenu {
             exists_in,
             menu: Menu {
@@ -84,7 +92,7 @@ impl Menu {
         new
     }
 
-    pub fn submenu_in(&self, environment: MenuEnvironment) -> Vec<Menu> {
+    pub fn submenu_in(&self, environment: &MenuEnvironment) -> Vec<Menu> {
         let mut used = HashSet::new();
         let sub: Vec<_> = self.submenu
             .clone()
@@ -138,7 +146,7 @@ impl Menu {
         }
     }
 
-    fn fabric_menu(fabrics: &[FabricPlan]) -> Menu {
+    pub fn fabric_menu(fabrics: &[FabricPlan]) -> Menu {
         Self::fabric_menu_recurse(Menu::new("Tensegrity menu", UpOneLevel), fabrics, Vec::new())
     }
 
@@ -150,9 +158,15 @@ impl Menu {
         menu
     }
 
-    pub fn root_menu() -> Menu {
+    pub fn root_menu(fabric_menu: Menu) -> Menu {
         Menu::new("Welcome", StickAround)
-            .submenu(ALWAYS, Menu::fabric_menu(&Library::standard().fabrics))
+            .submenu(ALWAYS, fabric_menu)
+            .action("Muscle test", StickAround,
+                    |env| env.experimenting,
+                    Action::Crucible(CrucibleAction::ActivateMuscles(1.0 / 10000.0)))
+            .action("Muscle control", StickAround,
+                    |env| env.experimenting && env.visible_control != VisibleControl::Muscle,
+                    Action::ShowControl(VisibleControl::Muscle))
             .action("Gravity control", StickAround,
                     |env| env.experimenting && env.visible_control != VisibleControl::Gravity,
                     Action::ShowControl(VisibleControl::Gravity))
@@ -202,9 +216,13 @@ impl Menu {
             .submenu(
                 ALWAYS, Menu::new("Finish", StickAround)
                     .action("Sticky surface", ReturnToRoot, ALWAYS,
-                            Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Frozen)))
+                            Action::Crucible(
+                                CrucibleAction::StartPretensing(
+                                    PretensePhase::new(SurfaceCharacter::Frozen))))
                     .action("Bouncy surface", ReturnToRoot, ALWAYS,
-                            Action::Crucible(CrucibleAction::StartPretensing(SurfaceCharacter::Bouncy)))
+                            Action::Crucible(
+                                CrucibleAction::StartPretensing(
+                                    PretensePhase::new(SurfaceCharacter::Bouncy))))
                     .action("Not yet", UpOneLevel, ALWAYS,
                             Action::Keyboard(StickAround)),
             )
@@ -257,4 +275,4 @@ fn to_key_code(ch: char) -> Option<VirtualKeyCode> {
     })
 }
 
-const ALWAYS: fn(MenuEnvironment) -> bool = |_| true;
+const ALWAYS: fn(&MenuEnvironment) -> bool = |_| true;

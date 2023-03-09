@@ -1,32 +1,46 @@
-library =
-    { "(" ~ "library" ~ fabric_plan* ~ brick_definition* ~ ")" }
+brick_library =
+    { "(" ~ "brick-library" ~ fabric_plan* ~ brick_definition* ~ ")" }
+fabric_library =
+    { "(" ~ "fabric-library" ~ fabric_plan* ~ brick_definition* ~ ")" }
 
 fabric_plan =
-    { "(" ~ "fabric" ~ name ~ build ~ shape ~ ")" }
+    { "(" ~ "fabric" ~ name ~ build ~ shape? ~ pretense? ~ ")" }
 name =
     { "(" ~ "name" ~ string+ ~ ")" }
 shape =
     { "(" ~ "shape" ~ shape_operation* ~ ")" }
 basic_shape_operation =
-    { space | join | vulcanize | remove_shapers | replace_faces | set_viscosity | bouncy }
+    { spacer | joiner | vulcanize | remove_spacers | faces_to_triangles | set_viscosity | down }
 shape_operation =
-    { basic_shape_operation | countdown_block }
-countdown_block = // iteration-count
-    { "(" ~ "countdown" ~ integer ~ basic_shape_operation+ ~ ")" }
-space = // mark-name, spacing-factor
+    { basic_shape_operation | during_count }
+during_count = // iteration-count
+    { "(" ~ "during" ~ integer ~ basic_shape_operation+ ~ ")" }
+spacer = // mark-name, spacing-factor
     { "(" ~ "space" ~ atom ~ float ~ ")" }
-join = // mark-name
+joiner = // mark-name
     { "(" ~ "join" ~ atom ~ ")" }
-remove_shapers = // shaper-names
-    { "(" ~ "remove-shapers" ~ atom* ~ ")" }
+down = // mark-name
+    { "(" ~ "down" ~ atom ~ ")" }
+remove_spacers = // spacer-names
+    { "(" ~ "remove-spacers" ~ atom* ~ ")" }
 set_viscosity =
     { "(" ~ "set-viscosity" ~ float ~ ")" }
 vulcanize =
     { "(" ~ "vulcanize" ~ ")" }
-bouncy =
-    { "(" ~ "bouncy" ~ ")" }
-replace_faces =
-    { "(" ~ "replace-faces" ~ ")" }
+pretense =
+    { "(" ~ "pretense" ~ pretense_feature* ~ ")" }
+pretense_feature =
+    { surface | muscle | pretense_factor }
+surface =
+    { "(" ~ "surface" ~ surface_character ~ ")" }
+surface_character =
+    { ":frozen" | ":bouncy" | ":absent" }
+muscle =
+    { "(" ~ "muscle" ~ float ~ ")" }
+pretense_factor =
+    { "(" ~ "pretense-factor" ~ float ~ ")" }
+faces_to_triangles =
+    { "(" ~ "faces-to-triangles" ~ ")" }
 build =
     { "(" ~ "build" ~ branch ~ ")" }
 build_node =
@@ -38,7 +52,7 @@ grow =
 mark =
     { "(" ~ "mark" ~ atom ~ ")" }
 branch =
-    { "(" ~ "branch" ~ partial_alias ~ face_rotation* ~ on_face* ~ ")" }
+    { "(" ~ "branch" ~ partial_alias ~ scale? ~ face_rotation* ~ on_face* ~ ")" }
 face_rotation =
     { "(" ~ "rotate" ~ ")" }
 scale =
@@ -60,8 +74,8 @@ push_proto = // alpha, omega
     { "(" ~ "push" ~ atom ~ atom ~ ")" }
 pulls_proto = // ideal
     { "(" ~ "pulls" ~ float ~ pull_proto+ ~ ")" }
-pull_proto = // alpha, omega
-    { "(" ~ "pull" ~ atom ~ atom ~ ")" }
+pull_proto = // alpha, omega, material-name
+    { "(" ~ "pull" ~ atom ~ atom ~ atom ~ ")" }
 faces_proto =
     { "(" ~ "faces" ~ face_proto+ ~ ")" }
 left = { "left" }
@@ -75,11 +89,8 @@ brick_baked =
     { "(" ~ "baked" ~ partial_alias ~ joint_baked+ ~ interval_baked+ ~ face_baked+ ~ ")" }
 joint_baked = // x, y, z
     { "(" ~ "joint" ~ float ~ float ~ float ~ ")" }
-interval_baked = // alpha_index, omega_index, strain
-    { "(" ~ interval_role ~ integer ~ integer ~ float ~ ")" }
-interval_role = { push | pull }
-push = { "push" }
-pull = { "pull" }
+interval_baked = // alpha_index, omega_index, strain, material-name
+    { "(" ~ "interval" ~ integer ~ integer ~ float ~ atom ~ ")" }
 face_baked = // a, b, c, name
     { "(" ~ chirality ~ integer ~ integer ~ integer ~ face_alias* ~ ")" }
 
