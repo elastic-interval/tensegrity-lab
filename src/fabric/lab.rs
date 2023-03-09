@@ -52,7 +52,16 @@ impl Lab {
                 fabric.muscle_nuance = nuance;
             }
             LabAction::MuscleTest(increment) => {
-                self.stage = MuscleCycle(increment)
+                match self.stage {
+                    Standing => {
+                        self.stage = MuscleCycle(increment)
+                    }
+                    MuscleCycle(_) => {
+                        fabric.muscle_nuance = 0.5;
+                        self.stage = Standing
+                    }
+                    _ => {}
+                }
             }
         }
     }
