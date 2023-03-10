@@ -65,7 +65,6 @@ impl PlanRunner {
             GrowCalm =>
                 (GrowStep, 0),
             Shaping => {
-                self.shape_phase.complete_joiners(fabric);
                 match self.shape_phase.shaping_step(fabric)? {
                     ShapeCommand::Noop =>
                         (Shaping, 0),

@@ -9,6 +9,7 @@ use crate::fabric::{Fabric, Link, UniqueId};
 const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 25_000;
 const DEFAULT_VULCANIZE_COUNTDOWN: usize = 5_000;
 
+#[derive(Debug)]
 pub enum ShapeCommand {
     Noop,
     StartCountdown(usize),
@@ -120,7 +121,9 @@ impl ShapePhase {
     }
 
     pub fn shaping_step(&mut self, fabric: &mut Fabric) -> Result<ShapeCommand, TenscriptError> {
-        self.complete_joiners(fabric);
+        if let Some(countdown) = self.complete_joiners(fabric) {
+            return Ok(countdown);
+        }
         let Some(operation) = self.operations.get(self.shape_operation_index) else {
             self.remove_spacers(fabric);
             return Ok(Terminate);
@@ -129,11 +132,14 @@ impl ShapePhase {
         self.execute_shape_operation(fabric, operation.clone())
     }
 
-    pub fn complete_joiners(&mut self, fabric: &mut Fabric) {
+    pub fn complete_joiners(&mut self, fabric: &mut Fabric) -> Option<ShapeCommand> {
+        let mut removed = false;
         for Shaper { interval, alpha_face, omega_face, .. } in self.joiners.split_off(0) {
             fabric.remove_interval(interval);
             fabric.join_faces(alpha_face, omega_face);
+            removed = true;
         }
+        removed.then_some(StartCountdown(30000))
     }
 
     fn execute_shape_operation(&mut self, fabric: &mut Fabric, operation: ShapeOperation) -> Result<ShapeCommand, TenscriptError> {

@@ -48,7 +48,7 @@ pub mod presets {
         surface_character: Frozen,
         gravity: 1e-7,
         antigravity: 1e-3,
-        viscosity: 1e3,
+        viscosity: 1e2,
         drag: 1.0 - 1e-5,
         stiffness: 1e-2,
     };

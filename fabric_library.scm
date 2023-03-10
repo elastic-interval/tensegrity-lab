@@ -48,13 +48,14 @@
       (faces-to-triangles))
     (pretense (surface :bouncy)))
   (fabric
-    (name "Simple" "Bulge Ring")
+    (name "Simple" "Ring")
     (build
       (branch (alias Single)
-        (face (alias :base) (grow 8 (scale .92) (mark :tip)))
-        (face (alias :next-base) (grow 9 (scale .92) (mark :tip)))))
-    (shape (join :tip))
-    (pretense (surface :bouncy)))
+        (face (alias :base) (grow 6 (mark :tip)))
+        (face (alias :next-base) (grow 5 (mark :tip)))))
+    (shape
+      (during 40000 (join :tip)))
+    (pretense (surface :absent)))
   (fabric
     (name "Art" "Halo by Crane")
     (build
@@ -70,27 +71,33 @@
       (vulcanize)
       (faces-to-triangles)))
   (fabric
-    (name "Art" "K-10")
+    (name "Art" "Pulsating Pavilion")
     (build
       (branch (alias Torque)
         (face (alias Left:Front:Bottom)
-          (branch (alias Torque)
-            (face (alias Far:Front) (grow 3))))
+          (grow 1
+            (branch (alias Torque) (scale .6) (rotate)
+              (face (alias Far:Base) (grow 8 (scale 0.93) (mark :a))))))
         (face (alias Left:Back:Bottom)
-          (branch (alias Torque)
-            (face (alias Far:Front) (grow 3))))
+          (grow 1
+            (branch (alias Torque) (scale .6) (rotate)
+              (face (alias Far:Base) (grow 8 (scale 0.93) (mark :b))))))
         (face (alias Right:Front:Bottom)
           (grow 1
-            (branch (alias Torque) (rotate)
-              (face (alias Far:Base) (grow 2)))))
+            (branch (alias Torque) (scale .6) (rotate)
+              (face (alias Far:Base) (grow 8 (scale 0.93) (mark :b))))))
         (face (alias Right:Back:Bottom)
           (grow 1
-            (branch (alias Torque) (rotate)
-              (face (alias Far:Base) (grow 2)))))))
+            (branch (alias Torque) (scale .6) (rotate)
+              (face (alias Far:Base) (grow 8 (scale 0.93)  (mark :a))))))))
     (shape
-      (vulcanize)
+      (during 35000 (space :a .57) (space :b .57))
+      (during 35000 (vulcanize))
       (faces-to-triangles))
-    (pretense (surface :bouncy)))
+    (pretense
+      (surface :frozen)
+      (muscle 0.2 13000)
+      ))
   (fabric
     (name "Art" "Tommy Torque")
     (build
