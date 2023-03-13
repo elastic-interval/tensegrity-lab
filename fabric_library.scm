@@ -55,7 +55,11 @@
         (face (alias :next-base) (grow 5 (mark :tip)))))
     (shape
       (during 40000 (join :tip)))
-    (finally (surface :absent)))
+    (finally
+      (surface :bouncy)
+      (hanger 7.0 17.5 0.0 (ring 7))
+      (hanger -7.0 17.5 0.0 (ring 1))
+      ))
   (fabric
     (name "Art" "Halo by Crane")
     (build

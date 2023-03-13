@@ -55,6 +55,11 @@ impl TenscriptError {
         Self::parse_float(pair.into_inner().next().unwrap().as_str(), spot)
             .map_err(|error| TenscriptError::Format(format!("Not a float pair: [{error}]")))
     }
+    
+    pub fn parse_usize_inside(pair: Pair<Rule>, spot: &str) -> Result<usize, TenscriptError> {
+        Self::parse_usize(pair.into_inner().next().unwrap().as_str(), spot)
+            .map_err(|error| TenscriptError::Format(format!("Not a usize pair: [{error}]")))
+    }
 }
 
 impl Fabric {

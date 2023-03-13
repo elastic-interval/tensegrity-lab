@@ -161,7 +161,7 @@ impl Fabric {
             .collect();
         let brick_intervals = brick.intervals
             .into_iter()
-            .map(|BakedInterval { alpha_index, omega_index, material_name, strain } |{
+            .map(|BakedInterval { alpha_index, omega_index, material_name, strain }| {
                 let (alpha_index, omega_index) = (joints[alpha_index], joints[omega_index]);
                 let ideal = self.ideal(alpha_index, omega_index, strain);
                 self.create_interval(alpha_index, omega_index, Link { ideal, material_name })
@@ -290,6 +290,9 @@ impl Fabric {
         }
         let mut max_speed_squared = 0.0;
         for joint in &mut self.joints {
+            if joint.location_fixed {
+                continue;
+            }
             let speed_squared = joint.iterate(physics);
             if speed_squared > max_speed_squared {
                 max_speed_squared = speed_squared;
