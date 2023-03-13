@@ -26,6 +26,9 @@ pub enum Span {
         max: f32,
         min: f32,
     },
+    Hanger {
+        length: f32
+    },
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -104,14 +107,14 @@ impl Interval {
 
     pub fn ideal(&self) -> f32 {
         match self.span {
-            Fixed { length, .. } | Approaching { length, .. } => length,
+            Fixed { length } | Hanger { length } | Approaching { length, .. } => length,
             Muscle { max, min, .. } => (max + min) / 2.0,
         }
     }
 
     pub fn iterate(&mut self, joints: &mut [Joint], materials: &[Material], progress: &Progress, muscle_nuance: f32, physics: &Physics) {
         let ideal = match self.span {
-            Fixed { length } => { length }
+            Fixed { length } | Hanger { length } => { length }
             Approaching { initial, length, .. } => {
                 let nuance = progress.nuance();
                 initial * (1.0 - nuance) + length * nuance
@@ -130,9 +133,13 @@ impl Interval {
         };
         let force = self.strain * stiffness * physics.stiffness;
         let force_vector: Vector3<f32> = self.unit * force / 2.0;
-        joints[self.alpha_index].force += force_vector;
-        joints[self.omega_index].force -= force_vector;
         let half_mass = mass * real_length / 2.0;
+        if let Hanger { .. } = self.span {
+            joints[self.alpha_index].interval_mass = 1.0;
+        } else {
+            joints[self.alpha_index].force += force_vector;
+        }
+        joints[self.omega_index].force -= force_vector;
         joints[self.alpha_index].interval_mass += half_mass;
         joints[self.omega_index].interval_mass += half_mass;
     }
