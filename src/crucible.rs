@@ -7,7 +7,7 @@ use crate::build::tenscript::brick::Prototype;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::FabricPlan;
 use crate::build::tenscript::plan_runner::PlanRunner;
-use crate::build::tenscript::pretense_phase::PretensePhase;
+use crate::build::tenscript::final_phase::FinalPhase;
 use crate::build::tenscript::pretenser::Pretenser;
 use crate::build::tinkerer::{BrickOnFace, Tinkerer};
 use crate::crucible::Stage::{*};
@@ -23,7 +23,7 @@ enum Stage {
     RunningPlan(PlanRunner),
     TinkeringLaunch,
     Tinkering(Tinkerer),
-    PretensingLaunch(PretensePhase),
+    PretensingLaunch(FinalPhase),
     Pretensing(Pretenser),
     Experimenting(Lab),
     BakingBrick(Oven),
@@ -52,7 +52,7 @@ pub enum CrucibleAction {
     BuildFabric(FabricPlan),
     SetSpeed(usize),
     RevertTo(Fabric),
-    StartPretensing(PretensePhase),
+    StartPretensing(FinalPhase),
     StartTinkering,
     Tinkerer(TinkererAction),
     Experiment(LabAction),

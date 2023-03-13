@@ -19,7 +19,7 @@
     (shape
       (vulcanize)
       (faces-to-triangles))
-    (pretense (surface :frozen)))
+    (finally (surface :frozen)))
   (fabric
     (name "Simple" "Tetrapod")
     (build
@@ -32,7 +32,7 @@
     (shape
       (vulcanize)
       (faces-to-triangles))
-    (pretense (surface :bouncy)))
+    (finally (surface :bouncy)))
   (fabric
     (name "Simple" "Twist8")
     (build
@@ -46,7 +46,7 @@
       (during 15000 (join :ring-a) (join :ring-b))
       (during 20000 (vulcanize))
       (faces-to-triangles))
-    (pretense (surface :bouncy)))
+    (finally (surface :bouncy)))
   (fabric
     (name "Simple" "Ring")
     (build
@@ -55,7 +55,7 @@
         (face (alias :next-base) (grow 5 (mark :tip)))))
     (shape
       (during 40000 (join :tip)))
-    (pretense (surface :absent)))
+    (finally (surface :absent)))
   (fabric
     (name "Art" "Halo by Crane")
     (build
@@ -94,7 +94,7 @@
       (during 35000 (space :a .57) (space :b .57))
       (during 35000 (vulcanize))
       (faces-to-triangles))
-    (pretense
+    (finally
       (surface :frozen)
       (muscle 0.2 13000)
       ))
@@ -121,7 +121,7 @@
     (shape
       (down :sole)
       (faces-to-triangles))
-    (pretense
+    (finally
       (surface :frozen)
       (muscle 0.3 12000)
       ))
@@ -162,5 +162,5 @@
     (shape
       (join :loose)
       (faces-to-triangles))
-    (pretense (surface :bouncy)))
+    (finally (surface :bouncy)))
   )

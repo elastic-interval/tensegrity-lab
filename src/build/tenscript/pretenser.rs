@@ -1,4 +1,4 @@
-use crate::build::tenscript::pretense_phase::PretensePhase;
+use crate::build::tenscript::final_phase::FinalPhase;
 use crate::fabric::Fabric;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::fabric::physics::presets::AIR_GRAVITY;
@@ -17,19 +17,19 @@ pub struct Pretenser {
     stage: Stage,
     pretensing_countdown: usize,
     speed_threshold: f32,
-    pub pretense_phase: PretensePhase,
+    pub final_phase: FinalPhase,
     pub physics: Physics,
 }
 
 const DEFAULT_PRETENSE_FACTOR: f32 = 1.03;
 
 impl Pretenser {
-    pub fn new(pretense_phase: PretensePhase) -> Self {
-        let surface_character = pretense_phase.surface_character;
+    pub fn new(final_phase: FinalPhase) -> Self {
+        let surface_character = final_phase.surface_character;
         let gravity = if surface_character == SurfaceCharacter::Absent {0.0} else { AIR_GRAVITY.gravity };
         Self {
             stage: Start,
-            pretense_phase,
+            final_phase,
             pretensing_countdown: 20000,
             speed_threshold: 1e-6,
             physics: Physics { surface_character, gravity, ..AIR_GRAVITY },
@@ -40,7 +40,7 @@ impl Pretenser {
         self.stage = match self.stage {
             Start => Slacken,
             Slacken => {
-                let factor = self.pretense_phase.pretense_factor.unwrap_or(DEFAULT_PRETENSE_FACTOR);
+                let factor = self.final_phase.pretense_factor.unwrap_or(DEFAULT_PRETENSE_FACTOR);
                 fabric.prepare_for_pretensing(factor);
                 fabric.progress.start(self.pretensing_countdown);
                 Pretensing
@@ -50,7 +50,7 @@ impl Pretenser {
                 if fabric.progress.is_busy() {
                     Pretensing
                 } else {
-                    if let Some(muscle_movement) = &self.pretense_phase.muscle_movement {
+                    if let Some(muscle_movement) = &self.final_phase.muscle_movement {
                         fabric.activate_muscles(muscle_movement);
                     };
                     Pretenst

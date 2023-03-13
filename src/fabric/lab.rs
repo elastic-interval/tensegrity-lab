@@ -1,4 +1,4 @@
-use crate::build::tenscript::pretense_phase::PretensePhase;
+use crate::build::tenscript::final_phase::FinalPhase;
 use crate::build::tenscript::pretenser::Pretenser;
 use crate::crucible::LabAction;
 use crate::fabric::Fabric;
@@ -15,15 +15,15 @@ enum Stage {
 pub struct Lab {
     stage: Stage,
     physics: Physics,
-    pretense_phase: PretensePhase,
+    final_phase: FinalPhase,
 }
 
 impl Lab {
-    pub fn new(Pretenser { pretense_phase, physics, .. }: Pretenser) -> Self {
+    pub fn new(Pretenser { final_phase, physics, .. }: Pretenser) -> Self {
         Self {
             stage: Start,
             physics,
-            pretense_phase,
+            final_phase,
         }
     }
 
@@ -61,7 +61,7 @@ impl Lab {
             LabAction::MuscleTest => {
                 match self.stage {
                     Standing => {
-                        if let Some(movement) = &self.pretense_phase.muscle_movement {
+                        if let Some(movement) = &self.final_phase.muscle_movement {
                             self.stage = MuscleCycle(1.0 / movement.countdown as f32)
                         }
                     }

@@ -9,13 +9,13 @@ pub struct MuscleMovement{
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct PretensePhase {
+pub struct FinalPhase {
     pub surface_character: SurfaceCharacter,
     pub muscle_movement: Option<MuscleMovement>,
     pub pretense_factor: Option<f32>,
 }
 
-impl PretensePhase {
+impl FinalPhase {
     pub fn new(surface_character: SurfaceCharacter) -> Self {
         Self {
             surface_character,
@@ -24,16 +24,16 @@ impl PretensePhase {
         }
     }
 
-    pub fn from_pair_option(pair: Option<Pair<Rule>>) -> Result<PretensePhase, TenscriptError> {
+    pub fn from_pair_option(pair: Option<Pair<Rule>>) -> Result<FinalPhase, TenscriptError> {
         let Some(pair) = pair else {
-            return Ok(PretensePhase::default());
+            return Ok(FinalPhase::default());
         };
-        Self::parse_pretense(pair)
+        Self::parse_final(pair)
     }
 
-    fn parse_pretense(pair: Pair<Rule>) -> Result<PretensePhase, TenscriptError> {
+    fn parse_final(pair: Pair<Rule>) -> Result<FinalPhase, TenscriptError> {
         match pair.as_rule() {
-            Rule::pretense => {
+            Rule::final_state => {
                 Self::parse_features(pair.into_inner())
             }
             _ => {
@@ -42,11 +42,11 @@ impl PretensePhase {
         }
     }
 
-    fn parse_features(pairs: Pairs<Rule>) -> Result<PretensePhase, TenscriptError> {
-        let mut pretense = PretensePhase::default();
+    fn parse_features(pairs: Pairs<Rule>) -> Result<FinalPhase, TenscriptError> {
+        let mut pretense = FinalPhase::default();
         for feature_pair in pairs {
             match feature_pair.as_rule() {
-                Rule::pretense_feature => {
+                Rule::final_feature => {
                     for pretense_pair in feature_pair.into_inner() {
                         match pretense_pair.as_rule() {
                             Rule::surface => {

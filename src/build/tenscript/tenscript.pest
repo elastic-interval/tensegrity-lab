@@ -4,7 +4,7 @@ fabric_library =
     { "(" ~ "fabric-library" ~ fabric_plan* ~ brick_definition* ~ ")" }
 
 fabric_plan =
-    { "(" ~ "fabric" ~ name ~ build ~ shape? ~ pretense? ~ ")" }
+    { "(" ~ "fabric" ~ name ~ build ~ shape? ~ final_state? ~ ")" }
 name =
     { "(" ~ "name" ~ string+ ~ ")" }
 shape =
@@ -27,9 +27,9 @@ set_viscosity =
     { "(" ~ "set-viscosity" ~ float ~ ")" }
 vulcanize =
     { "(" ~ "vulcanize" ~ ")" }
-pretense =
-    { "(" ~ "pretense" ~ pretense_feature* ~ ")" }
-pretense_feature =
+final_state =
+    { "(" ~ "finally" ~ final_feature* ~ ")" }
+final_feature =
     { surface | muscle | pretense_factor }
 surface =
     { "(" ~ "surface" ~ surface_character ~ ")" }

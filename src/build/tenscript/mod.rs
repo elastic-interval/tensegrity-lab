@@ -12,7 +12,7 @@ use pest_derive::Parser;
 pub use fabric_plan::FabricPlan;
 
 use crate::build::tenscript::build_phase::BuildPhase;
-use crate::build::tenscript::pretense_phase::MuscleMovement;
+use crate::build::tenscript::final_phase::MuscleMovement;
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::Face;
 use crate::fabric::interval::Span;
@@ -24,7 +24,7 @@ pub mod build_phase;
 pub mod fabric_library;
 pub mod fabric_plan;
 pub mod plan_runner;
-pub mod pretense_phase;
+pub mod final_phase;
 pub mod pretenser;
 pub mod shape_phase;
 

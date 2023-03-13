@@ -2,7 +2,7 @@ use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::plan_runner::Stage::{*};
-use crate::build::tenscript::pretense_phase::PretensePhase;
+use crate::build::tenscript::final_phase::FinalPhase;
 use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
 use crate::fabric::Fabric;
 use crate::fabric::physics::Physics;
@@ -22,13 +22,13 @@ pub struct PlanRunner {
     stage: Stage,
     build_phase: BuildPhase,
     shape_phase: ShapePhase,
-    pretense_phase: PretensePhase,
+    pretense_phase: FinalPhase,
     physics: Physics,
     disabled: Option<TenscriptError>,
 }
 
 impl PlanRunner {
-    pub fn new(FabricPlan { shape_phase, build_phase, pretense_phase, .. }: FabricPlan) -> Self {
+    pub fn new(FabricPlan { shape_phase, build_phase, final_phase: pretense_phase, .. }: FabricPlan) -> Self {
         Self {
             shape_phase,
             build_phase,
@@ -94,7 +94,7 @@ impl PlanRunner {
         self.stage == Completed
     }
 
-    pub fn pretense_phase(&self) -> PretensePhase {
+    pub fn pretense_phase(&self) -> FinalPhase {
         self.pretense_phase.clone()
     }
 }

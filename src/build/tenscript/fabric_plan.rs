@@ -6,7 +6,7 @@ use pest::iterators::Pair;
 
 use crate::build::tenscript::{BuildPhase, parse_name, Rule, TenscriptError};
 use crate::build::tenscript::build_phase::BuildNode;
-use crate::build::tenscript::pretense_phase::PretensePhase;
+use crate::build::tenscript::final_phase::FinalPhase;
 use crate::build::tenscript::shape_phase::{ShapeOperation, ShapePhase};
 
 #[derive(Debug, Clone)]
@@ -14,7 +14,7 @@ pub struct FabricPlan {
     pub name: Vec<String>,
     pub build_phase: BuildPhase,
     pub shape_phase: ShapePhase,
-    pub pretense_phase: PretensePhase,
+    pub final_phase: FinalPhase,
 }
 
 impl FabricPlan {
@@ -24,8 +24,8 @@ impl FabricPlan {
         let name = parse_name(name);
         let build_phase = BuildPhase::from_pair(build)?;
         let shape_phase = ShapePhase::from_pair_option(inner.next())?;
-        let pretense_phase = PretensePhase::from_pair_option(inner.next())?;
-        let plan = FabricPlan { name, build_phase, shape_phase, pretense_phase };
+        let pretense_phase = FinalPhase::from_pair_option(inner.next())?;
+        let plan = FabricPlan { name, build_phase, shape_phase, final_phase: pretense_phase };
         Self::validate_fabric_plan(&plan)?;
         Ok(plan)
     }
