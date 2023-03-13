@@ -10,7 +10,9 @@ use cgmath::{EuclideanSpace, Matrix4, MetricSpace, Point3, Transform, Vector3};
 use cgmath::num_traits::zero;
 
 use crate::build::tenscript::{FaceAlias, Spin};
-use crate::fabric::face::Face;
+use crate::build::tenscript::brick::{Baked, BakedInterval, BrickFace};
+use crate::build::tenscript::brick_library::BrickLibrary;
+use crate::fabric::face::{Face, FaceRotation};
 use crate::fabric::interval::{Interval, Material};
 use crate::fabric::interval::Role::{Pull, Push};
 use crate::fabric::interval::Span::{Approaching, Fixed};
@@ -18,7 +20,6 @@ use crate::fabric::joint::Joint;
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
 
-pub mod brick;
 pub mod face;
 pub mod interval;
 pub mod joint;
@@ -35,6 +36,8 @@ pub struct Fabric {
     pub joints: Vec<Joint>,
     pub intervals: HashMap<UniqueId, Interval>,
     pub faces: HashMap<UniqueId, Face>,
+    pub rings: Vec<[UniqueId; 6]>,
+    pub bricks: Vec<Vec<UniqueId>>,
     pub materials: Vec<Material>,
     unique_id: usize,
 }
@@ -48,6 +51,8 @@ impl Default for Fabric {
             joints: Vec::new(),
             intervals: HashMap::new(),
             faces: HashMap::new(),
+            rings: Vec::new(),
+            bricks: Vec::new(),
             materials: MATERIALS.into(),
             unique_id: 0,
         }
@@ -58,7 +63,7 @@ impl Fabric {
     pub fn material(&self, sought_name: String) -> usize {
         self.materials
             .iter()
-            .position(|&Material{name,..}| name == sought_name)
+            .position(|&Material { name, .. }| name == sought_name)
             .unwrap_or_else(|| panic!("missing material {sought_name}"))
     }
 
@@ -86,10 +91,10 @@ impl Fabric {
         distance / (1.0 + strain)
     }
 
-    pub fn create_interval(&mut self, alpha_index: usize, omega_index: usize, Link { ideal, material_name: material }: Link) -> UniqueId {
+    pub fn create_interval(&mut self, alpha_index: usize, omega_index: usize, Link { ideal, material_name }: Link) -> UniqueId {
         let id = self.create_id();
         let initial = self.joints[alpha_index].location.distance(self.joints[omega_index].location);
-        let material = self.material(material);
+        let material = self.material(material_name);
         let interval = Interval::new(alpha_index, omega_index, material, Approaching { initial, length: ideal });
         self.intervals.insert(id, interval);
         id
@@ -127,6 +132,71 @@ impl Fabric {
         self.faces.remove(&id);
     }
 
+    pub fn create_brick(
+        &mut self,
+        face_alias: &FaceAlias,
+        rotation: FaceRotation,
+        scale_factor: f32,
+        face_id: Option<UniqueId>,
+        brick_library: &BrickLibrary,
+    ) -> (UniqueId, Vec<UniqueId>) {
+        let face = face_id.map(|id| self.face(id));
+        let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
+        let spin_alias = face_alias
+            .spin()
+            .or(face.map(|face| face.spin.opposite()))
+            .map(Spin::into_alias);
+        let search_alias = match spin_alias {
+            None => face_alias.with_seed(),
+            Some(spin_alias) => spin_alias + face_alias,
+        };
+        let brick = brick_library.new_brick(&search_alias);
+        let matrix = face.map(|face| face.vector_space(self, rotation));
+        let joints: Vec<usize> = brick.joints
+            .into_iter()
+            .map(|point| self.create_joint(match matrix {
+                None => point,
+                Some(matrix) => matrix.transform_point(point),
+            }))
+            .collect();
+        let brick_intervals = brick.intervals
+            .into_iter()
+            .map(|BakedInterval { alpha_index, omega_index, material_name, strain } |{
+                let (alpha_index, omega_index) = (joints[alpha_index], joints[omega_index]);
+                let ideal = self.ideal(alpha_index, omega_index, strain);
+                self.create_interval(alpha_index, omega_index, Link { ideal, material_name })
+            })
+            .collect();
+        self.bricks.push(brick_intervals);
+        let brick_faces = brick.faces
+            .into_iter()
+            .map(|BrickFace { joints: brick_joints, aliases, spin }| {
+                let midpoint = brick_joints
+                    .map(|index| self.joints[joints[index]].location.to_vec())
+                    .into_iter()
+                    .sum::<Vector3<f32>>() / 3.0;
+                let alpha_index = self.create_joint(Point3::from_vec(midpoint));
+                let radial_intervals = brick_joints.map(|omega| {
+                    let omega_index = joints[omega];
+                    let ideal = self.ideal(alpha_index, omega_index, Baked::TARGET_FACE_STRAIN);
+                    self.create_interval(alpha_index, omega_index, Link::pull(ideal))
+                });
+                let single_alias: Vec<_> = aliases
+                    .into_iter()
+                    .filter(|alias| search_alias.matches(alias))
+                    .collect();
+                assert_eq!(single_alias.len(), 1, "filter must leave exactly one face alias");
+                self.create_face(single_alias, scale, spin, radial_intervals)
+            })
+            .collect::<Vec<_>>();
+        let search_base = search_alias.with_base();
+        let base_face = brick_faces
+            .iter()
+            .find(|&&face_id| search_base.matches(self.face(face_id).alias()))
+            .expect("missing face after creating brick");
+        (*base_face, brick_faces)
+    }
+
     pub fn join_faces(&mut self, alpha_id: UniqueId, omega_id: UniqueId) {
         let (alpha, omega) = (self.face(alpha_id), self.face(omega_id));
         let (mut alpha_ends, omega_ends) = (alpha.radial_joints(self), omega.radial_joints(self));
@@ -152,9 +222,10 @@ impl Fabric {
             .min_by(|(length_a, _), (length_b, _)| length_a.partial_cmp(length_b).unwrap())
             .unwrap();
         let ideal = (alpha.scale + omega.scale) / 2.0;
-        for (a, b) in links {
-            self.create_interval(alpha_rotated[a], omega_ends[b], Link::pull(ideal));
-        }
+        let ring = links.map(|(a, b)|
+            self.create_interval(alpha_rotated[a], omega_ends[b], Link::pull(ideal))
+        );
+        self.rings.push(ring);
         self.remove_face(alpha_id);
         self.remove_face(omega_id);
     }
@@ -254,7 +325,7 @@ impl Fabric {
 #[derive(Clone, Debug, Copy, PartialEq, Default, Hash, Eq, Ord, PartialOrd)]
 pub struct UniqueId(usize);
 
-const MATERIALS: [Material;5] = [
+const MATERIALS: [Material; 5] = [
     Material {
         name: ":push",
         role: Push,
