@@ -32,7 +32,7 @@ final_state =
 final_feature =
     { hanger | surface | muscle | pretense_factor }
 hanger =
-    { "(" ~ "hanger" ~ float ~ float ~ float ~ ring ~ ")" }
+    { "(" ~ "hanger" ~ float ~ float ~ float ~ float ~ ring ~ ")" }
 ring =
     { "(" ~ "ring" ~ integer ~ ")" }
 surface =

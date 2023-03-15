@@ -57,8 +57,8 @@
       (during 40000 (join :tip)))
     (finally
       (surface :bouncy)
-      (hanger 7.0 17.5 0.0 (ring 7))
-      (hanger -7.0 17.5 0.0 (ring 1))
+      (hanger 7.0 17.5 0.0 7.0 (ring 7))
+      (hanger -7.0 17.5 0.0 7.0 (ring 1))
       ))
   (fabric
     (name "Art" "Halo by Crane")
@@ -127,7 +127,7 @@
       (faces-to-triangles))
     (finally
       (surface :frozen)
-      (muscle 0.3 12000)
+      (muscle 0.3 32000)
       ))
   (fabric
     (name "Art" "Headless Hug")

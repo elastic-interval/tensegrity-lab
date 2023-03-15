@@ -17,6 +17,7 @@ pub struct MuscleMovement {
 pub struct Hanger {
     pub location: Point3<f32>,
     pub ring_index: usize,
+    pub length: f32,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -63,13 +64,8 @@ impl FinalPhase {
                     for pretense_pair in feature_pair.into_inner() {
                         match pretense_pair.as_rule() {
                             Rule::hanger => {
-                                let [x, y, z, ring] = pretense_pair.into_inner().next_chunk().unwrap();
-                                let x = TenscriptError::parse_float(x.as_str(), "hanger")?;
-                                let y = TenscriptError::parse_float(y.as_str(), "hanger")?;
-                                let z = TenscriptError::parse_float(z.as_str(), "hanger")?;
-                                let ring_index = TenscriptError::parse_usize_inside(ring, "ring")?;
-                                let location = Point3::new(x, y, z);
-                                final_phase.hangers.push(Hanger { location, ring_index })
+                                let hanger = Self::parse_hanger(pretense_pair)?;
+                                final_phase.hangers.push(hanger)
                             }
                             Rule::surface => {
                                 final_phase.surface_character = match pretense_pair.into_inner().next().unwrap().as_str() {
@@ -101,6 +97,18 @@ impl FinalPhase {
         Ok(final_phase)
     }
 
+    fn parse_hanger(pair: Pair<Rule>) -> Result<Hanger, TenscriptError> {
+        let mut pairs = pair.into_inner();
+        let [x, y, z, length, ring] = pairs.next_chunk().unwrap();
+        let x = TenscriptError::parse_float(x.as_str(), "hanger")?;
+        let y = TenscriptError::parse_float(y.as_str(), "hanger")?;
+        let z = TenscriptError::parse_float(z.as_str(), "hanger")?;
+        let length = TenscriptError::parse_float(length.as_str(), "hanger")?;
+        let ring_index = TenscriptError::parse_usize_inside(ring, "ring")?;
+        let location = Point3::new(x, y, z);
+        Ok(Hanger { location, ring_index, length })
+    }
+
     pub fn check_muscles(&self, fabric: &mut Fabric) {
         if let Some(muscle_movement) = &self.muscle_movement {
             fabric.activate_muscles(muscle_movement);
@@ -108,7 +116,7 @@ impl FinalPhase {
     }
 
     pub fn create_hangers(&self, fabric: &mut Fabric) {
-        for &Hanger { location, ring_index } in &self.hangers {
+        for &Hanger { location, length, ring_index } in &self.hangers {
             let joint = fabric.create_joint(location);
             fabric.joints[joint].location_fixed = true;
             let ring_joints: HashSet<usize> = fabric.rings[ring_index]
@@ -119,7 +127,6 @@ impl FinalPhase {
                 .iter().cloned()
                 .collect();
             for ring_joint in ring_joints {
-                let length = fabric.distance(joint, ring_joint);
                 let link = Link { ideal: length, material_name: ":pull".into() };
                 fabric.create_interval(joint, ring_joint, link);
             }
