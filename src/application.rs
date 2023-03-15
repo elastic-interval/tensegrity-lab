@@ -18,6 +18,7 @@ use crate::camera::Pick;
 use crate::crucible::{Crucible, CrucibleAction, TinkererAction};
 use crate::fabric::UniqueId;
 use crate::graphics::GraphicsWindow;
+use crate::post_iterate::InsideOutDonut;
 use crate::scene::{Scene, SceneAction, SceneVariant};
 use crate::user_interface::{Action, ControlMessage, MenuAction, MenuEnvironment, UserInterface};
 
@@ -240,12 +241,14 @@ impl Application {
         }
     }
 
-    pub fn run_fabric(&mut self, fabric_name: &String) {
+    pub fn run_fabric(&mut self, fabric_name: &String, post_iterate: Option<InsideOutDonut>) {
         let fabric_plan = self.fabric_library.fabric_plans
             .iter()
-            .find(|FabricPlan{name,..}| name.contains(fabric_name))
+            .find(|FabricPlan { name, .. }| name.contains(fabric_name))
             .expect(fabric_name);
-        self.user_interface.action(Action::Crucible(CrucibleAction::BuildFabric(fabric_plan.clone())))
+        let mut plan = fabric_plan.clone();
+        plan.final_phase.post_iterate = post_iterate;
+        self.user_interface.action(Action::Crucible(CrucibleAction::BuildFabric(plan)))
     }
 
     pub fn capture_prototype(&mut self, brick_index: usize) {

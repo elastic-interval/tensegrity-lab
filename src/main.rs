@@ -10,6 +10,7 @@ use winit::dpi::PhysicalSize;
 
 use tensegrity_lab::application::Application;
 use tensegrity_lab::graphics::GraphicsWindow;
+use tensegrity_lab::post_iterate::InsideOutDonut;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
@@ -19,15 +20,17 @@ struct Args {
     /// Name of the prototype to settle and capture
     #[arg(long)]
     prototype: Option<usize>,
+    #[arg(long)]
+    experiment: Option<usize>,
 }
 
 fn main() {
-    let Args { prototype } = Args::parse();
-    run(prototype);
+    let Args { prototype, experiment } = Args::parse();
+    run(prototype, experiment);
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
-pub fn run(prototype: Option<usize>) {
+pub fn run(prototype: Option<usize>, experiment: Option<usize>) {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -65,9 +68,13 @@ pub fn run(prototype: Option<usize>) {
     let mut app = Application::new(graphics, &window);
     if let Some(brick_index) = prototype {
         app.capture_prototype(brick_index);
-    } else {
+    } else if let Some(_experiment_number) = experiment {
         let fabric = "Ring".to_string();
-        app.run_fabric(&fabric)
+        app.run_fabric(&fabric, Some(InsideOutDonut::default()))
+    } else {
+        let fabric = "Halo by Crane".to_string();
+        app.run_fabric(&fabric, None)
+
     }
     event_loop.run(move |event, _, control_flow| {
         match event {
