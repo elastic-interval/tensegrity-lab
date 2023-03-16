@@ -68,21 +68,20 @@ impl Fabric {
     }
 
     pub fn activate_muscles(&mut self, muscle_movement: &MuscleMovement) {
-        self.muscle_nuance = 0.5;
+        self.muscle_rotation = 0.0;
         let north_material = self.material(":north".to_string());
         let south_material = self.material(":south".to_string());
         for interval in self.intervals.values_mut() {
             let Span::Fixed { length } = interval.span else {
                 continue;
             };
-            let divergence = length * muscle_movement.amplitude;
-            let low = length - divergence;
-            let high = length + divergence;
+            let amplitude = muscle_movement.amplitude * length;
+            let average = length;
             if interval.material == north_material {
-                interval.span = Muscle { min: low, max: high };
+                interval.span = Muscle { amplitude, average, angle: 0.0 };
             }
             if interval.material == south_material {
-                interval.span = Muscle { min: high, max: low };
+                interval.span = Muscle { amplitude, average, angle: 0.5 };
             }
         }
     }

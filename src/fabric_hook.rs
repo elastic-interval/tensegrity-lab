@@ -1,34 +1,37 @@
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::Fabric;
+use crate::fabric::interval::Span::Muscle;
 
 pub trait FabricHook {
-    fn init(&mut self, fabric: &mut Fabric);
-    fn on_frame(&self, fabric: &mut Fabric);
+    fn prepare_fabric(&mut self, fabric: &mut Fabric);
+}
+
+pub enum Hook {
+    HangerRotation
+}
+
+pub fn fabric_hook(hook: Hook) -> Box<dyn FabricHook> {
+    Box::new(match hook {
+        Hook::HangerRotation => HangerRotationHook::default()
+    })
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct InsideOutDonut {
-    some_state: Vec<UniqueId>,
-}
+struct HangerRotationHook;
 
-impl FabricHook for InsideOutDonut {
+const ROTATIONS: [f32; 12] = [
+    0.0, 1.0, 2.0, 3.0, 4.0, 5.0,
+    2.0, 1.0, 0.0, 5.0, 4.0, 3.0,
+];
 
-    fn init(&mut self, fabric: &mut Fabric) {
-        println!("init");
-        for interval in fabric.intervals.values_mut() {
-            if !fabric.joints[interval.alpha_index].location_fixed {
-                continue;
-            }
-            // todo: adjust
-        }
-    }
-
-    fn on_frame(&self, fabric: &mut Fabric) {
-        println!("frame");
-        for interval in fabric.intervals.values_mut() {
-            if !fabric.joints[interval.alpha_index].location_fixed {
-                continue;
-            }
-            // todo: adjust
+impl FabricHook for HangerRotationHook {
+    fn prepare_fabric(&mut self, fabric: &mut Fabric) {
+        for (index, interval) in fabric.intervals
+            .values_mut()
+            .filter(|interval| fabric.joints[interval.alpha_index].location_fixed)
+            .enumerate()
+        {
+            let ideal = interval.ideal();
+            interval.span = Muscle { average: ideal, amplitude: 0.3, angle: ROTATIONS[index] / 6.0 }
         }
     }
 }

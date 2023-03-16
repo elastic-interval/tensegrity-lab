@@ -36,16 +36,11 @@ impl Lab {
             }
             MuscleCycle(increment) => {
                 fabric.iterate(&self.physics);
-                fabric.muscle_nuance += increment;
-                if fabric.muscle_nuance < 0.0 {
-                    fabric.muscle_nuance = 0.0;
-                    MuscleCycle(-increment)
-                } else if fabric.muscle_nuance > 1.0 {
-                    fabric.muscle_nuance = 1.0;
-                    MuscleCycle(-increment)
-                } else {
-                    MuscleCycle(increment)
+                fabric.muscle_rotation += increment;
+                if fabric.muscle_rotation > 1.0 {
+                    fabric.muscle_rotation -= 1.0;
                 }
+                MuscleCycle(increment)
             }
         };
     }
@@ -55,8 +50,8 @@ impl Lab {
             LabAction::GravityChanged(gravity) => {
                 self.physics.gravity = gravity
             }
-            LabAction::MuscleChanged(nuance) => {
-                fabric.muscle_nuance = nuance;
+            LabAction::MuscleChanged(rotation) => {
+                fabric.muscle_rotation = rotation;
             }
             LabAction::MuscleTest => {
                 match self.stage {
@@ -66,7 +61,7 @@ impl Lab {
                         }
                     }
                     MuscleCycle(_) => {
-                        fabric.muscle_nuance = 0.5;
+                        fabric.muscle_rotation = 0.0;
                         self.stage = Standing
                     }
                     _ => {}

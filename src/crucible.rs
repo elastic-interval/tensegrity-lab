@@ -124,7 +124,7 @@ impl Crucible {
                 if pretenser.is_done() {
                     actions.push(Action::UpdateMenu);
                     if let Some(fabric_hook) = &mut self.fabric_hook {
-                        (*fabric_hook).init(&mut self.fabric);
+                        (*fabric_hook).prepare_fabric(&mut self.fabric);
                     }
                     self.stage = Experimenting(Lab::new(pretenser.clone()));
                 }
@@ -132,9 +132,6 @@ impl Crucible {
             Experimenting(lab) => {
                 for _ in 0..self.iterations_per_frame {
                     lab.iterate(&mut self.fabric);
-                }
-                if let Some(fabric_hook) = &mut self.fabric_hook {
-                    (*fabric_hook).on_frame(&mut self.fabric);
                 }
             }
             BakingBrick(oven) => {

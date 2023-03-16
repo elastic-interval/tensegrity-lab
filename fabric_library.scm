@@ -59,6 +59,7 @@
       (surface :bouncy)
       (hanger 7.0 17.5 0.0 7.0 (ring 7))
       (hanger -7.0 17.5 0.0 7.0 (ring 1))
+      (muscle 0.1 80000)
       ))
   (fabric
     (name "Art" "Halo by Crane")

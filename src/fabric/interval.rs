@@ -3,6 +3,7 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
+use std::f32::consts::PI;
 use cgmath::{InnerSpace, Point3, Vector3};
 use cgmath::num_traits::zero;
 use fast_inv_sqrt::InvSqrt32;
@@ -23,11 +24,9 @@ pub enum Span {
         initial: f32,
     },
     Muscle {
-        max: f32,
-        min: f32,
-    },
-    Hanger {
-        length: f32
+        average: f32,
+        amplitude: f32,
+        angle: f32,
     },
 }
 
@@ -107,20 +106,25 @@ impl Interval {
 
     pub fn ideal(&self) -> f32 {
         match self.span {
-            Fixed { length } | Hanger { length } | Approaching { length, .. } => length,
-            Muscle { max, min, .. } => (max + min) / 2.0,
+            Fixed { length } | Approaching { length, .. } => length,
+            Muscle { average, .. } => average,
         }
     }
 
-    pub fn iterate(&mut self, joints: &mut [Joint], materials: &[Material], progress: &Progress, muscle_nuance: f32, physics: &Physics) {
+    pub fn iterate(&mut self, joints: &mut [Joint], materials: &[Material], progress: &Progress, muscle_rotation: f32, physics: &Physics) {
         let ideal = match self.span {
-            Fixed { length } | Hanger { length } => { length }
+            Fixed { length } => { length }
             Approaching { initial, length, .. } => {
                 let nuance = progress.nuance();
                 initial * (1.0 - nuance) + length * nuance
             }
-            Muscle { max, min } => {
-                min * (1.0 - muscle_nuance) + max * muscle_nuance
+            Muscle { average, amplitude, angle } => {
+                let mut rotation = muscle_rotation + angle;
+                if rotation > 1.0 {
+                    rotation -= 1.0;
+                }
+                rotation *= 2.0 * PI;
+                average + amplitude * rotation.sin()
             }
         };
         let real_length = self.length(joints);
@@ -134,13 +138,11 @@ impl Interval {
         let force = self.strain * stiffness * physics.stiffness;
         let force_vector: Vector3<f32> = self.unit * force / 2.0;
         let half_mass = mass * real_length / 2.0;
-        if let Hanger { .. } = self.span {
-            joints[self.alpha_index].interval_mass = 1.0;
-        } else {
+        if !joints[self.alpha_index].location_fixed {
             joints[self.alpha_index].force += force_vector;
+            joints[self.alpha_index].interval_mass += half_mass;
         }
         joints[self.omega_index].force -= force_vector;
-        joints[self.alpha_index].interval_mass += half_mass;
         joints[self.omega_index].interval_mass += half_mass;
     }
 

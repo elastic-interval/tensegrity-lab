@@ -32,7 +32,7 @@ pub mod lab;
 pub struct Fabric {
     pub age: u64,
     pub progress: Progress,
-    pub muscle_nuance: f32,
+    pub muscle_rotation: f32,
     pub joints: Vec<Joint>,
     pub intervals: HashMap<UniqueId, Interval>,
     pub faces: HashMap<UniqueId, Face>,
@@ -47,7 +47,7 @@ impl Default for Fabric {
         Fabric {
             age: 0,
             progress: Progress::default(),
-            muscle_nuance: 0.5,
+            muscle_rotation: 0.0,
             joints: Vec::new(),
             intervals: HashMap::new(),
             faces: HashMap::new(),
@@ -286,7 +286,7 @@ impl Fabric {
             joint.reset();
         }
         for interval in self.intervals.values_mut() {
-            interval.iterate(&mut self.joints, &self.materials, &self.progress, self.muscle_nuance, physics);
+            interval.iterate(&mut self.joints, &self.materials, &self.progress, self.muscle_rotation, physics);
         }
         let mut max_speed_squared = 0.0;
         for joint in &mut self.joints {
@@ -328,7 +328,7 @@ impl Fabric {
 #[derive(Clone, Debug, Copy, PartialEq, Default, Hash, Eq, Ord, PartialOrd)]
 pub struct UniqueId(usize);
 
-const MATERIALS: [Material; 5] = [
+const MATERIALS: [Material; 6] = [
     Material {
         name: ":push",
         role: Push,
@@ -339,6 +339,12 @@ const MATERIALS: [Material; 5] = [
         name: ":pull",
         role: Pull,
         stiffness: 1.0,
+        mass: 0.1,
+    },
+    Material {
+        name: ":hanger",
+        role: Pull,
+        stiffness: 100.0,
         mass: 0.1,
     },
     Material {

@@ -9,8 +9,8 @@ use winit::{
 use winit::dpi::PhysicalSize;
 
 use tensegrity_lab::application::Application;
+use tensegrity_lab::fabric_hook::{fabric_hook, Hook};
 use tensegrity_lab::graphics::GraphicsWindow;
-use tensegrity_lab::fabric_hook::InsideOutDonut;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
@@ -21,16 +21,16 @@ struct Args {
     #[arg(long)]
     prototype: Option<usize>,
     #[arg(long)]
-    experiment: Option<usize>,
+    hook: Option<usize>,
 }
 
 fn main() {
-    let Args { prototype, experiment } = Args::parse();
-    run(prototype, experiment);
+    let Args { prototype, hook } = Args::parse();
+    run(prototype, hook);
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
-pub fn run(prototype: Option<usize>, experiment: Option<usize>) {
+pub fn run(prototype: Option<usize>, hook: Option<usize>) {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -68,10 +68,9 @@ pub fn run(prototype: Option<usize>, experiment: Option<usize>) {
     let mut app = Application::new(graphics, &window);
     if let Some(brick_index) = prototype {
         app.capture_prototype(brick_index);
-    } else if let Some(_experiment_number) = experiment {
+    } else if let Some(_hook_number) = hook {
         let fabric = "Ring".to_string();
-        let ring_actuator = InsideOutDonut::default();
-        app.run_fabric(&fabric, Some(Box::new(ring_actuator)))
+        app.run_fabric(&fabric, Some(fabric_hook(Hook::HangerRotation)))
     } else {
         let fabric = "Halo by Crane".to_string();
         app.run_fabric(&fabric, None)

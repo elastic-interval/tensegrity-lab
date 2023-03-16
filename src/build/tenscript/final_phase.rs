@@ -127,7 +127,7 @@ impl FinalPhase {
                 .iter().cloned()
                 .collect();
             for ring_joint in ring_joints {
-                let link = Link { ideal: length, material_name: ":pull".into() };
+                let link = Link { ideal: length, material_name: ":hanger".into() };
                 fabric.create_interval(joint, ring_joint, link);
             }
         }
