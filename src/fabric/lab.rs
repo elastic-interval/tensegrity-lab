@@ -48,9 +48,6 @@ impl Lab {
                 }
             }
         };
-        if let Some(post_iterate) = &mut self.final_phase.post_iterate {
-            post_iterate.post_iterate(fabric);
-        }
     }
 
     pub fn action(&mut self, action: LabAction, fabric: &mut Fabric) {

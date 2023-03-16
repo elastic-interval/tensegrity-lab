@@ -18,4 +18,4 @@ pub mod fabric;
 pub mod graphics;
 pub mod scene;
 pub mod test;
-pub mod post_iterate;
+pub mod fabric_hook;

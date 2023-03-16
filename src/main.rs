@@ -10,7 +10,7 @@ use winit::dpi::PhysicalSize;
 
 use tensegrity_lab::application::Application;
 use tensegrity_lab::graphics::GraphicsWindow;
-use tensegrity_lab::post_iterate::InsideOutDonut;
+use tensegrity_lab::fabric_hook::InsideOutDonut;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
@@ -70,7 +70,8 @@ pub fn run(prototype: Option<usize>, experiment: Option<usize>) {
         app.capture_prototype(brick_index);
     } else if let Some(_experiment_number) = experiment {
         let fabric = "Ring".to_string();
-        app.run_fabric(&fabric, Some(InsideOutDonut::default()))
+        let ring_actuator = InsideOutDonut::default();
+        app.run_fabric(&fabric, Some(Box::new(ring_actuator)))
     } else {
         let fabric = "Halo by Crane".to_string();
         app.run_fabric(&fabric, None)

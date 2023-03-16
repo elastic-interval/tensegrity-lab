@@ -13,6 +13,7 @@ use crate::build::tinkerer::{BrickOnFace, Tinkerer};
 use crate::crucible::Stage::{*};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::lab::Lab;
+use crate::fabric_hook::FabricHook;
 use crate::scene::{SceneAction, SceneVariant};
 use crate::user_interface::{Action, MenuAction};
 
@@ -63,12 +64,14 @@ pub struct Crucible {
     fabric: Fabric,
     iterations_per_frame: usize,
     stage: Stage,
+    pub fabric_hook: Option<Box<dyn FabricHook>>,
 }
 
 impl Default for Crucible {
     fn default() -> Self {
         Self {
             fabric: Fabric::default(),
+            fabric_hook: None,
             iterations_per_frame: 125,
             stage: Empty,
         }
@@ -120,12 +123,18 @@ impl Crucible {
                 }
                 if pretenser.is_done() {
                     actions.push(Action::UpdateMenu);
+                    if let Some(fabric_hook) = &mut self.fabric_hook {
+                        (*fabric_hook).init(&mut self.fabric);
+                    }
                     self.stage = Experimenting(Lab::new(pretenser.clone()));
                 }
             }
             Experimenting(lab) => {
                 for _ in 0..self.iterations_per_frame {
                     lab.iterate(&mut self.fabric);
+                }
+                if let Some(fabric_hook) = &mut self.fabric_hook {
+                    (*fabric_hook).on_frame(&mut self.fabric);
                 }
             }
             BakingBrick(oven) => {

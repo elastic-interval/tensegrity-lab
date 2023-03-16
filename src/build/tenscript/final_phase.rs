@@ -6,7 +6,6 @@ use pest::iterators::{Pair, Pairs};
 use crate::build::tenscript::{Rule, TenscriptError};
 use crate::fabric::{Fabric, Link};
 use crate::fabric::physics::SurfaceCharacter;
-use crate::post_iterate::InsideOutDonut;
 
 #[derive(Debug, Clone, Default)]
 pub struct MuscleMovement {
@@ -27,7 +26,6 @@ pub struct FinalPhase {
     pub muscle_movement: Option<MuscleMovement>,
     pub pretense_factor: Option<f32>,
     pub hangers: Vec<Hanger>,
-    pub post_iterate: Option<InsideOutDonut>,
 }
 
 impl FinalPhase {
@@ -37,7 +35,6 @@ impl FinalPhase {
             muscle_movement: None,
             pretense_factor: None,
             hangers: Vec::new(),
-            post_iterate: None,
         }
     }
 
