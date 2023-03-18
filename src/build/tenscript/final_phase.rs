@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 
 use cgmath::Point3;
 use pest::iterators::{Pair, Pairs};
@@ -119,13 +118,16 @@ impl FinalPhase {
         for &Hanger { location, length, ring_index } in &self.hangers {
             let joint = fabric.create_joint(location);
             fabric.joints[joint].location_fixed = true;
-            let ring_joints: HashSet<usize> = fabric.rings[ring_index]
-                .map(|id|
-                    [fabric.interval(id).alpha_index, fabric.interval(id).omega_index]
-                )
-                .flatten()
-                .iter().cloned()
-                .collect();
+            let mut ring_joints = Vec::new();
+            for id in fabric.rings[ring_index] {
+                let interval = fabric.interval(id);
+                if ring_joints.is_empty() {
+                    ring_joints.push(interval.alpha_index);
+                } else {
+                    let top = ring_joints.last().unwrap();
+                    ring_joints.push(interval.other_joint(*top));
+                }
+            }
             for ring_joint in ring_joints {
                 let link = Link { ideal: length, material_name: ":hanger".into() };
                 fabric.create_interval(joint, ring_joint, link);
