@@ -27,6 +27,7 @@ iced_winit = "0.7.0"
 pest = "2.5.3"
 pest_derive = "2.5.3"
 clap = { version = "4.1.4", features = ["derive"] }
+proc-macro2 = "1.0.71"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
