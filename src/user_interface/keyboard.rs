@@ -1,11 +1,7 @@
-use iced_wgpu::Renderer;
-use iced_winit::{Color, Element};
-use iced_winit::widget::{Button, Row, Text};
 use winit::event::VirtualKeyCode;
 
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::user_interface::{Action, ControlMessage, MenuAction, MenuEnvironment};
-use crate::user_interface::control_state::{Component, format_row};
 use crate::user_interface::menu::Menu;
 
 #[derive(Debug, Clone)]
@@ -31,10 +27,8 @@ pub struct Keyboard {
     fabric_menu: Menu,
 }
 
-impl Component for Keyboard {
-    type Message = KeyboardMessage;
-
-    fn update(&mut self, message: Self::Message) -> Option<Action> {
+impl Keyboard {
+    fn update(&mut self, message: KeyboardMessage) -> Option<Action> {
         match message {
             KeyboardMessage::SubmitAction { action, menu_action } => {
                 Self::exit(menu_action, &mut self.current, self.fabric_menu.clone());
@@ -71,44 +65,6 @@ impl Component for Keyboard {
             }
         }
         None
-    }
-
-    fn element(&self) -> Element<'_, ControlMessage, Renderer> {
-        let mut row = Row::new();
-        let current = self.current.last().unwrap();
-        match current.menu_action {
-            MenuAction::StickAround => {
-                row = row.push(Text::new(&self.current.last().unwrap().label));
-            }
-            MenuAction::ReturnToRoot | MenuAction::TinkerMenu => {
-                unimplemented!()
-            }
-            MenuAction::UpOneLevel => {
-                row = row.push(
-                    Button::new(
-                        Text::new(&self.current.last().unwrap().label)
-                            .style(Color::from_rgb(0.0, 1.0, 0.0))
-                    ).on_press(KeyboardMessage::SelectMenu(MenuAction::UpOneLevel).into())
-                );
-            }
-        };
-        for item in &self.current.last().unwrap().submenu_in(&self.environment) {
-            row = row.push(
-                Button::new(Text::new(item.label()))
-                    .on_press(
-                        match &item.action {
-                            None => KeyboardMessage::SelectSubmenu(item.clone()),
-                            Some(action) => {
-                                KeyboardMessage::SubmitAction {
-                                    action: action.clone(),
-                                    menu_action: item.menu_action,
-                                }
-                            }
-                        }.into()
-                    )
-            );
-        }
-        format_row(row)
     }
 }
 

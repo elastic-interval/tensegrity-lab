@@ -1,16 +1,14 @@
 use std::cell::RefCell;
 
-use iced_wgpu::Renderer;
-use iced_winit::{Alignment, Color, Command, Element, Length, Program};
-use iced_winit::widget::{Column, Row, Text};
-
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
+use crate::build::tenscript::FabricPlan;
+use crate::crucible::CrucibleAction;
 
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::user_interface::{Action, ControlMessage, MenuEnvironment};
-use crate::user_interface::gravity::{Gravity, GravityMessage};
-use crate::user_interface::keyboard::{Keyboard, KeyboardMessage};
+use crate::user_interface::gravity::Gravity;
+use crate::user_interface::keyboard::Keyboard;
 use crate::user_interface::muscle::Muscle;
 use crate::user_interface::strain_threshold::StrainThreshold;
 use crate::user_interface::strain_threshold::StrainThresholdMessage::SetStrainLimits;
@@ -24,6 +22,7 @@ pub enum VisibleControl {
     StrainThreshold,
 }
 
+#[derive(Clone)]
 pub struct ControlState {
     debug_mode: bool,
     keyboard: Keyboard,
@@ -37,7 +36,9 @@ pub struct ControlState {
 }
 
 impl ControlState {
-    pub fn new(environment: MenuEnvironment) -> Self {
+    pub fn new(environment: MenuEnvironment, bootstrap_fabric: FabricPlan) -> Self {
+        let action_queue = RefCell::new(Vec::<Action>::new());
+        action_queue.borrow_mut().push(Action::Crucible(CrucibleAction::BuildFabric(bootstrap_fabric)));
         Self {
             keyboard: Keyboard::new(environment),
             debug_mode: false,
@@ -50,7 +51,7 @@ impl ControlState {
             muscle: Muscle::new(),
             show_strain: false,
             frame_rate: 0.0,
-            action_queue: RefCell::new(Vec::new()),
+            action_queue,
         }
     }
 
@@ -75,11 +76,8 @@ impl ControlState {
     }
 }
 
-impl Program for ControlState {
-    type Renderer = Renderer;
-    type Message = ControlMessage;
-
-    fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
+impl ControlState {
+    fn update(&mut self, message: ControlMessage) {
         let queue_action = |action: Option<Action>| {
             if let Some(action) = action {
                 self.action_queue.borrow_mut().push(action);
@@ -94,7 +92,7 @@ impl Program for ControlState {
             }
             ControlMessage::Reset => {
                 self.visible_control = VisibleControl::Nothing;
-                self.gravity.update(GravityMessage::Reset);
+                // self.gravity.update(GravityMessage::Reset);
                 queue_action(Some(Action::UpdateMenu))
             }
             ControlMessage::ShowControl(visible_control) => {
@@ -110,86 +108,24 @@ impl Program for ControlState {
                 }
                 queue_action(Some(Action::UpdateMenu));
             }
-            ControlMessage::Keyboard(message) => {
-                queue_action(self.keyboard.update(message));
+            ControlMessage::Keyboard(_message) => {
+                // queue_action(self.keyboard.update(message));
             }
-            ControlMessage::StrainThreshold(message) => {
-                queue_action(self.strain_threshold.update(message));
+            ControlMessage::StrainThreshold(_message) => {
+                // queue_action(self.strain_threshold.update(message));
             }
-            ControlMessage::Gravity(message) => {
-                queue_action(self.gravity.update(message));
+            ControlMessage::Gravity(_message) => {
+                // queue_action(self.gravity.update(message));
             }
-            ControlMessage::Muscle(message) => {
-                queue_action(self.muscle.update(message));
+            ControlMessage::Muscle(_message) => {
+                // queue_action(self.muscle.update(message));
             }
             ControlMessage::FrameRateUpdated(frame_rate) => {
                 self.frame_rate = frame_rate;
             }
-            ControlMessage::FreshLibrary(library) => {
-                self.keyboard.update(KeyboardMessage::FreshLibrary(library));
+            ControlMessage::FreshLibrary(_library) => {
+                // self.keyboard.update(KeyboardMessage::FreshLibrary(library));
             }
         }
-        Command::none()
     }
-
-    fn view(&self) -> Element<'_, ControlMessage, Renderer> {
-        let mut right_column = Column::new()
-            .width(Length::Fill)
-            .align_items(Alignment::End);
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let Self { frame_rate, .. } = *self;
-            right_column = right_column
-                .push(
-                    Text::new(format!("{frame_rate:.01} FPS"))
-                        .style(Color::WHITE)
-                );
-        }
-        let element: Element<'_, ControlMessage, Renderer> =
-            Column::new()
-                .padding(10)
-                .height(Length::Fill)
-                .align_items(Alignment::End)
-                .push(
-                    Row::new()
-                        .height(Length::Fill)
-                        .width(Length::Fill)
-                        .push(right_column)
-                )
-                .push(
-                    match self.visible_control {
-                        VisibleControl::Nothing => Row::new().into(),
-                        VisibleControl::StrainThreshold => self.strain_threshold.element(),
-                        VisibleControl::Gravity => self.gravity.element(),
-                        VisibleControl::Muscle => self.muscle.element(),
-                    }
-                )
-                .push(
-                    Row::new()
-                        .width(Length::Fill)
-                        .align_items(Alignment::Center)
-                        .push(self.keyboard.element())
-                )
-                .into();
-        if self.debug_mode {
-            element.explain(Color::WHITE)
-        } else {
-            element
-        }
-    }
-}
-
-pub trait Component {
-    type Message: Into<ControlMessage>;
-    fn update(&mut self, message: Self::Message) -> Option<Action>;
-    fn element(&self) -> Element<'_, ControlMessage, Renderer>;
-}
-
-pub fn format_row(row: Row<'_, ControlMessage, Renderer>) -> Element<'_, ControlMessage, Renderer> {
-    row
-        .padding(10)
-        .spacing(20)
-        .width(Length::Fill)
-        .align_items(Alignment::Center)
-        .into()
 }
