@@ -3,8 +3,7 @@ use std::f32::consts::PI;
 use std::mem;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use iced_wgpu::wgpu;
-use wgpu::{CommandEncoder, TextureView};
+use wgpu::{CommandEncoder, StoreOp, TextureView};
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 use winit::event::*;
@@ -164,10 +163,12 @@ impl Scene {
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }),
-                    store: true,
+                    store: StoreOp::Store,
                 },
             })],
             depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
         render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
 

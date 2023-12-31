@@ -2,7 +2,6 @@ use std::{fs, iter};
 use std::collections::HashSet;
 use std::time::SystemTime;
 
-use iced_wgpu::wgpu;
 use winit::{
     event::*,
 };
@@ -223,8 +222,8 @@ impl Application {
             Err(wgpu::SurfaceError::OutOfMemory) => panic!("Out of memory"),
             Err(e) => eprintln!("{e:?}"),
         }
-        let cursor_icon = self.user_interface.cursor_icon();
-        window.set_cursor_icon(cursor_icon);
+        // let cursor_icon = self.user_interface.cursor_icon();
+        // window.set_cursor_icon(cursor_icon);
     }
 
     pub fn handle_window_event(&mut self, event: &WindowEvent, window: &Window) {
