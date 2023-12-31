@@ -8,7 +8,6 @@ edition = "2021"
 fast_inv_sqrt = "~1.0"
 cgmath = "0.18.0"
 cfg-if = "1.0.0"
-serde = { version = "1", features = ["derive"] } # You only need this if you want app persistence
 chrono = "0.4.22"
 rand = "0.8.5"
 wgpu = "0.18.0"
@@ -17,7 +16,7 @@ futures = "0.3"
 gfx-hal = "0.9"
 image = "0.24"
 log = "0.4"
-pollster = "0.2"
+pollster = "0.3.0"
 winit = "0.28"
 bytemuck = { version = "1.4", features = ["derive"] }
 anyhow = "1.0"
@@ -33,7 +32,7 @@ tracing-subscriber = "0.3"
 # web:
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"
-console_log = "0.2.0"
+console_log = "1.0.0"
 wgpu = { version = "0.18.0", features = ["webgl"]}
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4.30"
