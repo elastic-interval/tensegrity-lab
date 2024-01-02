@@ -17,7 +17,7 @@ use crate::crucible::{Crucible, CrucibleAction, TinkererAction};
 use crate::fabric::UniqueId;
 use crate::graphics::GraphicsWindow;
 use crate::scene::{Scene, SceneAction, SceneVariant};
-use crate::user_interface::{Action, ControlMessage, MenuAction, MenuEnvironment, UserInterface};
+use crate::user_interface::{Action, ControlMessage, MenuAction, MenuContext, UserInterface};
 
 pub struct Application {
     selected_faces: HashSet<UniqueId>,
@@ -113,9 +113,6 @@ impl Application {
                     }
                     self.user_interface.menu_choice(menu_choice);
                 }
-                Action::ShowControl(visible_control) => {
-                    self.user_interface.message(ControlMessage::ShowControl(visible_control));
-                }
                 Action::CalibrateStrain => {
                     let strain_limits = self.crucible.fabric().strain_limits(":bow-tie".to_string());
                     self.user_interface.set_strain_limits(strain_limits);
@@ -132,18 +129,6 @@ impl Application {
                     self.selected_faces.retain(|id| self.crucible.fabric().faces.contains_key(id));
                     self.scene.action(SceneAction::Variant(SceneVariant::TinkeringOnFaces(self.selected_faces.clone())));
                     self.update_menu_environment();
-                }
-                Action::SelectAFace => {
-                    if let Some(&selected) = self.selected_faces.iter().next() {
-                        self.user_interface.action(Action::SelectFace(Some(Pick::just(selected))))
-                    } else {
-                        let pick_one = self.crucible.fabric().faces
-                            .keys()
-                            .next()
-                            .copied()
-                            .map(Pick::just);
-                        self.user_interface.action(Action::SelectFace(pick_one))
-                    }
                 }
                 Action::ToggleDebug => {
                     self.user_interface.message(ControlMessage::ToggleDebugMode);
@@ -192,14 +177,9 @@ impl Application {
     }
 
     fn update_menu_environment(&mut self) {
-        self.user_interface.set_menu_environment(MenuEnvironment {
-            face_count: self.crucible.fabric().faces.len(),
+        self.user_interface.set_menu_environment(MenuContext {
             selection_count: self.selected_faces.len(),
-            tinkering: self.crucible.is_tinkering(),
-            brick_proposed: self.crucible.is_brick_proposed(),
-            experimenting: self.crucible.is_experimenting(),
-            history_available: self.crucible.is_history_available(),
-            visible_control: self.user_interface.controls().show_controls(),
+            crucible_state: self.crucible.state(),
             fabric_menu: self.user_interface.create_fabric_menu(&self.fabric_library.fabric_plans),
         })
     }

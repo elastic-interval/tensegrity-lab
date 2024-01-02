@@ -10,13 +10,12 @@ use crate::crucible::{CrucibleAction, TinkererAction};
 use crate::fabric::face::FaceRotation;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::scene::SceneAction;
-use crate::user_interface::{Action, MenuAction, MenuEnvironment};
-use crate::user_interface::control_state::VisibleControl;
+use crate::user_interface::{Action, MenuAction, MenuContext};
 use crate::user_interface::MenuAction::{*};
 
 #[derive(Clone)]
 pub struct MaybeMenu {
-    exists_in: fn(&MenuEnvironment) -> bool,
+    exists_in: fn(&MenuContext) -> bool,
     menu: Menu,
 }
 
@@ -27,7 +26,7 @@ impl Debug for MaybeMenu {
 }
 
 impl MaybeMenu {
-    pub fn menu_in(&self, environment: &MenuEnvironment) -> Option<Menu> {
+    pub fn menu_in(&self, environment: &MenuContext) -> Option<Menu> {
         (self.exists_in)(environment).then_some(self.menu.clone())
     }
 }
@@ -59,7 +58,7 @@ impl Menu {
         }
     }
 
-    pub fn submenu(self, exists_in: fn(&MenuEnvironment) -> bool, menu: Menu) -> Self {
+    pub fn submenu(self, exists_in: fn(&MenuContext) -> bool, menu: Menu) -> Self {
         let mut new = self;
         new.submenu.push(
             MaybeMenu {
@@ -76,7 +75,7 @@ impl Menu {
         new
     }
 
-    pub fn action(self, label: &str, menu_action: MenuAction, exists_in: fn(&MenuEnvironment) -> bool, action: Action) -> Self {
+    pub fn action(self, label: &str, menu_action: MenuAction, exists_in: fn(&MenuContext) -> bool, action: Action) -> Self {
         let maybe = MaybeMenu {
             exists_in,
             menu: Menu {
@@ -92,7 +91,7 @@ impl Menu {
         new
     }
 
-    pub fn submenu_in(&self, environment: &MenuEnvironment) -> Vec<Menu> {
+    pub fn submenu_in(&self, environment: &MenuContext) -> Vec<Menu> {
         let mut used = HashSet::new();
         let sub: Vec<_> = self.submenu
             .clone()
@@ -162,20 +161,8 @@ impl Menu {
         Menu::new("Welcome", StickAround)
             .submenu(ALWAYS, fabric_menu)
             .action("Muscle test", StickAround,
-                    |env| env.experimenting,
+                    |env| env.crucible_state.experimenting,
                     Action::Crucible(CrucibleAction::ActivateMuscles))
-            .action("Muscle control", StickAround,
-                    |env| env.experimenting && env.visible_control != VisibleControl::Muscle,
-                    Action::ShowControl(VisibleControl::Muscle))
-            .action("Gravity control", StickAround,
-                    |env| env.experimenting && env.visible_control != VisibleControl::Gravity,
-                    Action::ShowControl(VisibleControl::Gravity))
-            .action("Strain control", StickAround,
-                    |env| env.experimenting && env.visible_control != VisibleControl::StrainThreshold,
-                    Action::ShowControl(VisibleControl::StrainThreshold))
-            .action("Hide controls", StickAround,
-                    |env| env.experimenting && env.visible_control != VisibleControl::Nothing,
-                    Action::ShowControl(VisibleControl::Nothing))
             .submenu(ALWAYS, Menu::new("Settings", StickAround)
                 .action("Debug toggle", ReturnToRoot, ALWAYS, Action::ToggleDebug)
                 .submenu(ALWAYS, Menu::speed_menu())
@@ -184,14 +171,10 @@ impl Menu {
                     .action("Origin", ReturnToRoot, ALWAYS, Action::Scene(SceneAction::WatchOrigin)),
                 ),
             )
-            .action("Tinker", StickAround, |env| env.face_count > 0,
-                    Action::SelectAFace)
     }
 
     pub fn tinker_menu() -> Menu {
         Menu::new("Tinker", StickAround)
-            .action("Pick a face with <Command-click>", StickAround, |env| env.selection_count == 0,
-                    Action::SelectAFace)
             .action("Join the selected faces", StickAround, |env| env.selection_count == 2,
                     Action::InitiateJoinFaces)
             .submenu(
@@ -207,11 +190,11 @@ impl Menu {
                             Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::OneThird })
                     .action("Torque-240", StickAround, ALWAYS,
                             Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::TwoThirds })
-                    .action("Skip it", UpOneLevel, |env| env.brick_proposed,
+                    .action("Skip it", UpOneLevel, |env| env.crucible_state.brick_proposed,
                             Action::Crucible(CrucibleAction::Tinkerer(TinkererAction::Clear)))
-                    .action("Connect", UpOneLevel, |env| env.brick_proposed,
+                    .action("Connect", UpOneLevel, |env| env.crucible_state.brick_proposed,
                             Action::Connect))
-            .action("Revert to previous", StickAround, |env| env.history_available,
+            .action("Revert to previous", StickAround, |env| env.crucible_state.history_available,
                     Action::Revert)
             .submenu(
                 ALWAYS, Menu::new("Finish", StickAround)
@@ -275,4 +258,4 @@ fn to_key_code(ch: char) -> Option<VirtualKeyCode> {
     })
 }
 
-const ALWAYS: fn(&MenuEnvironment) -> bool = |_| true;
+const ALWAYS: fn(&MenuContext) -> bool = |_| true;
