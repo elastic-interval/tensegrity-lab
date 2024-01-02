@@ -6,7 +6,6 @@ use winit::{
     event::*,
 };
 use winit::dpi::PhysicalSize;
-use winit::window::Window;
 
 use crate::build::tenscript::{FabricPlan, FaceAlias, TenscriptError};
 use crate::build::tenscript::brick::Baked;
@@ -33,10 +32,10 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn new(graphics: GraphicsWindow, window: &Window) -> Application {
+    pub fn new(graphics: GraphicsWindow) -> Application {
         let brick_library = BrickLibrary::from_source().unwrap();
         let fabric_library = FabricLibrary::from_source().unwrap();
-        let user_interface = UserInterface::new(&graphics, window, &fabric_library.fabric_plans);
+        let user_interface = UserInterface::new(&fabric_library.fabric_plans);
         let scene = Scene::new(&graphics);
         Application {
             selected_faces: HashSet::new(),
@@ -51,8 +50,7 @@ impl Application {
         }
     }
 
-    pub fn update(&mut self, window: &Window) {
-        self.user_interface.update();
+    pub fn update(&mut self) {
         let mut actions = self.user_interface.controls().take_actions();
         let time = fabric_library_modified();
         if time > self.fabric_library_modified {
@@ -191,7 +189,6 @@ impl Application {
                 }
             }
         }
-        window.request_redraw();
     }
 
     fn update_menu_environment(&mut self) {
@@ -207,7 +204,7 @@ impl Application {
         })
     }
 
-    pub fn redraw(&mut self, window: &Window) {
+    pub fn redraw(&mut self) {
         for action in self.crucible.iterate(!self.selected_faces.is_empty(), &self.brick_library) {
             self.user_interface.action(action);
         }
@@ -215,7 +212,6 @@ impl Application {
         if let Some(picked) = self.scene.picked() {
             self.user_interface.action(Action::SelectFace(Some(picked)))
         }
-        self.user_interface.update_viewport(window);
         match self.render() {
             Ok(_) => {}
             Err(wgpu::SurfaceError::Lost) => self.resize(self.graphics.size),
@@ -226,15 +222,14 @@ impl Application {
         // window.set_cursor_icon(cursor_icon);
     }
 
-    pub fn handle_window_event(&mut self, event: &WindowEvent, window: &Window) {
-        self.user_interface.window_event(event, window);
+    pub fn handle_window_event(&mut self, event: &WindowEvent) {
         match event {
             WindowEvent::Resized(physical_size) => self.resize(*physical_size),
             WindowEvent::KeyboardInput { .. } => self.handle_keyboard_input(event),
             WindowEvent::ModifiersChanged { .. } => self.scene.window_event(event, self.crucible.fabric()),
             WindowEvent::MouseInput { state: ElementState::Released, .. } => self.scene.window_event(event, self.crucible.fabric()),
-            WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
-            if !self.user_interface.capturing_mouse() => self.scene.window_event(event, self.crucible.fabric()),
+            // WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
+            // if !self.user_interface.capturing_mouse() => self.scene.window_event(event, self.crucible.fabric()),
             _ => {}
         }
     }
@@ -242,7 +237,7 @@ impl Application {
     pub fn run_fabric(&mut self, fabric_name: &String) {
         let fabric_plan = self.fabric_library.fabric_plans
             .iter()
-            .find(|FabricPlan{name,..}| name.contains(fabric_name))
+            .find(|FabricPlan { name, .. }| name.contains(fabric_name))
             .expect(fabric_name);
         self.user_interface.action(Action::Crucible(CrucibleAction::BuildFabric(fabric_plan.clone())))
     }
@@ -269,10 +264,8 @@ impl Application {
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.graphics.create_command_encoder();
         self.scene.render(&mut encoder, &view);
-        self.user_interface.render(&self.graphics.device, &mut encoder, &view);
         self.graphics.queue.submit(iter::once(encoder.finish()));
         output.present();
-        self.user_interface.post_render();
         Ok(())
     }
 

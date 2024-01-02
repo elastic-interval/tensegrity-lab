@@ -22,7 +22,7 @@ bytemuck = { version = "1.4", features = ["derive"] }
 anyhow = "1.0"
 pest = "2.5.3"
 pest_derive = "2.5.3"
-clap = { version = "4.1.4", features = ["derive"] }
+clap = { version = "4.4.12", features = ["derive"] }
 proc-macro2 = "1.0.71"
 
 # native:
