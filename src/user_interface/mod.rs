@@ -9,10 +9,10 @@ use crate::build::tenscript::{FabricPlan, FaceAlias};
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tinkerer::{BrickOnFace, Frozen};
 use crate::camera::Pick;
-use crate::crucible::CrucibleAction;
+use crate::crucible::{CrucibleAction, CrucibleState};
 use crate::fabric::face::FaceRotation;
 use crate::scene::SceneAction;
-use crate::user_interface::control_state::{ControlState, VisibleControl};
+use crate::user_interface::control_state::ControlState;
 use crate::user_interface::gravity::GravityMessage;
 use crate::user_interface::keyboard::KeyboardMessage;
 use crate::user_interface::menu::Menu;
@@ -37,27 +37,17 @@ pub enum MenuAction {
 }
 
 #[derive(Debug, Clone)]
-pub struct MenuEnvironment {
-    pub face_count: usize,
+pub struct MenuContext {
     pub selection_count: usize,
-    pub tinkering: bool,
-    pub brick_proposed: bool,
-    pub experimenting: bool,
-    pub history_available: bool,
-    pub visible_control: VisibleControl,
+    pub crucible_state: CrucibleState,
     pub fabric_menu: Menu,
 }
 
-impl MenuEnvironment {
+impl MenuContext {
     pub fn new(fabric_menu: Menu) -> Self {
         Self {
-            face_count: 0,
             selection_count: 0,
-            tinkering: false,
-            brick_proposed: false,
-            experimenting: false,
-            history_available: false,
-            visible_control: Default::default(),
+            crucible_state: Default::default(),
             fabric_menu,
         }
     }
@@ -67,7 +57,6 @@ impl MenuEnvironment {
 pub enum ControlMessage {
     ToggleDebugMode,
     Reset,
-    ShowControl(VisibleControl),
     Keyboard(KeyboardMessage),
     StrainThreshold(StrainThresholdMessage),
     Gravity(GravityMessage),
@@ -91,8 +80,6 @@ pub enum Action {
     Keyboard(MenuAction),
     CalibrateStrain,
     SelectFace(Option<Pick>),
-    ShowControl(VisibleControl),
-    SelectAFace,
     ToggleDebug,
     ProposeBrick { alias: FaceAlias, face_rotation: FaceRotation },
     RemoveProposedBrick,
@@ -103,19 +90,19 @@ pub enum Action {
     UpdatedLibrary(SystemTime),
 }
 
-/// Largely adapted from https://github.com/iced-rs/iced/blob/master/examples/integration_wgpu/src/main.rs
 pub struct UserInterface {
     state: ControlState,
 }
 
 impl UserInterface {
     pub fn new(fabrics: &[FabricPlan]) -> Self {
-        let menu_environment = MenuEnvironment::new(Menu::fabric_menu(fabrics));
+        let menu_context = MenuContext::new(Menu::fabric_menu(fabrics));
         let plan = fabrics
             .iter()
             .find(|fp|fp.name.last().unwrap().contains(&"Tommy".to_string()))
             .unwrap();
-        let state = ControlState::new(menu_environment, plan.clone());
+        let state = ControlState::new(menu_context);
+        state.queue_action(Action::Crucible(CrucibleAction::BuildFabric(plan.clone())));
         Self { state }
     }
 
@@ -123,13 +110,15 @@ impl UserInterface {
         &self.state
     }
 
-    pub fn message(&mut self, _control_message: ControlMessage) {}
+    pub fn message(&mut self, _control_message: ControlMessage) {
+        // self.state.queue_message(control_message);
+    }
 
     pub fn key_pressed(&mut self, keycode_pressed: &VirtualKeyCode) {
         self.message(ControlMessage::Keyboard(KeyboardMessage::KeyPressed(*keycode_pressed)));
     }
 
-    pub fn set_menu_environment(&mut self, menu_evironment: MenuEnvironment) {
+    pub fn set_menu_environment(&mut self, menu_evironment: MenuContext) {
         self.message(ControlMessage::Keyboard(KeyboardMessage::SetEnvironment(menu_evironment)))
     }
 
@@ -141,7 +130,9 @@ impl UserInterface {
         self.message(ControlMessage::StrainThreshold(StrainThresholdMessage::SetStrainLimits(strain_limits)))
     }
 
-    pub fn action(&mut self, _action: Action) {}
+    pub fn action(&mut self, _action: Action) {
+        // self.state.queue_message(ControlMessage::Action(action))
+    }
 
     pub fn create_fabric_menu(&self, fabrics: &[FabricPlan]) -> Menu {
         Menu::fabric_menu(fabrics)

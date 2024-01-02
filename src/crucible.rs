@@ -65,6 +65,14 @@ pub struct Crucible {
     stage: Stage,
 }
 
+#[derive(Default, Debug, Clone)]
+pub struct CrucibleState {
+    pub tinkering: bool,
+    pub brick_proposed: bool,
+    pub experimenting: bool,
+    pub history_available: bool,
+}
+
 impl Default for Crucible {
     fn default() -> Self {
         Self {
@@ -187,25 +195,18 @@ impl Crucible {
         &self.fabric
     }
 
-    pub fn is_tinkering(&self) -> bool {
-        matches!(&self.stage, Tinkering(_))
-    }
-
-    pub fn is_brick_proposed(&self) -> bool {
-        match &self.stage {
-            Tinkering(tinkerer) => tinkerer.is_brick_proposed(),
-            _ => false
+    pub fn state(&self) -> CrucibleState {
+        CrucibleState {
+            tinkering: matches!(&self.stage, Tinkering(_)),
+            brick_proposed: match &self.stage {
+                Tinkering(tinkerer) => tinkerer.is_brick_proposed(),
+                _ => false
+            },
+            experimenting: matches!(self.stage, Experimenting(_)),
+            history_available: match &self.stage {
+                Tinkering(tinkerer) => tinkerer.is_history_available(),
+                _ => false
+            },
         }
-    }
-
-    pub fn is_history_available(&self) -> bool {
-        match &self.stage {
-            Tinkering(tinkerer) => tinkerer.is_history_available(),
-            _ => false
-        }
-    }
-
-    pub fn is_experimenting(&self) -> bool {
-        matches!(self.stage, Experimenting(_))
     }
 }

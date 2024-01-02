@@ -1,7 +1,7 @@
 use winit::event::VirtualKeyCode;
 
 use crate::build::tenscript::fabric_library::FabricLibrary;
-use crate::user_interface::{Action, ControlMessage, MenuAction, MenuEnvironment};
+use crate::user_interface::{Action, ControlMessage, MenuAction, MenuContext};
 use crate::user_interface::menu::Menu;
 
 #[derive(Debug, Clone)]
@@ -10,7 +10,7 @@ pub enum KeyboardMessage {
     SelectSubmenu(Menu),
     SelectMenu(MenuAction),
     SubmitAction { action: Action, menu_action: MenuAction },
-    SetEnvironment(MenuEnvironment),
+    SetEnvironment(MenuContext),
     FreshLibrary(FabricLibrary),
 }
 
@@ -23,7 +23,7 @@ impl From<KeyboardMessage> for ControlMessage {
 #[derive(Debug, Clone)]
 pub struct Keyboard {
     current: Vec<Menu>,
-    environment: MenuEnvironment,
+    environment: MenuContext,
     fabric_menu: Menu,
 }
 
@@ -66,10 +66,8 @@ impl Keyboard {
         }
         None
     }
-}
 
-impl Keyboard {
-    pub fn new(environment: MenuEnvironment) -> Self {
+    pub fn new(environment: MenuContext) -> Self {
         let fabric_menu = environment.fabric_menu.clone();
         let current = vec![Menu::root_menu(fabric_menu.clone())];
         Self { current, environment, fabric_menu }
