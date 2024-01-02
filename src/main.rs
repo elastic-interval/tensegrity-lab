@@ -62,7 +62,7 @@ pub fn run(prototype: Option<usize>) {
             .expect("Couldn't append canvas to document body.");
     }
     let graphics = pollster::block_on(GraphicsWindow::new(&window));
-    let mut app = Application::new(graphics, &window);
+    let mut app = Application::new(graphics);
     if let Some(brick_index) = prototype {
         app.capture_prototype(brick_index);
     } else {
@@ -73,10 +73,13 @@ pub fn run(prototype: Option<usize>) {
         match event {
             Event::WindowEvent { ref event, window_id } if window_id == window.id() => match event {
                 WindowEvent::CloseRequested { .. } => *control_flow = ControlFlow::Exit,
-                event => app.handle_window_event(event, &window)
+                event => app.handle_window_event(event)
             },
-            Event::RedrawRequested(_) => app.redraw(&window),
-            Event::MainEventsCleared => app.update(&window),
+            Event::RedrawRequested(_) => app.redraw(),
+            Event::MainEventsCleared => {
+                app.update();
+                window.request_redraw();
+            },
             _ => {}
         }
     });

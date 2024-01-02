@@ -1,8 +1,6 @@
 use std::time::SystemTime;
 
-use wgpu::{CommandEncoder, Device, TextureView};
-use winit::event::{VirtualKeyCode, WindowEvent};
-use winit::window::Window;
+use winit::event::VirtualKeyCode;
 
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
@@ -13,7 +11,6 @@ use crate::build::tinkerer::{BrickOnFace, Frozen};
 use crate::camera::Pick;
 use crate::crucible::CrucibleAction;
 use crate::fabric::face::FaceRotation;
-use crate::graphics::GraphicsWindow;
 use crate::scene::SceneAction;
 use crate::user_interface::control_state::{ControlState, VisibleControl};
 use crate::user_interface::gravity::GravityMessage;
@@ -112,13 +109,12 @@ pub struct UserInterface {
 }
 
 impl UserInterface {
-    pub fn new(_graphics: &GraphicsWindow, _window: &Window, fabrics: &[FabricPlan]) -> Self {
+    pub fn new(fabrics: &[FabricPlan]) -> Self {
         let menu_environment = MenuEnvironment::new(Menu::fabric_menu(fabrics));
         let plan = fabrics
             .iter()
             .find(|fp|fp.name.last().unwrap().contains(&"Tommy".to_string()))
             .unwrap();
-        // let plan = fabrics.first().unwrap();
         let state = ControlState::new(menu_environment, plan.clone());
         Self { state }
     }
@@ -126,10 +122,6 @@ impl UserInterface {
     pub fn controls(&self) -> &ControlState {
         &self.state
     }
-
-    pub fn render(&mut self, _device: &Device, _encoder: &mut CommandEncoder, _frame: &TextureView) {}
-
-    pub fn post_render(&mut self) {}
 
     pub fn message(&mut self, _control_message: ControlMessage) {}
 
@@ -150,16 +142,6 @@ impl UserInterface {
     }
 
     pub fn action(&mut self, _action: Action) {}
-
-    pub fn window_event(&mut self, _event: &WindowEvent, _window: &Window) {}
-
-    pub fn update(&mut self) {}
-
-    pub fn update_viewport(&mut self, _window: &Window) {}
-
-    pub fn capturing_mouse(&self) -> bool {
-        false
-    }
 
     pub fn create_fabric_menu(&self, fabrics: &[FabricPlan]) -> Menu {
         Menu::fabric_menu(fabrics)
