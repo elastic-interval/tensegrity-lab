@@ -6,7 +6,7 @@ use bytemuck::{cast_slice, Pod, Zeroable};
 use wgpu::{CommandEncoder, StoreOp, TextureView};
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
-use winit::event::*;
+use winit_input_helper::WinitInputHelper;
 
 use SceneVariant::{*};
 #[cfg(target_arch = "wasm32")]
@@ -181,8 +181,8 @@ impl Scene {
         render_pass.draw(0..self.surface_drawing.vertices.len() as u32, 0..1);
     }
 
-    pub fn window_event(&mut self, event: &WindowEvent, fabric: &Fabric) {
-        self.camera.window_event(event, fabric);
+    pub fn handle_input(&mut self, input: &WinitInputHelper, fabric: &Fabric) {
+        self.camera.handle_input(input, fabric);
     }
 
     pub fn update(&mut self, graphics: &GraphicsWindow, fabric: &Fabric) {

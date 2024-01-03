@@ -4,7 +4,7 @@ use std::f32::consts::PI;
 use cgmath::{Deg, EuclideanSpace, InnerSpace, Matrix4, perspective, Point3, point3, Quaternion, Rad, Rotation, Rotation3, SquareMatrix, Transform, vec3, Vector3};
 use cgmath::num_traits::abs;
 use winit::dpi::{PhysicalPosition, PhysicalSize};
-use winit::event::{ElementState, MouseScrollDelta, WindowEvent};
+use winit_input_helper::WinitInputHelper;
 
 use crate::fabric::{Fabric, UniqueId};
 
@@ -33,6 +33,7 @@ pub struct Camera {
     pub pick_mode: bool,
     pub multiple: bool,
     pub pressed_mouse: Option<PhysicalPosition<f64>>,
+    pub input_helper: WinitInputHelper,
 }
 
 impl Camera {
@@ -47,38 +48,33 @@ impl Camera {
             pressed_mouse: None,
             pick_mode: false,
             multiple: false,
+            input_helper: WinitInputHelper::new(),
         }
     }
 
-    pub fn window_event(&mut self, event: &WindowEvent, fabric: &Fabric) {
-        match event {
-            WindowEvent::ModifiersChanged(state) => {
-                self.pick_mode = state.logo();
-                self.multiple = state.shift();
-            }
-            WindowEvent::MouseInput { state, .. } => {
-                match state {
-                    ElementState::Pressed if self.pick_mode => { self.pick(self.moving_mouse, self.multiple, fabric) }
-                    ElementState::Pressed => { self.pressed_mouse = Some(self.moving_mouse) }
-                    ElementState::Released => { self.pressed_mouse = None }
-                }
-            }
-            WindowEvent::CursorMoved { position, .. } => {
-                self.moving_mouse = *position;
-                if let Some(rotation) = self.rotation() {
-                    self.position = self.look_at - rotation.transform_vector(self.look_at - self.position);
-                    self.pressed_mouse = Some(self.moving_mouse);
-                }
-            }
-            WindowEvent::MouseWheel { delta: MouseScrollDelta::PixelDelta(pos), .. } => {
-                let scroll = pos.y as f32 * SPEED.z;
-                let gaze = self.look_at - self.position;
-                if gaze.magnitude() - scroll > 1.0 {
-                    self.position += gaze.normalize() * scroll;
-                }
-            }
-            _ => {}
+    pub fn handle_input(&mut self, input: &WinitInputHelper, fabric: &Fabric) {
+        self.pick_mode = false; // TODO
+        self.multiple = input.held_shift();
+        if input.mouse_pressed(0) {
+            self.pick(self.moving_mouse, self.multiple, fabric)
+            //             ElementState::Pressed if self.pick_mode => { self.pick(self.moving_mouse, self.multiple, fabric) }
+            //             ElementState::Pressed => { self.pressed_mouse = Some(self.moving_mouse) }
+            //             ElementState::Released => { self.pressed_mouse = None }
         }
+        //     WindowEvent::CursorMoved { position, .. } => {
+        //         self.moving_mouse = *position;
+        //         if let Some(rotation) = self.rotation() {
+        //             self.position = self.look_at - rotation.transform_vector(self.look_at - self.position);
+        //             self.pressed_mouse = Some(self.moving_mouse);
+        //         }
+        //     }
+        //     WindowEvent::MouseWheel { delta: MouseScrollDelta::PixelDelta(pos), .. } => {
+        //         let scroll = pos.y as f32 * SPEED.z;
+        //         let gaze = self.look_at - self.position;
+        //         if gaze.magnitude() - scroll > 1.0 {
+        //             self.position += gaze.normalize() * scroll;
+        //         }
+        //     }
     }
 
     pub fn target_approach(&mut self, fabric: &Fabric) {

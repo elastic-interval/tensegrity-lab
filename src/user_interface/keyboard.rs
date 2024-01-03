@@ -1,12 +1,11 @@
-use winit::event::VirtualKeyCode;
-
+use winit::keyboard::Key;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::user_interface::{Action, ControlMessage, MenuAction, MenuContext};
 use crate::user_interface::menu::Menu;
 
 #[derive(Debug, Clone)]
 pub enum KeyboardMessage {
-    KeyPressed(VirtualKeyCode),
+    KeyPressed(Key),
     SelectSubmenu(Menu),
     SelectMenu(MenuAction),
     SubmitAction { action: Action, menu_action: MenuAction },
@@ -82,7 +81,7 @@ impl Keyboard {
         self.current.last().unwrap().clone()
     }
 
-    pub fn key_pressed(&mut self, keycode_pressed: VirtualKeyCode) -> (Vec<Menu>, Option<Action>) {
+    pub fn key_pressed(&mut self, key: Key) -> (Vec<Menu>, Option<Action>) {
         let mut current = self.current.clone();
         let action = current
             .last()
@@ -93,7 +92,7 @@ impl Keyboard {
             .find_map(|menu| {
                 let Menu { keycode, action, menu_action, .. } = &menu;
                 let (code, _) = keycode.clone().unwrap_or_else(|| panic!("No keycode for label"));
-                if code != keycode_pressed {
+                if code != key {
                     return None;
                 }
                 if action.is_some() {

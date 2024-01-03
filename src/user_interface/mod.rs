@@ -1,6 +1,6 @@
 use std::time::SystemTime;
 
-use winit::event::VirtualKeyCode;
+use winit_input_helper::WinitInputHelper;
 
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
@@ -105,8 +105,8 @@ impl UserInterface {
         // self.state.queue_message(control_message);
     }
 
-    pub fn key_pressed(&mut self, keycode_pressed: &VirtualKeyCode) {
-        self.message(ControlMessage::Keyboard(KeyboardMessage::KeyPressed(*keycode_pressed)));
+    pub fn handle_input(&mut self, _input: &WinitInputHelper) {
+        // self.message(ControlMessage::Keyboard(KeyboardMessage::KeyPressed(*keycode_pressed)));
     }
 
     pub fn set_menu_context(&mut self, menu_evironment: MenuContext) {

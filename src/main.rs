@@ -2,11 +2,11 @@ use clap::Parser;
 #[allow(unused_imports)]
 use log::info;
 use winit::{
-    event::*,
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::WindowBuilder,
 };
 use winit::dpi::PhysicalSize;
+use winit_input_helper::WinitInputHelper;
 
 use tensegrity_lab::application::Application;
 use tensegrity_lab::graphics::GraphicsWindow;
@@ -37,7 +37,7 @@ pub fn run(prototype: Option<usize>) {
         }
     }
 
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new()
         .with_inner_size(PhysicalSize::new(3000, 1600))
         .build(&event_loop)
@@ -63,24 +63,22 @@ pub fn run(prototype: Option<usize>) {
     }
     let graphics = pollster::block_on(GraphicsWindow::new(&window));
     let mut app = Application::new(graphics);
+    let mut input = WinitInputHelper::new();
     if let Some(brick_index) = prototype {
         app.capture_prototype(brick_index);
     } else {
         let fabric = "Tommy Torque".to_string();
         app.run_fabric(&fabric)
     }
-    event_loop.run(move |event, _, control_flow| {
-        match event {
-            Event::WindowEvent { ref event, window_id } if window_id == window.id() => match event {
-                WindowEvent::CloseRequested { .. } => *control_flow = ControlFlow::Exit,
-                event => app.handle_window_event(event)
-            },
-            Event::RedrawRequested(_) => app.redraw(),
-            Event::MainEventsCleared => {
-                app.update();
-                window.request_redraw();
-            },
-            _ => {}
+    event_loop.run(move |event, window_target| {
+        if input.update(&event) {
+            if input.close_requested() {
+                window_target.exit();
+                return;
+            }
+            app.handle_input(&input);
+            app.update();
+            app.redraw();
         }
-    });
+    }).unwrap();
 }

@@ -5,25 +5,27 @@ authors = ["Gerald de Jong <geralddejong@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-fast_inv_sqrt = "~1.0"
-cgmath = "0.18.0"
-cfg-if = "1.0.0"
-chrono = "0.4.22"
-rand = "0.8.5"
-wgpu = "0.18.0"
-env_logger = "0.10.0"
-futures = "0.3"
-gfx-hal = "0.9"
-image = "0.24"
-log = "0.4"
-pollster = "0.3.0"
-winit = "0.28"
+anyhow = "1.0.79"
 bytemuck = { version = "1.4", features = ["derive"] }
-anyhow = "1.0"
-pest = "2.5.3"
-pest_derive = "2.5.3"
+cfg-if = "1.0.0"
+cgmath = "0.18.0"
+chrono = "0.4.31"
 clap = { version = "4.4.12", features = ["derive"] }
-proc-macro2 = "1.0.71"
+env_logger = "0.10.1"
+fast_inv_sqrt = "~1.0"
+futures = "0.3.30"
+gfx-hal = "0.9"
+image = "0.24.7"
+log = "0.4.20"
+pest = "2.5.3"
+pest_derive = "2.7.5"
+pollster = "0.3.0"
+proc-macro2 = "1.0.74"
+rand = "0.8.5"
+raw-window-handle = "0.6.0"
+wgpu = "0.18.0"
+winit = { version = "0.29", features = ["rwh_05"] }
+winit_input_helper = "0.15.1"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -33,15 +35,15 @@ tracing-subscriber = "0.3"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"
 console_log = "1.0.0"
-wgpu = { version = "0.18.0", features = ["webgl"]}
+wgpu = { version = "0.18.0", features = ["webgl"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4.30"
 web-sys = { version = "0.3", features = [
     "Document",
     "Window",
     "Element",
-]}
-instant = { version = "0.1.12", features = [ "stdweb" ] }
+] }
+instant = { version = "0.1.12", features = ["stdweb"] }
 
 
 [profile.release]

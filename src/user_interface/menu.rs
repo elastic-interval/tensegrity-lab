@@ -1,8 +1,6 @@
-use std::collections::HashSet;
 use std::fmt::{Debug, Formatter};
 
-use winit::event::VirtualKeyCode;
-use winit::event::VirtualKeyCode::{*};
+use winit::keyboard::Key;
 
 use crate::build::tenscript::{FabricPlan, FaceAlias};
 use crate::build::tenscript::pretense_phase::PretensePhase;
@@ -34,7 +32,7 @@ impl MaybeMenu {
 #[derive(Debug, Clone)]
 pub struct Menu {
     pub label: String,
-    pub keycode: Option<(VirtualKeyCode, String)>,
+    pub keycode: Option<(Key, String)>,
     pub submenu: Vec<MaybeMenu>,
     pub action: Option<Action>,
     pub menu_action: MenuAction,
@@ -91,19 +89,8 @@ impl Menu {
         new
     }
 
-    pub fn submenu_in(&self, environment: &MenuContext) -> Vec<Menu> {
-        let mut used = HashSet::new();
-        let sub: Vec<_> = self.submenu
-            .clone()
-            .into_iter()
-            .flat_map(|maybe| {
-                let menu = maybe.menu.assign_key(&used);
-                let (code, _) = menu.keycode.clone().unwrap();
-                used.insert(code);
-                (maybe.exists_in)(environment).then_some(menu)
-            })
-            .collect();
-        sub
+    pub fn submenu_in(&self, _context: &MenuContext) -> Vec<Menu> {
+        vec![]
     }
 
     fn fabric_menu_recurse(menu: Menu, fabrics: &[FabricPlan], below: Vec<String>) -> Menu {
@@ -210,52 +197,6 @@ impl Menu {
                             Action::Keyboard(StickAround)),
             )
     }
-
-    fn assign_key(self, used: &HashSet<VirtualKeyCode>) -> Menu {
-        let keycode = self.label
-            .chars()
-            .find_map(|ch| {
-                let key_code = to_key_code(ch)?;
-                (!used.contains(&key_code))
-                    .then_some((key_code, format!("{}: ", ch.to_ascii_uppercase())))
-            })
-            .unwrap();
-        let mut new = self;
-        new.keycode = Some(keycode);
-        new
-    }
-}
-
-fn to_key_code(ch: char) -> Option<VirtualKeyCode> {
-    Some(match ch.to_ascii_uppercase() {
-        'A' => A,
-        'B' => B,
-        'C' => C,
-        'D' => D,
-        'E' => E,
-        'F' => F,
-        'G' => G,
-        'H' => H,
-        'I' => I,
-        'J' => J,
-        'K' => K,
-        'L' => L,
-        'M' => M,
-        'N' => N,
-        'O' => O,
-        'P' => P,
-        'Q' => Q,
-        'R' => R,
-        'S' => S,
-        'T' => T,
-        'U' => U,
-        'V' => V,
-        'W' => W,
-        'X' => X,
-        'Y' => Y,
-        'Z' => Z,
-        _ => return None
-    })
 }
 
 const ALWAYS: fn(&MenuContext) -> bool = |_| true;
