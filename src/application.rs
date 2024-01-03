@@ -2,10 +2,8 @@ use std::{fs, iter};
 use std::collections::HashSet;
 use std::time::SystemTime;
 
-use winit::{
-    event::*,
-};
 use winit::dpi::PhysicalSize;
+use winit_input_helper::WinitInputHelper;
 
 use crate::build::tenscript::{FabricPlan, FaceAlias, TenscriptError};
 use crate::build::tenscript::brick::Baked;
@@ -202,16 +200,12 @@ impl Application {
         // window.set_cursor_icon(cursor_icon);
     }
 
-    pub fn handle_window_event(&mut self, event: &WindowEvent) {
-        match event {
-            WindowEvent::Resized(physical_size) => self.resize(*physical_size),
-            WindowEvent::KeyboardInput { .. } => self.handle_keyboard_input(event),
-            WindowEvent::ModifiersChanged { .. } |
-            WindowEvent::MouseInput { state: ElementState::Released, .. } => self.scene.window_event(event, self.crucible.fabric()),
-            // WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
-            // if !self.user_interface.capturing_mouse() => self.scene.window_event(event, self.crucible.fabric()),
-            _ => {}
+    pub fn handle_input(&mut self, input: &WinitInputHelper) {
+        if let Some(size) = input.window_resized() {
+            self.resize(size);
         }
+        self.scene.handle_input(input, self.crucible.fabric());
+        self.user_interface.handle_input(input);
     }
 
     pub fn run_fabric(&mut self, fabric_name: &String) {
@@ -247,18 +241,6 @@ impl Application {
         self.graphics.queue.submit(iter::once(encoder.finish()));
         output.present();
         Ok(())
-    }
-
-    fn handle_keyboard_input(&mut self, event: &WindowEvent) {
-        let WindowEvent::KeyboardInput {
-            input: KeyboardInput {
-                virtual_keycode: Some(keycode),
-                state: ElementState::Pressed, ..
-            }, ..
-        } = event else {
-            return;
-        };
-        self.user_interface.key_pressed(keycode);
     }
 
     fn selected_face(&self) -> Option<UniqueId> {
