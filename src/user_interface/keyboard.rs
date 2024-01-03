@@ -23,7 +23,7 @@ impl From<KeyboardMessage> for ControlMessage {
 #[derive(Debug, Clone)]
 pub struct Keyboard {
     current: Vec<Menu>,
-    environment: MenuContext,
+    menu_context: MenuContext,
     fabric_menu: Menu,
 }
 
@@ -57,7 +57,7 @@ impl Keyboard {
                 }
             }
             KeyboardMessage::SetEnvironment(environment) => {
-                self.environment = environment;
+                self.menu_context = environment;
             }
             KeyboardMessage::FreshLibrary(library) => {
                 self.fabric_menu = Menu::fabric_menu(&library.fabric_plans);
@@ -70,7 +70,7 @@ impl Keyboard {
     pub fn new(environment: MenuContext) -> Self {
         let fabric_menu = environment.fabric_menu.clone();
         let current = vec![Menu::root_menu(fabric_menu.clone())];
-        Self { current, environment, fabric_menu }
+        Self { current, menu_context: environment, fabric_menu }
     }
 
     pub fn reset_menu(&mut self, menu: Menu) {
@@ -88,7 +88,7 @@ impl Keyboard {
             .last()
             .unwrap()
             .clone()
-            .submenu_in(&self.environment)
+            .submenu_in(&self.menu_context)
             .into_iter()
             .find_map(|menu| {
                 let Menu { keycode, action, menu_action, .. } = &menu;

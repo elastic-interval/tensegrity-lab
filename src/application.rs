@@ -72,7 +72,7 @@ impl Application {
                             self.fabric_plan_name = fabric_plan.name.clone();
                             self.scene.action(SceneAction::Variant(SceneVariant::Suspended));
                             self.user_interface.message(ControlMessage::Reset);
-                            self.update_menu_environment()
+                            self.update_menu_context()
                         }
                         CrucibleAction::StartPretensing(_) => {
                             self.user_interface.action(Action::Keyboard(MenuAction::ReturnToRoot))
@@ -82,7 +82,7 @@ impl Application {
                     self.crucible.action(crucible_action);
                 }
                 Action::UpdateMenu => {
-                    self.update_menu_environment();
+                    self.update_menu_context();
                 }
                 Action::UpdatedLibrary(time) => {
                     let fabric_library = self.fabric_library.clone();
@@ -128,7 +128,7 @@ impl Application {
                     }
                     self.selected_faces.retain(|id| self.crucible.fabric().faces.contains_key(id));
                     self.scene.action(SceneAction::Variant(SceneVariant::TinkeringOnFaces(self.selected_faces.clone())));
-                    self.update_menu_environment();
+                    self.update_menu_context();
                 }
                 Action::ToggleDebug => {
                     self.user_interface.message(ControlMessage::ToggleDebugMode);
@@ -139,12 +139,12 @@ impl Application {
                         let alias = alias + &spin.into_alias();
                         let brick_on_face = BrickOnFace { face_id, alias, face_rotation };
                         self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::Propose(brick_on_face)));
-                        self.update_menu_environment()
+                        self.update_menu_context()
                     }
                 }
                 Action::RemoveProposedBrick => {
                     self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::Clear));
-                    self.update_menu_environment();
+                    self.update_menu_context();
                 }
                 Action::InitiateJoinFaces => {
                     self.crucible.action(
@@ -153,11 +153,11 @@ impl Application {
                 }
                 Action::Connect => {
                     self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::Commit));
-                    self.update_menu_environment();
+                    self.update_menu_context();
                 }
                 Action::Revert => {
                     self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::InitiateRevert));
-                    self.update_menu_environment();
+                    self.update_menu_context();
                 }
                 Action::RevertToFrozen { frozen: Frozen { fabric, face_id }, brick_on_face } => {
                     self.selected_faces.clear();
@@ -170,14 +170,14 @@ impl Application {
                     } else {
                         face_id.map(|face_id| self.selected_faces.insert(face_id));
                     }
-                    self.update_menu_environment();
+                    self.update_menu_context();
                 }
             }
         }
     }
 
-    fn update_menu_environment(&mut self) {
-        self.user_interface.set_menu_environment(MenuContext {
+    fn update_menu_context(&mut self) {
+        self.user_interface.set_menu_context(MenuContext {
             selection_count: self.selected_faces.len(),
             crucible_state: self.crucible.state(),
             fabric_menu: self.user_interface.create_fabric_menu(&self.fabric_library.fabric_plans),
@@ -206,7 +206,7 @@ impl Application {
         match event {
             WindowEvent::Resized(physical_size) => self.resize(*physical_size),
             WindowEvent::KeyboardInput { .. } => self.handle_keyboard_input(event),
-            WindowEvent::ModifiersChanged { .. } => self.scene.window_event(event, self.crucible.fabric()),
+            WindowEvent::ModifiersChanged { .. } |
             WindowEvent::MouseInput { state: ElementState::Released, .. } => self.scene.window_event(event, self.crucible.fabric()),
             // WindowEvent::MouseInput { .. } | WindowEvent::CursorMoved { .. } | WindowEvent::MouseWheel { .. }
             // if !self.user_interface.capturing_mouse() => self.scene.window_event(event, self.crucible.fabric()),
