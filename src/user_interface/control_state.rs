@@ -19,7 +19,6 @@ pub struct ControlState {
     gravity: Gravity,
     muscle: Muscle,
     show_strain: bool,
-    frame_rate: f64,
     action_queue: RefCell<Vec<Action>>,
 }
 
@@ -35,7 +34,6 @@ impl ControlState {
             gravity: Gravity::new(AIR_GRAVITY.gravity),
             muscle: Muscle::new(),
             show_strain: false,
-            frame_rate: 0.0,
             action_queue: RefCell::new(Vec::<Action>::new()),
         }
     }
@@ -86,9 +84,6 @@ impl ControlState {
             }
             ControlMessage::Muscle(_message) => {
                 // queue_action(self.muscle.update(message));
-            }
-            ControlMessage::FrameRateUpdated(frame_rate) => {
-                self.frame_rate = frame_rate;
             }
             ControlMessage::FreshLibrary(_library) => {
                 // self.keyboard.update(KeyboardMessage::FreshLibrary(library));

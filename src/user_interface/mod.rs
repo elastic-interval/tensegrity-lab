@@ -26,8 +26,6 @@ mod control_state;
 mod menu;
 mod muscle;
 
-const FRAME_RATE_MEASURE_INTERVAL_SECS: f64 = 0.5;
-
 #[derive(Debug, Clone, Copy)]
 pub enum MenuAction {
     StickAround,
@@ -62,14 +60,7 @@ pub enum ControlMessage {
     Gravity(GravityMessage),
     Muscle(MuscleMessage),
     Action(Action),
-    FrameRateUpdated(f64),
     FreshLibrary(FabricLibrary),
-}
-
-#[derive(Clone, Debug)]
-pub enum FaceChoice {
-    Left,
-    Right,
 }
 
 #[derive(Clone, Debug)]
@@ -118,7 +109,7 @@ impl UserInterface {
         self.message(ControlMessage::Keyboard(KeyboardMessage::KeyPressed(*keycode_pressed)));
     }
 
-    pub fn set_menu_environment(&mut self, menu_evironment: MenuContext) {
+    pub fn set_menu_context(&mut self, menu_evironment: MenuContext) {
         self.message(ControlMessage::Keyboard(KeyboardMessage::SetEnvironment(menu_evironment)))
     }
 
