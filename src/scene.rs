@@ -56,7 +56,7 @@ impl Scene {
     pub fn new(graphics: &GraphicsWindow) -> Self {
         let shader = graphics.get_shader_module();
         let scale = 6.0;
-        let size = PhysicalSize { width: graphics.config.width as f64, height: graphics.config.height as f64 };
+        let size = PhysicalSize { width: graphics.config.width as f32, height: graphics.config.height as f32 };
         let camera = Camera::new((2.0 * scale, 1.0 * scale, 2.0 * scale).into(), size);
         let uniform_buffer = graphics.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("MVP"),
@@ -208,7 +208,7 @@ impl Scene {
 
     pub fn resize(&mut self, graphics: &GraphicsWindow) {
         let new_size = graphics.size;
-        let size = PhysicalSize { width: new_size.width as f64, height: new_size.height as f64 };
+        let size = PhysicalSize { width: new_size.width as f32, height: new_size.height as f32 };
         self.camera.set_size(size);
         self.update_from_camera(graphics);
     }
