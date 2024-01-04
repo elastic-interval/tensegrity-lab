@@ -151,7 +151,6 @@ impl Menu {
                     |env| env.crucible_state.experimenting,
                     Action::Crucible(CrucibleAction::ActivateMuscles))
             .submenu(ALWAYS, Menu::new("Settings", StickAround)
-                .action("Debug toggle", ReturnToRoot, ALWAYS, Action::ToggleDebug)
                 .submenu(ALWAYS, Menu::speed_menu())
                 .submenu(ALWAYS, Menu::new("Camera", StickAround)
                     .action("Midpoint", ReturnToRoot, ALWAYS, Action::Scene(SceneAction::WatchMidpoint))

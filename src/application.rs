@@ -49,7 +49,7 @@ impl Application {
     }
 
     pub fn update(&mut self) {
-        let mut actions = self.user_interface.controls().take_actions();
+        let mut actions = self.user_interface.take_actions();
         let time = fabric_library_modified();
         if time > self.fabric_library_modified {
             match self.refresh_library(time) {
@@ -127,9 +127,7 @@ impl Application {
                     self.selected_faces.retain(|id| self.crucible.fabric().faces.contains_key(id));
                     self.scene.action(SceneAction::Variant(SceneVariant::TinkeringOnFaces(self.selected_faces.clone())));
                     self.update_menu_context();
-                }
-                Action::ToggleDebug => {
-                    self.user_interface.message(ControlMessage::ToggleDebugMode);
+                    println!("Select face {:?}", face_id);
                 }
                 Action::ProposeBrick { alias, face_rotation } => {
                     if let Some(face_id) = self.selected_face() {
