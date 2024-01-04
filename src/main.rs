@@ -6,7 +6,6 @@ use winit::{
     window::WindowBuilder,
 };
 use winit::dpi::PhysicalSize;
-use winit::event::Event;
 use winit_input_helper::WinitInputHelper;
 
 use tensegrity_lab::application::Application;
