@@ -1,9 +1,8 @@
+use std::cell::RefCell;
 use std::time::SystemTime;
+use winit::keyboard::Key;
 
 use winit_input_helper::WinitInputHelper;
-
-#[cfg(target_arch = "wasm32")]
-use instant::Instant;
 
 use crate::build::tenscript::{FabricPlan, FaceAlias};
 use crate::build::tenscript::fabric_library::FabricLibrary;
@@ -12,19 +11,9 @@ use crate::camera::Pick;
 use crate::crucible::{CrucibleAction, CrucibleState};
 use crate::fabric::face::FaceRotation;
 use crate::scene::SceneAction;
-use crate::user_interface::control_state::ControlState;
-use crate::user_interface::gravity::GravityMessage;
-use crate::user_interface::keyboard::KeyboardMessage;
 use crate::user_interface::menu::Menu;
-use crate::user_interface::muscle::MuscleMessage;
-use crate::user_interface::strain_threshold::StrainThresholdMessage;
 
-mod strain_threshold;
-mod gravity;
-mod keyboard;
-mod control_state;
 mod menu;
-mod muscle;
 
 #[derive(Debug, Clone, Copy)]
 pub enum MenuAction {
@@ -52,8 +41,36 @@ impl MenuContext {
 }
 
 #[derive(Debug, Clone)]
+pub enum GravityMessage {
+    NuanceChanged(f32),
+    Reset,
+}
+
+#[derive(Debug, Clone)]
+pub enum MuscleMessage {
+    NuanceChanged(f32),
+    Reset,
+}
+
+#[derive(Debug, Clone)]
+pub enum StrainThresholdMessage {
+    SetStrainLimits((f32, f32)),
+    NuanceChanged(f32),
+    Calibrate,
+}
+
+#[derive(Debug, Clone)]
+pub enum KeyboardMessage {
+    KeyPressed(Key),
+    SelectSubmenu(Menu),
+    SelectMenu(MenuAction),
+    SubmitAction { action: Action, menu_action: MenuAction },
+    SetEnvironment(MenuContext),
+    FreshLibrary(FabricLibrary),
+}
+
+#[derive(Debug, Clone)]
 pub enum ControlMessage {
-    ToggleDebugMode,
     Reset,
     Keyboard(KeyboardMessage),
     StrainThreshold(StrainThresholdMessage),
@@ -71,7 +88,6 @@ pub enum Action {
     Keyboard(MenuAction),
     CalibrateStrain,
     SelectFace(Option<Pick>),
-    ToggleDebug,
     ProposeBrick { alias: FaceAlias, face_rotation: FaceRotation },
     RemoveProposedBrick,
     Connect,
@@ -82,27 +98,54 @@ pub enum Action {
 }
 
 pub struct UserInterface {
-    state: ControlState,
+    action_queue: RefCell<Vec<Action>>,
 }
 
 impl UserInterface {
     pub fn new(fabrics: &[FabricPlan]) -> Self {
-        let menu_context = MenuContext::new(Menu::fabric_menu(fabrics));
         let plan = fabrics
             .iter()
-            .find(|fp|fp.name.last().unwrap().contains(&"Omni".to_string()))
+            .find(|fp| fp.name.last().unwrap().contains(&"Omni".to_string()))
             .unwrap();
-        let state = ControlState::new(menu_context);
-        state.queue_action(Action::Crucible(CrucibleAction::BuildFabric(plan.clone())));
-        Self { state }
+        let action_queue = RefCell::new(vec![Action::Crucible(CrucibleAction::BuildFabric(plan.clone()))]);
+        Self {
+            action_queue,
+        }
     }
 
-    pub fn controls(&self) -> &ControlState {
-        &self.state
+    pub fn take_actions(&self) -> Vec<Action> {
+        self.action_queue.borrow_mut().split_off(0)
     }
 
-    pub fn message(&mut self, _control_message: ControlMessage) {
-        // self.state.queue_message(control_message);
+    pub fn queue_action(&self, action: Action) {
+        self.action_queue.borrow_mut().push(action);
+    }
+
+    pub fn message(&mut self, control_message: ControlMessage) {
+        match control_message {
+            ControlMessage::Action(action) => {
+                self.queue_action(action);
+            }
+            ControlMessage::Reset => {
+                // self.gravity.update(GravityMessage::Reset);
+                self.queue_action(Action::UpdateMenu);
+            }
+            ControlMessage::Keyboard(_message) => {
+                // queue_action(self.keyboard.update(message));
+            }
+            ControlMessage::StrainThreshold(_message) => {
+                // queue_action(self.strain_threshold.update(message));
+            }
+            ControlMessage::Gravity(_message) => {
+                // queue_action(self.gravity.update(message));
+            }
+            ControlMessage::Muscle(_message) => {
+                // queue_action(self.muscle.update(message));
+            }
+            ControlMessage::FreshLibrary(_library) => {
+                // self.keyboard.update(KeyboardMessage::FreshLibrary(library));
+            }
+        }
     }
 
     pub fn handle_input(&mut self, _input: &WinitInputHelper) {

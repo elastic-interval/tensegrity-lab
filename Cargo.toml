@@ -11,6 +11,7 @@ cfg-if = "1.0.0"
 cgmath = "0.18.0"
 chrono = "0.4.31"
 clap = { version = "4.4.12", features = ["derive"] }
+dialoguer = "0.11.0"
 env_logger = "0.10.1"
 fast_inv_sqrt = "~1.0"
 futures = "0.3.30"
