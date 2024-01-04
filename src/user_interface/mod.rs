@@ -90,7 +90,7 @@ impl UserInterface {
         let menu_context = MenuContext::new(Menu::fabric_menu(fabrics));
         let plan = fabrics
             .iter()
-            .find(|fp|fp.name.last().unwrap().contains(&"Tommy".to_string()))
+            .find(|fp|fp.name.last().unwrap().contains(&"Omni".to_string()))
             .unwrap();
         let state = ControlState::new(menu_context);
         state.queue_action(Action::Crucible(CrucibleAction::BuildFabric(plan.clone())));

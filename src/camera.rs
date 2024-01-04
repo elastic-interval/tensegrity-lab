@@ -48,7 +48,7 @@ impl Camera {
         }
     }
 
-    pub fn handle_input(&mut self, input: &WinitInputHelper, _fabric: &Fabric) {
+    pub fn handle_input(&mut self, input: &WinitInputHelper, fabric: &Fabric) {
         if input.mouse_held(0) {
             if let Some(rotation) = self.rotation(input.mouse_diff()) {
                 self.position = self.look_at - rotation.transform_vector(self.look_at - self.position);
@@ -61,9 +61,8 @@ impl Camera {
             self.pick_cursor = input.cursor();
         }
         if input.mouse_released(0) {
-            if let Some((cx, cy)) = self.pick_cursor {
-                println!("Pick ({:?}, {:?})", cx, cy);
-                // self.pick(self.moving_mouse, self.multiple, fabric)
+            if let Some(pick_cursor) = self.pick_cursor {
+                self.pick(pick_cursor, self.multiple, fabric)
             }
         }
         let (_sx, sy) = input.scroll_diff();
@@ -105,7 +104,7 @@ impl Camera {
         let height = self.size.height / 2.0;
         let x = (px - width) / width;
         let y = (height - py) / height;
-        let position = Point3::new(x as f32, y as f32, 1.0);
+        let position = Point3::new(x, y, 1.0);
         let point3d = self.mvp_matrix().invert().unwrap().transform_point(position);
         let ray = (point3d - self.position).normalize();
         let best = fabric.faces.iter()
@@ -114,6 +113,9 @@ impl Camera {
             .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b));
         if let Some((face_id, _)) = best {
             self.picked = Some(Pick { face_id: *face_id, multiple });
+            println!("Picked {:?}", face_id);
+        } else {
+            println!("Nothing picked");
         }
     }
 
@@ -122,7 +124,7 @@ impl Camera {
     }
 
     fn projection_matrix(&self) -> Matrix4<f32> {
-        let aspect = self.size.width as f32 / self.size.height as f32;
+        let aspect = self.size.width / self.size.height;
         OPENGL_TO_WGPU_MATRIX * perspective(Rad(2.0 * PI / 5.0), aspect, 0.1, 100.0)
     }
 
