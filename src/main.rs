@@ -6,6 +6,7 @@ use winit::{
     window::WindowBuilder,
 };
 use winit::dpi::PhysicalSize;
+use winit::event::Event;
 use winit_input_helper::WinitInputHelper;
 
 use tensegrity_lab::application::Application;
@@ -39,7 +40,7 @@ pub fn run(prototype: Option<usize>) {
 
     let event_loop = EventLoop::new().unwrap();
     let window = WindowBuilder::new()
-        .with_inner_size(PhysicalSize::new(3000, 1600))
+        .with_inner_size(PhysicalSize::new(1600, 1200))
         .build(&event_loop)
         .expect("Could not build window");
 
@@ -79,6 +80,8 @@ pub fn run(prototype: Option<usize>) {
             app.handle_input(&input);
             app.update();
             app.redraw();
+        } else {
+            window.request_redraw();
         }
     }).unwrap();
 }

@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 
 use cgmath::{Deg, EuclideanSpace, InnerSpace, Matrix4, perspective, Point3, point3, Quaternion, Rad, Rotation, Rotation3, SquareMatrix, Transform, vec3, Vector3};
 use cgmath::num_traits::abs;
-use winit::dpi::{PhysicalPosition, PhysicalSize};
+use winit::dpi::PhysicalSize;
 use winit_input_helper::WinitInputHelper;
 
 use crate::fabric::{Fabric, UniqueId};
@@ -28,53 +28,52 @@ pub struct Camera {
     pub target: Target,
     pub look_at: Point3<f32>,
     pub picked: Option<Pick>,
-    pub size: PhysicalSize<f64>,
-    pub moving_mouse: PhysicalPosition<f64>,
+    pub size: PhysicalSize<f32>,
     pub pick_mode: bool,
     pub multiple: bool,
-    pub pressed_mouse: Option<PhysicalPosition<f64>>,
-    pub input_helper: WinitInputHelper,
+    pub pick_cursor: Option<(f32, f32)>,
 }
 
 impl Camera {
-    pub fn new(position: Point3<f32>, size: PhysicalSize<f64>) -> Self {
+    pub fn new(position: Point3<f32>, size: PhysicalSize<f32>) -> Self {
         Self {
             position,
             target: Target::default(),
             look_at: point3(0.0, 3.0, 0.0),
             picked: None,
             size,
-            moving_mouse: PhysicalPosition::new(0.0, 0.0),
-            pressed_mouse: None,
             pick_mode: false,
             multiple: false,
-            input_helper: WinitInputHelper::new(),
+            pick_cursor: None,
         }
     }
 
-    pub fn handle_input(&mut self, input: &WinitInputHelper, fabric: &Fabric) {
+    pub fn handle_input(&mut self, input: &WinitInputHelper, _fabric: &Fabric) {
+        if input.mouse_held(0) {
+            if let Some(rotation) = self.rotation(input.mouse_diff()) {
+                self.position = self.look_at - rotation.transform_vector(self.look_at - self.position);
+                self.pick_cursor = None;
+            }
+        }
         self.pick_mode = false; // TODO
         self.multiple = input.held_shift();
         if input.mouse_pressed(0) {
-            self.pick(self.moving_mouse, self.multiple, fabric)
-            //             ElementState::Pressed if self.pick_mode => { self.pick(self.moving_mouse, self.multiple, fabric) }
-            //             ElementState::Pressed => { self.pressed_mouse = Some(self.moving_mouse) }
-            //             ElementState::Released => { self.pressed_mouse = None }
+            self.pick_cursor = input.cursor();
         }
-        //     WindowEvent::CursorMoved { position, .. } => {
-        //         self.moving_mouse = *position;
-        //         if let Some(rotation) = self.rotation() {
-        //             self.position = self.look_at - rotation.transform_vector(self.look_at - self.position);
-        //             self.pressed_mouse = Some(self.moving_mouse);
-        //         }
-        //     }
-        //     WindowEvent::MouseWheel { delta: MouseScrollDelta::PixelDelta(pos), .. } => {
-        //         let scroll = pos.y as f32 * SPEED.z;
-        //         let gaze = self.look_at - self.position;
-        //         if gaze.magnitude() - scroll > 1.0 {
-        //             self.position += gaze.normalize() * scroll;
-        //         }
-        //     }
+        if input.mouse_released(0) {
+            if let Some((cx, cy)) = self.pick_cursor {
+                println!("Pick ({:?}, {:?})", cx, cy);
+                // self.pick(self.moving_mouse, self.multiple, fabric)
+            }
+        }
+        let (_sx, sy) = input.scroll_diff();
+        if abs(sy) > 0.1 {
+            let scroll = sy * SPEED.z;
+            let gaze = self.look_at - self.position;
+            if gaze.magnitude() - scroll > 1.0 {
+                self.position += gaze.normalize() * scroll;
+            }
+        }
     }
 
     pub fn target_approach(&mut self, fabric: &Fabric) {
@@ -93,7 +92,7 @@ impl Camera {
         }
     }
 
-    pub fn set_size(&mut self, size: PhysicalSize<f64>) {
+    pub fn set_size(&mut self, size: PhysicalSize<f32>) {
         self.size = size;
     }
 
@@ -101,11 +100,11 @@ impl Camera {
         self.projection_matrix() * self.view_matrix()
     }
 
-    pub fn pick(&mut self, position: PhysicalPosition<f64>, multiple: bool, fabric: &Fabric) {
+    pub fn pick(&mut self, (px, py): (f32, f32), multiple: bool, fabric: &Fabric) {
         let width = self.size.width / 2.0;
         let height = self.size.height / 2.0;
-        let x = (position.x - width) / width;
-        let y = (height - position.y) / height;
+        let x = (px - width) / width;
+        let y = (height - py) / height;
         let position = Point3::new(x as f32, y as f32, 1.0);
         let point3d = self.mvp_matrix().invert().unwrap().transform_point(position);
         let ray = (point3d - self.position).normalize();
@@ -127,24 +126,18 @@ impl Camera {
         OPENGL_TO_WGPU_MATRIX * perspective(Rad(2.0 * PI / 5.0), aspect, 0.1, 100.0)
     }
 
-    fn rotation(&self) -> Option<Matrix4<f32>> {
-        let (dx, dy) = self.angles()?;
-        let rot_x = Matrix4::from_axis_angle(Vector3::unit_y(), dx);
+    fn rotation(&self, (dx, dy): (f32, f32)) -> Option<Matrix4<f32>> {
+        if (dx, dy) == (0.0, 0.0) {
+            return None;
+        }
+        let rot_x = Matrix4::from_axis_angle(Vector3::unit_y(), Deg(dx * SPEED.x));
         let axis = Vector3::unit_y().cross((self.look_at - self.position).normalize());
-        let rot_y = Matrix4::from_axis_angle(axis, dy);
+        let rot_y = Matrix4::from_axis_angle(axis, Deg(dy * SPEED.y));
         Some(rot_x * rot_y)
-    }
-
-    fn angles(&self) -> Option<(Deg<f32>, Deg<f32>)> {
-        let pressed = self.pressed_mouse?;
-        let PhysicalPosition { x, y } = self.moving_mouse;
-        let dx = (pressed.x - x) as f32;
-        let dy = (y - pressed.y) as f32;
-        Some((Deg(dx * SPEED.x), Deg(dy * SPEED.y)))
     }
 }
 
-const SPEED: Vector3<f32> = vec3(0.5, 0.4, 0.01);
+const SPEED: Vector3<f32> = vec3(-0.5, 0.4, 1.0);
 
 const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
     1.0, 0.0, 0.0, 0.0,
