@@ -33,7 +33,7 @@ impl Application {
     pub fn new(graphics: GraphicsWindow) -> Application {
         let brick_library = BrickLibrary::from_source().unwrap();
         let fabric_library = FabricLibrary::from_source().unwrap();
-        let user_interface = UserInterface::new(&fabric_library.fabric_plans);
+        let user_interface = UserInterface::new();
         let scene = Scene::new(&graphics);
         Application {
             selected_faces: HashSet::new(),
@@ -211,7 +211,7 @@ impl Application {
             .iter()
             .find(|FabricPlan { name, .. }| name.contains(fabric_name))
             .expect(fabric_name);
-        self.user_interface.action(Action::Crucible(CrucibleAction::BuildFabric(fabric_plan.clone())))
+        self.user_interface.queue_action(Action::Crucible(CrucibleAction::BuildFabric(fabric_plan.clone())))
     }
 
     pub fn capture_prototype(&mut self, brick_index: usize) {

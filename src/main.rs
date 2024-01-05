@@ -67,7 +67,7 @@ pub fn run(prototype: Option<usize>) {
     if let Some(brick_index) = prototype {
         app.capture_prototype(brick_index);
     } else {
-        let fabric = "Tommy Torque".to_string();
+        let fabric = "Omni".to_string();
         app.run_fabric(&fabric)
     }
     event_loop.run(move |event, window_target| {

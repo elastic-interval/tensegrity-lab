@@ -102,14 +102,9 @@ pub struct UserInterface {
 }
 
 impl UserInterface {
-    pub fn new(fabrics: &[FabricPlan]) -> Self {
-        let plan = fabrics
-            .iter()
-            .find(|fp| fp.name.last().unwrap().contains(&"Omni".to_string()))
-            .unwrap();
-        let action_queue = RefCell::new(vec![Action::Crucible(CrucibleAction::BuildFabric(plan.clone()))]);
+    pub fn new() -> Self {
         Self {
-            action_queue,
+            action_queue: RefCell::default(),
         }
     }
 
