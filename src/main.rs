@@ -64,7 +64,6 @@ pub fn run(prototype: Option<usize>) {
     let graphics = pollster::block_on(GraphicsWindow::new(&window));
     let mut app = Application::new(graphics);
     let mut input = WinitInputHelper::new();
-    let mut ctx = egui::Context::default();
     if let Some(brick_index) = prototype {
         app.capture_prototype(brick_index);
     } else {

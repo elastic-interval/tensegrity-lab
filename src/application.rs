@@ -2,7 +2,6 @@ use std::{fs, iter};
 use std::collections::HashSet;
 use std::time::SystemTime;
 
-use winit::dpi::PhysicalSize;
 use winit_input_helper::WinitInputHelper;
 
 use crate::build::tenscript::{FabricPlan, FaceAlias, TenscriptError};
@@ -190,7 +189,7 @@ impl Application {
         }
         match self.render() {
             Ok(_) => {}
-            Err(wgpu::SurfaceError::Lost) => self.resize(self.graphics.size),
+            Err(wgpu::SurfaceError::Lost) => self.resize(self.graphics.config.width, self.graphics.config.height),
             Err(wgpu::SurfaceError::OutOfMemory) => panic!("Out of memory"),
             Err(e) => eprintln!("{e:?}"),
         }
@@ -200,7 +199,7 @@ impl Application {
 
     pub fn handle_input(&mut self, input: &WinitInputHelper) {
         if let Some(size) = input.window_resized() {
-            self.resize(size);
+            self.resize(size.width, size.height);
         }
         self.scene.handle_input(input, self.crucible.fabric());
         self.user_interface.handle_input(input);
@@ -221,11 +220,10 @@ impl Application {
         self.crucible.action(CrucibleAction::BakeBrick(prototype));
     }
 
-    pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
-        if new_size.width > 0 && new_size.height > 0 {
-            self.graphics.size = new_size;
-            self.graphics.config.width = new_size.width;
-            self.graphics.config.height = new_size.height;
+    pub fn resize(&mut self, width: u32, height: u32) {
+        if width > 0 && height > 0 {
+            self.graphics.config.width = width;
+            self.graphics.config.height = height;
             self.graphics.surface.configure(&self.graphics.device, &self.graphics.config);
             self.scene.resize(&self.graphics);
         }
