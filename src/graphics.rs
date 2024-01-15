@@ -1,14 +1,14 @@
 use wgpu::{BindGroupLayout, CommandEncoder, ShaderModule};
 use winit::window::Window;
 
-pub struct GraphicsWindow {
+pub struct Graphics {
     pub surface: wgpu::Surface,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
 }
 
-impl GraphicsWindow {
+impl Graphics {
     pub async fn new(window: &Window) -> Self {
         let size = window.inner_size();
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor{

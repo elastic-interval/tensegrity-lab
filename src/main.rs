@@ -9,7 +9,7 @@ use winit::dpi::PhysicalSize;
 use winit_input_helper::WinitInputHelper;
 
 use tensegrity_lab::application::Application;
-use tensegrity_lab::graphics::GraphicsWindow;
+use tensegrity_lab::graphics::Graphics;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
@@ -61,7 +61,7 @@ pub fn run(prototype: Option<usize>) {
             })
             .expect("Couldn't append canvas to document body.");
     }
-    let graphics = pollster::block_on(GraphicsWindow::new(&window));
+    let graphics = pollster::block_on(Graphics::new(&window));
     let mut app = Application::new(graphics);
     let mut input = WinitInputHelper::new();
     if let Some(brick_index) = prototype {
