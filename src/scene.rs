@@ -17,7 +17,7 @@ use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::Face;
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push};
-use crate::graphics::GraphicsWindow;
+use crate::graphics::Graphics;
 
 const MAX_INTERVALS: usize = 5000;
 
@@ -52,7 +52,7 @@ pub struct Scene {
 }
 
 impl Scene {
-    pub fn new(graphics: &GraphicsWindow) -> Self {
+    pub fn new(graphics: &Graphics) -> Self {
         let shader = graphics.get_shader_module();
         let scale = 6.0;
         let camera = Camera::new((2.0 * scale, 1.0 * scale, 2.0 * scale).into(), graphics.config.width as f32, graphics.config.height as f32);
@@ -191,7 +191,7 @@ impl Scene {
         self.camera.handle_input(input, fabric);
     }
 
-    pub fn update(&mut self, graphics: &GraphicsWindow, fabric: &Fabric) {
+    pub fn update(&mut self, graphics: &Graphics, fabric: &Fabric) {
         self.update_from_fabric(fabric);
         self.update_from_camera(graphics);
         graphics.queue.write_buffer(&self.fabric_drawing.buffer, 0, cast_slice(&self.fabric_drawing.vertices));
@@ -212,12 +212,12 @@ impl Scene {
         self.camera.target_approach(fabric);
     }
 
-    pub fn resize(&mut self, graphics: &GraphicsWindow) {
+    pub fn resize(&mut self, graphics: &Graphics) {
         self.camera.set_size(graphics.config.width as f32, graphics.config.height as f32);
         self.update_from_camera(graphics);
     }
 
-    fn update_from_camera(&self, graphics: &GraphicsWindow) {
+    fn update_from_camera(&self, graphics: &Graphics) {
         let mvp_mat = self.camera.mvp_matrix();
         let mvp_ref: &[f32; 16] = mvp_mat.as_ref();
         graphics.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));

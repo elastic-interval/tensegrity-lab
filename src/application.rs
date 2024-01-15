@@ -12,7 +12,7 @@ use crate::build::tinkerer::{BrickOnFace, Frozen};
 use crate::camera::Pick;
 use crate::crucible::{Crucible, CrucibleAction, TinkererAction};
 use crate::fabric::UniqueId;
-use crate::graphics::GraphicsWindow;
+use crate::graphics::Graphics;
 use crate::scene::{Scene, SceneAction, SceneVariant};
 use crate::user_interface::{Action, ControlMessage, MenuAction, MenuContext, UserInterface};
 
@@ -21,7 +21,7 @@ pub struct Application {
     scene: Scene,
     user_interface: UserInterface,
     crucible: Crucible,
-    graphics: GraphicsWindow,
+    graphics: Graphics,
     fabric_plan_name: Vec<String>,
     fabric_library: FabricLibrary,
     fabric_library_modified: SystemTime,
@@ -29,7 +29,7 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn new(graphics: GraphicsWindow) -> Application {
+    pub fn new(graphics: Graphics) -> Application {
         let brick_library = BrickLibrary::from_source().unwrap();
         let fabric_library = FabricLibrary::from_source().unwrap();
         let user_interface = UserInterface::new();
