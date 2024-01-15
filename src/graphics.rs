@@ -1,5 +1,4 @@
-use wgpu::{BindGroupLayout, CommandEncoder, PrimitiveState, ShaderModule};
-use winit::dpi::PhysicalSize;
+use wgpu::{BindGroupLayout, CommandEncoder, ShaderModule};
 use winit::window::Window;
 
 pub struct GraphicsWindow {
@@ -7,7 +6,6 @@ pub struct GraphicsWindow {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
-    pub size: PhysicalSize<u32>,
 }
 
 impl GraphicsWindow {
@@ -63,7 +61,6 @@ impl GraphicsWindow {
             device,
             queue,
             config,
-            size,
         }
     }
 
@@ -92,21 +89,5 @@ impl GraphicsWindow {
 
     pub fn create_command_encoder(&self) -> CommandEncoder {
         self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") })
-    }
-}
-
-pub fn line_list_primitive_state() -> PrimitiveState {
-    PrimitiveState {
-        topology: wgpu::PrimitiveTopology::LineList,
-        strip_index_format: None,
-        ..Default::default()
-    }
-}
-
-pub fn triangle_list_primitive_state() -> PrimitiveState {
-    PrimitiveState {
-        topology: wgpu::PrimitiveTopology::TriangleList,
-        strip_index_format: None,
-        ..Default::default()
     }
 }

@@ -3,9 +3,8 @@ use std::f32::consts::PI;
 use std::mem;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use wgpu::{CommandEncoder, StoreOp, TextureView};
+use wgpu::{CommandEncoder, PrimitiveState, StoreOp, TextureView};
 use wgpu::util::DeviceExt;
-use winit::dpi::PhysicalSize;
 use winit_input_helper::WinitInputHelper;
 
 use SceneVariant::{*};
@@ -18,7 +17,7 @@ use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::Face;
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push};
-use crate::graphics::{GraphicsWindow, line_list_primitive_state, triangle_list_primitive_state};
+use crate::graphics::GraphicsWindow;
 
 const MAX_INTERVALS: usize = 5000;
 
@@ -56,8 +55,7 @@ impl Scene {
     pub fn new(graphics: &GraphicsWindow) -> Self {
         let shader = graphics.get_shader_module();
         let scale = 6.0;
-        let size = PhysicalSize { width: graphics.config.width as f32, height: graphics.config.height as f32 };
-        let camera = Camera::new((2.0 * scale, 1.0 * scale, 2.0 * scale).into(), size);
+        let camera = Camera::new((2.0 * scale, 1.0 * scale, 2.0 * scale).into(), graphics.config.width as f32, graphics.config.height as f32);
         let uniform_buffer = graphics.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("MVP"),
             contents: cast_slice(&[0.0f32; 16]),
@@ -97,7 +95,11 @@ impl Scene {
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
-            primitive: line_list_primitive_state(),
+            primitive: PrimitiveState {
+                topology: wgpu::PrimitiveTopology::LineList,
+                strip_index_format: None,
+                ..Default::default()
+            },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
@@ -126,7 +128,11 @@ impl Scene {
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
-            primitive: triangle_list_primitive_state(),
+            primitive: PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                ..Default::default()
+            },
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
@@ -207,9 +213,7 @@ impl Scene {
     }
 
     pub fn resize(&mut self, graphics: &GraphicsWindow) {
-        let new_size = graphics.size;
-        let size = PhysicalSize { width: new_size.width as f32, height: new_size.height as f32 };
-        self.camera.set_size(size);
+        self.camera.set_size(graphics.config.width as f32, graphics.config.height as f32);
         self.update_from_camera(graphics);
     }
 

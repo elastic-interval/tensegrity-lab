@@ -3,7 +3,6 @@ use std::f32::consts::PI;
 
 use cgmath::{Deg, EuclideanSpace, InnerSpace, Matrix4, perspective, Point3, point3, Quaternion, Rad, Rotation, Rotation3, SquareMatrix, Transform, vec3, Vector3};
 use cgmath::num_traits::abs;
-use winit::dpi::PhysicalSize;
 use winit_input_helper::WinitInputHelper;
 
 use crate::fabric::{Fabric, UniqueId};
@@ -28,20 +27,22 @@ pub struct Camera {
     pub target: Target,
     pub look_at: Point3<f32>,
     pub picked: Option<Pick>,
-    pub size: PhysicalSize<f32>,
+    pub width: f32,
+    pub height: f32,
     pub pick_mode: bool,
     pub multiple: bool,
     pub pick_cursor: Option<(f32, f32)>,
 }
 
 impl Camera {
-    pub fn new(position: Point3<f32>, size: PhysicalSize<f32>) -> Self {
+    pub fn new(position: Point3<f32>, width: f32, height: f32) -> Self {
         Self {
             position,
             target: Target::default(),
             look_at: point3(0.0, 3.0, 0.0),
             picked: None,
-            size,
+            width,
+            height,
             pick_mode: false,
             multiple: false,
             pick_cursor: None,
@@ -91,8 +92,9 @@ impl Camera {
         }
     }
 
-    pub fn set_size(&mut self, size: PhysicalSize<f32>) {
-        self.size = size;
+    pub fn set_size(&mut self, width: f32, height: f32) {
+        self.width = width;
+        self.height = height;
     }
 
     pub fn mvp_matrix(&self) -> Matrix4<f32> {
@@ -100,8 +102,8 @@ impl Camera {
     }
 
     pub fn pick(&mut self, (px, py): (f32, f32), multiple: bool, fabric: &Fabric) {
-        let width = self.size.width / 2.0;
-        let height = self.size.height / 2.0;
+        let width = self.width / 2.0;
+        let height = self.height / 2.0;
         let x = (px - width) / width;
         let y = (height - py) / height;
         let position = Point3::new(x, y, 1.0);
@@ -124,7 +126,7 @@ impl Camera {
     }
 
     fn projection_matrix(&self) -> Matrix4<f32> {
-        let aspect = self.size.width / self.size.height;
+        let aspect = self.width / self.height;
         OPENGL_TO_WGPU_MATRIX * perspective(Rad(2.0 * PI / 5.0), aspect, 0.1, 100.0)
     }
 
