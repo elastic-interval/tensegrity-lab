@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 use std::mem;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use wgpu::{CommandEncoder, PrimitiveState, StoreOp, TextureView};
+use wgpu::{CommandEncoder, PrimitiveState, RenderPass, StoreOp, TextureView};
 use wgpu::util::DeviceExt;
 use winit_input_helper::WinitInputHelper;
 
@@ -20,12 +20,6 @@ use crate::fabric::interval::Role::{Pull, Push};
 use crate::graphics::Graphics;
 
 const MAX_INTERVALS: usize = 5000;
-
-struct Drawing<V> {
-    pipeline: wgpu::RenderPipeline,
-    vertices: Vec<V>,
-    buffer: wgpu::Buffer,
-}
 
 #[derive(Debug, Clone)]
 pub enum SceneAction {
@@ -70,13 +64,11 @@ impl Scene {
             }],
             label: Some("Uniform Bind Group"),
         });
-
         let pipeline_layout = graphics.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
             bind_group_layouts: &[&uniform_bind_group_layout],
             push_constant_ranges: &[],
         });
-
         let fabric_vertices = vec![FabricVertex::default(); MAX_INTERVALS * 2];
         let fabric_pipeline = graphics.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Fabric Pipeline"),
@@ -109,7 +101,6 @@ impl Scene {
             contents: cast_slice(&fabric_vertices),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
-
         let surface_vertices = SurfaceVertex::for_radius(10.0).to_vec();
         let surface_pipeline = graphics.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Surface Pipeline"),
@@ -142,18 +133,17 @@ impl Scene {
             contents: cast_slice(&surface_vertices),
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
-
         Self {
             variant: Suspended,
             camera,
             fabric_drawing: Drawing {
-                pipeline: fabric_pipeline,
                 vertices: fabric_vertices,
+                pipeline: fabric_pipeline,
                 buffer: fabric_buffer,
             },
             surface_drawing: Drawing {
-                pipeline: surface_pipeline,
                 vertices: surface_vertices,
+                pipeline: surface_pipeline,
                 buffer: surface_buffer,
             },
             uniform_buffer,
@@ -346,3 +336,8 @@ impl SurfaceVertex {
     }
 }
 
+struct Drawing<V> {
+    vertices: Vec<V>,
+    pipeline: wgpu::RenderPipeline,
+    buffer: wgpu::Buffer,
+}
