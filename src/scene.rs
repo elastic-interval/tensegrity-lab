@@ -42,10 +42,11 @@ pub struct Scene {
     surface_drawing: Drawing<SurfaceVertex>,
     uniform_bind_group: wgpu::BindGroup,
     uniform_buffer: wgpu::Buffer,
+    pub graphics: Graphics,
 }
 
 impl Scene {
-    pub fn new(graphics: &Graphics) -> Self {
+    pub fn new(graphics: Graphics) -> Self {
         let shader = graphics.device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
@@ -151,6 +152,7 @@ impl Scene {
         Self {
             variant: Suspended,
             camera,
+            graphics,
             fabric_drawing: Drawing {
                 vertices: fabric_vertices,
                 pipeline: fabric_pipeline,
@@ -196,10 +198,10 @@ impl Scene {
         self.camera.handle_input(input, fabric);
     }
 
-    pub fn update(&mut self, graphics: &Graphics, fabric: &Fabric) {
+    pub fn update(&mut self,  fabric: &Fabric) {
         self.update_from_fabric(fabric);
-        self.update_from_camera(graphics);
-        graphics.queue.write_buffer(&self.fabric_drawing.buffer, 0, cast_slice(&self.fabric_drawing.vertices));
+        self.update_from_camera(&self.graphics);
+        self.graphics.queue.write_buffer(&self.fabric_drawing.buffer, 0, cast_slice(&self.fabric_drawing.vertices));
     }
 
     pub fn picked(&mut self) -> Option<Pick> {
@@ -217,9 +219,8 @@ impl Scene {
         self.camera.target_approach(fabric);
     }
 
-    pub fn resize(&mut self, graphics: &Graphics) {
-        self.camera.set_size(graphics.config.width as f32, graphics.config.height as f32);
-        self.update_from_camera(graphics);
+    pub fn resize(&mut self) {
+        self.camera.set_size(self.graphics.config.width as f32, self.graphics.config.height as f32);
     }
 
     fn update_from_camera(&self, graphics: &Graphics) {
