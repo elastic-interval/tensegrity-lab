@@ -42,7 +42,7 @@ pub struct Scene {
     surface_drawing: Drawing<SurfaceVertex>,
     uniform_bind_group: wgpu::BindGroup,
     uniform_buffer: wgpu::Buffer,
-    pub graphics: Graphics,
+    graphics: Graphics,
 }
 
 impl Scene {
@@ -219,8 +219,25 @@ impl Scene {
         self.camera.target_approach(fabric);
     }
 
-    pub fn resize(&mut self) {
-        self.camera.set_size(self.graphics.config.width as f32, self.graphics.config.height as f32);
+    pub fn queue(&self) -> &wgpu::Queue {
+        &self.graphics.queue
+    }
+
+    pub fn create_encoder(&self) -> wgpu::CommandEncoder {
+        self.graphics.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Encoder") })
+    }
+
+    pub fn surface_texture(&self) -> Result<wgpu::SurfaceTexture,wgpu::SurfaceError> {
+        self.graphics.surface.get_current_texture()
+    }
+
+    pub fn resize(&mut self, width: u32, height: u32) {
+        if width > 0 && height > 0 {
+            self.graphics.config.width = width;
+            self.graphics.config.height = height;
+            self.graphics.surface.configure(&self.graphics.device, &self.graphics.config);
+            self.camera.set_size(width as f32, height as f32);
+        }
     }
 
     fn update_from_camera(&self, graphics: &Graphics) {

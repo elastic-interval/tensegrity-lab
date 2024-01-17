@@ -185,19 +185,15 @@ impl Application {
         if let Some(picked) = self.scene.picked() {
             self.user_interface.action(Action::SelectFace(Some(picked)))
         }
-        match self.render() {
-            Ok(_) => {}
-            Err(wgpu::SurfaceError::Lost) => self.resize(self.scene.graphics.config.width, self.scene.graphics.config.height),
-            Err(wgpu::SurfaceError::OutOfMemory) => panic!("Out of memory"),
-            Err(e) => eprintln!("{e:?}"),
-        }
+        let surface_texture = self.scene.surface_texture().expect("surface texture");
+        self.render(surface_texture);
         // let cursor_icon = self.user_interface.cursor_icon();
         // window.set_cursor_icon(cursor_icon);
     }
 
     pub fn handle_input(&mut self, input: &WinitInputHelper) {
         if let Some(size) = input.window_resized() {
-            self.resize(size.width, size.height);
+            self.scene.resize(size.width, size.height);
         }
         self.scene.handle_input(input, self.crucible.fabric());
         self.user_interface.handle_input(input);
@@ -218,24 +214,12 @@ impl Application {
         self.crucible.action(CrucibleAction::BakeBrick(prototype));
     }
 
-    pub fn resize(&mut self, width: u32, height: u32) {
-        if width > 0 && height > 0 {
-            self.scene.graphics.config.width = width;
-            self.scene.graphics.config.height = height;
-            self.scene.graphics.surface.configure(&self.scene.graphics.device, &self.scene.graphics.config);
-            self.scene.resize();
-        }
-    }
-
-    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        let output = self.scene.graphics.surface.get_current_texture()?;
-        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self.scene.graphics.device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") });
-        self.scene.render(&mut encoder, &view);
-        self.scene.graphics.queue.submit(iter::once(encoder.finish()));
-        output.present();
-        Ok(())
+    fn render(&mut self, surface_texture: wgpu::SurfaceTexture)  {
+        let texture_view = surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self.scene.create_encoder();
+        self.scene.render(&mut encoder, &texture_view);
+        self.scene.queue().submit(iter::once(encoder.finish()));
+        surface_texture.present();
     }
 
     fn selected_face(&self) -> Option<UniqueId> {
