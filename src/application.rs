@@ -21,7 +21,6 @@ pub struct Application {
     scene: Scene,
     user_interface: UserInterface,
     crucible: Crucible,
-    graphics: Graphics,
     fabric_plan_name: Vec<String>,
     fabric_library: FabricLibrary,
     fabric_library_modified: SystemTime,
@@ -33,13 +32,12 @@ impl Application {
         let brick_library = BrickLibrary::from_source().unwrap();
         let fabric_library = FabricLibrary::from_source().unwrap();
         let user_interface = UserInterface::new();
-        let scene = Scene::new(&graphics);
+        let scene = Scene::new(graphics);
         Application {
             selected_faces: HashSet::new(),
             scene,
             user_interface,
             crucible: Crucible::default(),
-            graphics,
             fabric_plan_name: Vec::new(),
             brick_library,
             fabric_library,
@@ -183,13 +181,13 @@ impl Application {
         for action in self.crucible.iterate(!self.selected_faces.is_empty(), &self.brick_library) {
             self.user_interface.action(action);
         }
-        self.scene.update(&self.graphics, self.crucible.fabric());
+        self.scene.update(self.crucible.fabric());
         if let Some(picked) = self.scene.picked() {
             self.user_interface.action(Action::SelectFace(Some(picked)))
         }
         match self.render() {
             Ok(_) => {}
-            Err(wgpu::SurfaceError::Lost) => self.resize(self.graphics.config.width, self.graphics.config.height),
+            Err(wgpu::SurfaceError::Lost) => self.resize(self.scene.graphics.config.width, self.scene.graphics.config.height),
             Err(wgpu::SurfaceError::OutOfMemory) => panic!("Out of memory"),
             Err(e) => eprintln!("{e:?}"),
         }
@@ -222,20 +220,20 @@ impl Application {
 
     pub fn resize(&mut self, width: u32, height: u32) {
         if width > 0 && height > 0 {
-            self.graphics.config.width = width;
-            self.graphics.config.height = height;
-            self.graphics.surface.configure(&self.graphics.device, &self.graphics.config);
-            self.scene.resize(&self.graphics);
+            self.scene.graphics.config.width = width;
+            self.scene.graphics.config.height = height;
+            self.scene.graphics.surface.configure(&self.scene.graphics.device, &self.scene.graphics.config);
+            self.scene.resize();
         }
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        let output = self.graphics.surface.get_current_texture()?;
+        let output = self.scene.graphics.surface.get_current_texture()?;
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self.graphics.device
+        let mut encoder = self.scene.graphics.device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") });
         self.scene.render(&mut encoder, &view);
-        self.graphics.queue.submit(iter::once(encoder.finish()));
+        self.scene.graphics.queue.submit(iter::once(encoder.finish()));
         output.present();
         Ok(())
     }
