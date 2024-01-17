@@ -3,7 +3,6 @@ use std::f32::consts::PI;
 use std::mem;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use wgpu::{CommandEncoder, PrimitiveState, RenderPass, StoreOp, TextureView};
 use wgpu::util::DeviceExt;
 use winit_input_helper::WinitInputHelper;
 
@@ -47,7 +46,11 @@ pub struct Scene {
 
 impl Scene {
     pub fn new(graphics: &Graphics) -> Self {
-        let shader = graphics.get_shader_module();
+        let shader = graphics.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+        })
+            ;
         let scale = 6.0;
         let camera = Camera::new((2.0 * scale, 1.0 * scale, 2.0 * scale).into(), graphics.config.width as f32, graphics.config.height as f32);
         let uniform_buffer = graphics.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -55,7 +58,19 @@ impl Scene {
             contents: cast_slice(&[0.0f32; 16]),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-        let uniform_bind_group_layout = graphics.create_uniform_bind_group_layout();
+        let uniform_bind_group_layout = graphics.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Uniform Bind Group Layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
         let uniform_bind_group = graphics.device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &uniform_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
@@ -87,7 +102,7 @@ impl Scene {
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
-            primitive: PrimitiveState {
+            primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::LineList,
                 strip_index_format: None,
                 ..Default::default()
@@ -119,7 +134,7 @@ impl Scene {
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
-            primitive: PrimitiveState {
+            primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 ..Default::default()
@@ -151,7 +166,7 @@ impl Scene {
         }
     }
 
-    pub fn render(&self, encoder: &mut CommandEncoder, view: &TextureView) {
+    pub fn render(&self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -159,7 +174,7 @@ impl Scene {
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }),
-                    store: StoreOp::Store,
+                    store: wgpu::StoreOp::Store,
                 },
             })],
             depth_stencil_attachment: None,

@@ -1,4 +1,3 @@
-use wgpu::{BindGroupLayout, CommandEncoder, ShaderModule};
 use winit::window::Window;
 
 pub struct Graphics {
@@ -62,32 +61,5 @@ impl Graphics {
             queue,
             config,
         }
-    }
-
-    pub fn get_shader_module(&self) -> ShaderModule {
-        self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-        })
-    }
-
-    pub fn create_uniform_bind_group_layout(&self) -> BindGroupLayout {
-        self.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Uniform Bind Group Layout"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-        })
-    }
-
-    pub fn create_command_encoder(&self) -> CommandEncoder {
-        self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") })
     }
 }
