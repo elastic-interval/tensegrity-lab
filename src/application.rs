@@ -186,7 +186,8 @@ impl Application {
             self.user_interface.action(Action::SelectFace(Some(picked)))
         }
         let surface_texture = self.scene.surface_texture().expect("surface texture");
-        self.render(surface_texture);
+        self.render(&surface_texture);
+        surface_texture.present();
         // let cursor_icon = self.user_interface.cursor_icon();
         // window.set_cursor_icon(cursor_icon);
     }
@@ -214,12 +215,11 @@ impl Application {
         self.crucible.action(CrucibleAction::BakeBrick(prototype));
     }
 
-    fn render(&mut self, surface_texture: wgpu::SurfaceTexture)  {
+    fn render(&mut self, surface_texture: &wgpu::SurfaceTexture)  {
         let texture_view = surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.scene.create_encoder();
         self.scene.render(&mut encoder, &texture_view);
         self.scene.queue().submit(iter::once(encoder.finish()));
-        surface_texture.present();
     }
 
     fn selected_face(&self) -> Option<UniqueId> {
