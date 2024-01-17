@@ -232,7 +232,8 @@ impl Application {
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let output = self.graphics.surface.get_current_texture()?;
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self.graphics.create_command_encoder();
+        let mut encoder = self.graphics.device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Render Encoder") });
         self.scene.render(&mut encoder, &view);
         self.graphics.queue.submit(iter::once(encoder.finish()));
         output.present();
