@@ -11,11 +11,6 @@ cfg-if = "1.0.0"
 cgmath = "0.18.0"
 chrono = "0.4.31"
 clap = { version = "4.4.12", features = ["derive"] }
-eframe = { version = "0.24.1", default-features = false, features = [
-    "default_fonts", # Embed the default egui fonts.
-    "wgpu",          # Use the glow rendering backend. Alternative: "wgpu".
-] }
-egui = "0.24.1"
 env_logger = "0.10.1"
 fast_inv_sqrt = "~1.0"
 futures = "0.3.30"
