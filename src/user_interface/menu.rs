@@ -2,14 +2,11 @@ use std::fmt::{Debug, Formatter};
 
 use winit::keyboard::Key;
 
-use crate::build::tenscript::{FabricPlan, FaceAlias};
-use crate::build::tenscript::pretense_phase::PretensePhase;
-use crate::crucible::{CrucibleAction, TinkererAction};
-use crate::fabric::face::FaceRotation;
-use crate::fabric::physics::SurfaceCharacter;
+use crate::build::tenscript::FabricPlan;
+use crate::crucible::CrucibleAction;
 use crate::scene::SceneAction;
 use crate::user_interface::{Action, MenuAction, MenuContext};
-use crate::user_interface::MenuAction::{*};
+use crate::user_interface::MenuAction::*;
 
 #[derive(Clone)]
 pub struct MaybeMenu {
@@ -156,44 +153,6 @@ impl Menu {
                     .action("Midpoint", ReturnToRoot, ALWAYS, Action::Scene(SceneAction::WatchMidpoint))
                     .action("Origin", ReturnToRoot, ALWAYS, Action::Scene(SceneAction::WatchOrigin)),
                 ),
-            )
-    }
-
-    pub fn tinker_menu() -> Menu {
-        Menu::new("Tinker", StickAround)
-            .action("Join the selected faces", StickAround, |env| env.selection_count == 2,
-                    Action::InitiateJoinFaces)
-            .submenu(
-                |env| env.selection_count == 1,
-                Menu::new("Add a brick at the green face", StickAround)
-                    .action("Single", StickAround, ALWAYS,
-                            Action::ProposeBrick { alias: FaceAlias::single("Single"), face_rotation: FaceRotation::Zero })
-                    .action("Omni", StickAround, ALWAYS,
-                            Action::ProposeBrick { alias: FaceAlias::single("Omni"), face_rotation: FaceRotation::Zero })
-                    .action("Torque-000", StickAround, ALWAYS,
-                            Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::Zero })
-                    .action("Torque-120", StickAround, ALWAYS,
-                            Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::OneThird })
-                    .action("Torque-240", StickAround, ALWAYS,
-                            Action::ProposeBrick { alias: FaceAlias::single("Torque"), face_rotation: FaceRotation::TwoThirds })
-                    .action("Skip it", UpOneLevel, |env| env.crucible_state.brick_proposed,
-                            Action::Crucible(CrucibleAction::Tinkerer(TinkererAction::Clear)))
-                    .action("Connect", UpOneLevel, |env| env.crucible_state.brick_proposed,
-                            Action::Connect))
-            .action("Revert to previous", StickAround, |env| env.crucible_state.history_available,
-                    Action::Revert)
-            .submenu(
-                ALWAYS, Menu::new("Finish", StickAround)
-                    .action("Sticky surface", ReturnToRoot, ALWAYS,
-                            Action::Crucible(
-                                CrucibleAction::StartPretensing(
-                                    PretensePhase::new(SurfaceCharacter::Frozen))))
-                    .action("Bouncy surface", ReturnToRoot, ALWAYS,
-                            Action::Crucible(
-                                CrucibleAction::StartPretensing(
-                                    PretensePhase::new(SurfaceCharacter::Bouncy))))
-                    .action("Not yet", UpOneLevel, ALWAYS,
-                            Action::Keyboard(StickAround)),
             )
     }
 }

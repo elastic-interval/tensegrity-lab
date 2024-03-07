@@ -1,15 +1,12 @@
 use std::cell::RefCell;
 use std::time::SystemTime;
-use winit::keyboard::Key;
 
+use winit::keyboard::Key;
 use winit_input_helper::WinitInputHelper;
 
-use crate::build::tenscript::{FabricPlan, FaceAlias};
 use crate::build::tenscript::fabric_library::FabricLibrary;
-use crate::build::tinkerer::{BrickOnFace, Frozen};
-use crate::camera::Pick;
+use crate::build::tenscript::FabricPlan;
 use crate::crucible::{CrucibleAction, CrucibleState};
-use crate::fabric::face::FaceRotation;
 use crate::scene::SceneAction;
 use crate::user_interface::menu::Menu;
 
@@ -19,13 +16,11 @@ mod menu;
 pub enum MenuAction {
     StickAround,
     ReturnToRoot,
-    TinkerMenu,
     UpOneLevel,
 }
 
 #[derive(Debug, Clone)]
 pub struct MenuContext {
-    pub selection_count: usize,
     pub crucible_state: CrucibleState,
     pub fabric_menu: Menu,
 }
@@ -33,7 +28,6 @@ pub struct MenuContext {
 impl MenuContext {
     pub fn new(fabric_menu: Menu) -> Self {
         Self {
-            selection_count: 0,
             crucible_state: Default::default(),
             fabric_menu,
         }
@@ -87,13 +81,6 @@ pub enum Action {
     Scene(SceneAction),
     Keyboard(MenuAction),
     CalibrateStrain,
-    SelectFace(Option<Pick>),
-    ProposeBrick { alias: FaceAlias, face_rotation: FaceRotation },
-    RemoveProposedBrick,
-    Connect,
-    InitiateJoinFaces,
-    Revert,
-    RevertToFrozen { frozen: Frozen, brick_on_face: Option<BrickOnFace> },
     UpdatedLibrary(SystemTime),
 }
 
@@ -147,8 +134,8 @@ impl UserInterface {
         // self.message(ControlMessage::Keyboard(KeyboardMessage::KeyPressed(*keycode_pressed)));
     }
 
-    pub fn set_menu_context(&mut self, menu_evironment: MenuContext) {
-        self.message(ControlMessage::Keyboard(KeyboardMessage::SetEnvironment(menu_evironment)))
+    pub fn set_menu_context(&mut self, menu_environment: MenuContext) {
+        self.message(ControlMessage::Keyboard(KeyboardMessage::SetEnvironment(menu_environment)))
     }
 
     pub fn menu_choice(&mut self, menu_choice: MenuAction) {

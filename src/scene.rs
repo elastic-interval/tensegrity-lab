@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::f32::consts::PI;
 use std::mem;
 
@@ -6,12 +5,11 @@ use bytemuck::{cast_slice, Pod, Zeroable};
 use wgpu::util::DeviceExt;
 use winit_input_helper::WinitInputHelper;
 
-use SceneVariant::{*};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
-use crate::camera::{Camera, Pick};
-use crate::camera::Target::{*};
+use crate::camera::Camera;
+use crate::camera::Target::*;
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::Face;
 use crate::fabric::interval::Interval;
@@ -22,21 +20,20 @@ const MAX_INTERVALS: usize = 5000;
 
 #[derive(Debug, Clone)]
 pub enum SceneAction {
-    Variant(SceneVariant),
+    SelectInterval(Option<UniqueId>),
     WatchMidpoint,
     WatchOrigin,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum SceneVariant {
-    Suspended,
-    Pretensing,
-    TinkeringOnFaces(HashSet<UniqueId>),
-    ShowingStrain { threshold: f32, material: usize },
+#[derive(Debug, Clone)]
+pub struct StrainRendering {
+    threshold: f32,
+    material: usize,
 }
 
 pub struct Scene {
-    variant: SceneVariant,
+    selected_interval: Option<UniqueId>,
+    strain_rendering: Option<StrainRendering>,
     camera: Camera,
     fabric_drawing: Drawing<FabricVertex>,
     surface_drawing: Drawing<SurfaceVertex>,
@@ -150,7 +147,8 @@ impl Scene {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
         Self {
-            variant: Suspended,
+            selected_interval: None,
+            strain_rendering: None,
             camera,
             graphics,
             fabric_drawing: Drawing {
@@ -198,24 +196,27 @@ impl Scene {
         self.camera.handle_input(input, fabric);
     }
 
-    pub fn update(&mut self,  fabric: &Fabric) {
+    pub fn update(&mut self, fabric: &Fabric) {
         self.update_from_fabric(fabric);
         self.update_from_camera(&self.graphics);
+        if let Some(picked_interval_id) = self.camera.picked_interval.take() {
+            self.action(SceneAction::SelectInterval(Some(picked_interval_id)));
+        }
         self.graphics.queue.write_buffer(&self.fabric_drawing.buffer, 0, cast_slice(&self.fabric_drawing.vertices));
-    }
-
-    pub fn picked(&mut self) -> Option<Pick> {
-        self.camera.picked.take()
     }
 
     fn update_from_fabric(&mut self, fabric: &Fabric) {
         self.fabric_drawing.vertices.clear();
-        self.fabric_drawing.vertices.extend(fabric.interval_values()
-            .flat_map(|interval| FabricVertex::for_interval(interval, fabric, &self.variant)));
-        if matches!(self.variant, TinkeringOnFaces(_)) {
-            self.fabric_drawing.vertices.extend(fabric.faces.iter()
-                .flat_map(|(face_id, face)| FabricVertex::for_face(*face_id, face, fabric, &self.variant)));
-        }
+        self.fabric_drawing.vertices.extend(
+            fabric.intervals
+                .iter()
+                .flat_map(|(interval_id, interval)| {
+                    let selected = match self.selected_interval {
+                        None => false,
+                        Some(selected_interval_id) => selected_interval_id == *interval_id,
+                    };
+                    FabricVertex::for_interval(interval, fabric, selected)
+                }));
         self.camera.target_approach(fabric);
     }
 
@@ -227,7 +228,7 @@ impl Scene {
         self.graphics.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Encoder") })
     }
 
-    pub fn surface_texture(&self) -> Result<wgpu::SurfaceTexture,wgpu::SurfaceError> {
+    pub fn surface_texture(&self) -> Result<wgpu::SurfaceTexture, wgpu::SurfaceError> {
         self.graphics.surface.get_current_texture()
     }
 
@@ -248,22 +249,13 @@ impl Scene {
 
     pub fn action(&mut self, scene_action: SceneAction) {
         match scene_action {
-            SceneAction::Variant(variant) => {
-                match &variant {
-                    TinkeringOnFaces(face_set) => {
-                        if face_set.is_empty() {
-                            self.variant = Suspended;
-                            self.camera.target = FabricMidpoint;
-                        } else {
-                            self.variant = TinkeringOnFaces(face_set.clone());
-                            self.camera.target = AroundFaces(face_set.clone());
-                        }
-                    }
-                    _ => {
-                        self.camera.target = FabricMidpoint;
-                    }
+            SceneAction::SelectInterval(interval_id) => {
+                self.selected_interval = interval_id;
+                if let Some(selected_id) = interval_id {
+                    self.camera.target = AroundInterval(selected_id)
+                } else {
+                    self.camera.target = FabricMidpoint;
                 }
-                self.variant = variant;
             }
             SceneAction::WatchMidpoint => {
                 self.camera.target = FabricMidpoint;
@@ -283,22 +275,14 @@ struct FabricVertex {
 }
 
 impl FabricVertex {
-    pub fn for_interval(interval: &Interval, fabric: &Fabric, variation: &SceneVariant) -> [FabricVertex; 2] {
+    pub fn for_interval(interval: &Interval, fabric: &Fabric, selected: bool) -> [FabricVertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
-        let color = match variation {
-            Suspended | Pretensing | TinkeringOnFaces(_) => {
-                match fabric.materials[interval.material].role {
-                    Push => [1.0, 1.0, 1.0, 1.0],
-                    Pull => [0.2, 0.2, 1.0, 1.0],
-                }
-            }
-            ShowingStrain { threshold, material } => {
-                if fabric.materials[interval.material].role == Pull &&
-                    interval.material == *material && interval.strain > *threshold {
-                    [0.0, 1.0, 0.0, 1.0]
-                } else {
-                    [0.3, 0.3, 0.3, 0.5]
-                }
+        let color = if selected {
+            [1.0, 0.0, 0.0, 1.0]
+        } else {
+            match fabric.materials[interval.material].role {
+                Push => [1.0, 1.0, 1.0, 1.0],
+                Pull => [0.2, 0.2, 1.0, 1.0],
             }
         };
         [
@@ -307,18 +291,9 @@ impl FabricVertex {
         ]
     }
 
-    pub fn for_face(face_id: UniqueId, face: &Face, fabric: &Fabric, variant: &SceneVariant) -> [FabricVertex; 2] {
+    pub fn for_face(face: &Face, fabric: &Fabric) -> [FabricVertex; 2] {
         let (alpha, _, omega) = face.visible_points(fabric);
-        let (alpha_color, omega_color) = match variant {
-            Pretensing | Suspended | ShowingStrain { .. } => {
-                unreachable!()
-            }
-            TinkeringOnFaces(selected_faces) if selected_faces.contains(&face_id) => {
-                ([0.0, 1.0, 0.0, 1.0], [0.0, 1.0, 0.0, 1.0])
-            }
-            _ =>
-                ([1.0, 0.0, 0.0, 1.0], [1.0, 0.0, 0.0, 1.0]),
-        };
+        let (alpha_color, omega_color) = ([1.0, 0.0, 0.0, 1.0], [1.0, 0.0, 0.0, 1.0]);
         [
             FabricVertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color: alpha_color },
             FabricVertex { position: [omega.x, omega.y, omega.z, 1.0], color: omega_color }

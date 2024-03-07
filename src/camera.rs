@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::f32::consts::PI;
 
 use cgmath::{Deg, EuclideanSpace, InnerSpace, Matrix4, perspective, Point3, point3, Quaternion, Rad, Rotation, Rotation3, SquareMatrix, Transform, vec3, Vector3};
@@ -10,27 +9,14 @@ use crate::fabric::{Fabric, UniqueId};
 const TARGET_ATTRACTION: f32 = 0.01;
 const TARGET_DISTANCE_MARGIN: f32 = 0.3;
 
-#[derive(Clone, Debug)]
-pub struct Pick {
-    pub face_id: UniqueId,
-    pub multiple: bool,
-}
-
-impl Pick {
-    pub fn just(face_id: UniqueId) -> Self {
-        Self { face_id, multiple: false }
-    }
-}
-
 pub struct Camera {
     pub position: Point3<f32>,
     pub target: Target,
     pub look_at: Point3<f32>,
-    pub picked: Option<Pick>,
+    pub picked_interval: Option<UniqueId>,
     pub width: f32,
     pub height: f32,
     pub pick_mode: bool,
-    pub multiple: bool,
     pub pick_cursor: Option<(f32, f32)>,
 }
 
@@ -40,11 +26,10 @@ impl Camera {
             position,
             target: Target::default(),
             look_at: point3(0.0, 3.0, 0.0),
-            picked: None,
+            picked_interval: None,
             width,
             height,
             pick_mode: false,
-            multiple: false,
             pick_cursor: None,
         }
     }
@@ -57,13 +42,12 @@ impl Camera {
             }
         }
         self.pick_mode = false; // TODO
-        self.multiple = input.held_shift();
         if input.mouse_pressed(0) {
             self.pick_cursor = input.cursor();
         }
         if input.mouse_released(0) {
             if let Some(pick_cursor) = self.pick_cursor {
-                self.pick(pick_cursor, self.multiple, fabric)
+                self.pick(pick_cursor, fabric)
             }
         }
         let (_sx, sy) = input.scroll_diff();
@@ -77,9 +61,7 @@ impl Camera {
     }
 
     pub fn target_approach(&mut self, fabric: &Fabric) {
-        let Some(look_at) = self.target.look_at(fabric) else {
-            return;
-        };
+        let look_at = self.target.look_at(fabric);
         self.look_at += (look_at - self.look_at) * TARGET_ATTRACTION;
         let gaze = (self.look_at - self.position).normalize();
         let up_dot_gaze = Vector3::unit_y().dot(gaze);
@@ -101,7 +83,7 @@ impl Camera {
         self.projection_matrix() * self.view_matrix()
     }
 
-    pub fn pick(&mut self, (px, py): (f32, f32), multiple: bool, fabric: &Fabric) {
+    pub fn pick(&mut self, (px, py): (f32, f32), fabric: &Fabric) {
         let width = self.width / 2.0;
         let height = self.height / 2.0;
         let x = (px - width) / width;
@@ -109,13 +91,13 @@ impl Camera {
         let position = Point3::new(x, y, 1.0);
         let point3d = self.mvp_matrix().invert().unwrap().transform_point(position);
         let ray = (point3d - self.position).normalize();
-        let best = fabric.faces.iter()
-            .map(|(face_id, face)|
-                (face_id, (face.midpoint(fabric) - self.position.to_vec()).normalize().dot(ray)))
+        let best = fabric.intervals.iter()
+            .map(|(interval_id, interval)|
+                (interval_id, (interval.midpoint(&fabric.joints).to_vec() - self.position.to_vec()).normalize().dot(ray)))
             .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b));
-        if let Some((face_id, _)) = best {
-            self.picked = Some(Pick { face_id: *face_id, multiple });
-            println!("Picked {:?}", face_id);
+        if let Some((interval_id, _)) = best {
+            self.picked_interval = Some(*interval_id);
+            println!("Picked {:?}", self.picked_interval);
         } else {
             println!("Nothing picked");
         }
@@ -155,26 +137,15 @@ pub enum Target {
     Origin,
     #[default]
     FabricMidpoint,
-    AroundFaces(HashSet<UniqueId>),
+    AroundInterval(UniqueId),
 }
 
 impl Target {
-    pub fn look_at(&self, fabric: &Fabric) -> Option<Point3<f32>> {
+    pub fn look_at(&self, fabric: &Fabric) -> Point3<f32> {
         match self {
-            Target::Origin => Some(point3(0.0, 0.0, 0.0)),
-            Target::FabricMidpoint => Some(fabric.midpoint()),
-            Target::AroundFaces(face_set) => {
-                let midpoints = face_set
-                    .iter()
-                    .filter_map(|face_id|
-                        fabric.faces
-                            .get(face_id)
-                            .map(|face| face.midpoint(fabric)));
-                let count = midpoints.clone().count();
-                (count > 0).then_some(
-                    Point3::from_vec(midpoints.sum::<Vector3<f32>>() / (count as f32))
-                )
-            }
+            Target::Origin => point3(0.0, 0.0, 0.0),
+            Target::FabricMidpoint => fabric.midpoint(),
+            Target::AroundInterval(interval_id) => fabric.interval(*interval_id).midpoint(&fabric.joints),
         }
     }
 }

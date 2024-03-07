@@ -3,7 +3,7 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use cgmath::{InnerSpace, Point3, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 use cgmath::num_traits::zero;
 use fast_inv_sqrt::InvSqrt32;
 
@@ -88,6 +88,11 @@ impl Interval {
 
     pub fn locations<'a>(&self, joints: &'a [Joint]) -> (&'a Point3<f32>, &'a Point3<f32>) {
         (&joints[self.alpha_index].location, &joints[self.omega_index].location)
+    }
+
+    pub fn midpoint(&self, joints: &[Joint]) -> Point3<f32> {
+        let (alpha, omega) = self.locations(joints);
+        Point3::from_vec((alpha.to_vec() + omega.to_vec()) / 2f32)
     }
 
     pub fn length(&mut self, joints: &[Joint]) -> f32 {
