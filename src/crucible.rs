@@ -1,6 +1,4 @@
-use std::collections::HashSet;
-
-use CrucibleAction::{*};
+use CrucibleAction::*;
 
 use crate::build::oven::Oven;
 use crate::build::tenscript::brick::Prototype;
@@ -9,34 +7,21 @@ use crate::build::tenscript::FabricPlan;
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::pretenser::Pretenser;
-use crate::build::tinkerer::{BrickOnFace, Tinkerer};
-use crate::crucible::Stage::{*};
-use crate::fabric::{Fabric, UniqueId};
+use crate::crucible::Stage::*;
+use crate::fabric::Fabric;
 use crate::fabric::lab::Lab;
-use crate::scene::{SceneAction, SceneVariant};
-use crate::user_interface::{Action, MenuAction};
+use crate::user_interface::Action;
 
 const PULL_SHORTENING: f32 = 0.95;
 
 enum Stage {
     Empty,
     RunningPlan(PlanRunner),
-    TinkeringLaunch,
-    Tinkering(Tinkerer),
     PretensingLaunch(PretensePhase),
     Pretensing(Pretenser),
     Experimenting(Lab),
     BakingBrick(Oven),
     Finished,
-}
-
-#[derive(Debug, Clone)]
-pub enum TinkererAction {
-    Propose(BrickOnFace),
-    Clear,
-    Commit,
-    JoinIfPair(HashSet<UniqueId>),
-    InitiateRevert,
 }
 
 #[derive(Debug, Clone)]
@@ -53,8 +38,6 @@ pub enum CrucibleAction {
     SetSpeed(usize),
     RevertTo(Fabric),
     StartPretensing(PretensePhase),
-    StartTinkering,
-    Tinkerer(TinkererAction),
     Experiment(LabAction),
     ActivateMuscles,
 }
@@ -67,10 +50,7 @@ pub struct Crucible {
 
 #[derive(Default, Debug, Clone)]
 pub struct CrucibleState {
-    pub tinkering: bool,
-    pub brick_proposed: bool,
     pub experimenting: bool,
-    pub history_available: bool,
 }
 
 impl Default for Crucible {
@@ -84,17 +64,13 @@ impl Default for Crucible {
 }
 
 impl Crucible {
-    pub fn iterate(&mut self, paused: bool, brick_library: &BrickLibrary) -> Vec<Action> {
+    pub fn iterate(&mut self, brick_library: &BrickLibrary) -> Vec<Action> {
         let mut actions = Vec::new();
         match &mut self.stage {
             Empty => {}
             RunningPlan(plan_runner) => {
                 if plan_runner.is_done() {
-                    self.stage = if self.fabric.faces.is_empty() {
-                        PretensingLaunch(plan_runner.pretense_phase())
-                    } else {
-                        TinkeringLaunch
-                    }
+                    self.stage = PretensingLaunch(plan_runner.pretense_phase())
                 } else {
                     for _ in 0..self.iterations_per_frame {
                         if let Err(tenscript_error) = plan_runner.iterate(&mut self.fabric, brick_library) {
@@ -105,21 +81,7 @@ impl Crucible {
                     }
                 }
             }
-            TinkeringLaunch => {
-                actions.push(Action::Keyboard(MenuAction::TinkerMenu));
-                actions.push(Action::SelectFace(None));
-                self.stage = Tinkering(Tinkerer::default())
-            }
-            Tinkering(tinkerer) => {
-                let iterations = if paused { 1 } else { self.iterations_per_frame };
-                for _ in 0..iterations {
-                    if let Some(tinker_action) = tinkerer.iterate(&mut self.fabric, brick_library) {
-                        actions.push(tinker_action);
-                    }
-                }
-            }
             PretensingLaunch(pretense_phase) => {
-                actions.push(Action::Scene(SceneAction::Variant(SceneVariant::Pretensing)));
                 self.stage = Pretensing(Pretenser::new(pretense_phase.clone()))
             }
             Pretensing(pretenser) => {
@@ -158,12 +120,6 @@ impl Crucible {
                 self.fabric = Fabric::default();
                 self.stage = RunningPlan(PlanRunner::new(fabric_plan));
             }
-            Tinkerer(tinkerer_action) => {
-                let Tinkering(tinkerer) = &mut self.stage else {
-                    panic!("must be tinkering");
-                };
-                tinkerer.action(tinkerer_action);
-            }
             Experiment(lab_action) => {
                 let Experimenting(lab) = &mut self.stage else {
                     panic!("must be experimenting");
@@ -178,9 +134,6 @@ impl Crucible {
             }
             StartPretensing(pretenst_phase) => {
                 self.stage = PretensingLaunch(pretenst_phase);
-            }
-            StartTinkering => {
-                self.stage = TinkeringLaunch;
             }
             ActivateMuscles => {
                 let Experimenting(lab) = &mut self.stage else {
@@ -197,16 +150,7 @@ impl Crucible {
 
     pub fn state(&self) -> CrucibleState {
         CrucibleState {
-            tinkering: matches!(&self.stage, Tinkering(_)),
-            brick_proposed: match &self.stage {
-                Tinkering(tinkerer) => tinkerer.is_brick_proposed(),
-                _ => false
-            },
             experimenting: matches!(self.stage, Experimenting(_)),
-            history_available: match &self.stage {
-                Tinkering(tinkerer) => tinkerer.is_history_available(),
-                _ => false
-            },
         }
     }
 }

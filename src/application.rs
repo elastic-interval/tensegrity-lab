@@ -1,5 +1,4 @@
 use std::{fs, iter};
-use std::collections::HashSet;
 use std::time::SystemTime;
 
 use winit_input_helper::WinitInputHelper;
@@ -8,16 +7,12 @@ use crate::build::tenscript::{FabricPlan, FaceAlias, TenscriptError};
 use crate::build::tenscript::brick::Baked;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
-use crate::build::tinkerer::{BrickOnFace, Frozen};
-use crate::camera::Pick;
-use crate::crucible::{Crucible, CrucibleAction, TinkererAction};
-use crate::fabric::UniqueId;
+use crate::crucible::{Crucible, CrucibleAction};
 use crate::graphics::Graphics;
-use crate::scene::{Scene, SceneAction, SceneVariant};
+use crate::scene::{Scene, SceneAction};
 use crate::user_interface::{Action, ControlMessage, MenuAction, MenuContext, UserInterface};
 
 pub struct Application {
-    selected_faces: HashSet<UniqueId>,
     scene: Scene,
     user_interface: UserInterface,
     crucible: Crucible,
@@ -34,7 +29,6 @@ impl Application {
         let user_interface = UserInterface::new();
         let scene = Scene::new(graphics);
         Application {
-            selected_faces: HashSet::new(),
             scene,
             user_interface,
             crucible: Crucible::default(),
@@ -65,7 +59,7 @@ impl Application {
                     match &crucible_action {
                         CrucibleAction::BuildFabric(fabric_plan) => {
                             self.fabric_plan_name = fabric_plan.name.clone();
-                            self.scene.action(SceneAction::Variant(SceneVariant::Suspended));
+                            self.scene.action(SceneAction::SelectInterval(None));
                             self.user_interface.message(ControlMessage::Reset);
                             self.update_menu_context()
                         }
@@ -93,18 +87,9 @@ impl Application {
                     self.scene.action(scene_action);
                 }
                 Action::Keyboard(menu_choice) => {
-                    match menu_choice {
-                        MenuAction::ReturnToRoot => {
-                            self.selected_faces.clear();
-                            self.user_interface.action(
-                                Action::Scene(SceneAction::Variant(SceneVariant::Suspended)))
-                        }
-                        MenuAction::TinkerMenu => {
-                            self.selected_faces.clear();
-                            self.user_interface.action(
-                                Action::Scene(SceneAction::Variant(SceneVariant::TinkeringOnFaces(HashSet::new()))))
-                        }
-                        _ => {}
+                    if let MenuAction::ReturnToRoot = menu_choice {
+                        self.user_interface.action(
+                            Action::Scene(SceneAction::SelectInterval(None)))
                     }
                     self.user_interface.menu_choice(menu_choice);
                 }
@@ -112,79 +97,22 @@ impl Application {
                     let strain_limits = self.crucible.fabric().strain_limits(":bow-tie".to_string());
                     self.user_interface.set_strain_limits(strain_limits);
                 }
-                Action::SelectFace(face_id) => {
-                    if let Some(Pick { face_id, multiple }) = face_id {
-                        if !multiple {
-                            self.selected_faces.clear();
-                        }
-                        self.selected_faces.insert(face_id);
-                    } else {
-                        self.selected_faces.clear();
-                    }
-                    self.selected_faces.retain(|id| self.crucible.fabric().faces.contains_key(id));
-                    self.scene.action(SceneAction::Variant(SceneVariant::TinkeringOnFaces(self.selected_faces.clone())));
-                    self.update_menu_context();
-                    println!("Select face {:?}", face_id);
-                }
-                Action::ProposeBrick { alias, face_rotation } => {
-                    if let Some(face_id) = self.selected_face() {
-                        let spin = self.crucible.fabric().face(face_id).spin.opposite();
-                        let alias = alias + &spin.into_alias();
-                        let brick_on_face = BrickOnFace { face_id, alias, face_rotation };
-                        self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::Propose(brick_on_face)));
-                        self.update_menu_context()
-                    }
-                }
-                Action::RemoveProposedBrick => {
-                    self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::Clear));
-                    self.update_menu_context();
-                }
-                Action::InitiateJoinFaces => {
-                    self.crucible.action(
-                        CrucibleAction::Tinkerer(
-                            TinkererAction::JoinIfPair(self.selected_faces.clone())));
-                }
-                Action::Connect => {
-                    self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::Commit));
-                    self.update_menu_context();
-                }
-                Action::Revert => {
-                    self.crucible.action(CrucibleAction::Tinkerer(TinkererAction::InitiateRevert));
-                    self.update_menu_context();
-                }
-                Action::RevertToFrozen { frozen: Frozen { fabric, face_id }, brick_on_face } => {
-                    self.selected_faces.clear();
-                    self.crucible.action(CrucibleAction::RevertTo(fabric));
-                    if let Some(brick_on_face) = brick_on_face {
-                        let face_id = brick_on_face.face_id;
-                        self.crucible.action(
-                            CrucibleAction::Tinkerer(TinkererAction::Propose(brick_on_face)));
-                        self.user_interface.action(Action::SelectFace(Some(Pick::just(face_id))));
-                    } else {
-                        face_id.map(|face_id| self.selected_faces.insert(face_id));
-                    }
-                    self.update_menu_context();
-                }
             }
         }
     }
 
     fn update_menu_context(&mut self) {
         self.user_interface.set_menu_context(MenuContext {
-            selection_count: self.selected_faces.len(),
             crucible_state: self.crucible.state(),
             fabric_menu: self.user_interface.create_fabric_menu(&self.fabric_library.fabric_plans),
         })
     }
 
     pub fn redraw(&mut self) {
-        for action in self.crucible.iterate(!self.selected_faces.is_empty(), &self.brick_library) {
+        for action in self.crucible.iterate(&self.brick_library) {
             self.user_interface.action(action);
         }
         self.scene.update(self.crucible.fabric());
-        if let Some(picked) = self.scene.picked() {
-            self.user_interface.action(Action::SelectFace(Some(picked)))
-        }
         let surface_texture = self.scene.surface_texture().expect("surface texture");
         self.render(&surface_texture);
         surface_texture.present();
@@ -215,18 +143,11 @@ impl Application {
         self.crucible.action(CrucibleAction::BakeBrick(prototype));
     }
 
-    fn render(&mut self, surface_texture: &wgpu::SurfaceTexture)  {
+    fn render(&mut self, surface_texture: &wgpu::SurfaceTexture) {
         let texture_view = surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.scene.create_encoder();
         self.scene.render(&mut encoder, &texture_view);
         self.scene.queue().submit(iter::once(encoder.finish()));
-    }
-
-    fn selected_face(&self) -> Option<UniqueId> {
-        let Ok([&face_id]) = self.selected_faces.iter().next_chunk() else {
-            return None;
-        };
-        Some(face_id)
     }
 
     pub fn refresh_library(&mut self, time: SystemTime) -> Result<Action, TenscriptError> {
