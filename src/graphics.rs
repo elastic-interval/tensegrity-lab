@@ -1,4 +1,4 @@
-use log::info;
+use winit::dpi::LogicalSize;
 use winit::window::Window;
 
 pub struct Graphics {
@@ -10,9 +10,10 @@ pub struct Graphics {
 
 impl Graphics {
     pub async fn new(window: &Window) -> Self {
-        let size = window.inner_size();
-        info!("SWAG {size:?}");
-        info!("window.inner_size={size:?}");
+        let mut size = window.inner_size();
+        size.width = size.width.max(1);
+        size.height = size.height.max(1);
+        log::info!("size = {size:?}");
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()

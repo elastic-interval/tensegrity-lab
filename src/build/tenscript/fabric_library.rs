@@ -1,5 +1,3 @@
-use std::fs;
-
 use pest::iterators::Pair;
 use pest::Parser;
 
@@ -12,8 +10,16 @@ pub struct FabricLibrary {
 
 impl FabricLibrary {
     pub fn from_source() -> Result<Self, TenscriptError> {
-        let source = fs::read_to_string("fabric_library.scm")
-            .map_err(TenscriptError::FileRead)?;
+        let source: String;
+        #[cfg(target_arch = "wasm32")]
+        {
+            source = include_str!("../../../fabric_library.scm").to_string();
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            use std::fs;
+            source = fs::read_to_string("fabric_library.scm").map_err(TenscriptError::FileRead)?;
+        }
         Self::from_tenscript(&source)
     }
 
@@ -33,7 +39,7 @@ impl FabricLibrary {
                     let fabric_plan = FabricPlan::from_pair(definition)?;
                     library.fabric_plans.push(fabric_plan);
                 }
-                _ => unreachable!()
+                _ => unreachable!(),
             }
         }
         Ok(library)

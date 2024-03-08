@@ -1,7 +1,9 @@
-use std::{fs, iter};
+use std::iter;
+
 use cgmath::SquareMatrix;
 use pest::iterators::Pair;
 use pest::Parser;
+
 use crate::build::tenscript::{FaceAlias, Rule, TenscriptError, TenscriptParser};
 use crate::build::tenscript::brick::{Baked, BrickDefinition};
 
@@ -13,8 +15,16 @@ pub struct BrickLibrary {
 
 impl BrickLibrary {
     pub fn from_source() -> Result<Self, TenscriptError> {
-        let source = fs::read_to_string("brick_library.scm")
-            .map_err(TenscriptError::FileRead)?;
+        let source: String;
+        #[cfg(target_arch = "wasm32")]
+        {
+            source = include_str!("../../../brick_library.scm").to_string();
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            use std::fs;
+            source = fs::read_to_string("brick_library.scm").map_err(TenscriptError::FileRead)?;
+        }
         Self::from_tenscript(&source)
     }
 
@@ -34,7 +44,7 @@ impl BrickLibrary {
                     let brick = BrickDefinition::from_pair(definition)?;
                     brick_definitions.push(brick);
                 }
-                _ => unreachable!()
+                _ => unreachable!(),
             }
         }
         let baked_bricks: Vec<_> = brick_definitions
@@ -48,7 +58,8 @@ impl BrickLibrary {
                     .zip(cloned_bricks)
                     .flat_map(|(face, baked)| {
                         let face_space = face.vector_space(&baked).invert().unwrap();
-                        let aliases: Vec<_> = face.aliases
+                        let aliases: Vec<_> = face
+                            .aliases
                             .into_iter()
                             .map(|alias| {
                                 let space = if alias.is_seed() {
@@ -59,31 +70,39 @@ impl BrickLibrary {
                                 (alias, space)
                             })
                             .collect();
-                        aliases
-                            .into_iter()
-                            .map(move |(alias, space)| {
-                                let alias = alias + &baked.alias;
-                                let mut baked = baked.clone();
-                                baked.apply_matrix(space);
-                                (alias, baked)
-                            })
+                        aliases.into_iter().map(move |(alias, space)| {
+                            let alias = alias + &baked.alias;
+                            let mut baked = baked.clone();
+                            baked.apply_matrix(space);
+                            (alias, baked)
+                        })
                     })
             })
             .collect();
-        Ok(BrickLibrary { brick_definitions, baked_bricks })
+        Ok(BrickLibrary {
+            brick_definitions,
+            baked_bricks,
+        })
     }
 
     pub fn new_brick(&self, search_alias: &FaceAlias) -> Baked {
         let search_with_base = search_alias.with_base();
-        let (_, baked) = self.baked_bricks
+        let (_, baked) = self
+            .baked_bricks
             .iter()
             .filter(|(baked_alias, _)| search_with_base.matches(baked_alias))
             .min_by_key(|(brick_alias, _)| brick_alias.0.len())
             .unwrap_or_else(|| panic!("no such brick: '{search_with_base}'"));
         let mut thawed = baked.clone();
         for face in &mut thawed.faces {
-            face.aliases.retain(|candidate| search_alias.matches(candidate));
-            assert_eq!(face.aliases.len(), 1, "exactly one face should be retained {:?}", face.aliases);
+            face.aliases
+                .retain(|candidate| search_alias.matches(candidate));
+            assert_eq!(
+                face.aliases.len(),
+                1,
+                "exactly one face should be retained {:?}",
+                face.aliases
+            );
         }
         thawed.clone()
     }
