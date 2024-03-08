@@ -1,0 +1,21 @@
+body {
+    background-attachment: fixed;
+    margin: 0;
+}
+
+.control-overlay {
+    font-family: "JetBrains Mono", monospace;
+    padding: 20px 50px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+
+    background-color: rgba(133, 133, 133, 0.35);
+    backdrop-filter: blur(5px);
+
+    &.hidden {
+        display: none;
+    }
+}

@@ -1,10 +1,10 @@
 use std::f32::consts::PI;
 
-use cgmath::num_traits::abs;
 use cgmath::{
-    perspective, point3, vec3, Deg, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion, Rad,
-    Rotation, Rotation3, SquareMatrix, Transform, Vector3,
+    Deg, EuclideanSpace, InnerSpace, Matrix4, perspective, point3, Point3, Quaternion, Rad, Rotation,
+    Rotation3, SquareMatrix, Transform, vec3, Vector3,
 };
+use cgmath::num_traits::abs;
 use winit_input_helper::WinitInputHelper;
 
 use crate::fabric::{Fabric, UniqueId};
@@ -112,7 +112,7 @@ impl Camera {
             .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b));
         if let Some((interval_id, _)) = best {
             self.picked_interval = Some(*interval_id);
-            log::info!("Picked {:?}", self.picked_interval);
+            log::info!("Picked {:?}", fabric.interval(*interval_id));
         } else {
             log::info!("Nothing picked");
         }
