@@ -1,12 +1,12 @@
-use std::{fs, iter};
+use std::iter;
 use std::time::SystemTime;
 
 use winit_input_helper::WinitInputHelper;
 
-use crate::build::tenscript::{FabricPlan, FaceAlias, TenscriptError};
 use crate::build::tenscript::brick::Baked;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
+use crate::build::tenscript::{FabricPlan, FaceAlias, TenscriptError};
 use crate::crucible::{Crucible, CrucibleAction};
 use crate::graphics::Graphics;
 use crate::scene::{Scene, SceneAction};
@@ -18,6 +18,7 @@ pub struct Application {
     crucible: Crucible,
     fabric_plan_name: Vec<String>,
     fabric_library: FabricLibrary,
+    #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
     brick_library: BrickLibrary,
 }
@@ -35,21 +36,25 @@ impl Application {
             fabric_plan_name: Vec::new(),
             brick_library,
             fabric_library,
+            #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
         }
     }
 
     pub fn update(&mut self) {
         let mut actions = self.user_interface.take_actions();
-        let time = fabric_library_modified();
-        if time > self.fabric_library_modified {
-            match self.refresh_library(time) {
-                Ok(action) => {
-                    actions.push(action);
-                }
-                Err(tenscript_error) => {
-                    println!("Tenscript\n{tenscript_error}");
-                    self.fabric_library_modified = time;
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let time = fabric_library_modified();
+            if time > self.fabric_library_modified {
+                match self.refresh_library(time) {
+                    Ok(action) => {
+                        actions.push(action);
+                    }
+                    Err(tenscript_error) => {
+                        println!("Tenscript\n{tenscript_error}");
+                        self.fabric_library_modified = time;
+                    }
                 }
             }
         }
@@ -71,19 +76,26 @@ impl Application {
                 }
                 Action::UpdatedLibrary(time) => {
                     let fabric_library = self.fabric_library.clone();
-                    self.fabric_library_modified = time;
-                    if !self.fabric_plan_name.is_empty() {
-                        let fabric_plan = self.load_preset(self.fabric_plan_name.clone())
-                            .expect("unable to load fabric plan");
-                        self.crucible.action(CrucibleAction::BuildFabric(fabric_plan));
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        self.fabric_library_modified = time;
                     }
-                    self.user_interface.message(ControlMessage::FreshLibrary(fabric_library));
+                    if !self.fabric_plan_name.is_empty() {
+                        let fabric_plan = self
+                            .load_preset(self.fabric_plan_name.clone())
+                            .expect("unable to load fabric plan");
+                        self.crucible
+                            .action(CrucibleAction::BuildFabric(fabric_plan));
+                    }
+                    self.user_interface
+                        .message(ControlMessage::FreshLibrary(fabric_library));
                 }
                 Action::Scene(scene_action) => {
                     self.scene.action(scene_action);
                 }
                 Action::CalibrateStrain => {
-                    let strain_limits = self.crucible.fabric().strain_limits(":bow-tie".to_string());
+                    let strain_limits =
+                        self.crucible.fabric().strain_limits(":bow-tie".to_string());
                     self.user_interface.set_strain_limits(strain_limits);
                 }
             }
@@ -109,22 +121,33 @@ impl Application {
     }
 
     pub fn run_fabric(&mut self, fabric_name: &String) {
-        let fabric_plan = self.fabric_library.fabric_plans
+        let fabric_plan = self
+            .fabric_library
+            .fabric_plans
             .iter()
             .find(|FabricPlan { name, .. }| name.contains(fabric_name))
             .expect(fabric_name);
-        self.user_interface.queue_action(Action::Crucible(CrucibleAction::BuildFabric(fabric_plan.clone())))
+        self.user_interface
+            .queue_action(Action::Crucible(CrucibleAction::BuildFabric(
+                fabric_plan.clone(),
+            )))
     }
 
     pub fn capture_prototype(&mut self, brick_index: usize) {
-        let prototype = self.brick_library.brick_definitions
-            .get(brick_index).expect("no such brick")
-            .proto.clone();
+        let prototype = self
+            .brick_library
+            .brick_definitions
+            .get(brick_index)
+            .expect("no such brick")
+            .proto
+            .clone();
         self.crucible.action(CrucibleAction::BakeBrick(prototype));
     }
 
     fn render(&mut self, surface_texture: &wgpu::SurfaceTexture) {
-        let texture_view = surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let texture_view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.scene.create_encoder();
         self.scene.render(&mut encoder, &texture_view);
         self.scene.queue().submit(iter::once(encoder.finish()));
@@ -136,12 +159,14 @@ impl Application {
     }
 
     pub fn load_preset(&self, plan_name: Vec<String>) -> Result<FabricPlan, TenscriptError> {
-        let plan = self.fabric_library.fabric_plans
+        let plan = self
+            .fabric_library
+            .fabric_plans
             .iter()
             .find(|plan| plan.name == plan_name);
         match plan {
             None => Err(TenscriptError::Invalid(plan_name.join(","))),
-            Some(plan) => Ok(plan.clone())
+            Some(plan) => Ok(plan.clone()),
         }
     }
 
@@ -150,6 +175,7 @@ impl Application {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn fabric_library_modified() -> SystemTime {
     fs::metadata("fabric_library.scm")
         .unwrap()

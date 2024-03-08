@@ -1,6 +1,4 @@
 use clap::Parser;
-#[allow(unused_imports)]
-use log::info;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 use winit::{event_loop::EventLoop, window::WindowBuilder};
@@ -34,31 +32,30 @@ pub fn run() {
     }
 
     let event_loop = EventLoop::new().unwrap();
-    let winit_window = WindowBuilder::new()
-        .with_inner_size(PhysicalSize::new(1600, 1200))
+    let mut window_builder = WindowBuilder::new()
+        .with_title("Tensegrity Lab")
+        .with_inner_size(PhysicalSize::new(1600, 1200));
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        use winit::platform::web::WindowBuilderExtWebSys;
+
+        let web_sys_window = web_sys::window().expect("no web sys window");
+        let canvas = web_sys_window
+            .document()
+            .expect("no document")
+            .get_element_by_id("canvas")
+            .expect("no element with id 'canvas'")
+            .dyn_into()
+            .expect("not a canvas");
+
+        window_builder = window_builder.with_canvas(Some(canvas));
+    }
+
+    let winit_window = window_builder
         .build(&event_loop)
         .expect("Could not build window");
 
-    winit_window.set_title("Tensegrity Lab");
-    #[cfg(target_arch = "wasm32")]
-    {
-        use winit::platform::web::WindowExtWebSys;
-        web_sys::window()
-            .and_then(|web_sys_window| {
-                let [width, height] = [web_sys_window.inner_width(), web_sys_window.inner_height()]
-                    .map(|x| x.unwrap().as_f64().unwrap() * 2.0);
-                info!("window swag {width} {height}");
-                winit_window.set_min_inner_size(Some(PhysicalSize::new(width, height)));
-                let doc = web_sys_window.document()?;
-                let dst = doc.get_element_by_id("body")?;
-                let wgpu_canvas = winit_window.canvas()?;
-                let html_canvas = web_sys::Element::from(wgpu_canvas);
-                html_canvas.set_id("canvas");
-                dst.append_child(&html_canvas).ok()?;
-                Some(())
-            })
-            .expect("Couldn't append canvas to document body.");
-    }
     let graphics = pollster::block_on(Graphics::new(&winit_window));
     let mut app = Application::new(graphics);
     let mut input = WinitInputHelper::new();
