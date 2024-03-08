@@ -1,6 +1,7 @@
+use pest::iterators::{Pair, Pairs};
+
 use crate::build::tenscript::{Rule, TenscriptError};
 use crate::fabric::physics::SurfaceCharacter;
-use pest::iterators::{Pair, Pairs};
 
 #[derive(Debug, Clone, Default)]
 pub struct MuscleMovement {

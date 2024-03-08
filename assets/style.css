@@ -19,3 +19,7 @@ body {
         display: none;
     }
 }
+
+.control-overlay, canvas {
+    outline: none;
+}

@@ -4,8 +4,8 @@ use cgmath::{
     Deg, EuclideanSpace, InnerSpace, Matrix4, perspective, point3, Point3, Quaternion, Rad, Rotation,
     Rotation3, SquareMatrix, Transform, vec3, Vector3,
 };
-use winit::event::MouseButton;
 use cgmath::num_traits::abs;
+use winit::event::MouseButton;
 use winit_input_helper::WinitInputHelper;
 
 use crate::fabric::{Fabric, UniqueId};

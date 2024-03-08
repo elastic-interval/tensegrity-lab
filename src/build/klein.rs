@@ -1,6 +1,7 @@
-use crate::fabric::{Fabric, Link, UniqueId};
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 use rand::prelude::*;
+
+use crate::fabric::{Fabric, Link, UniqueId};
 
 struct KleinFabric {
     fabric: Fabric,

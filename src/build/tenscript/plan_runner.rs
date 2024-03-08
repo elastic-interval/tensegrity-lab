@@ -1,12 +1,12 @@
+use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::plan_runner::Stage::*;
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
-use crate::build::tenscript::{FabricPlan, TenscriptError};
-use crate::fabric::physics::presets::LIQUID;
-use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
+use crate::fabric::physics::Physics;
+use crate::fabric::physics::presets::LIQUID;
 
 #[derive(Clone, Debug, Copy, PartialEq)]
 enum Stage {

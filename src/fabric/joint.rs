@@ -3,10 +3,11 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use crate::fabric::physics::Physics;
-use crate::fabric::physics::SurfaceCharacter::*;
 use cgmath::num_traits::zero;
 use cgmath::{InnerSpace, Point3, Vector3};
+
+use crate::fabric::physics::Physics;
+use crate::fabric::physics::SurfaceCharacter::*;
 
 const RESURFACE: f32 = 0.01;
 const AMBIENT_MASS: f32 = 0.01;
