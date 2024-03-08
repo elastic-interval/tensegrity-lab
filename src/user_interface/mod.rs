@@ -53,16 +53,9 @@ pub enum Action {
     UpdatedLibrary(SystemTime),
 }
 
+#[derive(Default)]
 pub struct UserInterface {
     action_queue: RefCell<Vec<Action>>,
-}
-
-impl Default for UserInterface {
-    fn default() -> Self {
-        Self {
-            action_queue: RefCell::default(),
-        }
-    }
 }
 
 impl UserInterface {
