@@ -32,6 +32,7 @@ pub fn run() {
     }
 
     let event_loop = EventLoop::new().unwrap();
+    #[allow(unused_mut)]
     let mut window_builder = WindowBuilder::new()
         .with_title("Tensegrity Lab")
         .with_inner_size(PhysicalSize::new(1600, 1200));
