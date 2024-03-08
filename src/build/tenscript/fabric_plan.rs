@@ -4,10 +4,10 @@ use std::collections::HashSet;
 
 use pest::iterators::Pair;
 
-use crate::build::tenscript::{BuildPhase, parse_name, Rule, TenscriptError};
 use crate::build::tenscript::build_phase::BuildNode;
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeOperation, ShapePhase};
+use crate::build::tenscript::{parse_name, BuildPhase, Rule, TenscriptError};
 
 #[derive(Debug, Clone)]
 pub struct FabricPlan {
@@ -25,7 +25,12 @@ impl FabricPlan {
         let build_phase = BuildPhase::from_pair(build)?;
         let shape_phase = ShapePhase::from_pair_option(inner.next())?;
         let pretense_phase = PretensePhase::from_pair_option(inner.next())?;
-        let plan = FabricPlan { name, build_phase, shape_phase, pretense_phase };
+        let plan = FabricPlan {
+            name,
+            build_phase,
+            shape_phase,
+            pretense_phase,
+        };
         Self::validate_fabric_plan(&plan)?;
         Ok(plan)
     }
@@ -44,27 +49,31 @@ impl FabricPlan {
         });
         let mut shape_marks = HashSet::new();
         for operation in &plan.shape_phase.operations {
-            operation.traverse(&mut |op| {
-                match op {
-                    ShapeOperation::Joiner { mark_name } |
-                    ShapeOperation::PointDownwards { mark_name } |
-                    ShapeOperation::Spacer { mark_name, .. } => {
-                        shape_marks.insert(mark_name.clone());
-                    }
-                    ShapeOperation::RemoveSpacers { mark_names } => {
-                        shape_marks.extend(mark_names.iter().cloned());
-                    }
-                    _ => {}
+            operation.traverse(&mut |op| match op {
+                ShapeOperation::Joiner { mark_name }
+                | ShapeOperation::PointDownwards { mark_name }
+                | ShapeOperation::Spacer { mark_name, .. } => {
+                    shape_marks.insert(mark_name.clone());
                 }
+                ShapeOperation::RemoveSpacers { mark_names } => {
+                    shape_marks.extend(mark_names.iter().cloned());
+                }
+                _ => {}
             })
         }
         let unused_marks: Vec<_> = build_marks.difference(&shape_marks).cloned().collect();
         if !unused_marks.is_empty() {
-            return Err(TenscriptError::Invalid(format!("unused marks in build phase: {}", unused_marks.join(", "))));
+            return Err(TenscriptError::Invalid(format!(
+                "unused marks in build phase: {}",
+                unused_marks.join(", ")
+            )));
         }
         let undefined_marks: Vec<_> = shape_marks.difference(&build_marks).cloned().collect();
         if !undefined_marks.is_empty() {
-            return Err(TenscriptError::Invalid(format!("undefined marks in shape phase: {}", undefined_marks.join(", "))));
+            return Err(TenscriptError::Invalid(format!(
+                "undefined marks in shape phase: {}",
+                undefined_marks.join(", ")
+            )));
         }
         Ok(())
     }

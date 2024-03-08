@@ -1,5 +1,5 @@
-use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 use crate::fabric::{Fabric, Link, UniqueId};
+use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 use rand::prelude::*;
 
 struct KleinFabric {
@@ -26,11 +26,13 @@ impl KleinFabric {
     }
 
     fn push(&mut self, alpha: isize, omega: isize) -> UniqueId {
-        self.fabric.create_interval(alpha as usize, omega as usize, Link::push(8.0))
+        self.fabric
+            .create_interval(alpha as usize, omega as usize, Link::push(8.0))
     }
 
     fn pull(&mut self, alpha: isize, omega: isize) -> UniqueId {
-        self.fabric.create_interval(alpha as usize, omega as usize, Link::pull(1.0))
+        self.fabric
+            .create_interval(alpha as usize, omega as usize, Link::pull(1.0))
     }
 
     fn coord(&mut self) -> f32 {
@@ -39,7 +41,11 @@ impl KleinFabric {
 }
 
 pub fn generate_klein(width: usize, height: usize, shift: usize) -> Fabric {
-    let (w, h, sh) = ((width * 2) as isize, (height * 2 + 1) as isize, shift as isize);
+    let (w, h, sh) = (
+        (width * 2) as isize,
+        (height * 2 + 1) as isize,
+        shift as isize,
+    );
     let mut kf = KleinFabric::new();
     let joint = |x: isize, y: isize| {
         let flip = (y / h) % 2 == 1;

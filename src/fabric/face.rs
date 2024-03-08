@@ -5,9 +5,9 @@
 use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Vector3};
 
 use crate::build::tenscript::{FaceAlias, Spin};
-use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
+use crate::fabric::{Fabric, UniqueId};
 
 #[derive(Clone, Debug, Copy)]
 pub enum FaceRotation {
@@ -53,7 +53,8 @@ impl Face {
         match self.spin {
             Spin::Left => v2.cross(v1),
             Spin::Right => v1.cross(v2),
-        }.normalize_to(length)
+        }
+        .normalize_to(length)
     }
 
     pub fn normal(&self, fabric: &Fabric) -> Vector3<f32> {
@@ -64,7 +65,11 @@ impl Face {
         let alpha = self.midpoint(fabric);
         let omega = alpha + self.normal_to(fabric, 1.5) * self.scale;
         let middle = (alpha + omega) / 2.0;
-        (Point3::from_vec(alpha), Point3::from_vec(middle), Point3::from_vec(omega))
+        (
+            Point3::from_vec(alpha),
+            Point3::from_vec(middle),
+            Point3::from_vec(omega),
+        )
     }
 
     pub fn radial_joint_locations(&self, fabric: &Fabric) -> [Point3<f32>; 3] {
@@ -87,7 +92,8 @@ impl Face {
         self.radial_intervals
             .iter()
             .map(|id| fabric.interval(*id).strain)
-            .sum::<f32>() / 3.0
+            .sum::<f32>()
+            / 3.0
     }
 
     pub fn vector_space(&self, fabric: &Fabric, rotation: FaceRotation) -> Matrix4<f32> {
@@ -98,15 +104,14 @@ impl Face {
             FaceRotation::OneThird => (radial[1], radial[2]),
             FaceRotation::TwoThirds => (radial[2], radial[0]),
         };
-        let (x_axis, y_axis, scale) =
-            (
-                (a.to_vec() + b.to_vec() - midpoint * 2.0).normalize(),
-                self.normal(fabric),
-                self.scale
-            );
+        let (x_axis, y_axis, scale) = (
+            (a.to_vec() + b.to_vec() - midpoint * 2.0).normalize(),
+            self.normal(fabric),
+            self.scale,
+        );
         let z_axis = x_axis.cross(y_axis).normalize();
-        Matrix4::from_translation(midpoint) *
-            Matrix4::from(Matrix3::from_cols(x_axis, y_axis, z_axis)) *
-            Matrix4::from_scale(scale)
+        Matrix4::from_translation(midpoint)
+            * Matrix4::from(Matrix3::from_cols(x_axis, y_axis, z_axis))
+            * Matrix4::from_scale(scale)
     }
 }

@@ -53,4 +53,3 @@ pub mod presets {
         stiffness: 1e-2,
     };
 }
-

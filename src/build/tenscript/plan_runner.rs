@@ -1,12 +1,12 @@
-use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::build_phase::BuildPhase;
-use crate::build::tenscript::plan_runner::Stage::{*};
+use crate::build::tenscript::plan_runner::Stage::*;
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
-use crate::fabric::Fabric;
-use crate::fabric::physics::Physics;
+use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::fabric::physics::presets::LIQUID;
+use crate::fabric::physics::Physics;
+use crate::fabric::Fabric;
 
 #[derive(Clone, Debug, Copy, PartialEq)]
 enum Stage {
@@ -28,7 +28,14 @@ pub struct PlanRunner {
 }
 
 impl PlanRunner {
-    pub fn new(FabricPlan { shape_phase, build_phase, pretense_phase, .. }: FabricPlan) -> Self {
+    pub fn new(
+        FabricPlan {
+            shape_phase,
+            build_phase,
+            pretense_phase,
+            ..
+        }: FabricPlan,
+    ) -> Self {
         Self {
             shape_phase,
             build_phase,
@@ -39,7 +46,11 @@ impl PlanRunner {
         }
     }
 
-    pub fn iterate(&mut self, fabric: &mut Fabric, brick_library: &BrickLibrary) -> Result<(), TenscriptError> {
+    pub fn iterate(
+        &mut self,
+        fabric: &mut Fabric,
+        brick_library: &BrickLibrary,
+    ) -> Result<(), TenscriptError> {
         fabric.iterate(&self.physics);
         if fabric.progress.is_busy() || self.disabled.is_some() {
             return Ok(());
@@ -60,26 +71,18 @@ impl PlanRunner {
                     (Completed, 0)
                 }
             }
-            GrowApproach =>
-                (GrowCalm, 500),
-            GrowCalm =>
-                (GrowStep, 0),
-            Shaping => {
-                match self.shape_phase.shaping_step(fabric)? {
-                    ShapeCommand::Noop =>
-                        (Shaping, 0),
-                    ShapeCommand::StartCountdown(countdown) =>
-                        (Shaping, countdown),
-                    ShapeCommand::SetViscosity(viscosity) => {
-                        self.physics.viscosity = viscosity;
-                        (Shaping, 0)
-                    }
-                    ShapeCommand::Terminate =>
-                        (Completed, 0)
+            GrowApproach => (GrowCalm, 500),
+            GrowCalm => (GrowStep, 0),
+            Shaping => match self.shape_phase.shaping_step(fabric)? {
+                ShapeCommand::Noop => (Shaping, 0),
+                ShapeCommand::StartCountdown(countdown) => (Shaping, countdown),
+                ShapeCommand::SetViscosity(viscosity) => {
+                    self.physics.viscosity = viscosity;
+                    (Shaping, 0)
                 }
-            }
-            Completed =>
-                (Completed, 0),
+                ShapeCommand::Terminate => (Completed, 0),
+            },
+            Completed => (Completed, 0),
         };
         fabric.progress.start(countdown);
         self.stage = next_stage;

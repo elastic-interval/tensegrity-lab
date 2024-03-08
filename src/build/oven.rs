@@ -1,7 +1,7 @@
 use crate::build::tenscript::brick::{Baked, Prototype};
 use crate::build::tenscript::FaceAlias;
-use crate::fabric::Fabric;
 use crate::fabric::physics::presets::PROTOTYPE_FORMATION;
+use crate::fabric::Fabric;
 
 pub struct Oven {
     prototype_fabric: Fabric,
@@ -10,10 +10,16 @@ pub struct Oven {
 
 impl Oven {
     pub fn new(prototype: Prototype) -> Self {
-        println!("Settling and capturing prototype number {:?}", prototype.alias);
+        log::info!(
+            "Settling and capturing prototype number {:?}",
+            prototype.alias
+        );
         let alias = prototype.alias.clone();
         let prototype_fabric = Fabric::from(prototype);
-        Self { prototype_fabric, alias }
+        Self {
+            prototype_fabric,
+            alias,
+        }
     }
 
     pub fn iterate(&mut self, fabric: &mut Fabric) -> Option<Baked> {
@@ -23,7 +29,7 @@ impl Oven {
         }
         let age = fabric.age;
         if age > 1000 && speed_squared < 1e-12 {
-            println!("Fabric settled in iteration {age} at speed squared {speed_squared}");
+            log::info!("Fabric settled in iteration {age} at speed squared {speed_squared}");
             match Baked::try_from((fabric.clone(), self.alias.clone())) {
                 Ok(baked) => {
                     return Some(baked);

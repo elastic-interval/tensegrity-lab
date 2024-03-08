@@ -1,18 +1,25 @@
 use std::collections::HashMap;
 
-use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, point3, Quaternion, Rotation, Transform, Vector3};
 use cgmath::num_traits::abs;
+use cgmath::{
+    point3, EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Quaternion, Rotation, Transform,
+    Vector3,
+};
 use pest::iterators::Pair;
 
-use crate::build::tenscript::{FaceAlias, parse_atom, Spin, TenscriptError};
 use crate::build::tenscript::Rule;
 use crate::build::tenscript::Spin::{Left, Right};
-use crate::fabric::{Fabric, Link};
+use crate::build::tenscript::{parse_atom, FaceAlias, Spin, TenscriptError};
 use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
+use crate::fabric::{Fabric, Link};
 
 #[derive(Copy, Clone, Debug)]
-pub enum Axis { X, Y, Z }
+pub enum Axis {
+    X,
+    Y,
+    Z,
+}
 
 impl Axis {
     pub fn from_pair(pair: Pair<Rule>) -> Self {
@@ -50,7 +57,12 @@ impl PushDef {
         let mut walk = pair.into_inner();
         let alpha_name = parse_atom(walk.next().unwrap());
         let omega_name = parse_atom(walk.next().unwrap());
-        Self { alpha_name, omega_name, ideal, axis }
+        Self {
+            alpha_name,
+            omega_name,
+            ideal,
+            axis,
+        }
     }
 }
 
@@ -68,7 +80,12 @@ impl PullDef {
         let alpha_name = parse_atom(walk.next().unwrap());
         let omega_name = parse_atom(walk.next().unwrap());
         let material_name = walk.next().unwrap().as_str().parse().unwrap();
-        Self { alpha_name, omega_name, ideal, material_name }
+        Self {
+            alpha_name,
+            omega_name,
+            ideal,
+            material_name,
+        }
     }
 }
 
@@ -97,13 +114,22 @@ impl From<Prototype> for Fabric {
     fn from(proto: Prototype) -> Self {
         let mut fabric = Fabric::default();
         let mut joints_by_name = HashMap::new();
-        for PushDef { alpha_name, omega_name, axis, ideal } in proto.pushes {
+        for PushDef {
+            alpha_name,
+            omega_name,
+            axis,
+            ideal,
+        } in proto.pushes
+        {
             let vector = match axis {
                 Axis::X => Vector3::unit_x(),
                 Axis::Y => Vector3::unit_y(),
                 Axis::Z => Vector3::unit_z(),
             };
-            let ends = [(alpha_name, -vector * ideal / 2.0), (omega_name, vector * ideal / 2.0)];
+            let ends = [
+                (alpha_name, -vector * ideal / 2.0),
+                (omega_name, vector * ideal / 2.0),
+            ];
             let [alpha_index, omega_index] = ends.map(|(name, loc)| {
                 let joint_index = fabric.create_joint(Point3::from_vec(loc));
                 if joints_by_name.insert(name, joint_index).is_some() {
@@ -113,14 +139,33 @@ impl From<Prototype> for Fabric {
             });
             fabric.create_interval(alpha_index, omega_index, Link::push(ideal));
         }
-        for PullDef { alpha_name, omega_name, ideal, material_name, .. } in proto.pulls {
-            let [alpha_index, omega_index] = [alpha_name, omega_name]
-                .map(|name| *joints_by_name.get(&name)
-                    .expect(&name));
-            fabric.create_interval(alpha_index, omega_index, Link { ideal, material_name });
+        for PullDef {
+            alpha_name,
+            omega_name,
+            ideal,
+            material_name,
+            ..
+        } in proto.pulls
+        {
+            let [alpha_index, omega_index] =
+                [alpha_name, omega_name].map(|name| *joints_by_name.get(&name).expect(&name));
+            fabric.create_interval(
+                alpha_index,
+                omega_index,
+                Link {
+                    ideal,
+                    material_name,
+                },
+            );
         }
-        for FaceDef { aliases, joint_names, spin } in proto.faces {
-            let joint_indices = joint_names.map(|name| *joints_by_name.get(&name).expect("no joint with that name"));
+        for FaceDef {
+            aliases,
+            joint_names,
+            spin,
+        } in proto.faces
+        {
+            let joint_indices = joint_names
+                .map(|name| *joints_by_name.get(&name).expect("no joint with that name"));
             let joints = joint_indices.map(|index| fabric.joints[index].location.to_vec());
             let midpoint = joints.into_iter().sum::<Vector3<_>>() / 3.0;
             let alpha_index = fabric.create_joint(Point3::from_vec(midpoint));
@@ -161,19 +206,35 @@ impl Prototype {
                 Rule::faces_proto => {
                     for face_pair in pair.into_inner() {
                         let mut inner = face_pair.into_inner();
-                        let [spin, a, b, c] =
-                            [inner.next().unwrap(), inner.next().unwrap(), inner.next().unwrap(), inner.next().unwrap()];
+                        let [spin, a, b, c] = [
+                            inner.next().unwrap(),
+                            inner.next().unwrap(),
+                            inner.next().unwrap(),
+                            inner.next().unwrap(),
+                        ];
                         let joint_names = [a, b, c].map(parse_atom);
                         let mut aliases = FaceAlias::from_pairs(inner);
-                        aliases = aliases.into_iter().map(|a| prototype_alias.clone() + &a).collect();
+                        aliases = aliases
+                            .into_iter()
+                            .map(|a| prototype_alias.clone() + &a)
+                            .collect();
                         let spin = Spin::from_pair(spin);
-                        faces.push(FaceDef { spin, joint_names, aliases });
+                        faces.push(FaceDef {
+                            spin,
+                            joint_names,
+                            aliases,
+                        });
                     }
                 }
                 _ => unreachable!("{:?}", pair.as_rule()),
             }
         }
-        Ok(Prototype { alias: prototype_alias, pushes, pulls, faces })
+        Ok(Prototype {
+            alias: prototype_alias,
+            pushes,
+            pulls,
+            faces,
+        })
     }
 }
 
@@ -182,10 +243,7 @@ impl BrickDefinition {
         let mut inner = pair.into_inner();
         let proto = Prototype::from_pair(inner.next().unwrap())?;
         let baked = inner.next().map(Baked::from_pair);
-        Ok(Self {
-            proto,
-            baked,
-        })
+        Ok(Self { proto, baked })
     }
 }
 
@@ -204,13 +262,13 @@ impl BrickFace {
         let inward = match self.spin {
             Left => radial[1].cross(radial[2]),
             Right => radial[2].cross(radial[1]),
-        }.normalize();
-        let (x_axis, y_axis, scale) =
-            (radial[0].normalize(), inward, radial[0].magnitude());
+        }
+        .normalize();
+        let (x_axis, y_axis, scale) = (radial[0].normalize(), inward, radial[0].magnitude());
         let z_axis = x_axis.cross(y_axis).normalize();
-        Matrix4::from_translation(midpoint) *
-            Matrix4::from(Matrix3::from_cols(x_axis, y_axis, z_axis)) *
-            Matrix4::from_scale(scale)
+        Matrix4::from_translation(midpoint)
+            * Matrix4::from(Matrix3::from_cols(x_axis, y_axis, z_axis))
+            * Matrix4::from_scale(scale)
     }
 
     pub fn normal(&self, baked: &Baked) -> Vector3<f32> {
@@ -219,7 +277,8 @@ impl BrickFace {
         match self.spin {
             Left => radial[2].cross(radial[1]),
             Right => radial[1].cross(radial[2]),
-        }.normalize()
+        }
+        .normalize()
     }
 
     fn radial_locations(&self, baked: &Baked) -> [Vector3<f32>; 3] {
@@ -263,38 +322,62 @@ impl Baked {
             match pair.as_rule() {
                 Rule::joint_baked => {
                     let mut inner = pair.into_inner();
-                    let [x, y, z] =
-                        [
-                            inner.next().unwrap().as_str().parse().unwrap(),
-                            inner.next().unwrap().as_str().parse().unwrap(),
-                            inner.next().unwrap().as_str().parse().unwrap()
-                        ];
+                    let [x, y, z] = [
+                        inner.next().unwrap().as_str().parse().unwrap(),
+                        inner.next().unwrap().as_str().parse().unwrap(),
+                        inner.next().unwrap().as_str().parse().unwrap(),
+                    ];
                     joints.push(point3(x, y, z));
                 }
                 Rule::interval_baked => {
                     let mut inner = pair.into_inner();
-                    let [alpha_index, omega_index, strain, material] =
-                        [inner.next().unwrap(), inner.next().unwrap(), inner.next().unwrap(), inner.next().unwrap()];
-                    let [alpha_index, omega_index] = [alpha_index, omega_index]
-                        .map(|pair| pair.as_str().parse().unwrap());
+                    let [alpha_index, omega_index, strain, material] = [
+                        inner.next().unwrap(),
+                        inner.next().unwrap(),
+                        inner.next().unwrap(),
+                        inner.next().unwrap(),
+                    ];
+                    let [alpha_index, omega_index] =
+                        [alpha_index, omega_index].map(|pair| pair.as_str().parse().unwrap());
                     let strain = strain.as_str().parse().unwrap();
                     let material = material.as_str().to_string();
-                    intervals.push(BakedInterval { alpha_index, omega_index, strain, material_name: material });
+                    intervals.push(BakedInterval {
+                        alpha_index,
+                        omega_index,
+                        strain,
+                        material_name: material,
+                    });
                 }
                 Rule::face_baked => {
                     let mut inner = pair.into_inner();
-                    let [spin, a, b, c] =
-                        [inner.next().unwrap(), inner.next().unwrap(), inner.next().unwrap(), inner.next().unwrap()];
+                    let [spin, a, b, c] = [
+                        inner.next().unwrap(),
+                        inner.next().unwrap(),
+                        inner.next().unwrap(),
+                        inner.next().unwrap(),
+                    ];
                     let mut aliases = FaceAlias::from_pairs(inner);
-                    aliases = aliases.into_iter().map(|a| baked_alias.clone() + &a).collect();
+                    aliases = aliases
+                        .into_iter()
+                        .map(|a| baked_alias.clone() + &a)
+                        .collect();
                     let spin = Spin::from_pair(spin);
                     let joints = [a, b, c].map(|pair| pair.as_str().parse().unwrap());
-                    faces.push(BrickFace { joints, spin, aliases });
+                    faces.push(BrickFace {
+                        joints,
+                        spin,
+                        aliases,
+                    });
                 }
-                _ => unreachable!()
+                _ => unreachable!(),
             }
         }
-        Baked { alias: baked_alias, joints, intervals, faces }
+        Baked {
+            alias: baked_alias,
+            joints,
+            intervals,
+            faces,
+        }
     }
 
     pub(crate) fn apply_matrix(&mut self, matrix: Matrix4<f32>) {
@@ -304,13 +387,15 @@ impl Baked {
     }
 
     pub(crate) fn down_rotation(&self) -> Matrix4<f32> {
-        let down = self.faces
+        let down = self
+            .faces
             .iter()
-            .filter_map(|face|
+            .filter_map(|face| {
                 face.aliases
                     .iter()
                     .find(|alias| alias.is_seed() && alias.is_base())
-                    .map(|_| face.normal(self)))
+                    .map(|_| face.normal(self))
+            })
             .sum::<Vector3<f32>>()
             .normalize();
         Matrix4::from(Quaternion::between_vectors(down, -Vector3::unit_y()))
@@ -319,40 +404,53 @@ impl Baked {
     pub const TARGET_FACE_STRAIN: f32 = 0.1;
 
     pub fn into_tenscript(self) -> String {
-        format!("(baked\n    (alias {alias})\n    {joints}\n    {intervals}\n    {faces})",
-                alias = self.alias,
-                joints = self.joints
-                    .into_iter()
-                    .map(|Point3 { x, y, z }|
-                        format!("(joint {x:.4} {y:.4} {z:.4})"))
-                    .collect::<Vec<_>>()
-                    .join("\n    "),
-                intervals = self.intervals
-                    .into_iter()
-                    .map(|BakedInterval { alpha_index, omega_index, material_name: material, strain }| {
+        format!(
+            "(baked\n    (alias {alias})\n    {joints}\n    {intervals}\n    {faces})",
+            alias = self.alias,
+            joints = self
+                .joints
+                .into_iter()
+                .map(|Point3 { x, y, z }| format!("(joint {x:.4} {y:.4} {z:.4})"))
+                .collect::<Vec<_>>()
+                .join("\n    "),
+            intervals = self
+                .intervals
+                .into_iter()
+                .map(
+                    |BakedInterval {
+                         alpha_index,
+                         omega_index,
+                         material_name: material,
+                         strain,
+                     }| {
                         format!("(interval {alpha_index} {omega_index} {strain:.4} {material})")
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n    "),
-                faces = self.faces
-                    .into_iter()
-                    .map(|BrickFace { joints: [a, b, c], aliases, spin }|
-                        format!(
-                            "({spin} {a} {b} {c} {aliases})",
-                            spin = match spin {
-                                Left => "left",
-                                Right => "right",
-                            },
-                            aliases = aliases
-                                .into_iter()
-                                .map(|alias|
-                                    format!("(alias {})", alias.into_vec().join(" ")))
-                                .collect::<Vec<_>>()
-                                .join(" "),
-                        )
+                    }
+                )
+                .collect::<Vec<_>>()
+                .join("\n    "),
+            faces = self
+                .faces
+                .into_iter()
+                .map(
+                    |BrickFace {
+                         joints: [a, b, c],
+                         aliases,
+                         spin,
+                     }| format!(
+                        "({spin} {a} {b} {c} {aliases})",
+                        spin = match spin {
+                            Left => "left",
+                            Right => "right",
+                        },
+                        aliases = aliases
+                            .into_iter()
+                            .map(|alias| format!("(alias {})", alias.into_vec().join(" ")))
+                            .collect::<Vec<_>>()
+                            .join(" "),
                     )
-                    .collect::<Vec<_>>()
-                    .join("\n    ")
+                )
+                .collect::<Vec<_>>()
+                .join("\n    ")
         )
     }
 }
@@ -366,23 +464,40 @@ impl TryFrom<(Fabric, FaceAlias)> for Baked {
         for face in fabric.faces.values() {
             let strain = face.strain(&fabric);
             if abs(strain - target_face_strain) > 0.0001 {
-                return Err(format!("Face interval strain too far from {target_face_strain} {strain:.5}"));
+                return Err(format!(
+                    "Face interval strain too far from {target_face_strain} {strain:.5}"
+                ));
             }
         }
         Ok(Self {
             alias,
-            joints: fabric.joints
+            joints: fabric
+                .joints
                 .iter()
                 .map(|Joint { location, .. }| *location)
                 .collect(),
-            intervals: fabric.interval_values()
-                .filter_map(|&Interval { alpha_index, omega_index, material, strain, .. }| {
-                    let material = fabric.materials[material].name.to_string();
-                    joint_incident[alpha_index].push
-                        .map(|_| BakedInterval { alpha_index, omega_index, strain, material_name: material })
-                })
+            intervals: fabric
+                .interval_values()
+                .filter_map(
+                    |&Interval {
+                         alpha_index,
+                         omega_index,
+                         material,
+                         strain,
+                         ..
+                     }| {
+                        let material = fabric.materials[material].name.to_string();
+                        joint_incident[alpha_index].push.map(|_| BakedInterval {
+                            alpha_index,
+                            omega_index,
+                            strain,
+                            material_name: material,
+                        })
+                    },
+                )
                 .collect(),
-            faces: fabric.faces
+            faces: fabric
+                .faces
                 .values()
                 .map(|face| BrickFace {
                     joints: face.radial_joints(&fabric),
@@ -393,4 +508,3 @@ impl TryFrom<(Fabric, FaceAlias)> for Baked {
         })
     }
 }
-

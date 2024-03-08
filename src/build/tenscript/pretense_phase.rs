@@ -1,6 +1,6 @@
-use pest::iterators::{Pair, Pairs};
 use crate::build::tenscript::{Rule, TenscriptError};
 use crate::fabric::physics::SurfaceCharacter;
+use pest::iterators::{Pair, Pairs};
 
 #[derive(Debug, Clone, Default)]
 pub struct MuscleMovement {
@@ -33,9 +33,7 @@ impl PretensePhase {
 
     fn parse_pretense(pair: Pair<Rule>) -> Result<PretensePhase, TenscriptError> {
         match pair.as_rule() {
-            Rule::pretense => {
-                Self::parse_features(pair.into_inner())
-            }
+            Rule::pretense => Self::parse_features(pair.into_inner()),
             _ => {
                 unreachable!()
             }
@@ -50,25 +48,39 @@ impl PretensePhase {
                     for pretense_pair in feature_pair.into_inner() {
                         match pretense_pair.as_rule() {
                             Rule::surface => {
-                                pretense.surface_character = match pretense_pair.into_inner().next().unwrap().as_str() {
-                                    ":frozen" => SurfaceCharacter::Frozen,
-                                    ":bouncy" => SurfaceCharacter::Bouncy,
-                                    ":absent" => SurfaceCharacter::Absent,
-                                    _ => unreachable!("surface character")
-                                }
+                                pretense.surface_character =
+                                    match pretense_pair.into_inner().next().unwrap().as_str() {
+                                        ":frozen" => SurfaceCharacter::Frozen,
+                                        ":bouncy" => SurfaceCharacter::Bouncy,
+                                        ":absent" => SurfaceCharacter::Absent,
+                                        _ => unreachable!("surface character"),
+                                    }
                             }
                             Rule::muscle => {
                                 let mut inner = pretense_pair.into_inner();
-                                let [amplitude, countdown] = [inner.next().unwrap(), inner.next().unwrap()];
-                                let amplitude = TenscriptError::parse_float(amplitude.as_str(), "muscle amplitude")?;
-                                let countdown = TenscriptError::parse_usize(countdown.as_str(), "muscle countdown")?;
-                                pretense.muscle_movement = Some(MuscleMovement { amplitude, countdown })
+                                let [amplitude, countdown] =
+                                    [inner.next().unwrap(), inner.next().unwrap()];
+                                let amplitude = TenscriptError::parse_float(
+                                    amplitude.as_str(),
+                                    "muscle amplitude",
+                                )?;
+                                let countdown = TenscriptError::parse_usize(
+                                    countdown.as_str(),
+                                    "muscle countdown",
+                                )?;
+                                pretense.muscle_movement = Some(MuscleMovement {
+                                    amplitude,
+                                    countdown,
+                                })
                             }
                             Rule::pretense_factor => {
-                                let factor = TenscriptError::parse_float_inside(pretense_pair, "pretense-factor")?;
+                                let factor = TenscriptError::parse_float_inside(
+                                    pretense_pair,
+                                    "pretense-factor",
+                                )?;
                                 pretense.pretense_factor = Some(factor)
                             }
-                            _ => unreachable!()
+                            _ => unreachable!(),
                         }
                     }
                 }

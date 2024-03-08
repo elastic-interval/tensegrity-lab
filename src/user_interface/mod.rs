@@ -98,7 +98,9 @@ impl UserInterface {
     }
 
     pub fn set_strain_limits(&mut self, strain_limits: (f32, f32)) {
-        self.message(ControlMessage::StrainThreshold(StrainThresholdMessage::SetStrainLimits(strain_limits)))
+        self.message(ControlMessage::StrainThreshold(
+            StrainThresholdMessage::SetStrainLimits(strain_limits),
+        ))
     }
 
     pub fn action(&mut self, _action: Action) {

@@ -4,8 +4,8 @@ use cgmath::SquareMatrix;
 use pest::iterators::Pair;
 use pest::Parser;
 
-use crate::build::tenscript::{FaceAlias, Rule, TenscriptError, TenscriptParser};
 use crate::build::tenscript::brick::{Baked, BrickDefinition};
+use crate::build::tenscript::{FaceAlias, Rule, TenscriptError, TenscriptParser};
 
 #[derive(Clone, Debug)]
 pub struct BrickLibrary {

@@ -7,10 +7,10 @@ use winit_input_helper::WinitInputHelper;
 
 use crate::camera::Camera;
 use crate::camera::Target::*;
-use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::Face;
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push};
+use crate::fabric::{Fabric, UniqueId};
 use crate::graphics::Graphics;
 
 const MAX_INTERVALS: usize = 5000;

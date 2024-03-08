@@ -13,10 +13,10 @@ pub use fabric_plan::FabricPlan;
 
 use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::pretense_phase::MuscleMovement;
-use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::Face;
 use crate::fabric::interval::Span;
 use crate::fabric::interval::Span::Muscle;
+use crate::fabric::{Fabric, UniqueId};
 
 pub mod brick;
 pub mod brick_library;
@@ -44,11 +44,15 @@ pub enum TenscriptError {
 
 impl TenscriptError {
     pub fn parse_float(string: &str, spot: &str) -> Result<f32, Self> {
-        string.parse().map_err(|_| TenscriptError::Format(format!("[{spot}]: Not a float: '{string}'")))
+        string
+            .parse()
+            .map_err(|_| TenscriptError::Format(format!("[{spot}]: Not a float: '{string}'")))
     }
 
     pub fn parse_usize(string: &str, spot: &str) -> Result<usize, Self> {
-        string.parse().map_err(|_| TenscriptError::Format(format!("[{spot}]: Not an int: '{string}'")))
+        string
+            .parse()
+            .map_err(|_| TenscriptError::Format(format!("[{spot}]: Not an int: '{string}'")))
     }
 
     pub fn parse_float_inside(pair: Pair<Rule>, spot: &str) -> Result<f32, TenscriptError> {
@@ -59,7 +63,9 @@ impl TenscriptError {
 
 impl Fabric {
     pub fn expect_face(&self, face_id: UniqueId) -> Result<&Face, TenscriptError> {
-        self.faces.get(&face_id).ok_or(TenscriptError::Invalid("Face missing".to_string()))
+        self.faces
+            .get(&face_id)
+            .ok_or(TenscriptError::Invalid("Face missing".to_string()))
     }
 
     pub fn activate_muscles(&mut self, muscle_movement: &MuscleMovement) {
@@ -74,10 +80,16 @@ impl Fabric {
             let low = length - divergence;
             let high = length + divergence;
             if interval.material == north_material {
-                interval.span = Muscle { min: low, max: high };
+                interval.span = Muscle {
+                    min: low,
+                    max: high,
+                };
             }
             if interval.material == south_material {
-                interval.span = Muscle { min: high, max: low };
+                interval.span = Muscle {
+                    min: high,
+                    max: low,
+                };
             }
         }
     }
@@ -121,12 +133,10 @@ impl FaceAlias {
     }
 
     pub fn find_face_in(&self, face_list: &[UniqueId], fabric: &Fabric) -> Option<UniqueId> {
-        face_list
-            .iter()
-            .find_map(|&face_id| {
-                let face = fabric.faces.get(&face_id)?;
-                self.matches(face.alias()).then_some(face_id)
-            })
+        face_list.iter().find_map(|&face_id| {
+            let face = fabric.faces.get(&face_id)?;
+            self.matches(face.alias()).then_some(face_id)
+        })
     }
 
     pub fn single(name: &str) -> Self {
@@ -161,13 +171,11 @@ impl FaceAlias {
 
     pub fn spin(&self) -> Option<Spin> {
         for part in &self.0 {
-            return Some(
-                match part.as_str() {
-                    ":left" => Spin::Left,
-                    ":right" => Spin::Right,
-                    _ => continue
-                }
-            );
+            return Some(match part.as_str() {
+                ":left" => Spin::Left,
+                ":right" => Spin::Right,
+                _ => continue,
+            });
         }
         None
     }
@@ -186,14 +194,10 @@ impl FaceAlias {
         FaceAlias(parts)
     }
 
-    pub fn from_pairs<'a>(pairs: impl IntoIterator<Item=Pair<'a, Rule>>) -> Vec<FaceAlias> {
-        pairs
-            .into_iter()
-            .map(Self::from_pair)
-            .collect()
+    pub fn from_pairs<'a>(pairs: impl IntoIterator<Item = Pair<'a, Rule>>) -> Vec<FaceAlias> {
+        pairs.into_iter().map(Self::from_pair).collect()
     }
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Spin {
@@ -226,8 +230,7 @@ pub struct FaceMark {
 
 pub fn parse_name(pair: Pair<Rule>) -> Vec<String> {
     assert_eq!(pair.as_rule(), Rule::name);
-    pair
-        .into_inner()
+    pair.into_inner()
         .map(|pair| pair.as_str())
         .map(|quoted| quoted[1..quoted.len() - 1].to_string())
         .collect()
