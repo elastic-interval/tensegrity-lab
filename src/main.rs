@@ -1,8 +1,8 @@
 use clap::Parser;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-use winit::{event_loop::EventLoop, window::WindowBuilder};
 use winit::dpi::PhysicalSize;
+use winit::{event_loop::EventLoop, window::WindowBuilder};
 use winit_input_helper::WinitInputHelper;
 
 use tensegrity_lab::application::Application;
