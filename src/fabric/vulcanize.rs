@@ -2,10 +2,10 @@ use std::collections::{HashMap, HashSet};
 
 use cgmath::{MetricSpace, Point3};
 
-use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::{Interval, Material, Role, Span};
 use crate::fabric::joint::Joint;
 use crate::fabric::Link;
+use crate::fabric::{Fabric, UniqueId};
 
 const ROOT3: f32 = 1.732_050_8;
 
@@ -13,8 +13,22 @@ const BOW_TIE_SHORTEN: f32 = 0.5;
 
 impl Fabric {
     pub fn install_bow_ties(&mut self) {
-        for Pair { alpha_index, omega_index, length } in self.pair_generator().bow_tie_pulls(&self.joints, &self.materials) {
-            self.create_interval(alpha_index, omega_index, Link { ideal: length, material_name: ":bow-tie".to_string() });
+        for Pair {
+            alpha_index,
+            omega_index,
+            length,
+        } in self
+            .pair_generator()
+            .bow_tie_pulls(&self.joints, &self.materials)
+        {
+            self.create_interval(
+                alpha_index,
+                omega_index,
+                Link {
+                    ideal: length,
+                    material_name: ":bow-tie".to_string(),
+                },
+            );
         }
     }
 
@@ -25,15 +39,22 @@ impl Fabric {
             }
             if interval.strain > strain_threshold {
                 interval.span = match interval.span {
-                    Span::Fixed { length } => Span::Fixed { length: length * shortening },
-                    _ => unreachable!()
+                    Span::Fixed { length } => Span::Fixed {
+                        length: length * shortening,
+                    },
+                    _ => unreachable!(),
                 }
             }
         }
     }
 
     pub fn install_measures(&mut self) {
-        for Pair { alpha_index, omega_index, length } in self.pair_generator().proximity_measures() {
+        for Pair {
+            alpha_index,
+            omega_index,
+            length,
+        } in self.pair_generator().proximity_measures()
+        {
             self.create_interval(alpha_index, omega_index, Link::pull(length)); // todo: how to do measuring?
         }
     }
@@ -46,7 +67,8 @@ impl Fabric {
             let radial_joints = face.radial_joints(self);
             for (alpha, omega) in [(0, 1), (1, 2), (2, 0)] {
                 let (alpha_index, omega_index) = (radial_joints[alpha], radial_joints[omega]);
-                let overlap = joint_incident[alpha_index].pull_adjacent_joints
+                let overlap = joint_incident[alpha_index]
+                    .pull_adjacent_joints
                     .intersection(&joint_incident[omega_index].pull_adjacent_joints)
                     .count();
                 if overlap == 2 {
@@ -61,13 +83,17 @@ impl Fabric {
 
     pub fn strain_limits(&self, material_name: String) -> (f32, f32) {
         let target_material = self.material(material_name);
-        let choose_target = |&Interval { strain, material, .. }|
-            (material == target_material).then_some(strain);
-        let max_strain = self.interval_values()
+        let choose_target =
+            |&Interval {
+                 strain, material, ..
+             }| (material == target_material).then_some(strain);
+        let max_strain = self
+            .interval_values()
             .filter_map(choose_target)
             .max_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap_or(1.0);
-        let min_strain = self.interval_values()
+        let min_strain = self
+            .interval_values()
             .filter_map(choose_target)
             .min_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap_or(0.0);
@@ -79,12 +105,18 @@ impl Fabric {
     }
 
     pub fn joint_incident(&self) -> Vec<JointIncident> {
-        let mut incidents: Vec<_> = self.joints
+        let mut incidents: Vec<_> = self
+            .joints
             .iter()
             .enumerate()
             .map(|(index, joint)| JointIncident::new(index, joint.location))
             .collect();
-        for interval @ Interval { alpha_index, omega_index, .. } in self.interval_values() {
+        for interval @ Interval {
+            alpha_index,
+            omega_index,
+            ..
+        } in self.interval_values()
+        {
             incidents[*alpha_index].add_interval(interval, &self.materials);
             incidents[*omega_index].add_interval(interval, &self.materials);
         }
@@ -125,17 +157,16 @@ impl JointIncident {
             Role::Push => self.push = Some(*interval),
             Role::Pull => {
                 self.pulls.push(*interval);
-                self.pull_adjacent_joints.insert(interval.other_joint(self.index));
+                self.pull_adjacent_joints
+                    .insert(interval.other_joint(self.index));
             }
         }
-        self.adjacent_joints.insert(interval.other_joint(self.index));
+        self.adjacent_joints
+            .insert(interval.other_joint(self.index));
     }
 
     fn extended_paths(&self, path: &Path) -> Vec<Path> {
-        self.pulls
-            .iter()
-            .flat_map(|pull| path.add(*pull))
-            .collect()
+        self.pulls.iter().flat_map(|pull| path.add(*pull)).collect()
     }
 
     fn across_push(&self) -> Option<usize> {
@@ -151,7 +182,10 @@ struct Path {
 
 impl Path {
     fn new(joint_index: usize, interval: Interval) -> Self {
-        Self { joint_indices: vec![joint_index], intervals: vec![interval] }
+        Self {
+            joint_indices: vec![joint_index],
+            intervals: vec![interval],
+        }
     }
 
     fn add(&self, interval: Interval) -> Option<Path> {
@@ -182,7 +216,8 @@ impl Path {
     }
 
     fn last_joint(&self) -> usize {
-        self.last_interval().other_joint(self.joint_indices[self.joint_indices.len() - 1])
+        self.last_interval()
+            .other_joint(self.joint_indices[self.joint_indices.len() - 1])
     }
 
     fn _hexagon_key(&self) -> Option<[usize; 6]> {
@@ -227,7 +262,7 @@ impl PairGenerator {
         }
     }
 
-    fn proximity_measures(mut self) -> impl Iterator<Item=Pair> {
+    fn proximity_measures(mut self) -> impl Iterator<Item = Pair> {
         for joint in 0..self.joints.len() {
             self.push_proximity(joint);
         }
@@ -239,16 +274,22 @@ impl PairGenerator {
             return;
         };
         let length_limit = push.ideal();
-        let new_pairs = self.joints
+        let new_pairs = self
+            .joints
             .iter()
             .filter_map(|other_joint| {
                 if joint_index == other_joint.index {
                     return None;
                 }
-                if self.joints[joint_index].adjacent_joints.contains(&other_joint.index) {
+                if self.joints[joint_index]
+                    .adjacent_joints
+                    .contains(&other_joint.index)
+                {
                     return None;
                 }
-                let length = self.joints[joint_index].location.distance(other_joint.location);
+                let length = self.joints[joint_index]
+                    .location
+                    .distance(other_joint.location);
                 if length > length_limit {
                     return None;
                 }
@@ -262,7 +303,11 @@ impl PairGenerator {
         self.pairs.extend(new_pairs);
     }
 
-    fn bow_tie_pulls(mut self, joints: &[Joint], materials: &[Material]) -> impl Iterator<Item=Pair> {
+    fn bow_tie_pulls(
+        mut self,
+        joints: &[Joint],
+        materials: &[Material],
+    ) -> impl Iterator<Item = Pair> {
         for interval in self.intervals.values() {
             if materials[interval.material].role != Role::Push {
                 continue;
@@ -270,7 +315,8 @@ impl PairGenerator {
             let mut meeting_pairs = vec![];
             for alpha_path in self.paths_for(interval.alpha_index, 2) {
                 for omega_path in self.paths_for(interval.omega_index, 2) {
-                    if alpha_path.last_interval().key() == omega_path.last_interval().key() { // second interval is the bridge
+                    if alpha_path.last_interval().key() == omega_path.last_interval().key() {
+                        // second interval is the bridge
                         meeting_pairs.push((6, alpha_path.clone(), omega_path.clone()));
                     }
                     if alpha_path.last_joint() == omega_path.last_joint() {
@@ -288,20 +334,31 @@ impl PairGenerator {
                     let cross_twist_diagonals: Vec<_> = diagonals
                         .iter()
                         .filter_map(|&(a, b)| {
-                            if self.interval_exists(self.joints[a].across_push()?, self.joints[b].across_push()?) {
+                            if self.interval_exists(
+                                self.joints[a].across_push()?,
+                                self.joints[b].across_push()?,
+                            ) {
                                 return None;
                             }
                             Some((a, b))
                         })
                         .collect();
                     if let &[(alpha_index, omega_index)] = cross_twist_diagonals.as_slice() {
-                        let distance = joints[alpha_index].location.distance(joints[omega_index].location);
-                        let pair = Pair { alpha_index, omega_index, length: distance * BOW_TIE_SHORTEN };
+                        let distance = joints[alpha_index]
+                            .location
+                            .distance(joints[omega_index].location);
+                        let pair = Pair {
+                            alpha_index,
+                            omega_index,
+                            length: distance * BOW_TIE_SHORTEN,
+                        };
                         self.pairs.insert(pair.key(), pair);
                     } else {
                         let candidate_completions = [
-                            (alpha1, alpha2), (alpha2, alpha1),
-                            (omega1, omega2), (omega2, omega1),
+                            (alpha1, alpha2),
+                            (alpha2, alpha1),
+                            (omega1, omega2),
+                            (omega2, omega1),
                         ];
                         let triangle_completions: Vec<_> = candidate_completions
                             .iter()
@@ -313,8 +370,14 @@ impl PairGenerator {
                             })
                             .collect();
                         if let &[(alpha_index, omega_index)] = triangle_completions.as_slice() {
-                            let distance = joints[alpha_index].location.distance(joints[omega_index].location);
-                            let pair = Pair { alpha_index, omega_index, length: distance * BOW_TIE_SHORTEN };
+                            let distance = joints[alpha_index]
+                                .location
+                                .distance(joints[omega_index].location);
+                            let pair = Pair {
+                                alpha_index,
+                                omega_index,
+                                length: distance * BOW_TIE_SHORTEN,
+                            };
                             self.pairs.insert(pair.key(), pair);
                         }
                     }
@@ -331,7 +394,11 @@ impl PairGenerator {
                         if self.joints[alpha_index].push.is_none() {
                             continue;
                         }
-                        let pair = Pair { alpha_index, omega_index, length: interval.ideal() / 4.0 };
+                        let pair = Pair {
+                            alpha_index,
+                            omega_index,
+                            length: interval.ideal() / 4.0,
+                        };
                         self.pairs.insert(pair.key(), pair);
                     }
                 }
@@ -351,7 +418,8 @@ impl PairGenerator {
     }
 
     fn paths_for(&self, joint_index: usize, max_size: usize) -> Vec<Path> {
-        let paths: Vec<_> = self.joints[joint_index].pulls
+        let paths: Vec<_> = self.joints[joint_index]
+            .pulls
             .iter()
             .map(|pull| Path::new(joint_index, *pull))
             .collect();

@@ -1,13 +1,17 @@
-use std::f32::consts::PI;
-use cgmath::{EuclideanSpace, InnerSpace, Point3, vec3, Vector3};
 use crate::fabric::{Fabric, Link};
+use cgmath::{vec3, EuclideanSpace, InnerSpace, Point3, Vector3};
+use std::f32::consts::PI;
 
 struct MobiusFabric {
     fabric: Fabric,
 }
 
 impl MobiusFabric {
-    fn default() -> MobiusFabric { MobiusFabric { fabric: Fabric::default() } }
+    fn default() -> MobiusFabric {
+        MobiusFabric {
+            fabric: Fabric::default(),
+        }
+    }
 }
 
 pub fn generate_mobius(segments: usize) -> Fabric {
@@ -24,13 +28,17 @@ pub fn generate_mobius(segments: usize) -> Fabric {
     };
     for joint_index in 0..joint_count {
         let angle = joint_index as f32 / joint_count as f32 * PI * 2.0;
-        mf.fabric.create_joint(location(joint_index % 2 == 0, angle));
+        mf.fabric
+            .create_joint(location(joint_index % 2 == 0, angle));
     }
     for joint_index in 0..joint_count {
         let joint = |offset: usize| (joint_index * 2 + offset) % joint_count;
-        mf.fabric.create_interval(joint(0), joint(2), Link::pull(0.4));
-        mf.fabric.create_interval(joint(0), joint(1), Link::pull(1.0));
-        mf.fabric.create_interval(joint(0), joint(3), Link::pull(3.0));
+        mf.fabric
+            .create_interval(joint(0), joint(2), Link::pull(0.4));
+        mf.fabric
+            .create_interval(joint(0), joint(1), Link::pull(1.0));
+        mf.fabric
+            .create_interval(joint(0), joint(3), Link::pull(3.0));
         // mf.fabric.create_face(joint(0), joint(1), joint(2))
     }
     mf.fabric

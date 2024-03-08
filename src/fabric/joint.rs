@@ -3,10 +3,10 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use cgmath::{InnerSpace, Point3, Vector3};
-use cgmath::num_traits::zero;
 use crate::fabric::physics::Physics;
-use crate::fabric::physics::SurfaceCharacter::{*};
+use crate::fabric::physics::SurfaceCharacter::*;
+use cgmath::num_traits::zero;
+use cgmath::{InnerSpace, Point3, Vector3};
 
 const RESURFACE: f32 = 0.01;
 const AMBIENT_MASS: f32 = 0.01;
@@ -35,7 +35,17 @@ impl Joint {
         self.interval_mass = AMBIENT_MASS;
     }
 
-    pub fn iterate(&mut self, Physics { surface_character, gravity, antigravity, viscosity, drag, .. }: &Physics) -> f32 {
+    pub fn iterate(
+        &mut self,
+        Physics {
+            surface_character,
+            gravity,
+            antigravity,
+            viscosity,
+            drag,
+            ..
+        }: &Physics,
+    ) -> f32 {
         let altitude = self.location.y;
         let speed_squared = self.velocity.magnitude2();
         if speed_squared > 0.01 {
@@ -43,7 +53,8 @@ impl Joint {
         }
         if altitude >= 0.0 || *gravity == 0.0 {
             self.velocity.y -= gravity;
-            self.velocity += self.force / self.interval_mass - self.velocity * speed_squared * *viscosity;
+            self.velocity +=
+                self.force / self.interval_mass - self.velocity * speed_squared * *viscosity;
             self.velocity *= *drag;
         } else {
             let degree_submerged: f32 = if -altitude < 1.0 { -altitude } else { 0.0 };

@@ -3,13 +3,13 @@ use CrucibleAction::*;
 use crate::build::oven::Oven;
 use crate::build::tenscript::brick::Prototype;
 use crate::build::tenscript::brick_library::BrickLibrary;
-use crate::build::tenscript::FabricPlan;
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::pretenser::Pretenser;
+use crate::build::tenscript::FabricPlan;
 use crate::crucible::Stage::*;
-use crate::fabric::Fabric;
 use crate::fabric::lab::Lab;
+use crate::fabric::Fabric;
 
 enum Stage {
     Empty,
@@ -64,8 +64,10 @@ impl Crucible {
                     self.stage = PretensingLaunch(plan_runner.pretense_phase())
                 } else {
                     for _ in 0..self.iterations_per_frame {
-                        if let Err(tenscript_error) = plan_runner.iterate(&mut self.fabric, brick_library) {
-                            println!("Error:\n{tenscript_error}");
+                        if let Err(tenscript_error) =
+                            plan_runner.iterate(&mut self.fabric, brick_library)
+                        {
+                            log::info!("Error:\n{tenscript_error}");
                             plan_runner.disable(tenscript_error);
                             break;
                         }
@@ -90,7 +92,7 @@ impl Crucible {
             }
             BakingBrick(oven) => {
                 if let Some(baked) = oven.iterate(&mut self.fabric) {
-                    println!("{}", baked.into_tenscript());
+                    log::info!("{}", baked.into_tenscript());
                     self.stage = Finished;
                 }
             }

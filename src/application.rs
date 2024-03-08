@@ -3,10 +3,10 @@ use std::time::SystemTime;
 
 use winit_input_helper::WinitInputHelper;
 
-use crate::build::tenscript::{FabricPlan, FaceAlias, TenscriptError};
 use crate::build::tenscript::brick::Baked;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
+use crate::build::tenscript::{FabricPlan, FaceAlias, TenscriptError};
 use crate::crucible::{Crucible, CrucibleAction};
 use crate::graphics::Graphics;
 use crate::scene::{Scene, SceneAction};
@@ -53,7 +53,7 @@ impl Application {
                         actions.push(action);
                     }
                     Err(tenscript_error) => {
-                        println!("Tenscript\n{tenscript_error}");
+                        log::info!("Tenscript\n{tenscript_error}");
                         self.fabric_library_modified = time;
                     }
                 }

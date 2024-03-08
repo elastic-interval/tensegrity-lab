@@ -1,9 +1,9 @@
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::pretenser::Pretenser;
 use crate::crucible::LabAction;
-use crate::fabric::Fabric;
-use crate::fabric::lab::Stage::{*};
+use crate::fabric::lab::Stage::*;
 use crate::fabric::physics::Physics;
+use crate::fabric::Fabric;
 
 #[derive(Clone, PartialEq)]
 enum Stage {
@@ -19,7 +19,13 @@ pub struct Lab {
 }
 
 impl Lab {
-    pub fn new(Pretenser { pretense_phase, physics, .. }: Pretenser) -> Self {
+    pub fn new(
+        Pretenser {
+            pretense_phase,
+            physics,
+            ..
+        }: Pretenser,
+    ) -> Self {
         Self {
             stage: Start,
             physics,
@@ -52,26 +58,22 @@ impl Lab {
 
     pub fn action(&mut self, action: LabAction, fabric: &mut Fabric) {
         match action {
-            LabAction::GravityChanged(gravity) => {
-                self.physics.gravity = gravity
-            }
+            LabAction::GravityChanged(gravity) => self.physics.gravity = gravity,
             LabAction::MuscleChanged(nuance) => {
                 fabric.muscle_nuance = nuance;
             }
-            LabAction::MuscleTest => {
-                match self.stage {
-                    Standing => {
-                        if let Some(movement) = &self.pretense_phase.muscle_movement {
-                            self.stage = MuscleCycle(1.0 / movement.countdown as f32)
-                        }
+            LabAction::MuscleTest => match self.stage {
+                Standing => {
+                    if let Some(movement) = &self.pretense_phase.muscle_movement {
+                        self.stage = MuscleCycle(1.0 / movement.countdown as f32)
                     }
-                    MuscleCycle(_) => {
-                        fabric.muscle_nuance = 0.5;
-                        self.stage = Standing
-                    }
-                    _ => {}
                 }
-            }
+                MuscleCycle(_) => {
+                    fabric.muscle_nuance = 0.5;
+                    self.stage = Standing
+                }
+                _ => {}
+            },
         }
     }
 }

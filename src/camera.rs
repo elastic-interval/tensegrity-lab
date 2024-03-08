@@ -1,7 +1,10 @@
 use std::f32::consts::PI;
 
-use cgmath::{Deg, EuclideanSpace, InnerSpace, Matrix4, perspective, Point3, point3, Quaternion, Rad, Rotation, Rotation3, SquareMatrix, Transform, vec3, Vector3};
 use cgmath::num_traits::abs;
+use cgmath::{
+    perspective, point3, vec3, Deg, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion, Rad,
+    Rotation, Rotation3, SquareMatrix, Transform, Vector3,
+};
 use winit_input_helper::WinitInputHelper;
 
 use crate::fabric::{Fabric, UniqueId};
@@ -36,7 +39,8 @@ impl Camera {
     pub fn handle_input(&mut self, input: &WinitInputHelper, fabric: &Fabric) {
         if input.mouse_held(0) {
             if let Some(rotation) = self.rotation(input.mouse_diff()) {
-                self.position = self.look_at - rotation.transform_vector(self.look_at - self.position);
+                self.position =
+                    self.look_at - rotation.transform_vector(self.look_at - self.position);
                 self.pick_cursor = None;
             }
         }
@@ -68,7 +72,7 @@ impl Camera {
             let axis = Vector3::unit_y().cross(gaze).normalize();
             self.position = Point3::from_vec(
                 Quaternion::from_axis_angle(axis, Rad(0.01 * up_dot_gaze / abs(up_dot_gaze)))
-                    .rotate_vector(self.position.to_vec())
+                    .rotate_vector(self.position.to_vec()),
             );
         }
     }
@@ -88,17 +92,29 @@ impl Camera {
         let x = (px - width) / width;
         let y = (height - py) / height;
         let position = Point3::new(x, y, 1.0);
-        let point3d = self.mvp_matrix().invert().unwrap().transform_point(position);
+        let point3d = self
+            .mvp_matrix()
+            .invert()
+            .unwrap()
+            .transform_point(position);
         let ray = (point3d - self.position).normalize();
-        let best = fabric.intervals.iter()
-            .map(|(interval_id, interval)|
-                (interval_id, (interval.midpoint(&fabric.joints).to_vec() - self.position.to_vec()).normalize().dot(ray)))
+        let best = fabric
+            .intervals
+            .iter()
+            .map(|(interval_id, interval)| {
+                (
+                    interval_id,
+                    (interval.midpoint(&fabric.joints).to_vec() - self.position.to_vec())
+                        .normalize()
+                        .dot(ray),
+                )
+            })
             .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b));
         if let Some((interval_id, _)) = best {
             self.picked_interval = Some(*interval_id);
-            println!("Picked {:?}", self.picked_interval);
+            log::info!("Picked {:?}", self.picked_interval);
         } else {
-            println!("Nothing picked");
+            log::info!("Nothing picked");
         }
     }
 
@@ -125,10 +141,7 @@ impl Camera {
 const SPEED: Vector3<f32> = vec3(-0.5, 0.4, 1.0);
 
 const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
-    1.0, 0.0, 0.0, 0.0,
-    0.0, 1.0, 0.0, 0.0,
-    0.0, 0.0, 0.5, 0.0,
-    0.0, 0.0, 0.5, 1.0,
+    1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.5, 1.0,
 );
 
 #[derive(Clone, Debug, Default)]
@@ -144,7 +157,9 @@ impl Target {
         match self {
             Target::Origin => point3(0.0, 0.0, 0.0),
             Target::FabricMidpoint => fabric.midpoint(),
-            Target::AroundInterval(interval_id) => fabric.interval(*interval_id).midpoint(&fabric.joints),
+            Target::AroundInterval(interval_id) => {
+                fabric.interval(*interval_id).midpoint(&fabric.joints)
+            }
         }
     }
 }

@@ -1,8 +1,8 @@
 use crate::build::tenscript::pretense_phase::PretensePhase;
-use crate::fabric::Fabric;
-use crate::fabric::physics::{Physics, SurfaceCharacter};
+use crate::build::tenscript::pretenser::Stage::*;
 use crate::fabric::physics::presets::AIR_GRAVITY;
-use crate::build::tenscript::pretenser::Stage::{*};
+use crate::fabric::physics::{Physics, SurfaceCharacter};
+use crate::fabric::Fabric;
 
 #[derive(Clone, PartialEq)]
 enum Stage {
@@ -25,12 +25,20 @@ const DEFAULT_PRETENSE_FACTOR: f32 = 1.03;
 impl Pretenser {
     pub fn new(pretense_phase: PretensePhase) -> Self {
         let surface_character = pretense_phase.surface_character;
-        let gravity = if surface_character == SurfaceCharacter::Absent {0.0} else { AIR_GRAVITY.gravity };
+        let gravity = if surface_character == SurfaceCharacter::Absent {
+            0.0
+        } else {
+            AIR_GRAVITY.gravity
+        };
         Self {
             stage: Start,
             pretense_phase,
             pretensing_countdown: 20000,
-            physics: Physics { surface_character, gravity, ..AIR_GRAVITY },
+            physics: Physics {
+                surface_character,
+                gravity,
+                ..AIR_GRAVITY
+            },
         }
     }
 
@@ -38,7 +46,10 @@ impl Pretenser {
         self.stage = match self.stage {
             Start => Slacken,
             Slacken => {
-                let factor = self.pretense_phase.pretense_factor.unwrap_or(DEFAULT_PRETENSE_FACTOR);
+                let factor = self
+                    .pretense_phase
+                    .pretense_factor
+                    .unwrap_or(DEFAULT_PRETENSE_FACTOR);
                 fabric.prepare_for_pretensing(factor);
                 fabric.progress.start(self.pretensing_countdown);
                 Pretensing

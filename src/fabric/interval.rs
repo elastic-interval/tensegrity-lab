@@ -3,29 +3,21 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 use cgmath::num_traits::zero;
+use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 use fast_inv_sqrt::InvSqrt32;
 
-use crate::fabric::Progress;
-use crate::fabric::interval::Role::{*};
-use crate::fabric::interval::Span::{*};
+use crate::fabric::interval::Role::*;
+use crate::fabric::interval::Span::*;
 use crate::fabric::joint::Joint;
 use crate::fabric::physics::Physics;
+use crate::fabric::Progress;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Span {
-    Fixed {
-        length: f32
-    },
-    Approaching {
-        length: f32,
-        initial: f32,
-    },
-    Muscle {
-        max: f32,
-        min: f32,
-    },
+    Fixed { length: f32 },
+    Approaching { length: f32, initial: f32 },
+    Muscle { max: f32, min: f32 },
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -53,12 +45,7 @@ pub struct Interval {
 }
 
 impl Interval {
-    pub fn new(
-        alpha_index: usize,
-        omega_index: usize,
-        material: usize,
-        span: Span,
-    ) -> Interval {
+    pub fn new(alpha_index: usize, omega_index: usize, material: usize, span: Span) -> Interval {
         Interval {
             alpha_index,
             omega_index,
@@ -87,7 +74,10 @@ impl Interval {
     }
 
     pub fn locations<'a>(&self, joints: &'a [Joint]) -> (&'a Point3<f32>, &'a Point3<f32>) {
-        (&joints[self.alpha_index].location, &joints[self.omega_index].location)
+        (
+            &joints[self.alpha_index].location,
+            &joints[self.omega_index].location,
+        )
     }
 
     pub fn midpoint(&self, joints: &[Joint]) -> Point3<f32> {
@@ -114,19 +104,31 @@ impl Interval {
         }
     }
 
-    pub fn iterate(&mut self, joints: &mut [Joint], materials: &[Material], progress: &Progress, muscle_nuance: f32, physics: &Physics) {
+    pub fn iterate(
+        &mut self,
+        joints: &mut [Joint],
+        materials: &[Material],
+        progress: &Progress,
+        muscle_nuance: f32,
+        physics: &Physics,
+    ) {
         let ideal = match self.span {
-            Fixed { length } => { length }
-            Approaching { initial, length, .. } => {
+            Fixed { length } => length,
+            Approaching {
+                initial, length, ..
+            } => {
                 let nuance = progress.nuance();
                 initial * (1.0 - nuance) + length * nuance
             }
-            Muscle { max, min } => {
-                min * (1.0 - muscle_nuance) + max * muscle_nuance
-            }
+            Muscle { max, min } => min * (1.0 - muscle_nuance) + max * muscle_nuance,
         };
         let real_length = self.length(joints);
-        let Material { role, stiffness, mass, .. } = materials[self.material];
+        let Material {
+            role,
+            stiffness,
+            mass,
+            ..
+        } = materials[self.material];
         self.strain = (real_length - ideal) / ideal;
         match role {
             Push if real_length > ideal => self.strain = 0.0, // do not pull
@@ -152,7 +154,14 @@ impl Interval {
         }
     }
 
-    pub fn joint_with(&self, Interval { alpha_index, omega_index, .. }: &Interval) -> Option<usize> {
+    pub fn joint_with(
+        &self,
+        Interval {
+            alpha_index,
+            omega_index,
+            ..
+        }: &Interval,
+    ) -> Option<usize> {
         if self.alpha_index == *alpha_index || self.alpha_index == *omega_index {
             Some(self.alpha_index)
         } else if self.omega_index == *alpha_index || self.omega_index == *omega_index {
