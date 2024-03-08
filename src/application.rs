@@ -10,7 +10,7 @@ use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::crucible::{Crucible, CrucibleAction};
 use crate::graphics::Graphics;
 use crate::scene::{Scene, SceneAction};
-use crate::user_interface::{Action, ControlMessage, MenuAction, UserInterface};
+use crate::user_interface::{Action, ControlMessage, UserInterface};
 
 pub struct Application {
     scene: Scene,
@@ -63,7 +63,7 @@ impl Application {
                             self.user_interface.message(ControlMessage::Reset);
                         }
                         CrucibleAction::StartPretensing(_) => {
-                            self.user_interface.action(Action::Keyboard(MenuAction::ReturnToRoot))
+                            // menu: ReturnToRoot
                         }
                         _ => {}
                     }
@@ -81,13 +81,6 @@ impl Application {
                 }
                 Action::Scene(scene_action) => {
                     self.scene.action(scene_action);
-                }
-                Action::Keyboard(menu_choice) => {
-                    if let MenuAction::ReturnToRoot = menu_choice {
-                        self.user_interface.action(
-                            Action::Scene(SceneAction::SelectInterval(None)))
-                    }
-                    self.user_interface.menu_choice(menu_choice);
                 }
                 Action::CalibrateStrain => {
                     let strain_limits = self.crucible.fabric().strain_limits(":bow-tie".to_string());
