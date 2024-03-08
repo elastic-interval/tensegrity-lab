@@ -144,9 +144,6 @@ impl Menu {
     pub fn root_menu(fabric_menu: Menu) -> Menu {
         Menu::new("Welcome", StickAround)
             .submenu(ALWAYS, fabric_menu)
-            .action("Muscle test", StickAround,
-                    |env| env.crucible_state.experimenting,
-                    Action::Crucible(CrucibleAction::ActivateMuscles))
             .submenu(ALWAYS, Menu::new("Settings", StickAround)
                 .submenu(ALWAYS, Menu::speed_menu())
                 .submenu(ALWAYS, Menu::new("Camera", StickAround)

@@ -103,7 +103,6 @@ impl Application {
 
     fn update_menu_context(&mut self) {
         self.user_interface.set_menu_context(MenuContext {
-            crucible_state: self.crucible.state(),
             fabric_menu: self.user_interface.create_fabric_menu(&self.fabric_library.fabric_plans),
         })
     }

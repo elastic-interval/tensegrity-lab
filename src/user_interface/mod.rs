@@ -6,7 +6,7 @@ use winit_input_helper::WinitInputHelper;
 
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::FabricPlan;
-use crate::crucible::{CrucibleAction, CrucibleState};
+use crate::crucible::CrucibleAction;
 use crate::scene::SceneAction;
 use crate::user_interface::menu::Menu;
 
@@ -21,14 +21,12 @@ pub enum MenuAction {
 
 #[derive(Debug, Clone)]
 pub struct MenuContext {
-    pub crucible_state: CrucibleState,
     pub fabric_menu: Menu,
 }
 
 impl MenuContext {
     pub fn new(fabric_menu: Menu) -> Self {
         Self {
-            crucible_state: Default::default(),
             fabric_menu,
         }
     }

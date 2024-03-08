@@ -48,11 +48,6 @@ pub struct Crucible {
     stage: Stage,
 }
 
-#[derive(Default, Debug, Clone)]
-pub struct CrucibleState {
-    pub experimenting: bool,
-}
-
 impl Default for Crucible {
     fn default() -> Self {
         Self {
@@ -146,11 +141,5 @@ impl Crucible {
 
     pub fn fabric(&self) -> &Fabric {
         &self.fabric
-    }
-
-    pub fn state(&self) -> CrucibleState {
-        CrucibleState {
-            experimenting: matches!(self.stage, Experimenting(_)),
-        }
     }
 }
