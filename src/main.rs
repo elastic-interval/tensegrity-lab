@@ -1,4 +1,5 @@
 use clap::Parser;
+use leptos::{create_signal, view, WriteSignal};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 use winit::dpi::PhysicalSize;
@@ -6,7 +7,7 @@ use winit::{event_loop::EventLoop, window::WindowBuilder};
 use winit_input_helper::WinitInputHelper;
 
 use tensegrity_lab::application::Application;
-use tensegrity_lab::control_overlay::ControlOverlayApp;
+use tensegrity_lab::control_overlay;
 use tensegrity_lab::graphics::Graphics;
 
 #[derive(Parser, Debug)]
@@ -32,30 +33,35 @@ pub fn run() {
         }
     }
 
-    #[cfg(target_arch = "wasm32")]
-    {
-        let web_sys_window = web_sys::window().expect("no web sys window");
-        let document = web_sys_window.document().expect("no document");
-        let control_overlay = document
-            .get_element_by_id("control-overlay")
-            .expect("no control overlay")
-            .dyn_into()
-            .expect("no html element");
-        leptos::mount_to(control_overlay, ControlOverlayApp);
-    }
-
     let event_loop = EventLoop::new().unwrap();
     #[allow(unused_mut)]
     let mut window_builder = WindowBuilder::new()
         .with_title("Tensegrity Lab")
         .with_inner_size(PhysicalSize::new(1600, 1200));
 
+    let set_message_signal: Option<WriteSignal<control_overlay::Message>>;
     #[cfg(target_arch = "wasm32")]
     {
+        use tensegrity_lab::control_overlay::app::ControlOverlayApp;
         use winit::platform::web::WindowBuilderExtWebSys;
 
         let web_sys_window = web_sys::window().expect("no web sys window");
         let document = web_sys_window.document().expect("no document");
+
+        let (message, set_message) = create_signal(control_overlay::Message::Init);
+        set_message_signal = Some(set_message);
+
+        let control_overlay = document
+            .get_element_by_id("control_overlay")
+            .expect("no control overlay")
+            .dyn_into()
+            .expect("no html element");
+        leptos::mount_to(control_overlay, move || {
+            view! {
+                <ControlOverlayApp message={message}/>
+            }
+        });
+
         let canvas = document
             .get_element_by_id("canvas")
             .expect("no element with id 'canvas'")
@@ -67,13 +73,17 @@ pub fn run() {
             .with_canvas(Some(canvas))
             .with_inner_size(PhysicalSize::new(width, height));
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        set_message_signal = None;
+    }
 
     let winit_window = window_builder
         .build(&event_loop)
         .expect("Could not build window");
 
     let graphics = pollster::block_on(Graphics::new(&winit_window));
-    let mut app = Application::new(graphics);
+    let mut app = Application::new(graphics, set_message_signal);
     let mut input = WinitInputHelper::new();
     if let Some(brick_index) = None {
         app.capture_prototype(brick_index);

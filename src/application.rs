@@ -1,12 +1,14 @@
 use std::iter;
 use std::time::SystemTime;
 
+use leptos::WriteSignal;
 use winit_input_helper::WinitInputHelper;
 
 use crate::build::tenscript::brick::Baked;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, FaceAlias, TenscriptError};
+use crate::control_overlay;
 use crate::crucible::{Crucible, CrucibleAction};
 use crate::graphics::Graphics;
 use crate::scene::{Scene, SceneAction};
@@ -21,14 +23,18 @@ pub struct Application {
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
     brick_library: BrickLibrary,
+    pub set_message_signal: Option<WriteSignal<control_overlay::Message>>,
 }
 
 impl Application {
-    pub fn new(graphics: Graphics) -> Application {
+    pub fn new(
+        graphics: Graphics,
+        set_message_signal: Option<WriteSignal<control_overlay::Message>>,
+    ) -> Application {
         let brick_library = BrickLibrary::from_source().unwrap();
         let fabric_library = FabricLibrary::from_source().unwrap();
         let user_interface = UserInterface::default();
-        let scene = Scene::new(graphics);
+        let scene = Scene::new(graphics, set_message_signal);
         Application {
             scene,
             user_interface,
@@ -36,6 +42,7 @@ impl Application {
             fabric_plan_name: Vec::new(),
             brick_library,
             fabric_library,
+            set_message_signal,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
         }

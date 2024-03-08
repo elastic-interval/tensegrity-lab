@@ -2,11 +2,13 @@ use std::f32::consts::PI;
 use std::mem;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
+use leptos::WriteSignal;
 use wgpu::util::DeviceExt;
 use winit_input_helper::WinitInputHelper;
 
 use crate::camera::Camera;
 use crate::camera::Target::*;
+use crate::control_overlay::Message;
 use crate::fabric::face::Face;
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push};
@@ -40,7 +42,7 @@ pub struct Scene {
 }
 
 impl Scene {
-    pub fn new(graphics: Graphics) -> Self {
+    pub fn new(graphics: Graphics, set_message_signal: Option<WriteSignal<Message>>) -> Self {
         let shader = graphics
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -52,6 +54,7 @@ impl Scene {
             (2.0 * scale, 1.0 * scale, 2.0 * scale).into(),
             graphics.config.width as f32,
             graphics.config.height as f32,
+            set_message_signal,
         );
         let uniform_buffer =
             graphics
