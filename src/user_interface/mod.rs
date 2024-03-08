@@ -5,31 +5,14 @@ use winit::keyboard::Key;
 use winit_input_helper::WinitInputHelper;
 
 use crate::build::tenscript::fabric_library::FabricLibrary;
-use crate::build::tenscript::FabricPlan;
 use crate::crucible::CrucibleAction;
 use crate::scene::SceneAction;
-use crate::user_interface::menu::Menu;
-
-mod menu;
 
 #[derive(Debug, Clone, Copy)]
 pub enum MenuAction {
     StickAround,
     ReturnToRoot,
     UpOneLevel,
-}
-
-#[derive(Debug, Clone)]
-pub struct MenuContext {
-    pub fabric_menu: Menu,
-}
-
-impl MenuContext {
-    pub fn new(fabric_menu: Menu) -> Self {
-        Self {
-            fabric_menu,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -54,10 +37,8 @@ pub enum StrainThresholdMessage {
 #[derive(Debug, Clone)]
 pub enum KeyboardMessage {
     KeyPressed(Key),
-    SelectSubmenu(Menu),
     SelectMenu(MenuAction),
     SubmitAction { action: Action, menu_action: MenuAction },
-    SetEnvironment(MenuContext),
     FreshLibrary(FabricLibrary),
 }
 
@@ -75,7 +56,6 @@ pub enum ControlMessage {
 #[derive(Clone, Debug)]
 pub enum Action {
     Crucible(CrucibleAction),
-    UpdateMenu,
     Scene(SceneAction),
     Keyboard(MenuAction),
     CalibrateStrain,
@@ -108,7 +88,6 @@ impl UserInterface {
             }
             ControlMessage::Reset => {
                 // self.gravity.update(GravityMessage::Reset);
-                self.queue_action(Action::UpdateMenu);
             }
             ControlMessage::Keyboard(_message) => {
                 // queue_action(self.keyboard.update(message));
@@ -132,10 +111,6 @@ impl UserInterface {
         // self.message(ControlMessage::Keyboard(KeyboardMessage::KeyPressed(*keycode_pressed)));
     }
 
-    pub fn set_menu_context(&mut self, menu_environment: MenuContext) {
-        self.message(ControlMessage::Keyboard(KeyboardMessage::SetEnvironment(menu_environment)))
-    }
-
     pub fn menu_choice(&mut self, menu_choice: MenuAction) {
         self.message(ControlMessage::Keyboard(KeyboardMessage::SelectMenu(menu_choice)))
     }
@@ -146,9 +121,5 @@ impl UserInterface {
 
     pub fn action(&mut self, _action: Action) {
         // self.state.queue_message(ControlMessage::Action(action))
-    }
-
-    pub fn create_fabric_menu(&self, fabrics: &[FabricPlan]) -> Menu {
-        Menu::fabric_menu(fabrics)
     }
 }
