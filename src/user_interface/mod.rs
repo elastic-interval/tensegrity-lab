@@ -51,6 +51,7 @@ pub enum Action {
     Scene(SceneAction),
     CalibrateStrain,
     UpdatedLibrary(SystemTime),
+    SetFabricPlan(Vec<String>),
 }
 
 #[derive(Default)]

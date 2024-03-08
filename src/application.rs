@@ -1,8 +1,11 @@
 use std::iter;
+use std::sync::mpsc::Receiver;
 use std::time::SystemTime;
 
 use leptos::WriteSignal;
 use winit_input_helper::WinitInputHelper;
+
+use control_overlay::ControlState;
 
 use crate::build::tenscript::brick::Baked;
 use crate::build::tenscript::brick_library::BrickLibrary;
@@ -23,13 +26,15 @@ pub struct Application {
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
     brick_library: BrickLibrary,
-    pub set_control_state: Option<WriteSignal<control_overlay::ControlState>>,
+    pub set_control_state: Option<WriteSignal<ControlState>>,
+    pub actions_rx: Receiver<Action>,
 }
 
 impl Application {
     pub fn new(
         graphics: Graphics,
-        set_control_state: Option<WriteSignal<control_overlay::ControlState>>,
+        set_control_state: Option<WriteSignal<ControlState>>,
+        actions_rx: Receiver<Action>,
     ) -> Application {
         let brick_library = BrickLibrary::from_source().unwrap();
         let fabric_library = FabricLibrary::from_source().unwrap();
@@ -43,31 +48,19 @@ impl Application {
             brick_library,
             fabric_library,
             set_control_state,
+            actions_rx,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
         }
     }
 
     pub fn update(&mut self) {
-        #[allow(unused_mut)]
-        let mut actions = self.user_interface.take_actions();
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let time = fabric_library_modified();
-            if time > self.fabric_library_modified {
-                match self.refresh_library(time) {
-                    Ok(action) => {
-                        actions.push(action);
-                    }
-                    Err(tenscript_error) => {
-                        log::info!("Tenscript\n{tenscript_error}");
-                        self.fabric_library_modified = time;
-                    }
-                }
-            }
-        }
-        for action in actions {
+        while let Ok(action) = self.actions_rx.try_recv() {
             match action {
+                Action::SetFabricPlan(fabric_plan_name) => {
+                    self.fabric_plan_name = fabric_plan_name;
+                    self.reload_fabric();
+                }
                 Action::Crucible(crucible_action) => {
                     match &crucible_action {
                         CrucibleAction::BuildFabric(fabric_plan) => {
@@ -89,11 +82,7 @@ impl Application {
                     let fabric_library = self.fabric_library.clone();
                     self.fabric_library_modified = time;
                     if !self.fabric_plan_name.is_empty() {
-                        let fabric_plan = self
-                            .load_preset(self.fabric_plan_name.clone())
-                            .expect("unable to load fabric plan");
-                        self.crucible
-                            .action(CrucibleAction::BuildFabric(fabric_plan));
+                        self.reload_fabric();
                     }
                     self.user_interface
                         .message(ControlMessage::FreshLibrary(fabric_library));
@@ -108,6 +97,14 @@ impl Application {
                 }
             }
         }
+    }
+
+    fn reload_fabric(&mut self) {
+        let fabric_plan = self
+            .load_preset(self.fabric_plan_name.clone())
+            .expect("unable to load fabric plan");
+        self.crucible
+            .action(CrucibleAction::BuildFabric(fabric_plan));
     }
 
     pub fn redraw(&mut self) {

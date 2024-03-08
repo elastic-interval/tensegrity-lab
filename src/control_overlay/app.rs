@@ -1,13 +1,39 @@
-use leptos::{component, view, IntoView, ReadSignal, SignalGet};
+use std::sync::mpsc::Sender;
+
+use leptos::{
+    component, create_signal, event_target_value, view, IntoView, ReadSignal, SignalGet, SignalSet,
+};
 
 use crate::fabric::interval::Interval;
+use crate::user_interface::Action;
 
 #[component]
-pub fn ControlOverlayApp(control_state: ReadSignal<ControlState>) -> impl IntoView {
-    let text = move || format!("{:#?}", control_state.get());
+pub fn ControlOverlayApp(
+    control_state: ReadSignal<ControlState>,
+    actions_tx: Sender<Action>,
+) -> impl IntoView {
+    let pre_text = move || format!("{:#?}", control_state.get());
+    let load_fabric = move |name: Vec<String>| {
+        actions_tx
+            .send(Action::SetFabricPlan(name))
+            .expect("failed to send action");
+    };
+    let (category, set_category) = create_signal("Art".to_string());
+    let (subname, set_subname) = create_signal("Halo by Crane".to_string());
     view! {
         <div class="inset">
-            <pre>{text}</pre>
+            <input
+                type="text"
+                value=category.get()
+                on:change=move |ev| { set_category.set(event_target_value(&ev)); } />
+            <input
+                type="text"
+                value=subname.get()
+                on:change=move |ev| { set_subname.set(event_target_value(&ev)); } />
+            <button on:click=move |_ev| { load_fabric(vec![category.get(), subname.get()]) }>
+                Load Fabric
+            </button>
+            <pre>{pre_text}</pre>
         </div>
     }
 }
