@@ -16,7 +16,6 @@ enum Stage {
 pub struct Pretenser {
     stage: Stage,
     pretensing_countdown: usize,
-    speed_threshold: f32,
     pub pretense_phase: PretensePhase,
     pub physics: Physics,
 }
@@ -31,7 +30,6 @@ impl Pretenser {
             stage: Start,
             pretense_phase,
             pretensing_countdown: 20000,
-            speed_threshold: 1e-6,
             physics: Physics { surface_character, gravity, ..AIR_GRAVITY },
         }
     }

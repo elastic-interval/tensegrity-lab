@@ -25,10 +25,10 @@ enum Cell {
 
 #[derive(Debug)]
 struct Spoke {
-    near_vertex: usize,
+    _near_vertex: usize,
     far_vertex: usize,
     near_joint: usize,
-    far_joint: usize,
+    _far_joint: usize,
     length: f32,
 }
 
@@ -67,14 +67,14 @@ pub fn generate_ball(frequency: usize, radius: f32) -> Fabric {
                             for omega_vertex_adjacent in &vertex_cells[*omega_vertex] {
                                 if let PushInterval { alpha_vertex, omega_vertex, alpha, omega, length } = omega_vertex_adjacent {
                                     if *sought_alpha == *alpha_vertex && *omega_vertex == *sought_omega { // found opposite
-                                        return Spoke { near_vertex: *omega_vertex, far_vertex: *alpha_vertex, near_joint: *omega, far_joint: *alpha, length: *length };
+                                        return Spoke { _near_vertex: *omega_vertex, far_vertex: *alpha_vertex, near_joint: *omega, _far_joint: *alpha, length: *length };
                                     }
                                 }
                             }
                             panic!("Adjacent not found!");
                         }
                         PushInterval { alpha_vertex, omega_vertex, alpha, omega, length } => {
-                            Spoke { near_vertex: *alpha_vertex, far_vertex: *omega_vertex, near_joint: *alpha, far_joint: *omega, length: *length }
+                            Spoke { _near_vertex: *alpha_vertex, far_vertex: *omega_vertex, near_joint: *alpha, _far_joint: *omega, length: *length }
                         }
                     }
                 )
