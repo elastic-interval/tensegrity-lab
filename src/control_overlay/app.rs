@@ -1,16 +1,18 @@
-use leptos::{component, create_effect, view, IntoView, ReadSignal, SignalGet};
+use leptos::{component, view, IntoView, ReadSignal, SignalGet};
 
-use crate::control_overlay::Message;
+use crate::fabric::interval::Interval;
 
 #[component]
-pub fn ControlOverlayApp(message: ReadSignal<Message>) -> impl IntoView {
-    let text = move || match message.get() {
-        Message::PickedInterval(interval) => format!("{interval:#?}"),
-        Message::Init => "".to_string(),
-    };
+pub fn ControlOverlayApp(control_state: ReadSignal<ControlState>) -> impl IntoView {
+    let text = move || format!("{:#?}", control_state.get());
     view! {
-        <div>
+        <div class="inset">
             <pre>{text}</pre>
         </div>
     }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct ControlState {
+    pub(crate) picked_interval: Option<Interval>,
 }
