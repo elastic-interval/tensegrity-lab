@@ -42,7 +42,7 @@ pub struct Scene {
 }
 
 impl Scene {
-    pub fn new(graphics: Graphics, set_control_state: Option<WriteSignal<ControlState>>) -> Self {
+    pub fn new(graphics: Graphics, set_control_state: WriteSignal<ControlState>) -> Self {
         let shader = graphics
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
