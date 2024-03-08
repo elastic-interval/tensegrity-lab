@@ -5,6 +5,7 @@ use cgmath::{
     perspective, point3, vec3, Deg, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion, Rad,
     Rotation, Rotation3, SquareMatrix, Transform, Vector3,
 };
+use winit::event::MouseButton;
 use winit_input_helper::WinitInputHelper;
 
 use crate::fabric::{Fabric, UniqueId};
@@ -37,7 +38,7 @@ impl Camera {
     }
 
     pub fn handle_input(&mut self, input: &WinitInputHelper, fabric: &Fabric) {
-        if input.mouse_held(0) {
+        if input.mouse_held(MouseButton::Left) {
             if let Some(rotation) = self.rotation(input.mouse_diff()) {
                 self.position =
                     self.look_at - rotation.transform_vector(self.look_at - self.position);
@@ -45,10 +46,10 @@ impl Camera {
             }
         }
         self.pick_mode = false; // TODO
-        if input.mouse_pressed(0) {
+        if input.mouse_pressed(MouseButton::Left) {
             self.pick_cursor = input.cursor();
         }
-        if input.mouse_released(0) {
+        if input.mouse_released(MouseButton::Left) {
             if let Some(pick_cursor) = self.pick_cursor {
                 self.pick(pick_cursor, fabric)
             }
