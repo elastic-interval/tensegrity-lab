@@ -5,9 +5,6 @@ use bytemuck::{cast_slice, Pod, Zeroable};
 use wgpu::util::DeviceExt;
 use winit_input_helper::WinitInputHelper;
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
-
 use crate::camera::Camera;
 use crate::camera::Target::*;
 use crate::fabric::{Fabric, UniqueId};
@@ -44,108 +41,135 @@ pub struct Scene {
 
 impl Scene {
     pub fn new(graphics: Graphics) -> Self {
-        let shader = graphics.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-        })
-            ;
+        let shader = graphics
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+            });
         let scale = 6.0;
-        let camera = Camera::new((2.0 * scale, 1.0 * scale, 2.0 * scale).into(), graphics.config.width as f32, graphics.config.height as f32);
-        let uniform_buffer = graphics.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("MVP"),
-            contents: cast_slice(&[0.0f32; 16]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-        let uniform_bind_group_layout = graphics.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Uniform Bind Group Layout"),
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-        });
-        let uniform_bind_group = graphics.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &uniform_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            }],
-            label: Some("Uniform Bind Group"),
-        });
-        let pipeline_layout = graphics.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[&uniform_bind_group_layout],
-            push_constant_ranges: &[],
-        });
+        let camera = Camera::new(
+            (2.0 * scale, 1.0 * scale, 2.0 * scale).into(),
+            graphics.config.width as f32,
+            graphics.config.height as f32,
+        );
+        let uniform_buffer =
+            graphics
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("MVP"),
+                    contents: cast_slice(&[0.0f32; 16]),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                });
+        let uniform_bind_group_layout =
+            graphics
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("Uniform Bind Group Layout"),
+                    entries: &[wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }],
+                });
+        let uniform_bind_group = graphics
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &uniform_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniform_buffer.as_entire_binding(),
+                }],
+                label: Some("Uniform Bind Group"),
+            });
+        let pipeline_layout =
+            graphics
+                .device
+                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("Render Pipeline Layout"),
+                    bind_group_layouts: &[&uniform_bind_group_layout],
+                    push_constant_ranges: &[],
+                });
         let fabric_vertices = vec![FabricVertex::default(); MAX_INTERVALS * 2];
-        let fabric_pipeline = graphics.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Fabric Pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "fabric_vertex",
-                buffers: &[FabricVertex::desc()],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fabric_fragment",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: graphics.config.format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::LineList,
-                strip_index_format: None,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-        });
-        let fabric_buffer = graphics.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: cast_slice(&fabric_vertices),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-        });
+        let fabric_pipeline =
+            graphics
+                .device
+                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some("Fabric Pipeline"),
+                    layout: Some(&pipeline_layout),
+                    vertex: wgpu::VertexState {
+                        module: &shader,
+                        entry_point: "fabric_vertex",
+                        buffers: &[FabricVertex::desc()],
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &shader,
+                        entry_point: "fabric_fragment",
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: graphics.config.format,
+                            blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                    }),
+                    primitive: wgpu::PrimitiveState {
+                        topology: wgpu::PrimitiveTopology::LineList,
+                        strip_index_format: None,
+                        ..Default::default()
+                    },
+                    depth_stencil: None,
+                    multisample: wgpu::MultisampleState::default(),
+                    multiview: None,
+                });
+        let fabric_buffer = graphics
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: cast_slice(&fabric_vertices),
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            });
         let surface_vertices = SurfaceVertex::for_radius(10.0).to_vec();
-        let surface_pipeline = graphics.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Surface Pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "surface_vertex",
-                buffers: &[SurfaceVertex::desc()],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "surface_fragment",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: graphics.config.format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-        });
-        let surface_buffer = graphics.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Surface Buffer"),
-            contents: cast_slice(&surface_vertices),
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-        });
+        let surface_pipeline =
+            graphics
+                .device
+                .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                    label: Some("Surface Pipeline"),
+                    layout: Some(&pipeline_layout),
+                    vertex: wgpu::VertexState {
+                        module: &shader,
+                        entry_point: "surface_vertex",
+                        buffers: &[SurfaceVertex::desc()],
+                    },
+                    fragment: Some(wgpu::FragmentState {
+                        module: &shader,
+                        entry_point: "surface_fragment",
+                        targets: &[Some(wgpu::ColorTargetState {
+                            format: graphics.config.format,
+                            blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                            write_mask: wgpu::ColorWrites::ALL,
+                        })],
+                    }),
+                    primitive: wgpu::PrimitiveState {
+                        topology: wgpu::PrimitiveTopology::TriangleList,
+                        strip_index_format: None,
+                        ..Default::default()
+                    },
+                    depth_stencil: None,
+                    multisample: wgpu::MultisampleState::default(),
+                    multiview: None,
+                });
+        let surface_buffer =
+            graphics
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Surface Buffer"),
+                    contents: cast_slice(&surface_vertices),
+                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                });
         Self {
             selected_interval: None,
             _strain_rendering: None,
@@ -173,7 +197,12 @@ impl Scene {
                 view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.0, g: 0.0, b: 0.0, a: 1.0 }),
+                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                        r: 0.0,
+                        g: 0.0,
+                        b: 0.0,
+                        a: 1.0,
+                    }),
                     store: wgpu::StoreOp::Store,
                 },
             })],
@@ -202,21 +231,24 @@ impl Scene {
         if let Some(picked_interval_id) = self.camera.picked_interval.take() {
             self.action(SceneAction::SelectInterval(Some(picked_interval_id)));
         }
-        self.graphics.queue.write_buffer(&self.fabric_drawing.buffer, 0, cast_slice(&self.fabric_drawing.vertices));
+        self.graphics.queue.write_buffer(
+            &self.fabric_drawing.buffer,
+            0,
+            cast_slice(&self.fabric_drawing.vertices),
+        );
     }
 
     fn update_from_fabric(&mut self, fabric: &Fabric) {
         self.fabric_drawing.vertices.clear();
-        self.fabric_drawing.vertices.extend(
-            fabric.intervals
-                .iter()
-                .flat_map(|(interval_id, interval)| {
-                    let selected = match self.selected_interval {
-                        None => false,
-                        Some(selected_interval_id) => selected_interval_id == *interval_id,
-                    };
-                    FabricVertex::for_interval(interval, fabric, selected)
-                }));
+        self.fabric_drawing
+            .vertices
+            .extend(fabric.intervals.iter().flat_map(|(interval_id, interval)| {
+                let selected = match self.selected_interval {
+                    None => false,
+                    Some(selected_interval_id) => selected_interval_id == *interval_id,
+                };
+                FabricVertex::for_interval(interval, fabric, selected)
+            }));
         self.camera.target_approach(fabric);
     }
 
@@ -225,7 +257,11 @@ impl Scene {
     }
 
     pub fn create_encoder(&self) -> wgpu::CommandEncoder {
-        self.graphics.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Encoder") })
+        self.graphics
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Encoder"),
+            })
     }
 
     pub fn surface_texture(&self) -> Result<wgpu::SurfaceTexture, wgpu::SurfaceError> {
@@ -236,7 +272,9 @@ impl Scene {
         if width > 0 && height > 0 {
             self.graphics.config.width = width;
             self.graphics.config.height = height;
-            self.graphics.surface.configure(&self.graphics.device, &self.graphics.config);
+            self.graphics
+                .surface
+                .configure(&self.graphics.device, &self.graphics.config);
             self.camera.set_size(width as f32, height as f32);
         }
     }
@@ -244,7 +282,9 @@ impl Scene {
     fn update_from_camera(&self, graphics: &Graphics) {
         let mvp_mat = self.camera.mvp_matrix();
         let mvp_ref: &[f32; 16] = mvp_mat.as_ref();
-        graphics.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));
+        graphics
+            .queue
+            .write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));
     }
 
     pub fn action(&mut self, scene_action: SceneAction) {
@@ -260,9 +300,7 @@ impl Scene {
             SceneAction::WatchMidpoint => {
                 self.camera.target = FabricMidpoint;
             }
-            SceneAction::WatchOrigin => {
-                self.camera.target = Origin
-            }
+            SceneAction::WatchOrigin => self.camera.target = Origin,
         }
     }
 }
@@ -286,8 +324,14 @@ impl FabricVertex {
             }
         };
         [
-            FabricVertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color },
-            FabricVertex { position: [omega.x, omega.y, omega.z, 1.0], color }
+            FabricVertex {
+                position: [alpha.x, alpha.y, alpha.z, 1.0],
+                color,
+            },
+            FabricVertex {
+                position: [omega.x, omega.y, omega.z, 1.0],
+                color,
+            },
         ]
     }
 
@@ -295,12 +339,19 @@ impl FabricVertex {
         let (alpha, _, omega) = face.visible_points(fabric);
         let (alpha_color, omega_color) = ([1.0, 0.0, 0.0, 1.0], [1.0, 0.0, 0.0, 1.0]);
         [
-            FabricVertex { position: [alpha.x, alpha.y, alpha.z, 1.0], color: alpha_color },
-            FabricVertex { position: [omega.x, omega.y, omega.z, 1.0], color: omega_color }
+            FabricVertex {
+                position: [alpha.x, alpha.y, alpha.z, 1.0],
+                color: alpha_color,
+            },
+            FabricVertex {
+                position: [omega.x, omega.y, omega.z, 1.0],
+                color: omega_color,
+            },
         ]
     }
 
-    const ATTRIBUTES: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![0=>Float32x4, 1=>Float32x4];
+    const ATTRIBUTES: [wgpu::VertexAttribute; 2] =
+        wgpu::vertex_attr_array![0=>Float32x4, 1=>Float32x4];
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
             array_stride: mem::size_of::<FabricVertex>() as wgpu::BufferAddress,
@@ -324,17 +375,14 @@ impl SurfaceVertex {
             .map(|angle| [radius * angle.cos(), 0.0, radius * angle.sin(), 1.0])
             .collect();
         let triangles = [
-            origin, point[0], point[1],
-            origin, point[1], point[2],
-            origin, point[2], point[3],
-            origin, point[3], point[4],
-            origin, point[4], point[5],
-            origin, point[5], point[0],
+            origin, point[0], point[1], origin, point[1], point[2], origin, point[2], point[3],
+            origin, point[3], point[4], origin, point[4], point[5], origin, point[5], point[0],
         ];
         triangles.map(|position| SurfaceVertex { position })
     }
 
-    const ATTRIBUTES: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![0=>Float32x4, 1=>Float32x4];
+    const ATTRIBUTES: [wgpu::VertexAttribute; 2] =
+        wgpu::vertex_attr_array![0=>Float32x4, 1=>Float32x4];
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
             array_stride: mem::size_of::<SurfaceVertex>() as wgpu::BufferAddress,
