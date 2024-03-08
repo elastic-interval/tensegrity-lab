@@ -44,6 +44,9 @@ web-sys = { version = "0.3", features = [
     "Document",
     "Window",
     "Element",
+    "KeyboardEvent",
+    "KeyboardEventInit",
+    "EventTarget",
 ] }
 #instant = { version = "0.1.12", features = ["stdweb"] }
 

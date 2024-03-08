@@ -42,9 +42,8 @@ pub fn run() {
         use winit::platform::web::WindowBuilderExtWebSys;
 
         let web_sys_window = web_sys::window().expect("no web sys window");
-        let canvas = web_sys_window
-            .document()
-            .expect("no document")
+        let document = web_sys_window.document().expect("no document");
+        let canvas = document
             .get_element_by_id("canvas")
             .expect("no element with id 'canvas'")
             .dyn_into()
