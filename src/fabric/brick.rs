@@ -1,10 +1,10 @@
 use cgmath::{EuclideanSpace, Point3, Transform, Vector3};
 
-use crate::build::tenscript::{FaceAlias, Spin};
 use crate::build::tenscript::brick::{Baked, BakedInterval, BrickFace};
 use crate::build::tenscript::brick_library::BrickLibrary;
-use crate::fabric::{Fabric, Link, UniqueId};
+use crate::build::tenscript::{FaceAlias, Spin};
 use crate::fabric::face::{Face, FaceRotation};
+use crate::fabric::{Fabric, Link, UniqueId};
 
 impl Fabric {
     pub fn create_brick(

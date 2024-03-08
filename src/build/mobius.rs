@@ -1,6 +1,8 @@
-use crate::fabric::{Fabric, Link};
-use cgmath::{vec3, EuclideanSpace, InnerSpace, Point3, Vector3};
 use std::f32::consts::PI;
+
+use cgmath::{vec3, EuclideanSpace, InnerSpace, Point3, Vector3};
+
+use crate::fabric::{Fabric, Link};
 
 struct MobiusFabric {
     fabric: Fabric,
