@@ -49,8 +49,11 @@ pub fn run() {
             .expect("no element with id 'canvas'")
             .dyn_into()
             .expect("not a canvas");
-
-        window_builder = window_builder.with_canvas(Some(canvas));
+        let width = web_sys_window.inner_width().unwrap().as_f64().unwrap() * 2.0;
+        let height = web_sys_window.inner_height().unwrap().as_f64().unwrap() * 2.0;
+        window_builder = window_builder
+            .with_canvas(Some(canvas))
+            .with_inner_size(PhysicalSize::new(width, height));
     }
 
     let winit_window = window_builder
