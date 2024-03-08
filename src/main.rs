@@ -1,5 +1,7 @@
 use clap::Parser;
+#[allow(unused_imports)]
 use leptos::{create_signal, view, WriteSignal};
+use std::sync::mpsc::channel;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 use winit::dpi::PhysicalSize;
@@ -9,6 +11,7 @@ use winit_input_helper::WinitInputHelper;
 use tensegrity_lab::application::Application;
 use tensegrity_lab::control_overlay;
 use tensegrity_lab::graphics::Graphics;
+use tensegrity_lab::user_interface::Action;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -38,6 +41,8 @@ pub fn run() {
     let mut window_builder = WindowBuilder::new()
         .with_title("Tensegrity Lab")
         .with_inner_size(PhysicalSize::new(1600, 1200));
+    #[allow(unused_variables)]
+    let (actions_tx, actions_rx) = channel::<Action>();
 
     let set_control_state: Option<WriteSignal<control_overlay::ControlState>>;
     #[cfg(target_arch = "wasm32")]
@@ -58,7 +63,9 @@ pub fn run() {
             .expect("no html element");
         leptos::mount_to(control_overlay, move || {
             view! {
-                <ControlOverlayApp control_state={control_state}/>
+                <ControlOverlayApp
+                    control_state={control_state}
+                    actions_tx={actions_tx}/>
             }
         });
 
@@ -83,7 +90,7 @@ pub fn run() {
         .expect("Could not build window");
 
     let graphics = pollster::block_on(Graphics::new(&winit_window));
-    let mut app = Application::new(graphics, set_control_state);
+    let mut app = Application::new(graphics, set_control_state, actions_rx);
     let mut input = WinitInputHelper::new();
     if let Some(brick_index) = None {
         app.capture_prototype(brick_index);

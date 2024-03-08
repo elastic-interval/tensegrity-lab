@@ -1,10 +1,10 @@
 use std::f32::consts::PI;
 
-use cgmath::{
-    Deg, EuclideanSpace, InnerSpace, Matrix4, perspective, point3, Point3, Quaternion, Rad, Rotation,
-    Rotation3, SquareMatrix, Transform, vec3, Vector3,
-};
 use cgmath::num_traits::abs;
+use cgmath::{
+    perspective, point3, vec3, Deg, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion, Rad,
+    Rotation, Rotation3, SquareMatrix, Transform, Vector3,
+};
 use leptos::{SignalUpdate, WriteSignal};
 use winit::event::MouseButton;
 use winit_input_helper::WinitInputHelper;
