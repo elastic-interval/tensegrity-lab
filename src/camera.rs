@@ -23,7 +23,7 @@ pub struct Camera {
     pub height: f32,
     pub pick_mode: bool,
     pub pick_cursor: Option<(f32, f32)>,
-    pub set_control_state: Option<WriteSignal<control_overlay::ControlState>>,
+    pub set_control_state: WriteSignal<control_overlay::ControlState>,
 }
 
 impl Camera {
@@ -31,7 +31,7 @@ impl Camera {
         position: Point3<f32>,
         width: f32,
         height: f32,
-        set_control_state: Option<WriteSignal<control_overlay::ControlState>>,
+        set_control_state: WriteSignal<control_overlay::ControlState>,
     ) -> Self {
         Self {
             position,
@@ -123,11 +123,9 @@ impl Camera {
         if let Some((interval_id, _)) = best {
             self.picked_interval = Some(*interval_id);
             let interval = fabric.interval(*interval_id);
-            if let Some(set_control_state) = self.set_control_state {
-                set_control_state.update(move |state| {
-                    state.picked_interval = Some(*interval);
-                });
-            }
+            self.set_control_state.update(move |state| {
+                state.picked_interval = Some(*interval);
+            });
         }
     }
 

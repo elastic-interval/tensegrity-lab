@@ -1,7 +1,8 @@
+use std::sync::mpsc::channel;
+
 use clap::Parser;
 #[allow(unused_imports)]
 use leptos::{create_signal, view, WriteSignal};
-use std::sync::mpsc::channel;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 use winit::dpi::PhysicalSize;
@@ -9,9 +10,7 @@ use winit::{event_loop::EventLoop, window::WindowBuilder};
 use winit_input_helper::WinitInputHelper;
 
 use tensegrity_lab::application::Application;
-use tensegrity_lab::control_overlay;
 use tensegrity_lab::graphics::Graphics;
-use tensegrity_lab::user_interface::Action;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -42,19 +41,19 @@ pub fn run() {
         .with_title("Tensegrity Lab")
         .with_inner_size(PhysicalSize::new(1600, 1200));
     #[allow(unused_variables)]
-    let (actions_tx, actions_rx) = channel::<Action>();
+    let (actions_tx, actions_rx) = channel();
 
-    let set_control_state: Option<WriteSignal<control_overlay::ControlState>>;
+    #[allow(unused_variables)]
+    let (control_state, set_control_state) = create_signal(Default::default());
     #[cfg(target_arch = "wasm32")]
     {
         use tensegrity_lab::control_overlay::app::ControlOverlayApp;
         use winit::platform::web::WindowBuilderExtWebSys;
 
+        let actions_tx = actions_tx.clone();
+
         let web_sys_window = web_sys::window().expect("no web sys window");
         let document = web_sys_window.document().expect("no document");
-
-        let (control_state, set_control_state_signal) = create_signal(Default::default());
-        set_control_state = Some(set_control_state_signal);
 
         let control_overlay = document
             .get_element_by_id("control_overlay")
@@ -80,24 +79,16 @@ pub fn run() {
             .with_canvas(Some(canvas))
             .with_inner_size(PhysicalSize::new(width, height));
     }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        set_control_state = None;
-    }
 
     let winit_window = window_builder
         .build(&event_loop)
         .expect("Could not build window");
 
     let graphics = pollster::block_on(Graphics::new(&winit_window));
-    let mut app = Application::new(graphics, set_control_state, actions_rx);
+    let mut app = Application::new(graphics, set_control_state, (actions_tx, actions_rx));
     let mut input = WinitInputHelper::new();
-    if let Some(brick_index) = None {
-        app.capture_prototype(brick_index);
-    } else {
-        let fabric = "Tommy Torque".to_string();
-        app.run_fabric(&fabric)
-    }
+    let fabric = "Tommy Torque".to_string();
+    app.run_fabric(&fabric);
     event_loop
         .run(move |event, window_target| {
             if input.update(&event) {

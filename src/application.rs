@@ -1,5 +1,5 @@
 use std::iter;
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, Sender};
 use std::time::SystemTime;
 
 use leptos::WriteSignal;
@@ -12,42 +12,41 @@ use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, FaceAlias, TenscriptError};
 use crate::control_overlay;
+use crate::control_overlay::action::Action;
 use crate::crucible::{Crucible, CrucibleAction};
 use crate::graphics::Graphics;
 use crate::scene::{Scene, SceneAction};
-use crate::user_interface::{Action, ControlMessage, UserInterface};
 
 pub struct Application {
     scene: Scene,
-    user_interface: UserInterface,
     crucible: Crucible,
     fabric_plan_name: Vec<String>,
     fabric_library: FabricLibrary,
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
     brick_library: BrickLibrary,
-    pub set_control_state: Option<WriteSignal<ControlState>>,
+    pub set_control_state: WriteSignal<ControlState>,
     pub actions_rx: Receiver<Action>,
+    pub actions_tx: Sender<Action>,
 }
 
 impl Application {
     pub fn new(
         graphics: Graphics,
-        set_control_state: Option<WriteSignal<ControlState>>,
-        actions_rx: Receiver<Action>,
+        set_control_state: WriteSignal<ControlState>,
+        (actions_tx, actions_rx): (Sender<Action>, Receiver<Action>),
     ) -> Application {
         let brick_library = BrickLibrary::from_source().unwrap();
         let fabric_library = FabricLibrary::from_source().unwrap();
-        let user_interface = UserInterface::default();
         let scene = Scene::new(graphics, set_control_state);
         Application {
             scene,
-            user_interface,
             crucible: Crucible::default(),
             fabric_plan_name: Vec::new(),
             brick_library,
             fabric_library,
             set_control_state,
+            actions_tx,
             actions_rx,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
@@ -57,7 +56,7 @@ impl Application {
     pub fn update(&mut self) {
         while let Ok(action) = self.actions_rx.try_recv() {
             match action {
-                Action::SetFabricPlan(fabric_plan_name) => {
+                Action::LoadFabric(fabric_plan_name) => {
                     self.fabric_plan_name = fabric_plan_name;
                     self.reload_fabric();
                 }
@@ -66,7 +65,7 @@ impl Application {
                         CrucibleAction::BuildFabric(fabric_plan) => {
                             self.fabric_plan_name = fabric_plan.name.clone();
                             self.scene.action(SceneAction::SelectInterval(None));
-                            self.user_interface.message(ControlMessage::Reset);
+                            // self.user_interface.message(ControlMessage::Reset);
                         }
                         CrucibleAction::StartPretensing(_) => {
                             // menu: ReturnToRoot
@@ -84,16 +83,16 @@ impl Application {
                     if !self.fabric_plan_name.is_empty() {
                         self.reload_fabric();
                     }
-                    self.user_interface
-                        .message(ControlMessage::FreshLibrary(fabric_library));
+                    // self.user_interface
+                    //     .message(ControlMessage::FreshLibrary(fabric_library));
                 }
                 Action::Scene(scene_action) => {
                     self.scene.action(scene_action);
                 }
                 Action::CalibrateStrain => {
-                    let strain_limits =
-                        self.crucible.fabric().strain_limits(":bow-tie".to_string());
-                    self.user_interface.set_strain_limits(strain_limits);
+                    // let strain_limits =
+                    //     self.crucible.fabric().strain_limits(":bow-tie".to_string());
+                    // self.user_interface.set_strain_limits(strain_limits);
                 }
             }
         }
@@ -122,7 +121,6 @@ impl Application {
             self.scene.resize(size.width, size.height);
         }
         self.scene.handle_input(input, self.crucible.fabric());
-        self.user_interface.handle_input(input);
     }
 
     pub fn run_fabric(&mut self, fabric_name: &String) {
@@ -132,10 +130,11 @@ impl Application {
             .iter()
             .find(|FabricPlan { name, .. }| name.contains(fabric_name))
             .expect(fabric_name);
-        self.user_interface
-            .queue_action(Action::Crucible(CrucibleAction::BuildFabric(
+        self.actions_tx
+            .send(Action::Crucible(CrucibleAction::BuildFabric(
                 fabric_plan.clone(),
             )))
+            .unwrap();
     }
 
     pub fn capture_prototype(&mut self, brick_index: usize) {

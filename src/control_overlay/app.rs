@@ -4,8 +4,8 @@ use leptos::{
     component, create_signal, event_target_value, view, IntoView, ReadSignal, SignalGet, SignalSet,
 };
 
+use crate::control_overlay::action::Action;
 use crate::fabric::interval::Interval;
-use crate::user_interface::Action;
 
 #[component]
 pub fn ControlOverlayApp(
@@ -15,7 +15,7 @@ pub fn ControlOverlayApp(
     let pre_text = move || format!("{:#?}", control_state.get());
     let load_fabric = move |name: Vec<String>| {
         actions_tx
-            .send(Action::SetFabricPlan(name))
+            .send(Action::LoadFabric(name))
             .expect("failed to send action");
     };
     let (category, set_category) = create_signal("Art".to_string());
