@@ -26,7 +26,7 @@ impl Application {
     pub fn new(graphics: Graphics) -> Application {
         let brick_library = BrickLibrary::from_source().unwrap();
         let fabric_library = FabricLibrary::from_source().unwrap();
-        let user_interface = UserInterface::new();
+        let user_interface = UserInterface::default();
         let scene = Scene::new(graphics);
         Application {
             scene,

@@ -57,13 +57,15 @@ pub struct UserInterface {
     action_queue: RefCell<Vec<Action>>,
 }
 
-impl UserInterface {
-    pub fn new() -> Self {
+impl Default for UserInterface {
+    fn default() -> Self {
         Self {
             action_queue: RefCell::default(),
         }
     }
+}
 
+impl UserInterface {
     pub fn take_actions(&self) -> Vec<Action> {
         self.action_queue.borrow_mut().split_off(0)
     }
