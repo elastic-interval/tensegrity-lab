@@ -1,4 +1,3 @@
-use winit::dpi::LogicalSize;
 use winit::window::Window;
 
 pub struct Graphics {
