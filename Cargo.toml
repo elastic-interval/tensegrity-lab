@@ -11,7 +11,7 @@ cfg-if = "1.0.0"
 cgmath = "0.18.0"
 chrono = "0.4.31"
 clap = { version = "4.4.12", features = ["derive"] }
-env_logger = "0.10.1"
+env_logger = "0.11.3"
 fast_inv_sqrt = "~1.0"
 futures = "0.3.30"
 gfx-hal = "0.9"
@@ -26,12 +26,12 @@ raw-window-handle = "0.6.0"
 serde = { version = "1", features = ["derive"] }
 wgpu = "0.18.0"
 winit = { version = "0.29", features = ["rwh_05"] }
-winit_input_helper = "0.15.1"
+winit_input_helper = "0.16.0"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tracing-subscriber = "0.3"
-env_logger = "0.10"
+env_logger = "0.11.3"
 
 # web:
 [target.'cfg(target_arch = "wasm32")'.dependencies]
