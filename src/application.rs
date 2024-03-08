@@ -3,10 +3,10 @@ use std::time::SystemTime;
 
 use winit_input_helper::WinitInputHelper;
 
+use crate::build::tenscript::{FabricPlan, FaceAlias, TenscriptError};
 use crate::build::tenscript::brick::Baked;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
-use crate::build::tenscript::{FabricPlan, FaceAlias, TenscriptError};
 use crate::crucible::{Crucible, CrucibleAction};
 use crate::graphics::Graphics;
 use crate::scene::{Scene, SceneAction};
@@ -42,6 +42,7 @@ impl Application {
     }
 
     pub fn update(&mut self) {
+        #[allow(unused_mut)]
         let mut actions = self.user_interface.take_actions();
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -74,12 +75,12 @@ impl Application {
                     }
                     self.crucible.action(crucible_action);
                 }
+                #[cfg(target_arch = "wasm32")]
+                Action::UpdatedLibrary(_) => unreachable!(),
+                #[cfg(not(target_arch = "wasm32"))]
                 Action::UpdatedLibrary(time) => {
                     let fabric_library = self.fabric_library.clone();
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        self.fabric_library_modified = time;
-                    }
+                    self.fabric_library_modified = time;
                     if !self.fabric_plan_name.is_empty() {
                         let fabric_plan = self
                             .load_preset(self.fabric_plan_name.clone())
