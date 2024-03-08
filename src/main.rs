@@ -1,11 +1,12 @@
 use clap::Parser;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-use winit::dpi::PhysicalSize;
 use winit::{event_loop::EventLoop, window::WindowBuilder};
+use winit::dpi::PhysicalSize;
 use winit_input_helper::WinitInputHelper;
 
 use tensegrity_lab::application::Application;
+use tensegrity_lab::control_overlay::ControlOverlayApp;
 use tensegrity_lab::graphics::Graphics;
 
 #[derive(Parser, Debug)]
@@ -29,6 +30,18 @@ pub fn run() {
         } else {
             env_logger::init();
         }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        let web_sys_window = web_sys::window().expect("no web sys window");
+        let document = web_sys_window.document().expect("no document");
+        let control_overlay = document
+            .get_element_by_id("control-overlay")
+            .expect("no control overlay")
+            .dyn_into()
+            .expect("no html element");
+        leptos::mount_to(control_overlay, ControlOverlayApp);
     }
 
     let event_loop = EventLoop::new().unwrap();
