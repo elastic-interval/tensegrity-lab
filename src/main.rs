@@ -39,7 +39,7 @@ pub fn run() {
         .with_title("Tensegrity Lab")
         .with_inner_size(PhysicalSize::new(1600, 1200));
 
-    let set_message_signal: Option<WriteSignal<control_overlay::Message>>;
+    let set_control_state: Option<WriteSignal<control_overlay::ControlState>>;
     #[cfg(target_arch = "wasm32")]
     {
         use tensegrity_lab::control_overlay::app::ControlOverlayApp;
@@ -48,8 +48,8 @@ pub fn run() {
         let web_sys_window = web_sys::window().expect("no web sys window");
         let document = web_sys_window.document().expect("no document");
 
-        let (message, set_message) = create_signal(control_overlay::Message::Init);
-        set_message_signal = Some(set_message);
+        let (control_state, set_control_state_signal) = create_signal(Default::default());
+        set_control_state = Some(set_control_state_signal);
 
         let control_overlay = document
             .get_element_by_id("control_overlay")
@@ -58,7 +58,7 @@ pub fn run() {
             .expect("no html element");
         leptos::mount_to(control_overlay, move || {
             view! {
-                <ControlOverlayApp message={message}/>
+                <ControlOverlayApp control_state={control_state}/>
             }
         });
 
@@ -75,7 +75,7 @@ pub fn run() {
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        set_message_signal = None;
+        set_control_state = None;
     }
 
     let winit_window = window_builder
@@ -83,7 +83,7 @@ pub fn run() {
         .expect("Could not build window");
 
     let graphics = pollster::block_on(Graphics::new(&winit_window));
-    let mut app = Application::new(graphics, set_message_signal);
+    let mut app = Application::new(graphics, set_control_state);
     let mut input = WinitInputHelper::new();
     if let Some(brick_index) = None {
         app.capture_prototype(brick_index);

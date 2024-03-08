@@ -1,15 +1,15 @@
 use std::f32::consts::PI;
 
-use crate::control_overlay;
-use cgmath::num_traits::abs;
 use cgmath::{
-    perspective, point3, vec3, Deg, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion, Rad,
-    Rotation, Rotation3, SquareMatrix, Transform, Vector3,
+    Deg, EuclideanSpace, InnerSpace, Matrix4, perspective, point3, Point3, Quaternion, Rad, Rotation,
+    Rotation3, SquareMatrix, Transform, vec3, Vector3,
 };
-use leptos::{SignalSet, WriteSignal};
+use cgmath::num_traits::abs;
+use leptos::{SignalUpdate, WriteSignal};
 use winit::event::MouseButton;
 use winit_input_helper::WinitInputHelper;
 
+use crate::control_overlay;
 use crate::fabric::{Fabric, UniqueId};
 
 const TARGET_ATTRACTION: f32 = 0.01;
@@ -23,7 +23,7 @@ pub struct Camera {
     pub height: f32,
     pub pick_mode: bool,
     pub pick_cursor: Option<(f32, f32)>,
-    pub set_message_signal: Option<WriteSignal<control_overlay::Message>>,
+    pub set_control_state: Option<WriteSignal<control_overlay::ControlState>>,
 }
 
 impl Camera {
@@ -31,11 +31,11 @@ impl Camera {
         position: Point3<f32>,
         width: f32,
         height: f32,
-        set_message_signal: Option<WriteSignal<control_overlay::Message>>,
+        set_control_state: Option<WriteSignal<control_overlay::ControlState>>,
     ) -> Self {
         Self {
             position,
-            set_message_signal,
+            set_control_state,
             target: Target::default(),
             look_at: point3(0.0, 3.0, 0.0),
             picked_interval: None,
@@ -123,12 +123,11 @@ impl Camera {
         if let Some((interval_id, _)) = best {
             self.picked_interval = Some(*interval_id);
             let interval = fabric.interval(*interval_id);
-            if let Some(set_message) = self.set_message_signal {
-                set_message.set(control_overlay::Message::PickedInterval(*interval));
-                log::info!("Picked {:?}", interval);
+            if let Some(set_control_state) = self.set_control_state {
+                set_control_state.update(move |state| {
+                    state.picked_interval = Some(*interval);
+                });
             }
-        } else {
-            log::info!("Nothing picked");
         }
     }
 
