@@ -8,13 +8,6 @@ use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::crucible::CrucibleAction;
 use crate::scene::SceneAction;
 
-#[derive(Debug, Clone, Copy)]
-pub enum MenuAction {
-    StickAround,
-    ReturnToRoot,
-    UpOneLevel,
-}
-
 #[derive(Debug, Clone)]
 pub enum GravityMessage {
     NuanceChanged(f32),
@@ -37,8 +30,7 @@ pub enum StrainThresholdMessage {
 #[derive(Debug, Clone)]
 pub enum KeyboardMessage {
     KeyPressed(Key),
-    SelectMenu(MenuAction),
-    SubmitAction { action: Action, menu_action: MenuAction },
+    SubmitAction(Action),
     FreshLibrary(FabricLibrary),
 }
 
@@ -57,7 +49,6 @@ pub enum ControlMessage {
 pub enum Action {
     Crucible(CrucibleAction),
     Scene(SceneAction),
-    Keyboard(MenuAction),
     CalibrateStrain,
     UpdatedLibrary(SystemTime),
 }
@@ -109,10 +100,6 @@ impl UserInterface {
 
     pub fn handle_input(&mut self, _input: &WinitInputHelper) {
         // self.message(ControlMessage::Keyboard(KeyboardMessage::KeyPressed(*keycode_pressed)));
-    }
-
-    pub fn menu_choice(&mut self, menu_choice: MenuAction) {
-        self.message(ControlMessage::Keyboard(KeyboardMessage::SelectMenu(menu_choice)))
     }
 
     pub fn set_strain_limits(&mut self, strain_limits: (f32, f32)) {
