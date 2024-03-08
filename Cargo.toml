@@ -1,5 +1,5 @@
 [package]
-name = "tensegrity-lab"
+name = "tensegrity_lab"
 version = "0.1.0"
 authors = ["Gerald de Jong <geralddejong@gmail.com>"]
 edition = "2021"
@@ -45,7 +45,7 @@ web-sys = { version = "0.3", features = [
     "Window",
     "Element",
 ] }
-instant = { version = "0.1.12", features = ["stdweb"] }
+#instant = { version = "0.1.12", features = ["stdweb"] }
 
 [profile.release]
 opt-level = 2 # fast and small wasm
@@ -53,7 +53,7 @@ opt-level = 2 # fast and small wasm
 [patch.crates-io]
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 
 # `wasm-opt` is on by default in for the release profile, but it can be
 # disabled by setting it to `false`
