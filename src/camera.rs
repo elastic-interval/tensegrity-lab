@@ -1,10 +1,12 @@
 use std::f32::consts::PI;
 
-use cgmath::{
-    Deg, EuclideanSpace, InnerSpace, Matrix4, perspective, point3, Point3, Quaternion, Rad, Rotation,
-    Rotation3, SquareMatrix, Transform, vec3, Vector3,
-};
+use crate::control_overlay;
 use cgmath::num_traits::abs;
+use cgmath::{
+    perspective, point3, vec3, Deg, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion, Rad,
+    Rotation, Rotation3, SquareMatrix, Transform, Vector3,
+};
+use leptos::{SignalSet, WriteSignal};
 use winit::event::MouseButton;
 use winit_input_helper::WinitInputHelper;
 
@@ -21,12 +23,19 @@ pub struct Camera {
     pub height: f32,
     pub pick_mode: bool,
     pub pick_cursor: Option<(f32, f32)>,
+    pub set_message_signal: Option<WriteSignal<control_overlay::Message>>,
 }
 
 impl Camera {
-    pub fn new(position: Point3<f32>, width: f32, height: f32) -> Self {
+    pub fn new(
+        position: Point3<f32>,
+        width: f32,
+        height: f32,
+        set_message_signal: Option<WriteSignal<control_overlay::Message>>,
+    ) -> Self {
         Self {
             position,
+            set_message_signal,
             target: Target::default(),
             look_at: point3(0.0, 3.0, 0.0),
             picked_interval: None,
@@ -113,7 +122,11 @@ impl Camera {
             .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b));
         if let Some((interval_id, _)) = best {
             self.picked_interval = Some(*interval_id);
-            log::info!("Picked {:?}", fabric.interval(*interval_id));
+            let interval = fabric.interval(*interval_id);
+            if let Some(set_message) = self.set_message_signal {
+                set_message.set(control_overlay::Message::PickedInterval(*interval));
+                log::info!("Picked {:?}", interval);
+            }
         } else {
             log::info!("Nothing picked");
         }

@@ -1,10 +1,4 @@
-use leptos::{component, view, IntoView};
+pub mod app;
+pub mod message;
 
-#[component]
-pub fn ControlOverlayApp() -> impl IntoView {
-    view! {
-        <div>
-            <h1>YOLOSWAG</h1>
-        </div>
-    }
-}
+pub use message::Message;

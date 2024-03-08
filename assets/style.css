@@ -3,7 +3,7 @@ body {
     margin: 0;
 }
 
-#control-overlay {
+#control_overlay {
     font-family: "JetBrains Mono", monospace;
     position: absolute;
     top: 0;
@@ -38,6 +38,6 @@ body {
     height: 100%;
 }
 
-#control-overlay, canvas {
+#control_overlay, canvas {
     outline: none;
 }
