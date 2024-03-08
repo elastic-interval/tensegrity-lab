@@ -144,7 +144,7 @@ impl Prototype {
             match pair.as_rule() {
                 Rule::pushes_proto => {
                     let mut inner = pair.into_inner();
-                    let [axis, ideal] = inner.next_chunk().unwrap();
+                    let [axis, ideal] = [inner.next().unwrap(), inner.next().unwrap()];
                     let axis = Axis::from_pair(axis);
                     let ideal = ideal.as_str().parse().unwrap();
                     for push_pair in inner {
@@ -161,7 +161,8 @@ impl Prototype {
                 Rule::faces_proto => {
                     for face_pair in pair.into_inner() {
                         let mut inner = face_pair.into_inner();
-                        let [spin, a, b, c] = inner.next_chunk().unwrap();
+                        let [spin, a, b, c] =
+                            [inner.next().unwrap(), inner.next().unwrap(), inner.next().unwrap(), inner.next().unwrap()];
                         let joint_names = [a, b, c].map(parse_atom);
                         let mut aliases = FaceAlias::from_pairs(inner);
                         aliases = aliases.into_iter().map(|a| prototype_alias.clone() + &a).collect();
@@ -261,16 +262,19 @@ impl Baked {
         for pair in inner {
             match pair.as_rule() {
                 Rule::joint_baked => {
-                    let [x, y, z] = pair
-                        .into_inner()
-                        .next_chunk()
-                        .unwrap()
-                        .map(|pair| pair.as_str().parse().unwrap());
+                    let mut inner = pair.into_inner();
+                    let [x, y, z] =
+                        [
+                            inner.next().unwrap().as_str().parse().unwrap(),
+                            inner.next().unwrap().as_str().parse().unwrap(),
+                            inner.next().unwrap().as_str().parse().unwrap()
+                        ];
                     joints.push(point3(x, y, z));
                 }
                 Rule::interval_baked => {
+                    let mut inner = pair.into_inner();
                     let [alpha_index, omega_index, strain, material] =
-                        pair.into_inner().next_chunk().unwrap();
+                        [inner.next().unwrap(), inner.next().unwrap(), inner.next().unwrap(), inner.next().unwrap()];
                     let [alpha_index, omega_index] = [alpha_index, omega_index]
                         .map(|pair| pair.as_str().parse().unwrap());
                     let strain = strain.as_str().parse().unwrap();
@@ -279,7 +283,8 @@ impl Baked {
                 }
                 Rule::face_baked => {
                     let mut inner = pair.into_inner();
-                    let [spin, a, b, c] = inner.next_chunk().unwrap();
+                    let [spin, a, b, c] =
+                        [inner.next().unwrap(), inner.next().unwrap(), inner.next().unwrap(), inner.next().unwrap()];
                     let mut aliases = FaceAlias::from_pairs(inner);
                     aliases = aliases.into_iter().map(|a| baked_alias.clone() + &a).collect();
                     let spin = Spin::from_pair(spin);
