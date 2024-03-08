@@ -72,7 +72,7 @@ impl ShapePhase {
         })
     }
 
-    fn parse_shape_operations(pairs: impl Iterator<Item=Pair<Rule>>) -> Result<Vec<ShapeOperation>, TenscriptError> {
+    fn parse_shape_operations<'a>(pairs: impl Iterator<Item=Pair<'a, Rule>>) -> Result<Vec<ShapeOperation>, TenscriptError> {
         pairs
             .map(Self::parse_shape_operation)
             .collect()
