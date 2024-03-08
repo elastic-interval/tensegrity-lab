@@ -7,7 +7,6 @@ use winit_input_helper::WinitInputHelper;
 use crate::fabric::{Fabric, UniqueId};
 
 const TARGET_ATTRACTION: f32 = 0.01;
-const TARGET_DISTANCE_MARGIN: f32 = 0.3;
 
 pub struct Camera {
     pub position: Point3<f32>,

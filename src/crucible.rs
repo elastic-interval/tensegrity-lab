@@ -11,8 +11,6 @@ use crate::crucible::Stage::*;
 use crate::fabric::Fabric;
 use crate::fabric::lab::Lab;
 
-const PULL_SHORTENING: f32 = 0.95;
-
 enum Stage {
     Empty,
     RunningPlan(PlanRunner),

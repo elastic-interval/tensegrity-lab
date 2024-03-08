@@ -1,11 +1,4 @@
-#![allow(stable_features)]
-#![feature(let_else)]
-#![feature(iter_array_chunks)]
-#![allow(dead_code)]
-#![feature(iter_collect_into)]
 #![feature(iter_next_chunk)]
-#![feature(once_cell)]
-#![feature(let_chains)]
 #![feature(anonymous_lifetime_in_impl_trait)]
 
 pub mod application;

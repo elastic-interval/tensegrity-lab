@@ -6,11 +6,6 @@ use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::fabric::{Fabric, Link, UniqueId};
 use crate::fabric::face::{Face, FaceRotation};
 
-const ROOT3: f32 = 1.732_050_8;
-const ROOT5: f32 = 2.236_068;
-const ROOT6: f32 = 2.449_489_8;
-const PHI: f32 = (1f32 + ROOT5) / 2f32;
-
 impl Fabric {
     pub fn create_brick(
         &mut self,

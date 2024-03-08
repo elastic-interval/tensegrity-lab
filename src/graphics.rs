@@ -1,5 +1,4 @@
-use log::{info, log};
-use winit::dpi::PhysicalSize;
+use log::info;
 use winit::window::Window;
 
 pub struct Graphics {

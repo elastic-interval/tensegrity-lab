@@ -27,13 +27,13 @@ pub enum SceneAction {
 
 #[derive(Debug, Clone)]
 pub struct StrainRendering {
-    threshold: f32,
-    material: usize,
+    _threshold: f32,
+    _material: usize,
 }
 
 pub struct Scene {
     selected_interval: Option<UniqueId>,
-    strain_rendering: Option<StrainRendering>,
+    _strain_rendering: Option<StrainRendering>,
     camera: Camera,
     fabric_drawing: Drawing<FabricVertex>,
     surface_drawing: Drawing<SurfaceVertex>,
@@ -148,7 +148,7 @@ impl Scene {
         });
         Self {
             selected_interval: None,
-            strain_rendering: None,
+            _strain_rendering: None,
             camera,
             graphics,
             fabric_drawing: Drawing {
@@ -291,7 +291,7 @@ impl FabricVertex {
         ]
     }
 
-    pub fn for_face(face: &Face, fabric: &Fabric) -> [FabricVertex; 2] {
+    pub fn _for_face(face: &Face, fabric: &Fabric) -> [FabricVertex; 2] {
         let (alpha, _, omega) = face.visible_points(fabric);
         let (alpha_color, omega_color) = ([1.0, 0.0, 0.0, 1.0], [1.0, 0.0, 0.0, 1.0]);
         [

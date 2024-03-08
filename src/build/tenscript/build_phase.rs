@@ -169,7 +169,7 @@ impl BuildPhase {
         }
     }
 
-    fn parse_scale(scale_pair: Option<Pair<Rule>>) -> f32 {
+    fn _parse_scale(scale_pair: Option<Pair<Rule>>) -> f32 {
         match scale_pair {
             None => 1.0,
             Some(scale_pair) => {

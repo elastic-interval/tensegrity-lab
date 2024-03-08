@@ -169,7 +169,7 @@ impl Path {
         self.first_joint() == self.last_joint()
     }
 
-    fn first(&self) -> &Interval {
+    fn _first(&self) -> &Interval {
         self.intervals.first().unwrap()
     }
 
@@ -185,7 +185,7 @@ impl Path {
         self.last_interval().other_joint(self.joint_indices[self.joint_indices.len() - 1])
     }
 
-    fn hexagon_key(&self) -> Option<[usize; 6]> {
+    fn _hexagon_key(&self) -> Option<[usize; 6]> {
         if self.joint_indices.len() != 6 || !self.is_cycle() {
             return None;
         }
