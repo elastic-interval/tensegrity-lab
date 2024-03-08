@@ -3,14 +3,13 @@ body {
     margin: 0;
 }
 
-.control-overlay {
+#control-overlay {
     font-family: "JetBrains Mono", monospace;
-    padding: 20px 50px;
     position: absolute;
     top: 0;
     left: 0;
-    height: 100%;
-    width: 100%;
+    height: 100vh;
+    width: 100vw;
     color: white;
 
     background-color: rgba(133, 133, 133, 0.35);
@@ -19,8 +18,26 @@ body {
     &.hidden {
         display: none;
     }
+
+    & #tenscript {
+        border: 1px solid white;
+        background-color: rgba(12, 13, 30, 0.7);
+        padding: 5px 10px;
+        height: 100%;
+        color: #c0c0c0;
+
+        & .hljs-name {
+            color: #FF7B72;
+            font-weight: bold;
+        }
+    }
 }
 
-.control-overlay, canvas {
+.inset {
+    margin: 20px 50px;
+    height: 100%;
+}
+
+#control-overlay, canvas {
     outline: none;
 }
