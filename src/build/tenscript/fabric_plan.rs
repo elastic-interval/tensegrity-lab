@@ -20,7 +20,7 @@ pub struct FabricPlan {
 impl FabricPlan {
     pub fn from_pair(fabric_plan_pair: Pair<Rule>) -> Result<FabricPlan, TenscriptError> {
         let mut inner = fabric_plan_pair.into_inner();
-        let [name, build] = inner.next_chunk().unwrap();
+        let [name, build] = [inner.next().unwrap(), inner.next().unwrap()];
         let name = parse_name(name);
         let build_phase = BuildPhase::from_pair(build)?;
         let shape_phase = ShapePhase::from_pair_option(inner.next())?;

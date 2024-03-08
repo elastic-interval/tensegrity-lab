@@ -83,7 +83,9 @@ impl ShapePhase {
             Rule::basic_shape_operation | Rule::shape_operation =>
                 Self::parse_shape_operation(pair.into_inner().next().unwrap()),
             Rule::spacer => {
-                let [mark_name, distance_string] = pair.into_inner().next_chunk().unwrap().map(|p| p.as_str());
+                let mut inner = pair.into_inner();
+                let [mark_name, distance_string] =
+                    [inner.next().unwrap().as_str(), inner.next().unwrap().as_str()];
                 let distance_factor = TenscriptError::parse_float(distance_string, "(space ..)")?;
                 Ok(ShapeOperation::Spacer { mark_name: mark_name[1..].into(), distance_factor })
             }

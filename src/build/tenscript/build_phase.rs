@@ -102,7 +102,8 @@ impl BuildPhase {
             Rule::build_node =>
                 Self::parse_build_node(pair.into_inner().next().unwrap()),
             Rule::on_face => {
-                let [face_name_pair, node_pair] = pair.into_inner().next_chunk().unwrap();
+                let mut inner = pair.into_inner();
+                let [face_name_pair, node_pair] = [inner.next().unwrap(), inner.next().unwrap()];
                 let alias = FaceAlias::from_pair(face_name_pair);
                 let node = Self::parse_build_node(node_pair)?;
                 Ok(Face { alias, node: Box::new(node) })
@@ -271,7 +272,7 @@ impl BuildPhase {
                     None => Err(TenscriptError::FaceAlias(face_alias.to_string())),
                     Some(face_alias) => Ok(Some(face_alias)),
                 }
-            },
+            }
             IdentifiedFace { face_id } => Ok(Some(*face_id)),
         }
     }
