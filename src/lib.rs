@@ -1,5 +1,4 @@
 #![feature(iter_next_chunk)]
-#![feature(anonymous_lifetime_in_impl_trait)]
 
 pub mod application;
 pub mod build;

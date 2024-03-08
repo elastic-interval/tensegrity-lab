@@ -186,7 +186,7 @@ impl FaceAlias {
         FaceAlias(parts)
     }
 
-    pub fn from_pairs(pairs: impl IntoIterator<Item=Pair<Rule>>) -> Vec<FaceAlias> {
+    pub fn from_pairs<'a>(pairs: impl IntoIterator<Item=Pair<'a, Rule>>) -> Vec<FaceAlias> {
         pairs
             .into_iter()
             .map(Self::from_pair)
