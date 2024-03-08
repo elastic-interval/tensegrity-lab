@@ -10,7 +10,7 @@ use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::crucible::{Crucible, CrucibleAction};
 use crate::graphics::Graphics;
 use crate::scene::{Scene, SceneAction};
-use crate::user_interface::{Action, ControlMessage, MenuAction, MenuContext, UserInterface};
+use crate::user_interface::{Action, ControlMessage, MenuAction, UserInterface};
 
 pub struct Application {
     scene: Scene,
@@ -61,7 +61,6 @@ impl Application {
                             self.fabric_plan_name = fabric_plan.name.clone();
                             self.scene.action(SceneAction::SelectInterval(None));
                             self.user_interface.message(ControlMessage::Reset);
-                            self.update_menu_context()
                         }
                         CrucibleAction::StartPretensing(_) => {
                             self.user_interface.action(Action::Keyboard(MenuAction::ReturnToRoot))
@@ -69,9 +68,6 @@ impl Application {
                         _ => {}
                     }
                     self.crucible.action(crucible_action);
-                }
-                Action::UpdateMenu => {
-                    self.update_menu_context();
                 }
                 Action::UpdatedLibrary(time) => {
                     let fabric_library = self.fabric_library.clone();
@@ -101,16 +97,8 @@ impl Application {
         }
     }
 
-    fn update_menu_context(&mut self) {
-        self.user_interface.set_menu_context(MenuContext {
-            fabric_menu: self.user_interface.create_fabric_menu(&self.fabric_library.fabric_plans),
-        })
-    }
-
     pub fn redraw(&mut self) {
-        for action in self.crucible.iterate(&self.brick_library) {
-            self.user_interface.action(action);
-        }
+        self.crucible.iterate(&self.brick_library);
         self.scene.update(self.crucible.fabric());
         let surface_texture = self.scene.surface_texture().expect("surface texture");
         self.render(&surface_texture);

@@ -10,7 +10,6 @@ use crate::build::tenscript::pretenser::Pretenser;
 use crate::crucible::Stage::*;
 use crate::fabric::Fabric;
 use crate::fabric::lab::Lab;
-use crate::user_interface::Action;
 
 const PULL_SHORTENING: f32 = 0.95;
 
@@ -59,8 +58,7 @@ impl Default for Crucible {
 }
 
 impl Crucible {
-    pub fn iterate(&mut self, brick_library: &BrickLibrary) -> Vec<Action> {
-        let mut actions = Vec::new();
+    pub fn iterate(&mut self, brick_library: &BrickLibrary) {
         match &mut self.stage {
             Empty => {}
             RunningPlan(plan_runner) => {
@@ -84,7 +82,6 @@ impl Crucible {
                     pretenser.iterate(&mut self.fabric);
                 }
                 if pretenser.is_done() {
-                    actions.push(Action::UpdateMenu);
                     self.stage = Experimenting(Lab::new(pretenser.clone()));
                 }
             }
@@ -101,7 +98,6 @@ impl Crucible {
             }
             Finished => {}
         }
-        actions
     }
 
     pub fn action(&mut self, crucible_action: CrucibleAction) {
