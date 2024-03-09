@@ -59,20 +59,24 @@ pub fn ControlOverlayApp(
     view! {
         <div class="inset">
             <section class="left">
-                <input
-                type="text"
-                value=move || category.get()
-                on:change=move |ev| { set_category.set(event_target_value(&ev)); } />
-                <input
-                    type="text"
-                    value=move || subname.get()
-                    on:change=move |ev| { set_subname.set(event_target_value(&ev)); } />
-                <button on:click=on_run_fabric_click>
-                    Run Fabric
-                </button>
-                <button on:click=on_load_fabric_into_editor_click>
-                    Load Fabric Into Editor
-                </button>
+                <p class="input_group">
+                    <input
+                        type="text"
+                        value=move || category.get()
+                        on:change=move |ev| { set_category.set(event_target_value(&ev)); } />
+                    <input
+                        type="text"
+                        value=move || subname.get()
+                        on:change=move |ev| { set_subname.set(event_target_value(&ev)); } />
+                </p>
+                <p class="input_group">
+                    <button on:click=on_run_fabric_click>
+                        Run Fabric
+                    </button>
+                    <button on:click=on_load_fabric_into_editor_click>
+                        Load Fabric Into Editor
+                    </button>
+                </p>
                 <pre>{pre_text}</pre>
             </section>
             <section class="right">
