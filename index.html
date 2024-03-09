@@ -38,8 +38,11 @@
          * @param event {KeyboardEvent}
          */
         function globalOnKeydown(event) {
+            if (!event.metaKey) {
+                return;
+            }
             switch (event.key) {
-                case 'F11': {
+                case 'Enter': {
                     const controlOverlay = document.getElementById('control_overlay');
                     if (controlOverlay.classList.contains('hidden')) {
                         controlOverlay.classList.remove('hidden');
