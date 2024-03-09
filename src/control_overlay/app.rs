@@ -1,4 +1,3 @@
-use js_sys::eval;
 use std::sync::mpsc::Sender;
 
 use leptos::{
@@ -33,11 +32,15 @@ pub fn ControlOverlayApp(
     }
     let save_tenscript = use_debounce_fn(
         move || {
-            let new_tenscript = eval("window.AceEditor.getValue()")
-                .expect("could not get Ace editor content")
-                .as_string()
-                .expect("not a string");
-            set_tenscript.set(new_tenscript);
+            #[cfg(target_arch = "wasm32")]
+            {
+                use js_sys::eval;
+                let new_tenscript = eval("window.AceEditor.getValue()")
+                    .expect("could not get Ace editor content")
+                    .as_string()
+                    .expect("not a string");
+                set_tenscript.set(new_tenscript);
+            }
         },
         1000.,
     );

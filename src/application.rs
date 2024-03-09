@@ -78,11 +78,12 @@ impl Application {
                 Action::UpdatedLibrary(_) => unreachable!(),
                 #[cfg(not(target_arch = "wasm32"))]
                 Action::UpdatedLibrary(time) => {
-                    let fabric_library = self.fabric_library.clone();
+                    let _fabric_library = self.fabric_library.clone();
                     self.fabric_library_modified = time;
                     if !self.fabric_plan_name.is_empty() {
                         self.reload_fabric();
                     }
+                    // todo: refresh library from source
                     // self.user_interface
                     //     .message(ControlMessage::FreshLibrary(fabric_library));
                 }
