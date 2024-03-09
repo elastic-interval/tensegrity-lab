@@ -37,7 +37,7 @@ pub fn ControlOverlayApp(
         set_tenscript.set(fabric.clone());
         #[cfg(target_arch = "wasm32")]
         {
-            let fabric_safe = fabric.replace('"', "\\\"");
+            let fabric_safe = fabric.replace('"', "\\\"").replace('`', "\\`");
             let js = format!("window.AceEditor.setValue(`{fabric_safe}`, 1)");
             js_sys::eval(&js).expect("JS failed to run");
         }
