@@ -17,8 +17,8 @@ use crate::crucible::{Crucible, CrucibleAction};
 use crate::graphics::Graphics;
 use crate::scene::{Scene, SceneAction};
 
-pub struct Application {
-    scene: Scene,
+pub struct Application<'a> {
+    scene: Scene<'a>,
     crucible: Crucible,
     fabric_plan_name: Vec<String>,
     fabric_library: FabricLibrary,
@@ -30,9 +30,9 @@ pub struct Application {
     pub actions_tx: Sender<Action>,
 }
 
-impl Application {
+impl<'a> Application<'a> {
     pub fn new(
-        graphics: Graphics,
+        graphics: Graphics<'a>,
         set_control_state: WriteSignal<ControlState>,
         (actions_tx, actions_rx): (Sender<Action>, Receiver<Action>),
     ) -> Application {

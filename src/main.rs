@@ -99,8 +99,6 @@ pub fn run() {
                 app.handle_input(&input);
                 app.update();
                 app.redraw();
-            } else {
-                winit_window.request_redraw();
             }
         })
         .unwrap();

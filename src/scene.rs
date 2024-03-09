@@ -31,7 +31,7 @@ pub struct StrainRendering {
     _material: usize,
 }
 
-pub struct Scene {
+pub struct Scene<'a> {
     selected_interval: Option<UniqueId>,
     _strain_rendering: Option<StrainRendering>,
     camera: Camera,
@@ -39,12 +39,15 @@ pub struct Scene {
     surface_drawing: Drawing<SurfaceVertex>,
     uniform_bind_group: wgpu::BindGroup,
     uniform_buffer: wgpu::Buffer,
-    graphics: Graphics,
+    graphics: Graphics<'a>,
     set_control_state: WriteSignal<control_overlay::ControlState>,
 }
 
-impl Scene {
-    pub fn new(graphics: Graphics, set_control_state: WriteSignal<control_overlay::ControlState>) -> Self {
+impl<'a> Scene<'a> {
+    pub fn new(
+        graphics: Graphics<'a>,
+        set_control_state: WriteSignal<control_overlay::ControlState>,
+    ) -> Self {
         let shader = graphics
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {

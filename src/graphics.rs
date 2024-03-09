@@ -1,44 +1,43 @@
 use winit::window::Window;
 
-pub struct Graphics {
+pub struct Graphics<'a> {
     pub config: wgpu::SurfaceConfiguration,
-    pub surface: wgpu::Surface,
+    pub surface: wgpu::Surface<'a>,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
 }
 
-impl Graphics {
-    pub async fn new(window: &Window) -> Self {
+impl<'a> Graphics<'a> {
+    pub async fn new(window: &'a Window) -> Self {
         let mut size = window.inner_size();
         size.width = size.width.max(1);
         size.height = size.height.max(1);
-        log::info!("size = {size:?}");
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
-        let surface = unsafe { instance.create_surface(window) }.unwrap();
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::default(),
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            })
-            .await
-            .expect("Could not request adapter");
+        let surface = instance.create_surface(window).unwrap();
+        let adapter_fut = instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::default(),
+            compatible_surface: None,
+            force_fallback_adapter: false,
+        });
+        let adapter = adapter_fut.await.expect("Could not request adapter");
+        log::info!("YOLOSWAG");
 
         #[cfg(target_arch = "wasm32")]
-        let limits = wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits());
+        let required_limits =
+            wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter.limits());
 
         #[cfg(not(target_arch = "wasm32"))]
-        let limits = wgpu::Limits::default();
+        let required_limits = wgpu::Limits::default();
 
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: None,
-                    features: wgpu::Features::empty(),
-                    limits,
+                    required_features: Default::default(),
+                    required_limits,
                 },
                 None,
             )
@@ -59,6 +58,7 @@ impl Graphics {
             height: size.height,
             present_mode: wgpu::PresentMode::Fifo,
             view_formats: vec![],
+            desired_maximum_frame_latency: 2u32,
         };
         surface.configure(&device, &config);
         Self {

@@ -1,7 +1,8 @@
 use std::sync::mpsc::Sender;
 
 use leptos::{
-    component, create_signal, event_target_value, view, IntoView, ReadSignal, SignalGet, SignalSet,
+    component, create_effect, create_signal, event_target_value, view, IntoView, ReadSignal,
+    SignalGet, SignalSet,
 };
 use leptos_use::storage::use_local_storage;
 use leptos_use::use_debounce_fn;
@@ -27,9 +28,13 @@ pub fn ControlOverlayApp(
     let (subname, set_subname) = create_signal("Halo by Crane".to_string());
     let (tenscript, set_tenscript, _) =
         use_local_storage::<String, FromToStringCodec>(SAVED_TENSCRIPT_KEY);
-    if tenscript.get() == "" {
-        set_tenscript.set(include_str!("../../fabric_library.scm").to_string());
-    }
+    let (tenscript_populated, set_tenscript_populated) = create_signal(false);
+    create_effect(move |_| {
+        if tenscript.get() == "" && !tenscript_populated.get() {
+            set_tenscript.set(include_str!("../../fabric_library.scm").to_string());
+            set_tenscript_populated.set(true);
+        }
+    });
     let save_tenscript = use_debounce_fn(
         move || {
             #[cfg(target_arch = "wasm32")]
@@ -48,12 +53,12 @@ pub fn ControlOverlayApp(
         <div class="inset">
             <section class="left">
                 <input
-                type="text"
-                value=category.get()
-                on:change=move |ev| { set_category.set(event_target_value(&ev)); } />
+                    type="text"
+                    value=move || category.get()
+                    on:change=move |ev| { set_category.set(event_target_value(&ev)); } />
                 <input
                     type="text"
-                    value=subname.get()
+                    value=move || subname.get()
                     on:change=move |ev| { set_subname.set(event_target_value(&ev)); } />
                 <button on:click=move |_ev| { load_fabric(vec![category.get(), subname.get()]) }>
                     Load Fabric
@@ -62,7 +67,7 @@ pub fn ControlOverlayApp(
             </section>
             <section class="right">
                 <div id="tenscript_editor" on:change=move |_ev| { save_tenscript(); }>
-                    {tenscript.get()}
+                    {move || tenscript.get()}
                 </div>
             </section>
             <script>
