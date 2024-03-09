@@ -42,6 +42,12 @@ body {
     }
 }
 
+.input_group {
+    & *:not(:first-child) {
+        margin-left: 5px;
+    }
+}
+
 
 #control_overlay, canvas {
     outline: none;
