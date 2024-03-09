@@ -2,13 +2,14 @@ use std::f32::consts::PI;
 use std::mem;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use leptos::WriteSignal;
+use leptos::{SignalUpdate, WriteSignal};
 use wgpu::util::DeviceExt;
+use winit::keyboard::KeyCode;
 use winit_input_helper::WinitInputHelper;
 
 use crate::camera::Camera;
 use crate::camera::Target::*;
-use crate::control_overlay::app::ControlState;
+use crate::control_overlay;
 use crate::fabric::face::Face;
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push};
@@ -19,7 +20,7 @@ const MAX_INTERVALS: usize = 5000;
 
 #[derive(Debug, Clone)]
 pub enum SceneAction {
-    SelectInterval(Option<UniqueId>),
+    SelectInterval(Option<(UniqueId, Interval)>),
     WatchMidpoint,
     WatchOrigin,
 }
@@ -39,10 +40,11 @@ pub struct Scene {
     uniform_bind_group: wgpu::BindGroup,
     uniform_buffer: wgpu::Buffer,
     graphics: Graphics,
+    set_control_state: WriteSignal<control_overlay::ControlState>,
 }
 
 impl Scene {
-    pub fn new(graphics: Graphics, set_control_state: WriteSignal<ControlState>) -> Self {
+    pub fn new(graphics: Graphics, set_control_state: WriteSignal<control_overlay::ControlState>) -> Self {
         let shader = graphics
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -54,7 +56,6 @@ impl Scene {
             (2.0 * scale, 1.0 * scale, 2.0 * scale).into(),
             graphics.config.width as f32,
             graphics.config.height as f32,
-            set_control_state,
         );
         let uniform_buffer =
             graphics
@@ -190,6 +191,7 @@ impl Scene {
             },
             uniform_buffer,
             uniform_bind_group,
+            set_control_state,
         }
     }
 
@@ -225,15 +227,19 @@ impl Scene {
     }
 
     pub fn handle_input(&mut self, input: &WinitInputHelper, fabric: &Fabric) {
-        self.camera.handle_input(input, fabric);
+        if input.key_pressed(KeyCode::Escape) {
+            self.action(SceneAction::SelectInterval(None));
+        } else {
+            let picked_interval = self.camera.handle_input(input, fabric);
+            if let Some(interval) = picked_interval {
+                self.action(SceneAction::SelectInterval(Some(interval)));
+            }
+        }
     }
 
     pub fn update(&mut self, fabric: &Fabric) {
         self.update_from_fabric(fabric);
         self.update_from_camera(&self.graphics);
-        if let Some(picked_interval_id) = self.camera.picked_interval.take() {
-            self.action(SceneAction::SelectInterval(Some(picked_interval_id)));
-        }
         self.graphics.queue.write_buffer(
             &self.fabric_drawing.buffer,
             0,
@@ -292,13 +298,16 @@ impl Scene {
 
     pub fn action(&mut self, scene_action: SceneAction) {
         match scene_action {
-            SceneAction::SelectInterval(interval_id) => {
-                self.selected_interval = interval_id;
-                if let Some(selected_id) = interval_id {
+            SceneAction::SelectInterval(interval) => {
+                self.selected_interval = interval.map(|(id, _)| id);
+                if let Some(selected_id) = self.selected_interval {
                     self.camera.target = AroundInterval(selected_id)
                 } else {
                     self.camera.target = FabricMidpoint;
                 }
+                self.set_control_state.update(move |state| {
+                    state.picked_interval = interval.map(|(_, interval)| interval);
+                });
             }
             SceneAction::WatchMidpoint => {
                 self.camera.target = FabricMidpoint;
