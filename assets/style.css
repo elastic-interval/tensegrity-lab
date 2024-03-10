@@ -5,7 +5,6 @@ body {
 }
 
 #control_overlay {
-    font-family: "JetBrains Mono", monospace;
     position: absolute;
     top: 0;
     left: 0;
@@ -15,6 +14,11 @@ body {
 
     background-color: rgba(133, 133, 133, 0.35);
     backdrop-filter: blur(5px);
+
+    font-family: "JetBrains Mono", monospace;
+    & * {
+        font-family: "JetBrains Mono", monospace;
+    }
 
     &.hidden {
         display: none;
@@ -27,17 +31,11 @@ body {
         flex-direction: row;
 
         & .left {
-            flex: 1;
+            flex: 5;
         }
 
         & .right {
-            flex: 2;
-
-            & #tenscript_editor {
-                height: 100%;
-                width: 100%;
-                color: #c0c0c0;
-            }
+            flex: 7;
         }
     }
 }

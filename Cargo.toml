@@ -51,7 +51,6 @@ web-sys = { version = "0.3", features = [
     "KeyboardEventInit",
     "EventTarget",
 ] }
-js-sys = "0.3.69"
 #instant = { version = "0.1.12", features = ["stdweb"] }
 
 [profile.release]
