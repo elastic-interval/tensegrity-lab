@@ -1,52 +1,46 @@
 use std::sync::mpsc::Sender;
 
-use leptos::{
-    component, create_signal, event_target_value, IntoView, ReadSignal, SignalGet,
-    SignalSet, view,
-};
+use leptos::{CollectView, component, create_effect, create_signal, For, IntoView, ReadSignal, SignalGet, SignalSet, view};
 
 use crate::control_overlay::action::Action;
 use crate::fabric::interval::Interval;
 
 #[component]
 pub fn ControlOverlayApp(
+    fabric_list: ReadSignal<Vec<String>>,
     control_state: ReadSignal<ControlState>,
     actions_tx: Sender<Action>,
 ) -> impl IntoView {
     let pre_text = move || format!("{:#?}", control_state.get());
-    let (category, set_category) = create_signal("Art".to_string());
-    let (subname, set_subname) = create_signal("Halo by Crane".to_string());
-    let fabric_name = move || vec![category.get(), subname.get()];
-    let on_run_fabric_click = move |_ev| {
-        actions_tx
-            .send(Action::LoadFabric(fabric_name()))
-            .expect("failed to send action");
-    };
+    let (name, set_name) = create_signal("".to_string());
+    create_effect(move |_| {
+        if !name.get().is_empty() {
+            actions_tx
+                .send(Action::LoadFabric(name.get()))
+                .expect("failed to send action");
+        }
+    });
+    
     view! {
         <div class="inset">
-            <section class="left">
-                <p class="input_group">
-                    <input
-                        type="text"
-                        value=move || category.get()
-                        on:change=move |ev| { set_category.set(event_target_value(&ev)); } />
-                    <input
-                        type="text"
-                        value=move || subname.get()
-                        on:change=move |ev| { set_subname.set(event_target_value(&ev)); } />
-                </p>
-                <p class="input_group">
-                    <button on:click=on_run_fabric_click>
-                        Run Fabric
-                    </button>
-                </p>
-                <pre>{pre_text}</pre>
-            </section>
-            <section class="right">
-                <h3>
-                    Right hand side content here.
-                </h3>
-            </section>
+            <p>
+                <ul>
+                    {
+                        fabric_list.get().into_iter().map(|n| {
+                        let label = n.clone();
+                        view! {
+                            <li>
+                            <button on:click=move |_ev| set_name.set(n.clone())>
+                                {label}
+                            </button>
+                            </li>
+                        }})
+                        .collect_view()
+                    }
+                </ul>
+            </p>
+            <h1>{name}</h1>
+            <pre>{pre_text}</pre>
         </div>
     }
 }

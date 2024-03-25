@@ -227,15 +227,6 @@ pub struct FaceMark {
     face_id: UniqueId,
     mark_name: String,
 }
-
-pub fn parse_name(pair: Pair<Rule>) -> Vec<String> {
-    assert_eq!(pair.as_rule(), Rule::name);
-    pair.into_inner()
-        .map(|pair| pair.as_str())
-        .map(|quoted| quoted[1..quoted.len() - 1].to_string())
-        .collect()
-}
-
 pub fn parse_atom(pair: Pair<Rule>) -> String {
     assert_eq!(pair.as_rule(), Rule::atom);
     pair.as_str().to_string()

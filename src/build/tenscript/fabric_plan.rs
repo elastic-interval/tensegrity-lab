@@ -7,11 +7,11 @@ use pest::iterators::Pair;
 use crate::build::tenscript::build_phase::BuildNode;
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeOperation, ShapePhase};
-use crate::build::tenscript::{parse_name, BuildPhase, Rule, TenscriptError};
+use crate::build::tenscript::{BuildPhase, Rule, TenscriptError};
 
 #[derive(Debug, Clone)]
 pub struct FabricPlan {
-    pub name: Vec<String>,
+    pub name: String,
     pub build_phase: BuildPhase,
     pub shape_phase: ShapePhase,
     pub pretense_phase: PretensePhase,
@@ -20,11 +20,13 @@ pub struct FabricPlan {
 impl FabricPlan {
     pub fn from_pair(fabric_plan_pair: Pair<Rule>) -> Result<FabricPlan, TenscriptError> {
         let mut inner = fabric_plan_pair.into_inner();
-        let [name, build] = [inner.next().unwrap(), inner.next().unwrap()];
-        let name = parse_name(name);
+        let quoted = inner.next().unwrap().into_inner().next().unwrap().as_str();
+        let name = quoted[1..quoted.len() - 1].to_string();
+        let build = inner.next().unwrap();
         let build_phase = BuildPhase::from_pair(build)?;
         let shape_phase = ShapePhase::from_pair_option(inner.next())?;
         let pretense_phase = PretensePhase::from_pair_option(inner.next())?;
+        
         let plan = FabricPlan {
             name,
             build_phase,
