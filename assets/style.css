@@ -12,8 +12,8 @@ body {
     width: 100vw;
     color: white;
 
-    background-color: rgba(133, 133, 133, 0.35);
-    backdrop-filter: blur(5px);
+    /*background-color: rgba(133, 133, 133, 0.35);*/
+    /*backdrop-filter: blur(5px);*/
 
     font-family: "JetBrains Mono", monospace;
     & * {

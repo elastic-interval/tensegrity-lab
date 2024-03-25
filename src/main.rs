@@ -10,6 +10,7 @@ use winit::{event_loop::EventLoop, window::WindowBuilder};
 use winit_input_helper::WinitInputHelper;
 
 use tensegrity_lab::application::Application;
+use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
 use tensegrity_lab::graphics::Graphics;
 
 #[derive(Parser, Debug)]
@@ -45,6 +46,9 @@ pub fn run() {
 
     #[allow(unused_variables)]
     let (control_state, set_control_state) = create_signal(Default::default());
+    #[allow(unused_variables)]
+    let (fabric_list, set_fabric_list) = 
+        create_signal(FabricLibrary::from_source().unwrap().fabric_list().unwrap());
     #[cfg(target_arch = "wasm32")]
     {
         use tensegrity_lab::control_overlay::app::ControlOverlayApp;
@@ -63,6 +67,7 @@ pub fn run() {
         leptos::mount_to(control_overlay, move || {
             view! {
                 <ControlOverlayApp
+                    fabric_list={fabric_list}
                     control_state={control_state}
                     actions_tx={actions_tx}/>
             }
@@ -73,11 +78,11 @@ pub fn run() {
             .expect("no element with id 'canvas'")
             .dyn_into()
             .expect("not a canvas");
-        let width = web_sys_window.inner_width().unwrap().as_f64().unwrap() * 2.0;
-        let height = web_sys_window.inner_height().unwrap().as_f64().unwrap() * 2.0;
+        let width = web_sys_window.inner_width().unwrap().as_f64().unwrap();
+        let height = web_sys_window.inner_height().unwrap().as_f64().unwrap();
         window_builder = window_builder
             .with_canvas(Some(canvas))
-            .with_inner_size(PhysicalSize::new(width, height));
+            .with_inner_size(PhysicalSize::new(width * 2.0, height * 2.0)); // for retina screen
     }
 
     let winit_window = window_builder
@@ -87,8 +92,8 @@ pub fn run() {
     let graphics = pollster::block_on(Graphics::new(&winit_window));
     let mut app = Application::new(graphics, set_control_state, (actions_tx, actions_rx));
     let mut input = WinitInputHelper::new();
-    let fabric = "Tommy Torque".to_string();
-    app.run_fabric(&fabric);
+    // let fabric = "Tommy Torque".to_string();
+    // app.run_fabric(&fabric);
     event_loop
         .run(move |event, window_target| {
             if input.update(&event) {

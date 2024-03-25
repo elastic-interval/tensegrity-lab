@@ -20,7 +20,7 @@ use crate::scene::{Scene, SceneAction};
 pub struct Application {
     scene: Scene,
     crucible: Crucible,
-    fabric_plan_name: Vec<String>,
+    fabric_plan_name: String,
     fabric_library: FabricLibrary,
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
@@ -42,7 +42,7 @@ impl Application {
         Application {
             scene,
             crucible: Crucible::default(),
-            fabric_plan_name: Vec::new(),
+            fabric_plan_name: "Halo by Crane".into(),
             brick_library,
             fabric_library,
             set_control_state,
@@ -129,7 +129,7 @@ impl Application {
             .fabric_library
             .fabric_plans
             .iter()
-            .find(|FabricPlan { name, .. }| name.contains(fabric_name))
+            .find(|FabricPlan { name, .. }| name == fabric_name)
             .expect(fabric_name);
         self.actions_tx
             .send(Action::Crucible(CrucibleAction::BuildFabric(
@@ -160,17 +160,18 @@ impl Application {
 
     pub fn refresh_library(&mut self, time: SystemTime) -> Result<Action, TenscriptError> {
         self.fabric_library = FabricLibrary::from_source()?;
+        
         Ok(Action::UpdatedLibrary(time))
     }
 
-    pub fn load_preset(&self, plan_name: Vec<String>) -> Result<FabricPlan, TenscriptError> {
+    pub fn load_preset(&self, plan_name: String) -> Result<FabricPlan, TenscriptError> {
         let plan = self
             .fabric_library
             .fabric_plans
             .iter()
             .find(|plan| plan.name == plan_name);
         match plan {
-            None => Err(TenscriptError::Invalid(plan_name.join(","))),
+            None => Err(TenscriptError::Invalid(plan_name)),
             Some(plan) => Ok(plan.clone()),
         }
     }

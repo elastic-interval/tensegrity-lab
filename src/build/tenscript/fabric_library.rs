@@ -13,6 +13,14 @@ impl FabricLibrary {
         let source = Self::load_source()?;
         Self::from_tenscript(&source)
     }
+    
+    pub fn fabric_list(&self) -> Result<Vec<String>, TenscriptError> {
+        Ok(self
+            .fabric_plans
+            .iter()
+            .map(|plan| plan.name.clone())
+            .collect())
+    }
 
     pub fn load_source() -> Result<String, TenscriptError> {
         let source: String;
