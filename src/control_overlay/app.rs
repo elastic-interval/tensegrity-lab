@@ -1,13 +1,13 @@
 use std::sync::mpsc::Sender;
 
-use leptos::{CollectView, component, create_effect, create_signal, For, IntoView, ReadSignal, SignalGet, SignalSet, view};
+use leptos::{CollectView, component, create_effect, create_signal, For, IntoView, Memo, ReadSignal, SignalGet, SignalSet, view};
 
 use crate::control_overlay::action::Action;
 use crate::fabric::interval::Interval;
 
 #[component]
 pub fn ControlOverlayApp(
-    fabric_list: ReadSignal<Vec<String>>,
+    fabric_list: Memo<Vec<String>>,
     control_state: ReadSignal<ControlState>,
     actions_tx: Sender<Action>,
 ) -> impl IntoView {

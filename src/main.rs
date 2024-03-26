@@ -3,6 +3,7 @@ use std::sync::mpsc::channel;
 use clap::Parser;
 #[allow(unused_imports)]
 use leptos::{create_signal, view, WriteSignal};
+use leptos::create_memo;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 use winit::dpi::PhysicalSize;
@@ -47,8 +48,8 @@ pub fn run() {
     #[allow(unused_variables)]
     let (control_state, set_control_state) = create_signal(Default::default());
     #[allow(unused_variables)]
-    let (fabric_list, set_fabric_list) = 
-        create_signal(FabricLibrary::from_source().unwrap().fabric_list().unwrap());
+    let fabric_list = 
+        create_memo(move |_bla|FabricLibrary::from_source().unwrap().fabric_list().unwrap());
     #[cfg(target_arch = "wasm32")]
     {
         use tensegrity_lab::control_overlay::app::ControlOverlayApp;
