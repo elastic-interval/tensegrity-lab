@@ -9,11 +9,11 @@ use winit_input_helper::WinitInputHelper;
 
 use crate::camera::Camera;
 use crate::camera::Target::*;
-use crate::control_overlay;
+use crate::control_state::ControlState;
+use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::Face;
 use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push};
-use crate::fabric::{Fabric, UniqueId};
 use crate::graphics::Graphics;
 
 const MAX_INTERVALS: usize = 5000;
@@ -40,11 +40,11 @@ pub struct Scene {
     uniform_bind_group: wgpu::BindGroup,
     uniform_buffer: wgpu::Buffer,
     graphics: Graphics,
-    set_control_state: WriteSignal<control_overlay::ControlState>,
+    set_control_state: WriteSignal<ControlState>,
 }
 
 impl Scene {
-    pub fn new(graphics: Graphics, set_control_state: WriteSignal<control_overlay::ControlState>) -> Self {
+    pub fn new(graphics: Graphics, set_control_state: WriteSignal<ControlState>) -> Self {
         let shader = graphics
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -298,20 +298,16 @@ impl Scene {
 
     pub fn action(&mut self, scene_action: SceneAction) {
         match scene_action {
-            SceneAction::SelectInterval(interval) => {
-                self.selected_interval = interval.map(|(id, _)| id);
-                if let Some(selected_id) = self.selected_interval {
-                    self.camera.target = AroundInterval(selected_id)
-                } else {
-                    self.camera.target = FabricMidpoint;
-                }
-                self.set_control_state.update(move |state| {
-                    state.picked_interval = interval.map(|(_, interval)| interval);
-                });
+            SceneAction::SelectInterval(Some((id, interval))) => {
+                self.selected_interval = Some(id);
+                self.camera.target = AroundInterval(id);
+                self.set_control_state.update(|state| *state = ControlState::ShowingInterval(interval));
             }
-            SceneAction::WatchMidpoint => {
+            SceneAction::SelectInterval(None) => {
+                self.selected_interval = None;
                 self.camera.target = FabricMidpoint;
             }
+            SceneAction::WatchMidpoint => self.camera.target = FabricMidpoint,
             SceneAction::WatchOrigin => self.camera.target = Origin,
         }
     }

@@ -70,6 +70,7 @@ pub fn run() {
                 <ControlOverlayApp
                     fabric_list={fabric_list}
                     control_state={control_state}
+                    set_control_state={set_control_state}
                     actions_tx={actions_tx}/>
             }
         });
@@ -111,3 +112,4 @@ pub fn run() {
         })
         .unwrap();
 }
+
