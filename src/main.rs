@@ -6,14 +6,13 @@ use leptos::{create_signal, view, WriteSignal};
 use leptos::create_memo;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-use winit::dpi::PhysicalSize;
 use winit::{event_loop::EventLoop, window::WindowBuilder};
+use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
 use winit_input_helper::WinitInputHelper;
 
 use tensegrity_lab::application::Application;
 use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
-use tensegrity_lab::fabric::MATERIALS;
 use tensegrity_lab::graphics::Graphics;
 
 #[derive(Parser, Debug)]
@@ -51,8 +50,6 @@ pub fn run() {
         let (control_state, set_control_state) = create_signal(Default::default());
     #[allow(unused_variables)]
         let fabric_list = create_memo(move |_bla| FabricLibrary::from_source().unwrap().fabric_list().unwrap());
-    #[allow(unused_variables)]
-        let materials = create_memo(move |_bla| MATERIALS);
     #[cfg(target_arch = "wasm32")]
     {
         use tensegrity_lab::control_overlay::app::ControlOverlayApp;
@@ -72,7 +69,6 @@ pub fn run() {
             view! {
                 <ControlOverlayApp
                     fabric_list={fabric_list}
-                    materials={materials}
                     control_state={control_state}
                     set_control_state={set_control_state}
                     actions_tx={actions_tx}/>

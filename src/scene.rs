@@ -9,10 +9,10 @@ use winit_input_helper::WinitInputHelper;
 
 use crate::camera::Camera;
 use crate::camera::Target::*;
-use crate::control_state::ControlState;
-use crate::fabric::{Fabric, UniqueId};
+use crate::control_state::{ControlState, IntervalDetails};
+use crate::fabric::{Fabric, MATERIALS, UniqueId};
 use crate::fabric::face::Face;
-use crate::fabric::interval::Interval;
+use crate::fabric::interval::{Interval, Span};
 use crate::fabric::interval::Role::{Pull, Push};
 use crate::graphics::Graphics;
 
@@ -240,7 +240,7 @@ impl Scene {
             }
         }
     }
-    
+
     pub fn interval_selected(&self) -> bool {
         self.selected_interval.is_some()
     }
@@ -309,7 +309,14 @@ impl Scene {
             SceneAction::SelectInterval(Some((id, interval))) => {
                 self.selected_interval = Some(id);
                 self.camera.target = AroundInterval(id);
-                self.set_control_state.update(|state| *state = ControlState::ShowingInterval(interval));
+                let Interval { alpha_index, omega_index, span, material, .. } = interval;
+                let role = MATERIALS[material].role;
+                let length = match span {
+                    Span::Fixed { length } => length,
+                    _ => 0.0
+                };
+                let interval_details = IntervalDetails { alpha_index, omega_index, length, role };
+                self.set_control_state.update(|state| *state = ControlState::ShowingInterval(interval_details));
             }
             SceneAction::SelectInterval(None) => {
                 self.selected_interval = None;

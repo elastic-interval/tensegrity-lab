@@ -14,6 +14,7 @@ body {
     /*backdrop-filter: blur(5px);*/
 
     font-family: "JetBrains Mono", monospace;
+
     & * {
         font-family: "JetBrains Mono", monospace;
     }
@@ -37,6 +38,7 @@ body {
     display: flex;
     flex-direction: column;
     text-align: center;
+
     & button {
         margin: 0.2em;
     }
@@ -44,10 +46,9 @@ body {
 
 .title {
     width: 100vw;
-
-    & h1 {
-        text-align: center;
-    }
+    margin-top: 2em;
+    text-align: center;
+    font-size: x-large;
 }
 
 .input_group {
