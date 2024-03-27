@@ -12,6 +12,7 @@ use winit_input_helper::WinitInputHelper;
 
 use tensegrity_lab::application::Application;
 use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
+use tensegrity_lab::fabric::MATERIALS;
 use tensegrity_lab::graphics::Graphics;
 
 #[derive(Parser, Debug)]
@@ -39,17 +40,18 @@ pub fn run() {
 
     let event_loop = EventLoop::new().unwrap();
     #[allow(unused_mut)]
-    let mut window_builder = WindowBuilder::new()
+        let mut window_builder = WindowBuilder::new()
         .with_title("Tensegrity Lab")
         .with_inner_size(PhysicalSize::new(1600, 1200));
     #[allow(unused_variables)]
-    let (actions_tx, actions_rx) = channel();
+        let (actions_tx, actions_rx) = channel();
 
     #[allow(unused_variables)]
-    let (control_state, set_control_state) = create_signal(Default::default());
+        let (control_state, set_control_state) = create_signal(Default::default());
     #[allow(unused_variables)]
-    let fabric_list = 
-        create_memo(move |_bla|FabricLibrary::from_source().unwrap().fabric_list().unwrap());
+        let fabric_list = create_memo(move |_bla| FabricLibrary::from_source().unwrap().fabric_list().unwrap());
+    #[allow(unused_variables)]
+        let materials = create_memo(move |_bla| MATERIALS);
     #[cfg(target_arch = "wasm32")]
     {
         use tensegrity_lab::control_overlay::app::ControlOverlayApp;
@@ -69,6 +71,7 @@ pub fn run() {
             view! {
                 <ControlOverlayApp
                     fabric_list={fabric_list}
+                    materials={materials}
                     control_state={control_state}
                     set_control_state={set_control_state}
                     actions_tx={actions_tx}/>

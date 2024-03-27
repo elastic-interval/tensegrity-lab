@@ -228,7 +228,11 @@ impl Scene {
 
     pub fn handle_input(&mut self, input: &WinitInputHelper, fabric: &Fabric) {
         if input.key_pressed(KeyCode::Escape) {
-            self.action(SceneAction::SelectInterval(None));
+            if self.selected_interval.is_some() {
+                self.action(SceneAction::SelectInterval(None));
+            } else {
+                self.set_control_state.update(move |state| *state = ControlState::Choosing)
+            }
         } else {
             let picked_interval = self.camera.handle_input(input, fabric);
             if let Some(interval) = picked_interval {
