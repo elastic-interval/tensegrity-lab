@@ -8,6 +8,7 @@ use leptos::create_memo;
 use wasm_bindgen::prelude::*;
 use winit::dpi::PhysicalSize;
 use winit::{event_loop::EventLoop, window::WindowBuilder};
+use winit::event::{Event, WindowEvent};
 use winit_input_helper::WinitInputHelper;
 
 use tensegrity_lab::application::Application;
@@ -104,6 +105,10 @@ pub fn run() {
     }
     event_loop
         .run(move |event, window_target| {
+            match &event {
+                Event::WindowEvent { event: WindowEvent::RedrawRequested, .. } => app.redraw(),
+                _ => winit_window.request_redraw(),
+            };
             if input.update(&event) {
                 if input.close_requested() {
                     window_target.exit();
@@ -111,9 +116,6 @@ pub fn run() {
                 }
                 app.handle_input(&input);
                 app.handle_actions();
-                app.redraw();
-            } else {
-                winit_window.request_redraw();
             }
         })
         .unwrap();
