@@ -240,6 +240,10 @@ impl Scene {
             }
         }
     }
+    
+    pub fn interval_selected(&self) -> bool {
+        self.selected_interval.is_some()
+    }
 
     pub fn update(&mut self, fabric: &Fabric) {
         self.update_from_fabric(fabric);
