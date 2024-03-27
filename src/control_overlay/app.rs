@@ -1,15 +1,14 @@
 use std::sync::mpsc::Sender;
 
-use leptos::{CollectView, component, create_effect, create_signal, IntoView, Memo, ReadSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, view, WriteSignal};
+use leptos::{CollectView, component, create_effect, create_signal, event_target_value, IntoView, Memo, ReadSignal, SignalGet, SignalGetUntracked, SignalSet, SignalUpdate, view, WriteSignal};
 
 use crate::control_overlay::action::Action;
-use crate::control_state::ControlState;
-use crate::fabric::interval::{Interval, Material, Role, Span};
+use crate::control_state::{ControlState, IntervalDetails};
+use crate::fabric::interval::Role;
 
 #[component]
 pub fn ControlOverlayApp(
     fabric_list: Memo<Vec<String>>,
-    materials: Memo<[Material; 5]>,
     control_state: ReadSignal<ControlState>,
     set_control_state: WriteSignal<ControlState>,
     actions_tx: Sender<Action>,
@@ -24,6 +23,10 @@ pub fn ControlOverlayApp(
                 .expect("failed to send action");
         }
     });
+
+    let (scale, set_scale) = create_signal(100.0);
+
+    let (assigned_length, set_assigned_length) = create_signal(100.0);
 
     let list = move || {
         fabric_list
@@ -40,25 +43,22 @@ pub fn ControlOverlayApp(
             .collect_view()
     };
 
-    let formatted_interval = move |interval: Interval| {
-        let [left, right] = match &materials.get_untracked()[interval.material].role {
+    let formatted_interval = move |interval: &IntervalDetails| {
+        let [left, right] = match &interval.role {
             Role::Pull => ['\u{21E8}', '\u{21E6}'],
             Role::Push => ['\u{21E6}', '\u{21E8}'],
         };
-        format!("(J{:?}) {} ({}) {} (J{:?})",
+        format!("J{:?} {} {:.1}mm {} J{:?}",
                 interval.alpha_index + 1,
                 left,
-                match interval.span {
-                    Span::Fixed { length } => { length.to_string() }
-                    _ => { "?".to_string() }
-                },
+                interval.length * scale.get(),
                 right,
                 interval.omega_index + 1,
         )
     };
 
     view! {
-        {move||{
+        {move || 
             match control_state.get() {
                 ControlState::Choosing => {
                     view! {<div class="choice"><div class="list"><h1>Designs</h1>{list}</div></div>}
@@ -66,10 +66,34 @@ pub fn ControlOverlayApp(
                 ControlState::Viewing => {
                     view!{<div class="hidden"></div>}
                 }
-                ControlState::ShowingInterval(interval) => {
-                    view!{<div class="title"><h1>{formatted_interval(interval)}</h1></div>}
-                }} 
-            }
+                ControlState::ShowingInterval(interval_details) => {
+                    view!{
+                        <div class="title">
+                             <h1>{formatted_interval(&interval_details)}</h1>
+                             <button on:click=move |_ev| set_control_state.set(ControlState::SettingLength(interval_details))>
+                             scale   
+                             </button>
+                        </div>
+                    }
+                }
+                ControlState::SettingLength(interval_details) => {
+                    view!{
+                        <div class="title">
+                            <label for="length">Assigned Length (mm):</label>
+                            <input type="text" id="length" 
+                                    value={move || assigned_length.get()}
+                                    on:change=move |ev| { set_assigned_length.set(event_target_value(&ev).parse().unwrap()); } 
+                            />
+                            <button on:click=move|_| {
+                                set_scale.set(assigned_length.get()/interval_details.length);
+                                set_control_state.set(ControlState::ShowingInterval(interval_details));
+                            }>
+                                submit   
+                            </button>
+                        </div>
+                    }
+                }
+            } 
         }
     }
 }
