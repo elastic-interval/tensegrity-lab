@@ -16,10 +16,11 @@ pub fn ControlOverlayApp(
 ) -> impl IntoView {
     let (name, set_name) = create_signal("".to_string());
     create_effect(move |_| {
-        if !name.get().is_empty() {
+        let name = name.get();
+        if !name.is_empty() {
             set_control_state.update(|state| *state = ControlState::Viewing);
             actions_tx
-                .send(Action::LoadFabric(name.get()))
+                .send(Action::LoadFabric(name))
                 .expect("failed to send action");
         }
     });
