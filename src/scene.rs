@@ -233,7 +233,7 @@ impl Scene {
             } else {
                 self.set_control_state.update(move |state| *state = ControlState::Choosing)
             }
-        } else {
+        } else if !fabric.progress.is_busy() {
             let picked_interval = self.camera.handle_input(input, fabric);
             if let Some(interval) = picked_interval {
                 self.action(SceneAction::SelectInterval(Some(interval)));
