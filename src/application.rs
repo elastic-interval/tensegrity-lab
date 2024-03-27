@@ -108,7 +108,9 @@ impl Application {
     }
 
     pub fn redraw(&mut self) {
-        self.crucible.iterate(&self.brick_library);
+        if !self.scene.interval_selected() {
+            self.crucible.iterate(&self.brick_library);
+        }
         self.scene.update(self.crucible.fabric());
         let surface_texture = self.scene.surface_texture().expect("surface texture");
         self.render(&surface_texture);
