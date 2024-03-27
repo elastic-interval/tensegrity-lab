@@ -24,7 +24,7 @@ pub fn ControlOverlayApp(
                 .expect("failed to send action");
         }
     });
-    
+
     let list = move || {
         fabric_list
             .get()
@@ -43,16 +43,15 @@ pub fn ControlOverlayApp(
     };
 
     view! {
-        <div class="inset">
         {move||{
             match control_state.get() {
                 ControlState::Choosing => {
                     view! {
-                        <div>
+                        <div class="inset">
                             <ul>{list}</ul>
                         </div>
                     }
-    
+
                 }
                 ControlState::Viewing => {
                     view!{<div class="hidden"></div>}
@@ -61,8 +60,8 @@ pub fn ControlOverlayApp(
                     view!{<div><pre>{
                         format!("{:#?}", interval)
                     }</pre></div>}
-                }} }
+                }} 
+            }
         }
-        </div>
     }
 }
