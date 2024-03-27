@@ -107,7 +107,7 @@ pub fn run() {
                     return;
                 }
                 app.handle_input(&input);
-                app.update();
+                app.handle_actions();
                 app.redraw();
             } else {
                 winit_window.request_redraw();

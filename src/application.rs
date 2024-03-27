@@ -53,7 +53,7 @@ impl Application {
         }
     }
 
-    pub fn update(&mut self) {
+    pub fn handle_actions(&mut self) {
         while let Ok(action) = self.actions_rx.try_recv() {
             match action {
                 Action::LoadFabric(fabric_plan_name) => {
