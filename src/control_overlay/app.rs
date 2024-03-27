@@ -32,12 +32,12 @@ pub fn ControlOverlayApp(
             .map(|n| {
                 let label = n.clone();
                 view! {
-                                        <li>
-                                        <button on:click=move |_ev| set_name.set(n.clone())>
-                                            {label}
-                                        </button>
-                                        </li>
-                                    }
+                    <li>
+                    <button on:click=move |_ev| set_name.set(n.clone())>
+                        {label}
+                    </button>
+                    </li>
+                }
             })
             .collect_view()
     };
@@ -46,20 +46,14 @@ pub fn ControlOverlayApp(
         {move||{
             match control_state.get() {
                 ControlState::Choosing => {
-                    view! {
-                        <div class="inset">
-                            <ul>{list}</ul>
-                        </div>
-                    }
+                    view! {<div class="inset"><ul>{list}</ul></div>}
 
                 }
                 ControlState::Viewing => {
                     view!{<div class="hidden"></div>}
                 }
                 ControlState::ShowingInterval(interval) => {
-                    view!{<div><pre>{
-                        format!("{:#?}", interval)
-                    }</pre></div>}
+                    view!{<div><pre>{format!("{:#?}", interval)}</pre></div>}
                 }} 
             }
         }

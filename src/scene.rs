@@ -306,6 +306,7 @@ impl Scene {
             SceneAction::SelectInterval(None) => {
                 self.selected_interval = None;
                 self.camera.target = FabricMidpoint;
+                self.set_control_state.update(|state| *state = ControlState::Viewing);
             }
             SceneAction::WatchMidpoint => self.camera.target = FabricMidpoint,
             SceneAction::WatchOrigin => self.camera.target = Origin,
