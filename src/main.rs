@@ -97,8 +97,11 @@ pub fn run() {
     let graphics = pollster::block_on(Graphics::new(&winit_window));
     let mut app = Application::new(graphics, set_control_state, (actions_tx, actions_rx));
     let mut input = WinitInputHelper::new();
-    // let fabric = "Tommy Torque".to_string();
-    // app.run_fabric(&fabric);
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let fabric = "Flagellum".to_string();
+        app.run_fabric(&fabric);
+    }
     event_loop
         .run(move |event, window_target| {
             if input.update(&event) {
