@@ -69,17 +69,14 @@ pub fn ControlOverlayApp(
                 ControlState::ShowingInterval(interval_details) => {
                     view!{
                         <div class="title">
-                             <h1>{formatted_interval(&interval_details)}</h1>
-                             <button on:click=move |_ev| set_control_state.set(ControlState::SettingLength(interval_details))>
-                             scale   
-                             </button>
+                             <div on:click=move |_ev| set_control_state.set(ControlState::SettingLength(interval_details))>{formatted_interval(&interval_details)}</div>
                         </div>
                     }
                 }
                 ControlState::SettingLength(interval_details) => {
                     view!{
                         <div class="title">
-                            <label for="length">Assigned Length (mm):</label>
+                            <label for="length">Length(mm): </label>
                             <input type="text" id="length" 
                                     value={move || assigned_length.get()}
                                     on:change=move |ev| { set_assigned_length.set(event_target_value(&ev).parse().unwrap()); } 
@@ -88,7 +85,7 @@ pub fn ControlOverlayApp(
                                 set_scale.set(assigned_length.get()/interval_details.length);
                                 set_control_state.set(ControlState::ShowingInterval(interval_details));
                             }>
-                                submit   
+                                Assign   
                             </button>
                         </div>
                     }
