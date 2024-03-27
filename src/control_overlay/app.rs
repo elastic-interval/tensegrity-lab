@@ -12,6 +12,9 @@ pub fn ControlOverlayApp(
     set_control_state: WriteSignal<ControlState>,
     actions_tx: Sender<Action>,
 ) -> impl IntoView {
+    log::info!(
+        "control overlay app"
+    );
     let (name, set_name) = create_signal("".to_string());
     create_effect(move |_| {
         if !name.get().is_empty() {
@@ -21,32 +24,32 @@ pub fn ControlOverlayApp(
                 .expect("failed to send action");
         }
     });
-
-    view! {
-        <div class="inset">
-        {
-            match control_state.get() {
-                ControlState::Choosing => {
-                    view! {
-                        <div>
-                            <ul>
-                            {
-                            fabric_list
-                                .get()
-                                .into_iter()
-                                .map(|n| {
-                                    let label = n.clone();
-                                    view! {
+    
+    let list = move || {
+        fabric_list
+            .get()
+            .into_iter()
+            .map(|n| {
+                let label = n.clone();
+                view! {
                                         <li>
                                         <button on:click=move |_ev| set_name.set(n.clone())>
                                             {label}
                                         </button>
                                         </li>
                                     }
-                                })
-                                .collect_view()
-                            }
-                            </ul>
+            })
+            .collect_view()
+    };
+
+    view! {
+        <div class="inset">
+        {move||{
+            match control_state.get() {
+                ControlState::Choosing => {
+                    view! {
+                        <div>
+                            <ul>{list}</ul>
                         </div>
                     }
     
@@ -58,7 +61,7 @@ pub fn ControlOverlayApp(
                     view!{<div><pre>{
                         format!("{:#?}", interval)
                     }</pre></div>}
-                }} 
+                }} }
         }
         </div>
     }

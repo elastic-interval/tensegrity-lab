@@ -29,25 +29,25 @@
     <link rel="stylesheet" type="text/css" href="style.css"/>
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="white">
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#404040">
-<!--    <script>-->
-<!--        function globalOnKeydown(event) {-->
-<!--            if (!event.metaKey) {-->
-<!--                return;-->
-<!--            }-->
-<!--            switch (event.key) {-->
-<!--                case 'Enter': {-->
-<!--                    const controlOverlay = document.getElementById('control_overlay');-->
-<!--                    if (controlOverlay.classList.contains('hidden')) {-->
-<!--                        controlOverlay.classList.remove('hidden');-->
-<!--                    } else {-->
-<!--                        controlOverlay.classList.add('hidden');-->
-<!--                    }-->
-<!--                }-->
-<!--            }-->
-<!--        }-->
+    <script>
+        function globalOnKeydown(event) {
+            if (!event.metaKey) {
+                return;
+            }
+            switch (event.key) {
+                case 'Enter': {
+                    const controlOverlay = document.getElementById('control_overlay');
+                    if (controlOverlay.classList.contains('hidden')) {
+                        controlOverlay.classList.remove('hidden');
+                    } else {
+                        controlOverlay.classList.add('hidden');
+                    }
+                }
+            }
+        }
 
-<!--        document.onkeydown = globalOnKeydown;-->
-<!--    </script>-->
+        document.onkeydown = globalOnKeydown;
+    </script>
 </head>
 <body>
 
