@@ -4,6 +4,7 @@ use leptos::{CollectView, component, create_effect, create_signal, IntoView, Mem
 
 use crate::control_overlay::action::Action;
 use crate::control_state::ControlState;
+use crate::fabric::interval::Span;
 
 #[component]
 pub fn ControlOverlayApp(
@@ -53,7 +54,16 @@ pub fn ControlOverlayApp(
                     view!{<div class="hidden"></div>}
                 }
                 ControlState::ShowingInterval(interval) => {
-                    view!{<div><pre>{format!("{:#?}", interval)}</pre></div>}
+                    view!{<div><pre>{
+                        format!("Interval {:?}-{:?} {:?}", 
+                            interval.alpha_index,
+                            interval.omega_index,
+                            match interval.span {
+                                Span::Fixed {length } => {length.to_string()}
+                                _ => {"?".to_string()}
+                            },
+                        )}
+                        </pre></div>}
                 }} 
             }
         }
