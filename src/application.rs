@@ -2,7 +2,7 @@ use std::iter;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::SystemTime;
 
-use leptos::WriteSignal;
+use leptos::{ReadSignal, WriteSignal};
 use winit_input_helper::WinitInputHelper;
 
 use control_overlay::ControlState;
@@ -25,6 +25,7 @@ pub struct Application {
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
     brick_library: BrickLibrary,
+    pub control_state: ReadSignal<ControlState>,
     pub set_control_state: WriteSignal<ControlState>,
     pub actions_rx: Receiver<Action>,
     pub actions_tx: Sender<Action>,
@@ -33,18 +34,19 @@ pub struct Application {
 impl Application {
     pub fn new(
         graphics: Graphics,
-        set_control_state: WriteSignal<ControlState>,
+        (control_state, set_control_state): (ReadSignal<ControlState>, WriteSignal<ControlState>),
         (actions_tx, actions_rx): (Sender<Action>, Receiver<Action>),
     ) -> Application {
         let brick_library = BrickLibrary::from_source().unwrap();
         let fabric_library = FabricLibrary::from_source().unwrap();
-        let scene = Scene::new(graphics, set_control_state);
+        let scene = Scene::new(graphics, (control_state, set_control_state));
         Application {
             scene,
             crucible: Crucible::default(),
             fabric_plan_name: "Halo by Crane".into(),
             brick_library,
             fabric_library,
+            control_state,
             set_control_state,
             actions_tx,
             actions_rx,
