@@ -14,7 +14,7 @@ use crate::fabric::face::Face;
 use crate::fabric::interval::Role::{Pull, Push};
 use crate::fabric::interval::Span::{Approaching, Fixed};
 use crate::fabric::interval::{Interval, Material};
-use crate::fabric::joint::Joint;
+use crate::fabric::joint::{Joint, JointContext};
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
 
@@ -95,14 +95,14 @@ impl Fabric {
         omega_index: usize,
         Link {
             ideal,
-            material_name: material,
+            material_name,
         }: Link,
     ) -> UniqueId {
         let id = self.create_id();
         let initial = self.joints[alpha_index]
             .location
             .distance(self.joints[omega_index].location);
-        let material = self.material(material);
+        let material = self.material(material_name);
         let interval = Interval::new(
             alpha_index,
             omega_index,
@@ -124,7 +124,7 @@ impl Fabric {
         self.intervals.remove(&id);
     }
 
-    pub fn interval_values(&self) -> impl Iterator<Item = &Interval> {
+    pub fn interval_values(&self) -> impl Iterator<Item=&Interval> {
         self.intervals.values()
     }
 
@@ -221,9 +221,9 @@ impl Fabric {
             .iter()
             .map(|joint| joint.location.y)
             .min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
-        else {
-            return;
-        };
+            else {
+                return;
+            };
         let up = altitude - low_y;
         if up > 0.0 {
             for joint in &mut self.joints {
@@ -295,6 +295,27 @@ impl Fabric {
             self.joints.len()
         } as f32;
         midpoint / denominator
+    }
+
+    pub fn joint_contexts(&self) -> Vec<JointContext> {
+        let mut joint_context: Vec<JointContext> = self
+            .joints
+            .iter()
+            .enumerate()
+            .map(|(index, _)| JointContext::new(index)).collect();
+        for (id, Interval { alpha_index, omega_index, .. }) in self.intervals.iter() {
+            joint_context.get_mut(*alpha_index).unwrap().add(id);
+            joint_context.get_mut(*omega_index).unwrap().add(id);
+        }
+        joint_context
+    }
+    
+    pub fn angles(&self) -> Vec<(usize, usize, usize)> {
+        self
+            .joint_contexts()
+            .iter()
+            .flat_map(|context| context.angles(self))
+            .collect()
     }
 
     fn create_id(&mut self) -> UniqueId {

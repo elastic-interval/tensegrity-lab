@@ -3395,6 +3395,7 @@ dependencies = [
  "futures",
  "gfx-hal",
  "image",
+ "itertools",
  "leptos",
  "leptos-use",
  "log",
