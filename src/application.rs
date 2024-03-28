@@ -85,9 +85,6 @@ impl Application {
                     if !self.fabric_plan_name.is_empty() {
                         self.reload_fabric();
                     }
-                    // todo: refresh library from source
-                    // self.user_interface
-                    //     .message(ControlMessage::FreshLibrary(fabric_library));
                 }
                 Action::Scene(scene_action) => {
                     self.scene.action(scene_action);
@@ -110,6 +107,20 @@ impl Application {
     }
 
     pub fn redraw(&mut self) {
+        let time = fabric_library_modified();
+        if time > self.fabric_library_modified {
+            match self.refresh_library(time) {
+                Ok(action) => {
+                    self.actions_tx
+                        .send(action)
+                        .unwrap();
+                }
+                Err(tenscript_error) => {
+                    println!("Tenscript\n{tenscript_error}");
+                    self.fabric_library_modified = time;
+                }
+            }
+        }
         if !self.scene.interval_selected() {
             self.crucible.iterate(&self.brick_library);
         }
@@ -164,7 +175,6 @@ impl Application {
 
     pub fn refresh_library(&mut self, time: SystemTime) -> Result<Action, TenscriptError> {
         self.fabric_library = FabricLibrary::from_source()?;
-        
         Ok(Action::UpdatedLibrary(time))
     }
 
