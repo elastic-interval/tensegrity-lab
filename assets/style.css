@@ -48,8 +48,13 @@ body {
     width: 100vw;
     margin-top: 2em;
     text-align: center;
-    font-size: x-large;
+    
+    .tiny {
+        font-size: small;
+    }
+    
     & * {
+        font-size: x-large;
         margin-right: 0.5em;
     }
 }

@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 use std::mem;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use leptos::{SignalUpdate, WriteSignal};
+use leptos::{ReadSignal, SignalGet, SignalUpdate, WriteSignal};
 use wgpu::util::DeviceExt;
 use winit::keyboard::KeyCode;
 use winit_input_helper::WinitInputHelper;
@@ -40,11 +40,12 @@ pub struct Scene {
     uniform_bind_group: wgpu::BindGroup,
     uniform_buffer: wgpu::Buffer,
     graphics: Graphics,
+    control_state: ReadSignal<ControlState>,
     set_control_state: WriteSignal<ControlState>,
 }
 
 impl Scene {
-    pub fn new(graphics: Graphics, set_control_state: WriteSignal<ControlState>) -> Self {
+    pub fn new(graphics: Graphics, (control_state, set_control_state): (ReadSignal<ControlState>, WriteSignal<ControlState>)) -> Self {
         let shader = graphics
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -191,6 +192,7 @@ impl Scene {
             },
             uniform_buffer,
             uniform_bind_group,
+            control_state,
             set_control_state,
         }
     }
@@ -231,7 +233,13 @@ impl Scene {
             if self.selected_interval.is_some() {
                 self.action(SceneAction::SelectInterval(None));
             } else {
-                self.set_control_state.update(move |state| *state = ControlState::Choosing)
+                match self.control_state.get() {
+                    ControlState::Choosing =>
+                        self.set_control_state.update(move |state| *state = ControlState::Viewing),
+                    ControlState::Viewing =>
+                        self.set_control_state.update(move |state| *state = ControlState::Choosing),
+                    _ => {}
+                };
             }
         } else if !fabric.progress.is_busy() {
             let picked_interval = self.camera.handle_input(input, fabric);

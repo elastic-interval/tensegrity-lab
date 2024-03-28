@@ -52,7 +52,7 @@ pub fn run() {
         let fabric_list = create_memo(move |_bla| FabricLibrary::from_source().unwrap().fabric_list().unwrap());
     #[cfg(target_arch = "wasm32")]
     {
-        use tensegrity_lab::control_overlay::app::ControlOverlayApp;
+        use tensegrity_lab::control_overlay::overlay::ControlOverlayApp;
         use winit::platform::web::WindowBuilderExtWebSys;
 
         let actions_tx = actions_tx.clone();
@@ -92,7 +92,7 @@ pub fn run() {
         .expect("Could not build window");
 
     let graphics = pollster::block_on(Graphics::new(&winit_window));
-    let mut app = Application::new(graphics, set_control_state, (actions_tx, actions_rx));
+    let mut app = Application::new(graphics, (control_state, set_control_state), (actions_tx, actions_rx));
     let mut input = WinitInputHelper::new();
     #[cfg(not(target_arch = "wasm32"))]
     {
