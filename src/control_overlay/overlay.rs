@@ -67,31 +67,29 @@ pub fn ControlOverlayApp(
                     view!{<div class="hidden"></div>}
                 }
                 ControlState::ShowingInterval(interval_details) => {
+                    let to_setting_length = 
+                        move |_ev| set_control_state.set(ControlState::SettingLength(interval_details));
                     view!{
                         <div class="title">
                             <div >{formatted_interval(&interval_details)}</div>
-                            <div class="tiny"
-                                on:click=move |_ev| set_control_state.set(ControlState::SettingLength(interval_details))
-                            >
-                            set
-                            </div>
+                            <div class="tiny" on:click=to_setting_length>set</div>
                         </div>
                     }
                 }
                 ControlState::SettingLength(interval_details) => {
+                    let assign = move|_| {
+                        set_scale.set(assigned_length.get()/interval_details.length);
+                        set_control_state.set(ControlState::ShowingInterval(interval_details));
+                    };
                     view!{
                         <div class="title">
                             <label for="length">Length(mm): </label>
                             <input type="text" id="length" 
                                     value={move || assigned_length.get()}
-                                    on:change=move |ev| { set_assigned_length.set(event_target_value(&ev).parse().unwrap()); } 
+                                    on:change=move |ev| 
+                                        set_assigned_length.set(event_target_value(&ev).parse().unwrap())  
                             />
-                            <button on:click=move|_| {
-                                set_scale.set(assigned_length.get()/interval_details.length);
-                                set_control_state.set(ControlState::ShowingInterval(interval_details));
-                            }>
-                                Assign   
-                            </button>
+                            <button on:click=assign>Assign</button>
                         </div>
                     }
                 }
