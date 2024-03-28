@@ -5,9 +5,11 @@
 
 use cgmath::num_traits::zero;
 use cgmath::{InnerSpace, Point3, Vector3};
+use itertools::Itertools;
 
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter::*;
+use crate::fabric::{Fabric, UniqueId};
 
 const RESURFACE: f32 = 0.01;
 const AMBIENT_MASS: f32 = 0.01;
@@ -87,5 +89,39 @@ impl Joint {
         }
         self.location += self.velocity;
         speed_squared
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct JointContext {
+    pub index: usize,
+    pub intervals: Vec<UniqueId>,
+}
+
+impl JointContext {
+    pub fn new(index: usize) -> JointContext {
+        JointContext { index, intervals: Default::default() }
+    }
+
+    pub fn add(&mut self, interval_id: &UniqueId) {
+        self.intervals.push(*interval_id);
+    }
+    
+    pub fn joints(&self, fabric: &Fabric) ->  Vec<usize> {
+        self
+            .intervals
+            .iter()
+            .map(|id| *fabric.interval(*id))
+            .map(|interval| interval.other_joint(self.index))
+            .collect()
+    }
+    
+    pub fn angles(&self, fabric: &Fabric) -> Vec<(usize, usize, usize)> {
+        self
+            .joints(fabric)
+            .iter()
+            .tuple_combinations()
+            .map(|(a,b)| (*a, self.index, *b))
+            .collect()
     }
 }
