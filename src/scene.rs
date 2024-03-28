@@ -2,18 +2,18 @@ use std::f32::consts::PI;
 use std::mem;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use leptos::{SignalUpdate, WriteSignal};
+use leptos::{ReadSignal, SignalGet, SignalUpdate, WriteSignal};
 use wgpu::util::DeviceExt;
 use winit::keyboard::KeyCode;
 use winit_input_helper::WinitInputHelper;
 
 use crate::camera::Camera;
 use crate::camera::Target::*;
-use crate::control_overlay;
+use crate::control_state::{ControlState, IntervalDetails};
+use crate::fabric::{Fabric, MATERIALS, UniqueId};
 use crate::fabric::face::Face;
-use crate::fabric::interval::Interval;
+use crate::fabric::interval::{Interval, Span};
 use crate::fabric::interval::Role::{Pull, Push};
-use crate::fabric::{Fabric, UniqueId};
 use crate::graphics::Graphics;
 
 const MAX_INTERVALS: usize = 5000;
@@ -40,11 +40,12 @@ pub struct Scene {
     uniform_bind_group: wgpu::BindGroup,
     uniform_buffer: wgpu::Buffer,
     graphics: Graphics,
-    set_control_state: WriteSignal<control_overlay::ControlState>,
+    control_state: ReadSignal<ControlState>,
+    set_control_state: WriteSignal<ControlState>,
 }
 
 impl Scene {
-    pub fn new(graphics: Graphics, set_control_state: WriteSignal<control_overlay::ControlState>) -> Self {
+    pub fn new(graphics: Graphics, (control_state, set_control_state): (ReadSignal<ControlState>, WriteSignal<ControlState>)) -> Self {
         let shader = graphics
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -191,6 +192,7 @@ impl Scene {
             },
             uniform_buffer,
             uniform_bind_group,
+            control_state,
             set_control_state,
         }
     }
@@ -228,13 +230,27 @@ impl Scene {
 
     pub fn handle_input(&mut self, input: &WinitInputHelper, fabric: &Fabric) {
         if input.key_pressed(KeyCode::Escape) {
-            self.action(SceneAction::SelectInterval(None));
-        } else {
+            if self.selected_interval.is_some() {
+                self.action(SceneAction::SelectInterval(None));
+            } else {
+                match self.control_state.get() {
+                    ControlState::Choosing =>
+                        self.set_control_state.update(move |state| *state = ControlState::Viewing),
+                    ControlState::Viewing =>
+                        self.set_control_state.update(move |state| *state = ControlState::Choosing),
+                    _ => {}
+                };
+            }
+        } else if !fabric.progress.is_busy() {
             let picked_interval = self.camera.handle_input(input, fabric);
             if let Some(interval) = picked_interval {
                 self.action(SceneAction::SelectInterval(Some(interval)));
             }
         }
+    }
+
+    pub fn interval_selected(&self) -> bool {
+        self.selected_interval.is_some()
     }
 
     pub fn update(&mut self, fabric: &Fabric) {
@@ -298,20 +314,24 @@ impl Scene {
 
     pub fn action(&mut self, scene_action: SceneAction) {
         match scene_action {
-            SceneAction::SelectInterval(interval) => {
-                self.selected_interval = interval.map(|(id, _)| id);
-                if let Some(selected_id) = self.selected_interval {
-                    self.camera.target = AroundInterval(selected_id)
-                } else {
-                    self.camera.target = FabricMidpoint;
-                }
-                self.set_control_state.update(move |state| {
-                    state.picked_interval = interval.map(|(_, interval)| interval);
-                });
+            SceneAction::SelectInterval(Some((id, interval))) => {
+                self.selected_interval = Some(id);
+                self.camera.target = AroundInterval(id);
+                let Interval { alpha_index, omega_index, span, material, .. } = interval;
+                let role = MATERIALS[material].role;
+                let length = match span {
+                    Span::Fixed { length } => length,
+                    _ => 0.0
+                };
+                let interval_details = IntervalDetails { alpha_index, omega_index, length, role };
+                self.set_control_state.update(|state| *state = ControlState::ShowingInterval(interval_details));
             }
-            SceneAction::WatchMidpoint => {
+            SceneAction::SelectInterval(None) => {
+                self.selected_interval = None;
                 self.camera.target = FabricMidpoint;
+                self.set_control_state.update(|state| *state = ControlState::Viewing);
             }
+            SceneAction::WatchMidpoint => self.camera.target = FabricMidpoint,
             SceneAction::WatchOrigin => self.camera.target = Origin,
         }
     }

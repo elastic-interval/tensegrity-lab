@@ -26,7 +26,7 @@ pub enum Role {
     Pull,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Material {
     pub name: &'static str,
     pub role: Role,

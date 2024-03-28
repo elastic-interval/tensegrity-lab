@@ -307,7 +307,7 @@ impl Fabric {
 #[derive(Clone, Debug, Copy, PartialEq, Default, Hash, Eq, Ord, PartialOrd)]
 pub struct UniqueId(usize);
 
-const MATERIALS: [Material; 5] = [
+pub const MATERIALS: [Material; 5] = [
     Material {
         name: ":push",
         role: Push,
