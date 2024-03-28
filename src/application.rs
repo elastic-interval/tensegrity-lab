@@ -24,7 +24,7 @@ pub struct Application {
     fabric_library: FabricLibrary,
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
-    brick_library: BrickLibrary,
+    pub brick_library: BrickLibrary,
     pub control_state: ReadSignal<ControlState>,
     pub set_control_state: WriteSignal<ControlState>,
     pub actions_rx: Receiver<Action>,

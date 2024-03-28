@@ -18,17 +18,32 @@ use tensegrity_lab::graphics::Graphics;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Name of the prototype to settle and capture
+    #[arg(long)]
+    fabric: Option<String>,
+
     #[arg(long)]
     prototype: Option<usize>,
 }
 
 fn main() {
-    run();
+    let Args { fabric, prototype } = Args::parse();
+    if fabric.is_some() {
+        run_with(fabric, None);
+        return;
+    }
+    if prototype.is_some() {
+        run_with(None, prototype);
+        return;
+    }
+    println!("Give me --fabric <fabric name> or --prototype N");
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn run() {
+    run_with(None, None);
+}
+
+pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -93,12 +108,13 @@ pub fn run() {
 
     let graphics = pollster::block_on(Graphics::new(&winit_window));
     let mut app = Application::new(graphics, (control_state, set_control_state), (actions_tx, actions_rx));
-    let mut input = WinitInputHelper::new();
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let fabric = "Flagellum".to_string();
-        app.run_fabric(&fabric);
+    if let Some(fabric_name) = fabric_name {
+        app.run_fabric(&fabric_name);
     }
+    if let Some(prototype) = prototype {
+        app.capture_prototype(prototype);
+    }
+    let mut input = WinitInputHelper::new();
     event_loop
         .run(move |event, window_target| {
             match &event {
