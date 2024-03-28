@@ -47,5 +47,5 @@ pub enum Action {
     Scene(SceneAction),
     CalibrateStrain,
     UpdatedLibrary(SystemTime),
-    LoadFabric(Vec<String>),
+    LoadFabric(String),
 }

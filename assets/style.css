@@ -8,14 +8,13 @@ body {
     position: absolute;
     top: 0;
     left: 0;
-    height: 100vh;
-    width: 100vw;
     color: white;
 
-    background-color: rgba(133, 133, 133, 0.35);
-    backdrop-filter: blur(5px);
+    /*background-color: rgba(133, 133, 133, 0.35);*/
+    /*backdrop-filter: blur(5px);*/
 
     font-family: "JetBrains Mono", monospace;
+
     & * {
         font-family: "JetBrains Mono", monospace;
     }
@@ -24,19 +23,39 @@ body {
         display: none;
     }
 
-    & .inset {
-        margin: 20px 50px;
-        height: 100%;
-        display: flex;
-        flex-direction: row;
 
-        & .left {
-            flex: 5;
-        }
+}
 
-        & .right {
-            flex: 7;
-        }
+& .choice {
+    width: 100vw;
+}
+
+& .list {
+    position: absolute;
+    left: 50%;
+    transform: translate(-8em);
+    margin: 60px;
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+
+    & button {
+        margin: 0.2em;
+    }
+}
+
+.title {
+    width: 100vw;
+    margin-top: 2em;
+    text-align: center;
+    
+    .tiny {
+        font-size: small;
+    }
+    
+    & * {
+        font-size: x-large;
+        margin-right: 0.5em;
     }
 }
 

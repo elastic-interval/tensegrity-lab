@@ -28,6 +28,9 @@ impl Oven {
             speed_squared = fabric.iterate(&PROTOTYPE_FORMATION);
         }
         let age = fabric.age;
+        if age % 1000 == 0 {
+            log::info!("Fabric settling age {age} at speed squared {speed_squared}");
+        }
         if age > 1000 && speed_squared < 1e-12 {
             log::info!("Fabric settled in iteration {age} at speed squared {speed_squared}");
             match Baked::try_from((fabric.clone(), self.alias.clone())) {

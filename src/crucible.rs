@@ -92,7 +92,8 @@ impl Crucible {
             }
             BakingBrick(oven) => {
                 if let Some(baked) = oven.iterate(&mut self.fabric) {
-                    log::info!("{}", baked.into_tenscript());
+                    // log::info!("{}", baked.into_tenscript());
+                    println!("{}", baked.into_tenscript());
                     self.stage = Finished;
                 }
             }

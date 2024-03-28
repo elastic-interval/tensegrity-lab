@@ -1,9 +1,9 @@
 (fabric-library
-  (fabric (name "Seed" "Single") (build (branch (alias Single))))
-  (fabric (name "Seed" "Omni") (build (branch (alias Omni))))
-  (fabric (name "Seed" "Torque") (build (branch (alias Torque))))
+  (fabric (name "Single") (build (branch (alias Single))))
+  (fabric (name "Omni") (build (branch (alias Omni))))
+  (fabric (name "Torque") (build (branch (alias Torque))))
   (fabric
-    (name "Simple" "Knee")
+    (name "Knee")
     (build
       (branch (alias Omni)
         (face (alias Top:Right) (grow 3))
@@ -12,7 +12,7 @@
       (vulcanize)
       (faces-to-triangles)))
   (fabric
-    (name "Simple" "Flagellum")
+    (name "Flagellum")
     (build
       (branch (alias Single)
         (face (alias :next-base) (grow 20 (scale .9)))))
@@ -21,7 +21,7 @@
       (faces-to-triangles))
     (pretense (surface :frozen)))
   (fabric
-    (name "Simple" "Tetrapod")
+    (name "Tetrapod")
     (build
       (branch (alias Omni)
         (face (alias Top:Right) (grow 3 (scale .9)))
@@ -34,7 +34,7 @@
       (faces-to-triangles))
     (pretense (surface :bouncy)))
   (fabric
-    (name "Simple" "Twist8")
+    (name "Twist8")
     (build
       (branch (alias Omni)
         (face (alias Top:Right) (grow 12 (scale .92) (mark :ring-a)))
@@ -48,7 +48,7 @@
       (faces-to-triangles))
     (pretense (surface :bouncy)))
   (fabric
-    (name "Simple" "Ring")
+    (name "Ring")
     (build
       (branch (alias Single)
         (face (alias :base) (grow 6 (mark :tip)))
@@ -57,7 +57,7 @@
       (during 40000 (join :tip)))
     (pretense (surface :absent)))
   (fabric
-    (name "Art" "Halo by Crane")
+    (name "Halo by Crane")
     (build
       (branch (alias Single) (rotate) (rotate)
         (face (alias :next-base)
@@ -71,7 +71,7 @@
       (vulcanize)
       (faces-to-triangles)))
   (fabric
-    (name "Art" "Pulsating Pavilion")
+    (name "Pulsating Pavilion")
     (build
       (branch (alias Torque)
         (face (alias Left:Front:Bottom)
@@ -99,7 +99,7 @@
       (muscle 0.2 13000)
       ))
   (fabric
-    (name "Art" "Tommy Torque")
+    (name "Tommy Torque")
     (build
       (branch (alias Omni)
         (face (alias Bottom:Left)
@@ -126,7 +126,7 @@
       (muscle 0.3 12000)
       ))
   (fabric
-    (name "Art" "Headless Hug")
+    (name "Headless Hug")
     (build
       (branch (alias Omni)
         (face (alias Bottom:Left) (grow "....X.." (scale .95) (mark :legs)))
@@ -148,7 +148,7 @@
       (during 80000 (vulcanize))
       (remove-spacers)
       (faces-to-triangles)))
-  (fabric (name "Art" "Torque Island")
+  (fabric (name "Torque Island")
     (build
       (branch (alias Torque)
         (face (alias Left:Front:Bottom)

@@ -2,7 +2,7 @@ use std::iter;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::SystemTime;
 
-use leptos::WriteSignal;
+use leptos::{ReadSignal, WriteSignal};
 use winit_input_helper::WinitInputHelper;
 
 use control_overlay::ControlState;
@@ -20,11 +20,12 @@ use crate::scene::{Scene, SceneAction};
 pub struct Application {
     scene: Scene,
     crucible: Crucible,
-    fabric_plan_name: Vec<String>,
+    fabric_plan_name: String,
     fabric_library: FabricLibrary,
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
-    brick_library: BrickLibrary,
+    pub brick_library: BrickLibrary,
+    pub control_state: ReadSignal<ControlState>,
     pub set_control_state: WriteSignal<ControlState>,
     pub actions_rx: Receiver<Action>,
     pub actions_tx: Sender<Action>,
@@ -33,18 +34,19 @@ pub struct Application {
 impl Application {
     pub fn new(
         graphics: Graphics,
-        set_control_state: WriteSignal<ControlState>,
+        (control_state, set_control_state): (ReadSignal<ControlState>, WriteSignal<ControlState>),
         (actions_tx, actions_rx): (Sender<Action>, Receiver<Action>),
     ) -> Application {
         let brick_library = BrickLibrary::from_source().unwrap();
         let fabric_library = FabricLibrary::from_source().unwrap();
-        let scene = Scene::new(graphics, set_control_state);
+        let scene = Scene::new(graphics, (control_state, set_control_state));
         Application {
             scene,
             crucible: Crucible::default(),
-            fabric_plan_name: Vec::new(),
+            fabric_plan_name: "Halo by Crane".into(),
             brick_library,
             fabric_library,
+            control_state,
             set_control_state,
             actions_tx,
             actions_rx,
@@ -53,7 +55,7 @@ impl Application {
         }
     }
 
-    pub fn update(&mut self) {
+    pub fn handle_actions(&mut self) {
         while let Ok(action) = self.actions_rx.try_recv() {
             match action {
                 Action::LoadFabric(fabric_plan_name) => {
@@ -83,9 +85,6 @@ impl Application {
                     if !self.fabric_plan_name.is_empty() {
                         self.reload_fabric();
                     }
-                    // todo: refresh library from source
-                    // self.user_interface
-                    //     .message(ControlMessage::FreshLibrary(fabric_library));
                 }
                 Action::Scene(scene_action) => {
                     self.scene.action(scene_action);
@@ -108,7 +107,23 @@ impl Application {
     }
 
     pub fn redraw(&mut self) {
-        self.crucible.iterate(&self.brick_library);
+        let time = fabric_library_modified();
+        if time > self.fabric_library_modified {
+            match self.refresh_library(time) {
+                Ok(action) => {
+                    self.actions_tx
+                        .send(action)
+                        .unwrap();
+                }
+                Err(tenscript_error) => {
+                    println!("Tenscript\n{tenscript_error}");
+                    self.fabric_library_modified = time;
+                }
+            }
+        }
+        if !self.scene.interval_selected() {
+            self.crucible.iterate(&self.brick_library);
+        }
         self.scene.update(self.crucible.fabric());
         let surface_texture = self.scene.surface_texture().expect("surface texture");
         self.render(&surface_texture);
@@ -129,7 +144,7 @@ impl Application {
             .fabric_library
             .fabric_plans
             .iter()
-            .find(|FabricPlan { name, .. }| name.contains(fabric_name))
+            .find(|FabricPlan { name, .. }| name == fabric_name)
             .expect(fabric_name);
         self.actions_tx
             .send(Action::Crucible(CrucibleAction::BuildFabric(
@@ -163,14 +178,14 @@ impl Application {
         Ok(Action::UpdatedLibrary(time))
     }
 
-    pub fn load_preset(&self, plan_name: Vec<String>) -> Result<FabricPlan, TenscriptError> {
+    pub fn load_preset(&self, plan_name: String) -> Result<FabricPlan, TenscriptError> {
         let plan = self
             .fabric_library
             .fabric_plans
             .iter()
             .find(|plan| plan.name == plan_name);
         match plan {
-            None => Err(TenscriptError::Invalid(plan_name.join(","))),
+            None => Err(TenscriptError::Invalid(plan_name)),
             Some(plan) => Ok(plan.clone()),
         }
     }
