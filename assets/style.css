@@ -39,8 +39,9 @@ body {
     flex-direction: column;
     text-align: center;
 
-    & button {
-        margin: 0.2em;
+    .item {
+        margin-bottom: 1em;
+        font-size: large;
     }
 }
 
