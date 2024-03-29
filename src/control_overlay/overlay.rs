@@ -1,7 +1,7 @@
 use std::sync::mpsc::Sender;
 
 use leptos::{CollectView, component, create_effect, create_signal, event_target_value, IntoView, Memo, ReadSignal, SignalGet, SignalSet, SignalUpdate, view, WriteSignal};
-use leptos_use::storage::{use_local_storage, use_session_storage};
+use leptos_use::storage::use_local_storage;
 use leptos_use::utils::FromToStringCodec;
 
 use crate::control_overlay::action::Action;
@@ -65,7 +65,7 @@ pub fn ControlOverlayApp(
                     view! {<div class="choice"><div class="list"><h1>Designs</h1>{list}</div></div>}
                 }
                 ControlState::Viewing => {
-                    view!{<div class="hidden"></div>}
+                    view!{<div class="title"><div>{move || format!("\"{}\"", name.get())}</div></div>}
                 }
                 ControlState::ShowingInterval(interval_details) => {
                     let to_setting_length = 
