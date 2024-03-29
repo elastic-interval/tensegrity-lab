@@ -1,6 +1,8 @@
 use std::sync::mpsc::Sender;
 
 use leptos::{CollectView, component, create_effect, create_signal, event_target_value, IntoView, Memo, ReadSignal, SignalGet, SignalSet, SignalUpdate, view, WriteSignal};
+use leptos_use::storage::{use_local_storage, use_session_storage};
+use leptos_use::utils::FromToStringCodec;
 
 use crate::control_overlay::action::Action;
 use crate::control_state::{ControlState, IntervalDetails};
@@ -13,7 +15,8 @@ pub fn ControlOverlayApp(
     set_control_state: WriteSignal<ControlState>,
     actions_tx: Sender<Action>,
 ) -> impl IntoView {
-    let (name, set_name) = create_signal("".to_string());
+    let (name, set_name, _) = use_local_storage::<String, FromToStringCodec>("name");
+    let (scale, set_scale, _) = use_local_storage::<f32, FromToStringCodec>("scale");
     create_effect(move |_| {
         let name = name.get();
         if !name.is_empty() {
@@ -23,8 +26,6 @@ pub fn ControlOverlayApp(
                 .expect("failed to send action");
         }
     });
-
-    let (scale, set_scale) = create_signal(100.0);
 
     let (assigned_length, set_assigned_length) = create_signal(100.0);
 
