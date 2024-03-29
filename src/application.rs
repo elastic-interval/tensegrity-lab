@@ -107,17 +107,20 @@ impl Application {
     }
 
     pub fn redraw(&mut self) {
-        let time = fabric_library_modified();
-        if time > self.fabric_library_modified {
-            match self.refresh_library(time) {
-                Ok(action) => {
-                    self.actions_tx
-                        .send(action)
-                        .unwrap();
-                }
-                Err(tenscript_error) => {
-                    println!("Tenscript\n{tenscript_error}");
-                    self.fabric_library_modified = time;
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let time = fabric_library_modified();
+            if time > self.fabric_library_modified {
+                match self.refresh_library(time) {
+                    Ok(action) => {
+                        self.actions_tx
+                            .send(action)
+                            .unwrap();
+                    }
+                    Err(tenscript_error) => {
+                        println!("Tenscript\n{tenscript_error}");
+                        self.fabric_library_modified = time;
+                    }
                 }
             }
         }
