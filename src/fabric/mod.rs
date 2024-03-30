@@ -6,15 +6,15 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, Matrix4, MetricSpace, Point3, Transform, Vector3};
+use cgmath::num_traits::zero;
 
 use crate::build::tenscript::{FaceAlias, Spin};
 use crate::fabric::face::Face;
+use crate::fabric::interval::{Interval, Material};
 use crate::fabric::interval::Role::{Pull, Push};
 use crate::fabric::interval::Span::{Approaching, Fixed};
-use crate::fabric::interval::{Interval, Material};
-use crate::fabric::joint::{Joint, JointContext};
+use crate::fabric::joint::Joint;
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
 
@@ -26,6 +26,7 @@ pub mod lab;
 pub mod physics;
 pub mod progress;
 pub mod vulcanize;
+mod joint_context;
 
 #[derive(Clone, Debug)]
 pub struct Fabric {
@@ -295,27 +296,6 @@ impl Fabric {
             self.joints.len()
         } as f32;
         midpoint / denominator
-    }
-
-    pub fn joint_contexts(&self) -> Vec<JointContext> {
-        let mut joint_context: Vec<JointContext> = self
-            .joints
-            .iter()
-            .enumerate()
-            .map(|(index, _)| JointContext::new(index)).collect();
-        for (id, Interval { alpha_index, omega_index, .. }) in self.intervals.iter() {
-            joint_context.get_mut(*alpha_index).unwrap().add(id);
-            joint_context.get_mut(*omega_index).unwrap().add(id);
-        }
-        joint_context
-    }
-    
-    pub fn angles(&self) -> Vec<(usize, usize, usize)> {
-        self
-            .joint_contexts()
-            .iter()
-            .flat_map(|context| context.angles(self))
-            .collect()
     }
 
     fn create_id(&mut self) -> UniqueId {
