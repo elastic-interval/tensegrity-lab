@@ -57,7 +57,7 @@ pub fn ControlOverlayApp(
                 interval.omega_index + 1,
         )
     };
-
+    
     view! {
         {move || 
             match control_state.get() {
