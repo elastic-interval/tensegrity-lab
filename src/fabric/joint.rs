@@ -3,11 +3,60 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use cgmath::{InnerSpace, Point3, Vector3};
+use std::cmp::Ordering;
+use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
 use cgmath::num_traits::zero;
+use crate::fabric::Fabric;
 
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter::*;
+
+impl Fabric {
+    pub fn create_joint(&mut self, point: Point3<f32>) -> usize {
+        let index = self.joints.len();
+        self.joints.push(Joint::new(point));
+        index
+    }
+
+    pub fn location(&self, index: usize) -> Point3<f32> {
+        self.joints[index].location
+    }
+
+    pub fn remove_joint(&mut self, index: usize) {
+        self.joints.remove(index);
+        self.intervals
+            .values_mut()
+            .for_each(|interval| interval.joint_removed(index));
+    }
+
+    pub fn distance(&self, alpha_index: usize, omega_index: usize) -> f32 {
+        self.location(alpha_index)
+            .distance(self.location(omega_index))
+    }
+
+    pub fn ideal(&self, alpha_index: usize, omega_index: usize, strain: f32) -> f32 {
+        let distance = self.distance(alpha_index, omega_index);
+        distance / (1.0 + strain)
+    }
+
+    pub fn set_altitude(&mut self, altitude: f32) {
+        let Some(low_y) = self
+            .joints
+            .iter()
+            .map(|joint| joint.location.y)
+            .min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
+            else {
+                return;
+            };
+        let up = altitude - low_y;
+        if up > 0.0 {
+            for joint in &mut self.joints {
+                joint.location.y += up;
+            }
+        }
+    }
+
+}
 
 const RESURFACE: f32 = 0.01;
 const AMBIENT_MASS: f32 = 0.01;

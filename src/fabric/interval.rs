@@ -4,14 +4,56 @@
  */
 
 use cgmath::num_traits::zero;
-use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, MetricSpace, Point3, Vector3};
 use fast_inv_sqrt::InvSqrt32;
 
 use crate::fabric::interval::Role::*;
 use crate::fabric::interval::Span::*;
 use crate::fabric::joint::Joint;
 use crate::fabric::physics::Physics;
-use crate::fabric::Progress;
+use crate::fabric::{Fabric, Link, Progress, UniqueId};
+
+impl Fabric {
+    pub fn create_interval(
+        &mut self,
+        alpha_index: usize,
+        omega_index: usize,
+        Link {
+            ideal,
+            material_name,
+        }: Link,
+    ) -> UniqueId {
+        let id = self.create_id();
+        let initial = self.joints[alpha_index]
+            .location
+            .distance(self.joints[omega_index].location);
+        let material = self.material(material_name);
+        let interval = Interval::new(
+            alpha_index,
+            omega_index,
+            material,
+            Approaching {
+                initial,
+                length: ideal,
+            },
+        );
+        self.intervals.insert(id, interval);
+        id
+    }
+
+    pub fn interval(&self, id: UniqueId) -> &Interval {
+        self.intervals.get(&id).unwrap()
+    }
+
+    pub fn remove_interval(&mut self, id: UniqueId) {
+        self.intervals.remove(&id);
+    }
+
+    pub fn interval_values(&self) -> impl Iterator<Item=&Interval> {
+        self.intervals.values()
+    }
+
+}
 
 #[derive(Clone, Copy, Debug)]
 pub enum Span {
