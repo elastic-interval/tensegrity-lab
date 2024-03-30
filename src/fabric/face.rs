@@ -2,12 +2,82 @@
  * Copyright (c) 2020. Beautiful Code BV, Rotterdam, Netherlands
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
-use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, MetricSpace, Point3, Vector3};
 
 use crate::build::tenscript::{FaceAlias, Spin};
 use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::{Fabric, Link, UniqueId};
+
+impl Fabric {
+    pub fn create_face(
+        &mut self,
+        aliases: Vec<FaceAlias>,
+        scale: f32,
+        spin: Spin,
+        radial_intervals: [UniqueId; 3],
+    ) -> UniqueId {
+        let id = self.create_id();
+        self.faces.insert(
+            id,
+            Face {
+                aliases,
+                scale,
+                spin,
+                radial_intervals,
+            },
+        );
+        id
+    }
+
+    pub fn face(&self, id: UniqueId) -> &Face {
+        self.faces
+            .get(&id)
+            .unwrap_or_else(|| panic!("face not found {id:?}"))
+    }
+
+    pub fn remove_face(&mut self, id: UniqueId) {
+        let face = self.face(id);
+        let middle_joint = face.middle_joint(self);
+        for interval_id in face.radial_intervals {
+            self.remove_interval(interval_id);
+        }
+        self.remove_joint(middle_joint);
+        self.faces.remove(&id);
+    }
+
+    pub fn join_faces(&mut self, alpha_id: UniqueId, omega_id: UniqueId) {
+        let (alpha, omega) = (self.face(alpha_id), self.face(omega_id));
+        let (mut alpha_ends, omega_ends) = (alpha.radial_joints(self), omega.radial_joints(self));
+        if alpha.spin == omega.spin {
+            alpha_ends.reverse();
+        }
+        let (mut alpha_points, omega_points) = (
+            alpha_ends.map(|id| self.location(id)),
+            omega_ends.map(|id| self.location(id)),
+        );
+        let links = [(0, 0), (0, 1), (1, 1), (1, 2), (2, 2), (2, 0)];
+        let (_, alpha_rotated) = (0..3)
+            .map(|rotation| {
+                let length: f32 = links
+                    .map(|(a, b)| alpha_points[a].distance(omega_points[b]))
+                    .iter()
+                    .sum();
+                alpha_points.rotate_right(1);
+                let mut rotated = alpha_ends;
+                rotated.rotate_right(rotation);
+                (length, rotated)
+            })
+            .min_by(|(length_a, _), (length_b, _)| length_a.partial_cmp(length_b).unwrap())
+            .unwrap();
+        let ideal = (alpha.scale + omega.scale) / 2.0;
+        for (a, b) in links {
+            self.create_interval(alpha_rotated[a], omega_ends[b], Link::pull(ideal));
+        }
+        self.remove_face(alpha_id);
+        self.remove_face(omega_id);
+    }
+}
 
 #[derive(Clone, Debug, Copy)]
 pub enum FaceRotation {
@@ -54,7 +124,7 @@ impl Face {
             Spin::Left => v2.cross(v1),
             Spin::Right => v1.cross(v2),
         }
-        .normalize_to(length)
+            .normalize_to(length)
     }
 
     pub fn normal(&self, fabric: &Fabric) -> Vector3<f32> {

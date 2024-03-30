@@ -3,13 +3,11 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use cgmath::{EuclideanSpace, Matrix4, MetricSpace, Point3, Transform, Vector3};
+use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
 use cgmath::num_traits::zero;
 
-use crate::build::tenscript::{FaceAlias, Spin};
 use crate::fabric::face::Face;
 use crate::fabric::interval::{Interval, Material};
 use crate::fabric::interval::Role::{Pull, Push};
@@ -62,141 +60,7 @@ impl Fabric {
             .position(|&Material { name, .. }| name == sought_name)
             .unwrap_or_else(|| panic!("missing material {sought_name}"))
     }
-
-    pub fn create_joint(&mut self, point: Point3<f32>) -> usize {
-        let index = self.joints.len();
-        self.joints.push(Joint::new(point));
-        index
-    }
-
-    pub fn location(&self, index: usize) -> Point3<f32> {
-        self.joints[index].location
-    }
-
-    pub fn remove_joint(&mut self, index: usize) {
-        self.joints.remove(index);
-        self.intervals
-            .values_mut()
-            .for_each(|interval| interval.joint_removed(index));
-    }
-
-    pub fn distance(&self, alpha_index: usize, omega_index: usize) -> f32 {
-        self.location(alpha_index)
-            .distance(self.location(omega_index))
-    }
-
-    pub fn ideal(&self, alpha_index: usize, omega_index: usize, strain: f32) -> f32 {
-        let distance = self.distance(alpha_index, omega_index);
-        distance / (1.0 + strain)
-    }
-
-    pub fn create_interval(
-        &mut self,
-        alpha_index: usize,
-        omega_index: usize,
-        Link {
-            ideal,
-            material_name,
-        }: Link,
-    ) -> UniqueId {
-        let id = self.create_id();
-        let initial = self.joints[alpha_index]
-            .location
-            .distance(self.joints[omega_index].location);
-        let material = self.material(material_name);
-        let interval = Interval::new(
-            alpha_index,
-            omega_index,
-            material,
-            Approaching {
-                initial,
-                length: ideal,
-            },
-        );
-        self.intervals.insert(id, interval);
-        id
-    }
-
-    pub fn interval(&self, id: UniqueId) -> &Interval {
-        self.intervals.get(&id).unwrap()
-    }
-
-    pub fn remove_interval(&mut self, id: UniqueId) {
-        self.intervals.remove(&id);
-    }
-
-    pub fn interval_values(&self) -> impl Iterator<Item=&Interval> {
-        self.intervals.values()
-    }
-
-    pub fn create_face(
-        &mut self,
-        aliases: Vec<FaceAlias>,
-        scale: f32,
-        spin: Spin,
-        radial_intervals: [UniqueId; 3],
-    ) -> UniqueId {
-        let id = self.create_id();
-        self.faces.insert(
-            id,
-            Face {
-                aliases,
-                scale,
-                spin,
-                radial_intervals,
-            },
-        );
-        id
-    }
-
-    pub fn face(&self, id: UniqueId) -> &Face {
-        self.faces
-            .get(&id)
-            .unwrap_or_else(|| panic!("face not found {id:?}"))
-    }
-
-    pub fn remove_face(&mut self, id: UniqueId) {
-        let face = self.face(id);
-        let middle_joint = face.middle_joint(self);
-        for interval_id in face.radial_intervals {
-            self.remove_interval(interval_id);
-        }
-        self.remove_joint(middle_joint);
-        self.faces.remove(&id);
-    }
-
-    pub fn join_faces(&mut self, alpha_id: UniqueId, omega_id: UniqueId) {
-        let (alpha, omega) = (self.face(alpha_id), self.face(omega_id));
-        let (mut alpha_ends, omega_ends) = (alpha.radial_joints(self), omega.radial_joints(self));
-        if alpha.spin == omega.spin {
-            alpha_ends.reverse();
-        }
-        let (mut alpha_points, omega_points) = (
-            alpha_ends.map(|id| self.location(id)),
-            omega_ends.map(|id| self.location(id)),
-        );
-        let links = [(0, 0), (0, 1), (1, 1), (1, 2), (2, 2), (2, 0)];
-        let (_, alpha_rotated) = (0..3)
-            .map(|rotation| {
-                let length: f32 = links
-                    .map(|(a, b)| alpha_points[a].distance(omega_points[b]))
-                    .iter()
-                    .sum();
-                alpha_points.rotate_right(1);
-                let mut rotated = alpha_ends;
-                rotated.rotate_right(rotation);
-                (length, rotated)
-            })
-            .min_by(|(length_a, _), (length_b, _)| length_a.partial_cmp(length_b).unwrap())
-            .unwrap();
-        let ideal = (alpha.scale + omega.scale) / 2.0;
-        for (a, b) in links {
-            self.create_interval(alpha_rotated[a], omega_ends[b], Link::pull(ideal));
-        }
-        self.remove_face(alpha_id);
-        self.remove_face(omega_id);
-    }
-
+    
     pub fn apply_matrix4(&mut self, matrix: Matrix4<f32>) {
         for joint in &mut self.joints {
             joint.location = matrix.transform_point(joint.location);
@@ -213,23 +77,6 @@ impl Fabric {
         midpoint.y = 0.0;
         for joint in self.joints.iter_mut() {
             joint.location -= midpoint;
-        }
-    }
-
-    pub fn set_altitude(&mut self, altitude: f32) {
-        let Some(low_y) = self
-            .joints
-            .iter()
-            .map(|joint| joint.location.y)
-            .min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
-            else {
-                return;
-            };
-        let up = altitude - low_y;
-        if up > 0.0 {
-            for joint in &mut self.joints {
-                joint.location.y += up;
-            }
         }
     }
 
