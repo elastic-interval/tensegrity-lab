@@ -362,7 +362,10 @@ impl FabricVertex {
             }
             Pick::Joint(joint_index) => {
                 if interval.touches(*joint_index) {
-                    [1.0, 0.0, 0.0, 1.0]
+                    match fabric.materials[interval.material].role {
+                        Push => [1.0, 1.0, 1.0, 1.0],
+                        Pull => [0.2, 0.2, 1.0, 1.0],
+                    }
                 } else {
                     [0.1, 0.1, 0.1, 1.0]
                 }
@@ -371,7 +374,7 @@ impl FabricVertex {
                 if *id == *interval_id {
                     [0.0, 1.0, 0.0, 1.0]
                 } else if interval.touches(*joint) {
-                    [1.0, 0.0, 0.0, 1.0]
+                    [0.5, 0.0, 0.0, 1.0]
                 } else {
                     [0.1, 0.1, 0.1, 1.0]
                 }
