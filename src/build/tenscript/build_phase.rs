@@ -315,6 +315,7 @@ impl BuildPhase {
                 scale_factor,
             } => {
                 let launch_face = Self::find_launch_face(&launch, &faces, fabric)?;
+                log::info!("before create brick2 {:?} (joints {})", fabric.orphan_joints(), fabric.joints.len());
                 let (base_face_id, brick_faces) = fabric.create_brick(
                     alias,
                     rotation.into(),
@@ -322,6 +323,7 @@ impl BuildPhase {
                     launch_face,
                     brick_library,
                 );
+                log::info!("after create brick2 {:?}, (joints {})", fabric.orphan_joints(), fabric.joints.len());
                 if let Some(face_id) = launch_face {
                     fabric.join_faces(base_face_id, face_id)
                 }

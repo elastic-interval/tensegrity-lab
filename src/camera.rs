@@ -136,7 +136,11 @@ impl Camera {
         match self.pick {
             Pick::Nothing => match best_joint() {
                 None => Pick::Nothing,
-                Some((id, _)) => Pick::Joint(id),
+                Some((id, _)) => {
+                    let adjacent = fabric.interval_values().filter(|interval|interval.touches(id)).count();
+                    log::info!("neighbors {}", adjacent);
+                    Pick::Joint(id)
+                },
             },
             Pick::Joint(joint) | Pick::Interval { joint, .. } => match best_interval_around(joint) {
                 None => Pick::Nothing,

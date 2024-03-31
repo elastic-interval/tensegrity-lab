@@ -1,6 +1,6 @@
 use cgmath::{EuclideanSpace, Point3, Transform, Vector3};
 
-use crate::build::tenscript::brick::{Baked, BakedInterval, BrickFace};
+use crate::build::tenscript::brick::{Baked, BakedInterval, BakedJoint, BrickFace};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::{FaceAlias, Spin};
 use crate::fabric::face::{Face, FaceRotation};
@@ -30,10 +30,10 @@ impl Fabric {
         let joints: Vec<usize> = brick
             .joints
             .into_iter()
-            .map(|point| {
+            .map(|BakedJoint { location, .. }| {
                 self.create_joint(match matrix {
-                    None => point,
-                    Some(matrix) => matrix.transform_point(point),
+                    None => location,
+                    Some(matrix) => matrix.transform_point(location),
                 })
             })
             .collect();

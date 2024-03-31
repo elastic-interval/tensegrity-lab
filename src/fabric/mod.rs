@@ -24,7 +24,8 @@ pub mod lab;
 pub mod physics;
 pub mod progress;
 pub mod vulcanize;
-mod joint_context;
+
+pub mod joint_incident;
 
 #[derive(Clone, Debug)]
 pub struct Fabric {
@@ -60,7 +61,7 @@ impl Fabric {
             .position(|&Material { name, .. }| name == sought_name)
             .unwrap_or_else(|| panic!("missing material {sought_name}"))
     }
-    
+
     pub fn apply_matrix4(&mut self, matrix: Matrix4<f32>) {
         for joint in &mut self.joints {
             joint.location = matrix.transform_point(joint.location);
@@ -149,6 +150,19 @@ impl Fabric {
         let id = UniqueId(self.unique_id);
         self.unique_id += 1;
         id
+    }
+
+    pub fn orphan_joints(&self) -> Vec<usize> {
+        let mut orphans = Vec::new();
+        for joint in 0..self.joints.len() {
+            let touching = self
+                .interval_values()
+                .any(|interval| interval.touches(joint));
+            if !touching {
+                orphans.push(joint)
+            }
+        }
+        orphans
     }
 }
 
