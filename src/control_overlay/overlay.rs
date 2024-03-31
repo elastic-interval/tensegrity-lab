@@ -57,7 +57,7 @@ pub fn ControlOverlayApp(
                 interval.omega_index + 1,
         )
     };
-    
+
     view! {
         {move || 
             match control_state.get() {
@@ -73,12 +73,19 @@ pub fn ControlOverlayApp(
                         </div>
                     }
                 }
+                ControlState::ShowingJoint(joint_index) => {
+                    view!{
+                        <div class="title">
+                            <div>{move || format!("J{}", joint_index+1)}</div>
+                        </div>
+                    }
+                }
                 ControlState::ShowingInterval(interval_details) => {
                     let to_setting_length = 
                         move |_ev| set_control_state.set(ControlState::SettingLength(interval_details));
                     view!{
                         <div class="title">
-                            <div >{formatted_interval(&interval_details)}</div>
+                            <div>{formatted_interval(&interval_details)}</div>
                             <div class="tiny" on:click=to_setting_length>set</div>
                         </div>
                     }
