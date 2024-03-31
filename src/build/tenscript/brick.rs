@@ -1,18 +1,18 @@
 use std::collections::HashMap;
 
-use cgmath::num_traits::abs;
 use cgmath::{
-    point3, EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Quaternion, Rotation, Transform,
+    EuclideanSpace, InnerSpace, Matrix3, Matrix4, point3, Point3, Quaternion, Rotation, Transform,
     Vector3,
 };
+use cgmath::num_traits::abs;
 use pest::iterators::Pair;
 
+use crate::build::tenscript::{FaceAlias, parse_atom, Spin, TenscriptError};
 use crate::build::tenscript::Rule;
 use crate::build::tenscript::Spin::{Left, Right};
-use crate::build::tenscript::{parse_atom, FaceAlias, Spin, TenscriptError};
-use crate::fabric::interval::Interval;
-use crate::fabric::joint::Joint;
 use crate::fabric::{Fabric, Link};
+use crate::fabric::interval::Interval;
+use crate::fabric::joint_incident::JointIncident;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Axis {
@@ -263,7 +263,7 @@ impl BrickFace {
             Left => radial[1].cross(radial[2]),
             Right => radial[2].cross(radial[1]),
         }
-        .normalize();
+            .normalize();
         let (x_axis, y_axis, scale) = (radial[0].normalize(), inward, radial[0].magnitude());
         let z_axis = x_axis.cross(y_axis).normalize();
         Matrix4::from_translation(midpoint)
@@ -278,11 +278,11 @@ impl BrickFace {
             Left => radial[2].cross(radial[1]),
             Right => radial[1].cross(radial[2]),
         }
-        .normalize()
+            .normalize()
     }
 
     fn radial_locations(&self, baked: &Baked) -> [Vector3<f32>; 3] {
-        self.joints.map(|index| baked.joints[index].to_vec())
+        self.joints.map(|index| baked.joints[index].location.to_vec())
     }
 
     fn midpoint(radial: [Vector3<f32>; 3]) -> Vector3<f32> {
@@ -296,6 +296,12 @@ impl BrickFace {
 }
 
 #[derive(Debug, Clone)]
+pub struct BakedJoint {
+    pub(crate) location: Point3<f32>,
+    has_push: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct BakedInterval {
     pub alpha_index: usize,
     pub omega_index: usize,
@@ -306,7 +312,7 @@ pub struct BakedInterval {
 #[derive(Debug, Clone, Default)]
 pub struct Baked {
     pub alias: FaceAlias,
-    pub joints: Vec<Point3<f32>>,
+    pub joints: Vec<BakedJoint>,
     pub intervals: Vec<BakedInterval>,
     pub faces: Vec<BrickFace>,
 }
@@ -327,7 +333,7 @@ impl Baked {
                         inner.next().unwrap().as_str().parse().unwrap(),
                         inner.next().unwrap().as_str().parse().unwrap(),
                     ];
-                    joints.push(point3(x, y, z));
+                    joints.push(BakedJoint { location: point3(x, y, z), has_push: true });
                 }
                 Rule::interval_baked => {
                     let mut inner = pair.into_inner();
@@ -382,7 +388,7 @@ impl Baked {
 
     pub(crate) fn apply_matrix(&mut self, matrix: Matrix4<f32>) {
         for joint in &mut self.joints {
-            *joint = matrix.transform_point(*joint)
+            joint.location = matrix.transform_point(joint.location)
         }
     }
 
@@ -410,6 +416,7 @@ impl Baked {
             joints = self
                 .joints
                 .into_iter()
+                .filter_map(|BakedJoint { location, has_push }| if has_push { Some(location) } else { None })
                 .map(|Point3 { x, y, z }| format!("(joint {x:.4} {y:.4} {z:.4})"))
                 .collect::<Vec<_>>()
                 .join("\n    "),
@@ -459,7 +466,7 @@ impl TryFrom<(Fabric, FaceAlias)> for Baked {
     type Error = String;
 
     fn try_from((fabric, alias): (Fabric, FaceAlias)) -> Result<Self, String> {
-        let joint_incident = fabric.joint_incident();
+        let joint_incidents = fabric.joint_incidents();
         let target_face_strain = Baked::TARGET_FACE_STRAIN;
         for face in fabric.faces.values() {
             let strain = face.strain(&fabric);
@@ -471,23 +478,23 @@ impl TryFrom<(Fabric, FaceAlias)> for Baked {
         }
         Ok(Self {
             alias,
-            joints: fabric
-                .joints
+            joints: joint_incidents
                 .iter()
-                .map(|Joint { location, .. }| *location)
+                .map(|JointIncident { location, push, .. }|
+                    BakedJoint { location: *location, has_push: push.is_some() })
                 .collect(),
             intervals: fabric
                 .interval_values()
                 .filter_map(
                     |&Interval {
-                         alpha_index,
-                         omega_index,
-                         material,
-                         strain,
-                         ..
-                     }| {
+                        alpha_index,
+                        omega_index,
+                        material,
+                        strain,
+                        ..
+                    }| {
                         let material = fabric.materials[material].name.to_string();
-                        joint_incident[alpha_index].push.map(|_| BakedInterval {
+                        joint_incidents[alpha_index].push.map(|_| BakedInterval {
                             alpha_index,
                             omega_index,
                             strain,
