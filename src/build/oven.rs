@@ -10,10 +10,6 @@ pub struct Oven {
 
 impl Oven {
     pub fn new(prototype: Prototype) -> Self {
-        log::info!(
-            "Settling and capturing prototype number {:?}",
-            prototype.alias
-        );
         let alias = prototype.alias.clone();
         let prototype_fabric = Fabric::from(prototype);
         Self {
