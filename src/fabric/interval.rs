@@ -52,7 +52,6 @@ impl Fabric {
     pub fn interval_values(&self) -> impl Iterator<Item=&Interval> {
         self.intervals.values()
     }
-
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -184,6 +183,10 @@ impl Interval {
         let half_mass = mass * real_length / 2.0;
         joints[self.alpha_index].interval_mass += half_mass;
         joints[self.omega_index].interval_mass += half_mass;
+    }
+
+    pub fn touches(&self, joint: usize) -> bool {
+        self.alpha_index == joint || self.omega_index == joint
     }
 
     pub fn other_joint(&self, joint_index: usize) -> usize {

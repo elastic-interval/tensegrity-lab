@@ -11,6 +11,17 @@ use winit_input_helper::WinitInputHelper;
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::Interval;
 
+#[derive(Debug, Clone)]
+pub enum Pick {
+    Nothing,
+    Joint(usize),
+    Interval {
+        joint: usize,
+        id: UniqueId,
+        interval: Interval,
+    },
+}
+
 const TARGET_ATTRACTION: f32 = 0.01;
 
 pub struct Camera {
@@ -20,6 +31,7 @@ pub struct Camera {
     pub width: f32,
     pub height: f32,
     pub pick_cursor: Option<(f32, f32)>,
+    pub pick: Pick,
 }
 
 impl Camera {
@@ -35,14 +47,14 @@ impl Camera {
             width,
             height,
             pick_cursor: None,
+            pick: Pick::Nothing,
         }
     }
 
-    pub fn handle_input(&mut self, input: &WinitInputHelper, fabric: &Fabric) -> Option<(UniqueId, Interval)> {
+    pub fn handle_input(&mut self, input: &WinitInputHelper, fabric: &Fabric) -> Option<Pick> {
         if input.mouse_held(MouseButton::Left) {
             if let Some(rotation) = self.rotation(input.mouse_diff()) {
-                self.position =
-                    self.look_at - rotation.transform_vector(self.look_at - self.position);
+                self.position = self.look_at - rotation.transform_vector(self.look_at - self.position);
                 self.pick_cursor = None;
             }
         }
@@ -51,8 +63,8 @@ impl Camera {
         }
         if input.mouse_released(MouseButton::Left) {
             if let Some(pick_cursor) = self.pick_cursor {
-                let picked = self.pick(pick_cursor, fabric);
-                return picked;
+                self.pick = self.pick(pick_cursor, fabric);
+                return Some(self.pick.clone());
             }
         }
         let (_sx, sy) = input.scroll_diff();
@@ -89,7 +101,7 @@ impl Camera {
         self.projection_matrix() * self.view_matrix()
     }
 
-    pub fn pick(&mut self, (px, py): (f32, f32), fabric: &Fabric) -> Option<(UniqueId, Interval)> {
+    pub fn pick(&mut self, (px, py): (f32, f32), fabric: &Fabric) -> Pick {
         let width = self.width / 2.0;
         let height = self.height / 2.0;
         let x = (px - width) / width;
@@ -101,19 +113,36 @@ impl Camera {
             .unwrap()
             .transform_point(position);
         let ray = (point3d - self.position).normalize();
-        let best = fabric
-            .intervals
+        let best_joint = || fabric
+            .joints
             .iter()
-            .map(|(interval_id, interval)| {
-                (
-                    interval_id,
-                    (interval.midpoint(&fabric.joints).to_vec() - self.position.to_vec())
-                        .normalize()
-                        .dot(ray),
-                )
+            .enumerate()
+            .map(|(index, joint)| {
+                (index, (joint.location.to_vec() - self.position.to_vec()).normalize().dot(ray))
             })
             .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b));
-        best.map(|(id, _)| (*id, *fabric.interval(*id)))
+        let best_interval_around = |joint: usize| fabric
+            .intervals
+            .iter()
+            .filter(|(_, interval)| interval.touches(joint))
+            .map(|(interval_id, interval)| {
+                let other = fabric.joints[interval.other_joint(joint)];
+                let dot = (other.location.to_vec() - self.position.to_vec())
+                    .normalize()
+                    .dot(ray);
+                (interval_id, dot)
+            })
+            .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b));
+        match self.pick {
+            Pick::Nothing => match best_joint() {
+                None => Pick::Nothing,
+                Some((id, _)) => Pick::Joint(id),
+            },
+            Pick::Joint(joint) | Pick::Interval { joint, .. } => match best_interval_around(joint) {
+                None => Pick::Nothing,
+                Some((id, _)) => Pick::Interval { joint, id: *id, interval: *fabric.interval(*id) }
+            },
+        }
     }
 
     fn view_matrix(&self) -> Matrix4<f32> {
@@ -147,6 +176,7 @@ pub enum Target {
     Origin,
     #[default]
     FabricMidpoint,
+    AroundJoint(usize),
     AroundInterval(UniqueId),
 }
 
@@ -155,6 +185,9 @@ impl Target {
         match self {
             Target::Origin => point3(0.0, 0.0, 0.0),
             Target::FabricMidpoint => fabric.midpoint(),
+            Target::AroundJoint(joint_id) => {
+                fabric.joints[*joint_id].location
+            }
             Target::AroundInterval(interval_id) => {
                 fabric.interval(*interval_id).midpoint(&fabric.joints)
             }
