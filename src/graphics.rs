@@ -8,11 +8,7 @@ pub struct Graphics {
 }
 
 impl Graphics {
-    pub async fn new(window: &Window) -> Self {
-        let mut size = window.inner_size();
-        size.width = size.width.max(1);
-        size.height = size.height.max(1);
-        log::info!("size = {size:?}");
+    pub async fn new(window: &Window, width: u32, height: u32) -> Self {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -55,8 +51,8 @@ impl Graphics {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
             alpha_mode: surface_caps.alpha_modes[0],
-            width: size.width,
-            height: size.height,
+            width,
+            height,
             present_mode: wgpu::PresentMode::Fifo,
             view_formats: vec![],
         };

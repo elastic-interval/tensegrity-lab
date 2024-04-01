@@ -77,6 +77,7 @@ pub fn ControlOverlayApp(
                     view!{
                         <div class="title">
                             <div>{move || format!("J{}", joint_index+1)}</div>
+                            <div class="tiny">esc</div>
                         </div>
                     }
                 }

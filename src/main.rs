@@ -95,18 +95,20 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) {
             .expect("no element with id 'canvas'")
             .dyn_into()
             .expect("not a canvas");
+        let ratio = web_sys_window.device_pixel_ratio();
         let width = web_sys_window.inner_width().unwrap().as_f64().unwrap();
         let height = web_sys_window.inner_height().unwrap().as_f64().unwrap();
+        let size = PhysicalSize::new(width * ratio, height * ratio);
         window_builder = window_builder
             .with_canvas(Some(canvas))
-            .with_inner_size(PhysicalSize::new(width * 2.0, height * 2.0)); // for retina screen
+            .with_inner_size(size);
     }
 
     let winit_window = window_builder
         .build(&event_loop)
         .expect("Could not build window");
 
-    let graphics = pollster::block_on(Graphics::new(&winit_window));
+    let graphics = pollster::block_on(Graphics::new(&winit_window, 1, 1));
     let mut app = Application::new(graphics, (control_state, set_control_state), (actions_tx, actions_rx));
     if let Some(fabric_name) = fabric_name {
         app.run_fabric(&fabric_name);
