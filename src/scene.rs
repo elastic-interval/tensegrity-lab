@@ -292,14 +292,12 @@ impl Scene {
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
-        if width > 0 && height > 0 {
-            self.graphics.config.width = width;
-            self.graphics.config.height = height;
-            self.graphics
-                .surface
-                .configure(&self.graphics.device, &self.graphics.config);
-            self.camera.set_size(width as f32, height as f32);
-        }
+        self.graphics.config.width = width;
+        self.graphics.config.height = height;
+        self.graphics
+            .surface
+            .configure(&self.graphics.device, &self.graphics.config);
+        self.camera.set_size(width as f32, height as f32);
     }
 
     fn update_from_camera(&self, graphics: &Graphics) {
