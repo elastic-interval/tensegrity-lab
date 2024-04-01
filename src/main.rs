@@ -107,8 +107,8 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) {
     let winit_window = window_builder
         .build(&event_loop)
         .expect("Could not build window");
-
-    let graphics = pollster::block_on(Graphics::new(&winit_window, 1, 1));
+    
+    let graphics = pollster::block_on(Graphics::new(&winit_window, 100, 100));
     let mut app = Application::new(graphics, (control_state, set_control_state), (actions_tx, actions_rx));
     if let Some(fabric_name) = fabric_name {
         app.run_fabric(&fabric_name);
