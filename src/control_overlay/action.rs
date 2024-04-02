@@ -1,8 +1,8 @@
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::crucible::CrucibleAction;
-use crate::scene::SceneAction;
 use std::time::SystemTime;
 use winit::keyboard::Key;
+use crate::camera::Pick;
 
 #[derive(Debug, Clone)]
 pub enum GravityMessage {
@@ -44,7 +44,7 @@ pub enum ControlMessage {
 #[derive(Clone, Debug)]
 pub enum Action {
     Crucible(CrucibleAction),
-    Scene(SceneAction),
+    Scene(Pick),
     CalibrateStrain,
     UpdatedLibrary(SystemTime),
     LoadFabric(String),

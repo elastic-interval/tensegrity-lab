@@ -7,16 +7,16 @@ use winit_input_helper::WinitInputHelper;
 
 use control_overlay::ControlState;
 
+use crate::build::tenscript::{FabricPlan, FaceAlias, TenscriptError};
 use crate::build::tenscript::brick::Baked;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
-use crate::build::tenscript::{FabricPlan, FaceAlias, TenscriptError};
 use crate::camera::Pick;
 use crate::control_overlay;
 use crate::control_overlay::action::Action;
 use crate::crucible::{Crucible, CrucibleAction};
 use crate::graphics::Graphics;
-use crate::scene::{Scene, SceneAction};
+use crate::scene::Scene;
 
 pub struct Application {
     scene: Scene,
@@ -67,7 +67,7 @@ impl Application {
                     match &crucible_action {
                         CrucibleAction::BuildFabric(fabric_plan) => {
                             self.fabric_plan_name = fabric_plan.name.clone();
-                            self.scene.action(SceneAction::Selected(Pick::Nothing));
+                            self.scene.do_pick(Pick::Nothing);
                             // self.user_interface.message(ControlMessage::Reset);
                         }
                         CrucibleAction::StartPretensing(_) => {
@@ -87,8 +87,8 @@ impl Application {
                         self.reload_fabric();
                     }
                 }
-                Action::Scene(scene_action) => {
-                    self.scene.action(scene_action);
+                Action::Scene(pick) => {
+                    self.scene.do_pick(pick);
                 }
                 Action::CalibrateStrain => {
                     // let strain_limits =
