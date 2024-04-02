@@ -19,13 +19,6 @@ use crate::graphics::Graphics;
 const MAX_INTERVALS: usize = 5000;
 
 #[derive(Debug, Clone)]
-pub enum SceneAction {
-    Selected(Pick),
-    WatchMidpoint,
-    WatchOrigin,
-}
-
-#[derive(Debug, Clone)]
 pub struct StrainRendering {
     _threshold: f32,
     _material: usize,
@@ -238,12 +231,12 @@ impl Scene {
                         _ => {}
                     };
                 }
-                Pick::Joint(_) => self.action(SceneAction::Selected(Pick::Nothing)),
-                Pick::Interval { joint, .. } => self.action(SceneAction::Selected(Pick::Joint(joint))),
+                Pick::Joint(_) => self.do_pick(Pick::Nothing),
+                Pick::Interval { joint, .. } => self.do_pick(Pick::Joint(joint)),
             }
         } else if !fabric.progress.is_busy() {
             if let Some(pick) = self.camera.handle_input(input, fabric) {
-                self.action(SceneAction::Selected(pick))
+                self.do_pick(pick)
             }
         }
     }
@@ -308,36 +301,30 @@ impl Scene {
             .write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));
     }
 
-    pub fn action(&mut self, scene_action: SceneAction) {
-        match scene_action {
-            SceneAction::Selected(pick) => {
-                match pick {
-                    Pick::Nothing => {
-                        self.camera.target = FabricMidpoint;
-                        self.set_control_state.update(|state| *state = ControlState::Viewing);
-                    }
-                    Pick::Joint(joint_index) => {
-                        self.camera.target = AroundJoint(joint_index);
-                        self.set_control_state.update(|state| *state = ControlState::ShowingJoint(joint_index));
-                    }
-                    Pick::Interval { joint, id, interval } => {
-                        self.camera.target = AroundInterval(id);
-                        let role = MATERIALS[interval.material].role;
-                        let length = match interval.span {
-                            Span::Fixed { length } => length,
-                            _ => 0.0
-                        };
-                        let alpha_index = if interval.alpha_index == joint { interval.alpha_index } else { interval.omega_index };
-                        let omega_index = if interval.omega_index == joint { interval.alpha_index } else { interval.omega_index };
-                        let interval_details = IntervalDetails { alpha_index, omega_index, length, role };
-                        self.set_control_state.update(|state| *state = ControlState::ShowingInterval(interval_details));
-                    }
-                }
-                self.camera.pick = pick;
+    pub fn do_pick(&mut self, pick: Pick) {
+        match pick {
+            Pick::Nothing => {
+                self.camera.target = FabricMidpoint;
+                self.set_control_state.update(|state| *state = ControlState::Viewing);
             }
-            SceneAction::WatchMidpoint => self.camera.target = FabricMidpoint,
-            SceneAction::WatchOrigin => self.camera.target = Origin,
+            Pick::Joint(joint_index) => {
+                self.camera.target = AroundJoint(joint_index);
+                self.set_control_state.update(|state| *state = ControlState::ShowingJoint(joint_index));
+            }
+            Pick::Interval { joint, id, interval } => {
+                self.camera.target = AroundInterval(id);
+                let role = MATERIALS[interval.material].role;
+                let length = match interval.span {
+                    Span::Fixed { length } => length,
+                    _ => 0.0
+                };
+                let alpha_index = if interval.alpha_index == joint { interval.alpha_index } else { interval.omega_index };
+                let omega_index = if interval.omega_index == joint { interval.alpha_index } else { interval.omega_index };
+                let interval_details = IntervalDetails { alpha_index, omega_index, length, role };
+                self.set_control_state.update(|state| *state = ControlState::ShowingInterval(interval_details));
+            }
         }
+        self.camera.pick = pick;
     }
 }
 
@@ -351,19 +338,17 @@ struct FabricVertex {
 impl FabricVertex {
     pub fn for_interval(interval_id: &UniqueId, interval: &Interval, fabric: &Fabric, pick: &Pick) -> [FabricVertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
+        let push_pull = ||match fabric.materials[interval.material].role {
+            Push => [1.0, 1.0, 1.0, 1.0],
+            Pull => [0.2, 0.2, 1.0, 1.0],
+        };
         let color = match pick {
             Pick::Nothing => {
-                match fabric.materials[interval.material].role {
-                    Push => [1.0, 1.0, 1.0, 1.0],
-                    Pull => [0.2, 0.2, 1.0, 1.0],
-                }
+                push_pull()
             }
             Pick::Joint(joint_index) => {
                 if interval.touches(*joint_index) {
-                    match fabric.materials[interval.material].role {
-                        Push => [1.0, 1.0, 1.0, 1.0],
-                        Pull => [0.2, 0.2, 1.0, 1.0],
-                    }
+                    push_pull()
                 } else {
                     [0.1, 0.1, 0.1, 1.0]
                 }
@@ -372,7 +357,7 @@ impl FabricVertex {
                 if *id == *interval_id {
                     [0.0, 1.0, 0.0, 1.0]
                 } else if interval.touches(*joint) {
-                    [0.5, 0.0, 0.0, 1.0]
+                    push_pull()
                 } else {
                     [0.1, 0.1, 0.1, 1.0]
                 }
