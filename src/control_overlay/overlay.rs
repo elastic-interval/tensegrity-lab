@@ -46,8 +46,8 @@ pub fn ControlOverlayApp(
 
     let formatted_interval = move |interval: &IntervalDetails| {
         let [left, right] = match &interval.role {
-            Role::Pull => ['\u{21E8}', '\u{21E6}'],
-            Role::Push => ['\u{21E6}', '\u{21E8}'],
+            Role::Pull => [">>>", "<<<"],
+            Role::Push => ["<<<", ">>>"],
         };
         format!("J{:?} {} {:.1}mm {} J{:?}",
                 interval.alpha_index + 1,
@@ -62,14 +62,15 @@ pub fn ControlOverlayApp(
         {move || 
             match control_state.get() {
                 ControlState::Choosing => {
-                    view! {<div class="choice"><div class="list">{list}</div></div>}
+                    view! {<div class="list">{list}</div>}
                 }
                 ControlState::Viewing => {
                     let to_choosing =
                         move |_ev| set_control_state.set(ControlState::Choosing);
                     view!{
                         <div class="title">
-                            <div on:click=to_choosing>{move || format!("\"{}\"", name.get())}</div>
+                            <div>{move || format!("\"{}\"", name.get())}</div>
+                            <div on:click=to_choosing class="tiny">choose</div>
                         </div>
                     }
                 }
