@@ -45,15 +45,10 @@ pub fn ControlOverlayApp(
     };
 
     let formatted_interval = move |interval: &IntervalDetails| {
-        let [left, right] = match &interval.role {
-            Role::Pull => [">>>", "<<<"],
-            Role::Push => ["<<<", ">>>"],
-        };
-        format!("J{:?} {} {:.1}mm {} J{:?}",
+        format!("J{:?} {:?}({:.1}mm)  J{:?}",
                 interval.alpha_index + 1,
-                left,
+                interval.role,
                 interval.length * scale.get(),
-                right,
                 interval.omega_index + 1,
         )
     };
