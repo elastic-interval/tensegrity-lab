@@ -26,14 +26,10 @@ body {
 
 }
 
-& .choice {
-    width: 100vw;
-}
-
 & .list {
     position: absolute;
-    width: 100%;
-    margin: 60px;
+    width: 100vw;
+    margin-top: 2em;
     display: flex;
     flex-direction: column;
     text-align: center;
@@ -51,6 +47,7 @@ body {
     
     .tiny {
         font-size: small;
+        margin-top: 1em;
     }
 }
 
