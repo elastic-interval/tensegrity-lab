@@ -6,7 +6,6 @@ use leptos_use::utils::FromToStringCodec;
 
 use crate::control_overlay::action::Action;
 use crate::control_state::{ControlState, IntervalDetails};
-use crate::fabric::interval::Role;
 
 #[component]
 pub fn ControlOverlayApp(

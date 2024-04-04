@@ -2,6 +2,7 @@ use std::f32::consts::PI;
 use std::mem;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
+use cgmath::EuclideanSpace;
 use leptos::{ReadSignal, SignalGet, SignalUpdate, WriteSignal};
 use wgpu::util::DeviceExt;
 use winit::keyboard::KeyCode;
@@ -11,7 +12,6 @@ use crate::camera::{Camera, Pick};
 use crate::camera::Target::*;
 use crate::control_state::{ControlState, IntervalDetails};
 use crate::fabric::{Fabric, MATERIALS, UniqueId};
-use crate::fabric::face::Face;
 use crate::fabric::interval::{Interval, Span};
 use crate::fabric::interval::Role::{Pull, Push};
 use crate::graphics::Graphics;
@@ -335,57 +335,58 @@ struct FabricVertex {
     color: [f32; 4],
 }
 
+const GRAY: [f32; 4] = [0.1, 0.1, 0.1, 0.5];
+const SELECTED: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
+const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
+const RED_END: [f32; 4] = [1.0, 0.0, 0.0, 0.2];
+const BLUE: [f32; 4] = [0.5, 0.5, 1.0, 1.0];
+const BLUE_END: [f32; 4] = [0.5, 0.5, 1.0, 0.2];
+
 impl FabricVertex {
-    pub fn for_interval(interval_id: &UniqueId, interval: &Interval, fabric: &Fabric, pick: &Pick) -> [FabricVertex; 2] {
+    pub fn for_interval(interval_id: &UniqueId, interval: &Interval, fabric: &Fabric, pick: &Pick) -> [FabricVertex; 4] {
         let (alpha, omega) = interval.locations(&fabric.joints);
-        let push_pull = ||match fabric.materials[interval.material].role {
-            Push => [1.0, 1.0, 1.0, 1.0],
-            Pull => [0.2, 0.2, 1.0, 1.0],
+        let midpoint = interval.midpoint(&fabric.joints);
+        let (center_color, end_color) = match fabric.materials[interval.material].role {
+            Push => (RED, RED_END),
+            Pull => (BLUE, BLUE_END),
         };
-        let color = match pick {
+        let (center_color, end_color) = match pick {
             Pick::Nothing => {
-                push_pull()
+                (center_color, end_color)
             }
             Pick::Joint(joint_index) => {
                 if interval.touches(*joint_index) {
-                    push_pull()
+                    (center_color, end_color)
                 } else {
-                    [0.1, 0.1, 0.1, 1.0]
+                    (GRAY, GRAY)
                 }
             }
             Pick::Interval { joint, id, .. } => {
                 if *id == *interval_id {
-                    [0.0, 1.0, 0.0, 1.0]
+                    (SELECTED, SELECTED)
                 } else if interval.touches(*joint) {
-                    push_pull()
+                    (center_color, end_color)
                 } else {
-                    [0.1, 0.1, 0.1, 1.0]
+                    (GRAY, GRAY)
                 }
             }
         };
         [
             FabricVertex {
                 position: [alpha.x, alpha.y, alpha.z, 1.0],
-                color,
+                color: end_color,
+            },
+            FabricVertex {
+                position: [midpoint.x, midpoint.y, midpoint.z, 1.0],
+                color: center_color,
+            },
+            FabricVertex {
+                position: [midpoint.x, midpoint.y, midpoint.z, 1.0],
+                color: center_color,
             },
             FabricVertex {
                 position: [omega.x, omega.y, omega.z, 1.0],
-                color,
-            },
-        ]
-    }
-
-    pub fn _for_face(face: &Face, fabric: &Fabric) -> [FabricVertex; 2] {
-        let (alpha, _, omega) = face.visible_points(fabric);
-        let (alpha_color, omega_color) = ([1.0, 0.0, 0.0, 1.0], [1.0, 0.0, 0.0, 1.0]);
-        [
-            FabricVertex {
-                position: [alpha.x, alpha.y, alpha.z, 1.0],
-                color: alpha_color,
-            },
-            FabricVertex {
-                position: [omega.x, omega.y, omega.z, 1.0],
-                color: omega_color,
+                color: end_color,
             },
         ]
     }
