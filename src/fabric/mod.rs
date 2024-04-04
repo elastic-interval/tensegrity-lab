@@ -169,7 +169,7 @@ impl Fabric {
 #[derive(Clone, Debug, Copy, PartialEq, Default, Hash, Eq, Ord, PartialOrd)]
 pub struct UniqueId(usize);
 
-pub const MATERIALS: [Material; 5] = [
+pub const MATERIALS: [Material; 6] = [
     Material {
         name: ":push",
         role: Push,
@@ -197,6 +197,12 @@ pub const MATERIALS: [Material; 5] = [
     Material {
         name: ":south",
         role: Pull,
+        stiffness: 0.5,
+        mass: 0.01,
+    },
+    Material {
+        name: ":spring",
+        role: Spring,
         stiffness: 0.5,
         mass: 0.01,
     },
