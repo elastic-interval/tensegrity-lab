@@ -30,6 +30,7 @@ pub struct JointIncident {
     pub location: Point3<f32>,
     pub push: Option<Interval>,
     pub pulls: Vec<Interval>,
+    pub springs: Vec<Interval>,
     pub pull_adjacent_joints: HashSet<usize>,
     pub adjacent_joints: HashSet<usize>,
 }
@@ -41,6 +42,7 @@ impl JointIncident {
             location,
             push: None,
             pulls: vec![],
+            springs: vec![],
             pull_adjacent_joints: HashSet::new(),
             adjacent_joints: HashSet::new(),
         }
@@ -53,6 +55,9 @@ impl JointIncident {
                 self.pulls.push(*interval);
                 self.pull_adjacent_joints
                     .insert(interval.other_joint(self.index));
+            }
+            Role::Spring => {
+                self.springs.push(*interval);
             }
         }
         self.adjacent_joints

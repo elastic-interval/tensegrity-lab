@@ -10,7 +10,7 @@ use cgmath::num_traits::zero;
 
 use crate::fabric::face::Face;
 use crate::fabric::interval::{Interval, Material};
-use crate::fabric::interval::Role::{Pull, Push};
+use crate::fabric::interval::Role::{Pull, Push, Spring};
 use crate::fabric::interval::Span::{Approaching, Fixed};
 use crate::fabric::joint::Joint;
 use crate::fabric::physics::Physics;
@@ -90,7 +90,7 @@ impl Fabric {
                     initial: length,
                     length: length * push_extension,
                 },
-                Pull => Fixed { length },
+                Pull | Spring => Fixed { length },
             };
         }
         for joint in self.joints.iter_mut() {

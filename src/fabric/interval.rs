@@ -65,6 +65,7 @@ pub enum Span {
 pub enum Role {
     Push,
     Pull,
+    Spring,
 }
 
 #[derive(Clone, Debug, PartialEq)]
