@@ -2,7 +2,6 @@ use std::f32::consts::PI;
 use std::mem;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use cgmath::EuclideanSpace;
 use leptos::{ReadSignal, SignalGet, SignalUpdate, WriteSignal};
 use wgpu::util::DeviceExt;
 use winit::keyboard::KeyCode;
@@ -12,8 +11,7 @@ use crate::camera::{Camera, Pick};
 use crate::camera::Target::*;
 use crate::control_state::{ControlState, IntervalDetails};
 use crate::fabric::{Fabric, MATERIALS, UniqueId};
-use crate::fabric::interval::{Interval, Span};
-use crate::fabric::interval::Role::{Pull, Push};
+use crate::fabric::interval::{Interval, Role, Span};
 use crate::graphics::Graphics;
 
 const MAX_INTERVALS: usize = 5000;
@@ -347,8 +345,9 @@ impl FabricVertex {
         let (alpha, omega) = interval.locations(&fabric.joints);
         let midpoint = interval.midpoint(&fabric.joints);
         let (center_color, end_color) = match fabric.materials[interval.material].role {
-            Push => (RED, RED_END),
-            Pull => (BLUE, BLUE_END),
+            Role::Push => (RED, RED_END),
+            Role::Pull => (BLUE, BLUE_END),
+            Role::Spring => (SELECTED, SELECTED),
         };
         let (center_color, end_color) = match pick {
             Pick::Nothing => {
