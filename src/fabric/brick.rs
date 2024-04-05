@@ -1,4 +1,4 @@
-use cgmath::{EuclideanSpace, Point3, Transform, Vector3};
+use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
 
 use crate::build::tenscript::brick::{Baked, BakedInterval, BakedJoint, BrickFace};
 use crate::build::tenscript::brick_library::BrickLibrary;
@@ -26,16 +26,14 @@ impl Fabric {
             Some(spin_alias) => spin_alias + face_alias,
         };
         let brick = brick_library.new_brick(&search_alias);
-        let matrix = face.map(|face| face.vector_space(self, rotation));
+        let matrix = face
+            .map(|face| face.vector_space(self, rotation))
+            .unwrap_or(Matrix4::from_scale(scale));
         let joints: Vec<usize> = brick
             .joints
             .into_iter()
-            .map(|BakedJoint { location, .. }| {
-                self.create_joint(match matrix {
-                    None => location,
-                    Some(matrix) => matrix.transform_point(location),
-                })
-            })
+            .map(|BakedJoint { location, .. }| 
+                self.create_joint(matrix.transform_point(location)))
             .collect();
         for BakedInterval {
             alpha_index,

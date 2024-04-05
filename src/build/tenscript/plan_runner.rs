@@ -73,7 +73,7 @@ impl PlanRunner {
             }
             GrowApproach => (GrowCalm, 500),
             GrowCalm => (GrowStep, 0),
-            Shaping => match self.shape_phase.shaping_step(fabric)? {
+            Shaping => match self.shape_phase.shaping_step(fabric, brick_library)? {
                 ShapeCommand::Noop => (Shaping, 0),
                 ShapeCommand::StartCountdown(countdown) => (Shaping, countdown),
                 ShapeCommand::SetViscosity(viscosity) => {
