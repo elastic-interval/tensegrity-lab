@@ -227,9 +227,9 @@ impl ShapePhase {
                         let alpha_index = joints[alpha];
                         let omega_index = joints[omega];
                         let length = fabric
-                            .joints[alpha]
+                            .joints[alpha_index]
                             .location
-                            .distance(fabric.joints[omega].location)
+                            .distance(fabric.joints[omega_index].location)
                             * distance_factor;
                         let interval = fabric.create_interval(alpha_index, omega_index, Link::pull(length));
                         self.spacers.push(Shaper {
