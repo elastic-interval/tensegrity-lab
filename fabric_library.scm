@@ -163,7 +163,6 @@
       (join :loose)
       (faces-to-triangles))
     (pretense (surface :bouncy)))
-
   (fabric
     (name "Triped")
     (build
@@ -174,6 +173,21 @@
         ))
     (shape
       (during 18000 (space :end 0.4))
+      (during 80000 (vulcanize))
+      (faces-to-triangles)
+      )
+    (pretense (surface :bouncy)))
+  (fabric
+    (name "Convergence")
+    (build
+      (branch (alias Omni)
+        (face (alias Top:Right) (grow 2 (scale .9)))
+        (face (alias Bottom:Right) (grow 10 (scale .9) (mark :end)))
+        (face (alias Back:Left) (grow 10 (scale .9) (mark :end)))
+        (face (alias Front:Left) (grow 10 (scale .9) (mark :end)))
+        ))
+    (shape
+      (during 18000 (join :end))
       (during 80000 (vulcanize))
       (faces-to-triangles)
       )

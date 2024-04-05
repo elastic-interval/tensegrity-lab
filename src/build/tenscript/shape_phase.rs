@@ -2,9 +2,11 @@ use cgmath::{InnerSpace, Matrix4, MetricSpace, Quaternion, Vector3};
 use pest::iterators::Pair;
 
 use crate::build::tenscript::shape_phase::ShapeCommand::*;
-use crate::build::tenscript::Rule;
+use crate::build::tenscript::{FaceAlias, Rule};
 use crate::build::tenscript::{FaceMark, TenscriptError};
+use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::fabric::{Fabric, Link, UniqueId};
+use crate::fabric::face::FaceRotation;
 
 const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 25_000;
 const DEFAULT_VULCANIZE_COUNTDOWN: usize = 5_000;
@@ -146,7 +148,7 @@ impl ShapePhase {
         !self.operations.is_empty()
     }
 
-    pub fn shaping_step(&mut self, fabric: &mut Fabric) -> Result<ShapeCommand, TenscriptError> {
+    pub fn shaping_step(&mut self, fabric: &mut Fabric, brick_library: &BrickLibrary) -> Result<ShapeCommand, TenscriptError> {
         if let Some(countdown) = self.complete_joiners(fabric) {
             return Ok(countdown);
         }
@@ -155,7 +157,7 @@ impl ShapePhase {
             return Ok(Terminate);
         };
         self.shape_operation_index += 1;
-        self.execute_shape_operation(fabric, operation.clone())
+        self.execute_shape_operation(fabric, brick_library, operation.clone())
     }
 
     pub fn complete_joiners(&mut self, fabric: &mut Fabric) -> Option<ShapeCommand> {
@@ -177,24 +179,40 @@ impl ShapePhase {
     fn execute_shape_operation(
         &mut self,
         fabric: &mut Fabric,
+        brick_library: &BrickLibrary,
         operation: ShapeOperation,
     ) -> Result<ShapeCommand, TenscriptError> {
         Ok(match operation {
             ShapeOperation::Joiner { mark_name } => {
                 let faces = self.marked_faces(&mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
-                match (joints.as_slice(), faces.as_slice()) {
-                    (&[alpha_index, omega_index], &[alpha_face, omega_face]) => {
-                        let interval =
-                            fabric.create_interval(alpha_index, omega_index, Link::pull(0.01));
-                        self.joiners.push(Shaper {
-                            interval,
-                            alpha_face,
-                            omega_face,
-                            mark_name,
-                        })
+                match faces.len() {
+                    2 => {
+                        let interval = fabric.create_interval(joints[0], joints[1], Link::pull(0.01));
+                        self.joiners.push(Shaper { interval, alpha_face: faces[0], omega_face: faces[1], mark_name })
                     }
-                    _ => unimplemented!(),
+                    3 => {
+                        let scale = faces
+                            .iter()
+                            .map(|id| fabric.face(*id))
+                            .map(|face| face.scale)
+                            .sum::<f32>() / (faces.len() as f32);
+                        println!("scale {:?}", scale);
+                        let alias = FaceAlias::single("Omni");
+                        let (_base_face_id, brick_faces) = fabric.create_brick(
+                            &alias,
+                            FaceRotation::Zero,
+                            scale,
+                            None,
+                            brick_library,
+                        );
+                        for index in 0..faces.len() {
+                            let omni_joint = fabric.face(brick_faces[index]).middle_joint(fabric);
+                            let interval = fabric.create_interval(omni_joint, joints[index], Link::pull(0.01));
+                            self.joiners.push(Shaper { interval, alpha_face: brick_faces[index], omega_face: faces[index], mark_name: mark_name.clone() })
+                        }
+                    }
+                    _ => unimplemented!("Join can only be 2 or three faces")
                 }
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
@@ -238,7 +256,6 @@ impl ShapePhase {
                             omega_face: faces[omega],
                             mark_name: mark_name.clone(),
                         })
-
                     }
                 }
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
@@ -265,7 +282,7 @@ impl ShapePhase {
             ShapeOperation::Countdown { count, operations } => {
                 for operation in operations {
                     // ignores the countdown returned from each sub-operation
-                    let _ = self.execute_shape_operation(fabric, operation);
+                    let _ = self.execute_shape_operation(fabric, brick_library, operation);
                 }
                 StartCountdown(count)
             }
