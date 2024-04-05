@@ -6,16 +6,24 @@ use crate::build::tenscript::{FaceAlias, Spin};
 use crate::fabric::face::{Face, FaceRotation};
 use crate::fabric::{Fabric, Link, UniqueId};
 
+pub enum BaseFace {
+    ExistingFace(UniqueId),
+    Nothing,
+}
+
 impl Fabric {
     pub fn create_brick(
         &mut self,
         face_alias: &FaceAlias,
         rotation: FaceRotation,
         scale_factor: f32,
-        face_id: Option<UniqueId>,
+        base_face: BaseFace,
         brick_library: &BrickLibrary,
     ) -> (UniqueId, Vec<UniqueId>) {
-        let face = face_id.map(|id| self.face(id));
+        let face = match base_face {
+            BaseFace::ExistingFace(id) => Some(self.face(id)),
+            BaseFace::Nothing => None,
+        };
         let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
         let spin_alias = face_alias
             .spin()

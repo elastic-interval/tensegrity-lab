@@ -9,6 +9,7 @@ use crate::build::tenscript::Rule;
 use crate::build::tenscript::{FaceAlias, FaceMark, TenscriptError};
 use crate::fabric::face::FaceRotation;
 use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::brick::BaseFace;
 
 #[derive(Debug, Default, Clone)]
 pub struct Bud {
@@ -243,7 +244,7 @@ impl BuildPhase {
                 &face_alias,
                 FaceRotation::Zero,
                 scale_factor,
-                Some(face_id),
+                BaseFace::ExistingFace(face_id),
                 brick_library,
             );
             fabric.join_faces(base_face, face_id);
@@ -319,7 +320,7 @@ impl BuildPhase {
                     alias,
                     rotation.into(),
                     *scale_factor,
-                    launch_face,
+                    launch_face.map(|id| BaseFace::ExistingFace(id)).unwrap_or(BaseFace::Nothing),
                     brick_library,
                 );
                 if let Some(face_id) = launch_face {
