@@ -87,7 +87,7 @@ impl ShapePhase {
     }
 
     fn parse_shape_operations<'a>(
-        pairs: impl Iterator<Item = Pair<'a, Rule>>,
+        pairs: impl Iterator<Item=Pair<'a, Rule>>,
     ) -> Result<Vec<ShapeOperation>, TenscriptError> {
         pairs.map(Self::parse_shape_operation).collect()
     }
@@ -222,22 +222,24 @@ impl ShapePhase {
             } => {
                 let faces = self.marked_faces(&mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
-                match (joints.as_slice(), faces.as_slice()) {
-                    (&[alpha_index, omega_index], &[alpha_face, omega_face]) => {
-                        let length = fabric.joints[alpha_index]
+                for alpha in 0..faces.len() - 1 {
+                    for omega in (alpha + 1)..faces.len() {
+                        let alpha_index = joints[alpha];
+                        let omega_index = joints[omega];
+                        let length = fabric
+                            .joints[alpha]
                             .location
-                            .distance(fabric.joints[omega_index].location)
+                            .distance(fabric.joints[omega].location)
                             * distance_factor;
-                        let interval =
-                            fabric.create_interval(alpha_index, omega_index, Link::pull(length));
+                        let interval = fabric.create_interval(alpha_index, omega_index, Link::pull(length));
                         self.spacers.push(Shaper {
                             interval,
-                            alpha_face,
-                            omega_face,
-                            mark_name,
+                            alpha_face: faces[alpha],
+                            omega_face: faces[omega],
+                            mark_name: mark_name.clone(),
                         })
+
                     }
-                    _ => log::info!("Wrong number of faces for mark {mark_name}"),
                 }
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
