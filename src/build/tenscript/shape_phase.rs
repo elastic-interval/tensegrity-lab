@@ -1,12 +1,13 @@
-use cgmath::{InnerSpace, Matrix4, MetricSpace, Quaternion, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};
 use pest::iterators::Pair;
 
 use crate::build::tenscript::shape_phase::ShapeCommand::*;
-use crate::build::tenscript::{FaceAlias, Rule};
+use crate::build::tenscript::{FaceAlias, Rule, Spin};
 use crate::build::tenscript::{FaceMark, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::fabric::{Fabric, Link, UniqueId};
-use crate::fabric::face::FaceRotation;
+use crate::fabric::brick::BaseFace;
+use crate::fabric::face::{FaceRotation, vector_space};
 
 const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 25_000;
 const DEFAULT_VULCANIZE_COUNTDOWN: usize = 5_000;
@@ -192,18 +193,41 @@ impl ShapePhase {
                         self.joiners.push(Shaper { interval, alpha_face: faces[0], omega_face: faces[1], mark_name })
                     }
                     3 => {
-                        let scale = faces
-                            .iter()
-                            .map(|id| fabric.face(*id))
-                            .map(|face| face.scale)
-                            .sum::<f32>() / (faces.len() as f32);
-                        println!("scale {:?}", scale);
+                        let face0 = fabric.face(faces[0]);
+                        let face1 = fabric.face(faces[1]);
+                        let face2 = fabric.face(faces[2]);
+                        let spin = face0.spin;
+                        if face1.spin != spin || face2.spin != spin {
+                            panic!("Faces must have the same spin");
+                        }
+                        let scale = (face0.scale + face1.scale + face2.scale) / 3.0;
+                        let midpoint0 = face0.midpoint(fabric);
+                        let midpoint1 = face1.midpoint(fabric);
+                        let midpoint2 = face2.midpoint(fabric);
+                        let normal0 = face0.normal(fabric);
+                        let normal1 = face1.normal(fabric);
+                        let normal2 = face2.normal(fabric);
+                        let normal = (normal0 + normal1 + normal2).normalize();
+                        let midpoint = (midpoint0 + midpoint1 + midpoint2) / 3.0;
+                        let ray0 = (midpoint0 - midpoint).normalize_to(scale);
+                        let ray1 = (midpoint1 - midpoint).normalize_to(scale);
+                        let ray2 = (midpoint2 - midpoint).normalize_to(scale);
+                        let spin_normal = match spin {
+                            Spin::Left => ray0.cross(ray1).normalize(),
+                            Spin::Right => ray1.cross(ray0).normalize(),
+                        };
+                        let points = if spin_normal.dot(normal) > 0.0 {
+                            [ray0 + midpoint, ray1 + midpoint, ray2 + midpoint]
+                        } else {
+                            [ray0 + midpoint, ray2 + midpoint, ray1 + midpoint]
+                        }.map(Point3::from_vec);
+                        let space = vector_space(points, scale, spin, FaceRotation::Zero);
                         let alias = FaceAlias::single("Omni");
                         let (_base_face_id, brick_faces) = fabric.create_brick(
                             &alias,
                             FaceRotation::Zero,
                             scale,
-                            None,
+                            BaseFace::Nothing,
                             brick_library,
                         );
                         for index in 0..faces.len() {

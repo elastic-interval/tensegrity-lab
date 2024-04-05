@@ -167,21 +167,26 @@ impl Face {
     }
 
     pub fn vector_space(&self, fabric: &Fabric, rotation: FaceRotation) -> Matrix4<f32> {
-        let midpoint = self.midpoint(fabric);
-        let radial = self.radial_joint_locations(fabric);
-        let (a, b) = match rotation {
-            FaceRotation::Zero => (radial[0], radial[1]),
-            FaceRotation::OneThird => (radial[1], radial[2]),
-            FaceRotation::TwoThirds => (radial[2], radial[0]),
-        };
-        let (x_axis, y_axis, scale) = (
-            (a.to_vec() + b.to_vec() - midpoint * 2.0).normalize(),
-            self.normal(fabric),
-            self.scale,
-        );
-        let z_axis = x_axis.cross(y_axis).normalize();
-        Matrix4::from_translation(midpoint)
-            * Matrix4::from(Matrix3::from_cols(x_axis, y_axis, z_axis))
-            * Matrix4::from_scale(scale)
+        vector_space(self.radial_joint_locations(fabric), self.scale, self.spin, rotation)
     }
+}
+
+pub fn vector_space(p: [Point3<f32>; 3], scale: f32, spin: Spin, rotation: FaceRotation) -> Matrix4<f32> {
+    let midpoint = (p[0].to_vec() + p[1].to_vec() + p[2].to_vec()) / 3.0;
+    let (a, b) = match rotation {
+        FaceRotation::Zero => (p[0], p[1]),
+        FaceRotation::OneThird => (p[1], p[2]),
+        FaceRotation::TwoThirds => (p[2], p[0]),
+    };
+    let v1 = p[1] - p[0];
+    let v2 = p[2] - p[0];
+    let y_axis = match spin {
+        Spin::Left => v2.cross(v1).normalize(),
+        Spin::Right => v1.cross(v2).normalize(),
+    };
+    let x_axis = (a.to_vec() + b.to_vec() - midpoint * 2.0).normalize();
+    let z_axis = x_axis.cross(y_axis).normalize();
+    Matrix4::from_translation(midpoint)
+        * Matrix4::from(Matrix3::from_cols(x_axis, y_axis, z_axis))
+        * Matrix4::from_scale(scale)
 }
