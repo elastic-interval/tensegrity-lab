@@ -221,13 +221,14 @@ impl ShapePhase {
                         } else {
                             [ray0 + midpoint, ray2 + midpoint, ray1 + midpoint]
                         }.map(Point3::from_vec);
-                        let space = vector_space(points, scale, spin, FaceRotation::Zero);
+                        let vector_space = vector_space(points, scale, spin, FaceRotation::Zero);
+                        let base_face = BaseFace::Situated { spin, vector_space, seed: None };
                         let alias = FaceAlias::single("Omni");
                         let (_base_face_id, brick_faces) = fabric.create_brick(
                             &alias,
                             FaceRotation::Zero,
                             scale,
-                            BaseFace::Nothing,
+                            base_face,
                             brick_library,
                         );
                         for index in 0..faces.len() {

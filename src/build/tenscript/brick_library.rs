@@ -62,10 +62,16 @@ impl BrickLibrary {
                             .aliases
                             .into_iter()
                             .map(|alias| {
-                                let space = if alias.is_seed() {
-                                    baked.down_rotation()
-                                } else {
-                                    face_space
+                                let seed = [None, Some(1), Some(2)]
+                                    .into_iter()
+                                    .find(|seed|  alias.is_seed(*seed));
+                                let space = match seed {
+                                    Some(seed) => {
+                                        baked.down_rotation(seed)
+                                    }
+                                    None=> {
+                                        face_space
+                                    }
                                 };
                                 (alias, space)
                             })

@@ -55,7 +55,7 @@ impl TenscriptError {
             .map_err(|_| TenscriptError::Format(format!("[{spot}]: Not an int: '{string}'")))
     }
 
-    pub fn parse_float_inside(pair: Pair<Rule>, spot: &str) -> Result<f32, TenscriptError> {
+    pub fn parse_float_inside(pair: Pair<Rule>, spot: &str) -> Result<f32, Self> {
         Self::parse_float(pair.into_inner().next().unwrap().as_str(), spot)
             .map_err(|error| TenscriptError::Format(format!("Not a float pair: [{error}]")))
     }
@@ -147,16 +147,22 @@ impl FaceAlias {
         self.has(":base")
     }
 
-    pub fn is_seed(&self) -> bool {
-        self.has(":seed")
-    }
-
     pub fn with_base(&self) -> Self {
         self.with(":base")
     }
 
-    pub fn with_seed(&self) -> Self {
-        self.with(":seed")
+    pub fn is_seed(&self, which: Option<usize>) -> bool {
+        match which {
+            Some(which) => self.has(format!(":seed-{}", which).as_str()),
+            None => self.has(":seed"),
+        }
+    }
+
+    pub fn with_seed(&self, which: Option<usize>) -> Self {
+        match which {
+            Some(which) => self.with(format!(":seed-{}", which).as_str()),
+            None => self.with(":seed"),
+        }
     }
 
     fn has(&self, sought_part: &str) -> bool {
@@ -194,7 +200,7 @@ impl FaceAlias {
         FaceAlias(parts)
     }
 
-    pub fn from_pairs<'a>(pairs: impl IntoIterator<Item = Pair<'a, Rule>>) -> Vec<FaceAlias> {
+    pub fn from_pairs<'a>(pairs: impl IntoIterator<Item=Pair<'a, Rule>>) -> Vec<FaceAlias> {
         pairs.into_iter().map(Self::from_pair).collect()
     }
 }
@@ -227,6 +233,7 @@ pub struct FaceMark {
     face_id: UniqueId,
     mark_name: String,
 }
+
 pub fn parse_atom(pair: Pair<Rule>) -> String {
     assert_eq!(pair.as_rule(), Rule::atom);
     pair.as_str().to_string()

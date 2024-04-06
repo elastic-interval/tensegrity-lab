@@ -392,14 +392,14 @@ impl Baked {
         }
     }
 
-    pub(crate) fn down_rotation(&self) -> Matrix4<f32> {
+    pub(crate) fn down_rotation(&self, seed: Option<usize>) -> Matrix4<f32> {
         let down = self
             .faces
             .iter()
             .filter_map(|face| {
                 face.aliases
                     .iter()
-                    .find(|alias| alias.is_seed() && alias.is_base())
+                    .find(|alias| alias.is_seed(seed) && alias.is_base())
                     .map(|_| face.normal(self))
             })
             .sum::<Vector3<f32>>()

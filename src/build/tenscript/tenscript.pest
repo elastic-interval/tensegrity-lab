@@ -1,7 +1,7 @@
 brick_library =
-    { "(" ~ "brick-library" ~ fabric_plan* ~ brick_definition* ~ ")" }
+    { "(" ~ "brick-library" ~ brick_definition* ~ ")" }
 fabric_library =
-    { "(" ~ "fabric-library" ~ fabric_plan* ~ brick_definition* ~ ")" }
+    { "(" ~ "fabric-library" ~ fabric_plan* ~ ")" }
 
 fabric_plan =
     { "(" ~ "fabric" ~ name ~ build ~ shape? ~ pretense? ~ ")" }
@@ -51,8 +51,10 @@ grow =
     { "(" ~ "grow" ~ (integer | forward) ~ scale? ~ build_node? ~ ")" }
 mark =
     { "(" ~ "mark" ~ atom ~ ")" }
+seed =
+    { "(" ~ "seed" ~ integer ~")"}
 branch =
-    { "(" ~ "branch" ~ partial_alias ~ scale? ~ face_rotation* ~ on_face* ~ ")" }
+    { "(" ~ "branch" ~ partial_alias ~ scale? ~ seed? ~ face_rotation* ~ on_face* ~ ")" }
 face_rotation =
     { "(" ~ "rotate" ~ ")" }
 scale =

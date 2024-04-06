@@ -1,14 +1,20 @@
 use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
 
+use crate::build::tenscript::{FaceAlias, Spin};
 use crate::build::tenscript::brick::{Baked, BakedInterval, BakedJoint, BrickFace};
 use crate::build::tenscript::brick_library::BrickLibrary;
-use crate::build::tenscript::{FaceAlias, Spin};
-use crate::fabric::face::{Face, FaceRotation};
 use crate::fabric::{Fabric, Link, UniqueId};
+use crate::fabric::face::FaceRotation;
 
 pub enum BaseFace {
     ExistingFace(UniqueId),
-    Nothing,
+    Situated {
+        spin: Spin,
+        vector_space: Matrix4<f32>,
+        seed: Option<usize>,
+    },
+    Seeded(usize),
+    Baseless,
 }
 
 impl Fabric {
@@ -20,27 +26,32 @@ impl Fabric {
         base_face: BaseFace,
         brick_library: &BrickLibrary,
     ) -> (UniqueId, Vec<UniqueId>) {
-        let face = match base_face {
-            BaseFace::ExistingFace(id) => Some(self.face(id)),
-            BaseFace::Nothing => None,
+        let (scale, spin, matrix, seed) = match base_face {
+            BaseFace::ExistingFace(id) => {
+                let face = self.face(id);
+                (face.scale * scale_factor, Some(face.spin.opposite()), face.vector_space(self, rotation), None)
+            }
+            BaseFace::Situated { spin, vector_space, seed } =>
+                (scale_factor, Some(spin), vector_space, seed),
+            BaseFace::Seeded(orient_alias) => {
+                (scale_factor, None, Matrix4::from_scale(scale_factor), Some(orient_alias))
+            }
+            BaseFace::Baseless => {
+                (scale_factor, None, Matrix4::from_scale(scale_factor), None)
+            }
         };
-        let scale = face.map(|Face { scale, .. }| *scale).unwrap_or(1.0) * scale_factor;
-        let spin_alias = face_alias
-            .spin()
-            .or(face.map(|face| face.spin.opposite()))
+        let spin_alias = face_alias.spin()
+            .or(spin)
             .map(Spin::into_alias);
         let search_alias = match spin_alias {
-            None => face_alias.with_seed(),
+            None => face_alias.with_seed(seed),
             Some(spin_alias) => spin_alias + face_alias,
         };
         let brick = brick_library.new_brick(&search_alias);
-        let matrix = face
-            .map(|face| face.vector_space(self, rotation))
-            .unwrap_or(Matrix4::from_scale(scale));
         let joints: Vec<usize> = brick
             .joints
             .into_iter()
-            .map(|BakedJoint { location, .. }| 
+            .map(|BakedJoint { location, .. }|
                 self.create_joint(matrix.transform_point(location)))
             .collect();
         for BakedInterval {
