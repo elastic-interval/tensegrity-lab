@@ -232,8 +232,8 @@ impl Scene {
                 Pick::Joint(_) => self.do_pick(Pick::Nothing),
                 Pick::Interval { joint, .. } => self.do_pick(Pick::Joint(joint)),
             }
-        } else if !fabric.progress.is_busy() {
-            if let Some(pick) = self.camera.handle_input(input, fabric) {
+        } else if let Some(pick) = self.camera.handle_input(input, fabric) {
+            if !fabric.progress.is_busy() {
                 self.do_pick(pick)
             }
         }

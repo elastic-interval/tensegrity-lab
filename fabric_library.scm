@@ -188,7 +188,7 @@
         ))
     (shape
       (during 18000 (join :end (seed 1)))
-      (during 80000 (vulcanize))
+      (during 20000 (vulcanize))
       (faces-to-triangles)
       )
     (pretense (surface :frozen)))
