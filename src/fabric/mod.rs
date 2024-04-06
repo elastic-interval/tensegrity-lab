@@ -36,6 +36,7 @@ pub struct Fabric {
     pub intervals: HashMap<UniqueId, Interval>,
     pub faces: HashMap<UniqueId, Face>,
     pub materials: Vec<Material>,
+    pub keep_above: bool,
     unique_id: usize,
 }
 
@@ -49,6 +50,7 @@ impl Default for Fabric {
             intervals: HashMap::new(),
             faces: HashMap::new(),
             materials: MATERIALS.into(),
+            keep_above: true,
             unique_id: 0,
         }
     }
@@ -119,6 +121,17 @@ impl Fabric {
             let speed_squared = joint.iterate(physics);
             if speed_squared > max_speed_squared {
                 max_speed_squared = speed_squared;
+            }
+        }
+        if self.keep_above {
+            let min_y = self.joints
+                .iter()
+                .map(|Joint { location, .. }| location.y)
+                .min_by(|a, b| a.partial_cmp(b).unwrap());
+            if let Some(min_y) = min_y {
+                for joint in &mut self.joints {
+                    joint.location.y -= min_y; 
+                }
             }
         }
         if self.progress.step() {

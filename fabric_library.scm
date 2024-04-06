@@ -144,10 +144,11 @@
               (face (alias BotZ) (mark :chest-2))
               (face (alias BotX) (grow "....X..." (scale .93) (mark :hands))))))))
     (shape
-      (during 15000 (space :legs .3) (space :hands .3) (space :chest-1 .8) (space :chest-2 .2))
+      (during 15000 (space :legs .25) (space :hands .02) (space :chest-1 .8) (space :chest-2 .2))
       (during 80000 (vulcanize))
       (remove-spacers)
-      (faces-to-triangles)))
+      (faces-to-triangles))
+    (pretense (surface :frozen)))
   (fabric (name "Torque Island")
     (build
       (branch (alias Torque)
