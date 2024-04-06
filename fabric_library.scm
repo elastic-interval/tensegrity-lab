@@ -187,7 +187,7 @@
         (face (alias TopZ) (grow 10 (scale .9) (mark :end)))
         ))
     (shape
-      (during 18000 (join :end))
+      (during 18000 (join :end (seed 1)))
       (during 80000 (vulcanize))
       (faces-to-triangles)
       )

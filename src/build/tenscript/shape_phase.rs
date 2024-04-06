@@ -28,6 +28,7 @@ pub enum ShapeOperation {
     },
     Joiner {
         mark_name: String,
+        seed: Option<usize>,
     },
     PointDownwards {
         mark_name: String,
@@ -113,9 +114,19 @@ impl ShapePhase {
                 })
             }
             Rule::joiner => {
-                let mark_name = pair.into_inner().next().unwrap().as_str();
+                let mut inner = pair.into_inner();
+                let mark_name = inner.next().unwrap().as_str();
+                let seed = match inner.next() {
+                    None => None,
+                    Some(seed_pair) => {
+                        let index =
+                            TenscriptError::parse_usize(seed_pair.into_inner().next().unwrap().as_str(), "(seed ...)")?;
+                        Some(index)
+                    }
+                };
                 Ok(ShapeOperation::Joiner {
                     mark_name: mark_name[1..].into(),
+                    seed,
                 })
             }
             Rule::down => {
@@ -184,7 +195,7 @@ impl ShapePhase {
         operation: ShapeOperation,
     ) -> Result<ShapeCommand, TenscriptError> {
         Ok(match operation {
-            ShapeOperation::Joiner { mark_name } => {
+            ShapeOperation::Joiner { mark_name, seed } => {
                 let faces = self.marked_faces(&mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
                 match faces.len() {
@@ -222,7 +233,7 @@ impl ShapePhase {
                             [ray0 + midpoint, ray2 + midpoint, ray1 + midpoint]
                         }.map(Point3::from_vec);
                         let vector_space = vector_space(points, scale, spin, FaceRotation::Zero);
-                        let base_face = BaseFace::Situated { spin, vector_space, seed: None };
+                        let base_face = BaseFace::Situated { spin, vector_space, seed };
                         let alias = FaceAlias::single("Omni");
                         let (_base_face_id, brick_faces) = fabric.create_brick(
                             &alias,
