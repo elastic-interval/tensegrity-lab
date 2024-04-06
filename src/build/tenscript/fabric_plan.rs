@@ -52,7 +52,7 @@ impl FabricPlan {
         let mut shape_marks = HashSet::new();
         for operation in &plan.shape_phase.operations {
             operation.traverse(&mut |op| match op {
-                ShapeOperation::Joiner { mark_name }
+                ShapeOperation::Joiner { mark_name, .. }
                 | ShapeOperation::PointDownwards { mark_name }
                 | ShapeOperation::Spacer { mark_name, .. } => {
                     shape_marks.insert(mark_name.clone());

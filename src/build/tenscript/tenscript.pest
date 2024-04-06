@@ -18,7 +18,7 @@ during_count = // iteration-count
 spacer = // mark-name, spacing-factor
     { "(" ~ "space" ~ atom ~ float ~ ")" }
 joiner = // mark-name
-    { "(" ~ "join" ~ atom ~ ")" }
+    { "(" ~ "join" ~ atom ~ seed? ~ ")" }
 down = // mark-name
     { "(" ~ "down" ~ atom ~ ")" }
 remove_spacers = // spacer-names
