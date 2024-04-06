@@ -62,6 +62,7 @@ impl Pretenser {
                     if let Some(muscle_movement) = &self.pretense_phase.muscle_movement {
                         fabric.activate_muscles(muscle_movement);
                     };
+                    fabric.keep_above = false;
                     Pretenst
                 }
             }
