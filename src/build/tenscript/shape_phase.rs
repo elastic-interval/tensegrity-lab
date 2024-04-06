@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};
 use pest::iterators::Pair;
 
@@ -219,7 +220,7 @@ impl ShapePhase {
                         let normal1 = face1.normal(fabric);
                         let normal2 = face2.normal(fabric);
                         let normal = (normal0 + normal1 + normal2).normalize();
-                        let midpoint = (midpoint0 + midpoint1 + midpoint2) / 3.0;
+                        let midpoint = (midpoint0 + midpoint1 + midpoint2) / 3.0 + normal * 3.0;
                         let ray0 = (midpoint0 - midpoint).normalize_to(scale);
                         let ray1 = (midpoint1 - midpoint).normalize_to(scale);
                         let ray2 = (midpoint2 - midpoint).normalize_to(scale);
@@ -242,10 +243,37 @@ impl ShapePhase {
                             base_face,
                             brick_library,
                         );
-                        for index in 0..faces.len() {
-                            let omni_joint = fabric.face(brick_faces[index]).middle_joint(fabric);
-                            let interval = fabric.create_interval(omni_joint, joints[index], Link::pull(0.01));
-                            self.joiners.push(Shaper { interval, alpha_face: brick_faces[index], omega_face: faces[index], mark_name: mark_name.clone() })
+                        let mut brick_face_midpoints = Vec::new();
+                        for brick_face_id in brick_faces {
+                            let face = fabric.face(brick_face_id);
+                            brick_face_midpoints.push((brick_face_id, face.midpoint(fabric), face.middle_joint(fabric)));
+                        }
+                        let mut far_face_midpoints = Vec::new();
+                        for face_id in faces {
+                            let face = fabric.face(face_id);
+                            far_face_midpoints.push((face_id, face.midpoint(fabric), face.middle_joint(fabric)));
+                        }
+                        let shapers = far_face_midpoints
+                            .into_iter()
+                            .map(|(far_face_id, far_face_midpoint, far_joint)| {
+                                let brick_face = brick_face_midpoints
+                                    .iter()
+                                    .min_by(|(_, location_a, _), (_, location_b, _)| {
+                                        let (dx, dy) = (location_a.distance2(far_face_midpoint), location_b.distance2(far_face_midpoint));
+                                        if dx < dy {
+                                            Ordering::Less
+                                        } else if dx > dy {
+                                            Ordering::Greater
+                                        } else {
+                                            Ordering::Equal
+                                        }
+                                    });
+                                let (near_face_id, _, near_joint) = *brick_face.expect("Expected a closest face");
+                                (near_face_id, near_joint, far_face_id, far_joint)
+                            });
+                        for (near_face_id, near_joint, far_face_id, far_joint) in shapers {
+                            let interval = fabric.create_interval(near_joint, far_joint, Link::pull(0.01));
+                            self.joiners.push(Shaper { interval, alpha_face: near_face_id, omega_face: far_face_id, mark_name: mark_name.clone() })
                         }
                     }
                     _ => unimplemented!("Join can only be 2 or three faces")
@@ -283,8 +311,7 @@ impl ShapePhase {
                         let length = fabric
                             .joints[alpha_index]
                             .location
-                            .distance(fabric.joints[omega_index].location)
-                            * distance_factor;
+                            .distance(fabric.joints[omega_index].location) * distance_factor;
                         let interval = fabric.create_interval(alpha_index, omega_index, Link::pull(length));
                         self.spacers.push(Shaper {
                             interval,
