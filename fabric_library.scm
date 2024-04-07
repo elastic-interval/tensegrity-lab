@@ -67,9 +67,9 @@
               (face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))))
     (shape
       (join :halo-end)
-      (during 30000 (remove-spacers)) ; TODO: should automatically happen before vulcanize
       (vulcanize)
-      (faces-to-triangles)))
+      (faces-to-triangles))
+    (pretense (surface :frozen)))
   (fabric
     (name "Pulsating Pavilion")
     (build
