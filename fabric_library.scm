@@ -167,14 +167,14 @@
   (fabric
     (name "Triped")
     (build
-      (branch (alias Omni)
-        (face (alias Bottom:Right) (grow 10 (scale .9) (mark :end)))
-        (face (alias Back:Left) (grow 10 (scale .9) (mark :end)))
-        (face (alias Front:Left) (grow 10 (scale .9) (mark :end)))
+      (branch (alias Omni) (seed 1)
+        (face (alias BotX) (grow 10 (scale .9) (mark :end)))
+        (face (alias BotY) (grow 10 (scale .9) (mark :end)))
+        (face (alias BotZ) (grow 10 (scale .9) (mark :end)))
         ))
     (shape
-      (during 18000 (space :end 0.4))
-      (during 80000 (vulcanize))
+      (during 20000 (space :end 0.4))
+      (during 20000 (vulcanize))
       (faces-to-triangles)
       )
     (pretense (surface :bouncy)))
