@@ -48,6 +48,9 @@ body {
     .tiny {
         font-size: small;
         margin-top: 1em;
+        span {
+            margin-right: 1em;
+        }
     }
 }
 

@@ -99,7 +99,7 @@ impl Joint {
         let altitude = self.location.y;
         let speed_squared = self.velocity.magnitude2();
         if speed_squared > 0.01 {
-            panic!("speed too high. speed_squared={speed_squared}");
+            return speed_squared
         }
         if altitude >= 0.0 || *gravity == 0.0 {
             self.velocity.y -= gravity;
