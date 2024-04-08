@@ -1,7 +1,12 @@
 (fabric-library
   (fabric (name "Single") (build (branch (alias Single))))
   (fabric (name "Omni") (build (branch (alias Omni))))
-  (fabric (name "Torque") (build (branch (alias Torque))))
+  (fabric (name "Torque") (build (branch (alias Torque)))
+    (shape (faces-to-triangles))
+    (pretense
+      (surface :bouncy)
+      (muscle 0.2 13000)
+      ))
   (fabric
     (name "Knee")
     (build
@@ -95,7 +100,7 @@
       (during 35000 (vulcanize))
       (faces-to-triangles))
     (pretense
-      (surface :frozen)
+      (surface :bouncy)
       (muscle 0.2 13000)
       ))
   (fabric
@@ -163,7 +168,9 @@
     (shape
       (join :loose)
       (faces-to-triangles))
-    (pretense (surface :bouncy)))
+    (pretense
+      (surface :bouncy)
+      (muscle 0.3 12000)))
   (fabric
     (name "Triped")
     (build
@@ -193,4 +200,34 @@
       (faces-to-triangles)
       )
     (pretense (surface :frozen)))
+  (fabric
+    (name "Torkey")
+    (build
+      (branch (alias Torque)
+        (face (alias Left:Front:Top) (grow 3 (scale .5) (grow 5)))
+        (face (alias Left:Back:Top) (grow 3 (scale .5) (grow 5)))
+        (face (alias Left:Front:Bottom)
+          (grow 1 (scale 1.2)
+            (branch (alias Torque) (scale .6) (rotate)
+              (face (alias Far:Base) (grow 3 (scale 0.7) (mark :paw))))))
+        (face (alias Left:Back:Bottom)
+          (grow 1 (scale 1.2)
+            (branch (alias Torque) (scale .6) (rotate)
+              (face (alias Far:Base) (grow 3 (scale 0.7) (mark :paw))))))
+        (face (alias Right:Front:Bottom)
+          (grow 1
+            (branch (alias Torque) (scale .6)  (rotate)
+              (face (alias Far:Base) (grow 2 (scale 0.7) (mark :paw))))))
+        (face (alias Right:Back:Bottom)
+          (grow 1
+            (branch (alias Torque) (scale .6) (rotate)
+              (face (alias Far:Base) (grow 2 (scale 0.7) (mark :paw))))))))
+    (shape
+      (during 35000 (space :paw .5))
+      (during 35000 (vulcanize))
+      (faces-to-triangles))
+    (pretense
+      (surface :bouncy)
+      (muscle 0.2 5000)
+      ))
   )

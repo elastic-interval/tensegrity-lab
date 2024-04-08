@@ -6,6 +6,7 @@ use leptos_use::utils::FromToStringCodec;
 
 use crate::control_overlay::action::Action;
 use crate::control_state::{ControlState, IntervalDetails};
+use crate::crucible::CrucibleAction;
 
 #[component]
 pub fn ControlOverlayApp(
@@ -16,12 +17,22 @@ pub fn ControlOverlayApp(
 ) -> impl IntoView {
     let (name, set_name, _) = use_local_storage::<String, FromToStringCodec>("name");
     let (scale, set_scale, _) = use_local_storage::<f32, FromToStringCodec>("scale");
+    let name_sender = actions_tx.clone();
+    let activate_sender = actions_tx.clone();
     create_effect(move |_| {
         let name = name.get();
         if !name.is_empty() {
             set_control_state.update(|state| *state = ControlState::Viewing);
-            actions_tx
+            name_sender
                 .send(Action::LoadFabric(name))
+                .expect("failed to send action");
+        }
+    });
+    create_effect(move |_| {
+        let control_state = control_state.get();
+        if matches!(control_state, ControlState::Animating) {
+            activate_sender
+                .send(Action::Crucible(CrucibleAction::ActivateMuscles))
                 .expect("failed to send action");
         }
     });
@@ -53,7 +64,7 @@ pub fn ControlOverlayApp(
     };
 
     view! {
-        {move || 
+        {move ||
             match control_state.get() {
                 ControlState::Choosing => {
                     view! {<div class="list">{list}</div>}
@@ -61,10 +72,22 @@ pub fn ControlOverlayApp(
                 ControlState::Viewing => {
                     let to_choosing =
                         move |_ev| set_control_state.set(ControlState::Choosing);
+                    let to_animate =
+                        move |_ev| set_control_state.set(ControlState::Animating);
                     view!{
                         <div class="title">
                             <div>{move || format!("\"{}\"", name.get())}</div>
-                            <div on:click=to_choosing class="tiny">choose</div>
+                            <div class="tiny">
+                                <span on:click=to_choosing>choose another</span>
+                                <span on:click=to_animate>animate</span>
+                            </div>
+                        </div>
+                    }
+                }
+                ControlState::Animating => {
+                    view!{
+                        <div class="title">
+                            <div>{move || format!("Animating \"{}\"", name.get())}</div>
                         </div>
                     }
                 }
@@ -77,7 +100,7 @@ pub fn ControlOverlayApp(
                     }
                 }
                 ControlState::ShowingInterval(interval_details) => {
-                    let to_setting_length = 
+                    let to_setting_length =
                         move |_ev| set_control_state.set(ControlState::SettingLength(interval_details));
                     view!{
                         <div class="title">
@@ -94,16 +117,16 @@ pub fn ControlOverlayApp(
                     view!{
                         <div class="title">
                             <label for="length">Length(mm): </label>
-                            <input type="text" id="length" 
+                            <input type="text" id="length"
                                     value={move || assigned_length.get()}
-                                    on:change=move |ev| 
-                                        set_assigned_length.set(event_target_value(&ev).parse().unwrap())  
+                                    on:change=move |ev|
+                                        set_assigned_length.set(event_target_value(&ev).parse().unwrap())
                             />
                             <button on:click=assign>Assign</button>
                         </div>
                     }
                 }
-            } 
+            }
         }
     }
 }
