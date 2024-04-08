@@ -6,7 +6,6 @@ use leptos_use::utils::FromToStringCodec;
 
 use crate::control_overlay::action::Action;
 use crate::control_state::{ControlState, IntervalDetails};
-use crate::crucible::CrucibleAction;
 
 #[component]
 pub fn ControlOverlayApp(
@@ -17,26 +16,15 @@ pub fn ControlOverlayApp(
 ) -> impl IntoView {
     let (name, set_name, _) = use_local_storage::<String, FromToStringCodec>("name");
     let (scale, set_scale, _) = use_local_storage::<f32, FromToStringCodec>("scale");
-    let name_sender = actions_tx.clone();
-    let activate_sender = actions_tx.clone();
     create_effect(move |_| {
         let name = name.get();
         if !name.is_empty() {
             set_control_state.update(|state| *state = ControlState::Viewing);
-            name_sender
+            actions_tx
                 .send(Action::LoadFabric(name))
                 .expect("failed to send action");
         }
     });
-    create_effect(move |_| {
-        let control_state = control_state.get();
-        if matches!(control_state, ControlState::Animating) {
-            activate_sender
-                .send(Action::Crucible(CrucibleAction::ActivateMuscles))
-                .expect("failed to send action");
-        }
-    });
-
     let (assigned_length, set_assigned_length) = create_signal(100.0);
 
     let list = move || {
@@ -72,22 +60,10 @@ pub fn ControlOverlayApp(
                 ControlState::Viewing => {
                     let to_choosing =
                         move |_ev| set_control_state.set(ControlState::Choosing);
-                    let to_animate =
-                        move |_ev| set_control_state.set(ControlState::Animating);
                     view!{
                         <div class="title">
                             <div>{move || format!("\"{}\"", name.get())}</div>
-                            <div class="tiny">
-                                <span on:click=to_choosing>choose another</span>
-                                <span on:click=to_animate>animate</span>
-                            </div>
-                        </div>
-                    }
-                }
-                ControlState::Animating => {
-                    view!{
-                        <div class="title">
-                            <div>{move || format!("Animating \"{}\"", name.get())}</div>
+                            <div class="tiny" on:click=to_choosing>choose</div>
                         </div>
                     }
                 }

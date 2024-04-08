@@ -13,7 +13,6 @@ pub enum ControlState {
     #[default]
     Choosing,
     Viewing,
-    Animating,
     ShowingJoint(usize),
     ShowingInterval(IntervalDetails),
     SettingLength(IntervalDetails),
