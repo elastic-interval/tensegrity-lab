@@ -76,20 +76,13 @@ impl Fabric {
             let Span::Fixed { length } = interval.span else {
                 continue;
             };
-            let divergence = length * muscle_movement.amplitude;
-            let low = length - divergence;
-            let high = length + divergence;
+            let contracted = length * muscle_movement.contraction;
+            let reversed =  muscle_movement.reversed_groups.contains(&interval.group);
             if interval.material == north_material {
-                interval.span = Muscle {
-                    min: low,
-                    max: high,
-                };
+                interval.span = Muscle { length, contracted, reverse: reversed };
             }
             if interval.material == south_material {
-                interval.span = Muscle {
-                    min: high,
-                    max: low,
-                };
+                interval.span = Muscle { length, contracted, reverse: !reversed };
             }
         }
     }

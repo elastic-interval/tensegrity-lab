@@ -21,6 +21,7 @@ impl Fabric {
         Link {
             ideal,
             material_name,
+            group,
         }: Link,
     ) -> UniqueId {
         let id = self.create_id();
@@ -32,6 +33,7 @@ impl Fabric {
             alpha_index,
             omega_index,
             material,
+            group,
             Approaching {
                 initial,
                 length: ideal,
@@ -58,7 +60,7 @@ impl Fabric {
 pub enum Span {
     Fixed { length: f32 },
     Approaching { length: f32, initial: f32 },
-    Muscle { max: f32, min: f32 },
+    Muscle { length: f32, contracted: f32, reverse: bool },
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -81,17 +83,19 @@ pub struct Interval {
     pub alpha_index: usize,
     pub omega_index: usize,
     pub material: usize,
+    pub group: usize,
     pub span: Span,
     pub unit: Vector3<f32>,
     pub strain: f32,
 }
 
 impl Interval {
-    pub fn new(alpha_index: usize, omega_index: usize, material: usize, span: Span) -> Interval {
+    pub fn new(alpha_index: usize, omega_index: usize, material: usize, group: usize, span: Span) -> Interval {
         Interval {
             alpha_index,
             omega_index,
             material,
+            group,
             span,
             unit: zero(),
             strain: 0.0,
@@ -141,8 +145,7 @@ impl Interval {
 
     pub fn ideal(&self) -> f32 {
         match self.span {
-            Fixed { length, .. } | Approaching { length, .. } => length,
-            Muscle { max, min, .. } => (max + min) / 2.0,
+            Fixed { length, .. } | Approaching { length, .. } | Muscle { length, .. } => length,
         }
     }
 
@@ -162,7 +165,10 @@ impl Interval {
                 let nuance = progress.nuance();
                 initial * (1.0 - nuance) + length * nuance
             }
-            Muscle { max, min } => min * (1.0 - muscle_nuance) + max * muscle_nuance,
+            Muscle { length, contracted, reverse } => {
+                let nuance = if reverse { 1.0 - muscle_nuance } else { muscle_nuance };
+                contracted * (1.0 - nuance) + length * nuance
+            }
         };
         let real_length = self.length(joints);
         let Material {

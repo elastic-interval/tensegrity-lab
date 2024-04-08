@@ -208,19 +208,19 @@
         (face (alias Left:Back:Top) (grow 3 (scale .5) (grow 5)))
         (face (alias Left:Front:Bottom)
           (grow 1 (scale 1.2)
-            (branch (alias Torque) (scale .6) (rotate)
+            (branch (alias Torque) (group 1) (scale .6) (rotate)
               (face (alias Far:Base) (grow 3 (scale 0.7) (mark :paw))))))
         (face (alias Left:Back:Bottom)
           (grow 1 (scale 1.2)
-            (branch (alias Torque) (scale .6) (rotate)
+            (branch (alias Torque) (group 2) (scale .6) (rotate)
               (face (alias Far:Base) (grow 3 (scale 0.7) (mark :paw))))))
         (face (alias Right:Front:Bottom)
           (grow 1
-            (branch (alias Torque) (scale .6)  (rotate)
+            (branch (alias Torque) (group 1) (scale .6)  (rotate)
               (face (alias Far:Base) (grow 2 (scale 0.7) (mark :paw))))))
         (face (alias Right:Back:Bottom)
           (grow 1
-            (branch (alias Torque) (scale .6) (rotate)
+            (branch (alias Torque) (group 2) (scale .6) (rotate)
               (face (alias Far:Base) (grow 2 (scale 0.7) (mark :paw))))))))
     (shape
       (during 35000 (space :paw .5))
@@ -228,6 +228,6 @@
       (faces-to-triangles))
     (pretense
       (surface :sticky)
-      (muscle 0.2 5000)
+      (muscle 0.8 10000 1)
       ))
   )

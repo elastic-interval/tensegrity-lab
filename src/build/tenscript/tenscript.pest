@@ -36,7 +36,7 @@ surface =
 surface_character =
     { ":frozen" | ":bouncy" | ":absent" | ":sticky" }
 muscle =
-    { "(" ~ "muscle" ~ float ~ integer ~ ")" }
+    { "(" ~ "muscle" ~ float ~ integer ~ integer* ~ ")" }
 pretense_factor =
     { "(" ~ "pretense-factor" ~ float ~ ")" }
 faces_to_triangles =
@@ -53,8 +53,10 @@ mark =
     { "(" ~ "mark" ~ atom ~ ")" }
 seed =
     { "(" ~ "seed" ~ integer ~")"}
+group =
+    { "(" ~ "group" ~ integer ~")"}
 branch =
-    { "(" ~ "branch" ~ partial_alias ~ scale? ~ seed? ~ face_rotation* ~ on_face* ~ ")" }
+    { "(" ~ "branch" ~ partial_alias ~ group? ~ scale? ~ seed? ~ face_rotation* ~ on_face* ~ ")" }
 face_rotation =
     { "(" ~ "rotate" ~ ")" }
 scale =

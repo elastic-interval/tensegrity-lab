@@ -233,6 +233,7 @@ impl ShapePhase {
                         let alias = FaceAlias::single("Omni");
                         let (_base_face_id, brick_faces) = fabric.create_brick(
                             &alias,
+                            0,
                             FaceRotation::Zero,
                             scale,
                             base_face,
