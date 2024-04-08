@@ -24,7 +24,7 @@ enum Stage {
 #[derive(Debug, Clone)]
 pub enum LabAction {
     GravityChanged(f32),
-    MuscleTest,
+    MuscleTestToggle,
     MuscleChanged(f32),
 }
 
@@ -130,7 +130,7 @@ impl Crucible {
                 let Experimenting(lab) = &mut self.stage else {
                     panic!("must be experimenting");
                 };
-                lab.action(LabAction::MuscleTest, &mut self.fabric);
+                lab.action(LabAction::MuscleTestToggle, &mut self.fabric);
             }
         }
     }

@@ -35,7 +35,12 @@ impl Lab {
 
     pub fn iterate(&mut self, fabric: &mut Fabric) {
         self.stage = match self.stage {
-            Start => Standing,
+            Start =>
+                if let Some(movement) = &self.pretense_phase.muscle_movement {
+                    MuscleCycle(1.0 / movement.countdown as f32)
+                } else {
+                    Standing
+                },
             Standing => {
                 fabric.iterate(&self.physics);
                 Standing
@@ -62,7 +67,7 @@ impl Lab {
             LabAction::MuscleChanged(nuance) => {
                 fabric.muscle_nuance = nuance;
             }
-            LabAction::MuscleTest => match self.stage {
+            LabAction::MuscleTestToggle => match self.stage {
                 Standing => {
                     if let Some(movement) = &self.pretense_phase.muscle_movement {
                         self.stage = MuscleCycle(1.0 / movement.countdown as f32)
