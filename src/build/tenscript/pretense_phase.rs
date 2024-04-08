@@ -54,6 +54,7 @@ impl PretensePhase {
                                         ":frozen" => SurfaceCharacter::Frozen,
                                         ":bouncy" => SurfaceCharacter::Bouncy,
                                         ":absent" => SurfaceCharacter::Absent,
+                                        ":sticky" => SurfaceCharacter::Sticky,
                                         _ => unreachable!("surface character"),
                                     }
                             }
