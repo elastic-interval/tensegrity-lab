@@ -227,7 +227,7 @@
       (during 35000 (vulcanize))
       (faces-to-triangles))
     (pretense
-      (surface :bouncy)
+      (surface :sticky)
       (muscle 0.2 5000)
       ))
   )
