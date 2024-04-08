@@ -28,6 +28,7 @@ impl Fabric {
                 Link {
                     ideal: length,
                     material_name: ":bow-tie".to_string(),
+                    group: 0,
                 },
             );
         }

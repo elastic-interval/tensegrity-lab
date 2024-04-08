@@ -21,6 +21,7 @@ impl Fabric {
     pub fn create_brick(
         &mut self,
         face_alias: &FaceAlias,
+        group: usize,
         rotation: FaceRotation,
         scale_factor: f32,
         base_face: BaseFace,
@@ -69,6 +70,7 @@ impl Fabric {
                 Link {
                     ideal,
                     material_name,
+                    group,
                 },
             );
         }

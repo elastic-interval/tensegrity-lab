@@ -155,6 +155,7 @@ impl From<Prototype> for Fabric {
                 Link {
                     ideal,
                     material_name,
+                    group: 0,
                 },
             );
         }

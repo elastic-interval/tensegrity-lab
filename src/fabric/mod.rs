@@ -225,6 +225,7 @@ pub const MATERIALS: [Material; 6] = [
 pub struct Link {
     pub ideal: f32,
     pub material_name: String,
+    pub group: usize,
 }
 
 impl Link {
@@ -232,6 +233,7 @@ impl Link {
         Self {
             ideal,
             material_name: ":push".to_string(),
+            group: 0,
         }
     }
 
@@ -239,6 +241,7 @@ impl Link {
         Self {
             ideal,
             material_name: ":pull".to_string(),
+            group: 0,
         }
     }
 }

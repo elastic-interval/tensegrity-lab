@@ -334,6 +334,7 @@ struct FabricVertex {
 }
 
 const GRAY: [f32; 4] = [0.1, 0.1, 0.1, 0.5];
+const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 0.5];
 const SELECTED: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
 const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
 const RED_END: [f32; 4] = [1.0, 0.0, 0.0, 0.2];
@@ -347,7 +348,7 @@ impl FabricVertex {
         let (center_color, end_color) = match fabric.materials[interval.material].role {
             Role::Push => (RED, RED_END),
             Role::Pull => (BLUE, BLUE_END),
-            Role::Spring => (SELECTED, SELECTED),
+            Role::Spring => (WHITE, WHITE),
         };
         let (center_color, end_color) = match pick {
             Pick::Nothing => {
