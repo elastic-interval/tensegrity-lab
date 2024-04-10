@@ -31,7 +31,7 @@ impl FabricLibrary {
         #[cfg(not(target_arch = "wasm32"))]
         {
             use std::fs;
-            source = fs::read_to_string("fabric_library.scm").map_err(TenscriptError::FileRead)?;
+            source = fs::read_to_string("fabric_library.scm").map_err(TenscriptError::FileReadError)?;
         }
         Ok(source)
     }
@@ -68,7 +68,7 @@ impl FabricLibrary {
 
     fn parse_fabric_library_pair(source: &str) -> Result<Pair<Rule>, TenscriptError> {
         let pair = TenscriptParser::parse(Rule::fabric_library, source)
-            .map_err(TenscriptError::Pest)?
+            .map_err(TenscriptError::PestError)?
             .next()
             .expect("no (fabric-library ..)");
         Ok(pair)

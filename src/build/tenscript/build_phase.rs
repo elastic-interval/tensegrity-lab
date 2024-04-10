@@ -315,7 +315,9 @@ impl BuildPhase {
                 ..
             } => {
                 let face_id = Self::find_launch_face(&launch, &faces, fabric)?;
-                let face_id = face_id.ok_or(TenscriptError::FaceAlias("grow".to_string()))?;
+                let face_id = face_id.ok_or(TenscriptError::FaceAliasError(
+                    "Unable to find the launch face by id in execute_node".to_string()
+                ))?;
                 let node = post_growth_node.clone().map(|x| *x);
                 buds.push(Bud {
                     face_id,
@@ -363,7 +365,7 @@ impl BuildPhase {
             }
             Mark { mark_name } => {
                 let maybe_face_id = Self::find_launch_face(&launch, &faces, fabric)?;
-                let face_id = maybe_face_id.ok_or(TenscriptError::Mark(mark_name.clone()))?;
+                let face_id = maybe_face_id.ok_or(TenscriptError::MarkError(mark_name.clone()))?;
                 marks.push(FaceMark {
                     face_id,
                     mark_name: mark_name.clone(),
@@ -381,7 +383,9 @@ impl BuildPhase {
         match launch {
             Scratch => Ok(None),
             NamedFace(face_alias) => match face_alias.find_face_in(faces, fabric) {
-                None => Err(TenscriptError::FaceAlias(face_alias.to_string())),
+                None => Err(TenscriptError::FaceAliasError(
+                    format!("Unable to find face alias {:?}", face_alias)
+                )),
                 Some(face_alias) => Ok(Some(face_alias)),
             },
             IdentifiedFace(face_id) => Ok(Some(*face_id)),

@@ -48,7 +48,9 @@ impl Fabric {
     }
 
     pub fn remove_interval(&mut self, id: UniqueId) {
-        self.intervals.remove(&id);
+        if self.intervals.remove(&id).is_none() {
+            panic!("Removing nonexistent interval {:?}", id);
+        }
     }
 
     pub fn interval_values(&self) -> impl Iterator<Item=&Interval> {
@@ -90,6 +92,9 @@ pub struct Interval {
 }
 
 impl Interval {
+    
+    pub const FACE_RADIAL_GROUP: usize = 255;
+    
     pub fn new(alpha_index: usize, omega_index: usize, material: usize, group: usize, span: Span) -> Interval {
         Interval {
             alpha_index,

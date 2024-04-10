@@ -189,7 +189,7 @@ impl Application {
             .iter()
             .find(|plan| plan.name == plan_name);
         match plan {
-            None => Err(TenscriptError::Invalid(plan_name)),
+            None => Err(TenscriptError::InvalidError(plan_name)),
             Some(plan) => Ok(plan.clone()),
         }
     }

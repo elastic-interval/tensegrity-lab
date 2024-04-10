@@ -1,12 +1,15 @@
 (fabric-library
   (fabric (name "Single") (build (branch (alias Single))))
   (fabric (name "Omni") (build (branch (alias Omni))))
-  (fabric (name "Torque") (build (branch (alias Torque)))
+  (fabric (name "Tworque")
+    (build
+      (branch (alias TorqueRight)
+        (face (alias Left:Back:Top) (grow 2 (branch (alias TorqueLeft))))
+        )
+      )
     (shape (faces-to-triangles))
-    (pretense
-      (surface :bouncy)
-      (muscle 0.2 13000)
-      ))
+    (pretense (surface :bouncy))
+    )
   (fabric
     (name "Knee")
     (build

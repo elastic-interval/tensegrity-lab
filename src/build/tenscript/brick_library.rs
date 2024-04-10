@@ -23,14 +23,14 @@ impl BrickLibrary {
         #[cfg(not(target_arch = "wasm32"))]
         {
             use std::fs;
-            source = fs::read_to_string("brick_library.scm").map_err(TenscriptError::FileRead)?;
+            source = fs::read_to_string("brick_library.scm").map_err(TenscriptError::FileReadError)?;
         }
         Self::from_tenscript(&source)
     }
 
     fn from_tenscript(source: &str) -> Result<Self, TenscriptError> {
         let pair = TenscriptParser::parse(Rule::brick_library, source)
-            .map_err(TenscriptError::Pest)?
+            .map_err(TenscriptError::PestError)?
             .next()
             .expect("no (bricks ..)");
         Self::from_pair(pair)
