@@ -3,12 +3,15 @@
   (fabric (name "Omni") (build (branch (alias Omni))))
   (fabric (name "Tworque")
     (build
-      (branch (alias TorqueLeft)
-        (face (alias Left:Back:Top) (branch (alias TorqueRight) (rotate) (rotate)))
+      (branch (alias Torque)
+        (face (alias Left:Front:Bottom) (branch (alias TorqueRight) ))
+        (face (alias Right:Front:Bottom) (branch (alias TorqueLeft) ))
         )
       )
     (shape (faces-to-triangles))
-    (pretense (surface :bouncy))
+    (pretense
+      (muscle 0.7 20000)
+      (surface :bouncy))
     )
   (fabric
     (name "Knee")
