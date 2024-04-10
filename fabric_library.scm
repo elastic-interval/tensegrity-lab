@@ -4,7 +4,7 @@
   (fabric (name "Tworque")
     (build
       (branch (alias TorqueLeft)
-        (face (alias Left:Back:Top) (grow 2 (branch (alias Omni))))
+        (face (alias Left:Back:Top) (branch (alias TorqueRight) (rotate) (rotate)))
         )
       )
     (shape (faces-to-triangles))
