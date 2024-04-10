@@ -67,13 +67,15 @@ brick_definition =
 partial_alias =
     { "(" ~ "alias" ~ atom ~ ")" }
 brick_proto =
-    { "(" ~ "proto" ~ partial_alias ~ pushes_proto+ ~ pulls_proto* ~ faces_proto+ ~ ")" }
+    { "(" ~ "proto" ~ partial_alias ~ joints_proto? ~ pushes_proto+ ~ pulls_proto* ~ faces_proto+ ~ ")" }
 pushes_proto = // axis, ideal
     { "(" ~ "pushes" ~ axis ~ float ~ push_proto+ ~ ")" }
 axis = { axis_x | axis_y | axis_z }
 axis_x = { ":x-axis" | "X" }
 axis_y = { ":y-axis" | "Y" }
 axis_z = { ":z-axis" | "Z" }
+joints_proto = // alpha, omega
+    { "(" ~ "joints" ~ atom+ ~ ")" }
 push_proto = // alpha, omega
     { "(" ~ "push" ~ atom ~ atom ~ ")" }
 pulls_proto = // ideal

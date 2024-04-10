@@ -34,30 +34,30 @@ pub struct TenscriptParser;
 
 #[derive(Debug)]
 pub enum TenscriptError {
-    FileRead(IOError),
-    Pest(PestError<Rule>),
-    Format(String),
-    Invalid(String),
-    FaceAlias(String),
-    Mark(String),
+    FileReadError(IOError),
+    PestError(PestError<Rule>),
+    FormatError(String),
+    InvalidError(String),
+    FaceAliasError(String),
+    MarkError(String),
 }
 
 impl TenscriptError {
     pub fn parse_float(string: &str, spot: &str) -> Result<f32, Self> {
         string
             .parse()
-            .map_err(|_| TenscriptError::Format(format!("[{spot}]: Not a float: '{string}'")))
+            .map_err(|_| TenscriptError::FormatError(format!("[{spot}]: Not a float: '{string}'")))
     }
 
     pub fn parse_usize(string: &str, spot: &str) -> Result<usize, Self> {
         string
             .parse()
-            .map_err(|_| TenscriptError::Format(format!("[{spot}]: Not an int: '{string}'")))
+            .map_err(|_| TenscriptError::FormatError(format!("[{spot}]: Not an int: '{string}'")))
     }
 
     pub fn parse_float_inside(pair: Pair<Rule>, spot: &str) -> Result<f32, Self> {
         Self::parse_float(pair.into_inner().next().unwrap().as_str(), spot)
-            .map_err(|error| TenscriptError::Format(format!("Not a float pair: [{error}]")))
+            .map_err(|error| TenscriptError::FormatError(format!("Not a float pair: [{error}]")))
     }
 }
 
@@ -65,7 +65,7 @@ impl Fabric {
     pub fn expect_face(&self, face_id: UniqueId) -> Result<&Face, TenscriptError> {
         self.faces
             .get(&face_id)
-            .ok_or(TenscriptError::Invalid("Face missing".to_string()))
+            .ok_or(TenscriptError::InvalidError("Face missing".to_string()))
     }
 
     pub fn activate_muscles(&mut self, muscle_movement: &MuscleMovement) {
@@ -91,12 +91,12 @@ impl Fabric {
 impl Display for TenscriptError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            TenscriptError::FileRead(error) => write!(f, "file read error: {error}"),
-            TenscriptError::Pest(error) => write!(f, "parse error: {error}"),
-            TenscriptError::Format(error) => write!(f, "format: {error}"),
-            TenscriptError::Invalid(warning) => write!(f, "warning: {warning}"),
-            TenscriptError::FaceAlias(name) => write!(f, "alias: {name}"),
-            TenscriptError::Mark(name) => write!(f, "mark: {name}"),
+            TenscriptError::FileReadError(error) => write!(f, "TenscriptError::FileRead: {error}"),
+            TenscriptError::PestError(error) => write!(f, "TenscriptError::Pest: {error}"),
+            TenscriptError::FormatError(error) => write!(f, "TenscriptError::Format: {error}"),
+            TenscriptError::InvalidError(warning) => write!(f, "TenscriptError::Invalid: {warning}"),
+            TenscriptError::FaceAliasError(name) => write!(f, "TenscriptError::FaceAlias: {name}"),
+            TenscriptError::MarkError(name) => write!(f, "TenscriptError::Mark: {name}"),
         }
     }
 }

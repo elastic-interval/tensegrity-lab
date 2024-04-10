@@ -99,6 +99,7 @@ pub struct FaceDef {
 #[derive(Clone, Default, Debug)]
 pub struct Prototype {
     pub alias: FaceAlias,
+    pub joints: Vec<String>,
     pub pushes: Vec<PushDef>,
     pub pulls: Vec<PullDef>,
     pub faces: Vec<FaceDef>,
@@ -114,6 +115,12 @@ impl From<Prototype> for Fabric {
     fn from(proto: Prototype) -> Self {
         let mut fabric = Fabric::default();
         let mut joints_by_name = HashMap::new();
+        for name in proto.joints {
+            let joint_index = fabric.create_joint(Point3::origin());
+            if joints_by_name.insert(name, joint_index).is_some() {
+                panic!("joint with that name already exists")
+            }
+        }
         for PushDef {
             alpha_name,
             omega_name,
@@ -182,12 +189,19 @@ impl From<Prototype> for Fabric {
 impl Prototype {
     pub fn from_pair(pair: Pair<Rule>) -> Result<Self, TenscriptError> {
         let mut inner = pair.into_inner();
-        let prototype_alias = FaceAlias::from_pair(inner.next().unwrap());
+        let alias = FaceAlias::from_pair(inner.next().unwrap());
+        let mut joints = Vec::new();
         let mut pushes = Vec::new();
         let mut pulls = Vec::new();
         let mut faces = Vec::new();
         for pair in inner {
             match pair.as_rule() {
+                Rule::joints_proto => {
+                    let inner = pair.into_inner();
+                    for joint_pair in inner {
+                        joints.push(parse_atom(joint_pair));
+                    }
+                }
                 Rule::pushes_proto => {
                     let mut inner = pair.into_inner();
                     let [axis, ideal] = [inner.next().unwrap(), inner.next().unwrap()];
@@ -217,7 +231,7 @@ impl Prototype {
                         let mut aliases = FaceAlias::from_pairs(inner);
                         aliases = aliases
                             .into_iter()
-                            .map(|a| prototype_alias.clone() + &a)
+                            .map(|a| alias.clone() + &a)
                             .collect();
                         let spin = Spin::from_pair(spin);
                         faces.push(FaceDef {
@@ -230,12 +244,7 @@ impl Prototype {
                 _ => unreachable!("{:?}", pair.as_rule()),
             }
         }
-        Ok(Prototype {
-            alias: prototype_alias,
-            pushes,
-            pulls,
-            faces,
-        })
+        Ok(Prototype { alias, joints, pushes, pulls, faces })
     }
 }
 
@@ -299,7 +308,6 @@ impl BrickFace {
 #[derive(Debug, Clone)]
 pub struct BakedJoint {
     pub(crate) location: Point3<f32>,
-    has_push: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -321,7 +329,7 @@ pub struct Baked {
 impl Baked {
     pub fn from_pair(pair: Pair<Rule>) -> Self {
         let mut inner = pair.into_inner();
-        let baked_alias = FaceAlias::from_pair(inner.next().unwrap());
+        let alias = FaceAlias::from_pair(inner.next().unwrap());
         let mut joints = Vec::new();
         let mut intervals = Vec::new();
         let mut faces = Vec::new();
@@ -334,7 +342,7 @@ impl Baked {
                         inner.next().unwrap().as_str().parse().unwrap(),
                         inner.next().unwrap().as_str().parse().unwrap(),
                     ];
-                    joints.push(BakedJoint { location: point3(x, y, z), has_push: true });
+                    joints.push(BakedJoint { location: point3(x, y, z) });
                 }
                 Rule::interval_baked => {
                     let mut inner = pair.into_inner();
@@ -366,7 +374,7 @@ impl Baked {
                     let mut aliases = FaceAlias::from_pairs(inner);
                     aliases = aliases
                         .into_iter()
-                        .map(|a| baked_alias.clone() + &a)
+                        .map(|a| alias.clone() + &a)
                         .collect();
                     let spin = Spin::from_pair(spin);
                     let joints = [a, b, c].map(|pair| pair.as_str().parse().unwrap());
@@ -380,7 +388,7 @@ impl Baked {
             }
         }
         Baked {
-            alias: baked_alias,
+            alias,
             joints,
             intervals,
             faces,
@@ -409,6 +417,7 @@ impl Baked {
     }
 
     pub const TARGET_FACE_STRAIN: f32 = 0.1;
+    pub const TOLERANCE: f32 = 0.001;
 
     pub fn into_tenscript(self) -> String {
         format!(
@@ -417,7 +426,7 @@ impl Baked {
             joints = self
                 .joints
                 .into_iter()
-                .filter_map(|BakedJoint { location, has_push }| if has_push { Some(location) } else { None })
+                .map(|BakedJoint { location, .. }| location)
                 .map(|Point3 { x, y, z }| format!("(joint {x:.4} {y:.4} {z:.4})"))
                 .collect::<Vec<_>>()
                 .join("\n    "),
@@ -428,10 +437,10 @@ impl Baked {
                     |BakedInterval {
                          alpha_index,
                          omega_index,
-                         material_name: material,
+                         material_name,
                          strain,
                      }| {
-                        format!("(interval {alpha_index} {omega_index} {strain:.4} {material})")
+                        format!("(interval {alpha_index} {omega_index} {strain:.4} {material_name})")
                     }
                 )
                 .collect::<Vec<_>>()
@@ -468,21 +477,28 @@ impl TryFrom<(Fabric, FaceAlias)> for Baked {
 
     fn try_from((fabric, alias): (Fabric, FaceAlias)) -> Result<Self, String> {
         let joint_incidents = fabric.joint_incidents();
-        let target_face_strain = Baked::TARGET_FACE_STRAIN;
+        let mut strains = Vec::new();
+        let mut strain_sum = 0.0;
         for face in fabric.faces.values() {
             let strain = face.strain(&fabric);
-            if abs(strain - target_face_strain) > 0.0001 {
-                return Err(format!(
-                    "Face interval strain too far from {target_face_strain} {strain:.5}"
-                ));
+            strain_sum += strain;
+            if abs(strain - Baked::TARGET_FACE_STRAIN) > Baked::TOLERANCE {
+                strains.push(strain);
             }
+        }
+        let average_strain = strain_sum / strains.len() as f32;
+        if !strains.is_empty() {
+            println!("Face interval strain too far from {} {strains:?}", Baked::TARGET_FACE_STRAIN);
+        }
+        if abs(average_strain - Baked::TARGET_FACE_STRAIN) > Baked::TOLERANCE {
+            return Err(format!("Face interval strain too far from {} {average_strain:?}", Baked::TARGET_FACE_STRAIN));
         }
         Ok(Self {
             alias,
             joints: joint_incidents
                 .iter()
-                .map(|JointIncident { location, push, .. }|
-                    BakedJoint { location: *location, has_push: push.is_some() })
+                .map(|JointIncident { location, .. }|
+                    BakedJoint { location: *location })
                 .collect(),
             intervals: fabric
                 .interval_values()
@@ -491,15 +507,19 @@ impl TryFrom<(Fabric, FaceAlias)> for Baked {
                         alpha_index,
                         omega_index,
                         material,
+                        group,
                         strain,
                         ..
                     }| {
-                        let material = fabric.materials[material].name.to_string();
-                        joint_incidents[alpha_index].push.map(|_| BakedInterval {
+                        if group == Interval::FACE_RADIAL_GROUP {
+                            return None;
+                        }
+                        let material_name = fabric.materials[material].name.to_string();
+                        Some(BakedInterval {
                             alpha_index,
                             omega_index,
                             strain,
-                            material_name: material,
+                            material_name,
                         })
                     },
                 )

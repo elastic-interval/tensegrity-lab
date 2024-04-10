@@ -34,7 +34,7 @@ impl Oven {
                     return Some(baked);
                 }
                 Err(problem) => {
-                    panic!("Cannot create brick: {problem}");
+                     panic!("Cannot create brick: {problem}");
                 }
             }
         }

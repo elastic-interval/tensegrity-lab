@@ -64,10 +64,10 @@ impl Crucible {
                     self.stage = PretensingLaunch(plan_runner.pretense_phase())
                 } else {
                     for _ in 0..self.iterations_per_frame {
-                        if let Err(tenscript_error) =
-                            plan_runner.iterate(&mut self.fabric, brick_library)
+                        if let Err(tenscript_error) = plan_runner.
+                            iterate(&mut self.fabric, brick_library)
                         {
-                            log::info!("Error:\n{tenscript_error}");
+                            println!("Error:\n{tenscript_error}");
                             plan_runner.disable(tenscript_error);
                             break;
                         }

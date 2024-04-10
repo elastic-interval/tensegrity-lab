@@ -65,14 +65,14 @@ impl FabricPlan {
         }
         let unused_marks: Vec<_> = build_marks.difference(&shape_marks).cloned().collect();
         if !unused_marks.is_empty() {
-            return Err(TenscriptError::Invalid(format!(
+            return Err(TenscriptError::InvalidError(format!(
                 "unused marks in build phase: {}",
                 unused_marks.join(", ")
             )));
         }
         let undefined_marks: Vec<_> = shape_marks.difference(&build_marks).cloned().collect();
         if !undefined_marks.is_empty() {
-            return Err(TenscriptError::Invalid(format!(
+            return Err(TenscriptError::InvalidError(format!(
                 "undefined marks in shape phase: {}",
                 undefined_marks.join(", ")
             )));
