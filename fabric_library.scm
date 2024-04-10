@@ -3,8 +3,8 @@
   (fabric (name "Omni") (build (branch (alias Omni))))
   (fabric (name "Tworque")
     (build
-      (branch (alias TorqueRight)
-        (face (alias Left:Back:Top) (grow 2 (branch (alias TorqueLeft))))
+      (branch (alias TorqueLeft)
+        (face (alias Left:Back:Top) (grow 2 (branch (alias Omni))))
         )
       )
     (shape (faces-to-triangles))

@@ -92,7 +92,7 @@ impl Fabric {
                     let radial_intervals = brick_joints.map(|omega| {
                         let omega_index = joints[omega];
                         let ideal = self.ideal(alpha_index, omega_index, Baked::TARGET_FACE_STRAIN);
-                        self.create_interval(alpha_index, omega_index, Link::pull(ideal))
+                        self.create_interval(alpha_index, omega_index, Link::face_radial(ideal))
                     });
                     let single_alias: Vec<_> = aliases
                         .into_iter()

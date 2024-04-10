@@ -244,4 +244,12 @@ impl Link {
             group: 0,
         }
     }
+    
+    pub fn face_radial(ideal: f32) -> Self {
+        Self {
+            ideal,
+            material_name: ":pull".to_string(),
+            group: Interval::FACE_RADIAL_GROUP,
+        }
+    }
 }

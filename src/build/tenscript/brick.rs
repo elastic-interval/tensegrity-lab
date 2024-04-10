@@ -178,7 +178,7 @@ impl From<Prototype> for Fabric {
             let midpoint = joints.into_iter().sum::<Vector3<_>>() / 3.0;
             let alpha_index = fabric.create_joint(Point3::from_vec(midpoint));
             let radial_intervals = joint_indices.map(|omega_index| {
-                fabric.create_interval(alpha_index, omega_index, Link::pull(1.0))
+                fabric.create_interval(alpha_index, omega_index, Link::face_radial(1.0))
             });
             fabric.create_face(aliases, 1.0, spin, radial_intervals);
         }
