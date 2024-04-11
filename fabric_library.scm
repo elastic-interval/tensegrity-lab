@@ -1,16 +1,18 @@
 (fabric-library
   (fabric (name "Single") (build (branch (alias Single))))
   (fabric (name "Omni") (build (branch (alias Omni))))
-  (fabric (name "Tworque")
+  (fabric (name "Tworque Walker")
     (build
       (branch (alias Torque)
-        (face (alias Left:Front:Bottom) (branch (alias TorqueRight) ))
-        (face (alias Right:Front:Bottom) (branch (alias TorqueLeft) ))
+        (face (alias Left:Front:Bottom) (grow 1 (branch (alias TorqueRight))))
+        (face (alias Left:Back:Bottom) (grow 1 (branch (alias TorqueLeft))))
+        (face (alias Right:Front:Bottom) (grow 1 (branch (alias TorqueRight))))
+        (face (alias Right:Back:Bottom) (grow 1 (branch (alias TorqueLeft) )))
         )
       )
     (shape (faces-to-triangles))
     (pretense
-      (muscle 0.7 20000)
+      (muscle 0.65 18000)
       (surface :bouncy))
     )
   (fabric
