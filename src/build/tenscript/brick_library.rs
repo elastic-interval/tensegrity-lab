@@ -110,6 +110,6 @@ impl BrickLibrary {
                 face.aliases
             );
         }
-        thawed.clone()
+        thawed
     }
 }

@@ -132,14 +132,22 @@
         (pull :back_left_bottom :front_right_bottom :south)
         (pull :back_left_top :front_right_top :north))
       (faces
-        (left :bottom_left :left_front :front_left_bottom (alias :left :base) (alias :right Far:Side) (alias :seed Left:Front:Bottom :base))
-        (right :bottom_left :left_back :back_left_bottom (alias :left Base:Back) (alias :right Far:Back) (alias :seed Left:Back:Bottom :base))
-        (left :bottom_right :right_back :back_right_bottom (alias :left Far:Back) (alias :right Base:Back) (alias :seed Right:Back:Bottom :base))
-        (right :bottom_right :right_front :front_right_bottom (alias :left Far:Side) (alias :right :base) (alias :seed Right:Front:Bottom :base))
-        (left :top_left :left_back :back_left_top (alias :left Base:Side) (alias :right Far:Base) (alias :seed Left:Back:Top))
-        (right :top_left :left_front :front_left_top (alias :left Base:Front) (alias :right Far:Front) (alias :seed Left:Front:Top))
-        (left :top_right :right_front :front_right_top (alias :left Far:Front) (alias :right Base:Front) (alias :seed Right:Front:Top))
-        (right :top_right :right_back :back_right_top (alias :left Far:Base) (alias :right Base:Side) (alias :seed Right:Back:Top))
+        (left :bottom_left :left_front :front_left_bottom
+          (alias :left :base) (alias :right Far:Side) (alias :seed Left:Front:Bottom :base))
+        (right :bottom_left :left_back :back_left_bottom
+          (alias :left Base:Back) (alias :right Far:Back) (alias :seed Left:Back:Bottom :base))
+        (left :bottom_right :right_back :back_right_bottom
+          (alias :left Far:Back) (alias :right Base:Back) (alias :seed Right:Back:Bottom :base))
+        (right :bottom_right :right_front :front_right_bottom
+          (alias :left Far:Side) (alias :right :base) (alias :seed Right:Front:Bottom :base))
+        (left :top_left :left_back :back_left_top
+          (alias :left Base:Side) (alias :right Far:Base) (alias :seed Left:Back:Top))
+        (right :top_left :left_front :front_left_top
+          (alias :left Base:Front) (alias :right Far:Front) (alias :seed Left:Front:Top))
+        (left :top_right :right_front :front_right_top
+          (alias :left Far:Front) (alias :right Base:Front) (alias :seed Right:Front:Top))
+        (right :top_right :right_back :back_right_top
+           (alias :left Far:Base) (alias :right Base:Side) (alias :seed Right:Back:Top))
         )
       )
     (baked
