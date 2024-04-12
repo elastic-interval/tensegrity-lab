@@ -109,7 +109,11 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) {
         .expect("Could not build window");
     
     let graphics = pollster::block_on(Graphics::new(&winit_window, 100, 100));
-    let mut app = Application::new(graphics, (control_state, set_control_state), (actions_tx, actions_rx));
+    let mut app = 
+        match Application::new(graphics, (control_state, set_control_state), (actions_tx, actions_rx)) {
+            Ok(app) => app,
+            Err(error) => panic!("Tenscript Error: [{:?}]", error)
+        };
     if let Some(fabric_name) = fabric_name {
         app.run_fabric(&fabric_name);
     }
