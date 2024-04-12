@@ -13,7 +13,6 @@
       (face-aliases :right (alias :base) (alias Top :next-base))
       (face-aliases :seed (alias :base) (alias Top :next-base)))
     (baked
-      (alias Single)
       (joint -1.4913 -0.3875 0.0099)
       (joint 1.4913 -0.0099 0.3875)
       (joint 0.0099 -1.4913 -0.3875)
@@ -42,7 +41,6 @@
       (face-aliases :left (alias :base) (alias Top :next-base))
       (face-aliases :seed (alias :base) (alias Top :next-base)))
     (baked
-      (alias Single)
       (joint -1.4913 0.0099 -0.3875)
       (joint 1.4913 0.3875 -0.0099)
       (joint -0.3875 -1.4913 0.0099)
@@ -84,7 +82,6 @@
           (alias :base Bot) (alias BotX) (alias BotY) (alias BotZ)
           (alias TopZ) (alias TopY) (alias TopX) (alias Top)))
       (baked
-        (alias Omni)
         (joint -1.5556 -0.0000 -0.7722)
         (joint 1.5556 0.0000 -0.7722)
         (joint -1.5556 0.0000 0.7722)
@@ -159,7 +156,6 @@
           (alias Left:Front:Bottom :base) (alias Left:Back:Bottom :base) (alias Right:Back:Bottom :base) (alias Right:Front:Bottom :base)
           (alias Left:Back:Top) (alias Left:Front:Top) (alias Right:Front:Top) (alias Right:Back:Top)))
       (baked
-        (alias Torque)
         (joint -1.6517 0.0000 -2.6933)
         (joint 1.6517 0.0000 -2.6933)
         (joint -1.6916 0.0000 0.0000)
@@ -256,7 +252,6 @@
           (alias Left:Front:Bottom :base) (alias Left:Back:Bottom :base) (alias Right:Back:Bottom :base) (alias Right:Front:Bottom :base)
           (alias Left:Back:Top) (alias Left:Front:Top) (alias Right:Front:Top) (alias Rogjt:Back:Top)))
       (baked
-        (alias TorqueLeft)
         (joint -0.7196 1.4156 -0.0000)
         (joint 0.7196 1.4156 0.0000)
         (joint -1.2847 2.4547 -2.6569)
@@ -361,7 +356,6 @@
           (alias Left:Front:Bottom :base) (alias Left:Back:Bottom :base) (alias Right:Back:Bottom :base) (alias Right:Front:Bottom :base)
           (alias Left:Back:Top) (alias Left:Front:Top) (alias Right:Front:Top) (alias Rogjt:Back:Top)))
       (baked
-        (alias TorqueRight)
         (joint -0.7196 1.4156 0.0000)
         (joint 0.7196 1.4156 -0.0000)
         (joint -1.2850 0.3768 -2.6569)

@@ -77,7 +77,6 @@ impl BrickLibrary {
                             })
                             .collect();
                         aliases.into_iter().map(move |(alias, space)| {
-                            let alias = alias + &baked.alias;
                             let mut baked = baked.clone();
                             baked.apply_matrix(space);
                             (alias, baked)
