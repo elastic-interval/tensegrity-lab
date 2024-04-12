@@ -241,6 +241,17 @@ impl Prototype {
                         });
                     }
                 }
+                Rule::face_aliases => {
+                    let mut inner = pair.into_inner();
+                    let atom = FaceAlias::single(parse_atom(inner.next().unwrap()).as_str());
+                    let aliases = FaceAlias::from_pairs(inner);
+                    if aliases.len() != faces.len() {
+                        return Err(TenscriptError::FaceAliasError("face-aliases must have the same size as faces".to_string()));
+                    }
+                    for (index, face_alias) in aliases.into_iter().enumerate() {
+                        faces[index].aliases.push(face_alias + &atom + &alias);
+                    }
+                }
                 _ => unreachable!("{:?}", pair.as_rule()),
             }
         }
@@ -486,10 +497,10 @@ impl TryFrom<(Fabric, FaceAlias)> for Baked {
                 strains.push(strain);
             }
         }
-        let average_strain = strain_sum / strains.len() as f32;
         if !strains.is_empty() {
             println!("Face interval strain too far from {} {strains:?}", Baked::TARGET_FACE_STRAIN);
         }
+        let average_strain = strain_sum / fabric.faces.len() as f32;
         if abs(average_strain - Baked::TARGET_FACE_STRAIN) > Baked::TOLERANCE {
             return Err(format!("Face interval strain too far from {} {average_strain:?}", Baked::TARGET_FACE_STRAIN));
         }

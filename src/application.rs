@@ -37,11 +37,11 @@ impl Application {
         graphics: Graphics,
         (control_state, set_control_state): (ReadSignal<ControlState>, WriteSignal<ControlState>),
         (actions_tx, actions_rx): (Sender<Action>, Receiver<Action>),
-    ) -> Application {
-        let brick_library = BrickLibrary::from_source().unwrap();
-        let fabric_library = FabricLibrary::from_source().unwrap();
+    ) -> Result<Application, TenscriptError> {
+        let brick_library = BrickLibrary::from_source()?;
+        let fabric_library = FabricLibrary::from_source()?;
         let scene = Scene::new(graphics, (control_state, set_control_state));
-        Application {
+        Ok(Application {
             scene,
             crucible: Crucible::default(),
             fabric_plan_name: "Halo by Crane".into(),
@@ -53,7 +53,7 @@ impl Application {
             actions_rx,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
-        }
+        })
     }
 
     pub fn handle_actions(&mut self) {
