@@ -331,7 +331,6 @@ pub struct BakedInterval {
 
 #[derive(Debug, Clone, Default)]
 pub struct Baked {
-    pub alias: FaceAlias,
     pub joints: Vec<BakedJoint>,
     pub intervals: Vec<BakedInterval>,
     pub faces: Vec<BrickFace>,
@@ -339,12 +338,10 @@ pub struct Baked {
 
 impl Baked {
     pub fn from_pair(pair: Pair<Rule>) -> Self {
-        let mut inner = pair.into_inner();
-        let alias = FaceAlias::from_pair(inner.next().unwrap());
         let mut joints = Vec::new();
         let mut intervals = Vec::new();
         let mut faces = Vec::new();
-        for pair in inner {
+        for pair in pair.into_inner() {
             match pair.as_rule() {
                 Rule::joint_baked => {
                     let mut inner = pair.into_inner();
@@ -382,24 +379,15 @@ impl Baked {
                         inner.next().unwrap(),
                         inner.next().unwrap(),
                     ];
-                    let mut aliases = FaceAlias::from_pairs(inner);
-                    aliases = aliases
-                        .into_iter()
-                        .map(|a| alias.clone() + &a)
-                        .collect();
+                    let aliases = FaceAlias::from_pairs(inner);
                     let spin = Spin::from_pair(spin);
                     let joints = [a, b, c].map(|pair| pair.as_str().parse().unwrap());
-                    faces.push(BrickFace {
-                        joints,
-                        spin,
-                        aliases,
-                    });
+                    faces.push(BrickFace { joints, spin, aliases });
                 }
                 _ => unreachable!(),
             }
         }
         Baked {
-            alias,
             joints,
             intervals,
             faces,
@@ -432,8 +420,7 @@ impl Baked {
 
     pub fn into_tenscript(self) -> String {
         format!(
-            "(baked\n    (alias {alias})\n    {joints}\n    {intervals}\n    {faces})",
-            alias = self.alias,
+            "(baked\n    {joints}\n    {intervals}\n    {faces})",
             joints = self
                 .joints
                 .into_iter()
@@ -483,10 +470,10 @@ impl Baked {
     }
 }
 
-impl TryFrom<(Fabric, FaceAlias)> for Baked {
+impl TryFrom<Fabric> for Baked {
     type Error = String;
 
-    fn try_from((fabric, alias): (Fabric, FaceAlias)) -> Result<Self, String> {
+    fn try_from(fabric: Fabric) -> Result<Self, String> {
         let joint_incidents = fabric.joint_incidents();
         let mut strains = Vec::new();
         let mut strain_sum = 0.0;
@@ -505,7 +492,6 @@ impl TryFrom<(Fabric, FaceAlias)> for Baked {
             return Err(format!("Face interval strain too far from {} {average_strain:?}", Baked::TARGET_FACE_STRAIN));
         }
         Ok(Self {
-            alias,
             joints: joint_incidents
                 .iter()
                 .map(|JointIncident { location, .. }|
