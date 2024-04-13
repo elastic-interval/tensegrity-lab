@@ -243,13 +243,13 @@ impl Prototype {
                 }
                 Rule::face_aliases => {
                     let mut inner = pair.into_inner();
-                    let atom = FaceAlias::single(parse_atom(inner.next().unwrap()).as_str());
+                    let with_atoms = FaceAlias::from_pair(inner.next().unwrap());
                     let aliases = FaceAlias::from_pairs(inner);
                     if aliases.len() != faces.len() {
                         return Err(TenscriptError::FaceAliasError("face-aliases must have the same size as faces".to_string()));
                     }
                     for (index, face_alias) in aliases.into_iter().enumerate() {
-                        faces[index].aliases.push(face_alias + &atom + &alias);
+                        faces[index].aliases.push(face_alias + &with_atoms + &alias);
                     }
                 }
                 _ => unreachable!("{:?}", pair.as_rule()),

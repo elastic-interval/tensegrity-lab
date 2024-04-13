@@ -10,8 +10,8 @@
         (pull :alpha_y :omega_x :pull)
         (pull :alpha_z :omega_y :pull))
       (faces (right :alpha_z :alpha_y :alpha_x) (right :omega_x :omega_y :omega_z))
-      (face-aliases :right (alias :base) (alias Top :next-base))
-      (face-aliases :seed (alias :base) (alias Top :next-base)))
+      (face-aliases (with :right) (alias :base) (alias Top :next-base))
+      (face-aliases (with :seed) (alias :base) (alias Top :next-base)))
     (baked
       (joint -1.4913 -0.3875 0.0099)
       (joint 1.4913 -0.0099 0.3875)
@@ -38,8 +38,8 @@
         (pull :alpha_y :omega_z :pull)
         (pull :alpha_z :omega_x :pull))
       (faces (left :alpha_x :alpha_y :alpha_z) (left :omega_z :omega_y :omega_x))
-      (face-aliases :left (alias :base) (alias Top :next-base))
-      (face-aliases :seed (alias :base) (alias Top :next-base)))
+      (face-aliases (with :left) (alias :base) (alias Top :next-base))
+      (face-aliases (with :seed) (alias :base) (alias Top :next-base)))
     (baked
       (joint -1.4913 0.0099 -0.3875)
       (joint 1.4913 0.3875 -0.0099)
@@ -69,16 +69,16 @@
           (right :bot_alpha_y :bot_omega_z :top_alpha_x)
           (right :bot_alpha_x :bot_omega_y :top_alpha_z)
           (left :bot_alpha_x :bot_alpha_y :bot_alpha_z))
-        (face-aliases :left
+        (face-aliases (with :left)
           (alias Top) (alias TopX) (alias TopY) (alias TopZ)
           (alias BotZ) (alias BotY) (alias BotX) (alias :base))
-        (face-aliases :right
+        (face-aliases (with :right)
           (alias :base) (alias BotX) (alias BotY) (alias BotZ)
           (alias TopZ) (alias TopY) (alias TopX) (alias Top))
-        (face-aliases :seed
+        (face-aliases (with :seed)
           (alias Top:Right) (alias Front:Right) (alias Back:Right) (alias Top:Left)
           (alias :base Bottom:Right) (alias Front:Left) (alias Back:Left) (alias :base Bottom:Left))
-        (face-aliases :seed-1
+        (face-aliases (with :seed-1)
           (alias :base Bot) (alias BotX) (alias BotY) (alias BotZ)
           (alias TopZ) (alias TopY) (alias TopX) (alias Top)))
       (baked
@@ -146,13 +146,13 @@
           (right :top_left :left_front :front_left_top)
           (left :top_right :right_front :front_right_top)
           (right :top_right :right_back :back_right_top))
-        (face-aliases :left
+        (face-aliases (with :left)
           (alias :base) (alias Base:Back) (alias Far:Back) (alias Far:Side)
           (alias Base:Side) (alias Base:Front) (alias Far:Front) (alias Far:Base))
-        (face-aliases :right
+        (face-aliases (with :right)
           (alias Far:Side) (alias Far:Back) (alias Base:Back) (alias :base)
           (alias Far:Base) (alias Far:Front) (alias Base:Front) (alias Base:Side))
-        (face-aliases :seed
+        (face-aliases (with :seed)
           (alias Left:Front:Bottom :base) (alias Left:Back:Bottom :base) (alias Right:Back:Bottom :base) (alias Right:Front:Bottom :base)
           (alias Left:Back:Top) (alias Left:Front:Top) (alias Right:Front:Top) (alias Right:Back:Top)))
       (baked
@@ -242,13 +242,13 @@
           (right :top_left :left_front :front_left_top)
           (left :top_right :right_front :front_right_top)
           (right :top_right :right_back :back_right_top))
-        (face-aliases :left
+        (face-aliases (with :left)
           (alias :base) (alias Base:Back) (alias Far:Back) (alias Far:Side)
           (alias Base:Side) (alias Base:Front) (alias Far:Front) (alias Far:Base))
-        (face-aliases :right
+        (face-aliases (with :right)
           (alias Far:Side) (alias Far:Back) (alias Base:Back) (alias :base)
           (alias Far:Base) (alias Far:Front) (alias Base:Front) (alias Base:Side))
-        (face-aliases :seed
+        (face-aliases (with :seed)
           (alias Left:Front:Bottom :base) (alias Left:Back:Bottom :base) (alias Right:Back:Bottom :base) (alias Right:Front:Bottom :base)
           (alias Left:Back:Top) (alias Left:Front:Top) (alias Right:Front:Top) (alias Rogjt:Back:Top)))
       (baked
@@ -346,13 +346,13 @@
           (left :top_right :right_front :front_right_top)
           (right :top_right :right_back :back_right_top)
           )
-        (face-aliases :left
+        (face-aliases (with :left)
           (alias :base) (alias Base:Back) (alias Far:Back) (alias Far:Side)
           (alias Base:Side) (alias Base:Front) (alias Far:Front) (alias Far:Base))
-        (face-aliases :right
+        (face-aliases (with :right)
           (alias Far:Side) (alias Far:Back) (alias Base:Back) (alias :base)
           (alias Far:Base) (alias Far:Front) (alias Base:Front) (alias Base:Side))
-        (face-aliases :seed
+        (face-aliases (with :seed)
           (alias Left:Front:Bottom :base) (alias Left:Back:Bottom :base) (alias Right:Back:Bottom :base) (alias Right:Front:Bottom :base)
           (alias Left:Back:Top) (alias Left:Front:Top) (alias Right:Front:Top) (alias Rogjt:Back:Top)))
       (baked
