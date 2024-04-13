@@ -90,14 +90,14 @@ impl BrickLibrary {
         })
     }
 
-    pub fn new_brick(&self, search_alias: &FaceAlias) -> Baked {
+    pub fn new_brick(&self, search_alias: &FaceAlias) -> Result<Baked, TenscriptError> {
         let search_with_base = search_alias.with_base();
         let (_, baked) = self
             .baked_bricks
             .iter()
             .filter(|(baked_alias, _)| search_with_base.matches(baked_alias))
             .min_by_key(|(brick_alias, _)| brick_alias.0.len())
-            .unwrap_or_else(|| panic!("no such brick: '{search_with_base}'"));
+            .ok_or(TenscriptError::FaceAliasError(format!("Cannot find a face to match {:?}", search_with_base)))?;
         let mut thawed = baked.clone();
         for face in &mut thawed.faces {
             face.aliases
@@ -109,6 +109,6 @@ impl BrickLibrary {
                 face.aliases
             );
         }
-        thawed
+        Ok(thawed)
     }
 }

@@ -263,7 +263,7 @@ impl BuildPhase {
                 scale_factor,
                 BaseFace::ExistingFace(face_id),
                 brick_library,
-            );
+            )?;
             fabric.join_faces(base_face, face_id);
             let top_face_alias = face_alias + &FaceAlias::single(":next-base");
             buds.push(Bud {
@@ -347,7 +347,7 @@ impl BuildPhase {
                     *scale_factor,
                     base_face,
                     brick_library,
-                );
+                )?;
                 if let Some(face_id) = launch_face {
                     fabric.join_faces(base_face_id, face_id)
                 }

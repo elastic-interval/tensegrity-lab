@@ -1,6 +1,6 @@
 use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
 
-use crate::build::tenscript::{FaceAlias, Spin};
+use crate::build::tenscript::{FaceAlias, Spin, TenscriptError};
 use crate::build::tenscript::brick::{Baked, BakedInterval, BakedJoint, BrickFace};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::fabric::{Fabric, Link, UniqueId};
@@ -26,7 +26,7 @@ impl Fabric {
         scale_factor: f32,
         base_face: BaseFace,
         brick_library: &BrickLibrary,
-    ) -> (UniqueId, Vec<UniqueId>) {
+    ) -> Result<(UniqueId, Vec<UniqueId>), TenscriptError> {
         let (scale, spin, matrix, seed) = match base_face {
             BaseFace::ExistingFace(id) => {
                 let face = self.face(id);
@@ -48,7 +48,7 @@ impl Fabric {
             None => face_alias.with_seed(seed),
             Some(spin_alias) => spin_alias + face_alias,
         };
-        let brick = brick_library.new_brick(&search_alias);
+        let brick = brick_library.new_brick(&search_alias)?;
         let joints: Vec<usize> = brick
             .joints
             .into_iter()
@@ -112,6 +112,6 @@ impl Fabric {
             .iter()
             .find(|&&face_id| search_base.matches(self.face(face_id).alias()))
             .expect("missing face after creating brick");
-        (*base_face, brick_faces)
+        Ok((*base_face, brick_faces))
     }
 }
