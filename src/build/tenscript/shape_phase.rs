@@ -238,7 +238,7 @@ impl ShapePhase {
                             scale,
                             base_face,
                             brick_library,
-                        );
+                        )?;
                         let mut brick_face_midpoints = Vec::new();
                         for brick_face_id in brick_faces {
                             let face = fabric.face(brick_face_id);

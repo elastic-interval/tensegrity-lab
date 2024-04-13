@@ -7,8 +7,7 @@ use winit_input_helper::WinitInputHelper;
 
 use control_overlay::ControlState;
 
-use crate::build::tenscript::{FabricPlan, FaceAlias, TenscriptError};
-use crate::build::tenscript::brick::Baked;
+use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::camera::Pick;
@@ -192,10 +191,6 @@ impl Application {
             None => Err(TenscriptError::InvalidError(plan_name)),
             Some(plan) => Ok(plan.clone()),
         }
-    }
-
-    pub fn new_brick(&self, search_alias: &FaceAlias) -> Baked {
-        self.brick_library.new_brick(search_alias)
     }
 }
 
