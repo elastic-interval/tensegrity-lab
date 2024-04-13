@@ -92,7 +92,7 @@ face_proto = // a, b, c, name
 face_alias =
     { "(" ~ "alias" ~ atom+ ~ ")" }
 face_aliases =
-    { "(" ~ "face-aliases" ~ atom+ ~ face_alias+ ~ ")" }
+    { "(" ~ "face-aliases" ~ atom ~ face_alias+ ~ ")" }
 brick_baked =
     { "(" ~ "baked" ~ joint_baked+ ~ interval_baked+ ~ face_baked+ ~ ")" }
 joint_baked = // x, y, z
