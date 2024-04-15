@@ -21,14 +21,15 @@ impl Oven {
         if age % 1000 == 0 {
             log::info!("Fabric settling age {age} at speed squared {speed_squared}");
         }
-        if age > 1000 && speed_squared < 1e-12 {
+        if age > 1000 && speed_squared < 1e-11 {
             log::info!("Fabric settled in iteration {age} at speed squared {speed_squared}");
             match Baked::try_from(fabric.clone()) {
                 Ok(baked) => {
                     return Some(baked);
                 }
                 Err(problem) => {
-                     panic!("Cannot create brick: {problem}");
+                    println!("Cannot create brick: {problem}");
+                    std::process::exit(0)
                 }
             }
         }

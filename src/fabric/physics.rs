@@ -39,9 +39,9 @@ pub mod presets {
         surface_character: Absent,
         gravity: 0.0,
         antigravity: 0.0,
-        viscosity: 1e4,
-        drag: 1.0 - 1e-2,
-        stiffness: 5e-5,
+        viscosity: 2e4,
+        drag: 1.0 - 1e-3,
+        stiffness: 1e-4,
     };
 
     pub const AIR_GRAVITY: Physics = Physics {
