@@ -1,7 +1,10 @@
 use std::collections::HashSet;
+
 use cgmath::Point3;
+
 use crate::fabric::Fabric;
-use crate::fabric::interval::{Interval, Material, Role};
+use crate::fabric::interval::{Interval, Role};
+use crate::fabric::material::interval_material;
 
 impl Fabric {
     pub fn joint_incidents(&self) -> Vec<JointIncident> {
@@ -15,10 +18,9 @@ impl Fabric {
             alpha_index,
             omega_index,
             ..
-        } in self.interval_values()
-        {
-            incidents[*alpha_index].add_interval(interval, &self.materials);
-            incidents[*omega_index].add_interval(interval, &self.materials);
+        } in self.interval_values() {
+            incidents[*alpha_index].add_interval(interval);
+            incidents[*omega_index].add_interval(interval);
         }
         incidents
     }
@@ -48,8 +50,8 @@ impl JointIncident {
         }
     }
 
-    pub fn add_interval(&mut self, interval: &Interval, materials: &[Material]) {
-        match materials[interval.material].role {
+    pub fn add_interval(&mut self, interval: &Interval) {
+        match interval_material(interval.material).role {
             Role::Push => self.push = Some(*interval),
             Role::Pull => {
                 self.pulls.push(*interval);

@@ -13,10 +13,11 @@ pub use fabric_plan::FabricPlan;
 
 use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::pretense_phase::MuscleMovement;
+use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::Face;
 use crate::fabric::interval::Span;
 use crate::fabric::interval::Span::Muscle;
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::material::Material::{NorthMaterial, SouthMaterial};
 
 pub mod brick;
 pub mod brick_library;
@@ -70,18 +71,16 @@ impl Fabric {
 
     pub fn activate_muscles(&mut self, muscle_movement: &MuscleMovement) {
         self.muscle_nuance = 0.5;
-        let north_material = self.material(":north".to_string());
-        let south_material = self.material(":south".to_string());
         for interval in self.intervals.values_mut() {
             let Span::Fixed { length } = interval.span else {
                 continue;
             };
             let contracted = length * muscle_movement.contraction;
             let reversed =  muscle_movement.reversed_groups.contains(&interval.group);
-            if interval.material == north_material {
+            if interval.material == NorthMaterial {
                 interval.span = Muscle { length, contracted, reverse: reversed };
             }
-            if interval.material == south_material {
+            if interval.material == SouthMaterial {
                 interval.span = Muscle { length, contracted, reverse: !reversed };
             }
         }

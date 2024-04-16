@@ -3,10 +3,11 @@ use std::collections::HashMap;
 use cgmath::MetricSpace;
 
 use crate::fabric::{Fabric, UniqueId};
-use crate::fabric::interval::{Interval, Material, Role, Span};
+use crate::fabric::interval::{Interval, Role, Span};
 use crate::fabric::joint::Joint;
 use crate::fabric::joint_incident::{JointIncident, Path};
-use crate::fabric::Link;
+use crate::fabric::material::{interval_material, material_by_label};
+use crate::fabric::material::Material::{BowTieMaterial, PullMaterial};
 
 const ROOT3: f32 = 1.732_050_8;
 
@@ -18,25 +19,20 @@ impl Fabric {
             alpha_index,
             omega_index,
             length,
-        } in self
-            .pair_generator()
-            .bow_tie_pulls(&self.joints, &self.materials)
-        {
+        } in self.pair_generator().bow_tie_pulls(&self.joints) {
             self.create_interval(
                 alpha_index,
                 omega_index,
-                Link {
-                    ideal: length,
-                    material_name: ":bow-tie".to_string(),
-                    group: 0,
-                },
+                length, 
+                BowTieMaterial,
+                0,
             );
         }
     }
 
     pub fn shorten_pulls(&mut self, strain_threshold: f32, shortening: f32) {
         for interval in self.intervals.values_mut() {
-            if self.materials[interval.material].name != ":bow-tie" {
+            if interval.material != BowTieMaterial {
                 continue;
             }
             if interval.strain > strain_threshold {
@@ -57,7 +53,7 @@ impl Fabric {
             length,
         } in self.pair_generator().proximity_measures()
         {
-            self.create_interval(alpha_index, omega_index, Link::pull(length)); // todo: how to do measuring?
+            self.create_interval(alpha_index, omega_index, length, PullMaterial, 0);
         }
     }
 
@@ -76,7 +72,7 @@ impl Fabric {
                 if overlap == 2 {
                     continue;
                 }
-                self.create_interval(alpha_index, omega_index, Link::pull(side_length));
+                self.create_interval(alpha_index, omega_index, side_length, PullMaterial, 0);
             }
             faces_to_remove.push(id);
         }
@@ -84,11 +80,11 @@ impl Fabric {
     }
 
     pub fn strain_limits(&self, material_name: String) -> (f32, f32) {
-        let target_material = self.material(material_name);
+        let target_material = material_by_label(material_name);
         let choose_target =
             |&Interval {
-                 strain, material, ..
-             }| (material == target_material).then_some(strain);
+                strain, material, ..
+            }| (material == target_material).then_some(strain);
         let max_strain = self
             .interval_values()
             .filter_map(choose_target)
@@ -112,9 +108,6 @@ impl Fabric {
             .collect()
     }
 }
-
-
-
 
 
 #[derive(Debug)]
@@ -149,7 +142,7 @@ impl PairGenerator {
         }
     }
 
-    fn proximity_measures(mut self) -> impl Iterator<Item = Pair> {
+    fn proximity_measures(mut self) -> impl Iterator<Item=Pair> {
         for joint in 0..self.joints.len() {
             self.push_proximity(joint);
         }
@@ -190,13 +183,9 @@ impl PairGenerator {
         self.pairs.extend(new_pairs);
     }
 
-    fn bow_tie_pulls(
-        mut self,
-        joints: &[Joint],
-        materials: &[Material],
-    ) -> impl Iterator<Item = Pair> {
+    fn bow_tie_pulls(mut self, joints: &[Joint]) -> impl Iterator<Item=Pair> {
         for interval in self.intervals.values() {
-            if materials[interval.material].role != Role::Push {
+            if interval_material(interval.material).role != Role::Push {
                 continue;
             }
             let mut meeting_pairs = vec![];

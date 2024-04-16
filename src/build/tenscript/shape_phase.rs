@@ -7,9 +7,11 @@ use crate::build::tenscript::{FaceAlias, Rule, Spin};
 use crate::build::tenscript::{FaceMark, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::shape_phase::ShapeCommand::*;
-use crate::fabric::{Fabric, Link, UniqueId};
+use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{FaceRotation, vector_space};
+use crate::fabric::interval::{JOINER_GROUP, SPACER_GROUP};
+use crate::fabric::material::Material::PullMaterial;
 
 const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 25_000;
 const DEFAULT_VULCANIZE_COUNTDOWN: usize = 5_000;
@@ -202,7 +204,7 @@ impl ShapePhase {
                 let joints = self.marked_middle_joints(fabric, &face_ids);
                 match face_ids.len() {
                     2 => {
-                        let interval = fabric.create_interval(joints[0], joints[1], Link::pull(0.01));
+                        let interval = fabric.create_interval(joints[0], joints[1], 0.01, PullMaterial, JOINER_GROUP );
                         self.joiners.push(Shaper { interval, alpha_face: face_ids[0], omega_face: face_ids[1], mark_name })
                     }
                     3 => {
@@ -268,7 +270,7 @@ impl ShapePhase {
                                 (near_face_id, near_joint, far_face_id, far_joint)
                             });
                         for (near_face_id, near_joint, far_face_id, far_joint) in shapers {
-                            let interval = fabric.create_interval(near_joint, far_joint, Link::pull(0.01));
+                            let interval = fabric.create_interval(near_joint, far_joint, 0.01, PullMaterial, JOINER_GROUP);
                             self.joiners.push(Shaper { interval, alpha_face: near_face_id, omega_face: far_face_id, mark_name: mark_name.clone() })
                         }
                     }
@@ -308,7 +310,7 @@ impl ShapePhase {
                             .joints[alpha_index]
                             .location
                             .distance(fabric.joints[omega_index].location) * distance_factor;
-                        let interval = fabric.create_interval(alpha_index, omega_index, Link::pull(length));
+                        let interval = fabric.create_interval(alpha_index, omega_index, length, PullMaterial, SPACER_GROUP);
                         self.spacers.push(Shaper {
                             interval,
                             alpha_face: faces[alpha],

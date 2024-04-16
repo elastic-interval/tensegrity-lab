@@ -9,10 +9,11 @@ use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
 use cgmath::num_traits::zero;
 
 use crate::fabric::face::Face;
-use crate::fabric::interval::{Interval, Material};
+use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push, Spring};
 use crate::fabric::interval::Span::{Approaching, Fixed};
 use crate::fabric::joint::Joint;
+use crate::fabric::material::{interval_material, IntervalMaterial};
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
 
@@ -26,6 +27,7 @@ pub mod progress;
 pub mod vulcanize;
 
 pub mod joint_incident;
+pub mod material;
 
 #[derive(Clone, Debug)]
 pub struct Fabric {
@@ -35,7 +37,6 @@ pub struct Fabric {
     pub joints: Vec<Joint>,
     pub intervals: HashMap<UniqueId, Interval>,
     pub faces: HashMap<UniqueId, Face>,
-    pub materials: Vec<Material>,
     pub keep_above: bool,
     unique_id: usize,
 }
@@ -49,7 +50,6 @@ impl Default for Fabric {
             joints: Vec::new(),
             intervals: HashMap::new(),
             faces: HashMap::new(),
-            materials: MATERIALS.into(),
             keep_above: true,
             unique_id: 0,
         }
@@ -57,13 +57,6 @@ impl Default for Fabric {
 }
 
 impl Fabric {
-    pub fn material(&self, sought_name: String) -> usize {
-        self.materials
-            .iter()
-            .position(|&Material { name, .. }| name == sought_name)
-            .unwrap_or_else(|| panic!("missing material {sought_name}"))
-    }
-
     pub fn apply_matrix4(&mut self, matrix: Matrix4<f32>) {
         for joint in &mut self.joints {
             joint.location = matrix.transform_point(joint.location);
@@ -86,7 +79,7 @@ impl Fabric {
     pub fn prepare_for_pretensing(&mut self, push_extension: f32) {
         for interval in self.intervals.values_mut() {
             let length = interval.length(&self.joints);
-            let Material { role, .. } = self.materials[interval.material];
+            let IntervalMaterial { role, .. } = interval_material(interval.material);
             interval.span = match role {
                 Push => Approaching {
                     initial: length,
@@ -110,7 +103,6 @@ impl Fabric {
         for interval in self.intervals.values_mut() {
             interval.iterate(
                 &mut self.joints,
-                &self.materials,
                 &self.progress,
                 self.muscle_nuance,
                 physics,
@@ -130,7 +122,7 @@ impl Fabric {
                 .min_by(|a, b| a.partial_cmp(b).unwrap());
             if let Some(min_y) = min_y {
                 for joint in &mut self.joints {
-                    joint.location.y -= min_y; 
+                    joint.location.y -= min_y;
                 }
             }
         }
@@ -182,74 +174,5 @@ impl Fabric {
 #[derive(Clone, Debug, Copy, PartialEq, Default, Hash, Eq, Ord, PartialOrd)]
 pub struct UniqueId(usize);
 
-pub const MATERIALS: [Material; 6] = [
-    Material {
-        name: ":push",
-        role: Push,
-        stiffness: 3.0,
-        mass: 1.0,
-    },
-    Material {
-        name: ":pull",
-        role: Pull,
-        stiffness: 1.0,
-        mass: 0.1,
-    },
-    Material {
-        name: ":bow-tie",
-        role: Pull,
-        stiffness: 0.7,
-        mass: 0.1,
-    },
-    Material {
-        name: ":north",
-        role: Pull,
-        stiffness: 0.5,
-        mass: 0.01,
-    },
-    Material {
-        name: ":south",
-        role: Pull,
-        stiffness: 0.5,
-        mass: 0.01,
-    },
-    Material {
-        name: ":spring",
-        role: Spring,
-        stiffness: 0.5,
-        mass: 0.01,
-    },
-];
 
-#[derive(Clone, Debug)]
-pub struct Link {
-    pub ideal: f32,
-    pub material_name: String,
-    pub group: usize,
-}
 
-impl Link {
-    pub fn push(ideal: f32) -> Self {
-        Self {
-            ideal,
-            material_name: ":push".to_string(),
-            group: 0,
-        }
-    }
-
-    pub fn pull(ideal: f32) -> Self {
-        Self {
-            ideal,
-            material_name: ":pull".to_string(),
-            group: 0,
-        }
-    }
-    
-    pub fn face_radial(ideal: f32) -> Self {
-        Self {
-            ideal,
-            material_name: ":pull".to_string(),
-            group: Interval::FACE_RADIAL_GROUP,
-        }
-    }
-}
