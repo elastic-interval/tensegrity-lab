@@ -1,7 +1,8 @@
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Quaternion, Rad, Rotation3, VectorSpace};
 
 use crate::build::sphere::{SphereScaffold, Vertex};
-use crate::fabric::{Fabric, Link};
+use crate::fabric::Fabric;
+use crate::fabric::material::Material::{PullMaterial, PushMaterial};
 
 const TWIST_ANGLE: f32 = 0.52;
 
@@ -75,7 +76,7 @@ pub fn generate_ball(frequency: usize, radius: f32) -> Fabric {
                                 .fabric
                                 .create_joint(Point3::from_vec(quaternion * omega_base));
                             let length = (omega_base - alpha_base).magnitude();
-                            ts.fabric.create_interval(alpha, omega, Link::push(length));
+                            ts.fabric.create_interval(alpha, omega, length, PushMaterial, 0);
                             PushInterval {
                                 alpha_vertex: *vertex_here,
                                 omega_vertex: *adjacent_vertex,
@@ -152,7 +153,9 @@ pub fn generate_ball(frequency: usize, radius: f32) -> Fabric {
             ts.fabric.create_interval(
                 spoke.near_joint,
                 next_spoke.near_joint,
-                Link::pull(spoke.length / 3.0),
+                spoke.length / 3.0,
+                PullMaterial,
+                1,
             );
             let next_near = &spokes[(spoke_index + 1) % spokes.len()].near_joint;
             let next_far = {
@@ -163,7 +166,7 @@ pub fn generate_ball(frequency: usize, radius: f32) -> Fabric {
             if *next_far > *next_near {
                 // only up-hill
                 ts.fabric
-                    .create_interval(*next_near, *next_far, Link::pull(spoke.length / 3.0));
+                    .create_interval(*next_near, *next_far, spoke.length, PullMaterial, 2);
             }
         }
     }

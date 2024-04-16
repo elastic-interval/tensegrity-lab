@@ -10,8 +10,9 @@ use winit_input_helper::WinitInputHelper;
 use crate::camera::{Camera, Pick};
 use crate::camera::Target::*;
 use crate::control_state::{ControlState, IntervalDetails};
-use crate::fabric::{Fabric, MATERIALS, UniqueId};
+use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::{Interval, Role, Span};
+use crate::fabric::material::interval_material;
 use crate::graphics::Graphics;
 
 const MAX_INTERVALS: usize = 5000;
@@ -311,7 +312,7 @@ impl Scene {
             }
             Pick::Interval { joint, id, interval } => {
                 self.camera.target = AroundInterval(id);
-                let role = MATERIALS[interval.material].role;
+                let role = interval_material(interval.material).role;
                 let length = match interval.span {
                     Span::Fixed { length } => length,
                     _ => 0.0
@@ -345,7 +346,7 @@ impl FabricVertex {
     pub fn for_interval(interval_id: &UniqueId, interval: &Interval, fabric: &Fabric, pick: &Pick) -> [FabricVertex; 4] {
         let (alpha, omega) = interval.locations(&fabric.joints);
         let midpoint = interval.midpoint(&fabric.joints);
-        let (center_color, end_color) = match fabric.materials[interval.material].role {
+        let (center_color, end_color) = match interval_material(interval.material).role {
             Role::Push => (RED, RED_END),
             Role::Pull => (BLUE, BLUE_END),
             Role::Spring => (WHITE, WHITE),

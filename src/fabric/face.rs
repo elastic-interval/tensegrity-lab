@@ -5,9 +5,10 @@
 use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, MetricSpace, Point3, Vector3};
 
 use crate::build::tenscript::{FaceAlias, Spin};
-use crate::fabric::interval::Interval;
+use crate::fabric::interval::{Interval, JOINER_GROUP};
 use crate::fabric::joint::Joint;
-use crate::fabric::{Fabric, Link, UniqueId};
+use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::material::Material::PullMaterial;
 
 impl Fabric {
     pub fn create_face(
@@ -72,7 +73,7 @@ impl Fabric {
             .unwrap();
         let ideal = (alpha.scale + omega.scale) / 2.0;
         for (a, b) in links {
-            self.create_interval(alpha_rotated[a], omega_ends[b], Link::pull(ideal));
+            self.create_interval(alpha_rotated[a], omega_ends[b], ideal, PullMaterial, JOINER_GROUP);
         }
         self.remove_face(alpha_id);
         self.remove_face(omega_id);

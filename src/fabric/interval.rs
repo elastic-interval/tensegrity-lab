@@ -3,32 +3,30 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, MetricSpace, Point3, Vector3};
+use cgmath::num_traits::zero;
 use fast_inv_sqrt::InvSqrt32;
 
+use crate::fabric::{Fabric, Progress, UniqueId};
 use crate::fabric::interval::Role::*;
 use crate::fabric::interval::Span::*;
 use crate::fabric::joint::Joint;
+use crate::fabric::material::{interval_material, IntervalMaterial, Material};
 use crate::fabric::physics::Physics;
-use crate::fabric::{Fabric, Link, Progress, UniqueId};
 
 impl Fabric {
     pub fn create_interval(
         &mut self,
         alpha_index: usize,
         omega_index: usize,
-        Link {
-            ideal,
-            material_name,
-            group,
-        }: Link,
+        ideal: f32,
+        material: Material,
+        group: usize,
     ) -> UniqueId {
         let id = self.create_id();
         let initial = self.joints[alpha_index]
             .location
             .distance(self.joints[omega_index].location);
-        let material = self.material(material_name);
         let interval = Interval::new(
             alpha_index,
             omega_index,
@@ -72,30 +70,23 @@ pub enum Role {
     Spring,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Material {
-    pub name: &'static str,
-    pub role: Role,
-    pub stiffness: f32,
-    pub mass: f32,
-}
-
 #[derive(Clone, Copy, Debug)]
 pub struct Interval {
     pub alpha_index: usize,
     pub omega_index: usize,
-    pub material: usize,
+    pub material: Material,
     pub group: usize,
     pub span: Span,
     pub unit: Vector3<f32>,
     pub strain: f32,
 }
 
+pub const FACE_RADIAL_GROUP: usize = 255;
+pub const JOINER_GROUP: usize = 254;
+pub const SPACER_GROUP: usize = 253;
+
 impl Interval {
-    
-    pub const FACE_RADIAL_GROUP: usize = 255;
-    
-    pub fn new(alpha_index: usize, omega_index: usize, material: usize, group: usize, span: Span) -> Interval {
+    pub fn new(alpha_index: usize, omega_index: usize, material: Material, group: usize, span: Span) -> Interval {
         Interval {
             alpha_index,
             omega_index,
@@ -157,7 +148,6 @@ impl Interval {
     pub fn iterate(
         &mut self,
         joints: &mut [Joint],
-        materials: &[Material],
         progress: &Progress,
         muscle_nuance: f32,
         physics: &Physics,
@@ -176,12 +166,12 @@ impl Interval {
             }
         };
         let real_length = self.length(joints);
-        let Material {
+        let IntervalMaterial {
             role,
             stiffness,
             mass,
             ..
-        } = materials[self.material];
+        } = interval_material(self.material);
         self.strain = (real_length - ideal) / ideal;
         match role {
             Push if real_length > ideal => self.strain = 0.0, // do not pull

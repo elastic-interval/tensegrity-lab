@@ -3,8 +3,11 @@ use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
 use crate::build::tenscript::{FaceAlias, Spin, TenscriptError};
 use crate::build::tenscript::brick::{Baked, BakedInterval, BakedJoint, BrickFace};
 use crate::build::tenscript::brick_library::BrickLibrary;
-use crate::fabric::{Fabric, Link, UniqueId};
+use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::FaceRotation;
+use crate::fabric::interval::FACE_RADIAL_GROUP;
+use crate::fabric::material::Material::PullMaterial;
+use crate::fabric::material::material_by_label;
 
 pub enum BaseFace {
     ExistingFace(UniqueId),
@@ -67,11 +70,9 @@ impl Fabric {
             self.create_interval(
                 alpha_index,
                 omega_index,
-                Link {
-                    ideal,
-                    material_name,
-                    group,
-                },
+                ideal,
+                material_by_label(material_name),
+                group,
             );
         }
         let brick_faces = brick
@@ -92,7 +93,7 @@ impl Fabric {
                     let radial_intervals = brick_joints.map(|omega| {
                         let omega_index = joints[omega];
                         let ideal = self.ideal(alpha_index, omega_index, Baked::TARGET_FACE_STRAIN);
-                        self.create_interval(alpha_index, omega_index, Link::face_radial(ideal))
+                        self.create_interval(alpha_index, omega_index, ideal, PullMaterial, FACE_RADIAL_GROUP)
                     });
                     let single_alias: Vec<_> = aliases
                         .into_iter()
