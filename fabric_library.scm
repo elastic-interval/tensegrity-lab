@@ -1,8 +1,8 @@
 (fabric-library
   (fabric (name "Single") (build (branch (alias Single))))
   (fabric (name "Omni") (build (branch (alias Omni))))
-  (fabric (name "TorqueLeft") (build (branch (alias TorqueLeft))) (shape (faces-to-triangles)) (pretense (surface :sticky)))
-  (fabric (name "TorqueRight") (build (branch (alias TorqueRight))) (shape (faces-to-triangles)) (pretense (surface :sticky)))
+  (fabric (name "TorqueLeft") (build (branch (alias TorqueLeft))) (shape (faces-to-triangles)))
+  (fabric (name "TorqueRight") (build (branch (alias TorqueRight))) (shape (faces-to-triangles)))
   (fabric (name "Tworque Walker")
     (build
       (branch (alias Torque)
