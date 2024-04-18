@@ -157,12 +157,14 @@ impl Interval {
             Approaching {
                 initial, length, ..
             } => {
-                let nuance = progress.nuance();
-                initial * (1.0 - nuance) + length * nuance
+                let progress_nuance = progress.nuance();
+                initial * (1.0 - progress_nuance) + length * progress_nuance
             }
             Muscle { length, contracted, reverse } => {
                 let nuance = if reverse { 1.0 - muscle_nuance } else { muscle_nuance };
-                contracted * (1.0 - nuance) + length * nuance
+                let progress_nuance = progress.nuance();
+                let muscle_length = contracted * (1.0 - nuance) + length * nuance;
+                length * (1.0 - progress_nuance) + muscle_length * progress_nuance
             }
         };
         let real_length = self.length(joints);
