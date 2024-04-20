@@ -145,7 +145,7 @@ impl Camera {
             Pick::Interval { joint, id, .. } => match best_interval_around(joint) {
                 None => Pick::Nothing,
                 Some((picked_id, _)) if *picked_id == id => {
-                    Pick::Joint(joint)
+                    Pick::Nothing
                 }
                 Some((picked_id, _)) => {
                     Pick::Interval { joint, id: *picked_id, interval: *fabric.interval(*picked_id) }
