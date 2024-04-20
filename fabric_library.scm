@@ -63,8 +63,13 @@
     (pretense (surface :frozen)))
   (fabric (name "Torque Twist")
     (build
-      (branch (alias TorqueLeft)
-        (face (alias RightBackBottom) (branch (alias TorqueLeft)))))
+      (branch (alias Torque)
+        (face (alias RightBackBottom)
+          (branch (alias TorqueRight)
+            (face (alias FarBrother)
+              (branch (alias TorqueLeft)
+                (face (alias FarBrother) (grow 3))
+                ))))))
     (shape (faces-to-triangles)))
   (fabric (name "Tworque Walker")
     (build
