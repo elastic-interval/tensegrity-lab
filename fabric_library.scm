@@ -32,13 +32,11 @@
         (face (alias Bot) (grow 2 (scale .9)))
         (face (alias TopY) (grow 10 (scale .9) (mark :end)))
         (face (alias TopX) (grow 10 (scale .9) (mark :end)))
-        (face (alias TopZ) (grow 10 (scale .9) (mark :end)))
-        ))
+        (face (alias TopZ) (grow 10 (scale .9) (mark :end)))))
     (shape
       (during 18000 (join :end (seed 1)))
       (during 20000 (vulcanize))
-      (faces-to-triangles)
-      )
+      (faces-to-triangles))
     (pretense (surface :frozen)))  (fabric
     (name "Headless Hug")
     (build
@@ -63,7 +61,11 @@
       (remove-spacers)
       (faces-to-triangles))
     (pretense (surface :frozen)))
-  (fabric (name "Torque Twist") (build (branch (alias TorqueLeft))) (shape (faces-to-triangles)))
+  (fabric (name "Torque Twist")
+    (build
+      (branch (alias TorqueLeft)
+        (face (alias RightBackBottom) (branch (alias TorqueLeft)))))
+    (shape (faces-to-triangles)))
   (fabric (name "Tworque Walker")
     (build
       (branch (alias Torque)
