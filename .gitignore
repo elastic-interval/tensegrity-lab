@@ -8,4 +8,6 @@
 # Dev environment is your own business
 .idea
 
+.DS_Store
+
 dist/
