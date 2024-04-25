@@ -1,33 +1,19 @@
 # Tensegrity Lab
 
-Tensegrity Lab is for efficiently exploring spatial structures based on
-pure pairwise push and pull forces using Rust Language.
+The tensegrity lab project is an exploration of the design space of structures based on purely tension and compression using the [Rust](https://www.rust-lang.org/) programming language and [WGPU](https://wgpu.rs/) for graphics.
 
-![logo](tensegrity-lab.jpg)
+Originally inspired by the work of [Kenneth Snelson](http://kennethsnelson.net/), this project explores what more is possible based on these design principles.
 
-## Origin
+The ultimate goal is to enable the design and construction of elaborate real-world physical tensegrity structures which realistically cannot be designed by hand. Examples and construction stories can be found on [pretenst.com](https://pretenst.com)
 
-This is a deeper exploration of what originated as a project
-partly written in Rust but mostly in Typescript which is published on [pretenst.com](https://pretenst.com/)
-as an online [application](https://pretenst.com/app/#construction;Halo-by-Crane), and used to
-design and support building real-world complex tensegrity structures.
+[image]
 
-## Goals
+The foundation is a simple and efficient model and [physics](docs/physics.md) simulation where all elements operate according to Hooke's law and time progresses in discrete steps not unlike a cellular automaton.
 
-This project dives deeper with a high-performance implementation, going 100% [Rust](https://www.rust-lang.org/),
-so that new experiments can be constructed involving optimizations such as the trial-and-error
-genius of Darwinian evolution that brought about life on Earth.
+The design of elaborate tensegrity structures is made possible through a domain specific language named [tenscript](docs/tenscript.md) and a model based on the notion of bricks which are tensegrity modules connected together by unifying triangular faces.
 
-## Contact
+[image]
 
-If you find this interesting and you want to know more, drop us a line at **pretenst@gmail.com**. 
+## Contact us
 
-## Running on web
-
-1. `wasm-pack build --target web`
-2. Serve website locally from project directory using e.g. miniserve
-   1. `brew install miniserve`
-   2. `miniserve . --index index.html`
-3. Navigate to `http://127.0.0.1:8080`
-
-Press F for fullscreen.
+If you are interested, we'd love to hear from you, so drop us a line at **pretenst@gmail.com*4*. 
