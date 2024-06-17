@@ -1,19 +1,47 @@
 # Tensegrity Lab
 
-The tensegrity lab project is an exploration of the design space of structures based on purely tension and compression using the [Rust](https://www.rust-lang.org/) programming language and [WGPU](https://wgpu.rs/) for graphics.
+Tensegrity Lab is for efficiently exploring spatial structures based on
+pure pairwise push and pull forces using the [Rust](https://www.rust-lang.org/) stack.
 
-Originally inspired by the work of [Kenneth Snelson](http://kennethsnelson.net/), this project explores what more is possible based on these design principles.
+To get a quick idea of what kind of things can be designed and experimented with, take a moment to view this movie made from a screen recording:
 
-The ultimate goal is to enable the design and construction of elaborate real-world physical tensegrity structures which realistically cannot be designed by hand. Examples and construction stories can be found on [pretenst.com](https://pretenst.com)
+<div style="padding:56.25% 0 0 0;position:relative;"><iframe src="https://player.vimeo.com/video/806029888?h=39b3cb6312" style="position:absolute;top:0;left:0;width:100%;height:100%;" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div><script src="https://player.vimeo.com/api/player.js"></script>
+<p><a href="https://vimeo.com/806029888">Tommy Torque Dance.mp4</a> from <a href="https://vimeo.com/user187079381">Get Pretenst</a> on <a href="https://vimeo.com">Vimeo</a>.</p>
 
-[image]
+This is a continuation of the [PretensT](https://pretenst.com/) Project about building both software and real-world tensegrity structures.
 
-The foundation is a simple and efficient model and [physics](docs/physics.md) simulation where all elements operate according to Hooke's law and time progresses in discrete steps not unlike a cellular automaton.
+The goals of this project are:
 
-The design of elaborate tensegrity structures is made possible through a domain specific language named [tenscript](docs/tenscript.md) and a model based on the notion of bricks which are tensegrity modules connected together by unifying triangular faces.
+* have a fast implementation of Elastic Interval Geometry, both native and web
+* design tensegrity by melting tensegrity modules or "bricks" together
+* facilitate the building of designed structures with real materials
+* construct a Darwinian evolution of competing tensegrities with arbitrary fitness function
 
-[image]
+### Two Versions
 
-## Contact us
+There are two different versions which are maintained in parallel, the web version and the native version.
 
-If you are interested, we'd love to hear from you, so drop us a line at **pretenst@gmail.com*4*. 
+1. The native version is minimal, specifically made for designing tensegrities by composing scripts in an invented language called *"tenscript"*. It watches the script file for changes, and rebuilds your design if necessary. Don't underestimate how tricky it can be to script the generation of tensegrity.
+1. The web version allows for selecting from the existing designs and is intended to facilitate building the physical tensegrity structures. When you click on the structure, you select a joint, and then you can select one of its adjacent intervals. The details about the interval appear above so you can construct a real world tensegrity. Scale can be calibrated easily.
+
+None of this is really documented well enough yet that it is easy for beginners. You kind of have to want to dig in.
+
+If you want to know more, please contact **pretenst@gmail.com**. 
+
+### Running Tensegrity Lab
+
+First you will need Rust installed, and your copy of the source code.
+
+1. [install rust](https://www.rust-lang.org/tools/install)
+1. clone the [repository](https://github.com/elastic-interval/tensegrity-lab.git)
+1. move into the **tensegrity-lab** directory
+
+To run the web version:
+
+1. [install trunk](https://trunkrs.dev/guide/getting-started/installation.html)
+1. command: **trunk serve**
+
+To run the native version:
+
+1. command: **cargo run -- --fabric "Halo by Crane"**
+
