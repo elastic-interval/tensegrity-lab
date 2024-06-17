@@ -7,9 +7,7 @@ To get a quick idea of what kind of things can be designed and experimented with
 
 ![tommy](tommy.png)
 
-Play the [video](https://vimeo.com/806029888)
-
-<a href="https://vimeo.com/806029888" target="_blank">blank</a>
+Play the [video](https://vimeo.com/806029888)!
 
 This is a continuation of the [PretensT](https://pretenst.com/) Project about building both software and real-world tensegrity structures.
 
