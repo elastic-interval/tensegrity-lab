@@ -5,8 +5,9 @@ pure pairwise push and pull forces using the [Rust](https://www.rust-lang.org/) 
 
 To get a quick idea of what kind of things can be designed and experimented with, take a moment to view this movie made from a screen recording:
 
-<div style="padding:56.25% 0 0 0;position:relative;"><iframe src="https://player.vimeo.com/video/806029888?h=39b3cb6312" style="position:absolute;top:0;left:0;width:100%;height:100%;" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe></div><script src="https://player.vimeo.com/api/player.js"></script>
-<p><a href="https://vimeo.com/806029888">Tommy Torque Dance.mp4</a> from <a href="https://vimeo.com/user187079381">Get Pretenst</a> on <a href="https://vimeo.com">Vimeo</a>.</p>
+![tommy](tommy.png)
+
+Play the [video](https://vimeo.com/806029888)
 
 This is a continuation of the [PretensT](https://pretenst.com/) Project about building both software and real-world tensegrity structures.
 
