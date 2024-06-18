@@ -40,9 +40,13 @@ First you will need Rust installed, and your copy of the source code.
 To run the web version:
 
 1. [install trunk](https://trunkrs.dev/guide/getting-started/installation.html)
-1. command: **trunk serve**
+1. command:
+
+   trunk serve
 
 To run the native version:
 
-1. command: **cargo run -- --fabric "Halo by Crane"**
+1. command:
+
+    cargo run -- --fabric "Halo by Crane"
 
