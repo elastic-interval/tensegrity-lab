@@ -28,6 +28,8 @@ A face is actually implemented as a joint at the midpoint and three radial pull 
 
 There are two bricks which are used to grow columns of tensegrity, one with left-handed chirality and one with right-handed chirality.  These are the simplest bricks and they consist only three pushing elements, and three pulling elements, with two faces at either end.
 
+![single](single.png)
+
 This is the prototype specification of the right-handed simple brick:
 
 	(pushes X 3.204 
@@ -75,6 +77,9 @@ After the baking process is completed, the end result contains proper spatial co
 ### Branching Bricks
 
 The simple bricks described above only have two faces, so they can only be chained together to make columns of tensegrity. Slightly more elaborate bricks have eight faces, and so far there is the symmetrical *"Omni-Twist"* and several variations on the elongated and twistable *"Torque"* brick shape. These bricks have four right-handed faces and four left-handed ones.
+
+![omni](omni.png)
+![torque](torque.png)
 
 Once one of these branching bricks is attached to an existing face, there are choices regarding which of the remaining seven faces to attach subsequent bricks, and of course multiple faces can be used.
 
