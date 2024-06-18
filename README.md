@@ -14,8 +14,8 @@ This is a continuation of the [PretensT](https://pretenst.com/) Project about bu
 The goals of this project are:
 
 * have a fast implementation of [Elastic Interval Geometry](docs/EIG.md), both native and web
-* design tensegrity by melting tensegrity modules or "bricks" together
-* facilitate the building of designed structures with real materials
+* design tensegrity by melting tensegrity modules or "bricks" together, based on a homegrown language called [Tenscript](docs/Tenscript.md)
+* facilitate the building of designed structures with [real materials](https://pretenst.com/)
 * construct a Darwinian evolution of competing tensegrities with arbitrary fitness function
 
 ### Two Versions

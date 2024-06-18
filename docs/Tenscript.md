@@ -72,17 +72,49 @@ After the baking process is completed, the end result contains proper spatial co
 		(right 1 3 5 (alias :next-base :right Single Top) (alias :next-base :seed Single))))
 
 
-
 ### Branching Bricks
 
-[omni, torque]
+The simple bricks described above only have two faces, so they can only be chained together to make columns of tensegrity. Slightly more elaborate bricks have eight faces, and so far there is the symmetrical *"Omni-Twist"* and several variations on the elongated and twistable *"Torque"* brick shape. These bricks have four right-handed faces and four left-handed ones.
+
+Once one of these branching bricks is attached to an existing face, there are choices regarding which of the remaining seven faces to attach subsequent bricks, and of course multiple faces can be used.
 
 ## Fabric Library
 
-The fabric library contains a growing number of tensegrity constructions described as the connecting of bricks together.
+The fabric library contains a growing number of fabrics or tensegrity constructions described as connected bricks.
 
-[grow vs branch]
+Since there is branching, the *Tenscript* language has some recursive nesting in its *build* instructions.
 
-### Shaping phase
+A fairly simple example is *"Halo by Crane"* described by this *Tenscript*.
 
-### Pretensing phase
+![Halo by Crane](halo-by-crane.png)
+
+	  (fabric
+	    (name "Halo by Crane")
+	    (build
+	      (branch (alias Single) (rotate) (rotate)
+	        (face (alias :next-base)
+	          (grow 4 (scale .92)
+	            (branch (alias Omni)
+	              (face (alias TopX) (grow 12 (scale .92) (mark :halo-end)))
+	              (face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))))
+	    (shape
+	      (join :halo-end)
+	      (vulcanize)
+	      (faces-to-triangles))
+	    (pretense (surface :frozen)))
+
+What happens here in the **growth** phase is thet first the stem is built by growing four twists on top of a base twist, while scaling down from one to the next, and then it branches using the *Omni-Twist* brick.
+
+From there, two arms are grown out as long columns of twists from faces tagged *TopX* and *TopY* in the brick, both also scaling down each step as they grow.
+
+Finally the ends of the arms are marked *:halo-end* so that in the **shaping** phase, the command can be given to **join** the two ends of the arms together so that they meet in the middle and are woven together.
+
+![Halo by Crane](halo-build.png)
+
+Following the join command comes *vulcanize*, which adds extra support tension intervals to make the tensegrity more rigid, and the faces with radial tension are replaced by tension triangles with *faces-to-triangles*.
+
+Finally, the *pretense* phase describes the world in which the structure will end up, in this case specifying a *frozen* surface which permanently grabs and fixes any joint that touches the surface.
+
+---
+
+*Tenscript is a work-in-progress and will presumably evolve more* 
