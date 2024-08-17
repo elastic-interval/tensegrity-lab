@@ -13,9 +13,9 @@ This is a continuation of the [PretensT](https://pretenst.com/) Project about bu
 
 The goals of this project are:
 
-* have a fast implementation of Elastic Interval Geometry, both native and web
-* design tensegrity by melting tensegrity modules or "bricks" together
-* facilitate the building of designed structures with real materials
+* have a fast implementation of [Elastic Interval Geometry](docs/EIG.md), both native and web
+* design tensegrity by melting tensegrity modules or "bricks" together, based on a homegrown language called [Tenscript](docs/Tenscript.md)
+* facilitate the building of designed structures with [real materials](https://pretenst.com/)
 * construct a Darwinian evolution of competing tensegrities with arbitrary fitness function
 
 ### Two Versions
@@ -40,9 +40,13 @@ First you will need Rust installed, and your copy of the source code.
 To run the web version:
 
 1. [install trunk](https://trunkrs.dev/guide/getting-started/installation.html)
-1. command: **trunk serve**
+1. command:
+
+   trunk serve
 
 To run the native version:
 
-1. command: **cargo run -- --fabric "Halo by Crane"**
+1. command:
+
+    cargo run -- --fabric "Halo by Crane"
 
