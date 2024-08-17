@@ -5,8 +5,7 @@ use cgmath::{
     Rotation3, SquareMatrix, Transform, vec3, Vector3,
 };
 use cgmath::num_traits::abs;
-use winit::event::MouseButton;
-use winit_input_helper::WinitInputHelper;
+use winit::keyboard::Key;
 
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::Interval;
@@ -51,30 +50,30 @@ impl Camera {
         }
     }
 
-    pub fn handle_input(&mut self, input: &WinitInputHelper, fabric: &Fabric) -> Option<Pick> {
-        if input.mouse_held(MouseButton::Left) {
-            if let Some(rotation) = self.rotation(input.mouse_diff()) {
-                self.position = self.look_at - rotation.transform_vector(self.look_at - self.position);
-                self.pick_cursor = None;
-            }
-        }
-        if input.mouse_pressed(MouseButton::Left) {
-            self.pick_cursor = input.cursor();
-        }
-        if input.mouse_released(MouseButton::Left) {
-            if let Some(pick_cursor) = self.pick_cursor {
-                self.pick = self.pick(pick_cursor, fabric);
-                return Some(self.pick.clone());
-            }
-        }
-        let (_sx, sy) = input.scroll_diff();
-        if abs(sy) > 0.1 {
-            let scroll = sy * SPEED.z;
-            let gaze = self.look_at - self.position;
-            if gaze.magnitude() - scroll > 1.0 {
-                self.position += gaze.normalize() * scroll;
-            }
-        }
+    pub fn handle_input(&mut self, _input: &Key, _fabric: &Fabric) -> Option<Pick> {
+        // if input.mouse_held(MouseButton::Left) {
+        //     if let Some(rotation) = self.rotation(input.mouse_diff()) {
+        //         self.position = self.look_at - rotation.transform_vector(self.look_at - self.position);
+        //         self.pick_cursor = None;
+        //     }
+        // }
+        // if input.mouse_pressed(MouseButton::Left) {
+        //     self.pick_cursor = input.cursor();
+        // }
+        // if input.mouse_released(MouseButton::Left) {
+        //     if let Some(pick_cursor) = self.pick_cursor {
+        //         self.pick = self.pick(pick_cursor, fabric);
+        //         return Some(self.pick.clone());
+        //     }
+        // }
+        // let (_sx, sy) = input.scroll_diff();
+        // if abs(sy) > 0.1 {
+        //     let scroll = sy * SPEED.z;
+        //     let gaze = self.look_at - self.position;
+        //     if gaze.magnitude() - scroll > 1.0 {
+        //         self.position += gaze.normalize() * scroll;
+        //     }
+        // }
         None
     }
 
@@ -163,18 +162,18 @@ impl Camera {
         OPENGL_TO_WGPU_MATRIX * perspective(Rad(2.0 * PI / 5.0), aspect, 0.1, 100.0)
     }
 
-    fn rotation(&self, (dx, dy): (f32, f32)) -> Option<Matrix4<f32>> {
+    fn _rotation(&self, (dx, dy): (f32, f32)) -> Option<Matrix4<f32>> {
         if (dx, dy) == (0.0, 0.0) {
             return None;
         }
-        let rot_x = Matrix4::from_axis_angle(Vector3::unit_y(), Deg(dx * SPEED.x));
+        let rot_x = Matrix4::from_axis_angle(Vector3::unit_y(), Deg(dx * _SPEED.x));
         let axis = Vector3::unit_y().cross((self.look_at - self.position).normalize());
-        let rot_y = Matrix4::from_axis_angle(axis, Deg(dy * SPEED.y));
+        let rot_y = Matrix4::from_axis_angle(axis, Deg(dy * _SPEED.y));
         Some(rot_x * rot_y)
     }
 }
 
-const SPEED: Vector3<f32> = vec3(-0.5, 0.4, 1.0);
+const _SPEED: Vector3<f32> = vec3(-0.5, 0.4, 1.0);
 
 const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
     1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.5, 1.0,
