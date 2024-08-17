@@ -1,8 +1,8 @@
 use std::sync::mpsc::Sender;
 
-use leptos::{CollectView, component, create_effect, create_signal, event_target_value, IntoView, Memo, ReadSignal, SignalGet, SignalSet, SignalUpdate, view, WriteSignal};
+use codee::string::FromToStringCodec;
+use leptos::*;
 use leptos_use::storage::use_local_storage;
-use leptos_use::utils::FromToStringCodec;
 
 use crate::control_overlay::action::Action;
 use crate::control_state::{ControlState, IntervalDetails};

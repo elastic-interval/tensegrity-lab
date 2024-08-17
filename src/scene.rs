@@ -1,11 +1,9 @@
 use std::f32::consts::PI;
-use std::mem;
 
 use bytemuck::{cast_slice, Pod, Zeroable};
-use leptos::{ReadSignal, SignalGet, SignalUpdate, WriteSignal};
+use leptos::{ReadSignal, SignalUpdate, WriteSignal};
 use wgpu::util::DeviceExt;
-use winit::keyboard::KeyCode;
-use winit_input_helper::WinitInputHelper;
+use winit::keyboard::Key;
 
 use crate::camera::{Camera, Pick};
 use crate::camera::Target::*;
@@ -13,7 +11,7 @@ use crate::control_state::{ControlState, IntervalDetails};
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::{Interval, Role, Span};
 use crate::fabric::material::interval_material;
-use crate::graphics::Graphics;
+use crate::wgpu_context::WgpuContext;
 
 const MAX_INTERVALS: usize = 5000;
 
@@ -23,22 +21,20 @@ pub struct StrainRendering {
     _material: usize,
 }
 
-pub struct Scene {
-    _strain_rendering: Option<StrainRendering>,
+pub struct Scene<'window> {
+    pub wgpu_context: WgpuContext<'window>,
     camera: Camera,
     fabric_drawing: Drawing<FabricVertex>,
     surface_drawing: Drawing<SurfaceVertex>,
-    uniform_bind_group: wgpu::BindGroup,
-    uniform_buffer: wgpu::Buffer,
-    graphics: Graphics,
-    control_state: ReadSignal<ControlState>,
+    _control_state: ReadSignal<ControlState>,
     set_control_state: WriteSignal<ControlState>,
+    _strain_rendering: Option<StrainRendering>,
 }
 
-impl Scene {
-    pub fn new(graphics: Graphics, (control_state, set_control_state): (ReadSignal<ControlState>, WriteSignal<ControlState>)) -> Self {
-        let shader = graphics
-            .device
+impl<'window> Scene<'window> {
+    pub fn new(wgpu_context: WgpuContext<'window>, (control_state, set_control_state): (ReadSignal<ControlState>, WriteSignal<ControlState>)) -> Self {
+        let WgpuContext { device, surface_config, .. } = &wgpu_context;
+        let shader = device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("Shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
@@ -46,71 +42,31 @@ impl Scene {
         let scale = 6.0;
         let camera = Camera::new(
             (2.0 * scale, 1.0 * scale, 2.0 * scale).into(),
-            graphics.config.width as f32,
-            graphics.config.height as f32,
+            surface_config.width as f32,
+            surface_config.height as f32,
         );
-        let uniform_buffer =
-            graphics
-                .device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("MVP"),
-                    contents: cast_slice(&[0.0f32; 16]),
-                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                });
-        let uniform_bind_group_layout =
-            graphics
-                .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("Uniform Bind Group Layout"),
-                    entries: &[wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }],
-                });
-        let uniform_bind_group = graphics
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &uniform_bind_group_layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: uniform_buffer.as_entire_binding(),
-                }],
-                label: Some("Uniform Bind Group"),
-            });
-        let pipeline_layout =
-            graphics
-                .device
-                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("Render Pipeline Layout"),
-                    bind_group_layouts: &[&uniform_bind_group_layout],
-                    push_constant_ranges: &[],
-                });
+        let pipeline_layout = &wgpu_context.pipeline_layout;
         let fabric_vertices = vec![FabricVertex::default(); MAX_INTERVALS * 2];
         let fabric_pipeline =
-            graphics
-                .device
+            device
                 .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                     label: Some("Fabric Pipeline"),
-                    layout: Some(&pipeline_layout),
+                    layout: Some(pipeline_layout),
                     vertex: wgpu::VertexState {
                         module: &shader,
                         entry_point: "fabric_vertex",
                         buffers: &[FabricVertex::desc()],
+                        compilation_options: Default::default(),
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
                         entry_point: "fabric_fragment",
                         targets: &[Some(wgpu::ColorTargetState {
-                            format: graphics.config.format,
+                            format: surface_config.format,
                             blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                             write_mask: wgpu::ColorWrites::ALL,
                         })],
+                        compilation_options: Default::default(),
                     }),
                     primitive: wgpu::PrimitiveState {
                         topology: wgpu::PrimitiveTopology::LineList,
@@ -120,31 +76,33 @@ impl Scene {
                     depth_stencil: None,
                     multisample: wgpu::MultisampleState::default(),
                     multiview: None,
+                    cache: None,
                 });
-        let fabric_buffer = graphics
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: cast_slice(&fabric_vertices),
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            });
+        let fabric_buffer =
+            device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Vertex Buffer"),
+                    contents: cast_slice(&fabric_vertices),
+                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                });
         let surface_vertices = SurfaceVertex::for_radius(10.0).to_vec();
         let surface_pipeline =
-            graphics
-                .device
+            device
                 .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                     label: Some("Surface Pipeline"),
-                    layout: Some(&pipeline_layout),
+                    layout: Some(pipeline_layout),
                     vertex: wgpu::VertexState {
                         module: &shader,
                         entry_point: "surface_vertex",
+                        compilation_options: Default::default(),
                         buffers: &[SurfaceVertex::desc()],
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
                         entry_point: "surface_fragment",
+                        compilation_options: Default::default(),
                         targets: &[Some(wgpu::ColorTargetState {
-                            format: graphics.config.format,
+                            format: surface_config.format,
                             blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                             write_mask: wgpu::ColorWrites::ALL,
                         })],
@@ -157,10 +115,10 @@ impl Scene {
                     depth_stencil: None,
                     multisample: wgpu::MultisampleState::default(),
                     multiview: None,
+                    cache: None,
                 });
         let surface_buffer =
-            graphics
-                .device
+            device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("Surface Buffer"),
                     contents: cast_slice(&surface_vertices),
@@ -168,8 +126,8 @@ impl Scene {
                 });
         Self {
             _strain_rendering: None,
+            wgpu_context,
             camera,
-            graphics,
             fabric_drawing: Drawing {
                 vertices: fabric_vertices,
                 pipeline: fabric_pipeline,
@@ -180,9 +138,7 @@ impl Scene {
                 pipeline: surface_pipeline,
                 buffer: surface_buffer,
             },
-            uniform_buffer,
-            uniform_bind_group,
-            control_state,
+            _control_state: control_state,
             set_control_state,
         }
     }
@@ -207,37 +163,37 @@ impl Scene {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
-        render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
+        render_pass.set_bind_group(0, &self.wgpu_context.uniform_bind_group, &[]);
 
         render_pass.set_pipeline(&self.fabric_drawing.pipeline);
         render_pass.set_vertex_buffer(0, self.fabric_drawing.buffer.slice(..));
         render_pass.draw(0..self.fabric_drawing.vertices.len() as u32, 0..1);
 
-        render_pass.set_pipeline(&self.surface_drawing.pipeline);
-        render_pass.set_vertex_buffer(0, self.surface_drawing.buffer.slice(..));
-        render_pass.draw(0..self.surface_drawing.vertices.len() as u32, 0..1);
+        // render_pass.set_pipeline(&self.surface_drawing.pipeline);
+        // render_pass.set_vertex_buffer(0, self.surface_drawing.buffer.slice(..));
+        // render_pass.draw(0..self.surface_drawing.vertices.len() as u32, 0..1);
     }
 
-    pub fn handle_input(&mut self, input: &WinitInputHelper, fabric: &Fabric) {
-        if input.key_pressed(KeyCode::Escape) {
-            match self.camera.pick {
-                Pick::Nothing => {
-                    match self.control_state.get() {
-                        ControlState::Choosing =>
-                            self.set_control_state.update(move |state| *state = ControlState::Viewing),
-                        ControlState::Viewing =>
-                            self.set_control_state.update(move |state| *state = ControlState::Choosing),
-                        _ => {}
-                    };
-                }
-                Pick::Joint(_) => self.do_pick(Pick::Nothing),
-                Pick::Interval { joint, .. } => self.do_pick(Pick::Joint(joint)),
-            }
-        } else if let Some(pick) = self.camera.handle_input(input, fabric) {
-            if !fabric.progress.is_busy() {
-                self.do_pick(pick)
-            }
-        }
+    pub fn handle_input(&mut self, _input: &Key, _fabric: &Fabric) {
+        // if input.key_pressed(KeyCode::Escape) {
+        //     match self.camera.pick {
+        //         Pick::Nothing => {
+        //             match self.control_state.get() {
+        //                 ControlState::Choosing =>
+        //                     self.set_control_state.update(move |state| *state = ControlState::Viewing),
+        //                 ControlState::Viewing =>
+        //                     self.set_control_state.update(move |state| *state = ControlState::Choosing),
+        //                 _ => {}
+        //             };
+        //         }
+        //         Pick::Joint(_) => self.do_pick(Pick::Nothing),
+        //         Pick::Interval { joint, .. } => self.do_pick(Pick::Joint(joint)),
+        //     }
+        // } else if let Some(pick) = self.camera.handle_input(input, fabric) {
+        //     if !fabric.progress.is_busy() {
+        //         self.do_pick(pick)
+        //     }
+        // }
     }
 
     pub fn selection_active(&self) -> bool {
@@ -246,8 +202,8 @@ impl Scene {
 
     pub fn update(&mut self, fabric: &Fabric) {
         self.update_from_fabric(fabric);
-        self.update_from_camera(&self.graphics);
-        self.graphics.queue.write_buffer(
+        self.wgpu_context.update_mvp_matrix(self.camera.mvp_matrix());
+        self.wgpu_context.queue.write_buffer(
             &self.fabric_drawing.buffer,
             0,
             cast_slice(&self.fabric_drawing.vertices),
@@ -262,42 +218,14 @@ impl Scene {
                 .intervals
                 .iter()
                 .flat_map(|(interval_id, interval)|
-                    FabricVertex::for_interval(interval_id, interval, fabric, &self.camera.pick))
+                FabricVertex::for_interval(interval_id, interval, fabric, &self.camera.pick))
             );
         self.camera.target_approach(fabric);
     }
 
-    pub fn queue(&self) -> &wgpu::Queue {
-        &self.graphics.queue
-    }
-
-    pub fn create_encoder(&self) -> wgpu::CommandEncoder {
-        self.graphics
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Encoder"),
-            })
-    }
-
-    pub fn surface_texture(&self) -> Result<wgpu::SurfaceTexture, wgpu::SurfaceError> {
-        self.graphics.surface.get_current_texture()
-    }
-
     pub fn resize(&mut self, width: u32, height: u32) {
-        self.graphics.config.width = width;
-        self.graphics.config.height = height;
-        self.graphics
-            .surface
-            .configure(&self.graphics.device, &self.graphics.config);
+        self.wgpu_context.resize((width, height));
         self.camera.set_size(width as f32, height as f32);
-    }
-
-    fn update_from_camera(&self, graphics: &Graphics) {
-        let mvp_mat = self.camera.mvp_matrix();
-        let mvp_ref: &[f32; 16] = mvp_mat.as_ref();
-        graphics
-            .queue
-            .write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));
     }
 
     pub fn do_pick(&mut self, pick: Pick) {
@@ -394,9 +322,10 @@ impl FabricVertex {
 
     const ATTRIBUTES: [wgpu::VertexAttribute; 2] =
         wgpu::vertex_attr_array![0=>Float32x4, 1=>Float32x4];
+    
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<FabricVertex>() as wgpu::BufferAddress,
+            array_stride: size_of::<FabricVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &Self::ATTRIBUTES,
         }
@@ -425,9 +354,10 @@ impl SurfaceVertex {
 
     const ATTRIBUTES: [wgpu::VertexAttribute; 2] =
         wgpu::vertex_attr_array![0=>Float32x4, 1=>Float32x4];
+    
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<SurfaceVertex>() as wgpu::BufferAddress,
+            array_stride: std::mem::size_of::<SurfaceVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &Self::ATTRIBUTES,
         }

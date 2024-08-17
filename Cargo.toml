@@ -11,12 +11,13 @@ cfg-if = "1.0.0"
 cgmath = "0.18.0"
 chrono = "0.4.31"
 clap = { version = "4.4.12", features = ["derive"] }
+codee = "0.1.2"
 env_logger = "0.11.3"
 fast_inv_sqrt = "~1.0"
 futures = "0.3.30"
 gfx-hal = "0.9"
 image = "0.25.0"
-itertools = "0.12.1"
+itertools = "0.13.0"
 log = "0.4.20"
 pest = "2.5.3"
 pest_derive = "2.7.5"
@@ -24,13 +25,13 @@ pollster = "0.3.0"
 proc-macro2 = "1.0.74"
 rand = "0.8.5"
 raw-window-handle = "0.6.0"
-serde = { version = "1", features = ["derive"] }
-wgpu = "0.18.0"
-winit = { version = "0.29", features = ["rwh_05"] }
-winit_input_helper = "0.16.0"
+serde = "1.0.208"
+wgpu = "22.1.0"
+winit = { version = "0.30.5", features = ["rwh_04"] }
 leptos = { version = "0.6.9", features = ["csr"] }
-leptos-use = "0.10.4"
-
+leptos-use = "0.12.0"
+web-sys = "0.3.70"
+time = "0.3.36"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -41,10 +42,10 @@ env_logger = "0.11.3"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = "0.1.6"
 console_log = "1.0.0"
-wgpu = { version = "0.18.0", features = ["webgl"] }
+wgpu = { version = "22.1.0", features = ["webgl"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4.30"
-web-sys = { version = "0.3", features = [
+web-sys = { version = "0.3.70", features = [
     "Document",
     "Window",
     "Element",

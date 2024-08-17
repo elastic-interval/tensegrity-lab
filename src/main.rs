@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::sync::mpsc::channel;
 
 use clap::Parser;
@@ -6,14 +7,12 @@ use leptos::{create_signal, view, WriteSignal};
 use leptos::create_memo;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-use winit::{event_loop::EventLoop, window::WindowBuilder};
 use winit::dpi::PhysicalSize;
-use winit::event::{Event, WindowEvent};
-use winit_input_helper::WinitInputHelper;
+use winit::event_loop::{ControlFlow, EventLoop};
+use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
 use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
-use tensegrity_lab::graphics::Graphics;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -25,25 +24,24 @@ struct Args {
     prototype: Option<usize>,
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>>  {
     let Args { fabric, prototype } = Args::parse();
     if fabric.is_some() {
-        run_with(fabric, None);
-        return;
+        return run_with(fabric, None);
     }
     if prototype.is_some() {
-        run_with(None, prototype);
-        return;
+        return run_with(None, prototype);
     }
     println!("Give me --fabric <fabric name> or --prototype N");
+    Ok(())
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn run() {
-    run_with(None, None);
+    run_with(None, None).unwrap();
 }
 
-pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) {
+pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result<(), Box<dyn Error>> {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -53,22 +51,22 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) {
         }
     }
 
-    let event_loop = EventLoop::new().unwrap();
+    let event_loop = EventLoop::new()?;
     #[allow(unused_mut)]
-        let mut window_builder = WindowBuilder::new()
+    let mut window_attributes = WindowAttributes::default()
         .with_title("Tensegrity Lab")
         .with_inner_size(PhysicalSize::new(1600, 1200));
     #[allow(unused_variables)]
-        let (actions_tx, actions_rx) = channel();
+    let (actions_tx, actions_rx) = channel();
 
     #[allow(unused_variables)]
-        let (control_state, set_control_state) = create_signal(Default::default());
+    let (control_state, set_control_state) = create_signal(Default::default());
     #[allow(unused_variables)]
-        let fabric_list = create_memo(move |_bla| FabricLibrary::from_source().unwrap().fabric_list().unwrap());
+    let fabric_list = create_memo(move |_bla| FabricLibrary::from_source().unwrap().fabric_list().unwrap());
     #[cfg(target_arch = "wasm32")]
     {
         use tensegrity_lab::control_overlay::overlay::ControlOverlayApp;
-        use winit::platform::web::WindowBuilderExtWebSys;
+        use winit::platform::web::WindowAttributesExtWebSys;
 
         let actions_tx = actions_tx.clone();
 
@@ -99,18 +97,13 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) {
         let width = web_sys_window.inner_width().unwrap().as_f64().unwrap();
         let height = web_sys_window.inner_height().unwrap().as_f64().unwrap();
         let size = PhysicalSize::new(width * ratio, height * ratio);
-        window_builder = window_builder
+        window_attributes = window_attributes
             .with_canvas(Some(canvas))
             .with_inner_size(size);
     }
 
-    let winit_window = window_builder
-        .build(&event_loop)
-        .expect("Could not build window");
-    
-    let graphics = pollster::block_on(Graphics::new(&winit_window, 100, 100));
-    let mut app = 
-        match Application::new(graphics, (control_state, set_control_state), (actions_tx, actions_rx)) {
+    let mut app =
+        match Application::new(window_attributes, (control_state, set_control_state), (actions_tx, actions_rx)) {
             Ok(app) => app,
             Err(error) => panic!("Tenscript Error: [{:?}]", error)
         };
@@ -120,22 +113,8 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) {
     if let Some(prototype) = prototype {
         app.capture_prototype(prototype);
     }
-    let mut input = WinitInputHelper::new();
-    event_loop
-        .run(move |event, window_target| {
-            match &event {
-                Event::WindowEvent { event: WindowEvent::RedrawRequested, .. } => app.redraw(),
-                _ => winit_window.request_redraw(),
-            };
-            if input.update(&event) {
-                if input.close_requested() {
-                    window_target.exit();
-                    return;
-                }
-                app.handle_input(&input);
-                app.handle_actions();
-            }
-        })
-        .unwrap();
+    event_loop.set_control_flow(ControlFlow::Poll);
+    event_loop.run_app(&mut app)?;
+    Ok(())
 }
 
