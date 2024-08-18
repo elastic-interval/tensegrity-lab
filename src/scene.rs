@@ -25,7 +25,7 @@ pub struct Scene<'window> {
     pub wgpu_context: WgpuContext<'window>,
     camera: Camera,
     fabric_drawing: Drawing<FabricVertex>,
-    surface_drawing: Drawing<SurfaceVertex>,
+    _surface_drawing: Drawing<SurfaceVertex>,
     _control_state: ReadSignal<ControlState>,
     set_control_state: WriteSignal<ControlState>,
     _strain_rendering: Option<StrainRendering>,
@@ -133,7 +133,7 @@ impl<'window> Scene<'window> {
                 pipeline: fabric_pipeline,
                 buffer: fabric_buffer,
             },
-            surface_drawing: Drawing {
+            _surface_drawing: Drawing {
                 vertices: surface_vertices,
                 pipeline: surface_pipeline,
                 buffer: surface_buffer,
