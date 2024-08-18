@@ -3,6 +3,7 @@ use crate::crucible::CrucibleAction;
 use std::time::SystemTime;
 use winit::keyboard::Key;
 use crate::camera::Pick;
+use crate::wgpu_context::WgpuContext;
 
 #[derive(Debug, Clone)]
 pub enum GravityMessage {
@@ -23,14 +24,12 @@ pub enum StrainThresholdMessage {
     Calibrate,
 }
 
-#[derive(Debug, Clone)]
 pub enum KeyboardMessage {
     KeyPressed(Key),
     SubmitAction(Action),
     FreshLibrary(FabricLibrary),
 }
 
-#[derive(Debug, Clone)]
 pub enum ControlMessage {
     Reset,
     Keyboard(KeyboardMessage),
@@ -41,8 +40,8 @@ pub enum ControlMessage {
     FreshLibrary(FabricLibrary),
 }
 
-#[derive(Clone, Debug)]
 pub enum Action {
+    ContextCreated(WgpuContext),
     Crucible(CrucibleAction),
     Scene(Pick),
     CalibrateStrain,

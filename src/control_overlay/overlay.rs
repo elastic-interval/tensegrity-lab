@@ -21,7 +21,7 @@ pub fn ControlOverlayApp(
             set_control_state.update(|state| *state = ControlState::Viewing);
             event_loop_proxy
                 .send_event(Action::LoadFabric(name))
-                .expect("failed to send action");
+                .unwrap_or_else(|_| panic!("Unable to send"));
         }
     });
     let (assigned_length, set_assigned_length) = create_signal(100.0);

@@ -21,8 +21,8 @@ pub struct StrainRendering {
     _material: usize,
 }
 
-pub struct Scene<'window> {
-    pub wgpu_context: WgpuContext<'window>,
+pub struct Scene {
+    pub wgpu_context: WgpuContext,
     camera: Camera,
     fabric_drawing: Drawing<FabricVertex>,
     surface_drawing: Drawing<SurfaceVertex>,
@@ -31,8 +31,8 @@ pub struct Scene<'window> {
     _strain_rendering: Option<StrainRendering>,
 }
 
-impl<'window> Scene<'window> {
-    pub fn new(wgpu_context: WgpuContext<'window>, (control_state, set_control_state): (ReadSignal<ControlState>, WriteSignal<ControlState>)) -> Self {
+impl Scene {
+    pub fn new(wgpu_context: WgpuContext, (control_state, set_control_state): (ReadSignal<ControlState>, WriteSignal<ControlState>)) -> Self {
         let WgpuContext { device, surface_config, .. } = &wgpu_context;
         let shader = device
             .create_shader_module(wgpu::ShaderModuleDescriptor {

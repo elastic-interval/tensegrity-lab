@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::sync::Arc;
 
 use clap::Parser;
 #[allow(unused_imports)]
@@ -53,7 +54,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
 
     let mut builder = EventLoop::<Action>::with_user_event();
     let event_loop: EventLoop<Action> = builder.build()?;
-
+    
     #[allow(unused_mut)]
     let mut window_attributes = WindowAttributes::default()
         .with_title("Tensegrity Lab")
@@ -71,6 +72,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
         let web_sys_window = web_sys::window().expect("no web sys window");
         let document = web_sys_window.document().expect("no document");
 
+        let event_loop_proxy = event_loop.create_proxy();
         let control_overlay = document
             .get_element_by_id("control_overlay")
             .expect("no control overlay")
@@ -82,7 +84,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
                     fabric_list={fabric_list}
                     control_state={control_state}
                     set_control_state={set_control_state}
-                    event_loop_proxy={event_loop.create_proxy()}/>
+                    event_loop_proxy={event_loop_proxy}/>
             }
         });
 
@@ -100,14 +102,14 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
             .with_inner_size(size);
     }
 
-
+    let event_loop_proxy = Arc::new(event_loop.create_proxy());
     let mut app =
-        match Application::new(window_attributes, (control_state, set_control_state), event_loop.create_proxy()) {
+        match Application::new(window_attributes, (control_state, set_control_state), event_loop_proxy) {
             Ok(app) => app,
             Err(error) => panic!("Tenscript Error: [{:?}]", error)
         };
     if let Some(fabric_name) = fabric_name {
-        app.build_fabric(&fabric_name)?;
+        app.build_fabric(&fabric_name).unwrap_or_else(|_| panic!("Unable to build fabric"));
     }
     if let Some(prototype) = prototype {
         app.capture_prototype(prototype);

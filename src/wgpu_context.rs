@@ -5,11 +5,13 @@ use cgmath::Matrix4;
 use wgpu::MemoryHints::Performance;
 use wgpu::PipelineLayout;
 use wgpu::util::DeviceExt;
+use winit::event_loop::EventLoopProxy;
 use winit::window::Window;
+use crate::control_overlay::action::Action;
 
-pub struct WgpuContext<'window> {
+pub struct WgpuContext{
     pub queue: wgpu::Queue,
-    surface: wgpu::Surface<'window>,
+    surface: wgpu::Surface<'static>,
     pub surface_config: wgpu::SurfaceConfiguration,
     pub device: wgpu::Device,
     uniform_buffer: wgpu::Buffer,
@@ -17,8 +19,8 @@ pub struct WgpuContext<'window> {
     pub pipeline_layout: PipelineLayout,
 }
 
-impl<'window> WgpuContext<'window> {
-    pub async fn new_async(window: Arc<Window>) -> WgpuContext<'window> {
+impl WgpuContext {
+    pub async fn new_async(window: Arc<Window>) -> WgpuContext {
         let instance = wgpu::Instance::default();
         let surface = instance.create_surface(Arc::clone(&window)).unwrap();
         let adapter = instance
@@ -98,8 +100,21 @@ impl<'window> WgpuContext<'window> {
         }
     }
 
-    pub fn new(window: Arc<Window>) -> WgpuContext<'window> {
-        pollster::block_on(Self::new_async(window))
+    pub fn create_and_send(window: Arc<Window>, event_loop_proxy: Arc<EventLoopProxy<Action>>) {
+        #[cfg(target_arch = "wasm32")]
+        {
+            let future = Self::new_async(window);
+            wasm_bindgen_futures::spawn_local(async move {
+                let wgpu_context = future.await;
+                assert!(event_loop_proxy.send_event(Action::ContextCreated(wgpu_context)).is_ok());
+            });
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let wgpu_context = futures::executor::block_on(Self::new_async(window));
+            assert!(event_loop_proxy.send_event(Action::ContextCreated(wgpu_context)).is_ok());
+        }
     }
 
     pub fn resize(&mut self, new_size: (u32, u32)) {
@@ -118,68 +133,9 @@ impl<'window> WgpuContext<'window> {
     pub fn surface_texture(&self) -> Result<wgpu::SurfaceTexture, wgpu::SurfaceError> {
         self.surface.get_current_texture()
     }
-    
+
     pub fn update_mvp_matrix(&self, matrix: Matrix4<f32>) {
         let mvp_ref: &[f32; 16] = matrix.as_ref();
         self.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));
     }
-    
-    // pub async fn new(event_loop: &ActiveEventLoop, window_attributes: &WindowAttributes) -> Self {
-    //     let window = Arc::new(event_loop.create_window(window_attributes.clone()).unwrap());
-    //     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-    //         backends: wgpu::Backends::all(),
-    //         ..Default::default()
-    //     });
-    //     let surface = instance.create_surface(window.clone()).unwrap();
-    //     let adapter = instance
-    //         .request_adapter(&wgpu::RequestAdapterOptions {
-    //             power_preference: wgpu::PowerPreference::default(),
-    //             compatible_surface: Some(&surface),
-    //             force_fallback_adapter: false,
-    //         })
-    //         .await
-    //         .expect("Could not request adapter");
-    // 
-    //     let (device, queue) = adapter
-    //         .request_device(
-    //             &wgpu::DeviceDescriptor {
-    //                 label: None,
-    //                 required_features: Default::default(),
-    //                 required_limits: Default::default(),
-    //                 memory_hints: Default::default(),
-    //             },
-    //             None,
-    //         )
-    //         .await
-    //         .expect("Could not request device");
-    //     let surface_caps = surface.get_capabilities(&adapter);
-    //     let surface_format = surface_caps
-    //         .formats
-    //         .iter()
-    //         .copied()
-    //         .find(|f| f.is_srgb())
-    //         .unwrap_or(surface_caps.formats[0]);
-    //     let (width, height) = match window_attributes.inner_size {
-    //         Some(Size::Physical(size)) => (size.width, size.height),
-    //         _ => (100, 100),
-    //     };
-    //     let config = wgpu::SurfaceConfiguration {
-    //         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-    //         format: surface_format,
-    //         alpha_mode: surface_caps.alpha_modes[0],
-    //         width,
-    //         height,
-    //         present_mode: wgpu::PresentMode::Fifo,
-    //         view_formats: vec![],
-    //         desired_maximum_frame_latency: 0,
-    //     };
-    //     surface.configure(&device, &config);
-    //     Self {
-    //         window,
-    //         config,
-    //         surface,
-    //         device,
-    //         queue,
-    //     }
-    // }
 }

@@ -21,9 +21,9 @@ use crate::crucible::{Crucible, CrucibleAction};
 use crate::scene::Scene;
 use crate::wgpu_context::WgpuContext;
 
-pub struct Application<'window> {
+pub struct Application {
     window_attributes: WindowAttributes,
-    scene: Option<Scene<'window>>,
+    scene: Option<Scene>,
     crucible: Crucible,
     fabric_plan_name: String,
     fabric_library: FabricLibrary,
@@ -32,19 +32,22 @@ pub struct Application<'window> {
     pub brick_library: BrickLibrary,
     pub control_state: ReadSignal<ControlState>,
     pub set_control_state: WriteSignal<ControlState>,
-    pub event_loop_proxy: EventLoopProxy<Action>
+    pub event_loop_proxy: Arc<EventLoopProxy<Action>>
 }
 
-impl<'window> ApplicationHandler<Action> for Application<'window> {
+impl ApplicationHandler<Action> for Application {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = Arc::new(event_loop.create_window(self.window_attributes.clone()).unwrap());
-        let wgpu_context = WgpuContext::new(window);
-        let scene = Scene::new(wgpu_context, (self.control_state, self.set_control_state));
-        self.scene = Some(scene)
+        let event_loop_proxy = self.event_loop_proxy.clone();
+        WgpuContext::create_and_send(window, event_loop_proxy);
     }
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: Action) {
         match event {
+            Action::ContextCreated(wgpu_context) => {
+                let scene = Scene::new(wgpu_context, (self.control_state, self.set_control_state));
+                self.scene = Some(scene)
+            }
             Action::LoadFabric(fabric_plan_name) => {
                 self.fabric_plan_name = fabric_plan_name;
                 self.reload_fabric();
@@ -118,12 +121,12 @@ impl<'window> ApplicationHandler<Action> for Application<'window> {
     }
 }
 
-impl<'a> Application<'a> {
+impl Application {
     pub fn new(
         window_attributes: WindowAttributes,
         (control_state, set_control_state): (ReadSignal<ControlState>, WriteSignal<ControlState>),
-        event_loop_proxy: EventLoopProxy<Action>,
-    ) -> Result<Application<'a>, TenscriptError> {
+        event_loop_proxy: Arc<EventLoopProxy<Action>>,
+    ) -> Result<Application, TenscriptError> {
         let brick_library = BrickLibrary::from_source()?;
         let fabric_library = FabricLibrary::from_source()?;
         Ok(Application {
@@ -158,7 +161,7 @@ impl<'a> Application<'a> {
                     Ok(action) => {
                         self.event_loop_proxy
                             .send_event(action)
-                            .unwrap();
+                            .unwrap_or_else(|_| panic!("unable to send"));
                     }
                     Err(tenscript_error) => {
                         println!("Tenscript\n{tenscript_error}");
