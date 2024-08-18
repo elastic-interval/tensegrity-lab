@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
 use bytemuck::cast_slice;
@@ -17,6 +18,22 @@ pub struct WgpuContext{
     uniform_buffer: wgpu::Buffer,
     pub uniform_bind_group: wgpu::BindGroup,
     pub pipeline_layout: PipelineLayout,
+}
+
+impl Debug for WgpuContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "WgpuContext")
+    }
+}
+
+impl Clone for WgpuContext {
+    fn clone(&self) -> Self {
+        panic!("Clone of WgpuContext")
+    }
+
+    fn clone_from(&mut self, _source: &Self) {
+        panic!("Clone of WgpuContext")
+    }
 }
 
 impl WgpuContext {

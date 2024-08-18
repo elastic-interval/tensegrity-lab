@@ -24,12 +24,14 @@ pub enum StrainThresholdMessage {
     Calibrate,
 }
 
+#[derive(Debug, Clone)]
 pub enum KeyboardMessage {
     KeyPressed(Key),
     SubmitAction(Action),
     FreshLibrary(FabricLibrary),
 }
 
+#[derive(Debug, Clone)]
 pub enum ControlMessage {
     Reset,
     Keyboard(KeyboardMessage),
@@ -40,6 +42,7 @@ pub enum ControlMessage {
     FreshLibrary(FabricLibrary),
 }
 
+#[derive(Debug, Clone)]
 pub enum Action {
     ContextCreated(WgpuContext),
     Crucible(CrucibleAction),
