@@ -94,10 +94,10 @@ impl ApplicationHandler<Action> for Application {
                     scene.camera().cursor_moved(position);
                 }
                 WindowEvent::MouseInput { state, button, .. } => {
-                    scene.camera().mouse_input(state, button);
+                    scene.camera().mouse_input(state, button, self.crucible.fabric());
                 }
-                WindowEvent::MouseWheel { delta, phase, .. } => {
-                    scene.camera().mouse_wheel(delta, phase);
+                WindowEvent::MouseWheel { delta, .. } => {
+                    scene.camera().mouse_wheel(delta);
                 }
                 WindowEvent::TouchpadPressure { .. } => {}
                 _ => {

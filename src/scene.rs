@@ -73,12 +73,12 @@ impl Scene {
 
     pub fn keyboard_input(&mut self, key_event: KeyEvent) {
         if let KeyEvent {
-                physical_key: PhysicalKey::Code(KeyCode::Escape),
-                state: ElementState::Pressed,
-                repeat: false,
-                ..
-            } = key_event {
-            match self.camera.pick {
+            physical_key: PhysicalKey::Code(KeyCode::Escape),
+            state: ElementState::Pressed,
+            repeat: false,
+            ..
+        } = key_event {
+            match self.camera.current_pick() {
                 Pick::Nothing => {
                     match self.control_state.get() {
                         ControlState::Choosing =>
@@ -89,20 +89,20 @@ impl Scene {
                     };
                 }
                 Pick::Joint(_) => self.do_pick(Pick::Nothing),
-                Pick::Interval { joint, .. } => self.do_pick(Pick::Joint(joint)),
+                Pick::Interval { joint, .. } => self.do_pick(Pick::Joint(*joint)),
             }
         }
     }
 
     pub fn selection_active(&self) -> bool {
-        !matches!(self.camera.pick, Pick::Nothing)
+        !matches!(self.camera.current_pick(), Pick::Nothing)
     }
 
     pub fn redraw(&mut self, fabric: &Fabric) {
         self.fabric_drawing.vertices.clear();
         let intervals = fabric.intervals.iter().flat_map(
             |(interval_id, interval)|
-            FabricVertex::for_interval(interval_id, interval, fabric, &self.camera.pick)
+            FabricVertex::for_interval(interval_id, interval, fabric, &self.camera.current_pick())
         );
         self.fabric_drawing.vertices.extend(intervals);
         self.wgpu.update_mvp_matrix(self.camera.mvp_matrix());
@@ -132,15 +132,15 @@ impl Scene {
     pub fn do_pick(&mut self, pick: Pick) {
         match pick {
             Pick::Nothing => {
-                self.camera.target = FabricMidpoint;
+                self.camera.set_target(FabricMidpoint);
                 self.set_control_state.update(|state| *state = ControlState::Viewing);
             }
             Pick::Joint(joint_index) => {
-                self.camera.target = AroundJoint(joint_index);
+                self.camera.set_target(AroundJoint(joint_index));
                 self.set_control_state.update(|state| *state = ControlState::ShowingJoint(joint_index));
             }
             Pick::Interval { joint, id, interval } => {
-                self.camera.target = AroundInterval(id);
+                self.camera.set_target(AroundInterval(id));
                 let role = interval_material(interval.material).role;
                 let length = match interval.span {
                     Span::Fixed { length } => length,
@@ -152,6 +152,6 @@ impl Scene {
                 self.set_control_state.update(|state| *state = ControlState::ShowingInterval(interval_details));
             }
         }
-        self.camera.pick = pick;
+        self.camera.set_pick(pick);
     }
 }
