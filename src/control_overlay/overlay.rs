@@ -1,8 +1,7 @@
-use std::sync::mpsc::Sender;
-
 use codee::string::FromToStringCodec;
 use leptos::*;
 use leptos_use::storage::use_local_storage;
+use winit::event_loop::EventLoopProxy;
 
 use crate::control_overlay::action::Action;
 use crate::control_state::{ControlState, IntervalDetails};
@@ -12,7 +11,7 @@ pub fn ControlOverlayApp(
     fabric_list: Memo<Vec<String>>,
     control_state: ReadSignal<ControlState>,
     set_control_state: WriteSignal<ControlState>,
-    actions_tx: Sender<Action>,
+    event_loop_proxy: EventLoopProxy<Action>,
 ) -> impl IntoView {
     let (name, set_name, _) = use_local_storage::<String, FromToStringCodec>("name");
     let (scale, set_scale, _) = use_local_storage::<f32, FromToStringCodec>("scale");
@@ -20,8 +19,8 @@ pub fn ControlOverlayApp(
         let name = name.get();
         if !name.is_empty() {
             set_control_state.update(|state| *state = ControlState::Viewing);
-            actions_tx
-                .send(Action::LoadFabric(name))
+            event_loop_proxy
+                .send_event(Action::LoadFabric(name))
                 .expect("failed to send action");
         }
     });
