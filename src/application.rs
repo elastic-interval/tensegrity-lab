@@ -1,6 +1,5 @@
 use std::iter;
 use std::sync::Arc;
-use std::sync::mpsc::{Receiver, Sender};
 use std::time::SystemTime;
 
 use leptos::{ReadSignal, WriteSignal};
@@ -22,9 +21,9 @@ use crate::crucible::{Crucible, CrucibleAction};
 use crate::scene::Scene;
 use crate::wgpu_context::WgpuContext;
 
-pub struct Application<'a, M> {
+pub struct Application<'window> {
     window_attributes: WindowAttributes,
-    scene: Option<Scene<'a>>,
+    scene: Option<Scene<'window>>,
     crucible: Crucible,
     fabric_plan_name: String,
     fabric_library: FabricLibrary,
@@ -33,11 +32,10 @@ pub struct Application<'a, M> {
     pub brick_library: BrickLibrary,
     pub control_state: ReadSignal<ControlState>,
     pub set_control_state: WriteSignal<ControlState>,
-    pub actions_rx: Receiver<M>,
-    pub actions_tx: Sender<M>,
+    pub event_loop_proxy: EventLoopProxy<Action>
 }
 
-impl<'a> ApplicationHandler<Action> for Application<'a, Action> {
+impl<'window> ApplicationHandler<Action> for Application<'window> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = Arc::new(event_loop.create_window(self.window_attributes.clone()).unwrap());
         let wgpu_context = WgpuContext::new(window);
@@ -46,7 +44,6 @@ impl<'a> ApplicationHandler<Action> for Application<'a, Action> {
     }
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: Action) {
-        println!("USER EVENT: {:?}", event);
         match event {
             Action::LoadFabric(fabric_plan_name) => {
                 self.fabric_plan_name = fabric_plan_name;
@@ -101,8 +98,7 @@ impl<'a> ApplicationHandler<Action> for Application<'a, Action> {
             WindowEvent::KeyboardInput { event: KeyEvent { physical_key, logical_key, text, .. }, .. } => {
                 println!("KeyEvent phy={:?} log={:?}, text={:?}", physical_key, logical_key, text)
             }
-            WindowEvent::RedrawRequested => {
-                panic!("------Redraw!!!");
+            WindowEvent::CursorMoved {..} => {
             }
             _ => {
                 println!("Event {:?}", event);
@@ -111,7 +107,6 @@ impl<'a> ApplicationHandler<Action> for Application<'a, Action> {
                 // }
             }
         }
-        // self.handle_actions();
     }
 
     fn device_event(&mut self, _event_loop: &ActiveEventLoop, _device_id: DeviceId, _event: DeviceEvent) {
@@ -123,12 +118,12 @@ impl<'a> ApplicationHandler<Action> for Application<'a, Action> {
     }
 }
 
-impl<'a> Application<'a, Action> {
+impl<'a> Application<'a> {
     pub fn new(
         window_attributes: WindowAttributes,
         (control_state, set_control_state): (ReadSignal<ControlState>, WriteSignal<ControlState>),
-        (actions_tx, actions_rx): (Sender<Action>, Receiver<Action>),
-    ) -> Result<Application<'a, Action>, TenscriptError> {
+        event_loop_proxy: EventLoopProxy<Action>,
+    ) -> Result<Application<'a>, TenscriptError> {
         let brick_library = BrickLibrary::from_source()?;
         let fabric_library = FabricLibrary::from_source()?;
         Ok(Application {
@@ -140,58 +135,10 @@ impl<'a> Application<'a, Action> {
             fabric_library,
             control_state,
             set_control_state,
-            actions_tx,
-            actions_rx,
+            event_loop_proxy,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
         })
-    }
-
-    pub fn handle_actions(&mut self) {
-        while let Ok(action) = self.actions_rx.try_recv() {
-            match action {
-                Action::LoadFabric(fabric_plan_name) => {
-                    self.fabric_plan_name = fabric_plan_name;
-                    self.reload_fabric();
-                }
-                Action::Crucible(crucible_action) => {
-                    match &crucible_action {
-                        CrucibleAction::BuildFabric(fabric_plan) => {
-                            self.fabric_plan_name = fabric_plan.name.clone();
-                            if let Some(scene) = &mut self.scene {
-                                scene.do_pick(Pick::Nothing);
-                            }
-                            // self.user_interface.message(ControlMessage::Reset);
-                        }
-                        CrucibleAction::StartPretensing(_) => {
-                            // menu: ReturnToRoot
-                        }
-                        _ => {}
-                    }
-                    self.crucible.action(crucible_action);
-                }
-                #[cfg(target_arch = "wasm32")]
-                Action::UpdatedLibrary(_) => unreachable!(),
-                #[cfg(not(target_arch = "wasm32"))]
-                Action::UpdatedLibrary(time) => {
-                    let _fabric_library = self.fabric_library.clone();
-                    self.fabric_library_modified = time;
-                    if !self.fabric_plan_name.is_empty() {
-                        self.reload_fabric();
-                    }
-                }
-                Action::Scene(_pick) => {
-                    // if let Some(mut scene) = &self.scene {
-                    //     scene.do_pick(pick);
-                    // }
-                }
-                Action::CalibrateStrain => {
-                    // let strain_limits =
-                    //     self.crucible.fabric().strain_limits(":bow-tie".to_string());
-                    // self.user_interface.set_strain_limits(strain_limits);
-                }
-            }
-        }
     }
 
     fn reload_fabric(&mut self) {
@@ -209,8 +156,8 @@ impl<'a> Application<'a, Action> {
             if time > self.fabric_library_modified {
                 match self.refresh_library(time) {
                     Ok(action) => {
-                        self.actions_tx
-                            .send(action)
+                        self.event_loop_proxy
+                            .send_event(action)
                             .unwrap();
                     }
                     Err(tenscript_error) => {
@@ -246,14 +193,14 @@ impl<'a> Application<'a, Action> {
         // self.scene.handle_input(input, self.crucible.fabric());
     }
 
-    pub fn build_fabric(&mut self, fabric_name: &String, event_loop_proxy: EventLoopProxy<Action>) -> Result<(), EventLoopClosed<Action>> {
+    pub fn build_fabric(&mut self, fabric_name: &String) -> Result<(), EventLoopClosed<Action>> {
         let fabric_plan = self
             .fabric_library
             .fabric_plans
             .iter()
             .find(|FabricPlan { name, .. }| name == fabric_name)
             .expect(fabric_name);
-        event_loop_proxy
+        self.event_loop_proxy
             .send_event(Action::Crucible(CrucibleAction::BuildFabric(fabric_plan.clone())))
     }
 
