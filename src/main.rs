@@ -13,6 +13,7 @@ use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
 use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
+use tensegrity_lab::control_overlay::action::Action;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -51,7 +52,8 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
         }
     }
 
-    let event_loop = EventLoop::new()?;
+    let mut builder = EventLoop::<Action>::with_user_event();
+    let event_loop: EventLoop<Action> = builder.build()?;
     #[allow(unused_mut)]
     let mut window_attributes = WindowAttributes::default()
         .with_title("Tensegrity Lab")
@@ -107,8 +109,9 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
             Ok(app) => app,
             Err(error) => panic!("Tenscript Error: [{:?}]", error)
         };
+    let event_loop_proxy = event_loop.create_proxy();
     if let Some(fabric_name) = fabric_name {
-        app.run_fabric(&fabric_name);
+        app.build_fabric(&fabric_name, event_loop_proxy)?;
     }
     if let Some(prototype) = prototype {
         app.capture_prototype(prototype);
