@@ -5,6 +5,8 @@ use cgmath::{
     Rotation3, SquareMatrix, Transform, vec3, Vector3,
 };
 use cgmath::num_traits::abs;
+use winit::dpi::PhysicalPosition;
+use winit::event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase};
 use winit::keyboard::Key;
 
 use crate::fabric::{Fabric, UniqueId};
@@ -48,6 +50,22 @@ impl Camera {
             pick_cursor: None,
             pick: Pick::Nothing,
         }
+    }
+
+    pub fn reset(&self) {
+        // get back to a good position 
+    }
+
+    pub fn cursor_moved(&mut self, position: PhysicalPosition<f64>) {
+        println!("Camera cursor moved {:?}", position)
+    }
+
+    pub fn mouse_wheel(&mut self, delta: MouseScrollDelta, phase: TouchPhase) {
+        println!("Camera mouse wheel {:?} {:?}", delta, phase)
+    }
+
+    pub fn mouse_input(&mut self, state: ElementState, button: MouseButton) {
+        println!("Camera mouse input {:?} {:?}", state, button)
     }
 
     pub fn handle_input(&mut self, _input: &Key, _fabric: &Fabric) -> Option<Pick> {
