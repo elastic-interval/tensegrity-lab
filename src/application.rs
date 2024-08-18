@@ -1,12 +1,10 @@
-use std::iter;
 use std::sync::Arc;
 use std::time::SystemTime;
 
 use leptos::{ReadSignal, WriteSignal};
 use winit::application::ApplicationHandler;
-use winit::event::{DeviceEvent, DeviceId, KeyEvent, WindowEvent};
+use winit::event::{DeviceEvent, DeviceId, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoopClosed, EventLoopProxy};
-use winit::keyboard::Key;
 use winit::window::{WindowAttributes, WindowId};
 
 use control_overlay::ControlState;
@@ -14,12 +12,11 @@ use control_overlay::ControlState;
 use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
-use crate::camera::Pick;
 use crate::control_overlay;
 use crate::control_overlay::action::Action;
 use crate::crucible::{Crucible, CrucibleAction};
 use crate::scene::Scene;
-use crate::wgpu_context::WgpuContext;
+use crate::wgpu::Wgpu;
 
 pub struct Application {
     window_attributes: WindowAttributes,
@@ -32,20 +29,20 @@ pub struct Application {
     pub brick_library: BrickLibrary,
     pub control_state: ReadSignal<ControlState>,
     pub set_control_state: WriteSignal<ControlState>,
-    pub event_loop_proxy: Arc<EventLoopProxy<Action>>
+    pub event_loop_proxy: Arc<EventLoopProxy<Action>>,
 }
 
 impl ApplicationHandler<Action> for Application {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = Arc::new(event_loop.create_window(self.window_attributes.clone()).unwrap());
         let event_loop_proxy = self.event_loop_proxy.clone();
-        WgpuContext::create_and_send(window, event_loop_proxy);
+        Wgpu::create_and_send(window, event_loop_proxy);
     }
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: Action) {
         match event {
-            Action::ContextCreated(wgpu_context) => {
-                let scene = Scene::new(wgpu_context, (self.control_state, self.set_control_state));
+            Action::ContextCreated(wgpu) => {
+                let scene = Scene::new(wgpu, (self.control_state, self.set_control_state));
                 self.scene = Some(scene)
             }
             Action::LoadFabric(fabric_plan_name) => {
@@ -53,18 +50,11 @@ impl ApplicationHandler<Action> for Application {
                 self.reload_fabric();
             }
             Action::Crucible(crucible_action) => {
-                match &crucible_action {
-                    CrucibleAction::BuildFabric(fabric_plan) => {
-                        self.fabric_plan_name = fabric_plan.name.clone();
-                        if let Some(scene) = &mut self.scene {
-                            scene.do_pick(Pick::Nothing);
-                        }
-                        // self.user_interface.message(ControlMessage::Reset);
+                if let CrucibleAction::BuildFabric(fabric_plan) = &crucible_action {
+                    self.fabric_plan_name = fabric_plan.name.clone();
+                    if let Some(scene) = &mut self.scene {
+                        scene.reset();
                     }
-                    CrucibleAction::StartPretensing(_) => {
-                        // menu: ReturnToRoot
-                    }
-                    _ => {}
                 }
                 self.crucible.action(crucible_action);
             }
@@ -78,10 +68,10 @@ impl ApplicationHandler<Action> for Application {
                     self.reload_fabric();
                 }
             }
-            Action::Scene(_pick) => {
-                // if let Some(mut scene) = &self.scene {
-                //     scene.do_pick(pick);
-                // }
+            Action::Scene(pick) => {
+                if let Some(scene) = &mut self.scene {
+                    scene.do_pick(pick);
+                }
             }
             Action::CalibrateStrain => {
                 // let strain_limits =
@@ -91,23 +81,28 @@ impl ApplicationHandler<Action> for Application {
         }
     }
 
-    fn window_event(&mut self, _event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
-        match event {
-            WindowEvent::ActivationTokenDone { .. } => {}
-            WindowEvent::Resized(size) => {
-                println!("Resized {:?}", size);
-            }
-            WindowEvent::CloseRequested => {}
-            WindowEvent::KeyboardInput { event: KeyEvent { physical_key, logical_key, text, .. }, .. } => {
-                println!("KeyEvent phy={:?} log={:?}, text={:?}", physical_key, logical_key, text)
-            }
-            WindowEvent::CursorMoved {..} => {
-            }
-            _ => {
-                println!("Event {:?}", event);
-                // if let Some(scene) = &mut self.scene {
-                //     scene.graphics.window.request_redraw();
-                // }
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
+        if let Some(scene) = &mut self.scene {
+            match event {
+                WindowEvent::CloseRequested => {
+                    event_loop.exit()
+                }
+                WindowEvent::KeyboardInput { event: key_event, .. } => {
+                    scene.keyboard_input(key_event);
+                }
+                WindowEvent::CursorMoved { position, .. } => {
+                    scene.camera().cursor_moved(position);
+                }
+                WindowEvent::MouseInput { state, button, .. } => {
+                    scene.camera().mouse_input(state, button);
+                }
+                WindowEvent::MouseWheel { delta, phase, .. } => {
+                    scene.camera().mouse_wheel(delta, phase);
+                }
+                WindowEvent::TouchpadPressure { .. } => {}
+                _ => {
+                    println!("Event {:?}", event);
+                }
             }
         }
     }
@@ -175,25 +170,8 @@ impl Application {
             if !scene.selection_active() {
                 self.crucible.iterate(&self.brick_library);
             }
-            scene.update(self.crucible.fabric());
-            let surface_texture = scene.wgpu_context.surface_texture().expect("surface texture");
-            let texture_view = surface_texture
-                .texture
-                .create_view(&wgpu::TextureViewDescriptor::default());
-            let mut encoder = scene.wgpu_context.create_encoder();
-            scene.render(&mut encoder, &texture_view);
-            scene.wgpu_context.queue.submit(iter::once(encoder.finish()));
-            surface_texture.present();
+            scene.redraw(self.crucible.fabric());
         }
-        // let cursor_icon = self.user_interface.cursor_icon();
-        // window.set_cursor_icon(cursor_icon);
-    }
-
-    pub fn handle_input(&mut self, _input: &Key) {
-        // if let Some(size) = input.window_resized() {
-        //     self.scene.resize(size.width, size.height);
-        // }
-        // self.scene.handle_input(input, self.crucible.fabric());
     }
 
     pub fn build_fabric(&mut self, fabric_name: &String) -> Result<(), EventLoopClosed<Action>> {

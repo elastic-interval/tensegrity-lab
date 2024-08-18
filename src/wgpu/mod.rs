@@ -3,30 +3,37 @@ use std::sync::Arc;
 
 use bytemuck::cast_slice;
 use cgmath::Matrix4;
+use wgpu::{PipelineLayout, ShaderModule, TextureFormat};
 use wgpu::MemoryHints::Performance;
-use wgpu::PipelineLayout;
 use wgpu::util::DeviceExt;
 use winit::event_loop::EventLoopProxy;
 use winit::window::Window;
+
+use crate::camera::Camera;
 use crate::control_overlay::action::Action;
 
-pub struct WgpuContext{
+pub mod fabric_vertex;
+pub mod surface_vertex;
+pub mod drawing;
+
+pub struct Wgpu {
     pub queue: wgpu::Queue,
     surface: wgpu::Surface<'static>,
-    pub surface_config: wgpu::SurfaceConfiguration,
+    surface_config: wgpu::SurfaceConfiguration,
     pub device: wgpu::Device,
     uniform_buffer: wgpu::Buffer,
     pub uniform_bind_group: wgpu::BindGroup,
     pub pipeline_layout: PipelineLayout,
+    shader: ShaderModule,
 }
 
-impl Debug for WgpuContext {
+impl Debug for Wgpu {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "WgpuContext")
     }
 }
 
-impl Clone for WgpuContext {
+impl Clone for Wgpu {
     fn clone(&self) -> Self {
         panic!("Clone of WgpuContext")
     }
@@ -36,8 +43,8 @@ impl Clone for WgpuContext {
     }
 }
 
-impl WgpuContext {
-    pub async fn new_async(window: Arc<Window>) -> WgpuContext {
+impl Wgpu {
+    pub async fn new_async(window: Arc<Window>) -> Wgpu {
         let instance = wgpu::Instance::default();
         let surface = instance.create_surface(Arc::clone(&window)).unwrap();
         let adapter = instance
@@ -106,6 +113,12 @@ impl WgpuContext {
                     bind_group_layouts: &[&uniform_bind_group_layout],
                     push_constant_ranges: &[],
                 });
+        let shader =
+            device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("Shader"),
+                    source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+                });
         Self {
             surface,
             surface_config,
@@ -114,6 +127,7 @@ impl WgpuContext {
             uniform_buffer,
             uniform_bind_group,
             pipeline_layout,
+            shader,
         }
     }
 
@@ -122,15 +136,15 @@ impl WgpuContext {
         {
             let future = Self::new_async(window);
             wasm_bindgen_futures::spawn_local(async move {
-                let wgpu_context = future.await;
-                assert!(event_loop_proxy.send_event(Action::ContextCreated(wgpu_context)).is_ok());
+                let wgpu = future.await;
+                assert!(event_loop_proxy.send_event(Action::ContextCreated(wgpu)).is_ok());
             });
         }
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let wgpu_context = futures::executor::block_on(Self::new_async(window));
-            assert!(event_loop_proxy.send_event(Action::ContextCreated(wgpu_context)).is_ok());
+            let wgpu = futures::executor::block_on(Self::new_async(window));
+            assert!(event_loop_proxy.send_event(Action::ContextCreated(wgpu)).is_ok());
         }
     }
 
@@ -155,4 +169,18 @@ impl WgpuContext {
         let mvp_ref: &[f32; 16] = matrix.as_ref();
         self.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));
     }
+
+    pub fn create_camera(&self) -> Camera {
+        let scale = 6.0;
+        Camera::new(
+            (2.0 * scale, 1.0 * scale, 2.0 * scale).into(),
+            self.surface_config.width as f32,
+            self.surface_config.height as f32,
+        )
+    }
+
+    pub fn format(&self) -> TextureFormat {
+        self.surface_config.format
+    }
 }
+
