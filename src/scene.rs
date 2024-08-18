@@ -25,7 +25,7 @@ pub struct Scene<'window> {
     pub wgpu_context: WgpuContext<'window>,
     camera: Camera,
     fabric_drawing: Drawing<FabricVertex>,
-    _surface_drawing: Drawing<SurfaceVertex>,
+    surface_drawing: Drawing<SurfaceVertex>,
     _control_state: ReadSignal<ControlState>,
     set_control_state: WriteSignal<ControlState>,
     _strain_rendering: Option<StrainRendering>,
@@ -86,6 +86,7 @@ impl<'window> Scene<'window> {
                     usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 });
         let surface_vertices = SurfaceVertex::for_radius(10.0).to_vec();
+        println!("Surface vertices {:?}", surface_vertices.len());
         let surface_pipeline =
             device
                 .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -124,6 +125,7 @@ impl<'window> Scene<'window> {
                     contents: cast_slice(&surface_vertices),
                     usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 });
+        println!("Surface buffer {:?}", surface_buffer);
         Self {
             _strain_rendering: None,
             wgpu_context,
@@ -133,7 +135,7 @@ impl<'window> Scene<'window> {
                 pipeline: fabric_pipeline,
                 buffer: fabric_buffer,
             },
-            _surface_drawing: Drawing {
+            surface_drawing: Drawing {
                 vertices: surface_vertices,
                 pipeline: surface_pipeline,
                 buffer: surface_buffer,
@@ -169,9 +171,9 @@ impl<'window> Scene<'window> {
         render_pass.set_vertex_buffer(0, self.fabric_drawing.buffer.slice(..));
         render_pass.draw(0..self.fabric_drawing.vertices.len() as u32, 0..1);
 
-        // render_pass.set_pipeline(&self.surface_drawing.pipeline);
-        // render_pass.set_vertex_buffer(0, self.surface_drawing.buffer.slice(..));
-        // render_pass.draw(0..self.surface_drawing.vertices.len() as u32, 0..1);
+        render_pass.set_pipeline(&self.surface_drawing.pipeline);
+        render_pass.set_vertex_buffer(0, self.surface_drawing.buffer.slice(..));
+        render_pass.draw(0..self.surface_drawing.vertices.len() as u32, 0..1);
     }
 
     pub fn handle_input(&mut self, _input: &Key, _fabric: &Fabric) {
@@ -322,7 +324,7 @@ impl FabricVertex {
 
     const ATTRIBUTES: [wgpu::VertexAttribute; 2] =
         wgpu::vertex_attr_array![0=>Float32x4, 1=>Float32x4];
-    
+
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
             array_stride: size_of::<FabricVertex>() as wgpu::BufferAddress,
@@ -352,12 +354,11 @@ impl SurfaceVertex {
         triangles.map(|position| SurfaceVertex { position })
     }
 
-    const ATTRIBUTES: [wgpu::VertexAttribute; 2] =
-        wgpu::vertex_attr_array![0=>Float32x4, 1=>Float32x4];
-    
+    const ATTRIBUTES: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![0=>Float32x4];
+
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<SurfaceVertex>() as wgpu::BufferAddress,
+            array_stride: size_of::<SurfaceVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &Self::ATTRIBUTES,
         }
