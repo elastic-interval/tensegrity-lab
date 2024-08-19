@@ -1,24 +1,22 @@
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use leptos::{ReadSignal, WriteSignal};
 use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
+use winit::event::{KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoopClosed, EventLoopProxy};
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{WindowAttributes, WindowId};
 
 use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
-use crate::control_overlay::key_menu::KeyMenu;
 use crate::crucible::{Crucible, CrucibleAction};
-use crate::messages::{ControlState, LabEvent, SceneAction};
+use crate::messages::{LabEvent, SceneAction};
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 
 pub struct Application {
     window_attributes: WindowAttributes,
-    key_menu: KeyMenu,
     scene: Option<Scene>,
     crucible: Crucible,
     fabric_plan_name: String,
@@ -26,8 +24,6 @@ pub struct Application {
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
     brick_library: BrickLibrary,
-    control_state: ReadSignal<ControlState>,
-    set_control_state: WriteSignal<ControlState>,
     event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
 }
 
@@ -40,8 +36,11 @@ impl ApplicationHandler<LabEvent> for Application {
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
         match event {
+            LabEvent::ControlState(control_state) => {
+                self.event_loop_proxy.send_event(LabEvent::ControlState(control_state)).unwrap()
+            },
             LabEvent::ContextCreated(wgpu) => {
-                self.scene = Some(Scene::new(wgpu, self.set_control_state))
+                self.scene = Some(Scene::new(wgpu, self.event_loop_proxy.clone()))
             }
             LabEvent::LoadFabric(fabric_plan_name) => {
                 self.fabric_plan_name = fabric_plan_name;
@@ -85,27 +84,15 @@ impl ApplicationHandler<LabEvent> for Application {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
         if let Some(scene) = &mut self.scene {
             match event {
-                WindowEvent::CloseRequested => {
-                    event_loop.exit()
-                }
-                WindowEvent::KeyboardInput { event: key_event, .. } => {
-                    if let Some(lab_event) = self.key_menu.handle_key_event(key_event) {
-                        self.event_loop_proxy.send_event(lab_event).unwrap()
-                    }
-                }
-                WindowEvent::CursorMoved { position, .. } => {
-                    scene.camera().cursor_moved(position);
-                }
+                WindowEvent::CloseRequested => event_loop.exit(),
+                WindowEvent::KeyboardInput { event: key_event, .. } => self.handle_key_event(key_event),
+                WindowEvent::CursorMoved { position, .. } => scene.camera().cursor_moved(position),
                 WindowEvent::MouseInput { state, button, .. } => {
                     scene.camera().mouse_input(state, button, self.crucible.fabric());
                 }
-                WindowEvent::MouseWheel { delta, .. } => {
-                    scene.camera().mouse_wheel(delta);
-                }
+                WindowEvent::MouseWheel { delta, .. } => scene.camera().mouse_wheel(delta),
                 WindowEvent::TouchpadPressure { .. } => {}
-                _ => {
-                    println!("Event {:?}", event);
-                }
+                _ => println!("Unhandled Event {:?}", event),
             }
         }
     }
@@ -118,25 +105,32 @@ impl ApplicationHandler<LabEvent> for Application {
 impl Application {
     pub fn new(
         window_attributes: WindowAttributes,
-        (control_state, set_control_state): (ReadSignal<ControlState>, WriteSignal<ControlState>),
         event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
     ) -> Result<Application, TenscriptError> {
         let brick_library = BrickLibrary::from_source()?;
         let fabric_library = FabricLibrary::from_source()?;
         Ok(Application {
             window_attributes,
-            key_menu: KeyMenu::default(),
             scene: None,
             crucible: Crucible::default(),
             fabric_plan_name: "Halo by Crane".into(),
             brick_library,
             fabric_library,
-            control_state,
-            set_control_state,
             event_loop_proxy,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
         })
+    }
+
+    fn handle_key_event(&self, key_event: KeyEvent) {
+        if !key_event.state.is_pressed() {
+            return;
+        }
+        if let KeyEvent { physical_key: PhysicalKey::Code(code), .. } = key_event {
+            if code == KeyCode::Escape {
+                self.event_loop_proxy.send_event(LabEvent::Scene(SceneAction::EscapeHappens)).unwrap();
+            }
+        }
     }
 
     fn reload_fabric(&mut self) {
