@@ -1,16 +1,14 @@
 use std::iter;
 
 use bytemuck::cast_slice;
-use leptos::{ReadSignal, SignalGet, SignalUpdate, WriteSignal};
-use winit::event::{ElementState, KeyEvent};
-use winit::keyboard::{KeyCode, PhysicalKey};
+use leptos::{SignalUpdate, WriteSignal};
 
 use crate::camera::{Camera, Pick};
 use crate::camera::Target::*;
-use crate::messages::{ControlState, IntervalDetails};
 use crate::fabric::Fabric;
 use crate::fabric::interval::Span;
 use crate::fabric::material::interval_material;
+use crate::messages::{ControlState, IntervalDetails};
 use crate::wgpu::drawing::Drawing;
 use crate::wgpu::fabric_vertex::FabricVertex;
 use crate::wgpu::surface_vertex::SurfaceVertex;
@@ -21,12 +19,11 @@ pub struct Scene {
     camera: Camera,
     fabric_drawing: Drawing<FabricVertex>,
     surface_drawing: Drawing<SurfaceVertex>,
-    control_state: ReadSignal<ControlState>,
     set_control_state: WriteSignal<ControlState>,
 }
 
 impl Scene {
-    pub fn new(wgpu: Wgpu, (control_state, set_control_state): (ReadSignal<ControlState>, WriteSignal<ControlState>)) -> Self {
+    pub fn new(wgpu: Wgpu, set_control_state: WriteSignal<ControlState>) -> Self {
         let camera = wgpu.create_camera();
         let fabric_drawing = wgpu.create_fabric_drawing();
         let surface_drawing = wgpu.create_surface_drawing();
@@ -35,7 +32,6 @@ impl Scene {
             camera: camera,
             fabric_drawing,
             surface_drawing,
-            control_state,
             set_control_state,
         }
     }
@@ -71,26 +67,11 @@ impl Scene {
         render_pass.draw(0..self.surface_drawing.vertices.len() as u32, 0..1);
     }
 
-    pub fn keyboard_input(&mut self, key_event: KeyEvent) {
-        if let KeyEvent {
-            physical_key: PhysicalKey::Code(KeyCode::Escape),
-            state: ElementState::Pressed,
-            repeat: false,
-            ..
-        } = key_event {
-            match self.camera.current_pick() {
-                Pick::Nothing => {
-                    match self.control_state.get() {
-                        ControlState::Choosing =>
-                            self.set_control_state.update(move |state| *state = ControlState::Viewing),
-                        ControlState::Viewing =>
-                            self.set_control_state.update(move |state| *state = ControlState::Choosing),
-                        _ => {}
-                    };
-                }
-                Pick::Joint(_) => self.do_pick(Pick::Nothing),
-                Pick::Interval { joint, .. } => self.do_pick(Pick::Joint(*joint)),
-            }
+    pub fn escape_happens(&mut self) {
+        match self.camera.current_pick() {
+            Pick::Nothing => {}
+            Pick::Joint(_) => self.do_pick(Pick::Nothing),
+            Pick::Interval { joint, .. } => self.do_pick(Pick::Joint(*joint)),
         }
     }
 
