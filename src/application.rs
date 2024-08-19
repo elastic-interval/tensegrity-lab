@@ -3,7 +3,7 @@ use std::time::SystemTime;
 
 use leptos::{ReadSignal, WriteSignal};
 use winit::application::ApplicationHandler;
-use winit::event::{DeviceEvent, DeviceId, WindowEvent};
+use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoopClosed, EventLoopProxy};
 use winit::window::{WindowAttributes, WindowId};
 
@@ -15,7 +15,7 @@ use crate::messages::{ControlState, LabEvent};
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 
- pub struct Application {
+pub struct Application {
     window_attributes: WindowAttributes,
     scene: Option<Scene>,
     crucible: Crucible,
@@ -23,10 +23,10 @@ use crate::wgpu::Wgpu;
     fabric_library: FabricLibrary,
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
-    pub brick_library: BrickLibrary,
-    pub control_state: ReadSignal<ControlState>,
-    pub set_control_state: WriteSignal<ControlState>,
-    pub event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
+    brick_library: BrickLibrary,
+    control_state: ReadSignal<ControlState>,
+    set_control_state: WriteSignal<ControlState>,
+    event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
 }
 
 impl ApplicationHandler<LabEvent> for Application {
@@ -102,10 +102,6 @@ impl ApplicationHandler<LabEvent> for Application {
                 }
             }
         }
-    }
-
-    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _device_id: DeviceId, _event: DeviceEvent) {
-        // println!("device {:?}", event);
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
