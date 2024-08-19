@@ -7,7 +7,7 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 
 use crate::camera::{Camera, Pick};
 use crate::camera::Target::*;
-use crate::control_state::{ControlState, IntervalDetails};
+use crate::messages::{ControlState, IntervalDetails};
 use crate::fabric::Fabric;
 use crate::fabric::interval::Span;
 use crate::fabric::material::interval_material;

@@ -3,8 +3,7 @@ use std::sync::Arc;
 
 use clap::Parser;
 #[allow(unused_imports)]
-use leptos::{create_signal, view, WriteSignal};
-use leptos::create_memo;
+use leptos::*;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 use winit::dpi::PhysicalSize;
@@ -13,7 +12,7 @@ use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
 use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
-use tensegrity_lab::control_overlay::action::Action;
+use tensegrity_lab::messages::LabEvent;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -52,8 +51,8 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
         }
     }
 
-    let mut builder = EventLoop::<Action>::with_user_event();
-    let event_loop: EventLoop<Action> = builder.build()?;
+    let mut builder = EventLoop::<LabEvent>::with_user_event();
+    let event_loop: EventLoop<LabEvent> = builder.build()?;
     
     #[allow(unused_mut)]
     let mut window_attributes = WindowAttributes::default()
@@ -66,7 +65,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
     let fabric_list = create_memo(move |_bla| FabricLibrary::from_source().unwrap().fabric_list().unwrap());
     #[cfg(target_arch = "wasm32")]
     {
-        use tensegrity_lab::control_overlay::overlay::ControlOverlayApp;
+        use tensegrity_lab::control_overlay::ControlOverlayApp;
         use winit::platform::web::WindowAttributesExtWebSys;
 
         let web_sys_window = web_sys::window().expect("no web sys window");

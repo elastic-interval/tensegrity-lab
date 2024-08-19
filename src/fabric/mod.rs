@@ -21,7 +21,6 @@ pub mod brick;
 pub mod face;
 pub mod interval;
 pub mod joint;
-pub mod lab;
 pub mod physics;
 pub mod progress;
 pub mod vulcanize;

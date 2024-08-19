@@ -1,7 +1,7 @@
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::pretenser::Pretenser;
 use crate::crucible::LabAction;
-use crate::fabric::lab::Stage::*;
+use crate::build::experiment::Stage::*;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 
@@ -12,13 +12,13 @@ enum Stage {
     MuscleCycle(f32),
 }
 
-pub struct Lab {
+pub struct Experiment {
     stage: Stage,
     physics: Physics,
     pretense_phase: PretensePhase,
 }
 
-impl Lab {
+impl Experiment {
     pub fn new(
         Pretenser {
             pretense_phase,

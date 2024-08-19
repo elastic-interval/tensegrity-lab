@@ -10,7 +10,7 @@ use winit::event_loop::EventLoopProxy;
 use winit::window::Window;
 
 use crate::camera::Camera;
-use crate::control_overlay::action::Action;
+use crate::messages::LabEvent;
 
 pub mod fabric_vertex;
 pub mod surface_vertex;
@@ -131,20 +131,20 @@ impl Wgpu {
         }
     }
 
-    pub fn create_and_send(window: Arc<Window>, event_loop_proxy: Arc<EventLoopProxy<Action>>) {
+    pub fn create_and_send(window: Arc<Window>, event_loop_proxy: Arc<EventLoopProxy<LabEvent>>) {
         #[cfg(target_arch = "wasm32")]
         {
             let future = Self::new_async(window);
             wasm_bindgen_futures::spawn_local(async move {
                 let wgpu = future.await;
-                assert!(event_loop_proxy.send_event(Action::ContextCreated(wgpu)).is_ok());
+                assert!(event_loop_proxy.send_event(LabEvent::ContextCreated(wgpu)).is_ok());
             });
         }
 
         #[cfg(not(target_arch = "wasm32"))]
         {
             let wgpu = futures::executor::block_on(Self::new_async(window));
-            assert!(event_loop_proxy.send_event(Action::ContextCreated(wgpu)).is_ok());
+            assert!(event_loop_proxy.send_event(LabEvent::ContextCreated(wgpu)).is_ok());
         }
     }
 
