@@ -30,16 +30,6 @@ pub enum SceneAction {
     EscapeHappens,
 }
 
-#[derive(Debug, Clone)]
-pub enum LabEvent {
-    ContextCreated(Wgpu),
-    Crucible(CrucibleAction),
-    Scene(SceneAction),
-    CalibrateStrain,
-    UpdatedLibrary(SystemTime),
-    LoadFabric(String),
-}
-
 #[derive(Clone, Debug, Copy)]
 pub struct IntervalDetails {
     pub alpha_index: usize,
@@ -47,7 +37,6 @@ pub struct IntervalDetails {
     pub length: f32,
     pub role: Role,
 }
-
 #[derive(Clone, Debug, Default)]
 pub enum ControlState {
     #[default]
@@ -56,4 +45,15 @@ pub enum ControlState {
     ShowingJoint(usize),
     ShowingInterval(IntervalDetails),
     SettingLength(IntervalDetails),
+}
+
+#[derive(Debug, Clone)]
+pub enum LabEvent {
+    ContextCreated(Wgpu),
+    Crucible(CrucibleAction),
+    Scene(SceneAction),
+    CalibrateStrain,
+    UpdatedLibrary(SystemTime),
+    LoadFabric(String),
+    ControlState(ControlState),
 }

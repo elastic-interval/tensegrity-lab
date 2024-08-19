@@ -1,4 +1,4 @@
-pub mod key_menu;
+pub mod menu;
 
 use codee::string::FromToStringCodec;
 use leptos::*;

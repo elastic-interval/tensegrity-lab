@@ -12,7 +12,7 @@ use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
 use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
-use tensegrity_lab::messages::LabEvent;
+use tensegrity_lab::messages::{ControlState, LabEvent};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -24,7 +24,7 @@ struct Args {
     prototype: Option<usize>,
 }
 
-fn main() -> Result<(), Box<dyn Error>>  {
+fn main() -> Result<(), Box<dyn Error>> {
     let Args { fabric, prototype } = Args::parse();
     if fabric.is_some() {
         return run_with(fabric, None);
@@ -53,14 +53,14 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
 
     let mut builder = EventLoop::<LabEvent>::with_user_event();
     let event_loop: EventLoop<LabEvent> = builder.build()?;
-    
+
     #[allow(unused_mut)]
     let mut window_attributes = WindowAttributes::default()
         .with_title("Tensegrity Lab")
         .with_inner_size(PhysicalSize::new(1600, 1200));
 
     #[allow(unused_variables)]
-    let (control_state, set_control_state) = create_signal(Default::default());
+    let (control_state, set_control_state) = create_signal(ControlState::default());
     #[allow(unused_variables)]
     let fabric_list = create_memo(move |_bla| FabricLibrary::from_source().unwrap().fabric_list().unwrap());
     #[cfg(target_arch = "wasm32")]
@@ -103,7 +103,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
 
     let event_loop_proxy = Arc::new(event_loop.create_proxy());
     let mut app =
-        match Application::new(window_attributes, (control_state, set_control_state), event_loop_proxy) {
+        match Application::new(window_attributes, event_loop_proxy) {
             Ok(app) => app,
             Err(error) => panic!("Tenscript Error: [{:?}]", error)
         };
