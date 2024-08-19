@@ -7,4 +7,4 @@ pub mod fabric;
 pub mod wgpu;
 pub mod scene;
 pub mod test;
-pub mod control_state;
+pub mod messages;

@@ -1,8 +1,8 @@
-use crate::build::tenscript::fabric_library::FabricLibrary;
-use crate::crucible::CrucibleAction;
 use std::time::SystemTime;
-use winit::keyboard::Key;
+
 use crate::camera::Pick;
+use crate::crucible::CrucibleAction;
+use crate::fabric::interval::Role;
 use crate::wgpu::Wgpu;
 
 #[derive(Debug, Clone)]
@@ -25,18 +25,29 @@ pub enum StrainThresholdMessage {
 }
 
 #[derive(Debug, Clone)]
-pub enum KeyboardMessage {
-    KeyPressed(Key),
-    SubmitAction(Action),
-    FreshLibrary(FabricLibrary),
-}
-
-#[derive(Debug, Clone)]
-pub enum Action {
+pub enum LabEvent {
     ContextCreated(Wgpu),
     Crucible(CrucibleAction),
     Scene(Pick),
     CalibrateStrain,
     UpdatedLibrary(SystemTime),
     LoadFabric(String),
+}
+
+#[derive(Clone, Debug, Copy)]
+pub struct IntervalDetails {
+    pub alpha_index: usize,
+    pub omega_index: usize,
+    pub length: f32,
+    pub role: Role,
+}
+
+#[derive(Clone, Debug, Default)]
+pub enum ControlState {
+    #[default]
+    Choosing,
+    Viewing,
+    ShowingJoint(usize),
+    ShowingInterval(IntervalDetails),
+    SettingLength(IntervalDetails),
 }
