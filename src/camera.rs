@@ -7,7 +7,6 @@ use cgmath::{
 use cgmath::num_traits::abs;
 use winit::dpi::PhysicalPosition;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta};
-use winit::event::MouseScrollDelta::PixelDelta;
 
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::Interval;
@@ -78,12 +77,18 @@ impl Camera {
     }
 
     pub fn mouse_wheel(&mut self, delta: MouseScrollDelta) {
-        if let PixelDelta(position) = delta {
-            let sy = position.y as f32;
-            let scroll = sy * SPEED.z;
+        let mut wheel = |scroll: f32| {
             let gaze = self.look_at - self.position;
             if gaze.magnitude() - scroll > 1.0 {
                 self.position += gaze.normalize() * scroll;
+            }
+        };
+        match delta {
+            MouseScrollDelta::LineDelta(_, y) => {
+                wheel(y * SPEED.z * 5.0)
+            }
+            MouseScrollDelta::PixelDelta(position) => {
+                wheel((position.y as f32) * SPEED.z);
             }
         }
     }
