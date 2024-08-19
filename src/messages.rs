@@ -25,10 +25,16 @@ pub enum StrainThresholdMessage {
 }
 
 #[derive(Debug, Clone)]
+pub enum SceneAction {
+    ForcePick(Pick),
+    EscapeHappens,
+}
+
+#[derive(Debug, Clone)]
 pub enum LabEvent {
     ContextCreated(Wgpu),
     Crucible(CrucibleAction),
-    Scene(Pick),
+    Scene(SceneAction),
     CalibrateStrain,
     UpdatedLibrary(SystemTime),
     LoadFabric(String),

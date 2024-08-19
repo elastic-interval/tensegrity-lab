@@ -1,3 +1,5 @@
+pub mod key_menu;
+
 use codee::string::FromToStringCodec;
 use leptos::*;
 use leptos_use::storage::use_local_storage;

@@ -10,13 +10,15 @@ use winit::window::{WindowAttributes, WindowId};
 use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
+use crate::control_overlay::key_menu::KeyMenu;
 use crate::crucible::{Crucible, CrucibleAction};
-use crate::messages::{ControlState, LabEvent};
+use crate::messages::{ControlState, LabEvent, SceneAction};
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 
 pub struct Application {
     window_attributes: WindowAttributes,
+    key_menu: KeyMenu,
     scene: Option<Scene>,
     crucible: Crucible,
     fabric_plan_name: String,
@@ -39,8 +41,7 @@ impl ApplicationHandler<LabEvent> for Application {
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
         match event {
             LabEvent::ContextCreated(wgpu) => {
-                let scene = Scene::new(wgpu, (self.control_state, self.set_control_state));
-                self.scene = Some(scene)
+                self.scene = Some(Scene::new(wgpu, self.set_control_state))
             }
             LabEvent::LoadFabric(fabric_plan_name) => {
                 self.fabric_plan_name = fabric_plan_name;
@@ -65,9 +66,12 @@ impl ApplicationHandler<LabEvent> for Application {
                     self.reload_fabric();
                 }
             }
-            LabEvent::Scene(pick) => {
+            LabEvent::Scene(scene_action) => {
                 if let Some(scene) = &mut self.scene {
-                    scene.do_pick(pick);
+                    match scene_action {
+                        SceneAction::ForcePick(pick) => scene.do_pick(pick),
+                        SceneAction::EscapeHappens => scene.escape_happens(),
+                    }
                 }
             }
             LabEvent::CalibrateStrain => {
@@ -85,7 +89,9 @@ impl ApplicationHandler<LabEvent> for Application {
                     event_loop.exit()
                 }
                 WindowEvent::KeyboardInput { event: key_event, .. } => {
-                    scene.keyboard_input(key_event);
+                    if let Some(lab_event) = self.key_menu.handle_key_event(key_event) {
+                        self.event_loop_proxy.send_event(lab_event).unwrap()
+                    }
                 }
                 WindowEvent::CursorMoved { position, .. } => {
                     scene.camera().cursor_moved(position);
@@ -119,6 +125,7 @@ impl Application {
         let fabric_library = FabricLibrary::from_source()?;
         Ok(Application {
             window_attributes,
+            key_menu: KeyMenu::default(),
             scene: None,
             crucible: Crucible::default(),
             fabric_plan_name: "Halo by Crane".into(),
