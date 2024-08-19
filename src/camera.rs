@@ -94,12 +94,15 @@ impl Camera {
     }
 
     pub fn mouse_input(&mut self, state: ElementState, button: MouseButton, fabric: &Fabric) {
-        if button == MouseButton::Left {
-            match state {
-                ElementState::Pressed => {
-                    self.mouse_anchor = self.cursor_position
+        match state {
+            ElementState::Pressed => {
+                self.mouse_anchor = self.cursor_position;
+                if button != MouseButton::Right {
+                    self.pick = Pick::Nothing;
                 }
-                ElementState::Released => {
+            }
+            ElementState::Released => {
+                if button == MouseButton::Right {
                     if let (Some(anchor), Some(position)) = (self.mouse_anchor, self.cursor_position) {
                         let (dx, dy) = ((position.x - anchor.x) as f32, (position.y - anchor.y) as f32);
                         let diff = dx * dx + dy * dy;
@@ -107,8 +110,8 @@ impl Camera {
                             self.pick = self.pick((anchor.x as f32, anchor.y as f32), fabric);
                         }
                     }
-                    self.mouse_anchor = None
                 }
+                self.mouse_anchor = None
             }
         }
     }
