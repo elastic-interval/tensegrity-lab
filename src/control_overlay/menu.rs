@@ -1,63 +1,85 @@
 use std::fmt::{Display, Formatter};
+use crate::control_overlay::menu::MenuContent::{Event, Submenu};
 
 use crate::messages::{LabEvent, SceneAction};
 
+#[derive(Clone)]
 pub struct Menu {
-    root_item: MenuItem,
-}
-
-impl Default for Menu {
-    fn default() -> Self {
-        let root_item =
-            menu("Root")
-                .add(menu("one")
-                    .add(menu("one one")
-                        .add(event("Escapism", LabEvent::Scene(SceneAction::EscapeHappens))))
-                    .add(menu("one two")))
-                .add(menu("two"));
-        Self {
-            root_item
-        }
-    }
+    pub root_item: MenuItem,
 }
 
 impl Menu {
-    fn _root(self) -> MenuItem {
-        self.root_item
+    pub fn with_fabric_list(list: Vec<String>) -> Self {
+        let fabric_items: Vec<MenuItem> = list
+            .into_iter()
+            .map(fabric_item)
+            .collect();
+        let fabric_menu = MenuItem {
+            label: "Load Fabric".to_string(),
+            content: Submenu(fabric_items),
+        };
+        Self {
+            root_item: fabric_menu,
+            // menu("Root")
+            //     .add(fabric_menu)
+            //     .add(menu("one")
+            //         .add(menu("one one")
+            //             .add(event("Bla", LabEvent::Scene(SceneAction::EscapeHappens)))
+            //             .add(event("Escapism", LabEvent::Scene(SceneAction::EscapeHappens))))
+            //         .add(menu("one two")))
+            //     .add(menu("two"))
+        }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct MenuItem {
-    label: String,
-    lab_event: Option<LabEvent>,
-    submenu: Vec<MenuItem>,
+    pub label: String,
+    pub content: MenuContent,
+}
+
+#[derive(Debug, Clone)]
+pub enum MenuContent {
+    Event(LabEvent),
+    Submenu(Vec<MenuItem>),
 }
 
 fn menu(label: &'static str) -> MenuItem {
     MenuItem {
         label: label.to_string(),
-        lab_event: None,
-        submenu: vec![],
+        content: Submenu(vec![]),
     }
 }
 
 fn event(label: &'static str, lab_event: LabEvent) -> MenuItem {
     MenuItem {
         label: label.to_string(),
-        lab_event: Some(lab_event),
-        submenu: vec![],
+        content: Event(lab_event),
+    }
+}
+
+fn fabric_item(fabric_name: String) -> MenuItem {
+    MenuItem {
+        label: fabric_name.clone(),
+        content: Event(LabEvent::LoadFabric(fabric_name)),
     }
 }
 
 impl MenuItem {
     fn add(mut self, item: MenuItem) -> Self {
-        self.submenu.push(item);
+        match &mut self.content {
+            Submenu(items) => items.push(item),
+            _ => panic!("Illegal add")
+        }
         self
     }
-    
+
     fn _event(self) -> LabEvent {
-        self.lab_event.unwrap()
+        if let Event(lab_event) = self.content {
+            lab_event
+        } else {
+            panic!("No event here")
+        }
     }
 }
 

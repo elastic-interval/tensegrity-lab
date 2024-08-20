@@ -4,6 +4,7 @@ use codee::string::FromToStringCodec;
 use leptos::*;
 use leptos_use::storage::use_local_storage;
 use winit::event_loop::EventLoopProxy;
+use crate::control_overlay::menu::{Menu, MenuContent};
 use crate::messages::{ControlState, IntervalDetails, LabEvent};
 
 #[component]
@@ -26,21 +27,6 @@ pub fn ControlOverlayApp(
     });
     let (assigned_length, set_assigned_length) = create_signal(100.0);
 
-    let list = move || {
-        fabric_list
-            .get()
-            .into_iter()
-            .map(|n| {
-                let label = format!("\"{}\"", n.clone());
-                view! {
-                    <div class="item" on:click=move |_ev| set_name.set(n.clone())>
-                        {label}
-                    </div>
-                }
-            })
-            .collect_view()
-    };
-
     let formatted_interval = move |interval: &IntervalDetails| {
         format!("J{:?} {:?}({:.1}mm)  J{:?}",
                 interval.alpha_index + 1,
@@ -54,7 +40,11 @@ pub fn ControlOverlayApp(
         {move ||
             match control_state.get() {
                 ControlState::Choosing => {
-                    view! {<div class="list">{list}</div>}
+                    view! {
+                        <div class="list">
+                            <ListView set_name={set_name} fabric_list={fabric_list}/>
+                        </div>
+                    }
                 }
                 ControlState::Viewing => {
                     let to_choosing =
@@ -101,6 +91,39 @@ pub fn ControlOverlayApp(
                         </div>
                     }
                 }
+            }
+        }
+    }
+}
+
+
+#[component]
+pub fn ListView(
+    set_name: WriteSignal<String>,
+    fabric_list: Memo<Vec<String>>,
+) -> impl IntoView {
+    let menu = Menu::with_fabric_list(fabric_list.get_untracked());
+    match menu.root_item.content {
+        MenuContent::Event(_) => {
+            view! {
+                <div>Menu</div>
+            }
+        }
+        MenuContent::Submenu(list) => {
+            view! {
+                <div>{
+                    list
+                        .into_iter()
+                        .map(|n| {
+                            let label = format!("\"{}\"", n.clone());
+                            view! {
+                                <div class="item" on:click=move |_ev| set_name.set(n.label.clone())>
+                                    {label}
+                                </div>
+                            }
+                        })
+                        .collect_view()
+                }</div>
             }
         }
     }
