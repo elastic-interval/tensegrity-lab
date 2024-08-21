@@ -22,32 +22,30 @@ body {
     &.hidden {
         display: none;
     }
-
-
 }
 
 & .list {
     position: absolute;
-    width: 100vw;
+    width: 16em;
     margin-top: 2em;
     display: flex;
     flex-direction: column;
-    text-align: center;
+    horiz-align: center;
 
     .item {
-        margin-bottom: 1em;
-        font-size: large;
+        margin-bottom: 0.5em;
+        color: white;
     }
 }
 
 .title {
     width: 100vw;
     margin-top: 2em;
-    text-align: center;
-    
+
     .tiny {
         font-size: small;
         margin-top: 1em;
+
         span {
             margin-right: 1em;
         }
