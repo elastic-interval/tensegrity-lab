@@ -1,6 +1,5 @@
 use std::error::Error;
 use std::sync::Arc;
-use std::sync::mpsc::channel;
 
 use clap::Parser;
 #[allow(unused_imports)]
@@ -72,9 +71,6 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
     #[allow(unused_variables)]
     let (menu, set_menu) = create_signal(builder.menu());
 
-    #[allow(unused_variables)]
-    let (menu_tx, menu_rx) = channel();
-
     #[cfg(target_arch = "wasm32")]
     {
         use tensegrity_lab::control_overlay::ControlOverlayApp;
@@ -83,7 +79,6 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
         let web_sys_window = web_sys::window().expect("no web sys window");
         let document = web_sys_window.document().expect("no document");
         let overlay_proxy = event_loop.create_proxy();
-        let overlay_menu_tx = menu_tx.clone();
 
         let control_overlay = document
             .get_element_by_id("control_overlay")
@@ -96,7 +91,6 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
                 <ControlOverlayApp
                     menu={menu}
                     set_menu={set_menu}
-                    menu_tx={overlay_menu_tx}
                     control_state={control_state}
                     set_control_state={set_control_state}
                     event_loop_proxy={overlay_proxy}/>
@@ -120,9 +114,9 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
     let proxy = event_loop_proxy.clone();
     let mut app =
         match Application::new(
-            window_attributes, 
+            window_attributes,
+            set_control_state,
             proxy,
-            (menu_tx, menu_rx),
             builder.event_map(),
         ) {
             Ok(app) => app,

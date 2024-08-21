@@ -1,6 +1,6 @@
 use std::sync::Arc;
-use std::sync::mpsc::{Receiver, Sender};
 use std::time::SystemTime;
+use leptos::{SignalSet, WriteSignal};
 
 use winit::application::ApplicationHandler;
 use winit::event::{KeyEvent, WindowEvent};
@@ -11,9 +11,9 @@ use winit::window::{WindowAttributes, WindowId};
 use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
-use crate::control_overlay::menu::{EventMap, MenuContent, MenuItem};
+use crate::control_overlay::menu::{EventMap, MenuContent};
 use crate::crucible::{Crucible, CrucibleAction};
-use crate::messages::{LabEvent, SceneAction};
+use crate::messages::{ControlState, LabEvent, SceneAction};
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 
@@ -27,8 +27,7 @@ pub struct Application {
     fabric_library_modified: SystemTime,
     brick_library: BrickLibrary,
     event_map: EventMap,
-    menu_tx: Sender<MenuItem>,
-    menu_rx: Receiver<MenuItem>,
+    set_control_state: WriteSignal<ControlState>,
     event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
 }
 
@@ -42,15 +41,15 @@ impl ApplicationHandler<LabEvent> for Application {
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
         match event {
             LabEvent::ControlState(control_state) => {
-                self.event_loop_proxy.send_event(LabEvent::ControlState(control_state)).unwrap()
-            },
+                self.set_control_state.set(control_state);
+            }
             LabEvent::MenuChoice(menu_item) => {
                 match menu_item.content {
                     MenuContent::Event(lab_event_key) => {
                         let event = self.event_map.get(&lab_event_key).unwrap();
                         self.event_loop_proxy.send_event(event.clone()).unwrap()
                     }
-                    MenuContent::Submenu(_) => {}
+                    MenuContent::Submenu(_items) => {}
                 }
             }
             LabEvent::ContextCreated(wgpu) => {
@@ -112,9 +111,6 @@ impl ApplicationHandler<LabEvent> for Application {
     }
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Ok(item) = self.menu_rx.try_recv() {
-            self.event_loop_proxy.send_event(LabEvent::MenuChoice(item)).unwrap();
-        }
         self.redraw();
     }
 }
@@ -122,8 +118,8 @@ impl ApplicationHandler<LabEvent> for Application {
 impl Application {
     pub fn new(
         window_attributes: WindowAttributes,
+        set_control_state: WriteSignal<ControlState>,
         event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
-        (menu_tx, menu_rx): (Sender<MenuItem>, Receiver<MenuItem>),
         event_map: EventMap,
     ) -> Result<Application, TenscriptError> {
         let brick_library = BrickLibrary::from_source()?;
@@ -135,8 +131,7 @@ impl Application {
             fabric_plan_name: "Halo by Crane".into(),
             brick_library,
             fabric_library,
-            menu_tx,
-            menu_rx,
+            set_control_state,
             event_loop_proxy,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
