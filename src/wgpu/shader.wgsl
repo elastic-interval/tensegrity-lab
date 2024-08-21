@@ -37,5 +37,5 @@ fn surface_vertex(@location(0) pos: vec4<f32>) -> SurfaceOutput {
 
 @fragment
 fn surface_fragment(in: SurfaceOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(0.5, 0.5, 0.5, 0.05);
+    return vec4<f32>(0.7, 0.7, 0.7, 0.1);
 }
