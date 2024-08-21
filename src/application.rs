@@ -1,10 +1,10 @@
 use std::sync::Arc;
 use std::time::SystemTime;
-use leptos::{SignalSet, WriteSignal};
 
+use leptos::WriteSignal;
 use winit::application::ApplicationHandler;
 use winit::event::{KeyEvent, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, EventLoopClosed, EventLoopProxy};
+use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{WindowAttributes, WindowId};
 
@@ -29,90 +29,6 @@ pub struct Application {
     event_map: EventMap,
     set_control_state: WriteSignal<ControlState>,
     event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
-}
-
-impl ApplicationHandler<LabEvent> for Application {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let window = Arc::new(event_loop.create_window(self.window_attributes.clone()).unwrap());
-        let event_loop_proxy = self.event_loop_proxy.clone();
-        Wgpu::create_and_send(window, event_loop_proxy);
-    }
-
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
-        match event {
-            LabEvent::ControlState(control_state) => {
-                self.set_control_state.set(control_state);
-            }
-            LabEvent::MenuChoice(menu_item) => {
-                match menu_item.content {
-                    MenuContent::Event(lab_event_key) => {
-                        let event = self.event_map.get(&lab_event_key).unwrap();
-                        self.event_loop_proxy.send_event(event.clone()).unwrap()
-                    }
-                    MenuContent::Submenu(_items) => {}
-                }
-            }
-            LabEvent::ContextCreated(wgpu) => {
-                self.scene = Some(Scene::new(wgpu, self.event_loop_proxy.clone()))
-            }
-            LabEvent::LoadFabric(fabric_plan_name) => {
-                self.fabric_plan_name = fabric_plan_name;
-                self.reload_fabric();
-            }
-            LabEvent::Crucible(crucible_action) => {
-                if let CrucibleAction::BuildFabric(fabric_plan) = &crucible_action {
-                    self.fabric_plan_name = fabric_plan.name.clone();
-                    if let Some(scene) = &mut self.scene {
-                        scene.reset();
-                    }
-                }
-                self.crucible.action(crucible_action);
-            }
-            #[cfg(target_arch = "wasm32")]
-            LabEvent::UpdatedLibrary(_) => unreachable!(),
-            #[cfg(not(target_arch = "wasm32"))]
-            LabEvent::UpdatedLibrary(time) => {
-                let _fabric_library = self.fabric_library.clone();
-                self.fabric_library_modified = time;
-                if !self.fabric_plan_name.is_empty() {
-                    self.reload_fabric();
-                }
-            }
-            LabEvent::Scene(scene_action) => {
-                if let Some(scene) = &mut self.scene {
-                    match scene_action {
-                        SceneAction::ForcePick(pick) => scene.do_pick(pick),
-                        SceneAction::EscapeHappens => scene.escape_happens(),
-                    }
-                }
-            }
-            LabEvent::CalibrateStrain => {
-                // let strain_limits =
-                //     self.crucible.fabric().strain_limits(":bow-tie".to_string());
-                // self.user_interface.set_strain_limits(strain_limits);
-            }
-        }
-    }
-
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
-        if let Some(scene) = &mut self.scene {
-            match event {
-                WindowEvent::CloseRequested => event_loop.exit(),
-                WindowEvent::KeyboardInput { event: key_event, .. } => self.handle_key_event(key_event),
-                WindowEvent::CursorMoved { position, .. } => scene.camera().cursor_moved(position),
-                WindowEvent::MouseInput { state, button, .. } => {
-                    scene.camera().mouse_input(state, button, self.crucible.fabric());
-                }
-                WindowEvent::MouseWheel { delta, .. } => scene.camera().mouse_wheel(delta),
-                WindowEvent::TouchpadPressure { .. } => {}
-                _ => println!("Unhandled Event {:?}", event),
-            }
-        }
-    }
-
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        self.redraw();
-    }
 }
 
 impl Application {
@@ -150,9 +66,9 @@ impl Application {
         }
     }
 
-    fn reload_fabric(&mut self) {
+    fn build_current_fabric(&mut self) {
         let fabric_plan = self
-            .load_preset(self.fabric_plan_name.clone())
+            .get_fabric_plan(self.fabric_plan_name.clone())
             .expect("unable to load fabric plan");
         self.crucible
             .action(CrucibleAction::BuildFabric(fabric_plan));
@@ -185,17 +101,6 @@ impl Application {
         }
     }
 
-    pub fn build_fabric(&mut self, fabric_name: &String) -> Result<(), EventLoopClosed<LabEvent>> {
-        let fabric_plan = self
-            .fabric_library
-            .fabric_plans
-            .iter()
-            .find(|FabricPlan { name, .. }| name == fabric_name)
-            .expect(fabric_name);
-        self.event_loop_proxy
-            .send_event(LabEvent::Crucible(CrucibleAction::BuildFabric(fabric_plan.clone())))
-    }
-
     pub fn capture_prototype(&mut self, brick_index: usize) {
         let prototype = self
             .brick_library
@@ -212,7 +117,7 @@ impl Application {
         Ok(LabEvent::UpdatedLibrary(time))
     }
 
-    pub fn load_preset(&self, plan_name: String) -> Result<FabricPlan, TenscriptError> {
+    pub fn get_fabric_plan(&self, plan_name: String) -> Result<FabricPlan, TenscriptError> {
         let plan = self
             .fabric_library
             .fabric_plans
@@ -222,6 +127,87 @@ impl Application {
             None => Err(TenscriptError::InvalidError(plan_name)),
             Some(plan) => Ok(plan.clone()),
         }
+    }
+}
+
+impl ApplicationHandler<LabEvent> for Application {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        let window = Arc::new(event_loop.create_window(self.window_attributes.clone()).unwrap());
+        let event_loop_proxy = self.event_loop_proxy.clone();
+        Wgpu::create_and_send(window, event_loop_proxy);
+    }
+
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
+        match event {
+            LabEvent::MenuChoice(menu_item) => {
+                match menu_item.content {
+                    MenuContent::Event(lab_event_key) => {
+                        let event = self.event_map.get(&lab_event_key).unwrap();
+                        self.event_loop_proxy.send_event(event.clone()).unwrap()
+                    }
+                    MenuContent::Submenu(_items) => {}
+                }
+            }
+            LabEvent::ContextCreated(wgpu) => {
+                self.scene = Some(Scene::new(wgpu, self.set_control_state))
+            }
+            LabEvent::LoadFabric(fabric_plan_name) => {
+                self.fabric_plan_name = fabric_plan_name;
+                self.build_current_fabric();
+            }
+            LabEvent::Crucible(crucible_action) => {
+                if let CrucibleAction::BuildFabric(fabric_plan) = &crucible_action {
+                    self.fabric_plan_name = fabric_plan.name.clone();
+                    if let Some(scene) = &mut self.scene {
+                        scene.reset();
+                    }
+                }
+                self.crucible.action(crucible_action);
+            }
+            #[cfg(target_arch = "wasm32")]
+            LabEvent::UpdatedLibrary(_) => unreachable!(),
+            #[cfg(not(target_arch = "wasm32"))]
+            LabEvent::UpdatedLibrary(time) => {
+                let _fabric_library = self.fabric_library.clone();
+                self.fabric_library_modified = time;
+                if !self.fabric_plan_name.is_empty() {
+                    self.build_current_fabric();
+                }
+            }
+            LabEvent::Scene(scene_action) => {
+                if let Some(scene) = &mut self.scene {
+                    match scene_action {
+                        SceneAction::ForcePick(pick) => scene.do_pick(pick),
+                        SceneAction::EscapeHappens => scene.escape_happens(),
+                    }
+                }
+            }
+            LabEvent::CalibrateStrain => {
+                // let strain_limits =
+                //     self.crucible.fabric().strain_limits(":bow-tie".to_string());
+                // self.user_interface.set_strain_limits(strain_limits);
+            }
+        }
+    }
+
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
+        if let Some(scene) = &mut self.scene {
+            match event {
+                WindowEvent::CloseRequested => event_loop.exit(),
+                WindowEvent::KeyboardInput { event: key_event, .. } => self.handle_key_event(key_event),
+                WindowEvent::CursorMoved { position, .. } => scene.camera().cursor_moved(position),
+                WindowEvent::MouseInput { state, button, .. } => {
+                    scene.camera().mouse_input(state, button, self.crucible.fabric());
+                }
+                WindowEvent::MouseWheel { delta, .. } => scene.camera().mouse_wheel(delta),
+                WindowEvent::TouchpadPressure { .. } => {}
+                _ => println!("Unhandled Event {:?}", event),
+            }
+        }
+    }
+
+    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+        self.redraw();
     }
 }
 

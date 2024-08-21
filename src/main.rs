@@ -123,7 +123,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
             Err(error) => panic!("Tenscript Error: [{:?}]", error)
         };
     if let Some(fabric_name) = fabric_name {
-        app.build_fabric(&fabric_name).unwrap_or_else(|_| panic!("Unable to build fabric"));
+        event_loop_proxy.send_event(LabEvent::LoadFabric(fabric_name)).unwrap();
     }
     if let Some(prototype) = prototype {
         app.capture_prototype(prototype);
