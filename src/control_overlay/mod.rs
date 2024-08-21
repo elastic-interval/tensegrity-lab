@@ -1,15 +1,20 @@
-pub mod menu;
+use std::sync::mpsc::Sender;
 
 use codee::string::FromToStringCodec;
 use leptos::*;
 use leptos_use::storage::use_local_storage;
 use winit::event_loop::EventLoopProxy;
-use crate::control_overlay::menu::{Menu, MenuContent};
+
+use crate::control_overlay::menu::{Menu, MenuContent, MenuItem};
 use crate::messages::{ControlState, IntervalDetails, LabEvent};
+
+pub mod menu;
 
 #[component]
 pub fn ControlOverlayApp(
-    fabric_list: Memo<Vec<String>>,
+    menu: ReadSignal<Menu>,
+    set_menu: WriteSignal<Menu>,
+    menu_tx: Sender<MenuItem>,
     control_state: ReadSignal<ControlState>,
     set_control_state: WriteSignal<ControlState>,
     event_loop_proxy: EventLoopProxy<LabEvent>,
@@ -35,14 +40,13 @@ pub fn ControlOverlayApp(
                 interval.omega_index + 1,
         )
     };
-
     view! {
         {move ||
             match control_state.get() {
                 ControlState::Choosing => {
                     view! {
                         <div class="list">
-                            <ListView set_name={set_name} fabric_list={fabric_list}/>
+                            <ListView menu={menu} menu_tx={menu_tx.clone()} set_name={set_name}/>
                         </div>
                     }
                 }
@@ -99,32 +103,34 @@ pub fn ControlOverlayApp(
 
 #[component]
 pub fn ListView(
+    menu: ReadSignal<Menu>,
+    menu_tx: Sender<MenuItem>,
     set_name: WriteSignal<String>,
-    fabric_list: Memo<Vec<String>>,
 ) -> impl IntoView {
-    let menu = Menu::with_fabric_list(fabric_list.get_untracked());
-    match menu.root_item.content {
-        MenuContent::Event(_) => {
-            view! {
-                <div>Menu</div>
-            }
+    let item_list = move || {
+        match menu.get().root_item.content {
+            MenuContent::Event(_) => {vec![]}
+            MenuContent::Submenu(list) => {list}
         }
-        MenuContent::Submenu(list) => {
-            view! {
-                <div>{
-                    list
-                        .into_iter()
-                        .map(|n| {
-                            let label = format!("\"{}\"", n.clone());
-                            view! {
-                                <div class="item" on:click=move |_ev| set_name.set(n.label.clone())>
-                                    {label}
-                                </div>
-                            }
-                        })
-                        .collect_view()
-                }</div>
+    };
+    view! {
+        <div class="list">
+        <For
+            each=item_list
+            key=|item| item.label.clone()
+            children=move |item| {
+                let label = item.label.clone();
+                let click = move |_event| {
+                    // todo: use menu_tx
+                    set_name.set(item.label.clone());
+                };
+                view! {
+                    <div class="item" on:click=click>
+                        {move || label.clone()}
+                    </div>
+                }
             }
-        }
+        />
+        </div>
     }
 }

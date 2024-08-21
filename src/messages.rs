@@ -1,6 +1,7 @@
 use std::time::SystemTime;
 
 use crate::camera::Pick;
+use crate::control_overlay::menu::MenuItem;
 use crate::crucible::CrucibleAction;
 use crate::fabric::interval::Role;
 use crate::wgpu::Wgpu;
@@ -50,6 +51,7 @@ pub enum ControlState {
 #[derive(Debug, Clone)]
 pub enum LabEvent {
     ContextCreated(Wgpu),
+    MenuChoice(MenuItem),
     Crucible(CrucibleAction),
     Scene(SceneAction),
     CalibrateStrain,
