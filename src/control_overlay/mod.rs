@@ -1,5 +1,3 @@
-use std::sync::mpsc::Sender;
-
 use codee::string::FromToStringCodec;
 use leptos::*;
 use leptos_use::storage::use_local_storage;
@@ -8,29 +6,26 @@ use winit::event_loop::EventLoopProxy;
 use crate::control_overlay::menu::{Menu, MenuContent, MenuItem};
 use crate::messages::{ControlState, IntervalDetails, LabEvent};
 
-pub mod menu;
-
 #[component]
 pub fn ControlOverlayApp(
     menu: ReadSignal<Menu>,
     set_menu: WriteSignal<Menu>,
-    menu_tx: Sender<MenuItem>,
     control_state: ReadSignal<ControlState>,
     set_control_state: WriteSignal<ControlState>,
     event_loop_proxy: EventLoopProxy<LabEvent>,
 ) -> impl IntoView {
+    let (menu_choice, set_menu_choice) = create_signal(menu.get().root_item);
     let (name, set_name, _) = use_local_storage::<String, FromToStringCodec>("name");
     let (scale, set_scale, _) = use_local_storage::<f32, FromToStringCodec>("scale");
-    create_effect(move |_| {
-        let name = name.get();
-        if !name.is_empty() {
-            set_control_state.update(|state| *state = ControlState::Viewing);
-            event_loop_proxy
-                .send_event(LabEvent::LoadFabric(name))
-                .unwrap_or_else(|_| panic!("Unable to send"));
-        }
-    });
     let (assigned_length, set_assigned_length) = create_signal(100.0);
+
+    create_effect(move |_| {
+        let menu_choice = menu_choice.get();
+        set_control_state.set(ControlState::Viewing);
+        event_loop_proxy
+            .send_event(LabEvent::MenuChoice(menu_choice))
+            .unwrap_or_else(|_| panic!("Unable to send"));
+    });
 
     let formatted_interval = move |interval: &IntervalDetails| {
         format!("J{:?} {:?}({:.1}mm)  J{:?}",
@@ -46,7 +41,7 @@ pub fn ControlOverlayApp(
                 ControlState::Choosing => {
                     view! {
                         <div class="list">
-                            <ListView menu={menu} menu_tx={menu_tx.clone()} set_name={set_name}/>
+                            <ListView menu={menu} set_menu_choice={set_menu_choice} set_name={set_name}/>
                         </div>
                     }
                 }
@@ -100,17 +95,19 @@ pub fn ControlOverlayApp(
     }
 }
 
+pub mod menu;
+
 
 #[component]
 pub fn ListView(
     menu: ReadSignal<Menu>,
-    menu_tx: Sender<MenuItem>,
+    set_menu_choice: WriteSignal<MenuItem>,
     set_name: WriteSignal<String>,
 ) -> impl IntoView {
     let item_list = move || {
         match menu.get().root_item.content {
-            MenuContent::Event(_) => {vec![]}
-            MenuContent::Submenu(list) => {list}
+            MenuContent::Event(_) => { vec![] }
+            MenuContent::Submenu(list) => { list }
         }
     };
     view! {
@@ -121,7 +118,7 @@ pub fn ListView(
             children=move |item| {
                 let label = item.label.clone();
                 let click = move |_event| {
-                    // todo: use menu_tx
+                    set_menu_choice.set(item.clone());
                     set_name.set(item.label.clone());
                 };
                 view! {
