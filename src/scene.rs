@@ -1,14 +1,16 @@
 use std::iter;
+use std::sync::Arc;
 
 use bytemuck::cast_slice;
 use leptos::{SignalSet, WriteSignal};
+use winit::event_loop::EventLoopProxy;
 
 use crate::camera::{Camera, Pick};
 use crate::camera::Target::*;
 use crate::fabric::Fabric;
 use crate::fabric::interval::Span;
 use crate::fabric::material::interval_material;
-use crate::messages::{ControlState, IntervalDetails};
+use crate::messages::{ControlState, IntervalDetails, LabEvent};
 use crate::wgpu::drawing::Drawing;
 use crate::wgpu::fabric_vertex::FabricVertex;
 use crate::wgpu::surface_vertex::SurfaceVertex;
@@ -19,11 +21,11 @@ pub struct Scene {
     camera: Camera,
     fabric_drawing: Drawing<FabricVertex>,
     surface_drawing: Drawing<SurfaceVertex>,
-    set_control_state: WriteSignal<ControlState>,
+    event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
 }
 
 impl Scene {
-    pub fn new(wgpu: Wgpu, set_control_state: WriteSignal<ControlState>) -> Self {
+    pub fn new(wgpu: Wgpu, event_loop_proxy: Arc<EventLoopProxy<LabEvent>>) -> Self {
         let camera = wgpu.create_camera();
         let fabric_drawing = wgpu.create_fabric_drawing();
         let surface_drawing = wgpu.create_surface_drawing();
@@ -32,7 +34,7 @@ impl Scene {
             camera,
             fabric_drawing,
             surface_drawing,
-            set_control_state,
+            event_loop_proxy,
         }
     }
 
@@ -114,11 +116,11 @@ impl Scene {
         match pick {
             Pick::Nothing => {
                 self.camera.set_target(FabricMidpoint);
-                self.set_control_state.set(ControlState::Viewing)
+                self.event_loop_proxy.send_event(LabEvent::SetControlState(ControlState::Viewing)).unwrap();
             }
             Pick::Joint(joint_index) => {
                 self.camera.set_target(AroundJoint(joint_index));
-                self.set_control_state.set(ControlState::ShowingJoint(joint_index));
+                self.event_loop_proxy.send_event(LabEvent::SetControlState(ControlState::ShowingJoint(joint_index))).unwrap();
             }
             Pick::Interval { joint, id, interval } => {
                 self.camera.set_target(AroundInterval(id));
@@ -130,7 +132,7 @@ impl Scene {
                 let alpha_index = if interval.alpha_index == joint { interval.alpha_index } else { interval.omega_index };
                 let omega_index = if interval.omega_index == joint { interval.alpha_index } else { interval.omega_index };
                 let interval_details = IntervalDetails { alpha_index, omega_index, length, role };
-                self.set_control_state.set(ControlState::ShowingInterval(interval_details));
+                self.event_loop_proxy.send_event(LabEvent::SetControlState(ControlState::ShowingInterval(interval_details))).unwrap();
             }
         }
         self.camera.set_pick(pick);

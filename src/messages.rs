@@ -52,6 +52,7 @@ pub enum ControlState {
 pub enum LabEvent {
     ContextCreated(Wgpu),
     SendMenuEvent(MenuItem),
+    SetControlState(ControlState),
     Crucible(CrucibleAction),
     Scene(SceneAction),
     CalibrateStrain,
