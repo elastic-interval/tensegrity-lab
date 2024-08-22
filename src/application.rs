@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use leptos::WriteSignal;
+use leptos::{SignalSet, WriteSignal};
 use winit::application::ApplicationHandler;
 use winit::event::{KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
@@ -140,7 +140,10 @@ impl ApplicationHandler<LabEvent> for Application {
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
         match event {
             LabEvent::ContextCreated(wgpu) => {
-                self.scene = Some(Scene::new(wgpu, self.set_control_state))
+                self.scene = Some(Scene::new(wgpu, self.event_loop_proxy.clone()))
+            }
+            LabEvent::SetControlState(control_state) => {
+                self.set_control_state.set(control_state);
             }
             LabEvent::SendMenuEvent(menu_item) => {
                 if let MenuContent::Event(lab_event_key) = menu_item.content {
