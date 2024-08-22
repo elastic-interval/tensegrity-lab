@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use leptos::{SignalSet, WriteSignal};
+use leptos::WriteSignal;
 use winit::application::ApplicationHandler;
 use winit::event::{KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
@@ -11,6 +11,7 @@ use winit::window::{WindowAttributes, WindowId};
 use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
+use crate::camera::Pick;
 use crate::control_overlay::menu::{EventMap, MenuContent};
 use crate::crucible::{Crucible, CrucibleAction};
 use crate::messages::{ControlState, LabEvent, SceneAction};
@@ -29,6 +30,7 @@ pub struct Application {
     event_map: EventMap,
     set_control_state: WriteSignal<ControlState>,
     event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
+    iterating: bool,
 }
 
 impl Application {
@@ -52,6 +54,7 @@ impl Application {
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
             event_map,
+            iterating: true,
         })
     }
 
@@ -74,7 +77,7 @@ impl Application {
             .action(CrucibleAction::BuildFabric(fabric_plan));
     }
 
-    pub fn redraw(&mut self) {
+    fn redraw(&mut self) {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let time = fabric_library_modified();
@@ -94,9 +97,6 @@ impl Application {
         }
 
         if let Some(scene) = &mut self.scene {
-            if !scene.selection_active() {
-                self.crucible.iterate(&self.brick_library);
-            }
             scene.redraw(self.crucible.fabric());
         }
     }
@@ -140,10 +140,7 @@ impl ApplicationHandler<LabEvent> for Application {
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
         match event {
             LabEvent::ContextCreated(wgpu) => {
-                self.scene = Some(Scene::new(wgpu, self.event_loop_proxy.clone()))
-            }
-            LabEvent::SetControlState(control_state) => {
-                self.set_control_state.set(control_state);
+                self.scene = Some(Scene::new(wgpu, self.set_control_state));
             }
             LabEvent::SendMenuEvent(menu_item) => {
                 if let MenuContent::Event(lab_event_key) = menu_item.content {
@@ -154,6 +151,7 @@ impl ApplicationHandler<LabEvent> for Application {
             LabEvent::LoadFabric(fabric_plan_name) => {
                 self.fabric_plan_name = fabric_plan_name;
                 self.build_current_fabric();
+                self.iterating = true;
             }
             LabEvent::Crucible(crucible_action) => {
                 if let CrucibleAction::BuildFabric(fabric_plan) = &crucible_action {
@@ -202,14 +200,34 @@ impl ApplicationHandler<LabEvent> for Application {
                 }
                 WindowEvent::MouseWheel { delta, .. } => scene.camera().mouse_wheel(delta),
                 WindowEvent::TouchpadPressure { .. } => {}
+                WindowEvent::CursorEntered { .. } => {
+                    self.iterating = true;
+                }
+                WindowEvent::CursorLeft { .. } => {
+                    self.iterating = false;
+                }
                 _ => println!("Unhandled Event {:?}", event),
             }
         }
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let pick_active =
+            if let Some(scene) = &mut self.scene {
+                !matches!(scene.camera().current_pick(), Pick::Nothing)
+            } else {
+                false
+            };
+        let iterating = self.iterating && !pick_active;
+        if iterating {
+            self.crucible.iterate(&self.brick_library);
+        }
         self.redraw();
-        event_loop.set_control_flow(ControlFlow::wait_duration(Duration::from_millis(10)))
+        event_loop.set_control_flow(if iterating {
+            ControlFlow::wait_duration(Duration::from_millis(2))
+        } else {
+            ControlFlow::Wait
+        });
     }
 }
 
