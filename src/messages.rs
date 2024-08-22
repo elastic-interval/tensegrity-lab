@@ -51,7 +51,7 @@ pub enum ControlState {
 #[derive(Debug, Clone)]
 pub enum LabEvent {
     ContextCreated(Wgpu),
-    MenuChoice(MenuItem),
+    SendMenuEvent(MenuItem),
     Crucible(CrucibleAction),
     Scene(SceneAction),
     CalibrateStrain,

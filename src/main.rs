@@ -90,7 +90,6 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
             view! {
                 <ControlOverlayApp
                     menu={menu}
-                    set_menu={set_menu}
                     control_state={control_state}
                     set_control_state={set_control_state}
                     event_loop_proxy={overlay_proxy}/>
