@@ -122,12 +122,10 @@ impl Scene {
         match pick {
             Pick::Nothing => {
                 self.camera.set_target(FabricMidpoint);
-                web_sys::console::log_1(&"set viewing".into());
                 self.event_loop_proxy.send_event(LabEvent::SetControlState(ControlState::Viewing)).unwrap();
             }
             Pick::Joint(joint_index) => {
                 self.camera.set_target(AroundJoint(joint_index));
-                web_sys::console::log_1(&"set joint".into());
                 self.event_loop_proxy.send_event(LabEvent::SetControlState(ControlState::ShowingJoint(joint_index))).unwrap();
             }
             Pick::Interval { joint, id, interval } => {
