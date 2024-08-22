@@ -32,7 +32,7 @@ pub struct Camera {
     height: f32,
     cursor_position: Option<PhysicalPosition<f64>>,
     mouse_anchor: Option<PhysicalPosition<f64>>,
-    pick: Pick,
+    current_pick: Pick,
 }
 
 impl Camera {
@@ -45,7 +45,7 @@ impl Camera {
             height,
             cursor_position: None,
             mouse_anchor: None,
-            pick: Pick::Nothing,
+            current_pick: Pick::Nothing,
         }
     }
 
@@ -53,16 +53,12 @@ impl Camera {
         self.target = target
     }
 
-    pub fn current_pick(&self) -> &Pick {
-        &self.pick
+    pub fn current_pick(&self) -> Pick {
+        self.current_pick.clone()
     }
 
-    pub fn set_pick(&mut self, pick: Pick) {
-        self.pick = pick;
-    }
-
-    pub fn reset(&self) {
-        // get back to a good position
+    pub fn reset(&mut self) {
+        self.current_pick = Pick::Nothing; // more?
     }
 
     pub fn cursor_moved(&mut self, position: PhysicalPosition<f64>) {
@@ -93,13 +89,10 @@ impl Camera {
         }
     }
 
-    pub fn mouse_input(&mut self, state: ElementState, button: MouseButton, fabric: &Fabric) {
+    pub fn mouse_input(&mut self, state: ElementState, button: MouseButton, fabric: &Fabric) -> Option<Pick> {
         match state {
             ElementState::Pressed => {
                 self.mouse_anchor = self.cursor_position;
-                if button != MouseButton::Right {
-                    self.pick = Pick::Nothing;
-                }
             }
             ElementState::Released => {
                 if button == MouseButton::Right {
@@ -107,13 +100,15 @@ impl Camera {
                         let (dx, dy) = ((position.x - anchor.x) as f32, (position.y - anchor.y) as f32);
                         let diff = dx * dx + dy * dy;
                         if diff < 32.0 {
-                            self.pick = self.pick((anchor.x as f32, anchor.y as f32), fabric);
+                            self.current_pick = self.pick_ray((anchor.x as f32, anchor.y as f32), fabric);
+                            return Some(self.current_pick.clone())
                         }
                     }
                 }
                 self.mouse_anchor = None
             }
         }
+        None
     }
 
     pub fn target_approach(&mut self, fabric: &Fabric) {
@@ -139,7 +134,7 @@ impl Camera {
         self.projection_matrix() * self.view_matrix()
     }
 
-    pub fn pick(&mut self, (px, py): (f32, f32), fabric: &Fabric) -> Pick {
+    fn pick_ray(&mut self, (px, py): (f32, f32), fabric: &Fabric) -> Pick {
         let width = self.width / 2.0;
         let height = self.height / 2.0;
         let x = (px - width) / width;
@@ -171,7 +166,7 @@ impl Camera {
                 (interval_id, dot)
             })
             .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b));
-        match self.pick {
+        match self.current_pick {
             Pick::Nothing => match best_joint() {
                 None => Pick::Nothing,
                 Some((id, _)) => Pick::Joint(id),

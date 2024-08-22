@@ -1,6 +1,5 @@
 use std::time::SystemTime;
 
-use crate::camera::Pick;
 use crate::control_overlay::menu::MenuItem;
 use crate::crucible::CrucibleAction;
 use crate::fabric::interval::Role;
@@ -27,7 +26,6 @@ pub enum StrainThresholdMessage {
 
 #[derive(Debug, Clone)]
 pub enum SceneAction {
-    ForcePick(Pick),
     EscapeHappens,
 }
 
