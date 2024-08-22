@@ -2,7 +2,7 @@ use std::iter;
 use std::sync::Arc;
 
 use bytemuck::cast_slice;
-use leptos::{SignalSet, WriteSignal};
+use winit::event::{ElementState, MouseButton};
 use winit::event_loop::EventLoopProxy;
 
 use crate::camera::{Camera, Pick};
@@ -72,8 +72,8 @@ impl Scene {
     pub fn escape_happens(&mut self) {
         match self.camera.current_pick() {
             Pick::Nothing => {}
-            Pick::Joint(_) => self.do_pick(Pick::Nothing),
-            Pick::Interval { joint, .. } => self.do_pick(Pick::Joint(*joint)),
+            Pick::Joint(_) => self.camera_pick(Pick::Nothing),
+            Pick::Interval { joint, .. } => self.camera_pick(Pick::Joint(joint)),
         }
     }
 
@@ -103,23 +103,31 @@ impl Scene {
         self.camera.set_size(width as f32, height as f32);
     }
 
+    pub fn mouse_input(&mut self, state: ElementState, button: MouseButton, fabric: &Fabric) {
+        if let Some(pick) = self.camera.mouse_input(state, button, fabric) {
+            self.camera_pick(pick);
+        }
+    }
+
     pub fn camera(&mut self) -> &mut Camera {
         &mut self.camera
     }
 
     pub fn reset(&mut self) {
-        self.do_pick(Pick::Nothing);
         self.camera.reset();
+        self.camera_pick(self.camera.current_pick());
     }
 
-    pub fn do_pick(&mut self, pick: Pick) {
+    fn camera_pick(&mut self, pick: Pick) {
         match pick {
             Pick::Nothing => {
                 self.camera.set_target(FabricMidpoint);
+                web_sys::console::log_1(&"set viewing".into());
                 self.event_loop_proxy.send_event(LabEvent::SetControlState(ControlState::Viewing)).unwrap();
             }
             Pick::Joint(joint_index) => {
                 self.camera.set_target(AroundJoint(joint_index));
+                web_sys::console::log_1(&"set joint".into());
                 self.event_loop_proxy.send_event(LabEvent::SetControlState(ControlState::ShowingJoint(joint_index))).unwrap();
             }
             Pick::Interval { joint, id, interval } => {
@@ -135,6 +143,5 @@ impl Scene {
                 self.event_loop_proxy.send_event(LabEvent::SetControlState(ControlState::ShowingInterval(interval_details))).unwrap();
             }
         }
-        self.camera.set_pick(pick);
     }
 }

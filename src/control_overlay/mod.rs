@@ -17,7 +17,7 @@ pub fn ControlOverlayApp(
     set_control_state: WriteSignal<ControlState>,
     event_loop_proxy: EventLoopProxy<LabEvent>,
 ) -> impl IntoView {
-    let (menu_choice, set_menu_choice) = create_signal(menu.get().root_item);
+    let (menu_choice, set_menu_choice) = create_signal(menu.get_untracked().root_item);
     let (name, set_name, _) = use_local_storage::<String, FromToStringCodec>("name");
     let (scale, set_scale, _) = use_local_storage::<f32, FromToStringCodec>("scale");
     let (assigned_length, set_assigned_length) = create_signal(100.0);
@@ -42,6 +42,7 @@ pub fn ControlOverlayApp(
         {move ||
             match control_state.get() {
                 ControlState::Choosing => {
+                    web_sys::console::log_1(&"choosing".into());
                     view! {
                         <div class="list">
                             <MenuView menu={menu} set_menu_choice={set_menu_choice} set_name={set_name}/>
@@ -49,6 +50,7 @@ pub fn ControlOverlayApp(
                     }
                 }
                 ControlState::Viewing => {
+                    web_sys::console::log_1(&"viewing".into());
                     let to_choosing =
                         move |_ev| set_control_state.set(ControlState::Choosing);
                     view!{
@@ -59,6 +61,7 @@ pub fn ControlOverlayApp(
                     }
                 }
                 ControlState::ShowingJoint(joint_index) => {
+                    web_sys::console::log_1(&"joint".into());
                     view!{
                         <div class="title">
                             <div>{move || format!("J{}", joint_index+1)}</div>

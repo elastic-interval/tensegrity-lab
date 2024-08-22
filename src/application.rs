@@ -177,7 +177,6 @@ impl ApplicationHandler<LabEvent> for Application {
             LabEvent::Scene(scene_action) => {
                 if let Some(scene) = &mut self.scene {
                     match scene_action {
-                        SceneAction::ForcePick(pick) => scene.do_pick(pick),
                         SceneAction::EscapeHappens => scene.escape_happens(),
                     }
                 }
@@ -197,7 +196,9 @@ impl ApplicationHandler<LabEvent> for Application {
                 WindowEvent::KeyboardInput { event: key_event, .. } => self.handle_key_event(key_event),
                 WindowEvent::CursorMoved { position, .. } => scene.camera().cursor_moved(position),
                 WindowEvent::MouseInput { state, button, .. } => {
-                    scene.camera().mouse_input(state, button, self.crucible.fabric());
+                    if let Some(scene) = &mut self.scene {
+                        scene.mouse_input(state, button, self.crucible.fabric());
+                    }
                 }
                 WindowEvent::MouseWheel { delta, .. } => scene.camera().mouse_wheel(delta),
                 WindowEvent::TouchpadPressure { .. } => {}
