@@ -5,7 +5,6 @@ use crate::control_overlay::menu::{Menu, MenuContent, MenuItem};
 pub fn MenuView(
     menu: ReadSignal<Menu>,
     set_menu_choice: WriteSignal<MenuItem>,
-    set_name: WriteSignal<String>,
 ) -> impl IntoView {
     let item_list = move || {
         match menu.get().root_item.content {
@@ -22,7 +21,6 @@ pub fn MenuView(
                 let label = item.label.clone();
                 let click = move |_event| {
                     set_menu_choice.set(item.clone());
-                    set_name.set(item.label.clone());
                 };
                 view! {
                     <div class="item" on:click=click>

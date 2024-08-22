@@ -1,10 +1,9 @@
-use std::f32::consts::PI;
-
 use cgmath::{
     Deg, EuclideanSpace, InnerSpace, Matrix4, perspective, point3, Point3, Quaternion, Rad, Rotation,
     Rotation3, SquareMatrix, Transform, vec3, Vector3,
 };
 use cgmath::num_traits::abs;
+use std::f32::consts::PI;
 use winit::dpi::PhysicalPosition;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta};
 
@@ -89,23 +88,22 @@ impl Camera {
         }
     }
 
-    pub fn mouse_input(&mut self, state: ElementState, button: MouseButton, fabric: &Fabric) -> Option<Pick> {
+    pub fn mouse_input(&mut self, state: ElementState, _button: MouseButton, fabric: &Fabric) -> Option<Pick> {
         match state {
             ElementState::Pressed => {
                 self.mouse_anchor = self.cursor_position;
             }
             ElementState::Released => {
-                if button == MouseButton::Right {
-                    if let (Some(anchor), Some(position)) = (self.mouse_anchor, self.cursor_position) {
-                        let (dx, dy) = ((position.x - anchor.x) as f32, (position.y - anchor.y) as f32);
-                        let diff = dx * dx + dy * dy;
-                        if diff < 32.0 {
-                            self.current_pick = self.pick_ray((anchor.x as f32, anchor.y as f32), fabric);
-                            return Some(self.current_pick.clone())
-                        }
+                if let (Some(anchor), Some(position)) = (self.mouse_anchor, self.cursor_position) {
+                    let (dx, dy) = ((position.x - anchor.x) as f32, (position.y - anchor.y) as f32);
+                    let diff = dx * dx + dy * dy;
+                    if diff < 32.0 {
+                        self.mouse_anchor = None;
+                        self.current_pick = self.pick_ray((anchor.x as f32, anchor.y as f32), fabric);
+                        return Some(self.current_pick.clone());
                     }
                 }
-                self.mouse_anchor = None
+                self.mouse_anchor = None;
             }
         }
         None

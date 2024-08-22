@@ -1,10 +1,10 @@
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use leptos::{SignalSet, WriteSignal};
 use winit::application::ApplicationHandler;
 use winit::event::{KeyEvent, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, EventLoopProxy};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{WindowAttributes, WindowId};
 
@@ -207,8 +207,9 @@ impl ApplicationHandler<LabEvent> for Application {
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         self.redraw();
+        event_loop.set_control_flow(ControlFlow::wait_duration(Duration::from_millis(10)))
     }
 }
 

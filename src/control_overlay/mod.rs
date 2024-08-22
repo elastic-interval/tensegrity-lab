@@ -18,13 +18,11 @@ pub fn ControlOverlayApp(
     event_loop_proxy: EventLoopProxy<LabEvent>,
 ) -> impl IntoView {
     let (menu_choice, set_menu_choice) = create_signal(menu.get_untracked().root_item);
-    let (name, set_name, _) = use_local_storage::<String, FromToStringCodec>("name");
     let (scale, set_scale, _) = use_local_storage::<f32, FromToStringCodec>("scale");
     let (assigned_length, set_assigned_length) = create_signal(100.0);
 
     create_effect(move |_| {
         let menu_choice = menu_choice.get();
-        set_control_state.set(ControlState::Viewing);
         event_loop_proxy
             .send_event(LabEvent::SendMenuEvent(menu_choice))
             .unwrap_or_else(|_| panic!("Unable to send"));
@@ -45,7 +43,7 @@ pub fn ControlOverlayApp(
                     web_sys::console::log_1(&"choosing".into());
                     view! {
                         <div class="list">
-                            <MenuView menu={menu} set_menu_choice={set_menu_choice} set_name={set_name}/>
+                            <MenuView menu={menu} set_menu_choice={set_menu_choice}/>
                         </div>
                     }
                 }
@@ -55,7 +53,7 @@ pub fn ControlOverlayApp(
                         move |_ev| set_control_state.set(ControlState::Choosing);
                     view!{
                         <div class="title">
-                            <div>{move || format!("\"{}\"", name.get())}</div>
+                            <div>{move || format!("\"{}\"", menu_choice.get().label)}</div>
                             <div class="tiny" on:click=to_choosing>choose</div>
                         </div>
                     }

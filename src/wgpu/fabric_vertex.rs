@@ -11,7 +11,7 @@ pub struct FabricVertex {
     color: [f32; 4],
 }
 
-const GRAY: [f32; 4] = [0.1, 0.1, 0.1, 0.5];
+const GRAY: [f32; 4] = [0.5, 0.5, 0.5, 0.5];
 const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 0.5];
 const SELECTED: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
 const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];

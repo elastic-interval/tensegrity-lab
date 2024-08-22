@@ -7,7 +7,7 @@ use leptos::*;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 use winit::dpi::PhysicalSize;
-use winit::event_loop::{ControlFlow, EventLoop};
+use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
@@ -127,7 +127,6 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
     if let Some(prototype) = prototype {
         app.capture_prototype(prototype);
     }
-    event_loop.set_control_flow(ControlFlow::Poll);
     event_loop.run_app(&mut app)?;
     Ok(())
 }
