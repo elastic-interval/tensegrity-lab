@@ -3,13 +3,16 @@ use leptos::*;
 use leptos_use::storage::use_local_storage;
 use winit::event_loop::EventLoopProxy;
 
-use crate::control_overlay::menu::{Menu, MenuContent, MenuItem};
+use crate::control_overlay::menu::Menu;
+use crate::control_overlay::menu_view::MenuView;
 use crate::messages::{ControlState, IntervalDetails, LabEvent};
+
+pub mod menu;
+mod menu_view;
 
 #[component]
 pub fn ControlOverlayApp(
     menu: ReadSignal<Menu>,
-    set_menu: WriteSignal<Menu>,
     control_state: ReadSignal<ControlState>,
     set_control_state: WriteSignal<ControlState>,
     event_loop_proxy: EventLoopProxy<LabEvent>,
@@ -23,7 +26,7 @@ pub fn ControlOverlayApp(
         let menu_choice = menu_choice.get();
         set_control_state.set(ControlState::Viewing);
         event_loop_proxy
-            .send_event(LabEvent::MenuChoice(menu_choice))
+            .send_event(LabEvent::SendMenuEvent(menu_choice))
             .unwrap_or_else(|_| panic!("Unable to send"));
     });
 
@@ -41,7 +44,7 @@ pub fn ControlOverlayApp(
                 ControlState::Choosing => {
                     view! {
                         <div class="list">
-                            <ListView menu={menu} set_menu_choice={set_menu_choice} set_name={set_name}/>
+                            <MenuView menu={menu} set_menu_choice={set_menu_choice} set_name={set_name}/>
                         </div>
                     }
                 }
@@ -92,42 +95,5 @@ pub fn ControlOverlayApp(
                 }
             }
         }
-    }
-}
-
-pub mod menu;
-
-
-#[component]
-pub fn ListView(
-    menu: ReadSignal<Menu>,
-    set_menu_choice: WriteSignal<MenuItem>,
-    set_name: WriteSignal<String>,
-) -> impl IntoView {
-    let item_list = move || {
-        match menu.get().root_item.content {
-            MenuContent::Event(_) => { vec![] }
-            MenuContent::Submenu(list) => { list }
-        }
-    };
-    view! {
-        <div class="list">
-        <For
-            each=item_list
-            key=|item| item.label.clone()
-            children=move |item| {
-                let label = item.label.clone();
-                let click = move |_event| {
-                    set_menu_choice.set(item.clone());
-                    set_name.set(item.label.clone());
-                };
-                view! {
-                    <div class="item" on:click=click>
-                        {move || label.clone()}
-                    </div>
-                }
-            }
-        />
-        </div>
     }
 }

@@ -139,17 +139,14 @@ impl ApplicationHandler<LabEvent> for Application {
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
         match event {
-            LabEvent::MenuChoice(menu_item) => {
-                match menu_item.content {
-                    MenuContent::Event(lab_event_key) => {
-                        let event = self.event_map.get(&lab_event_key).unwrap();
-                        self.event_loop_proxy.send_event(event.clone()).unwrap()
-                    }
-                    MenuContent::Submenu(_items) => {}
-                }
-            }
             LabEvent::ContextCreated(wgpu) => {
                 self.scene = Some(Scene::new(wgpu, self.set_control_state))
+            }
+            LabEvent::SendMenuEvent(menu_item) => {
+                if let MenuContent::Event(lab_event_key) = menu_item.content {
+                    let event = self.event_map.get(&lab_event_key).unwrap();
+                    self.event_loop_proxy.send_event(event.clone()).unwrap()
+                }
             }
             LabEvent::LoadFabric(fabric_plan_name) => {
                 self.fabric_plan_name = fabric_plan_name;
