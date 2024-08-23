@@ -30,7 +30,7 @@ pub struct Application {
     event_map: EventMap,
     set_control_state: WriteSignal<ControlState>,
     event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
-    iterating: bool,
+    fabric_alive: bool,
 }
 
 impl Application {
@@ -54,7 +54,7 @@ impl Application {
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
             event_map,
-            iterating: true,
+            fabric_alive: true,
         })
     }
 
@@ -151,7 +151,7 @@ impl ApplicationHandler<LabEvent> for Application {
             LabEvent::LoadFabric(fabric_plan_name) => {
                 self.fabric_plan_name = fabric_plan_name;
                 self.build_current_fabric();
-                self.iterating = true;
+                self.fabric_alive = true;
             }
             LabEvent::Crucible(crucible_action) => {
                 if let CrucibleAction::BuildFabric(fabric_plan) = &crucible_action {
@@ -201,10 +201,10 @@ impl ApplicationHandler<LabEvent> for Application {
                 WindowEvent::MouseWheel { delta, .. } => scene.camera().mouse_wheel(delta),
                 WindowEvent::TouchpadPressure { .. } => {}
                 WindowEvent::CursorEntered { .. } => {
-                    self.iterating = true;
+                    self.fabric_alive = true;
                 }
                 WindowEvent::CursorLeft { .. } => {
-                    self.iterating = false;
+                    self.fabric_alive = false;
                 }
                 _ => println!("Unhandled Event {:?}", event),
             }
@@ -212,22 +212,20 @@ impl ApplicationHandler<LabEvent> for Application {
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        let pick_active =
-            if let Some(scene) = &mut self.scene {
-                !matches!(scene.camera().current_pick(), Pick::Nothing)
+        if let Some(scene) = &mut self.scene {
+            let approaching = scene.camera().target_approach(self.crucible.fabric());
+            let pick_active = !matches!(scene.camera().current_pick(), Pick::Nothing);
+            let iterating = self.fabric_alive && !pick_active;
+            if iterating {
+                self.crucible.iterate(&self.brick_library);
+            }
+            self.redraw();
+            event_loop.set_control_flow(if iterating || approaching {
+                ControlFlow::wait_duration(Duration::from_millis(2))
             } else {
-                false
-            };
-        let iterating = self.iterating && !pick_active;
-        if iterating {
-            self.crucible.iterate(&self.brick_library);
+                ControlFlow::Wait
+            });
         }
-        self.redraw();
-        event_loop.set_control_flow(if iterating {
-            ControlFlow::wait_duration(Duration::from_millis(2))
-        } else {
-            ControlFlow::Wait
-        });
     }
 }
 
