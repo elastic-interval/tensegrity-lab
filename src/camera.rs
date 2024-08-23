@@ -21,6 +21,7 @@ pub enum Pick {
     },
 }
 
+const TARGET_HIT: f32 = 0.001;
 const TARGET_ATTRACTION: f32 = 0.01;
 
 pub struct Camera {
@@ -109,9 +110,11 @@ impl Camera {
         None
     }
 
-    pub fn target_approach(&mut self, fabric: &Fabric) {
+    pub fn target_approach(&mut self, fabric: &Fabric) -> bool {
         let look_at = self.target.look_at(fabric);
-        self.look_at += (look_at - self.look_at) * TARGET_ATTRACTION;
+        let delta = (look_at - self.look_at) * TARGET_ATTRACTION;
+        let working = delta.magnitude() > TARGET_HIT; 
+        self.look_at += delta;
         let gaze = (self.look_at - self.position).normalize();
         let up_dot_gaze = Vector3::unit_y().dot(gaze);
         if !(-0.9..=0.9).contains(&up_dot_gaze) {
@@ -121,6 +124,7 @@ impl Camera {
                     .rotate_vector(self.position.to_vec()),
             );
         }
+        working
     }
 
     pub fn set_size(&mut self, width: f32, height: f32) {
