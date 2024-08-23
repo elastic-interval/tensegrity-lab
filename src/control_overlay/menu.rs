@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
-use crate::control_overlay::menu::MenuContent::{Event, Submenu};
+use crate::control_overlay::menu::MenuContent::{Empty, Event, Submenu};
 use crate::messages::LabEvent;
 
 pub type EventMap = HashMap<LabEventKey, LabEvent>;
@@ -39,10 +39,14 @@ impl MenuBuilder {
         }
     }
 
-    pub fn fabric_items(&mut self, list: Vec<String>) {
-        for name in list {
-            let item = self.event_item(name.clone(), LabEvent::LoadFabric(name));
-            self.add_to_root(item)
+    pub fn load_fabric_item(&mut self, list: Vec<String>) -> MenuItem {
+        let items = list
+            .iter()
+            .map(|name| self.event_item(name.clone(), LabEvent::LoadFabric(name.clone())))
+            .collect();
+        MenuItem {
+            label: "Load structure".to_string(),
+            content: Submenu(items)
         }
     }
 
@@ -67,7 +71,13 @@ impl MenuBuilder {
 
 #[derive(Clone)]
 pub struct Menu {
-    pub root_item: MenuItem,
+    root_item: MenuItem,
+}
+
+impl Menu {
+    pub fn root(&self) -> &MenuItem {
+        &self.root_item
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -81,25 +91,32 @@ pub struct LabEventKey(usize);
 
 #[derive(Debug, Clone)]
 pub enum MenuContent {
+    Empty,
     Event(LabEventKey),
     Submenu(Vec<MenuItem>),
 }
 
 impl MenuItem {
-    fn _add(mut self, item: MenuItem) -> Self {
+    pub fn submenu(label: &'static str) -> Self {
+        Self{
+            label: label.to_string(),
+            content: Submenu(vec![]),
+        }
+    }
+    
+    pub fn fake_add(self, label: &'static str) -> Self {
+        self.add_item(MenuItem{
+            label: label.to_string(),
+            content: Empty,
+        })
+    } 
+    
+    pub fn add_item(mut self, item: MenuItem) -> Self {
         match &mut self.content {
             Submenu(items) => items.push(item),
             _ => panic!("Illegal add")
         }
         self
-    }
-
-    fn _event(self, event_map: &EventMap) -> &LabEvent {
-        if let Event(lab_event_key) = self.content {
-            event_map.get(&lab_event_key).unwrap()
-        } else {
-            panic!("No event here")
-        }
     }
 }
 

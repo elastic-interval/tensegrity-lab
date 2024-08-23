@@ -12,7 +12,7 @@ use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
 use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
-use tensegrity_lab::control_overlay::menu::MenuBuilder;
+use tensegrity_lab::control_overlay::menu::{MenuBuilder, MenuItem};
 use tensegrity_lab::messages::{ControlState, LabEvent};
 
 #[derive(Parser, Debug)]
@@ -66,7 +66,13 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
 
     let fabric_list = FabricLibrary::from_source().unwrap().fabric_list();
     let mut builder = MenuBuilder::default();
-    builder.fabric_items(fabric_list);
+    let fabric_item = builder.load_fabric_item(fabric_list);
+    builder.add_to_root(fabric_item);
+    builder.add_to_root(
+        MenuItem::submenu("dammit")
+            .fake_add("Gumby")
+            .fake_add("Pokey")
+    );
 
     #[allow(unused_variables)]
     let (menu, set_menu) = create_signal(builder.menu());
