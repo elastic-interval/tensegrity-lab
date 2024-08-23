@@ -17,15 +17,13 @@ pub fn ControlOverlayApp(
     set_control_state: WriteSignal<ControlState>,
     event_loop_proxy: EventLoopProxy<LabEvent>,
 ) -> impl IntoView {
-    let (menu_choice, set_menu_choice) = create_signal(menu.get_untracked().root_item);
+    let (menu_choice, set_menu_choice) = create_signal(menu.get_untracked().root().clone());
     let (scale, set_scale, _) = use_local_storage::<f32, FromToStringCodec>("scale");
     let (assigned_length, set_assigned_length) = create_signal(100.0);
 
     create_effect(move |_| {
         let menu_choice = menu_choice.get();
-        event_loop_proxy
-            .send_event(LabEvent::SendMenuEvent(menu_choice))
-            .unwrap_or_else(|_| panic!("Unable to send"));
+        event_loop_proxy.send_event(LabEvent::SendMenuEvent(menu_choice)).unwrap()
     });
 
     let formatted_interval = move |interval: &IntervalDetails| {
@@ -40,15 +38,13 @@ pub fn ControlOverlayApp(
         {move ||
             match control_state.get() {
                 ControlState::Choosing => {
-                    web_sys::console::log_1(&"choosing".into());
                     view! {
                         <div class="list">
-                            <MenuView menu={menu} set_menu_choice={set_menu_choice}/>
+                            <MenuView menu={menu} menu_choice={menu_choice} set_menu_choice={set_menu_choice}/>
                         </div>
                     }
                 }
                 ControlState::Viewing => {
-                    web_sys::console::log_1(&"viewing".into());
                     let to_choosing =
                         move |_ev| set_control_state.set(ControlState::Choosing);
                     view!{

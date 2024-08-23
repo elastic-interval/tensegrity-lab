@@ -27,6 +27,7 @@ body {
 & .list {
     position: absolute;
     width: 16em;
+    margin-left: 2em;
     margin-top: 2em;
     display: flex;
     flex-direction: column;
