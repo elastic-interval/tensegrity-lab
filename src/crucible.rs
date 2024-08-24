@@ -8,7 +8,7 @@ use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::pretenser::Pretenser;
 use crate::build::tenscript::FabricPlan;
 use crate::crucible::Stage::*;
-use crate::fabric::lab::Lab;
+use crate::build::experiment::Experiment;
 use crate::fabric::Fabric;
 
 enum Stage {
@@ -16,7 +16,7 @@ enum Stage {
     RunningPlan(PlanRunner),
     PretensingLaunch(PretensePhase),
     Pretensing(Pretenser),
-    Experimenting(Lab),
+    Experimenting(Experiment),
     BakingBrick(Oven),
     Finished,
 }
@@ -82,7 +82,7 @@ impl Crucible {
                     pretenser.iterate(&mut self.fabric);
                 }
                 if pretenser.is_done() {
-                    self.stage = Experimenting(Lab::new(pretenser.clone()));
+                    self.stage = Experimenting(Experiment::new(pretenser.clone()));
                 }
             }
             Experimenting(lab) => {

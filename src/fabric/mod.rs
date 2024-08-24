@@ -21,13 +21,14 @@ pub mod brick;
 pub mod face;
 pub mod interval;
 pub mod joint;
-pub mod lab;
 pub mod physics;
 pub mod progress;
 pub mod vulcanize;
 
 pub mod joint_incident;
 pub mod material;
+
+pub const MAX_INTERVALS: usize = 5000;
 
 #[derive(Clone, Debug)]
 pub struct Fabric {

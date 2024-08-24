@@ -1,129 +1,45 @@
-use std::iter;
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
-use leptos::{ReadSignal, WriteSignal};
+use leptos::WriteSignal;
 use winit::application::ApplicationHandler;
-use winit::event::{DeviceEvent, DeviceId, KeyEvent, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, EventLoopClosed, EventLoopProxy};
-use winit::keyboard::Key;
+use winit::event::{KeyEvent, WindowEvent};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{WindowAttributes, WindowId};
-
-use control_overlay::ControlState;
 
 use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::camera::Pick;
-use crate::control_overlay;
-use crate::control_overlay::action::Action;
+use crate::control_overlay::menu::{EventMap, MenuContent};
 use crate::crucible::{Crucible, CrucibleAction};
+use crate::messages::{ControlState, LabEvent, SceneAction};
 use crate::scene::Scene;
-use crate::wgpu_context::WgpuContext;
+use crate::wgpu::Wgpu;
 
-pub struct Application<'window> {
+pub struct Application {
     window_attributes: WindowAttributes,
-    scene: Option<Scene<'window>>,
+    scene: Option<Scene>,
     crucible: Crucible,
     fabric_plan_name: String,
     fabric_library: FabricLibrary,
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
-    pub brick_library: BrickLibrary,
-    pub control_state: ReadSignal<ControlState>,
-    pub set_control_state: WriteSignal<ControlState>,
-    pub event_loop_proxy: EventLoopProxy<Action>
+    brick_library: BrickLibrary,
+    event_map: EventMap,
+    set_control_state: WriteSignal<ControlState>,
+    event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
+    fabric_alive: bool,
 }
 
-impl<'window> ApplicationHandler<Action> for Application<'window> {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let window = Arc::new(event_loop.create_window(self.window_attributes.clone()).unwrap());
-        let wgpu_context = WgpuContext::new(window);
-        let scene = Scene::new(wgpu_context, (self.control_state, self.set_control_state));
-        self.scene = Some(scene)
-    }
-
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: Action) {
-        match event {
-            Action::LoadFabric(fabric_plan_name) => {
-                self.fabric_plan_name = fabric_plan_name;
-                self.reload_fabric();
-            }
-            Action::Crucible(crucible_action) => {
-                match &crucible_action {
-                    CrucibleAction::BuildFabric(fabric_plan) => {
-                        self.fabric_plan_name = fabric_plan.name.clone();
-                        if let Some(scene) = &mut self.scene {
-                            scene.do_pick(Pick::Nothing);
-                        }
-                        // self.user_interface.message(ControlMessage::Reset);
-                    }
-                    CrucibleAction::StartPretensing(_) => {
-                        // menu: ReturnToRoot
-                    }
-                    _ => {}
-                }
-                self.crucible.action(crucible_action);
-            }
-            #[cfg(target_arch = "wasm32")]
-            Action::UpdatedLibrary(_) => unreachable!(),
-            #[cfg(not(target_arch = "wasm32"))]
-            Action::UpdatedLibrary(time) => {
-                let _fabric_library = self.fabric_library.clone();
-                self.fabric_library_modified = time;
-                if !self.fabric_plan_name.is_empty() {
-                    self.reload_fabric();
-                }
-            }
-            Action::Scene(_pick) => {
-                // if let Some(mut scene) = &self.scene {
-                //     scene.do_pick(pick);
-                // }
-            }
-            Action::CalibrateStrain => {
-                // let strain_limits =
-                //     self.crucible.fabric().strain_limits(":bow-tie".to_string());
-                // self.user_interface.set_strain_limits(strain_limits);
-            }
-        }
-    }
-
-    fn window_event(&mut self, _event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
-        match event {
-            WindowEvent::ActivationTokenDone { .. } => {}
-            WindowEvent::Resized(size) => {
-                println!("Resized {:?}", size);
-            }
-            WindowEvent::CloseRequested => {}
-            WindowEvent::KeyboardInput { event: KeyEvent { physical_key, logical_key, text, .. }, .. } => {
-                println!("KeyEvent phy={:?} log={:?}, text={:?}", physical_key, logical_key, text)
-            }
-            WindowEvent::CursorMoved {..} => {
-            }
-            _ => {
-                println!("Event {:?}", event);
-                // if let Some(scene) = &mut self.scene {
-                //     scene.graphics.window.request_redraw();
-                // }
-            }
-        }
-    }
-
-    fn device_event(&mut self, _event_loop: &ActiveEventLoop, _device_id: DeviceId, _event: DeviceEvent) {
-        // println!("device {:?}", event);
-    }
-
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        self.redraw();
-    }
-}
-
-impl<'a> Application<'a> {
+impl Application {
     pub fn new(
         window_attributes: WindowAttributes,
-        (control_state, set_control_state): (ReadSignal<ControlState>, WriteSignal<ControlState>),
-        event_loop_proxy: EventLoopProxy<Action>,
-    ) -> Result<Application<'a>, TenscriptError> {
+        set_control_state: WriteSignal<ControlState>,
+        event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
+        event_map: EventMap,
+    ) -> Result<Application, TenscriptError> {
         let brick_library = BrickLibrary::from_source()?;
         let fabric_library = FabricLibrary::from_source()?;
         Ok(Application {
@@ -133,23 +49,35 @@ impl<'a> Application<'a> {
             fabric_plan_name: "Halo by Crane".into(),
             brick_library,
             fabric_library,
-            control_state,
             set_control_state,
             event_loop_proxy,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
+            event_map,
+            fabric_alive: true,
         })
     }
 
-    fn reload_fabric(&mut self) {
+    fn handle_key_event(&self, key_event: KeyEvent) {
+        if !key_event.state.is_pressed() {
+            return;
+        }
+        if let KeyEvent { physical_key: PhysicalKey::Code(code), .. } = key_event {
+            if code == KeyCode::Escape {
+                self.event_loop_proxy.send_event(LabEvent::Scene(SceneAction::EscapeHappens)).unwrap();
+            }
+        }
+    }
+
+    fn build_current_fabric(&mut self) {
         let fabric_plan = self
-            .load_preset(self.fabric_plan_name.clone())
+            .get_fabric_plan(self.fabric_plan_name.clone())
             .expect("unable to load fabric plan");
         self.crucible
             .action(CrucibleAction::BuildFabric(fabric_plan));
     }
 
-    pub fn redraw(&mut self) {
+    fn redraw(&mut self) {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let time = fabric_library_modified();
@@ -158,7 +86,7 @@ impl<'a> Application<'a> {
                     Ok(action) => {
                         self.event_loop_proxy
                             .send_event(action)
-                            .unwrap();
+                            .unwrap_or_else(|_| panic!("unable to send"));
                     }
                     Err(tenscript_error) => {
                         println!("Tenscript\n{tenscript_error}");
@@ -169,39 +97,8 @@ impl<'a> Application<'a> {
         }
 
         if let Some(scene) = &mut self.scene {
-            if !scene.selection_active() {
-                self.crucible.iterate(&self.brick_library);
-            }
-            scene.update(self.crucible.fabric());
-            let surface_texture = scene.wgpu_context.surface_texture().expect("surface texture");
-            let texture_view = surface_texture
-                .texture
-                .create_view(&wgpu::TextureViewDescriptor::default());
-            let mut encoder = scene.wgpu_context.create_encoder();
-            scene.render(&mut encoder, &texture_view);
-            scene.wgpu_context.queue.submit(iter::once(encoder.finish()));
-            surface_texture.present();
+            scene.redraw(self.crucible.fabric());
         }
-        // let cursor_icon = self.user_interface.cursor_icon();
-        // window.set_cursor_icon(cursor_icon);
-    }
-
-    pub fn handle_input(&mut self, _input: &Key) {
-        // if let Some(size) = input.window_resized() {
-        //     self.scene.resize(size.width, size.height);
-        // }
-        // self.scene.handle_input(input, self.crucible.fabric());
-    }
-
-    pub fn build_fabric(&mut self, fabric_name: &String) -> Result<(), EventLoopClosed<Action>> {
-        let fabric_plan = self
-            .fabric_library
-            .fabric_plans
-            .iter()
-            .find(|FabricPlan { name, .. }| name == fabric_name)
-            .expect(fabric_name);
-        self.event_loop_proxy
-            .send_event(Action::Crucible(CrucibleAction::BuildFabric(fabric_plan.clone())))
     }
 
     pub fn capture_prototype(&mut self, brick_index: usize) {
@@ -215,12 +112,12 @@ impl<'a> Application<'a> {
         self.crucible.action(CrucibleAction::BakeBrick(prototype));
     }
 
-    pub fn refresh_library(&mut self, time: SystemTime) -> Result<Action, TenscriptError> {
+    pub fn refresh_library(&mut self, time: SystemTime) -> Result<LabEvent, TenscriptError> {
         self.fabric_library = FabricLibrary::from_source()?;
-        Ok(Action::UpdatedLibrary(time))
+        Ok(LabEvent::UpdatedLibrary(time))
     }
 
-    pub fn load_preset(&self, plan_name: String) -> Result<FabricPlan, TenscriptError> {
+    pub fn get_fabric_plan(&self, plan_name: String) -> Result<FabricPlan, TenscriptError> {
         let plan = self
             .fabric_library
             .fabric_plans
@@ -229,6 +126,105 @@ impl<'a> Application<'a> {
         match plan {
             None => Err(TenscriptError::InvalidError(plan_name)),
             Some(plan) => Ok(plan.clone()),
+        }
+    }
+}
+
+impl ApplicationHandler<LabEvent> for Application {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        let window = Arc::new(event_loop.create_window(self.window_attributes.clone()).unwrap());
+        let event_loop_proxy = self.event_loop_proxy.clone();
+        Wgpu::create_and_send(window, event_loop_proxy);
+    }
+
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
+        match event {
+            LabEvent::ContextCreated(wgpu) => {
+                self.scene = Some(Scene::new(wgpu, self.set_control_state));
+            }
+            LabEvent::SendMenuEvent(menu_item) => {
+                if let MenuContent::Event(lab_event_key) = menu_item.content {
+                    let event = self.event_map.get(&lab_event_key).unwrap();
+                    self.event_loop_proxy.send_event(event.clone()).unwrap()
+                }
+            }
+            LabEvent::LoadFabric(fabric_plan_name) => {
+                self.fabric_plan_name = fabric_plan_name;
+                self.build_current_fabric();
+                self.fabric_alive = true;
+            }
+            LabEvent::Crucible(crucible_action) => {
+                if let CrucibleAction::BuildFabric(fabric_plan) = &crucible_action {
+                    self.fabric_plan_name = fabric_plan.name.clone();
+                    if let Some(scene) = &mut self.scene {
+                        scene.reset();
+                    }
+                }
+                self.crucible.action(crucible_action);
+            }
+            #[cfg(target_arch = "wasm32")]
+            LabEvent::UpdatedLibrary(_) => unreachable!(),
+            #[cfg(not(target_arch = "wasm32"))]
+            LabEvent::UpdatedLibrary(time) => {
+                let _fabric_library = self.fabric_library.clone();
+                self.fabric_library_modified = time;
+                if !self.fabric_plan_name.is_empty() {
+                    self.build_current_fabric();
+                }
+            }
+            LabEvent::Scene(scene_action) => {
+                if let Some(scene) = &mut self.scene {
+                    match scene_action {
+                        SceneAction::EscapeHappens => scene.escape_happens(),
+                    }
+                }
+            }
+            LabEvent::CalibrateStrain => {
+                // let strain_limits =
+                //     self.crucible.fabric().strain_limits(":bow-tie".to_string());
+                // self.user_interface.set_strain_limits(strain_limits);
+            }
+        }
+    }
+
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
+        if let Some(scene) = &mut self.scene {
+            match event {
+                WindowEvent::CloseRequested => event_loop.exit(),
+                WindowEvent::KeyboardInput { event: key_event, .. } => self.handle_key_event(key_event),
+                WindowEvent::CursorMoved { position, .. } => scene.camera().cursor_moved(position),
+                WindowEvent::MouseInput { state, button, .. } => {
+                    if let Some(scene) = &mut self.scene {
+                        scene.mouse_input(state, button, self.crucible.fabric());
+                    }
+                }
+                WindowEvent::MouseWheel { delta, .. } => scene.camera().mouse_wheel(delta),
+                WindowEvent::TouchpadPressure { .. } => {}
+                WindowEvent::CursorEntered { .. } => {
+                    self.fabric_alive = true;
+                }
+                WindowEvent::CursorLeft { .. } => {
+                    self.fabric_alive = false;
+                }
+                _ => println!("Unhandled Event {:?}", event),
+            }
+        }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if let Some(scene) = &mut self.scene {
+            let approaching = scene.camera().target_approach(self.crucible.fabric());
+            let pick_active = !matches!(scene.camera().current_pick(), Pick::Nothing);
+            let iterating = self.fabric_alive && !pick_active;
+            if iterating {
+                self.crucible.iterate(&self.brick_library);
+            }
+            self.redraw();
+            event_loop.set_control_flow(if iterating || approaching {
+                ControlFlow::wait_duration(Duration::from_millis(2))
+            } else {
+                ControlFlow::Wait
+            });
         }
     }
 }

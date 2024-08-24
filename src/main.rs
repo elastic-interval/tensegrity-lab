@@ -1,18 +1,19 @@
 use std::error::Error;
+use std::sync::Arc;
 
 use clap::Parser;
 #[allow(unused_imports)]
-use leptos::{create_signal, view, WriteSignal};
-use leptos::create_memo;
+use leptos::*;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 use winit::dpi::PhysicalSize;
-use winit::event_loop::{ControlFlow, EventLoop};
+use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
 use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
-use tensegrity_lab::control_overlay::action::Action;
+use tensegrity_lab::control_overlay::menu::{MenuBuilder, MenuItem};
+use tensegrity_lab::messages::{ControlState, LabEvent};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -24,7 +25,7 @@ struct Args {
     prototype: Option<usize>,
 }
 
-fn main() -> Result<(), Box<dyn Error>>  {
+fn main() -> Result<(), Box<dyn Error>> {
     let Args { fabric, prototype } = Args::parse();
     if fabric.is_some() {
         return run_with(fabric, None);
@@ -51,8 +52,9 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
         }
     }
 
-    let mut builder = EventLoop::<Action>::with_user_event();
-    let event_loop: EventLoop<Action> = builder.build()?;
+    let mut builder = EventLoop::<LabEvent>::with_user_event();
+    let event_loop: EventLoop<LabEvent> = builder.build()?;
+    let event_loop_proxy = Arc::new(event_loop.create_proxy());
 
     #[allow(unused_mut)]
     let mut window_attributes = WindowAttributes::default()
@@ -60,16 +62,29 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
         .with_inner_size(PhysicalSize::new(1600, 1200));
 
     #[allow(unused_variables)]
-    let (control_state, set_control_state) = create_signal(Default::default());
+    let (control_state, set_control_state) = create_signal(ControlState::default());
+
+    let fabric_list = FabricLibrary::from_source().unwrap().fabric_list();
+    let mut builder = MenuBuilder::default();
+    let fabric_item = builder.load_fabric_item(fabric_list);
+    builder.add_to_root(fabric_item);
+    builder.add_to_root(
+        MenuItem::submenu("dammit")
+            .fake_add("Gumby")
+            .fake_add("Pokey")
+    );
+
     #[allow(unused_variables)]
-    let fabric_list = create_memo(move |_bla| FabricLibrary::from_source().unwrap().fabric_list().unwrap());
+    let (menu, set_menu) = create_signal(builder.menu());
+
     #[cfg(target_arch = "wasm32")]
     {
-        use tensegrity_lab::control_overlay::overlay::ControlOverlayApp;
+        use tensegrity_lab::control_overlay::ControlOverlayApp;
         use winit::platform::web::WindowAttributesExtWebSys;
 
         let web_sys_window = web_sys::window().expect("no web sys window");
         let document = web_sys_window.document().expect("no document");
+        let overlay_proxy = event_loop.create_proxy();
 
         let control_overlay = document
             .get_element_by_id("control_overlay")
@@ -77,12 +92,13 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
             .dyn_into()
             .expect("no html element");
         leptos::mount_to(control_overlay, move || {
+            
             view! {
                 <ControlOverlayApp
-                    fabric_list={fabric_list}
+                    menu={menu}
                     control_state={control_state}
                     set_control_state={set_control_state}
-                    event_loop_proxy={event_loop.create_proxy()}/>
+                    event_loop_proxy={overlay_proxy}/>
             }
         });
 
@@ -100,19 +116,23 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
             .with_inner_size(size);
     }
 
-
+    let proxy = event_loop_proxy.clone();
     let mut app =
-        match Application::new(window_attributes, (control_state, set_control_state), event_loop.create_proxy()) {
+        match Application::new(
+            window_attributes,
+            set_control_state,
+            proxy,
+            builder.event_map(),
+        ) {
             Ok(app) => app,
             Err(error) => panic!("Tenscript Error: [{:?}]", error)
         };
     if let Some(fabric_name) = fabric_name {
-        app.build_fabric(&fabric_name)?;
+        event_loop_proxy.send_event(LabEvent::LoadFabric(fabric_name)).unwrap();
     }
     if let Some(prototype) = prototype {
         app.capture_prototype(prototype);
     }
-    event_loop.set_control_flow(ControlFlow::Poll);
     event_loop.run_app(&mut app)?;
     Ok(())
 }
