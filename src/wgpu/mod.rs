@@ -1,24 +1,50 @@
+use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
 use bytemuck::cast_slice;
 use cgmath::Matrix4;
+use wgpu::{PipelineLayout, ShaderModule, TextureFormat};
 use wgpu::MemoryHints::Performance;
-use wgpu::PipelineLayout;
 use wgpu::util::DeviceExt;
+use winit::event_loop::EventLoopProxy;
 use winit::window::Window;
 
-pub struct WgpuContext<'window> {
+use crate::camera::Camera;
+use crate::messages::LabEvent;
+
+pub mod fabric_vertex;
+pub mod surface_vertex;
+pub mod drawing;
+
+pub struct Wgpu {
     pub queue: wgpu::Queue,
-    surface: wgpu::Surface<'window>,
-    pub surface_config: wgpu::SurfaceConfiguration,
+    surface: wgpu::Surface<'static>,
+    surface_config: wgpu::SurfaceConfiguration,
     pub device: wgpu::Device,
     uniform_buffer: wgpu::Buffer,
     pub uniform_bind_group: wgpu::BindGroup,
     pub pipeline_layout: PipelineLayout,
+    shader: ShaderModule,
 }
 
-impl<'window> WgpuContext<'window> {
-    pub async fn new_async(window: Arc<Window>) -> WgpuContext<'window> {
+impl Debug for Wgpu {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "WgpuContext")
+    }
+}
+
+impl Clone for Wgpu {
+    fn clone(&self) -> Self {
+        panic!("Clone of WgpuContext")
+    }
+
+    fn clone_from(&mut self, _source: &Self) {
+        panic!("Clone of WgpuContext")
+    }
+}
+
+impl Wgpu {
+    pub async fn new_async(window: Arc<Window>) -> Wgpu {
         let instance = wgpu::Instance::default();
         let surface = instance.create_surface(Arc::clone(&window)).unwrap();
         let adapter = instance
@@ -87,6 +113,12 @@ impl<'window> WgpuContext<'window> {
                     bind_group_layouts: &[&uniform_bind_group_layout],
                     push_constant_ranges: &[],
                 });
+        let shader =
+            device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("Shader"),
+                    source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+                });
         Self {
             surface,
             surface_config,
@@ -95,11 +127,25 @@ impl<'window> WgpuContext<'window> {
             uniform_buffer,
             uniform_bind_group,
             pipeline_layout,
+            shader,
         }
     }
 
-    pub fn new(window: Arc<Window>) -> WgpuContext<'window> {
-        pollster::block_on(Self::new_async(window))
+    pub fn create_and_send(window: Arc<Window>, event_loop_proxy: Arc<EventLoopProxy<LabEvent>>) {
+        #[cfg(target_arch = "wasm32")]
+        {
+            let future = Self::new_async(window);
+            wasm_bindgen_futures::spawn_local(async move {
+                let wgpu = future.await;
+                assert!(event_loop_proxy.send_event(LabEvent::ContextCreated(wgpu)).is_ok());
+            });
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let wgpu = futures::executor::block_on(Self::new_async(window));
+            assert!(event_loop_proxy.send_event(LabEvent::ContextCreated(wgpu)).is_ok());
+        }
     }
 
     pub fn resize(&mut self, new_size: (u32, u32)) {
@@ -118,68 +164,23 @@ impl<'window> WgpuContext<'window> {
     pub fn surface_texture(&self) -> Result<wgpu::SurfaceTexture, wgpu::SurfaceError> {
         self.surface.get_current_texture()
     }
-    
+
     pub fn update_mvp_matrix(&self, matrix: Matrix4<f32>) {
         let mvp_ref: &[f32; 16] = matrix.as_ref();
         self.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));
     }
-    
-    // pub async fn new(event_loop: &ActiveEventLoop, window_attributes: &WindowAttributes) -> Self {
-    //     let window = Arc::new(event_loop.create_window(window_attributes.clone()).unwrap());
-    //     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-    //         backends: wgpu::Backends::all(),
-    //         ..Default::default()
-    //     });
-    //     let surface = instance.create_surface(window.clone()).unwrap();
-    //     let adapter = instance
-    //         .request_adapter(&wgpu::RequestAdapterOptions {
-    //             power_preference: wgpu::PowerPreference::default(),
-    //             compatible_surface: Some(&surface),
-    //             force_fallback_adapter: false,
-    //         })
-    //         .await
-    //         .expect("Could not request adapter");
-    // 
-    //     let (device, queue) = adapter
-    //         .request_device(
-    //             &wgpu::DeviceDescriptor {
-    //                 label: None,
-    //                 required_features: Default::default(),
-    //                 required_limits: Default::default(),
-    //                 memory_hints: Default::default(),
-    //             },
-    //             None,
-    //         )
-    //         .await
-    //         .expect("Could not request device");
-    //     let surface_caps = surface.get_capabilities(&adapter);
-    //     let surface_format = surface_caps
-    //         .formats
-    //         .iter()
-    //         .copied()
-    //         .find(|f| f.is_srgb())
-    //         .unwrap_or(surface_caps.formats[0]);
-    //     let (width, height) = match window_attributes.inner_size {
-    //         Some(Size::Physical(size)) => (size.width, size.height),
-    //         _ => (100, 100),
-    //     };
-    //     let config = wgpu::SurfaceConfiguration {
-    //         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-    //         format: surface_format,
-    //         alpha_mode: surface_caps.alpha_modes[0],
-    //         width,
-    //         height,
-    //         present_mode: wgpu::PresentMode::Fifo,
-    //         view_formats: vec![],
-    //         desired_maximum_frame_latency: 0,
-    //     };
-    //     surface.configure(&device, &config);
-    //     Self {
-    //         window,
-    //         config,
-    //         surface,
-    //         device,
-    //         queue,
-    //     }
-    // }
+
+    pub fn create_camera(&self) -> Camera {
+        let scale = 6.0;
+        Camera::new(
+            (2.0 * scale, 1.0 * scale, 2.0 * scale).into(),
+            self.surface_config.width as f32,
+            self.surface_config.height as f32,
+        )
+    }
+
+    pub fn format(&self) -> TextureFormat {
+        self.surface_config.format
+    }
 }
+
