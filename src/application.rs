@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use leptos::WriteSignal;
+use leptos::{SignalSet, WriteSignal};
 use winit::application::ApplicationHandler;
 use winit::event::{KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
@@ -29,6 +29,7 @@ pub struct Application {
     brick_library: BrickLibrary,
     event_map: EventMap,
     set_control_state: WriteSignal<ControlState>,
+    set_current_fabric: WriteSignal<String>,
     event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
     fabric_alive: bool,
 }
@@ -37,6 +38,7 @@ impl Application {
     pub fn new(
         window_attributes: WindowAttributes,
         set_control_state: WriteSignal<ControlState>,
+        set_current_fabric: WriteSignal<String>,
         event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
         event_map: EventMap,
     ) -> Result<Application, TenscriptError> {
@@ -50,6 +52,7 @@ impl Application {
             brick_library,
             fabric_library,
             set_control_state,
+            set_current_fabric,
             event_loop_proxy,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
@@ -149,8 +152,9 @@ impl ApplicationHandler<LabEvent> for Application {
                 }
             }
             LabEvent::LoadFabric(fabric_plan_name) => {
-                self.fabric_plan_name = fabric_plan_name;
+                self.fabric_plan_name = fabric_plan_name.clone();
                 self.build_current_fabric();
+                self.set_current_fabric.set(fabric_plan_name);
                 self.fabric_alive = true;
             }
             LabEvent::Crucible(crucible_action) => {
