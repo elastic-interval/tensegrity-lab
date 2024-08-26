@@ -7,6 +7,12 @@ pub fn MenuView(
     menu_choice: ReadSignal<Vec<MenuItem>>,
     set_menu_choice: WriteSignal<Vec<MenuItem>>,
 ) -> impl IntoView {
+    let menu_up = move |_| {
+        set_menu_choice
+            .update(|stack| {
+                (*stack).pop();
+            })
+    };
     view! {
         <div class="menu">
             {move || {
@@ -14,18 +20,9 @@ pub fn MenuView(
                 let label = item.label.clone();
                 match item.content {
                     MenuContent::Empty | MenuContent::Event(_) => {
-                        let menu_up = move |_| {
-                            set_menu_choice
-                                .update(|stack| {
-                                    (*stack).pop();
-                                })
-                        };
                         view! {
                             <div>
                                 <h1>{label}</h1>
-                                <div class="tiny" on:click=menu_up>
-                                    "up"
-                                </div>
                             </div>
                         }
                     }
@@ -53,6 +50,15 @@ pub fn MenuView(
                     }
                 }
             }}
+            <div
+                on:click=menu_up
+                style:visibility=move || {
+                    if menu_choice.get().len() == 1 { "hidden" } else { "visible" }
+                }
+            >
+                "⬆️"
+            </div>
+
         </div>
     }
 }
