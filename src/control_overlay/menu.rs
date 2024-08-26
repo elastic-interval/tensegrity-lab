@@ -75,8 +75,8 @@ pub struct Menu {
 }
 
 impl Menu {
-    pub fn root(&self) -> &MenuItem {
-        &self.root_item
+    pub fn root(&self) -> MenuItem {
+        self.root_item.clone()
     }
 }
 

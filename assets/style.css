@@ -2,55 +2,34 @@ body {
     background-attachment: fixed;
     margin: 0;
     overflow-y: hidden;
-}
-
-#control_overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
     color: white;
-
-    /*background-color: rgba(133, 133, 133, 0.35);*/
-    /*backdrop-filter: blur(5px);*/
-
-    font-family: "JetBrains Mono", monospace;
-
-    & * {
-        font-family: "JetBrains Mono", monospace;
-    }
-
-    &.hidden {
-        display: none;
-    }
 }
 
-& .list {
+.menu {
     position: absolute;
+    top:0;
+    left:0;
     width: 16em;
     margin-left: 2em;
     margin-top: 2em;
     display: flex;
     flex-direction: column;
     horiz-align: center;
-
     .item {
         margin-bottom: 0.5em;
         color: white;
     }
 }
 
-.title {
-    width: 100vw;
+.details {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 16em;
+    margin-right: 2em;
     margin-top: 2em;
-
-    .tiny {
-        font-size: small;
-        margin-top: 1em;
-
-        span {
-            margin-right: 1em;
-        }
-    }
+    display: flex;
+    horiz-align: right;
 }
 
 .input_group {

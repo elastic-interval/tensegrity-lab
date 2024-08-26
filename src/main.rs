@@ -73,10 +73,8 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
             .fake_add("Gumby")
             .fake_add("Pokey")
     );
-
-    #[allow(unused_variables)]
-    let (menu, set_menu) = create_signal(builder.menu());
-
+    let menu = builder.menu();
+    
     #[cfg(target_arch = "wasm32")]
     {
         use tensegrity_lab::control_overlay::ControlOverlayApp;
@@ -95,7 +93,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
             
             view! {
                 <ControlOverlayApp
-                    menu={menu}
+                    initial_menu_item={menu.root()}
                     control_state={control_state}
                     set_control_state={set_control_state}
                     event_loop_proxy={overlay_proxy}/>
