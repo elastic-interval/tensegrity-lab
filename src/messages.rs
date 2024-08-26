@@ -36,10 +36,10 @@ pub struct IntervalDetails {
     pub length: f32,
     pub role: Role,
 }
+
 #[derive(Clone, Debug, Default)]
 pub enum ControlState {
     #[default]
-    Choosing,
     Viewing,
     ShowingJoint(usize),
     ShowingInterval(IntervalDetails),
