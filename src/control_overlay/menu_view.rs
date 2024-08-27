@@ -1,4 +1,4 @@
-use leptos::{component, IntoView, ReadSignal, SignalGet, SignalUpdate, view, WriteSignal};
+use leptos::{component, IntoView, ReadSignal, Show, SignalGet, SignalUpdate, view, WriteSignal};
 
 use crate::control_overlay::menu::{MenuContent, MenuItem};
 
@@ -49,15 +49,9 @@ pub fn MenuView(
                         }
                     }
                 }
-            }}
-            <div
-                on:click=menu_up
-                style:visibility=move || {
-                    if menu_choice.get().len() == 1 { "hidden" } else { "visible" }
-                }
-            >
-                "⬆️"
-            </div>
+            }} <Show when=move || { menu_choice.get().len() > 1 }>
+                <div on:click=menu_up>"⬆️"</div>
+            </Show>
 
         </div>
     }
