@@ -24,11 +24,6 @@ pub enum StrainThresholdMessage {
     Calibrate,
 }
 
-#[derive(Debug, Clone)]
-pub enum SceneAction {
-    EscapeHappens,
-}
-
 #[derive(Clone, Debug, Copy)]
 pub struct IntervalDetails {
     pub alpha_index: usize,
@@ -37,11 +32,17 @@ pub struct IntervalDetails {
     pub role: Role,
 }
 
+#[derive(Clone, Debug, Copy)]
+pub struct JointDetails {
+    pub index: usize,
+    pub height: f32,
+}
+
 #[derive(Clone, Debug, Default)]
 pub enum ControlState {
     #[default]
     Viewing,
-    ShowingJoint(usize),
+    ShowingJoint(JointDetails),
     ShowingInterval(IntervalDetails),
     SettingLength(IntervalDetails),
 }
@@ -51,7 +52,6 @@ pub enum LabEvent {
     ContextCreated(Wgpu),
     SendMenuEvent(MenuItem),
     Crucible(CrucibleAction),
-    Scene(SceneAction),
     CalibrateStrain,
     UpdatedLibrary(SystemTime),
     LoadFabric(String),

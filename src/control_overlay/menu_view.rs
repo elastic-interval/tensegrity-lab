@@ -14,7 +14,7 @@ pub fn MenuView(
             })
     };
     view! {
-        <div class="menu">
+        <div class="menu rounded">
             {move || {
                 let item = menu_choice.get().last().unwrap().clone();
                 let label = item.label.clone();

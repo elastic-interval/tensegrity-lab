@@ -32,8 +32,8 @@ impl FabricVertex {
             Pick::Nothing => {
                 (center_color, end_color)
             }
-            Pick::Joint(joint_index) => {
-                if interval.touches(*joint_index) {
+            Pick::Joint { index, .. } => {
+                if interval.touches(*index) {
                     (center_color, end_color)
                 } else {
                     (GRAY, GRAY)

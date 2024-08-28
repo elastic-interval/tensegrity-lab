@@ -75,7 +75,6 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
             .fake_add("Gumby")
             .fake_add("Pokey")
     );
-    let menu = builder.menu();
     let (current_fabric, set_current_fabric, _) = use_local_storage::<String, FromToStringCodec>("current_fabric");
     
     #[cfg(target_arch = "wasm32")]
@@ -86,6 +85,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
         let web_sys_window = web_sys::window().expect("no web sys window");
         let document = web_sys_window.document().expect("no document");
         let overlay_proxy = event_loop.create_proxy();
+        let menu = builder.menu();
 
         let control_overlay = document
             .get_element_by_id("control_overlay")
