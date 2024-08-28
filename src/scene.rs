@@ -9,7 +9,7 @@ use crate::camera::Target::*;
 use crate::fabric::Fabric;
 use crate::fabric::interval::Span;
 use crate::fabric::material::interval_material;
-use crate::messages::{ControlState, IntervalDetails};
+use crate::messages::{ControlState, IntervalDetails, JointDetails};
 use crate::wgpu::drawing::Drawing;
 use crate::wgpu::fabric_vertex::FabricVertex;
 use crate::wgpu::surface_vertex::SurfaceVertex;
@@ -68,14 +68,6 @@ impl Scene {
         render_pass.draw(0..self.surface_drawing.vertices.len() as u32, 0..1);
     }
 
-    pub fn escape_happens(&mut self) {
-        match self.camera.current_pick() {
-            Pick::Nothing => {}
-            Pick::Joint(_) => self.camera_pick(Pick::Nothing),
-            Pick::Interval { joint, .. } => self.camera_pick(Pick::Joint(joint)),
-        }
-    }
-
     pub fn redraw(&mut self, fabric: &Fabric) {
         self.fabric_drawing.vertices.clear();
         let intervals = fabric.intervals.iter().flat_map(
@@ -119,9 +111,9 @@ impl Scene {
                 self.camera.set_target(FabricMidpoint);
                 self.set_control_state.set(ControlState::Viewing);
             }
-            Pick::Joint(joint_index) => {
-                self.camera.set_target(AroundJoint(joint_index));
-                self.set_control_state.set(ControlState::ShowingJoint(joint_index));
+            Pick::Joint { index,height } => {
+                self.camera.set_target(AroundJoint(index));
+                self.set_control_state.set(ControlState::ShowingJoint(JointDetails{index, height}));
             }
             Pick::Interval { joint, id, interval } => {
                 self.camera.set_target(AroundInterval(id));

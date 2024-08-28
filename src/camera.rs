@@ -13,7 +13,10 @@ use crate::fabric::interval::Interval;
 #[derive(Debug, Clone)]
 pub enum Pick {
     Nothing,
-    Joint(usize),
+    Joint {
+        index: usize,
+        height: f32,
+    },
     Interval {
         joint: usize,
         id: UniqueId,
@@ -113,7 +116,7 @@ impl Camera {
     pub fn target_approach(&mut self, fabric: &Fabric) -> bool {
         let look_at = self.target.look_at(fabric);
         let delta = (look_at - self.look_at) * TARGET_ATTRACTION;
-        let working = delta.magnitude() > TARGET_HIT; 
+        let working = delta.magnitude() > TARGET_HIT;
         self.look_at += delta;
         let gaze = (self.look_at - self.position).normalize();
         let up_dot_gaze = Vector3::unit_y().dot(gaze);
@@ -153,9 +156,9 @@ impl Camera {
             .iter()
             .enumerate()
             .map(|(index, joint)| {
-                (index, (joint.location.to_vec() - self.position.to_vec()).normalize().dot(ray))
+                (index, (joint.location.to_vec() - self.position.to_vec()).normalize().dot(ray), joint.location.y)
             })
-            .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b));
+            .max_by(|(_, dot_a, _), (_, dot_b, _)| dot_a.total_cmp(dot_b));
         let best_interval_around = |joint: usize| fabric
             .intervals
             .iter()
@@ -171,11 +174,11 @@ impl Camera {
         match self.current_pick {
             Pick::Nothing => match best_joint() {
                 None => Pick::Nothing,
-                Some((id, _)) => Pick::Joint(id),
+                Some((index, _, height)) => Pick::Joint { index, height },
             },
-            Pick::Joint(joint) => match best_interval_around(joint) {
+            Pick::Joint { index, .. } => match best_interval_around(index) {
                 None => Pick::Nothing,
-                Some((id, _)) => Pick::Interval { joint, id: *id, interval: *fabric.interval(*id) }
+                Some((id, _)) => Pick::Interval { joint: index, id: *id, interval: *fabric.interval(*id) }
             },
             Pick::Interval { joint, id, .. } => match best_interval_around(joint) {
                 None => Pick::Nothing,

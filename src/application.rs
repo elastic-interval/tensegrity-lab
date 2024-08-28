@@ -5,7 +5,6 @@ use leptos::{SignalSet, WriteSignal};
 use winit::application::ApplicationHandler;
 use winit::event::{KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
-use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{WindowAttributes, WindowId};
 
 use crate::build::tenscript::{FabricPlan, TenscriptError};
@@ -14,7 +13,7 @@ use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::camera::Pick;
 use crate::control_overlay::menu::{EventMap, MenuContent};
 use crate::crucible::{Crucible, CrucibleAction};
-use crate::messages::{ControlState, LabEvent, SceneAction};
+use crate::messages::{ControlState, LabEvent};
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 
@@ -65,11 +64,10 @@ impl Application {
         if !key_event.state.is_pressed() {
             return;
         }
-        if let KeyEvent { physical_key: PhysicalKey::Code(code), .. } = key_event {
-            if code == KeyCode::Escape {
-                self.event_loop_proxy.send_event(LabEvent::Scene(SceneAction::EscapeHappens)).unwrap();
-            }
-        }
+        // if let KeyEvent { physical_key: PhysicalKey::Code(code), .. } = key_event {
+        //     if code == KeyCode::Escape {
+        //     }
+        // }
     }
 
     fn build_current_fabric(&mut self) {
@@ -174,13 +172,6 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.fabric_library_modified = time;
                 if !self.fabric_plan_name.is_empty() {
                     self.build_current_fabric();
-                }
-            }
-            LabEvent::Scene(scene_action) => {
-                if let Some(scene) = &mut self.scene {
-                    match scene_action {
-                        SceneAction::EscapeHappens => scene.escape_happens(),
-                    }
                 }
             }
             LabEvent::CalibrateStrain => {

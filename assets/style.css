@@ -5,6 +5,13 @@ body {
     color: white;
 }
 
+.rounded {
+    border-style: dotted;
+    border-color: white;
+    border-radius: 1em;
+    padding: 1em;
+}
+
 .menu {
     position: absolute;
     top:0;
@@ -26,8 +33,10 @@ body {
     top: 0;
     right: 0;
     width: 16em;
+    font-size: large;
     margin-right: 2em;
     margin-top: 2em;
+    flex-direction: column;
     display: flex;
     horiz-align: right;
 }
