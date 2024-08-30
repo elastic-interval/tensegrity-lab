@@ -2,10 +2,8 @@ use std::error::Error;
 use std::sync::Arc;
 
 use clap::Parser;
-use codee::string::FromToStringCodec;
 #[allow(unused_imports)]
 use leptos::*;
-use leptos_use::storage::use_local_storage;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 use winit::dpi::PhysicalSize;
@@ -75,8 +73,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
             .fake_add("Gumby")
             .fake_add("Pokey")
     );
-    let (current_fabric, set_current_fabric, _) = use_local_storage::<String, FromToStringCodec>("current_fabric");
-    
+
     #[cfg(target_arch = "wasm32")]
     {
         use tensegrity_lab::control_overlay::ControlOverlayApp;
@@ -118,14 +115,10 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
     }
 
     let proxy = event_loop_proxy.clone();
-    if !current_fabric.get_untracked().is_empty() {
-        proxy.send_event(LabEvent::LoadFabric(current_fabric.get_untracked())).unwrap();
-    }
     let mut app =
         match Application::new(
             window_attributes,
             set_control_state,
-            set_current_fabric,
             proxy,
             builder.event_map(),
         ) {
