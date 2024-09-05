@@ -41,37 +41,35 @@
     (pretense (surface :frozen)))  (fabric
     (name "Headless Hug")
     (build
-      (branch (alias Omni)
-        (face (alias BottomLeft) (grow "....X.." (scale .95) (mark :legs)))
-        (face (alias BottomRight) (grow "....X.." (scale .95) (mark :legs)))
-        (face (alias TopLeft)
-          (grow 2 (scale .9)
-            (branch (alias Omni)
+      (branch (alias Torque)
+        (face (alias LeftFrontBottom) (grow 6 (mark :legs)))
+        (face (alias RightFrontBottom) (grow 6 (mark :legs)))
+        (face (alias LeftBackTop)
+          (grow 2
+            (branch (alias Omni) (rotate) (rotate)
               (face (alias TopZ) (mark :chest-1))
               (face (alias BotX) (mark :chest-2))
-              (face (alias BotY) (grow "....X..." (scale .93) (mark :hands))))))
-        (face (alias TopRight)
-          (grow 2 (scale .9)
+              (face (alias BotY) (grow 6 (scale .93) (mark :hands))))))
+        (face (alias RightBackTop)
+          (grow 2
             (branch (alias Omni)
               (face (alias TopY) (mark :chest-1))
               (face (alias BotZ) (mark :chest-2))
-              (face (alias BotX) (grow "....X..." (scale .93) (mark :hands))))))))
+              (face (alias BotX) (grow 6 (scale .93) (mark :hands))))))))
     (shape
-      (during 15000 (space :legs .25) (space :hands .02) (space :chest-1 .8) (space :chest-2 .2))
+      (down :legs)
+      (during 15000 (space :legs .02) (space :hands .02) (space :chest-1 .4) (space :chest-2 .1))
       (during 80000 (vulcanize))
       (remove-spacers)
       (faces-to-triangles))
-    (pretense (surface :frozen)))
-  (fabric (name "Torque Twist")
+    (pretense
+      (surface :frozen)
+      (muscle 0.6 10000)
+      ))
+  (fabric (name "Torque Conundrum")
     (build
-      (branch (alias Omni)
-        (face (alias TopRight)
-          (grow 3
-            (branch (alias TorqueRight)
-              (face (alias FarBrother) (grow 4))
-              (face (alias Brother) (grow 4))
-              )))))
-    (shape (faces-to-triangles)))
+      (branch (alias TorqueRight)))
+    (shape))
   (fabric (name "Tworque Walker")
     (build
       (branch (alias Torque)
@@ -156,7 +154,7 @@
       (faces-to-triangles))
     (pretense
       (surface :frozen)
-      (muscle 0.2 33000)
+      (muscle 0.5 8000)
       ))
   (fabric
     (name "Tommy Torque")

@@ -174,6 +174,9 @@ impl From<Prototype> for Fabric {
             });
             fabric.create_face(aliases, 1.0, spin, radial_intervals);
         }
+        if !fabric.orphan_joints().is_empty() {
+            panic!("Orphan joints!")
+        }
         fabric
     }
 }
