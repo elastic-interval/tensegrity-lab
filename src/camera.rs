@@ -92,7 +92,7 @@ impl Camera {
         }
     }
 
-    pub fn mouse_input(&mut self, state: ElementState, _button: MouseButton, fabric: &Fabric) -> Option<Pick> {
+    pub fn mouse_input(&mut self, state: ElementState, button: MouseButton, fabric: &Fabric) -> Option<Pick> {
         match state {
             ElementState::Pressed => {
                 self.mouse_anchor = self.cursor_position;
@@ -101,9 +101,16 @@ impl Camera {
                 if let (Some(anchor), Some(position)) = (self.mouse_anchor, self.cursor_position) {
                     let (dx, dy) = ((position.x - anchor.x) as f32, (position.y - anchor.y) as f32);
                     let diff = dx * dx + dy * dy;
-                    if diff < 32.0 {
+                    if diff < 32.0 && matches!(button, MouseButton::Right) {
                         self.mouse_anchor = None;
                         self.current_pick = self.pick_ray((anchor.x as f32, anchor.y as f32), fabric);
+                        if let Pick::Joint {index, .. } = self.current_pick {
+                            let interval_count = fabric.intervals.values().filter(|interval| interval.touches(index)).count();
+                            if interval_count == 0 {
+                                panic!("Joint {} has zero adjacent intervals!", index)
+                            }                            
+                            println!("Intervals: {}", interval_count);
+                        }
                         return Some(self.current_pick.clone());
                     }
                 }

@@ -55,4 +55,5 @@ pub enum LabEvent {
     CalibrateStrain,
     UpdatedLibrary(SystemTime),
     LoadFabric(String),
+    CapturePrototype(usize),
 }

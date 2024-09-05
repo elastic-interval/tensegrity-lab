@@ -99,17 +99,6 @@ impl Application {
         }
     }
 
-    pub fn capture_prototype(&mut self, brick_index: usize) {
-        let prototype = self
-            .brick_library
-            .brick_definitions
-            .get(brick_index)
-            .expect("no such brick")
-            .proto
-            .clone();
-        self.crucible.action(CrucibleAction::BakeBrick(prototype));
-    }
-
     pub fn refresh_library(&mut self, time: SystemTime) -> Result<LabEvent, TenscriptError> {
         self.fabric_library = FabricLibrary::from_source()?;
         Ok(LabEvent::UpdatedLibrary(time))
@@ -174,6 +163,17 @@ impl ApplicationHandler<LabEvent> for Application {
                 // let strain_limits =
                 //     self.crucible.fabric().strain_limits(":bow-tie".to_string());
                 // self.user_interface.set_strain_limits(strain_limits);
+            }
+            LabEvent::CapturePrototype(brick_index) => {
+                self.fabric_alive = true;
+                let prototype = self
+                    .brick_library
+                    .brick_definitions
+                    .get(brick_index)
+                    .expect("no such brick")
+                    .proto
+                    .clone();
+                self.crucible.action(CrucibleAction::BakeBrick(prototype));
             }
         }
     }

@@ -484,7 +484,7 @@ impl TryFrom<Fabric> for Baked {
         }
         let average_strain = strain_sum / fabric.faces.len() as f32;
         if abs(average_strain - Baked::TARGET_FACE_STRAIN) > Baked::TOLERANCE {
-            return Err(format!("Face interval strain too far from {} {average_strain:?}", Baked::TARGET_FACE_STRAIN));
+            return Err(format!("Face interval strain too far from (avg) {} {average_strain:?}", Baked::TARGET_FACE_STRAIN));
         }
         Ok(Self {
             joints: joint_incidents

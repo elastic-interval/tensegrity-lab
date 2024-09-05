@@ -129,7 +129,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
         event_loop_proxy.send_event(LabEvent::LoadFabric(fabric_name)).unwrap();
     }
     if let Some(prototype) = prototype {
-        app.capture_prototype(prototype);
+        event_loop_proxy.send_event(LabEvent::CapturePrototype(prototype)).unwrap();
     }
     event_loop.run_app(&mut app)?;
     Ok(())
