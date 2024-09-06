@@ -15,56 +15,45 @@ const GRAY: [f32; 4] = [0.5, 0.5, 0.5, 0.5];
 const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 0.5];
 const SELECTED: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
 const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
-const RED_END: [f32; 4] = [1.0, 0.0, 0.0, 0.2];
 const BLUE: [f32; 4] = [0.5, 0.5, 1.0, 1.0];
-const BLUE_END: [f32; 4] = [0.5, 0.5, 1.0, 0.2];
 
 impl FabricVertex {
-    pub fn for_interval(interval_id: &UniqueId, interval: &Interval, fabric: &Fabric, pick: &Pick) -> [FabricVertex; 4] {
+    pub fn for_interval(interval_id: &UniqueId, interval: &Interval, fabric: &Fabric, pick: &Pick) -> [FabricVertex; 2] {
         let (alpha, omega) = interval.locations(&fabric.joints);
-        let midpoint = interval.midpoint(&fabric.joints);
-        let (center_color, end_color) = match interval_material(interval.material).role {
-            Role::Push => (RED, RED_END),
-            Role::Pull => (BLUE, BLUE_END),
-            Role::Spring => (WHITE, WHITE),
+        let color = match interval_material(interval.material).role {
+            Role::Push => RED,
+            Role::Pull => BLUE,
+            Role::Spring => WHITE,
         };
-        let (center_color, end_color) = match pick {
+        let color = match pick {
             Pick::Nothing => {
-                (center_color, end_color)
+                color
             }
             Pick::Joint { index, .. } => {
                 if interval.touches(*index) {
-                    (center_color, end_color)
+                    color
                 } else {
-                    (GRAY, GRAY)
+                    GRAY
                 }
             }
             Pick::Interval { joint, id, .. } => {
                 if *id == *interval_id {
-                    (SELECTED, SELECTED)
+                    SELECTED
                 } else if interval.touches(*joint) {
-                    (center_color, end_color)
+                    color
                 } else {
-                    (GRAY, GRAY)
+                    GRAY
                 }
             }
         };
         [
             FabricVertex {
                 position: [alpha.x, alpha.y, alpha.z, 1.0],
-                color: end_color,
-            },
-            FabricVertex {
-                position: [midpoint.x, midpoint.y, midpoint.z, 1.0],
-                color: center_color,
-            },
-            FabricVertex {
-                position: [midpoint.x, midpoint.y, midpoint.z, 1.0],
-                color: center_color,
+                color,
             },
             FabricVertex {
                 position: [omega.x, omega.y, omega.z, 1.0],
-                color: end_color,
+                color,
             },
         ]
     }

@@ -1,5 +1,3 @@
-use std::iter;
-
 use bytemuck::cast_slice;
 use leptos::{SignalSet, WriteSignal};
 use winit::event::{ElementState, MouseButton};
@@ -69,11 +67,11 @@ impl Scene {
     }
 
     pub fn redraw(&mut self, fabric: &Fabric) {
-        self.fabric_drawing.vertices.clear();
         let intervals = fabric.intervals.iter().flat_map(
             |(interval_id, interval)|
             FabricVertex::for_interval(interval_id, interval, fabric, &self.camera.current_pick())
         );
+        self.fabric_drawing.vertices.clear();
         self.fabric_drawing.vertices.extend(intervals);
         self.wgpu.update_mvp_matrix(self.camera.mvp_matrix());
         self.wgpu.queue.write_buffer(&self.fabric_drawing.buffer, 0, cast_slice(&self.fabric_drawing.vertices));
@@ -81,7 +79,7 @@ impl Scene {
         let texture_view = surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.wgpu.create_encoder();
         self.render(&mut encoder, &texture_view);
-        self.wgpu.queue.submit(iter::once(encoder.finish()));
+        self.wgpu.queue.submit(Some(encoder.finish()));
         surface_texture.present();
     }
 
