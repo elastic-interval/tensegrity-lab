@@ -63,9 +63,7 @@
       (remove-spacers)
       (faces-to-triangles))
     (pretense
-      (surface :frozen)
-      (muscle 0.6 10000)
-      ))
+      (surface :frozen)))
   (fabric (name "Torque Conundrum")
     (build
       (branch (alias TorqueRight)))
