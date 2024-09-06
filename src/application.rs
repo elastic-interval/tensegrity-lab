@@ -5,6 +5,7 @@ use leptos::WriteSignal;
 use winit::application::ApplicationHandler;
 use winit::event::{KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{WindowAttributes, WindowId};
 
 use crate::build::tenscript::{FabricPlan, TenscriptError};
@@ -57,14 +58,17 @@ impl Application {
         })
     }
 
-    fn handle_key_event(&self, key_event: KeyEvent) {
+    fn handle_key_event(&mut self, key_event: KeyEvent) {
         if !key_event.state.is_pressed() {
             return;
         }
-        // if let KeyEvent { physical_key: PhysicalKey::Code(code), .. } = key_event {
-        //     if code == KeyCode::Escape {
-        //     }
-        // }
+        if let KeyEvent { physical_key: PhysicalKey::Code(code), .. } = key_event {
+            if code == KeyCode::Escape {
+                if let Some(scene) = &mut self.scene {
+                    scene.reset();
+                }
+            }
+        }
     }
 
     fn build_current_fabric(&mut self) {
