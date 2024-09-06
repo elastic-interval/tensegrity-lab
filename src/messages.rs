@@ -25,8 +25,8 @@ pub enum StrainThresholdMessage {
 
 #[derive(Clone, Debug, Copy)]
 pub struct IntervalDetails {
-    pub alpha_index: usize,
-    pub omega_index: usize,
+    pub near_joint: usize,
+    pub far_joint: usize,
     pub length: f32,
     pub role: Role,
 }
