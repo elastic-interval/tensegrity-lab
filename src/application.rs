@@ -68,11 +68,12 @@ impl Application {
     }
 
     fn build_current_fabric(&mut self) {
-        let fabric_plan = self
-            .get_fabric_plan(self.fabric_plan_name.clone())
-            .expect("unable to load fabric plan");
-        self.crucible
-            .action(CrucibleAction::BuildFabric(fabric_plan));
+        let fabric_plan = if self.fabric_plan_name.is_empty() {
+            None
+        } else {
+            self.get_fabric_plan(self.fabric_plan_name.clone()).ok()
+        };
+        self.crucible.action(CrucibleAction::BuildFabric(fabric_plan));
     }
 
     fn redraw(&mut self) {
@@ -130,15 +131,12 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.scene = Some(Scene::new(wgpu, self.set_control_state));
             }
             LabEvent::LoadFabric(fabric_plan_name) => {
-                if !fabric_plan_name.is_empty() {
-                    self.fabric_plan_name = fabric_plan_name.clone();
-                    self.build_current_fabric();
-                    self.fabric_alive = true;
-                }
+                self.fabric_plan_name = fabric_plan_name.clone();
+                self.build_current_fabric();
+                self.fabric_alive = !self.fabric_plan_name.is_empty();
             }
             LabEvent::Crucible(crucible_action) => {
-                if let CrucibleAction::BuildFabric(fabric_plan) = &crucible_action {
-                    self.fabric_plan_name = fabric_plan.name.clone();
+                if let CrucibleAction::BuildFabric(_) = &crucible_action {
                     if let Some(scene) = &mut self.scene {
                         scene.reset();
                     }

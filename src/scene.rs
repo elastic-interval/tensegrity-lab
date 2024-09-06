@@ -120,9 +120,9 @@ impl Scene {
                     Span::Fixed { length } => length,
                     _ => 0.0
                 };
-                let alpha_index = if interval.alpha_index == joint { interval.alpha_index } else { interval.omega_index };
-                let omega_index = if interval.omega_index == joint { interval.alpha_index } else { interval.omega_index };
-                let interval_details = IntervalDetails { alpha_index, omega_index, length, role };
+                let near_joint = if interval.alpha_index == joint { interval.alpha_index } else { interval.omega_index };
+                let far_joint = if interval.omega_index == joint { interval.alpha_index } else { interval.omega_index };
+                let interval_details = IntervalDetails { near_joint, far_joint, length, role };
                 self.set_control_state.set(ControlState::ShowingInterval(interval_details));
             }
         }

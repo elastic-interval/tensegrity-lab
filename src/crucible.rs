@@ -31,7 +31,7 @@ pub enum LabAction {
 #[derive(Debug, Clone)]
 pub enum CrucibleAction {
     BakeBrick(Prototype),
-    BuildFabric(FabricPlan),
+    BuildFabric(Option<FabricPlan>),
     SetSpeed(usize),
     RevertTo(Fabric),
     StartPretensing(PretensePhase),
@@ -110,7 +110,9 @@ impl Crucible {
             }
             BuildFabric(fabric_plan) => {
                 self.fabric = Fabric::default();
-                self.stage = RunningPlan(PlanRunner::new(fabric_plan));
+                if let Some(fabric_plan) = fabric_plan {
+                    self.stage = RunningPlan(PlanRunner::new(fabric_plan));
+                }
             }
             Experiment(lab_action) => {
                 let Experimenting(lab) = &mut self.stage else {
