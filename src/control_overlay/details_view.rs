@@ -23,7 +23,7 @@ pub fn DetailsView(
             <h1>Details</h1>
             {move || match control_state.get() {
                 ControlState::Viewing => {
-                    view! { <div>"To zoom in on a joint, click near it."</div> }
+                    view! { <div><p>"To zoom in on a joint, click near it with the right mouse button."</p></div> }
                 }
                 ControlState::ShowingJoint(joint_details) => {
                     view! {
@@ -62,7 +62,7 @@ pub fn DetailsView(
                                 <b>{formatted_interval(&interval_details)}</b> "."
                             </p>
                             <p>"Its length is " <b>{length}</b> "."</p>
-                            <p on:click=to_setting_length>"Click here this interval's length, and thereby determining the scale of the whole structure."</p>
+                            <p on:click=to_setting_length>"Click here to set this interval's length, and thereby determining the scale of the whole structure."</p>
                         </div>
                     }
                 }

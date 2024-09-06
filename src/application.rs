@@ -12,7 +12,6 @@ use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::camera::Pick;
-use crate::control_overlay::menu::{EventMap, MenuContent};
 use crate::crucible::{Crucible, CrucibleAction};
 use crate::messages::{ControlState, LabEvent};
 use crate::scene::Scene;
@@ -27,7 +26,6 @@ pub struct Application {
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
     brick_library: BrickLibrary,
-    event_map: EventMap,
     set_control_state: WriteSignal<ControlState>,
     event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
     fabric_alive: bool,
@@ -38,7 +36,6 @@ impl Application {
         window_attributes: WindowAttributes,
         set_control_state: WriteSignal<ControlState>,
         event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
-        event_map: EventMap,
     ) -> Result<Application, TenscriptError> {
         let brick_library = BrickLibrary::from_source()?;
         let fabric_library = FabricLibrary::from_source()?;
@@ -53,7 +50,6 @@ impl Application {
             event_loop_proxy,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
-            event_map,
             fabric_alive: true,
         })
     }
@@ -133,16 +129,12 @@ impl ApplicationHandler<LabEvent> for Application {
             LabEvent::ContextCreated(wgpu) => {
                 self.scene = Some(Scene::new(wgpu, self.set_control_state));
             }
-            LabEvent::SendMenuEvent(menu_item) => {
-                if let MenuContent::Event(lab_event_key) = menu_item.content {
-                    let event = self.event_map.get(&lab_event_key).unwrap();
-                    self.event_loop_proxy.send_event(event.clone()).unwrap()
-                }
-            }
             LabEvent::LoadFabric(fabric_plan_name) => {
-                self.fabric_plan_name = fabric_plan_name.clone();
-                self.build_current_fabric();
-                self.fabric_alive = true;
+                if !fabric_plan_name.is_empty() {
+                    self.fabric_plan_name = fabric_plan_name.clone();
+                    self.build_current_fabric();
+                    self.fabric_alive = true;
+                }
             }
             LabEvent::Crucible(crucible_action) => {
                 if let CrucibleAction::BuildFabric(fabric_plan) = &crucible_action {
