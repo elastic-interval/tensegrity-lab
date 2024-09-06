@@ -174,9 +174,7 @@ impl From<Prototype> for Fabric {
             });
             fabric.create_face(aliases, 1.0, spin, radial_intervals);
         }
-        if !fabric.orphan_joints().is_empty() {
-            panic!("Orphan joints!")
-        }
+        fabric.check_orphan_joints();
         fabric
     }
 }
@@ -489,11 +487,21 @@ impl TryFrom<Fabric> for Baked {
         if abs(average_strain - Baked::TARGET_FACE_STRAIN) > Baked::TOLERANCE {
             return Err(format!("Face interval strain too far from (avg) {} {average_strain:?}", Baked::TARGET_FACE_STRAIN));
         }
+        let face_joints: Vec<usize> = fabric
+            .faces
+            .values()
+            .map(|face| face.middle_joint(&fabric))
+            .collect();
         Ok(Self {
             joints: joint_incidents
                 .iter()
-                .map(|JointIncident { location, .. }|
-                    BakedJoint { location: *location })
+                .filter_map(|JointIncident { index, location, .. }| {
+                    if face_joints.contains(index) {
+                        None
+                    } else {
+                        Some(BakedJoint { location: *location })
+                    }
+                })
                 .collect(),
             intervals: fabric
                 .interval_values()

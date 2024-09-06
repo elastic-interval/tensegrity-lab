@@ -75,7 +75,7 @@ impl Crucible {
                 }
             }
             PretensingLaunch(pretense_phase) => {
-                println!("Orphan Joints: {:?}", self.fabric.orphan_joints());
+                self.fabric.check_orphan_joints();
                 self.stage = Pretensing(Pretenser::new(pretense_phase.clone()))
             }
             Pretensing(pretenser) => {

@@ -25,7 +25,7 @@ impl Oven {
             println!("Fabric settled in iteration {age} at speed squared {speed_squared}");
             match Baked::try_from(fabric.clone()) {
                 Ok(baked) => {
-                    println!("Orphan joints: {:?}", fabric.orphan_joints());
+                    fabric.check_orphan_joints();
                     return Some(baked);
                 }
                 Err(problem) => {
