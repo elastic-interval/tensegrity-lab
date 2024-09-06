@@ -158,17 +158,15 @@ impl Fabric {
         id
     }
 
-    pub fn orphan_joints(&self) -> Vec<usize> {
-        let mut orphans = Vec::new();
+    pub fn check_orphan_joints(&self)  {
         for joint in 0..self.joints.len() {
             let touching = self
                 .interval_values()
                 .any(|interval| interval.touches(joint));
             if !touching {
-                orphans.push(joint)
+                panic!("Found an orphan joint!");
             }
         }
-        orphans
     }
 }
 

@@ -11,7 +11,6 @@ use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
-use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
 use tensegrity_lab::messages::{ControlState, LabEvent};
 
 #[derive(Parser, Debug)]
@@ -67,6 +66,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
     {
         use tensegrity_lab::control_overlay::ControlOverlayApp;
         use winit::platform::web::WindowAttributesExtWebSys;
+        use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
 
         let web_sys_window = web_sys::window().expect("no web sys window");
         let document = web_sys_window.document().expect("no document");
