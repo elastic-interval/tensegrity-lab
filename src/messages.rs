@@ -1,6 +1,5 @@
 use std::time::SystemTime;
 
-use crate::control_overlay::menu::MenuItem;
 use crate::crucible::CrucibleAction;
 use crate::fabric::interval::Role;
 use crate::wgpu::Wgpu;
@@ -50,7 +49,6 @@ pub enum ControlState {
 #[derive(Debug, Clone)]
 pub enum LabEvent {
     ContextCreated(Wgpu),
-    SendMenuEvent(MenuItem),
     Crucible(CrucibleAction),
     CalibrateStrain,
     UpdatedLibrary(SystemTime),

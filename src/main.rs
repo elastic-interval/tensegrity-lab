@@ -12,7 +12,6 @@ use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
 use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
-use tensegrity_lab::control_overlay::menu::{MenuBuilder, MenuItem};
 use tensegrity_lab::messages::{ControlState, LabEvent};
 
 #[derive(Parser, Debug)]
@@ -64,16 +63,6 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
     #[allow(unused_variables)]
     let (control_state, set_control_state) = create_signal(ControlState::default());
 
-    let fabric_list = FabricLibrary::from_source().unwrap().fabric_list();
-    let mut builder = MenuBuilder::default();
-    let fabric_item = builder.load_fabric_item(fabric_list);
-    builder.add_to_root(fabric_item);
-    builder.add_to_root(
-        MenuItem::submenu("dammit")
-            .fake_add("Gumby")
-            .fake_add("Pokey")
-    );
-
     #[cfg(target_arch = "wasm32")]
     {
         use tensegrity_lab::control_overlay::ControlOverlayApp;
@@ -82,7 +71,6 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
         let web_sys_window = web_sys::window().expect("no web sys window");
         let document = web_sys_window.document().expect("no document");
         let overlay_proxy = event_loop.create_proxy();
-        let menu = builder.menu();
 
         let control_overlay = document
             .get_element_by_id("control_overlay")
@@ -90,10 +78,9 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
             .dyn_into()
             .expect("no html element");
         leptos::mount_to(control_overlay, move || {
-            
             view! {
                 <ControlOverlayApp
-                    initial_menu_item={menu.root()}
+                    fabric_list={FabricLibrary::from_source().unwrap().fabric_list()}
                     control_state={control_state}
                     set_control_state={set_control_state}
                     event_loop_proxy={overlay_proxy}/>
@@ -116,12 +103,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
 
     let proxy = event_loop_proxy.clone();
     let mut app =
-        match Application::new(
-            window_attributes,
-            set_control_state,
-            proxy,
-            builder.event_map(),
-        ) {
+        match Application::new(window_attributes, set_control_state, proxy) {
             Ok(app) => app,
             Err(error) => panic!("Tenscript Error: [{:?}]", error)
         };

@@ -1,70 +1,50 @@
-use leptos::{component, IntoView, ReadSignal, Show, SignalGet, SignalUpdate, view, WriteSignal};
-
-use crate::control_overlay::menu::{MenuContent, MenuItem};
+use leptos::{component, IntoView, Signal, SignalGet, SignalSet, view, WriteSignal};
 
 #[component]
 pub fn MenuView(
-    menu_choice: ReadSignal<Vec<MenuItem>>,
-    set_menu_choice: WriteSignal<Vec<MenuItem>>,
+    fabric_list: Vec<String>,
+    fabric_name: Signal<String>,
+    set_fabric_name: WriteSignal<String>,
 ) -> impl IntoView {
-    let menu_up = move |_| {
-        set_menu_choice
-            .update(|stack| {
-                (*stack).pop();
-            })
-    };
     view! {
         <div class="menu rounded">
             {move || {
-                let item = menu_choice.get().last().unwrap().clone();
-                let label = item.label.clone();
-                match item.content {
-                    MenuContent::Empty | MenuContent::Event(_) => {
-                        view! {
-                            <div>
-                                <h1>{label}</h1>
-                            </div>
-                        }
+                if fabric_name.get().is_empty() {
+                    view! {
+                        <div class="list">
+                            {fabric_list
+                                .iter()
+                                .map(|fabric_name| {
+                                    view! {
+                                        <div class="item">
+                                            <MenuItemView
+                                                fabric_name=fabric_name.clone()
+                                                set_fabric_name=set_fabric_name
+                                            />
+                                        </div>
+                                    }
+                                })
+                                .collect::<Vec<_>>()}
+                        </div>
                     }
-                    MenuContent::Submenu(item_list) => {
-                        view! {
-                            <div>
-                                <h1>{label.clone()}</h1>
-                                <div class="list">
-                                    {item_list
-                                        .iter()
-                                        .map(|sub_item| {
-                                            view! {
-                                                <div class="item">
-                                                    <MenuItemView
-                                                        menu_item=sub_item.clone()
-                                                        set_menu_choice=set_menu_choice
-                                                    />
-                                                </div>
-                                            }
-                                        })
-                                        .collect::<Vec<_>>()}
-                                </div>
-                            </div>
-                        }
+                } else {
+                    view! {
+                        <div class="list">
+                            <h4>{fabric_name}</h4>
+                        </div>
                     }
                 }
-            }} <Show when=move || { menu_choice.get().len() > 1 }>
-                <div on:click=menu_up>"⬆️"</div>
-            </Show>
-
+            }}
         </div>
     }
 }
 
 #[component]
 pub fn MenuItemView(
-    menu_item: MenuItem,
-    set_menu_choice: WriteSignal<Vec<MenuItem>>,
+    fabric_name: String,
+    set_fabric_name: WriteSignal<String>,
 ) -> impl IntoView {
-    let label = menu_item.label.clone();
-    let click = move |_| {
-        set_menu_choice.update(|stack| { (*stack).push(menu_item.clone()) });
-    };
+    let label = fabric_name.clone();
+    let click = move |_| set_fabric_name.set(fabric_name.clone());
     view! { <div on:click=click>{label}</div> }
 }
