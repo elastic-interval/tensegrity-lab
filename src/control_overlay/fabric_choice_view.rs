@@ -1,13 +1,13 @@
 use leptos::{component, IntoView, Signal, SignalGet, SignalSet, view, WriteSignal};
 
 #[component]
-pub fn MenuView(
+pub fn FabricChoiceView(
     fabric_list: Vec<String>,
     fabric_name: Signal<String>,
     set_fabric_name: WriteSignal<String>,
 ) -> impl IntoView {
     view! {
-        <div class="menu rounded">
+        <div class="top-left rounded">
             {move || {
                 if fabric_name.get().is_empty() {
                     view! {

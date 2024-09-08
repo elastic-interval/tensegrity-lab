@@ -17,40 +17,35 @@ p {
     margin-bottom: 0.1em;
 }
 
-.menu {
+.top-left {
     position: absolute;
-    top:0;
-    left:0;
-    margin-left: 2em;
-    margin-top: 2em;
+    top: 2em;
+    left: 2em;
     display: flex;
     flex-direction: column;
     horiz-align: center;
+
     .item {
         margin-bottom: 0.5em;
         color: white;
     }
 }
 
-.details {
+.top-right {
     position: absolute;
-    top: 0;
-    right: 0;
+    top: 2em;
+    right: 2em;
     width: 16em;
     font-size: large;
-    margin-right: 2em;
-    margin-top: 2em;
     flex-direction: column;
     display: flex;
     horiz-align: right;
 }
 
-.scale {
+.bottom-right {
     position: absolute;
-    bottom: 0;
-    right: 0;
-    margin-bottom: 2em;
-    margin-right: 2em;
+    bottom: 2em;
+    right: 2em;
 }
 
 

@@ -4,11 +4,11 @@ use leptos_use::storage::use_local_storage;
 use winit::event_loop::EventLoopProxy;
 
 use crate::control_overlay::details_view::DetailsView;
-use crate::control_overlay::menu_view::MenuView;
+use crate::control_overlay::fabric_choice_view::FabricChoiceView;
 use crate::control_overlay::scale_view::ScaleView;
 use crate::messages::{ControlState, LabEvent};
 
-mod menu_view;
+mod fabric_choice_view;
 mod details_view;
 mod scale_view;
 
@@ -25,7 +25,7 @@ pub fn ControlOverlayApp(
 
     view! {
         <div>
-            <MenuView
+            <FabricChoiceView
                 fabric_list=fabric_list
                 fabric_name=fabric_name
                 set_fabric_name=set_fabric_name
