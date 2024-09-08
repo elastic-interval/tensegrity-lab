@@ -30,7 +30,7 @@ pub fn MenuView(
                 } else {
                     view! {
                         <div class="list" on:click=move|_|set_fabric_name.set(String::new())>
-                            <h4>{fabric_name}</h4>
+                            <b>"\""{fabric_name}"\""</b>
                         </div>
                     }
                 }

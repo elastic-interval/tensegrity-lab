@@ -27,7 +27,7 @@ raw-window-handle = "0.6.0"
 serde = "1.0.208"
 wgpu = "22.1.0"
 winit = { version = "0.30.5", features = ["rwh_04"] }
-leptos = { version = "0.6.9", features = ["csr"] }
+leptos = { version = "0.6.13", features = ["csr"] }
 leptos-use = "0.12.0"
 web-sys = "0.3.70"
 time = "0.3.36"

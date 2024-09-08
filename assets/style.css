@@ -7,16 +7,20 @@ body {
 
 .rounded {
     border-style: dotted;
-    border-color: red;
+    border-color: white;
     border-radius: 1em;
     padding: 1em;
+}
+
+p {
+    margin-top: 0.1em;
+    margin-bottom: 0.1em;
 }
 
 .menu {
     position: absolute;
     top:0;
     left:0;
-    width: 8em;
     margin-left: 2em;
     margin-top: 2em;
     display: flex;
