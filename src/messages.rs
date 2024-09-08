@@ -43,7 +43,6 @@ pub enum ControlState {
     Viewing,
     ShowingJoint(JointDetails),
     ShowingInterval(IntervalDetails),
-    SettingLength(IntervalDetails),
 }
 
 #[derive(Debug, Clone)]

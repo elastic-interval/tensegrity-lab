@@ -7,7 +7,7 @@ body {
 
 .rounded {
     border-style: dotted;
-    border-color: white;
+    border-color: red;
     border-radius: 1em;
     padding: 1em;
 }
@@ -41,12 +41,20 @@ body {
     horiz-align: right;
 }
 
+.scale {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    margin-bottom: 2em;
+    margin-right: 2em;
+}
+
+
 .input_group {
     & *:not(:first-child) {
         margin-left: 5px;
     }
 }
-
 
 #control_overlay, canvas {
     outline: none;
