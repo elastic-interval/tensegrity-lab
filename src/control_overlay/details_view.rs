@@ -1,7 +1,7 @@
 use leptos::{component, create_effect, create_signal, IntoView, ReadSignal, Signal, SignalGet, SignalSet, view};
 
 use crate::fabric::interval::Role;
-use crate::messages::{ControlState, IntervalDetails, JointDetails};
+use crate::messages::{ControlState, JointDetails};
 
 #[component]
 pub fn DetailsView(
@@ -21,27 +21,16 @@ pub fn DetailsView(
                 ControlState::Viewing => {
                     view! {
                         <div>
-                            <p>
-                                "To select a joint, click near it with the right mouse button."
-                            </p>
+                            <p>"To select a joint, click it with the right mouse button."</p>
                         </div>
                     }
                 }
                 ControlState::ShowingJoint(joint_details) => {
                     view! {
                         <div>
-                            <p>
-                                "Joint "
-                                <b>{move || format!("\"J{}\"", joint_details.index + 1)}</b>
-                                " and its adjacent intervals are highlighted."
-                            </p>
-                            <p>
-                                "It is located "
-                                <b>{move || format!("{0:.0}mm", joint_height.get())}</b>
-                                " above the ground."
-                            </p>
-                            <p>"Click near one of its intervals to select it and show details."</p>
-                            <p>"Click again to jump across the interval to the other joint."</p>
+                            <p>"Joint "<b>{move || format!("\"J{}\"", joint_details.index + 1)}</b></p>
+                            <p>"Height: "<b>{move || format!("{0:.0} mm", joint_height.get())}</b></p>
+                            <p>"Click an intervals for details."</p>
                         </div>
                     }
                 }
@@ -51,16 +40,18 @@ pub fn DetailsView(
                         Role::Pull => "cable",
                         Role::Spring => "spring",
                     };
-                    let formatted_interval = move |interval: &IntervalDetails| {
-                        format!("from J{} to J{}", interval.near_joint + 1, interval.far_joint + 1)
+                    let joint = move |index| {
+                        format!("J{}", index)
                     };
-                    let length = move || format!("{0:.1} mm", interval_details.length * scale.get());
+                    let length = move || {
+                        format!("{0:.1} mm", interval_details.length * scale.get())
+                    };
                     view! {
                         <div>
-                            <p>
-                                "The highlighted green interval is a " <b>{role}</b>" "<b>{formatted_interval(&interval_details)}</b> "."
-                            </p>
-                            <p>"Its length is " <b>{length}</b> "."</p>
+                            <p>"Joint "<b>{joint(interval_details.near_joint)}</b></p>
+                            <p>"The green interval is a " <b>{role}</b> " to " <b>{joint(interval_details.far_joint)}</b> "."</p>
+                            <p>"Length: " <b>{length}</b> "."</p>
+                            <p>"Click it again to jump across the interval to "{joint(interval_details.far_joint)}</p>
                         </div>
                     }
                 }
