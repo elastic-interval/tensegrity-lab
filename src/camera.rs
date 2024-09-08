@@ -100,17 +100,14 @@ impl Camera {
             ElementState::Released => {
                 if let (Some(anchor), Some(position)) = (self.mouse_anchor, self.cursor_position) {
                     let (dx, dy) = ((position.x - anchor.x) as f32, (position.y - anchor.y) as f32);
-                    let diff = dx * dx + dy * dy;
-                    if diff < 32.0 && matches!(button, MouseButton::Right) {
+                    if dx * dx + dy * dy > 64.0 { // they're dragging
+                        return None
+                    }
+                    let something_picked = !matches!(self.current_pick, Pick::Nothing);
+                    let right_click = matches!(button, MouseButton::Right);
+                    if something_picked || right_click {
                         self.mouse_anchor = None;
                         self.current_pick = self.pick_ray((anchor.x as f32, anchor.y as f32), fabric);
-                        if let Pick::Joint {index, .. } = self.current_pick {
-                            let interval_count = fabric.intervals.values().filter(|interval| interval.touches(index)).count();
-                            if interval_count == 0 {
-                                panic!("Joint {} has zero adjacent intervals!", index)
-                            }                            
-                            println!("Intervals: {}", interval_count);
-                        }
                         return Some(self.current_pick.clone());
                     }
                 }
