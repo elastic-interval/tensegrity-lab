@@ -8,7 +8,7 @@ pub fn ScaleView(
     let (edit, set_edit) = create_signal(false);
     let (scale_value, set_scale_value) = create_signal(scale.get_untracked());
     view! {
-        <div class="scale rounded">
+        <div class="bottom-right rounded">
             {move || {
                 if edit.get() {
                     let assign = move |_| {

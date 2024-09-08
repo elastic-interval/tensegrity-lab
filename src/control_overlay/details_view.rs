@@ -16,7 +16,7 @@ pub fn DetailsView(
         }
     });
     view! {
-        <div class="details rounded">
+        <div class="top-right rounded">
             {move || match control_state.get() {
                 ControlState::Viewing => {
                     view! {
