@@ -82,7 +82,6 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
                 <ControlOverlayApp
                     fabric_list={FabricLibrary::from_source().unwrap().fabric_list()}
                     control_state={control_state}
-                    set_control_state={set_control_state}
                     event_loop_proxy={overlay_proxy}/>
             }
         });
