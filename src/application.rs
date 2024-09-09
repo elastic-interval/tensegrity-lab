@@ -86,9 +86,7 @@ impl Application {
             if time > self.fabric_library_modified {
                 match self.refresh_library(time) {
                     Ok(action) => {
-                        self.event_loop_proxy
-                            .send_event(action)
-                            .unwrap_or_else(|_| panic!("unable to send"));
+                        self.event_loop_proxy.send_event(action).unwrap();
                     }
                     Err(tenscript_error) => {
                         println!("Tenscript\n{tenscript_error}");
@@ -203,7 +201,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 WindowEvent::CursorLeft { .. } => {
                     self.fabric_alive = false;
                 }
-                _ => println!("Unhandled Event {:?}", event),
+                _ => {},
             }
         }
     }

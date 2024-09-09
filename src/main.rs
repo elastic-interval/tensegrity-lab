@@ -61,6 +61,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
 
     #[allow(unused_variables)]
     let (control_state, set_control_state) = create_signal(ControlState::default());
+    #[allow(unused_variables)]
     let (lab_control, set_lab_control) = create_signal(false);
 
     #[cfg(target_arch = "wasm32")]
