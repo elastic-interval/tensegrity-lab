@@ -7,8 +7,7 @@ use crate::fabric::Fabric;
 
 #[derive(Clone, PartialEq)]
 enum Stage {
-    Start,
-    Standing,
+    Paused,
     MuscleCycle(f32),
 }
 
@@ -27,7 +26,7 @@ impl Experiment {
         }: Pretenser,
     ) -> Self {
         Self {
-            stage: Start,
+            stage: Paused,
             physics,
             pretense_phase,
         }
@@ -35,15 +34,9 @@ impl Experiment {
 
     pub fn iterate(&mut self, fabric: &mut Fabric) {
         self.stage = match self.stage {
-            Start =>
-                if let Some(movement) = &self.pretense_phase.muscle_movement {
-                    MuscleCycle(1.0 / movement.countdown as f32)
-                } else {
-                    Standing
-                },
-            Standing => {
+            Paused => {
                 fabric.iterate(&self.physics);
-                Standing
+                Paused
             }
             MuscleCycle(increment) => {
                 fabric.iterate(&self.physics);
@@ -67,17 +60,13 @@ impl Experiment {
             LabAction::MuscleChanged(nuance) => {
                 fabric.muscle_nuance = nuance;
             }
-            LabAction::MuscleTestToggle => match self.stage {
-                Standing => {
-                    if let Some(movement) = &self.pretense_phase.muscle_movement {
-                        self.stage = MuscleCycle(1.0 / movement.countdown as f32)
-                    }
+            LabAction::MuscleTest(running) => if running {
+                if let Some(movement) = &self.pretense_phase.muscle_movement {
+                    self.stage = MuscleCycle(1.0 / movement.countdown as f32)
                 }
-                MuscleCycle(_) => {
-                    fabric.muscle_nuance = 0.5;
-                    self.stage = Standing
-                }
-                _ => {}
+            } else {
+                fabric.muscle_nuance = 0.5;
+                self.stage = Paused
             },
         }
     }

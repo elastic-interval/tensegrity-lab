@@ -61,6 +61,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
 
     #[allow(unused_variables)]
     let (control_state, set_control_state) = create_signal(ControlState::default());
+    let (lab_control, set_lab_control) = create_signal(false);
 
     #[cfg(target_arch = "wasm32")]
     {
@@ -82,6 +83,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
                 <ControlOverlayApp
                     fabric_list={FabricLibrary::from_source().unwrap().fabric_list()}
                     control_state={control_state}
+                    lab_control=lab_control
                     event_loop_proxy={overlay_proxy}/>
             }
         });
@@ -102,7 +104,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
 
     let proxy = event_loop_proxy.clone();
     let mut app =
-        match Application::new(window_attributes, set_control_state, proxy) {
+        match Application::new(window_attributes, set_control_state, set_lab_control, proxy) {
             Ok(app) => app,
             Err(error) => panic!("Tenscript Error: [{:?}]", error)
         };

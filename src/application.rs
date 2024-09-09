@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use leptos::WriteSignal;
+use leptos::{SignalSet, WriteSignal};
 use winit::application::ApplicationHandler;
 use winit::event::{KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
@@ -12,7 +12,7 @@ use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::camera::Pick;
-use crate::crucible::{Crucible, CrucibleAction};
+use crate::crucible::{Crucible, CrucibleAction, LabAction};
 use crate::messages::{ControlState, LabEvent};
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
@@ -27,6 +27,7 @@ pub struct Application {
     fabric_library_modified: SystemTime,
     brick_library: BrickLibrary,
     set_control_state: WriteSignal<ControlState>,
+    set_lab_control: WriteSignal<bool>,
     event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
     fabric_alive: bool,
 }
@@ -35,6 +36,7 @@ impl Application {
     pub fn new(
         window_attributes: WindowAttributes,
         set_control_state: WriteSignal<ControlState>,
+        set_lab_control: WriteSignal<bool>,
         event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
     ) -> Result<Application, TenscriptError> {
         let brick_library = BrickLibrary::from_source()?;
@@ -47,6 +49,7 @@ impl Application {
             brick_library,
             fabric_library,
             set_control_state,
+            set_lab_control,
             event_loop_proxy,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
@@ -73,7 +76,7 @@ impl Application {
         } else {
             self.get_fabric_plan(self.fabric_plan_name.clone()).ok()
         };
-        self.crucible.action(CrucibleAction::BuildFabric(fabric_plan));
+        self.event_loop_proxy.send_event(LabEvent::Crucible(CrucibleAction::BuildFabric(fabric_plan))).unwrap();
     }
 
     fn redraw(&mut self) {
@@ -136,10 +139,19 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.fabric_alive = !self.fabric_plan_name.is_empty();
             }
             LabEvent::Crucible(crucible_action) => {
-                if let CrucibleAction::BuildFabric(_) = &crucible_action {
-                    if let Some(scene) = &mut self.scene {
-                        scene.reset();
+                match &crucible_action {
+                    CrucibleAction::BuildFabric(fabric_plan) => {
+                        if let Some(fabric_plan) = fabric_plan {
+                            self.set_lab_control.set(fabric_plan.pretense_phase.muscle_movement.is_some());
+                        }
+                        if let Some(scene) = &mut self.scene {
+                            scene.reset();
+                        }
                     }
+                    CrucibleAction::Experiment(LabAction::MuscleTest(_)) => {
+                        self.fabric_alive = true;
+                    }
+                    _ => {}
                 }
                 self.crucible.action(crucible_action);
             }

@@ -24,7 +24,7 @@ enum Stage {
 #[derive(Debug, Clone)]
 pub enum LabAction {
     GravityChanged(f32),
-    MuscleTestToggle,
+    MuscleTest(bool),
     MuscleChanged(f32),
 }
 
@@ -36,7 +36,6 @@ pub enum CrucibleAction {
     RevertTo(Fabric),
     StartPretensing(PretensePhase),
     Experiment(LabAction),
-    ActivateMuscles,
 }
 
 pub struct Crucible {
@@ -115,10 +114,9 @@ impl Crucible {
                 }
             }
             Experiment(lab_action) => {
-                let Experimenting(lab) = &mut self.stage else {
-                    panic!("must be experimenting");
+                if let Experimenting(lab) = &mut self.stage {
+                    lab.action(lab_action, &mut self.fabric);
                 };
-                lab.action(lab_action, &mut self.fabric);
             }
             SetSpeed(iterations_per_frame) => {
                 self.iterations_per_frame = iterations_per_frame;
@@ -128,12 +126,6 @@ impl Crucible {
             }
             StartPretensing(pretenst_phase) => {
                 self.stage = PretensingLaunch(pretenst_phase);
-            }
-            ActivateMuscles => {
-                let Experimenting(lab) = &mut self.stage else {
-                    panic!("must be experimenting");
-                };
-                lab.action(LabAction::MuscleTestToggle, &mut self.fabric);
             }
         }
     }

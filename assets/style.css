@@ -49,6 +49,13 @@ p {
 }
 
 
+.bottom-left {
+    position: absolute;
+    bottom: 2em;
+    left: 2em;
+}
+
+
 .input_group {
     & *:not(:first-child) {
         margin-left: 5px;
