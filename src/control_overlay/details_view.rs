@@ -21,7 +21,7 @@ pub fn DetailsView(
                 ControlState::Viewing => {
                     view! {
                         <div>
-                            <p>"To select a joint, click it with the right mouse button."</p>
+                            <p>"To select a joint, right-click on it."</p>
                         </div>
                     }
                 }
@@ -30,7 +30,7 @@ pub fn DetailsView(
                         <div>
                             <p>"Joint "<b>{move || format!("\"J{}\"", joint_details.index + 1)}</b></p>
                             <p>"Height: "<b>{move || format!("{0:.0} mm", joint_height.get())}</b></p>
-                            <p>"Click an intervals for details."</p>
+                            <p>"Click an interval for details, or right-click for an adjacent joint."</p>
                         </div>
                     }
                 }

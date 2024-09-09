@@ -1,11 +1,12 @@
+use std::f32::consts::PI;
+
 use cgmath::{
     Deg, EuclideanSpace, InnerSpace, Matrix4, perspective, point3, Point3, Quaternion, Rad, Rotation,
     Rotation3, SquareMatrix, Transform, vec3, Vector3,
 };
 use cgmath::num_traits::abs;
-use std::f32::consts::PI;
 use winit::dpi::PhysicalPosition;
-use winit::event::{ElementState, MouseButton, MouseScrollDelta};
+use winit::event::{ElementState, MouseScrollDelta};
 
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::Interval;
@@ -22,6 +23,11 @@ pub enum Pick {
         id: UniqueId,
         interval: Interval,
     },
+}
+
+pub enum Shot {
+    Joint,
+    Interval,
 }
 
 const TARGET_HIT: f32 = 0.001;
@@ -92,7 +98,7 @@ impl Camera {
         }
     }
 
-    pub fn mouse_input(&mut self, state: ElementState, button: MouseButton, fabric: &Fabric) -> Option<Pick> {
+    pub fn mouse_input(&mut self, state: ElementState, shot: Shot, fabric: &Fabric) -> Option<Pick> {
         match state {
             ElementState::Pressed => {
                 self.mouse_anchor = self.cursor_position;
@@ -101,15 +107,11 @@ impl Camera {
                 if let (Some(anchor), Some(position)) = (self.mouse_anchor, self.cursor_position) {
                     let (dx, dy) = ((position.x - anchor.x) as f32, (position.y - anchor.y) as f32);
                     if dx * dx + dy * dy > 64.0 { // they're dragging
-                        return None
+                        return None;
                     }
-                    let something_picked = !matches!(self.current_pick, Pick::Nothing);
-                    let right_click = matches!(button, MouseButton::Right);
-                    if something_picked || right_click {
-                        self.mouse_anchor = None;
-                        self.current_pick = self.pick_ray((anchor.x as f32, anchor.y as f32), fabric);
-                        return Some(self.current_pick.clone());
-                    }
+                    self.mouse_anchor = None;
+                    self.current_pick = self.pick_ray((anchor.x as f32, anchor.y as f32), shot, fabric);
+                    return Some(self.current_pick.clone());
                 }
                 self.mouse_anchor = None;
             }
@@ -143,7 +145,7 @@ impl Camera {
         self.projection_matrix() * self.view_matrix()
     }
 
-    fn pick_ray(&mut self, (px, py): (f32, f32), fabric: &Fabric) -> Pick {
+    fn pick_ray(&mut self, (px, py): (f32, f32), shot: Shot, fabric: &Fabric) -> Pick {
         let width = self.width / 2.0;
         let height = self.height / 2.0;
         let x = (px - width) / width;
@@ -155,45 +157,46 @@ impl Camera {
             .unwrap()
             .transform_point(position);
         let ray = (point3d - self.position).normalize();
-        let best_joint = || fabric
-            .joints
-            .iter()
-            .enumerate()
-            .map(|(index, joint)| {
-                (index, (joint.location.to_vec() - self.position.to_vec()).normalize().dot(ray), joint.location.y)
-            })
-            .max_by(|(_, dot_a, _), (_, dot_b, _)| dot_a.total_cmp(dot_b));
-        let best_interval_around = |joint: usize| fabric
-            .intervals
-            .iter()
-            .filter(|(_, interval)| interval.touches(joint))
-            .map(|(interval_id, interval)| {
-                let other = fabric.joints[interval.other_joint(joint)];
-                let dot = (other.location.to_vec() - self.position.to_vec())
-                    .normalize()
-                    .dot(ray);
-                (interval_id, dot)
-            })
-            .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b));
-        match self.current_pick {
-            Pick::Nothing => match best_joint() {
-                None => Pick::Nothing,
-                Some((index, _, height)) => Pick::Joint { index, height },
-            },
-            Pick::Joint { index, .. } => match best_interval_around(index) {
-                None => Pick::Nothing,
-                Some((id, _)) => Pick::Interval { joint: index, id: *id, interval: *fabric.interval(*id) }
-            },
-            Pick::Interval { joint, id, interval } => match best_interval_around(joint) {
-                None => Pick::Nothing,
-                Some((picked_id, _)) if *picked_id == id => {
-                    let joint = interval.other_joint(joint);
-                    Pick::Interval { joint, id: *picked_id, interval: *fabric.interval(*picked_id) }
+        match shot {
+            Shot::Joint => {
+                match self.current_pick {
+                    Pick::Nothing => {
+                        match self.best_joint(ray, fabric) {
+                            None => Pick::Nothing,
+                            Some((index, height)) => Pick::Joint { index, height },
+                        }
+                    }
+                    Pick::Joint { index, .. } => {
+                        match self.best_joint_around(index, ray, fabric) {
+                            None => Pick::Nothing,
+                            Some((index, height)) => Pick::Joint { index, height },
+                        }
+                    }
+                    Pick::Interval { joint, .. } => {
+                        match self.best_joint_around(joint, ray, fabric) {
+                            None => Pick::Nothing,
+                            Some((index, height)) => Pick::Joint { index, height },
+                        }
+                    }
                 }
-                Some((picked_id, _)) => {
-                    Pick::Interval { joint, id: *picked_id, interval: *fabric.interval(*picked_id) }
+            }
+            Shot::Interval => {
+                match self.current_pick {
+                    Pick::Nothing => Pick::Nothing,
+                    Pick::Joint { index, .. } => {
+                        match self.best_interval_around(index, ray, fabric) {
+                            None => Pick::Nothing,
+                            Some(id) => Pick::Interval { joint: index, id, interval: *fabric.interval(id) }
+                        }
+                    }
+                    Pick::Interval { joint, .. } => {
+                        match self.best_interval_around(joint, ray, fabric) {
+                            None => Pick::Nothing,
+                            Some(id) => Pick::Interval { joint, id, interval: *fabric.interval(id) }
+                        }
+                    }
                 }
-            },
+            }
         }
     }
 
@@ -214,6 +217,43 @@ impl Camera {
         let axis = Vector3::unit_y().cross((self.look_at - self.position).normalize());
         let rot_y = Matrix4::from_axis_angle(axis, Deg(dy * SPEED.y));
         Some(rot_x * rot_y)
+    }
+
+    fn best_joint_around(&self, joint: usize, ray: Vector3<f32>, fabric: &Fabric) -> Option<(usize, f32)> {
+        match self.best_interval_around(joint, ray, fabric) {
+            None => None,
+            Some(id) => {
+                let index = fabric.interval(id).other_joint(joint);
+                let height = fabric.joints[index].location.y;
+                Some((index, height))
+            }
+        }
+    }
+
+    fn best_interval_around(&self, joint: usize, ray: Vector3<f32>, fabric: &Fabric) -> Option<UniqueId> {
+        fabric
+            .intervals
+            .iter()
+            .filter(|(_, interval)| interval.touches(joint))
+            .map(|(interval_id, interval)| {
+                let midpoint = interval.midpoint(&fabric.joints);
+                let dot = (midpoint.to_vec() - self.position.to_vec()).normalize().dot(ray);
+                (interval_id, dot)
+            })
+            .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b))
+            .map(|(id, _)| *id)
+    }
+
+    fn best_joint(&self, ray: Vector3<f32>, fabric: &Fabric) -> Option<(usize, f32)> {
+        fabric
+            .joints
+            .iter()
+            .enumerate()
+            .map(|(index, joint)| {
+                (index, (joint.location.to_vec() - self.position.to_vec()).normalize().dot(ray), joint.location.y)
+            })
+            .max_by(|(_, dot_a, _), (_, dot_b, _)| dot_a.total_cmp(dot_b))
+            .map(|(index, _, height)| (index, height))
     }
 }
 

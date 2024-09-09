@@ -2,7 +2,7 @@ use bytemuck::cast_slice;
 use leptos::{SignalSet, WriteSignal};
 use winit::event::{ElementState, MouseButton};
 
-use crate::camera::{Camera, Pick};
+use crate::camera::{Camera, Pick, Shot};
 use crate::camera::Target::*;
 use crate::fabric::Fabric;
 use crate::fabric::interval::Span;
@@ -89,7 +89,11 @@ impl Scene {
     }
 
     pub fn mouse_input(&mut self, state: ElementState, button: MouseButton, fabric: &Fabric) {
-        if let Some(pick) = self.camera.mouse_input(state, button, fabric) {
+        let shot = match button {
+            MouseButton::Right => Shot::Joint,
+            _ => Shot::Interval,
+        };
+        if let Some(pick) = self.camera.mouse_input(state, shot, fabric) {
             self.camera_pick(pick);
         }
     }
