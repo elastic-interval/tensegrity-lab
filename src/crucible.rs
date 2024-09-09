@@ -18,7 +18,6 @@ enum Stage {
     Pretensing(Pretenser),
     Experimenting(Experiment),
     BakingBrick(Oven),
-    Finished,
 }
 
 #[derive(Debug, Clone)]
@@ -63,7 +62,7 @@ impl Crucible {
                     self.stage = PretensingLaunch(plan_runner.pretense_phase())
                 } else {
                     for _ in 0..self.iterations_per_frame {
-                        if let Err(tenscript_error) = 
+                        if let Err(tenscript_error) =
                             plan_runner.iterate(&mut self.fabric, brick_library)
                         {
                             println!("Error:\n{tenscript_error}");
@@ -92,11 +91,17 @@ impl Crucible {
             }
             BakingBrick(oven) => {
                 if let Some(baked) = oven.iterate(&mut self.fabric) {
-                    println!("{}", baked.into_tenscript());
-                    self.stage = Finished;
+                    #[cfg(target_arch = "wasm32")]
+                    println!("Baked {:?}", baked.into_tenscript());
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        use std::fs;
+                        use std::process;
+                        fs::write("baked-brick.tenscript", baked.into_tenscript()).unwrap();
+                        process::exit(0);
+                    }
                 }
             }
-            Finished => {}
         }
     }
 

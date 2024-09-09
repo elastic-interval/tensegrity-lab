@@ -227,7 +227,7 @@ impl ApplicationHandler<LabEvent> for Application {
 #[cfg(not(target_arch = "wasm32"))]
 fn fabric_library_modified() -> SystemTime {
     use std::fs;
-    fs::metadata("fabric_library.scm")
+    fs::metadata("fabric_library.tenscript")
         .unwrap()
         .modified()
         .unwrap()

@@ -18,12 +18,12 @@ impl BrickLibrary {
         let source: String;
         #[cfg(target_arch = "wasm32")]
         {
-            source = include_str!("../../../brick_library.scm").to_string();
+            source = include_str!("../../../brick_library.tenscript").to_string();
         }
         #[cfg(not(target_arch = "wasm32"))]
         {
             use std::fs;
-            source = fs::read_to_string("brick_library.scm").map_err(TenscriptError::FileReadError)?;
+            source = fs::read_to_string("brick_library.tenscript").map_err(TenscriptError::FileReadError)?;
         }
         Self::from_tenscript(&source)
     }

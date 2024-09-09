@@ -26,12 +26,12 @@ impl FabricLibrary {
         let source: String;
         #[cfg(target_arch = "wasm32")]
         {
-            source = include_str!("../../../fabric_library.scm").to_string();
+            source = include_str!("../../../fabric_library.tenscript").to_string();
         }
         #[cfg(not(target_arch = "wasm32"))]
         {
             use std::fs;
-            source = fs::read_to_string("fabric_library.scm").map_err(TenscriptError::FileReadError)?;
+            source = fs::read_to_string("fabric_library.tenscript").map_err(TenscriptError::FileReadError)?;
         }
         Ok(source)
     }
