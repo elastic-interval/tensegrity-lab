@@ -172,11 +172,9 @@ impl Camera {
                             Some((index, height)) => Pick::Joint { index, height },
                         }
                     }
-                    Pick::Interval { joint, .. } => {
-                        match self.best_joint_around(joint, ray, fabric) {
-                            None => Pick::Nothing,
-                            Some((index, height)) => Pick::Joint { index, height },
-                        }
+                    Pick::Interval { joint, id, interval } => {
+                        let joint = interval.other_joint(joint);
+                        Pick::Interval {joint, id, interval}
                     }
                 }
             }
