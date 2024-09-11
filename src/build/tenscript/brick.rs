@@ -416,14 +416,14 @@ impl Baked {
 
     pub fn into_tenscript(self) -> String {
         format!(
-            "(baked\n    {joints}\n    {intervals}\n    {faces})",
+            "\t\t(baked\n\t\t\t{joints}\n\t\t\t{intervals}\n\t\t\t{faces})",
             joints = self
                 .joints
                 .into_iter()
                 .map(|BakedJoint { location, .. }| location)
                 .map(|Point3 { x, y, z }| format!("(joint {x:.4} {y:.4} {z:.4})"))
                 .collect::<Vec<_>>()
-                .join("\n    "),
+                .join("\n\t\t\t"),
             intervals = self
                 .intervals
                 .into_iter()
@@ -438,7 +438,7 @@ impl Baked {
                     }
                 )
                 .collect::<Vec<_>>()
-                .join("\n    "),
+                .join("\n\t\t\t"),
             faces = self
                 .faces
                 .into_iter()
@@ -461,7 +461,7 @@ impl Baked {
                     )
                 )
                 .collect::<Vec<_>>()
-                .join("\n    ")
+                .join("\n\t\t\t")
         )
     }
 }

@@ -21,11 +21,12 @@ impl Oven {
         if age % 1000 == 0 {
             println!("Fabric settling age {age} at speed squared {speed_squared}");
         }
-        if age > 1000 && speed_squared < 1e-11 {
+        if age > 20000 && speed_squared < 1e-11 {
             println!("Fabric settled in iteration {age} at speed squared {speed_squared}");
             match Baked::try_from(fabric.clone()) {
                 Ok(baked) => {
                     fabric.check_orphan_joints();
+                    println!("Baked it!");
                     return Some(baked);
                 }
                 Err(problem) => {
