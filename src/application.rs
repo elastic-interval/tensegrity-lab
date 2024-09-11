@@ -28,7 +28,7 @@ pub struct Application {
     brick_library: BrickLibrary,
     set_control_state: WriteSignal<ControlState>,
     set_lab_control: WriteSignal<bool>,
-    event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
+    event_loop_proxy: EventLoopProxy<LabEvent>,
     fabric_alive: bool,
 }
 
@@ -37,7 +37,7 @@ impl Application {
         window_attributes: WindowAttributes,
         set_control_state: WriteSignal<ControlState>,
         set_lab_control: WriteSignal<bool>,
-        event_loop_proxy: Arc<EventLoopProxy<LabEvent>>,
+        event_loop_proxy: EventLoopProxy<LabEvent>,
     ) -> Result<Application, TenscriptError> {
         let brick_library = BrickLibrary::from_source()?;
         let fabric_library = FabricLibrary::from_source()?;
