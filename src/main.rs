@@ -1,5 +1,4 @@
 use std::error::Error;
-use std::sync::Arc;
 
 use clap::Parser;
 #[allow(unused_imports)]
@@ -52,7 +51,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
 
     let mut builder = EventLoop::<LabEvent>::with_user_event();
     let event_loop: EventLoop<LabEvent> = builder.build()?;
-    let event_loop_proxy = Arc::new(event_loop.create_proxy());
+    let event_loop_proxy = event_loop.create_proxy();
 
     #[allow(unused_mut)]
     let mut window_attributes = WindowAttributes::default()
@@ -79,7 +78,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
             .expect("no control overlay")
             .dyn_into()
             .expect("no html element");
-        leptos::mount_to(control_overlay, move || {
+        mount_to(control_overlay, move || {
             view! {
                 <ControlOverlayApp
                     fabric_list={FabricLibrary::from_source().unwrap().fabric_list()}

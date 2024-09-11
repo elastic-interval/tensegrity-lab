@@ -131,7 +131,7 @@ impl Wgpu {
         }
     }
 
-    pub fn create_and_send(window: Arc<Window>, event_loop_proxy: Arc<EventLoopProxy<LabEvent>>) {
+    pub fn create_and_send(window: Arc<Window>, event_loop_proxy: EventLoopProxy<LabEvent>) {
         #[cfg(target_arch = "wasm32")]
         {
             let future = Self::new_async(window);
