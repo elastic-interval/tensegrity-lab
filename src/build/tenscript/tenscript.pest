@@ -113,5 +113,5 @@ mantissa = @{ ASCII_DIGIT+ }
 string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 forward = @{ "\"" ~  ("X" | ".")+ ~ "\"" }
 
-WHITESPACE = _{ " " | "\n" }
+WHITESPACE = _{ " " | "\n"| "\t" }
 COMMENT = _{ ";" ~ (!NEWLINE ~ ANY)* }
