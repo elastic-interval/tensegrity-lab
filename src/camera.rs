@@ -40,8 +40,9 @@ pub struct Camera {
     look_at: Point3<f32>,
     width: f32,
     height: f32,
-    cursor_position: Option<PhysicalPosition<f64>>,
-    mouse_anchor: Option<PhysicalPosition<f64>>,
+    mouse_now: Option<PhysicalPosition<f64>>,
+    mouse_follower: Option<PhysicalPosition<f64>>,
+    mouse_click: Option<PhysicalPosition<f64>>,
     current_pick: Pick,
 }
 
@@ -53,8 +54,9 @@ impl Camera {
             look_at: point3(0.0, 3.0, 0.0),
             width,
             height,
-            cursor_position: None,
-            mouse_anchor: None,
+            mouse_now: None,
+            mouse_follower: None,
+            mouse_click: None,
             current_pick: Pick::Nothing,
         }
     }
@@ -71,14 +73,14 @@ impl Camera {
         self.current_pick = Pick::Nothing; // more?
     }
 
-    pub fn cursor_moved(&mut self, position: PhysicalPosition<f64>) {
-        self.cursor_position = Some(position);
-        if let Some(mouse_anchor) = self.mouse_anchor {
-            let diff = ((position.x - mouse_anchor.x) as f32, (position.y - mouse_anchor.y) as f32);
+    pub fn cursor_moved(&mut self, mouse_now: PhysicalPosition<f64>) {
+        self.mouse_now = Some(mouse_now);
+        if let Some(mouse_follower) = self.mouse_follower {
+            let diff = ((mouse_now.x - mouse_follower.x) as f32, (mouse_now.y - mouse_follower.y) as f32);
             if let Some(rotation) = self.rotation(diff) {
                 self.position = self.look_at - rotation.transform_vector(self.look_at - self.position);
             }
-            self.mouse_anchor = Some(position)
+            self.mouse_follower = Some(mouse_now)
         }
     }
 
@@ -102,19 +104,20 @@ impl Camera {
     pub fn mouse_input(&mut self, state: ElementState, shot: Shot, fabric: &Fabric) -> Option<Pick> {
         match state {
             ElementState::Pressed => {
-                self.mouse_anchor = self.cursor_position;
+                self.mouse_follower = self.mouse_now;
+                self.mouse_click = self.mouse_now;
             }
             ElementState::Released => {
-                if let (Some(anchor), Some(position)) = (self.mouse_anchor, self.cursor_position) {
-                    let (dx, dy) = ((position.x - anchor.x) as f32, (position.y - anchor.y) as f32);
+                self.mouse_follower = None;
+                if let (Some(mouse_click), Some(mouse_now)) = (self.mouse_click, self.mouse_now) {
+                    let (dx, dy) = ((mouse_now.x - mouse_click.x) as f32, (mouse_now.y - mouse_click.y) as f32);
                     if dx * dx + dy * dy > 32.0 { // they're dragging
                         return None;
                     }
-                    self.mouse_anchor = None;
-                    self.current_pick = self.pick_ray((anchor.x as f32, anchor.y as f32), shot, fabric);
+                    self.mouse_click = None;
+                    self.current_pick = self.pick_ray((mouse_now.x as f32, mouse_now.y as f32), shot, fabric);
                     return Some(self.current_pick.clone());
                 }
-                self.mouse_anchor = None;
             }
         }
         None
