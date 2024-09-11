@@ -22,13 +22,13 @@
                         (branch (alias Omni) (rotate) (rotate)
                             (face (alias TopZ) (mark :chest-1))
                             (face (alias BotX) (mark :chest-2))
-                            (face (alias BotY) (grow 6 (scale .93) (mark :hands))))))
+                            (face (alias BotY) (grow 5 (scale .93) (mark :hands))))))
                 (face (alias RightBackTop)
                     (grow 2
                         (branch (alias Omni)
                             (face (alias TopY) (mark :chest-1))
                             (face (alias BotZ) (mark :chest-2))
-                            (face (alias BotX) (grow 6 (scale .93) (mark :hands))))))))
+                            (face (alias BotX) (grow 5 (scale .93) (mark :hands))))))))
         (shape
             (down :legs)
             (during 15000 (space :legs .02) (space :hands .02) (space :chest-1 .4) (space :chest-2 .1))
