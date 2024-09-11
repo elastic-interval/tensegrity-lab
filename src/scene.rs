@@ -113,15 +113,15 @@ impl Scene {
                 self.camera.set_target(FabricMidpoint);
                 self.set_control_state.set(ControlState::Viewing);
             }
-            Pick::Joint { index,height } => {
+            Pick::Joint { index, height } => {
                 self.camera.set_target(AroundJoint(index));
-                self.set_control_state.set(ControlState::ShowingJoint(JointDetails{index, height}));
+                self.set_control_state.set(ControlState::ShowingJoint(JointDetails { index, height }));
             }
             Pick::Interval { joint, id, interval } => {
                 self.camera.set_target(AroundInterval(id));
                 let role = interval_material(interval.material).role;
                 let length = match interval.span {
-                    Span::Fixed { length } => length,
+                    Span::Fixed { length } | Span::Muscle { length, .. } => length,
                     _ => 0.0
                 };
                 let near_joint = if interval.alpha_index == joint { interval.alpha_index } else { interval.omega_index };
