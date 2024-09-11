@@ -32,6 +32,7 @@ pub enum Shot {
 
 const TARGET_HIT: f32 = 0.001;
 const TARGET_ATTRACTION: f32 = 0.01;
+const DOT_CLOSE_ENOUGH: f32 = 0.92;
 
 pub struct Camera {
     position: Point3<f32>,
@@ -106,7 +107,7 @@ impl Camera {
             ElementState::Released => {
                 if let (Some(anchor), Some(position)) = (self.mouse_anchor, self.cursor_position) {
                     let (dx, dy) = ((position.x - anchor.x) as f32, (position.y - anchor.y) as f32);
-                    if dx * dx + dy * dy > 64.0 { // they're dragging
+                    if dx * dx + dy * dy > 32.0 { // they're dragging
                         return None;
                     }
                     self.mouse_anchor = None;
@@ -172,9 +173,10 @@ impl Camera {
                             Some((index, height)) => Pick::Joint { index, height },
                         }
                     }
-                    Pick::Interval { joint, id, interval } => {
-                        let joint = interval.other_joint(joint);
-                        Pick::Interval {joint, id, interval}
+                    Pick::Interval { joint, interval, .. } => {
+                        let index = interval.other_joint(joint);
+                        let height = fabric.location(index).y;
+                        Pick::Joint { index, height }
                     }
                 }
             }
@@ -218,14 +220,22 @@ impl Camera {
     }
 
     fn best_joint_around(&self, joint: usize, ray: Vector3<f32>, fabric: &Fabric) -> Option<(usize, f32)> {
-        match self.best_interval_around(joint, ray, fabric) {
-            None => None,
-            Some(id) => {
-                let index = fabric.interval(id).other_joint(joint);
-                let height = fabric.joints[index].location.y;
-                Some((index, height))
-            }
-        }
+        fabric
+            .intervals
+            .iter()
+            .filter(|(_, interval)| interval.touches(joint))
+            .map(|(interval_id, interval)| {
+                let midpoint = interval.midpoint(&fabric.joints);
+                let dot = (midpoint.to_vec() - self.position.to_vec()).normalize().dot(ray);
+                (interval_id, dot)
+            })
+            .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b))
+            .filter(|(_, dot)| *dot > DOT_CLOSE_ENOUGH)
+            .map(|(id, _)| {
+                let joint = fabric.interval(*id).other_joint(joint);
+                let height = fabric.location(joint).y;
+                (joint, height)
+            })
     }
 
     fn best_interval_around(&self, joint: usize, ray: Vector3<f32>, fabric: &Fabric) -> Option<UniqueId> {
@@ -251,6 +261,7 @@ impl Camera {
                 (index, (joint.location.to_vec() - self.position.to_vec()).normalize().dot(ray), joint.location.y)
             })
             .max_by(|(_, dot_a, _), (_, dot_b, _)| dot_a.total_cmp(dot_b))
+            .filter(|(_, dot, _)| *dot > DOT_CLOSE_ENOUGH)
             .map(|(index, _, height)| (index, height))
     }
 }
