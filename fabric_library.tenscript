@@ -38,6 +38,28 @@
         (pretense
             (muscle 0.4 16000)
             (surface :frozen)))
+	(fabric	(name "Swagger Two")
+        (build
+            (branch (alias Torque)
+                (face (alias LeftFrontBottom) (grow 6 (mark :legs)))
+                (face (alias RightFrontBottom) (grow 6 (mark :legs)))
+                (face (alias LeftBackTop)
+                    (grow 1
+                        (branch (alias Torque) (rotate) (rotate)
+                            (face (alias FarBack) (grow 4 (scale .93) (mark :hands))))))
+                (face (alias RightBackTop)
+                    (grow 1
+                        (branch (alias Torque) (rotate) (rotate)
+                            (face (alias FarBack) (grow 4 (scale .93) (mark :hands))))))))
+        (shape
+            (down :legs)
+            (during 15000 (space :legs 0.01) (space :hands .02) )
+            (during 80000 (vulcanize))
+            (remove-spacers)
+            (faces-to-triangles))
+        (pretense
+            (muscle 0.4 16000)
+            (surface :frozen)))
     (fabric (name "Triped")
 		(build
 			(branch (alias Omni) (seed 1)
