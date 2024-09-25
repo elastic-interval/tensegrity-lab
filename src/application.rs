@@ -199,7 +199,15 @@ impl ApplicationHandler<LabEvent> for Application {
                     self.fabric_alive = true;
                 }
                 WindowEvent::CursorLeft { .. } => {
-                    self.fabric_alive = false;
+                    #[cfg(target_arch = "wasm32")]
+                    {
+                        self.fabric_alive = false;
+                    }
+                }
+                WindowEvent::Resized(physical_size) => {
+                    if let Some(scene) = &mut self.scene {
+                        scene.resize(physical_size)
+                    }
                 }
                 _ => {},
             }
