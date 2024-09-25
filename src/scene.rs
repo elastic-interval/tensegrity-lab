@@ -1,5 +1,6 @@
 use bytemuck::cast_slice;
 use leptos::{SignalSet, WriteSignal};
+use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, MouseButton};
 
 use crate::camera::{Camera, Pick, Shot};
@@ -83,7 +84,7 @@ impl Scene {
         surface_texture.present();
     }
 
-    pub fn resize(&mut self, width: u32, height: u32) {
+    pub fn resize(&mut self, PhysicalSize { width, height }: PhysicalSize<u32>) {
         self.wgpu.resize((width, height));
         self.camera.set_size(width as f32, height as f32);
     }
