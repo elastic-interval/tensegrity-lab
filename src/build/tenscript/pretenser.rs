@@ -26,6 +26,8 @@ const DEFAULT_PRETENSE_FACTOR: f32 = 1.03;
 const MUSCLE_WAIT: usize = 20000;
 const PRETENSING_COUNTDOWN: usize = 30000;
 
+const DEFAULT_ALTITUDE: f32 = 0.0;
+
 impl Pretenser {
     pub fn new(pretense_phase: PretensePhase) -> Self {
         let surface_character = pretense_phase.surface_character;
@@ -55,7 +57,7 @@ impl Pretenser {
                     .pretense_phase
                     .pretense_factor
                     .unwrap_or(DEFAULT_PRETENSE_FACTOR);
-                fabric.prepare_for_pretensing(factor);
+                fabric.prepare_for_pretensing(factor, DEFAULT_ALTITUDE);
                 fabric.progress.start(self.pretensing_countdown);
                 Pretensing
             }
