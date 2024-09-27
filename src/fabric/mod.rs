@@ -78,7 +78,7 @@ impl Fabric {
         }
     }
 
-    pub fn prepare_for_pretensing(&mut self, push_extension: f32) {
+    pub fn prepare_for_pretensing(&mut self, push_extension: f32, altitude: f32) {
         for interval in self.intervals.values_mut() {
             let length = interval.length(&self.joints);
             let IntervalMaterial { role, .. } = interval_material(interval.material);
@@ -95,7 +95,7 @@ impl Fabric {
             joint.velocity = zero();
         }
         self.centralize();
-        self.set_altitude(1.0);
+        self.set_altitude(altitude);
     }
 
     pub fn iterate(&mut self, physics: &Physics) -> f32 {
@@ -124,7 +124,7 @@ impl Fabric {
                 .min_by(|a, b| a.partial_cmp(b).unwrap());
             if let Some(min_y) = min_y {
                 for joint in &mut self.joints {
-                    joint.location.y -= min_y - 1.0;
+                    joint.location.y -= min_y;
                 }
             }
         }
