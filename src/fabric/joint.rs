@@ -80,13 +80,13 @@ impl Joint {
         let altitude = self.location.y;
         let speed_squared = self.velocity.magnitude2();
         if speed_squared > 0.01 {
-            return speed_squared
+            return speed_squared;
         }
         if altitude >= 0.0 || *gravity == 0.0 {
             self.velocity.y -= gravity;
             self.velocity +=
                 self.force / self.interval_mass - self.velocity * speed_squared * *viscosity;
-            self.velocity *= *drag;
+            self.velocity *= 1.0 - *drag;
         } else {
             let degree_submerged: f32 = if -altitude < 1.0 { -altitude } else { 0.0 };
             let antigravity = antigravity * degree_submerged;
@@ -103,9 +103,9 @@ impl Joint {
                         self.velocity.y += antigravity;
                         self.velocity.z *= STICKY_DOWN_DRAG_FACTOR;
                     } else {
-                        self.velocity.x *= drag;
+                        self.velocity.x *= 1.0 - drag;
                         self.velocity.y += antigravity;
-                        self.velocity.z *= drag;
+                        self.velocity.z *= 1.0 - drag;
                     }
                 }
                 Bouncy => {
