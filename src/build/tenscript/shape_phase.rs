@@ -293,7 +293,6 @@ impl ShapePhase {
                 let quaternion = Quaternion::from_arc(down, -Vector3::unit_y(), None);
                 fabric.apply_matrix4(Matrix4::from(quaternion));
                 fabric.centralize();
-                fabric.set_altitude(1.0);
                 Noop
             }
             ShapeOperation::Spacer {
@@ -353,7 +352,7 @@ impl ShapePhase {
             }
             ShapeOperation::FacesToTriangles => {
                 // todo: this is not the right place
-                fabric.correct_folded_pulls(0.92);
+                // fabric.correct_folded_pulls(0.92);
                 self.remove_spacers(fabric);
                 for face_id in fabric.faces_to_triangles() {
                     fabric.remove_face(face_id);
