@@ -46,15 +46,17 @@
                 (face (alias LeftBackTop)
                     (grow 1
                         (branch (alias Torque) (rotate) (rotate)
+                            (face (alias BaseSide) (mark :shoulders))
                             (face (alias FarBack) (grow 4 (scale .93) (mark :hands))))))
                 (face (alias RightBackTop)
                     (grow 1
                         (branch (alias Torque) (rotate) (rotate)
+                            (face (alias BaseSide) (mark :shoulders))
                             (face (alias FarBack) (grow 4 (scale .93) (mark :hands))))))))
         (shape
             (down :legs)
-            (during 15000 (space :legs 0.01) (space :hands .02) )
-            (during 80000 (vulcanize))
+            (during 13000 (space :legs 0.01) (space :hands .02) (space :shoulders 0.01) )
+            (during 20000 (vulcanize))
             (remove-spacers)
             (faces-to-triangles))
         (pretense
