@@ -297,7 +297,7 @@ impl PairGenerator {
         let paths: Vec<_> = self.joints[joint_index]
             .pulls
             .iter()
-            .map(|pull| Path::new(joint_index, *pull))
+            .map(|(_, pull)| Path::new(joint_index, *pull))
             .collect();
         self.paths_via_pulls(&paths, 1, max_size)
     }

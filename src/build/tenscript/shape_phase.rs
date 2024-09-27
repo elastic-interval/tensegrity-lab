@@ -352,6 +352,8 @@ impl ShapePhase {
                 StartCountdown(DEFAULT_VULCANIZE_COUNTDOWN)
             }
             ShapeOperation::FacesToTriangles => {
+                // todo: this is not the right place
+                fabric.correct_folded_pulls(0.92);
                 self.remove_spacers(fabric);
                 for face_id in fabric.faces_to_triangles() {
                     fabric.remove_face(face_id);

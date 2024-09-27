@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use cgmath::Point3;
 
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::material::interval_material;
 
@@ -14,13 +14,9 @@ impl Fabric {
             .enumerate()
             .map(|(index, joint)| JointIncident::new(index, joint.location))
             .collect();
-        for interval @ Interval {
-            alpha_index,
-            omega_index,
-            ..
-        } in self.interval_values() {
-            incidents[*alpha_index].add_interval(interval);
-            incidents[*omega_index].add_interval(interval);
+        for (id, interval) in &self.intervals {
+            incidents[interval.alpha_index].add_interval(*id, interval);
+            incidents[interval.omega_index].add_interval(*id, interval);
         }
         incidents
     }
@@ -31,7 +27,7 @@ pub struct JointIncident {
     pub index: usize,
     pub location: Point3<f32>,
     pub push: Option<Interval>,
-    pub pulls: Vec<Interval>,
+    pub pulls: Vec<(UniqueId, Interval)>,
     pub springs: Vec<Interval>,
     pub pull_adjacent_joints: HashSet<usize>,
     pub adjacent_joints: HashSet<usize>,
@@ -50,13 +46,12 @@ impl JointIncident {
         }
     }
 
-    pub fn add_interval(&mut self, interval: &Interval) {
+    pub fn add_interval(&mut self, id: UniqueId, interval: &Interval) {
         match interval_material(interval.material).role {
             Role::Push => self.push = Some(*interval),
             Role::Pull => {
-                self.pulls.push(*interval);
-                self.pull_adjacent_joints
-                    .insert(interval.other_joint(self.index));
+                self.pulls.push((id, *interval));
+                self.pull_adjacent_joints.insert(interval.other_joint(self.index));
             }
             Role::Spring => {
                 self.springs.push(*interval);
@@ -67,7 +62,7 @@ impl JointIncident {
     }
 
     pub(crate) fn extended_paths(&self, path: &Path) -> Vec<Path> {
-        self.pulls.iter().flat_map(|pull| path.add(*pull)).collect()
+        self.pulls.iter().flat_map(|(_, pull)| path.add(*pull)).collect()
     }
 
     pub(crate) fn across_push(&self) -> Option<usize> {

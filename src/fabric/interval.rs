@@ -3,6 +3,7 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
+use std::ops::Mul;
 use cgmath::{EuclideanSpace, InnerSpace, MetricSpace, Point3, Vector3};
 use cgmath::num_traits::zero;
 use fast_inv_sqrt::InvSqrt32;
@@ -191,6 +192,16 @@ impl Interval {
 
     pub fn touches(&self, joint: usize) -> bool {
         self.alpha_index == joint || self.omega_index == joint
+    }
+    
+    pub fn ray_from(&self, joint_index: usize) -> Vector3<f32> {
+        if self.alpha_index == joint_index {
+            self.unit
+        } else if self.omega_index == joint_index {
+            self.unit.mul(-1.0)
+        } else {
+            panic!()
+        }
     }
 
     pub fn other_joint(&self, joint_index: usize) -> usize {
