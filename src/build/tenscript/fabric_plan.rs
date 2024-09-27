@@ -9,6 +9,8 @@ use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeOperation, ShapePhase};
 use crate::build::tenscript::{BuildPhase, Rule, TenscriptError};
 
+pub const DEFAULT_BUILD_ALTITUDE: f32  = 0.1;
+
 #[derive(Debug, Clone)]
 pub struct FabricPlan {
     pub name: String,

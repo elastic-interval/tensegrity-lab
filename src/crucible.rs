@@ -9,6 +9,7 @@ use crate::build::tenscript::pretenser::Pretenser;
 use crate::build::tenscript::FabricPlan;
 use crate::crucible::Stage::*;
 use crate::build::experiment::Experiment;
+use crate::build::tenscript::fabric_plan::DEFAULT_BUILD_ALTITUDE;
 use crate::fabric::Fabric;
 
 enum Stage {
@@ -115,6 +116,7 @@ impl Crucible {
             BuildFabric(fabric_plan) => {
                 self.fabric = Fabric::default();
                 if let Some(fabric_plan) = fabric_plan {
+                    self.fabric.altitude = Some(DEFAULT_BUILD_ALTITUDE);
                     self.stage = RunningPlan(PlanRunner::new(fabric_plan));
                 }
             }

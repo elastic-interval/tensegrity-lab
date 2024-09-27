@@ -3,11 +3,10 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use std::cmp::Ordering;
 use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
 use cgmath::num_traits::zero;
-use crate::fabric::Fabric;
 
+use crate::fabric::Fabric;
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter::*;
 
@@ -38,24 +37,6 @@ impl Fabric {
         let distance = self.distance(alpha_index, omega_index);
         distance / (1.0 + strain)
     }
-
-    pub fn set_altitude(&mut self, altitude: f32) {
-        let Some(low_y) = self
-            .joints
-            .iter()
-            .map(|joint| joint.location.y)
-            .min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
-            else {
-                return;
-            };
-        let up = altitude - low_y;
-        if up > 0.0 {
-            for joint in &mut self.joints {
-                joint.location.y += up;
-            }
-        }
-    }
-
 }
 
 const RESURFACE: f32 = 0.01;
