@@ -41,7 +41,7 @@ const BOW_TIE_MATERIAL: IntervalMaterial = IntervalMaterial {
     name: BowTieMaterial,
     label: ":bow-tie",
     role: Pull,
-    stiffness: 0.7,
+    stiffness: 1.0,
     mass: 0.1,
 };
 
