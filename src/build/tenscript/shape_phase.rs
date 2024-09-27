@@ -20,7 +20,8 @@ const DEFAULT_VULCANIZE_COUNTDOWN: usize = 5_000;
 pub enum ShapeCommand {
     Noop,
     StartCountdown(usize),
-    SetViscosity(f32),
+    Stiffness(f32),
+    Viscosity(f32),
     Terminate,
 }
 
@@ -46,9 +47,8 @@ pub enum ShapeOperation {
     },
     Vulcanize,
     FacesToTriangles,
-    SetViscosity {
-        viscosity: f32,
-    },
+    SetStiffness(f32),
+    SetViscosity(f32),
 }
 
 impl ShapeOperation {
@@ -152,9 +152,13 @@ impl ShapePhase {
             }
             Rule::faces_to_triangles => Ok(ShapeOperation::FacesToTriangles),
             Rule::vulcanize => Ok(ShapeOperation::Vulcanize),
+            Rule::set_stiffness => {
+                let percent = TenscriptError::parse_float_inside(pair, "(set-stiffness ..)")?;
+                Ok(ShapeOperation::SetStiffness(percent))
+            }
             Rule::set_viscosity => {
-                let viscosity = TenscriptError::parse_float_inside(pair, "(viscosity ..)")?;
-                Ok(ShapeOperation::SetViscosity { viscosity })
+                let percent = TenscriptError::parse_float_inside(pair, "(set-viscosity ..)")?;
+                Ok(ShapeOperation::SetViscosity(percent))
             }
             _ => unreachable!("shape phase: {pair}"),
         }
@@ -204,7 +208,7 @@ impl ShapePhase {
                 let joints = self.marked_middle_joints(fabric, &face_ids);
                 match face_ids.len() {
                     2 => {
-                        let interval = fabric.create_interval(joints[0], joints[1], 0.01, PullMaterial, JOINER_GROUP );
+                        let interval = fabric.create_interval(joints[0], joints[1], 0.01, PullMaterial, JOINER_GROUP);
                         self.joiners.push(Shaper { interval, alpha_face: face_ids[0], omega_face: face_ids[1], mark_name })
                     }
                     3 => {
@@ -359,7 +363,8 @@ impl ShapePhase {
                 }
                 Noop
             }
-            ShapeOperation::SetViscosity { viscosity } => SetViscosity(viscosity),
+            ShapeOperation::SetStiffness(viscosity) => Stiffness(viscosity),
+            ShapeOperation::SetViscosity(viscosity) => Viscosity(viscosity),
         })
     }
 

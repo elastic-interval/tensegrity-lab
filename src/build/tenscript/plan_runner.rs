@@ -76,8 +76,12 @@ impl PlanRunner {
             Shaping => match self.shape_phase.shaping_step(fabric, brick_library)? {
                 ShapeCommand::Noop => (Shaping, 0),
                 ShapeCommand::StartCountdown(countdown) => (Shaping, countdown),
-                ShapeCommand::SetViscosity(viscosity) => {
-                    self.physics.viscosity = viscosity;
+                ShapeCommand::Stiffness(percent) => {
+                    self.physics.stiffness *= percent/100.0;
+                    (Shaping, 0)
+                }
+                ShapeCommand::Viscosity(percent) => {
+                    self.physics.viscosity *= percent/100.0;
                     (Shaping, 0)
                 }
                 ShapeCommand::Terminate => (Completed, 0),
