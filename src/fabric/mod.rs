@@ -39,7 +39,7 @@ pub struct Fabric {
     pub joints: Vec<Joint>,
     pub intervals: HashMap<UniqueId, Interval>,
     pub faces: HashMap<UniqueId, Face>,
-    pub stay_above: bool,
+    pub altitude: Option<f32>,
     unique_id: usize,
 }
 
@@ -52,7 +52,7 @@ impl Default for Fabric {
             joints: Vec::new(),
             intervals: HashMap::new(),
             faces: HashMap::new(),
-            stay_above: true,
+            altitude: None,
             unique_id: 0,
         }
     }
@@ -78,7 +78,7 @@ impl Fabric {
         }
     }
 
-    pub fn prepare_for_pretensing(&mut self, push_extension: f32, altitude: f32) {
+    pub fn prepare_for_pretensing(&mut self, push_extension: f32) {
         for interval in self.intervals.values_mut() {
             let length = interval.length(&self.joints);
             let IntervalMaterial { role, .. } = interval_material(interval.material);
@@ -95,7 +95,6 @@ impl Fabric {
             joint.velocity = zero();
         }
         self.centralize();
-        self.set_altitude(altitude);
     }
 
     pub fn iterate(&mut self, physics: &Physics) -> f32 {
@@ -117,14 +116,14 @@ impl Fabric {
                 max_speed_squared = speed_squared;
             }
         }
-        if self.stay_above {
+        if let Some(altitude) = self.altitude {
             let min_y = self.joints
                 .iter()
                 .map(|Joint { location, .. }| location.y)
                 .min_by(|a, b| a.partial_cmp(b).unwrap());
             if let Some(min_y) = min_y {
                 for joint in &mut self.joints {
-                    joint.location.y -= min_y;
+                    joint.location.y -= min_y - altitude;
                 }
             }
         }
