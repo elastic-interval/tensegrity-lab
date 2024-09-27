@@ -10,7 +10,7 @@ name =
 shape =
     { "(" ~ "shape" ~ shape_operation* ~ ")" }
 basic_shape_operation =
-    { spacer | joiner | vulcanize | remove_spacers | faces_to_triangles | set_stiffness | set_viscosity | down }
+    { spacer | joiner | vulcanize | remove_spacers | faces_to_triangles | set_stiffness | set_drag | set_viscosity | down }
 shape_operation =
     { basic_shape_operation | during_count }
 during_count = // iteration-count
@@ -25,6 +25,8 @@ remove_spacers = // spacer-names
     { "(" ~ "remove-spacers" ~ atom* ~ ")" }
 set_stiffness =
     { "(" ~ "set-stiffness" ~ float ~ ")" }
+set_drag =
+    { "(" ~ "set-drag" ~ float ~ ")" }
 set_viscosity =
     { "(" ~ "set-viscosity" ~ float ~ ")" }
 vulcanize =

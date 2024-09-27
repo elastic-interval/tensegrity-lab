@@ -21,6 +21,7 @@ pub enum ShapeCommand {
     Noop,
     StartCountdown(usize),
     Stiffness(f32),
+    Drag(f32),
     Viscosity(f32),
     Terminate,
 }
@@ -48,6 +49,7 @@ pub enum ShapeOperation {
     Vulcanize,
     FacesToTriangles,
     SetStiffness(f32),
+    SetDrag(f32),
     SetViscosity(f32),
 }
 
@@ -155,6 +157,10 @@ impl ShapePhase {
             Rule::set_stiffness => {
                 let percent = TenscriptError::parse_float_inside(pair, "(set-stiffness ..)")?;
                 Ok(ShapeOperation::SetStiffness(percent))
+            }
+            Rule::set_drag => {
+                let percent = TenscriptError::parse_float_inside(pair, "(set-drag ..)")?;
+                Ok(ShapeOperation::SetDrag(percent))
             }
             Rule::set_viscosity => {
                 let percent = TenscriptError::parse_float_inside(pair, "(set-viscosity ..)")?;
@@ -363,8 +369,9 @@ impl ShapePhase {
                 }
                 Noop
             }
-            ShapeOperation::SetStiffness(viscosity) => Stiffness(viscosity),
-            ShapeOperation::SetViscosity(viscosity) => Viscosity(viscosity),
+            ShapeOperation::SetStiffness(percent) => Stiffness(percent),
+            ShapeOperation::SetDrag(percent) => Drag(percent),
+            ShapeOperation::SetViscosity(percent) => Viscosity(percent),
         })
     }
 

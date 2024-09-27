@@ -84,6 +84,10 @@ impl PlanRunner {
                     self.physics.viscosity *= percent/100.0;
                     (Shaping, 0)
                 }
+                ShapeCommand::Drag(percent) => {
+                    self.physics.drag *= percent/100.0;
+                    (Shaping, 0)
+                }
                 ShapeCommand::Terminate => (Completed, 0),
             },
             Completed => (Completed, 0),
