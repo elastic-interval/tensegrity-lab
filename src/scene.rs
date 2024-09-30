@@ -114,8 +114,9 @@ impl Scene {
                 self.camera.set_target(FabricMidpoint);
                 self.set_control_state.set(ControlState::Viewing);
             }
-            Pick::Joint { index, height } => {
+            Pick::Joint { index, joint } => {
                 self.camera.set_target(AroundJoint(index));
+                let height = joint.location.y;
                 self.set_control_state.set(ControlState::ShowingJoint(JointDetails { index, height }));
             }
             Pick::Interval { joint, id, interval } => {

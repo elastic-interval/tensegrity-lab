@@ -10,13 +10,14 @@ use winit::event::{ElementState, MouseScrollDelta};
 
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::Interval;
+use crate::fabric::joint::Joint;
 
 #[derive(Debug, Clone)]
 pub enum Pick {
     Nothing,
     Joint {
         index: usize,
-        height: f32,
+        joint: Joint,
     },
     Interval {
         joint: usize,
@@ -167,19 +168,19 @@ impl Camera {
                     Pick::Nothing => {
                         match self.best_joint(ray, fabric) {
                             None => Pick::Nothing,
-                            Some((index, height)) => Pick::Joint { index, height },
+                            Some((index, joint)) => Pick::Joint { index, joint },
                         }
                     }
                     Pick::Joint { index, .. } => {
                         match self.best_joint_around(index, ray, fabric) {
                             None => Pick::Nothing,
-                            Some((index, height)) => Pick::Joint { index, height },
+                            Some((index, joint)) => Pick::Joint { index, joint },
                         }
                     }
                     Pick::Interval { joint, interval, .. } => {
                         let index = interval.other_joint(joint);
-                        let height = fabric.location(index).y;
-                        Pick::Joint { index, height }
+                        let joint = fabric.joints[index];
+                        Pick::Joint { index, joint }
                     }
                 }
             }
@@ -222,7 +223,7 @@ impl Camera {
         Some(rot_x * rot_y)
     }
 
-    fn best_joint_around(&self, joint: usize, ray: Vector3<f32>, fabric: &Fabric) -> Option<(usize, f32)> {
+    fn best_joint_around(&self, joint: usize, ray: Vector3<f32>, fabric: &Fabric) -> Option<(usize, Joint)> {
         fabric
             .intervals
             .iter()
@@ -235,9 +236,9 @@ impl Camera {
             .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b))
             .filter(|(_, dot)| *dot > DOT_CLOSE_ENOUGH)
             .map(|(id, _)| {
-                let joint = fabric.interval(*id).other_joint(joint);
-                let height = fabric.location(joint).y;
-                (joint, height)
+                let joint_index = fabric.interval(*id).other_joint(joint);
+                let joint = &fabric.joints[joint_index];
+                (joint_index, *joint)
             })
     }
 
@@ -255,17 +256,17 @@ impl Camera {
             .map(|(id, _)| *id)
     }
 
-    fn best_joint(&self, ray: Vector3<f32>, fabric: &Fabric) -> Option<(usize, f32)> {
+    fn best_joint(&self, ray: Vector3<f32>, fabric: &Fabric) -> Option<(usize, Joint)> {
         fabric
             .joints
             .iter()
             .enumerate()
             .map(|(index, joint)| {
-                (index, (joint.location.to_vec() - self.position.to_vec()).normalize().dot(ray), joint.location.y)
+                (index, (joint.location.to_vec() - self.position.to_vec()).normalize().dot(ray), joint)
             })
             .max_by(|(_, dot_a, _), (_, dot_b, _)| dot_a.total_cmp(dot_b))
             .filter(|(_, dot, _)| *dot > DOT_CLOSE_ENOUGH)
-            .map(|(index, _, height)| (index, height))
+            .map(|(index, _, joint)| (index, *joint))
     }
 }
 
