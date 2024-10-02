@@ -30,10 +30,10 @@
                             (face (alias BotZ) (mark :chest-2))
                             (face (alias BotX) (grow 5 (scale .93) (mark :hands))))))))
         (shape
+            (set-viscosity 500)
             (down :legs)
             (during 15000 (space :legs .02) (space :hands .02) (space :chest-1 .4) (space :chest-2 .1))
-            (during 80000 (vulcanize))
-            (remove-spacers)
+            (during 10000 (vulcanize))
             (faces-to-triangles))
         (pretense
             (muscle 0.4 16000)
@@ -45,14 +45,14 @@
                 (face (alias RightFrontBottom) (grow 6 (mark :legs)))
                 (face (alias LeftBackTop)
                     (grow 1
-                        (branch (alias Torque) (rotate) (rotate)
-                            (face (alias BaseSide) (mark :shoulders))
-                            (face (alias FarBack) (grow 4 (scale .93) (mark :hands))))))
+                        (branch (alias TorqueRight) (rotate) (rotate)
+                            (face (alias Brother) (mark :shoulders))
+                            (face (alias FarOtherB) (grow 4 (scale .93) (mark :hands))))))
                 (face (alias RightBackTop)
                     (grow 1
-                        (branch (alias Torque) (rotate) (rotate)
-                            (face (alias BaseSide) (mark :shoulders))
-                            (face (alias FarBack) (grow 4 (scale .93) (mark :hands))))))))
+                        (branch (alias TorqueLeft) (rotate) (rotate)
+                            (face (alias Brother) (mark :shoulders))
+                            (face (alias FarOtherB) (grow 4 (scale .93) (mark :hands))))))))
         (shape
             (set-viscosity 5000)
             (down :legs)
@@ -61,7 +61,7 @@
             (remove-spacers)
             (faces-to-triangles))
         (pretense
-            (muscle 0.4 16000)
+            (muscle 0.6 16000)
             (surface :frozen)))
     (fabric (name "Triped")
 		(build
