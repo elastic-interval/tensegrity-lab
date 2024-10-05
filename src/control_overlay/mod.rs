@@ -9,6 +9,7 @@ use crate::control_overlay::lab_view::LabView;
 use crate::control_overlay::scale_view::ScaleView;
 use crate::crucible::CrucibleAction::Experiment;
 use crate::crucible::LabAction;
+use crate::fabric::FabricStats;
 use crate::messages::{ControlState, LabEvent};
 
 mod fabric_choice_view;
@@ -23,6 +24,7 @@ pub fn ControlOverlayApp(
     fabric_list: Vec<String>,
     control_state: ReadSignal<ControlState>,
     lab_control: ReadSignal<bool>,
+    fabric_stats: ReadSignal<Option<FabricStats>>,
     event_loop_proxy: EventLoopProxy<LabEvent>,
 ) -> impl IntoView {
     let (fabric_name, set_fabric_name, _) = use_local_storage::<String, FromToStringCodec>("fabric");
@@ -41,7 +43,7 @@ pub fn ControlOverlayApp(
                 set_fabric_name=set_fabric_name
             />
             <DetailsView control_state=control_state scale=scale />
-            <ScaleView scale=scale set_scale=set_scale />
+            <ScaleView scale=scale set_scale=set_scale fabric_stats=fabric_stats />
             <Show when=move || lab_control.get() fallback=|| view! { <div /> }>
                 <LabView animated=animated set_animated=set_animated />
             </Show>
