@@ -9,7 +9,7 @@ use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
 use cgmath::num_traits::zero;
 
 use crate::fabric::face::Face;
-use crate::fabric::interval::Interval;
+use crate::fabric::interval::{Interval, Role};
 use crate::fabric::interval::Role::{Pull, Push, Spring};
 use crate::fabric::interval::Span::{Approaching, Fixed};
 use crate::fabric::joint::Joint;
@@ -30,6 +30,13 @@ pub mod material;
 pub mod correction;
 
 pub const MAX_INTERVALS: usize = 5000;
+
+#[derive(Clone, Debug)]
+pub struct FabricStats {
+    pub joint_count: usize,
+    pub push_count: usize,
+    pub pull_count: usize,
+}
 
 #[derive(Clone, Debug)]
 pub struct Fabric {
@@ -158,7 +165,7 @@ impl Fabric {
         id
     }
 
-    pub fn check_orphan_joints(&self)  {
+    pub fn check_orphan_joints(&self) {
         for joint in 0..self.joints.len() {
             let touching = self
                 .interval_values()
@@ -166,6 +173,22 @@ impl Fabric {
             if !touching {
                 panic!("Found an orphan joint!");
             }
+        }
+    }
+
+    pub fn fabric_stats(&self) -> FabricStats {
+        let push_count = self.intervals
+            .values()
+            .filter(|Interval{material,..}| interval_material(*material).role == Role::Push)
+            .count();
+        let pull_count = self.intervals
+            .values()
+            .filter(|Interval{material,..}| interval_material(*material).role == Role::Pull)
+            .count();
+        FabricStats {
+            joint_count: self.joints.len(),
+            push_count,
+            pull_count,
         }
     }
 }

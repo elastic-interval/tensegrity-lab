@@ -13,6 +13,7 @@ use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::camera::Pick;
 use crate::crucible::{Crucible, CrucibleAction, LabAction};
+use crate::fabric::FabricStats;
 use crate::messages::{ControlState, LabEvent};
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
@@ -28,6 +29,7 @@ pub struct Application {
     brick_library: BrickLibrary,
     set_control_state: WriteSignal<ControlState>,
     set_lab_control: WriteSignal<bool>,
+    set_fabric_stats: WriteSignal<Option<FabricStats>>,
     event_loop_proxy: EventLoopProxy<LabEvent>,
     fabric_alive: bool,
 }
@@ -37,6 +39,7 @@ impl Application {
         window_attributes: WindowAttributes,
         set_control_state: WriteSignal<ControlState>,
         set_lab_control: WriteSignal<bool>,
+        set_fabric_stats: WriteSignal<Option<FabricStats>>,
         event_loop_proxy: EventLoopProxy<LabEvent>,
     ) -> Result<Application, TenscriptError> {
         let brick_library = BrickLibrary::from_source()?;
@@ -50,6 +53,7 @@ impl Application {
             fabric_library,
             set_control_state,
             set_lab_control,
+            set_fabric_stats,
             event_loop_proxy,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
@@ -136,6 +140,9 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.build_current_fabric();
                 self.fabric_alive = !self.fabric_plan_name.is_empty();
             }
+            LabEvent::FabricBuilt(fabric_stats) => {
+                self.set_fabric_stats.set(Some(fabric_stats));
+            }
             LabEvent::Crucible(crucible_action) => {
                 match &crucible_action {
                     CrucibleAction::BuildFabric(fabric_plan) => {
@@ -220,7 +227,9 @@ impl ApplicationHandler<LabEvent> for Application {
             let pick_active = !matches!(scene.camera().current_pick(), Pick::Nothing);
             let iterating = self.fabric_alive && !pick_active;
             if iterating {
-                self.crucible.iterate(&self.brick_library);
+                if let Some(lab_event) = self.crucible.iterate(&self.brick_library) {
+                    self.event_loop_proxy.send_event(lab_event).unwrap();
+                }
             }
             self.redraw();
             event_loop.set_control_flow(if iterating || approaching {

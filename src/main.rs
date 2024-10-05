@@ -10,6 +10,7 @@ use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
+use tensegrity_lab::fabric::FabricStats;
 use tensegrity_lab::messages::{ControlState, LabEvent};
 
 #[derive(Parser, Debug)]
@@ -62,6 +63,8 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
     let (control_state, set_control_state) = create_signal(ControlState::default());
     #[allow(unused_variables)]
     let (lab_control, set_lab_control) = create_signal(false);
+    #[allow(unused_variables)]
+    let (fabric_stats, set_fabric_stats) = create_signal::<Option<FabricStats>>(None);
 
     #[cfg(target_arch = "wasm32")]
     {
@@ -84,6 +87,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
                     fabric_list={FabricLibrary::from_source().unwrap().fabric_list()}
                     control_state={control_state}
                     lab_control=lab_control
+                    fabric_stats=fabric_stats
                     event_loop_proxy={overlay_proxy}/>
             }
         });
@@ -104,7 +108,7 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
 
     let proxy = event_loop_proxy.clone();
     let mut app =
-        match Application::new(window_attributes, set_control_state, set_lab_control, proxy) {
+        match Application::new(window_attributes, set_control_state, set_lab_control, set_fabric_stats, proxy) {
             Ok(app) => app,
             Err(error) => panic!("Tenscript Error: [{:?}]", error)
         };

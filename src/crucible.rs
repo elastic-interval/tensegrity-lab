@@ -11,6 +11,7 @@ use crate::crucible::Stage::*;
 use crate::build::experiment::Experiment;
 use crate::build::tenscript::fabric_plan::DEFAULT_BUILD_ALTITUDE;
 use crate::fabric::Fabric;
+use crate::messages::LabEvent;
 
 enum Stage {
     Empty,
@@ -55,7 +56,7 @@ impl Default for Crucible {
 }
 
 impl Crucible {
-    pub fn iterate(&mut self, brick_library: &BrickLibrary) {
+    pub fn iterate(&mut self, brick_library: &BrickLibrary) -> Option<LabEvent> {
         match &mut self.stage {
             Empty => {}
             RunningPlan(plan_runner) => {
@@ -75,7 +76,8 @@ impl Crucible {
             }
             PretensingLaunch(pretense_phase) => {
                 self.fabric.check_orphan_joints();
-                self.stage = Pretensing(Pretenser::new(pretense_phase.clone()))
+                self.stage = Pretensing(Pretenser::new(pretense_phase.clone()));
+                return Some(LabEvent::FabricBuilt(self.fabric.fabric_stats()));
             }
             Pretensing(pretenser) => {
                 for _ in 0..self.iterations_per_frame {
@@ -104,6 +106,7 @@ impl Crucible {
                 }
             }
         }
+        return None
     }
 
     pub fn action(&mut self, crucible_action: CrucibleAction) {

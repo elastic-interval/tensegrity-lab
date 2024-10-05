@@ -1,6 +1,7 @@
 use std::time::SystemTime;
 
 use crate::crucible::CrucibleAction;
+use crate::fabric::FabricStats;
 use crate::fabric::interval::Role;
 use crate::wgpu::Wgpu;
 
@@ -53,4 +54,5 @@ pub enum LabEvent {
     UpdatedLibrary(SystemTime),
     LoadFabric(String),
     CapturePrototype(usize),
+    FabricBuilt(FabricStats),
 }
