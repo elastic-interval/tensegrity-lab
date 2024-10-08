@@ -9,7 +9,7 @@ use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
 use cgmath::num_traits::zero;
 
 use crate::fabric::face::Face;
-use crate::fabric::interval::{Interval, Role};
+use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push, Spring};
 use crate::fabric::interval::Span::{Approaching, Fixed};
 use crate::fabric::joint::Joint;
@@ -35,7 +35,9 @@ pub const MAX_INTERVALS: usize = 5000;
 pub struct FabricStats {
     pub joint_count: usize,
     pub push_count: usize,
+    pub push_range: (f32, f32),
     pub pull_count: usize,
+    pub pull_range: (f32, f32),
 }
 
 #[derive(Clone, Debug)]
@@ -177,18 +179,40 @@ impl Fabric {
     }
 
     pub fn fabric_stats(&self) -> FabricStats {
-        let push_count = self.intervals
-            .values()
-            .filter(|Interval{material,..}| interval_material(*material).role == Role::Push)
-            .count();
-        let pull_count = self.intervals
-            .values()
-            .filter(|Interval{material,..}| interval_material(*material).role == Role::Pull)
-            .count();
+        let mut push_range = (1000.0, 0.0);
+        let mut pull_range = (1000.0, 0.0);
+        let mut push_count = 0;
+        let mut pull_count = 0;
+        for interval in self.intervals.values() {
+            let ideal = interval.ideal();
+            match interval_material(interval.material).role {
+                Push => {
+                    push_count += 1;
+                    if ideal < push_range.0 {
+                        push_range.0 = ideal;
+                    }
+                    if ideal > push_range.1 {
+                        push_range.1 = ideal;
+                    }
+                }
+                Pull => {
+                    pull_count += 1;
+                    if ideal < pull_range.0 {
+                        pull_range.0 = ideal;
+                    }
+                    if ideal > pull_range.1 {
+                        pull_range.1 = ideal;
+                    }
+                }
+                Spring => unreachable!()
+            }
+        }
         FabricStats {
             joint_count: self.joints.len(),
             push_count,
+            push_range,
             pull_count,
+            pull_range,
         }
     }
 }
