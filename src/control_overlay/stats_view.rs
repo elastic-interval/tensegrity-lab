@@ -61,8 +61,8 @@ pub fn StatsView(
                     };
                     view! {
                         <div>
+                            <p>"Scale 1:"{scale_value}". "<button on:click=move |_| set_edit.set(true)>Set scale</button></p>
                             <p>{stats}</p>
-                            <p on:click=move |_| set_edit.set(true)>"Scale 1:"{scale_value}"."</p>
                         </div>
                     }
                 }
