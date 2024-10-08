@@ -2,7 +2,7 @@ use leptos::{component, create_signal, event_target_value, IntoView, ReadSignal,
 use crate::fabric::FabricStats;
 
 #[component]
-pub fn ScaleView(
+pub fn StatsView(
     scale: Signal<f32>,
     set_scale: WriteSignal<f32>,
     fabric_stats: ReadSignal<Option<FabricStats>>,
