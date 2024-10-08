@@ -43,6 +43,7 @@ p {
 }
 
 .bottom-right {
+    max-width: 16em;
     position: absolute;
     bottom: 2em;
     right: 2em;

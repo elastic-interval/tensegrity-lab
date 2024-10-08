@@ -32,10 +32,29 @@ pub fn ScaleView(
                         </div>
                     }
                 } else {
-                    let scale_value = move || format!("{0:.1} mm", scale.get());
+                    let scale_value = move || format!("{:.1} mm", scale.get());
                     let stats = move || match fabric_stats.get() {
-                        Some(FabricStats{joint_count, push_count, pull_count}) => 
-                            format!("Joints:{:?} Pushes:{:?} Pulls:{:?}", joint_count, push_count, pull_count),
+                        Some(
+                            FabricStats {
+                                joint_count,
+                                push_count,
+                                push_range,
+                                pull_count,
+                                pull_range,
+                            },
+                        ) => {
+                            let scale = scale.get();
+                            format!(
+                                "The structure has {:?} joints, {:?} pushes ({:.1} mm to {:.1} mm), and {:?} pulls ({:.1} mm to {:.1} mm).",
+                                joint_count,
+                                push_count,
+                                push_range.0 * scale,
+                                push_range.1 * scale,
+                                pull_count,
+                                pull_range.0 * scale,
+                                pull_range.1 * scale,
+                            )
+                        }
                         None => "".to_string(),
                     };
                     view! {
