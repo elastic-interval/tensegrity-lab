@@ -77,7 +77,6 @@ impl Crucible {
             PretensingLaunch(pretense_phase) => {
                 self.fabric.check_orphan_joints();
                 self.stage = Pretensing(Pretenser::new(pretense_phase.clone()));
-                return Some(LabEvent::FabricBuilt(self.fabric.fabric_stats()));
             }
             Pretensing(pretenser) => {
                 for _ in 0..self.iterations_per_frame {
@@ -85,6 +84,7 @@ impl Crucible {
                 }
                 if pretenser.is_done() {
                     self.stage = Experimenting(Experiment::new(pretenser.clone()));
+                    return Some(LabEvent::FabricBuilt(self.fabric.fabric_stats()));
                 }
             }
             Experimenting(lab) => {
