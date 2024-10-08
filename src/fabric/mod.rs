@@ -34,6 +34,7 @@ pub const MAX_INTERVALS: usize = 5000;
 #[derive(Clone, Debug)]
 pub struct FabricStats {
     pub joint_count: usize,
+    pub max_height: f32,
     pub push_count: usize,
     pub push_range: (f32, f32),
     pub pull_count: usize,
@@ -183,6 +184,12 @@ impl Fabric {
         let mut pull_range = (1000.0, 0.0);
         let mut push_count = 0;
         let mut pull_count = 0;
+        let mut max_height = 0.0;
+        for Joint { location, .. } in self.joints.iter() {
+            if location.y > max_height {
+                max_height = location.y;
+            }
+        }
         for interval in self.intervals.values() {
             let ideal = interval.ideal();
             match interval_material(interval.material).role {
@@ -209,6 +216,7 @@ impl Fabric {
         }
         FabricStats {
             joint_count: self.joints.len(),
+            max_height,
             push_count,
             push_range,
             pull_count,

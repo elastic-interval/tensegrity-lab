@@ -38,7 +38,7 @@
         (pretense
             (muscle 0.4 16000)
             (surface :frozen)))
-	(fabric	(name "Swagger Two")
+	(fabric	(name "Party Man")
         (build
             (branch (alias Torque)
                 (face (alias LeftFrontBottom) (grow 6 (mark :legs)))

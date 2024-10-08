@@ -37,6 +37,7 @@ pub fn StatsView(
                         Some(
                             FabricStats {
                                 joint_count,
+                                max_height,
                                 push_count,
                                 push_range,
                                 pull_count,
@@ -45,8 +46,9 @@ pub fn StatsView(
                         ) => {
                             let scale = scale.get();
                             format!(
-                                "The structure has {:?} joints, {:?} pushes ({:.1} mm to {:.1} mm), and {:?} pulls ({:.1} mm to {:.1} mm).",
+                                "The structure has {:?} joints (up to height {:.0}mm), {:?} pushes ({:.1}mm to {:.1}mm), and {:?} pulls ({:.1}mm to {:.1}mm).",
                                 joint_count,
+                                max_height * scale,
                                 push_count,
                                 push_range.0 * scale,
                                 push_range.1 * scale,
