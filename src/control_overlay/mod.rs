@@ -6,7 +6,7 @@ use winit::event_loop::EventLoopProxy;
 use crate::control_overlay::details_view::DetailsView;
 use crate::control_overlay::fabric_choice_view::FabricChoiceView;
 use crate::control_overlay::lab_view::LabView;
-use crate::control_overlay::scale_view::ScaleView;
+use crate::control_overlay::stats_view::StatsView;
 use crate::crucible::CrucibleAction::Experiment;
 use crate::crucible::LabAction;
 use crate::fabric::FabricStats;
@@ -14,7 +14,7 @@ use crate::messages::{ControlState, LabEvent};
 
 mod fabric_choice_view;
 mod details_view;
-mod scale_view;
+mod stats_view;
 mod lab_view;
 
 const MINIMUM_SCALE: f32 = 1.0;
@@ -43,7 +43,7 @@ pub fn ControlOverlayApp(
                 set_fabric_name=set_fabric_name
             />
             <DetailsView control_state=control_state scale=scale />
-            <ScaleView scale=scale set_scale=set_scale fabric_stats=fabric_stats />
+            <StatsView scale=scale set_scale=set_scale fabric_stats=fabric_stats />
             <Show when=move || lab_control.get() fallback=|| view! { <div /> }>
                 <LabView animated=animated set_animated=set_animated />
             </Show>
