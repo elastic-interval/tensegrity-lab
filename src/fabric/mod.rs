@@ -37,8 +37,10 @@ pub struct FabricStats {
     pub max_height: f32,
     pub push_count: usize,
     pub push_range: (f32, f32),
+    pub push_total: f32,
     pub pull_count: usize,
     pub pull_range: (f32, f32),
+    pub pull_total: f32,
 }
 
 #[derive(Clone, Debug)]
@@ -90,7 +92,7 @@ impl Fabric {
 
     pub fn prepare_for_pretensing(&mut self, push_extension: f32) {
         for interval in self.intervals.values_mut() {
-            let length = interval.length(&self.joints);
+            let length = interval.fast_length(&self.joints);
             let IntervalMaterial { role, .. } = interval_material(interval.material);
             interval.span = match role {
                 Push => Approaching {
@@ -183,7 +185,9 @@ impl Fabric {
         let mut push_range = (1000.0, 0.0);
         let mut pull_range = (1000.0, 0.0);
         let mut push_count = 0;
+        let mut push_total= 0.0;
         let mut pull_count = 0;
+        let mut pull_total= 0.0;
         let mut max_height = 0.0;
         for Joint { location, .. } in self.joints.iter() {
             if location.y > max_height {
@@ -191,24 +195,26 @@ impl Fabric {
             }
         }
         for interval in self.intervals.values() {
-            let ideal = interval.ideal();
+            let length = interval.length(&self.joints);
             match interval_material(interval.material).role {
                 Push => {
                     push_count += 1;
-                    if ideal < push_range.0 {
-                        push_range.0 = ideal;
+                    push_total += length;
+                    if length < push_range.0 {
+                        push_range.0 = length;
                     }
-                    if ideal > push_range.1 {
-                        push_range.1 = ideal;
+                    if length > push_range.1 {
+                        push_range.1 = length;
                     }
                 }
                 Pull => {
                     pull_count += 1;
-                    if ideal < pull_range.0 {
-                        pull_range.0 = ideal;
+                    pull_total += length;
+                    if length < pull_range.0 {
+                        pull_range.0 = length;
                     }
-                    if ideal > pull_range.1 {
-                        pull_range.1 = ideal;
+                    if length > pull_range.1 {
+                        pull_range.1 = length;
                     }
                 }
                 Spring => unreachable!()
@@ -219,8 +225,10 @@ impl Fabric {
             max_height,
             push_count,
             push_range,
+            push_total,
             pull_count,
             pull_range,
+            pull_total,
         }
     }
 }

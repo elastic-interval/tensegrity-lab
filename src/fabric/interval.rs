@@ -128,7 +128,7 @@ impl Interval {
         Point3::from_vec((alpha.to_vec() + omega.to_vec()) / 2f32)
     }
 
-    pub fn length(&mut self, joints: &[Joint]) -> f32 {
+    pub fn fast_length(&mut self, joints: &[Joint]) -> f32 {
         let (alpha_location, omega_location) = self.locations(joints);
         self.unit = omega_location - alpha_location;
         let magnitude_squared = self.unit.magnitude2();
@@ -138,6 +138,16 @@ impl Interval {
         let inverse_square_root = magnitude_squared.inv_sqrt32();
         self.unit *= inverse_square_root;
         1.0 / inverse_square_root
+    }
+
+    pub fn length(& self, joints: &[Joint]) -> f32 {
+        let (alpha_location, omega_location) = self.locations(joints);
+        let tween = omega_location - alpha_location;
+        let magnitude_squared = tween.magnitude2();
+        if magnitude_squared < 0.00001 {
+            return 0.00001;
+        }
+        magnitude_squared.sqrt()
     }
 
     pub fn ideal(&self) -> f32 {
@@ -168,7 +178,7 @@ impl Interval {
                 length * (1.0 - progress_nuance) + muscle_length * progress_nuance
             }
         };
-        let real_length = self.length(joints);
+        let real_length = self.fast_length(joints);
         let IntervalMaterial {
             role,
             stiffness,

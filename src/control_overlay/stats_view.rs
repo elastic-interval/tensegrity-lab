@@ -39,22 +39,26 @@ pub fn StatsView(
                                 joint_count,
                                 max_height,
                                 push_count,
+                                push_total,
                                 push_range,
                                 pull_count,
                                 pull_range,
+                                pull_total,
                             },
                         ) => {
                             let scale = scale.get();
                             format!(
-                                "The structure has {:?} joints (up to height {:.0}mm), {:?} pushes ({:.1}mm to {:.1}mm), and {:?} pulls ({:.1}mm to {:.1}mm).",
+                                "The structure has {:?} joints (up to height {:.0}mm), {:?} pushes ({:.1}mm to {:.1}mm, total {:.2}m), and {:?} pulls ({:.1}mm to {:.1}mm, total {:.2}m).",
                                 joint_count,
                                 max_height * scale,
                                 push_count,
                                 push_range.0 * scale,
                                 push_range.1 * scale,
+                                push_total * scale / 1000.0,
                                 pull_count,
                                 pull_range.0 * scale,
                                 pull_range.1 * scale,
+                                pull_total * scale / 1000.0,
                             )
                         }
                         None => "".to_string(),
