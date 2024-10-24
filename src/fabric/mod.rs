@@ -28,6 +28,7 @@ pub mod vulcanize;
 pub mod joint_incident;
 pub mod material;
 pub mod correction;
+pub mod export;
 
 pub const MAX_INTERVALS: usize = 5000;
 
