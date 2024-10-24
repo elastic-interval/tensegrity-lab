@@ -72,7 +72,7 @@ impl Application {
                 }
             }
             if code == KeyCode::KeyX {
-                println!("Export:\n\n{}", self.crucible.fabric().export());
+                println!("Export:\n\n{}", self.crucible.fabric().csv());
             }
         }
     }
