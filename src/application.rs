@@ -71,6 +71,9 @@ impl Application {
                     scene.reset();
                 }
             }
+            if code == KeyCode::KeyX {
+                println!("Export:\n\n{}", self.crucible.fabric().export());
+            }
         }
     }
 
