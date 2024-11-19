@@ -6,7 +6,6 @@ use winit::event::{ElementState, MouseButton};
 use crate::camera::{Camera, Pick, Shot};
 use crate::camera::Target::*;
 use crate::fabric::Fabric;
-use crate::fabric::interval::Span;
 use crate::fabric::material::interval_material;
 use crate::messages::{ControlState, IntervalDetails, JointDetails};
 use crate::wgpu::drawing::Drawing;
@@ -119,13 +118,9 @@ impl Scene {
                 let height = joint.location.y;
                 self.set_control_state.set(ControlState::ShowingJoint(JointDetails { index, height }));
             }
-            Pick::Interval { joint, id, interval } => {
+            Pick::Interval { joint, id, interval, length } => {
                 self.camera.set_target(AroundInterval(id));
                 let role = interval_material(interval.material).role;
-                let length = match interval.span {
-                    Span::Fixed { length } | Span::Muscle { length, .. } => length,
-                    _ => 0.0
-                };
                 let near_joint = if interval.alpha_index == joint { interval.alpha_index } else { interval.omega_index };
                 let far_joint = if interval.omega_index == joint { interval.alpha_index } else { interval.omega_index };
                 let interval_details = IntervalDetails { near_joint, far_joint, length, role };
