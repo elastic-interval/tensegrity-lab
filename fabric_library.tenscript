@@ -86,11 +86,13 @@
 			(during 20000 (vulcanize))
 			(faces-to-triangles))
 		(pretense (surface :frozen)))
-
-	(fabric (name "Torque Conundrum")
+	(fabric (name "Tower")
 		(build
-			(branch (alias TorqueRight)))
-		(shape))
+			(branch (alias Single)
+			(face (alias :next-base) (grow 5))))
+		(shape
+			(vulcanize)
+		    (faces-to-triangles)))
 	(fabric (name "Tworque Walker")
 		(build
 			(branch (alias Torque)
