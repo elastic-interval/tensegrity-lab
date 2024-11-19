@@ -23,6 +23,7 @@ pub enum Pick {
         joint: usize,
         id: UniqueId,
         interval: Interval,
+        length: f32,
     },
 }
 
@@ -190,13 +191,21 @@ impl Camera {
                     Pick::Joint { index, .. } => {
                         match self.best_interval_around(index, ray, fabric) {
                             None => Pick::Nothing,
-                            Some(id) => Pick::Interval { joint: index, id, interval: *fabric.interval(id) }
+                            Some(id) => {
+                                let interval = *fabric.interval(id);
+                                let length = interval.length(fabric.joints.as_ref());
+                                Pick::Interval { joint: index, id, interval, length }
+                            }
                         }
                     }
                     Pick::Interval { joint, .. } => {
                         match self.best_interval_around(joint, ray, fabric) {
                             None => Pick::Nothing,
-                            Some(id) => Pick::Interval { joint, id, interval: *fabric.interval(id) }
+                            Some(id) => {
+                                let interval = *fabric.interval(id);
+                                let length = interval.length(fabric.joints.as_ref());
+                                Pick::Interval { joint, id, interval, length }
+                            }
                         }
                     }
                 }
