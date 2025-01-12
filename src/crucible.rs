@@ -1,5 +1,5 @@
 use CrucibleAction::*;
-
+use crate::build::evo::evolution::Evolution;
 use crate::build::oven::Oven;
 use crate::build::tenscript::brick::Prototype;
 use crate::build::tenscript::brick_library::BrickLibrary;
@@ -20,6 +20,7 @@ enum Stage {
     Pretensing(Pretenser),
     Experimenting(Experiment),
     BakingBrick(Oven),
+    Evolving(Evolution),
 }
 
 #[derive(Debug, Clone)]
@@ -37,6 +38,7 @@ pub enum CrucibleAction {
     RevertTo(Fabric),
     StartPretensing(PretensePhase),
     Experiment(LabAction),
+    Evolve(u64)
 }
 
 pub struct Crucible {
@@ -105,8 +107,11 @@ impl Crucible {
                     }
                 }
             }
+            Evolving(evolution) => {
+                evolution.iterate(&mut self.fabric);
+            }
         }
-        return None
+        None
     }
 
     pub fn action(&mut self, crucible_action: CrucibleAction) {
@@ -136,6 +141,9 @@ impl Crucible {
             }
             StartPretensing(pretenst_phase) => {
                 self.stage = PretensingLaunch(pretenst_phase);
+            }
+            Evolve(seed) => {
+                self.stage = Evolving(Evolution::new(seed));
             }
         }
     }

@@ -3573,6 +3573,7 @@ dependencies = [
  "pest_derive",
  "proc-macro2",
  "rand",
+ "rand_chacha",
  "raw-window-handle 0.6.0",
  "serde",
  "time",
