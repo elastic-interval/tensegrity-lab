@@ -54,5 +54,6 @@ pub enum LabEvent {
     UpdatedLibrary(SystemTime),
     LoadFabric(String),
     CapturePrototype(usize),
+    EvolveFromSeed(u64),
     FabricBuilt(FabricStats),
 }

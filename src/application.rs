@@ -189,6 +189,9 @@ impl ApplicationHandler<LabEvent> for Application {
                     .clone();
                 self.crucible.action(CrucibleAction::BakeBrick(prototype));
             }
+            LabEvent::EvolveFromSeed(seed) => {
+                self.crucible.action(CrucibleAction::Evolve(seed))
+            }
         }
     }
 

@@ -9,6 +9,7 @@ use winit::dpi::PhysicalSize;
 use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
 
+use crate::RunStyle::{FabricName, Seeded, Online, Prototype};
 use tensegrity_lab::application::Application;
 use tensegrity_lab::fabric::FabricStats;
 use tensegrity_lab::messages::{ControlState, LabEvent};
@@ -21,26 +22,41 @@ struct Args {
 
     #[arg(long)]
     prototype: Option<usize>,
+
+    #[arg(long)]
+    seed: Option<u64>,
+}
+
+enum RunStyle {
+    FabricName(String),
+    Prototype(usize),
+    Seeded(u64),
+    Online,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let Args { fabric, prototype } = Args::parse();
-    if fabric.is_some() {
-        return run_with(fabric, None);
-    }
-    if prototype.is_some() {
-        return run_with(None, prototype);
-    }
-    println!("Give me --fabric <fabric name> or --prototype N");
-    Ok(())
+    let Args {
+        fabric,
+        prototype,
+        seed,
+    } = Args::parse();
+    let run_style = match (fabric, prototype, seed) {
+        (Some(name), None, None) => FabricName(name),
+        (None, Some(prototype), None) => Prototype(prototype),
+        (None, None, Some(seed)) => Seeded(seed),
+        _ => {
+            return Err("use --fabric <name> or --prototype <number> or --seed <seed>".into());
+        }
+    };
+    run_with(run_style)
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
 pub fn run() {
-    run_with(None, None).unwrap();
+    run_with(Online).unwrap();
 }
 
-pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result<(), Box<dyn Error>> {
+fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
@@ -68,9 +84,9 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
 
     #[cfg(target_arch = "wasm32")]
     {
+        use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
         use tensegrity_lab::control_overlay::ControlOverlayApp;
         use winit::platform::web::WindowAttributesExtWebSys;
-        use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
 
         let web_sys_window = web_sys::window().expect("no web sys window");
         let document = web_sys_window.document().expect("no document");
@@ -107,18 +123,34 @@ pub fn run_with(fabric_name: Option<String>, prototype: Option<usize>) -> Result
     }
 
     let proxy = event_loop_proxy.clone();
-    let mut app =
-        match Application::new(window_attributes, set_control_state, set_lab_control, set_fabric_stats, proxy) {
-            Ok(app) => app,
-            Err(error) => panic!("Tenscript Error: [{:?}]", error)
-        };
-    if let Some(fabric_name) = fabric_name {
-        event_loop_proxy.send_event(LabEvent::LoadFabric(fabric_name)).unwrap();
-    }
-    if let Some(prototype) = prototype {
-        event_loop_proxy.send_event(LabEvent::CapturePrototype(prototype)).unwrap();
+    let mut app = match Application::new(
+        window_attributes,
+        set_control_state,
+        set_lab_control,
+        set_fabric_stats,
+        proxy,
+    ) {
+        Ok(app) => app,
+        Err(error) => panic!("Tenscript Error: [{:?}]", error),
+    };
+    match run_style {
+        FabricName(name) => {
+            event_loop_proxy
+                .send_event(LabEvent::LoadFabric(name))
+                .unwrap();
+        }
+        Prototype(number) => {
+            event_loop_proxy
+                .send_event(LabEvent::CapturePrototype(number))
+                .unwrap();
+        }
+        Seeded(seed) => {
+            event_loop_proxy
+                .send_event(LabEvent::EvolveFromSeed(seed))
+                .unwrap();
+        }
+        Online => {}
     }
     event_loop.run_app(&mut app)?;
     Ok(())
 }
-
