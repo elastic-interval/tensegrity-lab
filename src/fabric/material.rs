@@ -25,7 +25,7 @@ const PUSH_MATERIAL: IntervalMaterial = IntervalMaterial {
     name: PushMaterial,
     label: ":push",
     role: Push,
-    stiffness: 3.0,
+    stiffness: 100.0,
     mass: 1.0,
 };
 

@@ -6,7 +6,7 @@ use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 use crate::fabric::material::interval_material;
 
-const SCALE: f32 = 535.0;
+const SCALE: f32 = 510.0;
 
 impl Fabric {
     pub fn csv(&self) -> String {

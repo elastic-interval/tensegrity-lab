@@ -3,17 +3,16 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use std::ops::Mul;
-use cgmath::{EuclideanSpace, InnerSpace, MetricSpace, Point3, Vector3};
-use cgmath::num_traits::zero;
-use fast_inv_sqrt::InvSqrt32;
-
-use crate::fabric::{Fabric, Progress, UniqueId};
 use crate::fabric::interval::Role::*;
 use crate::fabric::interval::Span::*;
 use crate::fabric::joint::Joint;
 use crate::fabric::material::{interval_material, IntervalMaterial, Material};
 use crate::fabric::physics::Physics;
+use crate::fabric::{Fabric, Progress, UniqueId};
+use cgmath::num_traits::zero;
+use cgmath::{EuclideanSpace, InnerSpace, MetricSpace, Point3, Vector3};
+use fast_inv_sqrt::InvSqrt32;
+use std::ops::Mul;
 
 impl Fabric {
     pub fn create_interval(
@@ -46,22 +45,42 @@ impl Fabric {
         self.intervals.get(&id).unwrap()
     }
 
+    pub fn interval_snapshot(&self, id: UniqueId) -> IntervalSnapshot {
+        let interval = *self.interval(id);
+        let alpha = self.joints[interval.alpha_index];
+        let omega = self.joints[interval.omega_index];
+        IntervalSnapshot {
+            interval,
+            alpha,
+            omega,
+        }
+    }
+
     pub fn remove_interval(&mut self, id: UniqueId) {
         if self.intervals.remove(&id).is_none() {
             panic!("Removing nonexistent interval {:?}", id);
         }
     }
 
-    pub fn interval_values(&self) -> impl Iterator<Item=&Interval> {
+    pub fn interval_values(&self) -> impl Iterator<Item = &Interval> {
         self.intervals.values()
     }
 }
 
 #[derive(Clone, Copy, Debug)]
 pub enum Span {
-    Fixed { length: f32 },
-    Approaching { length: f32, initial: f32 },
-    Muscle { length: f32, contracted: f32, reverse: bool },
+    Fixed {
+        length: f32,
+    },
+    Approaching {
+        length: f32,
+        initial: f32,
+    },
+    Muscle {
+        length: f32,
+        contracted: f32,
+        reverse: bool,
+    },
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -69,6 +88,11 @@ pub enum Role {
     Push,
     Pull,
     Spring,
+}
+
+pub enum End {
+    Alpha,
+    Omega,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -87,7 +111,13 @@ pub const JOINER_GROUP: usize = 254;
 pub const SPACER_GROUP: usize = 253;
 
 impl Interval {
-    pub fn new(alpha_index: usize, omega_index: usize, material: Material, group: usize, span: Span) -> Interval {
+    pub fn new(
+        alpha_index: usize,
+        omega_index: usize,
+        material: Material,
+        group: usize,
+        span: Span,
+    ) -> Interval {
         Interval {
             alpha_index,
             omega_index,
@@ -140,7 +170,7 @@ impl Interval {
         1.0 / inverse_square_root
     }
 
-    pub fn length(& self, joints: &[Joint]) -> f32 {
+    pub fn length(&self, joints: &[Joint]) -> f32 {
         let (alpha_location, omega_location) = self.locations(joints);
         let tween = omega_location - alpha_location;
         let magnitude_squared = tween.magnitude2();
@@ -171,8 +201,16 @@ impl Interval {
                 let progress_nuance = progress.nuance();
                 initial * (1.0 - progress_nuance) + length * progress_nuance
             }
-            Muscle { length, contracted, reverse } => {
-                let nuance = if reverse { 1.0 - muscle_nuance } else { muscle_nuance };
+            Muscle {
+                length,
+                contracted,
+                reverse,
+            } => {
+                let nuance = if reverse {
+                    1.0 - muscle_nuance
+                } else {
+                    muscle_nuance
+                };
                 let progress_nuance = progress.nuance();
                 let muscle_length = contracted * (1.0 - nuance) + length * nuance;
                 length * (1.0 - progress_nuance) + muscle_length * progress_nuance
@@ -203,7 +241,7 @@ impl Interval {
     pub fn touches(&self, joint: usize) -> bool {
         self.alpha_index == joint || self.omega_index == joint
     }
-    
+
     pub fn ray_from(&self, joint_index: usize) -> Vector3<f32> {
         if self.alpha_index == joint_index {
             self.unit
@@ -238,6 +276,21 @@ impl Interval {
             Some(self.omega_index)
         } else {
             None
+        }
+    }
+}
+
+pub struct IntervalSnapshot {
+    pub interval: Interval,
+    pub alpha: Joint,
+    pub omega: Joint,
+}
+
+impl IntervalSnapshot {
+    pub fn end_index(&self, end: &End) -> usize {
+        match end {
+            End::Alpha => self.interval.alpha_index,
+            End::Omega => self.interval.omega_index,
         }
     }
 }
