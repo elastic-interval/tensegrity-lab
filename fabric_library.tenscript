@@ -129,16 +129,16 @@
 	(fabric (name "Twisted Infinity")
 		(build
 			(branch (alias Omni)
-				(face (alias TopRight) (grow 12 (scale .92) (mark :ring-a)))
-				(face (alias BottomRight) (grow 13 (scale .92) (mark :ring-a)))
-				(face (alias BackLeft) (grow 12 (scale .92) (mark :ring-b)))
-				(face (alias FrontLeft) (grow 13 (scale .92) (mark :ring-b)))
+				(face (alias TopRight) (grow 6 (scale .83) (mark :ring-a)))
+				(face (alias BottomRight) (grow 5 (scale .83) (mark :ring-a)))
+				(face (alias BackLeft) (grow 6 (scale .83) (mark :ring-b)))
+				(face (alias FrontLeft) (grow 5 (scale .83) (mark :ring-b)))
 				))
 		(shape
 			(during 15000 (join :ring-a) (join :ring-b))
-			(during 20000 (vulcanize))
+			(during 40000 (vulcanize))
 			(faces-to-triangles))
-		(pretense (surface :bouncy)))
+		(pretense (surface :absent)))
 	(fabric (name "Ring")
 		(build
 			(branch (alias Single)
