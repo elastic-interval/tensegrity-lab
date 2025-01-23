@@ -38,7 +38,7 @@
         (pretense
             (muscle 0.4 16000)
             (surface :frozen)))
-	(fabric	(name "Headless")
+	(fabric	(name "Kopflos")
         (build
             (branch (alias Torque)
                 (face (alias LeftFrontBottom) (grow 6 (scale 1.05) (mark :legs)))
