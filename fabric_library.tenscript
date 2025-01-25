@@ -38,7 +38,7 @@
         (pretense
             (muscle 0.4 16000)
             (surface :frozen)))
-	(fabric	(name "Kopflos")
+	(fabric	(name "Archy Tallboi")
         (build
             (branch (alias Torque)
                 (face (alias LeftFrontBottom) (grow 6 (scale 1.05) (mark :legs)))
@@ -136,6 +136,21 @@
 				))
 		(shape
 			(during 15000 (join :ring-a) (join :ring-b))
+			(during 40000 (vulcanize))
+			(faces-to-triangles))
+		(pretense (surface :absent)))
+	(fabric (name "Propellor")
+		(build
+			(branch (alias Omni) (seed 1)
+				(face (alias TopX) (grow 6 (scale .83) (mark :ring-x)))
+				(face (alias BotY) (grow 5 (scale .83) (mark :ring-x)))
+				(face (alias TopY) (grow 6 (scale .83) (mark :ring-y)))
+				(face (alias BotZ) (grow 5 (scale .83) (mark :ring-y)))
+				(face (alias TopZ) (grow 6 (scale .83) (mark :ring-z)))
+				(face (alias BotX) (grow 5 (scale .83) (mark :ring-z)))
+				))
+		(shape
+			(during 15000 (join :ring-x) (join :ring-y) (join :ring-z))
 			(during 40000 (vulcanize))
 			(faces-to-triangles))
 		(pretense (surface :absent)))
