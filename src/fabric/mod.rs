@@ -53,6 +53,7 @@ pub struct Fabric {
     pub intervals: HashMap<UniqueId, Interval>,
     pub faces: HashMap<UniqueId, Face>,
     pub altitude: Option<f32>,
+    pub scale: f32,
     unique_id: usize,
 }
 
@@ -66,6 +67,7 @@ impl Default for Fabric {
             intervals: HashMap::new(),
             faces: HashMap::new(),
             altitude: None,
+            scale: 1.0,
             unique_id: 0,
         }
     }

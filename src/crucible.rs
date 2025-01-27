@@ -63,6 +63,7 @@ impl Crucible {
             Empty => {}
             RunningPlan(plan_runner) => {
                 if plan_runner.is_done() {
+                    self.fabric.scale = plan_runner.get_scale();
                     self.stage = PretensingLaunch(plan_runner.pretense_phase())
                 } else {
                     for _ in 0..self.iterations_per_frame {
