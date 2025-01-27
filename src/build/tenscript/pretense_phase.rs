@@ -27,14 +27,7 @@ impl PretensePhase {
         }
     }
 
-    pub fn from_pair_option(pair: Option<Pair<Rule>>) -> Result<PretensePhase, TenscriptError> {
-        let Some(pair) = pair else {
-            return Ok(PretensePhase::default());
-        };
-        Self::parse_pretense(pair)
-    }
-
-    fn parse_pretense(pair: Pair<Rule>) -> Result<PretensePhase, TenscriptError> {
+    pub fn from_pair(pair: Pair<Rule>) -> Result<PretensePhase, TenscriptError> {
         match pair.as_rule() {
             Rule::pretense => Self::parse_features(pair.into_inner()),
             _ => {

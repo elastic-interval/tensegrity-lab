@@ -9,7 +9,7 @@ use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeOperation, ShapePhase};
 use crate::build::tenscript::{BuildPhase, Rule, TenscriptError};
 
-pub const DEFAULT_BUILD_ALTITUDE: f32  = 0.1;
+pub const DEFAULT_BUILD_ALTITUDE: f32 = 0.1;
 
 #[derive(Debug, Clone)]
 pub struct FabricPlan {
@@ -17,6 +17,7 @@ pub struct FabricPlan {
     pub build_phase: BuildPhase,
     pub shape_phase: ShapePhase,
     pub pretense_phase: PretensePhase,
+    pub scale: f32,
 }
 
 impl FabricPlan {
@@ -26,14 +27,18 @@ impl FabricPlan {
         let name = quoted[1..quoted.len() - 1].to_string();
         let build = inner.next().unwrap();
         let build_phase = BuildPhase::from_pair(build)?;
-        let shape_phase = ShapePhase::from_pair_option(inner.next())?;
-        let pretense_phase = PretensePhase::from_pair_option(inner.next())?;
-        
+        let shape_phase = ShapePhase::from_pair(inner.next().unwrap())?;
+        let pretense_phase = PretensePhase::from_pair(inner.next().unwrap())?;
+        let scale = match inner.next() {
+            None => Ok(1.0),
+            Some(pair) => TenscriptError::parse_float_inside(pair, "fabric/scale"),
+        }?;
         let plan = FabricPlan {
             name,
             build_phase,
             shape_phase,
             pretense_phase,
+            scale,
         };
         Self::validate_fabric_plan(&plan)?;
         Ok(plan)

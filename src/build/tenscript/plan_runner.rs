@@ -25,6 +25,7 @@ pub struct PlanRunner {
     pretense_phase: PretensePhase,
     physics: Physics,
     disabled: Option<TenscriptError>,
+    scale: f32,
 }
 
 impl PlanRunner {
@@ -33,6 +34,7 @@ impl PlanRunner {
             shape_phase,
             build_phase,
             pretense_phase,
+            scale,
             ..
         }: FabricPlan,
     ) -> Self {
@@ -40,6 +42,7 @@ impl PlanRunner {
             shape_phase,
             build_phase,
             pretense_phase,
+            scale,
             stage: Initialize,
             physics: LIQUID,
             disabled: None,
@@ -58,6 +61,7 @@ impl PlanRunner {
         let (next_stage, countdown) = match self.stage {
             Initialize => {
                 self.build_phase.init(fabric, brick_library)?;
+                fabric.scale = self.get_scale();
                 (GrowApproach, 500)
             }
             GrowStep => {
@@ -103,6 +107,10 @@ impl PlanRunner {
 
     pub fn is_done(&self) -> bool {
         self.stage == Completed
+    }
+
+    pub fn get_scale(&self) -> f32 {
+        self.scale
     }
 
     pub fn pretense_phase(&self) -> PretensePhase {

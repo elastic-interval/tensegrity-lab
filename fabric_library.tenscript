@@ -62,7 +62,8 @@
             (faces-to-triangles))
         (pretense
             (muscle 0.8 10000)
-            (surface :frozen)))
+            (surface :frozen))
+        (scale 510.0))
     (fabric (name "Triped")
 		(build
 			(branch (alias Omni) (seed 1)
@@ -92,7 +93,8 @@
 			(face (alias :next-base) (grow 5))))
 		(shape
 			(vulcanize)
-		    (faces-to-triangles)))
+		    (faces-to-triangles))
+		(pretense))
 	(fabric (name "Tworque Walker")
 		(build
 			(branch (alias Torque)
@@ -138,7 +140,8 @@
 			(during 15000 (join :ring-a) (join :ring-b))
 			(during 40000 (vulcanize))
 			(faces-to-triangles))
-		(pretense (surface :absent)))
+		(pretense (surface :absent))
+		(scale 50.0))
 	(fabric (name "Propellor")
 		(build
 			(branch (alias Omni) (seed 1)
