@@ -1,18 +1,22 @@
-use leptos::{component, create_effect, create_signal, IntoView, ReadSignal, Signal, SignalGet, SignalSet, view};
-
 use crate::fabric::interval::Role;
+use crate::fabric::FabricStats;
 use crate::messages::{ControlState, JointDetails};
+use leptos::{
+    component, create_effect, create_signal, view, IntoView, ReadSignal, SignalGet, SignalSet,
+};
 
 #[component]
 pub fn DetailsView(
     control_state: ReadSignal<ControlState>,
-    scale: Signal<f32>,
+    fabric_stats: ReadSignal<Option<FabricStats>>,
 ) -> impl IntoView {
     let (joint_height, set_joint_height) = create_signal(1f32);
 
     create_effect(move |_| {
         if let ControlState::ShowingJoint(JointDetails { height, .. }) = control_state.get() {
-            set_joint_height.set(height * scale.get())
+            if let Some(FabricStats { scale, .. }) = fabric_stats.get() {
+                set_joint_height.set(height * scale)
+            }
         }
     });
     view! {
@@ -44,7 +48,7 @@ pub fn DetailsView(
                         format!("J{}", index)
                     };
                     let length = move || {
-                        format!("{0:.1} mm", interval_details.length * scale.get())
+                        format!("{0:.1} mm", interval_details.length * fabric_stats.get().unwrap().scale)
                     };
                     view! {
                         <div>

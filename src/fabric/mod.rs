@@ -3,10 +3,10 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use std::collections::HashMap;
-
-use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
 use cgmath::num_traits::zero;
+use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
+use std::collections::HashMap;
+use std::fmt::Debug;
 
 use crate::fabric::face::Face;
 use crate::fabric::interval::Interval;
@@ -25,15 +25,16 @@ pub mod physics;
 pub mod progress;
 pub mod vulcanize;
 
-pub mod joint_incident;
-pub mod material;
 pub mod correction;
 pub mod export;
+pub mod joint_incident;
+pub mod material;
 
 pub const MAX_INTERVALS: usize = 5000;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct FabricStats {
+    pub scale: f32,
     pub joint_count: usize,
     pub max_height: f32,
     pub push_count: usize,
@@ -42,6 +43,36 @@ pub struct FabricStats {
     pub pull_count: usize,
     pub pull_range: (f32, f32),
     pub pull_total: f32,
+}
+
+impl Debug for FabricStats {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let FabricStats {
+            scale,
+            joint_count,
+            max_height,
+            push_count,
+            push_total,
+            push_range,
+            pull_count,
+            pull_range,
+            pull_total,
+        } = self;
+        write!(f,
+               "At scale {:.0}:1 this structure has {:?} joints (up to height {:.0}mm), {:?} pushes ({:.1} to {:.1}mm, total {:.2}m), and {:?} pulls ({:.1} to {:.1}mm, total {:.2}m).",
+               scale,
+               joint_count,
+               max_height * scale,
+               push_count,
+               push_range.0 * scale,
+               push_range.1 * scale,
+               push_total * scale / 1000.0,
+               pull_count,
+               pull_range.0 * scale,
+               pull_range.1 * scale,
+               pull_total * scale / 1000.0
+        )
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -132,7 +163,8 @@ impl Fabric {
             }
         }
         if let Some(altitude) = self.altitude {
-            let min_y = self.joints
+            let min_y = self
+                .joints
                 .iter()
                 .map(|Joint { location, .. }| location.y)
                 .min_by(|a, b| a.partial_cmp(b).unwrap());
@@ -188,9 +220,9 @@ impl Fabric {
         let mut push_range = (1000.0, 0.0);
         let mut pull_range = (1000.0, 0.0);
         let mut push_count = 0;
-        let mut push_total= 0.0;
+        let mut push_total = 0.0;
         let mut pull_count = 0;
-        let mut pull_total= 0.0;
+        let mut pull_total = 0.0;
         let mut max_height = 0.0;
         for Joint { location, .. } in self.joints.iter() {
             if location.y > max_height {
@@ -220,10 +252,11 @@ impl Fabric {
                         pull_range.1 = length;
                     }
                 }
-                Spring => unreachable!()
+                Spring => unreachable!(),
             }
         }
         FabricStats {
+            scale: self.scale,
             joint_count: self.joints.len(),
             max_height,
             push_count,
@@ -238,6 +271,3 @@ impl Fabric {
 
 #[derive(Clone, Debug, Copy, PartialEq, Default, Hash, Eq, Ord, PartialOrd)]
 pub struct UniqueId(usize);
-
-
-

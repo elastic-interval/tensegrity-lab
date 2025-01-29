@@ -17,8 +17,6 @@ mod details_view;
 mod stats_view;
 mod lab_view;
 
-const MINIMUM_SCALE: f32 = 1.0;
-
 #[component]
 pub fn ControlOverlayApp(
     fabric_list: Vec<String>,
@@ -28,12 +26,10 @@ pub fn ControlOverlayApp(
     event_loop_proxy: EventLoopProxy<LabEvent>,
 ) -> impl IntoView {
     let (fabric_name, set_fabric_name, _) = use_local_storage::<String, FromToStringCodec>("fabric");
-    let (scale, set_scale, _) = use_local_storage::<f32, FromToStringCodec>("scale");
     let (animated, set_animated) = create_signal(false);
     let event_loop_proxy_1 = event_loop_proxy.clone();
     create_effect(move |_| event_loop_proxy.send_event(LabEvent::LoadFabric(fabric_name.get())).unwrap());
     create_effect(move |_| event_loop_proxy_1.send_event(LabEvent::Crucible(Experiment(LabAction::MuscleTest(animated.get())))).unwrap());
-    create_effect(move |_| if scale.get() < MINIMUM_SCALE { set_scale.set(MINIMUM_SCALE); });
 
     view! {
         <div>
@@ -42,8 +38,8 @@ pub fn ControlOverlayApp(
                 fabric_name=fabric_name
                 set_fabric_name=set_fabric_name
             />
-            <DetailsView control_state=control_state scale=scale />
-            <StatsView scale=scale set_scale=set_scale fabric_stats=fabric_stats />
+            <DetailsView control_state=control_state fabric_stats=fabric_stats />
+            <StatsView fabric_stats=fabric_stats />
             <Show when=move || lab_control.get() fallback=|| view! { <div /> }>
                 <LabView animated=animated set_animated=set_animated />
             </Show>
