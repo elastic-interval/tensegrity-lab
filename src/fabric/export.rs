@@ -19,7 +19,7 @@ impl Fabric {
             .join("\n");
         let intervals = self.interval_values()
             .map(|interval| {
-                let ideal = interval.ideal() * self.scale;
+                let ideal = interval.length(&self.joints) * self.scale;
                 let role = interval_material(interval.material).role;
                 let Interval { alpha_index, omega_index, .. } = interval;
                 // ["joints", "role", "ideal length"]
