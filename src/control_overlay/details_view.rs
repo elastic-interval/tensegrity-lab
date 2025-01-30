@@ -32,9 +32,15 @@ pub fn DetailsView(
                 ControlState::ShowingJoint(joint_details) => {
                     view! {
                         <div>
-                            <p>"Joint "<b>{move || format!("\"J{}\"", joint_details.index + 1)}</b></p>
-                            <p>"Height: "<b>{move || format!("{0:.0} mm", joint_height.get())}</b></p>
-                            <p>"Click an interval for details, or right-click for an adjacent joint."</p>
+                            <p>
+                                "Joint "<b>{move || format!("\"J{}\"", joint_details.index + 1)}</b>
+                            </p>
+                            <p>
+                                "Height: "<b>{move || format!("{0:.0} mm", joint_height.get())}</b>
+                            </p>
+                            <p>
+                                "Click an interval for details, or right-click for an adjacent joint."
+                            </p>
                         </div>
                     }
                 }
@@ -44,18 +50,25 @@ pub fn DetailsView(
                         Role::Pull => "cable",
                         Role::Spring => "spring",
                     };
-                    let joint = move |index| {
-                        format!("J{}", index)
-                    };
+                    let joint = move |index| { format!("J{}", index) };
                     let length = move || {
-                        format!("{0:.1} mm", interval_details.length * fabric_stats.get().unwrap().scale)
+                        format!(
+                            "{0:.1} mm",
+                            interval_details.length * fabric_stats.get().unwrap().scale,
+                        )
                     };
                     view! {
                         <div>
-                            <p>"Joint "<b>{joint(interval_details.near_joint)}</b></p>
-                            <p>"The green interval is a " <b>{role}</b> " to " <b>{joint(interval_details.far_joint)}</b> "."</p>
+                            <p>"Joint "<b>{joint(interval_details.near_joint + 1)}</b></p>
+                            <p>
+                                "The green interval is a " <b>{role}</b> " to "
+                                <b>{joint(interval_details.far_joint + 1)}</b> "."
+                            </p>
                             <p>"Length: " <b>{length}</b> "."</p>
-                            <p>"Click it again to jump across the interval to "{joint(interval_details.far_joint)}</p>
+                            <p>
+                                "Click it again to jump across the interval to "
+                                {joint(interval_details.far_joint + 1)}
+                            </p>
                         </div>
                     }
                 }
