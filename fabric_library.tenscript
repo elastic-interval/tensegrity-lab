@@ -141,7 +141,7 @@
 			(during 40000 (vulcanize))
 			(faces-to-triangles))
 		(pretense (surface :absent))
-		(scale 50.0))
+		(scale 60.0))
 	(fabric (name "Propellor")
 		(build
 			(branch (alias Omni) (seed 1)
