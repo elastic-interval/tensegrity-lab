@@ -89,12 +89,10 @@
 		(pretense (surface :frozen)))
 	(fabric (name "Tower")
 		(build
-			(branch (alias Single)
-			(face (alias :next-base) (grow 5))))
+			(branch (alias Single)))
 		(shape
-			(vulcanize)
-		    (faces-to-triangles))
-		(pretense))
+		    (faces-to-points))
+		(pretense (surface :bouncy)))
 	(fabric (name "Tworque Walker")
 		(build
 			(branch (alias Torque)
@@ -119,15 +117,12 @@
 		(pretense (surface :frozen)))
 	(fabric (name "Tetrapod")
 		(build
-			(branch (alias Omni)
-				(face (alias TopRight) (grow 3 (scale .9)))
-				(face (alias BottomRight) (grow 3 (scale .9)))
-				(face (alias BackLeft) (grow 3 (scale .9)))
-				(face (alias FrontLeft) (grow 3 (scale .9)))))
+			(branch (alias Single)))
 		(shape
-			(vulcanize)
-			(faces-to-triangles))
-		(pretense (surface :bouncy)))
+			(vulcanize))
+		(pretense (surface :absent))
+		(scale 46.0)
+		)
 	(fabric (name "Twisted Infinity")
 		(build
 			(branch (alias Omni)
