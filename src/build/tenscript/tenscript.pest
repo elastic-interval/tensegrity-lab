@@ -10,7 +10,7 @@ name =
 shape =
     { "(" ~ "shape" ~ shape_operation* ~ ")" }
 basic_shape_operation =
-    { spacer | joiner | vulcanize | remove_spacers | faces_to_triangles | set_stiffness | set_drag | set_viscosity | down }
+    { spacer | joiner | vulcanize | remove_spacers | faces_to_triangles | faces_to_points | set_stiffness | set_drag | set_viscosity | down }
 shape_operation =
     { basic_shape_operation | during_count }
 during_count = // iteration-count
@@ -45,6 +45,8 @@ pretense_factor =
     { "(" ~ "pretense-factor" ~ float ~ ")" }
 faces_to_triangles =
     { "(" ~ "faces-to-triangles" ~ ")" }
+faces_to_points =
+    { "(" ~ "faces-to-points" ~ ")" }
 build =
     { "(" ~ "build" ~ branch ~ ")" }
 build_node =

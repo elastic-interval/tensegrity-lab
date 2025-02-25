@@ -48,6 +48,7 @@ pub enum ShapeOperation {
     },
     Vulcanize,
     FacesToTriangles,
+    FacesToPoints,
     SetStiffness(f32),
     SetDrag(f32),
     SetViscosity(f32),
@@ -150,6 +151,7 @@ impl ShapePhase {
                 Ok(ShapeOperation::RemoveSpacers { mark_names })
             }
             Rule::faces_to_triangles => Ok(ShapeOperation::FacesToTriangles),
+            Rule::faces_to_points => Ok(ShapeOperation::FacesToPoints),
             Rule::vulcanize => Ok(ShapeOperation::Vulcanize),
             Rule::set_stiffness => {
                 let percent = TenscriptError::parse_float_inside(pair, "(set-stiffness ..)")?;
@@ -358,10 +360,15 @@ impl ShapePhase {
                 StartCountdown(DEFAULT_VULCANIZE_COUNTDOWN)
             }
             ShapeOperation::FacesToTriangles => {
-                // todo: this is not the right place
-                // fabric.correct_folded_pulls(0.92);
                 self.remove_spacers(fabric);
                 for face_id in fabric.faces_to_triangles() {
+                    fabric.remove_face(face_id);
+                }
+                Noop
+            }
+            ShapeOperation::FacesToPoints => {
+                self.remove_spacers(fabric);
+                for face_id in fabric.faces_to_points() {
                     fabric.remove_face(face_id);
                 }
                 Noop
