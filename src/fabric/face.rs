@@ -7,8 +7,8 @@ use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, MetricSpace, Point3, 
 use crate::build::tenscript::{FaceAlias, Spin};
 use crate::fabric::interval::{Interval, JOINER_GROUP};
 use crate::fabric::joint::Joint;
-use crate::fabric::{Fabric, UniqueId};
-use crate::fabric::material::Material::PullMaterial;
+use crate::fabric::material::Material::{PullMaterial, PushMaterial};
+use crate::fabric::{Fabric, UniqueId, ROOT3};
 
 impl Fabric {
     pub fn create_face(
@@ -73,10 +73,48 @@ impl Fabric {
             .unwrap();
         let ideal = (alpha.scale + omega.scale) / 2.0;
         for (a, b) in links {
-            self.create_interval(alpha_rotated[a], omega_ends[b], ideal, PullMaterial, JOINER_GROUP);
+            self.create_interval(
+                alpha_rotated[a],
+                omega_ends[b],
+                ideal,
+                PullMaterial,
+                JOINER_GROUP,
+            );
         }
         self.remove_face(alpha_id);
         self.remove_face(omega_id);
+    }
+
+    pub fn face_to_triangle(&mut self, face_id: UniqueId) {
+        let face = self.face(face_id);
+        let side_length = face.scale * ROOT3;
+        let radial_joints = face.radial_joints(self);
+        for (alpha, omega) in [(0, 1), (1, 2), (2, 0)] {
+            self.create_interval(
+                radial_joints[alpha],
+                radial_joints[omega],
+                side_length,
+                PullMaterial,
+                0,
+            );
+        }
+    }
+
+    pub fn face_to_prism(&mut self, face_id: UniqueId) {
+        let face = self.face(face_id);
+        let push_length = face.scale; // todo: get this right
+        let pull_length = face.scale * 2.0; // todo: get this right
+        let radial_joints = face.radial_joints(self);
+        let normal = face.normal(&self);
+        let midpoint = face.midpoint(&self);
+        let alpha = self.create_joint(Point3::from_vec(midpoint - normal * push_length / 2.0));
+        let omega = self.create_joint(Point3::from_vec(midpoint + normal * push_length / 2.0));
+        self.create_interval(alpha, omega, push_length, PushMaterial, 0);
+        for joint in 0..3 {
+            let radial = radial_joints[joint];
+            self.create_interval(alpha, radial, pull_length, PullMaterial, 0);
+            self.create_interval(omega, radial, pull_length, PullMaterial, 0);
+        }
     }
 }
 
@@ -125,7 +163,7 @@ impl Face {
             Spin::Left => v2.cross(v1),
             Spin::Right => v1.cross(v2),
         }
-            .normalize_to(length)
+        .normalize_to(length)
     }
 
     pub fn normal(&self, fabric: &Fabric) -> Vector3<f32> {
@@ -168,11 +206,21 @@ impl Face {
     }
 
     pub fn vector_space(&self, fabric: &Fabric, rotation: FaceRotation) -> Matrix4<f32> {
-        vector_space(self.radial_joint_locations(fabric), self.scale, self.spin, rotation)
+        vector_space(
+            self.radial_joint_locations(fabric),
+            self.scale,
+            self.spin,
+            rotation,
+        )
     }
 }
 
-pub fn vector_space(p: [Point3<f32>; 3], scale: f32, spin: Spin, rotation: FaceRotation) -> Matrix4<f32> {
+pub fn vector_space(
+    p: [Point3<f32>; 3],
+    scale: f32,
+    spin: Spin,
+    rotation: FaceRotation,
+) -> Matrix4<f32> {
     let midpoint = (p[0].to_vec() + p[1].to_vec() + p[2].to_vec()) / 3.0;
     let (a, b) = match rotation {
         FaceRotation::Zero => (p[0], p[1]),

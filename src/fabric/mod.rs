@@ -31,6 +31,7 @@ pub mod joint_incident;
 pub mod material;
 
 pub const MAX_INTERVALS: usize = 5000;
+pub const ROOT3: f32 = 1.732_050_8;
 
 #[derive(Clone)]
 pub struct FabricStats {

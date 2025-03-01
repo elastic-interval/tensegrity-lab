@@ -3,15 +3,15 @@ use std::cmp::Ordering;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};
 use pest::iterators::Pair;
 
-use crate::build::tenscript::{FaceAlias, Rule, Spin};
-use crate::build::tenscript::{FaceMark, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::shape_phase::ShapeCommand::*;
-use crate::fabric::{Fabric, UniqueId};
+use crate::build::tenscript::{FaceAlias, Rule, Spin};
+use crate::build::tenscript::{FaceMark, TenscriptError};
 use crate::fabric::brick::BaseFace;
-use crate::fabric::face::{FaceRotation, vector_space};
+use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::{JOINER_GROUP, SPACER_GROUP};
 use crate::fabric::material::Material::PullMaterial;
+use crate::fabric::{Fabric, UniqueId};
 
 const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 25_000;
 const DEFAULT_VULCANIZE_COUNTDOWN: usize = 5_000;
@@ -48,7 +48,9 @@ pub enum ShapeOperation {
     },
     Vulcanize,
     FacesToTriangles,
-    FacesToPoints,
+    FacesToPrisms {
+        mark_names: Vec<String>,
+    },
     SetStiffness(f32),
     SetDrag(f32),
     SetViscosity(f32),
@@ -95,7 +97,7 @@ impl ShapePhase {
     }
 
     fn parse_shape_operations<'a>(
-        pairs: impl Iterator<Item=Pair<'a, Rule>>,
+        pairs: impl Iterator<Item = Pair<'a, Rule>>,
     ) -> Result<Vec<ShapeOperation>, TenscriptError> {
         pairs.map(Self::parse_shape_operation).collect()
     }
@@ -123,8 +125,10 @@ impl ShapePhase {
                 let seed = match inner.next() {
                     None => None,
                     Some(seed_pair) => {
-                        let index =
-                            TenscriptError::parse_usize(seed_pair.into_inner().next().unwrap().as_str(), "(seed ...)")?;
+                        let index = TenscriptError::parse_usize(
+                            seed_pair.into_inner().next().unwrap().as_str(),
+                            "(seed ...)",
+                        )?;
                         Some(index)
                     }
                 };
@@ -151,7 +155,10 @@ impl ShapePhase {
                 Ok(ShapeOperation::RemoveSpacers { mark_names })
             }
             Rule::faces_to_triangles => Ok(ShapeOperation::FacesToTriangles),
-            Rule::faces_to_points => Ok(ShapeOperation::FacesToPoints),
+            Rule::faces_to_prisms => {
+                let mark_names = pair.into_inner().map(|p| p.as_str()[1..].into()).collect();
+                Ok(ShapeOperation::FacesToPrisms { mark_names })
+            }
             Rule::vulcanize => Ok(ShapeOperation::Vulcanize),
             Rule::set_stiffness => {
                 let percent = TenscriptError::parse_float_inside(pair, "(set-stiffness ..)")?;
@@ -173,7 +180,11 @@ impl ShapePhase {
         !self.operations.is_empty()
     }
 
-    pub fn shaping_step(&mut self, fabric: &mut Fabric, brick_library: &BrickLibrary) -> Result<ShapeCommand, TenscriptError> {
+    pub fn shaping_step(
+        &mut self,
+        fabric: &mut Fabric,
+        brick_library: &BrickLibrary,
+    ) -> Result<ShapeCommand, TenscriptError> {
         if let Some(countdown) = self.complete_joiners(fabric) {
             return Ok(countdown);
         }
@@ -213,8 +224,19 @@ impl ShapePhase {
                 let joints = self.marked_middle_joints(fabric, &face_ids);
                 match face_ids.len() {
                     2 => {
-                        let interval = fabric.create_interval(joints[0], joints[1], 0.01, PullMaterial, JOINER_GROUP);
-                        self.joiners.push(Shaper { interval, alpha_face: face_ids[0], omega_face: face_ids[1], mark_name })
+                        let interval = fabric.create_interval(
+                            joints[0],
+                            joints[1],
+                            0.01,
+                            PullMaterial,
+                            JOINER_GROUP,
+                        );
+                        self.joiners.push(Shaper {
+                            interval,
+                            alpha_face: face_ids[0],
+                            omega_face: face_ids[1],
+                            mark_name,
+                        })
                     }
                     3 => {
                         let face_ids = [face_ids[0], face_ids[1], face_ids[2]];
@@ -224,11 +246,15 @@ impl ShapePhase {
                             panic!("Faces must have the same spin");
                         }
                         let scale = (faces[0].scale + faces[1].scale + faces[2].scale) / 3.0;
-                        let face_mids = faces.map(|face| face.midpoint(fabric));
+                        let face_midpoints = faces.map(|face| face.midpoint(fabric));
                         let face_normals = faces.map(|face| face.normal(fabric));
-                        let normal = (face_normals[0] + face_normals[1] + face_normals[2]).normalize();
-                        let midpoint = (face_mids[0] + face_mids[1] + face_mids[2]) / 3.0 + normal * 3.0;
-                        let rays = face_mids.map(|face_mid| (face_mid - midpoint).normalize_to(scale));
+                        let normal =
+                            (face_normals[0] + face_normals[1] + face_normals[2]).normalize();
+                        let midpoint = (face_midpoints[0] + face_midpoints[1] + face_midpoints[2])
+                            / 3.0
+                            + normal * 3.0;
+                        let rays = face_midpoints
+                            .map(|face_mid| (face_mid - midpoint).normalize_to(scale));
                         let spin_normal = match spin {
                             Spin::Left => rays[0].cross(rays[1]).normalize(),
                             Spin::Right => rays[1].cross(rays[0]).normalize(),
@@ -240,7 +266,11 @@ impl ShapePhase {
                         };
                         let points = ordered_rays.map(|ray| ray + midpoint).map(Point3::from_vec);
                         let vector_space = vector_space(points, scale, spin, FaceRotation::Zero);
-                        let base_face = BaseFace::Situated { spin, vector_space, seed };
+                        let base_face = BaseFace::Situated {
+                            spin,
+                            vector_space,
+                            seed,
+                        };
                         let alias = FaceAlias::single("Omni");
                         let (_base_face_id, brick_faces) = fabric.create_brick(
                             &alias,
@@ -253,20 +283,29 @@ impl ShapePhase {
                         let mut brick_face_midpoints = Vec::new();
                         for brick_face_id in brick_faces {
                             let face = fabric.face(brick_face_id);
-                            brick_face_midpoints.push((brick_face_id, face.midpoint(fabric), face.middle_joint(fabric)));
+                            brick_face_midpoints.push((
+                                brick_face_id,
+                                face.midpoint(fabric),
+                                face.middle_joint(fabric),
+                            ));
                         }
                         let mut far_face_midpoints = Vec::new();
                         for face_id in face_ids {
                             let face = fabric.face(face_id);
-                            far_face_midpoints.push((face_id, face.midpoint(fabric), face.middle_joint(fabric)));
+                            far_face_midpoints.push((
+                                face_id,
+                                face.midpoint(fabric),
+                                face.middle_joint(fabric),
+                            ));
                         }
-                        let shapers = far_face_midpoints
-                            .into_iter()
-                            .map(|(far_face_id, far_face_midpoint, far_joint)| {
-                                let brick_face = brick_face_midpoints
-                                    .iter()
-                                    .min_by(|(_, location_a, _), (_, location_b, _)| {
-                                        let (dx, dy) = (location_a.distance2(far_face_midpoint), location_b.distance2(far_face_midpoint));
+                        let shapers = far_face_midpoints.into_iter().map(
+                            |(far_face_id, far_face_midpoint, far_joint)| {
+                                let brick_face = brick_face_midpoints.iter().min_by(
+                                    |(_, location_a, _), (_, location_b, _)| {
+                                        let (dx, dy) = (
+                                            location_a.distance2(far_face_midpoint),
+                                            location_b.distance2(far_face_midpoint),
+                                        );
                                         if dx < dy {
                                             Ordering::Less
                                         } else if dx > dy {
@@ -274,16 +313,30 @@ impl ShapePhase {
                                         } else {
                                             Ordering::Equal
                                         }
-                                    });
-                                let (near_face_id, _, near_joint) = *brick_face.expect("Expected a closest face");
+                                    },
+                                );
+                                let (near_face_id, _, near_joint) =
+                                    *brick_face.expect("Expected a closest face");
                                 (near_face_id, near_joint, far_face_id, far_joint)
-                            });
+                            },
+                        );
                         for (near_face_id, near_joint, far_face_id, far_joint) in shapers {
-                            let interval = fabric.create_interval(near_joint, far_joint, 0.01, PullMaterial, JOINER_GROUP);
-                            self.joiners.push(Shaper { interval, alpha_face: near_face_id, omega_face: far_face_id, mark_name: mark_name.clone() })
+                            let interval = fabric.create_interval(
+                                near_joint,
+                                far_joint,
+                                0.01,
+                                PullMaterial,
+                                JOINER_GROUP,
+                            );
+                            self.joiners.push(Shaper {
+                                interval,
+                                alpha_face: near_face_id,
+                                omega_face: far_face_id,
+                                mark_name: mark_name.clone(),
+                            })
                         }
                     }
-                    _ => unimplemented!("Join can only be 2 or three faces")
+                    _ => unimplemented!("Join can only be 2 or three faces"),
                 }
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
@@ -314,11 +367,17 @@ impl ShapePhase {
                     for omega in (alpha + 1)..faces.len() {
                         let alpha_index = joints[alpha];
                         let omega_index = joints[omega];
-                        let length = fabric
-                            .joints[alpha_index]
+                        let length = fabric.joints[alpha_index]
                             .location
-                            .distance(fabric.joints[omega_index].location) * distance_factor;
-                        let interval = fabric.create_interval(alpha_index, omega_index, length, PullMaterial, SPACER_GROUP);
+                            .distance(fabric.joints[omega_index].location)
+                            * distance_factor;
+                        let interval = fabric.create_interval(
+                            alpha_index,
+                            omega_index,
+                            length,
+                            PullMaterial,
+                            SPACER_GROUP,
+                        );
                         self.spacers.push(Shaper {
                             interval,
                             alpha_face: faces[alpha],
@@ -361,15 +420,27 @@ impl ShapePhase {
             }
             ShapeOperation::FacesToTriangles => {
                 self.remove_spacers(fabric);
-                for face_id in fabric.faces_to_triangles() {
+                let face_ids: Vec<UniqueId> = fabric.faces.keys().cloned().collect();
+                for face_id in face_ids {
+                    fabric.face_to_triangle(face_id);
                     fabric.remove_face(face_id);
                 }
                 Noop
             }
-            ShapeOperation::FacesToPoints => {
-                self.remove_spacers(fabric);
-                for face_id in fabric.faces_to_points() {
-                    fabric.remove_face(face_id);
+            ShapeOperation::FacesToPrisms { mark_names } => {
+                if mark_names.is_empty() {
+                    let face_ids: Vec<UniqueId> = fabric.faces.keys().cloned().collect();
+                    for face_id in face_ids {
+                        fabric.face_to_prism(face_id);
+                        fabric.remove_face(face_id);
+                    }
+                } else {
+                    for mark_name in mark_names {
+                        for FaceMark{ face_id,..} in self.marks.iter().filter(|mark|mark.mark_name == mark_name) {
+                            fabric.face_to_prism(*face_id);
+                            fabric.remove_face(*face_id);
+                        }
+                    }
                 }
                 Noop
             }
