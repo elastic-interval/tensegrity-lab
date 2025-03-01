@@ -1,15 +1,13 @@
 use std::collections::HashMap;
 
-use cgmath::{EuclideanSpace, MetricSpace, Point3};
+use cgmath::MetricSpace;
 
 use crate::fabric::interval::{Interval, Role, Span};
 use crate::fabric::joint::Joint;
 use crate::fabric::joint_incident::{JointIncident, Path};
-use crate::fabric::material::Material::{BowTieMaterial, PullMaterial, PushMaterial};
+use crate::fabric::material::Material::{BowTieMaterial, PullMaterial};
 use crate::fabric::material::{interval_material, material_by_label};
-use crate::fabric::{Fabric, UniqueId};
-
-const ROOT3: f32 = 1.732_050_8;
+use crate::fabric::Fabric;
 
 const BOW_TIE_SHORTEN: f32 = 0.5;
 
@@ -50,49 +48,6 @@ impl Fabric {
         {
             self.create_interval(alpha_index, omega_index, length, PullMaterial, 0);
         }
-    }
-
-    pub fn faces_to_triangles(&mut self) -> Vec<UniqueId> {
-        let joint_incident = self.joint_incidents();
-        let mut faces_to_remove = vec![];
-        for (id, face) in self.faces.clone() {
-            let side_length = face.scale * ROOT3;
-            let radial_joints = face.radial_joints(self);
-            for (alpha, omega) in [(0, 1), (1, 2), (2, 0)] {
-                let (alpha_index, omega_index) = (radial_joints[alpha], radial_joints[omega]);
-                let overlap = joint_incident[alpha_index]
-                    .pull_adjacent_joints
-                    .intersection(&joint_incident[omega_index].pull_adjacent_joints)
-                    .count();
-                if overlap == 2 {
-                    continue;
-                }
-                self.create_interval(alpha_index, omega_index, side_length, PullMaterial, 0);
-            }
-            faces_to_remove.push(id);
-        }
-        faces_to_remove
-    }
-
-    pub fn faces_to_points(&mut self) -> Vec<UniqueId> {
-        let mut faces_to_remove = vec![];
-        for (id, face) in self.faces.clone() {
-            let push_length = face.scale;
-            let pull_length = face.scale*2.0;
-            let radial_joints = face.radial_joints(self);
-            let normal = face.normal(&self);
-            let midpoint = face.midpoint(&self);
-            let alpha = self.create_joint(Point3::from_vec(midpoint - normal * push_length / 2.0));
-            let omega = self.create_joint(Point3::from_vec(midpoint + normal * push_length / 2.0));
-            self.create_interval(alpha, omega, push_length, PushMaterial, 0);
-            for joint in 0..3 {
-                let radial = radial_joints[joint];
-                self.create_interval(alpha, radial, pull_length, PullMaterial, 0);
-                self.create_interval(omega, radial, pull_length, PullMaterial, 0);
-            }
-            faces_to_remove.push(id);
-        }
-        faces_to_remove
     }
 
     pub fn strain_limits(&self, material_name: String) -> (f32, f32) {
