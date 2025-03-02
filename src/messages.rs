@@ -1,5 +1,5 @@
 use std::time::SystemTime;
-
+use cgmath::Point3;
 use crate::crucible::CrucibleAction;
 use crate::fabric::FabricStats;
 use crate::fabric::interval::Role;
@@ -35,7 +35,7 @@ pub struct IntervalDetails {
 #[derive(Clone, Debug, Copy)]
 pub struct JointDetails {
     pub index: usize,
-    pub height: f32,
+    pub location: Point3<f32>,
 }
 
 #[derive(Clone, Debug, Default)]

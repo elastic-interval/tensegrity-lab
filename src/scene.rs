@@ -115,8 +115,8 @@ impl Scene {
             }
             Pick::Joint { index, joint } => {
                 self.camera.set_target(AroundJoint(index));
-                let height = joint.location.y;
-                self.set_control_state.set(ControlState::ShowingJoint(JointDetails { index, height }));
+                let location = joint.location;
+                self.set_control_state.set(ControlState::ShowingJoint(JointDetails { index, location }));
             }
             Pick::Interval { joint, id, interval, length } => {
                 self.camera.set_target(AroundInterval(id));
