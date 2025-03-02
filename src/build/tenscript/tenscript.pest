@@ -10,11 +10,17 @@ name =
 shape =
     { "(" ~ "shape" ~ shape_operation* ~ ")" }
 basic_shape_operation =
-    { spacer | joiner | vulcanize | remove_spacers | faces_to_triangles | faces_to_prisms | set_stiffness | set_drag | set_viscosity | down }
+    { anchor | guy_line | spacer | joiner | vulcanize | remove_spacers | faces_to_triangles | faces_to_prisms | set_stiffness | set_drag | set_viscosity | down }
 shape_operation =
     { basic_shape_operation | during_count }
 during_count = // iteration-count
     { "(" ~ "during" ~ integer ~ basic_shape_operation+ ~ ")" }
+anchor = // joint number, location
+    { "(" ~ "anchor" ~ integer ~ surface_location ~ ")" }
+guy_line = // joint number, length, location
+    { "(" ~ "guy-line" ~ integer ~ float ~ surface_location ~ ")" }
+surface_location =
+    { "(" ~ "surface" ~ float ~ float ~ ")" }
 spacer = // mark-name, spacing-factor
     { "(" ~ "space" ~ atom ~ float ~ ")" }
 joiner = // mark-name

@@ -13,11 +13,11 @@ pub use fabric_plan::FabricPlan;
 
 use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::pretense_phase::MuscleMovement;
-use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::face::Face;
 use crate::fabric::interval::Span;
 use crate::fabric::interval::Span::Muscle;
 use crate::fabric::material::Material::{NorthMaterial, SouthMaterial};
+use crate::fabric::{Fabric, UniqueId};
 
 pub mod brick;
 pub mod brick_library;
@@ -43,23 +43,21 @@ pub enum TenscriptError {
     MarkError(String),
 }
 
-impl TenscriptError {
-    pub fn parse_float(string: &str, spot: &str) -> Result<f32, Self> {
-        string
-            .parse()
-            .map_err(|_| TenscriptError::FormatError(format!("[{spot}]: Not a float: '{string}'")))
-    }
+pub fn parse_float(string: &str, spot: &str) -> Result<f32, TenscriptError> {
+    string
+        .parse()
+        .map_err(|_| TenscriptError::FormatError(format!("[{spot}]: Not a float: '{string}'")))
+}
 
-    pub fn parse_usize(string: &str, spot: &str) -> Result<usize, Self> {
-        string
-            .parse()
-            .map_err(|_| TenscriptError::FormatError(format!("[{spot}]: Not an int: '{string}'")))
-    }
+pub fn parse_usize(string: &str, spot: &str) -> Result<usize, TenscriptError> {
+    string
+        .parse()
+        .map_err(|_| TenscriptError::FormatError(format!("[{spot}]: Not an int: '{string}'")))
+}
 
-    pub fn parse_float_inside(pair: Pair<Rule>, spot: &str) -> Result<f32, Self> {
-        Self::parse_float(pair.into_inner().next().unwrap().as_str(), spot)
-            .map_err(|error| TenscriptError::FormatError(format!("Not a float pair: [{error}]")))
-    }
+pub fn parse_float_inside(pair: Pair<Rule>, spot: &str) -> Result<f32, TenscriptError> {
+    parse_float(pair.into_inner().next().unwrap().as_str(), spot)
+        .map_err(|error| TenscriptError::FormatError(format!("Not a float pair: [{error}]")))
 }
 
 impl Fabric {
@@ -76,12 +74,20 @@ impl Fabric {
                 continue;
             };
             let contracted = length * muscle_movement.contraction;
-            let reversed =  muscle_movement.reversed_groups.contains(&interval.group);
+            let reversed = muscle_movement.reversed_groups.contains(&interval.group);
             if interval.material == NorthMaterial {
-                interval.span = Muscle { length, contracted, reverse: reversed };
+                interval.span = Muscle {
+                    length,
+                    contracted,
+                    reverse: reversed,
+                };
             }
             if interval.material == SouthMaterial {
-                interval.span = Muscle { length, contracted, reverse: !reversed };
+                interval.span = Muscle {
+                    length,
+                    contracted,
+                    reverse: !reversed,
+                };
             }
         }
     }
@@ -93,7 +99,9 @@ impl Display for TenscriptError {
             TenscriptError::FileReadError(error) => write!(f, "TenscriptError::FileRead: {error}"),
             TenscriptError::PestError(error) => write!(f, "TenscriptError::Pest: {error}"),
             TenscriptError::FormatError(error) => write!(f, "TenscriptError::Format: {error}"),
-            TenscriptError::InvalidError(warning) => write!(f, "TenscriptError::Invalid: {warning}"),
+            TenscriptError::InvalidError(warning) => {
+                write!(f, "TenscriptError::Invalid: {warning}")
+            }
             TenscriptError::FaceAliasError(name) => write!(f, "TenscriptError::FaceAlias: {name}"),
             TenscriptError::MarkError(name) => write!(f, "TenscriptError::Mark: {name}"),
         }
@@ -192,7 +200,7 @@ impl FaceAlias {
         FaceAlias(parts)
     }
 
-    pub fn from_pairs<'a>(pairs: impl IntoIterator<Item=Pair<'a, Rule>>) -> Vec<FaceAlias> {
+    pub fn from_pairs<'a>(pairs: impl IntoIterator<Item = Pair<'a, Rule>>) -> Vec<FaceAlias> {
         pairs.into_iter().map(Self::from_pair).collect()
     }
 }

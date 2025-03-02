@@ -7,7 +7,7 @@ use pest::iterators::Pair;
 use crate::build::tenscript::build_phase::BuildNode;
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeOperation, ShapePhase};
-use crate::build::tenscript::{BuildPhase, Rule, TenscriptError};
+use crate::build::tenscript::{parse_float_inside, BuildPhase, Rule, TenscriptError};
 
 pub const DEFAULT_BUILD_ALTITUDE: f32 = 0.1;
 
@@ -31,7 +31,7 @@ impl FabricPlan {
         let pretense_phase = PretensePhase::from_pair(inner.next().unwrap())?;
         let scale = match inner.next() {
             None => Ok(1.0),
-            Some(pair) => TenscriptError::parse_float_inside(pair, "fabric/scale"),
+            Some(pair) => parse_float_inside(pair, "fabric/scale"),
         }?;
         let plan = FabricPlan {
             name,

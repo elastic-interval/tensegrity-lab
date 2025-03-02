@@ -60,7 +60,10 @@
             (during 15000 (vulcanize))
             (remove-spacers)
             (faces-to-prisms :legs)
-            (faces-to-triangles))
+            (faces-to-triangles)
+            (anchor 188 (surface 0.0 -2351.0))
+            (anchor 190 (surface 0.0 2351.0))
+            )
         (pretense
             (muscle 0.8 10000)
             (surface :frozen))

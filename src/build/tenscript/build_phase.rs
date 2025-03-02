@@ -2,14 +2,14 @@ use std::convert::Into;
 
 use pest::iterators::Pair;
 
-use crate::build::tenscript::{FaceAlias, FaceMark, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::build_phase::BuildNode::*;
 use crate::build::tenscript::build_phase::Launch::*;
-use crate::build::tenscript::Rule;
-use crate::fabric::{Fabric, UniqueId};
+use crate::build::tenscript::{parse_float_inside, parse_usize, Rule};
+use crate::build::tenscript::{FaceAlias, FaceMark, TenscriptError};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::FaceRotation;
+use crate::fabric::{Fabric, UniqueId};
 
 #[derive(Debug, Default, Clone)]
 pub struct Bud {
@@ -125,8 +125,7 @@ impl BuildPhase {
                 for inner_pair in inner {
                     match inner_pair.as_rule() {
                         Rule::scale => {
-                            let parsed_scale =
-                                TenscriptError::parse_float_inside(inner_pair, "grow/scale")?;
+                            let parsed_scale = parse_float_inside(inner_pair, "grow/scale")?;
                             scale = Some(parsed_scale);
                         }
                         Rule::build_node => {
@@ -161,18 +160,21 @@ impl BuildPhase {
                             rotation += 1;
                         }
                         Rule::group => {
-                            let group =
-                                TenscriptError::parse_usize(node_pair.into_inner().next().unwrap().as_str(), "(group ..)")?;
+                            let group = parse_usize(
+                                node_pair.into_inner().next().unwrap().as_str(),
+                                "(group ..)",
+                            )?;
                             mark = Some(group)
                         }
                         Rule::scale => {
-                            let parsed_scale =
-                                TenscriptError::parse_float_inside(node_pair, "branch/scale")?;
+                            let parsed_scale = parse_float_inside(node_pair, "branch/scale")?;
                             scale = Some(parsed_scale);
                         }
                         Rule::seed => {
-                            let index =
-                                TenscriptError::parse_usize(node_pair.into_inner().next().unwrap().as_str(), "(seed ...)")?;
+                            let index = parse_usize(
+                                node_pair.into_inner().next().unwrap().as_str(),
+                                "(seed ...)",
+                            )?;
                             seed = Some(index);
                         }
                         Rule::on_face => {
@@ -316,7 +318,7 @@ impl BuildPhase {
             } => {
                 let face_id = Self::find_launch_face(&launch, &faces, fabric)?;
                 let face_id = face_id.ok_or(TenscriptError::FaceAliasError(
-                    "Unable to find the launch face by id in execute_node".to_string()
+                    "Unable to find the launch face by id in execute_node".to_string(),
                 ))?;
                 let node = post_growth_node.clone().map(|x| *x);
                 buds.push(Bud {
@@ -337,9 +339,7 @@ impl BuildPhase {
                 let launch_face = Self::find_launch_face(&launch, &faces, fabric)?;
                 let base_face = launch_face
                     .map(BaseFace::ExistingFace)
-                    .unwrap_or((*seed)
-                        .map(BaseFace::Seeded)
-                        .unwrap_or(BaseFace::Baseless));
+                    .unwrap_or((*seed).map(BaseFace::Seeded).unwrap_or(BaseFace::Baseless));
                 let (base_face_id, brick_faces) = fabric.create_brick(
                     alias,
                     group.unwrap_or(0),
@@ -383,9 +383,10 @@ impl BuildPhase {
         match launch {
             Scratch => Ok(None),
             NamedFace(face_alias) => match face_alias.find_face_in(faces, fabric) {
-                None => Err(TenscriptError::FaceAliasError(
-                    format!("Unable to find face alias {:?}", face_alias)
-                )),
+                None => Err(TenscriptError::FaceAliasError(format!(
+                    "Unable to find face alias {:?}",
+                    face_alias
+                ))),
                 Some(face_alias) => Ok(Some(face_alias)),
             },
             IdentifiedFace(face_id) => Ok(Some(*face_id)),

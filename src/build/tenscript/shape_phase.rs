@@ -6,7 +6,7 @@ use pest::iterators::Pair;
 
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::shape_phase::ShapeCommand::*;
-use crate::build::tenscript::{FaceAlias, Rule, Spin};
+use crate::build::tenscript::{parse_float, parse_float_inside, parse_usize, FaceAlias, Rule, Spin};
 use crate::build::tenscript::{FaceMark, TenscriptError};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
@@ -43,6 +43,15 @@ pub enum ShapeOperation {
     Spacer {
         mark_name: String,
         distance_factor: f32,
+    },
+    Anchor {
+        joint_index: usize,
+        surface: (f32, f32),
+    },
+    GuyLine {
+        joint_index: usize,
+        length: f32,
+        surface: (f32, f32),
     },
     RemoveSpacers {
         mark_names: Vec<String>,
@@ -98,7 +107,7 @@ impl ShapePhase {
     }
 
     fn parse_shape_operations<'a>(
-        pairs: impl Iterator<Item=Pair<'a, Rule>>,
+        pairs: impl Iterator<Item = Pair<'a, Rule>>,
     ) -> Result<Vec<ShapeOperation>, TenscriptError> {
         pairs.map(Self::parse_shape_operation).collect()
     }
@@ -114,7 +123,7 @@ impl ShapePhase {
                     inner.next().unwrap().as_str(),
                     inner.next().unwrap().as_str(),
                 ];
-                let distance_factor = TenscriptError::parse_float(distance_string, "(space ..)")?;
+                let distance_factor = parse_float(distance_string, "(space ..)")?;
                 Ok(ShapeOperation::Spacer {
                     mark_name: mark_name[1..].into(),
                     distance_factor,
@@ -126,7 +135,7 @@ impl ShapePhase {
                 let seed = match inner.next() {
                     None => None,
                     Some(seed_pair) => {
-                        let index = TenscriptError::parse_usize(
+                        let index = parse_usize(
                             seed_pair.into_inner().next().unwrap().as_str(),
                             "(seed ...)",
                         )?;
@@ -146,8 +155,7 @@ impl ShapePhase {
             }
             Rule::during_count => {
                 let mut inner = pair.into_inner();
-                let count =
-                    TenscriptError::parse_usize(inner.next().unwrap().as_str(), "(during ...)")?;
+                let count = parse_usize(inner.next().unwrap().as_str(), "(during ...)")?;
                 let operations = Self::parse_shape_operations(inner)?;
                 Ok(ShapeOperation::Countdown { count, operations })
             }
@@ -162,17 +170,32 @@ impl ShapePhase {
             }
             Rule::vulcanize => Ok(ShapeOperation::Vulcanize),
             Rule::set_stiffness => {
-                let percent = TenscriptError::parse_float_inside(pair, "(set-stiffness ..)")?;
+                let percent = parse_float_inside(pair, "(set-stiffness ..)")?;
                 Ok(ShapeOperation::SetStiffness(percent))
             }
             Rule::set_drag => {
-                let percent = TenscriptError::parse_float_inside(pair, "(set-drag ..)")?;
+                let percent = parse_float_inside(pair, "(set-drag ..)")?;
                 Ok(ShapeOperation::SetDrag(percent))
             }
             Rule::set_viscosity => {
-                let percent = TenscriptError::parse_float_inside(pair, "(set-viscosity ..)")?;
+                let percent = parse_float_inside(pair, "(set-viscosity ..)")?;
                 Ok(ShapeOperation::SetViscosity(percent))
             }
+            Rule::anchor => {
+                let mut inner = pair.into_inner();
+                // let joint_index = parse_usize(inner.next().unwrap().as_str(), "(anchor ...)")?;
+                Ok(ShapeOperation::Anchor {
+                    // TODO
+                    joint_index: 0,
+                    surface: (0.0, 0.0),
+                })
+            }
+            Rule::guy_line => Ok(ShapeOperation::GuyLine {
+                // TODO
+                joint_index: 0,
+                length: 0.0,
+                surface: (0.0, 0.0),
+            }),
             _ => unreachable!("shape phase: {pair}"),
         }
     }
@@ -440,7 +463,9 @@ impl ShapePhase {
                         self.marks
                             .iter()
                             .filter(|mark| mark.mark_name == mark_name)
-                            .sorted_by(|&mark_a, &mark_b| Ord::cmp(&mark_a.face_id, &mark_b.face_id))
+                            .sorted_by(|&mark_a, &mark_b| {
+                                Ord::cmp(&mark_a.face_id, &mark_b.face_id)
+                            })
                             .for_each(|&FaceMark { face_id, .. }| {
                                 fabric.face_to_prism(face_id);
                                 fabric.remove_face(face_id);
@@ -452,6 +477,26 @@ impl ShapePhase {
             ShapeOperation::SetStiffness(percent) => Stiffness(percent),
             ShapeOperation::SetDrag(percent) => Drag(percent),
             ShapeOperation::SetViscosity(percent) => Viscosity(percent),
+            ShapeOperation::Anchor {
+                joint_index,
+                surface,
+            } => {
+                // let (x, z) = surface;
+                // let base = fabric.create_joint(Point3::new(x, -0.1, z));
+                // fabric.create_interval(joint_index, base, 0.0, PullMaterial, JOINER_GROUP); // todo: should be a joiner of sorts, I think
+                // StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN) // TODO something funny happens here
+                Noop
+            }
+            ShapeOperation::GuyLine {
+                joint_index,
+                length,
+                surface,
+            } => {
+                // let (x, z) = surface;
+                // let base = fabric.create_joint(Point3::new(x, -0.1, z));
+                // fabric.create_interval(joint_index, base, length, PullMaterial, 0);
+                Noop
+            }
         })
     }
 

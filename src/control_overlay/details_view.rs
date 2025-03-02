@@ -1,9 +1,9 @@
-use std::ops::Mul;
 use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
 use crate::messages::ControlState;
 use cgmath::Point3;
 use leptos::{component, view, IntoView, ReadSignal, SignalGet};
+use std::ops::Mul;
 
 #[component]
 pub fn DetailsView(
@@ -51,10 +51,11 @@ pub fn DetailsView(
                     };
                     let joint = move |index| { format!("J{}", index) };
                     let length = move || {
-                        format!(
-                            "{0:.1} mm",
-                            interval_details.length * fabric_stats.get().unwrap().scale,
-                        )
+                        if let Some(stats) = fabric_stats.get() {
+                            format!("{0:.1} mm",interval_details.length * stats.scale)
+                        } else {
+                            "?".to_string()
+                        }
                     };
                     view! {
                         <div>
