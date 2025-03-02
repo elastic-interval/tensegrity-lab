@@ -1,7 +1,7 @@
-use std::collections::HashSet;
 use pest::iterators::{Pair, Pairs};
+use std::collections::HashSet;
 
-use crate::build::tenscript::{Rule, TenscriptError};
+use crate::build::tenscript::{parse_float, parse_float_inside, parse_usize, Rule, TenscriptError};
 use crate::fabric::physics::SurfaceCharacter;
 
 #[derive(Debug, Clone, Default)]
@@ -55,24 +55,28 @@ impl PretensePhase {
                             }
                             Rule::muscle => {
                                 let mut inner = pretense_pair.into_inner();
-                                let contraction = TenscriptError::parse_float(
-                                    inner.next().unwrap().as_str(), "muscle contraction",
+                                let contraction = parse_float(
+                                    inner.next().unwrap().as_str(),
+                                    "muscle contraction",
                                 )?;
-                                let countdown = TenscriptError::parse_usize(
-                                    inner.next().unwrap().as_str(), "muscle countdown",
+                                let countdown = parse_usize(
+                                    inner.next().unwrap().as_str(),
+                                    "muscle countdown",
                                 )?;
                                 let mut reversed_groups = HashSet::new();
                                 for next_pair in inner {
-                                    let group = TenscriptError::parse_usize(next_pair.as_str(), "muscle reversed groups")?;
+                                    let group =
+                                        parse_usize(next_pair.as_str(), "muscle reversed groups")?;
                                     reversed_groups.insert(group);
                                 }
-                                pretense.muscle_movement = Some(MuscleMovement { contraction, countdown, reversed_groups })
+                                pretense.muscle_movement = Some(MuscleMovement {
+                                    contraction,
+                                    countdown,
+                                    reversed_groups,
+                                })
                             }
                             Rule::pretense_factor => {
-                                let factor = TenscriptError::parse_float_inside(
-                                    pretense_pair,
-                                    "pretense-factor",
-                                )?;
+                                let factor = parse_float_inside(pretense_pair, "pretense-factor")?;
                                 pretense.pretense_factor = Some(factor)
                             }
                             _ => unreachable!(),
