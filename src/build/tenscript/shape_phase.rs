@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};
+use itertools::Itertools;
 use pest::iterators::Pair;
 
 use crate::build::tenscript::brick_library::BrickLibrary;
@@ -97,7 +98,7 @@ impl ShapePhase {
     }
 
     fn parse_shape_operations<'a>(
-        pairs: impl Iterator<Item = Pair<'a, Rule>>,
+        pairs: impl Iterator<Item=Pair<'a, Rule>>,
     ) -> Result<Vec<ShapeOperation>, TenscriptError> {
         pairs.map(Self::parse_shape_operation).collect()
     }
@@ -436,10 +437,14 @@ impl ShapePhase {
                     }
                 } else {
                     for mark_name in mark_names {
-                        for FaceMark{ face_id,..} in self.marks.iter().filter(|mark|mark.mark_name == mark_name) {
-                            fabric.face_to_prism(*face_id);
-                            fabric.remove_face(*face_id);
-                        }
+                        self.marks
+                            .iter()
+                            .filter(|mark| mark.mark_name == mark_name)
+                            .sorted_by(|&mark_a, &mark_b| Ord::cmp(&mark_a.face_id, &mark_b.face_id))
+                            .for_each(|&FaceMark { face_id, .. }| {
+                                fabric.face_to_prism(face_id);
+                                fabric.remove_face(face_id);
+                            });
                     }
                 }
                 Noop

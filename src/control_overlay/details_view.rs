@@ -1,24 +1,23 @@
+use std::ops::Mul;
 use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
-use crate::messages::{ControlState, JointDetails};
-use leptos::{
-    component, create_effect, create_signal, view, IntoView, ReadSignal, SignalGet, SignalSet,
-};
+use crate::messages::ControlState;
+use cgmath::Point3;
+use leptos::{component, view, IntoView, ReadSignal, SignalGet};
 
 #[component]
 pub fn DetailsView(
     control_state: ReadSignal<ControlState>,
     fabric_stats: ReadSignal<Option<FabricStats>>,
 ) -> impl IntoView {
-    let (joint_height, set_joint_height) = create_signal(1f32);
-
-    create_effect(move |_| {
-        if let ControlState::ShowingJoint(JointDetails { height, .. }) = control_state.get() {
-            if let Some(FabricStats { scale, .. }) = fabric_stats.get() {
-                set_joint_height.set(height * scale)
-            }
+    let location_format = move |location: Point3<f32>| {
+        if let Some(FabricStats { scale, .. }) = fabric_stats.get() {
+            let Point3 { x, y, z } = location.mul(scale);
+            format!("({x:.0}mm, {y:.0}mm, {z:.0}mm)")
+        } else {
+            "?".to_string()
         }
-    });
+    };
     view! {
         <div class="top-right rounded">
             {move || match control_state.get() {
@@ -36,7 +35,7 @@ pub fn DetailsView(
                                 "Joint "<b>{move || format!("\"J{}\"", joint_details.index + 1)}</b>
                             </p>
                             <p>
-                                "Height: "<b>{move || format!("{0:.0} mm", joint_height.get())}</b>
+                                "Location: "<b>{location_format(joint_details.location)}</b>
                             </p>
                             <p>
                                 "Click an interval for details, or right-click for an adjacent joint."
