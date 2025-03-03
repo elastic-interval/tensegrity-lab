@@ -183,10 +183,10 @@ impl ShapePhase {
             }
             Rule::anchor => {
                 let mut inner = pair.into_inner();
-                // let joint_index = parse_usize(inner.next().unwrap().as_str(), "(anchor ...)")?;
+                let joint_index = parse_usize(inner.next().unwrap().as_str(), "(anchor ...)")?;
                 Ok(ShapeOperation::Anchor {
                     // TODO
-                    joint_index: 0,
+                    joint_index,
                     surface: (0.0, 0.0),
                 })
             }
@@ -477,9 +477,9 @@ impl ShapePhase {
             ShapeOperation::SetStiffness(percent) => Stiffness(percent),
             ShapeOperation::SetDrag(percent) => Drag(percent),
             ShapeOperation::SetViscosity(percent) => Viscosity(percent),
-            ShapeOperation::Anchor {
-                joint_index,
-                surface,
+            ShapeOperation::Anchor {..
+                // joint_index,
+                // surface,
             } => {
                 // let (x, z) = surface;
                 // let base = fabric.create_joint(Point3::new(x, -0.1, z));
@@ -487,10 +487,10 @@ impl ShapePhase {
                 // StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN) // TODO something funny happens here
                 Noop
             }
-            ShapeOperation::GuyLine {
-                joint_index,
-                length,
-                surface,
+            ShapeOperation::GuyLine {..
+                // joint_index,
+                // length,
+                // surface,
             } => {
                 // let (x, z) = surface;
                 // let base = fabric.create_joint(Point3::new(x, -0.1, z));
