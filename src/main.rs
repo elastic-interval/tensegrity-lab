@@ -2,6 +2,7 @@ use std::error::Error;
 
 use clap::Parser;
 #[allow(unused_imports)]
+#[cfg(target_arch = "wasm32")]
 use leptos::*;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -9,10 +10,9 @@ use winit::dpi::PhysicalSize;
 use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
 
-use crate::RunStyle::{FabricName, Seeded, Online, Prototype};
-use tensegrity_lab::application::Application;
-use tensegrity_lab::fabric::FabricStats;
-use tensegrity_lab::messages::{ControlState, LabEvent};
+use crate::RunStyle::{FabricName, Online, Prototype, Seeded};
+use tensegrity_lab::application::{AppChange, Application};
+use tensegrity_lab::messages::LabEvent;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -75,10 +75,17 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
         .with_title("Tensegrity Lab")
         .with_inner_size(PhysicalSize::new(1600, 1200));
 
+    #[cfg(target_arch = "wasm32")]
+    use tensegrity_lab::messages::ControlState;
+    #[cfg(target_arch = "wasm32")]
     #[allow(unused_variables)]
     let (control_state, set_control_state) = create_signal(ControlState::default());
+    #[cfg(target_arch = "wasm32")]
     #[allow(unused_variables)]
     let (lab_control, set_lab_control) = create_signal(false);
+    #[cfg(target_arch = "wasm32")]
+    use tensegrity_lab::fabric::FabricStats;
+    #[cfg(target_arch = "wasm32")]
     #[allow(unused_variables)]
     let (fabric_stats, set_fabric_stats) = create_signal::<Option<FabricStats>>(None);
 
@@ -123,13 +130,31 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
     }
 
     let proxy = event_loop_proxy.clone();
-    let mut app = match Application::new(
-        window_attributes,
-        set_control_state,
-        set_lab_control,
-        set_fabric_stats,
-        proxy,
-    ) {
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn app_change(app_change: AppChange) {
+        match app_change {
+            AppChange::SetControlState(_) => {}
+            AppChange::SetLabControl(_) => {}
+            AppChange::SetFabricStats(_) => {}
+        }
+    }
+    #[cfg(target_arch = "wasm32")]
+    fn app_change(app_change: AppChange) {
+        match app_change {
+            AppChange::SetControlState(_control_state) => {
+                // set_control_state.set(_control_state);
+            }
+            AppChange::SetLabControl(_lab_control) => {
+                // set_lab_control.set(lab_control);
+            }
+            AppChange::SetFabricStats(_fabric_stats) => {
+                // set_fabric_stats.set(fabric_stats);
+            }
+        }
+    }
+
+    let mut app: Application = match Application::new(window_attributes, app_change, proxy) {
         Ok(app) => app,
         Err(error) => panic!("Tenscript Error: [{:?}]", error),
     };
