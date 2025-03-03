@@ -5,26 +5,25 @@ authors = ["Gerald de Jong <geralddejong@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-bytemuck = { version = "1.4", features = ["derive"] }
+bytemuck = { version = "1.21.0", features = ["derive"] }
 cfg-if = "1.0.0"
 cgmath = "0.18.0"
-clap = { version = "4.4.12", features = ["derive"] }
+clap = { version = "4.5.30", features = ["derive"] }
 fast_inv_sqrt = "~1.0"
 futures = "0.3.30"
 itertools = "0.14.0"
-log = "0.4.20"
+log = "0.4.26"
 pest = "2.7.15"
 pest_derive = "2.7.15"
 rand = "0.8.5"
-wgpu = "22.1.0"
 winit = { version = "0.30.5", features = ["rwh_04"] }
-web-sys = "0.3.70"
 rand_chacha = "0.3.1"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tracing-subscriber = "0.3"
 env_logger = "0.11.3"
+wgpu = "22.1.0"
 
 # web:
 [target.'cfg(target_arch = "wasm32")'.dependencies]
