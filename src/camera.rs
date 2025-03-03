@@ -28,6 +28,7 @@ pub enum Pick {
 }
 
 pub enum Shot {
+    NoPick,
     Joint,
     Interval,
 }
@@ -164,6 +165,9 @@ impl Camera {
             .transform_point(position);
         let ray = (point3d - self.position).normalize();
         match shot {
+            Shot::NoPick => {
+                Pick::Nothing
+            }
             Shot::Joint => {
                 match self.current_pick {
                     Pick::Nothing => {
