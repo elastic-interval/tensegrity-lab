@@ -1,21 +1,23 @@
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use winit::application::ApplicationHandler;
-use winit::event::{KeyEvent, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
-use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::{WindowAttributes, WindowId};
-use crate::application::AppChange::{SetFabricStats, SetLabControl};
-use crate::build::tenscript::{FabricPlan, TenscriptError};
+use crate::application::OverlayChange::{SetFabricStats, SetLabControl};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
+use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::camera::Pick;
+#[cfg(target_arch = "wasm32")]
+use crate::control_overlay::OverlayState;
 use crate::crucible::{Crucible, CrucibleAction, LabAction};
 use crate::fabric::FabricStats;
 use crate::messages::{ControlState, LabEvent};
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
+use winit::application::ApplicationHandler;
+use winit::event::{KeyEvent, WindowEvent};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
+use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::window::{WindowAttributes, WindowId};
 
 pub struct Application {
     window_attributes: WindowAttributes,
@@ -26,12 +28,14 @@ pub struct Application {
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
     brick_library: BrickLibrary,
-    app_change: fn(AppChange),
+    #[cfg(target_arch = "wasm32")]
+    overlay_state: OverlayState,
     event_loop_proxy: EventLoopProxy<LabEvent>,
     fabric_alive: bool,
 }
 
-pub enum AppChange {
+#[derive(Clone, Debug)]
+pub enum OverlayChange {
     SetControlState(ControlState),
     SetLabControl(bool),
     SetFabricStats(Option<FabricStats>),
@@ -40,7 +44,7 @@ pub enum AppChange {
 impl Application {
     pub fn new(
         window_attributes: WindowAttributes,
-        app_change: fn(AppChange),
+        #[cfg(target_arch = "wasm32")] overlay_state: OverlayState,
         event_loop_proxy: EventLoopProxy<LabEvent>,
     ) -> Result<Application, TenscriptError> {
         let brick_library = BrickLibrary::from_source()?;
@@ -52,7 +56,8 @@ impl Application {
             fabric_plan_name: "Halo by Crane".into(),
             brick_library,
             fabric_library,
-            app_change,
+            #[cfg(target_arch = "wasm32")]
+            overlay_state,
             event_loop_proxy,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
@@ -64,7 +69,11 @@ impl Application {
         if !key_event.state.is_pressed() {
             return;
         }
-        if let KeyEvent { physical_key: PhysicalKey::Code(code), .. } = key_event {
+        if let KeyEvent {
+            physical_key: PhysicalKey::Code(code),
+            ..
+        } = key_event
+        {
             if code == KeyCode::Escape {
                 if let Some(scene) = &mut self.scene {
                     scene.reset();
@@ -82,7 +91,9 @@ impl Application {
         } else {
             self.get_fabric_plan(self.fabric_plan_name.clone()).ok()
         };
-        self.event_loop_proxy.send_event(LabEvent::Crucible(CrucibleAction::BuildFabric(fabric_plan))).unwrap();
+        self.event_loop_proxy
+            .send_event(LabEvent::Crucible(CrucibleAction::BuildFabric(fabric_plan)))
+            .unwrap();
     }
 
     fn redraw(&mut self) {
@@ -127,7 +138,11 @@ impl Application {
 
 impl ApplicationHandler<LabEvent> for Application {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let window = Arc::new(event_loop.create_window(self.window_attributes.clone()).unwrap());
+        let window = Arc::new(
+            event_loop
+                .create_window(self.window_attributes.clone())
+                .unwrap(),
+        );
         let event_loop_proxy = self.event_loop_proxy.clone();
         Wgpu::create_and_send(window, event_loop_proxy);
     }
@@ -135,7 +150,8 @@ impl ApplicationHandler<LabEvent> for Application {
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
         match event {
             LabEvent::ContextCreated(wgpu) => {
-                self.scene = Some(Scene::new(wgpu, self.app_change));
+                let proxy = self.event_loop_proxy.clone();
+                self.scene = Some(Scene::new(wgpu, proxy));
             }
             LabEvent::LoadFabric(fabric_plan_name) => {
                 self.fabric_plan_name = fabric_plan_name.clone();
@@ -143,13 +159,18 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.fabric_alive = !self.fabric_plan_name.is_empty();
             }
             LabEvent::FabricBuilt(fabric_stats) => {
-                (self.app_change)(SetFabricStats(Some(fabric_stats)));
+                self.event_loop_proxy
+                    .send_event(LabEvent::OverlayChanged(SetFabricStats(Some(fabric_stats))))
+                    .unwrap();
             }
             LabEvent::Crucible(crucible_action) => {
                 match &crucible_action {
                     CrucibleAction::BuildFabric(fabric_plan) => {
                         if let Some(fabric_plan) = fabric_plan {
-                            (self.app_change)(SetLabControl(fabric_plan.pretense_phase.muscle_movement.is_some()));
+                            let movement = fabric_plan.pretense_phase.muscle_movement.is_some();
+                            self.event_loop_proxy
+                                .send_event(LabEvent::OverlayChanged(SetLabControl(movement)))
+                                .unwrap();
                         }
                         if let Some(scene) = &mut self.scene {
                             scene.reset();
@@ -188,17 +209,27 @@ impl ApplicationHandler<LabEvent> for Application {
                     .clone();
                 self.crucible.action(CrucibleAction::BakeBrick(prototype));
             }
-            LabEvent::EvolveFromSeed(seed) => {
-                self.crucible.action(CrucibleAction::Evolve(seed))
+            LabEvent::EvolveFromSeed(seed) => self.crucible.action(CrucibleAction::Evolve(seed)),
+            LabEvent::OverlayChanged(app_change) => {
+                println!("Overlay changed {:?}", app_change);
+                #[cfg(target_arch = "wasm32")]
+                self.overlay_state.change_happened(app_change);
             }
         }
     }
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
+    fn window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        _window_id: WindowId,
+        event: WindowEvent,
+    ) {
         if let Some(scene) = &mut self.scene {
             match event {
                 WindowEvent::CloseRequested => event_loop.exit(),
-                WindowEvent::KeyboardInput { event: key_event, .. } => self.handle_key_event(key_event),
+                WindowEvent::KeyboardInput {
+                    event: key_event, ..
+                } => self.handle_key_event(key_event),
                 WindowEvent::CursorMoved { position, .. } => scene.camera().cursor_moved(position),
                 WindowEvent::MouseInput { state, button, .. } => {
                     if let Some(scene) = &mut self.scene {
@@ -221,7 +252,7 @@ impl ApplicationHandler<LabEvent> for Application {
                         scene.resize(physical_size)
                     }
                 }
-                _ => {},
+                _ => {}
             }
         }
     }

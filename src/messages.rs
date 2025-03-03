@@ -1,5 +1,6 @@
 use std::time::SystemTime;
 use cgmath::Point3;
+use crate::application::OverlayChange;
 use crate::crucible::CrucibleAction;
 use crate::fabric::FabricStats;
 use crate::fabric::interval::Role;
@@ -56,4 +57,5 @@ pub enum LabEvent {
     CapturePrototype(usize),
     EvolveFromSeed(u64),
     FabricBuilt(FabricStats),
+    OverlayChanged(OverlayChange),
 }
