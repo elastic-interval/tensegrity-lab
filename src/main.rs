@@ -11,7 +11,7 @@ use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
 
 use crate::RunStyle::{FabricName, Online, Prototype, Seeded};
-use tensegrity_lab::application::{AppChange, Application};
+use tensegrity_lab::application::Application;
 use tensegrity_lab::messages::LabEvent;
 
 #[derive(Parser, Debug)]
@@ -51,11 +51,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     run_with(run_style)
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
-pub fn run() {
-    run_with(Online).unwrap();
-}
-
 fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
     cfg_if::cfg_if! {
         if #[cfg(target_arch = "wasm32")] {
@@ -76,18 +71,9 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
         .with_inner_size(PhysicalSize::new(1600, 1200));
 
     #[cfg(target_arch = "wasm32")]
-    use tensegrity_lab::messages::ControlState;
+    use tensegrity_lab::control_overlay::OverlayState;
     #[cfg(target_arch = "wasm32")]
-    #[allow(unused_variables)]
-    let (control_state, set_control_state) = create_signal(ControlState::default());
-    #[cfg(target_arch = "wasm32")]
-    #[allow(unused_variables)]
-    let (lab_control, set_lab_control) = create_signal(false);
-    #[cfg(target_arch = "wasm32")]
-    use tensegrity_lab::fabric::FabricStats;
-    #[cfg(target_arch = "wasm32")]
-    #[allow(unused_variables)]
-    let (fabric_stats, set_fabric_stats) = create_signal::<Option<FabricStats>>(None);
+    let overlay_state = OverlayState::default();
 
     #[cfg(target_arch = "wasm32")]
     {
@@ -108,9 +94,9 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
             view! {
                 <ControlOverlayApp
                     fabric_list={FabricLibrary::from_source().unwrap().fabric_list()}
-                    control_state={control_state}
-                    lab_control=lab_control
-                    fabric_stats=fabric_stats
+                    control_state={overlay_state.control_state}
+                    lab_control={overlay_state.lab_control}
+                    fabric_stats={overlay_state.fabric_stats}
                     event_loop_proxy={overlay_proxy}/>
             }
         });
@@ -131,30 +117,12 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
 
     let proxy = event_loop_proxy.clone();
 
-    #[cfg(not(target_arch = "wasm32"))]
-    fn app_change(app_change: AppChange) {
-        match app_change {
-            AppChange::SetControlState(_) => {}
-            AppChange::SetLabControl(_) => {}
-            AppChange::SetFabricStats(_) => {}
-        }
-    }
-    #[cfg(target_arch = "wasm32")]
-    fn app_change(app_change: AppChange) {
-        match app_change {
-            AppChange::SetControlState(_control_state) => {
-                // set_control_state.set(_control_state);
-            }
-            AppChange::SetLabControl(_lab_control) => {
-                // set_lab_control.set(lab_control);
-            }
-            AppChange::SetFabricStats(_fabric_stats) => {
-                // set_fabric_stats.set(fabric_stats);
-            }
-        }
-    }
-
-    let mut app: Application = match Application::new(window_attributes, app_change, proxy) {
+    let mut app: Application = match Application::new(
+        window_attributes,
+        #[cfg(target_arch = "wasm32")]
+        overlay_state,
+        proxy
+    ) {
         Ok(app) => app,
         Err(error) => panic!("Tenscript Error: [{:?}]", error),
     };
@@ -178,4 +146,9 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
     }
     event_loop.run_app(&mut app)?;
     Ok(())
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
+pub fn run() {
+    run_with(Online).unwrap();
 }
