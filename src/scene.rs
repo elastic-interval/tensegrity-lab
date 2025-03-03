@@ -18,11 +18,11 @@ pub struct Scene {
     camera: Camera,
     fabric_drawing: Drawing<FabricVertex>,
     surface_drawing: Drawing<SurfaceVertex>,
-    external_change: fn(AppChange),
+    app_change: fn(AppChange),
 }
 
 impl Scene {
-    pub fn new(wgpu: Wgpu, external_chage: fn(AppChange)) -> Self {
+    pub fn new(wgpu: Wgpu, app_change: fn(AppChange)) -> Self {
         let camera = wgpu.create_camera();
         let fabric_drawing = wgpu.create_fabric_drawing();
         let surface_drawing = wgpu.create_surface_drawing();
@@ -31,7 +31,7 @@ impl Scene {
             camera,
             fabric_drawing,
             surface_drawing,
-            external_change: external_chage,
+            app_change,
         }
     }
 
@@ -111,12 +111,12 @@ impl Scene {
         match pick {
             Pick::Nothing => {
                 self.camera.set_target(FabricMidpoint);
-                (self.external_change)(SetControlState(ControlState::Viewing));
+                (self.app_change)(SetControlState(ControlState::Viewing));
             }
             Pick::Joint { index, joint } => {
                 self.camera.set_target(AroundJoint(index));
                 let location = joint.location;
-                (self.external_change)(SetControlState(ControlState::ShowingJoint(JointDetails { index, location })));
+                (self.app_change)(SetControlState(ControlState::ShowingJoint(JointDetails { index, location })));
             }
             Pick::Interval { joint, id, interval, length } => {
                 self.camera.set_target(AroundInterval(id));
@@ -124,7 +124,7 @@ impl Scene {
                 let near_joint = if interval.alpha_index == joint { interval.alpha_index } else { interval.omega_index };
                 let far_joint = if interval.omega_index == joint { interval.alpha_index } else { interval.omega_index };
                 let interval_details = IntervalDetails { near_joint, far_joint, length, role };
-                (self.external_change)(SetControlState(ControlState::ShowingInterval(interval_details)));
+                (self.app_change)(SetControlState(ControlState::ShowingInterval(interval_details)));
             }
         }
     }
