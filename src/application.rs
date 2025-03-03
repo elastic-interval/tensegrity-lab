@@ -1,13 +1,12 @@
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use leptos::{SignalSet, WriteSignal};
 use winit::application::ApplicationHandler;
 use winit::event::{KeyEvent, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{WindowAttributes, WindowId};
-
+use crate::application::AppChange::{SetFabricStats, SetLabControl};
 use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
@@ -27,19 +26,21 @@ pub struct Application {
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
     brick_library: BrickLibrary,
-    set_control_state: WriteSignal<ControlState>,
-    set_lab_control: WriteSignal<bool>,
-    set_fabric_stats: WriteSignal<Option<FabricStats>>,
+    app_change: fn(AppChange),
     event_loop_proxy: EventLoopProxy<LabEvent>,
     fabric_alive: bool,
+}
+
+pub enum AppChange {
+    SetControlState(ControlState),
+    SetLabControl(bool),
+    SetFabricStats(Option<FabricStats>),
 }
 
 impl Application {
     pub fn new(
         window_attributes: WindowAttributes,
-        set_control_state: WriteSignal<ControlState>,
-        set_lab_control: WriteSignal<bool>,
-        set_fabric_stats: WriteSignal<Option<FabricStats>>,
+        app_change: fn(AppChange),
         event_loop_proxy: EventLoopProxy<LabEvent>,
     ) -> Result<Application, TenscriptError> {
         let brick_library = BrickLibrary::from_source()?;
@@ -51,9 +52,7 @@ impl Application {
             fabric_plan_name: "Halo by Crane".into(),
             brick_library,
             fabric_library,
-            set_control_state,
-            set_lab_control,
-            set_fabric_stats,
+            app_change,
             event_loop_proxy,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
@@ -136,7 +135,7 @@ impl ApplicationHandler<LabEvent> for Application {
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
         match event {
             LabEvent::ContextCreated(wgpu) => {
-                self.scene = Some(Scene::new(wgpu, self.set_control_state));
+                self.scene = Some(Scene::new(wgpu, self.app_change));
             }
             LabEvent::LoadFabric(fabric_plan_name) => {
                 self.fabric_plan_name = fabric_plan_name.clone();
@@ -144,13 +143,13 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.fabric_alive = !self.fabric_plan_name.is_empty();
             }
             LabEvent::FabricBuilt(fabric_stats) => {
-                self.set_fabric_stats.set(Some(fabric_stats));
+                (self.app_change)(SetFabricStats(Some(fabric_stats)));
             }
             LabEvent::Crucible(crucible_action) => {
                 match &crucible_action {
                     CrucibleAction::BuildFabric(fabric_plan) => {
                         if let Some(fabric_plan) = fabric_plan {
-                            self.set_lab_control.set(fabric_plan.pretense_phase.muscle_movement.is_some());
+                            (self.app_change)(SetLabControl(fabric_plan.pretense_phase.muscle_movement.is_some()));
                         }
                         if let Some(scene) = &mut self.scene {
                             scene.reset();
