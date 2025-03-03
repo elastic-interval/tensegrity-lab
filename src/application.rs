@@ -32,6 +32,7 @@ pub struct Application {
     overlay_state: OverlayState,
     event_loop_proxy: EventLoopProxy<LabEvent>,
     fabric_alive: bool,
+    pick_active: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -62,6 +63,7 @@ impl Application {
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
             fabric_alive: true,
+            pick_active: false,
         })
     }
 
@@ -162,6 +164,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.event_loop_proxy
                     .send_event(LabEvent::OverlayChanged(SetFabricStats(Some(fabric_stats))))
                     .unwrap();
+                self.pick_active = true;
             }
             LabEvent::Crucible(crucible_action) => {
                 match &crucible_action {
@@ -233,7 +236,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 WindowEvent::CursorMoved { position, .. } => scene.camera().cursor_moved(position),
                 WindowEvent::MouseInput { state, button, .. } => {
                     if let Some(scene) = &mut self.scene {
-                        scene.mouse_input(state, button, self.crucible.fabric());
+                        scene.mouse_input(state, button, self.pick_active, self.crucible.fabric());
                     }
                 }
                 WindowEvent::MouseWheel { delta, .. } => scene.camera().mouse_wheel(delta),

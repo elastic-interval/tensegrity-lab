@@ -35,7 +35,7 @@ p {
     position: absolute;
     top: 2em;
     right: 2em;
-    width: 16em;
+    width: 20em;
     font-size: large;
     flex-direction: column;
     display: flex;

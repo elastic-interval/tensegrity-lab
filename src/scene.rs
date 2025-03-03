@@ -96,13 +96,25 @@ impl Scene {
         self.camera.set_size(width as f32, height as f32);
     }
 
-    pub fn mouse_input(&mut self, state: ElementState, button: MouseButton, fabric: &Fabric) {
-        let shot = match button {
-            MouseButton::Right => Shot::Joint,
-            _ => Shot::Interval,
+    pub fn mouse_input(
+        &mut self,
+        state: ElementState,
+        button: MouseButton,
+        pick_active: bool,
+        fabric: &Fabric,
+    ) {
+        let shot = if pick_active {
+            match button {
+                MouseButton::Right => Shot::Joint,
+                _ => Shot::Interval,
+            }
+        } else {
+            Shot::NoPick
         };
         if let Some(pick) = self.camera.mouse_input(state, shot, fabric) {
-            self.camera_pick(pick);
+            if pick_active {
+                self.camera_pick(pick);
+            }
         }
     }
 
