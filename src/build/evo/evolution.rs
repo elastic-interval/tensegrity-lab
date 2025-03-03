@@ -3,8 +3,9 @@ use crate::fabric::interval::End;
 use crate::fabric::physics::presets::LIQUID;
 use crate::fabric::Fabric;
 use cgmath::{InnerSpace, Vector3};
-use rand::{Rng, RngCore, SeedableRng};
+use rand::Rng;
 use rand_chacha::ChaCha8Rng;
+use rand_chacha::rand_core::{RngCore, SeedableRng};
 
 const DELAY: usize = 300;
 
