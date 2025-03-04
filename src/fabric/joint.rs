@@ -17,6 +17,14 @@ impl Fabric {
         index
     }
 
+    pub fn create_fixed_joint(&mut self, point: Point3<f32>) -> usize {
+        let index = self.joints.len();
+        let mut joint = Joint::new(point);
+        joint.fixed = true;
+        self.joints.push(joint);
+        index
+    }
+
     pub fn location(&self, index: usize) -> Point3<f32> {
         self.joints[index].location
     }
@@ -49,6 +57,7 @@ pub struct Joint {
     pub force: Vector3<f32>,
     pub velocity: Vector3<f32>,
     pub interval_mass: f32,
+    pub fixed: bool,
 }
 
 impl Joint {
@@ -58,6 +67,7 @@ impl Joint {
             force: zero(),
             velocity: zero(),
             interval_mass: AMBIENT_MASS,
+            fixed: false,
         }
     }
 
@@ -77,6 +87,9 @@ impl Joint {
             ..
         }: &Physics,
     ) -> f32 {
+        if self.fixed {
+            return 0.0;
+        }
         let altitude = self.location.y;
         let speed_squared = self.velocity.magnitude2();
         if speed_squared > 0.01 {

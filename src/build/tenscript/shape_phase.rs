@@ -11,15 +11,13 @@ use crate::build::tenscript::{
 use crate::build::tenscript::{FaceMark, TenscriptError};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
-use crate::fabric::material::Material::PullMaterial;
+use crate::fabric::material::Material::{GuyWireMaterial, PullMaterial};
 use crate::fabric::{Fabric, UniqueId};
 
 const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 25_000;
 const DEFAULT_VULCANIZE_COUNTDOWN: usize = 5_000;
 const DEFAULT_PRISM_COUNTDOWN: usize = 5_000;
 const DEFAULT_JOINER_COUNTDOWN: usize = 30_000;
-
-const SUB_SURFACE_Y: f32 = -0.1;
 
 #[derive(Debug)]
 pub enum ShapeCommand {
@@ -411,7 +409,7 @@ impl ShapePhase {
                     .normalize();
                 let quaternion = Quaternion::from_arc(down, -Vector3::unit_y(), None);
                 fabric.apply_matrix4(Matrix4::from(quaternion));
-                fabric.centralize();
+                fabric.centralize(Some(0.0));
                 Noop
             }
             ShapeOperation::Spacer {
@@ -495,8 +493,8 @@ impl ShapePhase {
                 surface,
             } => {
                 let (x, z) = surface;
-                let base = fabric.create_joint(Point3::new(x, SUB_SURFACE_Y, z));
-                let interval = fabric.create_interval(joint_index, base, 0.1, PullMaterial);
+                let base = fabric.create_fixed_joint(Point3::new(x, 0.0, z));
+                let interval = fabric.create_interval(joint_index, base, 0.01, PullMaterial);
                 self.shape_intervals
                     .push(ShapeInterval::SurfaceAnchor { interval });
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
@@ -507,8 +505,8 @@ impl ShapePhase {
                 surface,
             } => {
                 let (x, z) = surface;
-                let base = fabric.create_joint(Point3::new(x, SUB_SURFACE_Y, z));
-                fabric.create_interval(joint_index, base, length, PullMaterial);
+                let base = fabric.create_fixed_joint(Point3::new(x, 0.0, z));
+                fabric.create_interval(joint_index, base, length, GuyWireMaterial);
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
         })
@@ -560,8 +558,9 @@ impl ShapePhase {
             .cloned()
             .filter(|shape_interval| {
                 if let ShapeInterval::SurfaceAnchor { interval } = shape_interval {
+                    let omega_id = fabric.interval(*interval).omega_index;
                     fabric.remove_interval(*interval);
-                    fabric.remove_joint(fabric.interval(*interval).omega_index);
+                    fabric.remove_joint(omega_id);
                     false // discard
                 } else {
                     true

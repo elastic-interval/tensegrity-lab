@@ -13,7 +13,7 @@ use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push, Spring};
 use crate::fabric::interval::Span::{Approaching, Fixed};
 use crate::fabric::joint::Joint;
-use crate::fabric::material::{interval_material, IntervalMaterial};
+use crate::fabric::material::{interval_material, IntervalMaterial, Material};
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
 
@@ -84,7 +84,6 @@ pub struct Fabric {
     pub joints: Vec<Joint>,
     pub intervals: HashMap<UniqueId, Interval>,
     pub faces: HashMap<UniqueId, Face>,
-    pub altitude: Option<f32>,
     pub scale: f32,
     unique_id: usize,
 }
@@ -98,7 +97,6 @@ impl Default for Fabric {
             joints: Vec::new(),
             intervals: HashMap::new(),
             faces: HashMap::new(),
-            altitude: None,
             scale: 1.0,
             unique_id: 0,
         }
@@ -113,7 +111,7 @@ impl Fabric {
         }
     }
 
-    pub fn centralize(&mut self) {
+    pub fn centralize(&mut self, altitude: Option<f32>) {
         let mut midpoint: Vector3<f32> = zero();
         for joint in self.joints.iter() {
             midpoint += joint.location.to_vec();
@@ -123,25 +121,39 @@ impl Fabric {
         for joint in self.joints.iter_mut() {
             joint.location -= midpoint;
         }
+        if let Some(altitude) = altitude {
+            let min_y = self
+                .joints
+                .iter()
+                .map(|Joint { location, .. }| location.y)
+                .min_by(|a, b| a.partial_cmp(b).unwrap());
+            if let Some(min_y) = min_y {
+                for joint in &mut self.joints {
+                    joint.location.y -= min_y - altitude;
+                }
+            }
+        }
     }
 
     pub fn prepare_for_pretensing(&mut self, push_extension: f32) {
         for interval in self.intervals.values_mut() {
-            let length = interval.fast_length(&self.joints);
-            let IntervalMaterial { role, .. } = interval_material(interval.material);
-            interval.span = match role {
-                Push => Approaching {
-                    initial: length,
-                    length: length * push_extension,
-                },
-                Pull | Spring => Fixed { length },
-            };
+            if !matches!(interval.material, Material::GuyWireMaterial) {
+                let length = interval.fast_length(&self.joints);
+                let IntervalMaterial { role, .. } = interval_material(interval.material);
+                interval.span = match role {
+                    Push => Approaching {
+                        initial: length,
+                        length: length * push_extension,
+                    },
+                    Pull | Spring => Fixed { length },
+                };
+            }
         }
         for joint in self.joints.iter_mut() {
             joint.force = zero();
             joint.velocity = zero();
         }
-        self.centralize();
+        self.centralize(None);
     }
 
     pub fn iterate(&mut self, physics: &Physics) -> f32 {
@@ -161,18 +173,6 @@ impl Fabric {
             let speed_squared = joint.iterate(physics);
             if speed_squared > max_speed_squared {
                 max_speed_squared = speed_squared;
-            }
-        }
-        if let Some(altitude) = self.altitude {
-            let min_y = self
-                .joints
-                .iter()
-                .map(|Joint { location, .. }| location.y)
-                .min_by(|a, b| a.partial_cmp(b).unwrap());
-            if let Some(min_y) = min_y {
-                for joint in &mut self.joints {
-                    joint.location.y -= min_y - altitude;
-                }
             }
         }
         if self.progress.step() {

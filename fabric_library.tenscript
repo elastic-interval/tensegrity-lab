@@ -61,6 +61,12 @@
             (remove-spacers)
             (faces-to-prisms :legs)
             (faces-to-triangles)
+            (anchor 187 (surface 0.0 -6.0))
+            (anchor 189 (surface 0.0 6.0))
+            (guy-line 22 12.5 (surface -6.0 -8.0))
+            (guy-line 24 12.5 (surface -6.0 8.0))
+            (guy-line 12 16.5 (surface 7.0 -10.0))
+            (guy-line 10 16.5 (surface 7.0 10.0))
             )
         (pretense
             (muscle 0.8 10000)
