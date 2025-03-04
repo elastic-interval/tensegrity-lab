@@ -61,8 +61,8 @@
             (remove-spacers)
             (faces-to-prisms :legs)
             (faces-to-triangles)
-            (anchor 188 (surface 0.0 -2351.0))
-            (anchor 190 (surface 0.0 2351.0))
+            (anchor 187 (surface 1.694 -4.670))
+            (anchor 189 (surface 1.694 4.670))
             )
         (pretense
             (muscle 0.8 10000)

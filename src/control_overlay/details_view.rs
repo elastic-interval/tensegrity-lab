@@ -11,12 +11,8 @@ pub fn DetailsView(
     fabric_stats: ReadSignal<Option<FabricStats>>,
 ) -> impl IntoView {
     let location_format = move |location: Point3<f32>| {
-        if let Some(FabricStats { scale, .. }) = fabric_stats.get() {
-            let Point3 { x, y, z } = location.mul(scale);
-            format!("({x:.0}mm, {y:.0}mm, {z:.0}mm)")
-        } else {
-            "?".to_string()
-        }
+        let Point3 { x, y, z } = location;
+        format!("({x:.3}, {y:.3}, {z:.3})")
     };
     view! {
         <div class="top-right rounded">

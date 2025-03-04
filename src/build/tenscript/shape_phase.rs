@@ -1,12 +1,13 @@
-use std::cmp::Ordering;
-
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};
 use itertools::Itertools;
 use pest::iterators::Pair;
+use std::cmp::Ordering;
 
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::shape_phase::ShapeCommand::*;
-use crate::build::tenscript::{parse_float, parse_float_inside, parse_usize, FaceAlias, Rule, Spin};
+use crate::build::tenscript::{
+    parse_float, parse_float_inside, parse_usize, FaceAlias, Rule, Spin,
+};
 use crate::build::tenscript::{FaceMark, TenscriptError};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
@@ -184,20 +185,36 @@ impl ShapePhase {
             Rule::anchor => {
                 let mut inner = pair.into_inner();
                 let joint_index = parse_usize(inner.next().unwrap().as_str(), "(anchor ...)")?;
-                Ok(ShapeOperation::Anchor {
-                    // TODO
+                let surface = Self::parse_surface_location(inner.next().unwrap())?;
+                let operation = ShapeOperation::Anchor {
                     joint_index,
-                    surface: (0.0, 0.0),
-                })
+                    surface,
+                };
+                println!("Anchor: {:?}", operation);
+                Ok(operation)
             }
-            Rule::guy_line => Ok(ShapeOperation::GuyLine {
-                // TODO
-                joint_index: 0,
-                length: 0.0,
-                surface: (0.0, 0.0),
-            }),
+            Rule::guy_line => {
+                let mut inner = pair.into_inner();
+                let joint_index = parse_usize(inner.next().unwrap().as_str(), "(guy-line joint-index ...)")?;
+                let length = parse_float(inner.next().unwrap().as_str(), "(guy-line <> length ...)")?;
+                let surface = Self::parse_surface_location(inner.next().unwrap())?;
+                let operation = ShapeOperation::GuyLine {
+                    joint_index,
+                    length,
+                    surface,
+                };
+                println!("GuyLine: {:?}", operation);
+                Ok(operation)
+            },
             _ => unreachable!("shape phase: {pair}"),
         }
+    }
+
+    fn parse_surface_location(pair: Pair<Rule>) -> Result<(f32, f32), TenscriptError> {
+        let mut inner = pair.into_inner();
+        let x = parse_float(inner.next().unwrap().as_str(), "(surface x ..)")?;
+        let z = parse_float(inner.next().unwrap().as_str(), "(surface .. z)")?;
+        Ok((x, z))
     }
 
     pub fn needs_shaping(&self) -> bool {
@@ -472,30 +489,29 @@ impl ShapePhase {
                             });
                     }
                 }
-                Noop
+                StartCountdown(2000) // todo: const
             }
             ShapeOperation::SetStiffness(percent) => Stiffness(percent),
             ShapeOperation::SetDrag(percent) => Drag(percent),
             ShapeOperation::SetViscosity(percent) => Viscosity(percent),
-            ShapeOperation::Anchor {..
-                // joint_index,
-                // surface,
+            ShapeOperation::Anchor {
+                joint_index,
+                surface,
             } => {
-                // let (x, z) = surface;
-                // let base = fabric.create_joint(Point3::new(x, -0.1, z));
-                // fabric.create_interval(joint_index, base, 0.0, PullMaterial, JOINER_GROUP); // todo: should be a joiner of sorts, I think
-                // StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN) // TODO something funny happens here
-                Noop
+                let (x, z) = surface;
+                let base = fabric.create_joint(Point3::new(x, -0.5, z));
+                fabric.create_interval(joint_index, base, 0.1, PullMaterial, JOINER_GROUP); // todo: should be a joiner of sorts, I think
+                StartCountdown(2000) // TODO const
             }
-            ShapeOperation::GuyLine {..
-                // joint_index,
-                // length,
-                // surface,
+            ShapeOperation::GuyLine {
+                joint_index,
+                length,
+                surface,
             } => {
-                // let (x, z) = surface;
-                // let base = fabric.create_joint(Point3::new(x, -0.1, z));
-                // fabric.create_interval(joint_index, base, length, PullMaterial, 0);
-                Noop
+                let (x, z) = surface;
+                let base = fabric.create_joint(Point3::new(x, -0.1, z)); // mind the scale
+                fabric.create_interval(joint_index, base, length, PullMaterial, 0); // special group?
+                StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN) // todo: maybe this
             }
         })
     }

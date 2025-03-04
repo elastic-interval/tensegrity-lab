@@ -103,7 +103,7 @@ impl Fabric {
     pub fn face_to_prism(&mut self, face_id: UniqueId) {
         let face = self.face(face_id);
         let push_length = face.scale; // todo: get this right
-        let pull_length = face.scale * 2.0; // todo: get this right
+        let pull_length = face.scale; // todo: get this right
         let radial_joints = face.radial_joints(self);
         let normal = face.normal(&self);
         let midpoint = face.midpoint(&self);
