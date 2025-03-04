@@ -37,11 +37,11 @@ pub fn generate_mobius(segments: usize) -> Fabric {
     for joint_index in 0..joint_count {
         let joint = |offset: usize| (joint_index * 2 + offset) % joint_count;
         mf.fabric
-            .create_interval(joint(0), joint(2), 0.4, PullMaterial, 1);
+            .create_interval(joint(0), joint(2), 0.4, PullMaterial);
         mf.fabric
-            .create_interval(joint(0), joint(1), 1.0, PullMaterial, 1);
+            .create_interval(joint(0), joint(1), 1.0, PullMaterial);
         mf.fabric
-            .create_interval(joint(0), joint(3), 3.0, PullMaterial, 1);
+            .create_interval(joint(0), joint(3), 3.0, PullMaterial);
         // mf.fabric.create_face(joint(0), joint(1), joint(2))
     }
     mf.fabric

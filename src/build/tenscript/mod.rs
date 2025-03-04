@@ -74,19 +74,18 @@ impl Fabric {
                 continue;
             };
             let contracted = length * muscle_movement.contraction;
-            let reversed = muscle_movement.reversed_groups.contains(&interval.group);
             if interval.material == NorthMaterial {
                 interval.span = Muscle {
                     length,
                     contracted,
-                    reverse: reversed,
+                    reverse: false,
                 };
             }
             if interval.material == SouthMaterial {
                 interval.span = Muscle {
                     length,
                     contracted,
-                    reverse: !reversed,
+                    reverse: true,
                 };
             }
         }
