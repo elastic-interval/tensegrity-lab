@@ -64,7 +64,6 @@ impl Pretenser {
                 if fabric.progress.is_busy() {
                     Pretensing
                 } else {
-                    fabric.altitude = None;
                     if self.pretense_phase.muscle_movement.is_some() {
                         MuscleWait
                     } else {
