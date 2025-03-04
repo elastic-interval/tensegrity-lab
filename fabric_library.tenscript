@@ -61,8 +61,6 @@
             (remove-spacers)
             (faces-to-prisms :legs)
             (faces-to-triangles)
-            (anchor 187 (surface 1.694 -4.670))
-            (anchor 189 (surface 1.694 4.670))
             )
         (pretense
             (muscle 0.8 10000)
@@ -253,33 +251,4 @@
 		(pretense
 			(surface :bouncy)
 			(muscle 0.3 12000)))
-	(fabric (name "Torkey")
-		(build
-			(branch (alias Torque)
-				(face (alias LeftFrontTop) (grow 3 (scale .5) (grow 5)))
-				(face (alias LeftBackTop) (grow 3 (scale .5) (grow 5)))
-				(face (alias LeftFrontBottom)
-					(grow 1 (scale 1.2)
-						(branch (alias Torque) (group 1) (scale .6) (rotate)
-							(face (alias FarBase) (grow 3 (scale 0.7) (mark :paw))))))
-				(face (alias LeftBackBottom)
-					(grow 1 (scale 1.2)
-						(branch (alias Torque) (group 2) (scale .6) (rotate)
-							(face (alias FarBase) (grow 3 (scale 0.7) (mark :paw))))))
-				(face (alias RightFrontBottom)
-					(grow 1
-						(branch (alias Torque) (group 1) (scale .6)	(rotate)
-							(face (alias FarBase) (grow 2 (scale 0.7) (mark :paw))))))
-				(face (alias RightBackBottom)
-					(grow 1
-						(branch (alias Torque) (group 2) (scale .6) (rotate)
-							(face (alias FarBase) (grow 2 (scale 0.7) (mark :paw))))))))
-		(shape
-			(during 35000 (space :paw .5))
-			(during 35000 (vulcanize))
-			(faces-to-triangles))
-		(pretense
-			(surface :sticky)
-			(muscle 0.8 10000 1)
-			))
 	)

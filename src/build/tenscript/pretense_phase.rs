@@ -1,5 +1,4 @@
 use pest::iterators::{Pair, Pairs};
-use std::collections::HashSet;
 
 use crate::build::tenscript::{parse_float, parse_float_inside, parse_usize, Rule, TenscriptError};
 use crate::fabric::physics::SurfaceCharacter;
@@ -8,7 +7,6 @@ use crate::fabric::physics::SurfaceCharacter;
 pub struct MuscleMovement {
     pub(crate) contraction: f32,
     pub(crate) countdown: usize,
-    pub(crate) reversed_groups: HashSet<usize>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -63,16 +61,9 @@ impl PretensePhase {
                                     inner.next().unwrap().as_str(),
                                     "muscle countdown",
                                 )?;
-                                let mut reversed_groups = HashSet::new();
-                                for next_pair in inner {
-                                    let group =
-                                        parse_usize(next_pair.as_str(), "muscle reversed groups")?;
-                                    reversed_groups.insert(group);
-                                }
                                 pretense.muscle_movement = Some(MuscleMovement {
                                     contraction,
                                     countdown,
-                                    reversed_groups,
                                 })
                             }
                             Rule::pretense_factor => {

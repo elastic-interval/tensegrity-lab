@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 
+use cgmath::num_traits::abs;
 use cgmath::{
-    EuclideanSpace, InnerSpace, Matrix3, Matrix4, point3, Point3, Quaternion, Rotation, Transform,
+    point3, EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Quaternion, Rotation, Transform,
     Vector3,
 };
-use cgmath::num_traits::abs;
 use pest::iterators::Pair;
 
-use crate::build::tenscript::{FaceAlias, parse_atom, Spin, TenscriptError};
 use crate::build::tenscript::Rule;
 use crate::build::tenscript::Spin::{Left, Right};
-use crate::fabric::Fabric;
-use crate::fabric::interval::{FACE_RADIAL_GROUP, Interval};
+use crate::build::tenscript::{parse_atom, FaceAlias, Spin, TenscriptError};
+use crate::fabric::interval::Interval;
 use crate::fabric::joint_incident::JointIncident;
-use crate::fabric::material::{interval_material, Material, material_by_label};
+use crate::fabric::material::{interval_material, material_by_label, Material};
+use crate::fabric::Fabric;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Axis {
@@ -51,15 +51,14 @@ pub struct PushDef {
     pub ideal: f32,
     pub alpha_name: String,
     pub omega_name: String,
-    pub group: usize,
 }
 
 impl PushDef {
-    fn from_pair(pair: Pair<Rule>, axis: Axis, ideal: f32, group: usize) -> Self {
+    fn from_pair(pair: Pair<Rule>, axis: Axis, ideal: f32) -> Self {
         let mut walk = pair.into_inner();
         let alpha_name = parse_atom(walk.next().unwrap());
         let omega_name = parse_atom(walk.next().unwrap());
-        Self { alpha_name, omega_name, ideal, axis, group }
+        Self { alpha_name, omega_name, ideal, axis }
     }
 }
 
@@ -69,16 +68,15 @@ pub struct PullDef {
     pub omega_name: String,
     pub ideal: f32,
     pub material: String,
-    pub group: usize,
 }
 
 impl PullDef {
-    fn from_pair(pair: Pair<Rule>, ideal: f32, group: usize) -> Self {
+    fn from_pair(pair: Pair<Rule>, ideal: f32) -> Self {
         let mut walk = pair.into_inner();
         let alpha_name = parse_atom(walk.next().unwrap());
         let omega_name = parse_atom(walk.next().unwrap());
         let material = walk.next().unwrap().as_str().parse().unwrap();
-        Self { alpha_name, omega_name, ideal, material, group }
+        Self { alpha_name, omega_name, ideal, material }
     }
 }
 
@@ -119,7 +117,6 @@ impl From<Prototype> for Fabric {
             omega_name,
             axis,
             ideal,
-            group,
         } in proto.pushes
         {
             let vector = match axis {
@@ -138,7 +135,7 @@ impl From<Prototype> for Fabric {
                 }
                 joint_index
             });
-            fabric.create_interval(alpha_index, omega_index, ideal, Material::PushMaterial, group);
+            fabric.create_interval(alpha_index, omega_index, ideal, Material::PushMaterial);
         }
         for PullDef {
             alpha_name,
@@ -155,7 +152,6 @@ impl From<Prototype> for Fabric {
                 omega_index,
                 ideal,
                 material_by_label(material),
-                0,
             );
         }
         for FaceDef {
@@ -170,7 +166,7 @@ impl From<Prototype> for Fabric {
             let midpoint = joints.into_iter().sum::<Vector3<_>>() / 3.0;
             let alpha_index = fabric.create_joint(Point3::from_vec(midpoint));
             let radial_intervals = joint_indices.map(|omega_index| {
-                fabric.create_interval(alpha_index, omega_index, 1.0, Material::PullMaterial, FACE_RADIAL_GROUP)
+                fabric.create_interval(alpha_index, omega_index, 1.0, Material::FaceRadialMaterial)
             });
             fabric.create_face(aliases, 1.0, spin, radial_intervals);
         }
@@ -187,7 +183,6 @@ impl Prototype {
         let mut pushes = Vec::new();
         let mut pulls = Vec::new();
         let mut faces = Vec::new();
-        let mut group_index: usize = 0;
         for pair in inner {
             match pair.as_rule() {
                 Rule::joints_proto => {
@@ -202,17 +197,15 @@ impl Prototype {
                     let axis = Axis::from_pair(axis);
                     let ideal = ideal.as_str().parse().unwrap();
                     for push_pair in inner {
-                        pushes.push(PushDef::from_pair(push_pair, axis, ideal, group_index));
+                        pushes.push(PushDef::from_pair(push_pair, axis, ideal));
                     }
-                    group_index += 1;
                 }
                 Rule::pulls_proto => {
                     let mut inner = pair.into_inner();
                     let ideal = inner.next().unwrap().as_str().parse().unwrap();
                     for pull_pair in inner {
-                        pulls.push(PullDef::from_pair(pull_pair, ideal, group_index));
+                        pulls.push(PullDef::from_pair(pull_pair, ideal));
                     }
-                    group_index += 1;
                 }
                 Rule::faces_proto => {
                     for face_pair in pair.into_inner() {
@@ -510,11 +503,10 @@ impl TryFrom<Fabric> for Baked {
                         alpha_index,
                         omega_index,
                         material,
-                        group,
                         strain,
                         ..
                     }| {
-                        if group == FACE_RADIAL_GROUP {
+                        if material == Material::FaceRadialMaterial {
                             return None;
                         }
                         let material_name = interval_material(material).label.to_string();

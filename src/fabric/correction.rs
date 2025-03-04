@@ -47,7 +47,7 @@ impl Fabric {
             let middle_joint = short_interval.other_joint(joint_index);
             let far_joint = long_interval.other_joint(joint_index);
             let missing_length = long_interval.ideal() - short_interval.ideal();
-            let id = self.create_interval(middle_joint, far_joint, missing_length, short_interval.material, 0);
+            let id = self.create_interval(middle_joint, far_joint, missing_length, short_interval.material);
             println!("Add {:?}", self.interval(id));
         }
     }

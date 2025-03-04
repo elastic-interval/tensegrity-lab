@@ -19,7 +19,7 @@ impl Fabric {
             length,
         } in self.pair_generator().bow_tie_pulls(&self.joints)
         {
-            self.create_interval(alpha_index, omega_index, length, BowTieMaterial, 0);
+            self.create_interval(alpha_index, omega_index, length, BowTieMaterial);
         }
     }
 
@@ -46,7 +46,7 @@ impl Fabric {
             length,
         } in self.pair_generator().proximity_measures()
         {
-            self.create_interval(alpha_index, omega_index, length, PullMaterial, 0);
+            self.create_interval(alpha_index, omega_index, length, PullMaterial);
         }
     }
 

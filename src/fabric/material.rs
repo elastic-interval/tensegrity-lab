@@ -1,6 +1,6 @@
 use crate::fabric::interval::Role;
 use crate::fabric::interval::Role::{Pull, Push, Spring};
-use crate::fabric::material::Material::{BowTieMaterial, NorthMaterial, PullMaterial, PushMaterial, SouthMaterial, SpringMaterial};
+use crate::fabric::material::Material::{BowTieMaterial, FaceRadialMaterial, NorthMaterial, PullMaterial, PushMaterial, SouthMaterial, SpringMaterial};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Material {
@@ -10,6 +10,7 @@ pub enum Material {
     NorthMaterial = 3,
     SouthMaterial = 4,
     SpringMaterial = 5,
+    FaceRadialMaterial = 6,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -69,13 +70,22 @@ const SPRING_MATERIAL: IntervalMaterial = IntervalMaterial {
     mass: 0.01,
 };
 
-const MATERIALS: [IntervalMaterial; 6] = [
+const FACE_RADIAL_MATERIAL: IntervalMaterial = IntervalMaterial {
+    name: FaceRadialMaterial,
+    label: ":pull",
+    role: Pull,
+    stiffness: 1.0,
+    mass: 0.1,
+};
+
+const MATERIALS: [IntervalMaterial; 7] = [
     PUSH_MATERIAL,
     PULL_MATERIAL,
     BOW_TIE_MATERIAL,
     NORTH_MATERIAL,
     SOUTH_MATERIAL,
     SPRING_MATERIAL,
+    FACE_RADIAL_MATERIAL,
 ];
 
 pub fn interval_material(material: Material) -> &'static IntervalMaterial {

@@ -38,7 +38,6 @@ pub enum BuildNode {
         rotation: usize,
         scale_factor: f32,
         seed: Option<usize>,
-        group: Option<usize>,
         face_nodes: Vec<BuildNode>,
     },
 }
@@ -152,19 +151,11 @@ impl BuildPhase {
                 let mut scale = None;
                 let mut face_nodes = Vec::new();
                 let mut rotation = 0;
-                let mut mark = None;
                 let mut seed = None;
                 for node_pair in inner {
                     match node_pair.as_rule() {
                         Rule::face_rotation => {
                             rotation += 1;
-                        }
-                        Rule::group => {
-                            let group = parse_usize(
-                                node_pair.into_inner().next().unwrap().as_str(),
-                                "(group ..)",
-                            )?;
-                            mark = Some(group)
                         }
                         Rule::scale => {
                             let parsed_scale = parse_float_inside(node_pair, "branch/scale")?;
@@ -190,7 +181,6 @@ impl BuildPhase {
                     rotation,
                     face_nodes,
                     seed,
-                    group: mark,
                     scale_factor,
                 })
             }
@@ -260,7 +250,6 @@ impl BuildPhase {
             let face_alias = FaceAlias::single("Single") + &spin.into_alias();
             let (base_face, faces) = fabric.create_brick(
                 &face_alias,
-                0,
                 FaceRotation::Zero,
                 scale_factor,
                 BaseFace::ExistingFace(face_id),
@@ -333,7 +322,6 @@ impl BuildPhase {
                 rotation,
                 alias,
                 seed,
-                group,
                 scale_factor,
             } => {
                 let launch_face = Self::find_launch_face(&launch, &faces, fabric)?;
@@ -342,7 +330,6 @@ impl BuildPhase {
                     .unwrap_or((*seed).map(BaseFace::Seeded).unwrap_or(BaseFace::Baseless));
                 let (base_face_id, brick_faces) = fabric.create_brick(
                     alias,
-                    group.unwrap_or(0),
                     rotation.into(),
                     *scale_factor,
                     base_face,

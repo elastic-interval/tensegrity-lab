@@ -15,7 +15,7 @@ impl EvolvingPush {
     pub fn first_push(fabric: &mut Fabric) -> Self {
         let alpha = fabric.create_joint(Point3::new(0.5, 0.0, 0.0));
         let omega = fabric.create_joint(Point3::new(-0.5, 0.0, 0.0));
-        let interval_id = fabric.create_interval(alpha, omega, 1.0, Material::PushMaterial, 0);
+        let interval_id = fabric.create_interval(alpha, omega, 1.0, Material::PushMaterial);
         Self::new(interval_id)
     }
 
@@ -31,9 +31,9 @@ impl EvolvingPush {
         };
         let alpha = fabric.create_joint(here - project / 2.0);
         let omega = fabric.create_joint(here + project / 2.0);
-        let interval_id = fabric.create_interval(alpha, omega, 1.0, Material::PushMaterial, 0);
-        let alpha_pull = fabric.create_interval(here_id, alpha, 0.5, Material::PullMaterial, 0);
-        let omega_pull = fabric.create_interval(here_id, omega, 0.5, Material::PullMaterial, 0);
+        let interval_id = fabric.create_interval(alpha, omega, 1.0, Material::PushMaterial);
+        let alpha_pull = fabric.create_interval(here_id, alpha, 0.5, Material::PullMaterial);
+        let omega_pull = fabric.create_interval(here_id, omega, 0.5, Material::PullMaterial);
         pulls.push(alpha_pull);
         pulls.push(omega_pull);
         Self {
@@ -69,7 +69,7 @@ impl EvolvingPush {
         for (end_a, end_b) in ends {
             let index_a = snapshot_a.1.end_index(&end_a);
             let index_b = snapshot_b.1.end_index(&end_b);
-            let pull = fabric.create_interval(index_a, index_b, 0.5, Material::PullMaterial, 0);
+            let pull = fabric.create_interval(index_a, index_b, 0.5, Material::PullMaterial);
             evolving_pushes[snapshot_a.0].add_pull(&end_a, pull);
             evolving_pushes[snapshot_b.0].add_pull(&end_b, pull);
         }

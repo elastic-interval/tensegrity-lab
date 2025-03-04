@@ -21,7 +21,6 @@ impl Fabric {
         omega_index: usize,
         ideal: f32,
         material: Material,
-        group: usize,
     ) -> UniqueId {
         let id = self.create_id();
         let initial = self.joints[alpha_index]
@@ -31,7 +30,6 @@ impl Fabric {
             alpha_index,
             omega_index,
             material,
-            group,
             Approaching {
                 initial,
                 length: ideal,
@@ -100,29 +98,22 @@ pub struct Interval {
     pub alpha_index: usize,
     pub omega_index: usize,
     pub material: Material,
-    pub group: usize,
     pub span: Span,
     pub unit: Vector3<f32>,
     pub strain: f32,
 }
-
-pub const FACE_RADIAL_GROUP: usize = 255;
-pub const JOINER_GROUP: usize = 254;
-pub const SPACER_GROUP: usize = 253;
 
 impl Interval {
     pub fn new(
         alpha_index: usize,
         omega_index: usize,
         material: Material,
-        group: usize,
         span: Span,
     ) -> Interval {
         Interval {
             alpha_index,
             omega_index,
             material,
-            group,
             span,
             unit: zero(),
             strain: 0.0,

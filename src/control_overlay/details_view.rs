@@ -2,8 +2,8 @@ use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
 use crate::messages::ControlState;
 use cgmath::Point3;
-use leptos::{component, view, IntoView, ReadSignal, SignalGet};
-use std::ops::Mul;
+use leptos::prelude::*;
+use leptos::{component, view, IntoView};
 
 #[component]
 pub fn DetailsView(

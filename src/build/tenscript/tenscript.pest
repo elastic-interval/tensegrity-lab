@@ -65,10 +65,8 @@ mark =
     { "(" ~ "mark" ~ atom ~ ")" }
 seed =
     { "(" ~ "seed" ~ integer ~")"}
-group =
-    { "(" ~ "group" ~ integer ~")"}
 branch =
-    { "(" ~ "branch" ~ partial_alias ~ group? ~ scale? ~ seed? ~ face_rotation* ~ on_face* ~ ")" }
+    { "(" ~ "branch" ~ partial_alias ~ scale? ~ seed? ~ face_rotation* ~ on_face* ~ ")" }
 face_rotation =
     { "(" ~ "rotate" ~ ")" }
 scale =
