@@ -95,7 +95,6 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
                 <ControlOverlayApp
                     fabric_list={FabricLibrary::from_source().unwrap().fabric_list()}
                     control_state={overlay_state.control_state}
-                    lab_control={overlay_state.lab_control}
                     fabric_stats={overlay_state.fabric_stats}
                     event_loop_proxy={overlay_proxy}/>
             }

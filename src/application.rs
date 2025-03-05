@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use crate::application::OverlayChange::{SetFabricStats, SetLabControl};
+use crate::application::OverlayChange::SetFabricStats;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, TenscriptError};
@@ -38,7 +38,6 @@ pub struct Application {
 #[derive(Clone, Debug)]
 pub enum OverlayChange {
     SetControlState(ControlState),
-    SetLabControl(bool),
     SetFabricStats(Option<FabricStats>),
 }
 
@@ -83,6 +82,13 @@ impl Application {
             }
             if code == KeyCode::KeyX {
                 println!("Export:\n\n{}", self.crucible.fabric().csv());
+            }
+            if code == KeyCode::KeyM {
+                self.event_loop_proxy
+                    .send_event(LabEvent::Crucible(CrucibleAction::Experiment(
+                        LabAction::MuscleToggle,
+                    )))
+                    .unwrap();
             }
         }
     }
@@ -167,20 +173,15 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.pick_active = true;
             }
             LabEvent::Crucible(crucible_action) => {
-                match &crucible_action {
-                    CrucibleAction::BuildFabric(fabric_plan) => {
-                        if let Some(fabric_plan) = fabric_plan {
-                            let movement = fabric_plan.pretense_phase.muscle_movement.is_some();
-                            self.event_loop_proxy
-                                .send_event(LabEvent::OverlayChanged(SetLabControl(movement)))
-                                .unwrap();
-                        }
+                match &crucible_action { // side-effect
+                    CrucibleAction::BuildFabric(_) => {
+                        self.event_loop_proxy
+                            .send_event(LabEvent::OverlayChanged(SetFabricStats(None)))
+                            .unwrap();
+                        self.pick_active = false;
                         if let Some(scene) = &mut self.scene {
                             scene.reset();
                         }
-                    }
-                    CrucibleAction::Experiment(LabAction::MuscleTest(_)) => {
-                        self.fabric_alive = true;
                     }
                     _ => {}
                 }

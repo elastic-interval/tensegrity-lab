@@ -510,7 +510,6 @@ impl ShapePhase {
                 let base = fabric.create_fixed_joint(Point3::new(x, 0.0, z));
                 let material = material.unwrap_or(GuyLineMaterial);
                 fabric.create_interval(joint_index, base, length, material);
-                println!("{material:?}");
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
         })

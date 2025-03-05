@@ -25,7 +25,7 @@ enum Stage {
 #[derive(Debug, Clone)]
 pub enum LabAction {
     GravityChanged(f32),
-    MuscleTest(bool),
+    MuscleToggle,
     MuscleChanged(f32),
 }
 
@@ -85,8 +85,9 @@ impl Crucible {
                     pretenser.iterate(&mut self.fabric);
                 }
                 if pretenser.is_done() {
+                    let muscles = pretenser.pretense_phase.muscle_movement.is_some();
                     self.stage = Experimenting(Experiment::new(pretenser.clone()));
-                    return Some(LabEvent::FabricBuilt(self.fabric.fabric_stats()));
+                    return Some(LabEvent::FabricBuilt(self.fabric.fabric_stats(muscles)));
                 }
             }
             Experimenting(lab) => {
