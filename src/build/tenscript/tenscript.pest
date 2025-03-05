@@ -18,7 +18,7 @@ during_count = // iteration-count
 anchor = // joint number, location
     { "(" ~ "anchor" ~ integer ~ surface_location ~ ")" }
 guy_line = // joint number, length, location
-    { "(" ~ "guy-line" ~ integer ~ float ~ surface_location ~ ")" }
+    { "(" ~ "guy-line" ~ integer ~ float ~ surface_location ~ atom? ~ ")" }
 surface_location =
     { "(" ~ "surface" ~ float ~ float ~ ")" }
 spacer = // mark-name, spacing-factor

@@ -137,7 +137,7 @@ impl Fabric {
 
     pub fn prepare_for_pretensing(&mut self, push_extension: f32) {
         for interval in self.intervals.values_mut() {
-            if !matches!(interval.material, Material::GuyWireMaterial) {
+            if !matches!(interval.material, Material::GuyLineMaterial) {
                 let length = interval.fast_length(&self.joints);
                 let IntervalMaterial { role, .. } = interval_material(interval.material);
                 interval.span = match role {

@@ -6,12 +6,13 @@ use std::cmp::Ordering;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::shape_phase::ShapeCommand::*;
 use crate::build::tenscript::{
-    parse_float, parse_float_inside, parse_usize, FaceAlias, Rule, Spin,
+    parse_atom, parse_float, parse_float_inside, parse_usize, FaceAlias, Rule, Spin,
 };
 use crate::build::tenscript::{FaceMark, TenscriptError};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
-use crate::fabric::material::Material::{GuyWireMaterial, PullMaterial};
+use crate::fabric::material::Material::{GuyLineMaterial, PullMaterial};
+use crate::fabric::material::{material_by_label, Material};
 use crate::fabric::{Fabric, UniqueId};
 
 const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 25_000;
@@ -54,6 +55,7 @@ pub enum ShapeOperation {
         joint_index: usize,
         length: f32,
         surface: (f32, f32),
+        material: Option<Material>,
     },
     RemoveSpacers {
         mark_names: Vec<String>,
@@ -94,9 +96,6 @@ pub enum ShapeInterval {
         mark_name: String,
     },
     SurfaceAnchor {
-        interval: UniqueId,
-    },
-    GuyLine {
         interval: UniqueId,
     },
 }
@@ -211,11 +210,15 @@ impl ShapePhase {
                     parse_usize(inner.next().unwrap().as_str(), "(guy-line joint-index ...)")?;
                 let length =
                     parse_float(inner.next().unwrap().as_str(), "(guy-line <> length ...)")?;
-                let surface = Self::parse_surface_location(inner.next().unwrap())?;
+                let mut surface = inner.next().unwrap().into_inner();
+                let x = parse_float(surface.next().unwrap().as_str(), "(surface x ..)")?;
+                let z = parse_float(surface.next().unwrap().as_str(), "(surface .. z)")?;
+                let material = inner.next().map(|p| material_by_label(parse_atom(p)));
                 let operation = ShapeOperation::GuyLine {
                     joint_index,
                     length,
-                    surface,
+                    surface: (x, z),
+                    material,
                 };
                 Ok(operation)
             }
@@ -501,10 +504,13 @@ impl ShapePhase {
                 joint_index,
                 length,
                 surface,
+                material,
             } => {
                 let (x, z) = surface;
                 let base = fabric.create_fixed_joint(Point3::new(x, 0.0, z));
-                fabric.create_interval(joint_index, base, length, GuyWireMaterial);
+                let material = material.unwrap_or(GuyLineMaterial);
+                fabric.create_interval(joint_index, base, length, material);
+                println!("{material:?}");
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
         })
