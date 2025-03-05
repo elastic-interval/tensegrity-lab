@@ -203,7 +203,6 @@ impl ShapePhase {
                     joint_index,
                     surface,
                 };
-                println!("Anchor: {:?}", operation);
                 Ok(operation)
             }
             Rule::guy_line => {
@@ -218,7 +217,6 @@ impl ShapePhase {
                     length,
                     surface,
                 };
-                println!("GuyLine: {:?}", operation);
                 Ok(operation)
             }
             _ => unreachable!("shape phase: {pair}"),
