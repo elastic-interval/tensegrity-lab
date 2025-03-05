@@ -13,7 +13,7 @@ use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push, Spring};
 use crate::fabric::interval::Span::{Approaching, Fixed};
 use crate::fabric::joint::Joint;
-use crate::fabric::material::{interval_material, IntervalMaterial, Material};
+use crate::fabric::material::{interval_material, IntervalMaterial};
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
 
@@ -44,6 +44,7 @@ pub struct FabricStats {
     pub pull_count: usize,
     pub pull_range: (f32, f32),
     pub pull_total: f32,
+    pub muscles: bool,
 }
 
 impl Debug for FabricStats {
@@ -58,9 +59,11 @@ impl Debug for FabricStats {
             pull_count,
             pull_range,
             pull_total,
+            muscles,
         } = self;
+        let muscle_string = if *muscles { "Type M to activate muscles." } else { "" };
         write!(f,
-               "At scale {:.0}:1 this structure has {:?} joints (up to height {:.0}mm), {:?} pushes ({:.1} to {:.1}mm, total {:.2}m), and {:?} pulls ({:.1} to {:.1}mm, total {:.2}m).",
+               "At scale {:.0}:1 this structure has {:?} joints (up to height {:.0}mm), {:?} pushes ({:.1} to {:.1}mm, total {:.2}m), and {:?} pulls ({:.1} to {:.1}mm, total {:.2}m). {}",
                scale,
                joint_count,
                max_height * scale,
@@ -71,7 +74,8 @@ impl Debug for FabricStats {
                pull_count,
                pull_range.0 * scale,
                pull_range.1 * scale,
-               pull_total * scale / 1000.0
+               pull_total * scale / 1000.0,
+               muscle_string
         )
     }
 }
@@ -137,9 +141,9 @@ impl Fabric {
 
     pub fn prepare_for_pretensing(&mut self, push_extension: f32) {
         for interval in self.intervals.values_mut() {
-            if !matches!(interval.material, Material::GuyLineMaterial) {
+            let IntervalMaterial { role, support, .. } = interval_material(interval.material);
+            if !support {
                 let length = interval.fast_length(&self.joints);
-                let IntervalMaterial { role, .. } = interval_material(interval.material);
                 interval.span = match role {
                     Push => Approaching {
                         initial: length,
@@ -217,7 +221,7 @@ impl Fabric {
         }
     }
 
-    pub fn fabric_stats(&self) -> FabricStats {
+    pub fn fabric_stats(&self, muscles:bool) -> FabricStats {
         let mut push_range = (1000.0, 0.0);
         let mut pull_range = (1000.0, 0.0);
         let mut push_count = 0;
@@ -266,6 +270,7 @@ impl Fabric {
             pull_count,
             pull_range,
             pull_total,
+            muscles,
         }
     }
 }

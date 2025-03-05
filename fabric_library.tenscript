@@ -61,16 +61,15 @@
             (remove-spacers)
             (faces-to-prisms :legs)
             (faces-to-triangles)
-            (anchor 187 (surface 0.0 -6.0))
-            (anchor 189 (surface 0.0 6.0))
-            (during 10000
+            (during 20000
+                (anchor 187 (surface 0.0 -5.0))
+                (anchor 189 (surface 0.0 5.0))
                 (guy-line 22 12.5 (surface -6.0 -8.0))
                 (guy-line 24 12.5 (surface -6.0 8.0))
                 (guy-line 12 16.5 (surface 7.0 -10.0) :north)
-                (guy-line 10 16.5 (surface 7.0 10.0) :south))
-            )
+                (guy-line 10 16.5 (surface 7.0 10.0) :south)))
         (pretense
-            (muscle 0.95 6000)
+            (muscle 0.998 3000)
             (surface :frozen))
         (scale 510.0))
     (fabric (name "Triped")

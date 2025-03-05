@@ -21,6 +21,7 @@ pub struct IntervalMaterial {
     pub role: Role,
     pub stiffness: f32,
     pub mass: f32,
+    pub support: bool,
 }
 
 const PUSH_MATERIAL: IntervalMaterial = IntervalMaterial {
@@ -29,6 +30,7 @@ const PUSH_MATERIAL: IntervalMaterial = IntervalMaterial {
     role: Push,
     stiffness: 100.0,
     mass: 1.0,
+    support: false,
 };
 
 const PULL_MATERIAL: IntervalMaterial = IntervalMaterial {
@@ -37,6 +39,7 @@ const PULL_MATERIAL: IntervalMaterial = IntervalMaterial {
     role: Pull,
     stiffness: 1.0,
     mass: 0.1,
+    support: false,
 };
 
 const BOW_TIE_MATERIAL: IntervalMaterial = IntervalMaterial {
@@ -45,6 +48,7 @@ const BOW_TIE_MATERIAL: IntervalMaterial = IntervalMaterial {
     role: Pull,
     stiffness: 1.0,
     mass: 0.1,
+    support: false,
 };
 
 const NORTH_MATERIAL: IntervalMaterial = IntervalMaterial {
@@ -53,6 +57,7 @@ const NORTH_MATERIAL: IntervalMaterial = IntervalMaterial {
     role: Pull,
     stiffness: 0.5,
     mass: 0.01,
+    support: true,
 };
 
 const SOUTH_MATERIAL: IntervalMaterial = IntervalMaterial {
@@ -61,6 +66,7 @@ const SOUTH_MATERIAL: IntervalMaterial = IntervalMaterial {
     role: Pull,
     stiffness: 0.5,
     mass: 0.01,
+    support: true,
 };
 
 const SPRING_MATERIAL: IntervalMaterial = IntervalMaterial {
@@ -69,6 +75,7 @@ const SPRING_MATERIAL: IntervalMaterial = IntervalMaterial {
     role: Spring,
     stiffness: 0.5,
     mass: 0.01,
+    support: false,
 };
 
 const FACE_RADIAL_MATERIAL: IntervalMaterial = IntervalMaterial {
@@ -77,6 +84,7 @@ const FACE_RADIAL_MATERIAL: IntervalMaterial = IntervalMaterial {
     role: Pull,
     stiffness: 1.0,
     mass: 0.1,
+    support: false,
 };
 
 const GUY_WIRE_MATERIAL: IntervalMaterial = IntervalMaterial {
@@ -85,6 +93,7 @@ const GUY_WIRE_MATERIAL: IntervalMaterial = IntervalMaterial {
     role: Pull,
     stiffness: 1.0,
     mass: 0.1,
+    support: true,
 };
 
 const MATERIALS: [IntervalMaterial; 8] = [
