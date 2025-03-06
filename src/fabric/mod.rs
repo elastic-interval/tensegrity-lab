@@ -157,7 +157,6 @@ impl Fabric {
             joint.force = zero();
             joint.velocity = zero();
         }
-        self.centralize(None);
     }
 
     pub fn iterate(&mut self, physics: &Physics) -> f32 {

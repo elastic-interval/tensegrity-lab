@@ -10,7 +10,10 @@ name =
 shape =
     { "(" ~ "shape" ~ shape_operation* ~ ")" }
 basic_shape_operation =
-    { anchor | guy_line | spacer | joiner | vulcanize | remove_spacers | faces_to_triangles | faces_to_prisms | set_stiffness | set_drag | set_viscosity | down }
+    {
+    anchor | guy_line | spacer | joiner | vulcanize | remove_spacers | faces_to_triangles |
+    faces_to_prisms | set_stiffness | set_drag | set_viscosity | down | centralize
+    }
 shape_operation =
     { basic_shape_operation | during_count }
 during_count = // iteration-count
@@ -33,6 +36,8 @@ set_stiffness =
     { "(" ~ "set-stiffness" ~ float ~ ")" }
 set_drag =
     { "(" ~ "set-drag" ~ float ~ ")" }
+centralize =
+    { "(" ~ "centralize" ~ float? ~ ")" }
 set_viscosity =
     { "(" ~ "set-viscosity" ~ float ~ ")" }
 vulcanize =

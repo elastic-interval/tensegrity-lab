@@ -43,6 +43,9 @@ pub enum ShapeOperation {
     PointDownwards {
         mark_name: String,
     },
+    Centralize {
+        altitude: Option<f32>,
+    },
     Spacer {
         mark_name: String,
         distance_factor: f32,
@@ -165,6 +168,15 @@ impl ShapePhase {
                 Ok(ShapeOperation::PointDownwards {
                     mark_name: mark_name[1..].into(),
                 })
+            }
+            Rule::centralize => {
+                match pair.into_inner().next() {
+                    None => Ok(ShapeOperation::Centralize { altitude: None }),
+                    Some(pair) => {
+                        let altitude = parse_float(pair.as_str(), "(centralize)")?;
+                        Ok(ShapeOperation::Centralize {altitude: Some(altitude)})
+                    }
+                }
             }
             Rule::during_count => {
                 let mut inner = pair.into_inner();
@@ -410,7 +422,6 @@ impl ShapePhase {
                     .normalize();
                 let quaternion = Quaternion::from_arc(down, -Vector3::unit_y(), None);
                 fabric.apply_matrix4(Matrix4::from(quaternion));
-                fabric.centralize(Some(0.0));
                 Noop
             }
             ShapeOperation::Spacer {
@@ -511,6 +522,10 @@ impl ShapePhase {
                 let material = material.unwrap_or(GuyLineMaterial);
                 fabric.create_interval(joint_index, base, length, material);
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
+            }
+            ShapeOperation::Centralize { altitude } => {
+                fabric.centralize(altitude);
+                Noop
             }
         })
     }
