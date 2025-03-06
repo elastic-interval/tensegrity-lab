@@ -12,32 +12,6 @@
 			(vulcanize)
 			(faces-to-triangles))
 		(pretense (surface :frozen)))
-	(fabric	(name "Swagger")
-        (build
-            (branch (alias Torque)
-                (face (alias LeftFrontBottom) (grow 6 (mark :legs)))
-                (face (alias RightFrontBottom) (grow 6 (mark :legs)))
-                (face (alias LeftBackTop)
-                    (grow 2
-                        (branch (alias Omni) (rotate) (rotate)
-                            (face (alias TopZ) (mark :chest-1))
-                            (face (alias BotX) (mark :chest-2))
-                            (face (alias BotY) (grow 5 (scale .93) (mark :hands))))))
-                (face (alias RightBackTop)
-                    (grow 2
-                        (branch (alias Omni)
-                            (face (alias TopY) (mark :chest-1))
-                            (face (alias BotZ) (mark :chest-2))
-                            (face (alias BotX) (grow 5 (scale .93) (mark :hands))))))))
-        (shape
-            (set-viscosity 500)
-            (down :legs)
-            (during 15000 (space :legs .02) (space :hands .02) (space :chest-1 .4) (space :chest-2 .1))
-            (during 10000 (vulcanize))
-            (faces-to-triangles))
-        (pretense
-            (muscle 0.4 16000)
-            (surface :frozen)))
 	(fabric	(name "A Head of its Time")
         (build
             (branch (alias Torque)
@@ -56,6 +30,7 @@
         (shape
             (set-viscosity 5000)
             (down :legs)
+            (centralize 1.0)
             (during 30000 (space :legs 0.01) (space :hands .02) (space :shoulders 0.01) )
             (during 15000 (vulcanize))
             (remove-spacers)
@@ -93,6 +68,7 @@
 		(shape
 			(during 18000 (join :end (seed 1)))
 			(during 20000 (vulcanize))
+			(centralize 5.0)
 			(faces-to-triangles))
 		(pretense (surface :frozen)))
 	(fabric (name "Tworque Walker")
@@ -112,7 +88,7 @@
 	(fabric (name "Flagellum")
 		(build
 			(branch (alias Single)
-				(face (alias :next-base) (grow 20 (scale .9)))))
+				(face (alias :next-base) (grow 20 (scale .95)))))
 		(shape
 			(vulcanize)
 			(faces-to-triangles))
@@ -138,7 +114,8 @@
 		(shape
 			(during 15000 (join :ring-a) (join :ring-b))
 			(during 40000 (vulcanize))
-			(faces-to-triangles))
+			(faces-to-triangles)
+			(centralize 1.0))
 		(pretense (surface :absent))
 		(scale 60.0))
 	(fabric (name "Propellor")
@@ -154,7 +131,8 @@
 		(shape
 			(during 15000 (join :ring-x) (join :ring-y) (join :ring-z))
 			(during 40000 (vulcanize))
-			(faces-to-triangles))
+			(faces-to-triangles)
+			(centralize 1.0))
 		(pretense (surface :absent)))
 	(fabric (name "Ring")
 		(build
@@ -162,61 +140,9 @@
 				(face (alias :base) (grow 6 (mark :tip)))
 				(face (alias :next-base) (grow 5 (mark :tip)))))
 		(shape
-			(during 40000 (join :tip)))
+			(during 40000 (join :tip))
+			(centralize 1.0))
 		(pretense (surface :absent)))
-	(fabric (name "Pulsating Pavilion")
-		(build
-			(branch (alias Torque)
-				(face (alias LeftFrontBottom)
-					(grow 1
-						(branch (alias Torque) (scale .6) (rotate)
-							(face (alias FarBase) (grow 8 (scale 0.93) (mark :a))))))
-				(face (alias LeftBackBottom)
-					(grow 1
-						(branch (alias Torque) (scale .6) (rotate)
-							(face (alias FarBase) (grow 8 (scale 0.93) (mark :b))))))
-				(face (alias RightFrontBottom)
-					(grow 1
-						(branch (alias Torque) (scale .6) (rotate)
-							(face (alias FarBase) (grow 8 (scale 0.93) (mark :b))))))
-				(face (alias RightBackBottom)
-					(grow 1
-						(branch (alias Torque) (scale .6) (rotate)
-							(face (alias FarBase) (grow 8 (scale 0.93)	(mark :a))))))))
-		(shape
-			(during 35000 (space :a .4) (space :b .4))
-			(during 35000 (vulcanize))
-			(faces-to-triangles))
-		(pretense
-			(surface :frozen)
-			(muscle 0.5 8000)
-			))
-	(fabric (name "Tommy Torque")
-		(build
-			(branch (alias Omni)
-				(face (alias BottomLeft)
-					(grow 1
-						(branch (alias Torque) (scale .7) (rotate)
-							(face (alias FarFront) (grow 1 (mark :sole))))))
-				(face (alias BottomRight)
-					(grow 1
-						(branch (alias Torque) (scale .7)
-							(face (alias FarFront) (grow 1 (mark :sole))))))
-				(face (alias BackRight)
-					(branch (alias Torque)
-						(face (alias FarBase)
-							(grow 3 (scale .8)))))
-				(face (alias BackLeft)
-					(branch (alias Torque) (rotate)
-						(face (alias FarBase)
-							(grow 3 (scale .8)))))))
-		(shape
-			(down :sole)
-			(faces-to-triangles))
-		(pretense
-			(surface :frozen)
-			(muscle 0.3 12000)
-			))
 	(fabric (name "Headless Hug")
 		(build
 			(branch (alias Omni)
@@ -227,20 +153,21 @@
 						(branch (alias Omni)
 							(face (alias TopZ) (mark :chest-1))
 							(face (alias BotX) (mark :chest-2))
-							(face (alias BotY) (grow "....X..." (scale .93) (mark :hands))))))
+							(face (alias BotY) (grow "...X.." (scale .93) (mark :hands))))))
 				(face (alias TopRight)
 					(grow 2 (scale .9)
 						(branch (alias Omni)
 							(face (alias TopY) (mark :chest-1))
 							(face (alias BotZ) (mark :chest-2))
-							(face (alias BotX) (grow "....X..." (scale .93) (mark :hands))))))))
+							(face (alias BotX) (grow "...X.." (scale .93) (mark :hands))))))))
 		(shape
 			(during 15000 (space :legs .25) (space :hands .02) (space :chest-1 .8) (space :chest-2 .2))
 			(during 80000 (vulcanize))
 			(remove-spacers)
-			(faces-to-triangles))
+			(faces-to-triangles)
+			(centralize 1.0))
 		(pretense (surface :frozen)))
-	(fabric (name "Torque Island")
+	(fabric (name "Torque Ring")
 		(build
 			(branch (alias Torque)
 				(face (alias LeftFrontBottom)
@@ -253,7 +180,9 @@
 								(face (alias FarSide) (mark :loose))))))))
 		(shape
 			(join :loose)
-			(faces-to-triangles))
+			(faces-to-triangles)
+			(centralize)
+			)
 		(pretense
 			(surface :bouncy)
 			(muscle 0.3 12000)))

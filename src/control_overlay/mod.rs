@@ -56,8 +56,6 @@ pub fn ControlOverlayApp(
 ) -> impl IntoView {
     let (fabric_name, set_fabric_name, _) =
         use_local_storage::<String, FromToStringCodec>("fabric");
-    let (animated, set_animated) = create_signal(false);
-    let event_loop_proxy_1 = event_loop_proxy.clone();
     create_effect(move |_| {
         event_loop_proxy
             .send_event(LabEvent::LoadFabric(fabric_name.get()))
