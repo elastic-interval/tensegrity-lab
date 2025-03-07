@@ -1,18 +1,5 @@
 (fabric-library
-	(fabric (name "Halo by Crane")
-		(build
-			(branch (alias Single) (rotate) (rotate)
-				(face (alias :next-base)
-					(grow 4 (scale .92)
-						(branch (alias Omni)
-							(face (alias TopX) (grow 12 (scale .92) (mark :halo-end)))
-							(face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))))
-		(shape
-			(join :halo-end)
-			(vulcanize)
-			(faces-to-triangles))
-		(pretense (surface :frozen)))
-	(fabric	(name "A Head of its Time")
+	(fabric	(name "Shimmy")
         (build
             (branch (alias Torque)
                 (face (alias LeftFrontBottom) (grow 6 (scale 1.05) (mark :legs)))
@@ -47,6 +34,19 @@
             (muscle 0.998 3000)
             (surface :frozen))
         (scale 510.0))
+	(fabric (name "Halo by Crane")
+		(build
+			(branch (alias Single) (rotate) (rotate)
+				(face (alias :next-base)
+					(grow 4 (scale .92)
+						(branch (alias Omni)
+							(face (alias TopX) (grow 12 (scale .92) (mark :halo-end)))
+							(face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))))
+		(shape
+			(join :halo-end)
+			(vulcanize)
+			(faces-to-triangles))
+		(pretense (surface :frozen)))
     (fabric (name "Triped")
 		(build
 			(branch (alias Omni) (seed 1)

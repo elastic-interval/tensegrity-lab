@@ -42,6 +42,7 @@ pub struct JointDetails {
 #[derive(Clone, Debug, Default)]
 pub enum ControlState {
     #[default]
+    Waiting,
     Viewing,
     ShowingJoint(JointDetails),
     ShowingInterval(IntervalDetails),

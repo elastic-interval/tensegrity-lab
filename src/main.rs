@@ -3,7 +3,7 @@ use std::error::Error;
 use clap::Parser;
 #[allow(unused_imports)]
 #[cfg(target_arch = "wasm32")]
-use leptos::*;
+use leptos::prelude::*;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 use winit::dpi::PhysicalSize;
@@ -85,17 +85,14 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
         let document = web_sys_window.document().expect("no document");
         let overlay_proxy = event_loop.create_proxy();
 
-        let control_overlay = document
-            .get_element_by_id("control_overlay")
-            .expect("no control overlay")
-            .dyn_into()
-            .expect("no html element");
-        mount_to(control_overlay, move || {
+        let _ = mount_to_body( move || {
             view! {
                 <ControlOverlayApp
                     fabric_list={FabricLibrary::from_source().unwrap().fabric_list()}
                     control_state={overlay_state.control_state}
                     fabric_stats={overlay_state.fabric_stats}
+                    fabric_name={overlay_state.fabric_name}
+                    set_fabric_name={overlay_state.set_fabric_name}
                     event_loop_proxy={overlay_proxy}/>
             }
         });
