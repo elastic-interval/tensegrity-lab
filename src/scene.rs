@@ -13,7 +13,7 @@ use bytemuck::cast_slice;
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, MouseButton};
 use winit::event_loop::EventLoopProxy;
-use ControlState::{ShowingInterval, ShowingJoint, Viewing};
+use ControlState::{ShowingInterval, ShowingJoint};
 use LabEvent::OverlayChanged;
 
 pub struct Scene {
@@ -131,9 +131,6 @@ impl Scene {
         match pick {
             Pick::Nothing => {
                 self.camera.set_target(FabricMidpoint);
-                self.event_loop_proxy
-                    .send_event(OverlayChanged(SetControlState(Viewing)))
-                    .unwrap();
             }
             Pick::Joint { index, joint } => {
                 self.camera.set_target(AroundJoint(index));

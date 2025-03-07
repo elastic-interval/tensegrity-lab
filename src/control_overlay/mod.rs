@@ -79,8 +79,10 @@ pub fn ControlOverlayApp(
                 fabric_name=fabric_name
                 set_fabric_name=set_fabric_name
             />
-            <DetailsView control_state=control_state fabric_stats=fabric_stats />
-            <StatsView fabric_stats=fabric_stats />
+            <Show when=move || { fabric_stats.get().is_some() } fallback=|| view! { <div/> }>
+                <DetailsView control_state=control_state fabric_stats=fabric_stats />
+                <StatsView fabric_stats=fabric_stats />
+            </Show>
         </div>
     }
 }

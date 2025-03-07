@@ -22,7 +22,7 @@ pub fn DetailsView(
                     EitherOf4::A(
                         view! {
                             <div>
-                                <p>"Building the tensegrity..."</p>
+                                <p>"Busy..."</p>
                             </div>
                         },
                     )
