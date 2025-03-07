@@ -20,13 +20,13 @@ impl Wgpu {
                 layout: Some(&self.pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &self.shader,
-                    entry_point: "fabric_vertex",
+                    entry_point: Some("fabric_vertex"),
                     buffers: &[FabricVertex::desc()],
                     compilation_options: Default::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &self.shader,
-                    entry_point: "fabric_fragment",
+                    entry_point: Some("fabric_fragment"),
                     targets: &[Some(wgpu::ColorTargetState {
                         format: self.surface_config.format,
                         blend: Some(wgpu::BlendState::ALPHA_BLENDING),
@@ -65,13 +65,13 @@ impl Wgpu {
                 layout: Some(&self.pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &self.shader,
-                    entry_point: "surface_vertex",
+                    entry_point: Some("surface_vertex"),
                     compilation_options: Default::default(),
                     buffers: &[SurfaceVertex::desc()],
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &self.shader,
-                    entry_point: "surface_fragment",
+                    entry_point: Some("surface_fragment"),
                     compilation_options: Default::default(),
                     targets: &[Some(wgpu::ColorTargetState {
                         format: self.surface_config.format,

@@ -21,19 +21,18 @@ rand_chacha = "0.3.1"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tracing-subscriber = "0.3"
 env_logger = "0.11.3"
-wgpu = "22.1.0"
+wgpu = "24.0.1"
 
 # web:
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-codee = "0.1.2"
+codee = "0.2.0"
 leptos = { version = "0.6.13", features = ["csr"] }
-leptos-use = "0.12.0"
+leptos-use = "0.13.13"
 console_error_panic_hook = "0.1.6"
 console_log = "1.0.0"
-wgpu = { version = "22.1.0", features = ["webgl"] }
-wasm-bindgen = "0.2"
+wgpu = { version = "24.0.1", features = ["webgl"] }
+wasm-bindgen = "0.2.97"
 wasm-bindgen-futures = "0.4.30"
 web-sys = { version = "0.3.70", features = [
     "Document",
