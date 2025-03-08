@@ -1,5 +1,5 @@
 (fabric-library
-	(fabric	(name "Shimmy")
+	(fabric	(name "De Twips")
         (build
             (branch (alias Torque)
                 (face (alias LeftFrontBottom) (grow 6 (scale 1.05) (mark :legs)))
