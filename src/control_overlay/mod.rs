@@ -25,7 +25,7 @@ impl Default for OverlayState {
     fn default() -> Self {
         let (control_state, set_control_state) = signal(ControlState::default());
         let (fabric_stats, set_fabric_stats) = signal::<Option<FabricStats>>(None);
-        let (fabric_name, set_fabric_name) = signal("Shimmy".to_string());
+        let (fabric_name, set_fabric_name) = signal("De Twips".to_string());
         Self {
             control_state,
             set_control_state,
