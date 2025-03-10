@@ -5,16 +5,15 @@ use crate::fabric::material::interval_material;
 use crate::fabric::Fabric;
 use crate::messages::LabEvent;
 use crate::messages::{ControlState, IntervalDetails, JointDetails};
+use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::fabric_vertex::FabricVertex;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::Wgpu;
-use bytemuck::cast_slice;
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, MouseButton};
 use winit::event_loop::EventLoopProxy;
 use ControlState::{ShowingInterval, ShowingJoint};
 use LabEvent::OverlayChanged;
-use crate::wgpu::fabric_renderer::FabricRenderer;
 
 pub struct Scene {
     wgpu: Wgpu,
@@ -31,13 +30,13 @@ impl Scene {
             &wgpu.device,
             &wgpu.pipeline_layout,
             &wgpu.shader,
-            &wgpu.surface_config
+            &wgpu.surface_config,
         );
         let surface_renderer = SurfaceRenderer::new(
             &wgpu.device,
             &wgpu.pipeline_layout,
             &wgpu.shader,
-            &wgpu.surface_config
+            &wgpu.surface_config,
         );
         Self {
             wgpu,
@@ -75,17 +74,11 @@ impl Scene {
     }
 
     pub fn redraw(&mut self, fabric: &Fabric) {
-        let intervals = fabric.intervals.iter().flat_map(|(interval_id, interval)| {
+        self.wgpu.update_mvp_matrix(self.camera.mvp_matrix());
+        let vertexes = fabric.intervals.iter().flat_map(|(interval_id, interval)| {
             FabricVertex::for_interval(interval_id, interval, fabric, &self.camera.current_pick())
         });
-        self.wgpu.update_mvp_matrix(self.camera.mvp_matrix());
-        self.fabric_renderer.vertices.clear();
-        self.fabric_renderer.vertices.extend(intervals);
-        self.wgpu.queue.write_buffer(
-            &self.fabric_renderer.buffer,
-            0,
-            cast_slice(&self.fabric_renderer.vertices),
-        );
+        self.fabric_renderer.update(&mut self.wgpu, vertexes);
         let surface_texture = self.wgpu.surface_texture().expect("surface texture");
         let texture_view = surface_texture
             .texture
