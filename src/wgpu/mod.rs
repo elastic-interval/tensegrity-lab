@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 use bytemuck::cast_slice;
 use cgmath::Matrix4;
-use wgpu::{PipelineLayout, ShaderModule, TextureFormat};
-use wgpu::MemoryHints::Performance;
 use wgpu::util::DeviceExt;
+use wgpu::MemoryHints::Performance;
+use wgpu::{PipelineLayout, ShaderModule, TextureFormat};
 use winit::event_loop::EventLoopProxy;
 use winit::window::Window;
 
@@ -14,17 +14,18 @@ use crate::messages::LabEvent;
 
 pub mod fabric_vertex;
 pub mod surface_vertex;
-pub mod drawing;
+pub mod surface_renderer;
+pub mod fabric_renderer;
 
 pub struct Wgpu {
     pub queue: wgpu::Queue,
-    surface: wgpu::Surface<'static>,
-    surface_config: wgpu::SurfaceConfiguration,
+    pub surface: wgpu::Surface<'static>,
+    pub surface_config: wgpu::SurfaceConfiguration,
     pub device: wgpu::Device,
-    uniform_buffer: wgpu::Buffer,
+    pub uniform_buffer: wgpu::Buffer,
     pub uniform_bind_group: wgpu::BindGroup,
     pub pipeline_layout: PipelineLayout,
-    shader: ShaderModule,
+    pub shader: ShaderModule,
 }
 
 impl Debug for Wgpu {

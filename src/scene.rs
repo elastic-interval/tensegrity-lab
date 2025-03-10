@@ -5,9 +5,8 @@ use crate::fabric::material::interval_material;
 use crate::fabric::Fabric;
 use crate::messages::LabEvent;
 use crate::messages::{ControlState, IntervalDetails, JointDetails};
-use crate::wgpu::drawing::Drawing;
 use crate::wgpu::fabric_vertex::FabricVertex;
-use crate::wgpu::surface_vertex::SurfaceVertex;
+use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::Wgpu;
 use bytemuck::cast_slice;
 use winit::dpi::PhysicalSize;
@@ -15,30 +14,41 @@ use winit::event::{ElementState, MouseButton};
 use winit::event_loop::EventLoopProxy;
 use ControlState::{ShowingInterval, ShowingJoint};
 use LabEvent::OverlayChanged;
+use crate::wgpu::fabric_renderer::FabricRenderer;
 
 pub struct Scene {
     wgpu: Wgpu,
     camera: Camera,
-    fabric_drawing: Drawing<FabricVertex>,
-    surface_drawing: Drawing<SurfaceVertex>,
+    fabric_renderer: FabricRenderer,
+    surface_renderer: SurfaceRenderer,
     event_loop_proxy: EventLoopProxy<LabEvent>,
 }
 
 impl Scene {
     pub fn new(wgpu: Wgpu, event_loop_proxy: EventLoopProxy<LabEvent>) -> Self {
         let camera = wgpu.create_camera();
-        let fabric_drawing = wgpu.create_fabric_drawing();
-        let surface_drawing = wgpu.create_surface_drawing();
+        let fabric_renderer = FabricRenderer::new(
+            &wgpu.device,
+            &wgpu.pipeline_layout,
+            &wgpu.shader,
+            &wgpu.surface_config
+        );
+        let surface_renderer = SurfaceRenderer::new(
+            &wgpu.device,
+            &wgpu.pipeline_layout,
+            &wgpu.shader,
+            &wgpu.surface_config
+        );
         Self {
             wgpu,
             camera,
-            fabric_drawing,
-            surface_drawing,
+            fabric_renderer,
+            surface_renderer,
             event_loop_proxy,
         }
     }
 
-    fn render(&self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
+    fn render(&mut self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -60,26 +70,21 @@ impl Scene {
         });
         render_pass.set_bind_group(0, &self.wgpu.uniform_bind_group, &[]);
 
-        render_pass.set_pipeline(&self.fabric_drawing.pipeline);
-        render_pass.set_vertex_buffer(0, self.fabric_drawing.buffer.slice(..));
-        render_pass.draw(0..self.fabric_drawing.vertices.len() as u32, 0..1);
-
-        render_pass.set_pipeline(&self.surface_drawing.pipeline);
-        render_pass.set_vertex_buffer(0, self.surface_drawing.buffer.slice(..));
-        render_pass.draw(0..self.surface_drawing.vertices.len() as u32, 0..1);
+        self.fabric_renderer.draw(&mut render_pass);
+        self.surface_renderer.draw(&mut render_pass);
     }
 
     pub fn redraw(&mut self, fabric: &Fabric) {
         let intervals = fabric.intervals.iter().flat_map(|(interval_id, interval)| {
             FabricVertex::for_interval(interval_id, interval, fabric, &self.camera.current_pick())
         });
-        self.fabric_drawing.vertices.clear();
-        self.fabric_drawing.vertices.extend(intervals);
         self.wgpu.update_mvp_matrix(self.camera.mvp_matrix());
+        self.fabric_renderer.vertices.clear();
+        self.fabric_renderer.vertices.extend(intervals);
         self.wgpu.queue.write_buffer(
-            &self.fabric_drawing.buffer,
+            &self.fabric_renderer.buffer,
             0,
-            cast_slice(&self.fabric_drawing.vertices),
+            cast_slice(&self.fabric_renderer.vertices),
         );
         let surface_texture = self.wgpu.surface_texture().expect("surface texture");
         let texture_view = surface_texture
