@@ -3,25 +3,27 @@ struct Uniforms {
 };
 @binding(0) @group(0) var<uniform> uniforms : Uniforms;
 
-struct FabricOutput {
+struct VertexInput {
+    @location(0) pos: vec4<f32>,
+    @location(1) color: vec4<f32>
+}
+
+struct FragmentInput {
     @builtin(position) position : vec4<f32>,
     @location(0) color : vec4<f32>,
 };
 
 @vertex
-fn fabric_vertex(
-@location(0) pos: vec4<f32>,
-@location(1) color: vec4<f32>
-) -> FabricOutput {
-    var output: FabricOutput;
-    output.position = uniforms.mvpMatrix * pos;
-    output.color = color;
+fn fabric_vertex(input: VertexInput) -> FragmentInput {
+    var output: FragmentInput;
+    output.position = uniforms.mvpMatrix * input.pos;
+    output.color = input.color;
     return output;
 }
 
 @fragment
-fn fabric_fragment(in: FabricOutput) -> @location(0) vec4<f32> {
-    return in.color;
+fn fabric_fragment(input: FragmentInput) -> @location(0) vec4<f32> {
+    return input.color;
 }
 
 struct SurfaceOutput {
