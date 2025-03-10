@@ -11,11 +11,13 @@ use winit::window::Window;
 
 use crate::camera::Camera;
 use crate::messages::LabEvent;
+use crate::wgpu::fabric_renderer::FabricRenderer;
+use crate::wgpu::surface_renderer::SurfaceRenderer;
 
-pub mod fabric_vertex;
-pub mod surface_vertex;
-pub mod surface_renderer;
 pub mod fabric_renderer;
+pub mod fabric_vertex;
+pub mod surface_renderer;
+pub mod surface_vertex;
 
 pub struct Wgpu {
     pub queue: wgpu::Queue,
@@ -76,50 +78,42 @@ impl Wgpu {
         let height = size.height.max(1);
         let surface_config = surface.get_default_config(&adapter, width, height).unwrap();
         surface.configure(&device, &surface_config);
-        let uniform_buffer = device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("MVP"),
-                contents: cast_slice(&[0.0f32; 16]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
+        let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("MVP"),
+            contents: cast_slice(&[0.0f32; 16]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
         let uniform_bind_group_layout =
-            device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    label: Some("Uniform Bind Group Layout"),
-                    entries: &[wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }],
-                });
-        let uniform_bind_group =
-            device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    layout: &uniform_bind_group_layout,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: uniform_buffer.as_entire_binding(),
-                    }],
-                    label: Some("Uniform Bind Group"),
-                });
-        let pipeline_layout =
-            device
-                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("Render Pipeline Layout"),
-                    bind_group_layouts: &[&uniform_bind_group_layout],
-                    push_constant_ranges: &[],
-                });
-        let shader =
-            device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("Shader"),
-                    source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-                });
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Uniform Bind Group Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+        let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &uniform_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: uniform_buffer.as_entire_binding(),
+            }],
+            label: Some("Uniform Bind Group"),
+        });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Render Pipeline Layout"),
+            bind_group_layouts: &[&uniform_bind_group_layout],
+            push_constant_ranges: &[],
+        });
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+        });
         Self {
             surface,
             surface_config,
@@ -138,14 +132,18 @@ impl Wgpu {
             let future = Self::new_async(window);
             wasm_bindgen_futures::spawn_local(async move {
                 let wgpu = future.await;
-                assert!(event_loop_proxy.send_event(LabEvent::ContextCreated(wgpu)).is_ok());
+                assert!(event_loop_proxy
+                    .send_event(LabEvent::ContextCreated(wgpu))
+                    .is_ok());
             });
         }
 
         #[cfg(not(target_arch = "wasm32"))]
         {
             let wgpu = futures::executor::block_on(Self::new_async(window));
-            assert!(event_loop_proxy.send_event(LabEvent::ContextCreated(wgpu)).is_ok());
+            assert!(event_loop_proxy
+                .send_event(LabEvent::ContextCreated(wgpu))
+                .is_ok());
         }
     }
 
@@ -157,9 +155,10 @@ impl Wgpu {
     }
 
     pub fn create_encoder(&self) -> wgpu::CommandEncoder {
-        self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Encoder"),
-        })
+        self.device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Encoder"),
+            })
     }
 
     pub fn surface_texture(&self) -> Result<wgpu::SurfaceTexture, wgpu::SurfaceError> {
@@ -168,7 +167,8 @@ impl Wgpu {
 
     pub fn update_mvp_matrix(&self, matrix: Matrix4<f32>) {
         let mvp_ref: &[f32; 16] = matrix.as_ref();
-        self.queue.write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));
+        self.queue
+            .write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));
     }
 
     pub fn create_camera(&self) -> Camera {
@@ -180,8 +180,25 @@ impl Wgpu {
         )
     }
 
+    pub fn create_fabric_renderer(&self) -> FabricRenderer {
+        FabricRenderer::new(
+            &self.device,
+            &self.pipeline_layout,
+            &self.shader,
+            &self.surface_config,
+        )
+    }
+
+    pub fn create_surface_renderer(&self) -> SurfaceRenderer {
+        SurfaceRenderer::new(
+            &self.device,
+            &self.pipeline_layout,
+            &self.shader,
+            &self.surface_config,
+        )
+    }
+
     pub fn format(&self) -> TextureFormat {
         self.surface_config.format
     }
 }
-

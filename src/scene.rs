@@ -26,18 +26,8 @@ pub struct Scene {
 impl Scene {
     pub fn new(wgpu: Wgpu, event_loop_proxy: EventLoopProxy<LabEvent>) -> Self {
         let camera = wgpu.create_camera();
-        let fabric_renderer = FabricRenderer::new(
-            &wgpu.device,
-            &wgpu.pipeline_layout,
-            &wgpu.shader,
-            &wgpu.surface_config,
-        );
-        let surface_renderer = SurfaceRenderer::new(
-            &wgpu.device,
-            &wgpu.pipeline_layout,
-            &wgpu.shader,
-            &wgpu.surface_config,
-        );
+        let fabric_renderer = wgpu.create_fabric_renderer();
+        let surface_renderer = wgpu.create_surface_renderer();
         Self {
             wgpu,
             camera,
