@@ -57,8 +57,7 @@ impl Scene {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
-        render_pass.set_bind_group(0, &self.wgpu.uniform_bind_group, &[]);
-
+        self.wgpu.set_bind_group(&mut render_pass);
         self.fabric_renderer.draw(&mut render_pass);
         self.surface_renderer.draw(&mut render_pass);
     }

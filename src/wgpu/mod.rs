@@ -5,7 +5,7 @@ use bytemuck::cast_slice;
 use cgmath::Matrix4;
 use wgpu::util::DeviceExt;
 use wgpu::MemoryHints::Performance;
-use wgpu::{PipelineLayout, ShaderModule, TextureFormat};
+use wgpu::{PipelineLayout, RenderPass, ShaderModule, TextureFormat};
 use winit::event_loop::EventLoopProxy;
 use winit::window::Window;
 
@@ -21,13 +21,13 @@ pub mod surface_vertex;
 
 pub struct Wgpu {
     pub queue: wgpu::Queue,
-    pub surface: wgpu::Surface<'static>,
-    pub surface_config: wgpu::SurfaceConfiguration,
-    pub device: wgpu::Device,
-    pub uniform_buffer: wgpu::Buffer,
-    pub uniform_bind_group: wgpu::BindGroup,
-    pub pipeline_layout: PipelineLayout,
-    pub shader: ShaderModule,
+    surface: wgpu::Surface<'static>,
+    surface_config: wgpu::SurfaceConfiguration,
+    device: wgpu::Device,
+    uniform_buffer: wgpu::Buffer,
+    uniform_bind_group: wgpu::BindGroup,
+    pipeline_layout: PipelineLayout,
+    shader: ShaderModule,
 }
 
 impl Debug for Wgpu {
@@ -178,6 +178,10 @@ impl Wgpu {
             self.surface_config.width as f32,
             self.surface_config.height as f32,
         )
+    }
+
+    pub fn set_bind_group(&self,render_pass: &mut RenderPass) {
+        render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
     }
 
     pub fn create_fabric_renderer(&self) -> FabricRenderer {
