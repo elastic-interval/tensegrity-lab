@@ -14,7 +14,9 @@ use crate::messages::{ControlState, LabEvent, PointerChange, Shot};
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{
+    ElementState, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,
+};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{WindowAttributes, WindowId};
@@ -235,6 +237,17 @@ impl ApplicationHandler<LabEvent> for Application {
                 WindowEvent::KeyboardInput {
                     event: key_event, ..
                 } => self.handle_key_event(key_event),
+                WindowEvent::Touch(touch_event) => {
+                    scene.pointer_changed(
+                        match touch_event.phase {
+                            TouchPhase::Started => PointerChange::Pressed,
+                            TouchPhase::Moved => PointerChange::Moved(touch_event.location),
+                            TouchPhase::Ended => PointerChange::Released(Shot::NoPick),
+                            TouchPhase::Cancelled => PointerChange::NoChange,
+                        },
+                        &mut self.crucible.fabric(),
+                    );
+                }
                 WindowEvent::CursorMoved { position, .. } => {
                     scene.pointer_changed(
                         PointerChange::Moved(position),
