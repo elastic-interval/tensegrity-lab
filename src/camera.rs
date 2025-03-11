@@ -1,16 +1,16 @@
 use std::f32::consts::PI;
 
-use cgmath::{
-    Deg, EuclideanSpace, InnerSpace, Matrix4, perspective, point3, Point3, Quaternion, Rad, Rotation,
-    Rotation3, SquareMatrix, Transform, vec3, Vector3,
-};
 use cgmath::num_traits::abs;
+use cgmath::{
+    perspective, point3, Deg, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion, Rad,
+    Rotation, Rotation3, SquareMatrix, Transform, Vector3,
+};
 use winit::dpi::PhysicalPosition;
-use winit::event::{ElementState, MouseScrollDelta};
 
-use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
+use crate::fabric::{Fabric, UniqueId};
+use crate::messages::{PointerChange, Shot};
 
 #[derive(Debug, Clone)]
 pub enum Pick {
@@ -25,12 +25,6 @@ pub enum Pick {
         interval: Interval,
         length: f32,
     },
-}
-
-pub enum Shot {
-    NoPick,
-    Joint,
-    Interval,
 }
 
 const TARGET_HIT: f32 = 0.001;
@@ -76,41 +70,29 @@ impl Camera {
         self.current_pick = Pick::Nothing; // more?
     }
 
-    pub fn cursor_moved(&mut self, mouse_now: PhysicalPosition<f64>) {
-        self.mouse_now = Some(mouse_now);
-        if let Some(mouse_follower) = self.mouse_follower {
-            let diff = ((mouse_now.x - mouse_follower.x) as f32, (mouse_now.y - mouse_follower.y) as f32);
-            if let Some(rotation) = self.rotation(diff) {
-                self.position = self.look_at - rotation.transform_vector(self.look_at - self.position);
+    pub fn pointer_changed(&mut self, pointer_change: PointerChange, fabric: & Fabric)  -> Option<Pick>{
+        match pointer_change {
+            PointerChange::Moved(mouse_now) => {
+                self.mouse_now = Some(mouse_now);
+                if let Some(mouse_follower) = self.mouse_follower {
+                    let diff = ((mouse_now.x - mouse_follower.x) as f32, (mouse_now.y - mouse_follower.y) as f32);
+                    if let Some(rotation) = self.rotation(diff) {
+                        self.position = self.look_at - rotation.transform_vector(self.look_at - self.position);
+                    }
+                    self.mouse_follower = Some(mouse_now)
+                }
             }
-            self.mouse_follower = Some(mouse_now)
-        }
-    }
-
-    pub fn mouse_wheel(&mut self, delta: MouseScrollDelta) {
-        let mut wheel = |scroll: f32| {
-            let gaze = self.look_at - self.position;
-            if gaze.magnitude() - scroll > 1.0 {
-                self.position += gaze.normalize() * scroll;
+            PointerChange::Zoomed(delta) => {
+                let gaze = self.look_at - self.position;
+                if gaze.magnitude() - delta > 1.0 {
+                    self.position += gaze.normalize() * delta;
+                }
             }
-        };
-        match delta {
-            MouseScrollDelta::LineDelta(_, y) => {
-                wheel(y * SPEED.z * 5.0)
-            }
-            MouseScrollDelta::PixelDelta(position) => {
-                wheel((position.y as f32) * SPEED.z);
-            }
-        }
-    }
-
-    pub fn mouse_input(&mut self, state: ElementState, shot: Shot, fabric: &Fabric) -> Option<Pick> {
-        match state {
-            ElementState::Pressed => {
+            PointerChange::Pressed => {
                 self.mouse_follower = self.mouse_now;
                 self.mouse_click = self.mouse_now;
             }
-            ElementState::Released => {
+            PointerChange::Released(shot) => {
                 self.mouse_follower = None;
                 if let (Some(mouse_click), Some(mouse_now)) = (self.mouse_click, self.mouse_now) {
                     let (dx, dy) = ((mouse_now.x - mouse_click.x) as f32, (mouse_now.y - mouse_click.y) as f32);
@@ -230,9 +212,9 @@ impl Camera {
         if (dx, dy) == (0.0, 0.0) {
             return None;
         }
-        let rot_x = Matrix4::from_axis_angle(Vector3::unit_y(), Deg(dx * SPEED.x));
+        let rot_x = Matrix4::from_axis_angle(Vector3::unit_y(), Deg(dx * -0.5));
         let axis = Vector3::unit_y().cross((self.look_at - self.position).normalize());
-        let rot_y = Matrix4::from_axis_angle(axis, Deg(dy * SPEED.y));
+        let rot_y = Matrix4::from_axis_angle(axis, Deg(dy * 0.4));
         Some(rot_x * rot_y)
     }
 
@@ -282,8 +264,6 @@ impl Camera {
             .map(|(index, _, joint)| (index, *joint))
     }
 }
-
-const SPEED: Vector3<f32> = vec3(-0.5, 0.4, 0.1);
 
 const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
     1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.5, 1.0,
