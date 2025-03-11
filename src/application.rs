@@ -10,11 +10,11 @@ use crate::camera::Pick;
 use crate::control_overlay::OverlayState;
 use crate::crucible::{Crucible, CrucibleAction, LabAction};
 use crate::fabric::FabricStats;
-use crate::messages::{ControlState, LabEvent};
+use crate::messages::{ControlState, LabEvent, PointerChange, Shot};
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 use winit::application::ApplicationHandler;
-use winit::event::{KeyEvent, WindowEvent};
+use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{WindowAttributes, WindowId};
@@ -173,7 +173,8 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.pick_active = true;
             }
             LabEvent::Crucible(crucible_action) => {
-                match &crucible_action { // side-effect
+                match &crucible_action {
+                    // side effect
                     CrucibleAction::BuildFabric(_) => {
                         self.event_loop_proxy
                             .send_event(LabEvent::OverlayChanged(SetFabricStats(None)))
@@ -234,14 +235,42 @@ impl ApplicationHandler<LabEvent> for Application {
                 WindowEvent::KeyboardInput {
                     event: key_event, ..
                 } => self.handle_key_event(key_event),
-                WindowEvent::CursorMoved { position, .. } => scene.camera().cursor_moved(position),
-                WindowEvent::MouseInput { state, button, .. } => {
-                    if let Some(scene) = &mut self.scene {
-                        scene.mouse_input(state, button, self.pick_active, self.crucible.fabric());
-                    }
+                WindowEvent::CursorMoved { position, .. } => {
+                    scene.pointer_changed(
+                        PointerChange::Moved(position),
+                        &mut self.crucible.fabric(),
+                    );
                 }
-                WindowEvent::MouseWheel { delta, .. } => scene.camera().mouse_wheel(delta),
-                WindowEvent::TouchpadPressure { .. } => {}
+                WindowEvent::MouseInput { state, button, .. } => {
+                    scene.pointer_changed(
+                        match state {
+                            ElementState::Pressed => PointerChange::Pressed,
+                            ElementState::Released => {
+                                let shot = if self.pick_active {
+                                    match button {
+                                        MouseButton::Right => Shot::Joint,
+                                        _ => Shot::Interval,
+                                    }
+                                } else {
+                                    Shot::NoPick
+                                };
+                                PointerChange::Released(shot)
+                            }
+                        },
+                        &mut self.crucible.fabric(),
+                    );
+                }
+                WindowEvent::MouseWheel { delta, .. } => {
+                    scene.pointer_changed(
+                        match delta {
+                            MouseScrollDelta::LineDelta(_, y) => PointerChange::Zoomed(y * 0.5),
+                            MouseScrollDelta::PixelDelta(position) => {
+                                PointerChange::Zoomed((position.y as f32) * 0.1)
+                            }
+                        },
+                        &mut self.crucible.fabric(),
+                    );
+                }
                 WindowEvent::CursorEntered { .. } => {
                     self.fabric_alive = true;
                 }
@@ -263,8 +292,8 @@ impl ApplicationHandler<LabEvent> for Application {
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(scene) = &mut self.scene {
-            let approaching = scene.camera().target_approach(self.crucible.fabric());
-            let pick_active = !matches!(scene.camera().current_pick(), Pick::Nothing);
+            let approaching = scene.target_approach(self.crucible.fabric());
+            let pick_active = !matches!(scene.current_pick(), Pick::Nothing);
             let iterating = self.fabric_alive && !pick_active;
             if iterating {
                 if let Some(lab_event) = self.crucible.iterate(&self.brick_library) {

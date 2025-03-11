@@ -1,5 +1,6 @@
 use std::time::SystemTime;
 use cgmath::Point3;
+use winit::dpi::PhysicalPosition;
 use crate::application::OverlayChange;
 use crate::crucible::CrucibleAction;
 use crate::fabric::FabricStats;
@@ -59,4 +60,17 @@ pub enum LabEvent {
     EvolveFromSeed(u64),
     FabricBuilt(FabricStats),
     OverlayChanged(OverlayChange),
+}
+
+pub enum Shot {
+    NoPick,
+    Joint,
+    Interval,
+}
+
+pub enum PointerChange {
+    Moved(PhysicalPosition<f64>),
+    Zoomed(f32),
+    Pressed,
+    Released(Shot),
 }

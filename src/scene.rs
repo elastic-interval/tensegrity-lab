@@ -1,16 +1,15 @@
 use crate::application::OverlayChange::SetControlState;
 use crate::camera::Target::*;
-use crate::camera::{Camera, Pick, Shot};
+use crate::camera::{Camera, Pick};
 use crate::fabric::material::interval_material;
 use crate::fabric::Fabric;
-use crate::messages::LabEvent;
 use crate::messages::{ControlState, IntervalDetails, JointDetails};
+use crate::messages::{LabEvent, PointerChange};
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::fabric_vertex::FabricVertex;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::Wgpu;
 use winit::dpi::PhysicalSize;
-use winit::event::{ElementState, MouseButton};
 use winit::event_loop::EventLoopProxy;
 use ControlState::{ShowingInterval, ShowingJoint};
 use LabEvent::OverlayChanged;
@@ -83,30 +82,18 @@ impl Scene {
         self.camera.set_size(width as f32, height as f32);
     }
 
-    pub fn mouse_input(
-        &mut self,
-        state: ElementState,
-        button: MouseButton,
-        pick_active: bool,
-        fabric: &Fabric,
-    ) {
-        let shot = if pick_active {
-            match button {
-                MouseButton::Right => Shot::Joint,
-                _ => Shot::Interval,
-            }
-        } else {
-            Shot::NoPick
-        };
-        if let Some(pick) = self.camera.mouse_input(state, shot, fabric) {
-            if pick_active {
-                self.camera_pick(pick);
-            }
+    pub fn pointer_changed(&mut self, pointer_changed: PointerChange, fabric: & Fabric) {
+        if let Some(pick) = self.camera.pointer_changed(pointer_changed, fabric) {
+            self.camera_pick(pick);
         }
     }
 
-    pub fn camera(&mut self) -> &mut Camera {
-        &mut self.camera
+    pub fn current_pick(&self) -> Pick {
+        self.camera.current_pick()
+    }
+
+    pub fn target_approach(&mut self, fabric: &Fabric) -> bool {
+        self.camera.target_approach(fabric)
     }
 
     pub fn reset(&mut self) {
