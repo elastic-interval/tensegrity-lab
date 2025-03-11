@@ -69,6 +69,7 @@ pub enum Shot {
 }
 
 pub enum PointerChange {
+    NoChange,
     Moved(PhysicalPosition<f64>),
     Zoomed(f32),
     Pressed,
