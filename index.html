@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 
 <!-- Disable zooming: -->
@@ -19,7 +19,6 @@
     <link data-trunk rel="copy-file" href="assets/manifest.json"/>
     <link data-trunk rel="copy-file" href="assets/icon-1024.png"/>
     <link data-trunk rel="copy-file" href="assets/icon-256.png"/>
-    <link data-trunk rel="copy-file" href="assets/icon_ios_touch_192.png"/>
     <link data-trunk rel="copy-file" href="assets/maskable_icon_x512.png"/>
 
     <link rel="manifest" href="manifest.json">
@@ -28,12 +27,46 @@
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#404040">
 </head>
 <body>
+<div id="loading-screen">
+    <span class="loader"></span>
+    <div class="app-title">Tensegrity Lab</div>
+    <div class="loading-text">Loading application...</div>
+</div>
+<script>
+    // Check for dark mode preference
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.getElementById('loading-screen').classList.add('dark-theme');
+    }
 
+    // Hide loading screen when the application is ready
+    window.addEventListener('load', function() {
+        // This will hide the loading screen when all resources (including WASM) are loaded
+        const canvas = document.getElementById('canvas');
+        const loadingScreen = document.getElementById('loading-screen');
 
-<!-- The WASM code will resize the canvas dynamically -->
-<!-- the id is hardcoded in main.rs . so, make sure both match. -->
+        // Function to check if the application has started rendering
+        function checkCanvas() {
+            // Check if canvas has content (you may need to adjust this logic based on your app)
+            if (canvas.width > 0 && canvas.height > 0 &&
+                (canvas.getContext('webgpu') || canvas.getContext('webgl2'))) {
+                // App has started, fade out loading screen and fade in canvas
+                loadingScreen.style.opacity = '0';
+                canvas.classList.add('loaded');
+
+                // Remove loading screen after transition
+                setTimeout(function() {
+                    loadingScreen.style.display = 'none';
+                }, 500);
+            } else {
+                // Check again after a short delay
+                setTimeout(checkCanvas, 100);
+            }
+        }
+
+        // Start checking if canvas is ready
+        setTimeout(checkCanvas, 500);
+    });
+</script>
 <canvas id="canvas"></canvas>
-<div id="control_overlay"></div>
 </body>
-
 </html>
