@@ -1,6 +1,6 @@
 use std::time::SystemTime;
 use cgmath::Point3;
-use winit::dpi::PhysicalPosition;
+use winit::dpi::{PhysicalPosition, PhysicalSize};
 use crate::application::OverlayChange;
 use crate::crucible::CrucibleAction;
 use crate::fabric::FabricStats;
@@ -60,6 +60,7 @@ pub enum LabEvent {
     EvolveFromSeed(u64),
     FabricBuilt(FabricStats),
     OverlayChanged(OverlayChange),
+    Resize(PhysicalSize<u32>),
 }
 
 pub enum Shot {

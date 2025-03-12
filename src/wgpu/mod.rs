@@ -2,7 +2,7 @@ use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
 use bytemuck::cast_slice;
-use cgmath::Matrix4;
+use cgmath::{Matrix4, Point3};
 use wgpu::util::DeviceExt;
 use wgpu::MemoryHints::Performance;
 use wgpu::{PipelineLayout, RenderPass, ShaderModule, TextureFormat};
@@ -186,7 +186,7 @@ impl Wgpu {
     pub fn create_camera(&self) -> Camera {
         let scale = 6.0;
         Camera::new(
-            (2.0 * scale, 1.0 * scale, 2.0 * scale).into(),
+            Point3::new(2.0 * scale, 1.0 * scale, 2.0 * scale),
             self.surface_config.width as f32,
             self.surface_config.height as f32,
         )
