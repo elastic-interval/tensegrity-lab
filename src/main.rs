@@ -6,9 +6,8 @@ use clap::Parser;
 use leptos::prelude::*;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
-use winit::dpi::PhysicalSize;
 use winit::event_loop::EventLoop;
-use winit::window::WindowAttributes;
+use winit::window::{Fullscreen, WindowAttributes};
 
 use crate::RunStyle::{FabricName, Online, Prototype, Seeded};
 use tensegrity_lab::application::Application;
@@ -68,7 +67,7 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
     #[allow(unused_mut)]
     let mut window_attributes = WindowAttributes::default()
         .with_title("Tensegrity Lab")
-        .with_inner_size(PhysicalSize::new(1600, 1200));
+        .with_fullscreen(Some(Fullscreen::Borderless(None)));
 
     #[cfg(target_arch = "wasm32")]
     use tensegrity_lab::control_overlay::OverlayState;
@@ -80,6 +79,7 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
         use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
         use tensegrity_lab::control_overlay::ControlOverlayApp;
         use winit::platform::web::WindowAttributesExtWebSys;
+        use winit::dpi::PhysicalSize;
 
         let web_sys_window = web_sys::window().expect("no web sys window");
         let document = web_sys_window.document().expect("no document");

@@ -222,6 +222,11 @@ impl ApplicationHandler<LabEvent> for Application {
                 #[cfg(target_arch = "wasm32")]
                 self.overlay_state.change_happened(app_change);
             }
+            LabEvent::Resize(physical_size) => {
+                println!("Resize {:?}", physical_size);
+                #[cfg(target_arch = "wasm32")]
+                leptos::logging::log!("Resize {:?}", physical_size);
+            }
         }
     }
 
