@@ -1,13 +1,8 @@
 use std::error::Error;
 
 use clap::Parser;
-#[allow(unused_imports)]
-#[cfg(target_arch = "wasm32")]
-use leptos::prelude::*;
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
 use winit::event_loop::EventLoop;
-use winit::window::{Fullscreen, WindowAttributes};
+use winit::window::WindowAttributes;
 
 use crate::RunStyle::{FabricName, Online, Prototype, Seeded};
 use tensegrity_lab::application::Application;
@@ -64,11 +59,6 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
     let event_loop: EventLoop<LabEvent> = builder.build()?;
     let event_loop_proxy = event_loop.create_proxy();
 
-    #[allow(unused_mut)]
-    let mut window_attributes = WindowAttributes::default()
-        .with_title("Tensegrity Lab")
-        .with_fullscreen(Some(Fullscreen::Borderless(None)));
-
     #[cfg(target_arch = "wasm32")]
     use tensegrity_lab::control_overlay::OverlayState;
     #[cfg(target_arch = "wasm32")]
@@ -78,11 +68,8 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
     {
         use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
         use tensegrity_lab::control_overlay::ControlOverlayApp;
-        use winit::platform::web::WindowAttributesExtWebSys;
-        use winit::dpi::PhysicalSize;
+        use leptos::prelude::*;
 
-        let web_sys_window = web_sys::window().expect("no web sys window");
-        let document = web_sys_window.document().expect("no document");
         let overlay_proxy = event_loop.create_proxy();
 
         let _ = mount_to_body( move || {
@@ -97,27 +84,20 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
             }
         });
 
-        let canvas = document
-            .get_element_by_id("canvas")
-            .expect("no element with id 'canvas'")
-            .dyn_into()
-            .expect("not a canvas");
-        let ratio = web_sys_window.device_pixel_ratio();
-        let width = web_sys_window.inner_width().unwrap().as_f64().unwrap();
-        let height = web_sys_window.inner_height().unwrap().as_f64().unwrap();
-        let size = PhysicalSize::new(width * ratio, height * ratio);
-        window_attributes = window_attributes
-            .with_canvas(Some(canvas))
-            .with_inner_size(size);
+        setup_resize_handler(event_loop_proxy.clone());
     }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    let window_attributes = create_window_attributes();
+    #[cfg(target_arch = "wasm32")]
+    let window_attributes = create_window_attributes();
 
     let proxy = event_loop_proxy.clone();
 
     let mut app: Application = match Application::new(
         window_attributes,
-        #[cfg(target_arch = "wasm32")]
-        overlay_state,
-        proxy
+        proxy,
+        #[cfg(target_arch = "wasm32")] overlay_state,
     ) {
         Ok(app) => app,
         Err(error) => panic!("Tenscript Error: [{:?}]", error),
@@ -144,7 +124,60 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(start))]
 pub fn run() {
     run_with(Online).unwrap();
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn create_window_attributes() -> WindowAttributes {
+    WindowAttributes::default()
+        .with_title("Tensegrity Lab")
+        .with_fullscreen(Some(winit::window::Fullscreen::Borderless(None)))
+}
+
+#[cfg(target_arch = "wasm32")]
+fn create_window_attributes() -> WindowAttributes {
+    use winit::platform::web::WindowAttributesExtWebSys;
+    use winit::dpi::PhysicalSize;
+    use wasm_bindgen::JsCast;
+
+    let web_sys_window = web_sys::window().expect("no web sys window");
+    let document = web_sys_window.document().expect("no document");
+    let ratio = web_sys_window.device_pixel_ratio();
+    let width = web_sys_window.inner_width().unwrap().as_f64().unwrap();
+    let height = web_sys_window.inner_height().unwrap().as_f64().unwrap();
+    let size = PhysicalSize::new(width * ratio, height * ratio);
+    let canvas = document
+        .get_element_by_id("canvas")
+        .expect("no element with id 'canvas'")
+        .dyn_into()
+        .expect("not a canvas");
+    WindowAttributes::default()
+        .with_canvas(Some(canvas))
+        .with_inner_size(size)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn setup_resize_handler(event_loop_proxy: winit::event_loop::EventLoopProxy<LabEvent>) {
+    use winit::dpi::PhysicalSize;
+    use wasm_bindgen::closure::Closure;
+    use wasm_bindgen::JsCast;
+
+    let window = web_sys::window().expect("no global window exists");
+    let resize_closure = Closure::wrap(Box::new(move || {
+        let window = web_sys::window().expect("no global window exists");
+        let ratio = window.device_pixel_ratio();
+        let width = window.inner_width().unwrap().as_f64().unwrap();
+        let height = window.inner_height().unwrap().as_f64().unwrap();
+        let position = PhysicalSize::new((width * ratio) as u32, (height * ratio) as u32);
+        event_loop_proxy.send_event(LabEvent::Resize(position)).unwrap();
+    }) as Box<dyn FnMut()>);
+
+    window
+        .add_event_listener_with_callback("resize", resize_closure.as_ref().unchecked_ref())
+        .expect("failed to add resize listener");
+
+    // Forget the closure to keep it alive (otherwise it will be dropped)
+    resize_closure.forget();
 }

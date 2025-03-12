@@ -46,8 +46,8 @@ pub enum OverlayChange {
 impl Application {
     pub fn new(
         window_attributes: WindowAttributes,
-        #[cfg(target_arch = "wasm32")] overlay_state: OverlayState,
         event_loop_proxy: EventLoopProxy<LabEvent>,
+        #[cfg(target_arch = "wasm32")] overlay_state: OverlayState,
     ) -> Result<Application, TenscriptError> {
         let brick_library = BrickLibrary::from_source()?;
         let fabric_library = FabricLibrary::from_source()?;
@@ -190,14 +190,14 @@ impl ApplicationHandler<LabEvent> for Application {
                 }
                 self.crucible.action(crucible_action);
             }
-            #[cfg(target_arch = "wasm32")]
-            LabEvent::UpdatedLibrary(_) => unreachable!(),
-            #[cfg(not(target_arch = "wasm32"))]
             LabEvent::UpdatedLibrary(time) => {
-                let _fabric_library = self.fabric_library.clone();
-                self.fabric_library_modified = time;
-                if !self.fabric_plan_name.is_empty() {
-                    self.build_current_fabric();
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    let _fabric_library = self.fabric_library.clone();
+                    self.fabric_library_modified = time;
+                    if !self.fabric_plan_name.is_empty() {
+                        self.build_current_fabric();
+                    }
                 }
             }
             LabEvent::CalibrateStrain => {
@@ -299,9 +299,9 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                 }
                 WindowEvent::Resized(physical_size) => {
-                    if let Some(scene) = &mut self.scene {
-                        scene.resize(physical_size)
-                    }
+                    #[cfg(target_arch = "wasm32")]
+                    leptos::logging::log!("Resized {:?}", physical_size);
+                    scene.resize(physical_size)
                 }
                 _ => {}
             }

@@ -88,6 +88,8 @@ impl Wgpu {
         let size = window.inner_size();
         let width = size.width.max(1);
         let height = size.height.max(1);
+        #[cfg(target_arch = "wasm32")]
+        leptos::logging::log!("WGPU new_async width: {}, height: {}", width, height);
         let surface_config = surface.get_default_config(&adapter, width, height).unwrap();
         surface.configure(&device, &surface_config);
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
