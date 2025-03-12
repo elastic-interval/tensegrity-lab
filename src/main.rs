@@ -71,6 +71,7 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
         use leptos::prelude::*;
 
         let overlay_proxy = event_loop.create_proxy();
+        setup_resize_handler(event_loop_proxy.clone());
 
         let _ = mount_to_body( move || {
             view! {
@@ -83,8 +84,6 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
                     event_loop_proxy={overlay_proxy}/>
             }
         });
-
-        setup_resize_handler(event_loop_proxy.clone());
     }
 
     #[cfg(not(target_arch = "wasm32"))]
