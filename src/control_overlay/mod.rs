@@ -97,7 +97,7 @@ pub fn ControlOverlayApp(
             />
             <Show
                 when=move || { show_details.get() }
-                fallback=|| view! { <div class="bottom-center rounded">D=Details S=Stats</div> }
+                fallback=|| view! { <div class="bottom-center rounded">"[D]etails [S]tats"</div> }
             >
                 <DetailsView control_state=control_state fabric_stats=fabric_stats />
             </Show>
