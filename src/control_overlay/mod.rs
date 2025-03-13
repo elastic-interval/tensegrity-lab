@@ -81,6 +81,7 @@ pub fn ControlOverlayApp(
     fabric_name: ReadSignal<String>,
     set_fabric_name: WriteSignal<String>,
     event_loop_proxy: EventLoopProxy<LabEvent>,
+    portrait: bool,
 ) -> impl IntoView {
     Effect::new(move |_| {
         event_loop_proxy
@@ -95,14 +96,16 @@ pub fn ControlOverlayApp(
                 fabric_name=fabric_name
                 set_fabric_name=set_fabric_name
             />
-            <Show
-                when=move || { show_details.get() }
-                fallback=|| view! { <div class="bottom-center rounded">"[D]etails [S]tats"</div> }
-            >
-                <DetailsView control_state=control_state fabric_stats=fabric_stats />
-            </Show>
-            <Show when=move || { show_stats.get() } fallback=|| view! { <div /> }>
-                <StatsView fabric_stats=fabric_stats />
+            <Show when=move||{!portrait}>
+                <Show
+                    when=move || { show_details.get() }
+                    fallback=|| view! { <div class="bottom-center rounded">"[D]etails [S]tats"</div> }
+                >
+                    <DetailsView control_state=control_state fabric_stats=fabric_stats />
+                </Show>
+                <Show when=move || { show_stats.get() }>
+                    <StatsView fabric_stats=fabric_stats />
+                </Show>
             </Show>
         </div>
     }
