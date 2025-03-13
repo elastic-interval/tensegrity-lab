@@ -33,7 +33,6 @@ pub struct Application {
     overlay_state: OverlayState,
     event_loop_proxy: EventLoopProxy<LabEvent>,
     fabric_alive: bool,
-    pick_active: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -65,7 +64,6 @@ impl Application {
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
             fabric_alive: true,
-            pick_active: false,
         })
     }
 
@@ -188,7 +186,6 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.event_loop_proxy
                     .send_event(LabEvent::OverlayChanged(SetFabricStats(Some(fabric_stats))))
                     .unwrap();
-                self.pick_active = true;
             }
             LabEvent::Crucible(crucible_action) => {
                 match &crucible_action {
@@ -197,7 +194,6 @@ impl ApplicationHandler<LabEvent> for Application {
                         self.event_loop_proxy
                             .send_event(LabEvent::OverlayChanged(SetFabricStats(None)))
                             .unwrap();
-                        self.pick_active = false;
                         if let Some(scene) = &mut self.scene {
                             scene.reset();
                         }
@@ -281,7 +277,13 @@ impl ApplicationHandler<LabEvent> for Application {
                         match state {
                             ElementState::Pressed => PointerChange::Pressed,
                             ElementState::Released => {
-                                let shot = if self.pick_active {
+                                #[cfg(target_arch = "wasm32")]
+                                use leptos::prelude::Get;
+                                #[cfg(target_arch = "wasm32")]
+                                let pick_active = self.overlay_state.show_details.get();
+                                #[cfg(not(target_arch = "wasm32"))]
+                                let pick_active = true;
+                                let shot = if pick_active {
                                     match button {
                                         MouseButton::Right => Shot::Joint,
                                         _ => Shot::Interval,

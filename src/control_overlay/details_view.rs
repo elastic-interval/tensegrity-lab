@@ -18,15 +18,7 @@ pub fn DetailsView(
     view! {
         <div class="bottom-center rounded">
             {move || match control_state.get() {
-                ControlState::Waiting => {
-                    EitherOf4::A(
-                        view! {
-                            <div>
-                                <p>"Busy..."</p>
-                            </div>
-                        },
-                    )
-                }
+                ControlState::Waiting => EitherOf4::A(view! { <div>"Waiting to finish..."</div> }),
                 ControlState::Viewing => {
                     EitherOf4::B(
                         view! {
