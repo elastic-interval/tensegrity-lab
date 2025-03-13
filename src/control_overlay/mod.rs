@@ -23,6 +23,7 @@ pub struct OverlayState {
     pub set_show_stats: WriteSignal<bool>,
     pub fabric_name: ReadSignal<String>,
     pub set_fabric_name: WriteSignal<String>,
+    pub pick_active: bool,
 }
 
 impl Default for OverlayState {
@@ -43,6 +44,7 @@ impl Default for OverlayState {
             set_show_stats,
             fabric_name,
             set_fabric_name,
+            pick_active: false,
         }
     }
 }
@@ -62,7 +64,13 @@ impl OverlayState {
                 self.set_fabric_stats.set(fabric_stats);
             }
             OverlayChange::ToggleShowDetails => {
-                self.set_show_details.update(|show| *show = !*show);
+                self.set_show_details.update(|show| {
+                    *show = !*show;
+                    self.pick_active = *show;
+                    if *show {
+                        self.set_control_state.set(ControlState::Viewing);
+                    }
+                });
             }
             OverlayChange::ToggleShowStats => {
                 self.set_show_stats.update(|show| *show = !*show);
@@ -99,7 +107,7 @@ pub fn ControlOverlayApp(
             <Show when=move||{!portrait}>
                 <Show
                     when=move || { show_details.get() }
-                    fallback=|| view! { <div class="bottom-center rounded">"[D]etails [S]tats"</div> }
+                    fallback=|| view! { <div class="bottom-center rounded">"[B]uild [S]tatistics"</div> }
                 >
                     <DetailsView control_state=control_state fabric_stats=fabric_stats />
                 </Show>
