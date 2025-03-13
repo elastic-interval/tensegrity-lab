@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#000000"/>
+  
+  <!-- Six-strut tensegrity icosahedron - Scaled to fit safely in maskable area -->
+  <g transform="translate(256 256) scale(0.6) translate(-256 -256)">
+    <!-- Compression elements (6 struts) -->
+    <path d="M200 120 L312 390" stroke="white" stroke-width="18" stroke-linecap="round"/>
+    <path d="M145 190 L367 320" stroke="white" stroke-width="18" stroke-linecap="round"/>
+    <path d="M145 320 L367 190" stroke="white" stroke-width="18" stroke-linecap="round"/>
+    <path d="M200 390 L312 120" stroke="white" stroke-width="18" stroke-linecap="round"/>
+    <path d="M120 256 L394 256" stroke="white" stroke-width="18" stroke-linecap="round"/>
+    <path d="M256 120 L256 392" stroke="white" stroke-width="18" stroke-linecap="round"/>
+    
+    <!-- Connection nodes -->
+    <circle cx="200" cy="120" r="12" fill="white"/>
+    <circle cx="312" cy="390" r="12" fill="white"/>
+    <circle cx="145" cy="190" r="12" fill="white"/>
+    <circle cx="367" cy="320" r="12" fill="white"/>
+    <circle cx="145" cy="320" r="12" fill="white"/>
+    <circle cx="367" cy="190" r="12" fill="white"/>
+    <circle cx="200" cy="390" r="12" fill="white"/>
+    <circle cx="312" cy="120" r="12" fill="white"/>
+    <circle cx="120" cy="256" r="12" fill="white"/>
+    <circle cx="394" cy="256" r="12" fill="white"/>
+    <circle cx="256" cy="120" r="12" fill="white"/>
+    <circle cx="256" cy="392" r="12" fill="white"/>
+    
+    <!-- Tension elements (30 cables) - Simplified representation -->
+    <!-- Horizontal ring top -->
+    <path d="M200 120 L256 120" stroke="white" stroke-width="4" fill="none"/>
+    <path d="M256 120 L312 120" stroke="white" stroke-width="4" fill="none"/>
+    <path d="M200 120 L145 190" stroke="white" stroke-width="4" fill="none"/>
+    <path d="M312 120 L367 190" stroke="white" stroke-width="4" fill="none"/>
+    
+    <!-- Horizontal ring middle -->
+    <path d="M145 190 L120 256" stroke="white" stroke-width="4" fill="none"/>
+    <path d="M120 256 L145 320" stroke="white" stroke-width="4" fill="none"/>
+    <path d="M367 190 L394 256" stroke="white" stroke-width="4" fill="none"/>
+    <path d="M394 256 L367 320" stroke="white" stroke-width="4" fill="none"/>
+    
+    <!-- Horizontal ring bottom -->
+    <path d="M200 390 L256 392" stroke="white" stroke-width="4" fill="none"/>
+    <path d="M256 392 L312 390" stroke="white" stroke-width="4" fill="none"/>
+    <path d="M145 320 L200 390" stroke="white" stroke-width="4" fill="none"/>
+    <path d="M367 320 L312 390" stroke="white" stroke-width="4" fill="none"/>
+    
+    <!-- Vertical connections -->
+    <path d="M200 120 L120 256" stroke="white" stroke-width="4" fill="none"/>
+    <path d="M312 120 L394 256" stroke="white" stroke-width="4" fill="none"/>
+    <path d="M145 320 L120 256" stroke="white" stroke-width="4" fill="none"/>
+    <path d="M367 320 L394 256" stroke="white" stroke-width="4" fill="none"/>
+    <path d="M145 190 L256 120" stroke="white" stroke-width="4" fill="none"/>
+    <path d="M367 190 L256 120" stroke="white" stroke-width="4" fill="none"/>
+    <path d="M200 390 L145 190" stroke="white" stroke-width="4" fill="none"/>
+    <path d="M312 390 L367 190" stroke="white" stroke-width="4" fill="none"/>
+  </g>
+</svg>

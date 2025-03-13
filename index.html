@@ -13,16 +13,11 @@
     <!-- this is the base url relative to which other urls will be constructed. trunk will insert this from the public-url option -->
     <base data-trunk-public-url/>
 
-    <link data-trunk rel="icon" href="assets/favicon.ico">
+    <link data-trunk rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
     <link data-trunk rel="css" href="assets/style.css"/>
-
     <link data-trunk rel="copy-file" href="assets/manifest.json"/>
-    <link data-trunk rel="copy-file" href="assets/icon-1024.png"/>
-    <link data-trunk rel="copy-file" href="assets/icon-256.png"/>
-    <link data-trunk rel="copy-file" href="assets/maskable_icon_x512.png"/>
-
-    <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="icon_ios_touch_192.png">
+    <link data-trunk rel="copy-file" href="assets/icon.svg"/>
+    <link data-trunk rel="copy-file" href="assets/icon-maskable.svg"/>
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="white">
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#404040">
 </head>
@@ -39,7 +34,7 @@
     }
 
     // Hide loading screen when the application is ready
-    window.addEventListener('load', function() {
+    window.addEventListener('load', function () {
         // This will hide the loading screen when all resources (including WASM) are loaded
         const canvas = document.getElementById('canvas');
         const loadingScreen = document.getElementById('loading-screen');
@@ -54,7 +49,7 @@
                 canvas.classList.add('loaded');
 
                 // Remove loading screen after transition
-                setTimeout(function() {
+                setTimeout(function () {
                     loadingScreen.style.display = 'none';
                 }, 500);
             } else {
