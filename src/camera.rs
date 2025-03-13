@@ -227,7 +227,14 @@ impl Camera {
             return None;
         }
         let rot_x = Matrix4::from_axis_angle(Vector3::unit_y(), Deg(dx * -0.5));
-        let axis = Vector3::unit_y().cross((self.look_at - self.position).normalize());
+        let intermediate_pos = self.look_at - rot_x.transform_vector(self.look_at - self.position);
+        let view_dir = (self.look_at - intermediate_pos).normalize();
+        let up_dot_view = Vector3::unit_y().dot(view_dir);
+        let angle_limit = 0.7;
+        if (up_dot_view >= angle_limit && dy < 0.0) || (up_dot_view <= -angle_limit && dy > 0.0) {
+            return Some(rot_x);
+        }
+        let axis = Vector3::unit_y().cross(view_dir).normalize();
         let rot_y = Matrix4::from_axis_angle(axis, Deg(dy * 0.4));
         Some(rot_x * rot_y)
     }
