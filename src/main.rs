@@ -64,16 +64,33 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
     #[cfg(target_arch = "wasm32")]
     let overlay_state = OverlayState::default();
 
+    #[cfg(not(target_arch = "wasm32"))]
+    let window_attributes = create_window_attributes();
+    #[cfg(target_arch = "wasm32")]
+    let window_attributes = create_window_attributes();
+
+    #[cfg(target_arch = "wasm32")]
+    let WindowAttributes { inner_size, .. } = window_attributes;
+    #[cfg(target_arch = "wasm32")]
+    let portrait = match inner_size {
+        None => false,
+        Some(size) => {
+            let winit::dpi::PhysicalSize { width, height }: winit::dpi::PhysicalSize<u32> =
+                size.to_physical(1.0);
+            height > width
+        }
+    };
+
     #[cfg(target_arch = "wasm32")]
     {
+        use leptos::prelude::*;
         use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
         use tensegrity_lab::control_overlay::ControlOverlayApp;
-        use leptos::prelude::*;
 
         let overlay_proxy = event_loop.create_proxy();
         setup_resize_handler(event_loop_proxy.clone());
 
-        let _ = mount_to_body( move || {
+        let _ = mount_to_body(move || {
             view! {
                 <ControlOverlayApp
                     fabric_list={FabricLibrary::from_source().unwrap().fabric_list()}
@@ -83,22 +100,20 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
                     show_stats={overlay_state.show_stats}
                     fabric_name={overlay_state.fabric_name}
                     set_fabric_name={overlay_state.set_fabric_name}
-                    event_loop_proxy={overlay_proxy}/>
+                    event_loop_proxy={overlay_proxy}
+                    portrait={portrait}
+                />
             }
         });
     }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    let window_attributes = create_window_attributes();
-    #[cfg(target_arch = "wasm32")]
-    let window_attributes = create_window_attributes();
 
     let proxy = event_loop_proxy.clone();
 
     let mut app: Application = match Application::new(
         window_attributes,
         proxy,
-        #[cfg(target_arch = "wasm32")] overlay_state,
+        #[cfg(target_arch = "wasm32")]
+        overlay_state,
     ) {
         Ok(app) => app,
         Err(error) => panic!("Tenscript Error: [{:?}]", error),
@@ -139,9 +154,9 @@ fn create_window_attributes() -> WindowAttributes {
 
 #[cfg(target_arch = "wasm32")]
 fn create_window_attributes() -> WindowAttributes {
-    use winit::platform::web::WindowAttributesExtWebSys;
-    use winit::dpi::PhysicalSize;
     use wasm_bindgen::JsCast;
+    use winit::dpi::PhysicalSize;
+    use winit::platform::web::WindowAttributesExtWebSys;
 
     let web_sys_window = web_sys::window().expect("no web sys window");
     let document = web_sys_window.document().expect("no document");
@@ -161,9 +176,9 @@ fn create_window_attributes() -> WindowAttributes {
 
 #[cfg(target_arch = "wasm32")]
 fn setup_resize_handler(event_loop_proxy: winit::event_loop::EventLoopProxy<LabEvent>) {
-    use winit::dpi::PhysicalSize;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::JsCast;
+    use winit::dpi::PhysicalSize;
 
     let window = web_sys::window().expect("no global window exists");
     let resize_closure = Closure::wrap(Box::new(move || {
@@ -172,7 +187,9 @@ fn setup_resize_handler(event_loop_proxy: winit::event_loop::EventLoopProxy<LabE
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
         let position = PhysicalSize::new((width * ratio) as u32, (height * ratio) as u32);
-        event_loop_proxy.send_event(LabEvent::Resize(position)).unwrap();
+        event_loop_proxy
+            .send_event(LabEvent::Resize(position))
+            .unwrap();
     }) as Box<dyn FnMut()>);
 
     window
