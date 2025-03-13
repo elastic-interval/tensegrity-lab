@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Background -->
+  <circle cx="32" cy="32" r="32" fill="#000000"/>
+  
+  <!-- Simplified Six-strut tensegrity for small sizes -->
+  <g transform="translate(32 32) scale(0.7) translate(-32 -32)">
+    <!-- Compression elements (6 struts) - simplified for favicon -->
+    <path d="M25 15 L39 49" stroke="white" stroke-width="3" stroke-linecap="round"/>
+    <path d="M18 24 L46 40" stroke="white" stroke-width="3" stroke-linecap="round"/>
+    <path d="M18 40 L46 24" stroke="white" stroke-width="3" stroke-linecap="round"/>
+    <path d="M25 49 L39 15" stroke="white" stroke-width="3" stroke-linecap="round"/>
+    <path d="M15 32 L49 32" stroke="white" stroke-width="3" stroke-linecap="round"/>
+    <path d="M32 15 L32 49" stroke="white" stroke-width="3" stroke-linecap="round"/>
+    
+    <!-- Connection nodes - core points only for small size -->
+    <circle cx="25" cy="15" r="2" fill="white"/>
+    <circle cx="39" cy="49" r="2" fill="white"/>
+    <circle cx="18" cy="24" r="2" fill="white"/>
+    <circle cx="46" cy="40" r="2" fill="white"/>
+    <circle cx="18" cy="40" r="2" fill="white"/>
+    <circle cx="46" cy="24" r="2" fill="white"/>
+    <circle cx="25" cy="49" r="2" fill="white"/>
+    <circle cx="39" cy="15" r="2" fill="white"/>
+    <circle cx="15" cy="32" r="2" fill="white"/>
+    <circle cx="49" cy="32" r="2" fill="white"/>
+    <circle cx="32" cy="15" r="2" fill="white"/>
+    <circle cx="32" cy="49" r="2" fill="white"/>
+    
+    <!-- Minimal tension elements for clarity at small sizes -->
+    <path d="M25 15 L32 15" stroke="white" stroke-width="1" fill="none"/>
+    <path d="M32 15 L39 15" stroke="white" stroke-width="1" fill="none"/>
+    <path d="M15 32 L18 24" stroke="white" stroke-width="1" fill="none"/>
+    <path d="M15 32 L18 40" stroke="white" stroke-width="1" fill="none"/>
+    <path d="M49 32 L46 24" stroke="white" stroke-width="1" fill="none"/>
+    <path d="M49 32 L46 40" stroke="white" stroke-width="1" fill="none"/>
+    <path d="M25 49 L32 49" stroke="white" stroke-width="1" fill="none"/>
+    <path d="M32 49 L39 49" stroke="white" stroke-width="1" fill="none"/>
+  </g>
+</svg>
