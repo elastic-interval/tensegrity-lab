@@ -95,7 +95,10 @@ pub fn ControlOverlayApp(
                 fabric_name=fabric_name
                 set_fabric_name=set_fabric_name
             />
-            <Show when=move || { show_details.get() && fabric_stats.get().is_some() } fallback=|| view! { <div /> }>
+            <Show
+                when=move || { show_details.get() }
+                fallback=|| view! { <div class="bottom-center rounded">D=Details S=Stats</div> }
+            >
                 <DetailsView control_state=control_state fabric_stats=fabric_stats />
             </Show>
             <Show when=move || { show_stats.get() } fallback=|| view! { <div /> }>

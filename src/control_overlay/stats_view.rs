@@ -18,7 +18,7 @@ pub fn StatsView(fabric_stats: ReadSignal<Option<FabricStats>>) -> impl IntoView
                             },
                         )
                     }
-                    None => Either::Right(view! { <div>Waiting to finish...</div> }),
+                    None => Either::Right(view! { <div>"Waiting to finish..."</div> }),
                 }
             }}
         </div>
