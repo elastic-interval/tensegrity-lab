@@ -50,3 +50,8 @@ To run the native version:
 
     cargo run -- --fabric "Halo by Crane"
 
+To prepare a distribution for in a subdirectory /lab/
+
+1. command:
+
+   trunk build --release --public-url /lab
