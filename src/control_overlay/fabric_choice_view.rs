@@ -8,7 +8,7 @@ pub fn FabricChoiceView(
     set_fabric_name: WriteSignal<String>,
 ) -> impl IntoView {
     view! {
-        <div class="top-left rounded">
+        <div class="top-center rounded">
             {move || {
                 if fabric_name.get().is_empty() {
                     Either::Left(

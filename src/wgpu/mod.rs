@@ -186,7 +186,7 @@ impl Wgpu {
     }
 
     pub fn create_camera(&self) -> Camera {
-        let scale = 6.0;
+        let scale = 9.0;
         Camera::new(
             Point3::new(2.0 * scale, 1.0 * scale, 2.0 * scale),
             self.surface_config.width as f32,

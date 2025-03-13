@@ -16,7 +16,7 @@ pub fn DetailsView(
         format!("({x:.3}, {y:.3}, {z:.3})")
     };
     view! {
-        <div class="top-right rounded">
+        <div class="bottom-center rounded">
             {move || match control_state.get() {
                 ControlState::Waiting => {
                     EitherOf4::A(
