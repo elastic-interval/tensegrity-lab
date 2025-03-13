@@ -320,7 +320,10 @@ impl ApplicationHandler<LabEvent> for Application {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(scene) = &mut self.scene {
             let approaching = scene.target_approach(self.crucible.fabric());
+            #[cfg(target_arch = "wasm32")]
             let pick_active = self.overlay_state.pick_active;
+            #[cfg(not(target_arch = "wasm32"))]
+            let pick_active = false;
             let iterating = self.fabric_alive && !pick_active;
             if iterating {
                 if let Some(lab_event) = self.crucible.iterate(&self.brick_library) {
