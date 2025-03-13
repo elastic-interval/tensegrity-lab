@@ -33,6 +33,10 @@
     <div class="loading-text">Loading application...</div>
 </div>
 <script>
+    document.addEventListener('touchmove', function(event) {
+        event.preventDefault();
+    }, { passive: false });
+
     // Check for dark mode preference
     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
         document.getElementById('loading-screen').classList.add('dark-theme');
