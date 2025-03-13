@@ -82,7 +82,7 @@ impl Scene {
         self.camera.set_size(width as f32, height as f32);
     }
 
-    pub fn pointer_changed(&mut self, pointer_changed: PointerChange, fabric: & Fabric) {
+    pub fn pointer_changed(&mut self, pointer_changed: PointerChange, fabric: &Fabric) {
         if let Some(pick) = self.camera.pointer_changed(pointer_changed, fabric) {
             self.camera_pick(pick);
         }

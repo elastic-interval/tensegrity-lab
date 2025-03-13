@@ -2,7 +2,6 @@ use crate::application::OverlayChange::SetFabricStats;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, TenscriptError};
-use crate::camera::Pick;
 #[cfg(target_arch = "wasm32")]
 use crate::control_overlay::OverlayState;
 use crate::crucible::{Crucible, CrucibleAction, LabAction};
@@ -76,16 +75,6 @@ impl Application {
             ..
         } = key_event
         {
-            if code == KeyCode::Escape {
-                if let Some(scene) = &mut self.scene {
-                    scene.reset();
-                    self.event_loop_proxy
-                        .send_event(LabEvent::OverlayChanged(OverlayChange::SetControlState(
-                            ControlState::Viewing,
-                        )))
-                        .unwrap();
-                }
-            }
             if code == KeyCode::KeyX {
                 println!("Export:\n\n{}", self.crucible.fabric().csv());
             }
@@ -96,10 +85,13 @@ impl Application {
                     )))
                     .unwrap();
             }
-            if code == KeyCode::KeyD {
+            if code == KeyCode::KeyB {
                 self.event_loop_proxy
                     .send_event(LabEvent::OverlayChanged(OverlayChange::ToggleShowDetails))
                     .unwrap();
+                if let Some(scene) = &mut self.scene {
+                    scene.reset();
+                }
             }
             if code == KeyCode::KeyS {
                 self.event_loop_proxy
@@ -278,9 +270,7 @@ impl ApplicationHandler<LabEvent> for Application {
                             ElementState::Pressed => PointerChange::Pressed,
                             ElementState::Released => {
                                 #[cfg(target_arch = "wasm32")]
-                                use leptos::prelude::Get;
-                                #[cfg(target_arch = "wasm32")]
-                                let pick_active = self.overlay_state.show_details.get();
+                                let pick_active = self.overlay_state.pick_active;
                                 #[cfg(not(target_arch = "wasm32"))]
                                 let pick_active = true;
                                 let shot = if pick_active {
@@ -330,7 +320,7 @@ impl ApplicationHandler<LabEvent> for Application {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(scene) = &mut self.scene {
             let approaching = scene.target_approach(self.crucible.fabric());
-            let pick_active = !matches!(scene.current_pick(), Pick::Nothing);
+            let pick_active = self.overlay_state.pick_active;
             let iterating = self.fabric_alive && !pick_active;
             if iterating {
                 if let Some(lab_event) = self.crucible.iterate(&self.brick_library) {

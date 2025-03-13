@@ -63,12 +63,14 @@ pub enum LabEvent {
     Resize(PhysicalSize<u32>),
 }
 
+#[derive(Debug, Clone)]
 pub enum Shot {
     NoPick,
     Joint,
     Interval,
 }
 
+#[derive(Debug, Clone)]
 pub enum PointerChange {
     NoChange,
     Moved(PhysicalPosition<f64>),
