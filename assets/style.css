@@ -6,61 +6,40 @@ body {
 }
 
 .rounded {
-    border-style: dotted;
+    border-style: solid;
     border-color: white;
-    border-radius: 1em;
-    padding: 1em;
+    border-width: 1px;
+    border-radius: 0.5em;
+    padding: 0.5em;
 }
 
 p {
-    margin-top: 0.1em;
-    margin-bottom: 0.1em;
+    margin-top: 0.02em;
+    margin-bottom: 0.02em;
 }
 
-.top-left {
-    position: absolute;
-    top: 2em;
-    left: 2em;
-    display: flex;
-    flex-direction: column;
-    horiz-align: center;
-
-    .item {
-        margin-bottom: 0.5em;
-        color: white;
-    }
+.top-center {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
 }
 
-.top-right {
-    position: absolute;
-    top: 2em;
-    right: 2em;
-    width: 20em;
-    font-size: large;
-    flex-direction: column;
-    display: flex;
-    horiz-align: right;
+.center-screen {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
 }
 
-.bottom-right {
-    max-width: 20em;
-    position: absolute;
-    bottom: 2em;
-    right: 2em;
-}
-
-
-.bottom-left {
-    position: absolute;
-    bottom: 2em;
-    left: 2em;
-}
-
-
-.input_group {
-    & *:not(:first-child) {
-        margin-left: 5px;
-    }
+.bottom-center {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
 }
 
 #control_overlay, canvas {

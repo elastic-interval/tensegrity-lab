@@ -1,6 +1,3 @@
-use std::sync::Arc;
-use std::time::{Duration, SystemTime};
-
 use crate::application::OverlayChange::SetFabricStats;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
@@ -13,6 +10,8 @@ use crate::fabric::FabricStats;
 use crate::messages::{ControlState, LabEvent, PointerChange, Shot};
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
+use std::sync::Arc;
+use std::time::{Duration, SystemTime};
 use winit::application::ApplicationHandler;
 use winit::event::{
     ElementState, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,
@@ -41,6 +40,8 @@ pub struct Application {
 pub enum OverlayChange {
     SetControlState(ControlState),
     SetFabricStats(Option<FabricStats>),
+    ToggleShowDetails,
+    ToggleShowStats,
 }
 
 impl Application {
@@ -80,6 +81,11 @@ impl Application {
             if code == KeyCode::Escape {
                 if let Some(scene) = &mut self.scene {
                     scene.reset();
+                    self.event_loop_proxy
+                        .send_event(LabEvent::OverlayChanged(OverlayChange::SetControlState(
+                            ControlState::Viewing,
+                        )))
+                        .unwrap();
                 }
             }
             if code == KeyCode::KeyX {
@@ -90,6 +96,16 @@ impl Application {
                     .send_event(LabEvent::Crucible(CrucibleAction::Experiment(
                         LabAction::MuscleToggle,
                     )))
+                    .unwrap();
+            }
+            if code == KeyCode::KeyD {
+                self.event_loop_proxy
+                    .send_event(LabEvent::OverlayChanged(OverlayChange::ToggleShowDetails))
+                    .unwrap();
+            }
+            if code == KeyCode::KeyS {
+                self.event_loop_proxy
+                    .send_event(LabEvent::OverlayChanged(OverlayChange::ToggleShowStats))
                     .unwrap();
             }
         }
@@ -191,6 +207,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.crucible.action(crucible_action);
             }
             LabEvent::UpdatedLibrary(time) => {
+                println!("{time:?}");
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     let _fabric_library = self.fabric_library.clone();

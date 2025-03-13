@@ -17,6 +17,10 @@ pub struct OverlayState {
     pub set_control_state: WriteSignal<ControlState>,
     pub fabric_stats: ReadSignal<Option<FabricStats>>,
     pub set_fabric_stats: WriteSignal<Option<FabricStats>>,
+    pub show_details: ReadSignal<bool>,
+    pub set_show_details: WriteSignal<bool>,
+    pub show_stats: ReadSignal<bool>,
+    pub set_show_stats: WriteSignal<bool>,
     pub fabric_name: ReadSignal<String>,
     pub set_fabric_name: WriteSignal<String>,
 }
@@ -25,12 +29,18 @@ impl Default for OverlayState {
     fn default() -> Self {
         let (control_state, set_control_state) = signal(ControlState::default());
         let (fabric_stats, set_fabric_stats) = signal::<Option<FabricStats>>(None);
+        let (show_details, set_show_details) = signal(false);
+        let (show_stats, set_show_stats) = signal(false);
         let (fabric_name, set_fabric_name) = signal("De Twips".to_string());
         Self {
             control_state,
             set_control_state,
             fabric_stats,
             set_fabric_stats,
+            show_details,
+            set_show_details,
+            show_stats,
+            set_show_stats,
             fabric_name,
             set_fabric_name,
         }
@@ -51,6 +61,12 @@ impl OverlayState {
                 });
                 self.set_fabric_stats.set(fabric_stats);
             }
+            OverlayChange::ToggleShowDetails => {
+                self.set_show_details.update(|show| *show = !*show);
+            }
+            OverlayChange::ToggleShowStats => {
+                self.set_show_stats.update(|show| *show = !*show);
+            }
         }
     }
 }
@@ -60,12 +76,12 @@ pub fn ControlOverlayApp(
     fabric_list: Vec<String>,
     control_state: ReadSignal<ControlState>,
     fabric_stats: ReadSignal<Option<FabricStats>>,
+    show_details: ReadSignal<bool>,
+    show_stats: ReadSignal<bool>,
     fabric_name: ReadSignal<String>,
     set_fabric_name: WriteSignal<String>,
     event_loop_proxy: EventLoopProxy<LabEvent>,
 ) -> impl IntoView {
-    // let (fabric_name, set_fabric_name, _) =
-    //     use_local_storage::<String, FromToStringCodec>("fabric");
     Effect::new(move |_| {
         event_loop_proxy
             .send_event(LabEvent::LoadFabric(fabric_name.get()))
@@ -79,8 +95,10 @@ pub fn ControlOverlayApp(
                 fabric_name=fabric_name
                 set_fabric_name=set_fabric_name
             />
-            <Show when=move || { fabric_stats.get().is_some() } fallback=|| view! { <div/> }>
+            <Show when=move || { show_details.get() && fabric_stats.get().is_some() } fallback=|| view! { <div /> }>
                 <DetailsView control_state=control_state fabric_stats=fabric_stats />
+            </Show>
+            <Show when=move || { show_stats.get() } fallback=|| view! { <div /> }>
                 <StatsView fabric_stats=fabric_stats />
             </Show>
         </div>

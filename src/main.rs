@@ -79,6 +79,8 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
                     fabric_list={FabricLibrary::from_source().unwrap().fabric_list()}
                     control_state={overlay_state.control_state}
                     fabric_stats={overlay_state.fabric_stats}
+                    show_details={overlay_state.show_details}
+                    show_stats={overlay_state.show_stats}
                     fabric_name={overlay_state.fabric_name}
                     set_fabric_name={overlay_state.set_fabric_name}
                     event_loop_proxy={overlay_proxy}/>
