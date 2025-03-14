@@ -5,7 +5,7 @@ use bytemuck::cast_slice;
 use cgmath::{Matrix4, Point3};
 use wgpu::util::DeviceExt;
 use wgpu::MemoryHints::Performance;
-use wgpu::{PipelineLayout, RenderPass, ShaderModule, TextureFormat};
+use wgpu::{PipelineLayout, RenderPass, ShaderModule};
 use winit::event_loop::EventLoopProxy;
 use winit::window::Window;
 
@@ -214,9 +214,5 @@ impl Wgpu {
             &self.shader,
             &self.surface_config,
         )
-    }
-
-    pub fn format(&self) -> TextureFormat {
-        self.surface_config.format
     }
 }
