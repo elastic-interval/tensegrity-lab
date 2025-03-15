@@ -2,7 +2,7 @@ use crate::application::OverlayChange::SetControlState;
 use crate::camera::Target::*;
 use crate::camera::{Camera, Pick};
 use crate::fabric::material::interval_material;
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, FabricStats};
 use crate::messages::{ControlState, IntervalDetails, JointDetails};
 use crate::messages::{LabEvent, PointerChange};
 use crate::wgpu::fabric_renderer::FabricRenderer;
@@ -104,6 +104,11 @@ impl Scene {
     pub fn reset(&mut self) {
         self.camera.reset();
         self.camera_pick(self.camera.current_pick());
+    }
+
+    pub fn update_fabric_stats(&mut self, fabric_stats: &FabricStats) {
+        let display_text = format!("{fabric_stats:?}");
+        self.text_renderer.update(display_text)
     }
 
     fn camera_pick(&mut self, pick: Pick) {

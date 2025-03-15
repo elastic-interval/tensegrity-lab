@@ -175,6 +175,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.fabric_alive = !self.fabric_plan_name.is_empty();
             }
             LabEvent::FabricBuilt(fabric_stats) => {
+                self.scene.as_mut().unwrap().update_fabric_stats(&fabric_stats);
                 self.event_loop_proxy
                     .send_event(LabEvent::OverlayChanged(SetFabricStats(Some(fabric_stats))))
                     .unwrap();
