@@ -13,17 +13,19 @@ use crate::camera::Camera;
 use crate::messages::LabEvent;
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
+use crate::wgpu::text_renderer::TextRenderer;
 
 pub mod fabric_renderer;
 pub mod fabric_vertex;
 pub mod surface_renderer;
 pub mod surface_vertex;
+pub mod text_renderer;
 
 pub struct Wgpu {
     pub queue: wgpu::Queue,
+    pub device: wgpu::Device,
     surface: wgpu::Surface<'static>,
     surface_config: wgpu::SurfaceConfiguration,
-    device: wgpu::Device,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     pipeline_layout: PipelineLayout,
@@ -214,5 +216,9 @@ impl Wgpu {
             &self.shader,
             &self.surface_config,
         )
+    }
+
+    pub fn create_text_renderer(&self) -> TextRenderer {
+        TextRenderer::new(&self.device, &self.surface_config)
     }
 }

@@ -8,6 +8,7 @@ use crate::messages::{LabEvent, PointerChange};
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::fabric_vertex::FabricVertex;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
+use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::Wgpu;
 use winit::dpi::PhysicalSize;
 use winit::event_loop::EventLoopProxy;
@@ -19,6 +20,7 @@ pub struct Scene {
     camera: Camera,
     fabric_renderer: FabricRenderer,
     surface_renderer: SurfaceRenderer,
+    text_renderer: TextRenderer,
     event_loop_proxy: EventLoopProxy<LabEvent>,
 }
 
@@ -27,11 +29,13 @@ impl Scene {
         let camera = wgpu.create_camera();
         let fabric_renderer = wgpu.create_fabric_renderer();
         let surface_renderer = wgpu.create_surface_renderer();
+        let text_renderer = wgpu.create_text_renderer();
         Self {
             wgpu,
             camera,
             fabric_renderer,
             surface_renderer,
+            text_renderer,
             event_loop_proxy,
         }
     }
@@ -59,6 +63,7 @@ impl Scene {
         self.wgpu.set_bind_group(&mut render_pass);
         self.fabric_renderer.draw(&mut render_pass);
         self.surface_renderer.draw(&mut render_pass);
+        self.text_renderer.draw(&mut render_pass, &self.wgpu);
     }
 
     pub fn redraw(&mut self, fabric: &Fabric) {
