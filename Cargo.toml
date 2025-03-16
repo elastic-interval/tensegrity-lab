@@ -11,11 +11,12 @@ cgmath = "0.18.0"
 clap = { version = "4.5.30", features = ["derive"] }
 fast_inv_sqrt = "~1.0"
 futures = "0.3.30"
+getrandom = { version = "0.2", features = ["js"] }
 itertools = "0.14.0"
 log = "0.4.26"
 pest = "2.7.15"
 pest_derive = "2.7.15"
-rand = "0.8.5"
+rand = { version = "0.8", features = ["getrandom"] }
 winit = { version = "0.30.5", features = ["rwh_04"] }
 rand_chacha = "0.3.1"
 wgpu_text = "0.9.2"
@@ -27,7 +28,6 @@ wgpu = "24.0.1"
 
 # web:
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-leptos = { version = "0.7.7", features = ["csr"] }
 console_error_panic_hook = "0.1.6"
 console_log = "1.0.0"
 wgpu = { version = "24.0.1", features = ["webgl"] }

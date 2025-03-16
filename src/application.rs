@@ -2,8 +2,6 @@ use crate::application::OverlayChange::SetFabricStats;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, TenscriptError};
-#[cfg(target_arch = "wasm32")]
-use crate::control_overlay::OverlayState;
 use crate::crucible::{Crucible, CrucibleAction, LabAction};
 use crate::fabric::FabricStats;
 use crate::messages::{ControlState, LabEvent, PointerChange, Shot};
@@ -28,8 +26,6 @@ pub struct Application {
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
     brick_library: BrickLibrary,
-    #[cfg(target_arch = "wasm32")]
-    overlay_state: OverlayState,
     event_loop_proxy: EventLoopProxy<LabEvent>,
     fabric_alive: bool,
 }
@@ -46,7 +42,6 @@ impl Application {
     pub fn new(
         window_attributes: WindowAttributes,
         event_loop_proxy: EventLoopProxy<LabEvent>,
-        #[cfg(target_arch = "wasm32")] overlay_state: OverlayState,
     ) -> Result<Application, TenscriptError> {
         let brick_library = BrickLibrary::from_source()?;
         let fabric_library = FabricLibrary::from_source()?;
@@ -57,8 +52,6 @@ impl Application {
             fabric_plan_name: "Halo by Crane".into(),
             brick_library,
             fabric_library,
-            #[cfg(target_arch = "wasm32")]
-            overlay_state,
             event_loop_proxy,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
@@ -224,14 +217,12 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             LabEvent::EvolveFromSeed(seed) => self.crucible.action(CrucibleAction::Evolve(seed)),
             LabEvent::OverlayChanged(app_change) => {
-                println!("Overlay changed {:?}", app_change);
-                #[cfg(target_arch = "wasm32")]
-                self.overlay_state.change_happened(app_change);
+                if let Some(scene) = &mut self.scene {
+                    scene.change_happened(app_change);
+                }
             }
             LabEvent::Resize(physical_size) => {
                 println!("Resize {:?}", physical_size);
-                #[cfg(target_arch = "wasm32")]
-                leptos::logging::log!("Resize {:?}", physical_size);
             }
         }
     }
@@ -270,11 +261,7 @@ impl ApplicationHandler<LabEvent> for Application {
                         match state {
                             ElementState::Pressed => PointerChange::Pressed,
                             ElementState::Released => {
-                                #[cfg(target_arch = "wasm32")]
-                                let pick_active = self.overlay_state.pick_active;
-                                #[cfg(not(target_arch = "wasm32"))]
-                                let pick_active = true;
-                                let shot = if pick_active {
+                                let shot = if scene.pick_active() {
                                     match button {
                                         MouseButton::Right => Shot::Joint,
                                         _ => Shot::Interval,
@@ -309,8 +296,6 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                 }
                 WindowEvent::Resized(physical_size) => {
-                    #[cfg(target_arch = "wasm32")]
-                    leptos::logging::log!("Resized {:?}", physical_size);
                     scene.resize(physical_size)
                 }
                 _ => {}
@@ -321,11 +306,7 @@ impl ApplicationHandler<LabEvent> for Application {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(scene) = &mut self.scene {
             let approaching = scene.target_approach(self.crucible.fabric());
-            #[cfg(target_arch = "wasm32")]
-            let pick_active = self.overlay_state.pick_active;
-            #[cfg(not(target_arch = "wasm32"))]
-            let pick_active = false;
-            let iterating = self.fabric_alive && !pick_active;
+            let iterating = self.fabric_alive && !scene.pick_active();
             if iterating {
                 if let Some(lab_event) = self.crucible.iterate(&self.brick_library) {
                     self.event_loop_proxy.send_event(lab_event).unwrap();
