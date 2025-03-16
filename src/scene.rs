@@ -14,6 +14,7 @@ use winit::dpi::PhysicalSize;
 use winit::event_loop::EventLoopProxy;
 use ControlState::{ShowingInterval, ShowingJoint};
 use LabEvent::OverlayChanged;
+use crate::application::OverlayChange;
 
 pub struct Scene {
     wgpu: Wgpu,
@@ -38,6 +39,14 @@ impl Scene {
             text_renderer,
             event_loop_proxy,
         }
+    }
+
+    pub fn change_happened(&mut self, overlay_change: OverlayChange) {
+        self.text_renderer.text_state.change_happened(overlay_change);
+    }
+
+    pub fn pick_active(&self)-> bool {
+        self.text_renderer.text_state.pick_active
     }
 
     fn render(&mut self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {

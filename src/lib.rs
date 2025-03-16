@@ -1,8 +1,6 @@
 pub mod application;
 pub mod build;
 pub mod camera;
-#[cfg(target_arch = "wasm32")]
-pub mod control_overlay;
 pub mod crucible;
 pub mod fabric;
 pub mod wgpu;
