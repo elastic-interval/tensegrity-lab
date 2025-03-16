@@ -1,3 +1,5 @@
+#[allow(unused_imports)]
+use getrandom;
 use std::error::Error;
 
 use clap::Parser;
