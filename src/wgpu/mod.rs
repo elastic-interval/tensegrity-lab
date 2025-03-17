@@ -20,6 +20,7 @@ pub mod fabric_vertex;
 pub mod surface_renderer;
 pub mod surface_vertex;
 pub mod text_renderer;
+mod text_state;
 
 pub struct Wgpu {
     pub queue: wgpu::Queue,
