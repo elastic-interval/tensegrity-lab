@@ -6,7 +6,7 @@ use clap::Parser;
 use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
 
-use crate::RunStyle::{FabricName, Online, Prototype, Seeded};
+use crate::RunStyle::{FabricName, Prototype, Seeded};
 use tensegrity_lab::application::Application;
 use tensegrity_lab::messages::LabEvent;
 
@@ -27,7 +27,6 @@ enum RunStyle {
     FabricName(String),
     Prototype(usize),
     Seeded(u64),
-    Online,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -86,7 +85,6 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
                 .send_event(LabEvent::EvolveFromSeed(seed))
                 .unwrap();
         }
-        Online => {}
     }
     event_loop.run_app(&mut app)?;
     Ok(())
