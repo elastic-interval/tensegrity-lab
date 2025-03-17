@@ -86,7 +86,11 @@ impl Crucible {
                 }
                 if pretenser.is_done() {
                     let muscles = pretenser.pretense_phase.muscle_movement.is_some();
-                    self.stage = Experimenting(Experiment::new(pretenser.clone()));
+                    let mut experiment = Experiment::new(pretenser.clone());
+                    if muscles {
+                        experiment.action(LabAction::MuscleToggle, &mut self.fabric);
+                    }
+                    self.stage = Experimenting(experiment);
                     return Some(LabEvent::FabricBuilt(self.fabric.fabric_stats(muscles)));
                 }
             }
