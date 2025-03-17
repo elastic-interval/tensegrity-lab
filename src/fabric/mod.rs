@@ -6,7 +6,7 @@
 use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
 use std::collections::HashMap;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 use crate::fabric::face::Face;
 use crate::fabric::interval::Interval;
@@ -33,7 +33,7 @@ pub mod material;
 pub const MAX_INTERVALS: usize = 5000;
 pub const ROOT3: f32 = 1.732_050_8;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FabricStats {
     pub scale: f32,
     pub joint_count: usize,
@@ -47,7 +47,7 @@ pub struct FabricStats {
     pub muscles: bool,
 }
 
-impl Debug for FabricStats {
+impl Display for FabricStats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let FabricStats {
             scale,
@@ -63,8 +63,7 @@ impl Debug for FabricStats {
         } = self;
         let muscle_string = if *muscles { "Type M to activate muscles." } else { "" };
         write!(f,
-               "At scale {:.0}:1 this structure has {:?} joints (up to height {:.0}mm), {:?} pushes ({:.1} to {:.1}mm, total {:.2}m), and {:?} pulls ({:.1} to {:.1}mm, total {:.2}m). {}",
-               scale,
+               "This structure has {:?} joints (up to height {:.0}mm), {:?} pushes ({:.1} to {:.1}mm, total {:.2}m), and {:?} pulls ({:.1} to {:.1}mm, total {:.2}m). {}",
                joint_count,
                max_height * scale,
                push_count,
