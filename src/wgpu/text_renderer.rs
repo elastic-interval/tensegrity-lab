@@ -56,7 +56,7 @@ impl TextRenderer {
         let width = surface_configuration.width;
         let height = surface_configuration.height;
         let brush =
-            BrushBuilder::using_font_bytes(include_bytes!("../../assets/Orbitron Bold.ttf"))
+            BrushBuilder::using_font_bytes(include_bytes!("../../assets/WorkSans-Regular.ttf"))
                 .unwrap()
                 .build(device, width, height, surface_configuration.format);
         let section = OwnedSection::default()
