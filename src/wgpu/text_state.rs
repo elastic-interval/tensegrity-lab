@@ -2,7 +2,6 @@ use crate::application::OverlayChange;
 use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
 use crate::messages::ControlState;
-use cgmath::Point3;
 use std::default::Default;
 use wgpu_text::glyph_brush::{
     BuiltInLineBreaker, HorizontalAlign, Layout, OwnedSection, OwnedText, VerticalAlign,
@@ -91,11 +90,10 @@ impl TextState {
                 ControlState::ShowingJoint(joint_details) => {
                     Some(format!(
                         "Joint: {}\n\
-                        Location: {}\n\
-                        Click interval for details\n\
-                        or right-click for an adjacent joint",
+                        Click ab interval for details\n\
+                        or right-click for an adjacent joint\n\
+                        Press ESC to release",
                         Self::joint_format(joint_details.index),
-                        Self::point_format(joint_details.location)
                     ))
                 }
                 ControlState::ShowingInterval(interval_details) => {
@@ -184,11 +182,6 @@ impl TextState {
                 SectionName::Top => 80.0,
                 _ => 40.0,
             })
-    }
-
-    fn point_format(point: Point3<f32>) -> String {
-        let Point3 { x, y, z } = point;
-        format!("({x:.3}, {y:.3}, {z:.3})")
     }
 
     fn joint_format(index: usize) -> String {
