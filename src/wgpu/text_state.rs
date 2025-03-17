@@ -7,13 +7,12 @@ use wgpu_text::glyph_brush::{HorizontalAlign, Layout, OwnedSection, OwnedText, V
 #[derive(Clone, Debug, Copy)]
 pub enum SectionName {
     Top = 0,
-    Center = 1,
-    Bottom = 2,
+    Bottom = 1,
 }
 
 impl SectionName {
     const fn count() -> usize {
-        3
+        2
     }
 }
 
@@ -27,7 +26,6 @@ pub struct TextState {
     show_details: bool,
     show_stats: bool,
     sections: [Option<OwnedSection>; SectionName::count()],
-    pub pick_active: bool,
 }
 
 impl TextState {
@@ -41,7 +39,6 @@ impl TextState {
             show_stats: false,
             show_details: false,
             sections: Default::default(),
-            pick_active: false,
         }
     }
 
@@ -78,17 +75,10 @@ impl TextState {
     fn update_sections(&mut self) {
         self.update_section(SectionName::Top, Some(self.fabric_name.clone()));
         self.update_section(
-            SectionName::Center,
-            match &self.fabric_stats {
-                None => Some("Building...".to_string()),
-                Some(_) => None,
-            },
-        );
-        self.update_section(
             SectionName::Bottom,
             match &self.fabric_stats {
                 Some(fabric_stats) => Some(format!("{fabric_stats:?}")),
-                None => None,
+                None => Some("Building...".to_string()),
             },
         );
     }
@@ -104,12 +94,10 @@ impl TextState {
         let middle = self.width / 2.0;
         let position = match section_name {
             SectionName::Top => [middle, 100.0],
-            SectionName::Center => [middle, self.height / 2.0],
             SectionName::Bottom => [middle, self.height - 100.0],
         };
         let bounds = match section_name {
             SectionName::Top => [middle, 300.0],
-            SectionName::Center => [middle, 300.0],
             SectionName::Bottom => [middle, 300.0],
         };
         OwnedSection::default()
