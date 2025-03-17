@@ -34,8 +34,6 @@ pub struct Application {
 pub enum OverlayChange {
     SetControlState(ControlState),
     SetFabricStats(Option<FabricStats>),
-    ToggleShowDetails,
-    ToggleShowStats,
 }
 
 impl Application {
@@ -71,25 +69,17 @@ impl Application {
             if code == KeyCode::KeyX {
                 println!("Export:\n\n{}", self.crucible.fabric().csv());
             }
-            if code == KeyCode::KeyM {
+            if code == KeyCode::KeyD {
                 self.event_loop_proxy
                     .send_event(LabEvent::Crucible(CrucibleAction::Experiment(
                         LabAction::MuscleToggle,
                     )))
                     .unwrap();
             }
-            if code == KeyCode::KeyB {
-                self.event_loop_proxy
-                    .send_event(LabEvent::OverlayChanged(OverlayChange::ToggleShowDetails))
-                    .unwrap();
+            if code == KeyCode::Space || code == KeyCode::Escape {
                 if let Some(scene) = &mut self.scene {
                     scene.reset();
                 }
-            }
-            if code == KeyCode::KeyS {
-                self.event_loop_proxy
-                    .send_event(LabEvent::OverlayChanged(OverlayChange::ToggleShowStats))
-                    .unwrap();
             }
         }
     }

@@ -60,7 +60,15 @@ impl Display for FabricStats {
             pull_total,
         } = self;
         write!(f,
-               "Height: {:.1}m\nJoints:{:?}\nBars: {:?} ({:.1} to {:.1}mm, total {:.1}m)\nCables {:?} p({:.1} to {:.1}mm, total {:.1}m)",
+               "Stats:\n\
+               Height: {:.1}m\n\
+               Joints: {:?}\n\
+               Bars: {:?}\n\
+               → length {:.1} - {:.1}mm\n\
+               → total: {:.1}m\n\
+               Cables: {:?}\n\
+               → length: {:.1} - {:.1}mm\n\
+               → total: {:.1}m",
                max_height * scale / 1000.0,
                joint_count,
                push_count,
