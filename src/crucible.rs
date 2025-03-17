@@ -91,7 +91,7 @@ impl Crucible {
                         experiment.action(LabAction::MuscleToggle, &mut self.fabric);
                     }
                     self.stage = Experimenting(experiment);
-                    return Some(LabEvent::FabricBuilt(self.fabric.fabric_stats(muscles)));
+                    return Some(LabEvent::FabricBuilt(self.fabric.fabric_stats()));
                 }
             }
             Experimenting(lab) => {

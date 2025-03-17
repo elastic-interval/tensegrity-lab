@@ -2,17 +2,21 @@ use crate::application::OverlayChange;
 use crate::fabric::FabricStats;
 use crate::messages::ControlState;
 use std::default::Default;
-use wgpu_text::glyph_brush::{HorizontalAlign, Layout, OwnedSection, OwnedText, VerticalAlign};
+use wgpu_text::glyph_brush::{
+    BuiltInLineBreaker, HorizontalAlign, Layout, OwnedSection, OwnedText, VerticalAlign,
+};
 
 #[derive(Clone, Debug, Copy)]
 pub enum SectionName {
     Top = 0,
     Bottom = 1,
+    Left = 2,
+    Right = 3,
 }
 
 impl SectionName {
     const fn count() -> usize {
-        2
+        4
     }
 }
 
@@ -77,10 +81,10 @@ impl TextState {
     fn update_sections(&mut self) {
         self.update_section(SectionName::Top, Some(self.fabric_name.clone()));
         self.update_section(
-            SectionName::Bottom,
+            SectionName::Left,
             match &self.fabric_stats {
                 Some(fabric_stats) => Some(format!("{fabric_stats}")),
-                None => Some("Building...".to_string()),
+                None => None,
             },
         );
     }
@@ -93,23 +97,46 @@ impl TextState {
     }
 
     fn create_section(&self, section_name: SectionName) -> OwnedSection {
-        let middle = self.width / 2.0;
-        let position = match section_name {
-            SectionName::Top => [middle, 100.0],
-            SectionName::Bottom => [middle, self.height - 100.0],
-        };
-        let bounds = match section_name {
-            SectionName::Top => [middle, 300.0],
-            SectionName::Bottom => [middle, 300.0],
-        };
         OwnedSection::default()
-            .with_layout(
-                Layout::default()
-                    .v_align(VerticalAlign::Center)
-                    .h_align(HorizontalAlign::Center),
-            )
-            .with_bounds(bounds)
-            .with_screen_position(position)
+            .with_layout(Self::create_layout(section_name))
+            .with_bounds(self.create_bounds(section_name))
+            .with_screen_position(self.create_position(section_name))
+    }
+
+    fn create_layout(section_name: SectionName) -> Layout<BuiltInLineBreaker> {
+        Layout::default().v_align(match section_name {
+            SectionName::Top => VerticalAlign::Top,
+            SectionName::Bottom => VerticalAlign::Bottom,
+            SectionName::Left => VerticalAlign::Center,
+            SectionName::Right => VerticalAlign::Center,
+        }).h_align(match section_name {
+            SectionName::Top => HorizontalAlign::Center,
+            SectionName::Bottom => HorizontalAlign::Center,
+            SectionName::Left => HorizontalAlign::Left,
+            SectionName::Right => HorizontalAlign::Right,
+        })
+    }
+
+    fn create_bounds(&self, section_name: SectionName) -> [f32; 2] {
+        let middle = self.width / 2.0;
+        match section_name {
+            SectionName::Top => [middle, self.width],
+            SectionName::Bottom => [middle,self.width],
+            SectionName::Left => [middle, self.width],
+            SectionName::Right => [middle, self.width],
+        }
+    }
+
+    fn create_position(&self, section_name: SectionName) -> [f32; 2] {
+        let middle_h = self.width / 2.0;
+        let middle_v = self.height / 2.0;
+        let margin = 100.0;
+        match section_name {
+            SectionName::Top => [middle_h, margin],
+            SectionName::Bottom => [middle_h, self.height - margin],
+            SectionName::Left => [margin, middle_v],
+            SectionName::Right => [middle_h, middle_v],
+        }
     }
 
     fn create_text(text: String) -> OwnedText {

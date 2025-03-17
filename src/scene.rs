@@ -23,7 +23,7 @@ pub struct Scene {
     surface_renderer: SurfaceRenderer,
     text_renderer: TextRenderer,
     event_loop_proxy: EventLoopProxy<LabEvent>,
-    pick_active: bool,
+    pick_allowed: bool,
 }
 
 impl Scene {
@@ -39,16 +39,19 @@ impl Scene {
             surface_renderer,
             text_renderer,
             event_loop_proxy,
-            pick_active: false,
+            pick_allowed: false,
         }
     }
 
     pub fn change_happened(&mut self, overlay_change: OverlayChange) {
+        if let OverlayChange::SetFabricStats(Some(_)) = overlay_change {
+            self.pick_allowed = true;
+        }
         self.text_renderer.change_happened(overlay_change);
     }
 
-    pub fn pick_active(&self)-> bool {
-        self.pick_active
+    pub fn pick_allowed(&self)-> bool {
+        self.pick_allowed
     }
 
     fn render(&mut self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
@@ -106,6 +109,10 @@ impl Scene {
 
     pub fn current_pick(&self) -> Pick {
         self.camera.current_pick()
+    }
+
+    pub fn soemthing_picked(&self) -> bool {
+        !matches!(self.current_pick(), Pick::Nothing)
     }
 
     pub fn target_approach(&mut self, fabric: &Fabric) -> bool {
