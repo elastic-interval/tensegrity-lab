@@ -79,7 +79,7 @@ impl TextState {
         self.update_section(
             SectionName::Bottom,
             match &self.fabric_stats {
-                Some(fabric_stats) => Some(format!("{fabric_stats:?}")),
+                Some(fabric_stats) => Some(format!("{fabric_stats}")),
                 None => Some("Building...".to_string()),
             },
         );
