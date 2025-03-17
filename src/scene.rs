@@ -23,6 +23,7 @@ pub struct Scene {
     surface_renderer: SurfaceRenderer,
     text_renderer: TextRenderer,
     event_loop_proxy: EventLoopProxy<LabEvent>,
+    pick_active: bool,
 }
 
 impl Scene {
@@ -38,15 +39,16 @@ impl Scene {
             surface_renderer,
             text_renderer,
             event_loop_proxy,
+            pick_active: false,
         }
     }
 
     pub fn change_happened(&mut self, overlay_change: OverlayChange) {
-        self.text_renderer.text_state.change_happened(overlay_change);
+        self.text_renderer.change_happened(overlay_change);
     }
 
     pub fn pick_active(&self)-> bool {
-        self.text_renderer.text_state.pick_active
+        self.pick_active
     }
 
     fn render(&mut self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {

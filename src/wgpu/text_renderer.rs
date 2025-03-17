@@ -3,9 +3,10 @@ use crate::wgpu::Wgpu;
 use wgpu::{Device, RenderPass, SurfaceConfiguration};
 use wgpu_text::glyph_brush::ab_glyph::FontRef;
 use wgpu_text::{BrushBuilder, TextBrush};
+use crate::application::OverlayChange;
 
 pub struct TextRenderer {
-    pub text_state: TextState,
+    text_state: TextState,
     brush: TextBrush<FontRef<'static>>,
 }
 
@@ -19,6 +20,10 @@ impl TextRenderer {
                 .build(device, width, height, surface_configuration.format);
         let text_state = TextState::new("De Twisp".to_string(), width, height);
         TextRenderer { brush, text_state }
+    }
+
+    pub fn change_happened(&mut self, overlay_change: OverlayChange) {
+        self.text_state.change_happened(overlay_change);
     }
 
     pub fn draw<'a>(&'a mut self, render_pass: &mut RenderPass<'a>, wgpu: &Wgpu) {
