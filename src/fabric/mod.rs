@@ -44,7 +44,6 @@ pub struct FabricStats {
     pub pull_count: usize,
     pub pull_range: (f32, f32),
     pub pull_total: f32,
-    pub muscles: bool,
 }
 
 impl Display for FabricStats {
@@ -59,13 +58,11 @@ impl Display for FabricStats {
             pull_count,
             pull_range,
             pull_total,
-            muscles,
         } = self;
-        let muscle_string = if *muscles { "Type M to activate muscles." } else { "" };
         write!(f,
-               "This structure has {:?} joints (up to height {:.0}mm), {:?} pushes ({:.1} to {:.1}mm, total {:.2}m), and {:?} pulls ({:.1} to {:.1}mm, total {:.2}m). {}",
+               "Height: {:.1}m\nJoints:{:?}\nBars: {:?} ({:.1} to {:.1}mm, total {:.1}m)\nCables {:?} p({:.1} to {:.1}mm, total {:.1}m)",
+               max_height * scale / 1000.0,
                joint_count,
-               max_height * scale,
                push_count,
                push_range.0 * scale,
                push_range.1 * scale,
@@ -74,7 +71,6 @@ impl Display for FabricStats {
                pull_range.0 * scale,
                pull_range.1 * scale,
                pull_total * scale / 1000.0,
-               muscle_string
         )
     }
 }
@@ -219,7 +215,7 @@ impl Fabric {
         }
     }
 
-    pub fn fabric_stats(&self, muscles:bool) -> FabricStats {
+    pub fn fabric_stats(&self) -> FabricStats {
         let mut push_range = (1000.0, 0.0);
         let mut pull_range = (1000.0, 0.0);
         let mut push_count = 0;
@@ -234,28 +230,31 @@ impl Fabric {
         }
         for interval in self.intervals.values() {
             let length = interval.length(&self.joints);
-            match interval_material(interval.material).role {
-                Push => {
-                    push_count += 1;
-                    push_total += length;
-                    if length < push_range.0 {
-                        push_range.0 = length;
+            let material = interval_material(interval.material);
+            if !material.support {
+                match material.role {
+                    Push => {
+                        push_count += 1;
+                        push_total += length;
+                        if length < push_range.0 {
+                            push_range.0 = length;
+                        }
+                        if length > push_range.1 {
+                            push_range.1 = length;
+                        }
                     }
-                    if length > push_range.1 {
-                        push_range.1 = length;
+                    Pull => {
+                        pull_count += 1;
+                        pull_total += length;
+                        if length < pull_range.0 {
+                            pull_range.0 = length;
+                        }
+                        if length > pull_range.1 {
+                            pull_range.1 = length;
+                        }
                     }
+                    Spring => unreachable!(),
                 }
-                Pull => {
-                    pull_count += 1;
-                    pull_total += length;
-                    if length < pull_range.0 {
-                        pull_range.0 = length;
-                    }
-                    if length > pull_range.1 {
-                        pull_range.1 = length;
-                    }
-                }
-                Spring => unreachable!(),
             }
         }
         FabricStats {
@@ -268,7 +267,6 @@ impl Fabric {
             pull_count,
             pull_range,
             pull_total,
-            muscles,
         }
     }
 }

@@ -260,7 +260,7 @@ impl ApplicationHandler<LabEvent> for Application {
                         match state {
                             ElementState::Pressed => PointerChange::Pressed,
                             ElementState::Released => {
-                                let shot = if scene.pick_active() {
+                                let shot = if scene.pick_allowed() {
                                     match button {
                                         MouseButton::Right => Shot::Joint,
                                         _ => Shot::Interval,
@@ -305,7 +305,7 @@ impl ApplicationHandler<LabEvent> for Application {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(scene) = &mut self.scene {
             let approaching = scene.target_approach(self.crucible.fabric());
-            let iterating = self.fabric_alive && !scene.pick_active();
+            let iterating = self.fabric_alive && !scene.soemthing_picked();
             if iterating {
                 if let Some(lab_event) = self.crucible.iterate(&self.brick_library) {
                     self.event_loop_proxy.send_event(lab_event).unwrap();
