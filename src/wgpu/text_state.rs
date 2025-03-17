@@ -30,7 +30,7 @@ pub struct TextState {
 
 impl TextState {
     pub fn new(fabric_name: String, width: u32, height: u32) -> Self {
-        Self {
+        let mut fresh = Self {
             width: width as f32,
             height: height as f32,
             fabric_name,
@@ -39,7 +39,9 @@ impl TextState {
             show_stats: false,
             show_details: false,
             sections: Default::default(),
-        }
+        };
+        fresh.update_sections();
+        fresh
     }
 
     pub fn change_happened(&mut self, app_change: OverlayChange) {
