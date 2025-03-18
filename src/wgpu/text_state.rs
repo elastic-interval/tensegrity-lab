@@ -90,8 +90,8 @@ impl TextState {
                 ControlState::ShowingJoint(joint_details) => {
                     Some(format!(
                         "Joint: {}\n\
-                        Click ab interval for details\n\
-                        or right-click for an adjacent joint\n\
+                        Click an interval for details\n\
+                        Right-click for an adjacent joint\n\
                         Press ESC to release",
                         Self::joint_format(joint_details.index),
                     ))
