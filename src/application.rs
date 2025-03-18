@@ -133,6 +133,67 @@ impl Application {
             Some(plan) => Ok(plan.clone()),
         }
     }
+
+    #[cfg(target_arch = "wasm32")]
+    fn initialize_wgpu_when_ready(
+        &self,
+        window: Arc<winit::window::Window>,
+        event_loop_proxy: EventLoopProxy<LabEvent>,
+    ) {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+        use wasm_bindgen::prelude::*;
+        use web_sys::console;
+
+        // Create a recursive frame checking closure
+        struct FrameChecker {
+            window: Arc<winit::window::Window>,
+            event_loop_proxy: EventLoopProxy<LabEvent>,
+            closure: Option<Closure<dyn FnMut()>>,
+        }
+
+        let checker = Rc::new(RefCell::new(FrameChecker {
+            window,
+            event_loop_proxy,
+            closure: None,
+        }));
+
+        // Create the closure that will check window size on each frame
+        let checker_clone = checker.clone();
+        let closure = Closure::wrap(Box::new(move || {
+            let checker_ref = checker_clone.borrow();
+            let size = checker_ref.window.inner_size();
+
+            if size.width > 0 && size.height > 0 {
+                // Window is ready, initialize WGPU
+                console::log_1(&"Window initialized with valid dimensions, starting WGPU".into());
+                Wgpu::create_and_send(
+                    checker_ref.window.clone(),
+                    checker_ref.event_loop_proxy.clone(),
+                );
+            } else {
+                // Window not ready, check again next frame
+                console::log_1(&"Window not ready yet, checking again...".into());
+                let window = web_sys::window().expect("no global window");
+
+                if let Some(closure_ref) = &checker_ref.closure {
+                    let _ = window.request_animation_frame(closure_ref.as_ref().unchecked_ref());
+                }
+            }
+        }) as Box<dyn FnMut()>);
+
+        // Store the closure in the checker
+        checker.borrow_mut().closure = Some(closure);
+
+        // Start the checking process
+        if let Some(closure_ref) = &checker.borrow().closure {
+            let window = web_sys::window().expect("no global window");
+            let _ = window.request_animation_frame(closure_ref.as_ref().unchecked_ref());
+        }
+
+        // The checker will keep itself alive through the Rc cycle until WGPU is initialized
+        std::mem::forget(checker);
+    }
 }
 
 impl ApplicationHandler<LabEvent> for Application {
@@ -142,8 +203,12 @@ impl ApplicationHandler<LabEvent> for Application {
                 .create_window(self.window_attributes.clone())
                 .unwrap(),
         );
-        let event_loop_proxy = self.event_loop_proxy.clone();
-        Wgpu::create_and_send(window, event_loop_proxy);
+
+        #[cfg(target_arch = "wasm32")]
+        self.initialize_wgpu_when_ready(window, self.event_loop_proxy.clone());
+
+        #[cfg(not(target_arch = "wasm32"))]
+        Wgpu::create_and_send(window, self.event_loop_proxy.clone());
     }
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
@@ -284,9 +349,7 @@ impl ApplicationHandler<LabEvent> for Application {
                         self.fabric_alive = false;
                     }
                 }
-                WindowEvent::Resized(physical_size) => {
-                    scene.resize(physical_size)
-                }
+                WindowEvent::Resized(physical_size) => scene.resize(physical_size),
                 _ => {}
             }
         }
