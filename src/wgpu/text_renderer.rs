@@ -18,7 +18,7 @@ impl TextRenderer {
             BrushBuilder::using_font_bytes(include_bytes!("../../assets/WorkSans-Regular.ttf"))
                 .unwrap()
                 .build(device, width, height, surface_configuration.format);
-        let text_state = TextState::new("De Twisp".to_string(), width, height);
+        let text_state = TextState::new("De Twips".to_string(), width, height);
         TextRenderer { brush, text_state }
     }
 
