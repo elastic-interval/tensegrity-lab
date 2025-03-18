@@ -25,6 +25,7 @@ pub struct Application {
     brick_library: BrickLibrary,
     event_loop_proxy: EventLoopProxy<LabEvent>,
     fabric_alive: bool,
+    muscles_active: bool,
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
 }
@@ -33,6 +34,7 @@ pub struct Application {
 pub enum AppStateChange {
     SetControlState(ControlState),
     SetFabricStats(Option<FabricStats>),
+    SetMusclesActive(bool),
 }
 
 impl Application {
@@ -51,6 +53,7 @@ impl Application {
             fabric_library,
             event_loop_proxy,
             fabric_alive: true,
+            muscles_active: false,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
         })
@@ -68,17 +71,28 @@ impl Application {
             if code == KeyCode::KeyX {
                 println!("Export:\n\n{}", self.crucible.fabric().csv());
             }
-            if code == KeyCode::KeyD {
+            if code == KeyCode::Space {
+                self.muscles_active = !self.muscles_active;
                 self.event_loop_proxy
                     .send_event(LabEvent::Crucible(CrucibleAction::Experiment(
-                        LabAction::MuscleToggle,
+                        LabAction::MusclesActive(self.muscles_active),
+                    )))
+                    .unwrap();
+                self.event_loop_proxy
+                    .send_event(LabEvent::AppStateChanged(AppStateChange::SetMusclesActive(
+                        self.muscles_active,
                     )))
                     .unwrap();
             }
-            if code == KeyCode::Space || code == KeyCode::Escape {
+            if code == KeyCode::Escape {
                 if let Some(scene) = &mut self.scene {
                     scene.reset();
                 }
+                self.event_loop_proxy
+                    .send_event(LabEvent::AppStateChanged(AppStateChange::SetControlState(
+                        ControlState::Viewing,
+                    )))
+                    .unwrap();
             }
         }
     }

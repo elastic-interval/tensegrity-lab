@@ -60,9 +60,14 @@ impl Experiment {
             LabAction::MuscleChanged(nuance) => {
                 fabric.muscle_nuance = nuance;
             }
-            LabAction::MuscleToggle => if self.stage == Paused {
-                if let Some(movement) = &self.pretense_phase.muscle_movement {
-                    self.stage = MuscleCycle(1.0 / movement.countdown as f32)
+            LabAction::MusclesActive(yes) => if self.stage == Paused {
+                println!("muscles active {yes}");
+                if yes {
+                    if let Some(movement) = &self.pretense_phase.muscle_movement {
+                        self.stage = MuscleCycle(1.0 / movement.countdown as f32)
+                    }
+                }else {
+                    self.stage = Paused;
                 }
             } else {
                 fabric.muscle_nuance = 0.5;

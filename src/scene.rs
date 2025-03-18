@@ -41,8 +41,13 @@ impl Scene {
     }
 
     pub fn change_happened(&mut self, app_state_change: AppStateChange) {
-        if let AppStateChange::SetFabricStats(Some(_)) = app_state_change {
-            self.pick_allowed = true;
+        match app_state_change {
+            AppStateChange::SetControlState(_) => {}
+            AppStateChange::SetFabricStats(Some(_)) => {
+                self.pick_allowed = true;
+            }
+            AppStateChange::SetMusclesActive(active) => self.pick_allowed = !active,
+            _ => {}
         }
         self.text_renderer.change_happened(app_state_change);
     }
