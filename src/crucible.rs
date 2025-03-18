@@ -25,7 +25,7 @@ enum Stage {
 #[derive(Debug, Clone)]
 pub enum LabAction {
     GravityChanged(f32),
-    MuscleToggle,
+    MusclesActive(bool),
     MuscleChanged(f32),
 }
 

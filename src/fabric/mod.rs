@@ -6,7 +6,7 @@
 use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
 use std::collections::HashMap;
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 
 use crate::fabric::face::Face;
 use crate::fabric::interval::Interval;
@@ -44,43 +44,6 @@ pub struct FabricStats {
     pub pull_count: usize,
     pub pull_range: (f32, f32),
     pub pull_total: f32,
-}
-
-impl Display for FabricStats {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let FabricStats {
-            scale,
-            joint_count,
-            max_height,
-            push_count,
-            push_total,
-            push_range,
-            pull_count,
-            pull_range,
-            pull_total,
-        } = self;
-        write!(f,
-               "Stats:\n\
-               Height: {:.1}m\n\
-               Joints: {:?}\n\
-               Bars: {:?}\n\
-               → length {:.1} - {:.1}mm\n\
-               → total: {:.1}m\n\
-               Cables: {:?}\n\
-               → length: {:.1} - {:.1}mm\n\
-               → total: {:.1}m",
-               max_height * scale / 1000.0,
-               joint_count,
-               push_count,
-               push_range.0 * scale,
-               push_range.1 * scale,
-               push_total * scale / 1000.0,
-               pull_count,
-               pull_range.0 * scale,
-               pull_range.1 * scale,
-               pull_total * scale / 1000.0,
-        )
-    }
 }
 
 #[derive(Clone, Debug)]

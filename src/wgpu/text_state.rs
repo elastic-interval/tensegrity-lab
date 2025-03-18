@@ -28,6 +28,7 @@ pub struct TextState {
     fabric_name: String,
     control_state: ControlState,
     fabric_stats: Option<FabricStats>,
+    muscles_active: bool,
     sections: [Option<OwnedSection>; SectionName::count()],
 }
 
@@ -39,6 +40,7 @@ impl TextState {
             fabric_name,
             control_state: ControlState::default(),
             fabric_stats: None,
+            muscles_active: false,
             sections: Default::default(),
         };
         fresh.update_sections();
@@ -58,6 +60,9 @@ impl TextState {
                 };
                 self.fabric_stats = fabric_stats;
             }
+            AppStateChange::SetMusclesActive(muscles_active) => {
+                self.muscles_active = muscles_active;
+            }
         }
         self.update_sections()
     }
@@ -70,51 +75,94 @@ impl TextState {
         self.update_section(SectionName::Top, Some(self.fabric_name.clone()));
         self.update_section(
             SectionName::Bottom,
-            Some(match &self.fabric_stats {
-                Some(_) => "Press D to toggle dancing".to_string(),
-                None => "Please wait while the tensegrity is constructed".to_string(),
-            }),
+            match &self.fabric_stats {
+                Some(_) => match &self.control_state {
+                    ControlState::Waiting => None,
+                    ControlState::Viewing => {
+                        if self.muscles_active {
+                            Some("Press SPACE to leave it alone".to_string())
+                        } else {
+                            Some("Press SPACE to start pulling on the crossed guy lines".to_string())
+                        }
+                    }
+                    ControlState::ShowingJoint(_) | ControlState::ShowingInterval(_) => None,
+                },
+                None => Some("Under construction...".to_string()),
+            },
         );
         self.update_section(
             SectionName::Left,
-            match &self.fabric_stats {
-                Some(fabric_stats) => Some(format!("{fabric_stats}")),
-                None => None,
-            },
+            self.fabric_stats.clone().map(
+                |FabricStats {
+                     scale,
+                     joint_count,
+                     max_height,
+                     push_count,
+                     push_total,
+                     push_range,
+                     pull_count,
+                     pull_range,
+                     pull_total,
+                 }| {
+                    format!(
+                        "Stats:\n\
+                         Height: {:.1}m\n\
+                         Joints: {:?}\n\
+                         Bars: {:?}\n\
+                         → {:.1}-{:.1}mm\n\
+                         → total {:.1}m\n\
+                         Cables: {:?}\n\
+                         → {:.1}-{:.1}mm\n\
+                         → total {:.1}m",
+                        max_height * scale / 1000.0,
+                        joint_count,
+                        push_count,
+                        push_range.0 * scale,
+                        push_range.1 * scale,
+                        push_total * scale / 1000.0,
+                        pull_count,
+                        pull_range.0 * scale,
+                        pull_range.1 * scale,
+                        pull_total * scale / 1000.0,
+                    )
+                },
+            ),
         );
         self.update_section(
             SectionName::Right,
             match self.control_state {
                 ControlState::Waiting => None,
-                ControlState::Viewing => Some("Right-click to select".to_string()),
-                ControlState::ShowingJoint(joint_details) => {
-                    Some(format!(
-                        "Joint: {}\n\
-                        Click an interval for details\n\
-                        Right-click for an adjacent joint\n\
-                        Press ESC to release",
-                        Self::joint_format(joint_details.index),
-                    ))
+                ControlState::Viewing => {
+                    if !self.muscles_active {
+                        Some("Right-click to select".to_string())
+                    } else {
+                        None
+                    }
                 }
+                ControlState::ShowingJoint(joint_details) => Some(format!(
+                    "{}\n\
+                    Click for details\n\
+                    ESC to release",
+                    Self::joint_format(joint_details.index),
+                )),
                 ControlState::ShowingInterval(interval_details) => {
                     let role = match interval_details.role {
-                        Role::Push => "strut",
-                        Role::Pull => "cable",
-                        Role::Spring => "spring",
+                        Role::Push => "Strut",
+                        Role::Pull => "Cable",
+                        Role::Spring => "Spring",
                     };
                     let length = if let Some(stats) = &self.fabric_stats {
-                            format!("{0:.1} mm", interval_details.length * stats.scale)
-                        } else {
-                            "?".to_string()
-                        };
+                        format!("{0:.1} mm", interval_details.length * stats.scale)
+                    } else {
+                        "?".to_string()
+                    };
                     Some(format!(
-                        "Joint: {}\n\
-                        Green {} to: {}\n\
-                        Length: {}\n\
-                        Right-click\n\
-                        to jump across",
-                        Self::joint_format(interval_details.near_joint),
+                        "{} {}-{}\n\
+                        Length: {}mm\n\
+                        Right-click to jump\n\
+                        ESC to release",
                         role,
+                        Self::joint_format(interval_details.near_joint),
                         Self::joint_format(interval_details.far_joint),
                         length,
                     ))
