@@ -1,11 +1,11 @@
-use std::time::SystemTime;
-use cgmath::Point3;
-use winit::dpi::{PhysicalPosition, PhysicalSize};
-use crate::application::OverlayChange;
+use crate::application::AppStateChange;
 use crate::crucible::CrucibleAction;
-use crate::fabric::FabricStats;
 use crate::fabric::interval::Role;
+use crate::fabric::FabricStats;
 use crate::wgpu::Wgpu;
+use cgmath::Point3;
+use std::time::SystemTime;
+use winit::dpi::PhysicalPosition;
 
 #[derive(Debug, Clone)]
 pub enum GravityMessage {
@@ -59,8 +59,7 @@ pub enum LabEvent {
     CapturePrototype(usize),
     EvolveFromSeed(u64),
     FabricBuilt(FabricStats),
-    OverlayChanged(OverlayChange),
-    Resize(PhysicalSize<u32>),
+    AppStateChanged(AppStateChange),
 }
 
 #[derive(Debug, Clone)]
