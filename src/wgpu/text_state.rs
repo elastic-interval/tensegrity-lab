@@ -1,4 +1,4 @@
-use crate::application::OverlayChange;
+use crate::application::AppStateChange;
 use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
 use crate::messages::ControlState;
@@ -45,12 +45,12 @@ impl TextState {
         fresh
     }
 
-    pub fn change_happened(&mut self, app_change: OverlayChange) {
+    pub fn change_happened(&mut self, app_change: AppStateChange) {
         match app_change {
-            OverlayChange::SetControlState(control_state) => {
+            AppStateChange::SetControlState(control_state) => {
                 self.control_state = control_state;
             }
-            OverlayChange::SetFabricStats(fabric_stats) => {
+            AppStateChange::SetFabricStats(fabric_stats) => {
                 self.control_state = if fabric_stats.is_some() {
                     ControlState::Viewing
                 } else {

@@ -1,4 +1,3 @@
-use crate::application::OverlayChange::SetFabricStats;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, TenscriptError};
@@ -31,7 +30,7 @@ pub struct Application {
 }
 
 #[derive(Clone, Debug)]
-pub enum OverlayChange {
+pub enum AppStateChange {
     SetControlState(ControlState),
     SetFabricStats(Option<FabricStats>),
 }
@@ -224,7 +223,9 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             LabEvent::FabricBuilt(fabric_stats) => {
                 self.event_loop_proxy
-                    .send_event(LabEvent::OverlayChanged(SetFabricStats(Some(fabric_stats))))
+                    .send_event(LabEvent::AppStateChanged(AppStateChange::SetFabricStats(
+                        Some(fabric_stats),
+                    )))
                     .unwrap();
             }
             LabEvent::Crucible(crucible_action) => {
@@ -232,7 +233,9 @@ impl ApplicationHandler<LabEvent> for Application {
                     // side effect
                     CrucibleAction::BuildFabric(_) => {
                         self.event_loop_proxy
-                            .send_event(LabEvent::OverlayChanged(SetFabricStats(None)))
+                            .send_event(LabEvent::AppStateChanged(AppStateChange::SetFabricStats(
+                                None,
+                            )))
                             .unwrap();
                         if let Some(scene) = &mut self.scene {
                             scene.reset();
@@ -270,13 +273,10 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.crucible.action(CrucibleAction::BakeBrick(prototype));
             }
             LabEvent::EvolveFromSeed(seed) => self.crucible.action(CrucibleAction::Evolve(seed)),
-            LabEvent::OverlayChanged(app_change) => {
+            LabEvent::AppStateChanged(app_change) => {
                 if let Some(scene) = &mut self.scene {
                     scene.change_happened(app_change);
                 }
-            }
-            LabEvent::Resize(physical_size) => {
-                println!("Resize {:?}", physical_size);
             }
         }
     }

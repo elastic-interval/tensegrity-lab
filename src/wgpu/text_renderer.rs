@@ -3,7 +3,7 @@ use crate::wgpu::Wgpu;
 use wgpu::{Device, RenderPass, SurfaceConfiguration};
 use wgpu_text::glyph_brush::ab_glyph::FontRef;
 use wgpu_text::{BrushBuilder, TextBrush};
-use crate::application::OverlayChange;
+use crate::application::AppStateChange;
 
 pub struct TextRenderer {
     text_state: TextState,
@@ -22,8 +22,8 @@ impl TextRenderer {
         TextRenderer { brush, text_state }
     }
 
-    pub fn change_happened(&mut self, overlay_change: OverlayChange) {
-        self.text_state.change_happened(overlay_change);
+    pub fn change_happened(&mut self, app_state_change: AppStateChange) {
+        self.text_state.change_happened(app_state_change);
     }
 
     pub fn draw<'a>(&'a mut self, render_pass: &mut RenderPass<'a>, wgpu: &Wgpu) {

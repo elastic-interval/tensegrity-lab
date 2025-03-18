@@ -1,5 +1,4 @@
-use crate::application::OverlayChange;
-use crate::application::OverlayChange::SetControlState;
+use crate::application::AppStateChange;
 use crate::camera::Target::*;
 use crate::camera::{Camera, Pick};
 use crate::fabric::material::interval_material;
@@ -13,8 +12,6 @@ use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::Wgpu;
 use winit::dpi::PhysicalSize;
 use winit::event_loop::EventLoopProxy;
-use ControlState::{ShowingInterval, ShowingJoint};
-use LabEvent::OverlayChanged;
 
 pub struct Scene {
     wgpu: Wgpu,
@@ -43,14 +40,14 @@ impl Scene {
         }
     }
 
-    pub fn change_happened(&mut self, overlay_change: OverlayChange) {
-        if let OverlayChange::SetFabricStats(Some(_)) = overlay_change {
+    pub fn change_happened(&mut self, app_state_change: AppStateChange) {
+        if let AppStateChange::SetFabricStats(Some(_)) = app_state_change {
             self.pick_allowed = true;
         }
-        self.text_renderer.change_happened(overlay_change);
+        self.text_renderer.change_happened(app_state_change);
     }
 
-    pub fn pick_allowed(&self)-> bool {
+    pub fn pick_allowed(&self) -> bool {
         self.pick_allowed
     }
 
@@ -136,7 +133,9 @@ impl Scene {
                     location: joint.location,
                 };
                 self.event_loop_proxy
-                    .send_event(OverlayChanged(SetControlState(ShowingJoint(details))))
+                    .send_event(LabEvent::AppStateChanged(AppStateChange::SetControlState(
+                        ControlState::ShowingJoint(details),
+                    )))
                     .unwrap();
             }
             Pick::Interval {
@@ -164,9 +163,9 @@ impl Scene {
                     role,
                 };
                 self.event_loop_proxy
-                    .send_event(OverlayChanged(SetControlState(ShowingInterval(
-                        interval_details,
-                    ))))
+                    .send_event(LabEvent::AppStateChanged(AppStateChange::SetControlState(
+                        ControlState::ShowingInterval(interval_details),
+                    )))
                     .unwrap();
             }
         }
