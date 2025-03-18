@@ -23,11 +23,11 @@ pub struct Application {
     crucible: Crucible,
     fabric_plan_name: String,
     fabric_library: FabricLibrary,
-    #[cfg(not(target_arch = "wasm32"))]
-    fabric_library_modified: SystemTime,
     brick_library: BrickLibrary,
     event_loop_proxy: EventLoopProxy<LabEvent>,
     fabric_alive: bool,
+    #[cfg(not(target_arch = "wasm32"))]
+    fabric_library_modified: SystemTime,
 }
 
 #[derive(Clone, Debug)]
@@ -47,13 +47,13 @@ impl Application {
             window_attributes,
             scene: None,
             crucible: Crucible::default(),
-            fabric_plan_name: "Halo by Crane".into(),
+            fabric_plan_name: Default::default(),
             brick_library,
             fabric_library,
             event_loop_proxy,
+            fabric_alive: true,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
-            fabric_alive: true,
         })
     }
 
