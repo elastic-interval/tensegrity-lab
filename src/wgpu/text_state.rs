@@ -204,8 +204,8 @@ impl TextState {
     fn create_bounds(&self, section_name: SectionName) -> [f32; 2] {
         let middle = self.width / 2.0;
         match section_name {
-            SectionName::Top => [middle, self.width],
-            SectionName::Bottom => [middle, self.width],
+            SectionName::Top => [self.width, self.width],
+            SectionName::Bottom => [self.width, self.width],
             SectionName::Left => [middle, self.width],
             SectionName::Right => [middle, self.width],
         }
@@ -227,8 +227,8 @@ impl TextState {
         OwnedText::new(text)
             .with_color([0.8, 0.8, 0.8, 1.0])
             .with_scale(match section_name {
-                SectionName::Top => 80.0,
-                _ => 40.0,
+                SectionName::Top => 60.0,
+                _ => 30.0,
             })
     }
 

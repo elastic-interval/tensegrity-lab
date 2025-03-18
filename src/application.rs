@@ -24,7 +24,6 @@ pub struct Application {
     fabric_library: FabricLibrary,
     brick_library: BrickLibrary,
     event_loop_proxy: EventLoopProxy<LabEvent>,
-    fabric_alive: bool,
     muscles_active: bool,
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
@@ -52,7 +51,6 @@ impl Application {
             brick_library,
             fabric_library,
             event_loop_proxy,
-            fabric_alive: true,
             muscles_active: false,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
@@ -233,7 +231,6 @@ impl ApplicationHandler<LabEvent> for Application {
             LabEvent::LoadFabric(fabric_plan_name) => {
                 self.fabric_plan_name = fabric_plan_name.clone();
                 self.build_current_fabric();
-                self.fabric_alive = !self.fabric_plan_name.is_empty();
             }
             LabEvent::FabricBuilt(fabric_stats) => {
                 self.event_loop_proxy
@@ -276,7 +273,6 @@ impl ApplicationHandler<LabEvent> for Application {
                 // self.user_interface.set_strain_limits(strain_limits);
             }
             LabEvent::CapturePrototype(brick_index) => {
-                self.fabric_alive = true;
                 let prototype = self
                     .brick_library
                     .brick_definitions
@@ -354,15 +350,6 @@ impl ApplicationHandler<LabEvent> for Application {
                         &mut self.crucible.fabric(),
                     );
                 }
-                WindowEvent::CursorEntered { .. } => {
-                    self.fabric_alive = true;
-                }
-                WindowEvent::CursorLeft { .. } => {
-                    #[cfg(target_arch = "wasm32")]
-                    {
-                        self.fabric_alive = false;
-                    }
-                }
                 WindowEvent::Resized(physical_size) => scene.resize(physical_size),
                 _ => {}
             }
@@ -372,7 +359,7 @@ impl ApplicationHandler<LabEvent> for Application {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(scene) = &mut self.scene {
             let approaching = scene.target_approach(self.crucible.fabric());
-            let iterating = self.fabric_alive && !scene.soemthing_picked();
+            let iterating = !scene.soemthing_picked();
             if iterating {
                 if let Some(lab_event) = self.crucible.iterate(&self.brick_library) {
                     self.event_loop_proxy.send_event(lab_event).unwrap();
@@ -380,7 +367,7 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             self.redraw();
             event_loop.set_control_flow(if iterating || approaching {
-                ControlFlow::wait_duration(Duration::from_millis(2))
+                ControlFlow::wait_duration(Duration::from_millis(5))
             } else {
                 ControlFlow::Wait
             });

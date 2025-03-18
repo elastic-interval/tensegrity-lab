@@ -61,7 +61,6 @@ impl Experiment {
                 fabric.muscle_nuance = nuance;
             }
             LabAction::MusclesActive(yes) => if self.stage == Paused {
-                println!("muscles active {yes}");
                 if yes {
                     if let Some(movement) = &self.pretense_phase.muscle_movement {
                         self.stage = MuscleCycle(1.0 / movement.countdown as f32)
