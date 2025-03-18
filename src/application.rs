@@ -39,14 +39,13 @@ pub enum AppStateChange {
 
 impl Application {
     pub fn new(
-        mobile_device: bool,
         window_attributes: WindowAttributes,
         event_loop_proxy: EventLoopProxy<LabEvent>,
     ) -> Result<Application, TenscriptError> {
         let brick_library = BrickLibrary::from_source()?;
         let fabric_library = FabricLibrary::from_source()?;
         Ok(Application {
-            mobile_device,
+            mobile_device: false,
             window_attributes,
             scene: None,
             crucible: Crucible::default(),
@@ -181,7 +180,9 @@ impl Application {
             if size.width > 0 && size.height > 0 {
                 // Window is ready, initialize WGPU
                 console::log_1(&"Window initialized with valid dimensions, starting WGPU".into());
+                let mobile_device = size.height > size.width;
                 Wgpu::create_and_send(
+                    mobile_device,
                     checker_ref.window.clone(),
                     checker_ref.event_loop_proxy.clone(),
                 );
@@ -222,12 +223,13 @@ impl ApplicationHandler<LabEvent> for Application {
         self.initialize_wgpu_when_ready(window, self.event_loop_proxy.clone());
 
         #[cfg(not(target_arch = "wasm32"))]
-        Wgpu::create_and_send(window, self.event_loop_proxy.clone());
+        Wgpu::create_and_send(false, window, self.event_loop_proxy.clone());
     }
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
         match event {
-            LabEvent::ContextCreated(wgpu) => {
+            LabEvent::ContextCreated { wgpu, mobile_device } => {
+                self.mobile_device = mobile_device;
                 let proxy = self.event_loop_proxy.clone();
                 self.scene = Some(Scene::new(self.mobile_device, wgpu, proxy));
             }

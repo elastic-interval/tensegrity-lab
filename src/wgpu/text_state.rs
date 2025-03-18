@@ -137,6 +137,14 @@ impl TextState {
                     }
                 },
             );
+        } else {
+            self.update_section(
+                SectionName::Right,
+                match self.control_state {
+                    ControlState::Viewing => Some("2025\nGerald de Jong\npretenst.com".to_string()),
+                    _ => None,
+                },
+            );
         }
 
         self.update_section(
