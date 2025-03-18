@@ -23,6 +23,7 @@ impl SectionName {
 
 #[derive(Clone, Debug)]
 pub struct TextState {
+    mobile_device: bool,
     width: f32,
     height: f32,
     fabric_name: String,
@@ -33,8 +34,9 @@ pub struct TextState {
 }
 
 impl TextState {
-    pub fn new(fabric_name: String, width: u32, height: u32) -> Self {
+    pub fn new(mobile_device: bool, fabric_name: String, width: u32, height: u32) -> Self {
         let mut fresh = Self {
+            mobile_device,
             width: width as f32,
             height: height as f32,
             fabric_name,
@@ -73,23 +75,70 @@ impl TextState {
 
     fn update_sections(&mut self) {
         self.update_section(SectionName::Top, Some(self.fabric_name.clone()));
-        self.update_section(
-            SectionName::Bottom,
-            match &self.fabric_stats {
-                Some(_) => match &self.control_state {
+        if !self.mobile_device {
+            self.update_section(
+                SectionName::Bottom,
+                match &self.fabric_stats {
+                    Some(_) => match &self.control_state {
+                        ControlState::Waiting => None,
+                        ControlState::Viewing => {
+                            if self.muscles_active {
+                                Some("Press SPACE to leave it alone".to_string())
+                            } else {
+                                Some(
+                                    "Press SPACE to start pulling on the crossed guy lines"
+                                        .to_string(),
+                                )
+                            }
+                        }
+                        ControlState::ShowingJoint(_) | ControlState::ShowingInterval(_) => None,
+                    },
+                    None => Some("Under construction...".to_string()),
+                },
+            );
+            self.update_section(
+                SectionName::Right,
+                match self.control_state {
                     ControlState::Waiting => None,
                     ControlState::Viewing => {
-                        if self.muscles_active {
-                            Some("Press SPACE to leave it alone".to_string())
+                        if !self.muscles_active {
+                            Some("Right-click to select".to_string())
                         } else {
-                            Some("Press SPACE to start pulling on the crossed guy lines".to_string())
+                            None
                         }
                     }
-                    ControlState::ShowingJoint(_) | ControlState::ShowingInterval(_) => None,
+                    ControlState::ShowingJoint(joint_details) => Some(format!(
+                        "{}\n\
+                        Click for details\n\
+                        ESC to release",
+                        Self::joint_format(joint_details.index),
+                    )),
+                    ControlState::ShowingInterval(interval_details) => {
+                        let role = match interval_details.role {
+                            Role::Push => "Strut",
+                            Role::Pull => "Cable",
+                            Role::Spring => "Spring",
+                        };
+                        let length = if let Some(stats) = &self.fabric_stats {
+                            format!("{0:.1} mm", interval_details.length * stats.scale)
+                        } else {
+                            "?".to_string()
+                        };
+                        Some(format!(
+                            "{} {}-{}\n\
+                            Length: {}mm\n\
+                            Right-click to jump\n\
+                            ESC to release",
+                            role,
+                            Self::joint_format(interval_details.near_joint),
+                            Self::joint_format(interval_details.far_joint),
+                            length,
+                        ))
+                    }
                 },
-                None => Some("Under construction...".to_string()),
-            },
-        );
+            );
+        }
+
         self.update_section(
             SectionName::Left,
             self.fabric_stats.clone().map(
@@ -127,47 +176,6 @@ impl TextState {
                     )
                 },
             ),
-        );
-        self.update_section(
-            SectionName::Right,
-            match self.control_state {
-                ControlState::Waiting => None,
-                ControlState::Viewing => {
-                    if !self.muscles_active {
-                        Some("Right-click to select".to_string())
-                    } else {
-                        None
-                    }
-                }
-                ControlState::ShowingJoint(joint_details) => Some(format!(
-                    "{}\n\
-                    Click for details\n\
-                    ESC to release",
-                    Self::joint_format(joint_details.index),
-                )),
-                ControlState::ShowingInterval(interval_details) => {
-                    let role = match interval_details.role {
-                        Role::Push => "Strut",
-                        Role::Pull => "Cable",
-                        Role::Spring => "Spring",
-                    };
-                    let length = if let Some(stats) = &self.fabric_stats {
-                        format!("{0:.1} mm", interval_details.length * stats.scale)
-                    } else {
-                        "?".to_string()
-                    };
-                    Some(format!(
-                        "{} {}-{}\n\
-                        Length: {}mm\n\
-                        Right-click to jump\n\
-                        ESC to release",
-                        role,
-                        Self::joint_format(interval_details.near_joint),
-                        Self::joint_format(interval_details.far_joint),
-                        length,
-                    ))
-                }
-            },
         );
     }
 

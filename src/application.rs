@@ -17,6 +17,7 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{WindowAttributes, WindowId};
 
 pub struct Application {
+    mobile_device: bool,
     window_attributes: WindowAttributes,
     scene: Option<Scene>,
     crucible: Crucible,
@@ -38,12 +39,14 @@ pub enum AppStateChange {
 
 impl Application {
     pub fn new(
+        mobile_device: bool,
         window_attributes: WindowAttributes,
         event_loop_proxy: EventLoopProxy<LabEvent>,
     ) -> Result<Application, TenscriptError> {
         let brick_library = BrickLibrary::from_source()?;
         let fabric_library = FabricLibrary::from_source()?;
         Ok(Application {
+            mobile_device,
             window_attributes,
             scene: None,
             crucible: Crucible::default(),
@@ -226,7 +229,7 @@ impl ApplicationHandler<LabEvent> for Application {
         match event {
             LabEvent::ContextCreated(wgpu) => {
                 let proxy = self.event_loop_proxy.clone();
-                self.scene = Some(Scene::new(wgpu, proxy));
+                self.scene = Some(Scene::new(self.mobile_device, wgpu, proxy));
             }
             LabEvent::LoadFabric(fabric_plan_name) => {
                 self.fabric_plan_name = fabric_plan_name.clone();
@@ -238,6 +241,13 @@ impl ApplicationHandler<LabEvent> for Application {
                         Some(fabric_stats),
                     )))
                     .unwrap();
+                if self.mobile_device {
+                    self.event_loop_proxy
+                        .send_event(LabEvent::Crucible(CrucibleAction::Experiment(
+                            LabAction::MusclesActive(true),
+                        )))
+                        .unwrap();
+                }
             }
             LabEvent::Crucible(crucible_action) => {
                 match &crucible_action {
