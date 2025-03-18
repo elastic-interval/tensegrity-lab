@@ -42,10 +42,6 @@ p {
     z-index: 1000;
 }
 
-#control_overlay, canvas {
-    outline: none;
-}
-
 #loading-screen {
     position: fixed;
     top: 0;
