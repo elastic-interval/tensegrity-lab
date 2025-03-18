@@ -217,7 +217,7 @@ impl Wgpu {
         )
     }
 
-    pub fn create_text_renderer(&self) -> TextRenderer {
-        TextRenderer::new(&self.device, &self.surface_config)
+    pub fn create_text_renderer(&self, mobile_device: bool) -> TextRenderer {
+        TextRenderer::new(mobile_device, &self.device, &self.surface_config)
     }
 }

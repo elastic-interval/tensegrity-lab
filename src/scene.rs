@@ -24,11 +24,11 @@ pub struct Scene {
 }
 
 impl Scene {
-    pub fn new(wgpu: Wgpu, event_loop_proxy: EventLoopProxy<LabEvent>) -> Self {
+    pub fn new(mobile_device: bool, wgpu: Wgpu, event_loop_proxy: EventLoopProxy<LabEvent>) -> Self {
         let camera = wgpu.create_camera();
         let fabric_renderer = wgpu.create_fabric_renderer();
         let surface_renderer = wgpu.create_surface_renderer();
-        let text_renderer = wgpu.create_text_renderer();
+        let text_renderer = wgpu.create_text_renderer(mobile_device);
         Self {
             wgpu,
             camera,
