@@ -65,8 +65,7 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
     #[cfg(target_arch = "wasm32")]
     let window_attributes = create_window_attributes();
     let proxy = event_loop_proxy.clone();
-    let mut app: Application = match Application::new(is_mobile_device(), window_attributes, proxy)
-    {
+    let mut app: Application = match Application::new(window_attributes, proxy) {
         Ok(app) => app,
         Err(error) => panic!("Tenscript Error: [{:?}]", error),
     };
@@ -123,20 +122,4 @@ fn create_window_attributes() -> WindowAttributes {
     WindowAttributes::default()
         .with_canvas(Some(canvas))
         .with_inner_size(size)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn is_mobile_device() -> bool {
-    false
-}
-
-#[cfg(target_arch = "wasm32")]
-fn is_mobile_device() -> bool {
-    let window = web_sys::window().expect("no global window");
-    let screen_x_js = window.screen_x().unwrap();
-    let screen_y_js = window.screen_y().unwrap();
-    let width = web_sys::js_sys::Number::from(screen_x_js).value_of() as i32;
-    let height = web_sys::js_sys::Number::from(screen_y_js).value_of() as i32;
-    let dimensions_suggest_mobile = width < height;
-    dimensions_suggest_mobile
 }

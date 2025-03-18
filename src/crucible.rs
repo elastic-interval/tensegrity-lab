@@ -50,7 +50,7 @@ impl Default for Crucible {
     fn default() -> Self {
         Self {
             fabric: Fabric::default(),
-            iterations_per_frame: 125,
+            iterations_per_frame: 80,
             stage: Empty,
         }
     }

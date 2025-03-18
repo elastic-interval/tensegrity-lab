@@ -51,7 +51,7 @@ pub enum ControlState {
 
 #[derive(Debug, Clone)]
 pub enum LabEvent {
-    ContextCreated(Wgpu),
+    ContextCreated { wgpu: Wgpu, mobile_device: bool },
     Crucible(CrucibleAction),
     CalibrateStrain,
     UpdatedLibrary(SystemTime),

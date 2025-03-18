@@ -141,14 +141,21 @@ impl Wgpu {
         }
     }
 
-    pub fn create_and_send(window: Arc<Window>, event_loop_proxy: EventLoopProxy<LabEvent>) {
+    pub fn create_and_send(
+        mobile_device: bool,
+        window: Arc<Window>,
+        event_loop_proxy: EventLoopProxy<LabEvent>,
+    ) {
         #[cfg(target_arch = "wasm32")]
         {
             let future = Self::new_async(window);
             wasm_bindgen_futures::spawn_local(async move {
                 let wgpu = future.await;
                 assert!(event_loop_proxy
-                    .send_event(LabEvent::ContextCreated(wgpu))
+                    .send_event(LabEvent::ContextCreated {
+                        wgpu,
+                        mobile_device
+                    })
                     .is_ok());
             });
         }
@@ -157,7 +164,7 @@ impl Wgpu {
         {
             let wgpu = futures::executor::block_on(Self::new_async(window));
             assert!(event_loop_proxy
-                .send_event(LabEvent::ContextCreated(wgpu))
+                .send_event(LabEvent::ContextCreated { wgpu, mobile_device })
                 .is_ok());
         }
     }
