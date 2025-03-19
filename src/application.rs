@@ -6,8 +6,9 @@ use crate::fabric::FabricStats;
 use crate::messages::{ControlState, LabEvent, PointerChange, Shot};
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
+use instant::{Duration, Instant};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 use winit::application::ApplicationHandler;
 use winit::event::{
     ElementState, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,
@@ -26,6 +27,8 @@ pub struct Application {
     brick_library: BrickLibrary,
     event_loop_proxy: EventLoopProxy<LabEvent>,
     muscles_active: bool,
+    last_update: Instant,
+    accumulated_time: Duration,
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
 }
@@ -54,6 +57,8 @@ impl Application {
             fabric_library,
             event_loop_proxy,
             muscles_active: false,
+            last_update: Instant::now(),
+            accumulated_time: Duration::default(),
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
         })
@@ -374,19 +379,39 @@ impl ApplicationHandler<LabEvent> for Application {
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(scene) = &mut self.scene {
-            let approaching = scene.target_approach(self.crucible.fabric());
+            // Calculate elapsed time since last update
+            let now = Instant::now();
+            let elapsed = now.duration_since(self.last_update);
+            self.last_update = now;
+
+            // Fixed timestep logic
+            self.accumulated_time += elapsed;
+            let update_interval = Duration::from_millis(16);
             let iterating = !scene.something_picked();
-            if iterating {
-                if let Some(lab_event) = self.crucible.iterate(&self.brick_library) {
-                    self.event_loop_proxy.send_event(lab_event).unwrap();
+            let approaching = scene.target_approach(self.crucible.fabric());
+
+            if self.accumulated_time >= update_interval {
+                self.accumulated_time -= update_interval;
+
+                if iterating {
+                    if let Some(lab_event) = self.crucible.iterate(&self.brick_library) {
+                        self.event_loop_proxy.send_event(lab_event).unwrap();
+                    }
+                }
+
+                if iterating || approaching {
+                    self.redraw().expect("Problem redrawing");
                 }
             }
-            self.redraw().expect("Problem redrawing");
-            event_loop.set_control_flow(if iterating || approaching {
-                ControlFlow::wait_duration(Duration::from_millis(5))
+
+            // Set control flow for next frame
+            if self.accumulated_time >= update_interval || iterating || approaching {
+                event_loop.set_control_flow(ControlFlow::wait_duration(
+                    std::time::Duration::from_millis(5),
+                ));
             } else {
-                ControlFlow::Wait
-            });
+                event_loop.set_control_flow(ControlFlow::Wait);
+            }
         }
     }
 }
