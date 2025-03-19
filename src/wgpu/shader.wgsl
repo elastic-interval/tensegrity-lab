@@ -35,7 +35,7 @@ fn build_cylinder_matrix(start: vec3<f32>, end: vec3<f32>, radius_factor: f32) -
     let length = length(direction);
 
     // Base radius
-    let base_radius = 0.1;
+    let base_radius = 0.04;
     let radius = base_radius * radius_factor;
 
     // If length is too small, return identity matrix at the midpoint
