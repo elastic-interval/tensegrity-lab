@@ -386,7 +386,7 @@ impl ApplicationHandler<LabEvent> for Application {
 
             // Fixed timestep logic
             self.accumulated_time += elapsed;
-            let update_interval = Duration::from_millis(16);
+            let update_interval = Duration::from_millis(5);
             let iterating = !scene.something_picked();
             let approaching = scene.target_approach(self.crucible.fabric());
 
@@ -406,9 +406,7 @@ impl ApplicationHandler<LabEvent> for Application {
 
             // Set control flow for next frame
             if self.accumulated_time >= update_interval || iterating || approaching {
-                event_loop.set_control_flow(ControlFlow::wait_duration(
-                    std::time::Duration::from_millis(5),
-                ));
+                event_loop.set_control_flow(ControlFlow::wait_duration(Duration::from_millis(2)));
             } else {
                 event_loop.set_control_flow(ControlFlow::Wait);
             }
