@@ -5,7 +5,7 @@ use bytemuck::cast_slice;
 use cgmath::{Matrix4, Point3};
 use wgpu::util::DeviceExt;
 use wgpu::MemoryHints::Performance;
-use wgpu::{PipelineLayout, RenderPass, ShaderModule};
+use wgpu::{DepthStencilState, PipelineLayout, RenderPass, ShaderModule};
 use winit::event_loop::EventLoopProxy;
 use winit::window::Window;
 
@@ -15,23 +15,25 @@ use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 
+pub mod cylinder;
 pub mod fabric_renderer;
 pub mod fabric_vertex;
 pub mod surface_renderer;
 pub mod surface_vertex;
 pub mod text_renderer;
-mod text_state;
-mod cylinder;
+pub mod text_state;
 
 pub struct Wgpu {
-    pub queue: wgpu::Queue,
-    pub device: wgpu::Device,
     surface: wgpu::Surface<'static>,
-    surface_config: wgpu::SurfaceConfiguration,
+    surface_configuration: wgpu::SurfaceConfiguration,
     uniform_buffer: wgpu::Buffer,
-    uniform_bind_group: wgpu::BindGroup,
     pipeline_layout: PipelineLayout,
     shader: ShaderModule,
+    pub queue: wgpu::Queue,
+    pub device: wgpu::Device,
+    pub uniform_bind_group_layout: wgpu::BindGroupLayout,
+    pub uniform_bind_group: wgpu::BindGroup,
+    pub depth_texture: wgpu::Texture,
 }
 
 impl Debug for Wgpu {
@@ -92,8 +94,8 @@ impl Wgpu {
         let size = window.inner_size();
         let width = size.width.max(1);
         let height = size.height.max(1);
-        let surface_config = surface.get_default_config(&adapter, width, height).unwrap();
-        surface.configure(&device, &surface_config);
+        let surface_configuration = surface.get_default_config(&adapter, width, height).unwrap();
+        surface.configure(&device, &surface_configuration);
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("MVP"),
             contents: cast_slice(&[0.0f32; 16]),
@@ -130,15 +132,31 @@ impl Wgpu {
             label: Some("Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
         });
+        let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Depth Texture"),
+            size: wgpu::Extent3d {
+                width: surface_configuration.width,
+                height: surface_configuration.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
         Self {
             surface,
-            surface_config,
+            surface_configuration,
             device,
             queue,
+            uniform_bind_group_layout,
             uniform_buffer,
             uniform_bind_group,
             pipeline_layout,
             shader,
+            depth_texture,
         }
     }
 
@@ -165,16 +183,23 @@ impl Wgpu {
         {
             let wgpu = futures::executor::block_on(Self::new_async(window));
             assert!(event_loop_proxy
-                .send_event(LabEvent::ContextCreated { wgpu, mobile_device })
+                .send_event(LabEvent::ContextCreated {
+                    wgpu,
+                    mobile_device
+                })
                 .is_ok());
         }
     }
 
     pub fn resize(&mut self, new_size: (u32, u32)) {
         let (width, height) = new_size;
-        self.surface_config.width = width.max(1);
-        self.surface_config.height = height.max(1);
-        self.surface.configure(&self.device, &self.surface_config);
+        self.surface_configuration.width = width.max(1);
+        self.surface_configuration.height = height.max(1);
+        self.surface.configure(&self.device, &self.surface_configuration);
+    }
+
+    pub fn get_surface_texture(&self) -> Result<wgpu::SurfaceTexture, wgpu::SurfaceError> {
+        self.surface.get_current_texture()
     }
 
     pub fn create_encoder(&self) -> wgpu::CommandEncoder {
@@ -184,8 +209,18 @@ impl Wgpu {
             })
     }
 
-    pub fn surface_texture(&self) -> Result<wgpu::SurfaceTexture, wgpu::SurfaceError> {
-        self.surface.get_current_texture()
+    pub fn create_depth_view(&self) -> wgpu::TextureView {
+        self.depth_texture.create_view(&wgpu::TextureViewDescriptor::default())
+    }
+
+    pub fn create_depth_stencil(&self) -> DepthStencilState {
+        DepthStencilState {
+            format: wgpu::TextureFormat::Depth32Float,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }
     }
 
     pub fn update_mvp_matrix(&self, matrix: Matrix4<f32>) {
@@ -198,8 +233,8 @@ impl Wgpu {
         let scale = 9.0;
         Camera::new(
             Point3::new(2.0 * scale, 1.0 * scale, 2.0 * scale),
-            self.surface_config.width as f32,
-            self.surface_config.height as f32,
+            self.surface_configuration.width as f32,
+            self.surface_configuration.height as f32,
         )
     }
 
@@ -208,24 +243,14 @@ impl Wgpu {
     }
 
     pub fn create_fabric_renderer(&self) -> FabricRenderer {
-        FabricRenderer::new(
-            &self.device,
-            &self.pipeline_layout,
-            &self.shader,
-            &self.surface_config,
-        )
+        FabricRenderer::new(&self)
     }
 
     pub fn create_surface_renderer(&self) -> SurfaceRenderer {
-        SurfaceRenderer::new(
-            &self.device,
-            &self.pipeline_layout,
-            &self.shader,
-            &self.surface_config,
-        )
+        SurfaceRenderer::new(&self)
     }
 
     pub fn create_text_renderer(&self, mobile_device: bool) -> TextRenderer {
-        TextRenderer::new(mobile_device, &self.device, &self.surface_config)
+        TextRenderer::new(mobile_device, &self)
     }
 }

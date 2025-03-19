@@ -6,7 +6,6 @@ use crate::fabric::Fabric;
 use crate::messages::{ControlState, IntervalDetails, JointDetails};
 use crate::messages::{LabEvent, PointerChange};
 use crate::wgpu::fabric_renderer::FabricRenderer;
-use crate::wgpu::fabric_vertex::FabricVertex;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::Wgpu;
@@ -56,11 +55,15 @@ impl Scene {
         self.pick_allowed
     }
 
-    fn render(&mut self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
+    fn render(&mut self)-> Result<(), wgpu::SurfaceError> {
+        let surface_texture = self.wgpu.get_surface_texture()?;
+        let view = surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let depth_view = self.wgpu.create_depth_view();
+        let mut encoder = self.wgpu.create_encoder();
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view,
+                view: &view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -72,35 +75,38 @@ impl Scene {
                     store: wgpu::StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: None,
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &depth_view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
             timestamp_writes: None,
             occlusion_query_set: None,
         });
         self.wgpu.set_bind_group(&mut render_pass);
-        self.fabric_renderer.draw(&mut render_pass);
-        self.surface_renderer.draw(&mut render_pass);
-        self.text_renderer.draw(&mut render_pass, &self.wgpu);
+        self.fabric_renderer.render(&mut render_pass, &self.wgpu.uniform_bind_group);
+        self.surface_renderer.render(&mut render_pass);
+        self.text_renderer.render(&mut render_pass, &self.wgpu);
+        drop(render_pass);
+        self.wgpu.queue.submit(std::iter::once(encoder.finish()));
+        surface_texture.present();
+        Ok(())
     }
 
-    pub fn redraw(&mut self, fabric: &Fabric) {
+    pub fn redraw(&mut self, fabric: &Fabric)-> Result<(), wgpu::SurfaceError> {
         self.wgpu.update_mvp_matrix(self.camera.mvp_matrix());
-        let vertexes = fabric.intervals.iter().flat_map(|(interval_id, interval)| {
-            FabricVertex::for_interval(interval_id, interval, fabric, &self.camera.current_pick())
-        });
-        self.fabric_renderer.update(&mut self.wgpu, vertexes);
-        let surface_texture = self.wgpu.surface_texture().expect("surface texture");
-        let texture_view = surface_texture
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self.wgpu.create_encoder();
-        self.render(&mut encoder, &texture_view);
-        self.wgpu.queue.submit(Some(encoder.finish()));
-        surface_texture.present();
+        self.fabric_renderer.update_from_fabric(&mut self.wgpu, fabric);
+        self.render()?;
+        Ok(())
     }
 
     pub fn resize(&mut self, PhysicalSize { width, height }: PhysicalSize<u32>) {
         self.wgpu.resize((width, height));
         self.camera.set_size(width as f32, height as f32);
+        // the texture!
     }
 
     pub fn pointer_changed(&mut self, pointer_changed: PointerChange, fabric: &Fabric) {
@@ -113,7 +119,7 @@ impl Scene {
         self.camera.current_pick()
     }
 
-    pub fn soemthing_picked(&self) -> bool {
+    pub fn something_picked(&self) -> bool {
         !matches!(self.current_pick(), Pick::Nothing)
     }
 
