@@ -34,101 +34,48 @@ fn build_cylinder_matrix(start: vec3<f32>, end: vec3<f32>, radius_factor: f32) -
     let direction = end - start;
     let length = length(direction);
 
-    // Base radius - can be adjusted globally here
-    let base_radius = 0.03;
+    // Base radius
+    let base_radius = 0.1;
     let radius = base_radius * radius_factor;
 
-    // If length is too small, return identity matrix
+    // If length is too small, return identity matrix at the midpoint
     if (length < 0.0001) {
+        let midpoint = (start + end) * 0.5;
         return mat4x4<f32>(
-            vec4<f32>(1.0, 0.0, 0.0, 0.0),
-            vec4<f32>(0.0, 1.0, 0.0, 0.0),
-            vec4<f32>(0.0, 0.0, 1.0, 0.0),
-            vec4<f32>(0.0, 0.0, 0.0, 1.0)
+            vec4<f32>(radius, 0.0, 0.0, 0.0),
+            vec4<f32>(0.0, 0.001, 0.0, 0.0), // tiny non-zero length
+            vec4<f32>(0.0, 0.0, radius, 0.0),
+            vec4<f32>(midpoint.x, midpoint.y, midpoint.z, 1.0)
         );
     }
 
     // Calculate midpoint for translation
-    let midpoint = start + direction * 0.5;
+    let midpoint = (start + end) * 0.5;
 
-    // Normalize direction
-    let dir = direction / length;
+    // Calculate X basis vector (perpendicular to cylinder axis)
+    let y_axis = normalize(direction); // Unit vector along cylinder axis
 
-    // Default cylinder orientation is along Y axis
-    let y_axis = vec3<f32>(0.0, 1.0, 0.0);
-
-    // Find rotation axis using cross product
-    var rotation_axis = cross(y_axis, dir);
-    var rotation_axis_length = length(rotation_axis);
-
-    // Handle case where direction is parallel to Y axis
-    var rotation_matrix: mat3x3<f32>;
-    if (rotation_axis_length < 0.001) {
-        // Check if pointing up or down
-        if (dir.y > 0.0) {
-            // Same as y_axis, use identity rotation
-            rotation_matrix = mat3x3<f32>(
-                vec3<f32>(1.0, 0.0, 0.0),
-                vec3<f32>(0.0, 1.0, 0.0),
-                vec3<f32>(0.0, 0.0, 1.0)
-            );
-        } else {
-            // Opposite to y_axis, rotate 180° around X
-            rotation_matrix = mat3x3<f32>(
-                vec3<f32>(1.0, 0.0, 0.0),
-                vec3<f32>(0.0, -1.0, 0.0),
-                vec3<f32>(0.0, 0.0, -1.0)
-            );
-        }
+    // Find X basis vector (perpendicular to Y)
+    // Since we want a specific basis, we'll use a consistent approach
+    var x_axis: vec3<f32>;
+    if (abs(y_axis.y) < 0.999) {
+        // Not aligned with global Y, so use global Y to find perpendicular
+        x_axis = normalize(cross(vec3<f32>(0.0, 1.0, 0.0), y_axis));
     } else {
-        // Normal case: build rotation matrix from axis and angle
-        rotation_axis = rotation_axis / rotation_axis_length;
-        let cos_angle = dot(y_axis, dir);
-        let angle = acos(clamp(cos_angle, -1.0, 1.0));
-        let sin_angle = sin(angle);
-
-        // Build rotation matrix using Rodrigues' rotation formula
-        let K = mat3x3<f32>(
-            vec3<f32>(0.0, -rotation_axis.z, rotation_axis.y),
-            vec3<f32>(rotation_axis.z, 0.0, -rotation_axis.x),
-            vec3<f32>(-rotation_axis.y, rotation_axis.x, 0.0)
-        );
-
-        let I = mat3x3<f32>(
-            vec3<f32>(1.0, 0.0, 0.0),
-            vec3<f32>(0.0, 1.0, 0.0),
-            vec3<f32>(0.0, 0.0, 1.0)
-        );
-
-        rotation_matrix = I + sin_angle * K + (1.0 - cos_angle) * (K * K);
+        // Aligned with global Y, so use global X to find perpendicular
+        x_axis = normalize(cross(vec3<f32>(1.0, 0.0, 0.0), y_axis));
     }
 
-    // Build the complete 4x4 transformation matrix
-    // Scale by radius in X and Z, by length in Y
-    // Rotate to align with direction
-    // Translate to midpoint
-    let scale_matrix = mat4x4<f32>(
-        vec4<f32>(radius, 0.0, 0.0, 0.0),
-        vec4<f32>(0.0, length, 0.0, 0.0),
-        vec4<f32>(0.0, 0.0, radius, 0.0),
-        vec4<f32>(0.0, 0.0, 0.0, 1.0)
-    );
+    // Find Z basis vector to complete the basis
+    let z_axis = cross(x_axis, y_axis);
 
-    let rotation_matrix_4x4 = mat4x4<f32>(
-        vec4<f32>(rotation_matrix[0], 0.0),
-        vec4<f32>(rotation_matrix[1], 0.0),
-        vec4<f32>(rotation_matrix[2], 0.0),
-        vec4<f32>(0.0, 0.0, 0.0, 1.0)
+    // Build the basis transformation matrix
+    return mat4x4<f32>(
+        vec4<f32>(x_axis * radius, 0.0),   // Scale X basis by radius
+        vec4<f32>(y_axis * length, 0.0),   // Scale Y basis by length
+        vec4<f32>(z_axis * radius, 0.0),   // Scale Z basis by radius
+        vec4<f32>(midpoint, 1.0)           // Position at midpoint
     );
-
-    let translation_matrix = mat4x4<f32>(
-        vec4<f32>(1.0, 0.0, 0.0, 0.0),
-        vec4<f32>(0.0, 1.0, 0.0, 0.0),
-        vec4<f32>(0.0, 0.0, 1.0, 0.0),
-        vec4<f32>(midpoint, 1.0)
-    );
-
-    return translation_matrix * rotation_matrix_4x4 * scale_matrix;
 }
 
 @vertex

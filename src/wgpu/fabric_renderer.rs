@@ -184,7 +184,7 @@ impl FabricRenderer {
             // Set radius factor based on role
             let radius_factor = match role {
                 Role::Push => 1.7,    // Thicker for compression elements
-                Role::Pull => 0.7,    // Thinner for tension elements
+                Role::Pull => 0.2,    // Thinner for tension elements
                 Role::Spring => 1.0,  // Medium for springs
             };
 

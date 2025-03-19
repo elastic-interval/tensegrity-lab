@@ -134,13 +134,10 @@
 			(faces-to-triangles)
 			(centralize 1.0))
 		(pretense (surface :absent)))
-	(fabric (name "Ring")
+	(fabric (name "X")
 		(build
-			(branch (alias Single)
-				(face (alias :base) (grow 6 (mark :tip)))
-				(face (alias :next-base) (grow 5 (mark :tip)))))
+			(branch (alias Single)))
 		(shape
-			(during 40000 (join :tip))
 			(centralize 1.0))
 		(pretense (surface :absent)))
 	(fabric (name "Headless Hug")
