@@ -399,9 +399,7 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                 }
 
-                if iterating || approaching {
-                    self.redraw().expect("Problem redrawing");
-                }
+                self.redraw().expect("Problem redrawing");
             }
 
             // Set control flow for next frame

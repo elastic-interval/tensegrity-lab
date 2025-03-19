@@ -98,7 +98,7 @@ impl Scene {
 
     pub fn redraw(&mut self, fabric: &Fabric)-> Result<(), wgpu::SurfaceError> {
         self.wgpu.update_mvp_matrix(self.camera.mvp_matrix());
-        self.fabric_renderer.update_from_fabric(&mut self.wgpu, fabric);
+        self.fabric_renderer.update_from_fabric(&mut self.wgpu, fabric, &self.camera.current_pick());
         self.render()?;
         Ok(())
     }

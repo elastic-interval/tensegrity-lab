@@ -17,7 +17,6 @@ use crate::wgpu::text_renderer::TextRenderer;
 
 pub mod cylinder;
 pub mod fabric_renderer;
-pub mod fabric_vertex;
 pub mod surface_renderer;
 pub mod surface_vertex;
 pub mod text_renderer;

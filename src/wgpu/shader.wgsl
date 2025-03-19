@@ -136,8 +136,8 @@ fn fabric_fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     switch(in.material_type) {
         case 0u: {
             // Push element (aluminum)
-            specular_power = 60.0;
-            specular_intensity = 0.7;
+            specular_power = 10.0;
+            specular_intensity = 0.1;
             // Add slight metallic tint
             base_color = in.color.rgb * vec3<f32>(0.95, 0.97, 1.0);
             // Add some subtle surface variation
@@ -155,8 +155,8 @@ fn fabric_fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         }
         default: {
             // Spring element
-            specular_power = 30.0;
-            specular_intensity = 0.3;
+            specular_power = 10.0;
+            specular_intensity = 0.1;
             // Add spring-like pattern
             detail_factor = sin(in.uv.x * 30.0 + in.uv.y * 5.0) * 0.1 + 0.9;
             base_color = in.color.rgb;
