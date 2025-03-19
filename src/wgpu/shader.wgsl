@@ -25,7 +25,7 @@ struct VertexOutput {
     @location(1) world_normal: vec3<f32>,
     @location(2) uv: vec2<f32>,
     @location(3) color: vec4<f32>,
-    @location(4) material_type: u32,
+    @location(4) @interpolate(flat) material_type: u32,
 };
 
 // Function to build a transformation matrix for a cylinder from start to end
