@@ -205,7 +205,7 @@ impl FabricRenderer {
                         [0.9, 0.2, 0.2, 1.0]
                     } else {
                         // Stable tension - dark blue
-                        [0.1, 0.1, 0.5, 1.0]
+                        [0.7, 0.7, 1.0, 1.0]
                     }
                 },
                 Role::Spring => {
