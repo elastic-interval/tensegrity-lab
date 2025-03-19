@@ -108,7 +108,7 @@ impl Application {
             .unwrap();
     }
 
-    fn redraw(&mut self) {
+    fn redraw(&mut self) -> Result<(), wgpu::SurfaceError> {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let time = fabric_library_modified();
@@ -126,8 +126,9 @@ impl Application {
         }
 
         if let Some(scene) = &mut self.scene {
-            scene.redraw(self.crucible.fabric());
+            scene.redraw(self.crucible.fabric())?;
         }
+        Ok(())
     }
 
     pub fn refresh_library(&mut self, time: SystemTime) -> Result<LabEvent, TenscriptError> {
@@ -228,7 +229,10 @@ impl ApplicationHandler<LabEvent> for Application {
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
         match event {
-            LabEvent::ContextCreated { wgpu, mobile_device } => {
+            LabEvent::ContextCreated {
+                wgpu,
+                mobile_device,
+            } => {
                 self.mobile_device = mobile_device;
                 let proxy = self.event_loop_proxy.clone();
                 self.scene = Some(Scene::new(self.mobile_device, wgpu, proxy));
@@ -371,13 +375,13 @@ impl ApplicationHandler<LabEvent> for Application {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(scene) = &mut self.scene {
             let approaching = scene.target_approach(self.crucible.fabric());
-            let iterating = !scene.soemthing_picked();
+            let iterating = !scene.something_picked();
             if iterating {
                 if let Some(lab_event) = self.crucible.iterate(&self.brick_library) {
                     self.event_loop_proxy.send_event(lab_event).unwrap();
                 }
             }
-            self.redraw();
+            self.redraw().expect("Problem redrawing");
             event_loop.set_control_flow(if iterating || approaching {
                 ControlFlow::wait_duration(Duration::from_millis(5))
             } else {
