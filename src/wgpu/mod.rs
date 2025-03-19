@@ -21,6 +21,7 @@ pub mod surface_renderer;
 pub mod surface_vertex;
 pub mod text_renderer;
 mod text_state;
+mod cylinder;
 
 pub struct Wgpu {
     pub queue: wgpu::Queue,
