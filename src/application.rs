@@ -372,7 +372,16 @@ impl ApplicationHandler<LabEvent> for Application {
                     );
                 }
                 WindowEvent::Resized(physical_size) => scene.resize(physical_size),
-                WindowEvent::PinchGesture { .. } => {}
+                WindowEvent::PinchGesture { delta, .. } => {
+                    // Convert pinch delta to zoom factor
+                    // Typically, pinch-out (positive delta) means zoom in
+                    // Pinch-in (negative delta) means zoom out
+                    let zoom_factor = (delta * 0.1) as f32; // Adjust sensitivity as needed
+                    scene.pointer_changed(
+                        PointerChange::Zoomed(zoom_factor),
+                        &mut self.crucible.fabric(),
+                    );
+                }
                 _ => {}
             }
         }
