@@ -29,6 +29,7 @@ pub struct Application {
     muscles_active: bool,
     last_update: Instant,
     accumulated_time: Duration,
+    active_touch_count: usize,
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
 }
@@ -59,6 +60,7 @@ impl Application {
             muscles_active: false,
             last_update: Instant::now(),
             accumulated_time: Duration::default(),
+            active_touch_count: 0,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
         })
@@ -324,17 +326,34 @@ impl ApplicationHandler<LabEvent> for Application {
                 WindowEvent::KeyboardInput {
                     event: key_event, ..
                 } => self.handle_key_event(key_event),
-                WindowEvent::Touch(touch_event) => {
-                    scene.pointer_changed(
-                        match touch_event.phase {
-                            TouchPhase::Started => PointerChange::Pressed,
-                            TouchPhase::Moved => PointerChange::Moved(touch_event.location),
-                            TouchPhase::Ended => PointerChange::Released(Shot::NoPick),
-                            TouchPhase::Cancelled => PointerChange::NoChange,
-                        },
-                        &mut self.crucible.fabric(),
-                    );
-                }
+                WindowEvent::Touch(touch_event) => match touch_event.phase {
+                    TouchPhase::Started => {
+                        self.active_touch_count += 1;
+                        if self.active_touch_count == 1 {
+                            scene.pointer_changed(
+                                PointerChange::Pressed,
+                                &mut self.crucible.fabric(),
+                            );
+                        }
+                    }
+                    TouchPhase::Moved => {
+                        if self.active_touch_count == 1 {
+                            scene.pointer_changed(
+                                PointerChange::Moved(touch_event.location),
+                                &mut self.crucible.fabric(),
+                            );
+                        }
+                    }
+                    TouchPhase::Ended | TouchPhase::Cancelled => {
+                        if self.active_touch_count > 0 {
+                            self.active_touch_count -= 1;
+                        }
+                        scene.pointer_changed(
+                            PointerChange::Released(Shot::NoPick),
+                            &mut self.crucible.fabric(),
+                        );
+                    }
+                },
                 WindowEvent::CursorMoved { position, .. } => {
                     scene.pointer_changed(
                         PointerChange::Moved(position),
@@ -372,16 +391,6 @@ impl ApplicationHandler<LabEvent> for Application {
                     );
                 }
                 WindowEvent::Resized(physical_size) => scene.resize(physical_size),
-                WindowEvent::PinchGesture { delta, .. } => {
-                    // Convert pinch delta to zoom factor
-                    // Typically, pinch-out (positive delta) means zoom in
-                    // Pinch-in (negative delta) means zoom out
-                    let zoom_factor = (delta * 0.1) as f32; // Adjust sensitivity as needed
-                    scene.pointer_changed(
-                        PointerChange::Zoomed(zoom_factor),
-                        &mut self.crucible.fabric(),
-                    );
-                }
                 _ => {}
             }
         }
@@ -414,7 +423,9 @@ impl ApplicationHandler<LabEvent> for Application {
             let mut updates_this_frame = 0;
             let max_updates_per_frame = 3;
 
-            while self.accumulated_time >= update_interval && updates_this_frame < max_updates_per_frame {
+            while self.accumulated_time >= update_interval
+                && updates_this_frame < max_updates_per_frame
+            {
                 self.accumulated_time -= update_interval;
                 updates_this_frame += 1;
 
