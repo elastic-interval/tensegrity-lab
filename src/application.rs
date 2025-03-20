@@ -29,7 +29,6 @@ pub struct Application {
     muscles_active: bool,
     last_update: Instant,
     accumulated_time: Duration,
-    first_draw: bool,
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
 }
@@ -60,7 +59,6 @@ impl Application {
             muscles_active: false,
             last_update: Instant::now(),
             accumulated_time: Duration::default(),
-            first_draw: true,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
         })
