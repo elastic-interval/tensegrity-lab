@@ -29,6 +29,7 @@ pub struct Application {
     muscles_active: bool,
     last_update: Instant,
     accumulated_time: Duration,
+    first_draw: bool,
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
 }
@@ -59,6 +60,7 @@ impl Application {
             muscles_active: false,
             last_update: Instant::now(),
             accumulated_time: Duration::default(),
+            first_draw: true,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
         })
@@ -372,6 +374,7 @@ impl ApplicationHandler<LabEvent> for Application {
                     );
                 }
                 WindowEvent::Resized(physical_size) => scene.resize(physical_size),
+                WindowEvent::PinchGesture { .. } => {}
                 _ => {}
             }
         }
@@ -379,35 +382,53 @@ impl ApplicationHandler<LabEvent> for Application {
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(scene) = &mut self.scene {
-            // Calculate elapsed time since last update
+            // Get current time
             let now = Instant::now();
+
+            // Check if we've been inactive for too long (e.g., window was minimized)
             let elapsed = now.duration_since(self.last_update);
+            if elapsed > Duration::from_millis(100) {
+                // We were inactive - reset the timer without accumulating time
+                self.last_update = now;
+                self.accumulated_time = Duration::from_secs(0);
+                return; // Skip this frame entirely
+            }
+
+            // Normal update for active window
+            let capped_elapsed = std::cmp::min(elapsed, Duration::from_millis(33)); // Max ~30 FPS worth of time
             self.last_update = now;
 
-            // Fixed timestep logic
-            self.accumulated_time += elapsed;
-            let update_interval = Duration::from_millis(5);
-            let iterating = !scene.something_picked();
-            let approaching = scene.target_approach(self.crucible.fabric());
+            // Fixed time step logic
+            self.accumulated_time += capped_elapsed;
+            let update_interval = Duration::from_millis(10);
+            let animate = scene.animate(self.crucible.fabric());
 
-            if self.accumulated_time >= update_interval {
+            // Limit updates per frame
+            let mut updates_this_frame = 0;
+            let max_updates_per_frame = 3;
+
+            while self.accumulated_time >= update_interval && updates_this_frame < max_updates_per_frame {
                 self.accumulated_time -= update_interval;
+                updates_this_frame += 1;
 
-                if iterating {
+                if animate {
                     if let Some(lab_event) = self.crucible.iterate(&self.brick_library) {
                         self.event_loop_proxy.send_event(lab_event).unwrap();
                     }
                 }
+            }
 
+            // Only redraw if we updated
+            if updates_this_frame > 0 {
                 self.redraw().expect("Problem redrawing");
             }
 
-            // Set control flow for next frame
-            if self.accumulated_time >= update_interval || iterating || approaching {
-                event_loop.set_control_flow(ControlFlow::wait_duration(Duration::from_millis(2)));
+            // Set consistent control flow
+            event_loop.set_control_flow(if animate {
+                ControlFlow::wait_duration(Duration::from_millis(16))
             } else {
-                event_loop.set_control_flow(ControlFlow::Wait);
-            }
+                ControlFlow::Wait
+            });
         }
     }
 }
