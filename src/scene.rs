@@ -115,16 +115,8 @@ impl Scene {
         }
     }
 
-    pub fn current_pick(&self) -> Pick {
-        self.camera.current_pick()
-    }
-
-    pub fn something_picked(&self) -> bool {
-        !matches!(self.current_pick(), Pick::Nothing)
-    }
-
-    pub fn target_approach(&mut self, fabric: &Fabric) -> bool {
-        self.camera.target_approach(fabric)
+    pub fn animate(&mut self, fabric: &Fabric) -> bool {
+        self.camera.target_approach(fabric) || matches!(self.camera.current_pick(), Pick::Nothing)
     }
 
     pub fn reset(&mut self) {
