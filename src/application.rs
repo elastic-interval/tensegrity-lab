@@ -71,6 +71,7 @@ impl Application {
     }
 
     fn handle_key_event(&mut self, key_event: KeyEvent) {
+        let scene = self.scene.as_mut().unwrap();
         if !key_event.state.is_pressed() {
             return;
         }
@@ -79,39 +80,42 @@ impl Application {
             ..
         } = key_event
         {
-            if code == KeyCode::KeyX {
-                println!("Export:\n\n{}", self.crucible.fabric().csv());
-            }
-            if code == KeyCode::Space {
-                self.muscles_active = !self.muscles_active;
-                self.event_loop_proxy
-                    .send_event(LabEvent::Crucible(CrucibleAction::Experiment(
-                        LabAction::MusclesActive(self.muscles_active),
-                    )))
-                    .unwrap();
-                self.event_loop_proxy
-                    .send_event(LabEvent::AppStateChanged(AppStateChange::SetMusclesActive(
-                        self.muscles_active,
-                    )))
-                    .unwrap();
-            }
-            if code == KeyCode::Escape {
-                if let Some(scene) = &mut self.scene {
-                    scene.reset();
+            let send =  |lab_event: LabEvent| {
+                self.event_loop_proxy.send_event(lab_event).unwrap();
+            };
+            match code {
+                KeyCode::KeyX => {
+                    println!("Export:\n\n{}", self.crucible.fabric().csv());
                 }
-                self.event_loop_proxy
-                    .send_event(LabEvent::AppStateChanged(AppStateChange::SetControlState(
+                KeyCode::Space => {
+                    self.muscles_active = !self.muscles_active;
+                    send(LabEvent::Crucible(CrucibleAction::Experiment(
+                        LabAction::MusclesActive(self.muscles_active),
+                    )));
+                    send(LabEvent::AppStateChanged(AppStateChange::SetMusclesActive(
+                        self.muscles_active,
+                    )));
+                }
+                KeyCode::Escape => {
+                    scene.reset();
+                    send(LabEvent::AppStateChanged(AppStateChange::SetControlState(
                         ControlState::Viewing,
-                    )))
-                    .unwrap();
-            }
-            if code == KeyCode::ArrowRight || code == KeyCode::ArrowLeft {
-                self.event_loop_proxy
-                    .send_event(LabEvent::Crucible(CrucibleAction::Experiment(
+                    )));
+                }
+                KeyCode::ArrowUp => {
+                    send(LabEvent::Crucible(CrucibleAction::SetSpeed(1.1)));
+                }
+                KeyCode::ArrowDown => {
+                    send(LabEvent::Crucible(CrucibleAction::SetSpeed(0.9)));
+                }
+                KeyCode::ArrowLeft | KeyCode::ArrowRight => {
+                    send(LabEvent::Crucible(CrucibleAction::Experiment(
                         LabAction::NextExperiment(code == KeyCode::ArrowRight),
-                    )))
-                    .unwrap();
+                    )));
+                }
+                _ => {}
             }
+            if code == KeyCode::ArrowRight || code == KeyCode::ArrowLeft {}
         }
     }
 
