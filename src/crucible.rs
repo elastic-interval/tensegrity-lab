@@ -1,5 +1,5 @@
-use CrucibleAction::*;
 use crate::build::evo::evolution::Evolution;
+use crate::build::experiment::Experiment;
 use crate::build::oven::Oven;
 use crate::build::tenscript::brick::Prototype;
 use crate::build::tenscript::brick_library::BrickLibrary;
@@ -8,7 +8,6 @@ use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::pretenser::Pretenser;
 use crate::build::tenscript::FabricPlan;
 use crate::crucible::Stage::*;
-use crate::build::experiment::Experiment;
 use crate::fabric::Fabric;
 use crate::messages::LabEvent;
 
@@ -27,6 +26,8 @@ pub enum LabAction {
     GravityChanged(f32),
     MusclesActive(bool),
     MuscleChanged(f32),
+    KillAnInterval,
+    NextExperiment(bool),
 }
 
 #[derive(Debug, Clone)]
@@ -37,7 +38,7 @@ pub enum CrucibleAction {
     RevertTo(Fabric),
     StartPretensing(PretensePhase),
     Experiment(LabAction),
-    Evolve(u64)
+    Evolve(u64),
 }
 
 pub struct Crucible {
@@ -85,13 +86,13 @@ impl Crucible {
                     pretenser.iterate(&mut self.fabric);
                 }
                 if pretenser.is_done() {
-                    self.stage = Experimenting(Experiment::new(pretenser.clone()));
+                    self.stage = Experimenting(Experiment::new(pretenser.clone(), &self.fabric));
                     return Some(LabEvent::FabricBuilt(self.fabric.fabric_stats()));
                 }
             }
             Experimenting(lab) => {
                 for _ in 0..self.iterations_per_frame {
-                    lab.iterate(&mut self.fabric);
+                    lab.iterate();
                 }
             }
             BakingBrick(oven) => {
@@ -114,7 +115,8 @@ impl Crucible {
         None
     }
 
-    pub fn action(&mut self, crucible_action: CrucibleAction) {
+    pub fn action(&mut self, crucible_action: CrucibleAction)-> Option<LabEvent> {
+        use CrucibleAction::*;
         match crucible_action {
             BakeBrick(prototype) => {
                 let oven = Oven::new(prototype);
@@ -129,7 +131,9 @@ impl Crucible {
             }
             Experiment(lab_action) => {
                 if let Experimenting(lab) = &mut self.stage {
-                    lab.action(lab_action, &mut self.fabric);
+                    if let Some(lab_event) = lab.action(lab_action, &self.fabric) {
+                        return Some(lab_event);
+                    }
                 };
             }
             SetSpeed(iterations_per_frame) => {
@@ -145,9 +149,14 @@ impl Crucible {
                 self.stage = Evolving(Evolution::new(seed));
             }
         }
+        None
     }
 
-    pub fn fabric(&self) -> &Fabric {
-        &self.fabric
+    pub fn fabric(&mut self) -> &Fabric {
+        if let Experimenting(experiment) = &mut self.stage {
+            experiment.current_fabric(&self.fabric)
+        } else {
+            &self.fabric
+        }
     }
 }

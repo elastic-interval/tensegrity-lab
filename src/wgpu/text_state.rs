@@ -27,6 +27,7 @@ pub struct TextState {
     width: f32,
     height: f32,
     fabric_name: String,
+    fabric_number: usize,
     control_state: ControlState,
     fabric_stats: Option<FabricStats>,
     muscles_active: bool,
@@ -40,6 +41,7 @@ impl TextState {
             width: width as f32,
             height: height as f32,
             fabric_name,
+            fabric_number: 0,
             control_state: ControlState::default(),
             fabric_stats: None,
             muscles_active: false,
@@ -65,6 +67,13 @@ impl TextState {
             AppStateChange::SetMusclesActive(muscles_active) => {
                 self.muscles_active = muscles_active;
             }
+            AppStateChange::SetFabricNumber {
+                number,
+                fabric_stats,
+            } => {
+                self.fabric_number = number;
+                self.fabric_stats = Some(fabric_stats);
+            }
         }
         self.update_sections()
     }
@@ -74,7 +83,14 @@ impl TextState {
     }
 
     fn update_sections(&mut self) {
-        self.update_section(SectionName::Top, Some(self.fabric_name.clone()));
+        self.update_section(
+            SectionName::Top,
+            if self.fabric_number > 0 {
+                Some(format!("{} {}", self.fabric_name, self.fabric_number))
+            }else {
+                Some(self.fabric_name.clone())
+            }
+        );
         if !self.mobile_device {
             self.update_section(
                 SectionName::Bottom,
@@ -119,20 +135,20 @@ impl TextState {
                             Role::Pull => "Cable",
                             Role::Spring => "Spring",
                         };
-                        let length = if let Some(stats) = &self.fabric_stats {
+                        let length_string = if let Some(stats) = &self.fabric_stats {
                             format!("{0:.1} mm", interval_details.length * stats.scale)
                         } else {
                             "?".to_string()
                         };
                         Some(format!(
                             "{} {}-{}\n\
-                            Length: {}mm\n\
+                            Length: {}\n\
                             Right-click to jump\n\
                             ESC to release",
                             role,
                             Self::joint_format(interval_details.near_joint),
                             Self::joint_format(interval_details.far_joint),
-                            length,
+                            length_string,
                         ))
                     }
                 },
@@ -151,6 +167,7 @@ impl TextState {
             SectionName::Left,
             self.fabric_stats.clone().map(
                 |FabricStats {
+                     age,
                      scale,
                      joint_count,
                      max_height,
@@ -170,7 +187,8 @@ impl TextState {
                          → total {:.1}m\n\
                          Cables: {:?}\n\
                          → {:.1}-{:.1}mm\n\
-                         → total {:.1}m",
+                         → total {:.1}m\n\
+                         Age: {}k iterations",
                         max_height * scale / 1000.0,
                         joint_count,
                         push_count,
@@ -181,6 +199,7 @@ impl TextState {
                         pull_range.0 * scale,
                         pull_range.1 * scale,
                         pull_total * scale / 1000.0,
+                        age / 1000,
                     )
                 },
             ),
