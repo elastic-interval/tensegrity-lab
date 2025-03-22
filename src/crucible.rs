@@ -92,7 +92,9 @@ impl Crucible {
             }
             Experimenting(lab) => {
                 for _ in 0..self.iterations_per_frame {
-                    lab.iterate();
+                    if let Some(lab_event) = lab.iterate() {
+                        return Some(lab_event);
+                    }
                 }
             }
             BakingBrick(oven) => {

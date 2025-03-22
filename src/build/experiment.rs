@@ -2,7 +2,7 @@ use crate::application::AppStateChange;
 use crate::build::experiment::Stage::*;
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::pretenser::Pretenser;
-use crate::crucible::LabAction;
+use crate::crucible::{CrucibleAction, LabAction};
 use crate::fabric::physics::Physics;
 use crate::fabric::{Fabric, UniqueId};
 use crate::messages::LabEvent;
@@ -15,6 +15,9 @@ enum Stage {
     MuscleCycle(f32),
 }
 
+const TIMEOUT_ITERATIONS: usize = 1000;
+const MAX_AGE: u64 = 180000;
+
 pub struct Experiment {
     stage: Stage,
     frozen_fabrics: Vec<Fabric>,
@@ -23,6 +26,7 @@ pub struct Experiment {
     pretense_phase: PretensePhase,
     random: ChaCha8Rng,
     interval_keys: Vec<UniqueId>,
+    timeout_iterations: usize,
 }
 
 impl Experiment {
@@ -42,16 +46,24 @@ impl Experiment {
             pretense_phase,
             random: ChaCha8Rng::seed_from_u64(0),
             interval_keys: fabric.intervals.keys().cloned().collect(),
+            timeout_iterations: TIMEOUT_ITERATIONS,
         }
     }
 
-    pub fn iterate(&mut self) {
+    pub fn iterate(&mut self) -> Option<LabEvent> {
         let fabric = self
             .frozen_fabrics
             .get_mut(self.current_fabric)
             .expect("No frozen fabric");
-        if self.current_fabric > 0 && fabric.age > 200000 {
-            return;
+        if self.current_fabric > 0 && fabric.age > MAX_AGE {
+            self.timeout_iterations -= 1;
+            if self.timeout_iterations == 0 {
+                self.timeout_iterations = TIMEOUT_ITERATIONS;
+                return Some(LabEvent::Crucible(CrucibleAction::Experiment(
+                    LabAction::NextExperiment(true),
+                )));
+            }
+            return None;
         }
         self.stage = match self.stage {
             Paused => {
@@ -72,6 +84,7 @@ impl Experiment {
                 }
             }
         };
+        None
     }
 
     pub fn action(&mut self, action: LabAction, default_fabric: &Fabric) -> Option<LabEvent> {
