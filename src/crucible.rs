@@ -34,7 +34,7 @@ pub enum LabAction {
 pub enum CrucibleAction {
     BakeBrick(Prototype),
     BuildFabric(Option<FabricPlan>),
-    SetSpeed(usize),
+    SetSpeed(f32),
     RevertTo(Fabric),
     StartPretensing(PretensePhase),
     Experiment(LabAction),
@@ -115,7 +115,7 @@ impl Crucible {
         None
     }
 
-    pub fn action(&mut self, crucible_action: CrucibleAction)-> Option<LabEvent> {
+    pub fn action(&mut self, crucible_action: CrucibleAction) -> Option<LabEvent> {
         use CrucibleAction::*;
         match crucible_action {
             BakeBrick(prototype) => {
@@ -136,8 +136,11 @@ impl Crucible {
                     }
                 };
             }
-            SetSpeed(iterations_per_frame) => {
-                self.iterations_per_frame = iterations_per_frame;
+            SetSpeed(change) => {
+                self.iterations_per_frame = (self.iterations_per_frame as f32 * change) as usize;
+                if self.iterations_per_frame <= 0 {
+                    self.iterations_per_frame = 0;
+                }
             }
             RevertTo(frozen) => {
                 self.fabric = frozen;
