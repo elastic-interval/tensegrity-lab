@@ -35,6 +35,7 @@ pub const ROOT3: f32 = 1.732_050_8;
 
 #[derive(Clone, Debug)]
 pub struct FabricStats {
+    pub age: u64,
     pub scale: f32,
     pub joint_count: usize,
     pub max_height: f32,
@@ -229,6 +230,7 @@ impl Fabric {
             }
         }
         FabricStats {
+            age: self.age,
             scale: self.scale,
             joint_count: self.joints.len(),
             max_height,

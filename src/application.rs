@@ -39,6 +39,10 @@ pub enum AppStateChange {
     SetControlState(ControlState),
     SetFabricStats(Option<FabricStats>),
     SetMusclesActive(bool),
+    SetFabricNumber {
+        number: usize,
+        fabric_stats: FabricStats,
+    },
 }
 
 impl Application {
@@ -98,6 +102,13 @@ impl Application {
                 self.event_loop_proxy
                     .send_event(LabEvent::AppStateChanged(AppStateChange::SetControlState(
                         ControlState::Viewing,
+                    )))
+                    .unwrap();
+            }
+            if code == KeyCode::ArrowRight || code == KeyCode::ArrowLeft {
+                self.event_loop_proxy
+                    .send_event(LabEvent::Crucible(CrucibleAction::Experiment(
+                        LabAction::NextExperiment(code == KeyCode::ArrowRight),
                     )))
                     .unwrap();
             }
@@ -277,7 +288,9 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                     _ => {}
                 }
-                self.crucible.action(crucible_action);
+                if let Some(lab_event) = self.crucible.action(crucible_action) {
+                    self.event_loop_proxy.send_event(lab_event).unwrap();
+                }
             }
             LabEvent::UpdatedLibrary(time) => {
                 println!("{time:?}");
@@ -305,7 +318,9 @@ impl ApplicationHandler<LabEvent> for Application {
                     .clone();
                 self.crucible.action(CrucibleAction::BakeBrick(prototype));
             }
-            LabEvent::EvolveFromSeed(seed) => self.crucible.action(CrucibleAction::Evolve(seed)),
+            LabEvent::EvolveFromSeed(seed) => {
+                let _ = self.crucible.action(CrucibleAction::Evolve(seed));
+            }
             LabEvent::AppStateChanged(app_change) => {
                 if let Some(scene) = &mut self.scene {
                     scene.change_happened(app_change);
