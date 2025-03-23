@@ -1,8 +1,9 @@
 use crate::camera::Pick;
-use crate::fabric::material::interval_material;
+use crate::fabric::material::{interval_material, Material};
 use crate::fabric::{interval::Role, Fabric};
 use crate::wgpu::Wgpu;
 use bytemuck::{Pod, Zeroable};
+use std::collections::HashMap;
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
 use wgpu::PipelineCompilationOptions;
@@ -140,9 +141,15 @@ impl FabricRenderer {
         }
     }
 
-    pub fn update_from_fabric(&mut self, wgpu: &Wgpu, fabric: &Fabric, pick: &Pick) {
+    pub fn update_from_fabric(
+        &mut self,
+        wgpu: &Wgpu,
+        fabric: &Fabric,
+        pick: &Pick,
+        coloring: &Option<HashMap<(usize, usize), [f32; 4]>>,
+    ) {
         // Create instances from fabric data
-        let instances = self.create_instances_from_fabric(fabric, pick);
+        let instances = self.create_instances_from_fabric(fabric, pick, coloring);
         self.num_instances = instances.len() as u32;
 
         // Update instance buffer
@@ -176,12 +183,20 @@ impl FabricRenderer {
     }
 
     // Create instances from fabric intervals - minimal CPU processing
-    fn create_instances_from_fabric(&self, fabric: &Fabric, pick: &Pick) -> Vec<CylinderInstance> {
+    fn create_instances_from_fabric(
+        &self,
+        fabric: &Fabric,
+        pick: &Pick,
+        coloring: &Option<HashMap<(usize, usize), [f32; 4]>>,
+    ) -> Vec<CylinderInstance> {
         let mut instances = Vec::with_capacity(fabric.intervals.len());
 
         const FADED: [f32; 4] = [0.01, 0.01, 0.01, 1.0];
         const SELECTED: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
         for (interval_id, interval) in &fabric.intervals {
+            if coloring.is_some() && interval.material == Material::PushMaterial {
+                continue;
+            }
             let (alpha, omega) = (interval.alpha_index, interval.omega_index);
             let start = fabric.joints[alpha].location;
             let end = fabric.joints[omega].location;
@@ -205,7 +220,22 @@ impl FabricRenderer {
             };
 
             match pick {
-                Pick::Nothing => {}
+                Pick::Nothing => {
+                    if let Some(coloring) = coloring {
+                        radius_factor += 1.0;
+                        let (alpha, omega) = (interval.alpha_index, interval.omega_index);
+                        let (low, high) = if alpha < omega {
+                            (alpha, omega)
+                        } else {
+                            (omega, alpha)
+                        };
+                        if let Some(coloring_color) = coloring.get(&(low, high)) {
+                            color = *coloring_color;
+                        } else {
+                            color = [0.003, 0.003, 0.003, 0.01];
+                        }
+                    }
+                }
                 Pick::Joint { index, .. } => {
                     if !interval.touches(*index) {
                         color = FADED;
