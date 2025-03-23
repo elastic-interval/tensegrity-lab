@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use crate::application::AppStateChange;
 use crate::camera::Target::*;
 use crate::camera::{Camera, Pick};
@@ -19,6 +20,7 @@ pub struct Scene {
     surface_renderer: SurfaceRenderer,
     text_renderer: TextRenderer,
     event_loop_proxy: EventLoopProxy<LabEvent>,
+    coloring: Option<HashMap<(usize, usize), [f32; 4]>>,
     pick_allowed: bool,
 }
 
@@ -35,6 +37,7 @@ impl Scene {
             surface_renderer,
             text_renderer,
             event_loop_proxy,
+            coloring: None,
             pick_allowed: false,
         }
     }
@@ -46,6 +49,11 @@ impl Scene {
                 self.pick_allowed = true;
             }
             AppStateChange::SetMusclesActive(active) => self.pick_allowed = !active,
+            AppStateChange::SetIntervalColor(((low,high), color)) => {
+                self.coloring
+                    .get_or_insert_with(HashMap::new)
+                    .insert((low, high), color);
+            }
             _ => {}
         }
         self.text_renderer.change_happened(app_state_change);
@@ -98,7 +106,7 @@ impl Scene {
 
     pub fn redraw(&mut self, fabric: &Fabric)-> Result<(), wgpu::SurfaceError> {
         self.wgpu.update_mvp_matrix(self.camera.mvp_matrix());
-        self.fabric_renderer.update_from_fabric(&mut self.wgpu, fabric, &self.camera.current_pick());
+        self.fabric_renderer.update_from_fabric(&mut self.wgpu, fabric, &self.camera.current_pick(), &self.coloring);
         self.render()?;
         Ok(())
     }

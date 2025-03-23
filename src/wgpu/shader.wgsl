@@ -110,7 +110,6 @@ fn fabric_vertex(in: VertexInput) -> VertexOutput {
 fn fabric_fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     // Directional light parameters (daylight-like)
     let light_dir = normalize(vec3<f32>(0.5, 1.0, 0.3));
-    let light_color = vec3<f32>(1.0, 0.98, 0.95);
 
     // Normalized normal vector
     let normal = normalize(in.world_normal);
@@ -164,12 +163,9 @@ fn fabric_fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
 
-    // Calculate specular component
-    let specular = pow(max(dot(normal, half_vec), 0.0), specular_power) * specular_intensity;
-
     // Combine lighting components
     let lighting = ambient + diffuse;
-    let final_color = base_color * lighting * detail_factor + specular * light_color;
+    let final_color = base_color * lighting * detail_factor ;
 
     // Apply gamma correction
     let gamma_corrected = pow(final_color, vec3<f32>(1.0/2.2));

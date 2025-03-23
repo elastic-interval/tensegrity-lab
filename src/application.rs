@@ -36,6 +36,7 @@ pub struct Application {
 
 #[derive(Clone, Debug)]
 pub enum AppStateChange {
+    SetIntervalColor(((usize, usize), [f32; 4])),
     SetControlState(ControlState),
     SetFabricStats(Option<FabricStats>),
     SetMusclesActive(bool),

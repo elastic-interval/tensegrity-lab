@@ -74,6 +74,7 @@ impl TextState {
                 self.fabric_number = number;
                 self.fabric_stats = Some(fabric_stats);
             }
+            AppStateChange::SetIntervalColor(_) => {}
         }
         self.update_sections()
     }
