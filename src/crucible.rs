@@ -26,7 +26,6 @@ pub enum LabAction {
     GravityChanged(f32),
     MusclesActive(bool),
     MuscleChanged(f32),
-    KillAnInterval,
     NextExperiment(bool),
 }
 
@@ -133,7 +132,7 @@ impl Crucible {
             }
             Experiment(lab_action) => {
                 if let Experimenting(lab) = &mut self.stage {
-                    if let Some(lab_event) = lab.action(lab_action, &self.fabric) {
+                    if let Some(lab_event) = lab.action(lab_action) {
                         return Some(lab_event);
                     }
                 };
@@ -159,7 +158,7 @@ impl Crucible {
 
     pub fn fabric(&mut self) -> &Fabric {
         if let Experimenting(experiment) = &mut self.stage {
-            experiment.current_fabric(&self.fabric)
+            experiment.current_fabric()
         } else {
             &self.fabric
         }

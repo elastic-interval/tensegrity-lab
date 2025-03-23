@@ -4,10 +4,9 @@ use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::pretenser::Pretenser;
 use crate::crucible::{CrucibleAction, LabAction};
 use crate::fabric::physics::Physics;
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::Fabric;
 use crate::messages::LabEvent;
-use rand::{Rng, SeedableRng};
-use rand_chacha::ChaCha8Rng;
+use cgmath::InnerSpace;
 
 #[derive(Clone, PartialEq)]
 enum Stage {
@@ -15,17 +14,23 @@ enum Stage {
     MuscleCycle(f32),
 }
 
-const TIMEOUT_ITERATIONS: usize = 1000;
+const TIMEOUT_ITERATIONS: usize = 3000;
 const MAX_AGE: u64 = 180000;
 
+#[derive(Clone)]
+struct TestCase {
+    fabric: Fabric,
+    missing: Option<(usize, usize)>,
+    displacement: f32,
+}
+
 pub struct Experiment {
+    default_fabric: Fabric,
+    test_cases: Vec<TestCase>,
     stage: Stage,
-    frozen_fabrics: Vec<Fabric>,
     current_fabric: usize,
     physics: Physics,
     pretense_phase: PretensePhase,
-    random: ChaCha8Rng,
-    interval_keys: Vec<UniqueId>,
     timeout_iterations: usize,
 }
 
@@ -38,26 +43,48 @@ impl Experiment {
         }: Pretenser,
         fabric: &Fabric,
     ) -> Self {
+        let interval_keys: Vec<_> = fabric.intervals.keys().cloned().collect();
+        let case_count = interval_keys.len() + 1;
+        let mut test_cases = vec![
+            TestCase {
+                fabric: fabric.clone(),
+                missing: None,
+                displacement: 0.0,
+            };
+            case_count
+        ];
+        for index in 1..case_count {
+            let missing_key = interval_keys[index - 1];
+            let missing_interval = fabric.interval(missing_key);
+            let missing = (missing_interval.alpha_index, missing_interval.omega_index);
+            test_cases[index].fabric.remove_interval(missing_key);
+            test_cases[index].missing = Some(missing);
+        }
         Self {
-            frozen_fabrics: vec![fabric.clone()],
+            default_fabric: fabric.clone(),
+            test_cases,
             current_fabric: 0,
             stage: Paused,
             physics,
             pretense_phase,
-            random: ChaCha8Rng::seed_from_u64(0),
-            interval_keys: fabric.intervals.keys().cloned().collect(),
             timeout_iterations: TIMEOUT_ITERATIONS,
         }
     }
 
     pub fn iterate(&mut self) -> Option<LabEvent> {
-        let fabric = self
-            .frozen_fabrics
+        let test_case = self
+            .test_cases
             .get_mut(self.current_fabric)
-            .expect("No frozen fabric");
-        if self.current_fabric > 0 && fabric.age > MAX_AGE {
+            .expect("No test case");
+        if self.current_fabric > 0 && test_case.fabric.age >= MAX_AGE {
             self.timeout_iterations -= 1;
             if self.timeout_iterations == 0 {
+                if test_case.displacement == 0.0 {
+                    Self::calculate_displacement(self.default_fabric.clone(), test_case);
+                    if let Some((alpha, omega)) = test_case.missing {
+                        println!("({alpha},{omega}), {:.1}", test_case.displacement);
+                    }
+                }
                 self.timeout_iterations = TIMEOUT_ITERATIONS;
                 return Some(LabEvent::Crucible(CrucibleAction::Experiment(
                     LabAction::NextExperiment(true),
@@ -67,17 +94,17 @@ impl Experiment {
         }
         self.stage = match self.stage {
             Paused => {
-                fabric.iterate(&self.physics);
+                test_case.fabric.iterate(&self.physics);
                 Paused
             }
             MuscleCycle(increment) => {
-                fabric.iterate(&self.physics);
-                fabric.muscle_nuance += increment;
-                if fabric.muscle_nuance < 0.0 {
-                    fabric.muscle_nuance = 0.0;
+                test_case.fabric.iterate(&self.physics);
+                test_case.fabric.muscle_nuance += increment;
+                if test_case.fabric.muscle_nuance < 0.0 {
+                    test_case.fabric.muscle_nuance = 0.0;
                     MuscleCycle(-increment)
-                } else if fabric.muscle_nuance > 1.0 {
-                    fabric.muscle_nuance = 1.0;
+                } else if test_case.fabric.muscle_nuance > 1.0 {
+                    test_case.fabric.muscle_nuance = 1.0;
                     MuscleCycle(-increment)
                 } else {
                     MuscleCycle(increment)
@@ -87,15 +114,15 @@ impl Experiment {
         None
     }
 
-    pub fn action(&mut self, action: LabAction, default_fabric: &Fabric) -> Option<LabEvent> {
-        let fabric = self
-            .frozen_fabrics
+    pub fn action(&mut self, action: LabAction) -> Option<LabEvent> {
+        let test_case = self
+            .test_cases
             .get_mut(self.current_fabric)
             .expect("a current fabric");
         match action {
             LabAction::GravityChanged(gravity) => self.physics.gravity = gravity,
             LabAction::MuscleChanged(nuance) => {
-                fabric.muscle_nuance = nuance;
+                test_case.fabric.muscle_nuance = nuance;
             }
             LabAction::MusclesActive(yes) => {
                 if self.stage == Paused {
@@ -107,26 +134,16 @@ impl Experiment {
                         self.stage = Paused;
                     }
                 } else {
-                    fabric.muscle_nuance = 0.5;
+                    test_case.fabric.muscle_nuance = 0.5;
                     self.stage = Paused
                 }
             }
-            LabAction::KillAnInterval => {
-                let keys: Vec<_> = fabric.intervals.keys().cloned().collect();
-                let which = self.random.gen_range(0..keys.len());
-                fabric.remove_interval(keys[which]);
-            }
             LabAction::NextExperiment(forward) => {
                 if forward {
-                    if self.current_fabric < self.interval_keys.len() {
+                    if self.current_fabric + 1 < self.test_cases.len() {
                         self.current_fabric += 1;
                     } else {
                         self.current_fabric = 0;
-                    }
-                    let fabric = &self.current_fabric(default_fabric);
-                    if fabric.age == default_fabric.age {
-                        self.frozen_fabrics[self.current_fabric]
-                            .remove_interval(self.interval_keys[self.current_fabric - 1]);
                     }
                 } else {
                     if self.current_fabric > 0 {
@@ -135,27 +152,27 @@ impl Experiment {
                 }
                 return Some(LabEvent::AppStateChanged(AppStateChange::SetFabricNumber {
                     number: self.current_fabric,
-                    fabric_stats: self.current_fabric(default_fabric).fabric_stats(),
+                    fabric_stats: self.current_fabric().fabric_stats(),
                 }));
             }
         }
         None
     }
 
-    pub fn current_fabric(&mut self, fabric: &Fabric) -> &Fabric {
-        self.get_fabric(self.current_fabric, fabric)
+    pub fn current_fabric(&self) -> &Fabric {
+        &self.current_test_case().fabric
     }
 
-    fn get_fabric(&mut self, index: usize, default_fabric: &Fabric) -> &Fabric {
-        // Ensure the vector is large enough
-        if self.frozen_fabrics.len() <= index {
-            // Clone default_fabric for all missing indices
-            for _ in self.frozen_fabrics.len()..=index {
-                self.frozen_fabrics.push(default_fabric.clone());
-            }
-        }
+    fn current_test_case(&self) -> &TestCase {
+        &self.test_cases[self.current_fabric]
+    }
 
-        // Now we can safely return a reference
-        &self.frozen_fabrics[index]
+    fn calculate_displacement(default_fabric: Fabric, test_case: &mut TestCase) {
+        test_case.displacement = 0.0;
+        for joint_id in 0..default_fabric.joints.len() {
+            let default_location = default_fabric.location(joint_id);
+            let new_location = test_case.fabric.location(joint_id);
+            test_case.displacement += (default_location - new_location).magnitude();
+        }
     }
 }
