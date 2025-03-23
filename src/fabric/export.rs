@@ -23,16 +23,16 @@ impl Fabric {
             .interval_values()
             .filter(|Interval { material, .. }| !interval_material(*material).support)
             .map(|interval| {
-                let ideal = interval.length(&self.joints) * self.scale;
+                let length = interval.length(&self.joints) * self.scale;
                 let role = interval_material(interval.material).role;
                 let Interval {
                     alpha_index,
                     omega_index,
                     ..
                 } = interval;
-                // ["joints", "role", "ideal length"]
+                // ["joints", "role", "length"]
                 format!(
-                    "=\"{},{}\";{role:?};{ideal:.4}",
+                    "=\"{},{}\";{role:?};{length:.4}",
                     alpha_index + 1,
                     omega_index + 1
                 )

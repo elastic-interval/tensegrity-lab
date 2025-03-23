@@ -102,10 +102,8 @@ impl Crucible {
                     println!("Baked {:?}", baked.into_tenscript());
                     #[cfg(not(target_arch = "wasm32"))]
                     {
-                        use std::fs;
-                        use std::process;
-                        fs::write("baked-brick.tenscript", baked.into_tenscript()).unwrap();
-                        process::exit(0);
+                        std::fs::write("baked-brick.tenscript", baked.into_tenscript()).unwrap();
+                        std::process::exit(0);
                     }
                 }
             }
@@ -158,7 +156,7 @@ impl Crucible {
 
     pub fn fabric(&mut self) -> &Fabric {
         if let Experimenting(experiment) = &mut self.stage {
-            experiment.current_fabric()
+            experiment.fabric()
         } else {
             &self.fabric
         }
