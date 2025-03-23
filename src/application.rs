@@ -80,12 +80,19 @@ impl Application {
             ..
         } = key_event
         {
-            let send =  |lab_event: LabEvent| {
+            let send = |lab_event: LabEvent| {
                 self.event_loop_proxy.send_event(lab_event).unwrap();
             };
             match code {
                 KeyCode::KeyX => {
-                    println!("Export:\n\n{}", self.crucible.fabric().csv());
+                    #[cfg(not(target_arch = "wasm32"))]
+                    std::fs::write(
+                        chrono::Local::now()
+                            .format("pretenst-%Y-%m-%d-%H-%M.csv")
+                            .to_string(),
+                        self.crucible.fabric().csv(),
+                    )
+                    .unwrap();
                 }
                 KeyCode::Space => {
                     self.muscles_active = !self.muscles_active;

@@ -7,6 +7,7 @@ use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::messages::LabEvent;
 use cgmath::InnerSpace;
+use itertools::Itertools;
 
 #[derive(Clone, PartialEq)]
 enum Stage {
@@ -81,9 +82,6 @@ impl Experiment {
             if self.timeout_iterations == 0 {
                 if test_case.displacement == 0.0 {
                     Self::calculate_displacement(self.default_fabric.clone(), test_case);
-                    if let Some((alpha, omega)) = test_case.missing {
-                        println!("({alpha},{omega}), {:.1}", test_case.displacement);
-                    }
                 }
                 self.timeout_iterations = TIMEOUT_ITERATIONS;
                 return Some(LabEvent::Crucible(CrucibleAction::Experiment(
@@ -115,14 +113,10 @@ impl Experiment {
     }
 
     pub fn action(&mut self, action: LabAction) -> Option<LabEvent> {
-        let test_case = self
-            .test_cases
-            .get_mut(self.current_fabric)
-            .expect("a current fabric");
         match action {
             LabAction::GravityChanged(gravity) => self.physics.gravity = gravity,
             LabAction::MuscleChanged(nuance) => {
-                test_case.fabric.muscle_nuance = nuance;
+                self.test_case_mut().fabric.muscle_nuance = nuance;
             }
             LabAction::MusclesActive(yes) => {
                 if self.stage == Paused {
@@ -134,7 +128,7 @@ impl Experiment {
                         self.stage = Paused;
                     }
                 } else {
-                    test_case.fabric.muscle_nuance = 0.5;
+                    self.test_case_mut().fabric.muscle_nuance = 0.5;
                     self.stage = Paused
                 }
             }
@@ -144,6 +138,29 @@ impl Experiment {
                         self.current_fabric += 1;
                     } else {
                         self.current_fabric = 0;
+                        #[cfg(not(target_arch = "wasm32"))]
+                        std::fs::write(
+                            chrono::Local::now()
+                                .format("displacements-%Y-%m-%d-%H-%M.txt")
+                                .to_string(),
+                            self.test_cases
+                                .iter()
+                                .map(
+                                    |TestCase {
+                                         missing,
+                                         displacement,
+                                         ..
+                                     }| {
+                                        if let Some((alpha, omega)) = missing {
+                                            format!("({alpha},{omega}), {:.1}", displacement)
+                                        } else {
+                                            "(0,0) 0.0".to_string()
+                                        }
+                                    },
+                                )
+                                .join("\n"),
+                        )
+                        .unwrap();
                     }
                 } else {
                     if self.current_fabric > 0 {
@@ -152,19 +169,25 @@ impl Experiment {
                 }
                 return Some(LabEvent::AppStateChanged(AppStateChange::SetFabricNumber {
                     number: self.current_fabric,
-                    fabric_stats: self.current_fabric().fabric_stats(),
+                    fabric_stats: self.fabric().fabric_stats(),
                 }));
             }
         }
         None
     }
 
-    pub fn current_fabric(&self) -> &Fabric {
-        &self.current_test_case().fabric
+    pub fn fabric(&self) -> &Fabric {
+        &self.test_case().fabric
     }
 
-    fn current_test_case(&self) -> &TestCase {
+    fn test_case(&self) -> &TestCase {
         &self.test_cases[self.current_fabric]
+    }
+
+    fn test_case_mut(&mut self) -> &mut TestCase {
+        self.test_cases
+            .get_mut(self.current_fabric)
+            .expect("a current fabric")
     }
 
     fn calculate_displacement(default_fabric: Fabric, test_case: &mut TestCase) {
