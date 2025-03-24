@@ -32,7 +32,6 @@ struct TestCase {
 pub struct Experiment {
     default_fabric: Fabric,
     test_cases: Vec<TestCase>,
-    max_damage: f32,
     stage: Stage,
     physics: Physics,
     pretense_phase: PretensePhase,
@@ -85,7 +84,6 @@ impl Experiment {
         Self {
             default_fabric: fabric.clone(),
             test_cases,
-            max_damage: 0.0,
             stage: Paused,
             physics,
             pretense_phase,
@@ -130,9 +128,6 @@ impl Experiment {
                                 let default_location = self.default_fabric.location(joint_id);
                                 let new_location = test_case.fabric.location(joint_id);
                                 damage += (default_location - new_location).magnitude();
-                            }
-                            if self.max_damage < damage {
-                                self.max_damage = damage;
                             }
                             test_case.damage = damage;
                         } else {
