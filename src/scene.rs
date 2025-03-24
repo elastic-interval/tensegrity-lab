@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use crate::application::AppStateChange;
 use crate::camera::Target::*;
 use crate::camera::{Camera, Pick};
@@ -10,8 +9,14 @@ use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::Wgpu;
+use std::collections::HashMap;
 use winit::dpi::PhysicalSize;
 use winit::event_loop::EventLoopProxy;
+
+pub enum RenderStyle {
+    Normal,
+    WithColoring(HashMap<(usize, usize), [f32; 4]>),
+}
 
 pub struct Scene {
     wgpu: Wgpu,
@@ -20,12 +25,16 @@ pub struct Scene {
     surface_renderer: SurfaceRenderer,
     text_renderer: TextRenderer,
     event_loop_proxy: EventLoopProxy<LabEvent>,
-    coloring: Option<HashMap<(usize, usize), [f32; 4]>>,
+    render_style: RenderStyle,
     pick_allowed: bool,
 }
 
 impl Scene {
-    pub fn new(mobile_device: bool, wgpu: Wgpu, event_loop_proxy: EventLoopProxy<LabEvent>) -> Self {
+    pub fn new(
+        mobile_device: bool,
+        wgpu: Wgpu,
+        event_loop_proxy: EventLoopProxy<LabEvent>,
+    ) -> Self {
         let camera = wgpu.create_camera();
         let fabric_renderer = wgpu.create_fabric_renderer();
         let surface_renderer = wgpu.create_surface_renderer();
@@ -37,7 +46,7 @@ impl Scene {
             surface_renderer,
             text_renderer,
             event_loop_proxy,
-            coloring: None,
+            render_style: RenderStyle::Normal,
             pick_allowed: false,
         }
     }
@@ -49,10 +58,16 @@ impl Scene {
                 self.pick_allowed = true;
             }
             AppStateChange::SetMusclesActive(active) => self.pick_allowed = !active,
-            AppStateChange::SetIntervalColor(((low,high), color)) => {
-                self.coloring
-                    .get_or_insert_with(HashMap::new)
-                    .insert((low, high), color);
+            AppStateChange::SetIntervalColor(((low, high), color)) => {
+                match &mut self.render_style {
+                    RenderStyle::Normal => {
+                        self.render_style =
+                            RenderStyle::WithColoring(HashMap::from([((low, high), color)]));
+                    }
+                    RenderStyle::WithColoring(coloring) => {
+                        coloring.insert((low, high), color);
+                    }
+                };
             }
             _ => {}
         }
@@ -63,9 +78,11 @@ impl Scene {
         self.pick_allowed
     }
 
-    fn render(&mut self)-> Result<(), wgpu::SurfaceError> {
+    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let surface_texture = self.wgpu.get_surface_texture()?;
-        let view = surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
         let depth_view = self.wgpu.create_depth_view();
         let mut encoder = self.wgpu.create_encoder();
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -95,7 +112,8 @@ impl Scene {
             occlusion_query_set: None,
         });
         self.wgpu.set_bind_group(&mut render_pass);
-        self.fabric_renderer.render(&mut render_pass, &self.wgpu.uniform_bind_group);
+        self.fabric_renderer
+            .render(&mut render_pass, &self.wgpu.uniform_bind_group);
         self.surface_renderer.render(&mut render_pass);
         self.text_renderer.render(&mut render_pass, &self.wgpu);
         drop(render_pass);
@@ -104,9 +122,14 @@ impl Scene {
         Ok(())
     }
 
-    pub fn redraw(&mut self, fabric: &Fabric)-> Result<(), wgpu::SurfaceError> {
+    pub fn redraw(&mut self, fabric: &Fabric) -> Result<(), wgpu::SurfaceError> {
         self.wgpu.update_mvp_matrix(self.camera.mvp_matrix());
-        self.fabric_renderer.update_from_fabric(&mut self.wgpu, fabric, &self.camera.current_pick(), &self.coloring);
+        self.fabric_renderer.update_from_fabric(
+            &mut self.wgpu,
+            fabric,
+            &self.camera.current_pick(),
+            &mut self.render_style,
+        );
         self.render()?;
         Ok(())
     }

@@ -1,9 +1,9 @@
 use crate::camera::Pick;
 use crate::fabric::material::{interval_material, Material};
 use crate::fabric::{interval::Role, Fabric};
+use crate::scene::RenderStyle;
 use crate::wgpu::Wgpu;
 use bytemuck::{Pod, Zeroable};
-use std::collections::HashMap;
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
 use wgpu::PipelineCompilationOptions;
@@ -146,10 +146,10 @@ impl FabricRenderer {
         wgpu: &Wgpu,
         fabric: &Fabric,
         pick: &Pick,
-        coloring: &Option<HashMap<(usize, usize), [f32; 4]>>,
+        render_style: &mut RenderStyle,
     ) {
         // Create instances from fabric data
-        let instances = self.create_instances_from_fabric(fabric, pick, coloring);
+        let instances = self.create_instances_from_fabric(fabric, pick, render_style);
         self.num_instances = instances.len() as u32;
 
         // Update instance buffer
@@ -187,15 +187,18 @@ impl FabricRenderer {
         &self,
         fabric: &Fabric,
         pick: &Pick,
-        coloring: &Option<HashMap<(usize, usize), [f32; 4]>>,
+        render_style: &mut RenderStyle,
     ) -> Vec<CylinderInstance> {
         let mut instances = Vec::with_capacity(fabric.intervals.len());
 
         const FADED: [f32; 4] = [0.01, 0.01, 0.01, 1.0];
         const SELECTED: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
         for (interval_id, interval) in &fabric.intervals {
-            if coloring.is_some() && interval.material == Material::PushMaterial {
-                continue;
+            match &render_style {
+                RenderStyle::WithColoring(_) if interval.material == Material::PushMaterial => {
+                    continue;
+                }
+                _ => {}
             }
             let (alpha, omega) = (interval.alpha_index, interval.omega_index);
             let start = fabric.joints[alpha].location;
@@ -220,8 +223,9 @@ impl FabricRenderer {
             };
 
             match pick {
-                Pick::Nothing => {
-                    if let Some(coloring) = coloring {
+                Pick::Nothing => match render_style {
+                    RenderStyle::Normal => {}
+                    RenderStyle::WithColoring(coloring) => {
                         radius_factor += 1.0;
                         let (alpha, omega) = (interval.alpha_index, interval.omega_index);
                         let (low, high) = if alpha < omega {
@@ -235,7 +239,7 @@ impl FabricRenderer {
                             color = [0.003, 0.003, 0.003, 0.01];
                         }
                     }
-                }
+                },
                 Pick::Joint { index, .. } => {
                     if !interval.touches(*index) {
                         color = FADED;
