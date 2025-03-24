@@ -19,8 +19,6 @@ enum Stage {
 
 const TIMEOUT_ITERATIONS: usize = 10000;
 const MAX_AGE: u64 = 180000;
-const MIN_DAMAGE: f32 = 100.0;
-const MAX_DAMAGE: f32 = 500.0;
 
 #[derive(Clone)]
 struct TestCase {
@@ -32,6 +30,8 @@ struct TestCase {
 
 pub struct Experiment {
     default_fabric: Fabric,
+    min_damage: f32,
+    max_damage: f32,
     test_cases: Vec<TestCase>,
     stage: Stage,
     physics: Physics,
@@ -94,6 +94,8 @@ impl Experiment {
         }
         Self {
             default_fabric: fabric.clone(),
+            min_damage: Self::min_damage(tension),
+            max_damage: Self::max_damage(tension),
             test_cases,
             stage: Paused,
             physics,
@@ -124,12 +126,12 @@ impl Experiment {
                     MuscleCycle(increment)
                 }
             }
-            RunningTestCase(current_fabric) => {
+            RunningTestCase(fabric_number) => {
                 let test_case = self
                     .test_cases
-                    .get_mut(current_fabric)
+                    .get_mut(fabric_number)
                     .expect("No test case");
-                if current_fabric > 0 && test_case.fabric.age >= MAX_AGE {
+                if fabric_number > 0 && test_case.fabric.age >= MAX_AGE {
                     self.timeout_iterations -= 1;
                     if self.timeout_iterations == 0 {
                         self.timeout_iterations = TIMEOUT_ITERATIONS;
@@ -147,8 +149,8 @@ impl Experiment {
                             )));
                         }
                         let key = test_case.interval_missing.unwrap();
-                        let clamped = test_case.damage.clamp(MIN_DAMAGE, MAX_DAMAGE);
-                        let redness = (clamped - MIN_DAMAGE) / (MAX_DAMAGE - MIN_DAMAGE);
+                        let clamped = test_case.damage.clamp(self.min_damage, self.max_damage);
+                        let redness = (clamped - self.min_damage) / (self.max_damage - self.min_damage);
                         let color = [redness, 0.01, 0.01, 1.0];
                         let tension = test_case.tension;
                         return Some(LabEvent::AppStateChanged(
@@ -162,7 +164,7 @@ impl Experiment {
                     return None;
                 }
                 test_case.fabric.iterate(physics);
-                RunningTestCase(current_fabric)
+                RunningTestCase(fabric_number)
             }
         };
         None
@@ -191,9 +193,15 @@ impl Experiment {
             LabAction::NextExperiment(forward) => {
                 let mut event = None;
                 self.stage = match self.stage.clone() {
-                    Paused => RunningTestCase(1),
-                    RunningTestCase(test_case_fabric) => {
-                        let mut current_fabric = test_case_fabric;
+                    Paused => {
+                        event = Some(LabEvent::AppStateChanged(AppStateChange::SetFabricNumber {
+                            number: 1,
+                            fabric_stats: self.fabric().fabric_stats(),
+                        }));
+                        RunningTestCase(1)
+                    }
+                    RunningTestCase(fabric_number) => {
+                        let mut current_fabric = fabric_number;
                         if forward {
                             if current_fabric + 1 < self.test_cases.len() {
                                 current_fabric += 1
@@ -240,7 +248,23 @@ impl Experiment {
         match self.stage {
             Paused => 0,
             MuscleCycle(_) => 0,
-            RunningTestCase(case_number) => case_number,
+            RunningTestCase(fabric_number) => fabric_number,
+        }
+    }
+
+    fn min_damage(tension: bool) -> f32 {
+        if tension {
+            100.0
+        } else {
+            300.0
+        }
+    }
+
+    fn max_damage(tension: bool) -> f32 {
+        if tension {
+            500.0
+        } else {
+            2000.0
         }
     }
 }

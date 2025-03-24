@@ -85,7 +85,7 @@ impl Crucible {
                     pretenser.iterate(&mut self.fabric);
                 }
                 if pretenser.is_done() {
-                    self.stage = Experimenting(Experiment::new(pretenser.clone(), &self.fabric, false));
+                    self.stage = Experimenting(Experiment::new(pretenser.clone(), &self.fabric, true));
                     return Some(LabEvent::FabricBuilt(self.fabric.fabric_stats()));
                 }
             }
