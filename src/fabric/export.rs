@@ -24,15 +24,16 @@ impl Fabric {
             .filter(|Interval { material, .. }| !interval_material(*material).support)
             .map(|interval| {
                 let length = interval.length(&self.joints) * self.scale;
+                let strain = interval.strain;
                 let role = interval_material(interval.material).role;
                 let Interval {
                     alpha_index,
                     omega_index,
                     ..
                 } = interval;
-                // ["joints", "role", "length"]
+                // ["joints", "role", "length", "strain"]
                 format!(
-                    "=\"{},{}\";{role:?};{length:.4}",
+                    "=\"{},{}\";{role:?};{length:.4};{strain:.4}",
                     alpha_index + 1,
                     omega_index + 1
                 )
