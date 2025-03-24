@@ -61,6 +61,6 @@ impl Fabric {
             .fold(0.0f32, |h, joint| h.max(joint.location.y))
             * self.scale;
         let scale = self.scale;
-        format!("Height: {height:.1} Scale: {scale:.1}\n\nIndex;X;Y;Z\n{joints}\n\nJoints;Role;Length\n{intervals}\n\nSubmerged\n=\"{submerged}\"")
+        format!("Height: {height:.1} Scale: {scale:.1}\n\nIndex;X;Y;Z\n{joints}\n\nJoints;Role;Length;Strain\n{intervals}\n\nSubmerged\n=\"{submerged}\"")
     }
 }
