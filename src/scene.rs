@@ -15,7 +15,7 @@ use winit::event_loop::EventLoopProxy;
 
 pub enum RenderStyle {
     Normal,
-    WithColoring(HashMap<(usize, usize), [f32; 4]>),
+    WithTensionColoring(HashMap<(usize, usize), [f32; 4]>),
 }
 
 pub struct Scene {
@@ -62,9 +62,9 @@ impl Scene {
                 match &mut self.render_style {
                     RenderStyle::Normal => {
                         self.render_style =
-                            RenderStyle::WithColoring(HashMap::from([((low, high), color)]));
+                            RenderStyle::WithTensionColoring(HashMap::from([((low, high), color)]));
                     }
-                    RenderStyle::WithColoring(coloring) => {
+                    RenderStyle::WithTensionColoring(coloring) => {
                         coloring.insert((low, high), color);
                     }
                 };
