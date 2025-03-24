@@ -26,6 +26,7 @@ const MAX_DAMAGE: f32 = 500.0;
 struct TestCase {
     fabric: Fabric,
     interval_missing: Option<(usize, usize)>,
+    tension: bool,
     damage: f32,
 }
 
@@ -46,15 +47,24 @@ impl Experiment {
             ..
         }: Pretenser,
         fabric: &Fabric,
+        tension: bool,
     ) -> Self {
         let interval_keys: Vec<_> = fabric
             .intervals
             .iter()
             .flat_map(|(id, interval)| {
                 if interval.material == Material::PushMaterial {
-                    None
+                    if tension {
+                        None
+                    } else {
+                        Some(*id)
+                    }
                 } else {
-                    Some(*id)
+                    if tension {
+                        Some(*id)
+                    } else {
+                        None
+                    }
                 }
             })
             .collect();
@@ -63,6 +73,7 @@ impl Experiment {
             TestCase {
                 fabric: fabric.clone(),
                 interval_missing: None,
+                tension,
                 damage: 0.0,
             };
             case_count
@@ -139,9 +150,14 @@ impl Experiment {
                         let clamped = test_case.damage.clamp(MIN_DAMAGE, MAX_DAMAGE);
                         let redness = (clamped - MIN_DAMAGE) / (MAX_DAMAGE - MIN_DAMAGE);
                         let color = [redness, 0.01, 0.01, 1.0];
-                        return Some(LabEvent::AppStateChanged(AppStateChange::SetIntervalColor(
-                            (key, color),
-                        )));
+                        let tension = test_case.tension;
+                        return Some(LabEvent::AppStateChanged(
+                            AppStateChange::SetIntervalColor {
+                                key,
+                                color,
+                                tension,
+                            },
+                        ));
                     }
                     return None;
                 }
@@ -182,8 +198,6 @@ impl Experiment {
                             if current_fabric + 1 < self.test_cases.len() {
                                 current_fabric += 1
                             } else {
-                                #[cfg(not(target_arch = "wasm32"))]
-                                self.dump();
                                 current_fabric = 0;
                             }
                         } else {
@@ -228,32 +242,5 @@ impl Experiment {
             MuscleCycle(_) => 0,
             RunningTestCase(case_number) => case_number,
         }
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn dump(&self) {
-        use itertools::Itertools;
-        std::fs::write(
-            chrono::Local::now()
-                .format("displacements-%Y-%m-%d-%H-%M.txt")
-                .to_string(),
-            self.test_cases
-                .iter()
-                .map(
-                    |TestCase {
-                         interval_missing,
-                         damage: displacement,
-                         ..
-                     }| {
-                        if let Some((alpha, omega)) = interval_missing {
-                            format!("({alpha},{omega}), {:.1}", displacement)
-                        } else {
-                            "(0,0) 0.0".to_string()
-                        }
-                    },
-                )
-                .join("\n"),
-        )
-        .unwrap();
     }
 }

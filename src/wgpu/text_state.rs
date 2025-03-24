@@ -74,7 +74,7 @@ impl TextState {
                 self.fabric_number = number;
                 self.fabric_stats = Some(fabric_stats);
             }
-            AppStateChange::SetIntervalColor(_) => {}
+            AppStateChange::SetIntervalColor { .. } => {}
         }
         self.update_sections()
     }
@@ -88,9 +88,9 @@ impl TextState {
             SectionName::Top,
             if self.fabric_number > 0 {
                 Some(format!("{} {}", self.fabric_name, self.fabric_number))
-            }else {
+            } else {
                 Some(self.fabric_name.clone())
-            }
+            },
         );
         if !self.mobile_device {
             self.update_section(

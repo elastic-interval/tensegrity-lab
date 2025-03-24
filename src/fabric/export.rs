@@ -21,7 +21,6 @@ impl Fabric {
             .join("\n");
         let intervals = self
             .interval_values()
-            .filter(|Interval { material, .. }| !interval_material(*material).support)
             .map(|interval| {
                 let length = interval.length(&self.joints) * self.scale;
                 let strain = interval.strain;
