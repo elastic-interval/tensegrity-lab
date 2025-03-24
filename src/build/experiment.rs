@@ -14,12 +14,13 @@ use cgmath::InnerSpace;
 enum Stage {
     Paused,
     MuscleCycle(f32),
+    RunningTestCase(usize),
 }
 
 const TIMEOUT_ITERATIONS: usize = 10000;
 const MAX_AGE: u64 = 180000;
 const MIN_DAMAGE: f32 = 100.0;
-const MAX_DAMAGE: f32 = 1000.0;
+const MAX_DAMAGE: f32 = 500.0;
 
 #[derive(Clone)]
 struct TestCase {
@@ -33,7 +34,6 @@ pub struct Experiment {
     test_cases: Vec<TestCase>,
     max_damage: f32,
     stage: Stage,
-    current_fabric: usize,
     physics: Physics,
     pretense_phase: PretensePhase,
     timeout_iterations: usize,
@@ -86,7 +86,6 @@ impl Experiment {
             default_fabric: fabric.clone(),
             test_cases,
             max_damage: 0.0,
-            current_fabric: 0,
             stage: Paused,
             physics,
             pretense_phase,
@@ -95,47 +94,16 @@ impl Experiment {
     }
 
     pub fn iterate(&mut self) -> Option<LabEvent> {
-        let test_case = self
-            .test_cases
-            .get_mut(self.current_fabric)
-            .expect("No test case");
-        if self.current_fabric > 0 && test_case.fabric.age >= MAX_AGE {
-            self.timeout_iterations -= 1;
-            if self.timeout_iterations == 0 {
-                self.timeout_iterations = TIMEOUT_ITERATIONS;
-                if test_case.damage == 0.0 {
-                    let mut damage = 0.0;
-                    for joint_id in 0..self.default_fabric.joints.len() {
-                        let default_location = self.default_fabric.location(joint_id);
-                        let new_location = test_case.fabric.location(joint_id);
-                        damage += (default_location - new_location).magnitude();
-                    }
-                    if self.max_damage < damage {
-                        self.max_damage = damage;
-                    }
-                    test_case.damage = damage;
-                } else {
-                    return Some(LabEvent::Crucible(CrucibleAction::Experiment(
-                        LabAction::NextExperiment(true),
-                    )));
-                }
-                let key = test_case.interval_missing.unwrap();
-                let clamped = test_case.damage.clamp(MIN_DAMAGE, MAX_DAMAGE);
-                let redness = (clamped - MIN_DAMAGE) / MAX_DAMAGE;
-                let color = [redness, 0.01, 0.01, 1.0];
-                return Some(LabEvent::AppStateChanged(AppStateChange::SetIntervalColor(
-                    (key, color),
-                )));
-            }
-            return None;
-        }
+        let physics = &self.physics;
         self.stage = match self.stage {
             Paused => {
-                test_case.fabric.iterate(&self.physics);
+                let test_case = &mut self.test_cases[0];
+                test_case.fabric.iterate(physics);
                 Paused
             }
             MuscleCycle(increment) => {
-                test_case.fabric.iterate(&self.physics);
+                let test_case = &mut self.test_cases[0];
+                test_case.fabric.iterate(physics);
                 test_case.fabric.muscle_nuance += increment;
                 if test_case.fabric.muscle_nuance < 0.0 {
                     test_case.fabric.muscle_nuance = 0.0;
@@ -146,6 +114,44 @@ impl Experiment {
                 } else {
                     MuscleCycle(increment)
                 }
+            }
+            RunningTestCase(current_fabric) => {
+                let test_case = self
+                    .test_cases
+                    .get_mut(current_fabric)
+                    .expect("No test case");
+                if current_fabric > 0 && test_case.fabric.age >= MAX_AGE {
+                    self.timeout_iterations -= 1;
+                    if self.timeout_iterations == 0 {
+                        self.timeout_iterations = TIMEOUT_ITERATIONS;
+                        if test_case.damage == 0.0 {
+                            let mut damage = 0.0;
+                            for joint_id in 0..self.default_fabric.joints.len() {
+                                let default_location = self.default_fabric.location(joint_id);
+                                let new_location = test_case.fabric.location(joint_id);
+                                damage += (default_location - new_location).magnitude();
+                            }
+                            if self.max_damage < damage {
+                                self.max_damage = damage;
+                            }
+                            test_case.damage = damage;
+                        } else {
+                            return Some(LabEvent::Crucible(CrucibleAction::Experiment(
+                                LabAction::NextExperiment(true),
+                            )));
+                        }
+                        let key = test_case.interval_missing.unwrap();
+                        let clamped = test_case.damage.clamp(MIN_DAMAGE, MAX_DAMAGE);
+                        let redness = (clamped - MIN_DAMAGE) / (MAX_DAMAGE - MIN_DAMAGE);
+                        let color = [redness, 0.01, 0.01, 1.0];
+                        return Some(LabEvent::AppStateChanged(AppStateChange::SetIntervalColor(
+                            (key, color),
+                        )));
+                    }
+                    return None;
+                }
+                test_case.fabric.iterate(physics);
+                RunningTestCase(current_fabric)
             }
         };
         None
@@ -172,44 +178,35 @@ impl Experiment {
                 }
             }
             LabAction::NextExperiment(forward) => {
-                if forward {
-                    if self.current_fabric + 1 < self.test_cases.len() {
-                        self.current_fabric += 1;
-                    } else {
-                        self.current_fabric = 0;
-                        // #[cfg(not(target_arch = "wasm32"))]
-                        // std::fs::write(
-                        //     chrono::Local::now()
-                        //         .format("displacements-%Y-%m-%d-%H-%M.txt")
-                        //         .to_string(),
-                        //     self.test_cases
-                        //         .iter()
-                        //         .map(
-                        //             |TestCase {
-                        //                  interval_missing,
-                        //                  damage: displacement,
-                        //                  ..
-                        //              }| {
-                        //                 if let Some((alpha, omega)) = interval_missing {
-                        //                     format!("({alpha},{omega}), {:.1}", displacement)
-                        //                 } else {
-                        //                     "(0,0) 0.0".to_string()
-                        //                 }
-                        //             },
-                        //         )
-                        //         .join("\n"),
-                        // )
-                        // .unwrap();
+                let mut event = None;
+                self.stage = match self.stage.clone() {
+                    Paused => RunningTestCase(1),
+                    RunningTestCase(test_case_fabric) => {
+                        let mut current_fabric = test_case_fabric;
+                        if forward {
+                            if current_fabric + 1 < self.test_cases.len() {
+                                current_fabric += 1
+                            } else {
+                                #[cfg(not(target_arch = "wasm32"))]
+                                self.dump();
+                                current_fabric = 0;
+                            }
+                        } else {
+                            if current_fabric > 0 {
+                                current_fabric -= 1;
+                            } else {
+                                current_fabric = 0;
+                            }
+                        };
+                        event = Some(LabEvent::AppStateChanged(AppStateChange::SetFabricNumber {
+                            number: current_fabric,
+                            fabric_stats: self.fabric().fabric_stats(),
+                        }));
+                        RunningTestCase(current_fabric)
                     }
-                } else {
-                    if self.current_fabric > 0 {
-                        self.current_fabric -= 1;
-                    }
-                }
-                return Some(LabEvent::AppStateChanged(AppStateChange::SetFabricNumber {
-                    number: self.current_fabric,
-                    fabric_stats: self.fabric().fabric_stats(),
-                }));
+                    MuscleCycle(_) => Paused,
+                };
+                return event;
             }
         }
         None
@@ -220,12 +217,48 @@ impl Experiment {
     }
 
     fn test_case(&self) -> &TestCase {
-        &self.test_cases[self.current_fabric]
+        &self.test_cases[self.current_fabric()]
     }
 
     fn test_case_mut(&mut self) -> &mut TestCase {
+        let current_fabric = self.current_fabric();
         self.test_cases
-            .get_mut(self.current_fabric)
+            .get_mut(current_fabric)
             .expect("a current fabric")
+    }
+
+    fn current_fabric(&self) -> usize {
+        match self.stage {
+            Paused => 0,
+            MuscleCycle(_) => 0,
+            RunningTestCase(case_number) => case_number,
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn dump(&self) {
+        use itertools::Itertools;
+        std::fs::write(
+            chrono::Local::now()
+                .format("displacements-%Y-%m-%d-%H-%M.txt")
+                .to_string(),
+            self.test_cases
+                .iter()
+                .map(
+                    |TestCase {
+                         interval_missing,
+                         damage: displacement,
+                         ..
+                     }| {
+                        if let Some((alpha, omega)) = interval_missing {
+                            format!("({alpha},{omega}), {:.1}", displacement)
+                        } else {
+                            "(0,0) 0.0".to_string()
+                        }
+                    },
+                )
+                .join("\n"),
+        )
+        .unwrap();
     }
 }
