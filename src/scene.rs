@@ -15,7 +15,10 @@ use winit::event_loop::EventLoopProxy;
 
 pub enum RenderStyle {
     Normal,
-    WithTensionColoring(HashMap<(usize, usize), [f32; 4]>),
+    WithColoring {
+        tension: bool,
+        color_map: HashMap<(usize, usize), [f32; 4]>,
+    },
 }
 
 pub struct Scene {
@@ -58,14 +61,20 @@ impl Scene {
                 self.pick_allowed = true;
             }
             AppStateChange::SetMusclesActive(active) => self.pick_allowed = !active,
-            AppStateChange::SetIntervalColor(((low, high), color)) => {
+            AppStateChange::SetIntervalColor {
+                key,
+                tension,
+                color,
+            } => {
                 match &mut self.render_style {
                     RenderStyle::Normal => {
-                        self.render_style =
-                            RenderStyle::WithTensionColoring(HashMap::from([((low, high), color)]));
+                        self.render_style = RenderStyle::WithColoring {
+                            color_map: HashMap::from([(key, color)]),
+                            tension,
+                        };
                     }
-                    RenderStyle::WithTensionColoring(coloring) => {
-                        coloring.insert((low, high), color);
+                    RenderStyle::WithColoring { color_map, .. } => {
+                        color_map.insert(key, color);
                     }
                 };
             }

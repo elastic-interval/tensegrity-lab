@@ -194,9 +194,12 @@ impl FabricRenderer {
         const FADED: [f32; 4] = [0.01, 0.01, 0.01, 1.0];
         const SELECTED: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
         for (interval_id, interval) in &fabric.intervals {
+            let push = interval.material == Material::PushMaterial;
             match &render_style {
-                RenderStyle::WithTensionColoring(_) if interval.material == Material::PushMaterial => {
-                    continue;
+                RenderStyle::WithColoring { tension, .. } => {
+                    if *tension && push || !*tension && !push {
+                        continue;
+                    }
                 }
                 _ => {}
             }
@@ -225,7 +228,7 @@ impl FabricRenderer {
             match pick {
                 Pick::Nothing => match render_style {
                     RenderStyle::Normal => {}
-                    RenderStyle::WithTensionColoring(coloring) => {
+                    RenderStyle::WithColoring {  color_map,.. } => {
                         radius_factor += 1.0;
                         let (alpha, omega) = (interval.alpha_index, interval.omega_index);
                         let (low, high) = if alpha < omega {
@@ -233,7 +236,7 @@ impl FabricRenderer {
                         } else {
                             (omega, alpha)
                         };
-                        if let Some(coloring_color) = coloring.get(&(low, high)) {
+                        if let Some(coloring_color) = color_map.get(&(low, high)) {
                             color = *coloring_color;
                         } else {
                             color = [0.003, 0.003, 0.003, 0.01];
