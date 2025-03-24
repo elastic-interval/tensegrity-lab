@@ -158,7 +158,7 @@ impl TextState {
             self.update_section(
                 SectionName::Right,
                 match self.control_state {
-                    ControlState::Viewing => Some("2025\nGerald de Jong\npretenst.com".to_string()),
+                    ControlState::Viewing => Some("2025\nGerald de Jong\nAte Snijder\npretenst.com".to_string()),
                     _ => None,
                 },
             );
