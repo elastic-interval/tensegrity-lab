@@ -45,6 +45,7 @@ impl Display for TestCase {
 
 pub struct Experiment {
     default_fabric: Fabric,
+    muscles_active: bool,
     min_damage: f32,
     max_damage: f32,
     test_cases: Vec<TestCase>,
@@ -111,6 +112,7 @@ impl Experiment {
         }
         Self {
             default_fabric: fabric.clone(),
+            muscles_active: false,
             min_damage: Self::min_damage(tension),
             max_damage: Self::max_damage(tension),
             test_cases,
@@ -187,9 +189,17 @@ impl Experiment {
             LabAction::MuscleChanged(nuance) => {
                 self.test_case_mut().fabric.muscle_nuance = nuance;
             }
-            LabAction::MusclesActive(yes) => {
+            LabAction::MusclesActive(muscles_active) => {
+                if self.muscles_active != muscles_active {
+                    self.event_loop_proxy
+                        .send_event(LabEvent::AppStateChanged(AppStateChange::SetMusclesActive(
+                            muscles_active,
+                        )))
+                        .unwrap();
+                    self.muscles_active = muscles_active;
+                }
                 if self.stage == Paused {
-                    if yes {
+                    if muscles_active {
                         if let Some(movement) = &self.pretense_phase.muscle_movement {
                             self.stage = MuscleCycle(1.0 / movement.countdown as f32)
                         }
@@ -204,10 +214,12 @@ impl Experiment {
             LabAction::NextExperiment(forward) => {
                 self.stage = match self.stage.clone() {
                     Paused => {
-                        send(LabEvent::AppStateChanged(AppStateChange::SetExperimentTitle {
-                            title: self.test_cases[1].to_string(),
-                            fabric_stats: self.fabric().fabric_stats(),
-                        }));
+                        send(LabEvent::AppStateChanged(
+                            AppStateChange::SetExperimentTitle {
+                                title: self.test_cases[1].to_string(),
+                                fabric_stats: self.fabric().fabric_stats(),
+                            },
+                        ));
                         RunningTestCase(1)
                     }
                     RunningTestCase(fabric_number) => {
@@ -225,14 +237,24 @@ impl Experiment {
                                 current_fabric = 0;
                             }
                         };
-                        send(LabEvent::AppStateChanged(AppStateChange::SetExperimentTitle {
-                            title: self.test_cases[current_fabric].to_string(),
-                            fabric_stats: self.fabric().fabric_stats(),
-                        }));
+                        send(LabEvent::AppStateChanged(
+                            AppStateChange::SetExperimentTitle {
+                                title: self.test_cases[current_fabric].to_string(),
+                                fabric_stats: self.fabric().fabric_stats(),
+                            },
+                        ));
                         RunningTestCase(current_fabric)
                     }
                     MuscleCycle(_) => Paused,
                 };
+            }
+            LabAction::ToggleMusclesActive => {
+                let opposite = !self.muscles_active;
+                self.event_loop_proxy
+                    .send_event(LabEvent::Crucible(CrucibleAction::Experiment(
+                        LabAction::MusclesActive(opposite),
+                    )))
+                    .unwrap()
             }
         }
     }

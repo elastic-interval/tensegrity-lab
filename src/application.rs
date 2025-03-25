@@ -3,10 +3,10 @@ use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible::{Crucible, CrucibleAction, LabAction};
 use crate::fabric::FabricStats;
+use crate::keyboard::Keyboard;
 use crate::messages::{ControlState, LabEvent, PointerChange, Shot};
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
-use crate::keyboard::Keyboard;
 use instant::{Duration, Instant};
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -46,6 +46,7 @@ pub enum AppStateChange {
         title: String,
         fabric_stats: FabricStats,
     },
+    SetKeyboardLegend(String),
 }
 
 impl Application {
@@ -59,7 +60,7 @@ impl Application {
             mobile_device: false,
             window_attributes,
             scene: None,
-            keyboard: Keyboard::new(event_loop_proxy.clone()),
+            keyboard: Keyboard::new(event_loop_proxy.clone()).with_actions(),
             crucible: Crucible::new(event_loop_proxy.clone()),
             fabric_plan_name: Default::default(),
             brick_library,
@@ -212,6 +213,8 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.mobile_device = mobile_device;
                 let proxy = self.event_loop_proxy.clone();
                 self.scene = Some(Scene::new(self.mobile_device, wgpu, proxy));
+                let legend = self.keyboard.legend();
+                self.event_loop_proxy.send_event(LabEvent::AppStateChanged(AppStateChange::SetKeyboardLegend(legend.join(", ")))).unwrap();
             }
             LabEvent::LoadFabric(fabric_plan_name) => {
                 self.fabric_plan_name = fabric_plan_name.clone();
