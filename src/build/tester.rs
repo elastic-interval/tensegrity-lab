@@ -1,8 +1,6 @@
 use crate::application::AppStateChange;
-use crate::build::experiment::Stage::*;
-use crate::build::tenscript::pretense_phase::PretensePhase;
-use crate::build::tenscript::pretenser::Pretenser;
-use crate::crucible::{CrucibleAction, LabAction};
+use crate::build::tester::Stage::*;
+use crate::crucible::{CrucibleAction, TesterAction};
 use crate::fabric::interval::Interval;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
@@ -15,7 +13,6 @@ use winit::event_loop::EventLoopProxy;
 #[derive(Clone, PartialEq)]
 enum Stage {
     Paused,
-    MuscleCycle(f32),
     RunningTestCase(usize),
 }
 
@@ -43,26 +40,20 @@ impl Display for TestCase {
     }
 }
 
-pub struct Experiment {
+pub struct Tester {
     default_fabric: Fabric,
-    muscles_active: bool,
     min_damage: f32,
     max_damage: f32,
     test_cases: Vec<TestCase>,
     stage: Stage,
     physics: Physics,
-    pretense_phase: PretensePhase,
     event_loop_proxy: EventLoopProxy<LabEvent>,
 }
 
-impl Experiment {
+impl Tester {
     pub fn new(
-        Pretenser {
-            pretense_phase,
-            physics,
-            ..
-        }: Pretenser,
         fabric: &Fabric,
+        physics: Physics,
         tension: bool,
         event_loop_proxy: EventLoopProxy<LabEvent>,
     ) -> Self {
@@ -112,13 +103,11 @@ impl Experiment {
         }
         Self {
             default_fabric: fabric.clone(),
-            muscles_active: false,
             min_damage: Self::min_damage(tension),
             max_damage: Self::max_damage(tension),
             test_cases,
             stage: Paused,
             physics,
-            pretense_phase,
             event_loop_proxy,
         }
     }
@@ -131,20 +120,6 @@ impl Experiment {
                 let test_case = &mut self.test_cases[0];
                 test_case.fabric.iterate(physics);
                 Paused
-            }
-            MuscleCycle(increment) => {
-                let test_case = &mut self.test_cases[0];
-                test_case.fabric.iterate(physics);
-                test_case.fabric.muscle_nuance += increment;
-                if test_case.fabric.muscle_nuance < 0.0 {
-                    test_case.fabric.muscle_nuance = 0.0;
-                    MuscleCycle(-increment)
-                } else if test_case.fabric.muscle_nuance > 1.0 {
-                    test_case.fabric.muscle_nuance = 1.0;
-                    MuscleCycle(-increment)
-                } else {
-                    MuscleCycle(increment)
-                }
             }
             RunningTestCase(fabric_number) => {
                 let test_case = self
@@ -172,8 +147,8 @@ impl Experiment {
                             tension,
                         },
                     ));
-                    send(LabEvent::Crucible(CrucibleAction::Experiment(
-                        LabAction::NextExperiment(true),
+                    send(LabEvent::Crucible(CrucibleAction::TesterDo(
+                        TesterAction::NextExperiment(true),
                     )));
                 }
                 test_case.fabric.iterate(physics);
@@ -182,36 +157,11 @@ impl Experiment {
         };
     }
 
-    pub fn action(&mut self, action: LabAction) {
+    pub fn action(&mut self, action: TesterAction) {
         let send = |lab_event: LabEvent| self.event_loop_proxy.send_event(lab_event).unwrap();
         match action {
-            LabAction::GravityChanged(gravity) => self.physics.gravity = gravity,
-            LabAction::MuscleChanged(nuance) => {
-                self.test_case_mut().fabric.muscle_nuance = nuance;
-            }
-            LabAction::MusclesActive(muscles_active) => {
-                if self.muscles_active != muscles_active {
-                    self.event_loop_proxy
-                        .send_event(LabEvent::AppStateChanged(AppStateChange::SetMusclesActive(
-                            muscles_active,
-                        )))
-                        .unwrap();
-                    self.muscles_active = muscles_active;
-                }
-                if self.stage == Paused {
-                    if muscles_active {
-                        if let Some(movement) = &self.pretense_phase.muscle_movement {
-                            self.stage = MuscleCycle(1.0 / movement.countdown as f32)
-                        }
-                    } else {
-                        self.stage = Paused;
-                    }
-                } else {
-                    self.test_case_mut().fabric.muscle_nuance = 0.5;
-                    self.stage = Paused
-                }
-            }
-            LabAction::NextExperiment(forward) => {
+            TesterAction::GravityChanged(gravity) => self.physics.gravity = gravity,
+            TesterAction::NextExperiment(forward) => {
                 self.stage = match self.stage.clone() {
                     Paused => {
                         send(LabEvent::AppStateChanged(
@@ -245,16 +195,7 @@ impl Experiment {
                         ));
                         RunningTestCase(current_fabric)
                     }
-                    MuscleCycle(_) => Paused,
                 };
-            }
-            LabAction::ToggleMusclesActive => {
-                let opposite = !self.muscles_active;
-                self.event_loop_proxy
-                    .send_event(LabEvent::Crucible(CrucibleAction::Experiment(
-                        LabAction::MusclesActive(opposite),
-                    )))
-                    .unwrap()
             }
         }
     }
@@ -267,17 +208,9 @@ impl Experiment {
         &self.test_cases[self.current_fabric()]
     }
 
-    fn test_case_mut(&mut self) -> &mut TestCase {
-        let current_fabric = self.current_fabric();
-        self.test_cases
-            .get_mut(current_fabric)
-            .expect("a current fabric")
-    }
-
     fn current_fabric(&self) -> usize {
         match self.stage {
             Paused => 0,
-            MuscleCycle(_) => 0,
             RunningTestCase(fabric_number) => fabric_number,
         }
     }
@@ -286,7 +219,7 @@ impl Experiment {
         if tension {
             100.0
         } else {
-            300.0
+            500.0
         }
     }
 
@@ -294,7 +227,7 @@ impl Experiment {
         if tension {
             500.0
         } else {
-            2000.0
+            1000.0
         }
     }
 }

@@ -1,7 +1,7 @@
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, TenscriptError};
-use crate::crucible::{Crucible, CrucibleAction, LabAction};
+use crate::crucible::{AnimatorAction, Crucible, CrucibleAction};
 use crate::fabric::FabricStats;
 use crate::keyboard::Keyboard;
 use crate::messages::{ControlState, LabEvent, PointerChange, Shot};
@@ -228,14 +228,14 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             LabEvent::FabricBuilt(fabric_stats) => {
                 send(LabEvent::AppStateChanged(AppStateChange::SetControlState(
-                    ControlState::Viewing,
+                    ControlState::Animating,
                 )));
                 send(LabEvent::AppStateChanged(AppStateChange::SetFabricStats(
                     Some(fabric_stats),
                 )));
                 if self.mobile_device {
-                    send(LabEvent::Crucible(CrucibleAction::Experiment(
-                        LabAction::MusclesActive(true),
+                    send(LabEvent::Crucible(CrucibleAction::AnimatorDo(
+                        AnimatorAction::MusclesActive(true),
                     )));
                 }
             }

@@ -59,7 +59,7 @@ impl Scene {
         match app_state_change {
             AppStateChange::SetControlState(control_state) => {
                 match control_state {
-                    ControlState::Viewing => self.reset(),
+                    ControlState::Animating => self.reset(),
                     _ => {}
                 }
             }

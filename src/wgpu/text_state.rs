@@ -103,10 +103,15 @@ impl TextState {
         let control_state = self.control_state.clone();
         self.update_section(
             SectionName::Top,
-            if !self.experiment_title.is_empty() {
-                TextInstance::Large(format!("{} {}", self.fabric_name, self.experiment_title))
-            } else {
-                TextInstance::Large(self.fabric_name.clone())
+            match control_state {
+                ControlState::Testing(tension) => {
+                    if tension {
+                        TextInstance::Normal(format!("Tension test of {} {}", self.fabric_name, self.experiment_title))
+                    } else {
+                        TextInstance::Normal(format!("Compression test of {} {}", self.fabric_name, self.experiment_title))
+                    }
+                }
+                _ => TextInstance::Large(self.fabric_name.clone()),
             },
         );
         if !self.mobile_device {
@@ -123,8 +128,7 @@ impl TextState {
             self.update_section(
                 SectionName::Right,
                 match control_state {
-                    ControlState::Waiting => TextInstance::Nothing,
-                    ControlState::Viewing => {
+                    ControlState::Animating => {
                         if self.muscles_active {
                             TextInstance::Nothing
                         } else {
@@ -159,13 +163,14 @@ impl TextState {
                             length_string,
                         ))
                     }
+                    _ => TextInstance::Nothing,
                 },
             );
         } else {
             self.update_section(
                 SectionName::Right,
                 match control_state {
-                    ControlState::Viewing => TextInstance::Normal(
+                    ControlState::Animating => TextInstance::Normal(
                         "2025\nGerald de Jong\nAte Snijder\npretenst.com".to_string(),
                     ),
                     _ => TextInstance::Nothing,

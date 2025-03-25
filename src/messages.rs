@@ -43,9 +43,11 @@ pub struct JointDetails {
 #[derive(Clone, Debug)]
 pub enum ControlState {
     Waiting,
-    Viewing,
+    UnderConstruction,
+    Animating,
     ShowingJoint(JointDetails),
     ShowingInterval(IntervalDetails),
+    Testing(bool),
 }
 
 #[derive(Debug, Clone)]

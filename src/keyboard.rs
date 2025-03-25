@@ -1,5 +1,5 @@
 use crate::application::AppStateChange;
-use crate::crucible::{CrucibleAction, LabAction};
+use crate::crucible::{AnimatorAction, CrucibleAction, TesterAction};
 use crate::messages::{ControlState, LabEvent};
 use std::fmt::Display;
 use winit::event::KeyEvent;
@@ -45,47 +45,61 @@ impl Keyboard {
         self.add_action(
             KeyCode::Escape,
             "ESC to reset",
-            LabEvent::AppStateChanged(AppStateChange::SetControlState(ControlState::Viewing)),
-            Box::new(|control_state| match control_state {
-                ControlState::ShowingJoint(_) | ControlState::ShowingInterval(_) => true,
-                _ => false,
+            LabEvent::AppStateChanged(AppStateChange::SetControlState(ControlState::Animating)),
+            Box::new(|state| {
+                matches!(
+                    state,
+                    ControlState::ShowingJoint(_) | ControlState::ShowingInterval(_)
+                )
             }),
         );
         self.add_action(
             KeyCode::KeyX,
             "X to export CSV",
             LabEvent::DumpCSV,
-            Box::new(|_control_state| true),
+            Box::new(|state| matches!(state, ControlState::Animating)),
         );
         self.add_action(
             KeyCode::Space,
             "Space to toggle animation",
-            LabEvent::Crucible(CrucibleAction::Experiment(LabAction::ToggleMusclesActive)),
-            Box::new(|_control_state| true),
+            LabEvent::Crucible(CrucibleAction::AnimatorDo(AnimatorAction::ToggleMusclesActive)),
+            Box::new(|state| matches!(state, ControlState::Animating)),
         );
         self.add_action(
             KeyCode::ArrowUp,
             "Up to speed up",
             LabEvent::Crucible(CrucibleAction::SetSpeed(1.1)),
-            Box::new(|_control_state| true),
+            Box::new(|_| true),
         );
         self.add_action(
             KeyCode::ArrowDown,
             "Down to slow down",
             LabEvent::Crucible(CrucibleAction::SetSpeed(0.9)),
-            Box::new(|_control_state| true),
+            Box::new(|_| true),
         );
         self.add_action(
             KeyCode::ArrowLeft,
             "Left for previous",
-            LabEvent::Crucible(CrucibleAction::Experiment(LabAction::NextExperiment(false))),
-            Box::new(|_control_state| true),
+            LabEvent::Crucible(CrucibleAction::TesterDo(TesterAction::NextExperiment(false))),
+            Box::new(|state| matches!(state, ControlState::Testing(_))),
         );
         self.add_action(
             KeyCode::ArrowRight,
             "Right for next",
-            LabEvent::Crucible(CrucibleAction::Experiment(LabAction::NextExperiment(true))),
-            Box::new(|_control_state| true),
+            LabEvent::Crucible(CrucibleAction::TesterDo(TesterAction::NextExperiment(true))),
+            Box::new(|state| matches!(state, ControlState::Testing(_))),
+        );
+        self.add_action(
+            KeyCode::KeyT,
+            "T test tension",
+            LabEvent::Crucible(CrucibleAction::StartExperiment(true)),
+            Box::new(|state| matches!(state, ControlState::Animating)),
+        );
+        self.add_action(
+            KeyCode::KeyC,
+            "C test compression",
+            LabEvent::Crucible(CrucibleAction::StartExperiment(false)),
+            Box::new(|state| matches!(state, ControlState::Animating)),
         );
         self
     }
