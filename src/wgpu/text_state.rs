@@ -88,7 +88,6 @@ impl TextState {
                 self.fabric_stats = Some(fabric_stats.clone());
             }
             AppStateChange::SetKeyboardLegend(legend) => {
-                println!("text state legend {:?}", legend);
                 self.keyboard_legend = Some(legend.clone());
             }
             _ => {}
