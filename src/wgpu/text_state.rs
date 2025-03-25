@@ -34,6 +34,22 @@ pub struct TextState {
     sections: [Option<OwnedSection>; SectionName::count()],
 }
 
+enum TextInstance {
+    Nothing,
+    Normal(String),
+    Large(String),
+}
+
+impl TextInstance {
+    pub fn scale_factor(&self) -> f32 {
+        match self {
+            TextInstance::Nothing => 10.0,
+            TextInstance::Normal(_) => 30.0,
+            TextInstance::Large(_) => 60.0,
+        }
+    }
+}
+
 impl TextState {
     pub fn new(mobile_device: bool, fabric_name: String, width: u32, height: u32) -> Self {
         let mut fresh = Self {
@@ -87,9 +103,9 @@ impl TextState {
         self.update_section(
             SectionName::Top,
             if !self.experiment_title.is_empty() {
-                Some(format!("{} {}", self.fabric_name, self.experiment_title))
+                TextInstance::Large(format!("{} {}", self.fabric_name, self.experiment_title))
             } else {
-                Some(self.fabric_name.clone())
+                TextInstance::Large(self.fabric_name.clone())
             },
         );
         if !self.mobile_device {
@@ -97,34 +113,32 @@ impl TextState {
                 SectionName::Bottom,
                 match &self.fabric_stats {
                     Some(_) => match &self.control_state {
-                        ControlState::Waiting => None,
                         ControlState::Viewing => {
                             if self.muscles_active {
-                                Some("Press SPACE to leave it alone".to_string())
+                                TextInstance::Normal("Press SPACE to leave it alone".into())
                             } else {
-                                Some(
-                                    "Press SPACE to start pulling on the crossed guy lines"
-                                        .to_string(),
+                                TextInstance::Normal(
+                                    "Press SPACE to start pulling on the crossed guy lines".into(),
                                 )
                             }
                         }
-                        ControlState::ShowingJoint(_) | ControlState::ShowingInterval(_) => None,
+                        _ => TextInstance::Nothing,
                     },
-                    None => Some("Under construction...".to_string()),
+                    None => TextInstance::Normal("Under construction...".to_string()),
                 },
             );
             self.update_section(
                 SectionName::Right,
                 match self.control_state {
-                    ControlState::Waiting => None,
+                    ControlState::Waiting => TextInstance::Nothing,
                     ControlState::Viewing => {
-                        if !self.muscles_active {
-                            Some("Right-click to select".to_string())
+                        if self.muscles_active {
+                            TextInstance::Nothing
                         } else {
-                            None
+                            TextInstance::Normal("Right-click to select".to_string())
                         }
                     }
-                    ControlState::ShowingJoint(joint_details) => Some(format!(
+                    ControlState::ShowingJoint(joint_details) => TextInstance::Large(format!(
                         "{}\n\
                         Click for details\n\
                         ESC to release",
@@ -141,7 +155,7 @@ impl TextState {
                         } else {
                             "?".to_string()
                         };
-                        Some(format!(
+                        TextInstance::Large(format!(
                             "{} {}-{}\n\
                             Length: {}\n\
                             Right-click to jump\n\
@@ -158,30 +172,32 @@ impl TextState {
             self.update_section(
                 SectionName::Right,
                 match self.control_state {
-                    ControlState::Viewing => {
-                        Some("2025\nGerald de Jong\nAte Snijder\npretenst.com".to_string())
-                    }
-                    _ => None,
+                    ControlState::Viewing => TextInstance::Normal(
+                        "2025\nGerald de Jong\nAte Snijder\npretenst.com".to_string(),
+                    ),
+                    _ => TextInstance::Nothing,
                 },
             );
         }
 
         self.update_section(
             SectionName::Left,
-            self.fabric_stats.clone().map(
-                |FabricStats {
-                     age,
-                     scale,
-                     joint_count,
-                     max_height,
-                     push_count,
-                     push_total,
-                     push_range,
-                     pull_count,
-                     pull_range,
-                     pull_total,
-                 }| {
-                    format!(
+            match &self.fabric_stats {
+                None => TextInstance::Nothing,
+                Some(fabric_stats) => {
+                    let FabricStats {
+                        age,
+                        scale,
+                        joint_count,
+                        max_height,
+                        push_count,
+                        push_total,
+                        push_range,
+                        pull_count,
+                        pull_range,
+                        pull_total,
+                    } = fabric_stats;
+                    TextInstance::Normal(format!(
                         "Stats:\n\
                          Height: {:.1}m\n\
                          Joints: {:?}\n\
@@ -203,17 +219,23 @@ impl TextState {
                         pull_range.1 * scale,
                         pull_total * scale / 1000.0,
                         age / 1000,
-                    )
-                },
-            ),
+                    ))
+                }
+            },
         );
     }
 
-    fn update_section(&mut self, section_name: SectionName, new_text: Option<String>) {
-        self.sections[section_name as usize] = new_text.map(|new_text| {
-            self.create_section(section_name)
-                .add_text(Self::create_text(section_name, new_text))
-        });
+    fn update_section(&mut self, section_name: SectionName, text_instance: TextInstance) {
+        let section = self.create_section(section_name);
+        let scale_factor = text_instance.scale_factor();
+        self.sections[section_name as usize] = Some(match text_instance {
+            TextInstance::Nothing => section,
+            TextInstance::Normal(text) | TextInstance::Large(text) => section.add_text(
+                OwnedText::new(text)
+                    .with_color([0.8, 0.8, 0.8, 1.0])
+                    .with_scale(scale_factor),
+            ),
+        })
     }
 
     fn create_section(&self, section_name: SectionName) -> OwnedSection {
@@ -259,15 +281,6 @@ impl TextState {
             SectionName::Left => [margin, middle_v],
             SectionName::Right => [self.width - margin, middle_v],
         }
-    }
-
-    fn create_text(section_name: SectionName, text: String) -> OwnedText {
-        OwnedText::new(text)
-            .with_color([0.8, 0.8, 0.8, 1.0])
-            .with_scale(match section_name {
-                SectionName::Top => 60.0,
-                _ => 30.0,
-            })
     }
 
     fn joint_format(index: usize) -> String {
