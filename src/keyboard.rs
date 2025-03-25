@@ -47,7 +47,7 @@ impl Keyboard {
             "ESC to reset",
             LabEvent::AppStateChanged(AppStateChange::SetControlState(ControlState::Viewing)),
             Box::new(|control_state| match control_state {
-                ControlState::ShowingJoint(_) |ControlState::ShowingInterval(_) => true,
+                ControlState::ShowingJoint(_) | ControlState::ShowingInterval(_) => true,
                 _ => false,
             }),
         );
@@ -90,7 +90,7 @@ impl Keyboard {
         self
     }
 
-    pub fn handle_key_event(&mut self, key_event: KeyEvent) {
+    pub fn handle_key_event(&mut self, key_event: KeyEvent, control_state: &ControlState) {
         if key_event.state.is_pressed() {
             if let KeyEvent {
                 physical_key: PhysicalKey::Code(code),
@@ -99,7 +99,7 @@ impl Keyboard {
             {
                 self.actions
                     .iter()
-                    .filter(|action| action.code == code)
+                    .filter(|action| action.code == code && (action.is_active_in)(control_state))
                     .for_each(|action| action.execute());
             }
         }

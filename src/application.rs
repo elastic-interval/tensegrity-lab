@@ -30,6 +30,7 @@ pub struct Application {
     active_touch_count: usize,
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
+    control_state: ControlState,
 }
 
 #[derive(Clone, Debug)]
@@ -69,6 +70,7 @@ impl Application {
             last_update: Instant::now(),
             accumulated_time: Duration::default(),
             active_touch_count: 0,
+            control_state: ControlState::Waiting,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
         })
@@ -282,14 +284,13 @@ impl ApplicationHandler<LabEvent> for Application {
                 let _ = self.crucible.action(CrucibleAction::Evolve(seed));
             }
             LabEvent::AppStateChanged(app_change) => {
-                println!("AppState {app_change:?}");
                 match &app_change {
                     AppStateChange::SetControlState(control_state) => {
-                        println!("application ControlState {control_state:?}");
-                        let legend = self.keyboard.legend(control_state);
-                        println!("Legend {legend:?}");
+                        self.control_state = control_state.clone();
                         send(LabEvent::AppStateChanged(
-                            AppStateChange::SetKeyboardLegend(legend.join(", ")),
+                            AppStateChange::SetKeyboardLegend(
+                                self.keyboard.legend(control_state).join(", "),
+                            ),
                         ));
                     }
                     _ => {}
@@ -322,7 +323,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 WindowEvent::CloseRequested => event_loop.exit(),
                 WindowEvent::KeyboardInput {
                     event: key_event, ..
-                } => self.keyboard.handle_key_event(key_event),
+                } => self.keyboard.handle_key_event(key_event, &self.control_state),
                 WindowEvent::Touch(touch_event) => match touch_event.phase {
                     TouchPhase::Started => {
                         self.active_touch_count += 1;

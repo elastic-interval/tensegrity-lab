@@ -55,7 +55,6 @@ impl Scene {
     }
 
     pub fn change_happened(&mut self, app_state_change: AppStateChange) {
-        println!("scene change {:?}", app_state_change);
         self.text_renderer.change_happened(&app_state_change);
         match app_state_change {
             AppStateChange::SetControlState(control_state) => {
