@@ -40,9 +40,8 @@ pub struct JointDetails {
     pub location: Point3<f32>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub enum ControlState {
-    #[default]
     Waiting,
     Viewing,
     ShowingJoint(JointDetails),

@@ -205,6 +205,9 @@ impl ApplicationHandler<LabEvent> for Application {
     }
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
+        let send = |lab_event| {
+            self.event_loop_proxy.send_event(lab_event).unwrap();
+        };
         match event {
             LabEvent::ContextCreated {
                 wgpu,
@@ -213,36 +216,34 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.mobile_device = mobile_device;
                 let proxy = self.event_loop_proxy.clone();
                 self.scene = Some(Scene::new(self.mobile_device, wgpu, proxy));
-                let legend = self.keyboard.legend();
-                self.event_loop_proxy.send_event(LabEvent::AppStateChanged(AppStateChange::SetKeyboardLegend(legend.join(", ")))).unwrap();
+                send(LabEvent::AppStateChanged(AppStateChange::SetControlState(
+                    ControlState::Waiting,
+                )))
             }
             LabEvent::LoadFabric(fabric_plan_name) => {
                 self.fabric_plan_name = fabric_plan_name.clone();
                 self.build_current_fabric();
             }
             LabEvent::FabricBuilt(fabric_stats) => {
-                self.event_loop_proxy
-                    .send_event(LabEvent::AppStateChanged(AppStateChange::SetFabricStats(
-                        Some(fabric_stats),
-                    )))
-                    .unwrap();
+                send(LabEvent::AppStateChanged(AppStateChange::SetControlState(
+                    ControlState::Viewing,
+                )));
+                send(LabEvent::AppStateChanged(AppStateChange::SetFabricStats(
+                    Some(fabric_stats),
+                )));
                 if self.mobile_device {
-                    self.event_loop_proxy
-                        .send_event(LabEvent::Crucible(CrucibleAction::Experiment(
-                            LabAction::MusclesActive(true),
-                        )))
-                        .unwrap();
+                    send(LabEvent::Crucible(CrucibleAction::Experiment(
+                        LabAction::MusclesActive(true),
+                    )));
                 }
             }
             LabEvent::Crucible(crucible_action) => {
                 match &crucible_action {
                     // side effect
                     CrucibleAction::BuildFabric(_) => {
-                        self.event_loop_proxy
-                            .send_event(LabEvent::AppStateChanged(AppStateChange::SetFabricStats(
-                                None,
-                            )))
-                            .unwrap();
+                        send(LabEvent::AppStateChanged(AppStateChange::SetFabricStats(
+                            None,
+                        )));
                         if let Some(scene) = &mut self.scene {
                             scene.reset();
                         }
@@ -281,6 +282,18 @@ impl ApplicationHandler<LabEvent> for Application {
                 let _ = self.crucible.action(CrucibleAction::Evolve(seed));
             }
             LabEvent::AppStateChanged(app_change) => {
+                println!("AppState {app_change:?}");
+                match &app_change {
+                    AppStateChange::SetControlState(control_state) => {
+                        println!("application ControlState {control_state:?}");
+                        let legend = self.keyboard.legend(control_state);
+                        println!("Legend {legend:?}");
+                        send(LabEvent::AppStateChanged(
+                            AppStateChange::SetKeyboardLegend(legend.join(", ")),
+                        ));
+                    }
+                    _ => {}
+                }
                 if let Some(scene) = &mut self.scene {
                     scene.change_happened(app_change);
                 }
