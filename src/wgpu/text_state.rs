@@ -59,7 +59,7 @@ impl TextState {
             height: height as f32,
             fabric_name,
             experiment_title: "".to_string(),
-            control_state: ControlState::default(),
+            control_state: ControlState::Waiting,
             fabric_stats: None,
             muscles_active: false,
             keyboard_legend: None,
@@ -75,11 +75,6 @@ impl TextState {
                 self.control_state = control_state.clone();
             }
             AppStateChange::SetFabricStats(fabric_stats) => {
-                self.control_state = if fabric_stats.is_some() {
-                    ControlState::Viewing
-                } else {
-                    ControlState::Waiting
-                };
                 self.fabric_stats = fabric_stats.clone();
             }
             AppStateChange::SetMusclesActive(muscles_active) => {
@@ -92,10 +87,11 @@ impl TextState {
                 self.experiment_title = title.clone();
                 self.fabric_stats = Some(fabric_stats.clone());
             }
-            AppStateChange::SetIntervalColor { .. } => {}
             AppStateChange::SetKeyboardLegend(legend) => {
+                println!("text state legend {:?}", legend);
                 self.keyboard_legend = Some(legend.clone());
             }
+            _ => {}
         }
         self.update_sections()
     }
@@ -105,6 +101,7 @@ impl TextState {
     }
 
     fn update_sections(&mut self) {
+        let control_state = self.control_state.clone();
         self.update_section(
             SectionName::Top,
             if !self.experiment_title.is_empty() {
@@ -117,19 +114,16 @@ impl TextState {
             self.update_section(
                 SectionName::Bottom,
                 match &self.fabric_stats {
-                    Some(_) => match &self.control_state {
-                        ControlState::Viewing => match &self.keyboard_legend {
-                            None => TextInstance::Nothing,
-                            Some(legend) => TextInstance::Normal(legend.clone()),
-                        },
-                        _ => TextInstance::Nothing,
+                    Some(_) => match &self.keyboard_legend {
+                        None => TextInstance::Nothing,
+                        Some(legend) => TextInstance::Normal(legend.clone()),
                     },
                     None => TextInstance::Normal("Under construction...".to_string()),
                 },
             );
             self.update_section(
                 SectionName::Right,
-                match self.control_state {
+                match control_state {
                     ControlState::Waiting => TextInstance::Nothing,
                     ControlState::Viewing => {
                         if self.muscles_active {
@@ -171,7 +165,7 @@ impl TextState {
         } else {
             self.update_section(
                 SectionName::Right,
-                match self.control_state {
+                match control_state {
                     ControlState::Viewing => TextInstance::Normal(
                         "2025\nGerald de Jong\nAte Snijder\npretenst.com".to_string(),
                     ),

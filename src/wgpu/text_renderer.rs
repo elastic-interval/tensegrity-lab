@@ -24,6 +24,7 @@ impl TextRenderer {
     }
 
     pub fn change_happened(&mut self, app_state_change: &AppStateChange) {
+        println!("text renderer change {:?}", app_state_change);
         self.text_state.change_happened(app_state_change);
     }
 
