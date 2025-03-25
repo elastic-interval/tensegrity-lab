@@ -9,6 +9,8 @@ use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::messages::LabEvent;
 use cgmath::InnerSpace;
+use std::fmt::{Display, Formatter};
+use winit::event_loop::EventLoopProxy;
 
 #[derive(Clone, PartialEq)]
 enum Stage {
@@ -17,7 +19,6 @@ enum Stage {
     RunningTestCase(usize),
 }
 
-const TIMEOUT_ITERATIONS: usize = 10000;
 const MAX_AGE: u64 = 180000;
 
 #[derive(Clone)]
@@ -26,6 +27,20 @@ struct TestCase {
     interval_missing: Option<(usize, usize)>,
     tension: bool,
     damage: f32,
+    finished: bool,
+}
+
+impl Display for TestCase {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self.interval_missing {
+            None => {
+                write!(f, "")
+            }
+            Some(pair) => {
+                write!(f, "Missing {pair:?}")
+            }
+        }
+    }
 }
 
 pub struct Experiment {
@@ -36,7 +51,7 @@ pub struct Experiment {
     stage: Stage,
     physics: Physics,
     pretense_phase: PretensePhase,
-    timeout_iterations: usize,
+    event_loop_proxy: EventLoopProxy<LabEvent>,
 }
 
 impl Experiment {
@@ -48,6 +63,7 @@ impl Experiment {
         }: Pretenser,
         fabric: &Fabric,
         tension: bool,
+        event_loop_proxy: EventLoopProxy<LabEvent>,
     ) -> Self {
         let interval_keys: Vec<_> = fabric
             .intervals
@@ -75,6 +91,7 @@ impl Experiment {
                 interval_missing: None,
                 tension,
                 damage: 0.0,
+                finished: false,
             };
             case_count
         ];
@@ -100,11 +117,12 @@ impl Experiment {
             stage: Paused,
             physics,
             pretense_phase,
-            timeout_iterations: TIMEOUT_ITERATIONS,
+            event_loop_proxy,
         }
     }
 
-    pub fn iterate(&mut self) -> Option<LabEvent> {
+    pub fn iterate(&mut self) {
+        let send = |lab_event: LabEvent| self.event_loop_proxy.send_event(lab_event).unwrap();
         let physics = &self.physics;
         self.stage = match self.stage {
             Paused => {
@@ -131,46 +149,39 @@ impl Experiment {
                     .test_cases
                     .get_mut(fabric_number)
                     .expect("No test case");
-                if fabric_number > 0 && test_case.fabric.age >= MAX_AGE {
-                    self.timeout_iterations -= 1;
-                    if self.timeout_iterations == 0 {
-                        self.timeout_iterations = TIMEOUT_ITERATIONS;
-                        if test_case.damage == 0.0 {
-                            let mut damage = 0.0;
-                            for joint_id in 0..self.default_fabric.joints.len() {
-                                let default_location = self.default_fabric.location(joint_id);
-                                let new_location = test_case.fabric.location(joint_id);
-                                damage += (default_location - new_location).magnitude();
-                            }
-                            test_case.damage = damage;
-                        } else {
-                            return Some(LabEvent::Crucible(CrucibleAction::Experiment(
-                                LabAction::NextExperiment(true),
-                            )));
-                        }
-                        let key = test_case.interval_missing.unwrap();
-                        let clamped = test_case.damage.clamp(self.min_damage, self.max_damage);
-                        let redness = (clamped - self.min_damage) / (self.max_damage - self.min_damage);
-                        let color = [redness, 0.01, 0.01, 1.0];
-                        let tension = test_case.tension;
-                        return Some(LabEvent::AppStateChanged(
-                            AppStateChange::SetIntervalColor {
-                                key,
-                                color,
-                                tension,
-                            },
-                        ));
+                if fabric_number > 0 && test_case.fabric.age >= MAX_AGE && !test_case.finished {
+                    test_case.finished = true;
+                    let mut damage = 0.0;
+                    for joint_id in 0..self.default_fabric.joints.len() {
+                        let default_location = self.default_fabric.location(joint_id);
+                        let new_location = test_case.fabric.location(joint_id);
+                        damage += (default_location - new_location).magnitude();
                     }
-                    return None;
+                    test_case.damage = damage;
+                    let key = test_case.interval_missing.unwrap();
+                    let clamped = test_case.damage.clamp(self.min_damage, self.max_damage);
+                    let redness = (clamped - self.min_damage) / (self.max_damage - self.min_damage);
+                    let color = [redness, 0.01, 0.01, 1.0];
+                    let tension = test_case.tension;
+                    send(LabEvent::AppStateChanged(
+                        AppStateChange::SetIntervalColor {
+                            key,
+                            color,
+                            tension,
+                        },
+                    ));
+                    send(LabEvent::Crucible(CrucibleAction::Experiment(
+                        LabAction::NextExperiment(true),
+                    )));
                 }
                 test_case.fabric.iterate(physics);
                 RunningTestCase(fabric_number)
             }
         };
-        None
     }
 
-    pub fn action(&mut self, action: LabAction) -> Option<LabEvent> {
+    pub fn action(&mut self, action: LabAction) {
+        let send = |lab_event: LabEvent| self.event_loop_proxy.send_event(lab_event).unwrap();
         match action {
             LabAction::GravityChanged(gravity) => self.physics.gravity = gravity,
             LabAction::MuscleChanged(nuance) => {
@@ -191,11 +202,10 @@ impl Experiment {
                 }
             }
             LabAction::NextExperiment(forward) => {
-                let mut event = None;
                 self.stage = match self.stage.clone() {
                     Paused => {
-                        event = Some(LabEvent::AppStateChanged(AppStateChange::SetFabricNumber {
-                            number: 1,
+                        send(LabEvent::AppStateChanged(AppStateChange::SetExperimentTitle {
+                            title: self.test_cases[1].to_string(),
                             fabric_stats: self.fabric().fabric_stats(),
                         }));
                         RunningTestCase(1)
@@ -215,18 +225,16 @@ impl Experiment {
                                 current_fabric = 0;
                             }
                         };
-                        event = Some(LabEvent::AppStateChanged(AppStateChange::SetFabricNumber {
-                            number: current_fabric,
+                        send(LabEvent::AppStateChanged(AppStateChange::SetExperimentTitle {
+                            title: self.test_cases[current_fabric].to_string(),
                             fabric_stats: self.fabric().fabric_stats(),
                         }));
                         RunningTestCase(current_fabric)
                     }
                     MuscleCycle(_) => Paused,
                 };
-                return event;
             }
         }
-        None
     }
 
     pub fn fabric(&self) -> &Fabric {

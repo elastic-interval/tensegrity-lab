@@ -44,8 +44,8 @@ pub enum AppStateChange {
     SetControlState(ControlState),
     SetFabricStats(Option<FabricStats>),
     SetMusclesActive(bool),
-    SetFabricNumber {
-        number: usize,
+    SetExperimentTitle {
+        title: String,
         fabric_stats: FabricStats,
     },
 }
@@ -61,7 +61,7 @@ impl Application {
             mobile_device: false,
             window_attributes,
             scene: None,
-            crucible: Crucible::default(),
+            crucible: Crucible::new(event_loop_proxy.clone()),
             fabric_plan_name: Default::default(),
             brick_library,
             fabric_library,
@@ -304,9 +304,7 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                     _ => {}
                 }
-                if let Some(lab_event) = self.crucible.action(crucible_action) {
-                    self.event_loop_proxy.send_event(lab_event).unwrap();
-                }
+                self.crucible.action(crucible_action);
             }
             LabEvent::UpdatedLibrary(time) => {
                 println!("{time:?}");
@@ -461,9 +459,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 updates_this_frame += 1;
 
                 if animate {
-                    if let Some(lab_event) = self.crucible.iterate(&self.brick_library) {
-                        self.event_loop_proxy.send_event(lab_event).unwrap();
-                    }
+                    self.crucible.iterate(&self.brick_library);
                 }
             }
 
