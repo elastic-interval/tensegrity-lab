@@ -16,7 +16,7 @@ enum Stage {
     RunningTestCase(usize),
 }
 
-const MAX_AGE: u64 = 180000;
+const MAX_NEW_ITERATIONS: u64 = 100000;
 
 #[derive(Clone)]
 struct TestCase {
@@ -126,7 +126,8 @@ impl Tester {
                     .test_cases
                     .get_mut(fabric_number)
                     .expect("No test case");
-                if fabric_number > 0 && test_case.fabric.age >= MAX_AGE && !test_case.finished {
+                let iterations = test_case.fabric.age - self.default_fabric.age;
+                if fabric_number > 0 && iterations >= MAX_NEW_ITERATIONS && !test_case.finished {
                     test_case.finished = true;
                     let mut damage = 0.0;
                     for joint_id in 0..self.default_fabric.joints.len() {
