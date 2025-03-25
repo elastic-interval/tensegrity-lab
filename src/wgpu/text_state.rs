@@ -67,10 +67,10 @@ impl TextState {
         fresh
     }
 
-    pub fn change_happened(&mut self, app_change: AppStateChange) {
+    pub fn change_happened(&mut self, app_change: &AppStateChange) {
         match app_change {
             AppStateChange::SetControlState(control_state) => {
-                self.control_state = control_state;
+                self.control_state = control_state.clone();
             }
             AppStateChange::SetFabricStats(fabric_stats) => {
                 self.control_state = if fabric_stats.is_some() {
@@ -78,17 +78,17 @@ impl TextState {
                 } else {
                     ControlState::Waiting
                 };
-                self.fabric_stats = fabric_stats;
+                self.fabric_stats = fabric_stats.clone();
             }
             AppStateChange::SetMusclesActive(muscles_active) => {
-                self.muscles_active = muscles_active;
+                self.muscles_active = muscles_active.clone();
             }
             AppStateChange::SetExperimentTitle {
                 title,
                 fabric_stats,
             } => {
-                self.experiment_title = title;
-                self.fabric_stats = Some(fabric_stats);
+                self.experiment_title = title.clone();
+                self.fabric_stats = Some(fabric_stats.clone());
             }
             AppStateChange::SetIntervalColor { .. } => {}
         }

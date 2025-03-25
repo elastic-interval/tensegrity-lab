@@ -55,8 +55,14 @@ impl Scene {
     }
 
     pub fn change_happened(&mut self, app_state_change: AppStateChange) {
+        self.text_renderer.change_happened(&app_state_change);
         match app_state_change {
-            AppStateChange::SetControlState(_) => {}
+            AppStateChange::SetControlState(control_state) => {
+                match control_state {
+                    ControlState::Viewing => self.reset(),
+                    _ => {}
+                }
+            }
             AppStateChange::SetFabricStats(Some(_)) => {
                 self.pick_allowed = true;
             }
@@ -80,7 +86,6 @@ impl Scene {
             }
             _ => {}
         }
-        self.text_renderer.change_happened(app_state_change);
     }
 
     pub fn pick_allowed(&self) -> bool {

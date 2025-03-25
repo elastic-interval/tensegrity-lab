@@ -7,3 +7,4 @@ pub mod wgpu;
 pub mod scene;
 pub mod test;
 pub mod messages;
+pub mod keyboard;

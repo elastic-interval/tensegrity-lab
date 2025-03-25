@@ -60,6 +60,7 @@ pub enum LabEvent {
     EvolveFromSeed(u64),
     FabricBuilt(FabricStats),
     AppStateChanged(AppStateChange),
+    DumpCSV,
 }
 
 #[derive(Debug, Clone)]
