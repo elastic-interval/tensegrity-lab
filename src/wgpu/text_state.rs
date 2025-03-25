@@ -27,7 +27,7 @@ pub struct TextState {
     width: f32,
     height: f32,
     fabric_name: String,
-    fabric_number: usize,
+    experiment_title: String,
     control_state: ControlState,
     fabric_stats: Option<FabricStats>,
     muscles_active: bool,
@@ -41,7 +41,7 @@ impl TextState {
             width: width as f32,
             height: height as f32,
             fabric_name,
-            fabric_number: 0,
+            experiment_title: "".to_string(),
             control_state: ControlState::default(),
             fabric_stats: None,
             muscles_active: false,
@@ -67,11 +67,11 @@ impl TextState {
             AppStateChange::SetMusclesActive(muscles_active) => {
                 self.muscles_active = muscles_active;
             }
-            AppStateChange::SetFabricNumber {
-                number,
+            AppStateChange::SetExperimentTitle {
+                title,
                 fabric_stats,
             } => {
-                self.fabric_number = number;
+                self.experiment_title = title;
                 self.fabric_stats = Some(fabric_stats);
             }
             AppStateChange::SetIntervalColor { .. } => {}
@@ -86,8 +86,8 @@ impl TextState {
     fn update_sections(&mut self) {
         self.update_section(
             SectionName::Top,
-            if self.fabric_number > 0 {
-                Some(format!("{} {}", self.fabric_name, self.fabric_number))
+            if !self.experiment_title.is_empty() {
+                Some(format!("{} {}", self.fabric_name, self.experiment_title))
             } else {
                 Some(self.fabric_name.clone())
             },
@@ -158,7 +158,9 @@ impl TextState {
             self.update_section(
                 SectionName::Right,
                 match self.control_state {
-                    ControlState::Viewing => Some("2025\nGerald de Jong\nAte Snijder\npretenst.com".to_string()),
+                    ControlState::Viewing => {
+                        Some("2025\nGerald de Jong\nAte Snijder\npretenst.com".to_string())
+                    }
                     _ => None,
                 },
             );
