@@ -23,7 +23,7 @@ impl TextRenderer {
         TextRenderer { brush, text_state }
     }
 
-    pub fn change_happened(&mut self, app_state_change: AppStateChange) {
+    pub fn change_happened(&mut self, app_state_change: &AppStateChange) {
         self.text_state.change_happened(app_state_change);
     }
 

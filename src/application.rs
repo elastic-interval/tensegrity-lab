@@ -6,27 +6,25 @@ use crate::fabric::FabricStats;
 use crate::messages::{ControlState, LabEvent, PointerChange, Shot};
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
+use crate::keyboard::Keyboard;
 use instant::{Duration, Instant};
 use std::sync::Arc;
 use std::time::SystemTime;
 use winit::application::ApplicationHandler;
-use winit::event::{
-    ElementState, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,
-};
+use winit::event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
-use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{WindowAttributes, WindowId};
 
 pub struct Application {
     mobile_device: bool,
     window_attributes: WindowAttributes,
     scene: Option<Scene>,
+    keyboard: Keyboard,
     crucible: Crucible,
     fabric_plan_name: String,
     fabric_library: FabricLibrary,
     brick_library: BrickLibrary,
     event_loop_proxy: EventLoopProxy<LabEvent>,
-    muscles_active: bool,
     last_update: Instant,
     accumulated_time: Duration,
     active_touch_count: usize,
@@ -61,74 +59,18 @@ impl Application {
             mobile_device: false,
             window_attributes,
             scene: None,
+            keyboard: Keyboard::new(event_loop_proxy.clone()),
             crucible: Crucible::new(event_loop_proxy.clone()),
             fabric_plan_name: Default::default(),
             brick_library,
             fabric_library,
             event_loop_proxy,
-            muscles_active: false,
             last_update: Instant::now(),
             accumulated_time: Duration::default(),
             active_touch_count: 0,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
         })
-    }
-
-    fn handle_key_event(&mut self, key_event: KeyEvent) {
-        let scene = self.scene.as_mut().unwrap();
-        if !key_event.state.is_pressed() {
-            return;
-        }
-        if let KeyEvent {
-            physical_key: PhysicalKey::Code(code),
-            ..
-        } = key_event
-        {
-            let send = |lab_event: LabEvent| {
-                self.event_loop_proxy.send_event(lab_event).unwrap();
-            };
-            match code {
-                KeyCode::KeyX => {
-                    #[cfg(not(target_arch = "wasm32"))]
-                    std::fs::write(
-                        chrono::Local::now()
-                            .format("pretenst-%Y-%m-%d-%H-%M.csv")
-                            .to_string(),
-                        self.crucible.fabric().csv(),
-                    )
-                    .unwrap();
-                }
-                KeyCode::Space => {
-                    self.muscles_active = !self.muscles_active;
-                    send(LabEvent::Crucible(CrucibleAction::Experiment(
-                        LabAction::MusclesActive(self.muscles_active),
-                    )));
-                    send(LabEvent::AppStateChanged(AppStateChange::SetMusclesActive(
-                        self.muscles_active,
-                    )));
-                }
-                KeyCode::Escape => {
-                    scene.reset();
-                    send(LabEvent::AppStateChanged(AppStateChange::SetControlState(
-                        ControlState::Viewing,
-                    )));
-                }
-                KeyCode::ArrowUp => {
-                    send(LabEvent::Crucible(CrucibleAction::SetSpeed(1.1)));
-                }
-                KeyCode::ArrowDown => {
-                    send(LabEvent::Crucible(CrucibleAction::SetSpeed(0.9)));
-                }
-                KeyCode::ArrowLeft | KeyCode::ArrowRight => {
-                    send(LabEvent::Crucible(CrucibleAction::Experiment(
-                        LabAction::NextExperiment(code == KeyCode::ArrowRight),
-                    )));
-                }
-                _ => {}
-            }
-            if code == KeyCode::ArrowRight || code == KeyCode::ArrowLeft {}
-        }
     }
 
     fn build_current_fabric(&mut self) {
@@ -340,6 +282,16 @@ impl ApplicationHandler<LabEvent> for Application {
                     scene.change_happened(app_change);
                 }
             }
+            LabEvent::DumpCSV => {
+                #[cfg(not(target_arch = "wasm32"))]
+                std::fs::write(
+                    chrono::Local::now()
+                        .format("pretenst-%Y-%m-%d-%H-%M.csv")
+                        .to_string(),
+                    self.crucible.fabric().csv(),
+                )
+                .unwrap();
+            }
         }
     }
 
@@ -354,7 +306,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 WindowEvent::CloseRequested => event_loop.exit(),
                 WindowEvent::KeyboardInput {
                     event: key_event, ..
-                } => self.handle_key_event(key_event),
+                } => self.keyboard.handle_key_event(key_event),
                 WindowEvent::Touch(touch_event) => match touch_event.phase {
                     TouchPhase::Started => {
                         self.active_touch_count += 1;
