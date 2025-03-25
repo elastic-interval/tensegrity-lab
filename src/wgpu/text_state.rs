@@ -32,6 +32,7 @@ pub struct TextState {
     fabric_stats: Option<FabricStats>,
     muscles_active: bool,
     sections: [Option<OwnedSection>; SectionName::count()],
+    keyboard_legend: Option<String>,
 }
 
 enum TextInstance {
@@ -61,6 +62,7 @@ impl TextState {
             control_state: ControlState::default(),
             fabric_stats: None,
             muscles_active: false,
+            keyboard_legend: None,
             sections: Default::default(),
         };
         fresh.update_sections();
@@ -91,6 +93,9 @@ impl TextState {
                 self.fabric_stats = Some(fabric_stats.clone());
             }
             AppStateChange::SetIntervalColor { .. } => {}
+            AppStateChange::SetKeyboardLegend(legend) => {
+                self.keyboard_legend = Some(legend.clone());
+            }
         }
         self.update_sections()
     }
@@ -113,15 +118,10 @@ impl TextState {
                 SectionName::Bottom,
                 match &self.fabric_stats {
                     Some(_) => match &self.control_state {
-                        ControlState::Viewing => {
-                            if self.muscles_active {
-                                TextInstance::Normal("Press SPACE to leave it alone".into())
-                            } else {
-                                TextInstance::Normal(
-                                    "Press SPACE to start pulling on the crossed guy lines".into(),
-                                )
-                            }
-                        }
+                        ControlState::Viewing => match &self.keyboard_legend {
+                            None => TextInstance::Nothing,
+                            Some(legend) => TextInstance::Normal(legend.clone()),
+                        },
                         _ => TextInstance::Nothing,
                     },
                     None => TextInstance::Normal("Under construction...".to_string()),
