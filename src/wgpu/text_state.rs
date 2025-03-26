@@ -26,7 +26,7 @@ pub struct TextState {
     mobile_device: bool,
     width: f32,
     height: f32,
-    fabric_name: String,
+    fabric_name: Option<String>,
     experiment_title: String,
     control_state: ControlState,
     fabric_stats: Option<FabricStats>,
@@ -52,12 +52,12 @@ impl TextInstance {
 }
 
 impl TextState {
-    pub fn new(mobile_device: bool, fabric_name: String, width: u32, height: u32) -> Self {
+    pub fn new(mobile_device: bool, width: u32, height: u32) -> Self {
         let mut fresh = Self {
             mobile_device,
             width: width as f32,
             height: height as f32,
-            fabric_name,
+            fabric_name: None,
             experiment_title: "".to_string(),
             control_state: ControlState::Waiting,
             fabric_stats: None,
@@ -73,6 +73,9 @@ impl TextState {
         match app_change {
             AppStateChange::SetControlState(control_state) => {
                 self.control_state = control_state.clone();
+            }
+            AppStateChange::SetFabricName(fabric_name) => {
+                self.fabric_name = Some(fabric_name.to_string());
             }
             AppStateChange::SetFabricStats(fabric_stats) => {
                 self.fabric_stats = fabric_stats.clone();
@@ -101,19 +104,22 @@ impl TextState {
 
     fn update_sections(&mut self) {
         let control_state = self.control_state.clone();
-        self.update_section(
-            SectionName::Top,
-            match control_state {
-                ControlState::Testing(tension) => {
-                    if tension {
-                        TextInstance::Normal(format!("Tension test of {} {}", self.fabric_name, self.experiment_title))
-                    } else {
-                        TextInstance::Normal(format!("Compression test of {} {}", self.fabric_name, self.experiment_title))
+        if let Some(fabric_name) = &self.fabric_name {
+            self.update_section(
+                SectionName::Top,
+                match control_state {
+                    ControlState::Testing(tension) => {
+                        if tension {
+                            TextInstance::Normal(format!("Tension test of {} {}", fabric_name, self.experiment_title))
+                        } else {
+                            TextInstance::Normal(format!("Compression test of {} {}", fabric_name, self.experiment_title))
+                        }
                     }
-                }
-                _ => TextInstance::Large(self.fabric_name.clone()),
-            },
-        );
+                    _ => TextInstance::Large(fabric_name.clone()),
+                },
+            );
+        }
+
         if !self.mobile_device {
             self.update_section(
                 SectionName::Bottom,
