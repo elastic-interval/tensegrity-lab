@@ -19,7 +19,7 @@ impl TextRenderer {
                 .unwrap()
                 .with_depth_stencil(Some(wgpu.create_depth_stencil()))
                 .build(&wgpu.device, width, height, wgpu.surface_configuration.format);
-        let text_state = TextState::new(mobile_device, "De Twips".to_string(), width, height);
+        let text_state = TextState::new(mobile_device, width, height);
         TextRenderer { brush, text_state }
     }
 

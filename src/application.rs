@@ -16,12 +16,12 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
 use winit::window::{WindowAttributes, WindowId};
 
 pub struct Application {
+    fabric_name: Option<String>,
     mobile_device: bool,
     window_attributes: WindowAttributes,
     scene: Option<Scene>,
     keyboard: Keyboard,
     crucible: Crucible,
-    fabric_plan_name: String,
     fabric_library: FabricLibrary,
     brick_library: BrickLibrary,
     event_loop_proxy: EventLoopProxy<LabEvent>,
@@ -41,6 +41,7 @@ pub enum AppStateChange {
         tension: bool,
     },
     SetControlState(ControlState),
+    SetFabricName(String),
     SetFabricStats(Option<FabricStats>),
     SetMusclesActive(bool),
     SetExperimentTitle {
@@ -58,12 +59,12 @@ impl Application {
         let brick_library = BrickLibrary::from_source()?;
         let fabric_library = FabricLibrary::from_source()?;
         Ok(Application {
+            fabric_name:None,
             mobile_device: false,
             window_attributes,
             scene: None,
             keyboard: Keyboard::new(event_loop_proxy.clone()).with_actions(),
             crucible: Crucible::new(event_loop_proxy.clone()),
-            fabric_plan_name: Default::default(),
             brick_library,
             fabric_library,
             event_loop_proxy,
@@ -76,16 +77,16 @@ impl Application {
         })
     }
 
-    fn build_current_fabric(&mut self) {
-        let fabric_plan = if self.fabric_plan_name.is_empty() {
-            None
-        } else {
-            self.get_fabric_plan(self.fabric_plan_name.clone()).ok()
-        };
-        self.event_loop_proxy
-            .send_event(LabEvent::Crucible(CrucibleAction::BuildFabric(fabric_plan)))
-            .unwrap();
-    }
+    // fn build_current_fabric(&mut self) {
+    //     let fabric_plan = if self.fabric_plan_name.is_empty() {
+    //         None
+    //     } else {
+    //         self.get_fabric_plan(self.fabric_plan_name.clone()).ok()
+    //     };
+    //     self.event_loop_proxy
+    //         .send_event(LabEvent::Crucible(CrucibleAction::BuildFabric(fabric_plan)))
+    //         .unwrap();
+    // }
 
     fn redraw(&mut self) -> Result<(), wgpu::SurfaceError> {
         #[cfg(not(target_arch = "wasm32"))]
@@ -222,9 +223,19 @@ impl ApplicationHandler<LabEvent> for Application {
                     ControlState::Waiting,
                 )))
             }
-            LabEvent::LoadFabric(fabric_plan_name) => {
-                self.fabric_plan_name = fabric_plan_name.clone();
-                self.build_current_fabric();
+            LabEvent::LoadFabric(fabric_name) => {
+                self.fabric_name = Some(fabric_name.clone());
+                send(LabEvent::AppStateChanged(AppStateChange::SetFabricName(
+                    fabric_name.clone(),
+                )));
+                match self.get_fabric_plan(fabric_name) {
+                    Ok(fabric_plan) => {
+                        send(LabEvent::Crucible(CrucibleAction::BuildFabric(fabric_plan)));
+                    }
+                    Err(error) => {
+                        println!("Error loading fabric: {}", error);
+                    }
+                }
             }
             LabEvent::FabricBuilt(fabric_stats) => {
                 send(LabEvent::AppStateChanged(AppStateChange::SetControlState(
@@ -260,8 +271,8 @@ impl ApplicationHandler<LabEvent> for Application {
                 {
                     let _fabric_library = self.fabric_library.clone();
                     self.fabric_library_modified = time;
-                    if !self.fabric_plan_name.is_empty() {
-                        self.build_current_fabric();
+                    if let Some(fabric_name) = &self.fabric_name {
+                        send(LabEvent::LoadFabric(fabric_name.clone()));
                     }
                 }
             }
@@ -307,7 +318,7 @@ impl ApplicationHandler<LabEvent> for Application {
                         .to_string(),
                     self.crucible.fabric().csv(),
                 )
-                .unwrap();
+                    .unwrap();
             }
         }
     }
@@ -323,7 +334,9 @@ impl ApplicationHandler<LabEvent> for Application {
                 WindowEvent::CloseRequested => event_loop.exit(),
                 WindowEvent::KeyboardInput {
                     event: key_event, ..
-                } => self.keyboard.handle_key_event(key_event, &self.control_state),
+                } => self
+                    .keyboard
+                    .handle_key_event(key_event, &self.control_state),
                 WindowEvent::Touch(touch_event) => match touch_event.phase {
                     TouchPhase::Started => {
                         self.active_touch_count += 1;
