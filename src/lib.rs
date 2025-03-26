@@ -9,3 +9,5 @@ pub mod test;
 pub mod messages;
 pub mod keyboard;
 pub mod animator;
+
+pub const ITERATIONS_PER_FRAME: usize = 100;

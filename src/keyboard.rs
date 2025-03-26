@@ -67,13 +67,13 @@ impl Keyboard {
         );
         self.add_action(
             KeyCode::ArrowUp,
-            "Up to speed up",
+            "\u{2191} faster",
             LabEvent::Crucible(CrucibleAction::SetSpeed(1.1)),
             Box::new(|_| true),
         );
         self.add_action(
             KeyCode::ArrowDown,
-            "Down to slow down",
+            "\u{2193} slower",
             LabEvent::Crucible(CrucibleAction::SetSpeed(0.9)),
             Box::new(|_| true),
         );
