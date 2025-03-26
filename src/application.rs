@@ -49,6 +49,7 @@ pub enum AppStateChange {
         fabric_stats: FabricStats,
     },
     SetKeyboardLegend(String),
+    SetIterationsPerFrame(usize),
 }
 
 impl Application {

@@ -13,6 +13,7 @@ use crate::crucible::Stage::*;
 use crate::fabric::Fabric;
 use crate::messages::{ControlState, LabEvent};
 use winit::event_loop::EventLoopProxy;
+use crate::ITERATIONS_PER_FRAME;
 
 enum Stage {
     Empty,
@@ -61,7 +62,7 @@ impl Crucible {
     pub(crate) fn new(event_loop_proxy: EventLoopProxy<LabEvent>) -> Self {
         Self {
             fabric: Fabric::default(),
-            iterations_per_frame: 160,
+            iterations_per_frame: ITERATIONS_PER_FRAME,
             stage: Empty,
             event_loop_proxy,
         }
@@ -147,10 +148,13 @@ impl Crucible {
                 };
             }
             SetSpeed(change) => {
-                self.iterations_per_frame = (self.iterations_per_frame as f32 * change) as usize;
-                if self.iterations_per_frame <= 0 {
-                    self.iterations_per_frame = 0;
-                }
+                let iterations = (self.iterations_per_frame as f32 * change) as usize;
+                self.iterations_per_frame = iterations.clamp(1, 1000);
+                self.event_loop_proxy
+                    .send_event(LabEvent::AppStateChanged(
+                        AppStateChange::SetIterationsPerFrame(self.iterations_per_frame),
+                    ))
+                    .unwrap();
             }
             RevertTo(frozen) => {
                 self.fabric = frozen;

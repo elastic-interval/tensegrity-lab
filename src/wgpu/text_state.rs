@@ -6,6 +6,7 @@ use std::default::Default;
 use wgpu_text::glyph_brush::{
     BuiltInLineBreaker, HorizontalAlign, Layout, OwnedSection, OwnedText, VerticalAlign,
 };
+use crate::ITERATIONS_PER_FRAME;
 
 #[derive(Clone, Debug, Copy)]
 pub enum SectionName {
@@ -33,6 +34,7 @@ pub struct TextState {
     muscles_active: bool,
     sections: [Option<OwnedSection>; SectionName::count()],
     keyboard_legend: Option<String>,
+    iterations_per_frame: usize,
 }
 
 enum TextInstance {
@@ -63,6 +65,7 @@ impl TextState {
             fabric_stats: None,
             muscles_active: false,
             keyboard_legend: None,
+            iterations_per_frame: ITERATIONS_PER_FRAME,
             sections: Default::default(),
         };
         fresh.update_sections();
@@ -92,6 +95,9 @@ impl TextState {
             }
             AppStateChange::SetKeyboardLegend(legend) => {
                 self.keyboard_legend = Some(legend.clone());
+            }
+            AppStateChange::SetIterationsPerFrame(iterations) => {
+                self.iterations_per_frame = *iterations;
             }
             _ => {}
         }
@@ -211,7 +217,9 @@ impl TextState {
                          Cables: {:?}\n\
                          → {:.1}-{:.1}mm\n\
                          → total {:.1}m\n\
-                         Age: {}k iterations",
+                         Age: {}k iterations\n\
+                         {} per frame\n\
+                         ",
                         max_height * scale / 1000.0,
                         joint_count,
                         push_count,
@@ -223,6 +231,7 @@ impl TextState {
                         pull_range.1 * scale,
                         pull_total * scale / 1000.0,
                         age / 1000,
+                        self.iterations_per_frame,
                     ))
                 }
             },
