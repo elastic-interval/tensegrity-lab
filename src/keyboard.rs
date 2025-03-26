@@ -1,5 +1,5 @@
 use crate::application::AppStateChange;
-use crate::crucible::{AnimatorAction, CrucibleAction, TesterAction};
+use crate::crucible::{CrucibleAction, TesterAction};
 use crate::messages::{ControlState, LabEvent};
 use std::fmt::Display;
 use winit::event::KeyEvent;
@@ -57,13 +57,19 @@ impl Keyboard {
             KeyCode::KeyX,
             "X to export CSV",
             LabEvent::DumpCSV,
+            Box::new(|state| matches!(state, ControlState::Viewing)),
+        );
+        self.add_action(
+            KeyCode::Space,
+            "Space to stop animation",
+            LabEvent::Crucible(CrucibleAction::StopAnimating),
             Box::new(|state| matches!(state, ControlState::Animating)),
         );
         self.add_action(
             KeyCode::Space,
-            "Space to toggle animation",
-            LabEvent::Crucible(CrucibleAction::AnimatorDo(AnimatorAction::ToggleMusclesActive)),
-            Box::new(|state| matches!(state, ControlState::Animating)),
+            "Space to start animation",
+            LabEvent::Crucible(CrucibleAction::StartAnimating),
+            Box::new(|state| matches!(state, ControlState::Viewing)),
         );
         self.add_action(
             KeyCode::ArrowUp,
@@ -79,13 +85,13 @@ impl Keyboard {
         );
         self.add_action(
             KeyCode::ArrowLeft,
-            "Left for previous",
+            "\u{2190} previous test",
             LabEvent::Crucible(CrucibleAction::TesterDo(TesterAction::NextExperiment(false))),
             Box::new(|state| matches!(state, ControlState::Testing(_))),
         );
         self.add_action(
             KeyCode::ArrowRight,
-            "Right for next",
+            "\u{2192} next test",
             LabEvent::Crucible(CrucibleAction::TesterDo(TesterAction::NextExperiment(true))),
             Box::new(|state| matches!(state, ControlState::Testing(_))),
         );
@@ -93,13 +99,13 @@ impl Keyboard {
             KeyCode::KeyT,
             "T test tension",
             LabEvent::Crucible(CrucibleAction::StartExperiment(true)),
-            Box::new(|state| matches!(state, ControlState::Animating)),
+            Box::new(|state| matches!(state, ControlState::Viewing)),
         );
         self.add_action(
             KeyCode::KeyC,
             "C test compression",
             LabEvent::Crucible(CrucibleAction::StartExperiment(false)),
-            Box::new(|state| matches!(state, ControlState::Animating)),
+            Box::new(|state| matches!(state, ControlState::Viewing)),
         );
         self
     }

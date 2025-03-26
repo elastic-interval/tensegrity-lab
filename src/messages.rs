@@ -44,6 +44,7 @@ pub struct JointDetails {
 pub enum ControlState {
     Waiting,
     UnderConstruction,
+    Viewing,
     Animating,
     ShowingJoint(JointDetails),
     ShowingInterval(IntervalDetails),

@@ -67,13 +67,14 @@ impl Fabric {
             .ok_or(TenscriptError::InvalidError("Face missing".to_string()))
     }
 
-    pub fn activate_muscles(&mut self, muscle_movement: &MuscleMovement) {
+    pub fn activate_muscles(&mut self, MuscleMovement{contraction, countdown}: &MuscleMovement) {
         self.muscle_nuance = 0.5;
+        self.muscle_nuance_increment= 1.0 / *countdown as f32;
         for interval in self.intervals.values_mut() {
             let Span::Fixed { length } = interval.span else {
                 continue;
             };
-            let contracted = length * muscle_movement.contraction;
+            let contracted = length * contraction;
             if interval.material == NorthMaterial {
                 interval.span = Muscle {
                     length,

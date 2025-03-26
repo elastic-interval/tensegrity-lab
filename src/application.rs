@@ -1,7 +1,7 @@
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, TenscriptError};
-use crate::crucible::{AnimatorAction, Crucible, CrucibleAction};
+use crate::crucible::{Crucible, CrucibleAction};
 use crate::fabric::FabricStats;
 use crate::keyboard::Keyboard;
 use crate::messages::{ControlState, LabEvent, PointerChange, Shot};
@@ -43,7 +43,7 @@ pub enum AppStateChange {
     SetControlState(ControlState),
     SetFabricName(String),
     SetFabricStats(Option<FabricStats>),
-    SetMusclesActive(bool),
+    SetAnimating(bool),
     SetExperimentTitle {
         title: String,
         fabric_stats: FabricStats,
@@ -78,17 +78,6 @@ impl Application {
         })
     }
 
-    // fn build_current_fabric(&mut self) {
-    //     let fabric_plan = if self.fabric_plan_name.is_empty() {
-    //         None
-    //     } else {
-    //         self.get_fabric_plan(self.fabric_plan_name.clone()).ok()
-    //     };
-    //     self.event_loop_proxy
-    //         .send_event(LabEvent::Crucible(CrucibleAction::BuildFabric(fabric_plan)))
-    //         .unwrap();
-    // }
-
     fn redraw(&mut self) -> Result<(), wgpu::SurfaceError> {
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -117,14 +106,14 @@ impl Application {
         Ok(LabEvent::UpdatedLibrary(time))
     }
 
-    pub fn get_fabric_plan(&self, plan_name: String) -> Result<FabricPlan, TenscriptError> {
+    pub fn get_fabric_plan(&self, plan_name: &String) -> Result<FabricPlan, TenscriptError> {
         let plan = self
             .fabric_library
             .fabric_plans
             .iter()
-            .find(|plan| plan.name == plan_name);
+            .find(|plan| plan.name == *plan_name);
         match plan {
-            None => Err(TenscriptError::InvalidError(plan_name)),
+            None => Err(TenscriptError::InvalidError(plan_name.clone())),
             Some(plan) => Ok(plan.clone()),
         }
     }
@@ -229,26 +218,24 @@ impl ApplicationHandler<LabEvent> for Application {
                 send(LabEvent::AppStateChanged(AppStateChange::SetFabricName(
                     fabric_name.clone(),
                 )));
-                match self.get_fabric_plan(fabric_name) {
+                match self.get_fabric_plan(&fabric_name) {
                     Ok(fabric_plan) => {
                         send(LabEvent::Crucible(CrucibleAction::BuildFabric(fabric_plan)));
                     }
                     Err(error) => {
-                        println!("Error loading fabric: {}", error);
+                        panic!("Error loading fabric [{fabric_name}]: {error}");
                     }
                 }
             }
             LabEvent::FabricBuilt(fabric_stats) => {
                 send(LabEvent::AppStateChanged(AppStateChange::SetControlState(
-                    ControlState::Animating,
+                    ControlState::Viewing,
                 )));
                 send(LabEvent::AppStateChanged(AppStateChange::SetFabricStats(
                     Some(fabric_stats),
                 )));
                 if self.mobile_device {
-                    send(LabEvent::Crucible(CrucibleAction::AnimatorDo(
-                        AnimatorAction::MusclesActive(true),
-                    )));
+                    send(LabEvent::Crucible(CrucibleAction::StartAnimating));
                 }
             }
             LabEvent::Crucible(crucible_action) => {
