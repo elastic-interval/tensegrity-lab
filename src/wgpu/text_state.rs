@@ -2,11 +2,11 @@ use crate::application::AppStateChange;
 use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
 use crate::messages::ControlState;
+use crate::ITERATIONS_PER_FRAME;
 use std::default::Default;
 use wgpu_text::glyph_brush::{
     BuiltInLineBreaker, HorizontalAlign, Layout, OwnedSection, OwnedText, VerticalAlign,
 };
-use crate::ITERATIONS_PER_FRAME;
 
 #[derive(Clone, Debug, Copy)]
 pub enum SectionName {
@@ -31,10 +31,10 @@ pub struct TextState {
     experiment_title: String,
     control_state: ControlState,
     fabric_stats: Option<FabricStats>,
-    muscles_active: bool,
     sections: [Option<OwnedSection>; SectionName::count()],
     keyboard_legend: Option<String>,
     iterations_per_frame: usize,
+    animating: bool,
 }
 
 enum TextInstance {
@@ -60,10 +60,10 @@ impl TextState {
             width: width as f32,
             height: height as f32,
             fabric_name: None,
+            animating: false,
             experiment_title: "".to_string(),
             control_state: ControlState::Waiting,
             fabric_stats: None,
-            muscles_active: false,
             keyboard_legend: None,
             iterations_per_frame: ITERATIONS_PER_FRAME,
             sections: Default::default(),
@@ -83,8 +83,8 @@ impl TextState {
             AppStateChange::SetFabricStats(fabric_stats) => {
                 self.fabric_stats = fabric_stats.clone();
             }
-            AppStateChange::SetMusclesActive(muscles_active) => {
-                self.muscles_active = muscles_active.clone();
+            AppStateChange::SetAnimating(animating) => {
+                self.animating = animating.clone();
             }
             AppStateChange::SetExperimentTitle {
                 title,
@@ -116,9 +116,15 @@ impl TextState {
                 match control_state {
                     ControlState::Testing(tension) => {
                         if tension {
-                            TextInstance::Normal(format!("Tension test of {} {}", fabric_name, self.experiment_title))
+                            TextInstance::Normal(format!(
+                                "Tension test of {} {}",
+                                fabric_name, self.experiment_title
+                            ))
                         } else {
-                            TextInstance::Normal(format!("Compression test of {} {}", fabric_name, self.experiment_title))
+                            TextInstance::Normal(format!(
+                                "Compression test of {} {}",
+                                fabric_name, self.experiment_title
+                            ))
                         }
                     }
                     _ => TextInstance::Large(fabric_name.clone()),
@@ -140,12 +146,8 @@ impl TextState {
             self.update_section(
                 SectionName::Right,
                 match control_state {
-                    ControlState::Animating => {
-                        if self.muscles_active {
-                            TextInstance::Nothing
-                        } else {
-                            TextInstance::Normal("Right-click to select".to_string())
-                        }
+                    ControlState::Viewing => {
+                        TextInstance::Normal("Right-click to select".to_string())
                     }
                     ControlState::ShowingJoint(joint_details) => TextInstance::Large(format!(
                         "{}\n\

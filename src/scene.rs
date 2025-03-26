@@ -66,7 +66,7 @@ impl Scene {
             AppStateChange::SetFabricStats(Some(_)) => {
                 self.pick_allowed = true;
             }
-            AppStateChange::SetMusclesActive(active) => self.pick_allowed = !active,
+            AppStateChange::SetAnimating(active) => self.pick_allowed = !active,
             AppStateChange::SetIntervalColor {
                 key,
                 tension,
