@@ -136,10 +136,26 @@
 		(pretense (surface :absent)))
 	(fabric (name "X")
 		(build
-			(branch (alias Single)))
+			(branch (alias Single)
+			(face (alias :next-base) (grow 2 (scale 0.8)))
+			(face (alias :base) (grow 2 (scale 0.8)))))
 		(shape
-			(centralize 1.0))
-		(pretense (surface :absent)))
+			(centralize 1.0)
+			(during 40000 (vulcanize))
+			(faces-to-triangles))
+		(pretense (surface :absent))
+		(scale 74.6))
+	(fabric (name "Cigar")
+		(build
+			(branch (alias Single)
+			(face (alias :next-base) (grow 2 (scale 0.8)))
+			(face (alias :base) (grow 2 (scale 0.8)))))
+		(shape
+			(centralize 1.0)
+			(during 40000 (vulcanize))
+			(faces-to-triangles))
+		(pretense (surface :absent))
+		(scale 74.6))
 	(fabric (name "Headless Hug")
 		(build
 			(branch (alias Omni)
