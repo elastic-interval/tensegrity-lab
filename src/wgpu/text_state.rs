@@ -299,6 +299,6 @@ impl TextState {
     }
 
     fn joint_format(index: usize) -> String {
-        format!("J{}", index + 1)
+        format!("J{}", index)
     }
 }
