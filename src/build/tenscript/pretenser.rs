@@ -32,7 +32,11 @@ impl Pretenser {
         let gravity = if surface_character == SurfaceCharacter::Absent {
             0.0
         } else {
-            AIR_GRAVITY.gravity
+            if let Some(gravity_factor) = &pretense_phase.gravity_factor {
+                AIR_GRAVITY.gravity * gravity_factor
+            } else {
+                AIR_GRAVITY.gravity
+            }
         };
         Self {
             stage: Start,
@@ -74,7 +78,7 @@ impl Pretenser {
             MuscleWait => {
                 self.muscle_wait -= 1;
                 if self.muscle_wait == 0 {
-                    let Some(muscle_movement) = &self.pretense_phase.muscle_movement  else {
+                    let Some(muscle_movement) = &self.pretense_phase.muscle_movement else {
                         panic!("expected a muscle movement")
                     };
                     fabric.activate_muscles(muscle_movement);
