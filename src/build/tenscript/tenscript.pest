@@ -12,12 +12,14 @@ shape =
 basic_shape_operation =
     {
     anchor | guy_line | spacer | joiner | vulcanize | remove_spacers | faces_to_triangles |
-    faces_to_prisms | set_stiffness | set_drag | set_viscosity | down | centralize
+    faces_to_prisms | set_stiffness | set_drag | set_viscosity | down | centralize | omit
     }
 shape_operation =
     { basic_shape_operation | during_count }
 during_count = // iteration-count
     { "(" ~ "during" ~ integer ~ basic_shape_operation+ ~ ")" }
+omit =
+    {  "(" ~ "omit" ~ integer ~ integer ~ ")" }
 anchor = // joint number, location
     { "(" ~ "anchor" ~ integer ~ surface_location ~ ")" }
 guy_line = // joint number, length, location
