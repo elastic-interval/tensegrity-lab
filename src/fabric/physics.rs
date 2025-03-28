@@ -30,7 +30,7 @@ pub mod presets {
         surface_character: Absent,
         gravity: 0.0,
         antigravity: 0.0,
-        viscosity: 1e3,
+        viscosity: 1e4,
         drag: 1e-6,
         stiffness: 1e-3,
     };
