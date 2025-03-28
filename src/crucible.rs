@@ -150,7 +150,7 @@ impl Crucible {
             }
             SetSpeed(change) => {
                 let iterations = (self.iterations_per_frame as f32 * change) as usize;
-                self.iterations_per_frame = iterations.clamp(1, 2000);
+                self.iterations_per_frame = iterations.clamp(1, 5000);
                 send(LabEvent::AppStateChanged(
                     AppStateChange::SetIterationsPerFrame(self.iterations_per_frame),
                 ));
