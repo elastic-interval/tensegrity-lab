@@ -60,6 +60,17 @@ impl Fabric {
         }
     }
 
+    pub fn remove_interval_joining(&mut self, pair: (usize, usize)) {
+        if let Some(id) = self
+            .intervals
+            .iter()
+            .find(|(_, interval)| interval.touches(pair.0) && interval.touches(pair.1))
+            .map(|(id, _)| *id)
+        {
+            self.intervals.remove(&id);
+        }
+    }
+
     pub fn interval_values(&self) -> impl Iterator<Item = &Interval> {
         self.intervals.values()
     }
@@ -104,12 +115,7 @@ pub struct Interval {
 }
 
 impl Interval {
-    pub fn new(
-        alpha_index: usize,
-        omega_index: usize,
-        material: Material,
-        span: Span,
-    ) -> Interval {
+    pub fn new(alpha_index: usize, omega_index: usize, material: Material, span: Span) -> Interval {
         Interval {
             alpha_index,
             omega_index,

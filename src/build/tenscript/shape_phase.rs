@@ -71,6 +71,7 @@ pub enum ShapeOperation {
     SetStiffness(f32),
     SetDrag(f32),
     SetViscosity(f32),
+    Omit((usize, usize)),
 }
 
 impl ShapeOperation {
@@ -205,6 +206,12 @@ impl ShapePhase {
             Rule::set_viscosity => {
                 let percent = parse_float_inside(pair, "(set-viscosity ..)")?;
                 Ok(ShapeOperation::SetViscosity(percent))
+            }
+            Rule::omit => {
+                let mut inner = pair.into_inner();
+                let alpha_index = parse_usize(inner.next().unwrap().as_str(), "(omit ...)")?;
+                let omega_index = parse_usize(inner.next().unwrap().as_str(), "(omit ...)")?;
+                Ok(ShapeOperation::Omit((alpha_index, omega_index)))
             }
             Rule::anchor => {
                 let mut inner = pair.into_inner();
@@ -500,6 +507,10 @@ impl ShapePhase {
             ShapeOperation::SetStiffness(percent) => Stiffness(percent),
             ShapeOperation::SetDrag(percent) => Drag(percent),
             ShapeOperation::SetViscosity(percent) => Viscosity(percent),
+            ShapeOperation::Omit(pair) => {
+                fabric.remove_interval_joining(pair);
+                Noop
+            }
             ShapeOperation::Anchor {
                 joint_index,
                 surface,

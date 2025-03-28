@@ -23,6 +23,10 @@
             (remove-spacers)
             (faces-to-prisms :legs)
             (faces-to-triangles)
+            (omit 1 16)
+            (omit 5 17)
+            (omit 56 68)
+            (omit 75 86)
             (during 20000
                 (anchor 187 (surface 0.0 -5.0))
                 (anchor 189 (surface 0.0 5.0))
