@@ -8,6 +8,15 @@ use std::time::SystemTime;
 use winit::dpi::PhysicalPosition;
 
 #[derive(Debug, Clone)]
+pub enum RunStyle {
+    FabricName(String),
+    Prototype(usize),
+    Seeded(u64),
+    TestTension(String),
+    TestCompression(String),
+}
+
+#[derive(Debug, Clone)]
 pub enum GravityMessage {
     NuanceChanged(f32),
     Reset,
@@ -57,9 +66,7 @@ pub enum LabEvent {
     Crucible(CrucibleAction),
     CalibrateStrain,
     UpdatedLibrary(SystemTime),
-    LoadFabric(String),
-    CapturePrototype(usize),
-    EvolveFromSeed(u64),
+    Run(RunStyle),
     FabricBuilt(FabricStats),
     AppStateChanged(AppStateChange),
     DumpCSV,
