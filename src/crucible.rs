@@ -37,7 +37,10 @@ pub enum TesterAction {
 #[derive(Debug, Clone)]
 pub enum CrucibleAction {
     BakeBrick(Prototype),
-    BuildFabric(FabricPlan),
+    BuildFabric {
+        fabric_plan: FabricPlan,
+        after_build: Option<CrucibleAction>,
+    },
     SetSpeed(f32),
     StartExperiment(bool),
     TesterDo(TesterAction),
@@ -50,6 +53,7 @@ pub struct Crucible {
     fabric: Fabric,
     iterations_per_frame: usize,
     stage: Stage,
+    after_build: Option<CrucibleAction>,
     event_loop_proxy: EventLoopProxy<LabEvent>,
 }
 
@@ -59,6 +63,7 @@ impl Crucible {
             fabric: Fabric::default(),
             iterations_per_frame: ITERATIONS_PER_FRAME,
             stage: Empty,
+            after_build: None,
             event_loop_proxy,
         }
     }
@@ -139,7 +144,10 @@ impl Crucible {
                 self.fabric = oven.prototype_fabric();
                 self.stage = BakingBrick(oven);
             }
-            BuildFabric(fabric_plan) => {
+            BuildFabric {
+                fabric_plan,
+                after_build,
+            } => {
                 self.fabric = Fabric::default();
                 self.stage = RunningPlan(PlanRunner::new(fabric_plan));
             }

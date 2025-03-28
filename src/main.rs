@@ -6,9 +6,9 @@ use clap::Parser;
 use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
 
-use crate::RunStyle::{FabricName, Prototype, Seeded};
 use tensegrity_lab::application::Application;
 use tensegrity_lab::messages::LabEvent;
+use tensegrity_lab::messages::RunStyle;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -21,12 +21,12 @@ struct Args {
 
     #[arg(long)]
     seed: Option<u64>,
-}
 
-enum RunStyle {
-    FabricName(String),
-    Prototype(usize),
-    Seeded(u64),
+    #[arg(long)]
+    test_tension: Option<String>,
+
+    #[arg(long)]
+    test_compression: Option<String>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -34,11 +34,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         fabric,
         prototype,
         seed,
+        test_tension,
+        test_compression,
     } = Args::parse();
-    let run_style = match (fabric, prototype, seed) {
-        (Some(name), None, None) => FabricName(name),
-        (None, Some(prototype), None) => Prototype(prototype),
-        (None, None, Some(seed)) => Seeded(seed),
+    let run_style = match (fabric, prototype, seed, test_tension, test_compression) {
+        (Some(name), None, None, None, None) => RunStyle::FabricName(name),
+        (None, Some(prototype), None, None, None) => RunStyle::Prototype(prototype),
+        (None, None, Some(seed), None, None) => RunStyle::Seeded(seed),
+        (None, None, None, Some(name), None) => RunStyle::TestTension(name),
+        (None, None, None, None, Some(name)) => RunStyle::TestCompression(name),
         _ => {
             return Err("use --fabric <name> or --prototype <number> or --seed <seed>".into());
         }
@@ -69,30 +73,14 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
         Ok(app) => app,
         Err(error) => panic!("Tenscript Error: [{:?}]", error),
     };
-    match run_style {
-        FabricName(name) => {
-            event_loop_proxy
-                .send_event(LabEvent::LoadFabric(name))
-                .unwrap();
-        }
-        Prototype(number) => {
-            event_loop_proxy
-                .send_event(LabEvent::CapturePrototype(number))
-                .unwrap();
-        }
-        Seeded(seed) => {
-            event_loop_proxy
-                .send_event(LabEvent::EvolveFromSeed(seed))
-                .unwrap();
-        }
-    }
+    event_loop_proxy.send_event(LabEvent::Run(run_style))?;
     event_loop.run_app(&mut app)?;
     Ok(())
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(start))]
 pub fn run() {
-    run_with(FabricName("De Twips".to_string())).unwrap();
+    run_with(RunStyle::FabricName("De Twips".to_string())).unwrap();
 }
 
 #[cfg(not(target_arch = "wasm32"))]
