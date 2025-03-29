@@ -189,6 +189,10 @@ impl Scene {
     }
 
     fn camera_pick(&mut self, pick: Pick) {
+        use AppStateChange::*;
+        use ControlState::*;
+        use LabEvent::*;
+        let send = |lab_event| self.event_loop_proxy.send_event(lab_event).unwrap();
         match pick {
             Pick::Nothing => {
                 self.camera.set_target(FabricMidpoint);
@@ -199,11 +203,7 @@ impl Scene {
                     index,
                     location: joint.location,
                 };
-                self.event_loop_proxy
-                    .send_event(LabEvent::AppStateChanged(AppStateChange::SetControlState(
-                        ControlState::ShowingJoint(details),
-                    )))
-                    .unwrap();
+                send(AppStateChanged(SetControlState(ShowingJoint(details))));
             }
             Pick::Interval {
                 joint,
@@ -223,17 +223,13 @@ impl Scene {
                 } else {
                     interval.omega_index
                 };
-                let interval_details = IntervalDetails {
+                let details = IntervalDetails {
                     near_joint,
                     far_joint,
                     length,
                     role,
                 };
-                self.event_loop_proxy
-                    .send_event(LabEvent::AppStateChanged(AppStateChange::SetControlState(
-                        ControlState::ShowingInterval(interval_details),
-                    )))
-                    .unwrap();
+                send(AppStateChanged(SetControlState(ShowingInterval(details))));
             }
         }
     }

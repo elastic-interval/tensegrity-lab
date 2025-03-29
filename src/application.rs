@@ -197,9 +197,7 @@ impl ApplicationHandler<LabEvent> for Application {
     }
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
-        let send = |lab_event| {
-            self.event_loop_proxy.send_event(lab_event).unwrap();
-        };
+        let send = |lab_event| self.event_loop_proxy.send_event(lab_event).unwrap();
         match event {
             LabEvent::ContextCreated {
                 wgpu,
