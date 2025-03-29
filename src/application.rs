@@ -242,7 +242,7 @@ impl ApplicationHandler<LabEvent> for Application {
                         self.crucible.action(CrucibleAction::BakeBrick(prototype));
                     }
                     RunStyle::Seeded(seed) => {
-                        let _ = self.crucible.action(CrucibleAction::Evolve(*seed));
+                        let _ = self.crucible.action(CrucibleAction::StartEvolving(*seed));
                     }
                 };
             }
@@ -254,7 +254,7 @@ impl ApplicationHandler<LabEvent> for Application {
                     ControlState::Viewing,
                 )));
                 if self.mobile_device {
-                    send(LabEvent::Crucible(CrucibleAction::StartAnimating));
+                    send(LabEvent::Crucible(CrucibleAction::ViewingToAnimating));
                 } else {
                     if let RunStyle::Fabric { scenario, .. } = &self.run_style {
                         if matches!(scenario, Scenario::TensionTest | Scenario::CompressionTest) {

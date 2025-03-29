@@ -73,30 +73,31 @@ impl TextState {
     }
 
     pub fn change_happened(&mut self, app_change: &AppStateChange) {
+        use AppStateChange::*;
         match app_change {
-            AppStateChange::SetControlState(control_state) => {
+            SetControlState(control_state) => {
                 self.control_state = control_state.clone();
             }
-            AppStateChange::SetFabricName(fabric_name) => {
+            SetFabricName(fabric_name) => {
                 self.fabric_name = Some(fabric_name.to_string());
             }
-            AppStateChange::SetFabricStats(fabric_stats) => {
+            SetFabricStats(fabric_stats) => {
                 self.fabric_stats = fabric_stats.clone();
             }
-            AppStateChange::SetAnimating(animating) => {
+            SetAnimating(animating) => {
                 self.animating = animating.clone();
             }
-            AppStateChange::SetExperimentTitle {
+            SetExperimentTitle {
                 title,
                 fabric_stats,
             } => {
                 self.experiment_title = title.clone();
                 self.fabric_stats = Some(fabric_stats.clone());
             }
-            AppStateChange::SetKeyboardLegend(legend) => {
+            SetKeyboardLegend(legend) => {
                 self.keyboard_legend = Some(legend.clone());
             }
-            AppStateChange::SetIterationsPerFrame(iterations) => {
+            SetIterationsPerFrame(iterations) => {
                 self.iterations_per_frame = *iterations;
             }
             _ => {}
@@ -110,17 +111,18 @@ impl TextState {
 
     fn update_sections(&mut self) {
         use TextInstance::*;
+        use ControlState::*;
         let control_state = self.control_state.clone();
         if let Some(fabric_name) = &self.fabric_name {
             self.update_section(
                 SectionName::Top,
                 match control_state {
-                    ControlState::Testing(scenario) => match scenario {
-                        Scenario::TensionTest => Normal(format!(
+                    Testing(scenario) => match scenario {
+                        Scenario::TensionTest => Large(format!(
                             "Tension test of {} {}",
                             fabric_name, self.experiment_title
                         )),
-                        Scenario::CompressionTest => Normal(format!(
+                        Scenario::CompressionTest => Large(format!(
                             "Compression test of {} {}",
                             fabric_name, self.experiment_title
                         )),
@@ -142,14 +144,14 @@ impl TextState {
             self.update_section(
                 SectionName::Right,
                 match control_state {
-                    ControlState::Viewing => Normal("Right-click to select".to_string()),
-                    ControlState::ShowingJoint(joint_details) => Large(format!(
+                    Viewing => Normal("Right-click to select".to_string()),
+                    ShowingJoint(joint_details) => Large(format!(
                         "{}\n\
                         Click for details\n\
                         ESC to release",
                         Self::joint_format(joint_details.index),
                     )),
-                    ControlState::ShowingInterval(interval_details) => {
+                    ShowingInterval(interval_details) => {
                         let role = match interval_details.role {
                             Role::Push => "Strut",
                             Role::Pull => "Cable",
@@ -178,7 +180,7 @@ impl TextState {
             self.update_section(
                 SectionName::Right,
                 match control_state {
-                    ControlState::Animating => {
+                    Animating => {
                         Normal("2025\nGerald de Jong\nAte Snijder\npretenst.com".to_string())
                     }
                     _ => Nothing,
@@ -192,7 +194,6 @@ impl TextState {
                 None => Nothing,
                 Some(fabric_stats) => {
                     let FabricStats {
-                        age,
                         scale,
                         joint_count,
                         max_height,
@@ -202,6 +203,7 @@ impl TextState {
                         pull_count,
                         pull_range,
                         pull_total,
+                        ..
                     } = fabric_stats;
                     Normal(format!(
                         "Stats:\n\
@@ -213,7 +215,6 @@ impl TextState {
                          Cables: {:?}\n\
                          → {:.1}-{:.1}mm\n\
                          → total {:.1}m\n\
-                         Age: {}k iterations\n\
                          {} per frame\n\
                          ",
                         max_height * scale / 1000.0,
@@ -226,7 +227,6 @@ impl TextState {
                         pull_range.0 * scale,
                         pull_range.1 * scale,
                         pull_total * scale / 1000.0,
-                        age / 1000,
                         self.iterations_per_frame,
                     ))
                 }
@@ -235,11 +235,12 @@ impl TextState {
     }
 
     fn update_section(&mut self, section_name: SectionName, text_instance: TextInstance) {
+        use TextInstance::*;
         let section = self.create_section(section_name);
         let scale_factor = text_instance.scale_factor();
         self.sections[section_name as usize] = Some(match text_instance {
-            TextInstance::Nothing => section,
-            TextInstance::Normal(text) | TextInstance::Large(text) => section.add_text(
+            Nothing => section,
+            Normal(text) | Large(text) => section.add_text(
                 OwnedText::new(text)
                     .with_color([0.8, 0.8, 0.8, 1.0])
                     .with_scale(scale_factor),
@@ -255,40 +256,43 @@ impl TextState {
     }
 
     fn create_layout(section_name: SectionName) -> Layout<BuiltInLineBreaker> {
+        use SectionName::*;
         Layout::default()
             .v_align(match section_name {
-                SectionName::Top => VerticalAlign::Top,
-                SectionName::Bottom => VerticalAlign::Bottom,
-                SectionName::Left => VerticalAlign::Center,
-                SectionName::Right => VerticalAlign::Center,
+                Top => VerticalAlign::Top,
+                Bottom => VerticalAlign::Bottom,
+                Left => VerticalAlign::Center,
+                Right => VerticalAlign::Center,
             })
             .h_align(match section_name {
-                SectionName::Top => HorizontalAlign::Center,
-                SectionName::Bottom => HorizontalAlign::Center,
-                SectionName::Left => HorizontalAlign::Left,
-                SectionName::Right => HorizontalAlign::Right,
+                Top => HorizontalAlign::Center,
+                Bottom => HorizontalAlign::Center,
+                Left => HorizontalAlign::Left,
+                Right => HorizontalAlign::Right,
             })
     }
 
     fn create_bounds(&self, section_name: SectionName) -> [f32; 2] {
+        use SectionName::*;
         let middle = self.width / 2.0;
         match section_name {
-            SectionName::Top => [self.width, self.width],
-            SectionName::Bottom => [self.width, self.width],
-            SectionName::Left => [middle, self.width],
-            SectionName::Right => [middle, self.width],
+            Top => [self.width, self.width],
+            Bottom => [self.width, self.width],
+            Left => [middle, self.width],
+            Right => [middle, self.width],
         }
     }
 
     fn create_position(&self, section_name: SectionName) -> [f32; 2] {
+        use SectionName::*;
         let middle_h = self.width / 2.0;
         let middle_v = self.height / 2.0;
         let margin = 50.0;
         match section_name {
-            SectionName::Top => [middle_h, margin],
-            SectionName::Bottom => [middle_h, self.height - margin],
-            SectionName::Left => [margin, middle_v],
-            SectionName::Right => [self.width - margin, middle_v],
+            Top => [middle_h, margin],
+            Bottom => [middle_h, self.height - margin],
+            Left => [margin, middle_v],
+            Right => [self.width - margin, middle_v],
         }
     }
 

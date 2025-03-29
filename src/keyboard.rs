@@ -42,68 +42,56 @@ impl Keyboard {
     }
 
     pub fn with_actions(mut self) -> Self {
+        use ControlState::*;
+        use CrucibleAction::*;
+        use LabEvent::*;
         self.add_action(
             KeyCode::Escape,
             "ESC to cancel selection",
-            LabEvent::AppStateChanged(AppStateChange::SetControlState(ControlState::Animating)),
-            Box::new(|state| {
-                matches!(
-                    state,
-                    ControlState::ShowingJoint(_) | ControlState::ShowingInterval(_)
-                )
-            }),
+            AppStateChanged(AppStateChange::SetControlState(Viewing)),
+            Box::new(|state| matches!(state, ShowingJoint(_) | ShowingInterval(_))),
         );
         self.add_action(
             KeyCode::KeyX,
             "X to export CSV",
-            LabEvent::DumpCSV,
-            Box::new(|state| matches!(state, ControlState::Viewing)),
+            DumpCSV,
+            Box::new(|state| matches!(state, Viewing)),
         );
         self.add_action(
             KeyCode::Space,
             "Space to stop animation",
-            LabEvent::Crucible(CrucibleAction::StopAnimating),
-            Box::new(|state| matches!(state, ControlState::Animating)),
+            Crucible(AnimatingToViewing),
+            Box::new(|state| matches!(state, Animating)),
         );
         self.add_action(
             KeyCode::Space,
             "Space to start animation",
-            LabEvent::Crucible(CrucibleAction::StartAnimating),
-            Box::new(|state| matches!(state, ControlState::Viewing)),
+            Crucible(ViewingToAnimating),
+            Box::new(|state| matches!(state, Viewing)),
         );
         self.add_action(
             KeyCode::ArrowUp,
             "\u{2191} faster",
-            LabEvent::Crucible(CrucibleAction::SetSpeed(1.1)),
-            Box::new(|state| {
-                !matches!(
-                    state,
-                    ControlState::ShowingJoint(_) | ControlState::ShowingInterval(_)
-                )
-            }),
+            Crucible(AdjustSpeed(1.1)),
+            Box::new(|state| !matches!(state, ShowingJoint(_) | ShowingInterval(_))),
         );
         self.add_action(
             KeyCode::ArrowDown,
             "\u{2193} slower",
-            LabEvent::Crucible(CrucibleAction::SetSpeed(0.9)),
-            Box::new(|state| {
-                !matches!(
-                    state,
-                    ControlState::ShowingJoint(_) | ControlState::ShowingInterval(_)
-                )
-            }),
+            Crucible(AdjustSpeed(0.9)),
+            Box::new(|state| !matches!(state, ShowingJoint(_) | ShowingInterval(_))),
         );
         self.add_action(
             KeyCode::ArrowLeft,
             "\u{2190} previous test",
-            LabEvent::Crucible(CrucibleAction::TesterDo(TesterAction::PrevExperiment)),
-            Box::new(|state| matches!(state, ControlState::Testing(_))),
+            Crucible(TesterDo(TesterAction::PrevExperiment)),
+            Box::new(|state| matches!(state, Testing(_))),
         );
         self.add_action(
             KeyCode::ArrowRight,
             "\u{2192} next test",
-            LabEvent::Crucible(CrucibleAction::TesterDo(TesterAction::NextExperiment)),
-            Box::new(|state| matches!(state, ControlState::Testing(_))),
+            Crucible(TesterDo(TesterAction::NextExperiment)),
+            Box::new(|state| matches!(state, Testing(_))),
         );
         self
     }

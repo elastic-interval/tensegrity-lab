@@ -30,7 +30,6 @@ enum Stage {
 
 #[derive(Debug, Clone)]
 pub enum TesterAction {
-    GravityChanged(f32),
     PrevExperiment,
     NextExperiment,
 }
@@ -39,12 +38,12 @@ pub enum TesterAction {
 pub enum CrucibleAction {
     BakeBrick(Prototype),
     BuildFabric(FabricPlan),
-    SetSpeed(f32),
     StartExperiment(Scenario),
     TesterDo(TesterAction),
-    Evolve(u64),
-    StartAnimating,
-    StopAnimating,
+    StartEvolving(u64),
+    AdjustSpeed(f32),
+    ViewingToAnimating,
+    AnimatingToViewing,
 }
 
 pub struct Crucible {
@@ -151,18 +150,18 @@ impl Crucible {
                 send(SetControlState(ControlState::UnderConstruction));
                 send(SetFabricStats(None))
             }
-            SetSpeed(change) => {
+            AdjustSpeed(change) => {
                 let iterations = (self.iterations_per_frame as f32 * change) as usize;
                 self.iterations_per_frame = iterations.clamp(1, 5000);
                 send(SetIterationsPerFrame(self.iterations_per_frame));
             }
-            StopAnimating => {
+            AnimatingToViewing => {
                 if let Animating(animator) = &mut self.stage {
                     self.stage = Viewing(animator.physics.clone());
                     send(SetControlState(ControlState::Viewing));
                 }
             }
-            StartAnimating => {
+            ViewingToAnimating => {
                 if let Viewing(physics) = &mut self.stage {
                     self.stage = Animating(Animator::new(physics.clone()));
                     send(SetControlState(ControlState::Animating));
@@ -186,7 +185,7 @@ impl Crucible {
                     lab.action(lab_action)
                 };
             }
-            Evolve(seed) => {
+            StartEvolving(seed) => {
                 self.stage = Evolving(Evolution::new(seed));
             }
         }
