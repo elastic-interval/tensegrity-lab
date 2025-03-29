@@ -43,7 +43,7 @@ pub enum CrucibleAction {
     StartEvolving(u64),
     AdjustSpeed(f32),
     ViewingToAnimating,
-    AnimatingToViewing,
+    ToViewing,
 }
 
 pub struct Crucible {
@@ -155,10 +155,16 @@ impl Crucible {
                 self.iterations_per_frame = iterations.clamp(1, 5000);
                 send(SetIterationsPerFrame(self.iterations_per_frame));
             }
-            AnimatingToViewing => {
-                if let Animating(animator) = &mut self.stage {
-                    self.stage = Viewing(animator.physics.clone());
-                    send(SetControlState(ControlState::Viewing));
+            ToViewing => {
+                match &mut self.stage {
+                    Viewing(_) => {
+                        send(SetControlState(ControlState::Viewing))
+                    }
+                    Animating(animator) => {
+                        self.stage = Viewing(animator.physics.clone());
+                        send(SetControlState(ControlState::Viewing));
+                    }
+                    _ => {}
                 }
             }
             ViewingToAnimating => {
