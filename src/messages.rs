@@ -4,6 +4,7 @@ use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
 use crate::wgpu::Wgpu;
 use cgmath::Point3;
+use std::collections::HashMap;
 use std::time::SystemTime;
 use winit::dpi::PhysicalPosition;
 
@@ -25,23 +26,20 @@ pub enum RunStyle {
     Seeded(u64),
 }
 
-#[derive(Debug, Clone)]
-pub enum GravityMessage {
-    NuanceChanged(f32),
-    Reset,
+#[derive(Clone, Debug)]
+pub enum IntervalFilter {
+    ShowAll,
+    ShowPush,
+    ShowPull,
 }
 
-#[derive(Debug, Clone)]
-pub enum MuscleMessage {
-    NuanceChanged(f32),
-    Reset,
-}
-
-#[derive(Debug, Clone)]
-pub enum StrainThresholdMessage {
-    SetStrainLimits((f32, f32)),
-    NuanceChanged(f32),
-    Calibrate,
+#[derive(Clone, Debug)]
+pub enum RenderStyle {
+    Normal,
+    WithColoring {
+        color_map: HashMap<(usize, usize), [f32; 4]>,
+        filter: IntervalFilter,
+    },
 }
 
 #[derive(Clone, Debug, Copy)]

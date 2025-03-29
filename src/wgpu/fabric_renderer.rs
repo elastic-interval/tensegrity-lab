@@ -1,7 +1,7 @@
 use crate::camera::Pick;
 use crate::fabric::material::{interval_material, Material};
 use crate::fabric::{interval::Role, Fabric};
-use crate::scene::{IntervalFilter, RenderStyle};
+use crate::messages::{IntervalFilter, RenderStyle};
 use crate::wgpu::Wgpu;
 use bytemuck::{Pod, Zeroable};
 use std::mem::size_of;
