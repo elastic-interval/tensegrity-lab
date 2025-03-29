@@ -1,7 +1,7 @@
 use crate::application::AppStateChange;
 use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
-use crate::messages::ControlState;
+use crate::messages::{ControlState, Scenario};
 use crate::ITERATIONS_PER_FRAME;
 use std::default::Default;
 use wgpu_text::glyph_brush::{
@@ -109,25 +109,24 @@ impl TextState {
     }
 
     fn update_sections(&mut self) {
+        use TextInstance::*;
         let control_state = self.control_state.clone();
         if let Some(fabric_name) = &self.fabric_name {
             self.update_section(
                 SectionName::Top,
                 match control_state {
-                    ControlState::Testing(tension) => {
-                        if tension {
-                            TextInstance::Normal(format!(
-                                "Tension test of {} {}",
-                                fabric_name, self.experiment_title
-                            ))
-                        } else {
-                            TextInstance::Normal(format!(
-                                "Compression test of {} {}",
-                                fabric_name, self.experiment_title
-                            ))
-                        }
-                    }
-                    _ => TextInstance::Large(fabric_name.clone()),
+                    ControlState::Testing(scenario) => match scenario {
+                        Scenario::TensionTest => Normal(format!(
+                            "Tension test of {} {}",
+                            fabric_name, self.experiment_title
+                        )),
+                        Scenario::CompressionTest => Normal(format!(
+                            "Compression test of {} {}",
+                            fabric_name, self.experiment_title
+                        )),
+                        _ => Nothing,
+                    },
+                    _ => Large(fabric_name.clone()),
                 },
             );
         }
@@ -135,21 +134,16 @@ impl TextState {
         if !self.mobile_device {
             self.update_section(
                 SectionName::Bottom,
-                match &self.fabric_stats {
-                    Some(_) => match &self.keyboard_legend {
-                        None => TextInstance::Nothing,
-                        Some(legend) => TextInstance::Normal(legend.clone()),
-                    },
-                    None => TextInstance::Normal("Under construction...".to_string()),
+                match &self.keyboard_legend {
+                    None => Nothing,
+                    Some(legend) => Normal(legend.clone()),
                 },
             );
             self.update_section(
                 SectionName::Right,
                 match control_state {
-                    ControlState::Viewing => {
-                        TextInstance::Normal("Right-click to select".to_string())
-                    }
-                    ControlState::ShowingJoint(joint_details) => TextInstance::Large(format!(
+                    ControlState::Viewing => Normal("Right-click to select".to_string()),
+                    ControlState::ShowingJoint(joint_details) => Large(format!(
                         "{}\n\
                         Click for details\n\
                         ESC to release",
@@ -166,7 +160,7 @@ impl TextState {
                         } else {
                             "?".to_string()
                         };
-                        TextInstance::Large(format!(
+                        Large(format!(
                             "{} {}-{}\n\
                             Length: {}\n\
                             Right-click to jump\n\
@@ -177,17 +171,17 @@ impl TextState {
                             length_string,
                         ))
                     }
-                    _ => TextInstance::Nothing,
+                    _ => Nothing,
                 },
             );
         } else {
             self.update_section(
                 SectionName::Right,
                 match control_state {
-                    ControlState::Animating => TextInstance::Normal(
-                        "2025\nGerald de Jong\nAte Snijder\npretenst.com".to_string(),
-                    ),
-                    _ => TextInstance::Nothing,
+                    ControlState::Animating => {
+                        Normal("2025\nGerald de Jong\nAte Snijder\npretenst.com".to_string())
+                    }
+                    _ => Nothing,
                 },
             );
         }
@@ -195,7 +189,7 @@ impl TextState {
         self.update_section(
             SectionName::Left,
             match &self.fabric_stats {
-                None => TextInstance::Nothing,
+                None => Nothing,
                 Some(fabric_stats) => {
                     let FabricStats {
                         age,
@@ -209,7 +203,7 @@ impl TextState {
                         pull_range,
                         pull_total,
                     } = fabric_stats;
-                    TextInstance::Normal(format!(
+                    Normal(format!(
                         "Stats:\n\
                          Height: {:.1}m\n\
                          Joints: {:?}\n\

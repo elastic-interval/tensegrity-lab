@@ -187,21 +187,23 @@ impl FabricRenderer {
         &self,
         fabric: &Fabric,
         pick: &Pick,
-        render_style: &mut RenderStyle,
+        render_style: &RenderStyle,
     ) -> Vec<CylinderInstance> {
+        use RenderStyle::*;
         let mut instances = Vec::with_capacity(fabric.intervals.len());
-
         const FADED: [f32; 4] = [0.01, 0.01, 0.01, 1.0];
         const SELECTED: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
         for (interval_id, interval) in &fabric.intervals {
             let push = interval.material == Material::PushMaterial;
-            match &render_style {
-                RenderStyle::WithColoring { tension, .. } => {
-                    if *tension && push || !*tension && !push {
-                        continue;
-                    }
+            if let WithColoring {
+                show_pull,
+                show_push,
+                ..
+            } = render_style
+            {
+                if push && !*show_push || !push && !*show_pull {
+                    continue;
                 }
-                _ => {}
             }
             let (alpha, omega) = (interval.alpha_index, interval.omega_index);
             let start = fabric.joints[alpha].location;
@@ -227,8 +229,8 @@ impl FabricRenderer {
 
             match pick {
                 Pick::Nothing => match render_style {
-                    RenderStyle::Normal => {}
-                    RenderStyle::WithColoring {  color_map,.. } => {
+                    Normal => {}
+                    WithColoring { color_map, .. } => {
                         radius_factor += 1.0;
                         let (alpha, omega) = (interval.alpha_index, interval.omega_index);
                         let (low, high) = if alpha < omega {

@@ -7,8 +7,8 @@ use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
-use tensegrity_lab::messages::LabEvent;
 use tensegrity_lab::messages::RunStyle;
+use tensegrity_lab::messages::{LabEvent, Scenario};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -23,10 +23,7 @@ struct Args {
     seed: Option<u64>,
 
     #[arg(long)]
-    test_tension: Option<String>,
-
-    #[arg(long)]
-    test_compression: Option<String>,
+    test: Option<bool>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -34,15 +31,23 @@ fn main() -> Result<(), Box<dyn Error>> {
         fabric,
         prototype,
         seed,
-        test_tension,
-        test_compression,
+        test,
     } = Args::parse();
-    let run_style = match (fabric, prototype, seed, test_tension, test_compression) {
-        (Some(name), None, None, None, None) => RunStyle::FabricName(name),
-        (None, Some(prototype), None, None, None) => RunStyle::Prototype(prototype),
-        (None, None, Some(seed), None, None) => RunStyle::Seeded(seed),
-        (None, None, None, Some(name), None) => RunStyle::TestTension(name),
-        (None, None, None, None, Some(name)) => RunStyle::TestCompression(name),
+    let run_style = match (fabric, prototype, seed, test) {
+        (Some(fabric_name), None, None, None) => RunStyle::Fabric {
+            fabric_name,
+            scenario: Scenario::Viewing,
+        },
+        (None, Some(prototype), None, None) => RunStyle::Prototype(prototype),
+        (None, None, Some(seed), None) => RunStyle::Seeded(seed),
+        (Some(fabric_name), None, None, Some(tension)) => RunStyle::Fabric {
+            fabric_name,
+            scenario: if tension {
+                Scenario::TensionTest
+            } else {
+                Scenario::CompressionTest
+            },
+        },
         _ => {
             return Err("use --fabric <name> or --prototype <number> or --seed <seed>".into());
         }
@@ -80,7 +85,11 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(start))]
 pub fn run() {
-    run_with(RunStyle::FabricName("De Twips".to_string())).unwrap();
+    run_with(RunStyle::Fabric {
+        fabric_name: "De Twips".to_string(),
+        scenario: Scenario::Viewing,
+    })
+    .unwrap();
 }
 
 #[cfg(not(target_arch = "wasm32"))]
