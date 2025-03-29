@@ -69,10 +69,12 @@ impl Scene {
         self.text_renderer.change_happened(&app_state_change);
         match app_state_change {
             SetControlState(control_state) => match control_state {
-                Waiting | UnderConstruction | Animating => {
-                    self.reset()
-                },
-                Viewing | ShowingJoint(_) | ShowingInterval(_) => {
+                Waiting | UnderConstruction | Animating => self.reset(),
+                Viewing => {
+                    self.reset();
+                    self.pick_allowed = true;
+                }
+                ShowingJoint(_) | ShowingInterval(_) => {
                     self.pick_allowed = true;
                 }
                 Testing(scenario) => {
@@ -92,7 +94,7 @@ impl Scene {
                         }
                         _ => {}
                     }
-                },
+                }
             },
             SetAnimating(active) => self.pick_allowed = !active,
             SetIntervalColor { key, color } => {

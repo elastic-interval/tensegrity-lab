@@ -147,8 +147,7 @@ impl TextState {
                     Viewing => Normal("Right-click to select".to_string()),
                     ShowingJoint(joint_details) => Large(format!(
                         "{}\n\
-                        Click for details\n\
-                        ESC to release",
+                        Click for details",
                         Self::joint_format(joint_details.index),
                     )),
                     ShowingInterval(interval_details) => {
@@ -165,8 +164,7 @@ impl TextState {
                         Large(format!(
                             "{} {}-{}\n\
                             Length: {}\n\
-                            Right-click to jump\n\
-                            ESC to release",
+                            Right-click to jump",
                             role,
                             Self::joint_format(interval_details.near_joint),
                             Self::joint_format(interval_details.far_joint),

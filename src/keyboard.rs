@@ -1,4 +1,3 @@
-use crate::application::AppStateChange;
 use crate::crucible::{CrucibleAction, TesterAction};
 use crate::messages::{ControlState, LabEvent};
 use std::fmt::Display;
@@ -48,19 +47,13 @@ impl Keyboard {
         self.add_action(
             KeyCode::Escape,
             "ESC to cancel selection",
-            AppStateChanged(AppStateChange::SetControlState(Viewing)),
+            Crucible(ToViewing),
             Box::new(|state| matches!(state, ShowingJoint(_) | ShowingInterval(_))),
-        );
-        self.add_action(
-            KeyCode::KeyX,
-            "X to export CSV",
-            DumpCSV,
-            Box::new(|state| matches!(state, Viewing)),
         );
         self.add_action(
             KeyCode::Space,
             "Space to stop animation",
-            Crucible(AnimatingToViewing),
+            Crucible(ToViewing),
             Box::new(|state| matches!(state, Animating)),
         );
         self.add_action(
@@ -93,6 +86,12 @@ impl Keyboard {
             Crucible(TesterDo(TesterAction::NextExperiment)),
             Box::new(|state| matches!(state, Testing(_))),
         );
+        self.add_action(
+            KeyCode::KeyX,
+            "", // hidden
+            DumpCSV,
+            Box::new(|state| matches!(state, Viewing)),
+        );
         self
     }
 
@@ -114,7 +113,7 @@ impl Keyboard {
     pub fn legend(&self, control_state: &ControlState) -> Vec<String> {
         self.actions
             .iter()
-            .filter(|action| (action.is_active_in)(control_state))
+            .filter(|action| (action.is_active_in)(control_state) && !action.description.is_empty())
             .map(|action| action.description.clone())
             .collect()
     }
