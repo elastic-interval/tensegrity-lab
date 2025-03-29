@@ -12,7 +12,7 @@ use crate::build::tester::Tester;
 use crate::crucible::Stage::*;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{ControlState, LabEvent};
+use crate::messages::{ControlState, LabEvent, Scenario};
 use crate::ITERATIONS_PER_FRAME;
 use winit::event_loop::EventLoopProxy;
 
@@ -31,18 +31,16 @@ enum Stage {
 #[derive(Debug, Clone)]
 pub enum TesterAction {
     GravityChanged(f32),
-    NextExperiment(bool),
+    PrevExperiment,
+    NextExperiment,
 }
 
 #[derive(Debug, Clone)]
 pub enum CrucibleAction {
     BakeBrick(Prototype),
-    BuildFabric {
-        fabric_plan: FabricPlan,
-        after_build: Option<CrucibleAction>,
-    },
+    BuildFabric(FabricPlan),
     SetSpeed(f32),
-    StartExperiment(bool),
+    StartExperiment(Scenario),
     TesterDo(TesterAction),
     Evolve(u64),
     StartAnimating,
@@ -53,7 +51,6 @@ pub struct Crucible {
     fabric: Fabric,
     iterations_per_frame: usize,
     stage: Stage,
-    after_build: Option<CrucibleAction>,
     event_loop_proxy: EventLoopProxy<LabEvent>,
 }
 
@@ -63,7 +60,6 @@ impl Crucible {
             fabric: Fabric::default(),
             iterations_per_frame: ITERATIONS_PER_FRAME,
             stage: Empty,
-            after_build: None,
             event_loop_proxy,
         }
     }
@@ -136,63 +132,59 @@ impl Crucible {
     }
 
     pub fn action(&mut self, crucible_action: CrucibleAction) {
+        use AppStateChange::*;
         use CrucibleAction::*;
-        let send = |lab_event: LabEvent| self.event_loop_proxy.send_event(lab_event).unwrap();
+        let send = |change: AppStateChange| {
+            self.event_loop_proxy
+                .send_event(LabEvent::AppStateChanged(change))
+                .unwrap()
+        };
         match crucible_action {
             BakeBrick(prototype) => {
                 let oven = Oven::new(prototype);
                 self.fabric = oven.prototype_fabric();
                 self.stage = BakingBrick(oven);
             }
-            BuildFabric {
-                fabric_plan,
-                after_build,
-            } => {
+            BuildFabric(fabric_plan) => {
                 self.fabric = Fabric::default();
                 self.stage = RunningPlan(PlanRunner::new(fabric_plan));
-            }
-            TesterDo(lab_action) => {
-                if let Testing(lab) = &mut self.stage {
-                    lab.action(lab_action)
-                };
+                send(SetControlState(ControlState::UnderConstruction));
+                send(SetFabricStats(None))
             }
             SetSpeed(change) => {
                 let iterations = (self.iterations_per_frame as f32 * change) as usize;
                 self.iterations_per_frame = iterations.clamp(1, 5000);
-                send(LabEvent::AppStateChanged(
-                    AppStateChange::SetIterationsPerFrame(self.iterations_per_frame),
-                ));
+                send(SetIterationsPerFrame(self.iterations_per_frame));
             }
             StopAnimating => {
                 if let Animating(animator) = &mut self.stage {
                     self.stage = Viewing(animator.physics.clone());
-                    send(LabEvent::AppStateChanged(AppStateChange::SetControlState(
-                        ControlState::Viewing,
-                    )));
+                    send(SetControlState(ControlState::Viewing));
                 }
             }
             StartAnimating => {
                 if let Viewing(physics) = &mut self.stage {
                     self.stage = Animating(Animator::new(physics.clone()));
-                    send(LabEvent::AppStateChanged(AppStateChange::SetControlState(
-                        ControlState::Animating,
-                    )));
+                    send(SetControlState(ControlState::Animating));
                 }
             }
-            StartExperiment(tension) => {
+            StartExperiment(scenario) => {
                 if let Viewing(physics) = &mut self.stage {
                     self.stage = Testing(Tester::new(
+                        scenario,
                         &self.fabric,
                         physics.clone(),
-                        tension,
                         self.event_loop_proxy.clone(),
                     ));
-                    send(LabEvent::AppStateChanged(AppStateChange::SetControlState(
-                        ControlState::Testing(tension),
-                    )));
+                    send(SetControlState(ControlState::Testing(scenario)));
                 } else {
                     panic!("cannot start experiment");
                 }
+            }
+            TesterDo(lab_action) => {
+                if let Testing(lab) = &mut self.stage {
+                    lab.action(lab_action)
+                };
             }
             Evolve(seed) => {
                 self.stage = Evolving(Evolution::new(seed));

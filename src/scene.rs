@@ -3,8 +3,9 @@ use crate::camera::Target::*;
 use crate::camera::{Camera, Pick};
 use crate::fabric::material::interval_material;
 use crate::fabric::Fabric;
-use crate::messages::{ControlState, IntervalDetails, JointDetails};
+use crate::messages::{ControlState, IntervalDetails, JointDetails, Scenario};
 use crate::messages::{LabEvent, PointerChange};
+use crate::scene::RenderStyle::WithColoring;
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
@@ -16,8 +17,9 @@ use winit::event_loop::EventLoopProxy;
 pub enum RenderStyle {
     Normal,
     WithColoring {
-        tension: bool,
         color_map: HashMap<(usize, usize), [f32; 4]>,
+        show_push: bool,
+        show_pull: bool,
     },
 }
 
@@ -55,34 +57,42 @@ impl Scene {
     }
 
     pub fn change_happened(&mut self, app_state_change: AppStateChange) {
+        use AppStateChange::*;
+        use ControlState::*;
         self.text_renderer.change_happened(&app_state_change);
         match app_state_change {
-            AppStateChange::SetControlState(control_state) => {
-                match control_state {
-                    ControlState::Animating => self.reset(),
-                    _ => {}
-                }
-            }
-            AppStateChange::SetFabricStats(Some(_)) => {
-                self.pick_allowed = true;
-            }
-            AppStateChange::SetAnimating(active) => self.pick_allowed = !active,
-            AppStateChange::SetIntervalColor {
-                key,
-                tension,
-                color,
-            } => {
-                match &mut self.render_style {
-                    RenderStyle::Normal => {
-                        self.render_style = RenderStyle::WithColoring {
-                            color_map: HashMap::from([(key, color)]),
-                            tension,
+            SetControlState(control_state) => match control_state {
+                Waiting => {}
+                UnderConstruction | Animating => self.reset(),
+                Viewing => {}
+                ShowingJoint(_) => {}
+                ShowingInterval(_) => {}
+                Testing(scenario) => match scenario {
+                    Scenario::TensionTest => {
+                        self.render_style = WithColoring {
+                            color_map: HashMap::new(),
+                            show_push: false,
+                            show_pull: true,
                         };
                     }
-                    RenderStyle::WithColoring { color_map, .. } => {
-                        color_map.insert(key, color);
+                    Scenario::CompressionTest => {
+                        self.render_style = WithColoring {
+                            color_map: HashMap::new(),
+                            show_push: true,
+                            show_pull: false,
+                        };
                     }
-                };
+                    _ => {}
+                },
+            },
+            SetFabricStats(Some(_)) => {
+                self.pick_allowed = true;
+            }
+            SetAnimating(active) => self.pick_allowed = !active,
+            SetIntervalColor { key, color } => {
+                if let WithColoring { color_map, .. } = &mut self.render_style {
+                    color_map.insert(key, color);
+                }
             }
             _ => {}
         }

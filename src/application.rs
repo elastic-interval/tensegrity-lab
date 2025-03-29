@@ -4,7 +4,7 @@ use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible::{Crucible, CrucibleAction};
 use crate::fabric::FabricStats;
 use crate::keyboard::Keyboard;
-use crate::messages::{ControlState, LabEvent, PointerChange, RunStyle, Shot};
+use crate::messages::{ControlState, LabEvent, PointerChange, RunStyle, Scenario, Shot};
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 use instant::{Duration, Instant};
@@ -15,9 +15,8 @@ use winit::event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase, Wind
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
 use winit::window::{WindowAttributes, WindowId};
 
-
 pub struct Application {
-    fabric_name: Option<String>,
+    run_style: RunStyle,
     mobile_device: bool,
     window_attributes: WindowAttributes,
     scene: Option<Scene>,
@@ -39,7 +38,6 @@ pub enum AppStateChange {
     SetIntervalColor {
         key: (usize, usize),
         color: [f32; 4],
-        tension: bool,
     },
     SetControlState(ControlState),
     SetFabricName(String),
@@ -61,7 +59,7 @@ impl Application {
         let brick_library = BrickLibrary::from_source()?;
         let fabric_library = FabricLibrary::from_source()?;
         Ok(Application {
-            fabric_name: None,
+            run_style: RunStyle::Unknown,
             mobile_device: false,
             window_attributes,
             scene: None,
@@ -212,14 +210,15 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.scene = Some(Scene::new(self.mobile_device, wgpu, proxy));
                 send(LabEvent::AppStateChanged(AppStateChange::SetControlState(
                     ControlState::Waiting,
-                )))
+                )));
             }
             LabEvent::Run(run_style) => {
-                match run_style {
-                    RunStyle::FabricName(fabric_name)
-                    | RunStyle::TestTension(fabric_name)
-                    | RunStyle::TestCompression(fabric_name) => {
-                        self.fabric_name = Some(fabric_name.clone());
+                self.run_style = run_style;
+                match &self.run_style {
+                    RunStyle::Unknown => {
+                        unreachable!()
+                    }
+                    RunStyle::Fabric { fabric_name, .. } => {
                         send(LabEvent::AppStateChanged(AppStateChange::SetFabricName(
                             fabric_name.clone(),
                         )));
@@ -236,41 +235,37 @@ impl ApplicationHandler<LabEvent> for Application {
                         let prototype = self
                             .brick_library
                             .brick_definitions
-                            .get(brick_index)
+                            .get(*brick_index)
                             .expect("no such brick")
                             .proto
                             .clone();
                         self.crucible.action(CrucibleAction::BakeBrick(prototype));
                     }
                     RunStyle::Seeded(seed) => {
-                        let _ = self.crucible.action(CrucibleAction::Evolve(seed));
+                        let _ = self.crucible.action(CrucibleAction::Evolve(*seed));
                     }
                 };
             }
             LabEvent::FabricBuilt(fabric_stats) => {
-                send(LabEvent::AppStateChanged(AppStateChange::SetControlState(
-                    ControlState::Viewing,
-                )));
                 send(LabEvent::AppStateChanged(AppStateChange::SetFabricStats(
                     Some(fabric_stats),
                 )));
+                send(LabEvent::AppStateChanged(AppStateChange::SetControlState(
+                    ControlState::Viewing,
+                )));
                 if self.mobile_device {
                     send(LabEvent::Crucible(CrucibleAction::StartAnimating));
+                } else {
+                    if let RunStyle::Fabric { scenario, .. } = &self.run_style {
+                        if matches!(scenario, Scenario::TensionTest | Scenario::CompressionTest) {
+                            send(LabEvent::Crucible(CrucibleAction::StartExperiment(
+                                scenario.clone(),
+                            )))
+                        }
+                    }
                 }
             }
             LabEvent::Crucible(crucible_action) => {
-                match &crucible_action {
-                    // side effect
-                    CrucibleAction::BuildFabric(_) => {
-                        send(LabEvent::AppStateChanged(AppStateChange::SetFabricStats(
-                            None,
-                        )));
-                        if let Some(scene) = &mut self.scene {
-                            scene.reset();
-                        }
-                    }
-                    _ => {}
-                }
                 self.crucible.action(crucible_action);
             }
             LabEvent::UpdatedLibrary(time) => {
@@ -279,15 +274,8 @@ impl ApplicationHandler<LabEvent> for Application {
                 {
                     let _fabric_library = self.fabric_library.clone();
                     self.fabric_library_modified = time;
-                    if let Some(fabric_name) = &self.fabric_name {
-                        send(LabEvent::Run(RunStyle::FabricName(fabric_name.clone())));
-                    }
+                    send(LabEvent::Run(self.run_style.clone()));
                 }
-            }
-            LabEvent::CalibrateStrain => {
-                // let strain_limits =
-                //     self.crucible.fabric().strain_limits(":bow-tie".to_string());
-                // self.user_interface.set_strain_limits(strain_limits);
             }
             LabEvent::AppStateChanged(app_change) => {
                 match &app_change {
@@ -313,7 +301,7 @@ impl ApplicationHandler<LabEvent> for Application {
                         .to_string(),
                     self.crucible.fabric().csv(),
                 )
-                    .unwrap();
+                .unwrap();
             }
         }
     }

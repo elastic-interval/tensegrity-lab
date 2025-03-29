@@ -7,13 +7,22 @@ use cgmath::Point3;
 use std::time::SystemTime;
 use winit::dpi::PhysicalPosition;
 
+#[derive(Debug, Clone, Copy)]
+pub enum Scenario {
+    Viewing,
+    TensionTest,
+    CompressionTest,
+}
+
 #[derive(Debug, Clone)]
 pub enum RunStyle {
-    FabricName(String),
+    Unknown,
+    Fabric {
+        fabric_name: String,
+        scenario: Scenario,
+    },
     Prototype(usize),
     Seeded(u64),
-    TestTension(String),
-    TestCompression(String),
 }
 
 #[derive(Debug, Clone)]
@@ -57,19 +66,18 @@ pub enum ControlState {
     Animating,
     ShowingJoint(JointDetails),
     ShowingInterval(IntervalDetails),
-    Testing(bool),
+    Testing(Scenario),
 }
 
 #[derive(Debug, Clone)]
 pub enum LabEvent {
     ContextCreated { wgpu: Wgpu, mobile_device: bool },
-    Crucible(CrucibleAction),
-    CalibrateStrain,
-    UpdatedLibrary(SystemTime),
     Run(RunStyle),
+    Crucible(CrucibleAction),
     FabricBuilt(FabricStats),
     AppStateChanged(AppStateChange),
     DumpCSV,
+    UpdatedLibrary(SystemTime),
 }
 
 #[derive(Debug, Clone)]
