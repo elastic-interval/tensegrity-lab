@@ -14,12 +14,19 @@ use std::collections::HashMap;
 use winit::dpi::PhysicalSize;
 use winit::event_loop::EventLoopProxy;
 
+#[derive(Clone, Debug)]
+pub enum IntervalFilter {
+    ShowAll,
+    ShowPush,
+    ShowPull,
+}
+
+#[derive(Clone, Debug)]
 pub enum RenderStyle {
     Normal,
     WithColoring {
         color_map: HashMap<(usize, usize), [f32; 4]>,
-        show_push: bool,
-        show_pull: bool,
+        filter: IntervalFilter,
     },
 }
 
@@ -62,32 +69,31 @@ impl Scene {
         self.text_renderer.change_happened(&app_state_change);
         match app_state_change {
             SetControlState(control_state) => match control_state {
-                Waiting => {}
-                UnderConstruction | Animating => self.reset(),
-                Viewing => {}
-                ShowingJoint(_) => {}
-                ShowingInterval(_) => {}
-                Testing(scenario) => match scenario {
-                    Scenario::TensionTest => {
-                        self.render_style = WithColoring {
-                            color_map: HashMap::new(),
-                            show_push: false,
-                            show_pull: true,
-                        };
+                Waiting | UnderConstruction | Animating => {
+                    self.reset()
+                },
+                Viewing | ShowingJoint(_) | ShowingInterval(_) => {
+                    self.pick_allowed = true;
+                }
+                Testing(scenario) => {
+                    self.reset();
+                    match scenario {
+                        Scenario::TensionTest => {
+                            self.render_style = WithColoring {
+                                color_map: HashMap::new(),
+                                filter: IntervalFilter::ShowPull,
+                            };
+                        }
+                        Scenario::CompressionTest => {
+                            self.render_style = WithColoring {
+                                color_map: HashMap::new(),
+                                filter: IntervalFilter::ShowPush,
+                            };
+                        }
+                        _ => {}
                     }
-                    Scenario::CompressionTest => {
-                        self.render_style = WithColoring {
-                            color_map: HashMap::new(),
-                            show_push: true,
-                            show_pull: false,
-                        };
-                    }
-                    _ => {}
                 },
             },
-            SetFabricStats(Some(_)) => {
-                self.pick_allowed = true;
-            }
             SetAnimating(active) => self.pick_allowed = !active,
             SetIntervalColor { key, color } => {
                 if let WithColoring { color_map, .. } = &mut self.render_style {
@@ -175,6 +181,7 @@ impl Scene {
     }
 
     pub fn reset(&mut self) {
+        self.pick_allowed = false;
         self.camera.reset();
         self.camera_pick(self.camera.current_pick());
     }

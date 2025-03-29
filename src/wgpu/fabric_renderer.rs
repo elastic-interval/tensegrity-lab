@@ -1,7 +1,7 @@
 use crate::camera::Pick;
 use crate::fabric::material::{interval_material, Material};
 use crate::fabric::{interval::Role, Fabric};
-use crate::scene::RenderStyle;
+use crate::scene::{IntervalFilter, RenderStyle};
 use crate::wgpu::Wgpu;
 use bytemuck::{Pod, Zeroable};
 use std::mem::size_of;
@@ -195,14 +195,11 @@ impl FabricRenderer {
         const SELECTED: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
         for (interval_id, interval) in &fabric.intervals {
             let push = interval.material == Material::PushMaterial;
-            if let WithColoring {
-                show_pull,
-                show_push,
-                ..
-            } = render_style
-            {
-                if push && !*show_push || !push && !*show_pull {
-                    continue;
+            if let WithColoring { filter, .. } = render_style {
+                match filter {
+                    IntervalFilter::ShowPush if !push => continue,
+                    IntervalFilter::ShowPull if push => continue,
+                    _ => {}
                 }
             }
             let (alpha, omega) = (interval.alpha_index, interval.omega_index);

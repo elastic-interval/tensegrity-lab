@@ -94,6 +94,8 @@ impl Tester {
     }
 
     pub fn iterate(&mut self) {
+        use AppStateChange::*;
+        use CrucibleAction::*;
         let send = |lab_event: LabEvent| self.event_loop_proxy.send_event(lab_event).unwrap();
         let physics = &self.physics;
         let test_case = self
@@ -114,12 +116,8 @@ impl Tester {
             let clamped = test_case.damage.clamp(self.min_damage, self.max_damage);
             let redness = (clamped - self.min_damage) / (self.max_damage - self.min_damage);
             let color = [redness, 0.01, 0.01, 1.0];
-            send(LabEvent::AppStateChanged(
-                AppStateChange::SetIntervalColor { key, color },
-            ));
-            send(LabEvent::Crucible(CrucibleAction::TesterDo(
-                TesterAction::NextExperiment,
-            )));
+            send(LabEvent::AppStateChanged(SetIntervalColor { key, color }));
+            send(LabEvent::Crucible(TesterDo(TesterAction::NextExperiment)));
         }
         test_case.fabric.iterate(physics);
     }
@@ -128,7 +126,6 @@ impl Tester {
         use TesterAction::*;
         let send = |lab_event: LabEvent| self.event_loop_proxy.send_event(lab_event).unwrap();
         match action {
-            GravityChanged(gravity) => self.physics.gravity = gravity,
             PrevExperiment | NextExperiment => {
                 if matches!(action, NextExperiment) {
                     if self.test_number + 1 < self.test_cases.len() {
