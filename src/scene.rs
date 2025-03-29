@@ -3,7 +3,7 @@ use crate::camera::Target::*;
 use crate::camera::{Camera, Pick};
 use crate::fabric::material::interval_material;
 use crate::fabric::Fabric;
-use crate::messages::{ControlState, IntervalDetails, JointDetails, Scenario};
+use crate::messages::{ControlState, IntervalDetails, IntervalFilter, JointDetails, RenderStyle, Scenario};
 use crate::messages::{LabEvent, PointerChange};
 use crate::scene::RenderStyle::WithColoring;
 use crate::wgpu::fabric_renderer::FabricRenderer;
@@ -13,22 +13,6 @@ use crate::wgpu::Wgpu;
 use std::collections::HashMap;
 use winit::dpi::PhysicalSize;
 use winit::event_loop::EventLoopProxy;
-
-#[derive(Clone, Debug)]
-pub enum IntervalFilter {
-    ShowAll,
-    ShowPush,
-    ShowPull,
-}
-
-#[derive(Clone, Debug)]
-pub enum RenderStyle {
-    Normal,
-    WithColoring {
-        color_map: HashMap<(usize, usize), [f32; 4]>,
-        filter: IntervalFilter,
-    },
-}
 
 pub struct Scene {
     wgpu: Wgpu,

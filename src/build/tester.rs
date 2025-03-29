@@ -6,7 +6,6 @@ use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::messages::{LabEvent, Scenario};
 use cgmath::InnerSpace;
-use std::fmt::{Display, Formatter};
 use winit::event_loop::EventLoopProxy;
 
 const MAX_NEW_ITERATIONS: u64 = 100000;
@@ -17,19 +16,6 @@ struct TestCase {
     interval_missing: Option<(usize, usize)>,
     damage: f32,
     finished: bool,
-}
-
-impl Display for TestCase {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self.interval_missing {
-            None => {
-                write!(f, "")
-            }
-            Some(pair) => {
-                write!(f, "Missing {pair:?}")
-            }
-        }
-    }
 }
 
 pub struct Tester {
@@ -123,6 +109,8 @@ impl Tester {
     }
 
     pub fn action(&mut self, action: TesterAction) {
+        use AppStateChange::*;
+        use LabEvent::*;
         use TesterAction::*;
         let send = |lab_event: LabEvent| self.event_loop_proxy.send_event(lab_event).unwrap();
         match action {
@@ -136,12 +124,17 @@ impl Tester {
                         self.test_number -= 1;
                     }
                 };
-                send(LabEvent::AppStateChanged(
-                    AppStateChange::SetExperimentTitle {
-                        title: self.test_cases[self.test_number].to_string(),
-                        fabric_stats: self.fabric().fabric_stats(),
+                send(AppStateChanged(SetExperimentTitle {
+                    title: match self.test_cases[self.test_number].interval_missing {
+                        None => {
+                            format!("Test #{}", self.test_number)
+                        }
+                        Some(pair) => {
+                            format!("Test #{} {pair:?}", self.test_number)
+                        }
                     },
-                ));
+                    fabric_stats: self.fabric().fabric_stats(),
+                }));
             }
         }
     }
