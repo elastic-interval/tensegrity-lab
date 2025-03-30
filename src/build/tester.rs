@@ -156,10 +156,6 @@ impl Tester {
                 }));
             }
             SetIntervalAppearance { id, appearance } => {
-                println!(
-                    "Set Interval Appearance #{}: {:?}",
-                    self.test_number, appearance
-                );
                 for test_case in self.test_cases.iter_mut() {
                     if let Some(interval) = test_case.fabric.intervals.get_mut(&id) {
                         interval.appearance = Some(appearance);
