@@ -151,7 +151,10 @@ impl Crucible {
                 send(SetFabricStats(None))
             }
             AdjustSpeed(change) => {
-                let iterations = (self.iterations_per_frame as f32 * change) as usize;
+                let mut iterations = (self.iterations_per_frame as f32 * change) as usize;
+                if iterations == self.iterations_per_frame && change > 1.0 {
+                    iterations += 1;
+                }
                 self.iterations_per_frame = iterations.clamp(1, 5000);
                 send(SetIterationsPerFrame(self.iterations_per_frame));
             }
