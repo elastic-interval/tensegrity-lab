@@ -5,7 +5,7 @@ use cgmath::MetricSpace;
 use crate::fabric::interval::{Interval, Role, Span};
 use crate::fabric::joint::Joint;
 use crate::fabric::joint_incident::{JointIncident, Path};
-use crate::fabric::material::Material::{BowTieMaterial, PullMaterial};
+use crate::fabric::material::Material::PullMaterial;
 use crate::fabric::material::{interval_material, material_by_label};
 use crate::fabric::Fabric;
 
@@ -19,15 +19,12 @@ impl Fabric {
             length,
         } in self.pair_generator().bow_tie_pulls(&self.joints)
         {
-            self.create_interval(alpha_index, omega_index, length, BowTieMaterial);
+            self.create_interval(alpha_index, omega_index, length, PullMaterial);
         }
     }
 
     pub fn shorten_pulls(&mut self, strain_threshold: f32, shortening: f32) {
         for interval in self.intervals.values_mut() {
-            if interval.material != BowTieMaterial {
-                continue;
-            }
             if interval.strain > strain_threshold {
                 interval.span = match interval.span {
                     Span::Fixed { length } => Span::Fixed {

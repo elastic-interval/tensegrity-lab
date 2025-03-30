@@ -159,7 +159,7 @@ impl Crucible {
                 if iterations == self.iterations_per_frame && change > 1.0 {
                     iterations += 1;
                 }
-                self.iterations_per_frame = iterations.clamp(1, 5000);
+                self.iterations_per_frame = iterations.clamp(1, 10000);
                 send(SetIterationsPerFrame(self.iterations_per_frame));
             }
             ToViewing => match &mut self.stage {

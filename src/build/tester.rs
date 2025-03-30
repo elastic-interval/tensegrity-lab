@@ -52,13 +52,13 @@ impl Tester {
                 damage: 0.0,
                 finished: false,
             };
-            interval_keys.len()
+            interval_keys.len() + 1
         ];
-        for index in 0..interval_keys.len() {
-            let missing_key = interval_keys[index];
-            test_cases[index].fabric.remove_interval(missing_key);
+        for index in 1..=interval_keys.len() {
+            let missing_id = interval_keys[index - 1];
+            test_cases[index].fabric.remove_interval(missing_id);
             test_cases[index].interval_missing =
-                Some((missing_key, fabric.interval(missing_key).clone()));
+                Some((missing_id, fabric.interval(missing_id).clone()));
         }
         Self {
             test_number: 0,
@@ -81,9 +81,15 @@ impl Tester {
             .test_cases
             .get_mut(self.test_number)
             .expect("No test case");
+        if test_case.finished {
+            return;
+        }
         let iterations = test_case.fabric.age - self.default_fabric.age;
-        if iterations >= MAX_NEW_ITERATIONS && !test_case.finished {
+        if iterations >= MAX_NEW_ITERATIONS {
             test_case.finished = true;
+            if self.test_number == 0 {
+                return;
+            }
             let mut damage = 0.0;
             for joint_id in 0..self.default_fabric.joints.len() {
                 let default_location = self.default_fabric.location(joint_id);
@@ -98,8 +104,9 @@ impl Tester {
             let appearance = interval.appearance().with_color(color);
             send(Crucible(TesterDo(SetIntervalAppearance { id, appearance })));
             send(Crucible(TesterDo(NextExperiment)));
+        } else {
+            test_case.fabric.iterate(physics);
         }
-        test_case.fabric.iterate(physics);
         // const STRAIN_THRESHOLD: f32 = 0.17;
         // let broken: Vec<_> = test_case
         //     .fabric
@@ -149,6 +156,10 @@ impl Tester {
                 }));
             }
             SetIntervalAppearance { id, appearance } => {
+                println!(
+                    "Set Interval Appearance #{}: {:?}",
+                    self.test_number, appearance
+                );
                 for test_case in self.test_cases.iter_mut() {
                     if let Some(interval) = test_case.fabric.intervals.get_mut(&id) {
                         interval.appearance = Some(appearance);

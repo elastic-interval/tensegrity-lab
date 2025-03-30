@@ -1,7 +1,7 @@
 use crate::fabric::interval::Role::{Pull, Push, Spring};
 use crate::fabric::interval::{Appearance, Role};
 use crate::fabric::material::Material::{
-    BowTieMaterial, FaceRadialMaterial, GuyLineMaterial, NorthMaterial, PullMaterial, PushMaterial,
+    FaceRadialMaterial, GuyLineMaterial, NorthMaterial, PullMaterial, PushMaterial,
     SouthMaterial, SpringMaterial,
 };
 
@@ -9,12 +9,11 @@ use crate::fabric::material::Material::{
 pub enum Material {
     PushMaterial = 0,
     PullMaterial = 1,
-    BowTieMaterial = 2,
-    NorthMaterial = 3,
-    SouthMaterial = 4,
-    SpringMaterial = 5,
-    FaceRadialMaterial = 6,
-    GuyLineMaterial = 7,
+    NorthMaterial = 2,
+    SouthMaterial = 3,
+    SpringMaterial = 4,
+    FaceRadialMaterial = 5,
+    GuyLineMaterial = 6,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -55,15 +54,6 @@ const PUSH_MATERIAL: IntervalMaterial = IntervalMaterial {
 const PULL_MATERIAL: IntervalMaterial = IntervalMaterial {
     name: PullMaterial,
     label: ":pull",
-    role: Pull,
-    stiffness: 1.0,
-    mass: 0.1,
-    support: false,
-};
-
-const BOW_TIE_MATERIAL: IntervalMaterial = IntervalMaterial {
-    name: BowTieMaterial,
-    label: ":bow-tie",
     role: Pull,
     stiffness: 1.0,
     mass: 0.1,
@@ -115,10 +105,9 @@ const GUY_WIRE_MATERIAL: IntervalMaterial = IntervalMaterial {
     support: true,
 };
 
-const MATERIALS: [IntervalMaterial; 8] = [
+const MATERIALS: [IntervalMaterial; 7] = [
     PUSH_MATERIAL,
     PULL_MATERIAL,
-    BOW_TIE_MATERIAL,
     NORTH_MATERIAL,
     SOUTH_MATERIAL,
     SPRING_MATERIAL,

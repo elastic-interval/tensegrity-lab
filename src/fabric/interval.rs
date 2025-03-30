@@ -118,7 +118,7 @@ impl Appearance {
         Self {
             color,
             radius: self.radius + 1.0,
-            visible: false,
+            visible: self.visible,
         }
     }
 
