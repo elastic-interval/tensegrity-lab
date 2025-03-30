@@ -10,8 +10,9 @@ use crate::build::tenscript::pretenser::Pretenser;
 use crate::build::tenscript::FabricPlan;
 use crate::build::tester::Tester;
 use crate::crucible::Stage::*;
+use crate::fabric::interval::Appearance;
 use crate::fabric::physics::Physics;
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, UniqueId};
 use crate::messages::{ControlState, LabEvent, Scenario};
 use crate::ITERATIONS_PER_FRAME;
 use winit::event_loop::EventLoopProxy;
@@ -32,6 +33,11 @@ enum Stage {
 pub enum TesterAction {
     PrevExperiment,
     NextExperiment,
+    SetIntervalAppearance {
+        id: UniqueId,
+        appearance: Appearance,
+    },
+    SortOnDamage,
 }
 
 #[derive(Debug, Clone)]
@@ -54,7 +60,7 @@ pub struct Crucible {
 }
 
 impl Crucible {
-    pub(crate) fn new(event_loop_proxy: EventLoopProxy<LabEvent>) -> Self {
+    pub fn new(event_loop_proxy: EventLoopProxy<LabEvent>) -> Self {
         Self {
             fabric: Fabric::default(),
             iterations_per_frame: ITERATIONS_PER_FRAME,
@@ -62,9 +68,7 @@ impl Crucible {
             event_loop_proxy,
         }
     }
-}
 
-impl Crucible {
     pub fn iterate(&mut self, brick_library: &BrickLibrary) {
         let send = |lab_event: LabEvent| self.event_loop_proxy.send_event(lab_event).unwrap();
         match &mut self.stage {
@@ -158,18 +162,14 @@ impl Crucible {
                 self.iterations_per_frame = iterations.clamp(1, 5000);
                 send(SetIterationsPerFrame(self.iterations_per_frame));
             }
-            ToViewing => {
-                match &mut self.stage {
-                    Viewing(_) => {
-                        send(SetControlState(ControlState::Viewing))
-                    }
-                    Animating(animator) => {
-                        self.stage = Viewing(animator.physics.clone());
-                        send(SetControlState(ControlState::Viewing));
-                    }
-                    _ => {}
+            ToViewing => match &mut self.stage {
+                Viewing(_) => send(SetControlState(ControlState::Viewing)),
+                Animating(animator) => {
+                    self.stage = Viewing(animator.physics.clone());
+                    send(SetControlState(ControlState::Viewing));
                 }
-            }
+                _ => {}
+            },
             ViewingToAnimating => {
                 if let Viewing(physics) = &mut self.stage {
                     self.stage = Animating(Animator::new(physics.clone()));
@@ -178,6 +178,21 @@ impl Crucible {
             }
             StartExperiment(scenario) => {
                 if let Viewing(physics) = &mut self.stage {
+                    for interval in self.fabric.intervals.values_mut() {
+                        match scenario {
+                            Scenario::Viewing => {}
+                            Scenario::TensionTest => {
+                                if interval.is_push() {
+                                    interval.appearance = Some(interval.appearance().invisible());
+                                }
+                            }
+                            Scenario::CompressionTest => {
+                                if interval.is_pull() {
+                                    interval.appearance = Some(interval.appearance().invisible());
+                                }
+                            }
+                        }
+                    }
                     self.stage = Testing(Tester::new(
                         scenario,
                         &self.fabric,
@@ -201,7 +216,7 @@ impl Crucible {
     }
 
     pub fn fabric(&mut self) -> &Fabric {
-        if let Testing(experiment) = &mut self.stage {
+        if let Testing(experiment) = &self.stage {
             experiment.fabric()
         } else {
             &self.fabric

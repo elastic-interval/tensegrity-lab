@@ -3,14 +3,12 @@ use crate::camera::Target::*;
 use crate::camera::{Camera, Pick};
 use crate::fabric::material::interval_material;
 use crate::fabric::Fabric;
-use crate::messages::{ControlState, IntervalDetails, IntervalFilter, JointDetails, RenderStyle, Scenario};
+use crate::messages::{ControlState, IntervalDetails, JointDetails};
 use crate::messages::{LabEvent, PointerChange};
-use crate::scene::RenderStyle::WithColoring;
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::Wgpu;
-use std::collections::HashMap;
 use winit::dpi::PhysicalSize;
 use winit::event_loop::EventLoopProxy;
 
@@ -21,7 +19,6 @@ pub struct Scene {
     surface_renderer: SurfaceRenderer,
     text_renderer: TextRenderer,
     event_loop_proxy: EventLoopProxy<LabEvent>,
-    render_style: RenderStyle,
     pick_allowed: bool,
 }
 
@@ -42,7 +39,6 @@ impl Scene {
             surface_renderer,
             text_renderer,
             event_loop_proxy,
-            render_style: RenderStyle::Normal,
             pick_allowed: false,
         }
     }
@@ -61,31 +57,11 @@ impl Scene {
                 ShowingJoint(_) | ShowingInterval(_) => {
                     self.pick_allowed = true;
                 }
-                Testing(scenario) => {
+                Testing(_) => {
                     self.reset();
-                    match scenario {
-                        Scenario::TensionTest => {
-                            self.render_style = WithColoring {
-                                color_map: HashMap::new(),
-                                filter: IntervalFilter::ShowPull,
-                            };
-                        }
-                        Scenario::CompressionTest => {
-                            self.render_style = WithColoring {
-                                color_map: HashMap::new(),
-                                filter: IntervalFilter::ShowPush,
-                            };
-                        }
-                        _ => {}
-                    }
                 }
             },
             SetAnimating(active) => self.pick_allowed = !active,
-            SetIntervalColor { key, color } => {
-                if let WithColoring { color_map, .. } = &mut self.render_style {
-                    color_map.insert(key, color);
-                }
-            }
             _ => {}
         }
     }
@@ -144,7 +120,6 @@ impl Scene {
             &mut self.wgpu,
             fabric,
             &self.camera.current_pick(),
-            &mut self.render_style,
         );
         self.render()?;
         Ok(())

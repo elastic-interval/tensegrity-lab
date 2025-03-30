@@ -100,7 +100,6 @@ impl TextState {
             SetIterationsPerFrame(iterations) => {
                 self.iterations_per_frame = *iterations;
             }
-            _ => {}
         }
         self.update_sections()
     }

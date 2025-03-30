@@ -3,7 +3,7 @@ use crate::crucible::{CrucibleAction, TesterAction};
 use crate::fabric::interval::Interval;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, UniqueId};
 use crate::messages::{LabEvent, Scenario};
 use cgmath::InnerSpace;
 use winit::event_loop::EventLoopProxy;
@@ -13,7 +13,7 @@ const MAX_NEW_ITERATIONS: u64 = 100000;
 #[derive(Clone)]
 struct TestCase {
     fabric: Fabric,
-    interval_missing: Option<(usize, usize)>,
+    interval_missing: Option<(UniqueId, Interval)>,
     damage: f32,
     finished: bool,
 }
@@ -56,17 +56,9 @@ impl Tester {
         ];
         for index in 0..interval_keys.len() {
             let missing_key = interval_keys[index];
-            let &Interval {
-                alpha_index,
-                omega_index,
-                ..
-            } = fabric.interval(missing_key);
             test_cases[index].fabric.remove_interval(missing_key);
-            test_cases[index].interval_missing = Some(if alpha_index < omega_index {
-                (alpha_index, omega_index)
-            } else {
-                (omega_index, alpha_index)
-            });
+            test_cases[index].interval_missing =
+                Some((missing_key, fabric.interval(missing_key).clone()));
         }
         Self {
             test_number: 0,
@@ -80,8 +72,9 @@ impl Tester {
     }
 
     pub fn iterate(&mut self) {
-        use AppStateChange::*;
         use CrucibleAction::*;
+        use LabEvent::*;
+        use TesterAction::*;
         let send = |lab_event: LabEvent| self.event_loop_proxy.send_event(lab_event).unwrap();
         let physics = &self.physics;
         let test_case = self
@@ -98,14 +91,32 @@ impl Tester {
                 damage += (default_location - new_location).magnitude();
             }
             test_case.damage = damage;
-            let key = test_case.interval_missing.unwrap();
+            let (id, interval) = test_case.interval_missing.unwrap();
             let clamped = test_case.damage.clamp(self.min_damage, self.max_damage);
             let redness = (clamped - self.min_damage) / (self.max_damage - self.min_damage);
             let color = [redness, 0.01, 0.01, 1.0];
-            send(LabEvent::AppStateChanged(SetIntervalColor { key, color }));
-            send(LabEvent::Crucible(TesterDo(TesterAction::NextExperiment)));
+            let appearance = interval.appearance().with_color(color);
+            send(Crucible(TesterDo(SetIntervalAppearance { id, appearance })));
+            send(Crucible(TesterDo(NextExperiment)));
         }
         test_case.fabric.iterate(physics);
+        // const STRAIN_THRESHOLD: f32 = 0.17;
+        // let broken: Vec<_> = test_case
+        //     .fabric
+        //     .intervals
+        //     .iter()
+        //     .map(|(id,interval)| (id, interval.strain))
+        //     .filter(|(_, strain)| *strain > STRAIN_THRESHOLD)
+        //     .map(|(id, _)| *id)
+        //     .collect();
+        // for id in broken {
+        //     let color = [0.0, 1.0, 0.0, 1.0];
+        //     let appearance = test_case.fabric.interval(id)
+        //     self.event_loop_proxy
+        //         .send_event(Crucible(SetIntervalAppearance { id, appearance }))
+        //         .unwrap();
+        //     // test_case.fabric.remove_interval(id);
+        // }
     }
 
     pub fn action(&mut self, action: TesterAction) {
@@ -129,12 +140,23 @@ impl Tester {
                         None => {
                             format!("Test #{}", self.test_number)
                         }
-                        Some(pair) => {
+                        Some((_, interval)) => {
+                            let pair = interval.key();
                             format!("Test #{} {pair:?}", self.test_number)
                         }
                     },
                     fabric_stats: self.fabric().fabric_stats(),
                 }));
+            }
+            SetIntervalAppearance { id, appearance } => {
+                for test_case in self.test_cases.iter_mut() {
+                    if let Some(interval) = test_case.fabric.intervals.get_mut(&id) {
+                        interval.appearance = Some(appearance);
+                    }
+                }
+            }
+            SortOnDamage => {
+                // todo: sort the cases
             }
         }
     }

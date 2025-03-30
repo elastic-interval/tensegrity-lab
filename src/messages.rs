@@ -4,7 +4,6 @@ use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
 use crate::wgpu::Wgpu;
 use cgmath::Point3;
-use std::collections::HashMap;
 use std::time::SystemTime;
 use winit::dpi::PhysicalPosition;
 
@@ -24,22 +23,6 @@ pub enum RunStyle {
     },
     Prototype(usize),
     Seeded(u64),
-}
-
-#[derive(Clone, Debug)]
-pub enum IntervalFilter {
-    ShowAll,
-    ShowPush,
-    ShowPull,
-}
-
-#[derive(Clone, Debug)]
-pub enum RenderStyle {
-    Normal,
-    WithColoring {
-        color_map: HashMap<(usize, usize), [f32; 4]>,
-        filter: IntervalFilter,
-    },
 }
 
 #[derive(Clone, Debug, Copy)]

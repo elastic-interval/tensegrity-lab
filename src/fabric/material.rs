@@ -1,6 +1,9 @@
-use crate::fabric::interval::Role;
 use crate::fabric::interval::Role::{Pull, Push, Spring};
-use crate::fabric::material::Material::{BowTieMaterial, FaceRadialMaterial, GuyLineMaterial, NorthMaterial, PullMaterial, PushMaterial, SouthMaterial, SpringMaterial};
+use crate::fabric::interval::{Appearance, Role};
+use crate::fabric::material::Material::{
+    BowTieMaterial, FaceRadialMaterial, GuyLineMaterial, NorthMaterial, PullMaterial, PushMaterial,
+    SouthMaterial, SpringMaterial,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Material {
@@ -22,6 +25,22 @@ pub struct IntervalMaterial {
     pub stiffness: f32,
     pub mass: f32,
     pub support: bool,
+}
+
+impl IntervalMaterial {
+    pub fn appearance(&self) -> Appearance {
+        let color = match self.role {
+            Push => [0.8, 0.8, 0.85, 1.0],
+            Pull => [0.3, 0.3, 0.9, 1.0],
+            Spring => [0.7, 0.3, 0.7, 1.0],
+        };
+        let radius = match self.role {
+            Push => 1.7,
+            Pull => 0.2,
+            Spring => 1.0,
+        };
+        Appearance { color, radius, visible: true }
+    }
 }
 
 const PUSH_MATERIAL: IntervalMaterial = IntervalMaterial {
@@ -114,7 +133,12 @@ pub fn interval_material(material: Material) -> &'static IntervalMaterial {
 pub fn material_by_label(sought_label: String) -> Material {
     MATERIALS
         .iter()
-        .find_map(|&IntervalMaterial { name, label, .. }|
-            if sought_label.as_str() == label { Some(name) } else { None })
+        .find_map(|&IntervalMaterial { name, label, .. }| {
+            if sought_label.as_str() == label {
+                Some(name)
+            } else {
+                None
+            }
+        })
         .unwrap()
 }

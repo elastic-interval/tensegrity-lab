@@ -94,9 +94,9 @@ pub enum Span {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Role {
-    Push,
-    Pull,
-    Spring,
+    Push = 0,
+    Pull = 1,
+    Spring = 2,
 }
 
 pub enum End {
@@ -105,10 +105,62 @@ pub enum End {
 }
 
 #[derive(Clone, Copy, Debug)]
+pub struct Appearance {
+    pub color: [f32; 4],
+    pub radius: f32,
+    pub visible: bool,
+}
+
+impl Appearance {}
+
+impl Appearance {
+    pub fn with_color(&self, color: [f32; 4]) -> Self {
+        Self {
+            color,
+            radius: self.radius + 1.0,
+            visible: false,
+        }
+    }
+
+    pub fn invisible(&self) -> Self {
+        Self {
+            color: self.color,
+            radius: self.radius,
+            visible: false,
+        }
+    }
+
+    pub fn faded(self) -> Self {
+        Self {
+            color: [0.01, 0.01, 0.01, 1.0],
+            radius: self.radius,
+            visible: self.visible,
+        }
+    }
+
+    pub fn selected(self) -> Self {
+        Self {
+            color: [0.0, 1.0, 0.0, 1.0],
+            radius: self.radius + 1.0,
+            visible: self.visible,
+        }
+    }
+
+    pub fn highlighted(self) -> Self {
+        Self {
+            color: self.color,
+            radius: self.radius + 0.5,
+            visible: self.visible,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct Interval {
     pub alpha_index: usize,
     pub omega_index: usize,
     pub material: Material,
+    pub appearance: Option<Appearance>,
     pub span: Span,
     pub unit: Vector3<f32>,
     pub strain: f32,
@@ -120,6 +172,7 @@ impl Interval {
             alpha_index,
             omega_index,
             material,
+            appearance: None,
             span,
             unit: zero(),
             strain: 0.0,
@@ -132,6 +185,27 @@ impl Interval {
         } else {
             (self.omega_index, self.alpha_index)
         }
+    }
+
+    pub fn is_push(&self) -> bool {
+        match interval_material(self.material).role {
+            Push => true,
+            Pull => false,
+            Spring => true,
+        }
+    }
+
+    pub fn is_pull(&self) -> bool {
+        match interval_material(self.material).role {
+            Push => false,
+            Pull => true,
+            Spring => true,
+        }
+    }
+
+    pub fn appearance(&self) -> Appearance {
+        self.appearance
+            .unwrap_or_else(|| interval_material(self.material).appearance())
     }
 
     pub fn joint_removed(&mut self, index: usize) {
