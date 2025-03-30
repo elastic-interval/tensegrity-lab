@@ -229,13 +229,8 @@ impl FabricRenderer {
                     Normal => {}
                     WithColoring { color_map, .. } => {
                         radius_factor += 1.0;
-                        let (alpha, omega) = (interval.alpha_index, interval.omega_index);
-                        let (low, high) = if alpha < omega {
-                            (alpha, omega)
-                        } else {
-                            (omega, alpha)
-                        };
-                        if let Some(coloring_color) = color_map.get(&(low, high)) {
+                        let key = interval.key();
+                        if let Some(coloring_color) = color_map.get(&key) {
                             color = *coloring_color;
                         } else {
                             color = [0.003, 0.003, 0.003, 0.01];
