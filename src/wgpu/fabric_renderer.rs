@@ -1,6 +1,6 @@
 use crate::camera::Pick;
 use crate::fabric::material::{interval_material, Material};
-use crate::fabric::{interval::Role, Fabric};
+use crate::fabric::Fabric;
 use crate::messages::{IntervalFilter, RenderStyle};
 use crate::wgpu::Wgpu;
 use bytemuck::{Pod, Zeroable};
@@ -205,66 +205,56 @@ impl FabricRenderer {
             let (alpha, omega) = (interval.alpha_index, interval.omega_index);
             let start = fabric.joints[alpha].location;
             let end = fabric.joints[omega].location;
-
-            // Get the role and material properties
             let interval_material = interval_material(interval.material);
             let role = interval_material.role;
-
-            // Set radius factor based on role
-            let mut radius_factor = match role {
-                Role::Push => 1.7,
-                Role::Pull => 0.2,
-                Role::Spring => 1.0,
-            };
-
-            // Set color based on role and strain
-            let mut color = match role {
-                Role::Push => [0.8, 0.8, 0.85, 1.0],
-                Role::Pull => [0.3, 0.3, 0.9, 1.0],
-                Role::Spring => [0.7, 0.3, 0.7, 1.0],
-            };
-
-            match pick {
+            let radius_factor = match pick {
                 Pick::Nothing => match render_style {
-                    Normal => {}
+                    Normal => role.radius(),
+                    WithColoring { .. } => role.radius() + 1.0,
+                },
+                Pick::Joint { .. } => role.radius(),
+                Pick::Interval { id, .. } => {
+                    if *id == *interval_id {
+                        role.radius() + 1.0
+                    } else {
+                        role.radius()
+                    }
+                }
+            };
+            let color = match pick {
+                Pick::Nothing => match render_style {
+                    Normal => role.color(),
                     WithColoring { color_map, .. } => {
-                        radius_factor += 1.0;
                         let key = interval.key();
                         if let Some(coloring_color) = color_map.get(&key) {
-                            color = *coloring_color;
+                            *coloring_color
                         } else {
-                            color = [0.003, 0.003, 0.003, 0.01];
+                            [0.003, 0.003, 0.003, 0.01]
                         }
                     }
                 },
                 Pick::Joint { index, .. } => {
                     if !interval.touches(*index) {
-                        color = FADED;
+                        FADED
+                    } else {
+                        role.color()
                     }
                 }
                 Pick::Interval { joint, id, .. } => {
                     if *id == *interval_id {
-                        radius_factor += 1.0;
-                        color = SELECTED;
+                        SELECTED
                     } else if !interval.touches(*joint) {
-                        color = FADED;
+                        FADED
+                    } else {
+                        role.color()
                     }
                 }
             };
-
-            // Set material type index
-            let material_type = match role {
-                Role::Push => 0,
-                Role::Pull => 1,
-                Role::Spring => 2,
-            };
-
-            // Create instance with minimal data - no vector math on CPU
             instances.push(CylinderInstance {
                 start: [start.x, start.y, start.z],
                 radius_factor,
                 end: [end.x, end.y, end.z],
-                material_type,
+                material_type: role as u32,
                 color,
             });
         }

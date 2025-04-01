@@ -94,9 +94,27 @@ pub enum Span {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Role {
-    Push,
-    Pull,
-    Spring,
+    Push = 0,
+    Pull = 1,
+    Spring = 2,
+}
+
+impl Role {
+    pub fn radius(&self) -> f32 {
+        match self {
+            Push => 1.7,
+            Pull => 0.2,
+            Spring => 1.0,
+        }
+    }
+
+    pub fn color(&self) -> [f32; 4] {
+        match self {
+            Push => [0.8, 0.8, 0.85, 1.0],
+            Pull => [0.3, 0.3, 0.9, 1.0],
+            Spring => [0.7, 0.3, 0.7, 1.0],
+        }
+    }
 }
 
 pub enum End {
