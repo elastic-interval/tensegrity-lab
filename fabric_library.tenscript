@@ -122,7 +122,7 @@
 			(centralize 5.0)
 			(faces-to-triangles))
 		(pretense (surface :frozen)))
-	(fabric (name "Tworque Walker")
+	(fabric (name "Torque Walker")
 		(build
 			(branch (alias Torque)
 				(face (alias LeftFrontBottom) (grow 1 (branch (alias TorqueLeft))))
@@ -193,6 +193,23 @@
 		(shape
 			(centralize 1.0)
 			(during 40000 (vulcanize))
+			(faces-to-triangles))
+		(pretense (surface :absent))
+		(scale 74.6))
+	(fabric (name "Symmetrical")
+		(build
+			(branch (alias Omni)))
+		(shape
+			(centralize 1.0)
+			(faces-to-triangles))
+		(pretense (surface :absent))
+		(scale 74.6))
+	(fabric (name "Vertebra")
+		(build
+			(branch (alias Single)
+			(face (alias :next-base) (grow 1))))
+		(shape
+			(centralize 1.0)
 			(faces-to-triangles))
 		(pretense (surface :absent))
 		(scale 74.6))
