@@ -1,29 +1,21 @@
 use crate::application::AppStateChange;
+use crate::build::failure_test::FailureTest;
 use crate::crucible::{CrucibleAction, TesterAction};
 use crate::fabric::interval::Interval;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::messages::{LabEvent, Scenario};
-use cgmath::InnerSpace;
 use winit::event_loop::EventLoopProxy;
 
 const MAX_NEW_ITERATIONS: u64 = 100000;
-
-#[derive(Clone)]
-struct TestCase {
-    fabric: Fabric,
-    interval_missing: Option<(usize, usize)>,
-    damage: f32,
-    finished: bool,
-}
 
 pub struct Tester {
     test_number: usize,
     default_fabric: Fabric,
     min_damage: f32,
     max_damage: f32,
-    test_cases: Vec<TestCase>,
+    test_cases: Vec<FailureTest>,
     physics: Physics,
     event_loop_proxy: EventLoopProxy<LabEvent>,
 }
@@ -46,10 +38,9 @@ impl Tester {
             })
             .collect();
         let mut test_cases = vec![
-            TestCase {
+            FailureTest {
                 fabric: fabric.clone(),
                 interval_missing: None,
-                damage: 0.0,
                 finished: false,
             };
             interval_keys.len()
@@ -91,15 +82,8 @@ impl Tester {
         let iterations = test_case.fabric.age - self.default_fabric.age;
         if iterations >= MAX_NEW_ITERATIONS && !test_case.finished {
             test_case.finished = true;
-            let mut damage = 0.0;
-            for joint_id in 0..self.default_fabric.joints.len() {
-                let default_location = self.default_fabric.location(joint_id);
-                let new_location = test_case.fabric.location(joint_id);
-                damage += (default_location - new_location).magnitude();
-            }
-            test_case.damage = damage;
             let key = test_case.interval_missing.unwrap();
-            let clamped = test_case.damage.clamp(self.min_damage, self.max_damage);
+            let clamped = test_case.damage(&self.default_fabric).clamp(self.min_damage, self.max_damage);
             let redness = (clamped - self.min_damage) / (self.max_damage - self.min_damage);
             let color = [redness, 0.01, 0.01, 1.0];
             send(LabEvent::AppStateChanged(SetIntervalColor { key, color }));
@@ -143,7 +127,7 @@ impl Tester {
         &self.test_case().fabric
     }
 
-    fn test_case(&self) -> &TestCase {
+    fn test_case(&self) -> &FailureTest {
         &self.test_cases[self.test_number]
     }
 
