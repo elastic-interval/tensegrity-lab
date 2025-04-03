@@ -6,3 +6,4 @@ pub mod mobius;
 pub mod oven;
 pub mod sphere;
 pub mod tenscript;
+pub mod failure_test;
