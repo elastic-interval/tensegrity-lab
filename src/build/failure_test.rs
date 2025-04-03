@@ -10,9 +10,9 @@ use winit::event_loop::EventLoopProxy;
 
 #[derive(Clone)]
 pub struct FailureTest {
-    pub test_number: usize,
     pub fabric: Fabric,
-    pub finished: bool,
+    test_number: usize,
+    finished: bool,
     interval_missing: Option<(usize, usize)>,
 }
 
@@ -84,7 +84,7 @@ impl FailureTest {
         event_loop_proxy: EventLoopProxy<LabEvent>,
     ) {
         if self.finished {
-            return
+            return;
         }
         self.finished = true;
         let key = self.interval_missing.unwrap();
