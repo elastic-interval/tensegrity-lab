@@ -1,6 +1,6 @@
 use crate::application::AppStateChange;
 use crate::build::failure_test::FailureTest;
-use crate::crucible::{CrucibleAction, TesterAction};
+use crate::crucible::TesterAction;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::messages::{LabEvent, Scenario};
@@ -37,25 +37,21 @@ impl Tester {
     }
 
     pub fn iterate(&mut self) {
-        use AppStateChange::*;
-        use CrucibleAction::*;
-        let send = |lab_event: LabEvent| self.event_loop_proxy.send_event(lab_event).unwrap();
-        let physics = &self.physics;
         let test_case = self
             .test_cases
             .get_mut(self.test_number)
             .expect("No test case");
         let iterations = test_case.fabric.age - self.default_fabric.age;
-        if iterations >= MAX_NEW_ITERATIONS && !test_case.finished {
-            test_case.finished = true;
-            let key = test_case.interval_missing.unwrap();
-            let clamped = test_case.damage(&self.default_fabric).clamp(self.min_damage, self.max_damage);
-            let redness = (clamped - self.min_damage) / (self.max_damage - self.min_damage);
-            let color = [redness, 0.01, 0.01, 1.0];
-            send(LabEvent::AppStateChanged(SetIntervalColor { key, color }));
-            send(LabEvent::Crucible(TesterDo(TesterAction::NextExperiment)));
+        if iterations >= MAX_NEW_ITERATIONS {
+            test_case.finish(
+                &self.default_fabric,
+                self.min_damage,
+                self.max_damage,
+                self.event_loop_proxy.clone(),
+            );
+        } else {
+            test_case.fabric.iterate(&self.physics);
         }
-        test_case.fabric.iterate(physics);
     }
 
     pub fn action(&mut self, action: TesterAction) {
@@ -75,14 +71,7 @@ impl Tester {
                     }
                 };
                 send(AppStateChanged(SetExperimentTitle {
-                    title: match self.test_cases[self.test_number].interval_missing {
-                        None => {
-                            format!("Test #{}", self.test_number)
-                        }
-                        Some(pair) => {
-                            format!("Test #{} {pair:?}", self.test_number)
-                        }
-                    },
+                    title: self.test_case().title(),
                     fabric_stats: self.fabric().fabric_stats(),
                 }));
             }
