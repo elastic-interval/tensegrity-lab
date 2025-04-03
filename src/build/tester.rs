@@ -1,8 +1,6 @@
 use crate::application::AppStateChange;
 use crate::build::failure_test::FailureTest;
 use crate::crucible::{CrucibleAction, TesterAction};
-use crate::fabric::interval::Interval;
-use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::messages::{LabEvent, Scenario};
@@ -27,44 +25,12 @@ impl Tester {
         physics: Physics,
         event_loop_proxy: EventLoopProxy<LabEvent>,
     ) -> Self {
-        let interval_keys: Vec<_> = fabric
-            .intervals
-            .iter()
-            .flat_map(|(id, interval)| match (interval.material, &scenario) {
-                (Material::PullMaterial, Scenario::TensionTest) => Some(*id),
-                (Material::PushMaterial, Scenario::CompressionTest) => Some(*id),
-                (Material::GuyLineMaterial, Scenario::TensionTest) => Some(*id),
-                _ => None,
-            })
-            .collect();
-        let mut test_cases = vec![
-            FailureTest {
-                fabric: fabric.clone(),
-                interval_missing: None,
-                finished: false,
-            };
-            interval_keys.len()
-        ];
-        for index in 0..interval_keys.len() {
-            let missing_key = interval_keys[index];
-            let &Interval {
-                alpha_index,
-                omega_index,
-                ..
-            } = fabric.interval(missing_key);
-            test_cases[index].fabric.remove_interval(missing_key);
-            test_cases[index].interval_missing = Some(if alpha_index < omega_index {
-                (alpha_index, omega_index)
-            } else {
-                (omega_index, alpha_index)
-            });
-        }
         Self {
             test_number: 0,
             default_fabric: fabric.clone(),
             min_damage: Self::min_damage(scenario),
             max_damage: Self::max_damage(scenario),
-            test_cases,
+            test_cases: FailureTest::generate(&fabric, scenario),
             physics,
             event_loop_proxy,
         }
