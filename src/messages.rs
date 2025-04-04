@@ -9,8 +9,7 @@ use std::time::SystemTime;
 use winit::dpi::PhysicalPosition;
 
 #[derive(Debug, Clone, Copy)]
-pub enum Scenario {
-    Viewing,
+pub enum TestScenario {
     TensionTest,
     CompressionTest,
 }
@@ -20,7 +19,7 @@ pub enum RunStyle {
     Unknown,
     Fabric {
         fabric_name: String,
-        scenario: Scenario,
+        scenario: Option<TestScenario>,
     },
     Prototype(usize),
     Seeded(u64),
@@ -64,7 +63,7 @@ pub enum ControlState {
     Animating,
     ShowingJoint(JointDetails),
     ShowingInterval(IntervalDetails),
-    Testing(Scenario),
+    Testing(TestScenario),
 }
 
 #[derive(Debug, Clone)]

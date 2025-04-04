@@ -3,7 +3,7 @@ use crate::build::failure_test::FailureTest;
 use crate::crucible::TesterAction;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{LabEvent, Scenario};
+use crate::messages::{LabEvent, TestScenario};
 use winit::event_loop::EventLoopProxy;
 
 const MAX_NEW_ITERATIONS: u64 = 100000;
@@ -20,7 +20,7 @@ pub struct Tester {
 
 impl Tester {
     pub fn new(
-        scenario: Scenario,
+        scenario: TestScenario,
         fabric: &Fabric,
         physics: Physics,
         event_loop_proxy: EventLoopProxy<LabEvent>,
@@ -86,23 +86,17 @@ impl Tester {
         &self.test_cases[self.test_number]
     }
 
-    fn min_damage(scenario: Scenario) -> f32 {
+    fn min_damage(scenario: TestScenario) -> f32 {
         match scenario {
-            Scenario::TensionTest => 100.0,
-            Scenario::CompressionTest => 500.0,
-            _ => {
-                unreachable!()
-            }
+            TestScenario::TensionTest => 100.0,
+            TestScenario::CompressionTest => 500.0,
         }
     }
 
-    fn max_damage(scenario: Scenario) -> f32 {
+    fn max_damage(scenario: TestScenario) -> f32 {
         match scenario {
-            Scenario::TensionTest => 500.0,
-            Scenario::CompressionTest => 1000.0,
-            _ => {
-                unreachable!()
-            }
+            TestScenario::TensionTest => 500.0,
+            TestScenario::CompressionTest => 1000.0,
         }
     }
 }

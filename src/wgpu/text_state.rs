@@ -1,7 +1,7 @@
 use crate::application::AppStateChange;
 use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
-use crate::messages::{ControlState, Scenario};
+use crate::messages::{ControlState, TestScenario};
 use crate::ITERATIONS_PER_FRAME;
 use std::default::Default;
 use wgpu_text::glyph_brush::{
@@ -118,15 +118,14 @@ impl TextState {
                 SectionName::Top,
                 match control_state {
                     Testing(scenario) => match scenario {
-                        Scenario::TensionTest => Large(format!(
+                        TestScenario::TensionTest => Large(format!(
                             "Tension test of {} {}",
                             fabric_name, self.experiment_title
                         )),
-                        Scenario::CompressionTest => Large(format!(
+                        TestScenario::CompressionTest => Large(format!(
                             "Compression test of {} {}",
                             fabric_name, self.experiment_title
                         )),
-                        _ => Nothing,
                     },
                     _ => Large(fabric_name.clone()),
                 },

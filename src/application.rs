@@ -4,7 +4,7 @@ use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible::{Crucible, CrucibleAction};
 use crate::fabric::FabricStats;
 use crate::keyboard::Keyboard;
-use crate::messages::{ControlState, LabEvent, PointerChange, RunStyle, Scenario, Shot};
+use crate::messages::{ControlState, LabEvent, PointerChange, RunStyle, Shot, TestScenario};
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 use instant::{Duration, Instant};
@@ -254,8 +254,15 @@ impl ApplicationHandler<LabEvent> for Application {
                 if self.mobile_device {
                     send(LabEvent::Crucible(CrucibleAction::ViewingToAnimating));
                 } else {
-                    if let RunStyle::Fabric { scenario, .. } = &self.run_style {
-                        if matches!(scenario, Scenario::TensionTest | Scenario::CompressionTest) {
+                    if let RunStyle::Fabric {
+                        scenario: Some(scenario),
+                        ..
+                    } = &self.run_style
+                    {
+                        if matches!(
+                            scenario,
+                            TestScenario::TensionTest | TestScenario::CompressionTest
+                        ) {
                             send(LabEvent::Crucible(CrucibleAction::StartExperiment(
                                 scenario.clone(),
                             )))

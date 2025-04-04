@@ -8,7 +8,7 @@ use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
 use tensegrity_lab::messages::RunStyle;
-use tensegrity_lab::messages::{LabEvent, Scenario};
+use tensegrity_lab::messages::{LabEvent, TestScenario};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -36,16 +36,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     let run_style = match (fabric, prototype, seed, test) {
         (Some(fabric_name), None, None, None) => RunStyle::Fabric {
             fabric_name,
-            scenario: Scenario::Viewing,
+            scenario: None,
         },
         (None, Some(prototype), None, None) => RunStyle::Prototype(prototype),
         (None, None, Some(seed), None) => RunStyle::Seeded(seed),
         (Some(fabric_name), None, None, Some(tension)) => RunStyle::Fabric {
             fabric_name,
             scenario: if tension {
-                Scenario::TensionTest
+                Some(TestScenario::TensionTest)
             } else {
-                Scenario::CompressionTest
+                Some(TestScenario::CompressionTest)
             },
         },
         _ => {
@@ -87,7 +87,7 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
 pub fn run() {
     run_with(RunStyle::Fabric {
         fabric_name: "De Twips".to_string(),
-        scenario: Scenario::Viewing,
+        scenario: None,
     })
     .unwrap();
 }
