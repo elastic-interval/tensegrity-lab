@@ -1,0 +1,121 @@
+use crate::crucible::CrucibleAction::TesterDo;
+use crate::crucible::TesterAction;
+use crate::crucible::TesterAction::{NextExperiment, PrevExperiment};
+use crate::fabric::physics::Physics;
+use crate::fabric::Fabric;
+use crate::messages::LabEvent;
+use winit::event_loop::EventLoopProxy;
+
+pub struct PhysicsTester {
+    test_number: usize,
+    default_fabric: Fabric,
+    test_cases: Vec<PhysicsTest>,
+    event_loop_proxy: EventLoopProxy<LabEvent>,
+}
+
+impl PhysicsTester {
+    pub fn new(
+        fabric: &Fabric,
+        physics: Physics,
+        event_loop_proxy: EventLoopProxy<LabEvent>,
+    ) -> Self {
+        Self {
+            test_number: 0,
+            default_fabric: fabric.clone(),
+            test_cases: PhysicsTest::generate(&fabric, physics),
+            event_loop_proxy,
+        }
+    }
+
+    pub fn iterate(&mut self) {
+        let test_case = self
+            .test_cases
+            .get_mut(self.test_number)
+            .expect("No test case");
+        if !test_case.completed(&self.default_fabric, self.event_loop_proxy.clone()) {
+            test_case.iterate();
+        }
+    }
+
+    pub fn action(&mut self, action: TesterAction) {
+        use crate::application::AppStateChange::*;
+        use crate::crucible::TesterAction::*;
+        use LabEvent::*;
+        let send = |lab_event: LabEvent| self.event_loop_proxy.send_event(lab_event).unwrap();
+        match action {
+            PrevExperiment | NextExperiment => {
+                if matches!(action, NextExperiment) {
+                    if self.test_number + 1 < self.test_cases.len() {
+                        self.test_number += 1
+                    }
+                } else {
+                    if self.test_number > 0 {
+                        self.test_number -= 1;
+                    }
+                };
+                send(AppStateChanged(SetExperimentTitle {
+                    title: self.test_case().title(),
+                    fabric_stats: self.fabric().fabric_stats(),
+                }));
+            }
+        }
+    }
+
+    pub fn fabric(&self) -> &Fabric {
+        &self.test_case().fabric
+    }
+
+    fn test_case(&self) -> &PhysicsTest {
+        &self.test_cases[self.test_number]
+    }
+}
+
+const MAX_NEW_ITERATIONS: u64 = 100000;
+
+pub struct PhysicsTest {
+    pub fabric: Fabric,
+    physics: Physics,
+    finished: bool,
+}
+
+impl PhysicsTest {
+    pub fn generate(default_fabric: &Fabric, physics: Physics) -> Vec<PhysicsTest> {
+        let mut test_cases: Vec<PhysicsTest> = vec![
+            PhysicsTest {
+                fabric: default_fabric.clone(),
+                physics: physics.clone(),
+                finished: false,
+            };
+            10
+        ];
+        for index in 0..test_cases.len() {
+            test_cases[index].physics.stiffness *= index as f32;
+        }
+        test_cases
+    }
+
+    pub fn iterate(&mut self) {
+        if self.finished {
+            return;
+        }
+        self.fabric.iterate(&self.physics);
+    }
+
+    pub fn completed(
+        &mut self,
+        default_fabric: &Fabric,
+        event_loop_proxy: EventLoopProxy<LabEvent>,
+    ) -> bool {
+        if self.finished {
+            return true;
+        }
+        let iterations = self.fabric.age - default_fabric.age;
+        if iterations < MAX_NEW_ITERATIONS {
+            return false;
+        }
+        self.finished = true;
+        let send = |lab_event| event_loop_proxy.send_event(lab_event).unwrap();
+        send(LabEvent::Crucible(TesterDo(NextExperiment)));
+        true
+    }
+}

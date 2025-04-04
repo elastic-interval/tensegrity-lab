@@ -1,5 +1,7 @@
+use crate::application::AppStateChange::SetIntervalColor;
 use crate::crucible::CrucibleAction::TesterDo;
 use crate::crucible::TesterAction;
+use crate::crucible::TesterAction::NextExperiment;
 use crate::fabric::interval::Interval;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
@@ -7,8 +9,6 @@ use crate::fabric::Fabric;
 use crate::messages::{LabEvent, TestScenario};
 use cgmath::InnerSpace;
 use winit::event_loop::EventLoopProxy;
-use crate::application::AppStateChange::SetIntervalColor;
-use crate::crucible::TesterAction::NextExperiment;
 
 pub struct FailureTester {
     test_number: usize,
@@ -39,7 +39,7 @@ impl FailureTester {
             .test_cases
             .get_mut(self.test_number)
             .expect("No test case");
-        if !test_case.completed(&self.default_fabric, self.event_loop_proxy.clone() ) {
+        if !test_case.completed(&self.default_fabric, self.event_loop_proxy.clone()) {
             test_case.fabric.iterate(&self.physics);
         }
     }
@@ -75,7 +75,6 @@ impl FailureTester {
     fn test_case(&self) -> &FailureTest {
         &self.test_cases[self.test_number]
     }
-
 }
 
 const MAX_NEW_ITERATIONS: u64 = 100000;
@@ -145,7 +144,11 @@ impl FailureTest {
         damage
     }
 
-    pub fn completed(&mut self, default_fabric: &Fabric, event_loop_proxy: EventLoopProxy<LabEvent>) -> bool {
+    pub fn completed(
+        &mut self,
+        default_fabric: &Fabric,
+        event_loop_proxy: EventLoopProxy<LabEvent>,
+    ) -> bool {
         if self.finished {
             return true;
         }
@@ -160,7 +163,7 @@ impl FailureTest {
         let clamped = self.damage(default_fabric).clamp(min_damage, max_damage);
         let redness = (clamped - min_damage) / (max_damage - min_damage);
         let color = [redness, 0.01, 0.01, 1.0];
-        let send = |lab_event: LabEvent| event_loop_proxy.send_event(lab_event).unwrap();
+        let send = |lab_event| event_loop_proxy.send_event(lab_event).unwrap();
         send(LabEvent::AppStateChanged(SetIntervalColor { key, color }));
         send(LabEvent::Crucible(TesterDo(NextExperiment)));
         true
@@ -170,6 +173,7 @@ impl FailureTest {
         match scenario {
             TestScenario::TensionTest => 100.0,
             TestScenario::CompressionTest => 500.0,
+            _ => unreachable!(),
         }
     }
 
@@ -177,6 +181,7 @@ impl FailureTest {
         match scenario {
             TestScenario::TensionTest => 500.0,
             TestScenario::CompressionTest => 1000.0,
+            _ => unreachable!(),
         }
     }
 }

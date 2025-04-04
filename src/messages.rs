@@ -12,6 +12,7 @@ use winit::dpi::PhysicalPosition;
 pub enum TestScenario {
     TensionTest,
     CompressionTest,
+    PhysicsTest,
 }
 
 #[derive(Debug, Clone)]
