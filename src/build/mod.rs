@@ -1,6 +1,5 @@
 pub mod ball;
 pub mod evo;
-pub mod tester;
 pub mod klein;
 pub mod mobius;
 pub mod oven;

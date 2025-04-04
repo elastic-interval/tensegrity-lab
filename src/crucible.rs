@@ -1,6 +1,7 @@
 use crate::animator::Animator;
 use crate::application::AppStateChange;
 use crate::build::evo::evolution::Evolution;
+use crate::build::failure_test::FailureTester;
 use crate::build::oven::Oven;
 use crate::build::tenscript::brick::Prototype;
 use crate::build::tenscript::brick_library::BrickLibrary;
@@ -8,7 +9,6 @@ use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::pretenser::Pretenser;
 use crate::build::tenscript::FabricPlan;
-use crate::build::tester::Tester;
 use crate::crucible::Stage::*;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
@@ -23,7 +23,7 @@ enum Stage {
     Pretensing(Pretenser),
     Viewing(Physics),
     Animating(Animator),
-    Testing(Tester),
+    FailureTesting(FailureTester),
     BakingBrick(Oven),
     Evolving(Evolution),
 }
@@ -38,7 +38,7 @@ pub enum TesterAction {
 pub enum CrucibleAction {
     BakeBrick(Prototype),
     BuildFabric(FabricPlan),
-    StartExperiment(TestScenario),
+    ToFailureTesting(TestScenario),
     TesterDo(TesterAction),
     StartEvolving(u64),
     AdjustSpeed(f32),
@@ -108,7 +108,7 @@ impl Crucible {
                     animator.iterate(&mut self.fabric);
                 }
             }
-            Testing(tester) => {
+            FailureTesting(tester) => {
                 for _ in 0..self.iterations_per_frame {
                     tester.iterate()
                 }
@@ -176,10 +176,10 @@ impl Crucible {
                     send(SetControlState(ControlState::Animating));
                 }
             }
-            StartExperiment(scenario) => {
+            ToFailureTesting(scenario) => {
                 if let Viewing(physics) = &mut self.stage {
-                    self.stage = Testing(Tester::new(
-                        scenario,
+                    self.stage = FailureTesting(FailureTester::new(
+                        scenario.clone(),
                         &self.fabric,
                         physics.clone(),
                         self.event_loop_proxy.clone(),
@@ -190,7 +190,7 @@ impl Crucible {
                 }
             }
             TesterDo(lab_action) => {
-                if let Testing(lab) = &mut self.stage {
+                if let FailureTesting(lab) = &mut self.stage {
                     lab.action(lab_action)
                 };
             }
@@ -201,8 +201,8 @@ impl Crucible {
     }
 
     pub fn fabric(&mut self) -> &Fabric {
-        if let Testing(experiment) = &mut self.stage {
-            experiment.fabric()
+        if let FailureTesting(failure_tester) = &mut self.stage {
+            failure_tester.fabric()
         } else {
             &self.fabric
         }

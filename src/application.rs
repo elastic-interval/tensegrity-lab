@@ -263,7 +263,7 @@ impl ApplicationHandler<LabEvent> for Application {
                             scenario,
                             TestScenario::TensionTest | TestScenario::CompressionTest
                         ) {
-                            send(LabEvent::Crucible(CrucibleAction::StartExperiment(
+                            send(LabEvent::Crucible(CrucibleAction::ToFailureTesting(
                                 scenario.clone(),
                             )))
                         }
