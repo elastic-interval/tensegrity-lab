@@ -12,7 +12,7 @@ use crate::build::tester::Tester;
 use crate::crucible::Stage::*;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{ControlState, LabEvent, Scenario};
+use crate::messages::{ControlState, LabEvent, TestScenario};
 use crate::ITERATIONS_PER_FRAME;
 use winit::event_loop::EventLoopProxy;
 
@@ -38,7 +38,7 @@ pub enum TesterAction {
 pub enum CrucibleAction {
     BakeBrick(Prototype),
     BuildFabric(FabricPlan),
-    StartExperiment(Scenario),
+    StartExperiment(TestScenario),
     TesterDo(TesterAction),
     StartEvolving(u64),
     AdjustSpeed(f32),

@@ -4,7 +4,7 @@ use crate::crucible::TesterAction;
 use crate::fabric::interval::Interval;
 use crate::fabric::material::Material;
 use crate::fabric::Fabric;
-use crate::messages::{LabEvent, Scenario};
+use crate::messages::{LabEvent, TestScenario};
 use cgmath::InnerSpace;
 use winit::event_loop::EventLoopProxy;
 
@@ -28,14 +28,14 @@ impl FailureTest {
         }
     }
 
-    pub fn generate(default_fabric: &Fabric, scenario: Scenario) -> Vec<FailureTest> {
+    pub fn generate(default_fabric: &Fabric, scenario: TestScenario) -> Vec<FailureTest> {
         let interval_keys: Vec<_> = default_fabric
             .intervals
             .iter()
             .flat_map(|(id, interval)| match (interval.material, &scenario) {
-                (Material::PullMaterial, Scenario::TensionTest) => Some(*id),
-                (Material::PushMaterial, Scenario::CompressionTest) => Some(*id),
-                (Material::GuyLineMaterial, Scenario::TensionTest) => Some(*id),
+                (Material::PullMaterial, TestScenario::TensionTest) => Some(*id),
+                (Material::PushMaterial, TestScenario::CompressionTest) => Some(*id),
+                (Material::GuyLineMaterial, TestScenario::TensionTest) => Some(*id),
                 _ => None,
             })
             .collect();

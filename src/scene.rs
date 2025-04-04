@@ -3,7 +3,7 @@ use crate::camera::Target::*;
 use crate::camera::{Camera, Pick};
 use crate::fabric::material::interval_material;
 use crate::fabric::Fabric;
-use crate::messages::{ControlState, IntervalDetails, IntervalFilter, JointDetails, RenderStyle, Scenario};
+use crate::messages::{ControlState, IntervalDetails, IntervalFilter, JointDetails, RenderStyle, TestScenario};
 use crate::messages::{LabEvent, PointerChange};
 use crate::scene::RenderStyle::WithColoring;
 use crate::wgpu::fabric_renderer::FabricRenderer;
@@ -64,19 +64,18 @@ impl Scene {
                 Testing(scenario) => {
                     self.reset();
                     match scenario {
-                        Scenario::TensionTest => {
+                        TestScenario::TensionTest => {
                             self.render_style = WithColoring {
                                 color_map: HashMap::new(),
                                 filter: IntervalFilter::ShowPull,
                             };
                         }
-                        Scenario::CompressionTest => {
+                        TestScenario::CompressionTest => {
                             self.render_style = WithColoring {
                                 color_map: HashMap::new(),
                                 filter: IntervalFilter::ShowPush,
                             };
                         }
-                        _ => {}
                     }
                 }
             },
