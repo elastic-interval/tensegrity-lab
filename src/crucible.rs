@@ -223,10 +223,10 @@ impl Crucible {
     }
 
     pub fn fabric(&mut self) -> &Fabric {
-        if let FailureTesting(failure_tester) = &mut self.stage {
-            failure_tester.fabric()
-        } else {
-            &self.fabric
+        match &mut self.stage {
+            FailureTesting(tester) => {tester.fabric()}
+            PhysicsTesting(tester) => {tester.fabric()}
+            _ => {&self.fabric}
         }
     }
 }

@@ -83,13 +83,13 @@ impl PhysicsTest {
             10
         ];
         for index in 0..test_cases.len() {
-            test_cases[index].physics.stiffness *= (index + 1) as f32 * 5.0;
+            test_cases[index].physics.stiffness *= (index + 1) as f32;
         }
         test_cases
     }
 
     pub fn iterate(&mut self) {
         self.fabric.iterate(&self.physics);
-        self.fabric.muscle_advance(); // TODO figure out why he is not dancing
+        self.fabric.muscle_advance();
     }
 }
