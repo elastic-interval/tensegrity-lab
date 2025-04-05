@@ -28,7 +28,7 @@ const PUSH_MATERIAL: IntervalMaterial = IntervalMaterial {
     name: PushMaterial,
     label: ":push",
     role: Push,
-    stiffness: 100.0,
+    stiffness: 30.0,
     mass: 1.0,
     support: false,
 };
@@ -55,7 +55,7 @@ const NORTH_MATERIAL: IntervalMaterial = IntervalMaterial {
     name: NorthMaterial,
     label: ":north",
     role: Pull,
-    stiffness: 0.5,
+    stiffness: 1.0,
     mass: 0.01,
     support: true,
 };
@@ -64,7 +64,7 @@ const SOUTH_MATERIAL: IntervalMaterial = IntervalMaterial {
     name: SouthMaterial,
     label: ":south",
     role: Pull,
-    stiffness: 0.5,
+    stiffness: 1.0,
     mass: 0.01,
     support: true,
 };

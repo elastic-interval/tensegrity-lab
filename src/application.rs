@@ -245,7 +245,6 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             FabricBuilt(fabric_stats) => {
                 send(AppStateChanged(SetFabricStats(Some(fabric_stats))));
-                send(AppStateChanged(SetControlState(ControlState::Viewing)));
                 if self.mobile_device {
                     send(Crucible(ViewingToAnimating));
                 } else {
@@ -262,6 +261,8 @@ impl ApplicationHandler<LabEvent> for Application {
                                 send(Crucible(ToPhysicsTesting(scenario.clone())))
                             }
                         }
+                    } else {
+                        send(AppStateChanged(SetControlState(ControlState::Viewing)));
                     }
                 }
             }
