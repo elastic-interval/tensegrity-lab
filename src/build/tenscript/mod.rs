@@ -12,11 +12,7 @@ use pest_derive::Parser;
 pub use fabric_plan::FabricPlan;
 
 use crate::build::tenscript::build_phase::BuildPhase;
-use crate::build::tenscript::pretense_phase::MuscleMovement;
 use crate::fabric::face::Face;
-use crate::fabric::interval::Span;
-use crate::fabric::interval::Span::Muscle;
-use crate::fabric::material::Material::{NorthMaterial, SouthMaterial};
 use crate::fabric::{Fabric, UniqueId};
 
 pub mod brick;
@@ -65,31 +61,6 @@ impl Fabric {
         self.faces
             .get(&face_id)
             .ok_or(TenscriptError::InvalidError("Face missing".to_string()))
-    }
-
-    pub fn activate_muscles(&mut self, MuscleMovement{contraction, countdown}: &MuscleMovement) {
-        self.muscle_nuance = 0.5;
-        self.muscle_nuance_increment= 1.0 / *countdown as f32;
-        for interval in self.intervals.values_mut() {
-            let Span::Fixed { length } = interval.span else {
-                continue;
-            };
-            let contracted = length * contraction;
-            if interval.material == NorthMaterial {
-                interval.span = Muscle {
-                    length,
-                    contracted,
-                    reverse: false,
-                };
-            }
-            if interval.material == SouthMaterial {
-                interval.span = Muscle {
-                    length,
-                    contracted,
-                    reverse: true,
-                };
-            }
-        }
     }
 }
 

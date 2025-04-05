@@ -3,6 +3,7 @@ use crate::application::AppStateChange;
 use crate::build::evo::evolution::Evolution;
 use crate::build::failure_test::FailureTester;
 use crate::build::oven::Oven;
+use crate::build::physics_test::PhysicsTester;
 use crate::build::tenscript::brick::Prototype;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::plan_runner::PlanRunner;
@@ -24,6 +25,7 @@ enum Stage {
     Viewing(Physics),
     Animating(Animator),
     FailureTesting(FailureTester),
+    PhysicsTesting(PhysicsTester),
     BakingBrick(Oven),
     Evolving(Evolution),
 }
@@ -39,6 +41,7 @@ pub enum CrucibleAction {
     BakeBrick(Prototype),
     BuildFabric(FabricPlan),
     ToFailureTesting(TestScenario),
+    ToPhysicsTesting(TestScenario),
     TesterDo(TesterAction),
     StartEvolving(u64),
     AdjustSpeed(f32),
@@ -109,6 +112,11 @@ impl Crucible {
                 }
             }
             FailureTesting(tester) => {
+                for _ in 0..self.iterations_per_frame {
+                    tester.iterate()
+                }
+            }
+            PhysicsTesting(tester) => {
                 for _ in 0..self.iterations_per_frame {
                     tester.iterate()
                 }
@@ -189,10 +197,24 @@ impl Crucible {
                     panic!("cannot start experiment");
                 }
             }
-            TesterDo(lab_action) => {
-                if let FailureTesting(lab) = &mut self.stage {
-                    lab.action(lab_action)
-                };
+            ToPhysicsTesting(scenario) => {
+                if let Viewing(physics) = &mut self.stage {
+                    self.stage = PhysicsTesting(PhysicsTester::new(
+                        &self.fabric,
+                        physics.clone(),
+                        self.event_loop_proxy.clone(),
+                    ));
+                    send(SetControlState(ControlState::Testing(scenario)));
+                } else {
+                    panic!("cannot start experiment");
+                }
+            }
+            TesterDo(tester_action) => {
+                match &mut self.stage {
+                    FailureTesting(tester) => {tester.action(tester_action);}
+                    PhysicsTesting(tester) => {tester.action(tester_action);}
+                    _ => {}
+                }
             }
             StartEvolving(seed) => {
                 self.stage = Evolving(Evolution::new(seed));
