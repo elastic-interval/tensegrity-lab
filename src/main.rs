@@ -23,7 +23,7 @@ struct Args {
     seed: Option<u64>,
 
     #[arg(long)]
-    test: Option<bool>,
+    test: Option<String>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -40,12 +40,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
         (None, Some(prototype), None, None) => RunStyle::Prototype(prototype),
         (None, None, Some(seed), None) => RunStyle::Seeded(seed),
-        (Some(fabric_name), None, None, Some(tension)) => RunStyle::Fabric {
+        (Some(fabric_name), None, None, Some(test_name)) => RunStyle::Fabric {
             fabric_name,
-            scenario: if tension {
-                Some(TestScenario::TensionTest)
-            } else {
-                Some(TestScenario::CompressionTest)
+            scenario: match test_name.as_ref() {
+                "tension" => Some(TestScenario::TensionTest),
+                "compression" => Some(TestScenario::CompressionTest),
+                "physics" => Some(TestScenario::PhysicsTest),
+                _ => panic!("unknown test: \"{test_name}\""),
             },
         },
         _ => {

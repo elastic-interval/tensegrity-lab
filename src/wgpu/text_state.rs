@@ -110,8 +110,8 @@ impl TextState {
     }
 
     fn update_sections(&mut self) {
-        use TextInstance::*;
         use ControlState::*;
+        use TextInstance::*;
         let control_state = self.control_state.clone();
         if let Some(fabric_name) = &self.fabric_name {
             self.update_section(
@@ -124,6 +124,10 @@ impl TextState {
                         )),
                         TestScenario::CompressionTest => Large(format!(
                             "Compression test of {} {}",
+                            fabric_name, self.experiment_title
+                        )),
+                        TestScenario::PhysicsTest => Large(format!(
+                            "Physics test of {} {}",
                             fabric_name, self.experiment_title
                         )),
                     },

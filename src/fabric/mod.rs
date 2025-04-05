@@ -3,19 +3,20 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
+use crate::build::tenscript::pretense_phase::MuscleMovement;
+use crate::fabric::face::Face;
+use crate::fabric::interval::Role::{Pull, Push, Spring};
+use crate::fabric::interval::Span::{Approaching, Fixed, Muscle};
+use crate::fabric::interval::Interval;
+use crate::fabric::joint::Joint;
+use crate::fabric::material::Material::{NorthMaterial, SouthMaterial};
+use crate::fabric::material::{interval_material, IntervalMaterial};
+use crate::fabric::physics::Physics;
+use crate::fabric::progress::Progress;
 use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
 use std::collections::HashMap;
 use std::fmt::Debug;
-
-use crate::fabric::face::Face;
-use crate::fabric::interval::Interval;
-use crate::fabric::interval::Role::{Pull, Push, Spring};
-use crate::fabric::interval::Span::{Approaching, Fixed};
-use crate::fabric::joint::Joint;
-use crate::fabric::material::{interval_material, IntervalMaterial};
-use crate::fabric::physics::Physics;
-use crate::fabric::progress::Progress;
 
 pub mod brick;
 pub mod face;
@@ -51,12 +52,13 @@ pub struct FabricStats {
 pub struct Fabric {
     pub age: u64,
     pub progress: Progress,
-    pub muscle_nuance: f32,
-    pub muscle_nuance_increment: f32,
     pub joints: Vec<Joint>,
     pub intervals: HashMap<UniqueId, Interval>,
     pub faces: HashMap<UniqueId, Face>,
     pub scale: f32,
+    muscle_nuance: f32,
+    muscle_nuance_increment: f32,
+    muscle_forward: bool,
     unique_id: usize,
 }
 
@@ -65,12 +67,13 @@ impl Default for Fabric {
         Fabric {
             age: 0,
             progress: Progress::default(),
-            muscle_nuance: 0.5,
-            muscle_nuance_increment: 0.0,
             joints: Vec::new(),
             intervals: HashMap::new(),
             faces: HashMap::new(),
             scale: 1.0,
+            muscle_nuance: 0.5,
+            muscle_nuance_increment: 0.0,
+            muscle_forward: true,
             unique_id: 0,
         }
     }
@@ -157,6 +160,47 @@ impl Fabric {
         }
         self.age += 1;
         max_speed_squared
+    }
+
+    pub fn activate_muscles(&mut self, MuscleMovement{contraction, countdown}: &MuscleMovement) {
+        self.muscle_nuance = 0.5;
+        self.muscle_nuance_increment= 1.0 / *countdown as f32;
+        for interval in self.intervals.values_mut() {
+            let Fixed { length } = interval.span else {
+                continue;
+            };
+            let contracted = length * contraction;
+            if interval.material == NorthMaterial {
+                interval.span = Muscle {
+                    length,
+                    contracted,
+                    reverse: false,
+                };
+            }
+            if interval.material == SouthMaterial {
+                interval.span = Muscle {
+                    length,
+                    contracted,
+                    reverse: true,
+                };
+            }
+        }
+    }
+
+    pub fn muscle_advance(&mut self) {
+        let increment = if self.muscle_forward {
+            self.muscle_nuance_increment
+        } else {
+            -self.muscle_nuance_increment
+        };
+        self.muscle_nuance += increment;
+        if self.muscle_nuance < 0.0 {
+            self.muscle_nuance = 0.0;
+            self.muscle_forward = true;
+        } else if self.muscle_nuance > 1.0 {
+            self.muscle_nuance = 1.0;
+            self.muscle_forward = false;
+        }
     }
 
     pub fn midpoint(&self) -> Point3<f32> {

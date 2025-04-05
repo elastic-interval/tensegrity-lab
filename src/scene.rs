@@ -13,6 +13,7 @@ use crate::wgpu::Wgpu;
 use std::collections::HashMap;
 use winit::dpi::PhysicalSize;
 use winit::event_loop::EventLoopProxy;
+use crate::messages::RenderStyle::Normal;
 
 pub struct Scene {
     wgpu: Wgpu,
@@ -75,6 +76,9 @@ impl Scene {
                                 color_map: HashMap::new(),
                                 filter: IntervalFilter::ShowPush,
                             };
+                        }
+                        TestScenario::PhysicsTest => {
+                            self.render_style = Normal;
                         }
                     }
                 }

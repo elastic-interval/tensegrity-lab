@@ -6,4 +6,4 @@ pub mod oven;
 pub mod sphere;
 pub mod tenscript;
 pub mod failure_test;
-mod physics_test;
+pub mod physics_test;
