@@ -1,22 +1,21 @@
-use crate::messages::{ControlState, CrucibleAction, FailureTesterAction, LabEvent, PhysicsTesterAction};
+use crate::messages::{
+    Broadcast, ControlState, CrucibleAction, FailureTesterAction, LabEvent, PhysicsTesterAction,
+};
 use std::fmt::Display;
 use winit::event::KeyEvent;
-use winit::event_loop::EventLoopProxy;
 use winit::keyboard::{KeyCode, PhysicalKey};
 
 struct KeyAction {
     code: KeyCode,
     description: String,
     lab_event: LabEvent,
-    event_loop_proxy: EventLoopProxy<LabEvent>,
+    broadcast: Broadcast,
     is_active_in: Box<dyn Fn(&ControlState) -> bool>,
 }
 
 impl KeyAction {
     pub fn execute(&self) {
-        self.event_loop_proxy
-            .send_event(self.lab_event.clone())
-            .unwrap();
+        self.broadcast.send_event(self.lab_event.clone()).unwrap();
     }
 }
 
@@ -27,14 +26,14 @@ impl Display for KeyAction {
 }
 
 pub struct Keyboard {
-    event_loop_proxy: EventLoopProxy<LabEvent>,
+    broadcast: Broadcast,
     actions: Vec<KeyAction>,
 }
 
 impl Keyboard {
-    pub fn new(event_loop_proxy: EventLoopProxy<LabEvent>) -> Self {
+    pub fn new(broadcast: Broadcast) -> Self {
         Self {
-            event_loop_proxy,
+            broadcast,
             actions: Default::default(),
         }
     }
@@ -140,7 +139,7 @@ impl Keyboard {
             code,
             description: description.into(),
             lab_event,
-            event_loop_proxy: self.event_loop_proxy.clone(),
+            broadcast: self.broadcast.clone(),
             is_active_in,
         });
     }
