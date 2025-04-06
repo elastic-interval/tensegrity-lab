@@ -1,6 +1,6 @@
 use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
-use crate::messages::{AppStateChange, ControlState, TestScenario};
+use crate::messages::{ControlState, StateChange, TestScenario};
 use crate::ITERATIONS_PER_FRAME;
 use std::default::Default;
 use wgpu_text::glyph_brush::{
@@ -71,8 +71,8 @@ impl TextState {
         fresh
     }
 
-    pub fn change_happened(&mut self, app_change: &AppStateChange) {
-        use AppStateChange::*;
+    pub fn update_state(&mut self, app_change: &StateChange) {
+        use StateChange::*;
         match app_change {
             SetControlState(control_state) => {
                 self.control_state = control_state.clone();

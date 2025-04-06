@@ -177,7 +177,7 @@ impl ApplicationHandler<LabEvent> for Application {
     }
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
-        use AppStateChange::*;
+        use StateChange::*;
         match event {
             LabEvent::ContextCreated {
                 wgpu,
@@ -215,14 +215,14 @@ impl ApplicationHandler<LabEvent> for Application {
                         self.crucible.action(CrucibleAction::BakeBrick(prototype));
                     }
                     RunStyle::Seeded(seed) => {
-                        let _ = self.crucible.action(CrucibleAction::StartEvolving(*seed));
+                        let _ = self.crucible.action(CrucibleAction::ToEvolving(*seed));
                     }
                 };
             }
             LabEvent::FabricBuilt(fabric_stats) => {
                 SetFabricStats(Some(fabric_stats)).send(&self.radio);
                 if self.mobile_device {
-                    CrucibleAction::ViewingToAnimating.send(&self.radio);
+                    CrucibleAction::ToAnimating.send(&self.radio);
                 } else {
                     if let RunStyle::Fabric {
                         scenario: Some(scenario),
@@ -256,7 +256,7 @@ impl ApplicationHandler<LabEvent> for Application {
                     LabEvent::Run(self.run_style.clone()).send(&self.radio);
                 }
             }
-            LabEvent::AppStateChanged(app_change) => {
+            LabEvent::UpdateState(app_change) => {
                 match &app_change {
                     SetControlState(control_state) => {
                         self.control_state = control_state.clone();
@@ -266,7 +266,7 @@ impl ApplicationHandler<LabEvent> for Application {
                     _ => {}
                 }
                 if let Some(scene) = &mut self.scene {
-                    scene.change_happened(app_change);
+                    scene.update_state(app_change);
                 }
             }
             LabEvent::DumpCSV => {
