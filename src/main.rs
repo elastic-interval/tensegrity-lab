@@ -68,18 +68,18 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
 
     let mut builder = EventLoop::<LabEvent>::with_user_event();
     let event_loop: EventLoop<LabEvent> = builder.build()?;
-    let event_loop_proxy = event_loop.create_proxy();
+    let broadcast = event_loop.create_proxy();
 
     #[cfg(not(target_arch = "wasm32"))]
     let window_attributes = create_window_attributes();
     #[cfg(target_arch = "wasm32")]
     let window_attributes = create_window_attributes();
-    let tx = event_loop_proxy.clone();
+    let tx = broadcast.clone();
     let mut app: Application = match Application::new(window_attributes, tx) {
         Ok(app) => app,
         Err(error) => panic!("Tenscript Error: [{:?}]", error),
     };
-    event_loop_proxy.send_event(LabEvent::Run(run_style))?;
+    broadcast.send_event(LabEvent::Run(run_style))?;
     event_loop.run_app(&mut app)?;
     Ok(())
 }
