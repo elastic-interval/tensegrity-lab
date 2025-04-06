@@ -4,8 +4,8 @@ use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible::Crucible;
 use crate::keyboard::Keyboard;
 use crate::messages::{
-    AppStateChange, Broadcast, ControlState, CrucibleAction, LabEvent, PointerChange, RunStyle,
-    Shot, TestScenario,
+    AppStateChange, ControlState, CrucibleAction, LabEvent, PointerChange, Radio, RunStyle, Shot,
+    TestScenario,
 };
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
@@ -26,7 +26,7 @@ pub struct Application {
     crucible: Crucible,
     fabric_library: FabricLibrary,
     brick_library: BrickLibrary,
-    broadcast: Broadcast,
+    radio: Radio,
     last_update: Instant,
     accumulated_time: Duration,
     active_touch_count: usize,
@@ -38,7 +38,7 @@ pub struct Application {
 impl Application {
     pub fn new(
         window_attributes: WindowAttributes,
-        broadcast: Broadcast,
+        radio: Radio,
     ) -> Result<Application, TenscriptError> {
         let brick_library = BrickLibrary::from_source()?;
         let fabric_library = FabricLibrary::from_source()?;
@@ -47,11 +47,11 @@ impl Application {
             mobile_device: false,
             window_attributes,
             scene: None,
-            keyboard: Keyboard::new(broadcast.clone()).with_actions(),
-            crucible: Crucible::new(broadcast.clone()),
+            keyboard: Keyboard::new(radio.clone()).with_actions(),
+            crucible: Crucible::new(radio.clone()),
             brick_library,
             fabric_library,
-            broadcast,
+            radio,
             last_update: Instant::now(),
             accumulated_time: Duration::default(),
             active_touch_count: 0,
@@ -68,7 +68,7 @@ impl Application {
             if time > self.fabric_library_modified {
                 match self.refresh_library(time) {
                     Ok(action) => {
-                        self.broadcast.send_event(action).unwrap();
+                        action.send(&self.radio);
                     }
                     Err(tenscript_error) => {
                         println!("Tenscript\n{tenscript_error}");
@@ -102,7 +102,7 @@ impl Application {
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn initialize_wgpu_when_ready(&self, window: Arc<winit::window::Window>, broadcast: Broadcast) {
+    fn initialize_wgpu_when_ready(&self, window: Arc<winit::window::Window>, radio: Radio) {
         use std::cell::RefCell;
         use std::rc::Rc;
         use wasm_bindgen::prelude::*;
@@ -111,13 +111,13 @@ impl Application {
         // Create a recursive frame checking closure
         struct FrameChecker {
             window: Arc<winit::window::Window>,
-            broadcast: Broadcast,
+            radio: Radio,
             closure: Option<Closure<dyn FnMut()>>,
         }
 
         let checker = Rc::new(RefCell::new(FrameChecker {
             window,
-            broadcast: broadcast,
+            radio,
             closure: None,
         }));
 
@@ -134,7 +134,7 @@ impl Application {
                 Wgpu::create_and_send(
                     mobile_device,
                     checker_ref.window.clone(),
-                    checker_ref.broadcast.clone(),
+                    checker_ref.radio.clone(),
                 );
             } else {
                 // Window not ready, check again next frame
@@ -170,37 +170,34 @@ impl ApplicationHandler<LabEvent> for Application {
         );
 
         #[cfg(target_arch = "wasm32")]
-        self.initialize_wgpu_when_ready(window, self.broadcast.clone());
+        self.initialize_wgpu_when_ready(window, self.radio.clone());
 
         #[cfg(not(target_arch = "wasm32"))]
-        Wgpu::create_and_send(false, window, self.broadcast.clone());
+        Wgpu::create_and_send(false, window, self.radio.clone());
     }
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
         use AppStateChange::*;
-        use LabEvent::*;
-        let send = |lab_event| self.broadcast.send_event(lab_event).unwrap();
         match event {
-            ContextCreated {
+            LabEvent::ContextCreated {
                 wgpu,
                 mobile_device,
             } => {
                 self.mobile_device = mobile_device;
-                let broadcast = self.broadcast.clone();
-                self.scene = Some(Scene::new(self.mobile_device, wgpu, broadcast));
-                send(AppStateChanged(SetControlState(ControlState::Waiting)));
+                self.scene = Some(Scene::new(self.mobile_device, wgpu, self.radio.clone()));
+                ControlState::Waiting.send(&self.radio);
             }
-            Run(run_style) => {
+            LabEvent::Run(run_style) => {
                 self.run_style = run_style;
                 match &self.run_style {
                     RunStyle::Unknown => {
                         unreachable!()
                     }
                     RunStyle::Fabric { fabric_name, .. } => {
-                        send(AppStateChanged(SetFabricName(fabric_name.clone())));
+                        SetFabricName(fabric_name.clone()).send(&self.radio);
                         match self.get_fabric_plan(&fabric_name) {
                             Ok(fabric_plan) => {
-                                send(Crucible(CrucibleAction::BuildFabric(fabric_plan)));
+                                CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
                             }
                             Err(error) => {
                                 panic!("Error loading fabric [{fabric_name}]: {error}");
@@ -222,10 +219,10 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                 };
             }
-            FabricBuilt(fabric_stats) => {
-                send(AppStateChanged(SetFabricStats(Some(fabric_stats))));
+            LabEvent::FabricBuilt(fabric_stats) => {
+                SetFabricStats(Some(fabric_stats)).send(&self.radio);
                 if self.mobile_device {
-                    send(Crucible(CrucibleAction::ViewingToAnimating));
+                    CrucibleAction::ViewingToAnimating.send(&self.radio);
                 } else {
                     if let RunStyle::Fabric {
                         scenario: Some(scenario),
@@ -234,36 +231,37 @@ impl ApplicationHandler<LabEvent> for Application {
                     {
                         match scenario {
                             TestScenario::TensionTest | TestScenario::CompressionTest => {
-                                send(Crucible(CrucibleAction::ToFailureTesting(scenario.clone())));
+                                CrucibleAction::ToFailureTesting(scenario.clone())
+                                    .send(&self.radio);
                             }
                             TestScenario::PhysicsTest => {
-                                send(Crucible(CrucibleAction::ToPhysicsTesting(scenario.clone())))
+                                CrucibleAction::ToPhysicsTesting(scenario.clone())
+                                    .send(&self.radio);
                             }
                         }
                     } else {
-                        send(AppStateChanged(SetControlState(ControlState::Viewing)));
+                        ControlState::Viewing.send(&self.radio);
                     }
                 }
             }
-            Crucible(crucible_action) => {
+            LabEvent::Crucible(crucible_action) => {
                 self.crucible.action(crucible_action);
             }
-            UpdatedLibrary(time) => {
+            LabEvent::UpdatedLibrary(time) => {
                 println!("{time:?}");
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     let _fabric_library = self.fabric_library.clone();
                     self.fabric_library_modified = time;
-                    send(LabEvent::Run(self.run_style.clone()));
+                    LabEvent::Run(self.run_style.clone()).send(&self.radio);
                 }
             }
-            AppStateChanged(app_change) => {
+            LabEvent::AppStateChanged(app_change) => {
                 match &app_change {
                     SetControlState(control_state) => {
                         self.control_state = control_state.clone();
-                        send(AppStateChanged(SetKeyboardLegend(
-                            self.keyboard.legend(control_state).join(", "),
-                        )));
+                        SetKeyboardLegend(self.keyboard.legend(control_state).join(", "))
+                            .send(&self.radio);
                     }
                     _ => {}
                 }
@@ -271,7 +269,7 @@ impl ApplicationHandler<LabEvent> for Application {
                     scene.change_happened(app_change);
                 }
             }
-            DumpCSV => {
+            LabEvent::DumpCSV => {
                 #[cfg(not(target_arch = "wasm32"))]
                 std::fs::write(
                     chrono::Local::now()

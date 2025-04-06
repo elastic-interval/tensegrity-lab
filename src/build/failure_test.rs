@@ -2,9 +2,7 @@ use crate::fabric::interval::Interval;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{
-    AppStateChange, Broadcast, CrucibleAction, FailureTesterAction, LabEvent, TestScenario,
-};
+use crate::messages::{AppStateChange, CrucibleAction, FailureTesterAction, Radio, TestScenario};
 use cgmath::InnerSpace;
 
 pub struct FailureTester {
@@ -12,22 +10,17 @@ pub struct FailureTester {
     default_fabric: Fabric,
     test_cases: Vec<FailureTest>,
     physics: Physics,
-    broadcast: Broadcast,
+    radio: Radio,
 }
 
 impl FailureTester {
-    pub fn new(
-        scenario: TestScenario,
-        fabric: &Fabric,
-        physics: Physics,
-        broadcast: Broadcast,
-    ) -> Self {
+    pub fn new(scenario: TestScenario, fabric: &Fabric, physics: Physics, radio: Radio) -> Self {
         Self {
             test_number: 0,
             default_fabric: fabric.clone(),
             test_cases: FailureTest::generate(&fabric, scenario),
             physics,
-            broadcast,
+            radio,
         }
     }
 
@@ -36,7 +29,7 @@ impl FailureTester {
             .test_cases
             .get_mut(self.test_number)
             .expect("No test case");
-        if !test_case.completed(&self.default_fabric, self.broadcast.clone()) {
+        if !test_case.completed(&self.default_fabric, self.radio.clone()) {
             test_case.fabric.iterate(&self.physics);
         }
     }
@@ -44,8 +37,6 @@ impl FailureTester {
     pub fn action(&mut self, action: FailureTesterAction) {
         use AppStateChange::*;
         use FailureTesterAction::*;
-        use LabEvent::*;
-        let send = |lab_event: LabEvent| self.broadcast.send_event(lab_event).unwrap();
         match action {
             PrevExperiment | NextExperiment => {
                 if matches!(action, NextExperiment) {
@@ -57,10 +48,11 @@ impl FailureTester {
                         self.test_number -= 1;
                     }
                 };
-                send(AppStateChanged(SetExperimentTitle {
+                SetExperimentTitle {
                     title: self.test_case().title(),
                     fabric_stats: self.fabric().fabric_stats(),
-                }));
+                }
+                .send(&self.radio);
             }
         }
     }
@@ -141,7 +133,7 @@ impl FailureTest {
         damage
     }
 
-    pub fn completed(&mut self, default_fabric: &Fabric, broadcast: Broadcast) -> bool {
+    pub fn completed(&mut self, default_fabric: &Fabric, radio: Radio) -> bool {
         if self.finished {
             return true;
         }
@@ -156,13 +148,8 @@ impl FailureTest {
         let clamped = self.damage(default_fabric).clamp(min_damage, max_damage);
         let redness = (clamped - min_damage) / (max_damage - min_damage);
         let color = [redness, 0.01, 0.01, 1.0];
-        let send = |lab_event| broadcast.send_event(lab_event).unwrap();
-        send(LabEvent::AppStateChanged(
-            AppStateChange::SetIntervalColor { key, color },
-        ));
-        send(LabEvent::Crucible(CrucibleAction::FailureTesterDo(
-            FailureTesterAction::NextExperiment,
-        )));
+        AppStateChange::SetIntervalColor { key, color }.send(&radio);
+        CrucibleAction::FailureTesterDo(FailureTesterAction::NextExperiment).send(&radio);
         true
     }
 

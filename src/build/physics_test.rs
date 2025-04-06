@@ -1,23 +1,19 @@
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{AppStateChange, Broadcast, LabEvent, PhysicsTesterAction};
+use crate::messages::{AppStateChange, PhysicsTesterAction, Radio};
 
 pub struct PhysicsTester {
     test_number: usize,
     test_cases: Vec<PhysicsTest>,
-    broadcast: Broadcast,
+    radio: Radio,
 }
 
 impl PhysicsTester {
-    pub fn new(
-        fabric: &Fabric,
-        physics: Physics,
-        broadcast: Broadcast,
-    ) -> Self {
+    pub fn new(fabric: &Fabric, physics: Physics, radio: Radio) -> Self {
         Self {
             test_number: 0,
             test_cases: PhysicsTest::generate(&fabric, physics),
-            broadcast,
+            radio,
         }
     }
 
@@ -30,9 +26,7 @@ impl PhysicsTester {
 
     pub fn action(&mut self, action: PhysicsTesterAction) {
         use AppStateChange::*;
-        use LabEvent::*;
         use PhysicsTesterAction::*;
-        let send = |lab_event: LabEvent| self.broadcast.send_event(lab_event).unwrap();
         match action {
             PrevExperiment | NextExperiment => {
                 if matches!(action, NextExperiment) {
@@ -44,10 +38,11 @@ impl PhysicsTester {
                         self.test_number -= 1;
                     }
                 };
-                send(AppStateChanged(SetExperimentTitle {
+                SetExperimentTitle {
                     title: self.test_case().title(),
                     fabric_stats: self.fabric().fabric_stats(),
-                }));
+                }
+                .send(&self.radio);
             }
         }
     }

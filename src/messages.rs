@@ -68,6 +68,12 @@ pub enum ControlState {
     PhysicsTesting(TestScenario),
 }
 
+impl ControlState {
+    pub fn send(self, radio: &Radio) {
+        LabEvent::AppStateChanged(AppStateChange::SetControlState(self)).send(radio);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum FailureTesterAction {
     PrevExperiment,
@@ -94,6 +100,12 @@ pub enum CrucibleAction {
     ToViewing,
 }
 
+impl CrucibleAction {
+    pub fn send(self, radio: &Radio) {
+        LabEvent::Crucible(self).send(&radio);
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum AppStateChange {
     SetIntervalColor {
@@ -112,6 +124,12 @@ pub enum AppStateChange {
     SetIterationsPerFrame(usize),
 }
 
+impl AppStateChange {
+    pub fn send(self, radio: &Radio) {
+        LabEvent::AppStateChanged(self).send(&radio);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum LabEvent {
     ContextCreated { wgpu: Wgpu, mobile_device: bool },
@@ -123,7 +141,13 @@ pub enum LabEvent {
     UpdatedLibrary(SystemTime),
 }
 
-pub type Broadcast = winit::event_loop::EventLoopProxy<LabEvent>;
+pub type Radio = winit::event_loop::EventLoopProxy<LabEvent>;
+
+impl LabEvent {
+    pub fn send(self, radio: &Radio) {
+        radio.send_event(self).unwrap()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum Shot {
