@@ -2,13 +2,11 @@ use crate::camera::Target::*;
 use crate::camera::{Camera, Pick};
 use crate::fabric::material::interval_material;
 use crate::fabric::Fabric;
-use crate::messages::RenderStyle::Normal;
+use crate::messages::PointerChange;
 use crate::messages::{
-    AppStateChange, Broadcast, ControlState, IntervalDetails, IntervalFilter, JointDetails,
+    AppStateChange, ControlState, IntervalDetails, IntervalFilter, JointDetails, Radio,
     RenderStyle, TestScenario,
 };
-use crate::messages::{LabEvent, PointerChange};
-use crate::scene::RenderStyle::WithColoring;
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
@@ -22,13 +20,13 @@ pub struct Scene {
     fabric_renderer: FabricRenderer,
     surface_renderer: SurfaceRenderer,
     text_renderer: TextRenderer,
-    broadcast: Broadcast,
+    radio: Radio,
     render_style: RenderStyle,
     pick_allowed: bool,
 }
 
 impl Scene {
-    pub fn new(mobile_device: bool, wgpu: Wgpu, broadcast: Broadcast) -> Self {
+    pub fn new(mobile_device: bool, wgpu: Wgpu, radio: Radio) -> Self {
         let camera = wgpu.create_camera();
         let fabric_renderer = wgpu.create_fabric_renderer();
         let surface_renderer = wgpu.create_surface_renderer();
@@ -39,8 +37,8 @@ impl Scene {
             fabric_renderer,
             surface_renderer,
             text_renderer,
-            broadcast,
-            render_style: Normal,
+            radio,
+            render_style: RenderStyle::Normal,
             pick_allowed: false,
         }
     }
@@ -63,13 +61,13 @@ impl Scene {
                     self.reset();
                     match scenario {
                         TestScenario::TensionTest => {
-                            self.render_style = WithColoring {
+                            self.render_style = RenderStyle::WithColoring {
                                 color_map: HashMap::new(),
                                 filter: IntervalFilter::ShowPull,
                             };
                         }
                         TestScenario::CompressionTest => {
-                            self.render_style = WithColoring {
+                            self.render_style = RenderStyle::WithColoring {
                                 color_map: HashMap::new(),
                                 filter: IntervalFilter::ShowPush,
                             };
@@ -81,7 +79,7 @@ impl Scene {
                     self.reset();
                     match scenario {
                         TestScenario::PhysicsTest => {
-                            self.render_style = Normal;
+                            self.render_style = RenderStyle::Normal;
                         }
                         _ => unreachable!(),
                     }
@@ -89,7 +87,7 @@ impl Scene {
             },
             SetAnimating(active) => self.pick_allowed = !active,
             SetIntervalColor { key, color } => {
-                if let WithColoring { color_map, .. } = &mut self.render_style {
+                if let RenderStyle::WithColoring { color_map, .. } = &mut self.render_style {
                     color_map.insert(key, color);
                 }
             }
@@ -180,10 +178,7 @@ impl Scene {
     }
 
     fn camera_pick(&mut self, pick: Pick) {
-        use AppStateChange::*;
         use ControlState::*;
-        use LabEvent::*;
-        let send = |lab_event| self.broadcast.send_event(lab_event).unwrap();
         match pick {
             Pick::Nothing => {
                 self.camera.set_target(FabricMidpoint);
@@ -194,7 +189,7 @@ impl Scene {
                     index,
                     location: joint.location,
                 };
-                send(AppStateChanged(SetControlState(ShowingJoint(details))));
+                ShowingJoint(details).send(&self.radio);
             }
             Pick::Interval {
                 joint,
@@ -220,7 +215,7 @@ impl Scene {
                     length,
                     role,
                 };
-                send(AppStateChanged(SetControlState(ShowingInterval(details))));
+                ShowingInterval(details).send(&self.radio);
             }
         }
     }

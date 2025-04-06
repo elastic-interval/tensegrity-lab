@@ -9,7 +9,7 @@ use wgpu::{DepthStencilState, PipelineLayout, RenderPass, ShaderModule};
 use winit::window::Window;
 
 use crate::camera::Camera;
-use crate::messages::{Broadcast, LabEvent};
+use crate::messages::{LabEvent, Radio};
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
@@ -158,30 +158,27 @@ impl Wgpu {
         }
     }
 
-    pub fn create_and_send(mobile_device: bool, window: Arc<Window>, broadcast: Broadcast) {
+    pub fn create_and_send(mobile_device: bool, window: Arc<Window>, radio: Radio) {
         #[cfg(target_arch = "wasm32")]
         {
             let future = Self::new_async(window);
             wasm_bindgen_futures::spawn_local(async move {
                 let wgpu = future.await;
-                assert!(broadcast
-                    .send_event(LabEvent::ContextCreated {
-                        wgpu,
-                        mobile_device
-                    })
-                    .is_ok());
+                LabEvent::ContextCreated {
+                    wgpu,
+                    mobile_device,
+                }
+                .send(&radio);
             });
         }
 
         #[cfg(not(target_arch = "wasm32"))]
         {
             let wgpu = futures::executor::block_on(Self::new_async(window));
-            assert!(broadcast
-                .send_event(LabEvent::ContextCreated {
-                    wgpu,
-                    mobile_device
-                })
-                .is_ok());
+            LabEvent::ContextCreated {
+                wgpu,
+                mobile_device
+            }.send(&radio);
         }
     }
 

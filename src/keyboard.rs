@@ -1,5 +1,5 @@
 use crate::messages::{
-    Broadcast, ControlState, CrucibleAction, FailureTesterAction, LabEvent, PhysicsTesterAction,
+    ControlState, CrucibleAction, FailureTesterAction, LabEvent, PhysicsTesterAction, Radio,
 };
 use std::fmt::Display;
 use winit::event::KeyEvent;
@@ -9,13 +9,13 @@ struct KeyAction {
     code: KeyCode,
     description: String,
     lab_event: LabEvent,
-    broadcast: Broadcast,
+    radio: Radio,
     is_active_in: Box<dyn Fn(&ControlState) -> bool>,
 }
 
 impl KeyAction {
     pub fn execute(&self) {
-        self.broadcast.send_event(self.lab_event.clone()).unwrap();
+        self.lab_event.clone().send(&self.radio);
     }
 }
 
@@ -26,14 +26,14 @@ impl Display for KeyAction {
 }
 
 pub struct Keyboard {
-    broadcast: Broadcast,
+    radio: Radio,
     actions: Vec<KeyAction>,
 }
 
 impl Keyboard {
-    pub fn new(broadcast: Broadcast) -> Self {
+    pub fn new(radio: Radio) -> Self {
         Self {
-            broadcast,
+            radio,
             actions: Default::default(),
         }
     }
@@ -139,7 +139,7 @@ impl Keyboard {
             code,
             description: description.into(),
             lab_event,
-            broadcast: self.broadcast.clone(),
+            radio: self.radio.clone(),
             is_active_in,
         });
     }

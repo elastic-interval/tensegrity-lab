@@ -10,7 +10,7 @@ use crate::build::tenscript::pretenser::Pretenser;
 use crate::crucible::Stage::*;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{AppStateChange, Broadcast, ControlState, CrucibleAction, LabEvent};
+use crate::messages::{AppStateChange, ControlState, CrucibleAction, LabEvent, Radio};
 use crate::ITERATIONS_PER_FRAME;
 
 enum Stage {
@@ -30,23 +30,22 @@ pub struct Crucible {
     fabric: Fabric,
     iterations_per_frame: usize,
     stage: Stage,
-    broadcast: Broadcast,
+    radio: Radio,
 }
 
 impl Crucible {
-    pub(crate) fn new(broadcast: Broadcast) -> Self {
+    pub(crate) fn new(radio: Radio) -> Self {
         Self {
             fabric: Fabric::default(),
             iterations_per_frame: ITERATIONS_PER_FRAME,
             stage: Empty,
-            broadcast,
+            radio,
         }
     }
 }
 
 impl Crucible {
     pub fn iterate(&mut self, brick_library: &BrickLibrary) {
-        let send = |lab_event: LabEvent| self.broadcast.send_event(lab_event).unwrap();
         match &mut self.stage {
             Empty => {}
             RunningPlan(plan_runner) => {
@@ -75,7 +74,7 @@ impl Crucible {
                 }
                 if pretenser.is_done() {
                     self.stage = Viewing(pretenser.physics.clone());
-                    send(LabEvent::FabricBuilt(self.fabric.fabric_stats()));
+                    LabEvent::FabricBuilt(self.fabric.fabric_stats()).send(&self.radio);
                 }
             }
             Viewing(physics) => {
@@ -118,11 +117,6 @@ impl Crucible {
     pub fn action(&mut self, crucible_action: CrucibleAction) {
         use AppStateChange::*;
         use CrucibleAction::*;
-        let send = |change: AppStateChange| {
-            self.broadcast
-                .send_event(LabEvent::AppStateChanged(change))
-                .unwrap()
-        };
         match crucible_action {
             BakeBrick(prototype) => {
                 let oven = Oven::new(prototype);
@@ -132,8 +126,8 @@ impl Crucible {
             BuildFabric(fabric_plan) => {
                 self.fabric = Fabric::default();
                 self.stage = RunningPlan(PlanRunner::new(fabric_plan));
-                send(SetControlState(ControlState::UnderConstruction));
-                send(SetFabricStats(None))
+                ControlState::UnderConstruction.send(&self.radio);
+                SetFabricStats(None).send(&self.radio);
             }
             AdjustSpeed(change) => {
                 let mut iterations = (self.iterations_per_frame as f32 * change) as usize;
@@ -141,20 +135,20 @@ impl Crucible {
                     iterations += 1;
                 }
                 self.iterations_per_frame = iterations.clamp(1, 5000);
-                send(SetIterationsPerFrame(self.iterations_per_frame));
+                SetIterationsPerFrame(self.iterations_per_frame).send(&self.radio);
             }
             ToViewing => match &mut self.stage {
-                Viewing(_) => send(SetControlState(ControlState::Viewing)),
+                Viewing(_) => ControlState::Viewing.send(&self.radio),
                 Animating(animator) => {
                     self.stage = Viewing(animator.physics.clone());
-                    send(SetControlState(ControlState::Viewing));
+                    ControlState::Viewing.send(&self.radio);
                 }
                 _ => {}
             },
             ViewingToAnimating => {
                 if let Viewing(physics) = &mut self.stage {
                     self.stage = Animating(Animator::new(physics.clone()));
-                    send(SetControlState(ControlState::Animating));
+                    ControlState::Animating.send(&self.radio);
                 }
             }
             ToFailureTesting(scenario) => {
@@ -163,9 +157,9 @@ impl Crucible {
                         scenario.clone(),
                         &self.fabric,
                         physics.clone(),
-                        self.broadcast.clone(),
+                        self.radio.clone(),
                     ));
-                    send(SetControlState(ControlState::FailureTesting(scenario)));
+                    ControlState::FailureTesting(scenario).send(&self.radio);
                 } else {
                     panic!("cannot start experiment");
                 }
@@ -175,9 +169,9 @@ impl Crucible {
                     self.stage = PhysicsTesting(PhysicsTester::new(
                         &self.fabric,
                         physics.clone(),
-                        self.broadcast.clone(),
+                        self.radio.clone(),
                     ));
-                    send(SetControlState(ControlState::PhysicsTesting(scenario)));
+                    ControlState::PhysicsTesting(scenario).send(&self.radio);
                 } else {
                     panic!("cannot start experiment");
                 }
