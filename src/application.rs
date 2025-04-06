@@ -4,7 +4,7 @@ use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible::Crucible;
 use crate::keyboard::Keyboard;
 use crate::messages::{
-    AppStateChange, ControlState, CrucibleAction, LabEvent, PointerChange, Radio, RunStyle, Shot,
+    ControlState, CrucibleAction, LabEvent, PointerChange, Radio, RunStyle, Shot, StateChange,
     TestScenario,
 };
 use crate::scene::Scene;
