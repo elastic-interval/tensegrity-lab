@@ -1,19 +1,16 @@
 use crate::animator::Animator;
-use crate::application::AppStateChange;
 use crate::build::evo::evolution::Evolution;
-use crate::build::failure_test::{FailureTester, FailureTesterAction};
+use crate::build::failure_test::FailureTester;
 use crate::build::oven::Oven;
-use crate::build::physics_test::{PhysicsTester, PhysicsTesterAction};
-use crate::build::tenscript::brick::Prototype;
+use crate::build::physics_test::PhysicsTester;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::pretenser::Pretenser;
-use crate::build::tenscript::FabricPlan;
 use crate::crucible::Stage::*;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{ControlState, LabEvent, TestScenario};
+use crate::messages::{AppStateChange, ControlState, CrucibleAction, LabEvent};
 use crate::ITERATIONS_PER_FRAME;
 use winit::event_loop::EventLoopProxy;
 
@@ -28,20 +25,6 @@ enum Stage {
     PhysicsTesting(PhysicsTester),
     BakingBrick(Oven),
     Evolving(Evolution),
-}
-
-#[derive(Debug, Clone)]
-pub enum CrucibleAction {
-    BakeBrick(Prototype),
-    BuildFabric(FabricPlan),
-    ToFailureTesting(TestScenario),
-    ToPhysicsTesting(TestScenario),
-    FailureTesterDo(FailureTesterAction),
-    PhysicsTesterDo(PhysicsTesterAction),
-    StartEvolving(u64),
-    AdjustSpeed(f32),
-    ViewingToAnimating,
-    ToViewing,
 }
 
 pub struct Crucible {
@@ -161,18 +144,14 @@ impl Crucible {
                 self.iterations_per_frame = iterations.clamp(1, 5000);
                 send(SetIterationsPerFrame(self.iterations_per_frame));
             }
-            ToViewing => {
-                match &mut self.stage {
-                    Viewing(_) => {
-                        send(SetControlState(ControlState::Viewing))
-                    }
-                    Animating(animator) => {
-                        self.stage = Viewing(animator.physics.clone());
-                        send(SetControlState(ControlState::Viewing));
-                    }
-                    _ => {}
+            ToViewing => match &mut self.stage {
+                Viewing(_) => send(SetControlState(ControlState::Viewing)),
+                Animating(animator) => {
+                    self.stage = Viewing(animator.physics.clone());
+                    send(SetControlState(ControlState::Viewing));
                 }
-            }
+                _ => {}
+            },
             ViewingToAnimating => {
                 if let Viewing(physics) = &mut self.stage {
                     self.stage = Animating(Animator::new(physics.clone()));
@@ -222,9 +201,9 @@ impl Crucible {
 
     pub fn fabric(&mut self) -> &Fabric {
         match &mut self.stage {
-            FailureTesting(tester) => {tester.fabric()}
-            PhysicsTesting(tester) => {tester.fabric()}
-            _ => {&self.fabric}
+            FailureTesting(tester) => tester.fabric(),
+            PhysicsTesting(tester) => tester.fabric(),
+            _ => &self.fabric,
         }
     }
 }

@@ -1,10 +1,12 @@
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, TenscriptError};
-use crate::crucible::{Crucible, CrucibleAction};
-use crate::fabric::FabricStats;
+use crate::crucible::Crucible;
 use crate::keyboard::Keyboard;
-use crate::messages::{ControlState, LabEvent, PointerChange, RunStyle, Shot, TestScenario};
+use crate::messages::{
+    AppStateChange, ControlState, CrucibleAction, LabEvent, PointerChange, RunStyle, Shot,
+    TestScenario,
+};
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 use instant::{Duration, Instant};
@@ -31,24 +33,6 @@ pub struct Application {
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
     control_state: ControlState,
-}
-
-#[derive(Clone, Debug)]
-pub enum AppStateChange {
-    SetIntervalColor {
-        key: (usize, usize),
-        color: [f32; 4],
-    },
-    SetControlState(ControlState),
-    SetFabricName(String),
-    SetFabricStats(Option<FabricStats>),
-    SetAnimating(bool),
-    SetExperimentTitle {
-        title: String,
-        fabric_stats: FabricStats,
-    },
-    SetKeyboardLegend(String),
-    SetIterationsPerFrame(usize),
 }
 
 impl Application {
@@ -198,7 +182,6 @@ impl ApplicationHandler<LabEvent> for Application {
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
         use AppStateChange::*;
-        use CrucibleAction::*;
         use LabEvent::*;
         let send = |lab_event| self.event_loop_proxy.send_event(lab_event).unwrap();
         match event {
@@ -221,7 +204,7 @@ impl ApplicationHandler<LabEvent> for Application {
                         send(AppStateChanged(SetFabricName(fabric_name.clone())));
                         match self.get_fabric_plan(&fabric_name) {
                             Ok(fabric_plan) => {
-                                send(Crucible(BuildFabric(fabric_plan)));
+                                send(Crucible(CrucibleAction::BuildFabric(fabric_plan)));
                             }
                             Err(error) => {
                                 panic!("Error loading fabric [{fabric_name}]: {error}");
@@ -236,17 +219,17 @@ impl ApplicationHandler<LabEvent> for Application {
                             .expect("no such brick")
                             .proto
                             .clone();
-                        self.crucible.action(BakeBrick(prototype));
+                        self.crucible.action(CrucibleAction::BakeBrick(prototype));
                     }
                     RunStyle::Seeded(seed) => {
-                        let _ = self.crucible.action(StartEvolving(*seed));
+                        let _ = self.crucible.action(CrucibleAction::StartEvolving(*seed));
                     }
                 };
             }
             FabricBuilt(fabric_stats) => {
                 send(AppStateChanged(SetFabricStats(Some(fabric_stats))));
                 if self.mobile_device {
-                    send(Crucible(ViewingToAnimating));
+                    send(Crucible(CrucibleAction::ViewingToAnimating));
                 } else {
                     if let RunStyle::Fabric {
                         scenario: Some(scenario),
@@ -255,10 +238,10 @@ impl ApplicationHandler<LabEvent> for Application {
                     {
                         match scenario {
                             TestScenario::TensionTest | TestScenario::CompressionTest => {
-                                send(Crucible(ToFailureTesting(scenario.clone())));
+                                send(Crucible(CrucibleAction::ToFailureTesting(scenario.clone())));
                             }
                             TestScenario::PhysicsTest => {
-                                send(Crucible(ToPhysicsTesting(scenario.clone())))
+                                send(Crucible(CrucibleAction::ToPhysicsTesting(scenario.clone())))
                             }
                         }
                     } else {

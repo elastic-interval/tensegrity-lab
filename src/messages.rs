@@ -1,5 +1,5 @@
-use crate::application::AppStateChange;
-use crate::crucible::CrucibleAction;
+use crate::build::tenscript::brick::Prototype;
+use crate::build::tenscript::FabricPlan;
 use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
 use crate::wgpu::Wgpu;
@@ -66,6 +66,50 @@ pub enum ControlState {
     ShowingInterval(IntervalDetails),
     FailureTesting(TestScenario),
     PhysicsTesting(TestScenario),
+}
+
+#[derive(Debug, Clone)]
+pub enum FailureTesterAction {
+    PrevExperiment,
+    NextExperiment,
+}
+
+#[derive(Debug, Clone)]
+pub enum PhysicsTesterAction {
+    PrevExperiment,
+    NextExperiment,
+}
+
+#[derive(Debug, Clone)]
+pub enum CrucibleAction {
+    BakeBrick(Prototype),
+    BuildFabric(FabricPlan),
+    ToFailureTesting(TestScenario),
+    ToPhysicsTesting(TestScenario),
+    FailureTesterDo(FailureTesterAction),
+    PhysicsTesterDo(PhysicsTesterAction),
+    StartEvolving(u64),
+    AdjustSpeed(f32),
+    ViewingToAnimating,
+    ToViewing,
+}
+
+#[derive(Clone, Debug)]
+pub enum AppStateChange {
+    SetIntervalColor {
+        key: (usize, usize),
+        color: [f32; 4],
+    },
+    SetControlState(ControlState),
+    SetFabricName(String),
+    SetFabricStats(Option<FabricStats>),
+    SetAnimating(bool),
+    SetExperimentTitle {
+        title: String,
+        fabric_stats: FabricStats,
+    },
+    SetKeyboardLegend(String),
+    SetIterationsPerFrame(usize),
 }
 
 #[derive(Debug, Clone)]

@@ -1,11 +1,8 @@
-use crate::crucible::CrucibleAction;
-use crate::messages::{ControlState, LabEvent};
+use crate::messages::{ControlState, CrucibleAction, FailureTesterAction, LabEvent, PhysicsTesterAction};
 use std::fmt::Display;
 use winit::event::KeyEvent;
 use winit::event_loop::EventLoopProxy;
 use winit::keyboard::{KeyCode, PhysicalKey};
-use crate::build::failure_test::FailureTesterAction;
-use crate::build::physics_test::PhysicsTesterAction;
 
 struct KeyAction {
     code: KeyCode,

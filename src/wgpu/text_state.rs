@@ -1,7 +1,6 @@
-use crate::application::AppStateChange;
 use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
-use crate::messages::{ControlState, TestScenario};
+use crate::messages::{AppStateChange, ControlState, TestScenario};
 use crate::ITERATIONS_PER_FRAME;
 use std::default::Default;
 use wgpu_text::glyph_brush::{

@@ -1,9 +1,9 @@
-use crate::application::AppStateChange;
 use crate::camera::Target::*;
 use crate::camera::{Camera, Pick};
 use crate::fabric::material::interval_material;
 use crate::fabric::Fabric;
-use crate::messages::{ControlState, IntervalDetails, IntervalFilter, JointDetails, RenderStyle, TestScenario};
+use crate::messages::RenderStyle::Normal;
+use crate::messages::{AppStateChange, ControlState, IntervalDetails, IntervalFilter, JointDetails, RenderStyle, TestScenario};
 use crate::messages::{LabEvent, PointerChange};
 use crate::scene::RenderStyle::WithColoring;
 use crate::wgpu::fabric_renderer::FabricRenderer;
@@ -13,7 +13,6 @@ use crate::wgpu::Wgpu;
 use std::collections::HashMap;
 use winit::dpi::PhysicalSize;
 use winit::event_loop::EventLoopProxy;
-use crate::messages::RenderStyle::Normal;
 
 pub struct Scene {
     wgpu: Wgpu,

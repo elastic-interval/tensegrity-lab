@@ -1,9 +1,9 @@
-use crate::application::AppStateChange;
 use crate::wgpu::text_state::TextState;
 use crate::wgpu::Wgpu;
 use wgpu::RenderPass;
 use wgpu_text::glyph_brush::ab_glyph::FontRef;
 use wgpu_text::{BrushBuilder, TextBrush};
+use crate::messages::AppStateChange;
 
 pub struct TextRenderer {
     text_state: TextState,
