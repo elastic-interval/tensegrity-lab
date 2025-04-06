@@ -117,7 +117,7 @@ impl TextState {
             self.update_section(
                 SectionName::Top,
                 match control_state {
-                    Testing(scenario) => match scenario {
+                    FailureTesting(scenario) => match scenario {
                         TestScenario::TensionTest => Large(format!(
                             "Tension test of {} {}",
                             fabric_name, self.experiment_title
@@ -126,10 +126,14 @@ impl TextState {
                             "Compression test of {} {}",
                             fabric_name, self.experiment_title
                         )),
+                        _ => unreachable!(),
+                    },
+                    PhysicsTesting(scenario) =>  match scenario {
                         TestScenario::PhysicsTest => Large(format!(
                             "Physics test of {} {}",
                             fabric_name, self.experiment_title
                         )),
+                        _ => unreachable!(),
                     },
                     _ => Large(fabric_name.clone()),
                 },

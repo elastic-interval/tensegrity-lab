@@ -1,7 +1,4 @@
 use crate::application::AppStateChange::SetIntervalColor;
-use crate::crucible::CrucibleAction::TesterDo;
-use crate::crucible::TesterAction;
-use crate::crucible::TesterAction::NextExperiment;
 use crate::fabric::interval::Interval;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
@@ -9,6 +6,13 @@ use crate::fabric::Fabric;
 use crate::messages::{LabEvent, TestScenario};
 use cgmath::InnerSpace;
 use winit::event_loop::EventLoopProxy;
+use crate::crucible::CrucibleAction::FailureTesterDo;
+
+#[derive(Debug, Clone)]
+pub enum FailureTesterAction {
+    PrevExperiment,
+    NextExperiment,
+}
 
 pub struct FailureTester {
     test_number: usize,
@@ -44,10 +48,10 @@ impl FailureTester {
         }
     }
 
-    pub fn action(&mut self, action: TesterAction) {
+    pub fn action(&mut self, action: FailureTesterAction) {
         use crate::application::AppStateChange::*;
         use LabEvent::*;
-        use TesterAction::*;
+        use FailureTesterAction::*;
         let send = |lab_event: LabEvent| self.event_loop_proxy.send_event(lab_event).unwrap();
         match action {
             PrevExperiment | NextExperiment => {
@@ -165,7 +169,7 @@ impl FailureTest {
         let color = [redness, 0.01, 0.01, 1.0];
         let send = |lab_event| event_loop_proxy.send_event(lab_event).unwrap();
         send(LabEvent::AppStateChanged(SetIntervalColor { key, color }));
-        send(LabEvent::Crucible(TesterDo(NextExperiment)));
+        send(LabEvent::Crucible(FailureTesterDo(FailureTesterAction::NextExperiment)));
         true
     }
 

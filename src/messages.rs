@@ -64,7 +64,8 @@ pub enum ControlState {
     Animating,
     ShowingJoint(JointDetails),
     ShowingInterval(IntervalDetails),
-    Testing(TestScenario),
+    FailureTesting(TestScenario),
+    PhysicsTesting(TestScenario),
 }
 
 #[derive(Debug, Clone)]

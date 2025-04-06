@@ -1,9 +1,11 @@
-use crate::crucible::{CrucibleAction, TesterAction};
+use crate::crucible::CrucibleAction;
 use crate::messages::{ControlState, LabEvent};
 use std::fmt::Display;
 use winit::event::KeyEvent;
 use winit::event_loop::EventLoopProxy;
 use winit::keyboard::{KeyCode, PhysicalKey};
+use crate::build::failure_test::FailureTesterAction;
+use crate::build::physics_test::PhysicsTesterAction;
 
 struct KeyAction {
     code: KeyCode,
@@ -77,14 +79,26 @@ impl Keyboard {
         self.add_action(
             KeyCode::ArrowLeft,
             "\u{2190} previous test",
-            Crucible(TesterDo(TesterAction::PrevExperiment)),
-            Box::new(|state| matches!(state, Testing(_))),
+            Crucible(FailureTesterDo(FailureTesterAction::PrevExperiment)),
+            Box::new(|state| matches!(state, FailureTesting(_))),
         );
         self.add_action(
             KeyCode::ArrowRight,
             "\u{2192} next test",
-            Crucible(TesterDo(TesterAction::NextExperiment)),
-            Box::new(|state| matches!(state, Testing(_))),
+            Crucible(FailureTesterDo(FailureTesterAction::NextExperiment)),
+            Box::new(|state| matches!(state, FailureTesting(_))),
+        );
+        self.add_action(
+            KeyCode::ArrowLeft,
+            "\u{2190} previous test",
+            Crucible(PhysicsTesterDo(PhysicsTesterAction::PrevExperiment)),
+            Box::new(|state| matches!(state, PhysicsTesting(_))),
+        );
+        self.add_action(
+            KeyCode::ArrowRight,
+            "\u{2192} next test",
+            Crucible(PhysicsTesterDo(PhysicsTesterAction::NextExperiment)),
+            Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.add_action(
             KeyCode::KeyX,
