@@ -57,7 +57,7 @@ impl Keyboard {
         self.add_action(
             KeyCode::Space,
             "Space to start animation",
-            Crucible(ViewingToAnimating),
+            Crucible(ToAnimating),
             Box::new(|state| matches!(state, Viewing)),
         );
         self.add_action(

@@ -2,7 +2,7 @@ use crate::fabric::interval::Interval;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{AppStateChange, CrucibleAction, FailureTesterAction, Radio, TestScenario};
+use crate::messages::{CrucibleAction, FailureTesterAction, Radio, StateChange, TestScenario};
 use cgmath::InnerSpace;
 
 pub struct FailureTester {
@@ -35,7 +35,7 @@ impl FailureTester {
     }
 
     pub fn action(&mut self, action: FailureTesterAction) {
-        use AppStateChange::*;
+        use StateChange::*;
         use FailureTesterAction::*;
         match action {
             PrevExperiment | NextExperiment => {
@@ -148,7 +148,7 @@ impl FailureTest {
         let clamped = self.damage(default_fabric).clamp(min_damage, max_damage);
         let redness = (clamped - min_damage) / (max_damage - min_damage);
         let color = [redness, 0.01, 0.01, 1.0];
-        AppStateChange::SetIntervalColor { key, color }.send(&radio);
+        StateChange::SetIntervalColor { key, color }.send(&radio);
         CrucibleAction::FailureTesterDo(FailureTesterAction::NextExperiment).send(&radio);
         true
     }

@@ -10,7 +10,7 @@ use crate::build::tenscript::pretenser::Pretenser;
 use crate::crucible::Stage::*;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{AppStateChange, ControlState, CrucibleAction, LabEvent, Radio};
+use crate::messages::{ControlState, CrucibleAction, LabEvent, Radio, StateChange};
 use crate::ITERATIONS_PER_FRAME;
 
 enum Stage {
@@ -115,7 +115,7 @@ impl Crucible {
     }
 
     pub fn action(&mut self, crucible_action: CrucibleAction) {
-        use AppStateChange::*;
+        use StateChange::*;
         use CrucibleAction::*;
         match crucible_action {
             BakeBrick(prototype) => {
@@ -145,7 +145,7 @@ impl Crucible {
                 }
                 _ => {}
             },
-            ViewingToAnimating => {
+            ToAnimating => {
                 if let Viewing(physics) = &mut self.stage {
                     self.stage = Animating(Animator::new(physics.clone()));
                     ControlState::Animating.send(&self.radio);
@@ -186,7 +186,7 @@ impl Crucible {
                     tester.action(action);
                 }
             }
-            StartEvolving(seed) => {
+            ToEvolving(seed) => {
                 self.stage = Evolving(Evolution::new(seed));
             }
         }

@@ -4,8 +4,8 @@ use crate::fabric::material::interval_material;
 use crate::fabric::Fabric;
 use crate::messages::PointerChange;
 use crate::messages::{
-    AppStateChange, ControlState, IntervalDetails, IntervalFilter, JointDetails, Radio,
-    RenderStyle, TestScenario,
+    ControlState, IntervalDetails, IntervalFilter, JointDetails, Radio, RenderStyle,
+    StateChange, TestScenario,
 };
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
@@ -43,11 +43,11 @@ impl Scene {
         }
     }
 
-    pub fn change_happened(&mut self, app_state_change: AppStateChange) {
-        use AppStateChange::*;
+    pub fn update_state(&mut self, state_change: StateChange) {
+        use StateChange::*;
         use ControlState::*;
-        self.text_renderer.change_happened(&app_state_change);
-        match app_state_change {
+        self.text_renderer.update_state(&state_change);
+        match state_change {
             SetControlState(control_state) => match control_state {
                 Waiting | UnderConstruction | Animating => self.reset(),
                 Viewing => {

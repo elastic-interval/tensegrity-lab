@@ -1,6 +1,6 @@
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{AppStateChange, PhysicsTesterAction, Radio};
+use crate::messages::{PhysicsTesterAction, Radio, StateChange};
 
 pub struct PhysicsTester {
     test_number: usize,
@@ -25,7 +25,7 @@ impl PhysicsTester {
     }
 
     pub fn action(&mut self, action: PhysicsTesterAction) {
-        use AppStateChange::*;
+        use StateChange::*;
         use PhysicsTesterAction::*;
         match action {
             PrevExperiment | NextExperiment => {

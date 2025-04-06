@@ -70,7 +70,7 @@ pub enum ControlState {
 
 impl ControlState {
     pub fn send(self, radio: &Radio) {
-        LabEvent::AppStateChanged(AppStateChange::SetControlState(self)).send(radio);
+        LabEvent::UpdateState(StateChange::SetControlState(self)).send(radio);
     }
 }
 
@@ -90,14 +90,14 @@ pub enum PhysicsTesterAction {
 pub enum CrucibleAction {
     BakeBrick(Prototype),
     BuildFabric(FabricPlan),
-    ToFailureTesting(TestScenario),
-    ToPhysicsTesting(TestScenario),
-    FailureTesterDo(FailureTesterAction),
-    PhysicsTesterDo(PhysicsTesterAction),
-    StartEvolving(u64),
     AdjustSpeed(f32),
-    ViewingToAnimating,
     ToViewing,
+    ToAnimating,
+    ToFailureTesting(TestScenario),
+    FailureTesterDo(FailureTesterAction),
+    ToPhysicsTesting(TestScenario),
+    PhysicsTesterDo(PhysicsTesterAction),
+    ToEvolving(u64),
 }
 
 impl CrucibleAction {
@@ -107,14 +107,14 @@ impl CrucibleAction {
 }
 
 #[derive(Clone, Debug)]
-pub enum AppStateChange {
+pub enum StateChange {
+    SetFabricName(String),
+    SetFabricStats(Option<FabricStats>),
+    SetControlState(ControlState),
     SetIntervalColor {
         key: (usize, usize),
         color: [f32; 4],
     },
-    SetControlState(ControlState),
-    SetFabricName(String),
-    SetFabricStats(Option<FabricStats>),
     SetAnimating(bool),
     SetExperimentTitle {
         title: String,
@@ -124,21 +124,21 @@ pub enum AppStateChange {
     SetIterationsPerFrame(usize),
 }
 
-impl AppStateChange {
+impl StateChange {
     pub fn send(self, radio: &Radio) {
-        LabEvent::AppStateChanged(self).send(&radio);
+        LabEvent::UpdateState(self).send(&radio);
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum LabEvent {
-    ContextCreated { wgpu: Wgpu, mobile_device: bool },
     Run(RunStyle),
-    Crucible(CrucibleAction),
+    ContextCreated { wgpu: Wgpu, mobile_device: bool },
     FabricBuilt(FabricStats),
-    AppStateChanged(AppStateChange),
-    DumpCSV,
+    Crucible(CrucibleAction),
+    UpdateState(StateChange),
     UpdatedLibrary(SystemTime),
+    DumpCSV,
 }
 
 pub type Radio = winit::event_loop::EventLoopProxy<LabEvent>;
