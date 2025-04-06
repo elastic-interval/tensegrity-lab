@@ -3,17 +3,16 @@ use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::messages::{
-    AppStateChange, CrucibleAction, FailureTesterAction, LabEvent, TestScenario,
+    AppStateChange, Broadcast, CrucibleAction, FailureTesterAction, LabEvent, TestScenario,
 };
 use cgmath::InnerSpace;
-use winit::event_loop::EventLoopProxy;
 
 pub struct FailureTester {
     test_number: usize,
     default_fabric: Fabric,
     test_cases: Vec<FailureTest>,
     physics: Physics,
-    event_loop_proxy: EventLoopProxy<LabEvent>,
+    broadcast: Broadcast,
 }
 
 impl FailureTester {
@@ -21,14 +20,14 @@ impl FailureTester {
         scenario: TestScenario,
         fabric: &Fabric,
         physics: Physics,
-        event_loop_proxy: EventLoopProxy<LabEvent>,
+        broadcast: Broadcast,
     ) -> Self {
         Self {
             test_number: 0,
             default_fabric: fabric.clone(),
             test_cases: FailureTest::generate(&fabric, scenario),
             physics,
-            event_loop_proxy,
+            broadcast,
         }
     }
 
@@ -37,7 +36,7 @@ impl FailureTester {
             .test_cases
             .get_mut(self.test_number)
             .expect("No test case");
-        if !test_case.completed(&self.default_fabric, self.event_loop_proxy.clone()) {
+        if !test_case.completed(&self.default_fabric, self.broadcast.clone()) {
             test_case.fabric.iterate(&self.physics);
         }
     }
@@ -46,7 +45,7 @@ impl FailureTester {
         use AppStateChange::*;
         use FailureTesterAction::*;
         use LabEvent::*;
-        let send = |lab_event: LabEvent| self.event_loop_proxy.send_event(lab_event).unwrap();
+        let send = |lab_event: LabEvent| self.broadcast.send_event(lab_event).unwrap();
         match action {
             PrevExperiment | NextExperiment => {
                 if matches!(action, NextExperiment) {
@@ -142,11 +141,7 @@ impl FailureTest {
         damage
     }
 
-    pub fn completed(
-        &mut self,
-        default_fabric: &Fabric,
-        event_loop_proxy: EventLoopProxy<LabEvent>,
-    ) -> bool {
+    pub fn completed(&mut self, default_fabric: &Fabric, broadcast: Broadcast) -> bool {
         if self.finished {
             return true;
         }
@@ -161,7 +156,7 @@ impl FailureTest {
         let clamped = self.damage(default_fabric).clamp(min_damage, max_damage);
         let redness = (clamped - min_damage) / (max_damage - min_damage);
         let color = [redness, 0.01, 0.01, 1.0];
-        let send = |lab_event| event_loop_proxy.send_event(lab_event).unwrap();
+        let send = |lab_event| broadcast.send_event(lab_event).unwrap();
         send(LabEvent::AppStateChanged(
             AppStateChange::SetIntervalColor { key, color },
         ));

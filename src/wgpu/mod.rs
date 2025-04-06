@@ -6,11 +6,10 @@ use cgmath::{Matrix4, Point3};
 use wgpu::util::DeviceExt;
 use wgpu::MemoryHints::Performance;
 use wgpu::{DepthStencilState, PipelineLayout, RenderPass, ShaderModule};
-use winit::event_loop::EventLoopProxy;
 use winit::window::Window;
 
 use crate::camera::Camera;
-use crate::messages::LabEvent;
+use crate::messages::{Broadcast, LabEvent};
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
@@ -159,17 +158,13 @@ impl Wgpu {
         }
     }
 
-    pub fn create_and_send(
-        mobile_device: bool,
-        window: Arc<Window>,
-        event_loop_proxy: EventLoopProxy<LabEvent>,
-    ) {
+    pub fn create_and_send(mobile_device: bool, window: Arc<Window>, broadcast: Broadcast) {
         #[cfg(target_arch = "wasm32")]
         {
             let future = Self::new_async(window);
             wasm_bindgen_futures::spawn_local(async move {
                 let wgpu = future.await;
-                assert!(event_loop_proxy
+                assert!(broadcast
                     .send_event(LabEvent::ContextCreated {
                         wgpu,
                         mobile_device
@@ -181,7 +176,7 @@ impl Wgpu {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let wgpu = futures::executor::block_on(Self::new_async(window));
-            assert!(event_loop_proxy
+            assert!(broadcast
                 .send_event(LabEvent::ContextCreated {
                     wgpu,
                     mobile_device
@@ -194,7 +189,8 @@ impl Wgpu {
         let (width, height) = new_size;
         self.surface_configuration.width = width.max(1);
         self.surface_configuration.height = height.max(1);
-        self.surface.configure(&self.device, &self.surface_configuration);
+        self.surface
+            .configure(&self.device, &self.surface_configuration);
     }
 
     pub fn get_surface_texture(&self) -> Result<wgpu::SurfaceTexture, wgpu::SurfaceError> {
@@ -209,7 +205,8 @@ impl Wgpu {
     }
 
     pub fn create_depth_view(&self) -> wgpu::TextureView {
-        self.depth_texture.create_view(&wgpu::TextureViewDescriptor::default())
+        self.depth_texture
+            .create_view(&wgpu::TextureViewDescriptor::default())
     }
 
     pub fn create_depth_stencil(&self) -> DepthStencilState {

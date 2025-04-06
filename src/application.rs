@@ -4,8 +4,8 @@ use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible::Crucible;
 use crate::keyboard::Keyboard;
 use crate::messages::{
-    AppStateChange, ControlState, CrucibleAction, LabEvent, PointerChange, RunStyle, Shot,
-    TestScenario,
+    AppStateChange, Broadcast, ControlState, CrucibleAction, LabEvent, PointerChange, RunStyle,
+    Shot, TestScenario,
 };
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
@@ -14,7 +14,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy};
+use winit::event_loop::{ActiveEventLoop, ControlFlow};
 use winit::window::{WindowAttributes, WindowId};
 
 pub struct Application {
@@ -26,7 +26,7 @@ pub struct Application {
     crucible: Crucible,
     fabric_library: FabricLibrary,
     brick_library: BrickLibrary,
-    event_loop_proxy: EventLoopProxy<LabEvent>,
+    broadcast: Broadcast,
     last_update: Instant,
     accumulated_time: Duration,
     active_touch_count: usize,
@@ -38,7 +38,7 @@ pub struct Application {
 impl Application {
     pub fn new(
         window_attributes: WindowAttributes,
-        event_loop_proxy: EventLoopProxy<LabEvent>,
+        broadcast: Broadcast,
     ) -> Result<Application, TenscriptError> {
         let brick_library = BrickLibrary::from_source()?;
         let fabric_library = FabricLibrary::from_source()?;
@@ -47,11 +47,11 @@ impl Application {
             mobile_device: false,
             window_attributes,
             scene: None,
-            keyboard: Keyboard::new(event_loop_proxy.clone()).with_actions(),
-            crucible: Crucible::new(event_loop_proxy.clone()),
+            keyboard: Keyboard::new(broadcast.clone()).with_actions(),
+            crucible: Crucible::new(broadcast.clone()),
             brick_library,
             fabric_library,
-            event_loop_proxy,
+            broadcast,
             last_update: Instant::now(),
             accumulated_time: Duration::default(),
             active_touch_count: 0,
@@ -68,7 +68,7 @@ impl Application {
             if time > self.fabric_library_modified {
                 match self.refresh_library(time) {
                     Ok(action) => {
-                        self.event_loop_proxy.send_event(action).unwrap();
+                        self.broadcast.send_event(action).unwrap();
                     }
                     Err(tenscript_error) => {
                         println!("Tenscript\n{tenscript_error}");
@@ -102,11 +102,7 @@ impl Application {
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn initialize_wgpu_when_ready(
-        &self,
-        window: Arc<winit::window::Window>,
-        event_loop_proxy: EventLoopProxy<LabEvent>,
-    ) {
+    fn initialize_wgpu_when_ready(&self, window: Arc<winit::window::Window>, broadcast: Broadcast) {
         use std::cell::RefCell;
         use std::rc::Rc;
         use wasm_bindgen::prelude::*;
@@ -115,13 +111,13 @@ impl Application {
         // Create a recursive frame checking closure
         struct FrameChecker {
             window: Arc<winit::window::Window>,
-            event_loop_proxy: EventLoopProxy<LabEvent>,
+            broadcast: Broadcast,
             closure: Option<Closure<dyn FnMut()>>,
         }
 
         let checker = Rc::new(RefCell::new(FrameChecker {
             window,
-            event_loop_proxy,
+            broadcast: broadcast,
             closure: None,
         }));
 
@@ -138,7 +134,7 @@ impl Application {
                 Wgpu::create_and_send(
                     mobile_device,
                     checker_ref.window.clone(),
-                    checker_ref.event_loop_proxy.clone(),
+                    checker_ref.broadcast.clone(),
                 );
             } else {
                 // Window not ready, check again next frame
@@ -174,23 +170,23 @@ impl ApplicationHandler<LabEvent> for Application {
         );
 
         #[cfg(target_arch = "wasm32")]
-        self.initialize_wgpu_when_ready(window, self.event_loop_proxy.clone());
+        self.initialize_wgpu_when_ready(window, self.broadcast.clone());
 
         #[cfg(not(target_arch = "wasm32"))]
-        Wgpu::create_and_send(false, window, self.event_loop_proxy.clone());
+        Wgpu::create_and_send(false, window, self.broadcast.clone());
     }
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
         use AppStateChange::*;
         use LabEvent::*;
-        let send = |lab_event| self.event_loop_proxy.send_event(lab_event).unwrap();
+        let send = |lab_event| self.broadcast.send_event(lab_event).unwrap();
         match event {
             ContextCreated {
                 wgpu,
                 mobile_device,
             } => {
                 self.mobile_device = mobile_device;
-                let proxy = self.event_loop_proxy.clone();
+                let proxy = self.broadcast.clone();
                 self.scene = Some(Scene::new(self.mobile_device, wgpu, proxy));
                 send(AppStateChanged(SetControlState(ControlState::Waiting)));
             }

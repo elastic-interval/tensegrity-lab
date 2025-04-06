@@ -3,7 +3,10 @@ use crate::camera::{Camera, Pick};
 use crate::fabric::material::interval_material;
 use crate::fabric::Fabric;
 use crate::messages::RenderStyle::Normal;
-use crate::messages::{AppStateChange, ControlState, IntervalDetails, IntervalFilter, JointDetails, RenderStyle, TestScenario};
+use crate::messages::{
+    AppStateChange, Broadcast, ControlState, IntervalDetails, IntervalFilter, JointDetails,
+    RenderStyle, TestScenario,
+};
 use crate::messages::{LabEvent, PointerChange};
 use crate::scene::RenderStyle::WithColoring;
 use crate::wgpu::fabric_renderer::FabricRenderer;
@@ -12,7 +15,6 @@ use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::Wgpu;
 use std::collections::HashMap;
 use winit::dpi::PhysicalSize;
-use winit::event_loop::EventLoopProxy;
 
 pub struct Scene {
     wgpu: Wgpu,
@@ -20,17 +22,13 @@ pub struct Scene {
     fabric_renderer: FabricRenderer,
     surface_renderer: SurfaceRenderer,
     text_renderer: TextRenderer,
-    event_loop_proxy: EventLoopProxy<LabEvent>,
+    broadcast: Broadcast,
     render_style: RenderStyle,
     pick_allowed: bool,
 }
 
 impl Scene {
-    pub fn new(
-        mobile_device: bool,
-        wgpu: Wgpu,
-        event_loop_proxy: EventLoopProxy<LabEvent>,
-    ) -> Self {
+    pub fn new(mobile_device: bool, wgpu: Wgpu, broadcast: Broadcast) -> Self {
         let camera = wgpu.create_camera();
         let fabric_renderer = wgpu.create_fabric_renderer();
         let surface_renderer = wgpu.create_surface_renderer();
@@ -41,8 +39,8 @@ impl Scene {
             fabric_renderer,
             surface_renderer,
             text_renderer,
-            event_loop_proxy,
-            render_style: RenderStyle::Normal,
+            broadcast,
+            render_style: Normal,
             pick_allowed: false,
         }
     }
@@ -78,7 +76,7 @@ impl Scene {
                         }
                         _ => unreachable!(),
                     }
-                },
+                }
                 PhysicsTesting(scenario) => {
                     self.reset();
                     match scenario {
@@ -185,7 +183,7 @@ impl Scene {
         use AppStateChange::*;
         use ControlState::*;
         use LabEvent::*;
-        let send = |lab_event| self.event_loop_proxy.send_event(lab_event).unwrap();
+        let send = |lab_event| self.broadcast.send_event(lab_event).unwrap();
         match pick {
             Pick::Nothing => {
                 self.camera.set_target(FabricMidpoint);

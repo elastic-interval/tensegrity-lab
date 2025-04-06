@@ -74,8 +74,8 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
     let window_attributes = create_window_attributes();
     #[cfg(target_arch = "wasm32")]
     let window_attributes = create_window_attributes();
-    let proxy = event_loop_proxy.clone();
-    let mut app: Application = match Application::new(window_attributes, proxy) {
+    let tx = event_loop_proxy.clone();
+    let mut app: Application = match Application::new(window_attributes, tx) {
         Ok(app) => app,
         Err(error) => panic!("Tenscript Error: [{:?}]", error),
     };

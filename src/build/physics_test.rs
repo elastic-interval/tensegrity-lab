@@ -1,24 +1,23 @@
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{AppStateChange, LabEvent, PhysicsTesterAction};
-use winit::event_loop::EventLoopProxy;
+use crate::messages::{AppStateChange, Broadcast, LabEvent, PhysicsTesterAction};
 
 pub struct PhysicsTester {
     test_number: usize,
     test_cases: Vec<PhysicsTest>,
-    event_loop_proxy: EventLoopProxy<LabEvent>,
+    broadcast: Broadcast,
 }
 
 impl PhysicsTester {
     pub fn new(
         fabric: &Fabric,
         physics: Physics,
-        event_loop_proxy: EventLoopProxy<LabEvent>,
+        broadcast: Broadcast,
     ) -> Self {
         Self {
             test_number: 0,
             test_cases: PhysicsTest::generate(&fabric, physics),
-            event_loop_proxy,
+            broadcast,
         }
     }
 
@@ -33,7 +32,7 @@ impl PhysicsTester {
         use AppStateChange::*;
         use LabEvent::*;
         use PhysicsTesterAction::*;
-        let send = |lab_event: LabEvent| self.event_loop_proxy.send_event(lab_event).unwrap();
+        let send = |lab_event: LabEvent| self.broadcast.send_event(lab_event).unwrap();
         match action {
             PrevExperiment | NextExperiment => {
                 if matches!(action, NextExperiment) {

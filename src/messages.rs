@@ -123,6 +123,8 @@ pub enum LabEvent {
     UpdatedLibrary(SystemTime),
 }
 
+pub type Broadcast = winit::event_loop::EventLoopProxy<LabEvent>;
+
 #[derive(Debug, Clone)]
 pub enum Shot {
     NoPick,

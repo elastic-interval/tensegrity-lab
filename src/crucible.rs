@@ -10,9 +10,8 @@ use crate::build::tenscript::pretenser::Pretenser;
 use crate::crucible::Stage::*;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{AppStateChange, ControlState, CrucibleAction, LabEvent};
+use crate::messages::{AppStateChange, Broadcast, ControlState, CrucibleAction, LabEvent};
 use crate::ITERATIONS_PER_FRAME;
-use winit::event_loop::EventLoopProxy;
 
 enum Stage {
     Empty,
@@ -31,23 +30,23 @@ pub struct Crucible {
     fabric: Fabric,
     iterations_per_frame: usize,
     stage: Stage,
-    event_loop_proxy: EventLoopProxy<LabEvent>,
+    broadcast: Broadcast,
 }
 
 impl Crucible {
-    pub(crate) fn new(event_loop_proxy: EventLoopProxy<LabEvent>) -> Self {
+    pub(crate) fn new(broadcast: Broadcast) -> Self {
         Self {
             fabric: Fabric::default(),
             iterations_per_frame: ITERATIONS_PER_FRAME,
             stage: Empty,
-            event_loop_proxy,
+            broadcast,
         }
     }
 }
 
 impl Crucible {
     pub fn iterate(&mut self, brick_library: &BrickLibrary) {
-        let send = |lab_event: LabEvent| self.event_loop_proxy.send_event(lab_event).unwrap();
+        let send = |lab_event: LabEvent| self.broadcast.send_event(lab_event).unwrap();
         match &mut self.stage {
             Empty => {}
             RunningPlan(plan_runner) => {
@@ -120,7 +119,7 @@ impl Crucible {
         use AppStateChange::*;
         use CrucibleAction::*;
         let send = |change: AppStateChange| {
-            self.event_loop_proxy
+            self.broadcast
                 .send_event(LabEvent::AppStateChanged(change))
                 .unwrap()
         };
@@ -164,7 +163,7 @@ impl Crucible {
                         scenario.clone(),
                         &self.fabric,
                         physics.clone(),
-                        self.event_loop_proxy.clone(),
+                        self.broadcast.clone(),
                     ));
                     send(SetControlState(ControlState::FailureTesting(scenario)));
                 } else {
@@ -176,7 +175,7 @@ impl Crucible {
                     self.stage = PhysicsTesting(PhysicsTester::new(
                         &self.fabric,
                         physics.clone(),
-                        self.event_loop_proxy.clone(),
+                        self.broadcast.clone(),
                     ));
                     send(SetControlState(ControlState::PhysicsTesting(scenario)));
                 } else {
