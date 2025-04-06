@@ -1,13 +1,7 @@
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::LabEvent;
+use crate::messages::{AppStateChange, LabEvent, PhysicsTesterAction};
 use winit::event_loop::EventLoopProxy;
-
-#[derive(Debug, Clone)]
-pub enum PhysicsTesterAction {
-    PrevExperiment,
-    NextExperiment,
-}
 
 pub struct PhysicsTester {
     test_number: usize,
@@ -36,7 +30,7 @@ impl PhysicsTester {
     }
 
     pub fn action(&mut self, action: PhysicsTesterAction) {
-        use crate::application::AppStateChange::*;
+        use AppStateChange::*;
         use LabEvent::*;
         use PhysicsTesterAction::*;
         let send = |lab_event: LabEvent| self.event_loop_proxy.send_event(lab_event).unwrap();
