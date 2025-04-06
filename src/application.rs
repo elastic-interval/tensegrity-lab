@@ -186,8 +186,8 @@ impl ApplicationHandler<LabEvent> for Application {
                 mobile_device,
             } => {
                 self.mobile_device = mobile_device;
-                let proxy = self.broadcast.clone();
-                self.scene = Some(Scene::new(self.mobile_device, wgpu, proxy));
+                let broadcast = self.broadcast.clone();
+                self.scene = Some(Scene::new(self.mobile_device, wgpu, broadcast));
                 send(AppStateChanged(SetControlState(ControlState::Waiting)));
             }
             Run(run_style) => {
