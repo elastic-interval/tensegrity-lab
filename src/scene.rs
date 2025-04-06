@@ -62,7 +62,7 @@ impl Scene {
                 ShowingJoint(_) | ShowingInterval(_) => {
                     self.pick_allowed = true;
                 }
-                Testing(scenario) => {
+                FailureTesting(scenario) => {
                     self.reset();
                     match scenario {
                         TestScenario::TensionTest => {
@@ -77,9 +77,16 @@ impl Scene {
                                 filter: IntervalFilter::ShowPush,
                             };
                         }
+                        _ => unreachable!(),
+                    }
+                },
+                PhysicsTesting(scenario) => {
+                    self.reset();
+                    match scenario {
                         TestScenario::PhysicsTest => {
                             self.render_style = Normal;
                         }
+                        _ => unreachable!(),
                     }
                 }
             },

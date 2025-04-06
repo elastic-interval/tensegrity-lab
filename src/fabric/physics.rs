@@ -50,6 +50,6 @@ pub mod presets {
         antigravity: 1e-3,
         viscosity: 1e2,
         drag: 1e-4,
-        stiffness: 1e-2,
+        stiffness: 0.05,
     };
 }
