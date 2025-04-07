@@ -156,7 +156,7 @@ impl Fabric {
             }
         }
         if let Some(forward) = self.muscle_forward {
-            let increment = physics.muscle_nuance_increment * if forward { 1.0 } else { -1.0 };
+            let increment = physics.muscle_increment * if forward { 1.0 } else { -1.0 };
             self.muscle_nuance += increment;
             if self.muscle_nuance < 0.0 {
                 self.muscle_nuance = 0.0;

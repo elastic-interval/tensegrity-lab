@@ -22,7 +22,7 @@ pub struct Physics {
     pub viscosity: f32,
     pub drag: f32,
     pub stiffness: f32,
-    pub muscle_nuance_increment: f32,
+    pub muscle_increment: f32,
 }
 
 impl Physics {
@@ -33,7 +33,7 @@ impl Physics {
             Gravity => self.gravity = value,
             Stiffness => self.stiffness = value,
             IterationsPerFrame => self.iterations_per_frame = value,
-            MuscleIncrement => self.muscle_nuance_increment = value,
+            MuscleIncrement => self.muscle_increment = value,
             Viscosity => self.viscosity = value,
             Drag => self.drag = value,
             _ => {
@@ -48,7 +48,7 @@ impl Physics {
         SetPhysicsParameter(Gravity.parameter(self.gravity)).send(radio);
         SetPhysicsParameter(Stiffness.parameter(self.stiffness)).send(radio);
         SetPhysicsParameter(IterationsPerFrame.parameter(self.iterations_per_frame)).send(radio);
-        SetPhysicsParameter(MuscleIncrement.parameter(self.muscle_nuance_increment)).send(radio);
+        SetPhysicsParameter(MuscleIncrement.parameter(self.muscle_increment)).send(radio);
         SetPhysicsParameter(Viscosity.parameter(self.viscosity)).send(radio);
         SetPhysicsParameter(Drag.parameter(self.drag)).send(radio);
     }
@@ -70,7 +70,7 @@ pub mod presets {
         viscosity: 1e4,
         drag: 1e-6,
         stiffness: 1e-3,
-        muscle_nuance_increment: 0.0,
+        muscle_increment: 0.0,
     };
 
     pub const PROTOTYPE_FORMATION: Physics = Physics {
@@ -81,7 +81,7 @@ pub mod presets {
         viscosity: 2e4,
         drag: 1e-3,
         stiffness: 1e-4,
-        muscle_nuance_increment: 0.0,
+        muscle_increment: 0.0,
     };
 
     pub const AIR_GRAVITY: Physics = Physics {
@@ -92,6 +92,6 @@ pub mod presets {
         viscosity: 1e2,
         drag: 1e-4,
         stiffness: 0.05,
-        muscle_nuance_increment: 0.0,
+        muscle_increment: 0.0,
     };
 }
