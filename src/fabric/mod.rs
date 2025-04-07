@@ -3,11 +3,10 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use crate::build::tenscript::pretense_phase::MuscleMovement;
 use crate::fabric::face::Face;
+use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push, Spring};
 use crate::fabric::interval::Span::{Approaching, Fixed, Muscle};
-use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 use crate::fabric::material::Material::{NorthMaterial, SouthMaterial};
 use crate::fabric::material::{interval_material, IntervalMaterial};
@@ -56,9 +55,8 @@ pub struct Fabric {
     pub intervals: HashMap<UniqueId, Interval>,
     pub faces: HashMap<UniqueId, Face>,
     pub scale: f32,
+    muscle_forward: Option<bool>,
     muscle_nuance: f32,
-    muscle_nuance_increment: f32,
-    muscle_forward: bool,
     unique_id: usize,
 }
 
@@ -72,8 +70,7 @@ impl Default for Fabric {
             faces: HashMap::new(),
             scale: 1.0,
             muscle_nuance: 0.5,
-            muscle_nuance_increment: 0.0,
-            muscle_forward: true,
+            muscle_forward: None,
             unique_id: 0,
         }
     }
@@ -158,13 +155,23 @@ impl Fabric {
                 }
             }
         }
+        if let Some(forward) = self.muscle_forward {
+            let increment = physics.muscle_nuance_increment * if forward { 1.0 } else { -1.0 };
+            self.muscle_nuance += increment;
+            if self.muscle_nuance < 0.0 {
+                self.muscle_nuance = 0.0;
+                self.muscle_forward = Some(true);
+            } else if self.muscle_nuance > 1.0 {
+                self.muscle_nuance = 1.0;
+                self.muscle_forward = Some(false);
+            }
+        }
         self.age += 1;
         max_speed_squared
     }
 
-    pub fn activate_muscles(&mut self, MuscleMovement{contraction, countdown}: &MuscleMovement) {
+    pub fn create_muscles(&mut self, contraction: f32) {
         self.muscle_nuance = 0.5;
-        self.muscle_nuance_increment= 1.0 / *countdown as f32;
         for interval in self.intervals.values_mut() {
             let Fixed { length } = interval.span else {
                 continue;
@@ -187,20 +194,9 @@ impl Fabric {
         }
     }
 
-    pub fn muscle_advance(&mut self) {
-        let increment = if self.muscle_forward {
-            self.muscle_nuance_increment
-        } else {
-            -self.muscle_nuance_increment
-        };
-        self.muscle_nuance += increment;
-        if self.muscle_nuance < 0.0 {
-            self.muscle_nuance = 0.0;
-            self.muscle_forward = true;
-        } else if self.muscle_nuance > 1.0 {
-            self.muscle_nuance = 1.0;
-            self.muscle_forward = false;
-        }
+    pub fn activate_muscles(&mut self, go: bool) {
+        self.muscle_nuance = 0.5;
+        self.muscle_forward = go.then_some(true);
     }
 
     pub fn midpoint(&self) -> Point3<f32> {

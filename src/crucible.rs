@@ -1,11 +1,9 @@
-use crate::animator::Animator;
 use crate::build::evo::evolution::Evolution;
 use crate::build::failure_test::FailureTester;
 use crate::build::oven::Oven;
 use crate::build::physics_test::PhysicsTester;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::plan_runner::PlanRunner;
-use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::pretenser::Pretenser;
 use crate::crucible::Stage::*;
 use crate::fabric::physics::Physics;
@@ -13,13 +11,18 @@ use crate::fabric::Fabric;
 use crate::messages::{ControlState, CrucibleAction, LabEvent, Radio, StateChange};
 use crate::ITERATIONS_PER_FRAME;
 
+#[derive(Debug, Clone)]
+pub struct Holder {
+    pub fabric: Fabric,
+    pub physics: Physics,
+}
+
 enum Stage {
     Empty,
     RunningPlan(PlanRunner),
-    PretensingLaunch(PretensePhase),
     Pretensing(Pretenser),
-    Viewing(Physics),
-    Animating(Animator),
+    Viewing(Holder),
+    Animating(Holder),
     FailureTesting(FailureTester),
     PhysicsTesting(PhysicsTester),
     BakingBrick(Oven),
@@ -27,16 +30,14 @@ enum Stage {
 }
 
 pub struct Crucible {
-    fabric: Fabric,
     iterations_per_frame: usize,
     stage: Stage,
     radio: Radio,
 }
 
 impl Crucible {
-    pub(crate) fn new(radio: Radio) -> Self {
+    pub fn new(radio: Radio) -> Self {
         Self {
-            fabric: Fabric::default(),
             iterations_per_frame: ITERATIONS_PER_FRAME,
             stage: Empty,
             radio,
@@ -50,13 +51,15 @@ impl Crucible {
             Empty => {}
             RunningPlan(plan_runner) => {
                 if plan_runner.is_done() {
-                    self.fabric.scale = plan_runner.get_scale();
-                    self.stage = PretensingLaunch(plan_runner.pretense_phase())
+                    plan_runner.fabric.scale = plan_runner.get_scale();
+                    plan_runner.fabric.check_orphan_joints();
+                    self.stage = Pretensing(Pretenser::new(
+                        plan_runner.pretense_phase(),
+                        plan_runner.fabric.clone(),
+                    ));
                 } else {
                     for _ in 0..self.iterations_per_frame {
-                        if let Err(tenscript_error) =
-                            plan_runner.iterate(&mut self.fabric, brick_library)
-                        {
+                        if let Err(tenscript_error) = plan_runner.iterate(brick_library) {
                             println!("Error:\n{tenscript_error}");
                             plan_runner.disable(tenscript_error);
                             break;
@@ -64,27 +67,25 @@ impl Crucible {
                     }
                 }
             }
-            PretensingLaunch(pretense_phase) => {
-                self.fabric.check_orphan_joints();
-                self.stage = Pretensing(Pretenser::new(pretense_phase.clone()));
-            }
             Pretensing(pretenser) => {
-                for _ in 0..self.iterations_per_frame {
-                    pretenser.iterate(&mut self.fabric);
-                }
                 if pretenser.is_done() {
-                    self.stage = Viewing(pretenser.physics.clone());
-                    LabEvent::FabricBuilt(self.fabric.fabric_stats()).send(&self.radio);
+                    let stats = pretenser.fabric.fabric_stats();
+                    self.stage = Viewing(pretenser.holder());
+                    LabEvent::FabricBuilt(stats).send(&self.radio);
+                } else {
+                    for _ in 0..self.iterations_per_frame {
+                        pretenser.iterate();
+                    }
                 }
             }
-            Viewing(physics) => {
+            Viewing(Holder { fabric, physics }) => {
                 for _ in 0..self.iterations_per_frame {
-                    self.fabric.iterate(physics);
+                    fabric.iterate(physics);
                 }
             }
-            Animating(animator) => {
+            Animating(Holder { fabric, physics }) => {
                 for _ in 0..self.iterations_per_frame {
-                    animator.iterate(&mut self.fabric);
+                    fabric.iterate(physics);
                 }
             }
             FailureTesting(tester) => {
@@ -98,7 +99,7 @@ impl Crucible {
                 }
             }
             BakingBrick(oven) => {
-                if let Some(baked) = oven.iterate(&mut self.fabric) {
+                if let Some(baked) = oven.iterate() {
                     #[cfg(target_arch = "wasm32")]
                     println!("Baked {:?}", baked.into_tenscript());
                     #[cfg(not(target_arch = "wasm32"))]
@@ -109,22 +110,19 @@ impl Crucible {
                 }
             }
             Evolving(evolution) => {
-                evolution.iterate(&mut self.fabric);
+                evolution.iterate();
             }
         }
     }
 
     pub fn action(&mut self, crucible_action: CrucibleAction) {
-        use StateChange::*;
         use CrucibleAction::*;
+        use StateChange::*;
         match crucible_action {
             BakeBrick(prototype) => {
-                let oven = Oven::new(prototype);
-                self.fabric = oven.prototype_fabric();
-                self.stage = BakingBrick(oven);
+                self.stage = BakingBrick(Oven::new(prototype));
             }
             BuildFabric(fabric_plan) => {
-                self.fabric = Fabric::default();
                 self.stage = RunningPlan(PlanRunner::new(fabric_plan));
                 ControlState::UnderConstruction.send(&self.radio);
                 SetFabricStats(None).send(&self.radio);
@@ -138,24 +136,26 @@ impl Crucible {
                 SetIterationsPerFrame(self.iterations_per_frame).send(&self.radio);
             }
             ToViewing => match &mut self.stage {
-                Viewing(_) => ControlState::Viewing.send(&self.radio),
-                Animating(animator) => {
-                    self.stage = Viewing(animator.physics.clone());
+                Viewing { .. } => ControlState::Viewing.send(&self.radio),
+                Animating(holder) => {
+                    holder.fabric.activate_muscles(false);
+                    self.stage = Viewing(holder.clone());
                     ControlState::Viewing.send(&self.radio);
                 }
                 _ => {}
             },
             ToAnimating => {
-                if let Viewing(physics) = &mut self.stage {
-                    self.stage = Animating(Animator::new(physics.clone()));
+                if let Viewing(holder) = &mut self.stage {
+                    holder.fabric.activate_muscles(true);
+                    self.stage = Animating(holder.clone());
                     ControlState::Animating.send(&self.radio);
                 }
             }
             ToFailureTesting(scenario) => {
-                if let Viewing(physics) = &mut self.stage {
+                if let Viewing(Holder { fabric, physics }) = &mut self.stage {
                     self.stage = FailureTesting(FailureTester::new(
                         scenario.clone(),
-                        &self.fabric,
+                        &fabric,
                         physics.clone(),
                         self.radio.clone(),
                     ));
@@ -165,9 +165,9 @@ impl Crucible {
                 }
             }
             ToPhysicsTesting(scenario) => {
-                if let Viewing(physics) = &mut self.stage {
+                if let Viewing(Holder { fabric, physics }) = &mut self.stage {
                     self.stage = PhysicsTesting(PhysicsTester::new(
-                        &self.fabric,
+                        &fabric,
                         physics.clone(),
                         self.radio.clone(),
                     ));
@@ -196,7 +196,13 @@ impl Crucible {
         match &mut self.stage {
             FailureTesting(tester) => tester.fabric(),
             PhysicsTesting(tester) => tester.fabric(),
-            _ => &self.fabric,
+            RunningPlan(plan_runner) => &plan_runner.fabric,
+            Pretensing(pretenser) => &pretenser.fabric,
+            Viewing(holder) => &holder.fabric,
+            Animating(holder) => &holder.fabric,
+            BakingBrick(oven) => &oven.fabric,
+            Evolving(evolution) => &evolution.fabric,
+            Empty => unreachable!(),
         }
     }
 }

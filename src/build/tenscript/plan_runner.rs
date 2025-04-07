@@ -19,6 +19,7 @@ enum Stage {
 }
 
 pub struct PlanRunner {
+    pub fabric: Fabric,
     stage: Stage,
     build_phase: BuildPhase,
     shape_phase: ShapePhase,
@@ -39,6 +40,7 @@ impl PlanRunner {
         }: FabricPlan,
     ) -> Self {
         Self {
+            fabric: Fabric::default(),
             shape_phase,
             build_phase,
             pretense_phase,
@@ -51,22 +53,21 @@ impl PlanRunner {
 
     pub fn iterate(
         &mut self,
-        fabric: &mut Fabric,
         brick_library: &BrickLibrary,
     ) -> Result<(), TenscriptError> {
-        fabric.iterate(&self.physics);
-        if fabric.progress.is_busy() || self.disabled.is_some() {
+        self.fabric.iterate(&self.physics);
+        if self.fabric.progress.is_busy() || self.disabled.is_some() {
             return Ok(());
         }
         let (next_stage, countdown) = match self.stage {
             Initialize => {
-                self.build_phase.init(fabric, brick_library)?;
-                fabric.scale = self.get_scale();
+                self.build_phase.init(&mut self.fabric, brick_library)?;
+                self.fabric.scale = self.get_scale();
                 (GrowApproach, 500)
             }
             GrowStep => {
                 if self.build_phase.is_growing() {
-                    self.build_phase.growth_step(fabric, brick_library)?;
+                    self.build_phase.growth_step(&mut self.fabric, brick_library)?;
                     (GrowApproach, 500)
                 } else if self.shape_phase.needs_shaping() {
                     self.shape_phase.marks = self.build_phase.marks.split_off(0);
@@ -77,7 +78,7 @@ impl PlanRunner {
             }
             GrowApproach => (GrowCalm, 500),
             GrowCalm => (GrowStep, 0),
-            Shaping => match self.shape_phase.shaping_step(fabric, brick_library)? {
+            Shaping => match self.shape_phase.shaping_step(&mut self.fabric, brick_library)? {
                 ShapeCommand::Noop => (Shaping, 0),
                 ShapeCommand::StartCountdown(countdown) => (Shaping, countdown),
                 ShapeCommand::Stiffness(percent) => {
@@ -96,7 +97,7 @@ impl PlanRunner {
             },
             Completed => (Completed, 0),
         };
-        fabric.progress.start(countdown);
+        self.fabric.progress.start(countdown);
         self.stage = next_stage;
         Ok(())
     }

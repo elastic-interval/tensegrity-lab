@@ -11,6 +11,7 @@ const DELAY: usize = 300;
 
 #[derive()]
 pub struct Evolution {
+    pub fabric: Fabric,
     random: ChaCha8Rng,
     countdown: usize,
     evolving_pushes: Vec<EvolvingPush>,
@@ -19,33 +20,34 @@ pub struct Evolution {
 impl Evolution {
     pub fn new(seed: u64) -> Self {
         Self {
+            fabric: Fabric::default(),
             random: ChaCha8Rng::seed_from_u64(seed),
             countdown: DELAY,
             evolving_pushes: Default::default(),
         }
     }
 
-    pub fn iterate(&mut self, fabric: &mut Fabric) {
+    pub fn iterate(&mut self) {
         if self.countdown > 0 {
-            fabric.iterate(&LIQUID);
+            self.fabric.iterate(&LIQUID);
             self.countdown -= 1;
         } else {
             self.countdown = DELAY;
-            self.step(fabric);
+            self.step();
         }
     }
 
-    fn step(&mut self, fabric: &mut Fabric) {
+    fn step(&mut self) {
         if self.evolving_pushes.is_empty() {
-            self.evolving_pushes.push(EvolvingPush::first_push(fabric));
+            self.evolving_pushes.push(EvolvingPush::first_push(&mut self.fabric));
         } else if self.evolving_pushes.len() < 5 || self.random_bool() {
-            self.sprout(fabric);
+            self.sprout();
         } else {
-            self.join(fabric);
+            self.join();
         }
     }
 
-    fn sprout(&mut self, fabric: &mut Fabric) {
+    fn sprout(&mut self) {
         let end = if self.random_bool() {
             End::Alpha
         } else {
@@ -54,12 +56,12 @@ impl Evolution {
         let choice = self.random_push();
         let project = self.random_unit();
         let evolving_push = self.evolving_pushes.get_mut(choice).unwrap();
-        let snapshot = fabric.interval_snapshot(evolving_push.interval_id);
-        let next = evolving_push.end_push(fabric, snapshot, end, project);
+        let snapshot = self.fabric.interval_snapshot(evolving_push.interval_id);
+        let next = evolving_push.end_push(&mut self.fabric, snapshot, end, project);
         self.evolving_pushes.push(next);
     }
 
-    fn join(&mut self, fabric: &mut Fabric) {
+    fn join(&mut self) {
         let index_a = self.random_push();
         let mut index_b = self.random_push();
         while index_b == index_a {
@@ -67,13 +69,13 @@ impl Evolution {
         }
         let push_a = (
             index_a,
-            fabric.interval_snapshot(self.evolving_pushes[index_a].interval_id),
+            self.fabric.interval_snapshot(self.evolving_pushes[index_a].interval_id),
         );
         let push_b = (
             index_b,
-            fabric.interval_snapshot(self.evolving_pushes[index_b].interval_id),
+            self.fabric.interval_snapshot(self.evolving_pushes[index_b].interval_id),
         );
-        EvolvingPush::join_pushes(fabric, &mut self.evolving_pushes, push_a, push_b);
+        EvolvingPush::join_pushes(&mut self.fabric, &mut self.evolving_pushes, push_a, push_b);
     }
 
     fn random_bool(&mut self) -> bool {

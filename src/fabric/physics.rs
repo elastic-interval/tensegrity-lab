@@ -20,6 +20,7 @@ pub struct Physics {
     pub viscosity: f32,
     pub drag: f32,
     pub stiffness: f32,
+    pub muscle_nuance_increment: f32,
 }
 
 pub mod presets {
@@ -33,6 +34,7 @@ pub mod presets {
         viscosity: 1e4,
         drag: 1e-6,
         stiffness: 1e-3,
+        muscle_nuance_increment: 0.0,
     };
 
     pub const PROTOTYPE_FORMATION: Physics = Physics {
@@ -42,6 +44,7 @@ pub mod presets {
         viscosity: 2e4,
         drag: 1e-3,
         stiffness: 1e-4,
+        muscle_nuance_increment: 0.0,
     };
 
     pub const AIR_GRAVITY: Physics = Physics {
@@ -51,5 +54,6 @@ pub mod presets {
         viscosity: 1e2,
         drag: 1e-4,
         stiffness: 0.05,
+        muscle_nuance_increment: 0.0,
     };
 }
