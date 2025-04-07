@@ -9,7 +9,6 @@ use crate::crucible::Stage::*;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::messages::{ControlState, CrucibleAction, LabEvent, Radio, StateChange};
-use crate::ITERATIONS_PER_FRAME;
 
 #[derive(Debug, Clone)]
 pub struct Holder {
@@ -30,7 +29,6 @@ enum Stage {
 }
 
 pub struct Crucible {
-    iterations_per_frame: usize,
     stage: Stage,
     radio: Radio,
 }
@@ -38,7 +36,6 @@ pub struct Crucible {
 impl Crucible {
     pub fn new(radio: Radio) -> Self {
         Self {
-            iterations_per_frame: ITERATIONS_PER_FRAME,
             stage: Empty,
             radio,
         }
@@ -58,7 +55,7 @@ impl Crucible {
                         plan_runner.fabric.clone(),
                     ));
                 } else {
-                    for _ in 0..self.iterations_per_frame {
+                    for _ in plan_runner.physics.iterations() {
                         if let Err(tenscript_error) = plan_runner.iterate(brick_library) {
                             println!("Error:\n{tenscript_error}");
                             plan_runner.disable(tenscript_error);
@@ -75,28 +72,28 @@ impl Crucible {
                     self.stage = Viewing(holder);
                     LabEvent::FabricBuilt(stats).send(&self.radio);
                 } else {
-                    for _ in 0..self.iterations_per_frame {
+                    for _ in pretenser.physics.iterations() {
                         pretenser.iterate();
                     }
                 }
             }
             Viewing(Holder { fabric, physics }) => {
-                for _ in 0..self.iterations_per_frame {
+                for _ in physics.iterations() {
                     fabric.iterate(physics);
                 }
             }
             Animating(Holder { fabric, physics }) => {
-                for _ in 0..self.iterations_per_frame {
+                for _ in physics.iterations() {
                     fabric.iterate(physics);
                 }
             }
             FailureTesting(tester) => {
-                for _ in 0..self.iterations_per_frame {
+                for _ in tester.physics.iterations() {
                     tester.iterate()
                 }
             }
             PhysicsTesting(tester) => {
-                for _ in 0..self.iterations_per_frame {
+                for _ in tester.physics.iterations() {
                     tester.iterate()
                 }
             }
@@ -128,14 +125,6 @@ impl Crucible {
                 self.stage = RunningPlan(PlanRunner::new(fabric_plan));
                 ControlState::UnderConstruction.send(&self.radio);
                 SetFabricStats(None).send(&self.radio);
-            }
-            AdjustSpeed(change) => {
-                let mut iterations = (self.iterations_per_frame as f32 * change) as usize;
-                if iterations == self.iterations_per_frame && change > 1.0 {
-                    iterations += 1;
-                }
-                self.iterations_per_frame = iterations.clamp(1, 5000);
-                SetIterationsPerFrame(self.iterations_per_frame).send(&self.radio);
             }
             ToViewing => match &mut self.stage {
                 Viewing { .. } => ControlState::Viewing.send(&self.radio),

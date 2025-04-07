@@ -9,7 +9,7 @@ pub struct FailureTester {
     test_number: usize,
     default_fabric: Fabric,
     test_cases: Vec<FailureTest>,
-    physics: Physics,
+    pub(crate) physics: Physics,
     radio: Radio,
 }
 

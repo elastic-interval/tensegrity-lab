@@ -16,6 +16,7 @@ pub enum SurfaceCharacter {
 #[derive(Debug, Clone)]
 pub struct Physics {
     pub surface_character: SurfaceCharacter,
+    pub iterations_per_frame: f32,
     pub gravity: f32,
     pub antigravity: f32,
     pub viscosity: f32,
@@ -31,6 +32,7 @@ impl Physics {
         match feature {
             Gravity => self.gravity = value,
             Stiffness => self.stiffness = value,
+            IterationsPerFrame => self.iterations_per_frame = value,
             MuscleIncrement => self.muscle_nuance_increment = value,
             Viscosity => self.viscosity = value,
             Drag => self.drag = value,
@@ -45,9 +47,14 @@ impl Physics {
         use StateChange::SetPhysicsParameter;
         SetPhysicsParameter(Gravity.parameter(self.gravity)).send(radio);
         SetPhysicsParameter(Stiffness.parameter(self.stiffness)).send(radio);
+        SetPhysicsParameter(IterationsPerFrame.parameter(self.iterations_per_frame)).send(radio);
         SetPhysicsParameter(MuscleIncrement.parameter(self.muscle_nuance_increment)).send(radio);
         SetPhysicsParameter(Viscosity.parameter(self.viscosity)).send(radio);
         SetPhysicsParameter(Drag.parameter(self.drag)).send(radio);
+    }
+
+    pub fn iterations(&self) -> std::ops::Range<usize> {
+        0..self.iterations_per_frame as usize
     }
 }
 
@@ -57,6 +64,7 @@ pub mod presets {
 
     pub const LIQUID: Physics = Physics {
         surface_character: Absent,
+        iterations_per_frame: 1000.0,
         gravity: 0.0,
         antigravity: 0.0,
         viscosity: 1e4,
@@ -67,6 +75,7 @@ pub mod presets {
 
     pub const PROTOTYPE_FORMATION: Physics = Physics {
         surface_character: Absent,
+        iterations_per_frame: 100.0,
         gravity: 0.0,
         antigravity: 0.0,
         viscosity: 2e4,
@@ -77,6 +86,7 @@ pub mod presets {
 
     pub const AIR_GRAVITY: Physics = Physics {
         surface_character: Frozen,
+        iterations_per_frame: 100.0,
         gravity: 1e-7,
         antigravity: 1e-3,
         viscosity: 1e2,
