@@ -3,6 +3,7 @@ use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible::Crucible;
 use crate::keyboard::Keyboard;
+use crate::messages::PhysicsTesterAction::SetPhysicalParameter;
 use crate::messages::{
     ControlState, CrucibleAction, LabEvent, PointerChange, Radio, RunStyle, Shot, StateChange,
     TestScenario,
@@ -177,7 +178,6 @@ impl ApplicationHandler<LabEvent> for Application {
     }
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
-        use StateChange::*;
         match event {
             LabEvent::ContextCreated {
                 wgpu,
@@ -194,7 +194,7 @@ impl ApplicationHandler<LabEvent> for Application {
                         unreachable!()
                     }
                     RunStyle::Fabric { fabric_name, .. } => {
-                        SetFabricName(fabric_name.clone()).send(&self.radio);
+                        StateChange::SetFabricName(fabric_name.clone()).send(&self.radio);
                         match self.get_fabric_plan(&fabric_name) {
                             Ok(fabric_plan) => {
                                 CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
@@ -220,7 +220,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 };
             }
             LabEvent::FabricBuilt(fabric_stats) => {
-                SetFabricStats(Some(fabric_stats)).send(&self.radio);
+                StateChange::SetFabricStats(Some(fabric_stats)).send(&self.radio);
                 if self.mobile_device {
                     CrucibleAction::ToAnimating.send(&self.radio);
                 } else {
@@ -258,10 +258,21 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             LabEvent::UpdateState(app_change) => {
                 match &app_change {
-                    SetControlState(control_state) => {
+                    StateChange::SetControlState(control_state) => {
                         self.control_state = control_state.clone();
-                        SetKeyboardLegend(self.keyboard.legend(control_state).join(", "))
+                        StateChange::SetKeyboardLegend(
+                            self.keyboard.legend(control_state).join(", "),
+                        )
+                        .send(&self.radio);
+                    }
+                    StateChange::SetPhysicsParameter(parameter) => {
+                        self.keyboard.set_float_parameter(parameter);
+                        CrucibleAction::PhysicsTesterDo(SetPhysicalParameter(parameter.clone()))
                             .send(&self.radio);
+                        StateChange::SetKeyboardLegend(
+                            self.keyboard.legend(&self.control_state).join(", "),
+                        )
+                        .send(&self.radio);
                     }
                     _ => {}
                 }

@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::time::SystemTime;
 use winit::dpi::PhysicalPosition;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PhysicsFeature {
     Gravity,
     Pretense,
@@ -20,37 +20,16 @@ pub enum PhysicsFeature {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum ParameterType {
-    Report,
-    Set,
-    Adjust,
-}
-
-#[derive(Debug, Clone, Copy)]
 pub struct PhysicsParameter {
     pub feature: PhysicsFeature,
     pub value: f32,
-    pub parameter_type: ParameterType,
 }
 
 impl PhysicsFeature {
-    pub fn reporter(self, value: f32) -> PhysicsParameter {
-        self.parameter(ParameterType::Report, value)
-    }
-
-    pub fn setter(self, value: f32) -> PhysicsParameter {
-        self.parameter(ParameterType::Set, value)
-    }
-
-    pub fn adjuster(self, value: f32) -> PhysicsParameter {
-        self.parameter(ParameterType::Adjust, value)
-    }
-
-    fn parameter(self, parameter_type: ParameterType, value: f32) -> PhysicsParameter {
+    pub fn parameter(self, value: f32) -> PhysicsParameter {
         PhysicsParameter {
             feature: self,
             value,
-            parameter_type,
         }
     }
 }
@@ -129,8 +108,7 @@ pub enum FailureTesterAction {
 
 #[derive(Debug, Clone)]
 pub enum PhysicsTesterAction {
-    PrevExperiment,
-    NextExperiment,
+    SetPhysicalParameter(PhysicsParameter),
 }
 
 #[derive(Debug, Clone)]
@@ -169,6 +147,7 @@ pub enum StateChange {
     },
     SetKeyboardLegend(String),
     SetIterationsPerFrame(usize),
+    SetPhysicsParameter(PhysicsParameter),
 }
 
 impl StateChange {
