@@ -1,6 +1,6 @@
 use crate::messages::{
-    ControlState, CrucibleAction, FailureTesterAction, LabEvent, PhysicsFeature, PhysicsParameter
-    , Radio, StateChange,
+    ControlState, CrucibleAction, FailureTesterAction, LabEvent, PhysicsFeature, PhysicsParameter,
+    Radio, StateChange,
 };
 use winit::event::KeyEvent;
 use winit::keyboard::{KeyCode, PhysicalKey, SmolStr};
@@ -75,7 +75,27 @@ impl Keyboard {
                 feature: PhysicsFeature::IterationsPerFrame,
                 value: 100.0,
             },
-            "Speed",
+            "Time",
+            Box::new(|state| matches!(state, PhysicsTesting(_))),
+        );
+        self.float_parameter(
+            "M",
+            "m",
+            PhysicsParameter {
+                feature: PhysicsFeature::MuscleIncrement,
+                value: 0.0,
+            },
+            "Muscles",
+            Box::new(|state| matches!(state, PhysicsTesting(_))),
+        );
+        self.float_parameter(
+            "S",
+            "s",
+            PhysicsParameter {
+                feature: PhysicsFeature::Stiffness,
+                value: 0.0,
+            },
+            "Stiffness",
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         // self.single_action(
@@ -192,11 +212,11 @@ impl Keyboard {
                 KeyAction::FloatParameter {
                     is_active_in,
                     description,
-                    physics_parameter: PhysicsParameter { feature, value, .. },
+                    physics_parameter: PhysicsParameter { value, .. },
                     ..
                 } => {
                     if is_active_in(control_state) && !description.is_empty() {
-                        legend.push(format!("{:?} {:.10}", feature, value));
+                        legend.push(format!("{description}:{value:.10}"));
                     }
                 }
             }
