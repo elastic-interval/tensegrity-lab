@@ -83,6 +83,5 @@ impl PhysicsTest {
 
     pub fn iterate(&mut self) {
         self.fabric.iterate(&self.physics);
-        self.fabric.muscle_advance();
     }
 }

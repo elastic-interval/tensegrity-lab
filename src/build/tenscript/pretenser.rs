@@ -1,5 +1,6 @@
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::pretenser::Stage::*;
+use crate::crucible::Holder;
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::fabric::Fabric;
@@ -15,6 +16,7 @@ enum Stage {
 
 #[derive(Clone)]
 pub struct Pretenser {
+    pub fabric: Fabric,
     stage: Stage,
     pretensing_countdown: usize,
     muscle_wait: usize,
@@ -27,7 +29,7 @@ const MUSCLE_WAIT: usize = 20000;
 const PRETENSING_COUNTDOWN: usize = 30000;
 
 impl Pretenser {
-    pub fn new(pretense_phase: PretensePhase) -> Self {
+    pub fn new(pretense_phase: PretensePhase, fabric: Fabric) -> Self {
         let surface_character = pretense_phase.surface_character;
         let gravity = if surface_character == SurfaceCharacter::Absent {
             0.0
@@ -39,6 +41,7 @@ impl Pretenser {
             }
         };
         Self {
+            fabric,
             stage: Start,
             pretense_phase,
             pretensing_countdown: PRETENSING_COUNTDOWN,
@@ -51,7 +54,7 @@ impl Pretenser {
         }
     }
 
-    pub fn iterate(&mut self, fabric: &mut Fabric) {
+    pub fn iterate(&mut self) {
         self.stage = match self.stage {
             Start => Slacken,
             Slacken => {
@@ -59,13 +62,13 @@ impl Pretenser {
                     .pretense_phase
                     .pretense_factor
                     .unwrap_or(DEFAULT_PRETENSE_FACTOR);
-                fabric.prepare_for_pretensing(factor);
-                fabric.progress.start(self.pretensing_countdown);
+                self.fabric.prepare_for_pretensing(factor);
+                self.fabric.progress.start(self.pretensing_countdown);
                 Pretensing
             }
             Pretensing => {
-                fabric.iterate(&self.physics);
-                if fabric.progress.is_busy() {
+                self.fabric.iterate(&self.physics);
+                if self.fabric.progress.is_busy() {
                     Pretensing
                 } else {
                     if self.pretense_phase.muscle_movement.is_some() {
@@ -81,16 +84,17 @@ impl Pretenser {
                     let Some(muscle_movement) = &self.pretense_phase.muscle_movement else {
                         panic!("expected a muscle movement")
                     };
-                    fabric.activate_muscles(muscle_movement);
-                    fabric.progress.start(MUSCLE_WAIT);
+                    self.fabric.create_muscles(muscle_movement.contraction);
+                    self.physics.muscle_nuance_increment= 1.0 / muscle_movement.countdown as f32;
+                    self.fabric.progress.start(MUSCLE_WAIT);
                     Pretenst
                 } else {
-                    fabric.iterate(&self.physics);
+                    self.fabric.iterate(&self.physics);
                     MuscleWait
                 }
             }
             Pretenst => {
-                fabric.iterate(&self.physics);
+                self.fabric.iterate(&self.physics);
                 Pretenst
             }
         };
@@ -102,5 +106,12 @@ impl Pretenser {
 
     pub fn physics(&self) -> Physics {
         self.physics.clone()
+    }
+
+    pub fn holder(&self) -> Holder{
+        Holder{
+            fabric: self.fabric.clone(),
+            physics: self.physics.clone(),
+        }
     }
 }

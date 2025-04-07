@@ -1,28 +1,28 @@
 use crate::build::tenscript::brick::{Baked, Prototype};
-use crate::fabric::Fabric;
 use crate::fabric::physics::presets::PROTOTYPE_FORMATION;
+use crate::fabric::Fabric;
 
 pub struct Oven {
-    prototype_fabric: Fabric,
+    pub fabric: Fabric,
 }
 
 impl Oven {
     pub fn new(prototype: Prototype) -> Self {
-        let prototype_fabric = Fabric::from(prototype);
-        Self { prototype_fabric }
+        let fabric = Fabric::from(prototype);
+        Self { fabric }
     }
 
-    pub fn iterate(&mut self, fabric: &mut Fabric) -> Option<Baked> {
+    pub fn iterate(&mut self) -> Option<Baked> {
         let mut speed_squared = 1.0;
         for _ in 0..60 {
-            speed_squared = fabric.iterate(&PROTOTYPE_FORMATION);
+            speed_squared = self.fabric.iterate(&PROTOTYPE_FORMATION);
         }
-        let age = fabric.age;
+        let age = self.fabric.age;
         if age > 20000 && speed_squared < 1e-11 {
             println!("Fabric settled in iteration {age} at speed squared {speed_squared}");
-            match Baked::try_from(fabric.clone()) {
+            match Baked::try_from(self.fabric.clone()) {
                 Ok(baked) => {
-                    fabric.check_orphan_joints();
+                    self.fabric.check_orphan_joints();
                     println!("Baked it!");
                     return Some(baked);
                 }
@@ -36,6 +36,6 @@ impl Oven {
     }
 
     pub fn prototype_fabric(&self) -> Fabric {
-        self.prototype_fabric.clone()
+        self.fabric.clone()
     }
 }
