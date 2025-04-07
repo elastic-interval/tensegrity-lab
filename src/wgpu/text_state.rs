@@ -1,7 +1,6 @@
 use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
 use crate::messages::{ControlState, StateChange, TestScenario};
-use crate::ITERATIONS_PER_FRAME;
 use std::default::Default;
 use wgpu_text::glyph_brush::{
     BuiltInLineBreaker, HorizontalAlign, Layout, OwnedSection, OwnedText, VerticalAlign,
@@ -32,7 +31,6 @@ pub struct TextState {
     fabric_stats: Option<FabricStats>,
     sections: [Option<OwnedSection>; SectionName::count()],
     keyboard_legend: Option<String>,
-    iterations_per_frame: usize,
     animating: bool,
 }
 
@@ -64,7 +62,6 @@ impl TextState {
             control_state: ControlState::Waiting,
             fabric_stats: None,
             keyboard_legend: None,
-            iterations_per_frame: ITERATIONS_PER_FRAME,
             sections: Default::default(),
         };
         fresh.update_sections();
@@ -95,9 +92,6 @@ impl TextState {
             }
             SetKeyboardLegend(legend) => {
                 self.keyboard_legend = Some(legend.clone());
-            }
-            SetIterationsPerFrame(iterations) => {
-                self.iterations_per_frame = *iterations;
             }
             _ => {}
         }
@@ -219,7 +213,6 @@ impl TextState {
                          Cables: {:?}\n\
                          → {:.1}-{:.1}mm\n\
                          → total {:.1}m\n\
-                         {} per frame\n\
                          ",
                         max_height * scale / 1000.0,
                         joint_count,
@@ -231,7 +224,6 @@ impl TextState {
                         pull_range.0 * scale,
                         pull_range.1 * scale,
                         pull_total * scale / 1000.0,
-                        self.iterations_per_frame,
                     ))
                 }
             },

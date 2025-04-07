@@ -4,13 +4,15 @@ use crate::messages::PhysicsTesterAction;
 
 pub struct PhysicsTester {
     fabric: Fabric,
-    physics: Physics,
+    pub(crate) physics: Physics,
 }
 
 impl PhysicsTester {
     pub fn new(fabric: &Fabric, physics: Physics) -> Self {
+        let mut fabric = fabric.clone();
+        fabric.activate_muscles(true);
         Self {
-            fabric: fabric.clone(),
+            fabric,
             physics,
         }
     }

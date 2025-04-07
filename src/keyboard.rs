@@ -68,18 +68,28 @@ impl Keyboard {
             "Gravity",
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
-        self.single_action(
-            KeyCode::ArrowUp,
-            "\u{2191} faster",
-            Crucible(AdjustSpeed(1.1)),
-            Box::new(|state| !matches!(state, ShowingJoint(_) | ShowingInterval(_))),
+        self.float_parameter(
+            "T",
+            "t",
+            PhysicsParameter {
+                feature: PhysicsFeature::IterationsPerFrame,
+                value: 100.0,
+            },
+            "Speed",
+            Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
-        self.single_action(
-            KeyCode::ArrowDown,
-            "\u{2193} slower",
-            Crucible(AdjustSpeed(0.9)),
-            Box::new(|state| !matches!(state, ShowingJoint(_) | ShowingInterval(_))),
-        );
+        // self.single_action(
+        //     KeyCode::ArrowUp,
+        //     "\u{2191} faster",
+        //     Crucible(AdjustSpeed(1.1)),
+        //     Box::new(|state| !matches!(state, ShowingJoint(_) | ShowingInterval(_))),
+        // );
+        // self.single_action(
+        //     KeyCode::ArrowDown,
+        //     "\u{2193} slower",
+        //     Crucible(AdjustSpeed(0.9)),
+        //     Box::new(|state| !matches!(state, ShowingJoint(_) | ShowingInterval(_))),
+        // );
         self.single_action(
             KeyCode::ArrowLeft,
             "\u{2190} previous test",

@@ -24,7 +24,7 @@ pub struct PlanRunner {
     build_phase: BuildPhase,
     shape_phase: ShapePhase,
     pretense_phase: PretensePhase,
-    physics: Physics,
+    pub(crate) physics: Physics,
     disabled: Option<TenscriptError>,
     scale: f32,
 }

@@ -115,7 +115,6 @@ pub enum PhysicsTesterAction {
 pub enum CrucibleAction {
     BakeBrick(Prototype),
     BuildFabric(FabricPlan),
-    AdjustSpeed(f32),
     ToViewing,
     ToAnimating,
     ToFailureTesting(TestScenario),
@@ -146,7 +145,6 @@ pub enum StateChange {
         fabric_stats: FabricStats,
     },
     SetKeyboardLegend(String),
-    SetIterationsPerFrame(usize),
     SetPhysicsParameter(PhysicsParameter),
 }
 
