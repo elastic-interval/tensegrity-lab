@@ -365,7 +365,7 @@ impl ApplicationHandler<LabEvent> for Application {
                         match delta {
                             MouseScrollDelta::LineDelta(_, y) => PointerChange::Zoomed(y * 0.5),
                             MouseScrollDelta::PixelDelta(position) => {
-                                PointerChange::Zoomed((position.y as f32) * 0.1)
+                                PointerChange::Zoomed((position.y as f32) * 0.018)
                             }
                         },
                         &mut self.crucible.fabric(),
