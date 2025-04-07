@@ -85,7 +85,7 @@ impl Pretenser {
                         panic!("expected a muscle movement")
                     };
                     self.fabric.create_muscles(muscle_movement.contraction);
-                    self.physics.muscle_nuance_increment= 1.0 / muscle_movement.countdown as f32;
+                    self.physics.muscle_nuance_increment = 1.0 / muscle_movement.countdown as f32;
                     self.fabric.progress.start(MUSCLE_WAIT);
                     Pretenst
                 } else {
@@ -108,8 +108,8 @@ impl Pretenser {
         self.physics.clone()
     }
 
-    pub fn holder(&self) -> Holder{
-        Holder{
+    pub fn holder(&self) -> Holder {
+        Holder {
             fabric: self.fabric.clone(),
             physics: self.physics.clone(),
         }
