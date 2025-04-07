@@ -70,7 +70,9 @@ impl Crucible {
             Pretensing(pretenser) => {
                 if pretenser.is_done() {
                     let stats = pretenser.fabric.fabric_stats();
-                    self.stage = Viewing(pretenser.holder());
+                    let holder = pretenser.holder();
+                    holder.physics.broadcast(&self.radio);
+                    self.stage = Viewing(holder);
                     LabEvent::FabricBuilt(stats).send(&self.radio);
                 } else {
                     for _ in 0..self.iterations_per_frame {
@@ -166,11 +168,7 @@ impl Crucible {
             }
             ToPhysicsTesting(scenario) => {
                 if let Viewing(Holder { fabric, physics }) = &mut self.stage {
-                    self.stage = PhysicsTesting(PhysicsTester::new(
-                        &fabric,
-                        physics.clone(),
-                        self.radio.clone(),
-                    ));
+                    self.stage = PhysicsTesting(PhysicsTester::new(&fabric, physics.clone()));
                     ControlState::PhysicsTesting(scenario).send(&self.radio);
                 } else {
                     panic!("cannot start experiment");
