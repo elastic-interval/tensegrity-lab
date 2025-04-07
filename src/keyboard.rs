@@ -79,13 +79,13 @@ impl Keyboard {
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.float_parameter(
-            "M",
-            "m",
+            "C",
+            "c",
             PhysicsParameter {
                 feature: PhysicsFeature::MuscleIncrement,
                 value: 0.0,
             },
-            Box::new(|value| format!("Muscle {:.0}", value * 1e6)),
+            Box::new(|value| format!("Cycle {:.0}", value * 1e6)),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.float_parameter(
@@ -96,6 +96,16 @@ impl Keyboard {
                 value: 0.0,
             },
             Box::new(|value| format!("Stiffness {:.0}", value * 1e4)),
+            Box::new(|state| matches!(state, PhysicsTesting(_))),
+        );
+        self.float_parameter(
+            "M",
+            "m",
+            PhysicsParameter {
+                feature: PhysicsFeature::Mass,
+                value: 1.0,
+            },
+            Box::new(|value| format!("Mass {:.0}", value * 1e2)),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         // self.single_action(

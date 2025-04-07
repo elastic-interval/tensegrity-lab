@@ -249,8 +249,8 @@ impl Interval {
         joints[self.alpha_index].force += force_vector;
         joints[self.omega_index].force -= force_vector;
         let half_mass = mass * real_length / 2.0;
-        joints[self.alpha_index].interval_mass += half_mass;
-        joints[self.omega_index].interval_mass += half_mass;
+        joints[self.alpha_index].accumulated_mass += half_mass;
+        joints[self.omega_index].accumulated_mass += half_mass;
     }
 
     pub fn touches(&self, joint: usize) -> bool {

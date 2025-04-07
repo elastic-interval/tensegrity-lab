@@ -56,7 +56,7 @@ pub struct Joint {
     pub location: Point3<f32>,
     pub force: Vector3<f32>,
     pub velocity: Vector3<f32>,
-    pub interval_mass: f32,
+    pub accumulated_mass: f32,
     pub fixed: bool,
 }
 
@@ -66,14 +66,14 @@ impl Joint {
             location,
             force: zero(),
             velocity: zero(),
-            interval_mass: AMBIENT_MASS,
+            accumulated_mass: AMBIENT_MASS,
             fixed: false,
         }
     }
 
     pub fn reset(&mut self) {
         self.force = zero();
-        self.interval_mass = AMBIENT_MASS;
+        self.accumulated_mass = AMBIENT_MASS;
     }
 
     pub fn iterate(
@@ -81,6 +81,7 @@ impl Joint {
         Physics {
             surface_character,
             gravity,
+            mass,
             antigravity,
             viscosity,
             drag,
@@ -95,15 +96,16 @@ impl Joint {
         if speed_squared > 0.01 {
             return speed_squared;
         }
+        let mass = self.accumulated_mass * mass;
         if altitude >= 0.0 || *gravity == 0.0 {
             self.velocity.y -= gravity;
             self.velocity +=
-                self.force / self.interval_mass - self.velocity * speed_squared * *viscosity;
+                self.force / mass - self.velocity * speed_squared * *viscosity;
             self.velocity *= 1.0 - *drag;
         } else {
             let degree_submerged: f32 = if -altitude < 1.0 { -altitude } else { 0.0 };
             let antigravity = antigravity * degree_submerged;
-            self.velocity += self.force / self.interval_mass;
+            self.velocity += self.force / mass;
             match surface_character {
                 Absent => {}
                 Frozen => {
