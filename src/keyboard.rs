@@ -16,9 +16,9 @@ enum KeyAction {
     FloatParameter {
         up_code: SmolStr,
         down_code: SmolStr,
-        description: String,
         physics_parameter: PhysicsParameter,
         radio: Radio,
+        render: Box<dyn Fn(&f32) -> String>,
         is_active_in: Box<dyn Fn(&ControlState) -> bool>,
     },
 }
@@ -65,7 +65,7 @@ impl Keyboard {
                 feature: PhysicsFeature::Gravity,
                 value: 0.0,
             },
-            "Gravity",
+            Box::new(|value| format!("Gravity {:.0}", value * 1e10)),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.float_parameter(
@@ -75,7 +75,7 @@ impl Keyboard {
                 feature: PhysicsFeature::IterationsPerFrame,
                 value: 100.0,
             },
-            "Time",
+            Box::new(|value| format!("Time {value:.0}")),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.float_parameter(
@@ -85,7 +85,7 @@ impl Keyboard {
                 feature: PhysicsFeature::MuscleIncrement,
                 value: 0.0,
             },
-            "Muscles",
+            Box::new(|value| format!("Muscle {:.0}", value * 1e6)),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.float_parameter(
@@ -95,7 +95,7 @@ impl Keyboard {
                 feature: PhysicsFeature::Stiffness,
                 value: 0.0,
             },
-            "Stiffness",
+            Box::new(|value| format!("Stiffness {:.0}", value * 1e4)),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         // self.single_action(
@@ -211,12 +211,12 @@ impl Keyboard {
                 }
                 KeyAction::FloatParameter {
                     is_active_in,
-                    description,
+                    render,
                     physics_parameter: PhysicsParameter { value, .. },
                     ..
                 } => {
-                    if is_active_in(control_state) && !description.is_empty() {
-                        legend.push(format!("{description}:{value:.10}"));
+                    if is_active_in(control_state) {
+                        legend.push(render(value));
                     }
                 }
             }
@@ -245,13 +245,13 @@ impl Keyboard {
         up_code: &str,
         down_code: &str,
         physics_parameter: PhysicsParameter,
-        description: &str,
+        render: Box<dyn Fn(&f32) -> String>,
         is_active_in: Box<dyn Fn(&ControlState) -> bool>,
     ) {
         self.actions.push(KeyAction::FloatParameter {
             up_code: up_code.into(),
             down_code: down_code.into(),
-            description: description.into(),
+            render,
             is_active_in,
             physics_parameter,
             radio: self.radio.clone(),
