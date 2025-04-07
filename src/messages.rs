@@ -9,6 +9,32 @@ use std::time::SystemTime;
 use winit::dpi::PhysicalPosition;
 
 #[derive(Debug, Clone, Copy)]
+pub enum PhysicsFeature {
+    Gravity,
+    Pretense,
+    Stiffness,
+    IterationsPerFrame,
+    MuscleIncrement,
+    Viscosity,
+    Drag,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PhysicsParameter {
+    pub feature: PhysicsFeature,
+    pub value: f32,
+}
+
+impl PhysicsFeature {
+    pub fn parameter(self, value: f32) -> PhysicsParameter {
+        PhysicsParameter {
+            feature: self,
+            value,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum TestScenario {
     TensionTest,
     CompressionTest,
