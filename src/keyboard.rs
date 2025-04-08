@@ -105,13 +105,19 @@ impl Keyboard {
                 feature: PhysicsFeature::StrainLimit,
                 value: 1.0,
             },
-            Box::new(|value| format!("Strain Limit {:.0}", value * 1e2)),
+            Box::new(|value| format!("Strain Limit {:.1}", value * 1e2)),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.single_action(
             KeyCode::KeyP,
             "",
             Crucible(PhysicsTesterDo(PhysicsTesterAction::DumpPhysics)),
+            Box::new(|state| matches!(state, PhysicsTesting(_))),
+        );
+        self.single_action(
+            KeyCode::KeyV,
+            "View reset",
+            UpdateState(StateChange::ResetView),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.single_action(

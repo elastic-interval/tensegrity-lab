@@ -110,11 +110,11 @@ pub mod presets {
 
     pub const AIR_GRAVITY: Physics = Physics {
         drag: 1e-4,
-        iterations_per_frame: 100.0,
-        mass: 3.0,
+        iterations_per_frame: 50.0,
+        mass: 2.0,
         cycle_ticks: 1000.0,
-        stiffness: 0.05,
-        strain_limit: 1.0,
+        stiffness: 0.3,
+        strain_limit: 0.06,
         surface_character: Frozen,
         viscosity: 1e2,
     };

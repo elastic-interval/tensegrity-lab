@@ -10,23 +10,18 @@ enum Stage {
     Start,
     Slacken,
     Pretensing,
-    MuscleWait,
+    CreateMuscles,
     Pretenst,
 }
 
 #[derive(Clone)]
 pub struct Pretenser {
     pub fabric: Fabric,
-    stage: Stage,
-    pretensing_countdown: usize,
-    muscle_wait: usize,
     pub pretense_phase: PretensePhase,
     pub physics: Physics,
+    stage: Stage,
+    countdown: usize,
 }
-
-const DEFAULT_PRETENSE_FACTOR: f32 = 1.03;
-const MUSCLE_WAIT: usize = 20000;
-const PRETENSING_COUNTDOWN: usize = 30000;
 
 impl Pretenser {
     pub fn new(pretense_phase: PretensePhase, fabric: Fabric) -> Self {
@@ -34,12 +29,12 @@ impl Pretenser {
             surface_character: pretense_phase.surface_character,
             ..AIR_GRAVITY
         };
+        let countdown = pretense_phase.countdown.unwrap_or(7000);
         Self {
             fabric,
             stage: Start,
             pretense_phase,
-            pretensing_countdown: PRETENSING_COUNTDOWN,
-            muscle_wait: MUSCLE_WAIT,
+            countdown,
             physics,
         }
     }
@@ -51,9 +46,9 @@ impl Pretenser {
                 let factor = self
                     .pretense_phase
                     .pretense_factor
-                    .unwrap_or(DEFAULT_PRETENSE_FACTOR);
+                    .unwrap_or(1.03);
                 self.fabric.prepare_for_pretensing(factor);
-                self.fabric.progress.start(self.pretensing_countdown);
+                self.fabric.progress.start(self.countdown);
                 Pretensing
             }
             Pretensing => {
@@ -62,25 +57,24 @@ impl Pretenser {
                     Pretensing
                 } else {
                     if self.pretense_phase.muscle_movement.is_some() {
-                        MuscleWait
+                        CreateMuscles
                     } else {
                         Pretenst
                     }
                 }
             }
-            MuscleWait => {
-                self.muscle_wait -= 1;
-                if self.muscle_wait == 0 {
+            CreateMuscles => {
+                if self.fabric.progress.is_busy() {
+                    self.fabric.iterate(&self.physics);
+                    CreateMuscles
+                } else {
                     let Some(muscle_movement) = &self.pretense_phase.muscle_movement else {
                         panic!("expected a muscle movement")
                     };
                     self.fabric.create_muscles(muscle_movement.contraction);
                     self.physics.cycle_ticks = muscle_movement.countdown as f32;
-                    self.fabric.progress.start(MUSCLE_WAIT);
+                    self.fabric.progress.start(500);
                     Pretenst
-                } else {
-                    self.fabric.iterate(&self.physics);
-                    MuscleWait
                 }
             }
             Pretenst => {
