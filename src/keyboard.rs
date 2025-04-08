@@ -1,6 +1,6 @@
 use crate::messages::{
     ControlState, CrucibleAction, FailureTesterAction, LabEvent, PhysicsFeature, PhysicsParameter,
-    Radio, StateChange,
+    PhysicsTesterAction, Radio, StateChange,
 };
 use winit::event::KeyEvent;
 use winit::keyboard::{KeyCode, PhysicalKey, SmolStr};
@@ -72,10 +72,10 @@ impl Keyboard {
             "C",
             "c",
             PhysicsParameter {
-                feature: PhysicsFeature::MuscleIncrement,
-                value: 0.0,
+                feature: PhysicsFeature::CycleTicks,
+                value: 1000.0,
             },
-            Box::new(|value| format!("Cycle {:.0}", value * 1e6)),
+            Box::new(|value| format!("Cycle {:.0}", value)),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.float_parameter(
@@ -108,18 +108,12 @@ impl Keyboard {
             Box::new(|value| format!("Strain Limit {:.0}", value * 1e2)),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
-        // self.single_action(
-        //     KeyCode::ArrowUp,
-        //     "\u{2191} faster",
-        //     Crucible(AdjustSpeed(1.1)),
-        //     Box::new(|state| !matches!(state, ShowingJoint(_) | ShowingInterval(_))),
-        // );
-        // self.single_action(
-        //     KeyCode::ArrowDown,
-        //     "\u{2193} slower",
-        //     Crucible(AdjustSpeed(0.9)),
-        //     Box::new(|state| !matches!(state, ShowingJoint(_) | ShowingInterval(_))),
-        // );
+        self.single_action(
+            KeyCode::KeyP,
+            "",
+            Crucible(PhysicsTesterDo(PhysicsTesterAction::DumpPhysics)),
+            Box::new(|state| matches!(state, PhysicsTesting(_))),
+        );
         self.single_action(
             KeyCode::ArrowLeft,
             "\u{2190} previous test",

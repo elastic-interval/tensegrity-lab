@@ -75,7 +75,7 @@ impl Pretenser {
                         panic!("expected a muscle movement")
                     };
                     self.fabric.create_muscles(muscle_movement.contraction);
-                    self.physics.muscle_increment = 1.0 / muscle_movement.countdown as f32;
+                    self.physics.cycle_ticks = muscle_movement.countdown as f32;
                     self.fabric.progress.start(MUSCLE_WAIT);
                     Pretenst
                 } else {

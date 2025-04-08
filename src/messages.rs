@@ -14,7 +14,7 @@ pub enum PhysicsFeature {
     Pretense,
     Stiffness,
     IterationsPerFrame,
-    MuscleIncrement,
+    CycleTicks,
     Viscosity,
     Drag,
     StrainLimit,
@@ -110,6 +110,7 @@ pub enum FailureTesterAction {
 #[derive(Debug, Clone)]
 pub enum PhysicsTesterAction {
     SetPhysicalParameter(PhysicsParameter),
+    DumpPhysics,
 }
 
 #[derive(Debug, Clone)]
