@@ -149,6 +149,7 @@ pub enum StateChange {
     },
     SetKeyboardLegend(String),
     SetPhysicsParameter(PhysicsParameter),
+    FramesPerSecond(f32),
 }
 
 impl StateChange {
