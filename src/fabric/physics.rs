@@ -13,13 +13,21 @@ pub enum SurfaceCharacter {
     Bouncy,
 }
 
+impl SurfaceCharacter {
+    pub fn antigravity(&self) -> f32 {
+        match self {
+            SurfaceCharacter::Absent => 0.0,
+            _ => 1e-3,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Physics {
     pub surface_character: SurfaceCharacter,
     pub iterations_per_frame: f32,
     pub gravity: f32,
     pub mass: f32,
-    pub antigravity: f32,
     pub viscosity: f32,
     pub drag: f32,
     pub stiffness: f32,
@@ -68,7 +76,6 @@ pub mod presets {
         iterations_per_frame: 1000.0,
         gravity: 0.0,
         mass: 1.0,
-        antigravity: 0.0,
         viscosity: 1e4,
         drag: 1e-6,
         stiffness: 1e-3,
@@ -80,7 +87,6 @@ pub mod presets {
         iterations_per_frame: 100.0,
         gravity: 0.0,
         mass: 1.0,
-        antigravity: 0.0,
         viscosity: 2e4,
         drag: 1e-3,
         stiffness: 1e-4,
@@ -92,7 +98,6 @@ pub mod presets {
         iterations_per_frame: 100.0,
         gravity: 1e-7,
         mass: 1.0,
-        antigravity: 1e-3,
         viscosity: 1e2,
         drag: 1e-4,
         stiffness: 0.05,
