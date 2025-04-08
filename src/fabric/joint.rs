@@ -3,12 +3,12 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
 use cgmath::num_traits::zero;
+use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
 
-use crate::fabric::Fabric;
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter::*;
+use crate::fabric::Fabric;
 
 impl Fabric {
     pub fn create_joint(&mut self, point: Point3<f32>) -> usize {
@@ -76,21 +76,18 @@ impl Joint {
         self.accumulated_mass = AMBIENT_MASS;
     }
 
-    pub fn iterate(
-        &mut self,
-        Physics {
-            surface_character,
-            gravity,
-            mass,
-            antigravity,
-            viscosity,
-            drag,
-            ..
-        }: &Physics,
-    ) -> f32 {
+    pub fn iterate(&mut self, physics: &Physics) -> f32 {
         if self.fixed {
             return 0.0;
         }
+        let Physics {
+            surface_character,
+            gravity,
+            mass,
+            viscosity,
+            drag,
+            ..
+        } = physics;
         let altitude = self.location.y;
         let speed_squared = self.velocity.magnitude2();
         if speed_squared > 0.01 {
@@ -99,12 +96,11 @@ impl Joint {
         let mass = self.accumulated_mass * mass;
         if altitude >= 0.0 || *gravity == 0.0 {
             self.velocity.y -= gravity;
-            self.velocity +=
-                self.force / mass - self.velocity * speed_squared * *viscosity;
+            self.velocity += self.force / mass - self.velocity * speed_squared * *viscosity;
             self.velocity *= 1.0 - *drag;
         } else {
             let degree_submerged: f32 = if -altitude < 1.0 { -altitude } else { 0.0 };
-            let antigravity = antigravity * degree_submerged;
+            let antigravity = physics.surface_character.antigravity() * degree_submerged;
             self.velocity += self.force / mass;
             match surface_character {
                 Absent => {}
