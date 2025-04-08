@@ -20,7 +20,7 @@ pub struct Evolution {
 impl Evolution {
     pub fn new(seed: u64) -> Self {
         Self {
-            fabric: Fabric::default(),
+            fabric: Fabric::new(seed.to_string()),
             random: ChaCha8Rng::seed_from_u64(seed),
             countdown: DELAY,
             evolving_pushes: Default::default(),

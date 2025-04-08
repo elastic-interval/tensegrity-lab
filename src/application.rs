@@ -194,7 +194,6 @@ impl ApplicationHandler<LabEvent> for Application {
                         unreachable!()
                     }
                     RunStyle::Fabric { fabric_name, .. } => {
-                        StateChange::SetFabricName(fabric_name.clone()).send(&self.radio);
                         match self.get_fabric_plan(&fabric_name) {
                             Ok(fabric_plan) => {
                                 CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
@@ -220,6 +219,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 };
             }
             LabEvent::FabricBuilt(fabric_stats) => {
+                StateChange::SetFabricName(fabric_stats.name.clone()).send(&self.radio);
                 StateChange::SetFabricStats(Some(fabric_stats)).send(&self.radio);
                 if self.mobile_device {
                     CrucibleAction::ToAnimating.send(&self.radio);

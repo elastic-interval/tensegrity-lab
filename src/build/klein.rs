@@ -12,7 +12,7 @@ struct KleinFabric {
 impl KleinFabric {
     fn new() -> KleinFabric {
         KleinFabric {
-            fabric: Fabric::default(),
+            fabric: Fabric::new("klein".to_string()),
             random: thread_rng(),
         }
     }
