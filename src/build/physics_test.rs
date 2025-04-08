@@ -25,9 +25,6 @@ impl PhysicsTester {
     }
 
     pub fn iterate(&mut self) {
-        if !self.failed_intervals.is_empty() {
-            return;
-        }
         self.fabric.iterate(&self.physics);
         self.failed_intervals = self.fabric.failed_intervals(self.physics.strain_limit);
         if !self.failed_intervals.is_empty() {
@@ -42,6 +39,9 @@ impl PhysicsTester {
         match action {
             PhysicsTesterAction::SetPhysicalParameter(parameter) => {
                 self.physics.accept(parameter);
+            }
+            PhysicsTesterAction::DumpPhysics => {
+                println!("{:?}", self.physics);
             }
         }
     }
