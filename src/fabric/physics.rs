@@ -14,6 +14,17 @@ pub enum SurfaceCharacter {
 }
 
 impl SurfaceCharacter {
+    pub fn has_gravity(&self) -> bool {
+        !matches!(self, SurfaceCharacter::Absent)
+    }
+
+    pub fn gravity(&self) -> f32 {
+        match self {
+            SurfaceCharacter::Absent => 0.0,
+            _ => 1e-7,
+        }
+    }
+
     pub fn antigravity(&self) -> f32 {
         match self {
             SurfaceCharacter::Absent => 0.0,
@@ -26,7 +37,6 @@ impl SurfaceCharacter {
 pub struct Physics {
     pub surface_character: SurfaceCharacter,
     pub iterations_per_frame: f32,
-    pub gravity: f32,
     pub mass: f32,
     pub viscosity: f32,
     pub drag: f32,
@@ -39,7 +49,6 @@ impl Physics {
         use PhysicsFeature::*;
         let PhysicsParameter { feature, value } = parameter;
         match feature {
-            Gravity => self.gravity = value,
             Mass => self.mass = value,
             Stiffness => self.stiffness = value,
             IterationsPerFrame => self.iterations_per_frame = value,
@@ -53,7 +62,6 @@ impl Physics {
     pub fn broadcast(&self, radio: &Radio) {
         use PhysicsFeature::*;
         use StateChange::SetPhysicsParameter;
-        SetPhysicsParameter(Gravity.parameter(self.gravity)).send(radio);
         SetPhysicsParameter(Mass.parameter(self.mass)).send(radio);
         SetPhysicsParameter(Stiffness.parameter(self.stiffness)).send(radio);
         SetPhysicsParameter(IterationsPerFrame.parameter(self.iterations_per_frame)).send(radio);
@@ -74,7 +82,6 @@ pub mod presets {
     pub const LIQUID: Physics = Physics {
         surface_character: Absent,
         iterations_per_frame: 1000.0,
-        gravity: 0.0,
         mass: 1.0,
         viscosity: 1e4,
         drag: 1e-6,
@@ -85,7 +92,6 @@ pub mod presets {
     pub const PROTOTYPE_FORMATION: Physics = Physics {
         surface_character: Absent,
         iterations_per_frame: 100.0,
-        gravity: 0.0,
         mass: 1.0,
         viscosity: 2e4,
         drag: 1e-3,
@@ -96,7 +102,6 @@ pub mod presets {
     pub const AIR_GRAVITY: Physics = Physics {
         surface_character: Frozen,
         iterations_per_frame: 100.0,
-        gravity: 1e-7,
         mass: 1.0,
         viscosity: 1e2,
         drag: 1e-4,
