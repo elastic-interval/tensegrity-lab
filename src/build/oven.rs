@@ -13,13 +13,13 @@ impl Oven {
     }
 
     pub fn iterate(&mut self) -> Option<Baked> {
-        let mut speed_squared = 1.0;
         for _ in 0..60 {
-            speed_squared = self.fabric.iterate(&PROTOTYPE_FORMATION);
+            self.fabric.iterate(&PROTOTYPE_FORMATION);
         }
+        let max_velocity = self.fabric.max_velocity();
         let age = self.fabric.age;
-        if age > 20000 && speed_squared < 1e-11 {
-            println!("Fabric settled in iteration {age} at speed squared {speed_squared}");
+        if age > 20000 && max_velocity < 3e-6 {
+            println!("Fabric settled in iteration {age} at velocity {max_velocity}");
             match Baked::try_from(self.fabric.clone()) {
                 Ok(baked) => {
                     self.fabric.check_orphan_joints();

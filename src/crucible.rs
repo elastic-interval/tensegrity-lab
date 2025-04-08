@@ -157,7 +157,11 @@ impl Crucible {
             }
             ToPhysicsTesting(scenario) => {
                 if let Viewing(Holder { fabric, physics }) = &mut self.stage {
-                    self.stage = PhysicsTesting(PhysicsTester::new(&fabric, physics.clone()));
+                    self.stage = PhysicsTesting(PhysicsTester::new(
+                        &fabric,
+                        physics.clone(),
+                        self.radio.clone(),
+                    ));
                     ControlState::PhysicsTesting(scenario).send(&self.radio);
                 } else {
                     panic!("cannot start experiment");
@@ -182,7 +186,7 @@ impl Crucible {
     pub fn fabric(&mut self) -> &Fabric {
         match &mut self.stage {
             FailureTesting(tester) => tester.fabric(),
-            PhysicsTesting(tester) => tester.fabric(),
+            PhysicsTesting(tester) => &tester.fabric,
             RunningPlan(plan_runner) => &plan_runner.fabric,
             Pretensing(pretenser) => &pretenser.fabric,
             Viewing(holder) => &holder.fabric,

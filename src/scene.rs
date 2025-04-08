@@ -4,8 +4,8 @@ use crate::fabric::material::interval_material;
 use crate::fabric::Fabric;
 use crate::messages::PointerChange;
 use crate::messages::{
-    ControlState, IntervalDetails, IntervalFilter, JointDetails, Radio, RenderStyle,
-    StateChange, TestScenario,
+    ControlState, IntervalDetails, IntervalFilter, JointDetails, Radio, RenderStyle, StateChange,
+    TestScenario,
 };
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
@@ -44,8 +44,8 @@ impl Scene {
     }
 
     pub fn update_state(&mut self, state_change: StateChange) {
-        use StateChange::*;
         use ControlState::*;
+        use StateChange::*;
         self.text_renderer.update_state(&state_change);
         match state_change {
             SetControlState(control_state) => match control_state {
@@ -89,6 +89,11 @@ impl Scene {
             SetIntervalColor { key, color } => {
                 if let RenderStyle::WithColoring { color_map, .. } = &mut self.render_style {
                     color_map.insert(key, color);
+                } else {
+                    self.render_style = RenderStyle::WithColoring {
+                        color_map: HashMap::from([(key, color)]),
+                        filter: IntervalFilter::ShowAll,
+                    };
                 }
             }
             _ => {}
