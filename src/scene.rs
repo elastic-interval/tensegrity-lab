@@ -86,6 +86,9 @@ impl Scene {
                 }
             },
             SetAnimating(active) => self.pick_allowed = !active,
+            ResetView => {
+                self.render_style = RenderStyle::Normal;
+            }
             SetIntervalColor { key, color } => {
                 if let RenderStyle::WithColoring { color_map, .. } = &mut self.render_style {
                     color_map.insert(key, color);

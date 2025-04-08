@@ -141,6 +141,7 @@ pub enum StateChange {
         key: (usize, usize),
         color: [f32; 4],
     },
+    ResetView,
     SetAnimating(bool),
     SetExperimentTitle {
         title: String,

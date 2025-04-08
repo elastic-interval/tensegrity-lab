@@ -11,6 +11,7 @@ use crate::build::tenscript::{
 use crate::build::tenscript::{FaceMark, TenscriptError};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
+use crate::fabric::interval::Interval;
 use crate::fabric::material::Material::{GuyLineMaterial, PullMaterial};
 use crate::fabric::material::{material_by_label, Material};
 use crate::fabric::{Fabric, UniqueId};
@@ -99,9 +100,7 @@ pub enum ShapeInterval {
         omega_face: UniqueId,
         mark_name: String,
     },
-    SurfaceAnchor {
-        interval: UniqueId,
-    },
+    SurfaceAnchor(UniqueId),
 }
 
 #[derive(Debug, Clone)]
@@ -170,15 +169,15 @@ impl ShapePhase {
                     mark_name: mark_name[1..].into(),
                 })
             }
-            Rule::centralize => {
-                match pair.into_inner().next() {
-                    None => Ok(ShapeOperation::Centralize { altitude: None }),
-                    Some(pair) => {
-                        let altitude = parse_float(pair.as_str(), "(centralize)")?;
-                        Ok(ShapeOperation::Centralize {altitude: Some(altitude)})
-                    }
+            Rule::centralize => match pair.into_inner().next() {
+                None => Ok(ShapeOperation::Centralize { altitude: None }),
+                Some(pair) => {
+                    let altitude = parse_float(pair.as_str(), "(centralize)")?;
+                    Ok(ShapeOperation::Centralize {
+                        altitude: Some(altitude),
+                    })
                 }
-            }
+            },
             Rule::during_count => {
                 let mut inner = pair.into_inner();
                 let count = parse_usize(inner.next().unwrap().as_str(), "(during ...)")?;
@@ -517,9 +516,9 @@ impl ShapePhase {
             } => {
                 let (x, z) = surface;
                 let base = fabric.create_fixed_joint(Point3::new(x, 0.0, z));
-                let interval = fabric.create_interval(joint_index, base, 0.01, PullMaterial);
+                let interval_id = fabric.create_interval(joint_index, base, 0.01, PullMaterial);
                 self.shape_intervals
-                    .push(ShapeInterval::SurfaceAnchor { interval });
+                    .push(ShapeInterval::SurfaceAnchor(interval_id));
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
             ShapeOperation::GuyLine {
@@ -586,10 +585,16 @@ impl ShapePhase {
             .iter()
             .cloned()
             .filter(|shape_interval| {
-                if let ShapeInterval::SurfaceAnchor { interval } = shape_interval {
-                    let omega_id = fabric.interval(*interval).omega_index;
-                    fabric.remove_interval(*interval);
-                    fabric.remove_joint(omega_id);
+                if let &ShapeInterval::SurfaceAnchor(interval_id) = shape_interval {
+                    let &Interval {
+                        alpha_index,
+                        omega_index,
+                        ..
+                    } = fabric.interval(interval_id);
+                    fabric.joints[alpha_index].fixed = true;
+                    fabric.joints[alpha_index].location = fabric.location(omega_index);
+                    fabric.remove_interval(interval_id);
+                    fabric.remove_joint(omega_index);
                     false // discard
                 } else {
                     true

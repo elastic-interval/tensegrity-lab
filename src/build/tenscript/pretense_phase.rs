@@ -1,6 +1,6 @@
 use pest::iterators::{Pair, Pairs};
 
-use crate::build::tenscript::{parse_float, parse_float_inside, parse_usize, Rule, TenscriptError};
+use crate::build::tenscript::{parse_float, parse_float_inside, parse_usize, parse_usize_inside, Rule, TenscriptError};
 use crate::fabric::physics::SurfaceCharacter;
 
 #[derive(Debug, Clone, Default)]
@@ -14,17 +14,10 @@ pub struct PretensePhase {
     pub surface_character: SurfaceCharacter,
     pub muscle_movement: Option<MuscleMovement>,
     pub pretense_factor: Option<f32>,
+    pub countdown: Option<usize>,
 }
 
 impl PretensePhase {
-    pub fn new(surface_character: SurfaceCharacter) -> Self {
-        Self {
-            surface_character,
-            muscle_movement: None,
-            pretense_factor: None,
-        }
-    }
-
     pub fn from_pair(pair: Pair<Rule>) -> Result<PretensePhase, TenscriptError> {
         match pair.as_rule() {
             Rule::pretense => Self::parse_features(pair.into_inner()),
@@ -69,6 +62,10 @@ impl PretensePhase {
                             Rule::pretense_factor => {
                                 let factor = parse_float_inside(pretense_pair, "pretense-factor")?;
                                 pretense.pretense_factor = Some(factor)
+                            }
+                            Rule::countdown => {
+                                let factor = parse_usize_inside(pretense_pair, "countdown")?;
+                                pretense.countdown = Some(factor)
                             }
                             _ => unreachable!(),
                         }

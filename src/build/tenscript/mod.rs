@@ -56,6 +56,11 @@ pub fn parse_float_inside(pair: Pair<Rule>, spot: &str) -> Result<f32, Tenscript
         .map_err(|error| TenscriptError::FormatError(format!("Not a float pair: [{error}]")))
 }
 
+pub fn parse_usize_inside(pair: Pair<Rule>, spot: &str) -> Result<usize, TenscriptError> {
+    parse_usize(pair.into_inner().next().unwrap().as_str(), spot)
+        .map_err(|error| TenscriptError::FormatError(format!("Not a usize pair: [{error}]")))
+}
+
 impl Fabric {
     pub fn expect_face(&self, face_id: UniqueId) -> Result<&Face, TenscriptError> {
         self.faces
