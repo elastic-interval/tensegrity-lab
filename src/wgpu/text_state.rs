@@ -12,11 +12,12 @@ pub enum SectionName {
     Bottom = 1,
     Left = 2,
     Right = 3,
+    BottomLeft = 4,
 }
 
 impl SectionName {
     const fn count() -> usize {
-        4
+        5
     }
 }
 
@@ -32,6 +33,7 @@ pub struct TextState {
     sections: [Option<OwnedSection>; SectionName::count()],
     keyboard_legend: Option<String>,
     animating: bool,
+    frames_per_second: f32,
 }
 
 enum TextInstance {
@@ -63,6 +65,7 @@ impl TextState {
             fabric_stats: None,
             keyboard_legend: None,
             sections: Default::default(),
+            frames_per_second: 0.0,
         };
         fresh.update_sections();
         fresh
@@ -93,6 +96,9 @@ impl TextState {
             SetKeyboardLegend(legend) => {
                 self.keyboard_legend = Some(legend.clone());
             }
+            FramesPerSecond(frames_per_second) => {
+                self.frames_per_second = frames_per_second.clone();
+            }
             _ => {}
         }
         self.update_sections()
@@ -121,7 +127,7 @@ impl TextState {
                         )),
                         _ => unreachable!(),
                     },
-                    PhysicsTesting(scenario) =>  match scenario {
+                    PhysicsTesting(scenario) => match scenario {
                         TestScenario::PhysicsTest => Large(format!(
                             "Physics test of {} {}",
                             fabric_name, self.experiment_title
@@ -132,6 +138,11 @@ impl TextState {
                 },
             );
         }
+
+        self.update_section(
+            SectionName::BottomLeft,
+            Normal(format!("{:.0}FPS", self.frames_per_second)),
+        );
 
         if !self.mobile_device {
             self.update_section(
@@ -259,12 +270,14 @@ impl TextState {
                 Bottom => VerticalAlign::Bottom,
                 Left => VerticalAlign::Center,
                 Right => VerticalAlign::Center,
+                BottomLeft => VerticalAlign::Bottom,
             })
             .h_align(match section_name {
                 Top => HorizontalAlign::Center,
                 Bottom => HorizontalAlign::Center,
                 Left => HorizontalAlign::Left,
                 Right => HorizontalAlign::Right,
+                BottomLeft => HorizontalAlign::Left,
             })
     }
 
@@ -276,6 +289,7 @@ impl TextState {
             Bottom => [self.width, self.width],
             Left => [middle, self.width],
             Right => [middle, self.width],
+            BottomLeft => [middle, middle],
         }
     }
 
@@ -289,6 +303,7 @@ impl TextState {
             Bottom => [middle_h, self.height - margin],
             Left => [margin, middle_v],
             Right => [self.width - margin, middle_v],
+            BottomLeft => [margin, self.height - margin],
         }
     }
 

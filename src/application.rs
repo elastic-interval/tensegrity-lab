@@ -31,6 +31,8 @@ pub struct Application {
     last_update: Instant,
     accumulated_time: Duration,
     active_touch_count: usize,
+    frames_count: u32,
+    fps_timer: Instant,
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
     control_state: ControlState,
@@ -56,6 +58,8 @@ impl Application {
             last_update: Instant::now(),
             accumulated_time: Duration::default(),
             active_touch_count: 0,
+            frames_count: 0,
+            fps_timer: Instant::now(),
             control_state: ControlState::Waiting,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
@@ -379,8 +383,19 @@ impl ApplicationHandler<LabEvent> for Application {
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(scene) = &mut self.scene {
-            // Get current time
             let now = Instant::now();
+
+            // FPS
+            self.frames_count += 1;
+            let fps_elapsed = now.duration_since(self.fps_timer);
+            if fps_elapsed >= Duration::from_secs(1) {
+                // Calculate FPS
+                let fps = self.frames_count as f32 / fps_elapsed.as_secs_f32();
+                StateChange::FramesPerSecond(fps).send(&self.radio);
+                // Reset counters
+                self.frames_count = 0;
+                self.fps_timer = now;
+            }
 
             // Check if we've been inactive for too long (e.g., window was minimized)
             let elapsed = now.duration_since(self.last_update);
