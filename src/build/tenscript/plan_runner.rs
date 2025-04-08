@@ -32,6 +32,7 @@ pub struct PlanRunner {
 impl PlanRunner {
     pub fn new(
         FabricPlan {
+            name,
             shape_phase,
             build_phase,
             pretense_phase,
@@ -40,7 +41,7 @@ impl PlanRunner {
         }: FabricPlan,
     ) -> Self {
         Self {
-            fabric: Fabric::default(),
+            fabric: Fabric::new(name),
             shape_phase,
             build_phase,
             pretense_phase,

@@ -35,6 +35,7 @@ pub const ROOT3: f32 = 1.732_050_8;
 
 #[derive(Clone, Debug)]
 pub struct FabricStats {
+    pub name: String,
     pub age: u64,
     pub scale: f32,
     pub joint_count: usize,
@@ -49,6 +50,7 @@ pub struct FabricStats {
 
 #[derive(Clone, Debug)]
 pub struct Fabric {
+    pub name: String,
     pub age: u64,
     pub progress: Progress,
     pub joints: Vec<Joint>,
@@ -60,9 +62,10 @@ pub struct Fabric {
     unique_id: usize,
 }
 
-impl Default for Fabric {
-    fn default() -> Fabric {
-        Fabric {
+impl Fabric {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
             age: 0,
             progress: Progress::default(),
             joints: Vec::new(),
@@ -74,9 +77,7 @@ impl Default for Fabric {
             unique_id: 0,
         }
     }
-}
 
-impl Fabric {
     pub fn apply_matrix4(&mut self, matrix: Matrix4<f32>) {
         for joint in &mut self.joints {
             joint.location = matrix.transform_point(joint.location);
@@ -289,6 +290,7 @@ impl Fabric {
             }
         }
         FabricStats {
+            name: self.name.clone(),
             age: self.age,
             scale: self.scale,
             joint_count: self.joints.len(),

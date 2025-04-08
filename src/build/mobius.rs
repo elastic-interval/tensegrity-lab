@@ -12,7 +12,7 @@ struct MobiusFabric {
 impl MobiusFabric {
     fn default() -> MobiusFabric {
         MobiusFabric {
-            fabric: Fabric::default(),
+            fabric: Fabric::new("Mobius".to_string()),
         }
     }
 }

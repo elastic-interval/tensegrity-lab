@@ -18,7 +18,7 @@ impl TensegritySphere {
         scaffold.set_radius(radius);
         TensegritySphere {
             scaffold,
-            fabric: Fabric::default(),
+            fabric: Fabric::new("Sphere".to_string()),
         }
     }
 }

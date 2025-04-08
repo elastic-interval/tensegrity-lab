@@ -104,7 +104,7 @@ pub struct BrickDefinition {
 
 impl From<Prototype> for Fabric {
     fn from(proto: Prototype) -> Self {
-        let mut fabric = Fabric::default();
+        let mut fabric = Fabric::new("prototype".to_string());
         let mut joints_by_name = HashMap::new();
         for name in proto.joints {
             let joint_index = fabric.create_joint(Point3::origin());
