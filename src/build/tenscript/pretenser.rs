@@ -25,8 +25,11 @@ pub struct Pretenser {
 
 impl Pretenser {
     pub fn new(pretense_phase: PretensePhase, fabric: Fabric) -> Self {
+        let surface_character = pretense_phase.surface_character;
+        let stiffness = pretense_phase.stiffness.unwrap_or(AIR_GRAVITY.stiffness);
         let physics = Physics {
-            surface_character: pretense_phase.surface_character,
+            surface_character,
+            stiffness,
             ..AIR_GRAVITY
         };
         let countdown = pretense_phase.countdown.unwrap_or(7000);
