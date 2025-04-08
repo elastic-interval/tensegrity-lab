@@ -15,6 +15,7 @@ pub struct PretensePhase {
     pub muscle_movement: Option<MuscleMovement>,
     pub pretense_factor: Option<f32>,
     pub countdown: Option<usize>,
+    pub stiffness: Option<f32>,
 }
 
 impl PretensePhase {
@@ -66,6 +67,10 @@ impl PretensePhase {
                             Rule::countdown => {
                                 let factor = parse_usize_inside(pretense_pair, "countdown")?;
                                 pretense.countdown = Some(factor)
+                            }
+                            Rule::stiffness => {
+                                let stiffness = parse_float_inside(pretense_pair, "stiffness")?;
+                                pretense.stiffness = Some(stiffness)
                             }
                             _ => unreachable!(),
                         }

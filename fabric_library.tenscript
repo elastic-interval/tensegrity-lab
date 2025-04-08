@@ -160,11 +160,13 @@
 				(face (alias FrontLeft) (grow 5 (scale .83) (mark :ring-b)))
 				))
 		(shape
-			(during 15000 (join :ring-a) (join :ring-b))
-			(during 40000 (vulcanize))
+			(during 20000 (join :ring-a) (join :ring-b))
+			(during 5000 (vulcanize))
 			(faces-to-triangles)
 			(centralize 1.0))
-		(pretense (surface :absent))
+		(pretense
+		    (surface :absent)
+		    (stiffness 0.1))
 		(scale 60.0))
 	(fabric (name "Propellor")
 		(build
