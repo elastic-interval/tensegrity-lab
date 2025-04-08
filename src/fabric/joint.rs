@@ -82,7 +82,6 @@ impl Joint {
         }
         let Physics {
             surface_character,
-            gravity,
             mass,
             viscosity,
             drag,
@@ -94,8 +93,8 @@ impl Joint {
             return speed_squared;
         }
         let mass = self.accumulated_mass * mass;
-        if altitude >= 0.0 || *gravity == 0.0 {
-            self.velocity.y -= gravity;
+        if altitude >= 0.0 || !surface_character.has_gravity() {
+            self.velocity.y -= surface_character.gravity();
             self.velocity += self.force / mass - self.velocity * speed_squared * *viscosity;
             self.velocity *= 1.0 - *drag;
         } else {

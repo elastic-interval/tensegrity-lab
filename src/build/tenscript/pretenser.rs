@@ -2,7 +2,7 @@ use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::pretenser::Stage::*;
 use crate::crucible::Holder;
 use crate::fabric::physics::presets::AIR_GRAVITY;
-use crate::fabric::physics::{Physics, SurfaceCharacter};
+use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 
 #[derive(Clone, PartialEq)]
@@ -30,15 +30,9 @@ const PRETENSING_COUNTDOWN: usize = 30000;
 
 impl Pretenser {
     pub fn new(pretense_phase: PretensePhase, fabric: Fabric) -> Self {
-        let surface_character = pretense_phase.surface_character;
-        let gravity = if surface_character == SurfaceCharacter::Absent {
-            0.0
-        } else {
-            if let Some(gravity_factor) = &pretense_phase.gravity_factor {
-                AIR_GRAVITY.gravity * gravity_factor
-            } else {
-                AIR_GRAVITY.gravity
-            }
+        let physics = Physics {
+            surface_character: pretense_phase.surface_character,
+            ..AIR_GRAVITY
         };
         Self {
             fabric,
@@ -46,11 +40,7 @@ impl Pretenser {
             pretense_phase,
             pretensing_countdown: PRETENSING_COUNTDOWN,
             muscle_wait: MUSCLE_WAIT,
-            physics: Physics {
-                surface_character,
-                gravity,
-                ..AIR_GRAVITY
-            },
+            physics,
         }
     }
 

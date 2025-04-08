@@ -14,7 +14,6 @@ pub struct PretensePhase {
     pub surface_character: SurfaceCharacter,
     pub muscle_movement: Option<MuscleMovement>,
     pub pretense_factor: Option<f32>,
-    pub gravity_factor: Option<f32>,
 }
 
 impl PretensePhase {
@@ -23,7 +22,6 @@ impl PretensePhase {
             surface_character,
             muscle_movement: None,
             pretense_factor: None,
-            gravity_factor: None,
         }
     }
 
@@ -71,10 +69,6 @@ impl PretensePhase {
                             Rule::pretense_factor => {
                                 let factor = parse_float_inside(pretense_pair, "pretense-factor")?;
                                 pretense.pretense_factor = Some(factor)
-                            }
-                            Rule::gravity_factor => {
-                                let factor = parse_float_inside(pretense_pair, "gravity-factor")?;
-                                pretense.gravity_factor = Some(factor)
                             }
                             _ => unreachable!(),
                         }

@@ -59,16 +59,6 @@ impl Keyboard {
             Box::new(|state| matches!(state, Viewing)),
         );
         self.float_parameter(
-            "G",
-            "g",
-            PhysicsParameter {
-                feature: PhysicsFeature::Gravity,
-                value: 0.0,
-            },
-            Box::new(|value| format!("Gravity {:.0}", value * 1e10)),
-            Box::new(|state| matches!(state, PhysicsTesting(_))),
-        );
-        self.float_parameter(
             "T",
             "t",
             PhysicsParameter {
