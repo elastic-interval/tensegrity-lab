@@ -17,6 +17,7 @@ pub enum PhysicsFeature {
     MuscleIncrement,
     Viscosity,
     Drag,
+    StrainLimit,
 }
 
 #[derive(Debug, Clone, Copy)]

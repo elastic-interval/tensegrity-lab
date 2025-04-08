@@ -44,7 +44,6 @@
         (pretense
             (muscle 0.96 6000)
             (pretense-factor 1.1)
-            (gravity-factor 3.0)
             (surface :frozen))
         (scale 510.0))
 	(fabric	(name "De Twips 2")
@@ -82,7 +81,6 @@
         (pretense
             (muscle 0.96 7000)
             (pretense-factor 1.15)
-            (gravity-factor 5.0)
             (surface :frozen))
         (scale 510.0))
 	(fabric (name "Halo by Crane")

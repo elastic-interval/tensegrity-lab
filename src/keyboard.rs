@@ -98,6 +98,16 @@ impl Keyboard {
             Box::new(|value| format!("Mass {:.0}", value * 1e2)),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
+        self.float_parameter(
+            "L",
+            "l",
+            PhysicsParameter {
+                feature: PhysicsFeature::StrainLimit,
+                value: 1.0,
+            },
+            Box::new(|value| format!("Strain Limit {:.0}", value * 1e2)),
+            Box::new(|state| matches!(state, PhysicsTesting(_))),
+        );
         // self.single_action(
         //     KeyCode::ArrowUp,
         //     "\u{2191} faster",

@@ -13,7 +13,7 @@ use crate::fabric::material::{interval_material, IntervalMaterial};
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
 use cgmath::num_traits::zero;
-use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, Transform, Vector3};
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -128,7 +128,29 @@ impl Fabric {
         }
     }
 
-    pub fn iterate(&mut self, physics: &Physics) -> f32 {
+    pub fn max_velocity(&self) -> f32 {
+        let index = self
+            .joints
+            .iter()
+            .enumerate()
+            .map(|(a, b)| (a, b.velocity.magnitude2()))
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(index, _)| index);
+        match index {
+            None => 0.0,
+            Some(index) => self.joints[index].velocity.magnitude(),
+        }
+    }
+
+    pub fn failed_intervals(&self, strain_limit: f32) -> Vec<UniqueId> {
+        self.intervals
+            .iter()
+            .filter(|(_, interval)| interval.strain > strain_limit)
+            .map(|(id, _)| *id)
+            .collect()
+    }
+
+    pub fn iterate(&mut self, physics: &Physics) {
         for joint in &mut self.joints {
             joint.reset();
         }
@@ -140,12 +162,8 @@ impl Fabric {
                 physics,
             );
         }
-        let mut max_speed_squared = 0.0;
         for joint in &mut self.joints {
-            let speed_squared = joint.iterate(physics);
-            if speed_squared > max_speed_squared {
-                max_speed_squared = speed_squared;
-            }
+            joint.iterate(physics);
         }
         if self.progress.step() {
             // final step
@@ -167,7 +185,6 @@ impl Fabric {
             }
         }
         self.age += 1;
-        max_speed_squared
     }
 
     pub fn create_muscles(&mut self, contraction: f32) {
