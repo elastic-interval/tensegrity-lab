@@ -35,11 +35,12 @@ impl PhysicsFeature {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum TestScenario {
     TensionTest,
     CompressionTest,
     PhysicsTest,
+    MachineTest(String),
 }
 
 #[derive(Debug, Clone)]
@@ -166,6 +167,7 @@ pub enum LabEvent {
     Crucible(CrucibleAction),
     UpdateState(StateChange),
     UpdatedLibrary(SystemTime),
+    PrintCord(f32),
     DumpCSV,
 }
 

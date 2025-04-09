@@ -111,7 +111,7 @@ impl TextState {
     fn update_sections(&mut self) {
         use ControlState::*;
         use TextInstance::*;
-        let control_state = self.control_state.clone();
+        let control_state = &self.control_state.clone();
         if let Some(fabric_name) = &self.fabric_name {
             self.update_section(
                 SectionName::Top,

@@ -33,9 +33,11 @@ pub struct Application {
     active_touch_count: usize,
     frames_count: u32,
     fps_timer: Instant,
+    control_state: ControlState,
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: SystemTime,
-    control_state: ControlState,
+    #[cfg(not(target_arch = "wasm32"))]
+    machine: Option<crate::cord_machine::CordMachine>,
 }
 
 impl Application {
@@ -63,6 +65,8 @@ impl Application {
             control_state: ControlState::Waiting,
             #[cfg(not(target_arch = "wasm32"))]
             fabric_library_modified: fabric_library_modified(),
+            #[cfg(not(target_arch = "wasm32"))]
+            machine: None,
         })
     }
 
@@ -242,6 +246,17 @@ impl ApplicationHandler<LabEvent> for Application {
                                 CrucibleAction::ToPhysicsTesting(scenario.clone())
                                     .send(&self.radio);
                             }
+                            TestScenario::MachineTest(ip_address) => {
+                                println!("Running machine test at {ip_address}");
+                                #[cfg(not(target_arch = "wasm32"))]
+                                match crate::cord_machine::CordMachine::new(ip_address) {
+                                    Ok(machine) => self.machine = Some(machine),
+                                    Err(error) => {
+                                        panic!("Machine [{ip_address}]: {error}");
+                                    }
+                                }
+                                ControlState::Viewing.send(&self.radio);
+                            }
                         }
                     } else {
                         ControlState::Viewing.send(&self.radio);
@@ -293,6 +308,22 @@ impl ApplicationHandler<LabEvent> for Application {
                     self.crucible.fabric().csv(),
                 )
                 .unwrap();
+            }
+            LabEvent::PrintCord(length) => {
+                println!("Print cord {length:?}");
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    if let Some(machine) = &self.machine {
+                        match machine.make_wire(length) {
+                            Ok(_) => {
+                                println!("Printed!")
+                            }
+                            Err(error) => {
+                                panic!("Machine: {error}");
+                            }
+                        }
+                    }
+                }
             }
         }
     }
