@@ -303,9 +303,9 @@ impl ApplicationHandler<LabEvent> for Application {
                 #[cfg(not(target_arch = "wasm32"))]
                 std::fs::write(
                     chrono::Local::now()
-                        .format("pretenst-%Y-%m-%d-%H-%M.csv")
+                        .format("pretenst-%Y-%m-%d-%H-%M.zip")
                         .to_string(),
-                    self.crucible.fabric().csv(),
+                    self.crucible.fabric().to_zip().unwrap(),
                 )
                 .unwrap();
             }
