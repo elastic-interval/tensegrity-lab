@@ -6,10 +6,10 @@ use winit::event::KeyEvent;
 use winit::keyboard::{KeyCode, PhysicalKey, SmolStr};
 
 enum KeyAction {
-    SingleKey {
+    KeyLabEvent {
         code: KeyCode,
         description: String,
-        lab_event: LabEvent,
+        lab_event: Box<dyn Fn(&ControlState) -> LabEvent>,
         radio: Radio,
         is_active_in: Box<dyn Fn(&ControlState) -> bool>,
     },
@@ -40,19 +40,33 @@ impl Keyboard {
         use ControlState::*;
         use CrucibleAction::*;
         use LabEvent::*;
-        self.single_action(
+        self.key_dynamic_lab_event(
+            KeyCode::KeyD,
+            "Dyneema!",
+            Box::new(
+                |control_state| {
+                    if let ShowingInterval(interval_details) = control_state {
+                        PrintCord(interval_details.length)
+                    } else {
+                        panic!("expected ShowingInterval state")
+                    }
+                },
+            ),
+            Box::new(|state| matches!(state, ShowingInterval(_))),
+        );
+        self.key_lab_event(
             KeyCode::Escape,
             "ESC to cancel selection",
             Crucible(ToViewing),
             Box::new(|state| matches!(state, ShowingJoint(_) | ShowingInterval(_))),
         );
-        self.single_action(
+        self.key_lab_event(
             KeyCode::Space,
             "Space to stop animation",
             Crucible(ToViewing),
             Box::new(|state| matches!(state, Animating)),
         );
-        self.single_action(
+        self.key_lab_event(
             KeyCode::Space,
             "Space to start animation",
             Crucible(ToAnimating),
@@ -108,31 +122,31 @@ impl Keyboard {
             Box::new(|value| format!("Strain Limit {:.1}", value * 1e2)),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
-        self.single_action(
+        self.key_lab_event(
             KeyCode::KeyP,
             "",
             Crucible(PhysicsTesterDo(PhysicsTesterAction::DumpPhysics)),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
-        self.single_action(
+        self.key_lab_event(
             KeyCode::KeyV,
             "View reset",
             UpdateState(StateChange::ResetView),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
-        self.single_action(
+        self.key_lab_event(
             KeyCode::ArrowLeft,
             "\u{2190} previous test",
             Crucible(FailureTesterDo(FailureTesterAction::PrevExperiment)),
             Box::new(|state| matches!(state, FailureTesting(_))),
         );
-        self.single_action(
+        self.key_lab_event(
             KeyCode::ArrowRight,
             "\u{2192} next test",
             Crucible(FailureTesterDo(FailureTesterAction::NextExperiment)),
             Box::new(|state| matches!(state, FailureTesting(_))),
         );
-        self.single_action(
+        self.key_lab_event(
             KeyCode::KeyX,
             "", // hidden
             DumpCSV,
@@ -165,7 +179,7 @@ impl Keyboard {
                 let text = text.unwrap_or_default();
                 for action in self.actions.iter_mut() {
                     match action {
-                        KeyAction::SingleKey {
+                        KeyAction::KeyLabEvent {
                             code,
                             is_active_in,
                             radio,
@@ -173,7 +187,7 @@ impl Keyboard {
                             ..
                         } => {
                             if *code == pressed_key && is_active_in(control_state) {
-                                lab_event.clone().send(&radio);
+                                lab_event(control_state).send(&radio);
                             }
                         }
                         KeyAction::FloatParameter {
@@ -210,7 +224,7 @@ impl Keyboard {
         let mut legend = vec![];
         for action in self.actions.iter() {
             match action {
-                KeyAction::SingleKey {
+                KeyAction::KeyLabEvent {
                     is_active_in,
                     description,
                     ..
@@ -234,14 +248,30 @@ impl Keyboard {
         legend
     }
 
-    fn single_action(
+    fn key_lab_event(
         &mut self,
         code: KeyCode,
         description: &str,
         lab_event: LabEvent,
         is_active_in: Box<dyn Fn(&ControlState) -> bool>,
     ) {
-        self.actions.push(KeyAction::SingleKey {
+        self.actions.push(KeyAction::KeyLabEvent {
+            code,
+            description: description.into(),
+            lab_event: Box::new(move |_| lab_event.clone()),
+            radio: self.radio.clone(),
+            is_active_in,
+        });
+    }
+
+    fn key_dynamic_lab_event(
+        &mut self,
+        code: KeyCode,
+        description: &str,
+        lab_event: Box<dyn Fn(&ControlState) -> LabEvent>,
+        is_active_in: Box<dyn Fn(&ControlState) -> bool>,
+    ) {
+        self.actions.push(KeyAction::KeyLabEvent {
             code,
             description: description.into(),
             lab_event,

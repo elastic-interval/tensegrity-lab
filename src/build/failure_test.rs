@@ -143,8 +143,8 @@ impl FailureTest {
         }
         self.finished = true;
         let key = self.interval_missing.unwrap();
-        let min_damage = Self::min_damage(self.scenario);
-        let max_damage = Self::max_damage(self.scenario);
+        let min_damage = Self::min_damage(&self.scenario);
+        let max_damage = Self::max_damage(&self.scenario);
         let clamped = self.damage(default_fabric).clamp(min_damage, max_damage);
         let redness = (clamped - min_damage) / (max_damage - min_damage);
         let color = [redness, 0.01, 0.01, 1.0];
@@ -153,7 +153,7 @@ impl FailureTest {
         true
     }
 
-    fn min_damage(scenario: TestScenario) -> f32 {
+    fn min_damage(scenario: &TestScenario) -> f32 {
         match scenario {
             TestScenario::TensionTest => 100.0,
             TestScenario::CompressionTest => 500.0,
@@ -161,7 +161,7 @@ impl FailureTest {
         }
     }
 
-    fn max_damage(scenario: TestScenario) -> f32 {
+    fn max_damage(scenario: &TestScenario) -> f32 {
         match scenario {
             TestScenario::TensionTest => 500.0,
             TestScenario::CompressionTest => 1000.0,

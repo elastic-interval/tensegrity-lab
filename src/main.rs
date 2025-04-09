@@ -24,6 +24,9 @@ struct Args {
 
     #[arg(long)]
     test: Option<String>,
+
+    #[arg(long)]
+    machine: Option<String>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -32,15 +35,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         prototype,
         seed,
         test,
+        machine,
     } = Args::parse();
-    let run_style = match (fabric, prototype, seed, test) {
-        (Some(fabric_name), None, None, None) => RunStyle::Fabric {
+    let run_style = match (fabric, prototype, seed, test, machine) {
+        (Some(fabric_name), None, None, None, Some(ip_address)) => RunStyle::Fabric {
+            fabric_name,
+            scenario: Some(TestScenario::MachineTest(ip_address)),
+        },
+        (Some(fabric_name), None, None, None, None) => RunStyle::Fabric {
             fabric_name,
             scenario: None,
         },
-        (None, Some(prototype), None, None) => RunStyle::Prototype(prototype),
-        (None, None, Some(seed), None) => RunStyle::Seeded(seed),
-        (Some(fabric_name), None, None, Some(test_name)) => RunStyle::Fabric {
+        (None, Some(prototype), None, None, None) => RunStyle::Prototype(prototype),
+        (None, None, Some(seed), None, None) => RunStyle::Seeded(seed),
+        (Some(fabric_name), None, None, Some(test_name), None) => RunStyle::Fabric {
             fabric_name,
             scenario: match test_name.as_ref() {
                 "tension" => Some(TestScenario::TensionTest),
@@ -74,13 +82,12 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
     let window_attributes = create_window_attributes();
     #[cfg(target_arch = "wasm32")]
     let window_attributes = create_window_attributes();
-    let tx = radio.clone();
-    let mut app: Application = match Application::new(window_attributes, tx) {
+    let mut application = match Application::new(window_attributes, radio.clone()) {
         Ok(app) => app,
         Err(error) => panic!("Tenscript Error: [{:?}]", error),
     };
     LabEvent::Run(run_style).send(&radio);
-    event_loop.run_app(&mut app)?;
+    event_loop.run_app(&mut application)?;
     Ok(())
 }
 

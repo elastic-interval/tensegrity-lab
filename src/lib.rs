@@ -8,3 +8,5 @@ pub mod scene;
 pub mod test;
 pub mod messages;
 pub mod keyboard;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod cord_machine;
