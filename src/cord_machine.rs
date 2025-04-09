@@ -147,35 +147,3 @@ impl CordMachine {
         )
     }
 }
-
-// Example of integration with a Winit application:
-//
-// ```rust
-// use winit::event_loop::EventLoop;
-// use winit::window::WindowBuilder;
-// use winit::event::{Event, WindowEvent};
-//
-// fn main() -> Result<(), Box<dyn std::error::Error>> {
-//     // Create the dynamatic controller
-//     let controller = DynamaticController::new("192.168.1.113")?;
-//
-//     // Create winit event loop and window
-//     let event_loop = EventLoop::new();
-//     let window = WindowBuilder::new()
-//         .with_title("Dynamatic Controller")
-//         .build(&event_loop)?;
-//
-//     // Example UI action handler
-//     let handle_make_wire = move || {
-//         if let Err(e) = controller.make_wire(100.0) {
-//             eprintln!("Error making wire: {}", e);
-//         }
-//     };
-//
-//     // Winit event loop
-//     event_loop.run(move |event, _, control_flow| {
-//         // Handle UI events and call controller methods as needed
-//         // ...
-//     });
-// }
-// ```
