@@ -113,7 +113,7 @@ pub mod presets {
     };
 
     pub const AIR_GRAVITY: Physics = Physics {
-        drag: 1e-4,
+        drag: 1e-3,
         iterations_per_frame: 50.0,
         mass: 5.0,
         cycle_ticks: 1000.0,
