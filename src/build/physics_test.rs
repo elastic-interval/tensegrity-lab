@@ -1,7 +1,7 @@
 use crate::fabric::physics::Physics;
 use crate::fabric::{Fabric, UniqueId};
 use crate::messages::StateChange::SetIntervalColor;
-use crate::messages::{PhysicsTesterAction, Radio};
+use crate::messages::{PhysicsFeature, PhysicsTesterAction, Radio};
 
 const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
 
@@ -38,6 +38,9 @@ impl PhysicsTester {
     pub fn action(&mut self, action: PhysicsTesterAction) {
         match action {
             PhysicsTesterAction::SetPhysicalParameter(parameter) => {
+                if matches!(parameter.feature, PhysicsFeature::Pretenst) {
+                    self.fabric.set_pretenst(parameter.value, 100);
+                }
                 self.physics.accept(parameter);
             }
             PhysicsTesterAction::DumpPhysics => {

@@ -46,12 +46,9 @@ impl Pretenser {
         self.stage = match self.stage {
             Start => Slacken,
             Slacken => {
-                let factor = self
-                    .pretense_phase
-                    .pretense_factor
-                    .unwrap_or(1.03);
-                self.fabric.prepare_for_pretensing(factor);
-                self.fabric.progress.start(self.countdown);
+                self.fabric.slacken();
+                let factor = self.pretense_phase.pretenst.unwrap_or(self.physics.pretenst);
+                self.fabric.set_pretenst(factor, self.countdown);
                 Pretensing
             }
             Pretensing => {

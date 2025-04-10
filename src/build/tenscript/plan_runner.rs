@@ -20,11 +20,11 @@ enum Stage {
 
 pub struct PlanRunner {
     pub fabric: Fabric,
+    pub physics: Physics,
     stage: Stage,
     build_phase: BuildPhase,
     shape_phase: ShapePhase,
     pretense_phase: PretensePhase,
-    pub(crate) physics: Physics,
     disabled: Option<TenscriptError>,
     scale: f32,
 }
@@ -42,12 +42,12 @@ impl PlanRunner {
     ) -> Self {
         Self {
             fabric: Fabric::new(name),
+            physics: LIQUID,
             shape_phase,
             build_phase,
             pretense_phase,
             scale,
             stage: Initialize,
-            physics: LIQUID,
             disabled: None,
         }
     }

@@ -39,6 +39,7 @@ pub struct Physics {
     pub iterations_per_frame: f32,
     pub mass: f32,
     pub cycle_ticks: f32,
+    pub pretenst: f32,
     pub stiffness: f32,
     pub strain_limit: f32,
     pub surface_character: SurfaceCharacter,
@@ -54,7 +55,7 @@ impl Physics {
             IterationsPerFrame => self.iterations_per_frame = value,
             Mass => self.mass = value,
             CycleTicks => self.cycle_ticks = value,
-            Pretense => {}
+            Pretenst => self.pretenst = value,
             Stiffness => self.stiffness = value,
             StrainLimit => self.strain_limit = value,
             Viscosity => self.viscosity = value,
@@ -69,6 +70,7 @@ impl Physics {
             Mass.parameter(self.mass),
             CycleTicks.parameter(self.cycle_ticks),
             Stiffness.parameter(self.stiffness),
+            Pretenst.parameter(self.pretenst),
             StrainLimit.parameter(self.strain_limit),
             Viscosity.parameter(self.viscosity),
         ];
@@ -92,6 +94,7 @@ pub mod presets {
         mass: 1.0,
         cycle_ticks: 1000.0,
         stiffness: 1e-3,
+        pretenst: 20.0, // not used
         strain_limit: 1.0,
         surface_character: Absent,
         viscosity: 1e4,
@@ -103,6 +106,7 @@ pub mod presets {
         mass: 1.0,
         cycle_ticks: 1000.0,
         stiffness: 1e-4,
+        pretenst: 1.0,
         strain_limit: 1.0,
         surface_character: Absent,
         viscosity: 2e4,
@@ -114,6 +118,7 @@ pub mod presets {
         mass: 2.0,
         cycle_ticks: 1000.0,
         stiffness: 0.3,
+        pretenst: 1.0,
         strain_limit: 0.06,
         surface_character: Frozen,
         viscosity: 1e2,

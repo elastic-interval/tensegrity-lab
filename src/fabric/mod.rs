@@ -4,9 +4,9 @@
  */
 
 use crate::fabric::face::Face;
-use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push, Spring};
-use crate::fabric::interval::Span::{Approaching, Fixed, Muscle};
+use crate::fabric::interval::Span::{Approaching, Fixed, Muscle, Pretenst};
+use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 use crate::fabric::material::Material::{NorthMaterial, SouthMaterial};
 use crate::fabric::material::{interval_material, IntervalMaterial};
@@ -107,17 +107,12 @@ impl Fabric {
         }
     }
 
-    pub fn prepare_for_pretensing(&mut self, push_extension: f32) {
+    pub fn slacken(&mut self) {
         for interval in self.intervals.values_mut() {
-            let IntervalMaterial { role, support, .. } = interval_material(interval.material);
+            let IntervalMaterial { support, .. } = interval_material(interval.material);
             if !support {
-                let length = interval.fast_length(&self.joints);
-                interval.span = match role {
-                    Push => Approaching {
-                        initial: length,
-                        length: length * push_extension,
-                    },
-                    Pull | Spring => Fixed { length },
+                interval.span = Fixed {
+                    length: interval.fast_length(&self.joints),
                 };
             }
         }
@@ -125,6 +120,36 @@ impl Fabric {
             joint.force = zero();
             joint.velocity = zero();
         }
+    }
+
+    pub fn set_pretenst(&mut self, pretenst: f32, countdown: usize) {
+        for interval in self.intervals.values_mut() {
+            let IntervalMaterial { role, support, .. } = interval_material(interval.material);
+            if !support {
+                match &mut interval.span {
+                    Fixed { length } => {
+                        if matches!(role, Push) {
+                            interval.span = Pretenst {
+                                begin: *length,
+                                length: *length * (1.0 + pretenst / 100.0),
+                                slack: *length,
+                                finished: false,
+                            };
+                        }
+                    }
+                    Pretenst { length, slack, .. } => {
+                        interval.span = Pretenst {
+                            begin: *length,
+                            length: *slack * (1.0 + pretenst / 100.0),
+                            slack: *slack,
+                            finished: false,
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        self.progress.start(countdown);
     }
 
     pub fn max_velocity(&self) -> f32 {
@@ -168,8 +193,15 @@ impl Fabric {
         if self.progress.step() {
             // final step
             for interval in self.intervals.values_mut() {
-                if let Approaching { length, .. } = interval.span {
-                    interval.span = Fixed { length }
+                match &mut interval.span {
+                    Fixed { .. } => {}
+                    Pretenst { finished, .. } => {
+                        *finished = true;
+                    }
+                    Approaching { length, .. } => {
+                        interval.span = Fixed { length: *length };
+                    }
+                    Muscle { .. } => {}
                 }
             }
         }

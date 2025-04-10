@@ -13,7 +13,7 @@ pub struct MuscleMovement {
 pub struct PretensePhase {
     pub surface_character: SurfaceCharacter,
     pub muscle_movement: Option<MuscleMovement>,
-    pub pretense_factor: Option<f32>,
+    pub pretenst: Option<f32>,
     pub countdown: Option<usize>,
     pub stiffness: Option<f32>,
 }
@@ -60,9 +60,9 @@ impl PretensePhase {
                                     countdown,
                                 })
                             }
-                            Rule::pretense_factor => {
-                                let factor = parse_float_inside(pretense_pair, "pretense-factor")?;
-                                pretense.pretense_factor = Some(factor)
+                            Rule::pretenst => {
+                                let factor = parse_float_inside(pretense_pair, "pretenst")?;
+                                pretense.pretenst = Some(factor)
                             }
                             Rule::countdown => {
                                 let factor = parse_usize_inside(pretense_pair, "countdown")?;
