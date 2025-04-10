@@ -191,8 +191,6 @@ impl FabricRenderer {
     ) -> Vec<CylinderInstance> {
         use RenderStyle::*;
         let mut instances = Vec::with_capacity(fabric.intervals.len());
-        const FADED: [f32; 4] = [0.01, 0.01, 0.01, 1.0];
-        const SELECTED: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
         for (interval_id, interval) in &fabric.intervals {
             let push = interval.material == Material::PushMaterial;
             match render_style {
@@ -203,60 +201,45 @@ impl FabricRenderer {
             let (alpha, omega) = (interval.alpha_index, interval.omega_index);
             let start = fabric.joints[alpha].location;
             let end = fabric.joints[omega].location;
-            let interval_material = interval_material(interval.material);
-            let role = interval_material.role;
-            let radius_factor = match pick {
+            let material = interval_material(interval.material);
+            let role_appearance = material.role.appearance();
+            let appearance = match pick {
                 Pick::Nothing => match render_style {
-                    Normal => role.radius(),
-                    WithPushMap { .. } | WithPullMap { .. } | WithColorFunction { .. } => {
-                        role.radius() + 1.0
+                    Normal => role_appearance,
+                    WithAppearanceFunction(appearance) => {
+                        appearance(interval).unwrap_or(role_appearance)
                     }
-                },
-                Pick::Joint { .. } => role.radius(),
-                Pick::Interval { id, .. } => {
-                    if *id == *interval_id {
-                        role.radius() + 1.0
-                    } else {
-                        role.radius()
-                    }
-                }
-            };
-            let color = match pick {
-                Pick::Nothing => match render_style {
-                    Normal => role.color(),
-                    WithColorFunction(color) => color(interval).unwrap_or(FADED),
                     WithPullMap(color_map) | WithPushMap(color_map) => {
                         let key = interval.key();
-                        if let Some(coloring_color) = color_map.get(&key) {
-                            *coloring_color
-                        } else {
-                            FADED
+                        match color_map.get(&key) {
+                            None => role_appearance.faded(),
+                            Some(color) => role_appearance.with_color(*color),
                         }
                     }
                 },
                 Pick::Joint { index, .. } => {
                     if !interval.touches(*index) {
-                        FADED
+                        role_appearance.faded()
                     } else {
-                        role.color()
+                        role_appearance
                     }
                 }
                 Pick::Interval { joint, id, .. } => {
                     if *id == *interval_id {
-                        SELECTED
+                        role_appearance.highlighted()
                     } else if !interval.touches(*joint) {
-                        FADED
+                        role_appearance.faded()
                     } else {
-                        role.color()
+                        role_appearance
                     }
                 }
             };
             instances.push(CylinderInstance {
                 start: [start.x, start.y, start.z],
-                radius_factor,
+                radius_factor: appearance.radius,
                 end: [end.x, end.y, end.z],
-                material_type: role as u32,
-                color,
+                material_type: material.role as u32,
+                color: appearance.color,
             });
         }
 
