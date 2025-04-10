@@ -2,16 +2,16 @@ use crate::camera::Target::*;
 use crate::camera::{Camera, Pick};
 use crate::fabric::material::interval_material;
 use crate::fabric::Fabric;
-use crate::messages::PointerChange;
 use crate::messages::{
-    ControlState, IntervalDetails, IntervalFilter, JointDetails, Radio, RenderStyle, StateChange,
-    TestScenario,
+    ControlState, IntervalDetails, JointDetails, Radio, RenderStyle, StateChange, TestScenario,
 };
+use crate::messages::PointerChange;
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::Wgpu;
 use std::collections::HashMap;
+use std::rc::Rc;
 use winit::dpi::PhysicalSize;
 
 pub struct Scene {
@@ -45,7 +45,9 @@ impl Scene {
 
     pub fn update_state(&mut self, state_change: StateChange) {
         use ControlState::*;
+        use RenderStyle::*;
         use StateChange::*;
+        use TestScenario::*;
         self.text_renderer.update_state(&state_change);
         match state_change {
             SetControlState(control_state) => match control_state {
@@ -60,45 +62,39 @@ impl Scene {
                 FailureTesting(scenario) => {
                     self.reset();
                     match scenario {
-                        TestScenario::TensionTest => {
-                            self.render_style = RenderStyle::WithColoring {
-                                color_map: HashMap::new(),
-                                filter: IntervalFilter::ShowPull,
-                            };
-                        }
-                        TestScenario::CompressionTest => {
-                            self.render_style = RenderStyle::WithColoring {
-                                color_map: HashMap::new(),
-                                filter: IntervalFilter::ShowPush,
-                            };
-                        }
+                        TensionTest => self.render_style = WithPullMap(HashMap::new()),
+                        CompressionTest => self.render_style = WithPushMap(HashMap::new()),
                         _ => unreachable!(),
                     }
                 }
                 PhysicsTesting(scenario) => {
                     self.reset();
                     match scenario {
-                        TestScenario::PhysicsTest => {
-                            self.render_style = RenderStyle::Normal;
-                        }
+                        PhysicsTest => self.render_style = WithColorFunction(Rc::new(|_| None)),
                         _ => unreachable!(),
                     }
                 }
             },
             SetAnimating(active) => self.pick_allowed = !active,
             ResetView => {
-                self.render_style = RenderStyle::Normal;
+                self.render_style = Normal;
             }
-            SetIntervalColor { key, color } => {
-                if let RenderStyle::WithColoring { color_map, .. } = &mut self.render_style {
-                    color_map.insert(key, color);
-                } else {
-                    self.render_style = RenderStyle::WithColoring {
-                        color_map: HashMap::from([(key, color)]),
-                        filter: IntervalFilter::ShowAll,
-                    };
+            SetColorFunction(color_function) => match &mut self.render_style {
+                WithColorFunction(_) => {
+                    self.render_style = WithColorFunction(color_function.clone())
                 }
-            }
+                _ => {
+                    panic!("Cannot set color function")
+                }
+            },
+            SetIntervalColor { key, color } => match &mut self.render_style {
+                WithPullMap(map) | WithPushMap(map) => {
+                    map.insert(key, color);
+                }
+                _ => {
+                    panic!("Cannot set interval color")
+                }
+            },
             _ => {}
         }
     }

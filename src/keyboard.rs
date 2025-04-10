@@ -140,12 +140,6 @@ impl Keyboard {
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.key_lab_event(
-            KeyCode::KeyV,
-            "View reset",
-            UpdateState(StateChange::ResetView),
-            Box::new(|state| matches!(state, PhysicsTesting(_))),
-        );
-        self.key_lab_event(
             KeyCode::ArrowLeft,
             "\u{2190} previous test",
             Crucible(FailureTesterDo(FailureTesterAction::PrevExperiment)),
