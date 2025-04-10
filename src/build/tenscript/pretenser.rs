@@ -25,9 +25,11 @@ pub struct Pretenser {
 
 impl Pretenser {
     pub fn new(pretense_phase: PretensePhase, fabric: Fabric) -> Self {
+        let pretenst = pretense_phase.pretenst.unwrap_or(AIR_GRAVITY.pretenst);
         let surface_character = pretense_phase.surface_character;
         let stiffness = pretense_phase.stiffness.unwrap_or(AIR_GRAVITY.stiffness);
         let physics = Physics {
+            pretenst,
             surface_character,
             stiffness,
             ..AIR_GRAVITY
@@ -47,7 +49,10 @@ impl Pretenser {
             Start => Slacken,
             Slacken => {
                 self.fabric.slacken();
-                let factor = self.pretense_phase.pretenst.unwrap_or(self.physics.pretenst);
+                let factor = self
+                    .pretense_phase
+                    .pretenst
+                    .unwrap_or(self.physics.pretenst);
                 self.fabric.set_pretenst(factor, self.countdown);
                 Pretensing
             }
