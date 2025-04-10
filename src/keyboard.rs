@@ -1,3 +1,4 @@
+use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::messages::{
     ControlState, CrucibleAction, FailureTesterAction, LabEvent, PhysicsFeature, PhysicsParameter,
     PhysicsTesterAction, Radio, StateChange,
@@ -83,6 +84,16 @@ impl Keyboard {
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.float_parameter(
+            "P",
+            "p",
+            PhysicsParameter {
+                feature: PhysicsFeature::Pretenst,
+                value: AIR_GRAVITY.pretenst,
+            },
+            Box::new(|value| format!("Pretenst {value:.5}")),
+            Box::new(|state| matches!(state, PhysicsTesting(_))),
+        );
+        self.float_parameter(
             "C",
             "c",
             PhysicsParameter {
@@ -123,7 +134,7 @@ impl Keyboard {
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.key_lab_event(
-            KeyCode::KeyP,
+            KeyCode::KeyY,
             "",
             Crucible(PhysicsTesterDo(PhysicsTesterAction::DumpPhysics)),
             Box::new(|state| matches!(state, PhysicsTesting(_))),

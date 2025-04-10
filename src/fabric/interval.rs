@@ -23,7 +23,7 @@ impl Fabric {
         material: Material,
     ) -> UniqueId {
         let id = self.create_id();
-        let initial = self.joints[alpha_index]
+        let begin = self.joints[alpha_index]
             .location
             .distance(self.joints[omega_index].location);
         let interval = Interval::new(
@@ -31,7 +31,7 @@ impl Fabric {
             omega_index,
             material,
             Approaching {
-                initial,
+                begin,
                 length: ideal,
             },
         );
@@ -81,9 +81,15 @@ pub enum Span {
     Fixed {
         length: f32,
     },
+    Pretenst {
+        length: f32,
+        begin: f32,
+        slack: f32,
+        finished: bool,
+    },
     Approaching {
         length: f32,
-        initial: f32,
+        begin: f32,
     },
     Muscle {
         length: f32,
@@ -197,7 +203,10 @@ impl Interval {
 
     pub fn ideal(&self) -> f32 {
         match self.span {
-            Fixed { length, .. } | Approaching { length, .. } | Muscle { length, .. } => length,
+            Fixed { length, .. }
+            | Pretenst { length, .. }
+            | Approaching { length, .. }
+            | Muscle { length, .. } => length,
         }
     }
 
@@ -210,11 +219,22 @@ impl Interval {
     ) {
         let ideal = match self.span {
             Fixed { length } => length,
-            Approaching {
-                initial, length, ..
+            Pretenst {
+                begin,
+                length,
+                finished,
+                ..
             } => {
+                if finished {
+                    length
+                } else {
+                    let progress_nuance = progress.nuance();
+                    begin * (1.0 - progress_nuance) + length * progress_nuance
+                }
+            }
+            Approaching { begin, length, .. } => {
                 let progress_nuance = progress.nuance();
-                initial * (1.0 - progress_nuance) + length * progress_nuance
+                begin * (1.0 - progress_nuance) + length * progress_nuance
             }
             Muscle {
                 length,

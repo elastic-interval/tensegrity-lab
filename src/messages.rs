@@ -12,7 +12,7 @@ use winit::dpi::PhysicalPosition;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PhysicsFeature {
     Mass,
-    Pretense,
+    Pretenst,
     Stiffness,
     IterationsPerFrame,
     CycleTicks,

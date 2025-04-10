@@ -47,15 +47,15 @@ vulcanize =
 pretense =
     { "(" ~ "pretense" ~ pretense_feature* ~ ")" }
 pretense_feature =
-    { surface | muscle | pretense_factor | countdown | stiffness }
+    { surface | muscle | pretenst | countdown | stiffness }
 surface =
     { "(" ~ "surface" ~ surface_character ~ ")" }
 surface_character =
     { ":frozen" | ":bouncy" | ":absent" | ":sticky" }
 muscle =
     { "(" ~ "muscle" ~ float ~ integer ~ integer* ~ ")" }
-pretense_factor =
-    { "(" ~ "pretense-factor" ~ float ~ ")" }
+pretenst =
+    { "(" ~ "pretenst" ~ float ~ ")" }
 stiffness =
     { "(" ~ "stiffness" ~ float ~ ")" }
 countdown =
