@@ -1,6 +1,7 @@
 use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
 use crate::messages::{ControlState, StateChange, TestScenario};
+use crate::Age;
 use std::default::Default;
 use wgpu_text::glyph_brush::{
     BuiltInLineBreaker, HorizontalAlign, Layout, OwnedSection, OwnedText, VerticalAlign,
@@ -34,6 +35,7 @@ pub struct TextState {
     keyboard_legend: Option<String>,
     animating: bool,
     frames_per_second: f32,
+    age: Age,
 }
 
 enum TextInstance {
@@ -66,6 +68,7 @@ impl TextState {
             keyboard_legend: None,
             sections: Default::default(),
             frames_per_second: 0.0,
+            age: Age::default(),
         };
         fresh.update_sections();
         fresh
@@ -96,8 +99,9 @@ impl TextState {
             SetKeyboardLegend(legend) => {
                 self.keyboard_legend = Some(legend.clone());
             }
-            FramesPerSecond(frames_per_second) => {
+            Time { frames_per_second, age } => {
                 self.frames_per_second = frames_per_second.clone();
+                self.age = *age;
             }
             _ => {}
         }
@@ -141,7 +145,7 @@ impl TextState {
 
         self.update_section(
             SectionName::BottomLeft,
-            Normal(format!("{:.0}FPS", self.frames_per_second)),
+            Normal(format!("{:.0}fps {}", self.frames_per_second, self.age)),
         );
 
         if !self.mobile_device {
@@ -212,10 +216,11 @@ impl TextState {
                         pull_count,
                         pull_range,
                         pull_total,
+                        age,
                         ..
                     } = fabric_stats;
                     Normal(format!(
-                        "Stats:\n\
+                        "Stats at {age}:\n\
                          Height: {:.1}m\n\
                          Joints: {:?}\n\
                          Bars: {:?}\n\

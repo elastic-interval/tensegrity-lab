@@ -3,10 +3,9 @@ use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible::Crucible;
 use crate::keyboard::Keyboard;
-use crate::messages::PhysicsTesterAction::SetPhysicalParameter;
 use crate::messages::{
-    ControlState, CrucibleAction, LabEvent, PointerChange, Radio, RunStyle, Shot, StateChange,
-    TestScenario,
+    ControlState, CrucibleAction, LabEvent, PhysicsTesterAction, PointerChange, Radio, RunStyle,
+    Shot, StateChange, TestScenario,
 };
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
@@ -186,8 +185,9 @@ impl ApplicationHandler<LabEvent> for Application {
     }
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: LabEvent) {
+        use LabEvent::*;
         match event {
-            LabEvent::ContextCreated {
+            ContextCreated {
                 wgpu,
                 mobile_device,
             } => {
@@ -195,7 +195,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.scene = Some(Scene::new(self.mobile_device, wgpu, self.radio.clone()));
                 ControlState::Waiting.send(&self.radio);
             }
-            LabEvent::Run(run_style) => {
+            Run(run_style) => {
                 self.run_style = run_style;
                 match &self.run_style {
                     RunStyle::Unknown => {
@@ -226,7 +226,7 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                 };
             }
-            LabEvent::FabricBuilt(fabric_stats) => {
+            FabricBuilt(fabric_stats) => {
                 StateChange::SetFabricName(fabric_stats.name.clone()).send(&self.radio);
                 StateChange::SetFabricStats(Some(fabric_stats)).send(&self.radio);
                 if self.mobile_device {
@@ -263,10 +263,10 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                 }
             }
-            LabEvent::Crucible(crucible_action) => {
+            Crucible(crucible_action) => {
                 self.crucible.action(crucible_action);
             }
-            LabEvent::UpdatedLibrary(time) => {
+            UpdatedLibrary(time) => {
                 println!("{time:?}");
                 #[cfg(not(target_arch = "wasm32"))]
                 {
@@ -275,7 +275,7 @@ impl ApplicationHandler<LabEvent> for Application {
                     LabEvent::Run(self.run_style.clone()).send(&self.radio);
                 }
             }
-            LabEvent::UpdateState(app_change) => {
+            UpdateState(app_change) => {
                 match &app_change {
                     StateChange::SetControlState(control_state) => {
                         self.control_state = control_state.clone();
@@ -286,8 +286,10 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                     StateChange::SetPhysicsParameter(parameter) => {
                         self.keyboard.set_float_parameter(parameter);
-                        CrucibleAction::PhysicsTesterDo(SetPhysicalParameter(parameter.clone()))
-                            .send(&self.radio);
+                        CrucibleAction::PhysicsTesterDo(PhysicsTesterAction::SetPhysicalParameter(
+                            parameter.clone(),
+                        ))
+                        .send(&self.radio);
                         StateChange::SetKeyboardLegend(
                             self.keyboard.legend(&self.control_state).join(", "),
                         )
@@ -299,7 +301,7 @@ impl ApplicationHandler<LabEvent> for Application {
                     scene.update_state(app_change);
                 }
             }
-            LabEvent::DumpCSV => {
+            DumpCSV => {
                 #[cfg(not(target_arch = "wasm32"))]
                 std::fs::write(
                     chrono::Local::now()
@@ -309,7 +311,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 )
                 .unwrap();
             }
-            LabEvent::PrintCord(length) => {
+            PrintCord(length) => {
                 println!("Print cord {length:?}");
                 #[cfg(not(target_arch = "wasm32"))]
                 {
@@ -420,9 +422,13 @@ impl ApplicationHandler<LabEvent> for Application {
             self.frames_count += 1;
             let fps_elapsed = now.duration_since(self.fps_timer);
             if fps_elapsed >= Duration::from_secs(1) {
-                // Calculate FPS
-                let fps = self.frames_count as f32 / fps_elapsed.as_secs_f32();
-                StateChange::FramesPerSecond(fps).send(&self.radio);
+                let frames_per_second = self.frames_count as f32 / fps_elapsed.as_secs_f32();
+                let age = self.crucible.fabric().age;
+                StateChange::Time {
+                    frames_per_second,
+                    age,
+                }
+                .send(&self.radio);
                 // Reset counters
                 self.frames_count = 0;
                 self.fps_timer = now;
@@ -436,20 +442,14 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.accumulated_time = Duration::from_secs(0);
                 return; // Skip this frame entirely
             }
-
-            // Normal update for active window
-            let capped_elapsed = std::cmp::min(elapsed, Duration::from_millis(33)); // Max ~30 FPS worth of time
             self.last_update = now;
-
-            // Fixed time step logic
+            let capped_elapsed = std::cmp::min(elapsed, Duration::from_millis(33));
             self.accumulated_time += capped_elapsed;
             let update_interval = Duration::from_millis(10);
             let animate = scene.animate(self.crucible.fabric());
-
             // Limit updates per frame
             let mut updates_this_frame = 0;
             let max_updates_per_frame = 3;
-
             while self.accumulated_time >= update_interval
                 && updates_this_frame < max_updates_per_frame
             {
