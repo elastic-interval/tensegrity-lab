@@ -42,8 +42,8 @@
                 (guy-line 12 16.5 (surface 7.0 -10.0) :north)
                 (guy-line 10 16.5 (surface 7.0 10.0) :south)))
         (pretense
-            (pretenst 0.5)
-            (muscle 0.995 1700)
+            (pretenst 0.8)
+            (muscle 0.98 1700)
             (surface :frozen))
         (scale 510.0))
 	(fabric (name "Halo by Crane")

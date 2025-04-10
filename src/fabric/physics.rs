@@ -95,7 +95,7 @@ pub mod presets {
         cycle_ticks: 1000.0,
         stiffness: 1e-3,
         pretenst: 20.0, // not used
-        strain_limit: 1.0,
+        strain_limit: 1_000.0,
         surface_character: Absent,
         viscosity: 1e4,
     };
@@ -107,7 +107,7 @@ pub mod presets {
         cycle_ticks: 1000.0,
         stiffness: 1e-4,
         pretenst: 1.0,
-        strain_limit: 1.0,
+        strain_limit: 1_000.0,
         surface_character: Absent,
         viscosity: 2e4,
     };

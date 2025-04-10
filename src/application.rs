@@ -197,6 +197,9 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             Run(run_style) => {
                 self.run_style = run_style;
+                if let Some(scene) = &mut self.scene {
+                    scene.normal_rendering();
+                }
                 match &self.run_style {
                     RunStyle::Unknown => {
                         unreachable!()
@@ -272,7 +275,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 {
                     let _fabric_library = self.fabric_library.clone();
                     self.fabric_library_modified = time;
-                    LabEvent::Run(self.run_style.clone()).send(&self.radio);
+                    Run(self.run_style.clone()).send(&self.radio);
                 }
             }
             UpdateState(app_change) => {
