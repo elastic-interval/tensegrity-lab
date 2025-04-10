@@ -3,6 +3,7 @@ use crate::build::tenscript::FabricPlan;
 use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
 use crate::wgpu::Wgpu;
+use crate::Age;
 use cgmath::Point3;
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -150,7 +151,7 @@ pub enum StateChange {
     },
     SetKeyboardLegend(String),
     SetPhysicsParameter(PhysicsParameter),
-    FramesPerSecond(f32),
+    Time { frames_per_second:f32, age: Age },
 }
 
 impl StateChange {

@@ -2,6 +2,8 @@ use crate::build::tenscript::brick::{Baked, Prototype};
 use crate::fabric::physics::presets::PROTOTYPE_FORMATION;
 use crate::fabric::Fabric;
 
+const SPEED_LIMIT: f32 = 3e-6;
+
 pub struct Oven {
     pub fabric: Fabric,
 }
@@ -9,7 +11,9 @@ pub struct Oven {
 impl Oven {
     pub fn new(prototype: Prototype) -> Self {
         let fabric = Fabric::from(prototype);
-        Self { fabric }
+        Self {
+            fabric,
+        }
     }
 
     pub fn iterate(&mut self) -> Option<Baked> {
@@ -18,8 +22,8 @@ impl Oven {
         }
         let max_velocity = self.fabric.max_velocity();
         let age = self.fabric.age;
-        if age > 20000 && max_velocity < 3e-6 {
-            println!("Fabric settled in iteration {age} at velocity {max_velocity}");
+        if age.brick_baked() && max_velocity < SPEED_LIMIT {
+            println!("Fabric settled in {age} at velocity {max_velocity}");
             match Baked::try_from(self.fabric.clone()) {
                 Ok(baked) => {
                     self.fabric.check_orphan_joints();

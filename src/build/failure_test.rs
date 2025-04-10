@@ -3,22 +3,24 @@ use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::messages::{CrucibleAction, FailureTesterAction, Radio, StateChange, TestScenario};
+use crate::Age;
 use cgmath::InnerSpace;
 
 pub struct FailureTester {
+    pub physics: Physics,
     test_number: usize,
     default_fabric: Fabric,
     test_cases: Vec<FailureTest>,
-    pub(crate) physics: Physics,
     radio: Radio,
 }
 
 impl FailureTester {
     pub fn new(scenario: TestScenario, fabric: &Fabric, physics: Physics, radio: Radio) -> Self {
+        let max_age = fabric.age.advanced(100_000);
         Self {
             test_number: 0,
             default_fabric: fabric.clone(),
-            test_cases: FailureTest::generate(&fabric, scenario),
+            test_cases: FailureTest::generate(&fabric, scenario, max_age),
             physics,
             radio,
         }
@@ -66,12 +68,11 @@ impl FailureTester {
     }
 }
 
-const MAX_NEW_ITERATIONS: u64 = 100000;
-
 #[derive(Clone)]
 pub struct FailureTest {
     pub fabric: Fabric,
     scenario: TestScenario,
+    max_age: Age,
     finished: bool,
     interval_missing: Option<(usize, usize)>,
 }
@@ -86,7 +87,7 @@ impl FailureTest {
         }
     }
 
-    pub fn generate(default_fabric: &Fabric, scenario: TestScenario) -> Vec<FailureTest> {
+    pub fn generate(default_fabric: &Fabric, scenario: TestScenario, max_age: Age) -> Vec<FailureTest> {
         let interval_keys: Vec<_> = default_fabric
             .intervals
             .iter()
@@ -101,6 +102,7 @@ impl FailureTest {
             FailureTest {
                 scenario,
                 fabric: default_fabric.clone(),
+                max_age,
                 interval_missing: None,
                 finished: false,
             };
@@ -137,8 +139,7 @@ impl FailureTest {
         if self.finished {
             return true;
         }
-        let iterations = self.fabric.age - default_fabric.age;
-        if iterations < MAX_NEW_ITERATIONS {
+        if self.fabric.age.within(&self.max_age) {
             return false;
         }
         self.finished = true;

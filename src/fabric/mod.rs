@@ -12,6 +12,7 @@ use crate::fabric::material::Material::{NorthMaterial, SouthMaterial};
 use crate::fabric::material::{interval_material, IntervalMaterial};
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
+use crate::Age;
 use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, Transform, Vector3};
 use std::collections::HashMap;
@@ -30,13 +31,10 @@ pub mod export;
 pub mod joint_incident;
 pub mod material;
 
-pub const MAX_INTERVALS: usize = 5000;
-pub const ROOT3: f32 = 1.732_050_8;
-
 #[derive(Clone, Debug)]
 pub struct FabricStats {
     pub name: String,
-    pub age: u64,
+    pub age: Age,
     pub scale: f32,
     pub joint_count: usize,
     pub max_height: f32,
@@ -51,7 +49,7 @@ pub struct FabricStats {
 #[derive(Clone, Debug)]
 pub struct Fabric {
     pub name: String,
-    pub age: u64,
+    pub age: Age,
     pub progress: Progress,
     pub joints: Vec<Joint>,
     pub intervals: HashMap<UniqueId, Interval>,
@@ -66,7 +64,7 @@ impl Fabric {
     pub fn new(name: String) -> Self {
         Self {
             name,
-            age: 0,
+            age: Age::default(),
             progress: Progress::default(),
             joints: Vec::new(),
             intervals: HashMap::new(),
@@ -163,8 +161,9 @@ impl Fabric {
                 physics,
             );
         }
+        let elapsed = self.age.tick();
         for joint in &mut self.joints {
-            joint.iterate(physics);
+            joint.iterate(physics, elapsed);
         }
         if self.progress.step() {
             // final step
@@ -185,7 +184,6 @@ impl Fabric {
                 self.muscle_forward = Some(false);
             }
         }
-        self.age += 1;
     }
 
     pub fn create_muscles(&mut self, contraction: f32) {

@@ -8,7 +8,9 @@ use crate::build::tenscript::{FaceAlias, Spin};
 use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 use crate::fabric::material::Material::{PullMaterial, PushMaterial};
-use crate::fabric::{Fabric, UniqueId, ROOT3};
+use crate::fabric::{Fabric, UniqueId};
+
+const ROOT3: f32 = 1.732_050_8;
 
 impl Fabric {
     pub fn create_face(
