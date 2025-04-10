@@ -1,9 +1,8 @@
-use std::rc::Rc;
+use crate::fabric::material::interval_material;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::messages::{PhysicsFeature, PhysicsTesterAction, Radio, StateChange};
-
-const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
+use std::rc::Rc;
 
 pub struct PhysicsTester {
     pub fabric: Fabric,
@@ -37,13 +36,15 @@ impl PhysicsTester {
                     }
                     PhysicsFeature::StrainLimit => {
                         let strain_limit = self.physics.strain_limit;
-                        StateChange::SetColorFunction(Rc::new(move |interval| {
+                        StateChange::SetAppearanceFunction(Rc::new(move |interval| {
                             if interval.strain > strain_limit {
-                                Some(GREEN)
+                                let role = interval_material(interval.material).role;
+                                Some(role.appearance().highlighted())
                             } else {
                                 None
                             }
-                        })).send(&self.radio.clone());
+                        }))
+                        .send(&self.radio.clone());
                     }
                     _ => {}
                 }

@@ -9,6 +9,7 @@ use crate::fabric::joint::Joint;
 use crate::fabric::material::{interval_material, IntervalMaterial, Material};
 use crate::fabric::physics::Physics;
 use crate::fabric::{Fabric, Progress, UniqueId};
+use crate::messages::Appearance;
 use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, MetricSpace, Point3, Vector3};
 use fast_inv_sqrt::InvSqrt32;
@@ -106,19 +107,18 @@ pub enum Role {
 }
 
 impl Role {
-    pub fn radius(&self) -> f32 {
-        match self {
-            Push => 1.7,
-            Pull => 0.2,
-            Spring => 1.0,
-        }
-    }
-
-    pub fn color(&self) -> [f32; 4] {
-        match self {
-            Push => [0.8, 0.8, 0.85, 1.0],
-            Pull => [0.3, 0.3, 0.9, 1.0],
-            Spring => [0.7, 0.3, 0.7, 1.0],
+    pub fn appearance(&self) -> Appearance {
+        Appearance {
+            radius: match self {
+                Push => 1.7,
+                Pull => 0.2,
+                Spring => 1.0,
+            },
+            color: match self {
+                Push => [0.8, 0.8, 0.85, 1.0],
+                Pull => [0.3, 0.3, 0.9, 1.0],
+                Spring => [0.7, 0.3, 0.7, 1.0],
+            },
         }
     }
 }

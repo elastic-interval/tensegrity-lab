@@ -2,10 +2,10 @@ use crate::camera::Target::*;
 use crate::camera::{Camera, Pick};
 use crate::fabric::material::interval_material;
 use crate::fabric::Fabric;
+use crate::messages::PointerChange;
 use crate::messages::{
     ControlState, IntervalDetails, JointDetails, Radio, RenderStyle, StateChange, TestScenario,
 };
-use crate::messages::PointerChange;
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
@@ -70,7 +70,9 @@ impl Scene {
                 PhysicsTesting(scenario) => {
                     self.reset();
                     match scenario {
-                        PhysicsTest => self.render_style = WithColorFunction(Rc::new(|_| None)),
+                        PhysicsTest => {
+                            self.render_style = WithAppearanceFunction(Rc::new(|_| None))
+                        }
                         _ => unreachable!(),
                     }
                 }
@@ -79,9 +81,9 @@ impl Scene {
             ResetView => {
                 self.render_style = Normal;
             }
-            SetColorFunction(color_function) => match &mut self.render_style {
-                WithColorFunction(_) => {
-                    self.render_style = WithColorFunction(color_function.clone())
+            SetAppearanceFunction(appearance) => match &mut self.render_style {
+                WithAppearanceFunction(_) => {
+                    self.render_style = WithAppearanceFunction(appearance.clone())
                 }
                 _ => {
                     panic!("Cannot set color function")

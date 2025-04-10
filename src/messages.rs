@@ -60,7 +60,7 @@ pub enum RunStyle {
 #[derive(Clone)]
 pub enum RenderStyle {
     Normal,
-    WithColorFunction(Rc<dyn Fn(&Interval) -> Option<[f32; 4]>>),
+    WithAppearanceFunction(AppearanceFunction),
     WithPullMap(HashMap<(usize, usize), [f32; 4]>),
     WithPushMap(HashMap<(usize, usize), [f32; 4]>),
 }
@@ -128,13 +128,44 @@ impl CrucibleAction {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct Appearance {
+    pub color: [f32; 4],
+    pub radius: f32,
+}
+
+impl Appearance {
+    pub fn with_color(&self, color: [f32; 4]) -> Self {
+        Self {
+            color,
+            radius: self.radius,
+        }
+    }
+
+    pub fn highlighted(&self) -> Self {
+        Self {
+            color: [0.0, 1.0, 0.0, 1.0],
+            radius: self.radius * 3.0,
+        }
+    }
+
+    pub fn faded(&self) -> Self {
+        Self {
+            color: [0.01, 0.01, 0.01, 1.0],
+            radius: self.radius * 2.0,
+        }
+    }
+}
+
+type AppearanceFunction = Rc<dyn Fn(&Interval) -> Option<Appearance>>;
+
 #[derive(Clone)]
 pub enum StateChange {
     SetFabricName(String),
     SetFabricStats(Option<FabricStats>),
     SetControlState(ControlState),
     ResetView,
-    SetColorFunction(Rc<dyn Fn(&Interval) -> Option<[f32; 4]>>),
+    SetAppearanceFunction(AppearanceFunction),
     SetIntervalColor {
         key: (usize, usize),
         color: [f32; 4],
@@ -158,7 +189,7 @@ impl Debug for StateChange {
             StateChange::SetFabricName(_) => "SetFabricName()",
             StateChange::SetFabricStats(_) => "SetFabricStats()",
             StateChange::SetControlState(_) => "SetcontrolState()",
-            StateChange::SetColorFunction(_) => "SetColorFunction()",
+            StateChange::SetAppearanceFunction(_) => "SetColorFunction()",
             StateChange::SetIntervalColor { .. } => "SetIntervalColor()",
             StateChange::ResetView => "ResetView()",
             StateChange::SetAnimating(_) => "SetAnimating()",
