@@ -175,6 +175,10 @@ impl Scene {
         self.camera.target_approach(fabric) || matches!(self.camera.current_pick(), Pick::Nothing)
     }
 
+    pub fn normal_rendering(&mut self) {
+        self.render_style = RenderStyle::Normal;
+    }
+
     pub fn reset(&mut self) {
         self.pick_allowed = false;
         self.camera.reset();
