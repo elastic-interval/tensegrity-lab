@@ -1,7 +1,7 @@
 use crate::camera::Pick;
 use crate::fabric::material::{interval_material, Material};
 use crate::fabric::Fabric;
-use crate::messages::{IntervalFilter, RenderStyle};
+use crate::messages::RenderStyle;
 use crate::wgpu::Wgpu;
 use bytemuck::{Pod, Zeroable};
 use std::mem::size_of;
@@ -195,12 +195,10 @@ impl FabricRenderer {
         const SELECTED: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
         for (interval_id, interval) in &fabric.intervals {
             let push = interval.material == Material::PushMaterial;
-            if let WithColoring { filter, .. } = render_style {
-                match filter {
-                    IntervalFilter::ShowPush if !push => continue,
-                    IntervalFilter::ShowPull if push => continue,
-                    _ => {}
-                }
+            match render_style {
+                WithPullMap(_) if push => continue,
+                WithPushMap(_) if !push => continue,
+                _ => {}
             }
             let (alpha, omega) = (interval.alpha_index, interval.omega_index);
             let start = fabric.joints[alpha].location;
@@ -210,7 +208,9 @@ impl FabricRenderer {
             let radius_factor = match pick {
                 Pick::Nothing => match render_style {
                     Normal => role.radius(),
-                    WithColoring { .. } => role.radius() + 1.0,
+                    WithPushMap { .. } | WithPullMap { .. } | WithColorFunction { .. } => {
+                        role.radius() + 1.0
+                    }
                 },
                 Pick::Joint { .. } => role.radius(),
                 Pick::Interval { id, .. } => {
@@ -224,12 +224,13 @@ impl FabricRenderer {
             let color = match pick {
                 Pick::Nothing => match render_style {
                     Normal => role.color(),
-                    WithColoring { color_map, .. } => {
+                    WithColorFunction(color) => color(interval).unwrap_or(FADED),
+                    WithPullMap(color_map) | WithPushMap(color_map) => {
                         let key = interval.key();
                         if let Some(coloring_color) = color_map.get(&key) {
                             *coloring_color
                         } else {
-                            [0.003, 0.003, 0.003, 0.01]
+                            FADED
                         }
                     }
                 },

@@ -68,7 +68,6 @@ impl Crucible {
                 if pretenser.is_done() {
                     let stats = pretenser.fabric.fabric_stats();
                     let holder = pretenser.holder();
-                    holder.physics.broadcast(&self.radio);
                     self.stage = Viewing(holder);
                     LabEvent::FabricBuilt(stats).send(&self.radio);
                 } else {

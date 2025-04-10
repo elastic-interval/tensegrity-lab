@@ -1,11 +1,13 @@
 use crate::build::tenscript::brick::Prototype;
 use crate::build::tenscript::FabricPlan;
-use crate::fabric::interval::Role;
+use crate::fabric::interval::{Interval, Role};
 use crate::fabric::FabricStats;
 use crate::wgpu::Wgpu;
 use crate::Age;
 use cgmath::Point3;
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
+use std::rc::Rc;
 use std::time::SystemTime;
 use winit::dpi::PhysicalPosition;
 
@@ -55,20 +57,12 @@ pub enum RunStyle {
     Seeded(u64),
 }
 
-#[derive(Clone, Debug)]
-pub enum IntervalFilter {
-    ShowAll,
-    ShowPush,
-    ShowPull,
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum RenderStyle {
     Normal,
-    WithColoring {
-        color_map: HashMap<(usize, usize), [f32; 4]>,
-        filter: IntervalFilter,
-    },
+    WithColorFunction(Rc<dyn Fn(&Interval) -> Option<[f32; 4]>>),
+    WithPullMap(HashMap<(usize, usize), [f32; 4]>),
+    WithPushMap(HashMap<(usize, usize), [f32; 4]>),
 }
 
 #[derive(Clone, Debug, Copy)]
@@ -134,16 +128,17 @@ impl CrucibleAction {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum StateChange {
     SetFabricName(String),
     SetFabricStats(Option<FabricStats>),
     SetControlState(ControlState),
+    ResetView,
+    SetColorFunction(Rc<dyn Fn(&Interval) -> Option<[f32; 4]>>),
     SetIntervalColor {
         key: (usize, usize),
         color: [f32; 4],
     },
-    ResetView,
     SetAnimating(bool),
     SetExperimentTitle {
         title: String,
@@ -151,7 +146,29 @@ pub enum StateChange {
     },
     SetKeyboardLegend(String),
     SetPhysicsParameter(PhysicsParameter),
-    Time { frames_per_second:f32, age: Age },
+    Time {
+        frames_per_second: f32,
+        age: Age,
+    },
+}
+
+impl Debug for StateChange {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            StateChange::SetFabricName(_) => "SetFabricName()",
+            StateChange::SetFabricStats(_) => "SetFabricStats()",
+            StateChange::SetControlState(_) => "SetcontrolState()",
+            StateChange::SetColorFunction(_) => "SetColorFunction()",
+            StateChange::SetIntervalColor { .. } => "SetIntervalColor()",
+            StateChange::ResetView => "ResetView()",
+            StateChange::SetAnimating(_) => "SetAnimating()",
+            StateChange::SetExperimentTitle { .. } => "SetExperimentTitle()",
+            StateChange::SetKeyboardLegend(_) => "SetKeyboardLegend()",
+            StateChange::SetPhysicsParameter(_) => "SetPhysicsParameter()",
+            StateChange::Time { .. } => "Time()",
+        };
+        write!(f, "StateChange::{name}")
+    }
 }
 
 impl StateChange {
@@ -176,7 +193,7 @@ pub type Radio = winit::event_loop::EventLoopProxy<LabEvent>;
 
 impl LabEvent {
     pub fn send(self, radio: &Radio) {
-        radio.send_event(self).unwrap()
+        radio.send_event(self).expect("Radio working")
     }
 }
 
