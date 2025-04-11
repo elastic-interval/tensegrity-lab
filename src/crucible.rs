@@ -166,16 +166,15 @@ impl Crucible {
                     panic!("cannot start experiment");
                 }
             }
-            FailureTesterDo(action) => {
-                if let FailureTesting(tester) = &mut self.stage {
+            TesterDo(action) => match &mut self.stage {
+                FailureTesting(tester) => {
                     tester.action(action);
                 }
-            }
-            PhysicsTesterDo(action) => {
-                if let PhysicsTesting(tester) = &mut self.stage {
+                PhysicsTesting(tester) => {
                     tester.action(action);
                 }
-            }
+                _ => {}
+            },
             ToEvolving(seed) => {
                 self.stage = Evolving(Evolution::new(seed));
             }

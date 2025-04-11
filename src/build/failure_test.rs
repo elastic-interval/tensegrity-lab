@@ -2,7 +2,7 @@ use crate::fabric::interval::Interval;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{CrucibleAction, FailureTesterAction, Radio, StateChange, TestScenario};
+use crate::messages::{CrucibleAction, Radio, StateChange, TestScenario, TesterAction};
 use crate::Age;
 use cgmath::InnerSpace;
 
@@ -36,10 +36,13 @@ impl FailureTester {
         }
     }
 
-    pub fn action(&mut self, action: FailureTesterAction) {
+    pub fn action(&mut self, action: TesterAction) {
         use StateChange::*;
-        use FailureTesterAction::*;
+        use TesterAction::*;
         match action {
+            SetPhysicalParameter(parameter) => {
+                self.physics.accept(parameter);
+            }
             PrevExperiment | NextExperiment => {
                 if matches!(action, NextExperiment) {
                     if self.test_number + 1 < self.test_cases.len() {
@@ -56,6 +59,7 @@ impl FailureTester {
                 }
                 .send(&self.radio);
             }
+            _ => {}
         }
     }
 
@@ -87,7 +91,11 @@ impl FailureTest {
         }
     }
 
-    pub fn generate(default_fabric: &Fabric, scenario: TestScenario, max_age: Age) -> Vec<FailureTest> {
+    pub fn generate(
+        default_fabric: &Fabric,
+        scenario: TestScenario,
+        max_age: Age,
+    ) -> Vec<FailureTest> {
         let interval_keys: Vec<_> = default_fabric
             .intervals
             .iter()
@@ -150,7 +158,7 @@ impl FailureTest {
         let redness = (clamped - min_damage) / (max_damage - min_damage);
         let color = [redness, 0.01, 0.01, 1.0];
         StateChange::SetIntervalColor { key, color }.send(&radio);
-        CrucibleAction::FailureTesterDo(FailureTesterAction::NextExperiment).send(&radio);
+        CrucibleAction::TesterDo(TesterAction::NextExperiment).send(&radio);
         true
     }
 

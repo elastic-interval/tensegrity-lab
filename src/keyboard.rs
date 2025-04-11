@@ -1,7 +1,7 @@
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::messages::{
-    ControlState, CrucibleAction, FailureTesterAction, LabEvent, PhysicsFeature, PhysicsParameter,
-    PhysicsTesterAction, Radio, StateChange,
+    ControlState, CrucibleAction, LabEvent, PhysicsFeature, PhysicsParameter, Radio, StateChange,
+    TesterAction,
 };
 use winit::event::KeyEvent;
 use winit::keyboard::{KeyCode, PhysicalKey, SmolStr};
@@ -44,15 +44,13 @@ impl Keyboard {
         self.key_dynamic_lab_event(
             KeyCode::KeyD,
             "Dyneema!",
-            Box::new(
-                |control_state| {
-                    if let ShowingInterval(interval_details) = control_state {
-                        PrintCord(interval_details.length)
-                    } else {
-                        panic!("expected ShowingInterval state")
-                    }
-                },
-            ),
+            Box::new(|control_state| {
+                if let ShowingInterval(interval_details) = control_state {
+                    PrintCord(interval_details.length)
+                } else {
+                    panic!("expected ShowingInterval state")
+                }
+            }),
             Box::new(|state| matches!(state, ShowingInterval(_))),
         );
         self.key_lab_event(
@@ -81,7 +79,7 @@ impl Keyboard {
                 value: 100.0,
             },
             Box::new(|value| format!("Time {value:.0}")),
-            Box::new(|state| matches!(state, PhysicsTesting(_))),
+            Box::new(|state| matches!(state, PhysicsTesting(_) | FailureTesting(_))),
         );
         self.float_parameter(
             "P",
@@ -91,7 +89,7 @@ impl Keyboard {
                 value: AIR_GRAVITY.pretenst,
             },
             Box::new(|value| format!("Pretenst {value:.5}")),
-            Box::new(|state| matches!(state, PhysicsTesting(_))),
+            Box::new(|state| matches!(state, PhysicsTesting(_) | FailureTesting(_))),
         );
         self.float_parameter(
             "C",
@@ -111,7 +109,7 @@ impl Keyboard {
                 value: 0.0,
             },
             Box::new(|value| format!("Stiffness {:.0}", value * 1e4)),
-            Box::new(|state| matches!(state, PhysicsTesting(_))),
+            Box::new(|state| matches!(state, PhysicsTesting(_) | FailureTesting(_))),
         );
         self.float_parameter(
             "M",
@@ -121,7 +119,7 @@ impl Keyboard {
                 value: 1.0,
             },
             Box::new(|value| format!("Mass {:.0}", value * 1e2)),
-            Box::new(|state| matches!(state, PhysicsTesting(_))),
+            Box::new(|state| matches!(state, PhysicsTesting(_) | FailureTesting(_))),
         );
         self.float_parameter(
             "L",
@@ -131,24 +129,24 @@ impl Keyboard {
                 value: 1.0,
             },
             Box::new(|value| format!("Strain Limit {:.1}", value * 1e2)),
-            Box::new(|state| matches!(state, PhysicsTesting(_))),
+            Box::new(|state| matches!(state, PhysicsTesting(_) | FailureTesting(_))),
         );
         self.key_lab_event(
             KeyCode::KeyY,
             "",
-            Crucible(PhysicsTesterDo(PhysicsTesterAction::DumpPhysics)),
+            Crucible(TesterDo(TesterAction::DumpPhysics)),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.key_lab_event(
             KeyCode::ArrowLeft,
             "\u{2190} previous test",
-            Crucible(FailureTesterDo(FailureTesterAction::PrevExperiment)),
+            Crucible(TesterDo(TesterAction::PrevExperiment)),
             Box::new(|state| matches!(state, FailureTesting(_))),
         );
         self.key_lab_event(
             KeyCode::ArrowRight,
             "\u{2192} next test",
-            Crucible(FailureTesterDo(FailureTesterAction::NextExperiment)),
+            Crucible(TesterDo(TesterAction::NextExperiment)),
             Box::new(|state| matches!(state, FailureTesting(_))),
         );
         self.key_lab_event(
