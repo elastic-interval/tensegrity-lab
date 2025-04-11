@@ -221,7 +221,7 @@ impl FabricRenderer {
                     if !interval.touches(*index) {
                         role_appearance.faded()
                     } else {
-                        role_appearance
+                        role_appearance.active()
                     }
                 }
                 Pick::Interval { joint, id, .. } => {
@@ -230,7 +230,7 @@ impl FabricRenderer {
                     } else if !interval.touches(*joint) {
                         role_appearance.faded()
                     } else {
-                        role_appearance
+                        role_appearance.active()
                     }
                 }
             };
