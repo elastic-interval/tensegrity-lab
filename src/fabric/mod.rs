@@ -4,9 +4,9 @@
  */
 
 use crate::fabric::face::Face;
+use crate::fabric::interval::Interval;
 use crate::fabric::interval::Role::{Pull, Push, Spring};
 use crate::fabric::interval::Span::{Approaching, Fixed, Muscle, Pretenst};
-use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 use crate::fabric::material::Material::{NorthMaterial, SouthMaterial};
 use crate::fabric::material::{interval_material, IntervalMaterial};
@@ -25,11 +25,12 @@ pub mod joint;
 pub mod physics;
 pub mod progress;
 pub mod vulcanize;
-
 pub mod correction;
-pub mod export;
 pub mod joint_incident;
 pub mod material;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub mod export;
 
 #[derive(Clone, Debug)]
 pub struct FabricStats {
