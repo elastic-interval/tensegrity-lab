@@ -151,7 +151,7 @@ impl Appearance {
 
     pub fn faded(&self) -> Self {
         Self {
-            color: [0.01, 0.01, 0.01, 1.0],
+            color: [0.1, 0.1, 0.1, 1.0],
             radius: self.radius * 2.0,
         }
     }

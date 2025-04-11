@@ -127,8 +127,6 @@ fn fabric_fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let half_vec = normalize(light_dir + view_dir);
 
     // Material-specific properties
-    var specular_power: f32;
-    var specular_intensity: f32;
     var base_color: vec3<f32>;
     var detail_factor: f32 = 1.0;
 
@@ -136,8 +134,6 @@ fn fabric_fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     switch(in.material_type) {
         case 0u: {
             // Push element (aluminum)
-            specular_power = 200.0;
-            specular_intensity = 0.5;
             // Add slight metallic tint
             base_color = in.color.rgb * vec3<f32>(0.95, 0.97, 1.0);
             // Add some subtle surface variation
@@ -146,8 +142,6 @@ fn fabric_fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         }
         case 1u: {
             // Pull element (tension cable)
-            specular_power = 0.0;
-            specular_intensity = 0.0;
             base_color = in.color.rgb;
             // Add subtle fiber texture
             detail_factor = 0.9 + sin(in.uv.x * 50.0) * 0.1;
@@ -155,8 +149,6 @@ fn fabric_fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         }
         default: {
             // Spring element
-            specular_power = 10.0;
-            specular_intensity = 0.1;
             // Add spring-like pattern
             detail_factor = sin(in.uv.x * 30.0 + in.uv.y * 5.0) * 0.1 + 0.9;
             base_color = in.color.rgb;
@@ -164,12 +156,9 @@ fn fabric_fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
 
-    // Calculate specular component
-    let specular = pow(max(dot(normal, half_vec), 0.0), specular_power) * specular_intensity;
-
     // Combine lighting components
     let lighting = ambient + diffuse;
-    let final_color = base_color * lighting * detail_factor + specular * light_color;
+    let final_color = base_color * lighting * detail_factor;
 
     // Apply gamma correction
     let gamma_corrected = pow(final_color, vec3<f32>(1.0/2.2));

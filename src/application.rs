@@ -270,7 +270,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.crucible.action(crucible_action);
             }
             UpdatedLibrary(time) => {
-                println!("Reloading library");
+                println!("Reloading library at {time:?}");
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     let _fabric_library = self.fabric_library.clone();
