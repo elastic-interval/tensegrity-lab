@@ -98,13 +98,9 @@ impl ControlState {
 }
 
 #[derive(Debug, Clone)]
-pub enum FailureTesterAction {
+pub enum TesterAction {
     PrevExperiment,
     NextExperiment,
-}
-
-#[derive(Debug, Clone)]
-pub enum PhysicsTesterAction {
     SetPhysicalParameter(PhysicsParameter),
     DumpPhysics,
 }
@@ -116,9 +112,8 @@ pub enum CrucibleAction {
     ToViewing,
     ToAnimating,
     ToFailureTesting(TestScenario),
-    FailureTesterDo(FailureTesterAction),
+    TesterDo(TesterAction),
     ToPhysicsTesting(TestScenario),
-    PhysicsTesterDo(PhysicsTesterAction),
     ToEvolving(u64),
 }
 
@@ -138,21 +133,21 @@ impl Appearance {
     pub fn with_color(&self, color: [f32; 4]) -> Self {
         Self {
             color,
-            radius: self.radius,
+            radius: self.radius + 1.0,
         }
     }
 
     pub fn highlighted(&self) -> Self {
         Self {
             color: [0.0, 1.0, 0.0, 1.0],
-            radius: self.radius * 3.0,
+            radius: self.radius + 1.0,
         }
     }
 
     pub fn faded(&self) -> Self {
         Self {
             color: [0.1, 0.1, 0.1, 1.0],
-            radius: self.radius * 2.0,
+            radius: self.radius,
         }
     }
 }

@@ -1,7 +1,7 @@
 use crate::fabric::material::interval_material;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{PhysicsFeature, PhysicsTesterAction, Radio, StateChange};
+use crate::messages::{PhysicsFeature, Radio, StateChange, TesterAction};
 use std::rc::Rc;
 
 pub struct PhysicsTester {
@@ -26,9 +26,10 @@ impl PhysicsTester {
         self.fabric.iterate(&self.physics);
     }
 
-    pub fn action(&mut self, action: PhysicsTesterAction) {
+    pub fn action(&mut self, action: TesterAction) {
+        use TesterAction::*;
         match action {
-            PhysicsTesterAction::SetPhysicalParameter(parameter) => {
+            SetPhysicalParameter(parameter) => {
                 self.physics.accept(parameter);
                 match parameter.feature {
                     PhysicsFeature::Pretenst => {
@@ -49,9 +50,10 @@ impl PhysicsTester {
                     _ => {}
                 }
             }
-            PhysicsTesterAction::DumpPhysics => {
+            DumpPhysics => {
                 println!("{:?}", self.physics);
             }
+            _ => {}
         }
     }
 }

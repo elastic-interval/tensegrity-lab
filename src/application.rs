@@ -4,8 +4,8 @@ use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible::Crucible;
 use crate::keyboard::Keyboard;
 use crate::messages::{
-    ControlState, CrucibleAction, LabEvent, PhysicsTesterAction, PointerChange, Radio, RunStyle,
-    Shot, StateChange, TestScenario,
+    ControlState, CrucibleAction, LabEvent, PointerChange, Radio, RunStyle, Shot, StateChange,
+    TestScenario, TesterAction,
 };
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
@@ -289,7 +289,7 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                     StateChange::SetPhysicsParameter(parameter) => {
                         self.keyboard.set_float_parameter(parameter);
-                        CrucibleAction::PhysicsTesterDo(PhysicsTesterAction::SetPhysicalParameter(
+                        CrucibleAction::TesterDo(TesterAction::SetPhysicalParameter(
                             parameter.clone(),
                         ))
                         .send(&self.radio);
