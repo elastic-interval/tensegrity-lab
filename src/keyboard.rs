@@ -42,8 +42,8 @@ impl Keyboard {
         use CrucibleAction::*;
         use LabEvent::*;
         self.key_dynamic_lab_event(
-            KeyCode::KeyD,
-            "Dyneema!",
+            KeyCode::KeyP,
+            "Print",
             Box::new(|control_state| {
                 if let ShowingInterval(interval_details) = control_state {
                     PrintCord(interval_details.length)
