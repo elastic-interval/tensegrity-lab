@@ -42,7 +42,6 @@ impl Fabric {
             .joints
             .iter()
             .enumerate()
-            .filter(|(_, Joint { fixed, .. })| !fixed)
         {
             let Point3 { x, y, z } = location * self.scale;
             writeln!(zip, "{};{x:.2};{y:.2};{z:.2}", index + 1)?;
