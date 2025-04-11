@@ -33,16 +33,7 @@ impl Fabric {
         // Create joints CSV
         zip.start_file("joints.csv", options)?;
         writeln!(zip, "Index;X;Y;Z")?;
-        for (
-            index,
-            Joint {
-                location, ..
-            },
-        ) in self
-            .joints
-            .iter()
-            .enumerate()
-        {
+        for (index, Joint { location, .. }) in self.joints.iter().enumerate() {
             let Point3 { x, y, z } = location * self.scale;
             writeln!(zip, "{};{x:.2};{y:.2};{z:.2}", index + 1)?;
         }
@@ -73,15 +64,7 @@ impl Fabric {
             .joints
             .iter()
             .enumerate()
-            .filter(
-                |(
-                    _,
-                    Joint {
-                        location: Point3 { y, .. },
-                        ..
-                    },
-                )| *y <= 0.0,
-            )
+            .filter(|(_, joint)| joint.location.y <= 0.0)
             .map(|(index, _)| (index + 1).to_string())
             .join(",");
         writeln!(zip, "Submerged")?;
