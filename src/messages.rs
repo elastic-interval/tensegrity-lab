@@ -137,6 +137,13 @@ impl Appearance {
         }
     }
 
+    pub fn active(&self) -> Self {
+        Self {
+            color: [0.9, 0.1, 0.1, 1.0],
+            radius: self.radius + 1.0,
+        }
+    }
+
     pub fn highlighted(&self) -> Self {
         Self {
             color: [0.0, 1.0, 0.0, 1.0],
@@ -183,7 +190,7 @@ impl Debug for StateChange {
         let name = match self {
             StateChange::SetFabricName(_) => "SetFabricName()",
             StateChange::SetFabricStats(_) => "SetFabricStats()",
-            StateChange::SetControlState(_) => "SetcontrolState()",
+            StateChange::SetControlState(_) => "SetControlState()",
             StateChange::SetAppearanceFunction(_) => "SetColorFunction()",
             StateChange::SetIntervalColor { .. } => "SetIntervalColor()",
             StateChange::ResetView => "ResetView()",
