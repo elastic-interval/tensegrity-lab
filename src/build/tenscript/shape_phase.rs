@@ -61,9 +61,7 @@ pub enum ShapeOperation {
         surface: (f32, f32),
         material: Option<Material>,
     },
-    RemoveSpacers {
-        mark_names: Vec<String>,
-    },
+    FinalizeSpacers,
     Vulcanize,
     FacesToTriangles,
     FacesToPrisms {
@@ -184,10 +182,7 @@ impl ShapePhase {
                 let operations = Self::parse_shape_operations(inner)?;
                 Ok(ShapeOperation::Countdown { count, operations })
             }
-            Rule::remove_spacers => {
-                let mark_names = pair.into_inner().map(|p| p.as_str()[1..].into()).collect();
-                Ok(ShapeOperation::RemoveSpacers { mark_names })
-            }
+            Rule::finalize_spacers => Ok(ShapeOperation::FinalizeSpacers),
             Rule::faces_to_triangles => Ok(ShapeOperation::FacesToTriangles),
             Rule::faces_to_prisms => {
                 let mark_names = pair.into_inner().map(|p| p.as_str()[1..].into()).collect();
@@ -264,7 +259,7 @@ impl ShapePhase {
             return Ok(countdown);
         }
         let Some(operation) = self.operations.get(self.shape_operation_index) else {
-            self.remove_spacers(fabric, vec![]);
+            self.finalize_spacers(fabric);
             self.remove_anchors(fabric);
             return Ok(Terminate);
         };
@@ -456,8 +451,8 @@ impl ShapePhase {
                 }
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
-            ShapeOperation::RemoveSpacers { mark_names } => {
-                self.remove_spacers(fabric, mark_names);
+            ShapeOperation::FinalizeSpacers => {
+                self.finalize_spacers(fabric);
                 Noop
             }
             ShapeOperation::Countdown { count, operations } => {
@@ -472,7 +467,7 @@ impl ShapePhase {
                 StartCountdown(DEFAULT_VULCANIZE_COUNTDOWN)
             }
             ShapeOperation::FacesToTriangles => {
-                self.remove_spacers(fabric, vec![]);
+                self.finalize_spacers(fabric);
                 let face_ids: Vec<UniqueId> = fabric.faces.keys().cloned().collect();
                 for face_id in face_ids {
                     fabric.face_to_triangle(face_id);
@@ -555,23 +550,15 @@ impl ShapePhase {
             .collect()
     }
 
-    fn remove_spacers(&mut self, fabric: &mut Fabric, mark_names: Vec<String>) {
+    fn finalize_spacers(&mut self, fabric: &mut Fabric) {
         self.shape_intervals = self
             .shape_intervals
             .iter()
             .cloned()
             .filter(|shape_interval| {
-                if let ShapeInterval::FaceSpacer {
-                    interval,
-                    mark_name,
-                    ..
-                } = shape_interval
-                {
-                    let marked = mark_names.is_empty() || mark_names.contains(&mark_name);
-                    if marked {
-                        fabric.remove_interval(*interval);
-                    }
-                    !marked // discard if marked
+                if let ShapeInterval::FaceSpacer { interval, .. } = shape_interval {
+                    fabric.remove_interval(*interval);
+                    false
                 } else {
                     true
                 }

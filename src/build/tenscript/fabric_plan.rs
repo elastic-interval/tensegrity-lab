@@ -62,9 +62,6 @@ impl FabricPlan {
                 | ShapeOperation::Spacer { mark_name, .. } => {
                     shape_marks.insert(mark_name.clone());
                 }
-                ShapeOperation::RemoveSpacers { mark_names } => {
-                    shape_marks.extend(mark_names.iter().cloned());
-                }
                 _ => {}
             })
         }

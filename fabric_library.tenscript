@@ -15,15 +15,14 @@
                             (face (alias Brother) (mark :shoulders))
                             (face (alias FarOtherB) (grow 4 (scale .93) (mark :hands))))))))
         (shape
-            (set-viscosity 500)
             (down :legs)
-            (centralize 1.0)
-            (during 30000
-                (space :legs 0.01)
-                (space :hands .02)
-                (space :shoulders 0.01))
-            (during 35000 (vulcanize))
-            (remove-spacers)
+            (during 2000 (centralize 1.0))
+            (during 25000
+                (space :legs 0.3)
+                (space :hands 0.1)
+                (space :shoulders 0.5))
+            (during 25000 (vulcanize))
+            (finalize-spacers)
             (faces-to-prisms :legs)
             (faces-to-triangles)
             (omit 1 16)
@@ -35,8 +34,8 @@
             (omit 4 15)
             (omit 0 14)
             (during 60000
-                (anchor 187 (surface 0.0 -5.0))
-                (anchor 189 (surface 0.0 5.0))
+                (anchor 187 (surface 0.0 -5.5))
+                (anchor 189 (surface 0.0 5.5))
                 (guy-line 22 12.5 (surface -6.0 -8.0))
                 (guy-line 24 12.5 (surface -6.0 8.0))
                 (guy-line 12 16.5 (surface 7.0 -10.0) :north)
@@ -207,7 +206,6 @@
 		(shape
 			(during 15000 (space :legs .25) (space :hands .02) (space :chest-1 .8) (space :chest-2 .2))
 			(during 80000 (vulcanize))
-			(remove-spacers)
 			(faces-to-triangles)
 			(centralize 1.0))
 		(pretense (surface :frozen)))
