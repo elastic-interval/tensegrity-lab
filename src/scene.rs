@@ -52,6 +52,7 @@ impl Scene {
         match state_change {
             SetControlState(control_state) => match control_state {
                 Waiting | UnderConstruction | Animating => self.reset(),
+                Baking => self.render_style = WithAppearanceFunction(Rc::new(|_| None)),
                 Viewing => {
                     self.reset();
                     self.pick_allowed = true;

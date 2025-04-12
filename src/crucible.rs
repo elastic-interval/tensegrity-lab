@@ -101,10 +101,7 @@ impl Crucible {
                     #[cfg(target_arch = "wasm32")]
                     println!("Baked {:?}", baked.into_tenscript());
                     #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        std::fs::write("baked-brick.tenscript", baked.into_tenscript()).unwrap();
-                        std::process::exit(0);
-                    }
+                    std::fs::write("baked-brick.tenscript", baked.into_tenscript()).unwrap();
                 }
             }
             Evolving(evolution) => {
@@ -118,7 +115,7 @@ impl Crucible {
         use StateChange::*;
         match crucible_action {
             BakeBrick(prototype) => {
-                self.stage = BakingBrick(Oven::new(prototype));
+                self.stage = BakingBrick(Oven::new(prototype, self.radio.clone()));
             }
             BuildFabric(fabric_plan) => {
                 self.stage = RunningPlan(PlanRunner::new(fabric_plan));
