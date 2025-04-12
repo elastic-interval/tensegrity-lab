@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use cgmath::MetricSpace;
 
+use crate::fabric::interval::Span::Approaching;
 use crate::fabric::interval::{Interval, Role, Span};
 use crate::fabric::joint::Joint;
 use crate::fabric::joint_incident::{JointIncident, Path};
@@ -51,7 +52,6 @@ impl Fabric {
     }
 
     pub fn strain_limits(&self, target_material: Material) -> (f32, f32) {
-        // let target_material = interval_material(material);
         let choose_target =
             |&Interval {
                  strain, material, ..
@@ -67,6 +67,43 @@ impl Fabric {
             .min_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap_or(0.0);
         (min_strain, max_strain)
+    }
+
+    pub fn _equalize_strain(&mut self, target_material: Material) {
+        let mut total_strain = 0.0;
+        let mut count = 0;
+        for Interval {
+            material, strain, ..
+        } in self.intervals.values()
+        {
+            if *material == target_material {
+                total_strain += strain;
+                count += 1;
+            }
+        }
+        let average_strain = total_strain / (count as f32);
+        for Interval {
+            material,
+            span,
+            strain,
+            ..
+        } in self.intervals.values_mut()
+        {
+            if *material == target_material {
+                match span {
+                    Span::Fixed { length } => {
+                        let slack_length = *length * (1.0 - *strain);
+                        let new_length = slack_length * (1.0 + average_strain);
+                        *span = Approaching {
+                            length: new_length,
+                            begin: *length,
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        self.progress.start(10000);
     }
 
     fn pair_generator(&self) -> PairGenerator {

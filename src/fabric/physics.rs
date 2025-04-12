@@ -89,15 +89,15 @@ pub mod presets {
     use crate::fabric::physics::SurfaceCharacter::{Absent, Frozen};
 
     pub const LIQUID: Physics = Physics {
-        drag: 1e-6,
+        drag: 5e-6,
         iterations_per_frame: 1000.0,
         mass: 1.0,
         cycle_ticks: 1000.0,
-        stiffness: 1e-3,
+        stiffness: 1e-4,
         pretenst: 20.0, // not used
         strain_limit: 1_000.0,
         surface_character: Absent,
-        viscosity: 1e4,
+        viscosity: 1e5,
     };
 
     pub const PROTOTYPE_FORMATION: Physics = Physics {
