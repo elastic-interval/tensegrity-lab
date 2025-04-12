@@ -12,7 +12,6 @@ use crate::build::tenscript::{FaceMark, TenscriptError};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Interval;
-use crate::fabric::material::Material::{GuyLineMaterial, PullMaterial};
 use crate::fabric::material::{material_by_label, Material};
 use crate::fabric::{Fabric, UniqueId};
 
@@ -71,6 +70,7 @@ pub enum ShapeOperation {
     SetDrag(f32),
     SetViscosity(f32),
     Omit((usize, usize)),
+    Add((usize, usize)),
 }
 
 impl ShapeOperation {
@@ -207,6 +207,12 @@ impl ShapePhase {
                 let omega_index = parse_usize(inner.next().unwrap().as_str(), "(omit ...)")?;
                 Ok(ShapeOperation::Omit((alpha_index, omega_index)))
             }
+            Rule::add => {
+                let mut inner = pair.into_inner();
+                let alpha_index = parse_usize(inner.next().unwrap().as_str(), "(add ...)")?;
+                let omega_index = parse_usize(inner.next().unwrap().as_str(), "(add ...)")?;
+                Ok(ShapeOperation::Add((alpha_index, omega_index)))
+            }
             Rule::anchor => {
                 let mut inner = pair.into_inner();
                 let joint_index = parse_usize(inner.next().unwrap().as_str(), "(anchor ...)")?;
@@ -304,8 +310,12 @@ impl ShapePhase {
                 let joints = self.marked_middle_joints(fabric, &face_ids);
                 match face_ids.len() {
                     2 => {
-                        let interval =
-                            fabric.create_interval(joints[0], joints[1], 0.01, PullMaterial);
+                        let interval = fabric.create_interval(
+                            joints[0],
+                            joints[1],
+                            0.01,
+                            Material::PullMaterial,
+                        );
                         self.shape_intervals.push(ShapeInterval::FaceJoiner {
                             interval,
                             alpha_face: face_ids[0],
@@ -396,7 +406,7 @@ impl ShapePhase {
                         );
                         for (near_face_id, near_joint, far_face_id, far_joint) in shapers {
                             let interval =
-                                fabric.create_interval(near_joint, far_joint, 0.01, PullMaterial);
+                                fabric.create_interval(near_joint, far_joint, 0.01, Material::PullMaterial);
                             self.shape_intervals.push(ShapeInterval::FaceJoiner {
                                 interval,
                                 alpha_face: near_face_id,
@@ -440,7 +450,7 @@ impl ShapePhase {
                             .distance(fabric.joints[omega_index].location)
                             * distance_factor;
                         let interval =
-                            fabric.create_interval(alpha_index, omega_index, length, PullMaterial);
+                            fabric.create_interval(alpha_index, omega_index, length, Material::PullMaterial);
                         self.shape_intervals.push(ShapeInterval::FaceSpacer {
                             interval,
                             alpha_face: faces[alpha],
@@ -505,13 +515,18 @@ impl ShapePhase {
                 fabric.remove_interval_joining(pair);
                 Noop
             }
+            ShapeOperation::Add((alpha_index, omega_index)) => {
+                let ideal = fabric.distance(alpha_index, omega_index);
+                fabric.create_interval(alpha_index, omega_index, ideal, Material::PullMaterial);
+                Noop
+            }
             ShapeOperation::Anchor {
                 joint_index,
                 surface,
             } => {
                 let (x, z) = surface;
                 let base = fabric.create_fixed_joint(Point3::new(x, 0.0, z));
-                let interval_id = fabric.create_interval(joint_index, base, 0.01, PullMaterial);
+                let interval_id = fabric.create_interval(joint_index, base, 0.01, Material::PullMaterial);
                 self.shape_intervals
                     .push(ShapeInterval::SurfaceAnchor(interval_id));
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
@@ -524,7 +539,7 @@ impl ShapePhase {
             } => {
                 let (x, z) = surface;
                 let base = fabric.create_fixed_joint(Point3::new(x, 0.0, z));
-                let material = material.unwrap_or(GuyLineMaterial);
+                let material = material.unwrap_or(Material::GuyLineMaterial);
                 fabric.create_interval(joint_index, base, length, material);
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }

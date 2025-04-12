@@ -24,7 +24,7 @@
             (during 25000 (vulcanize))
             (finalize-spacers)
             (faces-to-prisms :legs)
-            (faces-to-triangles)
+            (during 50000 (faces-to-triangles))
             (omit 1 16)
             (omit 5 17)
             (omit 56 68)
@@ -33,6 +33,16 @@
             (omit 58 69)
             (omit 4 15)
             (omit 0 14)
+            (add 11 13)
+            (add 7 9)
+            (add 8 12)
+            (add 6 10)
+            (add 9 13)
+            (add 7 11)
+            (add 10 12)
+            (add 8 6)
+            ; (add 74 57) ;shoulders
+            ; (add 181 179) ;hands
             (during 60000
                 (anchor 187 (surface 0.0 -5.5))
                 (anchor 189 (surface 0.0 5.5))
@@ -42,7 +52,7 @@
                 (guy-line 10 16.5 (surface 7.0 10.0) :south)))
         (pretense
             (pretenst 0.8)
-            (muscle 0.98 1700)
+            (muscle 0.97 3000)
             (surface :frozen))
         (scale 510.0))
 	(fabric (name "Halo by Crane")
