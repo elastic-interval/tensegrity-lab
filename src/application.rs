@@ -222,6 +222,7 @@ impl ApplicationHandler<LabEvent> for Application {
                             .expect("no such brick")
                             .proto
                             .clone();
+                        ControlState::Baking.send(&self.radio);
                         self.crucible.action(CrucibleAction::BakeBrick(prototype));
                     }
                     RunStyle::Seeded(seed) => {

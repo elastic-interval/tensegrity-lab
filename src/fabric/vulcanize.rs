@@ -6,7 +6,7 @@ use crate::fabric::interval::{Interval, Role, Span};
 use crate::fabric::joint::Joint;
 use crate::fabric::joint_incident::{JointIncident, Path};
 use crate::fabric::material::Material::{BowTieMaterial, PullMaterial};
-use crate::fabric::material::{interval_material, material_by_label};
+use crate::fabric::material::{interval_material, Material};
 use crate::fabric::Fabric;
 
 const BOW_TIE_SHORTEN: f32 = 0.5;
@@ -50,8 +50,8 @@ impl Fabric {
         }
     }
 
-    pub fn strain_limits(&self, material_name: String) -> (f32, f32) {
-        let target_material = material_by_label(material_name);
+    pub fn strain_limits(&self, target_material: Material) -> (f32, f32) {
+        // let target_material = interval_material(material);
         let choose_target =
             |&Interval {
                  strain, material, ..

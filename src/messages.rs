@@ -83,6 +83,7 @@ pub struct JointDetails {
 pub enum ControlState {
     Waiting,
     UnderConstruction,
+    Baking,
     Viewing,
     Animating,
     ShowingJoint(JointDetails),
