@@ -43,7 +43,7 @@ impl Fabric {
 
     pub fn ideal(&self, alpha_index: usize, omega_index: usize, strain: f32) -> f32 {
         let distance = self.distance(alpha_index, omega_index);
-        distance / (1.0 + strain)
+        distance / (1.0 + strain * distance)
     }
 }
 

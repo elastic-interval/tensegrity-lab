@@ -2,8 +2,8 @@
 	(fabric	(name "De Twips")
         (build
             (branch (alias Torque)
-                (face (alias LeftFrontBottom) (grow 6 (scale 1.05) (mark :legs)))
-                (face (alias RightFrontBottom) (grow 6 (scale 1.05) (mark :legs)))
+                (face (alias LeftFrontBottom) (grow 6 (scale 1.04) (mark :legs)))
+                (face (alias RightFrontBottom) (grow 6 (scale 1.04) (mark :legs)))
                 (face (alias LeftBackTop)
                     (grow 1 (scale 0.95)
                         (branch (alias TorqueRight) (rotate) (rotate)

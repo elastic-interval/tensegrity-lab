@@ -414,7 +414,7 @@ impl Baked {
                 .joints
                 .into_iter()
                 .map(|BakedJoint { location, .. }| location)
-                .map(|Point3 { x, y, z }| format!("(joint {x:.4} {y:.4} {z:.4})"))
+                .map(|Point3 { x, y, z }| format!("(joint {x:.6} {y:.6} {z:.6})"))
                 .collect::<Vec<_>>()
                 .join("\n\t\t\t"),
             intervals = self
@@ -427,7 +427,7 @@ impl Baked {
                          material_name,
                          strain,
                      }| {
-                        format!("(interval {alpha_index} {omega_index} {strain:.4} {material_name})")
+                        format!("(interval {alpha_index} {omega_index} {strain:.10} {material_name})")
                     }
                 )
                 .collect::<Vec<_>>()
