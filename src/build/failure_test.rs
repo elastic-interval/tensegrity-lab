@@ -104,13 +104,13 @@ impl FailureTest {
         scenario: TestScenario,
         max_age: Age,
     ) -> Vec<FailureTest> {
+        use Material::*;
+        use TestScenario::*;
         let interval_keys: Vec<_> = default_fabric
             .intervals
             .iter()
             .flat_map(|(id, interval)| match (interval.material, &scenario) {
-                (Material::Pull, TestScenario::TensionTest) => Some(*id),
-                (Material::Push, TestScenario::CompressionTest) => Some(*id),
-                (Material::GuyLine, TestScenario::TensionTest) => Some(*id),
+                (Pull, TensionTest) | (Push, CompressionTest) | (GuyLine, TensionTest) => Some(*id),
                 _ => None,
             })
             .collect();
