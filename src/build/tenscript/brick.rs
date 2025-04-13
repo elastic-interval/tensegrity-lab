@@ -135,7 +135,7 @@ impl From<Prototype> for Fabric {
                 }
                 joint_index
             });
-            fabric.create_interval(alpha_index, omega_index, ideal, Material::PushMaterial);
+            fabric.create_interval(alpha_index, omega_index, ideal, Material::Push);
         }
         for PullDef {
             alpha_name,
@@ -166,7 +166,7 @@ impl From<Prototype> for Fabric {
             let midpoint = joints.into_iter().sum::<Vector3<_>>() / 3.0;
             let alpha_index = fabric.create_joint(Point3::from_vec(midpoint));
             let radial_intervals = joint_indices.map(|omega_index| {
-                fabric.create_interval(alpha_index, omega_index, 1.0, Material::FaceRadialMaterial)
+                fabric.create_interval(alpha_index, omega_index, 1.0, Material::FaceRadial)
             });
             fabric.create_face(aliases, 1.0, spin, radial_intervals);
         }
@@ -506,7 +506,7 @@ impl TryFrom<Fabric> for Baked {
                         strain,
                         ..
                     }| {
-                        if material == Material::FaceRadialMaterial {
+                        if material == Material::FaceRadial {
                             return None;
                         }
                         let material_name = material.properties().label.to_string();

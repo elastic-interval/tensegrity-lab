@@ -4,11 +4,10 @@
  */
 
 use crate::fabric::face::Face;
-use crate::fabric::interval::Interval;
-use crate::fabric::interval::Role::{Pull, Push, Spring};
 use crate::fabric::interval::Span::{Approaching, Fixed, Muscle, Pretenst};
+use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::Joint;
-use crate::fabric::material::Material::{NorthMaterial, SouthMaterial};
+use crate::fabric::material::Material::{North, South};
 use crate::fabric::material::MaterialProperties;
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
@@ -19,15 +18,15 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 
 pub mod brick;
+pub mod correction;
 pub mod face;
 pub mod interval;
 pub mod joint;
+pub mod joint_incident;
+pub mod material;
 pub mod physics;
 pub mod progress;
 pub mod vulcanize;
-pub mod correction;
-pub mod joint_incident;
-pub mod material;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod export;
@@ -129,7 +128,7 @@ impl Fabric {
             if !support {
                 match &mut interval.span {
                     Fixed { length } => {
-                        if matches!(role, Push) {
+                        if matches!(role, Role::Pushing) {
                             interval.span = Pretenst {
                                 begin: *length,
                                 length: *length * (1.0 + pretenst / 100.0),
@@ -226,14 +225,14 @@ impl Fabric {
                 continue;
             };
             let contracted = length * contraction;
-            if interval.material == NorthMaterial {
+            if interval.material == North {
                 interval.span = Muscle {
                     length,
                     contracted,
                     reverse: false,
                 };
             }
-            if interval.material == SouthMaterial {
+            if interval.material == South {
                 interval.span = Muscle {
                     length,
                     contracted,
@@ -296,7 +295,7 @@ impl Fabric {
             let material = interval.material.properties();
             if !material.support {
                 match material.role {
-                    Push => {
+                    Role::Pushing => {
                         push_count += 1;
                         push_total += length;
                         if length < push_range.0 {
@@ -306,7 +305,7 @@ impl Fabric {
                             push_range.1 = length;
                         }
                     }
-                    Pull => {
+                    Role::Pulling => {
                         pull_count += 1;
                         pull_total += length;
                         if length < pull_range.0 {
@@ -316,7 +315,7 @@ impl Fabric {
                             pull_range.1 = length;
                         }
                     }
-                    Spring => unreachable!(),
+                    _ => unreachable!(),
                 }
             }
         }

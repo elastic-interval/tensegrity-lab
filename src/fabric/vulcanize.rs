@@ -19,13 +19,13 @@ impl Fabric {
             length,
         } in self.pair_generator().bow_tie_pulls(&self.joints)
         {
-            self.create_interval(alpha_index, omega_index, length, Material::BowTieMaterial);
+            self.create_interval(alpha_index, omega_index, length, Material::BowTie);
         }
     }
 
     pub fn shorten_pulls(&mut self, strain_threshold: f32, shortening: f32) {
         for interval in self.intervals.values_mut() {
-            if interval.material != Material::BowTieMaterial {
+            if interval.material != Material::BowTie {
                 continue;
             }
             if interval.strain > strain_threshold {
@@ -46,7 +46,7 @@ impl Fabric {
             length,
         } in self.pair_generator().proximity_measures()
         {
-            self.create_interval(alpha_index, omega_index, length, Material::PullMaterial);
+            self.create_interval(alpha_index, omega_index, length, Material::Pull);
         }
     }
 
@@ -191,7 +191,7 @@ impl PairGenerator {
 
     fn bow_tie_pulls(mut self, joints: &[Joint]) -> impl Iterator<Item = Pair> {
         for interval in self.intervals.values() {
-            if interval.material.properties().role != Role::Push {
+            if interval.material.properties().role != Role::Pushing {
                 continue;
             }
             let mut meeting_pairs = vec![];

@@ -35,7 +35,7 @@ impl Oven {
         if age.brick_baked() && max_velocity < SPEED_LIMIT {
             self.finished = true;
             println!("Fabric settled in {age} at velocity {max_velocity}");
-            let (_, max) = self.fabric.strain_limits(Material::PullMaterial);
+            let (_, max) = self.fabric.strain_limits(Material::Pull);
             // let strains = self
             //     .fabric
             //     .interval_values()
