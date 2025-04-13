@@ -19,33 +19,6 @@ impl Fabric {
             length,
         } in self.pair_generator().bow_tie_pulls(&self.joints)
         {
-            self.create_interval(alpha_index, omega_index, length, Material::BowTie);
-        }
-    }
-
-    pub fn shorten_pulls(&mut self, strain_threshold: f32, shortening: f32) {
-        for interval in self.intervals.values_mut() {
-            if interval.material != Material::BowTie {
-                continue;
-            }
-            if interval.strain > strain_threshold {
-                interval.span = match interval.span {
-                    Span::Fixed { length } => Span::Fixed {
-                        length: length * shortening,
-                    },
-                    _ => unreachable!(),
-                }
-            }
-        }
-    }
-
-    pub fn install_measures(&mut self) {
-        for Pair {
-            alpha_index,
-            omega_index,
-            length,
-        } in self.pair_generator().proximity_measures()
-        {
             self.create_interval(alpha_index, omega_index, length, Material::Pull);
         }
     }
@@ -146,47 +119,6 @@ impl PairGenerator {
             intervals,
             pairs: HashMap::new(),
         }
-    }
-
-    fn proximity_measures(mut self) -> impl Iterator<Item = Pair> {
-        for joint in 0..self.joints.len() {
-            self.push_proximity(joint);
-        }
-        self.pairs.into_values()
-    }
-
-    fn push_proximity(&mut self, joint_index: usize) {
-        let Some(push) = &self.joints[joint_index].push else {
-            return;
-        };
-        let length_limit = push.ideal();
-        let new_pairs = self
-            .joints
-            .iter()
-            .filter_map(|other_joint| {
-                if joint_index == other_joint.index {
-                    return None;
-                }
-                if self.joints[joint_index]
-                    .adjacent_joints
-                    .contains(&other_joint.index)
-                {
-                    return None;
-                }
-                let length = self.joints[joint_index]
-                    .location
-                    .distance(other_joint.location);
-                if length > length_limit {
-                    return None;
-                }
-                Some(Pair {
-                    alpha_index: joint_index,
-                    omega_index: other_joint.index,
-                    length,
-                })
-            })
-            .map(|pair| (pair.key(), pair));
-        self.pairs.extend(new_pairs);
     }
 
     fn bow_tie_pulls(mut self, joints: &[Joint]) -> impl Iterator<Item = Pair> {
