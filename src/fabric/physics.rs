@@ -21,7 +21,7 @@ impl SurfaceCharacter {
     pub fn gravity(&self) -> f32 {
         match self {
             SurfaceCharacter::Absent => 0.0,
-            _ => 1e-7,
+            _ => 1e-6,
         }
     }
 
