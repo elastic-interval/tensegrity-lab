@@ -8,7 +8,7 @@ use crate::build::tenscript::pretenser::Pretenser;
 use crate::crucible::Stage::*;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{ControlState, CrucibleAction, LabEvent, Radio, StateChange};
+use crate::{ControlState, CrucibleAction, LabEvent, Radio, StateChange};
 
 #[derive(Debug, Clone)]
 pub struct Holder {

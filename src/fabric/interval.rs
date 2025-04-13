@@ -9,7 +9,7 @@ use crate::fabric::joint::Joint;
 use crate::fabric::material::{Material, MaterialProperties};
 use crate::fabric::physics::Physics;
 use crate::fabric::{Fabric, Progress, UniqueId};
-use crate::messages::Appearance;
+use crate::Appearance;
 use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, MetricSpace, Point3, Vector3};
 use fast_inv_sqrt::InvSqrt32;

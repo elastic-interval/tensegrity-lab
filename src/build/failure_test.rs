@@ -2,11 +2,11 @@ use crate::fabric::interval::Interval;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{
+use crate::Age;
+use crate::{
     CrucibleAction, PhysicsFeature, PhysicsParameter, Radio, StateChange, TestScenario,
     TesterAction,
 };
-use crate::Age;
 use cgmath::InnerSpace;
 
 pub struct FailureTester {

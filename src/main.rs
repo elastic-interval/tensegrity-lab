@@ -7,8 +7,7 @@ use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
-use tensegrity_lab::messages::RunStyle;
-use tensegrity_lab::messages::{LabEvent, TestScenario};
+use tensegrity_lab::{LabEvent, RunStyle, TestScenario};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

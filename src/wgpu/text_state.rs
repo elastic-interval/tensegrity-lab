@@ -1,6 +1,6 @@
 use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
-use crate::messages::{ControlState, StateChange, TestScenario};
+use crate::{ControlState, StateChange, TestScenario};
 use crate::Age;
 use std::default::Default;
 use wgpu_text::glyph_brush::{

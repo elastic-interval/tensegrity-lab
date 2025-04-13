@@ -1,14 +1,11 @@
 use crate::camera::Target::*;
 use crate::camera::{Camera, Pick};
 use crate::fabric::Fabric;
-use crate::messages::PointerChange;
-use crate::messages::{
-    ControlState, IntervalDetails, JointDetails, Radio, RenderStyle, StateChange, TestScenario,
-};
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::Wgpu;
+use crate::{ControlState, IntervalDetails, JointDetails, PointerChange, Radio, RenderStyle, StateChange, TestScenario};
 use std::collections::HashMap;
 use std::rc::Rc;
 use winit::dpi::PhysicalSize;

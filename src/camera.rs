@@ -10,7 +10,7 @@ use winit::dpi::PhysicalPosition;
 use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 use crate::fabric::{Fabric, UniqueId};
-use crate::messages::{PointerChange, Shot};
+use crate::{PointerChange, Shot};
 
 #[derive(Debug, Clone)]
 pub enum Pick {
