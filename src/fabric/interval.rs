@@ -101,23 +101,23 @@ pub enum Span {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Role {
-    Push = 0,
-    Pull = 1,
-    Spring = 2,
+    Pushing = 0,
+    Pulling = 1,
+    Springy = 2,
 }
 
 impl Role {
     pub fn appearance(&self) -> Appearance {
         Appearance {
             radius: match self {
-                Push => 1.7,
-                Pull => 0.2,
-                Spring => 1.0,
+                Pushing => 1.7,
+                Pulling => 0.2,
+                Springy => 1.0,
             },
             color: match self {
-                Push => [0.8, 0.8, 0.85, 1.0],
-                Pull => [0.3, 0.3, 0.9, 1.0],
-                Spring => [0.7, 0.3, 0.7, 1.0],
+                Pushing => [0.8, 0.8, 0.85, 1.0],
+                Pulling => [0.3, 0.3, 0.9, 1.0],
+                Springy => [0.7, 0.3, 0.7, 1.0],
             },
         }
     }
@@ -260,8 +260,8 @@ impl Interval {
         } = self.material.properties();
         self.strain = (real_length - ideal) / ideal;
         match role {
-            Push if real_length > ideal => self.strain = 0.0, // do not pull
-            Pull if real_length < ideal => self.strain = 0.0, // do not push
+            Pushing if real_length > ideal => self.strain = 0.0, // do not pull
+            Pulling if real_length < ideal => self.strain = 0.0, // do not push
             _ => {}
         };
         let force = self.strain * stiffness * physics.stiffness;

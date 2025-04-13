@@ -7,7 +7,7 @@ use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, MetricSpace, Point3, 
 use crate::build::tenscript::{FaceAlias, Spin};
 use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
-use crate::fabric::material::Material::{PullMaterial, PushMaterial};
+use crate::fabric::material::Material::{Pull, Push};
 use crate::fabric::{Fabric, UniqueId};
 
 const ROOT3: f32 = 1.732_050_8;
@@ -79,7 +79,7 @@ impl Fabric {
                 alpha_rotated[a],
                 omega_ends[b],
                 ideal,
-                PullMaterial,
+                Pull,
             );
         }
         self.remove_face(alpha_id);
@@ -95,7 +95,7 @@ impl Fabric {
                 radial_joints[alpha],
                 radial_joints[omega],
                 side_length,
-                PullMaterial,
+                Pull,
             );
         }
     }
@@ -109,11 +109,11 @@ impl Fabric {
         let midpoint = face.midpoint(&self);
         let alpha = self.create_joint(Point3::from_vec(midpoint - normal * push_length / 2.0));
         let omega = self.create_joint(Point3::from_vec(midpoint + normal * push_length / 2.0));
-        self.create_interval(alpha, omega, push_length, PushMaterial);
+        self.create_interval(alpha, omega, push_length, Push);
         for joint in 0..3 {
             let radial = radial_joints[joint];
-            self.create_interval(alpha, radial, pull_length, PullMaterial);
-            self.create_interval(omega, radial, pull_length, PullMaterial);
+            self.create_interval(alpha, radial, pull_length, Pull);
+            self.create_interval(omega, radial, pull_length, Pull);
         }
     }
 }

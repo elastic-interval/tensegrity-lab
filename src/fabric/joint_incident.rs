@@ -47,12 +47,12 @@ impl JointIncident {
 
     pub fn add_interval(&mut self, id: UniqueId, interval: &Interval) {
         match interval.material.properties().role {
-            Role::Push => self.push = Some(*interval),
-            Role::Pull => {
+            Role::Pushing => self.push = Some(*interval),
+            Role::Pulling => {
                 self.pulls.push((id, *interval));
                 self.pull_adjacent_joints.insert(interval.other_joint(self.index));
             }
-            Role::Spring => {
+            Role::Springy => {
                 self.springs.push(*interval);
             }
         }

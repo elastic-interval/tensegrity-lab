@@ -100,9 +100,9 @@ impl FailureTest {
             .intervals
             .iter()
             .flat_map(|(id, interval)| match (interval.material, &scenario) {
-                (Material::PullMaterial, TestScenario::TensionTest) => Some(*id),
-                (Material::PushMaterial, TestScenario::CompressionTest) => Some(*id),
-                (Material::GuyLineMaterial, TestScenario::TensionTest) => Some(*id),
+                (Material::Pull, TestScenario::TensionTest) => Some(*id),
+                (Material::Push, TestScenario::CompressionTest) => Some(*id),
+                (Material::GuyLine, TestScenario::TensionTest) => Some(*id),
                 _ => None,
             })
             .collect();

@@ -1,8 +1,7 @@
 use crate::fabric::interval::Role;
-use crate::fabric::interval::Role::{Pull, Push, Spring};
 use crate::fabric::material::Material::{
-    BowTieMaterial, FaceRadialMaterial, GuyLineMaterial, NorthMaterial, PullMaterial, PushMaterial,
-    SouthMaterial, SpringMaterial,
+    BowTie, FaceRadial, GuyLine, North, Pull, Push,
+    South, Spring,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -16,71 +15,71 @@ pub struct MaterialProperties {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Material {
-    PushMaterial = 0,
-    PullMaterial = 1,
-    BowTieMaterial = 2,
-    NorthMaterial = 3,
-    SouthMaterial = 4,
-    SpringMaterial = 5,
-    FaceRadialMaterial = 6,
-    GuyLineMaterial = 7,
+    Push = 0,
+    Pull = 1,
+    BowTie = 2,
+    North = 3,
+    South = 4,
+    Spring = 5,
+    FaceRadial = 6,
+    GuyLine = 7,
 }
 
 impl Material {
     pub fn properties(&self) -> MaterialProperties {
         match self {
-            PushMaterial => MaterialProperties {
+            Push => MaterialProperties {
                 label: ":push",
-                role: Push,
+                role: Role::Pushing,
                 stiffness: 30.0,
                 mass: 1.0,
                 support: false,
             },
-            PullMaterial => MaterialProperties {
+            Pull => MaterialProperties {
                 label: ":pull",
-                role: Pull,
+                role: Role::Pulling,
                 stiffness: 1.0,
                 mass: 0.1,
                 support: false,
             },
-            BowTieMaterial => MaterialProperties {
+            BowTie => MaterialProperties {
                 label: ":bow-tie",
-                role: Pull,
+                role: Role::Pulling,
                 stiffness: 1.0,
                 mass: 0.1,
                 support: false,
             },
-            NorthMaterial => MaterialProperties {
+            North => MaterialProperties {
                 label: ":north",
-                role: Pull,
+                role: Role::Pulling,
                 stiffness: 1.0,
                 mass: 0.01,
                 support: true,
             },
-            SouthMaterial => MaterialProperties {
+            South => MaterialProperties {
                 label: ":south",
-                role: Pull,
+                role: Role::Pulling,
                 stiffness: 1.0,
                 mass: 0.01,
                 support: true,
             },
-            SpringMaterial => MaterialProperties {
+            Spring => MaterialProperties {
                 label: ":spring",
-                role: Spring,
+                role: Role::Springy,
                 stiffness: 0.5,
                 mass: 0.01,
                 support: false,
             },
-            FaceRadialMaterial => MaterialProperties {
+            FaceRadial => MaterialProperties {
                 label: ":pull",
-                role: Pull,
+                role: Role::Pulling,
                 stiffness: 1.0,
                 mass: 0.1,
                 support: false,
             },
-            GuyLineMaterial => MaterialProperties {
+            GuyLine => MaterialProperties {
                 label: ":pull",
-                role: Pull,
+                role: Role::Pulling,
                 stiffness: 1.0,
                 mass: 0.1,
                 support: true,
@@ -93,14 +92,14 @@ impl Material {
 
         // This array ensures we search all materials
         const ALL_MATERIALS: [Material; 8] = [
-            PushMaterial,
-            PullMaterial,
-            BowTieMaterial,
-            NorthMaterial,
-            SouthMaterial,
-            SpringMaterial,
-            FaceRadialMaterial,
-            GuyLineMaterial,
+            Push,
+            Pull,
+            BowTie,
+            North,
+            South,
+            Spring,
+            FaceRadial,
+            GuyLine,
         ];
 
         ALL_MATERIALS

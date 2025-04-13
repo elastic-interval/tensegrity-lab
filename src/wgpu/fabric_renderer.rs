@@ -192,7 +192,7 @@ impl FabricRenderer {
         use RenderStyle::*;
         let mut instances = Vec::with_capacity(fabric.intervals.len());
         for (interval_id, interval) in &fabric.intervals {
-            let push = interval.material == Material::PushMaterial;
+            let push = interval.material == Material::Push;
             match render_style {
                 WithPullMap(_) if push => continue,
                 WithPushMap(_) if !push => continue,

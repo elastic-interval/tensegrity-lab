@@ -167,9 +167,9 @@ impl TextState {
                     )),
                     ShowingInterval(interval_details) => {
                         let role = match interval_details.role {
-                            Role::Push => "Strut",
-                            Role::Pull => "Cable",
-                            Role::Spring => "Spring",
+                            Role::Pushing => "Strut",
+                            Role::Pulling => "Cable",
+                            Role::Springy => "Spring",
                         };
                         let length_string = if let Some(stats) = &self.fabric_stats {
                             format!("{0:.1} mm", interval_details.length * stats.scale)
