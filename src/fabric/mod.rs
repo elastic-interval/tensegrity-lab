@@ -9,7 +9,7 @@ use crate::fabric::interval::Role::{Pull, Push, Spring};
 use crate::fabric::interval::Span::{Approaching, Fixed, Muscle, Pretenst};
 use crate::fabric::joint::Joint;
 use crate::fabric::material::Material::{NorthMaterial, SouthMaterial};
-use crate::fabric::material::{interval_material, IntervalMaterial};
+use crate::fabric::material::MaterialProperties;
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
 use crate::Age;
@@ -110,7 +110,7 @@ impl Fabric {
 
     pub fn slacken(&mut self) {
         for interval in self.intervals.values_mut() {
-            let IntervalMaterial { support, .. } = interval_material(interval.material);
+            let MaterialProperties { support, .. } = interval.material.properties();
             if !support {
                 interval.span = Fixed {
                     length: interval.fast_length(&self.joints),
@@ -125,7 +125,7 @@ impl Fabric {
 
     pub fn set_pretenst(&mut self, pretenst: f32, countdown: usize) {
         for interval in self.intervals.values_mut() {
-            let IntervalMaterial { role, support, .. } = interval_material(interval.material);
+            let MaterialProperties { role, support, .. } = interval.material.properties();
             if !support {
                 match &mut interval.span {
                     Fixed { length } => {
@@ -293,7 +293,7 @@ impl Fabric {
         }
         for interval in self.intervals.values() {
             let length = interval.length(&self.joints);
-            let material = interval_material(interval.material);
+            let material = interval.material.properties();
             if !material.support {
                 match material.role {
                     Push => {

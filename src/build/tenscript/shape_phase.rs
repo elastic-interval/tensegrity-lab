@@ -12,7 +12,7 @@ use crate::build::tenscript::{FaceMark, TenscriptError};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Interval;
-use crate::fabric::material::{material_by_label, Material};
+use crate::fabric::material::Material;
 use crate::fabric::{Fabric, UniqueId};
 
 const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 25_000;
@@ -232,7 +232,7 @@ impl ShapePhase {
                 let mut surface = inner.next().unwrap().into_inner();
                 let x = parse_float(surface.next().unwrap().as_str(), "(surface x ..)")?;
                 let z = parse_float(surface.next().unwrap().as_str(), "(surface .. z)")?;
-                let material = inner.next().map(|p| material_by_label(parse_atom(p)));
+                let material = inner.next().map(|p| Material::from_label(&parse_atom(p)).unwrap());
                 let operation = ShapeOperation::GuyLine {
                     joint_index,
                     length,

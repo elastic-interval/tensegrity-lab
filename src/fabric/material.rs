@@ -1,6 +1,18 @@
 use crate::fabric::interval::Role;
 use crate::fabric::interval::Role::{Pull, Push, Spring};
-use crate::fabric::material::Material::{BowTieMaterial, FaceRadialMaterial, GuyLineMaterial, NorthMaterial, PullMaterial, PushMaterial, SouthMaterial, SpringMaterial};
+use crate::fabric::material::Material::{
+    BowTieMaterial, FaceRadialMaterial, GuyLineMaterial, NorthMaterial, PullMaterial, PushMaterial,
+    SouthMaterial, SpringMaterial,
+};
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct MaterialProperties {
+    pub label: &'static str,
+    pub role: Role,
+    pub stiffness: f32,
+    pub mass: f32,
+    pub support: bool,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Material {
@@ -14,107 +26,86 @@ pub enum Material {
     GuyLineMaterial = 7,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct IntervalMaterial {
-    pub name: Material,
-    pub label: &'static str,
-    pub role: Role,
-    pub stiffness: f32,
-    pub mass: f32,
-    pub support: bool,
-}
+impl Material {
+    pub fn properties(&self) -> MaterialProperties {
+        match self {
+            PushMaterial => MaterialProperties {
+                label: ":push",
+                role: Push,
+                stiffness: 30.0,
+                mass: 1.0,
+                support: false,
+            },
+            PullMaterial => MaterialProperties {
+                label: ":pull",
+                role: Pull,
+                stiffness: 1.0,
+                mass: 0.1,
+                support: false,
+            },
+            BowTieMaterial => MaterialProperties {
+                label: ":bow-tie",
+                role: Pull,
+                stiffness: 1.0,
+                mass: 0.1,
+                support: false,
+            },
+            NorthMaterial => MaterialProperties {
+                label: ":north",
+                role: Pull,
+                stiffness: 1.0,
+                mass: 0.01,
+                support: true,
+            },
+            SouthMaterial => MaterialProperties {
+                label: ":south",
+                role: Pull,
+                stiffness: 1.0,
+                mass: 0.01,
+                support: true,
+            },
+            SpringMaterial => MaterialProperties {
+                label: ":spring",
+                role: Spring,
+                stiffness: 0.5,
+                mass: 0.01,
+                support: false,
+            },
+            FaceRadialMaterial => MaterialProperties {
+                label: ":pull",
+                role: Pull,
+                stiffness: 1.0,
+                mass: 0.1,
+                support: false,
+            },
+            GuyLineMaterial => MaterialProperties {
+                label: ":pull",
+                role: Pull,
+                stiffness: 1.0,
+                mass: 0.1,
+                support: true,
+            },
+        }
+    }
 
-const PUSH_MATERIAL: IntervalMaterial = IntervalMaterial {
-    name: PushMaterial,
-    label: ":push",
-    role: Push,
-    stiffness: 30.0,
-    mass: 1.0,
-    support: false,
-};
+    pub fn from_label(label: &str) -> Option<Self> {
+        use Material::*;
 
-const PULL_MATERIAL: IntervalMaterial = IntervalMaterial {
-    name: PullMaterial,
-    label: ":pull",
-    role: Pull,
-    stiffness: 1.0,
-    mass: 0.1,
-    support: false,
-};
+        // This array ensures we search all materials
+        const ALL_MATERIALS: [Material; 8] = [
+            PushMaterial,
+            PullMaterial,
+            BowTieMaterial,
+            NorthMaterial,
+            SouthMaterial,
+            SpringMaterial,
+            FaceRadialMaterial,
+            GuyLineMaterial,
+        ];
 
-const BOW_TIE_MATERIAL: IntervalMaterial = IntervalMaterial {
-    name: BowTieMaterial,
-    label: ":bow-tie",
-    role: Pull,
-    stiffness: 1.0,
-    mass: 0.1,
-    support: false,
-};
-
-const NORTH_MATERIAL: IntervalMaterial = IntervalMaterial {
-    name: NorthMaterial,
-    label: ":north",
-    role: Pull,
-    stiffness: 1.0,
-    mass: 0.01,
-    support: true,
-};
-
-const SOUTH_MATERIAL: IntervalMaterial = IntervalMaterial {
-    name: SouthMaterial,
-    label: ":south",
-    role: Pull,
-    stiffness: 1.0,
-    mass: 0.01,
-    support: true,
-};
-
-const SPRING_MATERIAL: IntervalMaterial = IntervalMaterial {
-    name: SpringMaterial,
-    label: ":spring",
-    role: Spring,
-    stiffness: 0.5,
-    mass: 0.01,
-    support: false,
-};
-
-const FACE_RADIAL_MATERIAL: IntervalMaterial = IntervalMaterial {
-    name: FaceRadialMaterial,
-    label: ":pull",
-    role: Pull,
-    stiffness: 1.0,
-    mass: 0.1,
-    support: false,
-};
-
-const GUY_WIRE_MATERIAL: IntervalMaterial = IntervalMaterial {
-    name: GuyLineMaterial,
-    label: ":pull",
-    role: Pull,
-    stiffness: 1.0,
-    mass: 0.1,
-    support: true,
-};
-
-const MATERIALS: [IntervalMaterial; 8] = [
-    PUSH_MATERIAL,
-    PULL_MATERIAL,
-    BOW_TIE_MATERIAL,
-    NORTH_MATERIAL,
-    SOUTH_MATERIAL,
-    SPRING_MATERIAL,
-    FACE_RADIAL_MATERIAL,
-    GUY_WIRE_MATERIAL,
-];
-
-pub fn interval_material(material: Material) -> &'static IntervalMaterial {
-    &MATERIALS[material as usize]
-}
-
-pub fn material_by_label(sought_label: String) -> Material {
-    MATERIALS
-        .iter()
-        .find_map(|&IntervalMaterial { name, label, .. }|
-            if sought_label.as_str() == label { Some(name) } else { None })
-        .unwrap()
+        ALL_MATERIALS
+            .iter()
+            .find(|&&material| material.properties().label == label)
+            .copied()
+    }
 }

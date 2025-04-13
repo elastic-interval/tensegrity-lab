@@ -1,5 +1,5 @@
 use crate::build::tenscript::brick::{Baked, Prototype};
-use crate::fabric::material::{interval_material, Material};
+use crate::fabric::material::Material;
 use crate::fabric::physics::presets::PROTOTYPE_FORMATION;
 use crate::fabric::Fabric;
 use crate::messages::{Radio, StateChange};
@@ -44,7 +44,7 @@ impl Oven {
             StateChange::SetAppearanceFunction(Rc::new(move |interval| {
                 let strain = interval.strain;
                 let intensity = strain / max;
-                let role = interval_material(interval.material).role;
+                let role = interval.material.properties().role;
                 Some(
                     role.appearance()
                         .with_color([intensity, intensity, intensity, 1.0]),

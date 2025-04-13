@@ -4,7 +4,7 @@ use crate::build::tenscript::brick::{Baked, BakedInterval, BakedJoint, BrickFace
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::{FaceAlias, Spin, TenscriptError};
 use crate::fabric::face::FaceRotation;
-use crate::fabric::material::material_by_label;
+use crate::fabric::material::Material;
 use crate::fabric::material::Material::FaceRadialMaterial;
 use crate::fabric::{Fabric, UniqueId};
 
@@ -69,7 +69,7 @@ impl Fabric {
                 alpha_index,
                 omega_index,
                 ideal,
-                material_by_label(material_name),
+                Material::from_label(&material_name).unwrap(),
             );
         }
         let brick_faces = brick

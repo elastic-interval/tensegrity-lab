@@ -4,7 +4,6 @@ use cgmath::Point3;
 
 use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::{Interval, Role};
-use crate::fabric::material::interval_material;
 
 impl Fabric {
     pub fn joint_incidents(&self) -> Vec<JointIncident> {
@@ -47,7 +46,7 @@ impl JointIncident {
     }
 
     pub fn add_interval(&mut self, id: UniqueId, interval: &Interval) {
-        match interval_material(interval.material).role {
+        match interval.material.properties().role {
             Role::Push => self.push = Some(*interval),
             Role::Pull => {
                 self.pulls.push((id, *interval));
