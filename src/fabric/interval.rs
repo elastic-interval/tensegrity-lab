@@ -6,7 +6,7 @@
 use crate::fabric::interval::Role::*;
 use crate::fabric::interval::Span::*;
 use crate::fabric::joint::Joint;
-use crate::fabric::material::{interval_material, IntervalMaterial, Material};
+use crate::fabric::material::{Material, MaterialProperties};
 use crate::fabric::physics::Physics;
 use crate::fabric::{Fabric, Progress, UniqueId};
 use crate::messages::Appearance;
@@ -252,12 +252,12 @@ impl Interval {
             }
         };
         let real_length = self.fast_length(joints);
-        let IntervalMaterial {
+        let MaterialProperties {
             role,
             stiffness,
             mass,
             ..
-        } = interval_material(self.material);
+        } = self.material.properties();
         self.strain = (real_length - ideal) / ideal;
         match role {
             Push if real_length > ideal => self.strain = 0.0, // do not pull

@@ -6,8 +6,7 @@ use crate::fabric::interval::Span::Approaching;
 use crate::fabric::interval::{Interval, Role, Span};
 use crate::fabric::joint::Joint;
 use crate::fabric::joint_incident::{JointIncident, Path};
-use crate::fabric::material::Material::{BowTieMaterial, PullMaterial};
-use crate::fabric::material::{interval_material, Material};
+use crate::fabric::material::Material;
 use crate::fabric::Fabric;
 
 const BOW_TIE_SHORTEN: f32 = 0.5;
@@ -20,13 +19,13 @@ impl Fabric {
             length,
         } in self.pair_generator().bow_tie_pulls(&self.joints)
         {
-            self.create_interval(alpha_index, omega_index, length, BowTieMaterial);
+            self.create_interval(alpha_index, omega_index, length, Material::BowTieMaterial);
         }
     }
 
     pub fn shorten_pulls(&mut self, strain_threshold: f32, shortening: f32) {
         for interval in self.intervals.values_mut() {
-            if interval.material != BowTieMaterial {
+            if interval.material != Material::BowTieMaterial {
                 continue;
             }
             if interval.strain > strain_threshold {
@@ -47,7 +46,7 @@ impl Fabric {
             length,
         } in self.pair_generator().proximity_measures()
         {
-            self.create_interval(alpha_index, omega_index, length, PullMaterial);
+            self.create_interval(alpha_index, omega_index, length, Material::PullMaterial);
         }
     }
 
@@ -192,7 +191,7 @@ impl PairGenerator {
 
     fn bow_tie_pulls(mut self, joints: &[Joint]) -> impl Iterator<Item = Pair> {
         for interval in self.intervals.values() {
-            if interval_material(interval.material).role != Role::Push {
+            if interval.material.properties().role != Role::Push {
                 continue;
             }
             let mut meeting_pairs = vec![];

@@ -6,7 +6,6 @@ use zip::{write::FileOptions, CompressionMethod, ZipWriter};
 
 use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
-use crate::fabric::material::interval_material;
 use crate::fabric::Fabric;
 
 impl Fabric {
@@ -44,7 +43,7 @@ impl Fabric {
         for interval in self.interval_values() {
             let length = interval.length(&self.joints) * self.scale;
             let strain = interval.strain;
-            let role = interval_material(interval.material).role;
+            let role = interval.material.properties().role;
             let Interval {
                 alpha_index,
                 omega_index,

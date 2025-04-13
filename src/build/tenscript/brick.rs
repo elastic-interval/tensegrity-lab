@@ -12,7 +12,7 @@ use crate::build::tenscript::Spin::{Left, Right};
 use crate::build::tenscript::{parse_atom, FaceAlias, Spin, TenscriptError};
 use crate::fabric::interval::Interval;
 use crate::fabric::joint_incident::JointIncident;
-use crate::fabric::material::{interval_material, material_by_label, Material};
+use crate::fabric::material::Material;
 use crate::fabric::Fabric;
 
 #[derive(Copy, Clone, Debug)]
@@ -151,7 +151,7 @@ impl From<Prototype> for Fabric {
                 alpha_index,
                 omega_index,
                 ideal,
-                material_by_label(material),
+                Material::from_label(&material).unwrap(),
             );
         }
         for FaceDef {
@@ -509,7 +509,7 @@ impl TryFrom<Fabric> for Baked {
                         if material == Material::FaceRadialMaterial {
                             return None;
                         }
-                        let material_name = interval_material(material).label.to_string();
+                        let material_name = material.properties().label.to_string();
                         Some(BakedInterval { alpha_index, omega_index, strain, material_name })
                     },
                 )

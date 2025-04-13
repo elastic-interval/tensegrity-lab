@@ -1,6 +1,5 @@
 use crate::camera::Target::*;
 use crate::camera::{Camera, Pick};
-use crate::fabric::material::interval_material;
 use crate::fabric::Fabric;
 use crate::messages::PointerChange;
 use crate::messages::{
@@ -209,7 +208,7 @@ impl Scene {
                 length,
             } => {
                 self.camera.set_target(AroundInterval(id));
-                let role = interval_material(interval.material).role;
+                let role = interval.material.properties().role;
                 let near_joint = if interval.alpha_index == joint {
                     interval.alpha_index
                 } else {

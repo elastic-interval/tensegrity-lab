@@ -1,5 +1,5 @@
 use crate::camera::Pick;
-use crate::fabric::material::{interval_material, Material};
+use crate::fabric::material::Material;
 use crate::fabric::Fabric;
 use crate::messages::RenderStyle;
 use crate::wgpu::Wgpu;
@@ -201,7 +201,7 @@ impl FabricRenderer {
             let (alpha, omega) = (interval.alpha_index, interval.omega_index);
             let start = fabric.joints[alpha].location;
             let end = fabric.joints[omega].location;
-            let material = interval_material(interval.material);
+            let material = interval.material.properties();
             let role_appearance = material.role.appearance();
             let appearance = match pick {
                 Pick::Nothing => match render_style {

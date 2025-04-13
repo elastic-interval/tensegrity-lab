@@ -1,4 +1,3 @@
-use crate::fabric::material::interval_material;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::messages::{PhysicsFeature, Radio, StateChange, TesterAction};
@@ -39,7 +38,7 @@ impl PhysicsTester {
                         let strain_limit = self.physics.strain_limit;
                         StateChange::SetAppearanceFunction(Rc::new(move |interval| {
                             if interval.strain > strain_limit {
-                                let role = interval_material(interval.material).role;
+                                let role = interval.material.properties().role;
                                 Some(role.appearance().highlighted())
                             } else {
                                 None
