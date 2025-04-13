@@ -1,8 +1,5 @@
 use crate::fabric::interval::Role;
-use crate::fabric::material::Material::{
-    BowTie, FaceRadial, GuyLine, North, Pull, Push,
-    South, Spring,
-};
+use crate::fabric::material::Material::{FaceRadial, GuyLine, North, Pull, Push, South, Spring};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MaterialProperties {
@@ -15,14 +12,13 @@ pub struct MaterialProperties {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Material {
-    Push = 0,
-    Pull = 1,
-    BowTie = 2,
-    North = 3,
-    South = 4,
-    Spring = 5,
-    FaceRadial = 6,
-    GuyLine = 7,
+    Push,
+    Pull,
+    North,
+    South,
+    Spring,
+    FaceRadial,
+    GuyLine,
 }
 
 impl Material {
@@ -37,13 +33,6 @@ impl Material {
             },
             Pull => MaterialProperties {
                 label: ":pull",
-                role: Role::Pulling,
-                stiffness: 1.0,
-                mass: 0.1,
-                support: false,
-            },
-            BowTie => MaterialProperties {
-                label: ":bow-tie",
                 role: Role::Pulling,
                 stiffness: 1.0,
                 mass: 0.1,
@@ -89,20 +78,7 @@ impl Material {
 
     pub fn from_label(label: &str) -> Option<Self> {
         use Material::*;
-
-        // This array ensures we search all materials
-        const ALL_MATERIALS: [Material; 8] = [
-            Push,
-            Pull,
-            BowTie,
-            North,
-            South,
-            Spring,
-            FaceRadial,
-            GuyLine,
-        ];
-
-        ALL_MATERIALS
+        [Push, Pull, North, South, Spring, FaceRadial, GuyLine]
             .iter()
             .find(|&&material| material.properties().label == label)
             .copied()

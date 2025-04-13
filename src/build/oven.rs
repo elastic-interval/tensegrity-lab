@@ -36,11 +36,6 @@ impl Oven {
             self.finished = true;
             println!("Fabric settled in {age} at velocity {max_velocity}");
             let (_, max) = self.fabric.strain_limits(Material::Pull);
-            // let strains = self
-            //     .fabric
-            //     .interval_values()
-            //     .filter(|interval| matches!(interval_material(interval.material).role, Role::Pull))
-            //     .map(|interval| interval.strain).collect_vec();
             StateChange::SetAppearanceFunction(Rc::new(move |interval| {
                 let strain = interval.strain;
                 let intensity = strain / max;
