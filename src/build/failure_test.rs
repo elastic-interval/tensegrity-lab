@@ -21,7 +21,10 @@ impl FailureTester {
             test_number: 0,
             default_fabric: fabric.clone(),
             test_cases: FailureTest::generate(&fabric, scenario, max_age),
-            physics,
+            physics: Physics {
+                iterations_per_frame: 1000.0,
+                ..physics
+            },
             radio,
         }
     }
