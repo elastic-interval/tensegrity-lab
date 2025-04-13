@@ -2,7 +2,10 @@ use crate::fabric::interval::Interval;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{CrucibleAction, Radio, StateChange, TestScenario, TesterAction};
+use crate::messages::{
+    CrucibleAction, PhysicsFeature, PhysicsParameter, Radio, StateChange, TestScenario,
+    TesterAction,
+};
 use crate::Age;
 use cgmath::InnerSpace;
 
@@ -17,14 +20,16 @@ pub struct FailureTester {
 impl FailureTester {
     pub fn new(scenario: TestScenario, fabric: &Fabric, physics: Physics, radio: Radio) -> Self {
         let max_age = fabric.age.advanced(100_000);
+        StateChange::SetPhysicsParameter(PhysicsParameter {
+            feature: PhysicsFeature::IterationsPerFrame,
+            value: 1000.0,
+        })
+        .send(&radio);
         Self {
             test_number: 0,
             default_fabric: fabric.clone(),
             test_cases: FailureTest::generate(&fabric, scenario, max_age),
-            physics: Physics {
-                iterations_per_frame: 1000.0,
-                ..physics
-            },
+            physics,
             radio,
         }
     }
