@@ -3,7 +3,7 @@ use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible::Crucible;
 use crate::keyboard::Keyboard;
-use crate::messages::{
+use crate::{
     ControlState, CrucibleAction, LabEvent, PointerChange, Radio, RunStyle, Shot, StateChange,
     TestScenario, TesterAction,
 };

@@ -2,7 +2,7 @@
  * Copyright (c) 2020. Beautiful Code BV, Rotterdam, Netherlands
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
-use crate::messages::{PhysicsFeature, PhysicsParameter, Radio, StateChange};
+use crate::{PhysicsFeature, PhysicsParameter, Radio, StateChange};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub enum SurfaceCharacter {

@@ -2,7 +2,7 @@ use crate::build::tenscript::brick::{Baked, Prototype};
 use crate::fabric::material::Material;
 use crate::fabric::physics::presets::PROTOTYPE_FORMATION;
 use crate::fabric::Fabric;
-use crate::messages::{Radio, StateChange};
+use crate::{Radio, StateChange};
 use std::rc::Rc;
 
 const SPEED_LIMIT: f32 = 3e-6;

@@ -3,7 +3,7 @@ use crate::wgpu::Wgpu;
 use wgpu::RenderPass;
 use wgpu_text::glyph_brush::ab_glyph::FontRef;
 use wgpu_text::{BrushBuilder, TextBrush};
-use crate::messages::StateChange;
+use crate::StateChange;
 
 pub struct TextRenderer {
     text_state: TextState,

@@ -9,7 +9,7 @@ use wgpu::{DepthStencilState, PipelineLayout, RenderPass, ShaderModule};
 use winit::window::Window;
 
 use crate::camera::Camera;
-use crate::messages::{LabEvent, Radio};
+use crate::{LabEvent, Radio};
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;

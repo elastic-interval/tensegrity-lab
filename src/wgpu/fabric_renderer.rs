@@ -1,8 +1,8 @@
 use crate::camera::Pick;
 use crate::fabric::material::Material;
 use crate::fabric::Fabric;
-use crate::messages::RenderStyle;
 use crate::wgpu::Wgpu;
+use crate::RenderStyle;
 use bytemuck::{Pod, Zeroable};
 use std::mem::size_of;
 use wgpu::util::DeviceExt;

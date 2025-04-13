@@ -1,6 +1,6 @@
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::messages::{PhysicsFeature, Radio, StateChange, TesterAction};
+use crate::{PhysicsFeature, Radio, StateChange, TesterAction};
 use std::rc::Rc;
 
 pub struct PhysicsTester {

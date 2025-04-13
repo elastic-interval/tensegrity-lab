@@ -1,5 +1,5 @@
 use crate::fabric::physics::presets::AIR_GRAVITY;
-use crate::messages::{
+use crate::{
     ControlState, CrucibleAction, LabEvent, PhysicsFeature, PhysicsParameter, Radio, StateChange,
     TesterAction,
 };
