@@ -119,6 +119,7 @@ pub struct IntervalDetails {
     pub far_joint: usize,
     pub length: f32,
     pub strain: f32,
+    pub distance: f32,
     pub role: Role,
 }
 

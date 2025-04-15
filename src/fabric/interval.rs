@@ -203,10 +203,10 @@ impl Interval {
 
     pub fn ideal(&self) -> f32 {
         match self.span {
-            Fixed { length, .. }
-            | Pretenst { length, .. }
-            | Approaching { length, .. }
-            | Muscle { length, .. } => length,
+            Fixed { length, .. } | Pretenst { length, .. } | Approaching { length, .. } => length,
+            Muscle {
+                length, contracted, ..
+            } => (length + contracted) / 2.0,
         }
     }
 

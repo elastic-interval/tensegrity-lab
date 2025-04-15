@@ -203,6 +203,7 @@ impl Scene {
                 id,
                 interval,
                 length,
+                distance,
             } => {
                 self.camera.set_target(AroundInterval(id));
                 let role = interval.material.properties().role;
@@ -218,7 +219,8 @@ impl Scene {
                     far_joint,
                     length,
                     role,
-                    strain
+                    strain,
+                    distance,
                 };
                 ShowingInterval(details).send(&self.radio);
             }
