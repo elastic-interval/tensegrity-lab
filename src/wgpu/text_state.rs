@@ -176,14 +176,17 @@ impl TextState {
                         } else {
                             "?".to_string()
                         };
+                        let strain_string = format!("{:.6}%", interval_details.strain*100.0);
                         Large(format!(
                             "{} {}-{}\n\
                             Length: {}\n\
+                            Strain: {}\n\
                             Right-click to jump",
                             role,
                             Self::joint_format(interval_details.near_joint),
                             Self::joint_format(interval_details.far_joint),
                             length_string,
+                            strain_string,
                         ))
                     }
                     _ => Nothing,

@@ -211,16 +211,14 @@ impl Scene {
                 } else {
                     interval.omega_index
                 };
-                let far_joint = if interval.omega_index == joint {
-                    interval.alpha_index
-                } else {
-                    interval.omega_index
-                };
+                let far_joint = interval.other_joint(near_joint);
+                let strain = interval.strain;
                 let details = IntervalDetails {
                     near_joint,
                     far_joint,
                     length,
                     role,
+                    strain
                 };
                 ShowingInterval(details).send(&self.radio);
             }
