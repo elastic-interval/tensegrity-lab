@@ -21,7 +21,7 @@ during_count = // iteration-count
 omit =
     {  "(" ~ "omit" ~ integer ~ integer ~ ")" }
 add =
-    {  "(" ~ "add" ~ integer ~ integer ~ ")" }
+    {  "(" ~ "add" ~ integer ~ integer ~ float? ~ ")" }
 anchor = // joint number, location
     { "(" ~ "anchor" ~ integer ~ surface_location ~ ")" }
 guy_line = // joint number, length, location
