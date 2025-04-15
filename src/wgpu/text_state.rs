@@ -1,7 +1,7 @@
 use crate::fabric::interval::Role;
 use crate::fabric::FabricStats;
-use crate::{ControlState, StateChange, TestScenario};
 use crate::Age;
+use crate::{ControlState, StateChange, TestScenario};
 use std::default::Default;
 use wgpu_text::glyph_brush::{
     BuiltInLineBreaker, HorizontalAlign, Layout, OwnedSection, OwnedText, VerticalAlign,
@@ -99,7 +99,10 @@ impl TextState {
             SetKeyboardLegend(legend) => {
                 self.keyboard_legend = Some(legend.clone());
             }
-            Time { frames_per_second, age } => {
+            Time {
+                frames_per_second,
+                age,
+            } => {
                 self.frames_per_second = frames_per_second.clone();
                 self.age = *age;
             }
@@ -171,22 +174,22 @@ impl TextState {
                             Role::Pulling => "Cable",
                             Role::Springy => "Spring",
                         };
-                        let length_string = if let Some(stats) = &self.fabric_stats {
-                            format!("{0:.1} mm", interval_details.length * stats.scale)
-                        } else {
-                            "?".to_string()
+                        let scale = match &self.fabric_stats {
+                            None => 1.0,
+                            Some(stats) => stats.scale,
                         };
-                        let strain_string = format!("{:.6}%", interval_details.strain*100.0);
                         Large(format!(
                             "{} {}-{}\n\
-                            Length: {}\n\
-                            Strain: {}\n\
+                            Length: {:.1} mm\n\
+                            Strain: {:.6}%\n\
+                            Distance: {:.1} mm\n\
                             Right-click to jump",
                             role,
                             Self::joint_format(interval_details.near_joint),
                             Self::joint_format(interval_details.far_joint),
-                            length_string,
-                            strain_string,
+                            interval_details.length * scale,
+                            interval_details.strain * 100.0,
+                            interval_details.distance * scale,
                         ))
                     }
                     _ => Nothing,

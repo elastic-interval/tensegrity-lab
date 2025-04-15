@@ -24,6 +24,7 @@ pub enum Pick {
         id: UniqueId,
         interval: Interval,
         length: f32,
+        distance: f32,
     },
 }
 
@@ -185,12 +186,14 @@ impl Camera {
                     None => Pick::Nothing,
                     Some(id) => {
                         let interval = *fabric.interval(id);
-                        let length = interval.length(fabric.joints.as_ref());
+                        let length = interval.ideal();
+                        let distance = interval.length(fabric.joints.as_ref());
                         Pick::Interval {
                             joint: index,
                             id,
                             interval,
                             length,
+                            distance,
                         }
                     }
                 },
@@ -199,12 +202,14 @@ impl Camera {
                         None => Pick::Nothing,
                         Some(id) => {
                             let interval = *fabric.interval(id);
-                            let length = interval.length(fabric.joints.as_ref());
+                            let length = interval.ideal();
+                            let distance = interval.length(fabric.joints.as_ref());
                             Pick::Interval {
                                 joint,
                                 id,
                                 interval,
                                 length,
+                                distance,
                             }
                         }
                     }

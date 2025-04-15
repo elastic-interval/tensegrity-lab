@@ -50,8 +50,8 @@
                 (guy-line 24 12.5 (surface -7.0 6.0))
                 (guy-line 18 14.5 (surface 12.0 -8.0))
                 (guy-line 28 14.5 (surface 12.0 8.0))
-                (guy-line 12 17.0 (surface 7.0 -10.0) :north)
-                (guy-line 10 17.0 (surface 7.0 10.0) :south)
+                (guy-line 12 15.4 (surface 3.0 -10.0) :north)
+                (guy-line 10 15.4 (surface 3.0 10.0) :south)
                 ))
         (pretense
             (pretenst 0.8)
