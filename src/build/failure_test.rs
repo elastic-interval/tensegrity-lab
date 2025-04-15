@@ -4,7 +4,7 @@ use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::Age;
 use crate::{
-    CrucibleAction, PhysicsFeature, PhysicsParameter, Radio, StateChange, TestScenario,
+    CrucibleAction, Radio, StateChange, TestScenario,
     TesterAction,
 };
 use cgmath::InnerSpace;
@@ -20,11 +20,12 @@ pub struct FailureTester {
 impl FailureTester {
     pub fn new(scenario: TestScenario, fabric: &Fabric, physics: Physics, radio: Radio) -> Self {
         let max_age = fabric.age.advanced(100_000);
-        StateChange::SetPhysicsParameter(PhysicsParameter {
-            feature: PhysicsFeature::IterationsPerFrame,
-            value: 1000.0,
-        })
-        .send(&radio);
+        let physics = Physics {
+            iterations_per_frame: 1000.0,
+            strain_limit: 0.03,
+            ..physics
+        };
+        physics.broadcast(&radio);
         Self {
             test_number: 0,
             default_fabric: fabric.clone(),
@@ -41,6 +42,10 @@ impl FailureTester {
             .expect("No test case");
         if !test_case.completed(&self.default_fabric, self.radio.clone()) {
             test_case.fabric.iterate(&self.physics);
+            for failed in test_case.fabric.failed_intervals(self.physics.strain_limit) {
+                println!("Failed interval {failed:?}");
+                test_case.fabric.remove_interval(failed);
+            }
         }
     }
 
@@ -181,7 +186,7 @@ impl FailureTest {
     fn max_damage(scenario: &TestScenario) -> f32 {
         match scenario {
             TestScenario::TensionTest => 500.0,
-            TestScenario::CompressionTest => 1000.0,
+            TestScenario::CompressionTest => 3000.0,
             _ => unreachable!(),
         }
     }
