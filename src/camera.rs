@@ -18,6 +18,7 @@ pub enum Pick {
     Joint {
         index: usize,
         joint: Joint,
+        scale: f32,
     },
     Interval {
         joint: usize,
@@ -25,6 +26,7 @@ pub enum Pick {
         interval: Interval,
         length: f32,
         distance: f32,
+        scale: f32,
     },
 }
 
@@ -161,23 +163,36 @@ impl Camera {
             .unwrap()
             .transform_point(position);
         let ray = (point3d - self.position).normalize();
+        let scale = fabric.scale;
         match shot {
             Shot::NoPick => Pick::Nothing,
             Shot::Joint => match self.current_pick {
                 Pick::Nothing => match self.best_joint(ray, fabric) {
                     None => Pick::Nothing,
-                    Some((index, joint)) => Pick::Joint { index, joint },
+                    Some((index, joint)) => Pick::Joint {
+                        index,
+                        joint,
+                        scale,
+                    },
                 },
                 Pick::Joint { index, .. } => match self.best_joint_around(index, ray, fabric) {
                     None => Pick::Nothing,
-                    Some((index, joint)) => Pick::Joint { index, joint },
+                    Some((index, joint)) => Pick::Joint {
+                        index,
+                        joint,
+                        scale,
+                    },
                 },
                 Pick::Interval {
                     joint, interval, ..
                 } => {
                     let index = interval.other_joint(joint);
                     let joint = fabric.joints[index];
-                    Pick::Joint { index, joint }
+                    Pick::Joint {
+                        index,
+                        joint,
+                        scale,
+                    }
                 }
             },
             Shot::Interval => match self.current_pick {
@@ -194,6 +209,7 @@ impl Camera {
                             interval,
                             length,
                             distance,
+                            scale,
                         }
                     }
                 },
@@ -204,12 +220,14 @@ impl Camera {
                             let interval = *fabric.interval(id);
                             let length = interval.ideal();
                             let distance = interval.length(fabric.joints.as_ref());
+                            let scale = fabric.scale;
                             Pick::Interval {
                                 joint,
                                 id,
                                 interval,
                                 length,
                                 distance,
+                                scale,
                             }
                         }
                     }

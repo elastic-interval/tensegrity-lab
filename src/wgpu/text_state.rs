@@ -163,20 +163,23 @@ impl TextState {
                 SectionName::Right,
                 match control_state {
                     Viewing => Normal("Right-click to select".to_string()),
-                    ShowingJoint(joint_details) => Large(format!(
-                        "{}\n\
-                        Click for details",
-                        Self::joint_format(joint_details.index),
-                    )),
+                    ShowingJoint(joint_details) => {
+                        let surface_location = match joint_details.surface_location_mm() {
+                            None => "".into(),
+                            Some((x, z)) => format!(" at ({x:.1} mm, {z:.1} mm)"),
+                        };
+                        Large(format!(
+                            "{}{}\n\
+                            Click interval for details",
+                            Self::joint_format(joint_details.index),
+                            surface_location,
+                        ))
+                    }
                     ShowingInterval(interval_details) => {
                         let role = match interval_details.role {
                             Role::Pushing => "Strut",
                             Role::Pulling => "Cable",
                             Role::Springy => "Spring",
-                        };
-                        let scale = match &self.fabric_stats {
-                            None => 1.0,
-                            Some(stats) => stats.scale,
                         };
                         Large(format!(
                             "{} {}-{}\n\
@@ -187,9 +190,9 @@ impl TextState {
                             role,
                             Self::joint_format(interval_details.near_joint),
                             Self::joint_format(interval_details.far_joint),
-                            interval_details.length * scale,
-                            interval_details.strain * 100.0,
-                            interval_details.distance * scale,
+                            interval_details.length_mm(),
+                            interval_details.strain_percent(),
+                            interval_details.distance_mm(),
                         ))
                     }
                     _ => Nothing,
