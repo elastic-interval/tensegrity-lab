@@ -7,6 +7,7 @@ use cgmath::Point3;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::{Display, Formatter};
+use std::ops::Mul;
 use std::rc::Rc;
 use std::time::SystemTime;
 use winit::dpi::PhysicalPosition;
@@ -28,7 +29,7 @@ pub struct Age(f64);
 
 impl Display for Age {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:.1}s", self.0/1_000_000.0)
+        write!(f, "{:.1}s", self.0 / 1_000_000.0)
     }
 }
 
@@ -121,12 +122,39 @@ pub struct IntervalDetails {
     pub strain: f32,
     pub distance: f32,
     pub role: Role,
+    pub scale: f32,
+}
+
+impl IntervalDetails {
+    pub fn length_mm(&self) -> f32 {
+        self.length * self.scale
+    }
+
+    pub fn strain_percent(&self) -> f32 {
+        self.strain * 100.0
+    }
+
+    pub fn distance_mm(&self) -> f32 {
+        self.distance * self.scale
+    }
 }
 
 #[derive(Clone, Debug, Copy)]
 pub struct JointDetails {
     pub index: usize,
     pub location: Point3<f32>,
+    pub scale: f32,
+}
+
+impl JointDetails {
+    pub fn location_mm(&self) -> Point3<f32> {
+        self.location.mul(self.scale)
+    }
+
+    pub fn surface_location_mm(&self) -> Option<(f32, f32)> {
+        let Point3 { x, y, z } = self.location;
+        (y <= 0.0).then(|| (x * self.scale, z * self.scale))
+    }
 }
 
 #[derive(Clone, Debug)]

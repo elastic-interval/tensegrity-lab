@@ -5,7 +5,10 @@ use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::Wgpu;
-use crate::{ControlState, IntervalDetails, JointDetails, PointerChange, Radio, RenderStyle, StateChange, TestScenario};
+use crate::{
+    ControlState, IntervalDetails, JointDetails, PointerChange, Radio, RenderStyle, StateChange,
+    TestScenario,
+};
 use std::collections::HashMap;
 use std::rc::Rc;
 use winit::dpi::PhysicalSize;
@@ -190,11 +193,16 @@ impl Scene {
             Pick::Nothing => {
                 self.camera.set_target(FabricMidpoint);
             }
-            Pick::Joint { index, joint } => {
+            Pick::Joint {
+                index,
+                joint,
+                scale,
+            } => {
                 self.camera.set_target(AroundJoint(index));
                 let details = JointDetails {
                     index,
                     location: joint.location,
+                    scale,
                 };
                 ShowingJoint(details).send(&self.radio);
             }
@@ -204,6 +212,7 @@ impl Scene {
                 interval,
                 length,
                 distance,
+                scale,
             } => {
                 self.camera.set_target(AroundInterval(id));
                 let role = interval.material.properties().role;
@@ -221,6 +230,7 @@ impl Scene {
                     role,
                     strain,
                     distance,
+                    scale,
                 };
                 ShowingInterval(details).send(&self.radio);
             }
