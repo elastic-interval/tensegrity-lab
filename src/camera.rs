@@ -9,7 +9,7 @@ use winit::dpi::PhysicalPosition;
 
 use crate::fabric::joint::Joint;
 use crate::fabric::{Fabric, UniqueId};
-use crate::{IntervalDetails, JointDetails, PointerChange, Shot};
+use crate::{ControlState, IntervalDetails, JointDetails, PointerChange, Radio, Shot};
 
 #[derive(Debug, Clone)]
 pub enum Pick {
@@ -32,10 +32,11 @@ pub struct Camera {
     mouse_follower: Option<PhysicalPosition<f64>>,
     mouse_click: Option<PhysicalPosition<f64>>,
     current_pick: Pick,
+    radio: Radio,
 }
 
 impl Camera {
-    pub fn new(position: Point3<f32>, width: f32, height: f32) -> Self {
+    pub fn new(position: Point3<f32>, width: f32, height: f32, radio: Radio) -> Self {
         Self {
             position,
             target: Target::default(),
@@ -46,6 +47,7 @@ impl Camera {
             mouse_follower: None,
             mouse_click: None,
             current_pick: Pick::Nothing,
+            radio,
         }
     }
 
@@ -59,13 +61,10 @@ impl Camera {
 
     pub fn reset(&mut self) {
         self.current_pick = Pick::Nothing; // more?
+        self.set_target(Target::FabricMidpoint);
     }
 
-    pub fn pointer_changed(
-        &mut self,
-        pointer_change: PointerChange,
-        fabric: &Fabric,
-    ) -> Option<Pick> {
+    pub fn pointer_changed(&mut self, pointer_change: PointerChange, fabric: &Fabric) {
         match pointer_change {
             PointerChange::NoChange => {}
             PointerChange::Moved(mouse_now) => {
@@ -101,16 +100,28 @@ impl Camera {
                     );
                     if dx * dx + dy * dy > 32.0 {
                         // they're dragging
-                        return None;
+                        return;
                     }
                     self.mouse_click = None;
-                    self.current_pick =
-                        self.pick_ray((mouse_now.x as f32, mouse_now.y as f32), shot, fabric);
-                    return Some(self.current_pick.clone());
+                    let PhysicalPosition { x, y } = mouse_now;
+                    let pick = self.pick_ray((x as f32, y as f32), shot, fabric);
+                    match pick {
+                        Pick::Nothing => {
+                            self.set_target(Target::FabricMidpoint);
+                        }
+                        Pick::Joint(details) => {
+                            self.set_target(Target::AroundJoint(details.index));
+                            ControlState::ShowingJoint(details).send(&self.radio);
+                        }
+                        Pick::Interval(details) => {
+                            self.set_target(Target::AroundInterval(details.id));
+                            ControlState::ShowingInterval(details).send(&self.radio);
+                        }
+                    }
+                    self.current_pick = pick;
                 }
             }
         }
-        None
     }
 
     pub fn target_approach(&mut self, fabric: &Fabric) -> bool {
@@ -280,24 +291,21 @@ impl Camera {
         ray: Vector3<f32>,
         fabric: &Fabric,
     ) -> Option<(usize, Joint)> {
-        fabric
-            .intervals
-            .iter()
-            .filter(|(_, interval)| interval.touches(joint))
-            .map(|(interval_id, interval)| {
-                let midpoint = interval.midpoint(&fabric.joints);
-                let dot = (midpoint.to_vec() - self.position.to_vec())
-                    .normalize()
-                    .dot(ray);
-                (interval_id, dot)
-            })
-            .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b))
-            .filter(|(_, dot)| *dot > DOT_CLOSE_ENOUGH)
-            .map(|(id, _)| {
-                let joint_index = fabric.interval(*id).other_joint(joint);
-                let joint = &fabric.joints[joint_index];
-                (joint_index, *joint)
-            })
+        self.find_best_by_dot(
+            fabric
+                .intervals
+                .iter()
+                .filter(|(_, interval)| interval.touches(joint))
+                .map(|(id, _)| *id),
+            ray,
+            |&interval_id| fabric.interval(interval_id).midpoint(&fabric.joints),
+            |dot| dot > DOT_CLOSE_ENOUGH,
+        )
+        .map(|id| {
+            let joint_index = fabric.interval(id).other_joint(joint);
+            let joint = &fabric.joints[joint_index];
+            (joint_index, *joint)
+        })
     }
 
     fn best_interval_around(
@@ -306,38 +314,50 @@ impl Camera {
         ray: Vector3<f32>,
         fabric: &Fabric,
     ) -> Option<UniqueId> {
-        fabric
-            .intervals
-            .iter()
-            .filter(|(_, interval)| interval.touches(joint))
-            .map(|(interval_id, interval)| {
-                let midpoint = interval.midpoint(&fabric.joints);
-                let dot = (midpoint.to_vec() - self.position.to_vec())
-                    .normalize()
-                    .dot(ray);
-                (interval_id, dot)
-            })
-            .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b))
-            .map(|(id, _)| *id)
+        self.find_best_by_dot(
+            fabric
+                .intervals
+                .iter()
+                .filter(|(_, interval)| interval.touches(joint))
+                .map(|(id, _)| *id),
+            ray,
+            |&interval_id| fabric.interval(interval_id).midpoint(&fabric.joints),
+            |_| true, // No dot product filtering needed here
+        )
     }
 
     fn best_joint(&self, ray: Vector3<f32>, fabric: &Fabric) -> Option<(usize, Joint)> {
-        fabric
-            .joints
-            .iter()
-            .enumerate()
-            .map(|(index, joint)| {
-                (
-                    index,
-                    (joint.location.to_vec() - self.position.to_vec())
-                        .normalize()
-                        .dot(ray),
-                    joint,
-                )
+        self.find_best_by_dot(
+            fabric.joints.iter().enumerate(),
+            ray,
+            |&(_, joint)| joint.location,
+            |dot| dot > DOT_CLOSE_ENOUGH,
+        )
+        .map(|(index, joint)| (index, *joint))
+    }
+
+    // Helper function to find the best item in a collection based on dot product with a ray
+    fn find_best_by_dot<T, F, G>(
+        &self,
+        items: impl Iterator<Item = T>,
+        ray: Vector3<f32>,
+        get_position: F,
+        dot_filter: G,
+    ) -> Option<T>
+    where
+        F: Fn(&T) -> Point3<f32>,
+        G: Fn(f32) -> bool,
+    {
+        items
+            .map(|item| {
+                let dot = (get_position(&item).to_vec() - self.position.to_vec())
+                    .normalize()
+                    .dot(ray);
+                (item, dot)
             })
-            .max_by(|(_, dot_a, _), (_, dot_b, _)| dot_a.total_cmp(dot_b))
-            .filter(|(_, dot, _)| *dot > DOT_CLOSE_ENOUGH)
-            .map(|(index, _, joint)| (index, *joint))
+            .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b))
+            .filter(|(_, dot)| dot_filter(*dot))
+            .map(|(item, _)| item)
     }
 }
 

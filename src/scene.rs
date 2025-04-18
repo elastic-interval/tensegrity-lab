@@ -1,14 +1,10 @@
-use crate::camera::Target::*;
 use crate::camera::{Camera, Pick};
 use crate::fabric::Fabric;
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::Wgpu;
-use crate::{
-    ControlState, PointerChange, Radio, RenderStyle, StateChange,
-    TestScenario,
-};
+use crate::{ControlState, PointerChange, Radio, RenderStyle, StateChange, TestScenario};
 use std::collections::HashMap;
 use std::rc::Rc;
 use winit::dpi::PhysicalSize;
@@ -19,14 +15,13 @@ pub struct Scene {
     fabric_renderer: FabricRenderer,
     surface_renderer: SurfaceRenderer,
     text_renderer: TextRenderer,
-    radio: Radio,
     render_style: RenderStyle,
     pick_allowed: bool,
 }
 
 impl Scene {
     pub fn new(mobile_device: bool, wgpu: Wgpu, radio: Radio) -> Self {
-        let camera = wgpu.create_camera();
+        let camera = wgpu.create_camera(radio);
         let fabric_renderer = wgpu.create_fabric_renderer();
         let surface_renderer = wgpu.create_surface_renderer();
         let text_renderer = wgpu.create_text_renderer(mobile_device);
@@ -36,7 +31,6 @@ impl Scene {
             fabric_renderer,
             surface_renderer,
             text_renderer,
-            radio,
             render_style: RenderStyle::Normal,
             pick_allowed: false,
         }
@@ -168,9 +162,7 @@ impl Scene {
     }
 
     pub fn pointer_changed(&mut self, pointer_changed: PointerChange, fabric: &Fabric) {
-        if let Some(pick) = self.camera.pointer_changed(pointer_changed, fabric) {
-            self.camera_pick(pick);
-        }
+        self.camera.pointer_changed(pointer_changed, fabric);
     }
 
     pub fn animate(&mut self, fabric: &Fabric) -> bool {
@@ -184,23 +176,5 @@ impl Scene {
     pub fn reset(&mut self) {
         self.pick_allowed = false;
         self.camera.reset();
-        self.camera_pick(self.camera.current_pick());
-    }
-
-    fn camera_pick(&mut self, pick: Pick) {
-        use ControlState::*;
-        match pick {
-            Pick::Nothing => {
-                self.camera.set_target(FabricMidpoint);
-            }
-            Pick::Joint(details)=> {
-                self.camera.set_target(AroundJoint(details.index));
-                ShowingJoint(details).send(&self.radio);
-            }
-            Pick::Interval(details)=> {
-                self.camera.set_target(AroundInterval(details.id));
-                ShowingInterval(details).send(&self.radio);
-            }
-        }
     }
 }
