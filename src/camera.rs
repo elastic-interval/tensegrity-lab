@@ -7,27 +7,15 @@ use cgmath::{
 };
 use winit::dpi::PhysicalPosition;
 
-use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 use crate::fabric::{Fabric, UniqueId};
-use crate::{PointerChange, Shot};
+use crate::{IntervalDetails, JointDetails, PointerChange, Shot};
 
 #[derive(Debug, Clone)]
 pub enum Pick {
     Nothing,
-    Joint {
-        index: usize,
-        joint: Joint,
-        scale: f32,
-    },
-    Interval {
-        joint: usize,
-        id: UniqueId,
-        interval: Interval,
-        length: f32,
-        distance: f32,
-        scale: f32,
-    },
+    Joint(JointDetails),
+    Interval(IntervalDetails),
 }
 
 const TARGET_HIT: f32 = 0.001;
@@ -169,66 +157,90 @@ impl Camera {
             Shot::Joint => match self.current_pick {
                 Pick::Nothing => match self.best_joint(ray, fabric) {
                     None => Pick::Nothing,
-                    Some((index, joint)) => Pick::Joint {
-                        index,
-                        joint,
-                        scale,
-                    },
-                },
-                Pick::Joint { index, .. } => match self.best_joint_around(index, ray, fabric) {
-                    None => Pick::Nothing,
-                    Some((index, joint)) => Pick::Joint {
-                        index,
-                        joint,
-                        scale,
-                    },
-                },
-                Pick::Interval {
-                    joint, interval, ..
-                } => {
-                    let index = interval.other_joint(joint);
-                    let joint = fabric.joints[index];
-                    Pick::Joint {
-                        index,
-                        joint,
-                        scale,
+                    Some((index, joint)) => {
+                        let location = joint.location;
+                        Pick::Joint(JointDetails {
+                            index,
+                            location,
+                            scale,
+                        })
                     }
+                },
+                Pick::Joint(JointDetails { index, .. }) => {
+                    match self.best_joint_around(index, ray, fabric) {
+                        None => Pick::Nothing,
+                        Some((index, joint)) => {
+                            let location = joint.location;
+                            Pick::Joint(JointDetails {
+                                index,
+                                location,
+                                scale,
+                            })
+                        }
+                    }
+                }
+                Pick::Interval(details) => {
+                    let index = details.far_joint;
+                    let location = fabric.location(index);
+                    Pick::Joint(JointDetails {
+                        index,
+                        location,
+                        scale,
+                    })
                 }
             },
             Shot::Interval => match self.current_pick {
                 Pick::Nothing => Pick::Nothing,
-                Pick::Joint { index, .. } => match self.best_interval_around(index, ray, fabric) {
-                    None => Pick::Nothing,
-                    Some(id) => {
-                        let interval = *fabric.interval(id);
-                        let length = interval.ideal();
-                        let distance = interval.length(fabric.joints.as_ref());
-                        Pick::Interval {
-                            joint: index,
-                            id,
-                            interval,
-                            length,
-                            distance,
-                            scale,
-                        }
-                    }
-                },
-                Pick::Interval { joint, .. } => {
-                    match self.best_interval_around(joint, ray, fabric) {
+                Pick::Joint(JointDetails { index, .. }) => {
+                    match self.best_interval_around(index, ray, fabric) {
                         None => Pick::Nothing,
                         Some(id) => {
                             let interval = *fabric.interval(id);
                             let length = interval.ideal();
                             let distance = interval.length(fabric.joints.as_ref());
-                            let scale = fabric.scale;
-                            Pick::Interval {
-                                joint,
+                            let role = interval.material.properties().role;
+                            let near_joint = if interval.alpha_index == index {
+                                interval.alpha_index
+                            } else {
+                                interval.omega_index
+                            };
+                            let far_joint = interval.other_joint(near_joint);
+                            let strain = interval.strain;
+                            Pick::Interval(IntervalDetails {
                                 id,
-                                interval,
+                                near_joint,
+                                far_joint,
                                 length,
+                                role,
+                                strain,
                                 distance,
                                 scale,
-                            }
+                            })
+                        }
+                    }
+                }
+                Pick::Interval(details) => {
+                    match self.best_interval_around(details.near_joint, ray, fabric) {
+                        None => Pick::Nothing,
+                        Some(id) => {
+                            let interval = *fabric.interval(id);
+                            let role = interval.material.properties().role;
+                            let length = interval.ideal();
+                            let distance = interval.length(fabric.joints.as_ref());
+                            let near_joint = details.near_joint;
+                            let far_joint = interval.other_joint(near_joint);
+                            let strain = interval.strain;
+                            let scale = fabric.scale;
+                            Pick::Interval(IntervalDetails {
+                                id,
+                                near_joint,
+                                far_joint,
+                                length,
+                                strain,
+                                distance,
+                                role,
+                                scale,
+                            })
                         }
                     }
                 }

@@ -1,7 +1,7 @@
 use crate::build::tenscript::brick::Prototype;
 use crate::build::tenscript::FabricPlan;
 use crate::fabric::interval::{Interval, Role};
-use crate::fabric::FabricStats;
+use crate::fabric::{FabricStats, UniqueId};
 use crate::wgpu::Wgpu;
 use cgmath::Point3;
 use std::collections::HashMap;
@@ -116,6 +116,7 @@ pub enum RenderStyle {
 
 #[derive(Clone, Debug, Copy)]
 pub struct IntervalDetails {
+    pub id: UniqueId,
     pub near_joint: usize,
     pub far_joint: usize,
     pub length: f32,

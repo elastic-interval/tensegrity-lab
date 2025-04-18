@@ -6,7 +6,7 @@ use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::Wgpu;
 use crate::{
-    ControlState, IntervalDetails, JointDetails, PointerChange, Radio, RenderStyle, StateChange,
+    ControlState, PointerChange, Radio, RenderStyle, StateChange,
     TestScenario,
 };
 use std::collections::HashMap;
@@ -193,45 +193,12 @@ impl Scene {
             Pick::Nothing => {
                 self.camera.set_target(FabricMidpoint);
             }
-            Pick::Joint {
-                index,
-                joint,
-                scale,
-            } => {
-                self.camera.set_target(AroundJoint(index));
-                let details = JointDetails {
-                    index,
-                    location: joint.location,
-                    scale,
-                };
+            Pick::Joint(details)=> {
+                self.camera.set_target(AroundJoint(details.index));
                 ShowingJoint(details).send(&self.radio);
             }
-            Pick::Interval {
-                joint,
-                id,
-                interval,
-                length,
-                distance,
-                scale,
-            } => {
-                self.camera.set_target(AroundInterval(id));
-                let role = interval.material.properties().role;
-                let near_joint = if interval.alpha_index == joint {
-                    interval.alpha_index
-                } else {
-                    interval.omega_index
-                };
-                let far_joint = interval.other_joint(near_joint);
-                let strain = interval.strain;
-                let details = IntervalDetails {
-                    near_joint,
-                    far_joint,
-                    length,
-                    role,
-                    strain,
-                    distance,
-                    scale,
-                };
+            Pick::Interval(details)=> {
+                self.camera.set_target(AroundInterval(details.id));
                 ShowingInterval(details).send(&self.radio);
             }
         }

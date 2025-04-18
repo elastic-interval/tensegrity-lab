@@ -2,7 +2,7 @@ use crate::camera::Pick;
 use crate::fabric::material::Material;
 use crate::fabric::Fabric;
 use crate::wgpu::Wgpu;
-use crate::RenderStyle;
+use crate::{IntervalDetails, JointDetails, RenderStyle};
 use bytemuck::{Pod, Zeroable};
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
@@ -217,17 +217,17 @@ impl FabricRenderer {
                         }
                     }
                 },
-                Pick::Joint { index, .. } => {
+                Pick::Joint(JointDetails { index, .. } )=> {
                     if !interval.touches(*index) {
                         role_appearance.faded()
                     } else {
                         role_appearance.active()
                     }
                 }
-                Pick::Interval { joint, id, .. } => {
+                Pick::Interval(IntervalDetails { near_joint, id, .. } )=> {
                     if *id == *interval_id {
                         role_appearance.highlighted()
-                    } else if !interval.touches(*joint) {
+                    } else if !interval.touches(*near_joint) {
                         role_appearance.faded()
                     } else {
                         role_appearance.active()
