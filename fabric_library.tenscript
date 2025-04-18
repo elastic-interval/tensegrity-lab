@@ -33,6 +33,8 @@
             (omit 58 69)
             (omit 4 15)
             (omit 0 14)
+            (add 9 13)
+            (add 7 11)
             (add 8 12 0.8)
             (add 6 10 0.8)
             ; (add 74 57) ;shoulders
