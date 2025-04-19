@@ -1,13 +1,14 @@
 use crate::build::evo::evolution::Evolution;
-use crate::build::failure_test::FailureTester;
 use crate::build::oven::Oven;
-use crate::build::physics_test::PhysicsTester;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::build::tenscript::pretenser::Pretenser;
 use crate::crucible::Stage::*;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
+use crate::testing::boxing_test::BoxingTest;
+use crate::testing::failure_test::FailureTester;
+use crate::testing::physics_test::PhysicsTester;
 use crate::{ControlState, CrucibleAction, LabEvent, Radio, StateChange};
 
 #[derive(Debug, Clone)]
@@ -24,6 +25,7 @@ enum Stage {
     Animating(Holder),
     FailureTesting(FailureTester),
     PhysicsTesting(PhysicsTester),
+    BoxingTesting(BoxingTest),
     BakingBrick(Oven),
     Evolving(Evolution),
 }
@@ -96,6 +98,11 @@ impl Crucible {
                     tester.iterate()
                 }
             }
+            BoxingTesting(tester) => {
+                for _ in tester.physics.iterations() {
+                    tester.iterate()
+                }
+            }
             BakingBrick(oven) => {
                 if let Some(baked) = oven.iterate() {
                     #[cfg(target_arch = "wasm32")]
@@ -163,6 +170,14 @@ impl Crucible {
                     panic!("cannot start experiment");
                 }
             }
+            ToBoxingProcess(scenario) => {
+                if let Viewing(Holder { fabric, physics }) = &mut self.stage {
+                    self.stage = BoxingTesting(BoxingTest::new(&fabric, physics.clone()));
+                    ControlState::BoxingTesting(scenario).send(&self.radio);
+                } else {
+                    panic!("cannot start experiment");
+                }
+            }
             TesterDo(action) => match &mut self.stage {
                 FailureTesting(tester) => {
                     tester.action(action);
@@ -182,6 +197,7 @@ impl Crucible {
         match &mut self.stage {
             FailureTesting(tester) => tester.fabric(),
             PhysicsTesting(tester) => &tester.fabric,
+            BoxingTesting(tester) => &tester.fabric,
             RunningPlan(plan_runner) => &plan_runner.fabric,
             Pretensing(pretenser) => &pretenser.fabric,
             Viewing(holder) => &holder.fabric,

@@ -23,6 +23,7 @@ pub mod keyboard;
 pub mod scene;
 pub mod test;
 pub mod wgpu;
+pub mod testing;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Age(f64);
@@ -58,6 +59,10 @@ impl Age {
     pub fn within(&self, limit: &Self) -> bool {
         self.0 < limit.0
     }
+
+    pub fn seconds(seconds: usize) -> Self {
+        Self(seconds as f64 * 1_000_000.0)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -92,6 +97,7 @@ pub enum TestScenario {
     TensionTest,
     CompressionTest,
     PhysicsTest,
+    BoxingTest,
     MachineTest(String),
 }
 
@@ -169,6 +175,7 @@ pub enum ControlState {
     ShowingInterval(IntervalDetails),
     FailureTesting(TestScenario),
     PhysicsTesting(TestScenario),
+    BoxingTesting(TestScenario),
 }
 
 impl ControlState {
@@ -192,9 +199,10 @@ pub enum CrucibleAction {
     ToViewing,
     ToAnimating,
     ToFailureTesting(TestScenario),
-    TesterDo(TesterAction),
     ToPhysicsTesting(TestScenario),
+    ToBoxingProcess(TestScenario),
     ToEvolving(u64),
+    TesterDo(TesterAction),
 }
 
 impl CrucibleAction {
