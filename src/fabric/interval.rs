@@ -11,7 +11,7 @@ use crate::fabric::physics::Physics;
 use crate::fabric::{Fabric, Progress, UniqueId};
 use crate::Appearance;
 use cgmath::num_traits::zero;
-use cgmath::{EuclideanSpace, InnerSpace, MetricSpace, Point3, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 use fast_inv_sqrt::InvSqrt32;
 use std::ops::Mul;
 
@@ -24,15 +24,12 @@ impl Fabric {
         material: Material,
     ) -> UniqueId {
         let id = self.create_id();
-        let begin = self.joints[alpha_index]
-            .location
-            .distance(self.joints[omega_index].location);
         let interval = Interval::new(
             alpha_index,
             omega_index,
             material,
             Approaching {
-                begin,
+                begin: self.distance(alpha_index, omega_index),
                 length: ideal,
             },
         );
@@ -55,9 +52,10 @@ impl Fabric {
         }
     }
 
-    pub fn remove_interval(&mut self, id: UniqueId) {
-        if self.intervals.remove(&id).is_none() {
-            panic!("Removing nonexistent interval {:?}", id);
+    pub fn remove_interval(&mut self, id: UniqueId) -> Interval {
+        match self.intervals.remove(&id) {
+            None => panic!("Removing nonexistent interval {:?}", id),
+            Some(removed) => removed,
         }
     }
 
