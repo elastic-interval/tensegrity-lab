@@ -3,12 +3,12 @@ use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible::Crucible;
 use crate::keyboard::Keyboard;
+use crate::scene::Scene;
+use crate::wgpu::Wgpu;
 use crate::{
     ControlState, CrucibleAction, LabEvent, PointerChange, Radio, RunStyle, Shot, StateChange,
     TestScenario, TesterAction,
 };
-use crate::scene::Scene;
-use crate::wgpu::Wgpu;
 use instant::{Duration, Instant};
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -249,6 +249,9 @@ impl ApplicationHandler<LabEvent> for Application {
                             TestScenario::PhysicsTest => {
                                 CrucibleAction::ToPhysicsTesting(scenario.clone())
                                     .send(&self.radio);
+                            }
+                            TestScenario::BoxingTest => {
+                                CrucibleAction::ToBoxingProcess(scenario.clone()).send(&self.radio);
                             }
                             TestScenario::MachineTest(ip_address) => {
                                 println!("Running machine test at {ip_address}");

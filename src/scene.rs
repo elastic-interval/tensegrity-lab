@@ -70,6 +70,9 @@ impl Scene {
                         _ => unreachable!(),
                     }
                 }
+                BoxingTesting(_) => {
+                    self.reset();
+                }
             },
             SetAnimating(active) => self.pick_allowed = !active,
             ResetView => {
