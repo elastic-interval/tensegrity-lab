@@ -1,10 +1,10 @@
-use std::collections::VecDeque;
 use crate::fabric::material::Material;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::fabric::Fabric;
 use crate::{Age, PhysicsFeature, TesterAction};
 use cgmath::Point3;
 use itertools::Itertools;
+use std::collections::VecDeque;
 
 pub struct BoxingTest {
     pub fabric: Fabric,
@@ -18,6 +18,7 @@ impl BoxingTest {
         let steps = VecDeque::from([
             BoxingStep::RemoveSupport,
             BoxingStep::Deflate,
+            BoxingStep::Disconnect,
         ]);
         Self {
             fabric,
@@ -56,6 +57,7 @@ impl BoxingTest {
 enum BoxingStep {
     RemoveSupport,
     Deflate,
+    Disconnect,
 }
 
 impl BoxingStep {
@@ -63,6 +65,7 @@ impl BoxingStep {
         match self {
             BoxingStep::RemoveSupport => Age::seconds(38),
             BoxingStep::Deflate => Age::seconds(50),
+            BoxingStep::Disconnect => Age::seconds(60),
         }
     }
 
@@ -78,12 +81,25 @@ impl BoxingStep {
                 fabric.create_interval(3, base, length, Material::GuyLine);
                 fabric.progress.start(20000);
                 physics.surface_character = SurfaceCharacter::Sticky;
-            },
+            }
             BoxingStep::Deflate => {
                 remove_supports(fabric);
                 physics.pretenst = -10.0;
                 fabric.set_pretenst(physics.pretenst, 20000);
-            },
+            }
+            BoxingStep::Disconnect => [
+                (2, 3),
+                (14, 15),
+                (16, 17),
+                (89, 88),
+                (87, 86),
+                (69, 68),
+                (70, 71),
+            ]
+            .iter()
+            .for_each(|&alpha_omega| {
+                fabric.remove_interval_joining(alpha_omega);
+            }),
         }
     }
 }
