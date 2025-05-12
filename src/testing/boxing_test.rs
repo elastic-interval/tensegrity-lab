@@ -99,6 +99,12 @@ impl BoxingStep {
                 (87, 86),
                 (69, 68),
                 (70, 71),
+                (52, 53),
+                (42, 43),
+                (45, 44),
+                (51, 50),
+                (46, 47),
+                (48, 49),
             ]
             .iter()
             .for_each(|&alpha_omega| {
@@ -116,9 +122,8 @@ impl BoxingStep {
                         None => Some(*index),
                         Some(_) => None,
                     })
-                    .for_each(|index| {
-                        fabric.remove_joint(index)
-                    });
+                    .rev()
+                    .for_each(|index| fabric.remove_joint(index));
             }
         }
     }

@@ -8,6 +8,7 @@ use crate::fabric::physics::SurfaceCharacter::*;
 use crate::fabric::Fabric;
 use cgmath::num_traits::zero;
 use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
+use itertools::Itertools;
 
 impl Fabric {
     pub fn create_joint(&mut self, point: Point3<f32>) -> usize {
@@ -30,6 +31,14 @@ impl Fabric {
 
     pub fn remove_joint(&mut self, index: usize) {
         self.joints.remove(index);
+        self.intervals
+            .iter()
+            .filter_map(|(id, interval)| interval.touches(index).then_some(*id))
+            .collect_vec()
+            .into_iter()
+            .for_each(|id| {
+                self.remove_interval(id);
+            });
         self.intervals
             .values_mut()
             .for_each(|interval| interval.joint_removed(index));
