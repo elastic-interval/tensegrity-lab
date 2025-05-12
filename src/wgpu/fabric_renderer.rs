@@ -1,4 +1,5 @@
 use crate::camera::Pick;
+use crate::fabric::interval::Role;
 use crate::fabric::material::Material;
 use crate::fabric::Fabric;
 use crate::wgpu::Wgpu;
@@ -217,20 +218,35 @@ impl FabricRenderer {
                         }
                     }
                 },
-                Pick::Joint(JointDetails { index, .. } )=> {
+                Pick::Joint(JointDetails { index, .. }) => {
                     if !interval.touches(*index) {
                         role_appearance.faded()
                     } else {
                         role_appearance.active()
                     }
                 }
-                Pick::Interval(IntervalDetails { near_joint, id, .. } )=> {
+                Pick::Interval(IntervalDetails {
+                    near_joint,
+                    far_joint,
+                    id,
+                    role,
+                    ..
+                }) => {
                     if *id == *interval_id {
                         role_appearance.highlighted()
-                    } else if !interval.touches(*near_joint) {
-                        role_appearance.faded()
                     } else {
-                        role_appearance.active()
+                        let active = match role {
+                            Role::Pushing => {
+                                interval.touches(*near_joint) || interval.touches(*far_joint)
+                            }
+                            Role::Pulling => interval.touches(*near_joint),
+                            Role::Springy => false,
+                        };
+                        if active {
+                            role_appearance.active()
+                        } else {
+                            role_appearance.faded()
+                        }
                     }
                 }
             };
