@@ -1,3 +1,4 @@
+use crate::fabric::joint_incident::JointIncident;
 use crate::fabric::material::Material;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::fabric::Fabric;
@@ -18,7 +19,8 @@ impl BoxingTest {
         let steps = VecDeque::from([
             BoxingStep::RemoveSupport,
             BoxingStep::Deflate,
-            BoxingStep::Disconnect,
+            BoxingStep::RemoveIntervals,
+            BoxingStep::RemoveJoints,
         ]);
         Self {
             fabric,
@@ -57,7 +59,8 @@ impl BoxingTest {
 enum BoxingStep {
     RemoveSupport,
     Deflate,
-    Disconnect,
+    RemoveIntervals,
+    RemoveJoints,
 }
 
 impl BoxingStep {
@@ -65,7 +68,8 @@ impl BoxingStep {
         match self {
             BoxingStep::RemoveSupport => Age::seconds(38),
             BoxingStep::Deflate => Age::seconds(50),
-            BoxingStep::Disconnect => Age::seconds(60),
+            BoxingStep::RemoveIntervals => Age::seconds(55),
+            BoxingStep::RemoveJoints => Age::seconds(60),
         }
     }
 
@@ -87,7 +91,7 @@ impl BoxingStep {
                 physics.pretenst = -10.0;
                 fabric.set_pretenst(physics.pretenst, 20000);
             }
-            BoxingStep::Disconnect => [
+            BoxingStep::RemoveIntervals => [
                 (2, 3),
                 (14, 15),
                 (16, 17),
@@ -98,8 +102,24 @@ impl BoxingStep {
             ]
             .iter()
             .for_each(|&alpha_omega| {
-                fabric.remove_interval_joining(alpha_omega);
+                fabric.joining(alpha_omega).map(|id| {
+                    let _interval = fabric.remove_interval(id);
+                    // fabric.remove_joint(interval.alpha_index);
+                    // fabric.remove_joint(interval.omega_index);
+                });
             }),
+            BoxingStep::RemoveJoints => {
+                fabric
+                    .joint_incidents()
+                    .iter()
+                    .filter_map(|JointIncident { index, push, .. }| match push {
+                        None => Some(*index),
+                        Some(_) => None,
+                    })
+                    .for_each(|index| {
+                        fabric.remove_joint(index)
+                    });
+            }
         }
     }
 }

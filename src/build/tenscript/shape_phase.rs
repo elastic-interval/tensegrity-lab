@@ -526,10 +526,16 @@ impl ShapePhase {
             ShapeOperation::SetDrag(percent) => Drag(percent),
             ShapeOperation::SetViscosity(percent) => Viscosity(percent),
             ShapeOperation::Omit(pair) => {
-                fabric.remove_interval_joining(pair);
+                fabric
+                    .joining(pair)
+                    .map(|id| fabric.remove_interval(id));
                 Noop
             }
-            ShapeOperation::Add{alpha_index, omega_index, length_factor} => {
+            ShapeOperation::Add {
+                alpha_index,
+                omega_index,
+                length_factor,
+            } => {
                 let ideal = fabric.distance(alpha_index, omega_index) * length_factor;
                 fabric.create_interval(alpha_index, omega_index, ideal, Material::Pull);
                 Noop

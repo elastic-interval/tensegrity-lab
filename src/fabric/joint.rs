@@ -3,12 +3,11 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use cgmath::num_traits::zero;
-use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
-
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter::*;
 use crate::fabric::Fabric;
+use cgmath::num_traits::zero;
+use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
 
 impl Fabric {
     pub fn create_joint(&mut self, point: Point3<f32>) -> usize {
