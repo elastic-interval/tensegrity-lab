@@ -128,7 +128,7 @@ impl Role {
                 Springy => 1.0,
             },
             color: match self {
-                Pushing => [0.8, 0.8, 0.85, 1.0],
+                Pushing => [0.4, 0.4, 0.9, 1.0], // Changed to bluish color similar to pull intervals
                 Pulling => [0.3, 0.3, 0.9, 1.0],
                 Springy => [0.7, 0.3, 0.7, 1.0],
             },

@@ -215,6 +215,18 @@ impl CrucibleAction {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum AppearanceMode {
+    /// Faded appearance (gray, normal diameter)
+    Faded,
+    /// Highlighted appearance (original color, increased diameter)
+    Highlighted,
+    /// Selected appearance for push intervals (purple, increased diameter)
+    SelectedPush,
+    /// Selected appearance for pull intervals (green, increased diameter)
+    SelectedPull,
+}
+
 #[derive(Debug, Clone)]
 pub struct Appearance {
     pub color: [f32; 4],
@@ -222,42 +234,51 @@ pub struct Appearance {
 }
 
 impl Appearance {
+    /// Apply an appearance mode to create a new appearance
+    pub fn apply_mode(&self, mode: AppearanceMode) -> Self {
+        match mode {
+            AppearanceMode::Faded => Self {
+                color: [0.1, 0.1, 0.1, 1.0],
+                radius: self.radius,
+            },
+            AppearanceMode::Highlighted => Self {
+                color: self.color,  // Keep original color
+                radius: self.radius * 1.7,  // 1.7x radius for highlighted intervals
+            },
+            AppearanceMode::SelectedPush => Self {
+                color: [0.0, 1.0, 0.0, 1.0],  // Green (same as pull intervals)
+                radius: self.radius * 1.6,  // Reduced by 20% from 2.0 to 1.6
+            },
+            AppearanceMode::SelectedPull => Self {
+                color: [0.0, 1.0, 0.0, 1.0],  // Green
+                radius: self.radius * 4.6,  // Doubled from 2.3 to 4.6 for selected pull intervals
+            },
+        }
+    }
+    
+    // Keep these methods for backward compatibility
     pub fn with_color(&self, color: [f32; 4]) -> Self {
         Self {
             color,
-            radius: self.radius + 1.0,
+            radius: self.radius * 2.0,
         }
     }
 
     pub fn active(&self) -> Self {
-        Self {
-            color: [0.9, 0.1, 0.1, 1.0],
-            radius: self.radius + 1.0,
-        }
+        self.apply_mode(AppearanceMode::Highlighted)
     }
 
     pub fn highlighted(&self) -> Self {
         // Use different highlight colors based on the radius (which indicates the role)
-        // Push intervals (larger radius) get purple, pull intervals get green
-        let color = if self.radius > 1.0 {
-            // Purple for push intervals
-            [0.8, 0.2, 0.8, 1.0]
+        if self.radius > 1.0 {
+            self.apply_mode(AppearanceMode::SelectedPush)
         } else {
-            // Green for pull intervals
-            [0.0, 1.0, 0.0, 1.0]
-        };
-        
-        Self {
-            color,
-            radius: self.radius + 1.0,
+            self.apply_mode(AppearanceMode::SelectedPull)
         }
     }
 
     pub fn faded(&self) -> Self {
-        Self {
-            color: [0.1, 0.1, 0.1, 1.0],
-            radius: self.radius,
-        }
+        self.apply_mode(AppearanceMode::Faded)
     }
 }
 

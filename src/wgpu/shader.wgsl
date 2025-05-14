@@ -35,7 +35,7 @@ fn build_cylinder_matrix(start: vec3<f32>, end: vec3<f32>, radius_factor: f32) -
     let length = length(direction);
 
     // Base radius
-    let base_radius = 0.04;
+    let base_radius = 0.05; // Increased from 0.04 to make intervals more visible
     let radius = base_radius * radius_factor;
 
     // If length is too small, return identity matrix at the midpoint
@@ -180,4 +180,66 @@ fn surface_vertex(@location(0) pos: vec4<f32>) -> SurfaceOutput {
 @fragment
 fn surface_fragment(in: SurfaceOutput) -> @location(0) vec4<f32> {
     return vec4<f32>(0.7, 0.7, 0.7, 0.1);
+}
+
+// Joint marker shader code
+
+// Joint marker vertex input
+struct JointVertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+    @location(3) instance_position: vec3<f32>,
+    @location(4) instance_scale: f32,
+    @location(5) instance_color: vec4<f32>,
+};
+
+// Joint marker vertex output
+struct JointVertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) color: vec4<f32>,
+    @location(1) normal: vec3<f32>,
+};
+
+@vertex
+fn joint_vertex(
+    vertex: JointVertexInput,
+) -> JointVertexOutput {
+    var out: JointVertexOutput;
+    
+    // Scale the vertex position by the instance scale
+    let scaled_position = vertex.position * vertex.instance_scale;
+    
+    // Translate to the instance position
+    let world_position = scaled_position + vertex.instance_position;
+    
+    // Transform to clip space
+    out.clip_position = uniforms.mvp_matrix * vec4<f32>(world_position, 1.0);
+    
+    // Pass the instance color to the fragment shader
+    out.color = vertex.instance_color;
+    
+    // Pass the normal for lighting calculations
+    out.normal = vertex.normal;
+    
+    return out;
+}
+
+@fragment
+fn joint_fragment(in: JointVertexOutput) -> @location(0) vec4<f32> {
+    // Simple lighting calculation
+    let light_direction = normalize(vec3<f32>(1.0, 1.0, 1.0));
+    let normal = normalize(in.normal);
+    
+    // Calculate diffuse lighting
+    let diffuse = max(dot(normal, light_direction), 0.0);
+    
+    // Add ambient light
+    let ambient = 0.3;
+    let lighting = ambient + diffuse * 0.7;
+    
+    // Apply lighting to the color
+    let final_color = in.color * lighting;
+    
+    return final_color;
 }
