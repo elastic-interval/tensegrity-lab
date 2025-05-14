@@ -1,12 +1,13 @@
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, TenscriptError};
+use crate::camera::Pick;
 use crate::crucible::Crucible;
 use crate::keyboard::Keyboard;
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 use crate::{
-    ControlState, CrucibleAction, LabEvent, PointerChange, Radio, RunStyle, Shot, StateChange,
+    ControlState, CrucibleAction, LabEvent, PickIntent, PointerChange, Radio, RunStyle, StateChange,
     TestScenario, TesterAction,
 };
 use instant::{Duration, Instant};
@@ -374,7 +375,7 @@ impl ApplicationHandler<LabEvent> for Application {
                             self.active_touch_count -= 1;
                         }
                         scene.pointer_changed(
-                            PointerChange::Released(Shot::NoPick),
+                            PointerChange::Released(PickIntent::None),
                             &mut self.crucible.fabric(),
                         );
                     }
@@ -390,15 +391,34 @@ impl ApplicationHandler<LabEvent> for Application {
                         match state {
                             ElementState::Pressed => PointerChange::Pressed,
                             ElementState::Released => {
-                                let shot = if scene.pick_allowed() {
+                                let pick_intent = if scene.pick_allowed() {
                                     match button {
-                                        MouseButton::Right => Shot::Joint,
-                                        _ => Shot::Interval,
+                                        MouseButton::Right => {
+                                            // For right-clicks, we want to explicitly allow "traveling"
+                                            // Check if we're currently selecting a joint or an interval
+                                            match scene.current_pick() {
+                                                // If a joint is selected, use TravelToJoint
+                                                Pick::Joint(_) => PickIntent::TravelToJoint,
+                                                // If an interval is selected, use TravelThroughInterval
+                                                Pick::Interval(_) => PickIntent::TravelThroughInterval,
+                                                // If nothing is selected, we need to determine what to select
+                                                // For now, default to selecting a joint when right-clicking on nothing
+                                                Pick::Nothing => PickIntent::TravelToJoint,
+                                            }
+                                        },
+                                        _ => {
+                                            // For left-clicks, we want to select intervals or joints normally
+                                            // without automatic "traveling"
+                                            // Default to SelectInterval, but the camera's pick_ray method will
+                                            // determine whether to select a joint or an interval based on what's
+                                            // closer to the ray
+                                            PickIntent::SelectInterval
+                                        },
                                     }
                                 } else {
-                                    Shot::NoPick
+                                    PickIntent::None
                                 };
-                                PointerChange::Released(shot)
+                                PointerChange::Released(pick_intent)
                             }
                         },
                         &mut self.crucible.fabric(),

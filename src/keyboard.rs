@@ -138,6 +138,18 @@ impl Keyboard {
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.key_lab_event(
+            KeyCode::KeyR,
+            "Reset View",
+            UpdateState(StateChange::ResetView),
+            Box::new(|_| true),
+        );
+        self.key_lab_event(
+            KeyCode::KeyO,
+            "Toggle Projection (Perspective/Orthogonal)",
+            UpdateState(StateChange::ToggleProjection),
+            Box::new(|_| true),
+        );
+        self.key_lab_event(
             KeyCode::ArrowLeft,
             "\u{2190} previous test",
             Crucible(TesterDo(TesterAction::PrevExperiment)),

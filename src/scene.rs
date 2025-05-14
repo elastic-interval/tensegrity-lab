@@ -43,6 +43,9 @@ impl Scene {
         use TestScenario::*;
         self.text_renderer.update_state(&state_change);
         match state_change {
+            ToggleProjection => {
+                self.camera.toggle_projection();
+            },
             SetControlState(control_state) => match control_state {
                 Waiting | UnderConstruction | Animating => self.reset(),
                 Baking => self.render_style = WithAppearanceFunction(Rc::new(|_| None)),
@@ -100,6 +103,12 @@ impl Scene {
 
     pub fn pick_allowed(&self) -> bool {
         self.pick_allowed
+    }
+    
+    /// Returns the current pick state from the camera
+    pub fn current_pick(&self) -> &Pick {
+        // The camera's current_pick method already returns a reference
+        self.camera.current_pick()
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
