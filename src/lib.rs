@@ -217,13 +217,10 @@ impl CrucibleAction {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AppearanceMode {
-    /// Faded appearance (gray, normal diameter)
     Faded,
-    /// Highlighted appearance (original color, increased diameter)
-    Highlighted,
-    /// Selected appearance for push intervals (purple, increased diameter)
+    HighlightedPush,
+    HighlightedPull,
     SelectedPush,
-    /// Selected appearance for pull intervals (green, increased diameter)
     SelectedPull,
 }
 
@@ -234,24 +231,27 @@ pub struct Appearance {
 }
 
 impl Appearance {
-    /// Apply an appearance mode to create a new appearance
     pub fn apply_mode(&self, mode: AppearanceMode) -> Self {
         match mode {
             AppearanceMode::Faded => Self {
                 color: [0.1, 0.1, 0.1, 1.0],
                 radius: self.radius,
             },
-            AppearanceMode::Highlighted => Self {
-                color: self.color,  // Keep original color
-                radius: self.radius * 1.7,  // 1.7x radius for highlighted intervals
+            AppearanceMode::HighlightedPush => Self {
+                color: self.color,
+                radius: self.radius * 1.4,
+            },
+            AppearanceMode::HighlightedPull => Self {
+                color: self.color,
+                radius: self.radius * 5.0,
             },
             AppearanceMode::SelectedPush => Self {
-                color: [0.0, 1.0, 0.0, 1.0],  // Green (same as pull intervals)
-                radius: self.radius * 1.6,  // Reduced by 20% from 2.0 to 1.6
+                color: [0.0, 1.0, 0.0, 1.0],
+                radius: self.radius * 1.6,
             },
             AppearanceMode::SelectedPull => Self {
                 color: [0.0, 1.0, 0.0, 1.0],  // Green
-                radius: self.radius * 4.6,  // Doubled from 2.3 to 4.6 for selected pull intervals
+                radius: self.radius * 7.0,
             },
         }
     }
@@ -264,21 +264,18 @@ impl Appearance {
         }
     }
 
-    pub fn active(&self) -> Self {
-        self.apply_mode(AppearanceMode::Highlighted)
-    }
-
-    pub fn highlighted(&self) -> Self {
-        // Use different highlight colors based on the radius (which indicates the role)
-        if self.radius > 1.0 {
-            self.apply_mode(AppearanceMode::SelectedPush)
-        } else {
-            self.apply_mode(AppearanceMode::SelectedPull)
+    pub fn highlighted_for_role(&self, role: Role) -> Self {
+        match role {
+            Role::Pushing => self.apply_mode(AppearanceMode::HighlightedPush),
+            _ => self.apply_mode(AppearanceMode::HighlightedPull),
         }
     }
-
-    pub fn faded(&self) -> Self {
-        self.apply_mode(AppearanceMode::Faded)
+    
+    pub fn selected_for_role(&self, role: Role) -> Self {
+        match role {
+            Role::Pushing => self.apply_mode(AppearanceMode::SelectedPush),
+            _ => self.apply_mode(AppearanceMode::SelectedPull),
+        }
     }
 }
 

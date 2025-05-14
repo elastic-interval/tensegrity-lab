@@ -100,10 +100,8 @@ impl FabricRenderer {
                     },
                     Pick::Joint(JointDetails { index, .. }) => {
                         if interval.touches(*index) {
-                            // Use the Highlighted mode for intervals touching the selected joint
-                            role_appearance.apply_mode(AppearanceMode::Highlighted)
+                            role_appearance.highlighted_for_role(interval.material.properties().role)
                         } else {
-                            // Use the Faded mode for intervals not touching the selected joint
                             role_appearance.apply_mode(AppearanceMode::Faded)
                         }
                     }
@@ -117,12 +115,8 @@ impl FabricRenderer {
                     }) => {
                         // If this is the currently selected interval, highlight it based on its type
                         if *id == interval_id {
-                            // Use the appropriate mode based on the interval role
-                            if interval.material.properties().role == Role::Pushing {
-                                role_appearance.apply_mode(AppearanceMode::SelectedPush)
-                            } else {
-                                role_appearance.apply_mode(AppearanceMode::SelectedPull)
-                            }
+                            // Use the appropriate selected mode based on interval role
+                            role_appearance.selected_for_role(interval.material.properties().role)
                         } 
                         // We no longer need to handle the originally selected push interval separately
                         // This was causing push intervals to remain purple after being deselected
@@ -154,8 +148,8 @@ impl FabricRenderer {
                                     Role::Springy => false,
                                 };
                                 if active {
-                                    // Use the Highlighted mode for adjacent intervals
-                                    role_appearance.apply_mode(AppearanceMode::Highlighted)
+                                    // Use the appropriate highlighted mode based on interval role
+                                    role_appearance.highlighted_for_role(interval.material.properties().role)
                                 } else {
                                     // Use the Faded mode for non-adjacent intervals
                                     role_appearance.apply_mode(AppearanceMode::Faded)
@@ -173,8 +167,8 @@ impl FabricRenderer {
                                 Role::Springy => false,
                             };
                             if active {
-                                // Use the Highlighted mode for adjacent intervals
-                                role_appearance.apply_mode(AppearanceMode::Highlighted)
+                                // Use the appropriate highlighted mode based on interval role
+                                role_appearance.highlighted_for_role(interval.material.properties().role)
                             } else {
                                 // Use the Faded mode for non-adjacent intervals
                                 role_appearance.apply_mode(AppearanceMode::Faded)
