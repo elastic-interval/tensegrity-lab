@@ -1,6 +1,6 @@
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::{PhysicsFeature, Radio, StateChange, TesterAction};
+use crate::{AppearanceMode, PhysicsFeature, Radio, Role, StateChange, TesterAction};
 use std::rc::Rc;
 
 pub struct PhysicsTester {
@@ -39,7 +39,10 @@ impl PhysicsTester {
                         StateChange::SetAppearanceFunction(Rc::new(move |interval| {
                             if interval.strain > strain_limit {
                                 let role = interval.material.properties().role;
-                                Some(role.appearance().highlighted())
+                                Some(match role {
+                                    Role::Pushing => role.appearance().apply_mode(AppearanceMode::HighlightedPush),
+                                    _ => role.appearance().apply_mode(AppearanceMode::HighlightedPull),
+                                })
                             } else {
                                 None
                             }

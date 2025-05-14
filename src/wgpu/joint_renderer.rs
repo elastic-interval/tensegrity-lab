@@ -73,7 +73,7 @@ impl JointRenderer {
 
         // Define the instance buffer layout
         let instance_layout = wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<JointMarkerInstance>() as wgpu::BufferAddress,
+            array_stride: size_of::<JointMarkerInstance>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &[
                 // position
@@ -84,13 +84,13 @@ impl JointRenderer {
                 },
                 // scale
                 wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    offset: size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     shader_location: 4,
                     format: wgpu::VertexFormat::Float32,
                 },
                 // color
                 wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
+                    offset: size_of::<[f32; 4]>() as wgpu::BufferAddress,
                     shader_location: 5,
                     format: wgpu::VertexFormat::Float32x4,
                 },
@@ -174,26 +174,21 @@ impl JointRenderer {
     fn create_instances(&self, fabric: &Fabric, pick: &Pick) -> Vec<JointMarkerInstance> {
         let mut instances = Vec::new();
 
-        // Add an instance for the selected joint
-        match pick {
-            Pick::Joint(details) => {
-                let position = fabric.location(details.index);
-                instances.push(JointMarkerInstance {
-                    position: [position.x, position.y, position.z],
-                    scale: 0.25,  // Half the previous size
-                    color: [0.4, 0.4, 0.9, 1.0],  // Bluish color with full opacity
-                });
-            },
-            Pick::Interval(details) => {
-                // Also show a marker at the near joint of a selected interval
-                let position = fabric.location(details.near_joint);
-                instances.push(JointMarkerInstance {
-                    position: [position.x, position.y, position.z],
-                    scale: 0.25,  // Half the previous size
-                    color: [0.4, 0.4, 0.9, 1.0],  // Bluish color with full opacity
-                });
-            },
-            _ => {}
+        // Extract the joint index based on pick type
+        let joint_index = match pick {
+            Pick::Joint(details) => Some(details.index),
+            Pick::Interval(details) => Some(details.near_joint),
+            _ => None,
+        };
+        
+        // Create a joint marker instance if we have a valid joint index
+        if let Some(index) = joint_index {
+            let position = fabric.location(index);
+            instances.push(JointMarkerInstance {
+                position: [position.x, position.y, position.z],
+                scale: 0.25,  // Half the previous size
+                color: [0.4, 0.4, 0.9, 1.0],  // Bluish color with full opacity
+            });
         }
 
         instances
