@@ -456,8 +456,27 @@ impl Camera {
         let gaze = (self.look_at - self.position).normalize();
         let right = gaze.cross(Vector3::unit_y()).normalize();
         let up = right.cross(gaze).normalize();
+        
+        // Vertical angle limit (about 37 degrees from vertical, arccos(0.8) ≈ 37°)
+        let angle_limit = 0.8;
+        
+        // Calculate yaw (horizontal rotation)
         let yaw = Quaternion::from_axis_angle(up, Rad(dx / 100.0));
-        let pitch = Quaternion::from_axis_angle(right, Rad(dy / 100.0));
+        
+        // Apply yaw rotation first to get intermediate gaze direction
+        let intermediate_gaze = yaw.rotate_vector(gaze);
+        let intermediate_up_dot = Vector3::unit_y().dot(intermediate_gaze);
+        
+        // Only apply pitch if it won't exceed the limits
+        let pitch = if (intermediate_up_dot >= angle_limit && dy > 0.0) || 
+                      (intermediate_up_dot <= -angle_limit && dy < 0.0) {
+            // At limit - don't apply any pitch
+            Quaternion::from_axis_angle(right, Rad(0.0))
+        } else {
+            // Not at limit - apply requested pitch
+            Quaternion::from_axis_angle(right, Rad(dy / 100.0))
+        };
+        
         let rotation = yaw * pitch;
         let matrix = Matrix4::from(rotation);
         Some(matrix)
