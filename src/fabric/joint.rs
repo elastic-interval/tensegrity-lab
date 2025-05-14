@@ -5,7 +5,7 @@
 
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter::*;
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, UniqueId};
 use cgmath::num_traits::zero;
 use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
 use itertools::Itertools;
@@ -33,14 +33,24 @@ impl Fabric {
         self.joints.remove(index);
         self.intervals
             .iter()
-            .filter_map(|(id, interval)| interval.touches(index).then_some(*id))
+            .enumerate()
+            .filter_map(|(idx, interval_opt)| {
+                interval_opt.as_ref().and_then(|interval| {
+                    if interval.touches(index) {
+                        Some(UniqueId(idx))
+                    } else {
+                        None
+                    }
+                })
+            })
             .collect_vec()
             .into_iter()
             .for_each(|id| {
                 self.remove_interval(id);
             });
         self.intervals
-            .values_mut()
+            .iter_mut()
+            .filter_map(|interval_opt| interval_opt.as_mut())
             .for_each(|interval| interval.joint_removed(index));
     }
 

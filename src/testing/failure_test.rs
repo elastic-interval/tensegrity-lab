@@ -1,5 +1,6 @@
 use crate::fabric::interval::Interval;
 use crate::fabric::material::Material;
+use crate::fabric::UniqueId;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::Age;
@@ -114,9 +115,14 @@ impl FailureTest {
         let interval_keys: Vec<_> = default_fabric
             .intervals
             .iter()
-            .flat_map(|(id, interval)| match (interval.material, &scenario) {
-                (Pull, TensionTest) | (Push, CompressionTest) | (GuyLine, TensionTest) => Some(*id),
-                _ => None,
+            .enumerate()
+            .filter_map(|(index, interval_opt)| {
+                interval_opt.as_ref().and_then(|interval| {
+                    match (interval.material, &scenario) {
+                        (Pull, TensionTest) | (Push, CompressionTest) | (GuyLine, TensionTest) => Some(UniqueId(index)),
+                        _ => None,
+                    }
+                })
             })
             .collect();
         let mut test_cases = vec![

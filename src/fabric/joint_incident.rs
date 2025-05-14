@@ -13,9 +13,12 @@ impl Fabric {
             .enumerate()
             .map(|(index, joint)| JointIncident::new(index, joint.location))
             .collect();
-        for (id, interval) in &self.intervals {
-            incidents[interval.alpha_index].add_interval(*id, interval);
-            incidents[interval.omega_index].add_interval(*id, interval);
+        for (index, interval_opt) in self.intervals.iter().enumerate() {
+            if let Some(interval) = interval_opt {
+                let id = UniqueId(index);
+                incidents[interval.alpha_index].add_interval(id, interval);
+                incidents[interval.omega_index].add_interval(id, interval);
+            }
         }
         incidents
     }

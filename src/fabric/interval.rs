@@ -33,12 +33,19 @@ impl Fabric {
                 length: ideal,
             },
         );
-        self.intervals.insert(id, interval);
+        
+        // Ensure the vector is large enough
+        if id.0 >= self.intervals.len() {
+            self.intervals.resize_with(id.0 + 1, || None);
+        }
+        
+        self.intervals[id.0] = Some(interval);
+        self.interval_count += 1;
         id
     }
 
     pub fn interval(&self, id: UniqueId) -> &Interval {
-        self.intervals.get(&id).unwrap()
+        self.intervals[id.0].as_ref().unwrap()
     }
 
     pub fn interval_snapshot(&self, id: UniqueId) -> IntervalSnapshot {
@@ -53,21 +60,33 @@ impl Fabric {
     }
 
     pub fn remove_interval(&mut self, id: UniqueId) -> Interval {
-        match self.intervals.remove(&id) {
+        match self.intervals[id.0].take() {
             None => panic!("Removing nonexistent interval {:?}", id),
-            Some(removed) => removed,
+            Some(removed) => {
+                self.interval_count -= 1;
+                removed
+            },
         }
     }
 
     pub fn joining(&mut self, pair: (usize, usize)) -> Option<UniqueId> {
         self.intervals
             .iter()
-            .find(|(_, interval)| interval.touches(pair.0) && interval.touches(pair.1))
-            .map(|(id, _)| *id)
+            .enumerate()
+            .filter_map(|(index, interval_opt)| {
+                interval_opt.as_ref().and_then(|interval| {
+                    if interval.touches(pair.0) && interval.touches(pair.1) {
+                        Some(UniqueId(index))
+                    } else {
+                        None
+                    }
+                })
+            })
+            .next()
     }
 
     pub fn interval_values(&self) -> impl Iterator<Item = &Interval> {
-        self.intervals.values()
+        self.intervals.iter().filter_map(|interval_opt| interval_opt.as_ref())
     }
 }
 
