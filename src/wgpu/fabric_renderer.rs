@@ -1,7 +1,7 @@
 use crate::camera::Pick;
 use crate::fabric::interval::Role;
 use crate::fabric::material::Material;
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, UniqueId};
 use crate::wgpu::Wgpu;
 use crate::{IntervalDetails, JointDetails, RenderStyle};
 use bytemuck::{Pod, Zeroable};
@@ -192,71 +192,74 @@ impl FabricRenderer {
     ) -> Vec<CylinderInstance> {
         use RenderStyle::*;
         let mut instances = Vec::with_capacity(fabric.intervals.len());
-        for (interval_id, interval) in &fabric.intervals {
-            let push = interval.material == Material::Push;
-            match render_style {
-                WithPullMap(_) if push => continue,
-                WithPushMap(_) if !push => continue,
-                _ => {}
-            }
-            let (alpha, omega) = (interval.alpha_index, interval.omega_index);
-            let start = fabric.joints[alpha].location;
-            let end = fabric.joints[omega].location;
-            let material = interval.material.properties();
-            let role_appearance = material.role.appearance();
-            let appearance = match pick {
-                Pick::Nothing => match render_style {
-                    Normal => role_appearance,
-                    WithAppearanceFunction(appearance) => {
-                        appearance(interval).unwrap_or(role_appearance)
-                    }
-                    WithPullMap(color_map) | WithPushMap(color_map) => {
-                        let key = interval.key();
-                        match color_map.get(&key) {
-                            None => role_appearance.faded(),
-                            Some(color) => role_appearance.with_color(*color),
-                        }
-                    }
-                },
-                Pick::Joint(JointDetails { index, .. }) => {
-                    if !interval.touches(*index) {
-                        role_appearance.faded()
-                    } else {
-                        role_appearance.active()
-                    }
+        for (index, interval_opt) in fabric.intervals.iter().enumerate() {
+            if let Some(interval) = interval_opt {
+                let interval_id = UniqueId(index);
+                let push = interval.material == Material::Push;
+                match render_style {
+                    WithPullMap(_) if push => continue,
+                    WithPushMap(_) if !push => continue,
+                    _ => {}
                 }
-                Pick::Interval(IntervalDetails {
-                    near_joint,
-                    far_joint,
-                    id,
-                    role,
-                    ..
-                }) => {
-                    if *id == *interval_id {
-                        role_appearance.highlighted()
-                    } else {
-                        let active = match role {
-                            Role::Pushing => {
-                                interval.touches(*near_joint) || interval.touches(*far_joint)
+                let (alpha, omega) = (interval.alpha_index, interval.omega_index);
+                let start = fabric.joints[alpha].location;
+                let end = fabric.joints[omega].location;
+                let material = interval.material.properties();
+                let role_appearance = material.role.appearance();
+                let appearance = match pick {
+                    Pick::Nothing => match render_style {
+                        Normal => role_appearance,
+                        WithAppearanceFunction(appearance) => {
+                            appearance(interval).unwrap_or(role_appearance)
+                        }
+                        WithPullMap(color_map) | WithPushMap(color_map) => {
+                            let key = interval.key();
+                            match color_map.get(&key) {
+                                None => role_appearance.faded(),
+                                Some(color) => role_appearance.with_color(*color),
                             }
-                            Role::Pulling => interval.touches(*near_joint),
-                            Role::Springy => false,
-                        };
-                        if active {
-                            role_appearance.active()
-                        } else {
+                        }
+                    },
+                    Pick::Joint(JointDetails { index, .. }) => {
+                        if !interval.touches(*index) {
                             role_appearance.faded()
+                        } else {
+                            role_appearance.active()
                         }
                     }
-                }
-            };
-            instances.push(CylinderInstance {
-                start: [start.x, start.y, start.z],
-                radius_factor: appearance.radius,
-                end: [end.x, end.y, end.z],
-                material_type: material.role as u32,
-                color: appearance.color,
-            });
+                    Pick::Interval(IntervalDetails {
+                        near_joint,
+                        far_joint,
+                        id,
+                        role,
+                        ..
+                    }) => {
+                        if *id == interval_id {
+                            role_appearance.highlighted()
+                        } else {
+                            let active = match role {
+                                Role::Pushing => {
+                                    interval.touches(*near_joint) || interval.touches(*far_joint)
+                                }
+                                Role::Pulling => interval.touches(*near_joint),
+                                Role::Springy => false,
+                            };
+                            if active {
+                                role_appearance.active()
+                            } else {
+                                role_appearance.faded()
+                            }
+                        }
+                    }
+                };
+                instances.push(CylinderInstance {
+                    start: [start.x, start.y, start.z],
+                    radius_factor: appearance.radius,
+                    end: [end.x, end.y, end.z],
+                    material_type: material.role as u32,
+                    color: appearance.color,
+                });
+            }
         }
 
         instances

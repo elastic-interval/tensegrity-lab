@@ -1,7 +1,7 @@
 use crate::fabric::joint_incident::JointIncident;
 use crate::fabric::material::Material;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, UniqueId};
 use crate::{Age, PhysicsFeature, TesterAction};
 use cgmath::Point3;
 use itertools::Itertools;
@@ -133,8 +133,16 @@ fn remove_supports(fabric: &mut Fabric) {
     fabric
         .intervals
         .iter()
-        .filter_map(|(id, interval)| interval.material.properties().support.then_some(id))
-        .cloned()
+        .enumerate()
+        .filter_map(|(index, interval_opt)| {
+            interval_opt.as_ref().and_then(|interval| {
+                if interval.material.properties().support {
+                    Some(UniqueId(index))
+                } else {
+                    None
+                }
+            })
+        })
         .collect_vec()
         .into_iter()
         .for_each(|support| {

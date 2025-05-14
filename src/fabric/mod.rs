@@ -52,12 +52,12 @@ pub struct Fabric {
     pub age: Age,
     pub progress: Progress,
     pub joints: Vec<Joint>,
-    pub intervals: HashMap<UniqueId, Interval>,
+    pub intervals: Vec<Option<Interval>>,
+    pub interval_count: usize,
     pub faces: HashMap<UniqueId, Face>,
     pub scale: f32,
     muscle_forward: Option<bool>,
     muscle_nuance: f32,
-    unique_id: usize,
 }
 
 impl Fabric {
@@ -67,12 +67,12 @@ impl Fabric {
             age: Age::default(),
             progress: Progress::default(),
             joints: Vec::new(),
-            intervals: HashMap::new(),
+            intervals: Vec::new(),
+            interval_count: 0,
             faces: HashMap::new(),
             scale: 1.0,
             muscle_nuance: 0.5,
             muscle_forward: None,
-            unique_id: 0,
         }
     }
 
@@ -108,7 +108,8 @@ impl Fabric {
     }
 
     pub fn slacken(&mut self) {
-        for interval in self.intervals.values_mut() {
+        for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
+            let interval = interval_opt.as_mut().unwrap();
             let MaterialProperties { support, .. } = interval.material.properties();
             if !support {
                 interval.span = Fixed {
@@ -123,7 +124,8 @@ impl Fabric {
     }
 
     pub fn set_pretenst(&mut self, pretenst: f32, countdown: usize) {
-        for interval in self.intervals.values_mut() {
+        for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
+            let interval = interval_opt.as_mut().unwrap();
             let MaterialProperties { role, support, .. } = interval.material.properties();
             if !support {
                 match &mut interval.span {
@@ -169,8 +171,16 @@ impl Fabric {
     pub fn failed_intervals(&self, strain_limit: f32) -> Vec<UniqueId> {
         self.intervals
             .iter()
-            .filter(|(_, interval)| interval.strain > strain_limit)
-            .map(|(id, _)| *id)
+            .enumerate()
+            .filter_map(|(index, interval_opt)| {
+                interval_opt.as_ref().and_then(|interval| {
+                    if interval.strain > strain_limit {
+                        Some(UniqueId(index))
+                    } else {
+                        None
+                    }
+                })
+            })
             .collect()
     }
 
@@ -178,7 +188,8 @@ impl Fabric {
         for joint in &mut self.joints {
             joint.reset();
         }
-        for interval in self.intervals.values_mut() {
+        for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
+            let interval = interval_opt.as_mut().unwrap();
             interval.iterate(
                 &mut self.joints,
                 &self.progress,
@@ -192,7 +203,8 @@ impl Fabric {
         }
         if self.progress.step() {
             // final step
-            for interval in self.intervals.values_mut() {
+            for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
+                let interval = interval_opt.as_mut().unwrap();
                 match &mut interval.span {
                     Fixed { .. } => {}
                     Pretenst { finished, .. } => {
@@ -220,7 +232,8 @@ impl Fabric {
 
     pub fn create_muscles(&mut self, contraction: f32) {
         self.muscle_nuance = 0.5;
-        for interval in self.intervals.values_mut() {
+        for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
+            let interval = interval_opt.as_mut().unwrap();
             let Fixed { length } = interval.span else {
                 continue;
             };
@@ -261,8 +274,15 @@ impl Fabric {
     }
 
     fn create_id(&mut self) -> UniqueId {
-        let id = UniqueId(self.unique_id);
-        self.unique_id += 1;
+        // Find an empty slot or create a new one
+        for (index, interval_opt) in self.intervals.iter().enumerate() {
+            if interval_opt.is_none() {
+                return UniqueId(index);
+            }
+        }
+        // No empty slots found, add a new one
+        let id = UniqueId(self.intervals.len());
+        self.intervals.push(None);
         id
     }
 
@@ -290,7 +310,8 @@ impl Fabric {
                 max_height = location.y;
             }
         }
-        for interval in self.intervals.values() {
+        for interval_opt in self.intervals.iter().filter(|i| i.is_some()) {
+            let interval = interval_opt.as_ref().unwrap();
             let length = interval.length(&self.joints);
             let material = interval.material.properties();
             if !material.support {
@@ -336,4 +357,4 @@ impl Fabric {
 }
 
 #[derive(Clone, Debug, Copy, PartialEq, Default, Hash, Eq, Ord, PartialOrd)]
-pub struct UniqueId(usize);
+pub struct UniqueId(pub usize);

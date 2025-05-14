@@ -1,5 +1,3 @@
-use std::f32::consts::PI;
-
 use cgmath::num_traits::abs;
 use cgmath::{
     perspective, point3, Deg, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion, Rad,
@@ -150,6 +148,30 @@ impl Camera {
         self.projection_matrix() * self.view_matrix()
     }
 
+    fn create_joint_details(&self, index: usize, location: Point3<f32>, scale: f32) -> JointDetails {
+        JointDetails {
+            index,
+            location,
+            scale,
+        }
+    }
+
+    fn create_interval_details(&self, id: UniqueId, near_joint: usize, fabric: &Fabric) -> IntervalDetails {
+        let interval = fabric.interval(id);
+        let far_joint = interval.other_joint(near_joint);
+        
+        IntervalDetails {
+            id,
+            near_joint,
+            far_joint,
+            length: interval.ideal(),
+            strain: interval.strain,
+            distance: fabric.distance(near_joint, far_joint),
+            role: interval.material.properties().role,
+            scale: fabric.scale,
+        }
+    }
+
     fn pick_ray(&mut self, (px, py): (f32, f32), shot: Shot, fabric: &Fabric) -> Pick {
         let width = self.width / 2.0;
         let height = self.height / 2.0;
@@ -163,41 +185,27 @@ impl Camera {
             .transform_point(position);
         let ray = (point3d - self.position).normalize();
         let scale = fabric.scale;
+        
         match shot {
             Shot::NoPick => Pick::Nothing,
             Shot::Joint => match self.current_pick {
                 Pick::Nothing => match self.best_joint(ray, fabric) {
                     None => Pick::Nothing,
                     Some((index, joint)) => {
-                        let location = joint.location;
-                        Pick::Joint(JointDetails {
-                            index,
-                            location,
-                            scale,
-                        })
+                        Pick::Joint(self.create_joint_details(index, joint.location, scale))
                     }
                 },
                 Pick::Joint(JointDetails { index, .. }) => {
                     match self.best_joint_around(index, ray, fabric) {
                         None => Pick::Nothing,
                         Some((index, joint)) => {
-                            let location = joint.location;
-                            Pick::Joint(JointDetails {
-                                index,
-                                location,
-                                scale,
-                            })
+                            Pick::Joint(self.create_joint_details(index, joint.location, scale))
                         }
                     }
                 }
                 Pick::Interval(details) => {
                     let index = details.far_joint;
-                    let location = fabric.location(index);
-                    Pick::Joint(JointDetails {
-                        index,
-                        location,
-                        scale,
-                    })
+                    Pick::Joint(self.create_joint_details(index, fabric.location(index), scale))
                 }
             },
             Shot::Interval => match self.current_pick {
@@ -205,56 +213,19 @@ impl Camera {
                 Pick::Joint(JointDetails { index, .. }) => {
                     match self.best_interval_around(index, ray, fabric) {
                         None => Pick::Nothing,
-                        Some(id) => {
-                            let interval = *fabric.interval(id);
-                            let length = interval.ideal();
-                            let distance = interval.length(fabric.joints.as_ref());
-                            let role = interval.material.properties().role;
-                            let near_joint = if interval.alpha_index == index {
-                                interval.alpha_index
-                            } else {
-                                interval.omega_index
-                            };
-                            let far_joint = interval.other_joint(near_joint);
-                            let strain = interval.strain;
-                            Pick::Interval(IntervalDetails {
-                                id,
-                                near_joint,
-                                far_joint,
-                                length,
-                                role,
-                                strain,
-                                distance,
-                                scale,
-                            })
-                        }
+                        Some(id) => Pick::Interval(self.create_interval_details(id, index, fabric))
                     }
                 }
                 Pick::Interval(details) => {
+                    // Try to find an interval near the current one
                     match self.best_interval_around(details.near_joint, ray, fabric) {
-                        None => Pick::Nothing,
-                        Some(id) => {
-                            let interval = *fabric.interval(id);
-                            let role = interval.material.properties().role;
-                            let length = interval.ideal();
-                            let distance = interval.length(fabric.joints.as_ref());
-                            let near_joint = details.near_joint;
-                            let far_joint = interval.other_joint(near_joint);
-                            let strain = interval.strain;
-                            let scale = fabric.scale;
-                            Pick::Interval(IntervalDetails {
-                                id,
-                                near_joint,
-                                far_joint,
-                                length,
-                                strain,
-                                distance,
-                                role,
-                                scale,
-                            })
-                        }
+                        None => match self.best_interval_around(details.far_joint, ray, fabric) {
+                            None => Pick::Nothing,
+                            Some(id) => Pick::Interval(self.create_interval_details(id, details.far_joint, fabric))
+                        },
+                        Some(id) => Pick::Interval(self.create_interval_details(id, details.near_joint, fabric))
                     }
-                }
+                },
             },
         }
     }
@@ -265,24 +236,21 @@ impl Camera {
 
     fn projection_matrix(&self) -> Matrix4<f32> {
         let aspect = self.width / self.height;
-        OPENGL_TO_WGPU_MATRIX * perspective(Rad(2.0 * PI / 5.0), aspect, 0.1, 100.0)
+        OPENGL_TO_WGPU_MATRIX * perspective(Deg(45.0), aspect, 0.1, 100.0)
     }
 
     fn rotation(&self, (dx, dy): (f32, f32)) -> Option<Matrix4<f32>> {
-        if (dx, dy) == (0.0, 0.0) {
+        if dx == 0.0 && dy == 0.0 {
             return None;
         }
-        let rot_x = Matrix4::from_axis_angle(Vector3::unit_y(), Deg(dx * -0.5));
-        let intermediate_pos = self.look_at - rot_x.transform_vector(self.look_at - self.position);
-        let view_dir = (self.look_at - intermediate_pos).normalize();
-        let up_dot_view = Vector3::unit_y().dot(view_dir);
-        let angle_limit = 0.7;
-        if (up_dot_view >= angle_limit && dy < 0.0) || (up_dot_view <= -angle_limit && dy > 0.0) {
-            return Some(rot_x);
-        }
-        let axis = Vector3::unit_y().cross(view_dir).normalize();
-        let rot_y = Matrix4::from_axis_angle(axis, Deg(dy * 0.4));
-        Some(rot_x * rot_y)
+        let gaze = (self.look_at - self.position).normalize();
+        let right = gaze.cross(Vector3::unit_y()).normalize();
+        let up = right.cross(gaze).normalize();
+        let yaw = Quaternion::from_axis_angle(up, Rad(dx / 100.0));
+        let pitch = Quaternion::from_axis_angle(right, Rad(dy / 100.0));
+        let rotation = yaw * pitch;
+        let matrix = Matrix4::from(rotation);
+        Some(matrix)
     }
 
     fn best_joint_around(
@@ -295,8 +263,16 @@ impl Camera {
             fabric
                 .intervals
                 .iter()
-                .filter(|(_, interval)| interval.touches(joint))
-                .map(|(id, _)| *id),
+                .enumerate()
+                .filter_map(|(index, interval_opt)| {
+                    interval_opt.as_ref().and_then(|interval| {
+                        if interval.touches(joint) {
+                            Some(UniqueId(index))
+                        } else {
+                            None
+                        }
+                    })
+                }),
             ray,
             |&interval_id| fabric.interval(interval_id).midpoint(&fabric.joints),
             |dot| dot > DOT_CLOSE_ENOUGH,
@@ -318,8 +294,16 @@ impl Camera {
             fabric
                 .intervals
                 .iter()
-                .filter(|(_, interval)| interval.touches(joint))
-                .map(|(id, _)| *id),
+                .enumerate()
+                .filter_map(|(index, interval_opt)| {
+                    interval_opt.as_ref().and_then(|interval| {
+                        if interval.touches(joint) {
+                            Some(UniqueId(index))
+                        } else {
+                            None
+                        }
+                    })
+                }),
             ray,
             |&interval_id| fabric.interval(interval_id).midpoint(&fabric.joints),
             |_| true, // No dot product filtering needed here
@@ -330,13 +314,12 @@ impl Camera {
         self.find_best_by_dot(
             fabric.joints.iter().enumerate(),
             ray,
-            |&(_, joint)| joint.location,
-            |dot| dot > DOT_CLOSE_ENOUGH,
+            |(_, joint)| joint.location,
+            |_| true,
         )
         .map(|(index, joint)| (index, *joint))
     }
 
-    // Helper function to find the best item in a collection based on dot product with a ray
     fn find_best_by_dot<T, F, G>(
         &self,
         items: impl Iterator<Item = T>,
@@ -348,16 +331,18 @@ impl Camera {
         F: Fn(&T) -> Point3<f32>,
         G: Fn(f32) -> bool,
     {
-        items
-            .map(|item| {
-                let dot = (get_position(&item).to_vec() - self.position.to_vec())
-                    .normalize()
-                    .dot(ray);
-                (item, dot)
-            })
-            .max_by(|(_, dot_a), (_, dot_b)| dot_a.total_cmp(dot_b))
-            .filter(|(_, dot)| dot_filter(*dot))
-            .map(|(item, _)| item)
+        let mut best_item = None;
+        let mut best_dot = -1.0;
+        for item in items {
+            let position = get_position(&item);
+            let to_target = (position - self.position).normalize();
+            let dot = ray.dot(to_target);
+            if dot > best_dot && dot_filter(dot) {
+                best_dot = dot;
+                best_item = Some(item);
+            }
+        }
+        best_item
     }
 }
 
@@ -365,24 +350,25 @@ const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
     1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.5, 1.0,
 );
 
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Clone, Copy)]
 pub enum Target {
-    Origin,
-    #[default]
     FabricMidpoint,
     AroundJoint(usize),
     AroundInterval(UniqueId),
 }
 
+impl Default for Target {
+    fn default() -> Self {
+        Self::FabricMidpoint
+    }
+}
+
 impl Target {
     pub fn look_at(&self, fabric: &Fabric) -> Point3<f32> {
         match self {
-            Target::Origin => point3(0.0, 0.0, 0.0),
             Target::FabricMidpoint => fabric.midpoint(),
-            Target::AroundJoint(joint_id) => fabric.joints[*joint_id].location,
-            Target::AroundInterval(interval_id) => {
-                fabric.interval(*interval_id).midpoint(&fabric.joints)
-            }
+            Target::AroundJoint(index) => fabric.location(*index),
+            Target::AroundInterval(id) => fabric.interval(*id).midpoint(&fabric.joints),
         }
     }
 }

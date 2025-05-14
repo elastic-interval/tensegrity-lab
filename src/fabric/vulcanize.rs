@@ -44,23 +44,23 @@ impl Fabric {
     pub fn _equalize_strain(&mut self, target_material: Material) {
         let mut total_strain = 0.0;
         let mut count = 0;
-        for Interval {
-            material, strain, ..
-        } in self.intervals.values()
-        {
+        for interval_opt in self.intervals.iter().filter(|i| i.is_some()) {
+            let Interval {
+                material, strain, ..
+            } = interval_opt.as_ref().unwrap();
             if *material == target_material {
                 total_strain += strain;
                 count += 1;
             }
         }
         let average_strain = total_strain / (count as f32);
-        for Interval {
-            material,
-            span,
-            strain,
-            ..
-        } in self.intervals.values_mut()
-        {
+        for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
+            let Interval {
+                material,
+                span,
+                strain,
+                ..
+            } = interval_opt.as_mut().unwrap();
             if *material == target_material {
                 match span {
                     Span::Fixed { length } => {
