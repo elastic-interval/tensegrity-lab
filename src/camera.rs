@@ -1,13 +1,13 @@
 use cgmath::num_traits::abs;
 use cgmath::{
-    perspective, point3, Deg, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion, Rad,
+    ortho, perspective, point3, Deg, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion, Rad,
     Rotation, Rotation3, SquareMatrix, Transform, Vector3,
 };
 use winit::dpi::PhysicalPosition;
 
 use crate::fabric::joint::Joint;
 use crate::fabric::{Fabric, UniqueId};
-use crate::{ControlState, IntervalDetails, JointDetails, PointerChange, Radio, Shot};
+use crate::{ControlState, IntervalDetails, JointDetails, PickIntent, PointerChange, Radio, Role};
 
 #[derive(Debug, Clone)]
 pub enum Pick {
@@ -20,6 +20,15 @@ const TARGET_HIT: f32 = 0.001;
 const TARGET_ATTRACTION: f32 = 0.01;
 const DOT_CLOSE_ENOUGH: f32 = 0.92;
 
+/// Defines the type of projection used by the camera
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ProjectionType {
+    /// Perspective projection (default)
+    Perspective,
+    /// Orthogonal projection
+    Orthogonal,
+}
+
 pub struct Camera {
     position: Point3<f32>,
     target: Target,
@@ -31,6 +40,9 @@ pub struct Camera {
     mouse_click: Option<PhysicalPosition<f64>>,
     current_pick: Pick,
     radio: Radio,
+    projection_type: ProjectionType,
+    // Store the last ray origin for use in picking calculations
+    last_ray_origin: Point3<f32>,
 }
 
 impl Camera {
@@ -46,6 +58,8 @@ impl Camera {
             mouse_click: None,
             current_pick: Pick::Nothing,
             radio,
+            projection_type: ProjectionType::Perspective, // Default to perspective projection
+            last_ray_origin: position, // Initialize with camera position
         }
     }
 
@@ -53,8 +67,17 @@ impl Camera {
         self.target = target
     }
 
-    pub fn current_pick(&self) -> Pick {
-        self.current_pick.clone()
+    // This method is no longer needed as we have a reference-returning version below
+    // pub fn current_pick(&self) -> Pick {
+    //     self.current_pick.clone()
+    // }
+    
+    /// Toggle between perspective and orthogonal projection
+    pub fn toggle_projection(&mut self) {
+        self.projection_type = match self.projection_type {
+            ProjectionType::Perspective => ProjectionType::Orthogonal,
+            ProjectionType::Orthogonal => ProjectionType::Perspective,
+        };
     }
 
     pub fn reset(&mut self) {
@@ -89,7 +112,7 @@ impl Camera {
                 self.mouse_follower = self.mouse_now;
                 self.mouse_click = self.mouse_now;
             }
-            PointerChange::Released(shot) => {
+            PointerChange::Released(pick_intent) => {
                 self.mouse_follower = None;
                 if let (Some(mouse_click), Some(mouse_now)) = (self.mouse_click, self.mouse_now) {
                     let (dx, dy) = (
@@ -102,7 +125,7 @@ impl Camera {
                     }
                     self.mouse_click = None;
                     let PhysicalPosition { x, y } = mouse_now;
-                    let pick = self.pick_ray((x as f32, y as f32), shot, fabric);
+                    let pick = self.pick_ray((x as f32, y as f32), pick_intent, fabric);
                     match pick {
                         Pick::Nothing => {
                             self.set_target(Target::FabricMidpoint);
@@ -156,7 +179,13 @@ impl Camera {
         }
     }
 
-    fn create_interval_details(&self, id: UniqueId, near_joint: usize, fabric: &Fabric) -> IntervalDetails {
+    fn create_interval_details(
+        &self,
+        id: UniqueId,
+        near_joint: usize,
+        fabric: &Fabric,
+        original_interval_id: Option<UniqueId>,
+    ) -> IntervalDetails {
         let interval = fabric.interval(id);
         let far_joint = interval.other_joint(near_joint);
         
@@ -169,26 +198,76 @@ impl Camera {
             distance: fabric.distance(near_joint, far_joint),
             role: interval.material.properties().role,
             scale: fabric.scale,
+            original_interval_id,
         }
     }
 
-    fn pick_ray(&mut self, (px, py): (f32, f32), shot: Shot, fabric: &Fabric) -> Pick {
+    /// Returns a reference to the current pick state
+    pub fn current_pick(&self) -> &Pick {
+        &self.current_pick
+    }
+
+    fn pick_ray(&mut self, (px, py): (f32, f32), pick_intent: PickIntent, fabric: &Fabric) -> Pick {
         let width = self.width / 2.0;
         let height = self.height / 2.0;
         let x = (px - width) / width;
         let y = (height - py) / height;
-        let position = Point3::new(x, y, 1.0);
-        let point3d = self
-            .mvp_matrix()
-            .invert()
-            .unwrap()
-            .transform_point(position);
-        let ray = (point3d - self.position).normalize();
+        
+        // For picking, we need both a ray origin and direction
+        // In perspective mode, the origin is always the camera position
+        // In orthogonal mode, we need to calculate a different origin point
+        
+        let (ray_origin, ray_direction) = match self.projection_type {
+            ProjectionType::Perspective => {
+                // For perspective, use the standard ray calculation
+                let position = Point3::new(x, y, 1.0);
+                let point3d = self
+                    .mvp_matrix()
+                    .invert()
+                    .unwrap()
+                    .transform_point(position);
+                (self.position, (point3d - self.position).normalize())
+            },
+            ProjectionType::Orthogonal => {
+                // For orthographic projection, we need to calculate a ray origin that's offset from the camera
+                // based on the screen coordinates
+                
+                // First, get the view direction and perpendicular vectors
+                let view_dir = (self.look_at - self.position).normalize();
+                let right = view_dir.cross(Vector3::unit_y()).normalize();
+                let up = right.cross(view_dir).normalize();
+                
+                // Calculate the distance from camera to look_at point
+                let distance = (self.look_at - self.position).magnitude();
+                
+                // Calculate the view size at the look_at distance
+                let view_size = distance * 0.5;
+                
+                // Calculate the offset from the center of the screen
+                let x_offset = x * view_size * self.width / self.height; // Adjust for aspect ratio
+                let y_offset = y * view_size;
+                
+                // Calculate the ray origin by offsetting from a point in front of the camera
+                let center_point = self.position + view_dir * distance;
+                let ray_origin = center_point + right * x_offset + up * y_offset;
+                
+                (ray_origin, view_dir)
+            }
+        };
+        
+        // Store ray origin in the Camera struct for use in find_best_by_dot
+        self.last_ray_origin = ray_origin;
+        let ray = ray_direction;
+        
         let scale = fabric.scale;
         
-        match shot {
-            Shot::NoPick => Pick::Nothing,
-            Shot::Joint => match self.current_pick {
+        // Determine if this is a right-click (which allows "traveling" to the other side of an interval)
+        let is_right_click = matches!(pick_intent, PickIntent::TravelToJoint | PickIntent::TravelThroughInterval);
+        
+        // The main logic for picking is based on whether we're trying to select a joint or an interval
+        match pick_intent {
+            PickIntent::None => Pick::Nothing,
+            PickIntent::SelectJoint | PickIntent::TravelToJoint => match self.current_pick {
                 Pick::Nothing => match self.best_joint(ray, fabric) {
                     None => Pick::Nothing,
                     Some((index, joint)) => {
@@ -204,26 +283,142 @@ impl Camera {
                     }
                 }
                 Pick::Interval(details) => {
-                    let index = details.far_joint;
-                    Pick::Joint(self.create_joint_details(index, fabric.location(index), scale))
+                    // Only jump to the far joint if this is explicitly a right-click on a joint
+                    // This prevents automatic jumping when selecting intervals
+                    if matches!(pick_intent, PickIntent::TravelToJoint) {
+                        let index = details.far_joint;
+                        Pick::Joint(self.create_joint_details(index, fabric.location(index), scale))
+                    } else {
+                        // For left-clicks, keep the current interval selection
+                        self.current_pick.clone()
+                    }
                 }
             },
-            Shot::Interval => match self.current_pick {
+            PickIntent::SelectInterval | PickIntent::TravelThroughInterval => match self.current_pick {
                 Pick::Nothing => Pick::Nothing,
                 Pick::Joint(JointDetails { index, .. }) => {
                     match self.best_interval_around(index, ray, fabric) {
                         None => Pick::Nothing,
-                        Some(id) => Pick::Interval(self.create_interval_details(id, index, fabric))
+                        Some(id) => Pick::Interval(self.create_interval_details(id, index, fabric, None))
                     }
                 }
                 Pick::Interval(details) => {
-                    // Try to find an interval near the current one
-                    match self.best_interval_around(details.near_joint, ray, fabric) {
-                        None => match self.best_interval_around(details.far_joint, ray, fabric) {
+                    // Check if this is a click on the same interval
+                    let current_id = details.id;
+                    let current_near_joint = details.near_joint;
+                    
+                    // Get the original interval ID (for nested selection)
+                    // If this is a push interval or we already have an original interval, use it
+                    let original_interval_id = if details.role == Role::Pushing {
+                        // For push intervals, we want to remember them as the original interval
+                        Some(details.id)
+                    } else {
+                        // For other intervals, use the existing original_interval_id if available
+                        details.original_interval_id
+                    };
+                    
+                    if !is_right_click {
+                        // For push intervals, treat intervals from both near and far joints equally
+                        // For other interval types, maintain the original behavior
+                        if details.role == Role::Pushing {
+                            // Get the near and far joints
+                            let near_joint = current_near_joint;
+                            let far_joint = details.far_joint;
+                            
+                            // Collect all adjacent intervals from both near and far joints
+                            let mut adjacent_intervals: Vec<(UniqueId, usize)> = Vec::new();
+                            
+                            // Find all intervals connected to either joint (except the current one)
+                            for (index, interval_opt) in fabric.intervals.iter().enumerate() {
+                                if let Some(interval) = interval_opt {
+                                    let id = UniqueId(index);
+                                    // Skip the current interval
+                                    if id == current_id {
+                                        continue;
+                                    }
+                                    
+                                    // Add intervals connected to either joint
+                                    if interval.touches(near_joint) {
+                                        adjacent_intervals.push((id, near_joint));
+                                    } else if interval.touches(far_joint) {
+                                        adjacent_intervals.push((id, far_joint));
+                                    }
+                                }
+                            }
+                            
+                            // If we found adjacent intervals, find the best one
+                            if !adjacent_intervals.is_empty() {
+                                // Calculate the closest interval to the ray
+                                let mut best_interval = None;
+                                let mut best_score = f32::NEG_INFINITY;
+                                
+                                for (id, joint_index) in &adjacent_intervals {
+                                    let interval = fabric.interval(*id);
+                                    let midpoint = interval.midpoint(&fabric.joints);
+                                    
+                                    // Calculate a score based on how close the interval is to the ray
+                                    let score = match self.projection_type {
+                                        ProjectionType::Perspective => {
+                                            // For perspective, use the dot product method
+                                            let to_midpoint = (midpoint - self.position).normalize();
+                                            ray.dot(to_midpoint)
+                                        },
+                                        ProjectionType::Orthogonal => {
+                                            // For orthogonal, calculate the distance from the ray to the midpoint
+                                            let ray_to_point = midpoint - self.last_ray_origin;
+                                            let projection = ray_to_point.dot(ray) * ray;
+                                            let perpendicular = ray_to_point - projection;
+                                            
+                                            // Negative distance (closer points have higher scores)
+                                            -perpendicular.magnitude()
+                                        }
+                                    };
+                                    
+                                    if score > best_score {
+                                        best_score = score;
+                                        best_interval = Some((*id, *joint_index));
+                                    }
+                                }
+                                
+                                // If we found a good interval, select it
+                                if let Some((id, joint_index)) = best_interval {
+                                    return Pick::Interval(self.create_interval_details(id, joint_index, fabric, original_interval_id));
+                                }
+                            }
+                        } else {
+                            // For non-push intervals, use the original selection logic
+                            // First try to find intervals around the current near joint
+                            if let Some(id) = self.best_interval_around(current_near_joint, ray, fabric) {
+                                if id == current_id {
+                                    // If we're selecting the same interval again, keep the current near joint
+                                    return Pick::Interval(self.create_interval_details(id, current_near_joint, fabric, original_interval_id));
+                                } else {
+                                    // New interval from the current near joint
+                                    return Pick::Interval(self.create_interval_details(id, current_near_joint, fabric, original_interval_id));
+                                }
+                            }
+                            
+                            // If no interval was found around the current near joint, try the far joint
+                            let far_joint = details.far_joint;
+                            if let Some(id) = self.best_interval_around(far_joint, ray, fabric) {
+                                // Allow selecting any interval from the far joint
+                                return Pick::Interval(self.create_interval_details(id, far_joint, fabric, original_interval_id));
+                            }
+                        }
+                        
+                        // If we get here, we couldn't find a new interval, so keep the current selection
+                        return self.current_pick.clone();
+                    } else {
+                        // For right-clicks, use the full interval selection logic which allows traveling
+                        let selection = self.best_interval_from_details(&details, ray, fabric, true);
+                        
+                        match selection {
                             None => Pick::Nothing,
-                            Some(id) => Pick::Interval(self.create_interval_details(id, details.far_joint, fabric))
-                        },
-                        Some(id) => Pick::Interval(self.create_interval_details(id, details.near_joint, fabric))
+                            Some((id, near_joint)) => {
+                                // Pass along the original_interval_id for nested selection
+                                Pick::Interval(self.create_interval_details(id, near_joint, fabric, original_interval_id))
+                            }
+                        }
                     }
                 },
             },
@@ -236,7 +431,22 @@ impl Camera {
 
     fn projection_matrix(&self) -> Matrix4<f32> {
         let aspect = self.width / self.height;
-        OPENGL_TO_WGPU_MATRIX * perspective(Deg(45.0), aspect, 0.1, 100.0)
+        let proj_matrix = match self.projection_type {
+            ProjectionType::Perspective => {
+                perspective(Deg(45.0), aspect, 0.1, 100.0)
+            },
+            ProjectionType::Orthogonal => {
+                // For orthographic projection, calculate a reasonable view size based on distance
+                let distance = (self.look_at - self.position).magnitude();
+                let view_size = distance * 0.5;
+                ortho(
+                    -view_size * aspect, view_size * aspect,  // left, right
+                    -view_size, view_size,                   // bottom, top
+                    0.1, distance * 10.0                     // near, far
+                )
+            },
+        };
+        OPENGL_TO_WGPU_MATRIX * proj_matrix
     }
 
     fn rotation(&self, (dx, dy): (f32, f32)) -> Option<Matrix4<f32>> {
@@ -275,7 +485,7 @@ impl Camera {
                 }),
             ray,
             |&interval_id| fabric.interval(interval_id).midpoint(&fabric.joints),
-            |dot| dot > DOT_CLOSE_ENOUGH,
+            |dot| *dot > DOT_CLOSE_ENOUGH,
         )
         .map(|id| {
             let joint_index = fabric.interval(id).other_joint(joint);
@@ -310,6 +520,87 @@ impl Camera {
         )
     }
 
+    /// Helper method to find the best interval when an interval is already selected
+    /// This handles the logic for selecting intervals around both the near and far joints
+    /// while preventing unintended "traveling" to the other side of the same interval
+    fn best_interval_from_details(
+        &self,
+        details: &IntervalDetails,
+        ray: Vector3<f32>,
+        fabric: &Fabric,
+        is_right_click: bool,
+    ) -> Option<(UniqueId, usize)> {
+        // Try both the near joint and far joint
+        let near_result = self.best_interval_around(details.near_joint, ray, fabric);
+        let far_result = self.best_interval_around(details.far_joint, ray, fabric);
+        
+        match (near_result, far_result) {
+            (None, None) => None,
+            (Some(id), None) => Some((id, details.near_joint)),
+            (None, Some(id)) => Some((id, details.far_joint)),
+            (Some(near_id), Some(far_id)) => {
+                // Both joints have intervals - compare which one is more aligned with the ray
+                let near_midpoint = fabric.interval(near_id).midpoint(&fabric.joints);
+                let far_midpoint = fabric.interval(far_id).midpoint(&fabric.joints);
+                
+                let to_near = (near_midpoint - self.position).normalize();
+                let to_far = (far_midpoint - self.position).normalize();
+                
+                let near_dot = ray.dot(to_near);
+                let far_dot = ray.dot(to_far);
+                
+                // Check if either result is the same as the current interval (which would indicate "traveling")
+                let near_is_same = near_id == details.id;
+                let far_is_same = far_id == details.id;
+                
+                // Check if we're trying to "travel" to the other side of the same interval
+                // (These variables were already declared above, so we'll use them directly)
+                
+                if is_right_click {
+                    // Right-click explicitly allows "traveling" to the other side
+                    // We'll pick the interval based on which one is more aligned with the ray
+                    if near_dot > far_dot {
+                        Some((near_id, details.near_joint))
+                    } else {
+                        Some((far_id, details.far_joint))
+                    }
+                } else {
+                    // For left-clicks, we need to be careful to prevent traveling
+                    
+                    // If one of the intervals is the same as the current one, we need to handle it specially
+                    if near_is_same || far_is_same {
+                        // If both intervals are available, pick the one that's NOT the same as the current one
+                        // This ensures we don't travel to the other side with a left-click
+                        if near_is_same && far_result.is_some() {
+                            // The near interval is the same as current, so pick the far one
+                            Some((far_id, details.far_joint))
+                        } else if far_is_same && near_result.is_some() {
+                            // The far interval is the same as current, so pick the near one
+                            Some((near_id, details.near_joint))
+                        } else {
+                            // Only one interval is available, and it's the same as the current one
+                            // In this case, we'll just return the current interval with the same joint
+                            // to prevent traveling
+                            if near_is_same {
+                                Some((near_id, details.near_joint))
+                            } else { // far_is_same
+                                Some((far_id, details.far_joint))
+                            }
+                        }
+                    } else {
+                        // Neither interval is the same as the current one
+                        // Pick the one more aligned with the ray
+                        if near_dot > far_dot {
+                            Some((near_id, details.near_joint))
+                        } else {
+                            Some((far_id, details.far_joint))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fn best_joint(&self, ray: Vector3<f32>, fabric: &Fabric) -> Option<(usize, Joint)> {
         self.find_best_by_dot(
             fabric.joints.iter().enumerate(),
@@ -329,20 +620,39 @@ impl Camera {
     ) -> Option<T>
     where
         F: Fn(&T) -> Point3<f32>,
-        G: Fn(f32) -> bool,
+        G: Fn(&f32) -> bool,
     {
-        let mut best_item = None;
-        let mut best_dot = -1.0;
-        for item in items {
-            let position = get_position(&item);
-            let to_target = (position - self.position).normalize();
-            let dot = ray.dot(to_target);
-            if dot > best_dot && dot_filter(dot) {
-                best_dot = dot;
-                best_item = Some(item);
-            }
-        }
-        best_item
+        // Use the ray origin that was calculated in pick_ray
+        let ray_origin = self.last_ray_origin;
+        
+        items
+            .map(|item| {
+                let position = get_position(&item);
+                
+                // Calculate selection score based on projection type
+                let score = match self.projection_type {
+                    ProjectionType::Perspective => {
+                        // For perspective, use the dot product method
+                        let to_position = (position - self.position).normalize();
+                        ray.dot(to_position)
+                    },
+                    ProjectionType::Orthogonal => {
+                        // For orthogonal, calculate the distance from the ray to the point
+                        // The closer the point is to the ray, the higher the score
+                        let ray_to_point = position - ray_origin;
+                        let projection = ray_to_point.dot(ray) * ray;
+                        let perpendicular = ray_to_point - projection;
+                        
+                        // Negative distance (closer points have higher scores)
+                        -perpendicular.magnitude()
+                    }
+                };
+                
+                (item, score)
+            })
+            .filter(|(_, score)| dot_filter(score))
+            .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+            .map(|(item, _)| item)
     }
 }
 

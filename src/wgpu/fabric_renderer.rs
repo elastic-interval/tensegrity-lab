@@ -232,13 +232,55 @@ impl FabricRenderer {
                         far_joint,
                         id,
                         role,
+                        original_interval_id,
                         ..
                     }) => {
+                        // If this is the currently selected interval, highlight it based on its type
                         if *id == interval_id {
+                            // Use the highlighted method which now returns purple for push intervals
+                            // and green for pull intervals
                             role_appearance.highlighted()
+                        } 
+                        // If this is the originally selected push interval, show it in purple
+                        else if let Some(orig_id) = original_interval_id {
+                            if *orig_id == interval_id && interval.material.properties().role == Role::Pushing {
+                                // Purple color for the originally selected push interval
+                                role_appearance.with_color([0.8, 0.2, 0.8, 1.0])
+                            } else {
+                                // For all other intervals, check if they're adjacent to either joint
+                                // When a push interval is selected, we want to keep intervals on both near and far joints highlighted
+                                // When an interval from the far joint is selected, we still want to highlight intervals on the near joint
+                                let active = match role {
+                                    Role::Pushing => {
+                                        // For push intervals, consider intervals adjacent to both near and far joints
+                                        // Also check if the interval touches the original interval's near or far joint
+                                        if let Some(orig_id) = original_interval_id {
+                                            // Get the original interval's near joint
+                                            let orig_interval = fabric.interval(*orig_id);
+                                            let orig_near = orig_interval.alpha_index;
+                                            
+                                            // Check if the interval touches any of the relevant joints
+                                            interval.touches(*near_joint) || interval.touches(*far_joint) || 
+                                            interval.touches(orig_near)
+                                        } else {
+                                            interval.touches(*near_joint) || interval.touches(*far_joint)
+                                        }
+                                    }
+                                    Role::Pulling => interval.touches(*near_joint),
+                                    Role::Springy => false,
+                                };
+                                if active {
+                                    role_appearance.active()
+                                } else {
+                                    role_appearance.faded()
+                                }
+                            }
                         } else {
+                            // For intervals without an original_interval_id
+                            // This case is less common but we should maintain consistent behavior
                             let active = match role {
                                 Role::Pushing => {
+                                    // For push intervals, consider intervals adjacent to both near and far joints
                                     interval.touches(*near_joint) || interval.touches(*far_joint)
                                 }
                                 Role::Pulling => interval.touches(*near_joint),

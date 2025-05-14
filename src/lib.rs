@@ -130,6 +130,10 @@ pub struct IntervalDetails {
     pub distance: f32,
     pub role: Role,
     pub scale: f32,
+    /// The ID of the originally selected interval (for nested selection)
+    /// This is used to remember the originally selected push interval
+    /// when selecting intervals on the far joint
+    pub original_interval_id: Option<UniqueId>,
 }
 
 impl IntervalDetails {
@@ -233,8 +237,18 @@ impl Appearance {
     }
 
     pub fn highlighted(&self) -> Self {
+        // Use different highlight colors based on the radius (which indicates the role)
+        // Push intervals (larger radius) get purple, pull intervals get green
+        let color = if self.radius > 1.0 {
+            // Purple for push intervals
+            [0.8, 0.2, 0.8, 1.0]
+        } else {
+            // Green for pull intervals
+            [0.0, 1.0, 0.0, 1.0]
+        };
+        
         Self {
-            color: [0.0, 1.0, 0.0, 1.0],
+            color,
             radius: self.radius + 1.0,
         }
     }
@@ -271,6 +285,8 @@ pub enum StateChange {
         frames_per_second: f32,
         age: Age,
     },
+    /// Toggle between perspective and orthogonal projection
+    ToggleProjection,
 }
 
 impl Debug for StateChange {
@@ -287,6 +303,7 @@ impl Debug for StateChange {
             StateChange::SetKeyboardLegend(_) => "SetKeyboardLegend()",
             StateChange::SetPhysicsParameter(_) => "SetPhysicsParameter()",
             StateChange::Time { .. } => "Time()",
+            StateChange::ToggleProjection => "ToggleProjection",
         };
         write!(f, "StateChange::{name}")
     }
@@ -318,11 +335,19 @@ impl LabEvent {
     }
 }
 
+/// Represents the user's intent when clicking in the scene
 #[derive(Debug, Clone)]
-pub enum Shot {
-    NoPick,
-    Joint,
-    Interval,
+pub enum PickIntent {
+    /// No picking intended
+    None,
+    /// Select a joint without traveling (left-click)
+    SelectJoint,
+    /// Select a joint and allow traveling to it (right-click)
+    TravelToJoint,
+    /// Select an interval without traveling (left-click)
+    SelectInterval,
+    /// Select an interval and allow traveling to its far joint (right-click)
+    TravelThroughInterval,
 }
 
 #[derive(Debug, Clone)]
@@ -331,5 +356,5 @@ pub enum PointerChange {
     Moved(PhysicalPosition<f64>),
     Zoomed(f32),
     Pressed,
-    Released(Shot),
+    Released(PickIntent),
 }
