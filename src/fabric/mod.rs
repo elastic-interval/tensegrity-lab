@@ -17,7 +17,9 @@ use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, Transform, Vector3};
 use std::collections::HashMap;
 use std::fmt::Debug;
 
+pub mod attachment;
 pub mod brick;
+pub mod error;
 pub mod correction;
 pub mod face;
 pub mod interval;
@@ -44,6 +46,7 @@ pub struct FabricStats {
     pub pull_count: usize,
     pub pull_range: (f32, f32),
     pub pull_total: f32,
+    pub fabric: Option<Fabric>,
 }
 
 #[derive(Clone, Debug)]
@@ -216,6 +219,10 @@ impl Fabric {
                     Muscle { .. } => {}
                 }
             }
+            
+            // Update all attachment connections at the end of the pretenst phase
+            // This assigns each pull interval to its nearest attachment point on connected push intervals
+            self.update_all_attachment_connections();
         }
         if let Some(forward) = self.muscle_forward {
             let increment = 1.0 / physics.cycle_ticks * if forward { 1.0 } else { -1.0 };
@@ -352,6 +359,7 @@ impl Fabric {
             pull_count,
             pull_range,
             pull_total,
+            fabric: Some(self.clone()),
         }
     }
 }

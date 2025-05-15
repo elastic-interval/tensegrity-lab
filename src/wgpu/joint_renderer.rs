@@ -206,8 +206,8 @@ impl JointRenderer {
     }
 }
 
-// Helper function to create a simple sphere for joint visualization
-fn create_sphere(wgpu: &Wgpu) -> (wgpu::Buffer, wgpu::Buffer, u32) {
+// Helper function to create a simple sphere for visualization
+pub fn create_sphere(wgpu: &Wgpu) -> (wgpu::Buffer, wgpu::Buffer, u32) {
     // For simplicity, we'll create a low-poly sphere
     let radius = 1.0;
     let sectors = 12;
