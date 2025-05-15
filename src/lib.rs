@@ -238,20 +238,20 @@ impl Appearance {
                 radius: self.radius,
             },
             AppearanceMode::HighlightedPush => Self {
-                color: self.color,
-                radius: self.radius * 1.4,
+                color: [0.4, 0.4, 0.9, 1.0], // Bluish color for highlighted elements
+                radius: self.radius, // Keep radius unchanged
             },
             AppearanceMode::HighlightedPull => Self {
-                color: self.color,
-                radius: self.radius * 5.0,
+                color: [0.4, 0.4, 0.9, 1.0], // Bluish color for highlighted elements
+                radius: self.radius, // Keep radius unchanged
             },
             AppearanceMode::SelectedPush => Self {
-                color: [0.0, 1.0, 0.0, 1.0],
-                radius: self.radius * 1.6,
+                color: [0.0, 1.0, 0.0, 1.0], // Green color for selected elements
+                radius: self.radius, // Keep radius unchanged
             },
             AppearanceMode::SelectedPull => Self {
-                color: [0.0, 1.0, 0.0, 1.0],  // Green
-                radius: self.radius * 7.0,
+                color: [0.0, 1.0, 0.0, 1.0], // Green color for selected elements
+                radius: self.radius, // Keep radius unchanged
             },
         }
     }

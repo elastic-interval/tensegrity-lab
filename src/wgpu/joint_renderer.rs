@@ -171,27 +171,9 @@ impl JointRenderer {
         }
     }
 
-    fn create_instances(&self, fabric: &Fabric, pick: &Pick) -> Vec<JointMarkerInstance> {
-        let mut instances = Vec::new();
-
-        // Extract the joint index based on pick type
-        let joint_index = match pick {
-            Pick::Joint(details) => Some(details.index),
-            Pick::Interval(details) => Some(details.near_joint),
-            _ => None,
-        };
-        
-        // Create a joint marker instance if we have a valid joint index
-        if let Some(index) = joint_index {
-            let position = fabric.location(index);
-            instances.push(JointMarkerInstance {
-                position: [position.x, position.y, position.z],
-                scale: 0.25,  // Half the previous size
-                color: [0.4, 0.4, 0.9, 1.0],  // Bluish color with full opacity
-            });
-        }
-
-        instances
+    fn create_instances(&self, _fabric: &Fabric, _pick: &Pick) -> Vec<JointMarkerInstance> {
+        // Return an empty vector - no joint spheres will be displayed
+        Vec::new()
     }
 
     pub fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, bind_group: &'a wgpu::BindGroup) {
