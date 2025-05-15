@@ -68,8 +68,10 @@ pub fn calculate_attachment_points(
         index: 0,
     }; ATTACHMENT_POINTS];
     
-    let radius_multiplier = 1.6;
-    let bar_radius = radius * radius_multiplier * 0.05;
+    // The attachment points should appear at the same radius as the push interval
+    // Based on testing, we need to use a small multiplier to match the visual radius
+    // The original calculation made the attachment points appear at about double the radius
+    let bar_radius = radius * 0.04; // Reduced to match the push interval's visual radius
     
     for i in 0..ATTACHMENT_POINTS {
         // Calculate angle for this attachment point
