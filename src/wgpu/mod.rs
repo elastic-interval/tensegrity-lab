@@ -14,10 +14,12 @@ use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 
+pub mod attachment_renderer;
 pub mod cylinder;
 pub mod cylinder_renderer;
 pub mod fabric_renderer;
 pub mod joint_renderer;
+pub use joint_renderer::create_sphere;
 pub mod surface_renderer;
 pub mod surface_vertex;
 pub mod text_renderer;

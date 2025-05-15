@@ -2,9 +2,10 @@ use crate::camera::Pick;
 use crate::fabric::interval::Role;
 use crate::fabric::material::Material;
 use crate::fabric::{Fabric, UniqueId};
-use crate::wgpu::Wgpu;
+use crate::wgpu::attachment_renderer::AttachmentRenderer;
 use crate::wgpu::cylinder_renderer::{CylinderInstance, CylinderRenderer};
-use crate::wgpu::joint_renderer::JointRenderer;
+use crate::wgpu::joint_renderer::JointRenderer; // Keep for now to avoid compilation errors
+use crate::wgpu::Wgpu;
 use crate::{Appearance, AppearanceMode, IntervalDetails, JointDetails, RenderStyle};
 
 pub struct FabricRenderer {
@@ -13,6 +14,9 @@ pub struct FabricRenderer {
     
     // Joint renderer for selected joints
     joint_renderer: JointRenderer,
+    
+    // Attachment point renderer for push intervals
+    attachment_renderer: AttachmentRenderer,
 }
 
 impl FabricRenderer {
@@ -23,9 +27,13 @@ impl FabricRenderer {
         // Create the joint renderer for selected joints
         let joint_renderer = JointRenderer::new(wgpu);
         
+        // Create the attachment point renderer for push intervals
+        let attachment_renderer = AttachmentRenderer::new(wgpu);
+        
         Self {
             cylinder_renderer,
             joint_renderer,
+            attachment_renderer,
         }
     }
 
@@ -42,8 +50,11 @@ impl FabricRenderer {
         // Update the cylinder renderer with the new instances
         self.cylinder_renderer.update(wgpu, &instances);
         
-        // Update the joint renderer to show selected joints
+        // Enable joint renderer for joints that don't have connected push intervals
         self.joint_renderer.update(wgpu, fabric, pick);
+        
+        // Update the attachment point renderer to show attachment points on selected push intervals and joints
+        self.attachment_renderer.update(wgpu, fabric, pick);
     }
 
     pub fn render<'a>(
@@ -54,8 +65,11 @@ impl FabricRenderer {
         // Render the cylinders for intervals
         self.cylinder_renderer.render(render_pass, bind_group);
         
-        // Render the joint markers for selected joints
+        // Render joint markers for selected joints without push intervals
         self.joint_renderer.render(render_pass, bind_group);
+        
+        // Render the attachment points for selected push intervals and joints
+        self.attachment_renderer.render(render_pass, bind_group);
     }
 
     // Create instances from fabric intervals - minimal CPU processing
@@ -176,10 +190,74 @@ impl FabricRenderer {
                         }
                     }
                 };
+                // Check if this is a pull interval connected to a selected push interval or joint
+                let mut modified_start = start;
+                let mut modified_end = end;
+                
+                // For pull intervals, we need to connect them to attachment points on push intervals
+                if interval.material.properties().role == Role::Pulling {
+                    // Regardless of what's selected, we need to check both ends of the pull interval
+                    // and connect them to attachment points if they're connected to a push interval
+                    
+                    // Process both ends of the pull interval
+                    let joint_indices = [interval.alpha_index, interval.omega_index];
+                    let modified_points = [&mut modified_start, &mut modified_end];
+                    
+                    // For each end of the pull interval
+                    for (i, joint_index) in joint_indices.iter().enumerate() {
+                        // Find all push intervals connected to this joint
+                        for push_opt in fabric.intervals.iter() {
+                            if let Some(push_interval) = push_opt {
+                                // Only consider push intervals
+                                if push_interval.material.properties().role == Role::Pushing {
+                                    // Check if this push interval is connected to the current joint
+                                    if push_interval.touches(*joint_index) {
+                                        // Get attachment points for this push interval
+                                        if let Ok((alpha_points, omega_points)) = push_interval.attachment_points(&fabric.joints) {
+                                            let pull_midpoint = interval.midpoint(&fabric.joints);
+                                            
+                                            // Determine which end of the push interval is connected to the joint
+                                            if push_interval.alpha_index == *joint_index {
+                                                // The push interval's alpha end is connected to the joint
+                                                let (nearest_idx, _) = push_interval.find_nearest_point(&alpha_points, pull_midpoint);
+                                                *modified_points[i] = alpha_points[nearest_idx].position;
+                                            } else if push_interval.omega_index == *joint_index {
+                                                // The push interval's omega end is connected to the joint
+                                                let (nearest_idx, _) = push_interval.find_nearest_point(&omega_points, pull_midpoint);
+                                                *modified_points[i] = omega_points[nearest_idx].position;
+                                            }
+                                            
+                                            // We found a push interval for this joint, no need to check others
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Additional processing for selected elements
+                    match pick {
+                        // If a push interval is selected, we want to ensure that pull intervals
+                        // connected to it are properly visualized
+                        Pick::Interval(IntervalDetails { id, .. }) => {
+                            if let Some(push_interval) = fabric.intervals[id.0].as_ref() {
+                                if push_interval.material.properties().role == Role::Pushing {
+                                    // We've already handled the basic case above, but we might need
+                                    // additional logic for selected push intervals if needed
+                                }
+                            }
+                        },
+                        // If a joint is selected, we've already handled it in the general case above
+                        Pick::Joint(_) => {},
+                        _ => {}
+                    }
+                }
+                
                 instances.push(CylinderInstance {
-                    start: [start.x, start.y, start.z],
+                    start: [modified_start.x, modified_start.y, modified_start.z],
                     radius_factor: appearance.radius,
-                    end: [end.x, end.y, end.z],
+                    end: [modified_end.x, modified_end.y, modified_end.z],
                     material_type: material.role as u32,
                     color: appearance.color,
                 });
