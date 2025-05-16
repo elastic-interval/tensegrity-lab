@@ -2,6 +2,7 @@ use crate::camera::Pick;
 use crate::fabric::interval::Role;
 use crate::fabric::material::Material;
 use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::attachment::find_nearest_attachment_point;
 use crate::wgpu::attachment_renderer::AttachmentRenderer;
 use crate::wgpu::cylinder_renderer::{CylinderInstance, CylinderRenderer};
 use crate::wgpu::joint_renderer::JointRenderer; // Keep for now to avoid compilation errors
@@ -219,11 +220,11 @@ impl FabricRenderer {
                                             // Determine which end of the push interval is connected to the joint
                                             if push_interval.alpha_index == *joint_index {
                                                 // The push interval's alpha end is connected to the joint
-                                                let (nearest_idx, _) = push_interval.find_nearest_point(&alpha_points, pull_midpoint);
+                                                let (nearest_idx, _) = find_nearest_attachment_point(&alpha_points, pull_midpoint);
                                                 *modified_points[i] = alpha_points[nearest_idx].position;
                                             } else if push_interval.omega_index == *joint_index {
                                                 // The push interval's omega end is connected to the joint
-                                                let (nearest_idx, _) = push_interval.find_nearest_point(&omega_points, pull_midpoint);
+                                                let (nearest_idx, _) = find_nearest_attachment_point(&omega_points, pull_midpoint);
                                                 *modified_points[i] = omega_points[nearest_idx].position;
                                             }
                                             

@@ -1,11 +1,11 @@
 use crate::build::evo::evolving_push::EvolvingPush;
-use crate::fabric::IntervalEnd;
 use crate::fabric::physics::presets::LIQUID;
 use crate::fabric::Fabric;
+use crate::fabric::IntervalEnd;
 use cgmath::{InnerSpace, Vector3};
 use rand::Rng;
-use rand_chacha::ChaCha8Rng;
 use rand_chacha::rand_core::{RngCore, SeedableRng};
+use rand_chacha::ChaCha8Rng;
 
 const DELAY: usize = 300;
 

@@ -4,8 +4,8 @@
  */
 
 use crate::fabric::attachment::{
-    calculate_interval_attachment_points, AttachmentConnection, AttachmentConnections,
-    AttachmentPoint, ATTACHMENT_POINTS,
+    calculate_interval_attachment_points, find_nearest_attachment_point, AttachmentPoint,
+    PullConnection, PullConnections, ATTACHMENT_POINTS,
 };
 use crate::fabric::error::FabricError;
 use crate::fabric::interval::Role::*;
@@ -16,7 +16,7 @@ use crate::fabric::physics::Physics;
 use crate::fabric::{Fabric, IntervalEnd, Progress, UniqueId};
 use crate::Appearance;
 use cgmath::num_traits::zero;
-use cgmath::{EuclideanSpace, InnerSpace, MetricSpace, Point3, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 use fast_inv_sqrt::InvSqrt32;
 use std::ops::Mul;
 
@@ -51,7 +51,11 @@ impl Fabric {
                         || interval.omega_index == push_alpha
                         || interval.omega_index == push_omega
                     {
-                        connected_pulls.push((UniqueId(idx), interval.alpha_index, interval.omega_index));
+                        connected_pulls.push((
+                            UniqueId(idx),
+                            interval.alpha_index,
+                            interval.omega_index,
+                        ));
                     }
                 }
             }
@@ -261,14 +265,14 @@ pub struct Interval {
 
     // Connections structure that contains both alpha and omega connections
     // Only allocated for push intervals and boxed to reduce memory footprint
-    pub connections: Option<Box<AttachmentConnections>>,
+    pub connections: Option<Box<PullConnections>>,
 }
 
 impl Interval {
     pub fn new(alpha_index: usize, omega_index: usize, material: Material, span: Span) -> Interval {
         // Only allocate connections for push intervals
         let is_push = material.properties().role == Pushing;
-        let connections = is_push.then_some(Box::new(AttachmentConnections::new()));
+        let connections = is_push.then_some(Box::new(PullConnections::new()));
 
         Interval {
             alpha_index,
@@ -287,11 +291,13 @@ impl Interval {
     }
 
     /// Get connections for a specific end if this is a push interval
-    pub fn connections(&self, end: IntervalEnd) -> Option<&[Option<AttachmentConnection>; ATTACHMENT_POINTS]> {
+    pub fn connections(
+        &self,
+        end: IntervalEnd,
+    ) -> Option<&[Option<PullConnection>; ATTACHMENT_POINTS]> {
         self.connections.as_ref().map(|conn| conn.connections(end))
     }
-    
-    
+
     /// Reorder connections to optimize attachment points
     /// This extracts existing connections and reassigns them to optimal attachment points
     pub fn reorder_connections(
@@ -303,15 +309,13 @@ impl Interval {
         if self.material.properties().role != Pushing {
             return Err(FabricError::NotPushInterval);
         }
-        
+
         // Get attachment points
         let attachment_points = self.attachment_points(joints)?;
-        
+
         // Create a vector of joint positions
-        let joint_positions: Vec<Point3<f32>> = joints.iter()
-            .map(|joint| joint.location)
-            .collect();
-        
+        let joint_positions: Vec<Point3<f32>> = joints.iter().map(|joint| joint.location).collect();
+
         // Reorder connections
         if let Some(conn) = &mut self.connections {
             conn.reorder_connections(
@@ -322,10 +326,8 @@ impl Interval {
                 self.alpha_index,
                 self.omega_index,
             );
-            
-            // Connection validation is now handled by the reorder_connections method
         }
-        
+
         Ok(())
     }
 
@@ -393,32 +395,6 @@ impl Interval {
         }
     }
 
-    /// Helper method to find the nearest attachment point in a set of points
-    /// Returns the index of the nearest point and its squared distance
-    /// If the points array is empty, returns (0, f32::MAX) as a fallback
-    pub fn find_nearest_point(
-        &self,
-        points: &[AttachmentPoint],
-        position: Point3<f32>,
-    ) -> (usize, f32) {
-        if points.is_empty() {
-            return (0, f32::MAX); // Fallback for empty arrays
-        }
-
-        points
-            .iter()
-            .enumerate()
-            .map(|(i, point)| (i, position.distance2(point.position)))
-            .min_by(|(_, dist1), (_, dist2)| {
-                // Handle NaN values safely by considering them equal
-                // This prevents unwrap failures on partial_cmp
-                dist1
-                    .partial_cmp(dist2)
-                    .unwrap_or_else(|| std::cmp::Ordering::Equal)
-            })
-            .unwrap_or((0, f32::MAX)) // Additional safety in case min_by fails
-    }
-
     /// Find the nearest attachment point to a given position
     /// Returns an error if this is not a push interval
     pub fn nearest_attachment_point(
@@ -428,11 +404,11 @@ impl Interval {
     ) -> Result<(IntervalEnd, AttachmentPoint), FabricError> {
         let (alpha_points, omega_points) = self.attachment_points(joints)?;
 
-        // Find the nearest point from each end
+        // Find the nearest point from each end using the standalone function
         let (alpha_nearest_idx, alpha_nearest_dist) =
-            self.find_nearest_point(&alpha_points, position);
+            find_nearest_attachment_point(&alpha_points, position);
         let (omega_nearest_idx, omega_nearest_dist) =
-            self.find_nearest_point(&omega_points, position);
+            find_nearest_attachment_point(&omega_points, position);
 
         // Return the nearest point from either end
         if alpha_nearest_dist <= omega_nearest_dist {
@@ -455,10 +431,10 @@ impl Interval {
         }
 
         let points = self.attachment_points(joints)?;
-        
+
         // Use the opposite() method from IntervalEnd
         let opposite_end = end.opposite();
-        
+
         Ok(self.get_point_from_end(points, opposite_end, index))
     }
 
@@ -477,7 +453,7 @@ impl Interval {
                 *current -= 1;
             }
         };
-        
+
         // Update both alpha and omega indices
         update_index(&mut self.alpha_index);
         update_index(&mut self.omega_index);
@@ -495,7 +471,7 @@ impl Interval {
     pub fn end_location<'a>(&self, joints: &'a [Joint], end: IntervalEnd) -> &'a Point3<f32> {
         &joints[self.end_index(end)].location
     }
-    
+
     pub fn locations<'a>(&self, joints: &'a [Joint]) -> (&'a Point3<f32>, &'a Point3<f32>) {
         (
             self.end_location(joints, IntervalEnd::Alpha),
@@ -595,13 +571,13 @@ impl Interval {
         };
         let force = self.strain * stiffness * physics.stiffness;
         let force_vector: Vector3<f32> = self.unit * force / 2.0;
-        
+
         // Apply forces to both ends
         let alpha_idx = self.end_index(IntervalEnd::Alpha);
         let omega_idx = self.end_index(IntervalEnd::Omega);
         joints[alpha_idx].force += force_vector;
         joints[omega_idx].force -= force_vector;
-        
+
         // Distribute mass to both ends
         let half_mass = mass * real_length / 2.0;
         joints[alpha_idx].accumulated_mass += half_mass;
@@ -612,7 +588,7 @@ impl Interval {
     pub fn touches(&self, joint: usize) -> bool {
         self.end_index(IntervalEnd::Alpha) == joint || self.end_index(IntervalEnd::Omega) == joint
     }
-    
+
     /// Check if a specific end of this interval touches a joint
     pub fn end_touches(&self, end: IntervalEnd, joint: usize) -> bool {
         self.end_index(end) == joint
