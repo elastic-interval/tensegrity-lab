@@ -47,10 +47,7 @@ impl PullConnections {
     }
 
     /// Returns the connections array for the specified end
-    pub fn connections(
-        &self,
-        end: IntervalEnd,
-    ) -> &[Option<PullConnection>; ATTACHMENT_POINTS] {
+    pub fn connections(&self, end: IntervalEnd) -> &[Option<PullConnection>; ATTACHMENT_POINTS] {
         match end {
             IntervalEnd::Alpha => &self.alpha,
             IntervalEnd::Omega => &self.omega,
@@ -69,19 +66,31 @@ impl PullConnections {
         push_omega_index: usize,
     ) {
         // Step 1: Collect all connections that need to be made
-        let mut connections_to_make = self.collect_connections_to_make(pull_intervals, push_alpha_index, push_omega_index);
-        
+        let mut connections_to_make =
+            self.collect_connections_to_make(pull_intervals, push_alpha_index, push_omega_index);
+
         // Step 2: Clear all existing connections
         self.alpha = [None; ATTACHMENT_POINTS];
         self.omega = [None; ATTACHMENT_POINTS];
-        
+
         // Step 3: Sort connections by distance to optimize placement
-        self.sort_connections_by_distance(&mut connections_to_make, alpha_attachment_points, omega_attachment_points, joint_positions);
-        
+        self.sort_connections_by_distance(
+            &mut connections_to_make,
+            alpha_attachment_points,
+            omega_attachment_points,
+            joint_positions,
+        );
+
         // Step 4: Assign connections to attachment points
-        self.assign_connections(connections_to_make, alpha_attachment_points, omega_attachment_points, joint_positions);
+        self.assign_connections(
+            connections_to_make,
+            alpha_attachment_points,
+            omega_attachment_points,
+            joint_positions,
+            pull_intervals,
+        );
     }
-    
+
     /// Collects all connections that need to be made for a push interval
     fn collect_connections_to_make(
         &self,
@@ -90,7 +99,7 @@ impl PullConnections {
         push_omega_index: usize,
     ) -> Vec<(IntervalEnd, UniqueId, usize)> {
         let mut connections_to_make = Vec::new();
-        
+
         for (pull_id, alpha_index, omega_index) in pull_intervals {
             // Check if pull's alpha end connects to this push interval
             if *alpha_index == push_alpha_index {
@@ -98,7 +107,7 @@ impl PullConnections {
             } else if *alpha_index == push_omega_index {
                 connections_to_make.push((IntervalEnd::Omega, *pull_id, *alpha_index));
             }
-            
+
             // Check if pull's omega end connects to this push interval
             if *omega_index == push_alpha_index {
                 connections_to_make.push((IntervalEnd::Alpha, *pull_id, *omega_index));
@@ -106,10 +115,10 @@ impl PullConnections {
                 connections_to_make.push((IntervalEnd::Omega, *pull_id, *omega_index));
             }
         }
-        
+
         connections_to_make
     }
-    
+
     /// Sorts connections by distance to optimize placement
     fn sort_connections_by_distance(
         &self,
@@ -120,18 +129,28 @@ impl PullConnections {
     ) {
         connections_to_make.sort_by(|(end_a, _, joint_a), (end_b, _, joint_b)| {
             // Get the attachment points for each end
-            let points_a = self.get_attachment_points_for_end(*end_a, alpha_attachment_points, omega_attachment_points);
-            let points_b = self.get_attachment_points_for_end(*end_b, alpha_attachment_points, omega_attachment_points);
-            
+            let points_a = self.get_attachment_points_for_end(
+                *end_a,
+                alpha_attachment_points,
+                omega_attachment_points,
+            );
+            let points_b = self.get_attachment_points_for_end(
+                *end_b,
+                alpha_attachment_points,
+                omega_attachment_points,
+            );
+
             // Calculate the minimum distance for each connection
             let min_dist_a = Self::calculate_min_distance(*joint_a, points_a, joint_positions);
             let min_dist_b = Self::calculate_min_distance(*joint_b, points_b, joint_positions);
-            
+
             // Sort by distance (closest first)
-            min_dist_a.partial_cmp(&min_dist_b).unwrap_or(std::cmp::Ordering::Equal)
+            min_dist_a
+                .partial_cmp(&min_dist_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
     }
-    
+
     /// Assigns connections to attachment points
     fn assign_connections(
         &mut self,
@@ -139,25 +158,40 @@ impl PullConnections {
         alpha_attachment_points: &[AttachmentPoint],
         omega_attachment_points: &[AttachmentPoint],
         joint_positions: &[Point3<f32>],
+        pull_intervals: &[(UniqueId, usize, usize)], // (pull_id, alpha_index, omega_index)
     ) {
-        for (end, pull_id, joint_index) in connections_to_make {
-            let attachment_points = self.get_attachment_points_for_end(end, alpha_attachment_points, omega_attachment_points);
-            
+        for (end, pull_id, _joint_index) in connections_to_make {
+            let attachment_points = self.get_attachment_points_for_end(
+                end,
+                alpha_attachment_points,
+                omega_attachment_points,
+            );
+
             // Find the best available attachment point
             let best_idx = match end {
                 IntervalEnd::Alpha => Self::find_best_attachment_point(
-                    attachment_points, joint_positions, joint_index, &self.alpha),
+                    attachment_points,
+                    joint_positions,
+                    pull_intervals,
+                    pull_id,
+                    &self.alpha,
+                ),
                 IntervalEnd::Omega => Self::find_best_attachment_point(
-                    attachment_points, joint_positions, joint_index, &self.omega),
+                    attachment_points,
+                    joint_positions,
+                    pull_intervals,
+                    pull_id,
+                    &self.omega,
+                ),
             };
-            
+
             // Assign to the closest available attachment point
             if let Some(idx) = best_idx {
                 let connection = PullConnection {
                     pull_interval_id: pull_id,
                     attachment_index: idx,
                 };
-                
+
                 // Update the appropriate array
                 match end {
                     IntervalEnd::Alpha => self.alpha[idx] = Some(connection),
@@ -166,7 +200,7 @@ impl PullConnections {
             }
         }
     }
-    
+
     /// Gets the attachment points for a specific interval end
     fn get_attachment_points_for_end<'a>(
         &self,
@@ -179,34 +213,51 @@ impl PullConnections {
             IntervalEnd::Omega => omega_attachment_points,
         }
     }
-    
 
     /// Finds the best available attachment point
+    /// Now considers the pull interval's position (midpoint) when calculating distances
     fn find_best_attachment_point(
         attachment_points: &[AttachmentPoint],
         joint_positions: &[Point3<f32>],
-        joint_index: usize,
+        pull_intervals: &[(UniqueId, usize, usize)], // (pull_id, alpha_index, omega_index)
+        pull_id: UniqueId,
         target_array: &[Option<PullConnection>; ATTACHMENT_POINTS],
     ) -> Option<usize> {
+        // Find the pull interval's endpoints
+        let pull_interval = pull_intervals.iter().find(|(id, _, _)| *id == pull_id)?;
+        let (_, alpha_index, omega_index) = *pull_interval;
+
+        // Calculate the pull interval's midpoint
+        let alpha_position = joint_positions[alpha_index];
+        let omega_position = joint_positions[omega_index];
+        let pull_midpoint = Point3::new(
+            (alpha_position.x + omega_position.x) / 2.0,
+            (alpha_position.y + omega_position.y) / 2.0,
+            (alpha_position.z + omega_position.z) / 2.0,
+        );
+
         // Calculate distances to all attachment points
         let mut distances = Vec::new();
         for (i, point) in attachment_points.iter().enumerate() {
-            if target_array[i].is_none() { // Only consider unoccupied points
-                let joint_position = joint_positions[joint_index];
-                let distance = joint_position.distance2(point.position);
+            if target_array[i].is_none() {
+                // Only consider unoccupied points
+                // Use the pull interval's midpoint instead of just the joint position
+                let distance = pull_midpoint.distance2(point.position);
                 distances.push((i, distance));
             }
         }
-        
+
         // Sort by distance (closest first)
         distances.sort_by(|(_, dist1), (_, dist2)| {
-            dist1.partial_cmp(dist2).unwrap_or(std::cmp::Ordering::Equal)
+            dist1
+                .partial_cmp(dist2)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
-        
+
         // Return the closest available attachment point
         distances.first().map(|(idx, _)| *idx)
     }
-    
+
     /// Helper function to calculate the minimum distance between a joint and any attachment point
     fn calculate_min_distance(
         joint_index: usize,
@@ -216,12 +267,16 @@ impl PullConnections {
         if attachment_points.is_empty() {
             return f32::MAX;
         }
-        
+
         let joint_position = joint_positions[joint_index];
         attachment_points
             .iter()
             .map(|point| joint_position.distance2(point.position))
-            .min_by(|dist1, dist2| dist1.partial_cmp(dist2).unwrap_or(std::cmp::Ordering::Equal))
+            .min_by(|dist1, dist2| {
+                dist1
+                    .partial_cmp(dist2)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .unwrap_or(f32::MAX)
     }
 
