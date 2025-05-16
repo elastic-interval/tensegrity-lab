@@ -4,9 +4,12 @@
  */
 
 use crate::camera::Pick;
+use crate::fabric::attachment::AttachmentPoint;
 use crate::fabric::interval::Role;
 use crate::fabric::Fabric;
+use crate::fabric::IntervalEnd;
 use crate::wgpu::{create_sphere, Wgpu};
+use crate::Interval;
 use crate::IntervalDetails;
 use bytemuck::{Pod, Zeroable};
 use std::mem::size_of;
@@ -24,9 +27,9 @@ const FADED_ATTACHMENT_POINT_COLOR: [f32; 4] = [0.3, 0.3, 0.3, 0.2]; // Faded at
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct AttachmentPointInstance {
-    position: [f32; 3],  // Position of the attachment point
-    scale: f32,          // Size of the marker
-    color: [f32; 4],     // RGBA color
+    position: [f32; 3], // Position of the attachment point
+    scale: f32,         // Size of the marker
+    color: [f32; 4],    // RGBA color
 }
 
 pub struct AttachmentRenderer {
@@ -63,7 +66,7 @@ impl AttachmentRenderer {
 
         // Define the vertex buffer layout
         let vertex_layout = wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
+            array_stride: size_of::<[f32; 8]>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &[
                 // position
@@ -74,13 +77,13 @@ impl AttachmentRenderer {
                 },
                 // normal
                 wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    offset: size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     shader_location: 1,
                     format: wgpu::VertexFormat::Float32x3,
                 },
                 // uv
                 wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 6]>() as wgpu::BufferAddress,
+                    offset: size_of::<[f32; 6]>() as wgpu::BufferAddress,
                     shader_location: 2,
                     format: wgpu::VertexFormat::Float32x2,
                 },
@@ -123,13 +126,13 @@ impl AttachmentRenderer {
                 vertex: wgpu::VertexState {
                     compilation_options: PipelineCompilationOptions::default(),
                     module: &shader,
-                    entry_point: Some("joint_vertex"),  // Reuse the joint vertex shader
+                    entry_point: Some("joint_vertex"), // Reuse the joint vertex shader
                     buffers: &[vertex_layout, instance_layout],
                 },
                 fragment: Some(wgpu::FragmentState {
                     compilation_options: PipelineCompilationOptions::default(),
                     module: &shader,
-                    entry_point: Some("joint_fragment"),  // Reuse the joint fragment shader
+                    entry_point: Some("joint_fragment"), // Reuse the joint fragment shader
                     targets: &[Some(wgpu::ColorTargetState {
                         format: wgpu.surface_configuration.format,
                         blend: Some(wgpu::BlendState::REPLACE),
@@ -189,89 +192,148 @@ impl AttachmentRenderer {
 
     fn create_instances(&self, fabric: &Fabric, pick: &Pick) -> Vec<AttachmentPointInstance> {
         let mut instances = Vec::new();
-        
+
         // Track which push intervals are selected/highlighted to avoid duplicate points
         let (selected_push_interval, selected_joint) = match pick {
-            Pick::Interval(IntervalDetails { id, role, .. }) if *role == Role::Pushing => (Some(id.0), None),
+            Pick::Interval(IntervalDetails { id, role, .. }) if *role == Role::Pushing => {
+                (Some(id.0), None)
+            }
             Pick::Joint(joint_details) => (None, Some(joint_details.index)),
             _ => (None, None),
         };
-        
+
+        // Calculate point radius once - use a consistent size for all attachment points
+        let point_radius = Role::Pulling.appearance().radius * 0.12;
+
         // Add all push interval attachment points with appropriate coloring
+        self.add_push_interval_attachment_points(
+            &mut instances,
+            fabric,
+            selected_push_interval,
+            selected_joint,
+            point_radius,
+        );
+
+        // Handle the case of a selected pull interval
+        self.add_pull_interval_attachment_points(&mut instances, fabric, pick, point_radius);
+
+        instances
+    }
+
+    /// Adds attachment points for push intervals
+    fn add_push_interval_attachment_points(
+        &self,
+        instances: &mut Vec<AttachmentPointInstance>,
+        fabric: &Fabric,
+        selected_push_interval: Option<usize>,
+        selected_joint: Option<usize>,
+        point_radius: f32,
+    ) {
         for (idx, interval_opt) in fabric.intervals.iter().enumerate() {
             if let Some(interval) = interval_opt {
                 if interval.material.properties().role == Role::Pushing {
                     // Determine if this push interval is selected or connected to a selected joint
-                    let is_selected = selected_push_interval.map_or(false, |selected_idx| selected_idx == idx) ||
-                        selected_joint.map_or(false, |joint_idx| interval.alpha_index == joint_idx || interval.omega_index == joint_idx);
-                    
+                    let is_selected = selected_push_interval
+                        .map_or(false, |selected_idx| selected_idx == idx)
+                        || selected_joint.map_or(false, |joint_idx| {
+                            interval.alpha_index == joint_idx || interval.omega_index == joint_idx
+                        });
+
                     // Get attachment points for this interval
-                    if let Ok((alpha_points, omega_points)) = interval.attachment_points(&fabric.joints) {
-                        // Get the base radius of a pull interval for reference
-                        let pull_interval_base_radius = Role::Pulling.appearance().radius;
-                        
-                        // Use a consistent size for all attachment points
-                        let point_radius = pull_interval_base_radius * 0.12;
-                        
-                        // Add all attachment points with appropriate color
-                        for point in alpha_points.iter().chain(omega_points.iter()) {
-                            instances.push(AttachmentPointInstance {
-                                position: [
-                                    point.position.x,
-                                    point.position.y,
-                                    point.position.z,
-                                ],
-                                scale: point_radius,
-                                color: if is_selected {
-                                    ATTACHMENT_POINT_COLOR // Reddish for selected
-                                } else {
-                                    FADED_ATTACHMENT_POINT_COLOR // Faded for non-selected
-                                },
-                            });
+                    if let Ok((alpha_points, omega_points)) =
+                        interval.attachment_points(&fabric.joints)
+                    {
+                        if is_selected {
+                            // Create a set of occupied attachment indices for alpha and omega ends
+                            let alpha_occupied = self.get_occupied_indices(
+                                interval,
+                                IntervalEnd::Alpha,
+                                alpha_points.len(),
+                            );
+                            let omega_occupied = self.get_occupied_indices(
+                                interval,
+                                IntervalEnd::Omega,
+                                omega_points.len(),
+                            );
+
+                            // Add all attachment points with appropriate color
+                            self.add_attachment_point_instances(
+                                instances,
+                                &alpha_points,
+                                &alpha_occupied,
+                                point_radius,
+                                true,
+                            );
+
+                            self.add_attachment_point_instances(
+                                instances,
+                                &omega_points,
+                                &omega_occupied,
+                                point_radius,
+                                true,
+                            );
+                        } else {
+                            // For non-selected intervals, just show faded attachment points
+                            for point in alpha_points.iter().chain(omega_points.iter()) {
+                                instances.push(self.create_attachment_point_instance(
+                                    point,
+                                    point_radius,
+                                    FADED_ATTACHMENT_POINT_COLOR,
+                                ));
+                            }
                         }
                     }
                 }
             }
         }
-        
-        // Handle the case of a selected pull interval
-        if let Pick::Interval(IntervalDetails { id, role, near_joint, .. }) = pick {
+    }
+
+    /// Adds attachment points for a selected pull interval
+    fn add_pull_interval_attachment_points(
+        &self,
+        instances: &mut Vec<AttachmentPointInstance>,
+        fabric: &Fabric,
+        pick: &Pick,
+        point_radius: f32,
+    ) {
+        if let Pick::Interval(IntervalDetails {
+            id,
+            role,
+            near_joint,
+            ..
+        }) = pick
+        {
             if *role == Role::Pulling {
                 if let Some(_interval) = fabric.intervals[id.0].as_ref() {
                     // For pull intervals, show attachment points at the near joint
                     let joint_index = *near_joint;
-                    
+
                     // Find all push intervals connected to this joint
                     for (_idx, interval_opt) in fabric.intervals.iter().enumerate() {
                         if let Some(interval) = interval_opt {
                             if interval.material.properties().role == Role::Pushing {
-                                if interval.alpha_index == joint_index || interval.omega_index == joint_index {
+                                if interval.alpha_index == joint_index
+                                    || interval.omega_index == joint_index
+                                {
                                     // Get attachment points for this push interval
-                                    if let Ok((alpha_points, omega_points)) = interval.attachment_points(&fabric.joints) {
-                                        // Get the base radius of a pull interval for reference
-                                        let pull_interval_base_radius = Role::Pulling.appearance().radius;
-                                        
-                                        // Use a consistent size for all attachment points
-                                        let point_radius = pull_interval_base_radius * 0.12;
-                                        
+                                    if let Ok((alpha_points, omega_points)) =
+                                        interval.attachment_points(&fabric.joints)
+                                    {
                                         // Only show attachment points for the end connected to the joint
-                                        let points_to_show = if interval.alpha_index == joint_index {
+                                        let points_to_show = if interval.alpha_index == joint_index
+                                        {
                                             &alpha_points
                                         } else {
                                             &omega_points
                                         };
-                                        
+
                                         // Add the attachment points to the instances
                                         for point in points_to_show.iter() {
-                                            instances.push(AttachmentPointInstance {
-                                                position: [
-                                                    point.position.x,
-                                                    point.position.y,
-                                                    point.position.z,
-                                                ],
-                                                scale: point_radius,
-                                                color: ATTACHMENT_POINT_COLOR, // Reddish for selected
-                                            });
+                                            instances.push(self.create_attachment_point_instance(
+                                                point,
+                                                point_radius,
+                                                ATTACHMENT_POINT_COLOR,
+                                            ));
                                         }
                                     }
                                 }
@@ -281,13 +343,71 @@ impl AttachmentRenderer {
                 }
             }
         }
-        
-        instances
     }
-    
-    // Removed unused get_interval_appearance method
 
-    pub fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, bind_group: &'a wgpu::BindGroup) {
+    /// Gets a vector of booleans indicating which attachment points are occupied
+    fn get_occupied_indices(
+        &self,
+        interval: &Interval,
+        end: IntervalEnd,
+        points_len: usize,
+    ) -> Vec<bool> {
+        let mut occupied = vec![false; points_len];
+
+        if let Some(connections) = interval.connections(end) {
+            for (idx, conn) in connections.iter().enumerate() {
+                if conn.is_some() && idx < occupied.len() {
+                    occupied[idx] = true;
+                }
+            }
+        }
+
+        occupied
+    }
+
+    /// Adds attachment point instances for a set of points
+    fn add_attachment_point_instances(
+        &self,
+        instances: &mut Vec<AttachmentPointInstance>,
+        points: &[AttachmentPoint],
+        occupied: &[bool],
+        point_radius: f32,
+        is_selected: bool,
+    ) {
+        for (i, point) in points.iter().enumerate() {
+            let is_occupied = i < occupied.len() && occupied[i];
+            let color = if is_occupied {
+                // Use a bluish color for occupied points to match your preference for highlighted elements
+                [0.4, 0.4, 0.9, 1.0]
+            } else if is_selected {
+                ATTACHMENT_POINT_COLOR // Reddish for available
+            } else {
+                FADED_ATTACHMENT_POINT_COLOR // Faded for non-selected
+            };
+
+            instances.push(self.create_attachment_point_instance(point, point_radius, color));
+        }
+    }
+
+    /// Creates an attachment point instance with the given parameters
+    fn create_attachment_point_instance(
+        &self,
+        point: &AttachmentPoint,
+        scale: f32,
+        color: [f32; 4],
+    ) -> AttachmentPointInstance {
+        AttachmentPointInstance {
+            position: [point.position.x, point.position.y, point.position.z],
+            scale,
+            color,
+        }
+    }
+
+    pub fn render<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        bind_group: &'a wgpu::BindGroup,
+    ) {
         if self.num_instances > 0 && self.instance_buffer.is_some() {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, bind_group, &[]);
