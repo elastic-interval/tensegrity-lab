@@ -1,6 +1,5 @@
-use crate::fabric::interval::Role;
-use crate::fabric::FabricStats;
 use crate::Age;
+use crate::FabricStats;
 use crate::{ControlState, StateChange, TestScenario};
 use std::default::Default;
 use wgpu_text::glyph_brush::{
@@ -167,38 +166,8 @@ impl TextState {
                 SectionName::Right,
                 match control_state {
                     Viewing => Normal("Right-click to select".to_string()),
-                    ShowingJoint(joint_details) => {
-                        let surface_location = match joint_details.surface_location_mm() {
-                            None => "".into(),
-                            Some((x, z)) => format!(" at ({x:.1} mm, {z:.1} mm)"),
-                        };
-                        Large(format!(
-                            "{}{}\n\
-                            Click interval for details",
-                            Self::joint_format(joint_details.index),
-                            surface_location,
-                        ))
-                    }
-                    ShowingInterval(interval_details) => {
-                        let role = match interval_details.role {
-                            Role::Pushing => "Strut",
-                            Role::Pulling => "Cable",
-                            Role::Springy => "Spring",
-                        };
-                        Large(format!(
-                            "{} {}-{}\n\
-                            Length: {:.1} mm\n\
-                            Strain: {:.6}%\n\
-                            Distance: {:.1} mm\n\
-                            Right-click to jump",
-                            role,
-                            Self::joint_format(interval_details.near_joint),
-                            Self::joint_format(interval_details.far_joint),
-                            interval_details.length_mm(),
-                            interval_details.strain_percent(),
-                            interval_details.distance_mm(),
-                        ))
-                    }
+                    ShowingJoint(joint_details) => Large(joint_details.to_string()),
+                    ShowingInterval(interval_details) => Large(interval_details.to_string()),
                     _ => Nothing,
                 },
             );
@@ -323,9 +292,5 @@ impl TextState {
             Right => [self.width - margin, middle_v],
             BottomLeft => [margin, self.height - margin],
         }
-    }
-
-    fn joint_format(index: usize) -> String {
-        format!("J{}", index)
     }
 }

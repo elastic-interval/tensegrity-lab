@@ -6,7 +6,7 @@ use crate::wgpu::Wgpu;
 use cgmath::Point3;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::ops::Mul;
 use std::rc::Rc;
 use std::time::SystemTime;
@@ -22,8 +22,8 @@ pub mod fabric;
 pub mod keyboard;
 pub mod scene;
 pub mod test;
-pub mod wgpu;
 pub mod testing;
+pub mod wgpu;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Age(f64);
@@ -134,6 +134,31 @@ pub struct IntervalDetails {
     /// This is used to remember the originally selected push interval
     /// when selecting intervals on the far joint
     pub original_interval_id: Option<UniqueId>,
+    /// The slot index for the near joint connection (for pull intervals)
+    pub near_slot: Option<usize>,
+    /// The slot index for the far joint connection (for pull intervals)
+    pub far_slot: Option<usize>,
+}
+
+impl Display for IntervalDetails {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let role_text = match self.role {
+            Role::Pushing => "Strut",
+            Role::Pulling => "Cable",
+            Role::Springy => "Spring",
+        };
+
+        write!(
+            f,
+            "{} {}-{}\nLength: {:.1} mm\nStrain: {:.6}%\nDistance: {:.1} mm\nRight-click to jump",
+            role_text,
+            self.near_joint_text(),
+            self.far_joint_text(),
+            self.length_mm(),
+            self.strain_percent(),
+            self.distance_mm()
+        )
+    }
 }
 
 impl IntervalDetails {
@@ -148,6 +173,30 @@ impl IntervalDetails {
     pub fn distance_mm(&self) -> f32 {
         self.distance * self.scale
     }
+
+    /// Format a joint index as a string, optionally with a slot number
+    pub fn format_joint(&self, is_near: bool) -> String {
+        let (joint_index, slot) = if is_near {
+            (self.near_joint, self.near_slot)
+        } else {
+            (self.far_joint, self.far_slot)
+        };
+
+        match slot {
+            Some(slot_idx) => format!("J{}:{}", joint_index, slot_idx),
+            None => format!("J{}", joint_index),
+        }
+    }
+
+    /// Format the near joint as a string
+    pub fn near_joint_text(&self) -> String {
+        self.format_joint(true)
+    }
+
+    /// Format the far joint as a string
+    pub fn far_joint_text(&self) -> String {
+        self.format_joint(false)
+    }
 }
 
 #[derive(Clone, Debug, Copy)]
@@ -155,6 +204,22 @@ pub struct JointDetails {
     pub index: usize,
     pub location: Point3<f32>,
     pub scale: f32,
+}
+
+impl Display for JointDetails {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let surface_location = match self.surface_location_mm() {
+            None => "".into(),
+            Some((x, z)) => format!(" at ({x:.1} mm, {z:.1} mm)"),
+        };
+
+        write!(
+            f,
+            "{}{}\nClick interval for details",
+            self.joint_text(),
+            surface_location
+        )
+    }
 }
 
 impl JointDetails {
@@ -165,6 +230,11 @@ impl JointDetails {
     pub fn surface_location_mm(&self) -> Option<(f32, f32)> {
         let Point3 { x, y, z } = self.location;
         (y <= 0.0).then(|| (x * self.scale, z * self.scale))
+    }
+
+    /// Format this joint as a string (e.g., "J1")
+    pub fn joint_text(&self) -> String {
+        format!("J{}", self.index)
     }
 }
 
@@ -239,23 +309,23 @@ impl Appearance {
             },
             AppearanceMode::HighlightedPush => Self {
                 color: [0.4, 0.4, 0.9, 1.0], // Bluish color for highlighted elements
-                radius: self.radius, // Keep radius unchanged
+                radius: self.radius,         // Keep radius unchanged
             },
             AppearanceMode::HighlightedPull => Self {
                 color: [0.4, 0.4, 0.9, 1.0], // Bluish color for highlighted elements
-                radius: self.radius, // Keep radius unchanged
+                radius: self.radius,         // Keep radius unchanged
             },
             AppearanceMode::SelectedPush => Self {
                 color: [0.0, 1.0, 0.0, 1.0], // Green color for selected elements
-                radius: self.radius, // Keep radius unchanged
+                radius: self.radius,         // Keep radius unchanged
             },
             AppearanceMode::SelectedPull => Self {
                 color: [0.0, 1.0, 0.0, 1.0], // Green color for selected elements
-                radius: self.radius, // Keep radius unchanged
+                radius: self.radius,         // Keep radius unchanged
             },
         }
     }
-    
+
     // Keep these methods for backward compatibility
     pub fn with_color(&self, color: [f32; 4]) -> Self {
         Self {
@@ -270,7 +340,7 @@ impl Appearance {
             _ => self.apply_mode(AppearanceMode::HighlightedPull),
         }
     }
-    
+
     pub fn selected_for_role(&self, role: Role) -> Self {
         match role {
             Role::Pushing => self.apply_mode(AppearanceMode::SelectedPush),
