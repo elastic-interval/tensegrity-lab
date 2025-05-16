@@ -130,6 +130,27 @@ impl Fabric {
 
         self.intervals[id.0] = Some(interval);
         self.interval_count += 1;
+
+        // If we added a pull interval, update connections for any push intervals it might connect to
+        if material.properties().role == Pulling {
+            // Find all push intervals connected to this pull interval
+            let mut push_intervals = Vec::new();
+            for (idx, interval_opt) in self.intervals.iter().enumerate() {
+                if let Some(interval) = interval_opt {
+                    if interval.material.properties().role == Pushing {
+                        if interval.touches(alpha_index) || interval.touches(omega_index) {
+                            push_intervals.push(UniqueId(idx));
+                        }
+                    }
+                }
+            }
+
+            // Update connections for each connected push interval
+            for push_id in push_intervals {
+                self.update_interval_attachment_connections(push_id);
+            }
+        }
+
         id
     }
 
