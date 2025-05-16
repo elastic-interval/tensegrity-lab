@@ -364,12 +364,20 @@ pub fn find_nearest_attachment_point(
         .unwrap_or((0, f32::MAX)) // Additional safety in case min_by fails
 }
 
-/// Calculates the positions of attachment points at the end of a push interval
-pub fn calculate_attachment_points(
+/// Generates the positions of attachment points at the end of a push interval
+/// 
+/// # Parameters
+/// * `end_position` - The position of the end of the push interval
+/// * `direction` - The direction vector of the push interval
+/// * `radius` - The radius of the push interval
+/// * `up_vector` - The up vector for orientation reference
+/// * `clockwise` - Whether to generate points in clockwise order when viewed from outside
+pub fn generate_attachment_points(
     end_position: Point3<f32>,
     direction: Vector3<f32>,
     radius: f32,
     up_vector: Vector3<f32>,
+    clockwise: bool,
 ) -> [AttachmentPoint; ATTACHMENT_POINTS] {
     // Normalize the direction vector
     let axis = direction.normalize();
@@ -404,12 +412,16 @@ pub fn calculate_attachment_points(
 
     // The attachment points should appear at the same radius as the push interval
     // Based on testing, we need to use a small multiplier to match the visual radius
-    // The original calculation made the attachment points appear at about double the radius
     let bar_radius = radius * 0.04; // Reduced to match the push interval's visual radius
 
     for i in 0..ATTACHMENT_POINTS {
         // Calculate angle for this attachment point
-        let angle = 2.0 * PI * (i as f32) / (ATTACHMENT_POINTS as f32);
+        // The direction of rotation depends on the clockwise parameter
+        let angle = if clockwise {
+            2.0 * PI * (i as f32) / (ATTACHMENT_POINTS as f32)
+        } else {
+            2.0 * PI * ((ATTACHMENT_POINTS - i) as f32) / (ATTACHMENT_POINTS as f32)
+        };
 
         // Calculate offset from center to place points exactly at the edge of the bar
         let offset =
@@ -429,6 +441,8 @@ pub fn calculate_attachment_points(
     points
 }
 
+
+
 /// Calculates attachment points for both ends of a push interval
 pub fn calculate_interval_attachment_points(
     start: Point3<f32>,
@@ -444,11 +458,13 @@ pub fn calculate_interval_attachment_points(
     // Use world up vector as reference for consistent orientation
     let up_vector = Vector3::new(0.0, 1.0, 0.0);
 
-    // Calculate attachment points at both ends
-    // Note: We use the same direction vector for both ends to ensure
-    // the attachment points are not rotated relative to each other
-    let start_points = calculate_attachment_points(start, direction, radius, up_vector);
-    let end_points = calculate_attachment_points(end, direction, radius, up_vector);
-
-    (start_points, end_points)
+    // Generate attachment points at both ends with appropriate orientation
+    // Alpha end: clockwise when viewed from outside (true)
+    // Omega end: also clockwise when viewed from outside (false) - we need to reverse the direction
+    (
+        generate_attachment_points(start, direction, radius, up_vector, true),
+        generate_attachment_points(end, direction, radius, up_vector, false)
+    )
 }
+
+
