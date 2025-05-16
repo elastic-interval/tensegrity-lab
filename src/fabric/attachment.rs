@@ -22,7 +22,7 @@ pub struct AttachmentPoint {
 
 /// Represents a connection between a pull interval and an attachment point
 #[derive(Clone, Copy, Debug)]
-pub struct AttachmentConnection {
+pub struct PullConnection {
     /// The ID of the pull interval that is attached
     pub pull_interval_id: UniqueId,
 
@@ -32,12 +32,12 @@ pub struct AttachmentConnection {
 
 /// Encapsulates the array of connections between intervals
 #[derive(Clone, Debug)]
-pub struct AttachmentConnections {
-    pub alpha: [Option<AttachmentConnection>; ATTACHMENT_POINTS],
-    pub omega: [Option<AttachmentConnection>; ATTACHMENT_POINTS],
+pub struct PullConnections {
+    pub alpha: [Option<PullConnection>; ATTACHMENT_POINTS],
+    pub omega: [Option<PullConnection>; ATTACHMENT_POINTS],
 }
 
-impl AttachmentConnections {
+impl PullConnections {
     /// Creates a new empty set of connections
     pub fn new() -> Self {
         Self {
@@ -50,53 +50,10 @@ impl AttachmentConnections {
     pub fn connections(
         &self,
         end: IntervalEnd,
-    ) -> &[Option<AttachmentConnection>; ATTACHMENT_POINTS] {
+    ) -> &[Option<PullConnection>; ATTACHMENT_POINTS] {
         match end {
             IntervalEnd::Alpha => &self.alpha,
             IntervalEnd::Omega => &self.omega,
-        }
-    }
-
-    /// Adds a connection to the next available slot at the specified end
-    /// Panics if all slots are full
-    pub fn add_connection(&mut self, end: IntervalEnd, connection: AttachmentConnection) {
-        let array = match end {
-            IntervalEnd::Alpha => &mut self.alpha,
-            IntervalEnd::Omega => &mut self.omega,
-        };
-
-        for slot in array.iter_mut() {
-            if slot.is_none() {
-                *slot = Some(connection);
-                return;
-            }
-        }
-        panic!("No available {} connection slots", end.as_str());
-    }
-
-    /// Clears all connections
-    pub fn clear(&mut self) {
-        // Helper function to clear an array of connections
-        let clear_array = |array: &mut [Option<AttachmentConnection>; ATTACHMENT_POINTS]| {
-            for connection in array.iter_mut() {
-                *connection = None;
-            }
-        };
-
-        // Clear connections for both ends
-        clear_array(&mut self.alpha);
-        clear_array(&mut self.omega);
-    }
-
-    /// Clears connections for a specific end
-    pub fn clear_end(&mut self, end: IntervalEnd) {
-        let array = match end {
-            IntervalEnd::Alpha => &mut self.alpha,
-            IntervalEnd::Omega => &mut self.omega,
-        };
-
-        for connection in array.iter_mut() {
-            *connection = None;
         }
     }
 
@@ -196,7 +153,7 @@ impl AttachmentConnections {
             
             // Assign to the closest available attachment point
             if let Some(idx) = best_idx {
-                let connection = AttachmentConnection {
+                let connection = PullConnection {
                     pull_interval_id: pull_id,
                     attachment_index: idx,
                 };
@@ -229,7 +186,7 @@ impl AttachmentConnections {
         attachment_points: &[AttachmentPoint],
         joint_positions: &[Point3<f32>],
         joint_index: usize,
-        target_array: &[Option<AttachmentConnection>; ATTACHMENT_POINTS],
+        target_array: &[Option<PullConnection>; ATTACHMENT_POINTS],
     ) -> Option<usize> {
         // Calculate distances to all attachment points
         let mut distances = Vec::new();
@@ -281,7 +238,7 @@ impl AttachmentConnections {
     }
 
     /// Gets a specific connection at the specified end
-    pub fn get_connection(&self, end: IntervalEnd, index: usize) -> Option<&AttachmentConnection> {
+    pub fn get_connection(&self, end: IntervalEnd, index: usize) -> Option<&PullConnection> {
         if index < ATTACHMENT_POINTS {
             match end {
                 IntervalEnd::Alpha => self.alpha[index].as_ref(),
@@ -297,7 +254,7 @@ impl AttachmentConnections {
         &mut self,
         end: IntervalEnd,
         index: usize,
-    ) -> Option<&mut AttachmentConnection> {
+    ) -> Option<&mut PullConnection> {
         if index < ATTACHMENT_POINTS {
             match end {
                 IntervalEnd::Alpha => self.alpha[index].as_mut(),
@@ -313,7 +270,7 @@ impl AttachmentConnections {
         &mut self,
         end: IntervalEnd,
         index: usize,
-        connection: Option<AttachmentConnection>,
+        connection: Option<PullConnection>,
     ) -> bool {
         if index < ATTACHMENT_POINTS {
             match end {
