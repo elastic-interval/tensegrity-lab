@@ -2,8 +2,8 @@ use std::collections::HashSet;
 
 use cgmath::Point3;
 
-use crate::fabric::{Fabric, UniqueId};
 use crate::fabric::interval::{Interval, Role};
+use crate::fabric::{Fabric, UniqueId};
 
 impl Fabric {
     pub fn joint_incidents(&self) -> Vec<JointIncident> {
@@ -50,13 +50,14 @@ impl JointIncident {
 
     pub fn add_interval(&mut self, id: UniqueId, interval: &Interval) {
         match interval.material.properties().role {
-            Role::Pushing => self.push = Some(*interval),
+            Role::Pushing => self.push = Some(interval.clone()),
             Role::Pulling => {
-                self.pulls.push((id, *interval));
-                self.pull_adjacent_joints.insert(interval.other_joint(self.index));
+                self.pulls.push((id, interval.clone()));
+                self.pull_adjacent_joints
+                    .insert(interval.other_joint(self.index));
             }
             Role::Springy => {
-                self.springs.push(*interval);
+                self.springs.push(interval.clone());
             }
         }
         self.adjacent_joints
@@ -64,11 +65,14 @@ impl JointIncident {
     }
 
     pub(crate) fn extended_paths(&self, path: &Path) -> Vec<Path> {
-        self.pulls.iter().flat_map(|(_, pull)| path.add(*pull)).collect()
+        self.pulls
+            .iter()
+            .flat_map(|(_, pull)| path.add(pull.clone()))
+            .collect()
     }
 
     pub(crate) fn across_push(&self) -> Option<usize> {
-        self.push.map(|push| push.other_joint(self.index))
+        self.push.as_ref().map(|push| push.other_joint(self.index))
     }
 }
 
