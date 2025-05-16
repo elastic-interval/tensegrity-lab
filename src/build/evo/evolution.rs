@@ -1,5 +1,5 @@
 use crate::build::evo::evolving_push::EvolvingPush;
-use crate::fabric::interval::End;
+use crate::fabric::IntervalEnd;
 use crate::fabric::physics::presets::LIQUID;
 use crate::fabric::Fabric;
 use cgmath::{InnerSpace, Vector3};
@@ -49,9 +49,9 @@ impl Evolution {
 
     fn sprout(&mut self) {
         let end = if self.random_bool() {
-            End::Alpha
+            IntervalEnd::Alpha
         } else {
-            End::Omega
+            IntervalEnd::Omega
         };
         let choice = self.random_push();
         let project = self.random_unit();

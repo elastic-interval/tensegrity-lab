@@ -3,8 +3,8 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use crate::fabric::UniqueId;
-use cgmath::{InnerSpace, Point3, Vector3};
+use crate::fabric::{IntervalEnd, UniqueId};
+use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
 use std::f32::consts::PI;
 
 /// Number of attachment points at each end of a push interval
@@ -46,46 +46,32 @@ impl AttachmentConnections {
         }
     }
 
-    /// Returns all alpha connections
-    pub fn alpha(&self) -> &[Option<AttachmentConnection>; ATTACHMENT_POINTS] {
-        &self.alpha
+    /// Returns the connections array for the specified end
+    pub fn connections(
+        &self,
+        end: IntervalEnd,
+    ) -> &[Option<AttachmentConnection>; ATTACHMENT_POINTS] {
+        match end {
+            IntervalEnd::Alpha => &self.alpha,
+            IntervalEnd::Omega => &self.omega,
+        }
     }
 
-    /// Returns all alpha connections as mutable
-    pub fn alpha_mut(&mut self) -> &mut [Option<AttachmentConnection>; ATTACHMENT_POINTS] {
-        &mut self.alpha
-    }
+    /// Adds a connection to the next available slot at the specified end
+    /// Panics if all slots are full
+    pub fn add_connection(&mut self, end: IntervalEnd, connection: AttachmentConnection) {
+        let array = match end {
+            IntervalEnd::Alpha => &mut self.alpha,
+            IntervalEnd::Omega => &mut self.omega,
+        };
 
-    /// Returns all omega connections
-    pub fn omega(&self) -> &[Option<AttachmentConnection>; ATTACHMENT_POINTS] {
-        &self.omega
-    }
-
-    /// Returns all omega connections as mutable
-    pub fn omega_mut(&mut self) -> &mut [Option<AttachmentConnection>; ATTACHMENT_POINTS] {
-        &mut self.omega
-    }
-
-    /// Adds a connection to the next available alpha slot
-    pub fn add_alpha(&mut self, connection: AttachmentConnection) -> bool {
-        for slot in self.alpha.iter_mut() {
+        for slot in array.iter_mut() {
             if slot.is_none() {
                 *slot = Some(connection);
-                return true;
+                return;
             }
         }
-        false // No available slots
-    }
-
-    /// Adds a connection to the next available omega slot
-    pub fn add_omega(&mut self, connection: AttachmentConnection) -> bool {
-        for slot in self.omega.iter_mut() {
-            if slot.is_none() {
-                *slot = Some(connection);
-                return true;
-            }
-        }
-        false // No available slots
+        panic!("No available {} connection slots", end.as_str());
     }
 
     /// Clears all connections
@@ -97,84 +83,273 @@ impl AttachmentConnections {
             }
         };
 
-        // Clear both alpha and omega connections
+        // Clear connections for both ends
         clear_array(&mut self.alpha);
         clear_array(&mut self.omega);
     }
 
-    /// Checks if a specific alpha index is occupied
-    pub fn is_alpha_occupied(&self, index: usize) -> bool {
+    /// Clears connections for a specific end
+    pub fn clear_end(&mut self, end: IntervalEnd) {
+        let array = match end {
+            IntervalEnd::Alpha => &mut self.alpha,
+            IntervalEnd::Omega => &mut self.omega,
+        };
+
+        for connection in array.iter_mut() {
+            *connection = None;
+        }
+    }
+
+    /// Reorders connections to ensure each pull interval is assigned to the most appropriate attachment point
+    /// This optimizes the positions of connections based on joint positions
+    pub fn reorder_connections(
+        &mut self,
+        alpha_attachment_points: &[AttachmentPoint],
+        omega_attachment_points: &[AttachmentPoint],
+        joint_positions: &[Point3<f32>],
+        pull_intervals: &[(UniqueId, usize, usize)], // (pull_id, alpha_index, omega_index)
+        push_alpha_index: usize,
+        push_omega_index: usize,
+    ) {
+        // Step 1: Collect all connections that need to be made
+        let mut connections_to_make = self.collect_connections_to_make(pull_intervals, push_alpha_index, push_omega_index);
+        
+        // Step 2: Clear all existing connections
+        self.alpha = [None; ATTACHMENT_POINTS];
+        self.omega = [None; ATTACHMENT_POINTS];
+        
+        // Step 3: Sort connections by distance to optimize placement
+        self.sort_connections_by_distance(&mut connections_to_make, alpha_attachment_points, omega_attachment_points, joint_positions);
+        
+        // Step 4: Assign connections to attachment points
+        self.assign_connections(connections_to_make, alpha_attachment_points, omega_attachment_points, joint_positions);
+    }
+    
+    /// Collects all connections that need to be made for a push interval
+    fn collect_connections_to_make(
+        &self,
+        pull_intervals: &[(UniqueId, usize, usize)],
+        push_alpha_index: usize,
+        push_omega_index: usize,
+    ) -> Vec<(IntervalEnd, UniqueId, usize)> {
+        let mut connections_to_make = Vec::new();
+        
+        for (pull_id, alpha_index, omega_index) in pull_intervals {
+            // Check if pull's alpha end connects to this push interval
+            if *alpha_index == push_alpha_index {
+                connections_to_make.push((IntervalEnd::Alpha, *pull_id, *alpha_index));
+            } else if *alpha_index == push_omega_index {
+                connections_to_make.push((IntervalEnd::Omega, *pull_id, *alpha_index));
+            }
+            
+            // Check if pull's omega end connects to this push interval
+            if *omega_index == push_alpha_index {
+                connections_to_make.push((IntervalEnd::Alpha, *pull_id, *omega_index));
+            } else if *omega_index == push_omega_index {
+                connections_to_make.push((IntervalEnd::Omega, *pull_id, *omega_index));
+            }
+        }
+        
+        connections_to_make
+    }
+    
+    /// Sorts connections by distance to optimize placement
+    fn sort_connections_by_distance(
+        &self,
+        connections_to_make: &mut Vec<(IntervalEnd, UniqueId, usize)>,
+        alpha_attachment_points: &[AttachmentPoint],
+        omega_attachment_points: &[AttachmentPoint],
+        joint_positions: &[Point3<f32>],
+    ) {
+        connections_to_make.sort_by(|(end_a, _, joint_a), (end_b, _, joint_b)| {
+            // Get the attachment points for each end
+            let points_a = self.get_attachment_points_for_end(*end_a, alpha_attachment_points, omega_attachment_points);
+            let points_b = self.get_attachment_points_for_end(*end_b, alpha_attachment_points, omega_attachment_points);
+            
+            // Calculate the minimum distance for each connection
+            let min_dist_a = Self::calculate_min_distance(*joint_a, points_a, joint_positions);
+            let min_dist_b = Self::calculate_min_distance(*joint_b, points_b, joint_positions);
+            
+            // Sort by distance (closest first)
+            min_dist_a.partial_cmp(&min_dist_b).unwrap_or(std::cmp::Ordering::Equal)
+        });
+    }
+    
+    /// Assigns connections to attachment points
+    fn assign_connections(
+        &mut self,
+        connections_to_make: Vec<(IntervalEnd, UniqueId, usize)>,
+        alpha_attachment_points: &[AttachmentPoint],
+        omega_attachment_points: &[AttachmentPoint],
+        joint_positions: &[Point3<f32>],
+    ) {
+        for (end, pull_id, joint_index) in connections_to_make {
+            let attachment_points = self.get_attachment_points_for_end(end, alpha_attachment_points, omega_attachment_points);
+            
+            // Find the best available attachment point
+            let best_idx = match end {
+                IntervalEnd::Alpha => Self::find_best_attachment_point(
+                    attachment_points, joint_positions, joint_index, &self.alpha),
+                IntervalEnd::Omega => Self::find_best_attachment_point(
+                    attachment_points, joint_positions, joint_index, &self.omega),
+            };
+            
+            // Assign to the closest available attachment point
+            if let Some(idx) = best_idx {
+                let connection = AttachmentConnection {
+                    pull_interval_id: pull_id,
+                    attachment_index: idx,
+                };
+                
+                // Update the appropriate array
+                match end {
+                    IntervalEnd::Alpha => self.alpha[idx] = Some(connection),
+                    IntervalEnd::Omega => self.omega[idx] = Some(connection),
+                };
+            }
+        }
+    }
+    
+    /// Gets the attachment points for a specific interval end
+    fn get_attachment_points_for_end<'a>(
+        &self,
+        end: IntervalEnd,
+        alpha_attachment_points: &'a [AttachmentPoint],
+        omega_attachment_points: &'a [AttachmentPoint],
+    ) -> &'a [AttachmentPoint] {
+        match end {
+            IntervalEnd::Alpha => alpha_attachment_points,
+            IntervalEnd::Omega => omega_attachment_points,
+        }
+    }
+    
+
+    /// Finds the best available attachment point
+    fn find_best_attachment_point(
+        attachment_points: &[AttachmentPoint],
+        joint_positions: &[Point3<f32>],
+        joint_index: usize,
+        target_array: &[Option<AttachmentConnection>; ATTACHMENT_POINTS],
+    ) -> Option<usize> {
+        // Calculate distances to all attachment points
+        let mut distances = Vec::new();
+        for (i, point) in attachment_points.iter().enumerate() {
+            if target_array[i].is_none() { // Only consider unoccupied points
+                let joint_position = joint_positions[joint_index];
+                let distance = joint_position.distance2(point.position);
+                distances.push((i, distance));
+            }
+        }
+        
+        // Sort by distance (closest first)
+        distances.sort_by(|(_, dist1), (_, dist2)| {
+            dist1.partial_cmp(dist2).unwrap_or(std::cmp::Ordering::Equal)
+        });
+        
+        // Return the closest available attachment point
+        distances.first().map(|(idx, _)| *idx)
+    }
+    
+    /// Helper function to calculate the minimum distance between a joint and any attachment point
+    fn calculate_min_distance(
+        joint_index: usize,
+        attachment_points: &[AttachmentPoint],
+        joint_positions: &[Point3<f32>],
+    ) -> f32 {
+        if attachment_points.is_empty() {
+            return f32::MAX;
+        }
+        
+        let joint_position = joint_positions[joint_index];
+        attachment_points
+            .iter()
+            .map(|point| joint_position.distance2(point.position))
+            .min_by(|dist1, dist2| dist1.partial_cmp(dist2).unwrap_or(std::cmp::Ordering::Equal))
+            .unwrap_or(f32::MAX)
+    }
+
+    /// Checks if a specific index is occupied at the specified end
+    pub fn is_occupied(&self, end: IntervalEnd, index: usize) -> bool {
         if index < ATTACHMENT_POINTS {
-            self.alpha[index].is_some()
+            match end {
+                IntervalEnd::Alpha => self.alpha[index].is_some(),
+                IntervalEnd::Omega => self.omega[index].is_some(),
+            }
         } else {
             false
         }
     }
 
-    /// Checks if a specific omega index is occupied
-    pub fn is_omega_occupied(&self, index: usize) -> bool {
+    /// Gets a specific connection at the specified end
+    pub fn get_connection(&self, end: IntervalEnd, index: usize) -> Option<&AttachmentConnection> {
         if index < ATTACHMENT_POINTS {
-            self.omega[index].is_some()
-        } else {
-            false
-        }
-    }
-
-    /// Gets a specific alpha connection
-    pub fn get_alpha(&self, index: usize) -> Option<&AttachmentConnection> {
-        if index < ATTACHMENT_POINTS {
-            self.alpha[index].as_ref()
+            match end {
+                IntervalEnd::Alpha => self.alpha[index].as_ref(),
+                IntervalEnd::Omega => self.omega[index].as_ref(),
+            }
         } else {
             None
         }
     }
 
-    /// Gets a specific omega connection
-    pub fn get_omega(&self, index: usize) -> Option<&AttachmentConnection> {
+    /// Gets a specific connection at the specified end as mutable
+    pub fn get_connection_mut(
+        &mut self,
+        end: IntervalEnd,
+        index: usize,
+    ) -> Option<&mut AttachmentConnection> {
         if index < ATTACHMENT_POINTS {
-            self.omega[index].as_ref()
+            match end {
+                IntervalEnd::Alpha => self.alpha[index].as_mut(),
+                IntervalEnd::Omega => self.omega[index].as_mut(),
+            }
         } else {
             None
         }
     }
 
-    /// Gets a specific alpha connection as mutable
-    pub fn get_alpha_mut(&mut self, index: usize) -> Option<&mut AttachmentConnection> {
+    /// Sets a specific connection at the specified end
+    pub fn set_connection(
+        &mut self,
+        end: IntervalEnd,
+        index: usize,
+        connection: Option<AttachmentConnection>,
+    ) -> bool {
         if index < ATTACHMENT_POINTS {
-            self.alpha[index].as_mut()
-        } else {
-            None
-        }
-    }
-
-    /// Gets a specific omega connection as mutable
-    pub fn get_omega_mut(&mut self, index: usize) -> Option<&mut AttachmentConnection> {
-        if index < ATTACHMENT_POINTS {
-            self.omega[index].as_mut()
-        } else {
-            None
-        }
-    }
-
-    /// Sets a specific alpha connection
-    pub fn set_alpha(&mut self, index: usize, connection: Option<AttachmentConnection>) -> bool {
-        if index < ATTACHMENT_POINTS {
-            self.alpha[index] = connection;
+            match end {
+                IntervalEnd::Alpha => self.alpha[index] = connection,
+                IntervalEnd::Omega => self.omega[index] = connection,
+            }
             true
         } else {
             false
         }
     }
+}
 
-    /// Sets a specific omega connection
-    pub fn set_omega(&mut self, index: usize, connection: Option<AttachmentConnection>) -> bool {
-        if index < ATTACHMENT_POINTS {
-            self.omega[index] = connection;
-            true
-        } else {
-            false
-        }
+/// Helper function to find the nearest attachment point in a set of points
+/// Returns the index of the nearest point and its squared distance
+/// If the points array is empty, returns (0, f32::MAX) as a fallback
+pub fn find_nearest_attachment_point(
+    points: &[AttachmentPoint],
+    position: Point3<f32>,
+) -> (usize, f32) {
+    if points.is_empty() {
+        return (0, f32::MAX); // Fallback for empty arrays
     }
+
+    points
+        .iter()
+        .enumerate()
+        .map(|(i, point)| (i, position.distance2(point.position)))
+        .min_by(|(_, dist1), (_, dist2)| {
+            // Handle NaN values safely by considering them equal
+            // This prevents unwrap failures on partial_cmp
+            dist1
+                .partial_cmp(dist2)
+                .unwrap_or_else(|| std::cmp::Ordering::Equal)
+        })
+        .unwrap_or((0, f32::MAX)) // Additional safety in case min_by fails
 }
 
 /// Calculates the positions of attachment points at the end of a push interval

@@ -33,6 +33,34 @@ pub mod vulcanize;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod export;
 
+/// Represents which end of an interval (alpha or omega)
+/// This is used throughout the fabric module for consistent handling of interval ends
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IntervalEnd {
+    /// The alpha (start) end of an interval
+    Alpha,
+    /// The omega (end) end of an interval
+    Omega,
+}
+
+impl IntervalEnd {
+    /// Get the opposite end
+    pub fn opposite(&self) -> Self {
+        match self {
+            IntervalEnd::Alpha => IntervalEnd::Omega,
+            IntervalEnd::Omega => IntervalEnd::Alpha,
+        }
+    }
+    
+    /// Convert to a string representation
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            IntervalEnd::Alpha => "alpha",
+            IntervalEnd::Omega => "omega",
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct FabricStats {
     pub name: String,

@@ -1,4 +1,5 @@
-use crate::fabric::interval::{End, IntervalSnapshot};
+use crate::fabric::interval::IntervalSnapshot;
+use crate::fabric::IntervalEnd;
 use crate::fabric::material::Material;
 use crate::fabric::{Fabric, UniqueId};
 use cgmath::{Point3, Vector3};
@@ -19,15 +20,15 @@ impl EvolvingPush {
         Self::new(interval_id)
     }
 
-    pub fn end_push(&mut self, fabric: &mut Fabric, snapshot: IntervalSnapshot, end: End, project: Vector3<f32>) -> Self {
+    pub fn end_push(&mut self, fabric: &mut Fabric, snapshot: IntervalSnapshot, end: IntervalEnd, project: Vector3<f32>) -> Self {
         let IntervalSnapshot {
             interval,
             alpha,
             omega,
         } = snapshot;
         let (here_id, here, pulls) = match end {
-            End::Alpha => (interval.alpha_index, alpha.location, &mut self.alpha_pulls),
-            End::Omega => (interval.omega_index, omega.location, &mut self.omega_pulls),
+            IntervalEnd::Alpha => (interval.alpha_index, alpha.location, &mut self.alpha_pulls),
+            IntervalEnd::Omega => (interval.omega_index, omega.location, &mut self.omega_pulls),
         };
         let alpha = fabric.create_joint(here - project / 2.0);
         let omega = fabric.create_joint(here + project / 2.0);
@@ -43,12 +44,12 @@ impl EvolvingPush {
         }
     }
 
-    pub fn add_pull(&mut self, end: &End, pull_id: UniqueId) {
+    pub fn add_pull(&mut self, end: &IntervalEnd, pull_id: UniqueId) {
         match end {
-            End::Alpha => {
+            IntervalEnd::Alpha => {
                 self.alpha_pulls.push(pull_id);
             }
-            End::Omega => {
+            IntervalEnd::Omega => {
                 self.omega_pulls.push(pull_id);
             }
         }
@@ -61,10 +62,10 @@ impl EvolvingPush {
         snapshot_b: (usize, IntervalSnapshot),
     ) {
         let ends = [
-            (End::Alpha, End::Alpha),
-            (End::Alpha, End::Omega),
-            (End::Omega, End::Alpha),
-            (End::Omega, End::Omega),
+            (IntervalEnd::Alpha, IntervalEnd::Alpha),
+            (IntervalEnd::Alpha, IntervalEnd::Omega),
+            (IntervalEnd::Omega, IntervalEnd::Alpha),
+            (IntervalEnd::Omega, IntervalEnd::Omega),
         ];
         for (end_a, end_b) in ends {
             let index_a = snapshot_a.1.end_index(&end_a);
