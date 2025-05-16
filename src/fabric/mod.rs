@@ -19,8 +19,8 @@ use std::fmt::Debug;
 
 pub mod attachment;
 pub mod brick;
-pub mod error;
 pub mod correction;
+pub mod error;
 pub mod face;
 pub mod interval;
 pub mod joint;
@@ -51,7 +51,7 @@ impl IntervalEnd {
             IntervalEnd::Omega => IntervalEnd::Alpha,
         }
     }
-    
+
     /// Convert to a string representation
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -74,7 +74,6 @@ pub struct FabricStats {
     pub pull_count: usize,
     pub pull_range: (f32, f32),
     pub pull_total: f32,
-    pub fabric: Option<Fabric>,
 }
 
 #[derive(Clone, Debug)]
@@ -247,7 +246,7 @@ impl Fabric {
                     Muscle { .. } => {}
                 }
             }
-            
+
             // Update all attachment connections at the end of the pretenst phase
             // This assigns each pull interval to its nearest attachment point on connected push intervals
             self.update_all_attachment_connections();
@@ -387,7 +386,6 @@ impl Fabric {
             pull_count,
             pull_range,
             pull_total,
-            fabric: Some(self.clone()),
         }
     }
 }
