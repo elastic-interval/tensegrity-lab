@@ -84,7 +84,7 @@ impl Fabric {
 
     fn interval_map(&self) -> HashMap<(usize, usize), Interval> {
         self.interval_values()
-            .map(|interval| (interval.key(), *interval))
+            .map(|interval| (interval.key(), interval.clone()))
             .collect()
     }
 }
@@ -235,7 +235,7 @@ impl PairGenerator {
         let paths: Vec<_> = self.joints[joint_index]
             .pulls
             .iter()
-            .map(|(_, pull)| Path::new(joint_index, *pull))
+            .map(|(_, pull)| Path::new(joint_index, pull.clone()))
             .collect();
         self.paths_via_pulls(&paths, 1, max_size)
     }
