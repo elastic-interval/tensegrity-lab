@@ -194,12 +194,19 @@ impl AttachmentRenderer {
         let mut instances = Vec::new();
 
         // Track which push intervals are selected/highlighted to avoid duplicate points
-        let (selected_push_interval, selected_joint) = match pick {
-            Pick::Interval(IntervalDetails { id, role, .. }) if *role == Role::Pushing => {
-                (Some(id.0), None)
+        let (selected_push_interval, selected_joint, original_push_interval) = match pick {
+            Pick::Interval(IntervalDetails { id, role, original_interval_id, .. }) => {
+                if *role == Role::Pushing {
+                    (Some(id.0), None, None)
+                } else if *role == Role::Pulling {
+                    // For pull intervals, check if there's an original push interval to highlight
+                    (None, None, original_interval_id.map(|id| id.0))
+                } else {
+                    (None, None, None)
+                }
             }
-            Pick::Joint(joint_details) => (None, Some(joint_details.index)),
-            _ => (None, None),
+            Pick::Joint(joint_details) => (None, Some(joint_details.index), None),
+            _ => (None, None, None),
         };
 
         // Calculate point radius once - use a consistent size for all attachment points
@@ -211,6 +218,7 @@ impl AttachmentRenderer {
             fabric,
             selected_push_interval,
             selected_joint,
+            original_push_interval, // Pass the original push interval ID
             point_radius,
         );
 
@@ -227,17 +235,20 @@ impl AttachmentRenderer {
         fabric: &Fabric,
         selected_push_interval: Option<usize>,
         selected_joint: Option<usize>,
+        original_push_interval: Option<usize>,
         point_radius: f32,
     ) {
         for (idx, interval_opt) in fabric.intervals.iter().enumerate() {
             if let Some(interval) = interval_opt {
                 if interval.material.properties().role == Role::Pushing {
-                    // Determine if this push interval is selected or connected to a selected joint
+                    // Determine if this push interval is selected, connected to a selected joint,
+                    // or is the original interval of a selected pull interval
                     let is_selected = selected_push_interval
                         .map_or(false, |selected_idx| selected_idx == idx)
                         || selected_joint.map_or(false, |joint_idx| {
                             interval.alpha_index == joint_idx || interval.omega_index == joint_idx
-                        });
+                        })
+                        || original_push_interval.map_or(false, |orig_idx| orig_idx == idx);
 
                     // Get attachment points for this interval
                     if let Ok((alpha_points, omega_points)) =
@@ -297,44 +308,90 @@ impl AttachmentRenderer {
         point_radius: f32,
     ) {
         if let Pick::Interval(IntervalDetails {
-            id,
+            id: _,
             role,
             near_joint,
+            original_interval_id,
             ..
         }) = pick
         {
             if *role == Role::Pulling {
-                if let Some(_interval) = fabric.intervals[id.0].as_ref() {
-                    // For pull intervals, show attachment points at the near joint
-                    let joint_index = *near_joint;
-
-                    // Find all push intervals connected to this joint
-                    for (_idx, interval_opt) in fabric.intervals.iter().enumerate() {
-                        if let Some(interval) = interval_opt {
-                            if interval.material.properties().role == Role::Pushing {
-                                if interval.alpha_index == joint_index
-                                    || interval.omega_index == joint_index
+                // First, handle the original push interval if present
+                if let Some(orig_id) = original_interval_id {
+                    if let Some(orig_interval) = fabric.intervals[orig_id.0].as_ref() {
+                        if orig_interval.material.properties().role == Role::Pushing {
+                            // Get attachment points for the original push interval
+                            if let Ok((alpha_points, omega_points)) = 
+                                orig_interval.attachment_points(&fabric.joints)
+                            {
+                                // Create a set of occupied attachment indices for alpha and omega ends
+                                let alpha_occupied = self.get_occupied_indices(
+                                    orig_interval,
+                                    IntervalEnd::Alpha,
+                                    alpha_points.len(),
+                                );
+                                let omega_occupied = self.get_occupied_indices(
+                                    orig_interval,
+                                    IntervalEnd::Omega,
+                                    omega_points.len(),
+                                );
+                                
+                                // Add all attachment points with appropriate color
+                                self.add_attachment_point_instances(
+                                    instances,
+                                    &alpha_points,
+                                    &alpha_occupied,
+                                    point_radius,
+                                    true,
+                                );
+                                
+                                self.add_attachment_point_instances(
+                                    instances,
+                                    &omega_points,
+                                    &omega_occupied,
+                                    point_radius,
+                                    true,
+                                );
+                            }
+                        }
+                    }
+                }
+                
+                // Then handle any push intervals connected to the near joint
+                let joint_index = *near_joint;
+                
+                // Find all push intervals connected to this joint
+                for (_idx, interval_opt) in fabric.intervals.iter().enumerate() {
+                    if let Some(interval) = interval_opt {
+                        if interval.material.properties().role == Role::Pushing {
+                            // Skip the original interval if it's one of the connected push intervals
+                            // to avoid duplicate attachment points
+                            if let Some(orig_id) = original_interval_id {
+                                // Compare the index in the intervals array instead of the ID field
+                                if _idx == orig_id.0 {
+                                    continue;
+                                }
+                            }
+                            
+                            if interval.alpha_index == joint_index || interval.omega_index == joint_index {
+                                // Get attachment points for this push interval
+                                if let Ok((alpha_points, omega_points)) =
+                                    interval.attachment_points(&fabric.joints)
                                 {
-                                    // Get attachment points for this push interval
-                                    if let Ok((alpha_points, omega_points)) =
-                                        interval.attachment_points(&fabric.joints)
-                                    {
-                                        // Only show attachment points for the end connected to the joint
-                                        let points_to_show = if interval.alpha_index == joint_index
-                                        {
-                                            &alpha_points
-                                        } else {
-                                            &omega_points
-                                        };
+                                    // Only show attachment points for the end connected to the joint
+                                    let points_to_show = if interval.alpha_index == joint_index {
+                                        &alpha_points
+                                    } else {
+                                        &omega_points
+                                    };
 
-                                        // Add the attachment points to the instances
-                                        for point in points_to_show.iter() {
-                                            instances.push(self.create_attachment_point_instance(
-                                                point,
-                                                point_radius,
-                                                ATTACHMENT_POINT_COLOR,
-                                            ));
-                                        }
+                                    // Add the attachment points to the instances
+                                    for point in points_to_show.iter() {
+                                        instances.push(self.create_attachment_point_instance(
+                                            point,
+                                            point_radius,
+                                            ATTACHMENT_POINT_COLOR,
+                                        ));
                                     }
                                 }
                             }
