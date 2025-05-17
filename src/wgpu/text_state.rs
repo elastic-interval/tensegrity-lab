@@ -165,7 +165,7 @@ impl TextState {
             self.update_section(
                 SectionName::Right,
                 match control_state {
-                    Viewing => Normal("Right-click to select".to_string()),
+                    Viewing => Normal("Click to select".to_string()),
                     ShowingJoint(joint_details) => Large(joint_details.to_string()),
                     ShowingInterval(interval_details) => Large(interval_details.to_string()),
                     _ => Nothing,
