@@ -1,4 +1,7 @@
+use crate::camera::Pick;
+use crate::fabric::Fabric;
 use crate::wgpu::Wgpu;
+use crate::RenderStyle;
 use bytemuck::{Pod, Zeroable};
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
@@ -138,7 +141,10 @@ impl CylinderRenderer {
         }
     }
 
-    pub fn update(&mut self, wgpu: &Wgpu, instances: &[CylinderInstance]) {
+    pub fn update(&mut self, wgpu: &Wgpu, fabric: &Fabric, pick: &Pick, render_style: &mut RenderStyle) {
+        // Create instances from fabric data
+        let instances = self.create_instances_from_fabric(fabric, pick, render_style);
+
         self.num_instances = instances.len() as u32;
 
         // Update instance buffer if there are instances to render
