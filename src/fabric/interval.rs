@@ -206,7 +206,7 @@ impl Fabric {
         }
     }
 
-    pub fn joining(&mut self, pair: (usize, usize)) -> Option<UniqueId> {
+    pub fn joining(&self, pair: (usize, usize)) -> Option<UniqueId> {
         self.intervals
             .iter()
             .enumerate()

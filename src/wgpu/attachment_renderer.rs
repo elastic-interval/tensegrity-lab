@@ -16,14 +16,10 @@ use std::mem::size_of;
 use wgpu::util::DeviceExt;
 use wgpu::PipelineCompilationOptions;
 
-// No need for this struct as we're using AttachmentPointInstance
+const BLUISH: [f32; 4] = [0.4, 0.4, 1.0, 1.0];
+const ORANGE: [f32; 4] = [1.0, 0.1, 0.0, 1.0];
+const GRAY: [f32; 4] = [0.3, 0.3, 0.3, 0.2];
 
-// Sphere to represent an attachment point
-// Size is calculated dynamically based on the bar radius to make attachment points touch tangentially
-const ATTACHMENT_POINT_COLOR: [f32; 4] = [1.0, 0.1, 0.0, 1.0]; // Reddish color for attachment points
-const FADED_ATTACHMENT_POINT_COLOR: [f32; 4] = [0.3, 0.3, 0.3, 0.2]; // Faded attachment point color - very subtle gray
-
-// Instance data for attachment points (similar to JointMarkerInstance)
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct AttachmentPointInstance {
@@ -195,7 +191,12 @@ impl AttachmentRenderer {
 
         // Track which push intervals are selected/highlighted to avoid duplicate points
         let (selected_push_interval, selected_joint, original_push_interval) = match pick {
-            Pick::Interval(IntervalDetails { id, role, original_interval_id, .. }) => {
+            Pick::Interval(IntervalDetails {
+                id,
+                role,
+                selected_push: original_interval_id,
+                ..
+            }) => {
                 if *role == Role::Pushing {
                     (Some(id.0), None, None)
                 } else if *role == Role::Pulling {
@@ -289,7 +290,7 @@ impl AttachmentRenderer {
                                 instances.push(self.create_attachment_point_instance(
                                     point,
                                     point_radius,
-                                    FADED_ATTACHMENT_POINT_COLOR,
+                                    GRAY,
                                 ));
                             }
                         }
@@ -311,7 +312,7 @@ impl AttachmentRenderer {
             id: _,
             role,
             near_joint,
-            original_interval_id,
+            selected_push: original_interval_id,
             ..
         }) = pick
         {
@@ -321,7 +322,7 @@ impl AttachmentRenderer {
                     if let Some(orig_interval) = fabric.intervals[orig_id.0].as_ref() {
                         if orig_interval.material.properties().role == Role::Pushing {
                             // Get attachment points for the original push interval
-                            if let Ok((alpha_points, omega_points)) = 
+                            if let Ok((alpha_points, omega_points)) =
                                 orig_interval.attachment_points(&fabric.joints)
                             {
                                 // Create a set of occupied attachment indices for alpha and omega ends
@@ -335,7 +336,7 @@ impl AttachmentRenderer {
                                     IntervalEnd::Omega,
                                     omega_points.len(),
                                 );
-                                
+
                                 // Add all attachment points with appropriate color
                                 self.add_attachment_point_instances(
                                     instances,
@@ -344,7 +345,7 @@ impl AttachmentRenderer {
                                     point_radius,
                                     true,
                                 );
-                                
+
                                 self.add_attachment_point_instances(
                                     instances,
                                     &omega_points,
@@ -356,10 +357,10 @@ impl AttachmentRenderer {
                         }
                     }
                 }
-                
+
                 // Then handle any push intervals connected to the near joint
                 let joint_index = *near_joint;
-                
+
                 // Find all push intervals connected to this joint
                 for (_idx, interval_opt) in fabric.intervals.iter().enumerate() {
                     if let Some(interval) = interval_opt {
@@ -372,8 +373,10 @@ impl AttachmentRenderer {
                                     continue;
                                 }
                             }
-                            
-                            if interval.alpha_index == joint_index || interval.omega_index == joint_index {
+
+                            if interval.alpha_index == joint_index
+                                || interval.omega_index == joint_index
+                            {
                                 // Get attachment points for this push interval
                                 if let Ok((alpha_points, omega_points)) =
                                     interval.attachment_points(&fabric.joints)
@@ -390,7 +393,7 @@ impl AttachmentRenderer {
                                         instances.push(self.create_attachment_point_instance(
                                             point,
                                             point_radius,
-                                            ATTACHMENT_POINT_COLOR,
+                                            ORANGE,
                                         ));
                                     }
                                 }
@@ -434,14 +437,12 @@ impl AttachmentRenderer {
         for (i, point) in points.iter().enumerate() {
             let is_occupied = i < occupied.len() && occupied[i];
             let color = if is_occupied {
-                // Use a bluish color for occupied points to match your preference for highlighted elements
-                [0.4, 0.4, 0.9, 1.0]
+                ORANGE
             } else if is_selected {
-                ATTACHMENT_POINT_COLOR // Reddish for available
+                BLUISH
             } else {
-                FADED_ATTACHMENT_POINT_COLOR // Faded for non-selected
+                GRAY
             };
-
             instances.push(self.create_attachment_point_instance(point, point_radius, color));
         }
     }
