@@ -125,7 +125,7 @@ impl FabricRenderer {
                         far_joint,
                         id,
                         role,
-                        original_interval_id,
+                                       selected_push: original_interval_id,
                         ..
                     }) => {
                         // If this is the currently selected interval, highlight it based on its type

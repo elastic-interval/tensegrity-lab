@@ -28,29 +28,29 @@ impl Fabric {
 pub struct JointIncident {
     pub index: usize,
     pub location: Point3<f32>,
-    pub push: Option<Interval>,
+    pub intervals: Vec<(UniqueId, Interval)>,
+    pub push: Option<(UniqueId, Interval)>,
     pub pulls: Vec<(UniqueId, Interval)>,
     pub springs: Vec<Interval>,
     pub pull_adjacent_joints: HashSet<usize>,
-    pub adjacent_joints: HashSet<usize>,
 }
 
 impl JointIncident {
-    pub(crate) fn new(index: usize, location: Point3<f32>) -> Self {
+    pub fn new(index: usize, location: Point3<f32>) -> Self {
         Self {
             index,
             location,
             push: None,
+            intervals: vec![],
             pulls: vec![],
             springs: vec![],
             pull_adjacent_joints: HashSet::new(),
-            adjacent_joints: HashSet::new(),
         }
     }
 
     pub fn add_interval(&mut self, id: UniqueId, interval: &Interval) {
         match interval.material.properties().role {
-            Role::Pushing => self.push = Some(interval.clone()),
+            Role::Pushing => self.push = Some((id, interval.clone())),
             Role::Pulling => {
                 self.pulls.push((id, interval.clone()));
                 self.pull_adjacent_joints
@@ -60,8 +60,14 @@ impl JointIncident {
                 self.springs.push(interval.clone());
             }
         }
-        self.adjacent_joints
-            .insert(interval.other_joint(self.index));
+        self.intervals.push((id, interval.clone()));
+    }
+
+    pub fn interval_to(&self, joint_index: usize) -> Option<(UniqueId, Interval)> {
+        self.intervals
+            .iter()
+            .find(|(_, interval)| interval.other_joint(self.index) == joint_index)
+            .map(|(id, interval)| (*id, interval.clone()))
     }
 
     pub(crate) fn extended_paths(&self, path: &Path) -> Vec<Path> {
@@ -71,8 +77,10 @@ impl JointIncident {
             .collect()
     }
 
-    pub(crate) fn across_push(&self) -> Option<usize> {
-        self.push.as_ref().map(|push| push.other_joint(self.index))
+    pub fn across_push(&self) -> Option<usize> {
+        self.push
+            .as_ref()
+            .map(|(_, push)| push.other_joint(self.index))
     }
 }
 

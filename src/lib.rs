@@ -124,20 +124,15 @@ pub enum RenderStyle {
 pub struct IntervalDetails {
     pub id: UniqueId,
     pub near_joint: usize,
+    pub near_slot: Option<usize>,
+    pub far_slot: Option<usize>,
     pub far_joint: usize,
     pub length: f32,
     pub strain: f32,
     pub distance: f32,
     pub role: Role,
     pub scale: f32,
-    /// The ID of the originally selected interval (for nested selection)
-    /// This is used to remember the originally selected push interval
-    /// when selecting intervals on the far joint
-    pub original_interval_id: Option<UniqueId>,
-    /// The slot index for the near joint connection (for pull intervals)
-    pub near_slot: Option<usize>,
-    /// The slot index for the far joint connection (for pull intervals)
-    pub far_slot: Option<usize>,
+    pub selected_push: Option<UniqueId>,
 }
 
 impl Display for IntervalDetails {
@@ -204,6 +199,7 @@ pub struct JointDetails {
     pub index: usize,
     pub location: Point3<f32>,
     pub scale: f32,
+    pub selected_push: Option<UniqueId>,
 }
 
 impl Display for JointDetails {
@@ -426,16 +422,9 @@ impl LabEvent {
 /// Represents the user's intent when clicking in the scene
 #[derive(Debug, Clone)]
 pub enum PickIntent {
-    /// No picking intended
-    None,
-    /// Select a joint without traveling (left-click)
-    SelectJoint,
-    /// Select a joint and allow traveling to it (right-click)
-    TravelToJoint,
-    /// Select an interval without traveling (left-click)
-    SelectInterval,
-    /// Select an interval and allow traveling to its far joint (right-click)
-    TravelThroughInterval,
+    Reset,
+    Select,
+    Traverse,
 }
 
 #[derive(Debug, Clone)]
