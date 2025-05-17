@@ -91,7 +91,7 @@ impl Camera {
         match pick_intent {
             PickIntent::Reset => Pick::Nothing,
             PickIntent::Select => self.select(ray_direction, fabric),
-            PickIntent::Traverse => self.traverse_interval(),
+            PickIntent::Traverse => self.traverse_interval(fabric),
         }
     }
 
@@ -176,7 +176,7 @@ impl Camera {
         }
     }
 
-    fn traverse_interval(&self) -> Pick {
+    fn traverse_interval(&self, fabric: &Fabric) -> Pick {
         match self.current_pick() {
             Pick::Nothing | Pick::Joint(_) => Pick::Nothing,
             Pick::Interval(old) => {
@@ -185,6 +185,7 @@ impl Camera {
                 new.near_slot = old.far_slot;
                 new.far_joint = old.near_joint;
                 new.far_slot = old.near_slot;
+                new.selected_push = fabric.find_push_at(old.far_joint);
                 Pick::Interval(new)
             }
         }

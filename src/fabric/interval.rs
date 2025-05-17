@@ -206,6 +206,17 @@ impl Fabric {
         }
     }
 
+    pub fn find_push_at(&self, index: usize) -> Option<UniqueId> {
+        self.intervals
+            .iter()
+            .enumerate()
+            .find_map(|(id, interval_opt)| {
+                interval_opt.as_ref().and_then(|interval| {
+                    (interval.is_push_interval() && interval.touches(index)).then_some(UniqueId(id))
+                })
+            })
+    }
+
     pub fn joining(&self, pair: (usize, usize)) -> Option<UniqueId> {
         self.intervals
             .iter()
