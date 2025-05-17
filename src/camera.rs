@@ -420,28 +420,32 @@ impl Camera {
             Pick::Joint(JointDetails { index, .. }) => Some(index),
             Pick::Interval(IntervalDetails { near_joint, .. }) => Some(near_joint),
         };
-        self.find_best_by_dot(fabric.joint_incidents(), current_joint, ray)
+        self.find_best_by_dot(fabric, current_joint, ray)
     }
 
     fn find_best_by_dot(
         &self,
-        joint_incidents: Vec<JointIncident>,
+        fabric: &Fabric,
         current_joint: Option<usize>,
         ray: Vector3<f32>,
     ) -> Option<JointIncident> {
         // Use the ray origin that was calculated in pick_ray
         let ray_origin = self.last_ray_origin;
-
-        joint_incidents
+        fabric
+            .joint_incidents()
             .iter()
             .filter_map(|joint_incident| {
-                if let Some(current) = current_joint {
-                    if joint_incident.interval_to(current).is_none() {
-                        return None;
+                let position = if let Some(current) = current_joint {
+                    let interval_opt = joint_incident.interval_to(current);
+                    match interval_opt {
+                        None => {
+                            return None;
+                        }
+                        Some((_, interval)) => interval.midpoint(&fabric.joints),
                     }
-                }
-                let position = joint_incident.location;
-
+                } else {
+                    joint_incident.location
+                };
                 // Calculate selection score based on projection type
                 let score = match self.projection_type {
                     ProjectionType::Perspective => {
