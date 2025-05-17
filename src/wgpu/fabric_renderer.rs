@@ -44,11 +44,8 @@ impl FabricRenderer {
         pick: &Pick,
         render_style: &mut RenderStyle,
     ) {
-        // Create instances from fabric data
-        let instances = self.create_instances_from_fabric(fabric, pick, render_style);
-
         // Update the cylinder renderer with the new instances
-        self.cylinder_renderer.update(wgpu, &instances);
+        self.cylinder_renderer.update(wgpu, fabric, pick, render_style);
 
         // Enable joint renderer for joints that don't have connected push intervals
         self.joint_renderer.update(wgpu, fabric, pick);
