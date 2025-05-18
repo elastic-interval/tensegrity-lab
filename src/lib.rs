@@ -488,6 +488,7 @@ pub enum LabEvent {
     UpdatedLibrary(SystemTime),
     PrintCord(f32),
     DumpCSV,
+    RequestRedraw,
 }
 
 pub type Radio = winit::event_loop::EventLoopProxy<LabEvent>;
