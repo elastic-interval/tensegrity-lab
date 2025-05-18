@@ -2,6 +2,7 @@ use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible::Crucible;
+use crate::fabric::Fabric;
 use crate::keyboard::Keyboard;
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
@@ -40,6 +41,11 @@ pub struct Application {
 }
 
 impl Application {
+    //==================================================
+    // Construction and Initialization
+    //==================================================
+    
+    /// Create a new Application instance
     pub fn new(
         window_attributes: WindowAttributes,
         radio: Radio,
@@ -53,8 +59,8 @@ impl Application {
             scene: None,
             keyboard: Keyboard::new(radio.clone()).with_actions(),
             crucible: Crucible::new(radio.clone()),
-            brick_library,
             fabric_library,
+            brick_library,
             radio,
             last_update: Instant::now(),
             accumulated_time: Duration::default(),
@@ -68,8 +74,63 @@ impl Application {
             machine: None,
         })
     }
+    
+    //==================================================
+    // Public API Methods
+    //==================================================
+    
+    pub fn refresh_library(&mut self, time: SystemTime) -> Result<LabEvent, TenscriptError> {
+        self.fabric_library = FabricLibrary::from_source()?;
+        Ok(LabEvent::UpdatedLibrary(time))
+    }
+    
+    pub fn get_fabric_plan(&self, plan_name: &String) -> Result<FabricPlan, TenscriptError> {
+        let plan = self
+            .fabric_library
+            .fabric_plans
+            .iter()
+            .find(|plan| plan.name == *plan_name);
+        match plan {
+            None => Err(TenscriptError::InvalidError(plan_name.clone())),
+            Some(plan) => Ok(plan.clone()),
+        }
+    }
+    
+    //==================================================
+    // Private Helper Methods
+    //==================================================
+    
 
-    fn redraw(&mut self) -> Result<(), wgpu::SurfaceError> {
+    
+    /// Access the scene if it exists, executing the provided closure
+    /// Returns Some(R) if the scene exists and the closure was executed
+    /// Returns None if the scene doesn't exist
+    fn with_scene<F, R>(&mut self, f: F) -> Option<R>
+    where
+        F: FnOnce(&mut Scene) -> R,
+    {
+        self.scene.as_mut().map(f)
+    }
+    
+    /// Access both scene and fabric at the same time if scene exists
+    /// Returns Some(R) if the scene exists and the closure was executed
+    /// Returns None if the scene doesn't exist
+    fn with_scene_and_fabric<F, R>(&mut self, f: F) -> Option<R>
+    where
+        F: FnOnce(&mut Scene, &mut Fabric) -> R,
+    {
+        self.scene.as_mut().map(|scene| {
+            let fabric = self.crucible.fabric_mut();
+            f(scene, fabric)
+        })
+    }
+    
+    fn redraw(&mut self) {
+        // Update keyboard legend
+        StateChange::SetKeyboardLegend(self.keyboard.legend(&self.control_state).join(", "))
+            .send(&self.radio);
+
+        // Check if fabric library has been modified
         #[cfg(not(target_arch = "wasm32"))]
         {
             let time = fabric_library_modified();
@@ -86,29 +147,18 @@ impl Application {
             }
         }
 
-        if let Some(scene) = &mut self.scene {
-            scene.redraw(self.crucible.fabric())?;
-        }
-        Ok(())
-    }
-
-    pub fn refresh_library(&mut self, time: SystemTime) -> Result<LabEvent, TenscriptError> {
-        self.fabric_library = FabricLibrary::from_source()?;
-        Ok(LabEvent::UpdatedLibrary(time))
-    }
-
-    pub fn get_fabric_plan(&self, plan_name: &String) -> Result<FabricPlan, TenscriptError> {
-        let plan = self
-            .fabric_library
-            .fabric_plans
-            .iter()
-            .find(|plan| plan.name == *plan_name);
-        match plan {
-            None => Err(TenscriptError::InvalidError(plan_name.clone())),
-            Some(plan) => Ok(plan.clone()),
+        // Use with_scene_and_fabric and handle the Option return type
+        if let Some(result) = self.with_scene_and_fabric(|scene, fabric| scene.redraw(fabric)) {
+            if let Err(error) = result {
+                eprintln!("Error redrawing scene: {:?}", error);
+            }
         }
     }
-
+    
+    //==================================================
+    // Initialization Helpers
+    //==================================================
+    
     #[cfg(target_arch = "wasm32")]
     fn initialize_wgpu_when_ready(&self, window: Arc<winit::window::Window>, radio: Radio) {
         use std::cell::RefCell;
@@ -159,13 +209,13 @@ impl Application {
         checker.borrow_mut().closure = Some(closure);
 
         // Start the checking process
-        if let Some(closure_ref) = &checker.borrow().closure {
-            let window = web_sys::window().expect("no global window");
+        let window = web_sys::window().expect("no global window");
+        
+        let borrow = checker.borrow();
+        
+        if let Some(closure_ref) = &borrow.closure {
             let _ = window.request_animation_frame(closure_ref.as_ref().unchecked_ref());
         }
-
-        // The checker will keep itself alive through the Rc cycle until WGPU is initialized
-        std::mem::forget(checker);
     }
 }
 
@@ -197,9 +247,8 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             Run(run_style) => {
                 self.run_style = run_style;
-                if let Some(scene) = &mut self.scene {
-                    scene.normal_rendering();
-                }
+                // Use the new with_scene method to handle the scene existence check
+                self.with_scene(|scene| scene.normal_rendering());
                 match &self.run_style {
                     RunStyle::Unknown => {
                         unreachable!()
@@ -305,16 +354,18 @@ impl ApplicationHandler<LabEvent> for Application {
                     _ => {}
                 }
                 if let StateChange::ToggleAttachmentPoints = &app_change {
-                    if let Some(scene) = &mut self.scene {
+                    let should_update = self.with_scene(|scene| {
                         scene.update_state(app_change.clone());
-                        if scene.render_style_shows_attachment_points() {
-                            self.crucible.update_attachment_connections();
-                        }
+                        scene.render_style_shows_attachment_points()
+                    }).unwrap_or(false);
+                    
+                    if should_update {
+                        self.crucible.update_attachment_connections();
                     }
+                    
+                    RequestRedraw.send(&self.radio);
                 } else {
-                    if let Some(scene) = &mut self.scene {
-                        scene.update_state(app_change);
-                    }
+                    self.with_scene(|scene| scene.update_state(app_change.clone()));
                 }
             }
             DumpCSV => {
@@ -343,6 +394,11 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                 }
             }
+            RequestRedraw => {
+                // Force a redraw to update the visualization immediately
+                // Ignore the result if redraw fails or scene doesn't exist
+                let _ = self.redraw();
+            }
         }
     }
 
@@ -352,143 +408,159 @@ impl ApplicationHandler<LabEvent> for Application {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
-        if let Some(scene) = &mut self.scene {
+        // Handle events that don't need scene access
+        match event {
+            WindowEvent::CloseRequested => {
+                event_loop.exit();
+                return;
+            },
+            WindowEvent::KeyboardInput {
+                event: key_event, ..
+            } => {
+                self.keyboard.handle_key_event(key_event, &self.control_state);
+                return;
+            },
+            _ => {}
+        }
+        
+        // Early return if no scene
+        if self.scene.is_none() {
+            return;
+        }
+        
+        // Handle touch count updates outside the scene access
+        if let WindowEvent::Touch(touch_event) = &event {
+            match touch_event.phase {
+                TouchPhase::Started => {
+                    self.active_touch_count += 1;
+                    if self.active_touch_count != 1 {
+                        return; // Only process first touch
+                    }
+                },
+                TouchPhase::Moved => {
+                    if self.active_touch_count != 1 {
+                        return; // Only process first touch
+                    }
+                },
+                TouchPhase::Ended | TouchPhase::Cancelled => {
+                    if self.active_touch_count > 0 {
+                        self.active_touch_count -= 1;
+                    }
+                }
+            }
+        }
+        
+        // Handle events that need scene and fabric access
+        self.with_scene_and_fabric(|scene, fabric| {
             match event {
-                WindowEvent::CloseRequested => event_loop.exit(),
-                WindowEvent::KeyboardInput {
-                    event: key_event, ..
-                } => self
-                    .keyboard
-                    .handle_key_event(key_event, &self.control_state),
-                WindowEvent::Touch(touch_event) => match touch_event.phase {
-                    TouchPhase::Started => {
-                        self.active_touch_count += 1;
-                        if self.active_touch_count == 1 {
-                            scene.pointer_changed(
-                                PointerChange::Pressed,
-                                &mut self.crucible.fabric(),
-                            );
+                WindowEvent::Touch(touch_event) => {
+                    match touch_event.phase {
+                        TouchPhase::Started => {
+                            scene.pointer_changed(PointerChange::Pressed, fabric);
+                        },
+                        TouchPhase::Moved => {
+                            scene.pointer_changed(PointerChange::Moved(touch_event.location), fabric);
+                        },
+                        TouchPhase::Ended | TouchPhase::Cancelled => {
+                            scene.pointer_changed(PointerChange::Released(PickIntent::Reset), fabric);
                         }
-                    }
-                    TouchPhase::Moved => {
-                        if self.active_touch_count == 1 {
-                            scene.pointer_changed(
-                                PointerChange::Moved(touch_event.location),
-                                &mut self.crucible.fabric(),
-                            );
-                        }
-                    }
-                    TouchPhase::Ended | TouchPhase::Cancelled => {
-                        if self.active_touch_count > 0 {
-                            self.active_touch_count -= 1;
-                        }
-                        scene.pointer_changed(
-                            PointerChange::Released(PickIntent::Reset),
-                            &mut self.crucible.fabric(),
-                        );
                     }
                 },
                 WindowEvent::CursorMoved { position, .. } => {
-                    scene.pointer_changed(
-                        PointerChange::Moved(position),
-                        &mut self.crucible.fabric(),
-                    );
-                }
+                    scene.pointer_changed(PointerChange::Moved(position), fabric);
+                },
                 WindowEvent::MouseInput { state, button, .. } => {
-                    scene.pointer_changed(
-                        match state {
-                            ElementState::Pressed => PointerChange::Pressed,
-                            ElementState::Released => {
-                                let pick_intent = if scene.pick_allowed() {
-                                    match button {
-                                        MouseButton::Right => PickIntent::Traverse,
-                                        _ => PickIntent::Select,
-                                    }
-                                } else {
-                                    PickIntent::Reset
-                                };
-                                PointerChange::Released(pick_intent)
-                            }
-                        },
-                        &mut self.crucible.fabric(),
-                    );
-                }
+                    let pick_allowed = scene.pick_allowed();
+                    
+                    let change = match state {
+                        ElementState::Pressed => PointerChange::Pressed,
+                        ElementState::Released => {
+                            let pick_intent = if pick_allowed {
+                                match button {
+                                    MouseButton::Right => PickIntent::Traverse,
+                                    _ => PickIntent::Select,
+                                }
+                            } else {
+                                PickIntent::Reset
+                            };
+                            PointerChange::Released(pick_intent)
+                        }
+                    };
+                    
+                    scene.pointer_changed(change, fabric);
+                },
                 WindowEvent::MouseWheel { delta, .. } => {
-                    scene.pointer_changed(
-                        match delta {
-                            MouseScrollDelta::LineDelta(_, y) => PointerChange::Zoomed(y * 0.5),
-                            MouseScrollDelta::PixelDelta(position) => {
-                                PointerChange::Zoomed((position.y as f32) * 0.018)
-                            }
-                        },
-                        &mut self.crucible.fabric(),
-                    );
-                }
+                    let change = match delta {
+                        MouseScrollDelta::LineDelta(_, y) => PointerChange::Zoomed(y * 0.5),
+                        MouseScrollDelta::PixelDelta(position) => {
+                            PointerChange::Zoomed(position.y as f32 * 0.005)
+                        }
+                    };
+                    
+                    scene.pointer_changed(change, fabric);
+                },
                 WindowEvent::Resized(physical_size) => scene.resize(physical_size),
                 _ => {}
             }
-        }
+        });
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if let Some(scene) = &mut self.scene {
-            let now = Instant::now();
+        // Process time-related updates regardless of scene existence
+        let now = Instant::now();
 
-            // FPS
-            self.frames_count += 1;
-            let fps_elapsed = now.duration_since(self.fps_timer);
-            if fps_elapsed >= Duration::from_secs(1) {
-                let frames_per_second = self.frames_count as f32 / fps_elapsed.as_secs_f32();
-                let age = self.crucible.fabric().age;
-                StateChange::Time {
-                    frames_per_second,
-                    age,
-                }
-                .send(&self.radio);
-                // Reset counters
-                self.frames_count = 0;
-                self.fps_timer = now;
+        // FPS
+        self.frames_count += 1;
+        let fps_elapsed = now.duration_since(self.fps_timer);
+        if fps_elapsed >= Duration::from_secs(1) {
+            let frames_per_second = self.frames_count as f32 / fps_elapsed.as_secs_f32();
+            // Get fabric age if we have a scene
+            let age = self.crucible.fabric().age;
+            StateChange::Time {
+                frames_per_second,
+                age,
             }
-
-            // Check if we've been inactive for too long (e.g., window was minimized)
-            let elapsed = now.duration_since(self.last_update);
-            if elapsed > Duration::from_millis(100) {
-                // We were inactive - reset the timer without accumulating time
-                self.last_update = now;
-                self.accumulated_time = Duration::from_secs(0);
-                return; // Skip this frame entirely
-            }
-            self.last_update = now;
-            let capped_elapsed = std::cmp::min(elapsed, Duration::from_millis(33));
-            self.accumulated_time += capped_elapsed;
-            let update_interval = Duration::from_millis(10);
-            let animate = scene.animate(self.crucible.fabric());
-            // Limit updates per frame
-            let mut updates_this_frame = 0;
-            let max_updates_per_frame = 3;
-            while self.accumulated_time >= update_interval
-                && updates_this_frame < max_updates_per_frame
-            {
-                self.accumulated_time -= update_interval;
-                updates_this_frame += 1;
-
-                if animate {
-                    self.crucible.iterate(&self.brick_library);
-                }
-            }
-
-            // Only redraw if we updated
-            if updates_this_frame > 0 {
-                self.redraw().expect("Problem redrawing");
-            }
-
-            // Set consistent control flow
-            event_loop.set_control_flow(if animate {
-                ControlFlow::wait_duration(Duration::from_millis(16))
-            } else {
-                ControlFlow::Wait
-            });
+            .send(&self.radio);
+            // Reset counters
+            self.frames_count = 0;
+            self.fps_timer = now;
         }
+
+        let elapsed = now.duration_since(self.last_update);
+        if elapsed > Duration::from_millis(100) {
+            self.last_update = now;
+            self.accumulated_time = Duration::from_secs(0);
+            return;
+        }
+        self.last_update = now;
+        let capped_elapsed = std::cmp::min(elapsed, Duration::from_millis(33));
+        self.accumulated_time += capped_elapsed;
+        let update_interval = Duration::from_millis(10);
+        let animate = self.with_scene_and_fabric(|scene, fabric| scene.animate(fabric)).unwrap_or(false);
+        // Limit updates per frame
+        let mut updates_this_frame = 0;
+        let max_updates_per_frame = 3;
+        while self.accumulated_time >= update_interval
+            && updates_this_frame < max_updates_per_frame
+        {
+            self.accumulated_time -= update_interval;
+            updates_this_frame += 1;
+
+            if animate {
+                self.crucible.iterate(&self.brick_library);
+            }
+        }
+
+        if updates_this_frame > 0 {
+            let _ = self.redraw();
+        }
+
+        // Set consistent control flow
+        event_loop.set_control_flow(if animate {
+            ControlFlow::wait_duration(Duration::from_millis(16))
+        } else {
+            ControlFlow::Wait
+        });
     }
 }
 

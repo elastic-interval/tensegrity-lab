@@ -222,4 +222,19 @@ impl Crucible {
             Empty => unreachable!(),
         }
     }
+    
+    pub fn fabric_mut(&mut self) -> &mut Fabric {
+        match &mut self.stage {
+            FailureTesting(tester) => tester.fabric_mut(),
+            PhysicsTesting(tester) => &mut tester.fabric,
+            BoxingTesting(tester) => &mut tester.fabric,
+            RunningPlan(plan_runner) => &mut plan_runner.fabric,
+            Pretensing(pretenser) => &mut pretenser.fabric,
+            Viewing(holder) => &mut holder.fabric,
+            Animating(holder) => &mut holder.fabric,
+            BakingBrick(oven) => &mut oven.fabric,
+            Evolving(evolution) => &mut evolution.fabric,
+            Empty => unreachable!(),
+        }
+    }
 }
