@@ -30,7 +30,7 @@ impl Fabric {
 
         // Get the push interval and check if it's a push interval
         if let Some(push_interval) = self.intervals[push_interval_id.0].as_ref() {
-            if push_interval.material.properties().role != Pushing {
+            if !push_interval.has_role(Pushing) {
                 return; // Not a push interval, nothing to do
             }
 
@@ -41,7 +41,7 @@ impl Fabric {
             for (idx, interval_opt) in self.intervals.iter().enumerate() {
                 if let Some(interval) = interval_opt {
                     // Only consider pull intervals
-                    if interval.material.properties().role != Pulling {
+                    if !interval.has_role(Pulling) {
                         continue;
                     }
 
@@ -87,7 +87,7 @@ impl Fabric {
                 }
 
                 interval_opt.as_ref().and_then(|interval| {
-                    if interval.material.properties().role == Pushing {
+                    if interval.has_role(Pushing) {
                         Some(UniqueId(idx))
                     } else {
                         None
@@ -132,12 +132,13 @@ impl Fabric {
         self.interval_count += 1;
 
         // If we added a pull interval, update connections for any push intervals it might connect to
+        // Using direct comparison here as we don't have a Role instance to call is() on
         if material.properties().role == Pulling {
             // Find all push intervals connected to this pull interval
             let mut push_intervals = Vec::new();
             for (idx, interval_opt) in self.intervals.iter().enumerate() {
                 if let Some(interval) = interval_opt {
-                    if interval.material.properties().role == Pushing {
+                    if interval.has_role(Pushing) {
                         if interval.touches(alpha_index) || interval.touches(omega_index) {
                             push_intervals.push(UniqueId(idx));
                         }
@@ -270,6 +271,11 @@ pub enum Role {
 }
 
 impl Role {
+    /// Check if this role is equal to another role
+    pub fn is(&self, other: Role) -> bool {
+        *self == other
+    }
+
     pub fn appearance(&self) -> Appearance {
         Appearance {
             radius: match self {
@@ -301,9 +307,13 @@ pub struct Interval {
 }
 
 impl Interval {
+    /// Check if the interval has the specified role
+    pub fn has_role(&self, role: Role) -> bool {
+        self.material.properties().role.is(role)
+    }
     pub fn new(alpha_index: usize, omega_index: usize, material: Material, span: Span) -> Interval {
         // Only allocate connections for push intervals
-        let is_push = material.properties().role == Pushing;
+        let is_push = material.properties().role == Pushing; // Using direct check here as the interval isn't created yet
         let connections = is_push.then_some(Box::new(PullConnections::new()));
 
         Interval {
@@ -319,7 +329,7 @@ impl Interval {
 
     /// Check if this is a push interval
     pub fn is_push_interval(&self) -> bool {
-        self.material.properties().role == Pushing
+        self.has_role(Pushing)
     }
 
     /// Get connections for a specific end if this is a push interval

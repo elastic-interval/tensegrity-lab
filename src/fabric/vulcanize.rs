@@ -177,7 +177,7 @@ impl PairGenerator {
                         let triangle_completions: Vec<_> = candidate_completions
                             .iter()
                             .filter_map(|&(path, other_path)| {
-                                if self.joints[other_path.joint_indices[1]].push.is_some() {
+                                if self.joints[other_path.joint_indices[1]].push().is_some() {
                                     return None;
                                 }
                                 Some((path.joint_indices[0], path.last_joint()))
@@ -205,7 +205,7 @@ impl PairGenerator {
                     ];
                     for (path, omega_index) in candidates {
                         let alpha_index = path.joint_indices[1];
-                        if self.joints[alpha_index].push.is_none() {
+                        if self.joints[alpha_index].push().is_none() {
                             continue;
                         }
                         let pair = Pair {
@@ -233,7 +233,7 @@ impl PairGenerator {
 
     fn paths_for(&self, joint_index: usize, max_size: usize) -> Vec<Path> {
         let paths: Vec<_> = self.joints[joint_index]
-            .pulls
+            .pulls()
             .iter()
             .map(|(_, pull)| Path::new(joint_index, pull.clone()))
             .collect();

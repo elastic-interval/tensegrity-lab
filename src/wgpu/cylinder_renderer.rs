@@ -238,7 +238,7 @@ impl CylinderRenderer {
                             // Only highlight the interval if it's currently selected
                             if *orig_id == interval_id
                                 && *id == interval_id
-                                && interval.material.properties().role == Role::Pushing
+                                && interval.has_role(Role::Pushing)
                             {
                                 role_appearance.apply_mode(AppearanceMode::SelectedPush)
                             } else {
@@ -302,9 +302,7 @@ impl CylinderRenderer {
                 let mut modified_end = end;
 
                 // For pull intervals, we need to connect them to attachment points on push intervals
-                if interval.material.properties().role == Role::Pulling
-                    && render_style.show_attachment_points()
-                {
+                if interval.has_role(Role::Pulling) && render_style.show_attachment_points() {
                     // Use the current index as the pull interval ID
                     let pull_id = interval_id;
 
@@ -318,7 +316,7 @@ impl CylinderRenderer {
                         for push_opt in fabric.intervals.iter() {
                             if let Some(push_interval) = push_opt {
                                 // Only consider push intervals
-                                if push_interval.material.properties().role == Role::Pushing {
+                                if push_interval.has_role(Role::Pushing) {
                                     // Check if this push interval is connected to the current joint
                                     if push_interval.touches(*joint_index) {
                                         // Get attachment points for this push interval
@@ -378,7 +376,7 @@ impl CylinderRenderer {
                         // connected to it are properly visualized
                         Pick::Interval(IntervalDetails { id, .. }) => {
                             if let Some(push_interval) = fabric.intervals[id.0].as_ref() {
-                                if push_interval.material.properties().role == Role::Pushing {
+                                if push_interval.has_role(Role::Pushing) {
                                     // We've already handled the basic case above, but we might need
                                     // additional logic for selected push intervals if needed
                                 }

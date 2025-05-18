@@ -148,7 +148,7 @@ impl Camera {
                     index: best_incident.index,
                     location: fabric.location(best_incident.index),
                     scale: fabric.scale,
-                    selected_push: best_incident.push.map(|(unique_id, _)| unique_id),
+                    selected_push: best_incident.push().map(|(unique_id, _)| unique_id),
                 }),
                 Pick::Joint(details) => {
                     let (id, interval) = best_incident.interval_to(details.index).unwrap();
@@ -293,7 +293,7 @@ impl Camera {
         let far_joint = interval.other_joint(near_joint);
 
         // Calculate slot indices for pull intervals
-        let (near_slot, far_slot) = if interval.material.properties().role == Role::Pulling {
+        let (near_slot, far_slot) = if interval.has_role(Role::Pulling) {
             // Helper function to find slot index for a joint
             let find_slot_for_joint = |joint_index: usize| -> Option<usize> {
                 fabric
@@ -301,8 +301,7 @@ impl Camera {
                     .iter()
                     .filter_map(|interval_opt| interval_opt.as_ref())
                     .filter(|interval| {
-                        interval.material.properties().role == Role::Pushing
-                            && interval.touches(joint_index)
+                        interval.has_role(Role::Pushing) && interval.touches(joint_index)
                     })
                     .find_map(|push_interval| {
                         // Determine which end of the push interval is connected to this joint
