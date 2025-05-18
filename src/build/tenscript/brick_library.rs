@@ -23,7 +23,8 @@ impl BrickLibrary {
         #[cfg(not(target_arch = "wasm32"))]
         {
             use std::fs;
-            source = fs::read_to_string("brick_library.tenscript").map_err(TenscriptError::FileReadError)?;
+            source = fs::read_to_string("brick_library.tenscript")
+                .map_err(TenscriptError::FileReadError)?;
         }
         Self::from_tenscript(&source)
     }
@@ -64,14 +65,10 @@ impl BrickLibrary {
                             .map(|alias| {
                                 let seed = [None, Some(1), Some(2)]
                                     .into_iter()
-                                    .find(|seed|  alias.is_seed(*seed));
+                                    .find(|seed| alias.is_seed(*seed));
                                 let space = match seed {
-                                    Some(seed) => {
-                                        baked.down_rotation(seed)
-                                    }
-                                    None=> {
-                                        face_space
-                                    }
+                                    Some(seed) => baked.down_rotation(seed),
+                                    None => face_space,
                                 };
                                 (alias, space)
                             })
@@ -97,7 +94,10 @@ impl BrickLibrary {
             .iter()
             .filter(|(baked_alias, _)| search_with_base.matches(baked_alias))
             .min_by_key(|(brick_alias, _)| brick_alias.0.len())
-            .ok_or(TenscriptError::FaceAliasError(format!("Cannot find a face to match {:?}", search_with_base)))?;
+            .ok_or(TenscriptError::FaceAliasError(format!(
+                "Cannot find a face to match {:?}",
+                search_with_base
+            )))?;
         let mut thawed = baked.clone();
         for face in &mut thawed.faces {
             face.aliases

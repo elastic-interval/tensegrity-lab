@@ -246,10 +246,6 @@ impl Fabric {
                     Muscle { .. } => {}
                 }
             }
-
-            // Update all attachment connections at the end of the pretenst phase
-            // This assigns each pull interval to its nearest attachment point on connected push intervals
-            self.update_all_attachment_connections();
         }
         if let Some(forward) = self.muscle_forward {
             let increment = 1.0 / physics.cycle_ticks * if forward { 1.0 } else { -1.0 };

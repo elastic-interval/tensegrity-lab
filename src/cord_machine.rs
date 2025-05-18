@@ -46,7 +46,11 @@ impl CordMachine {
         let runtime = self.runtime.clone();
         task::block_in_place(move || {
             runtime.block_on(async move {
-                let url = format!("{}/command?commandText={}", base_url, urlencoding::encode(&command));
+                let url = format!(
+                    "{}/command?commandText={}",
+                    base_url,
+                    urlencoding::encode(&command)
+                );
                 println!("Requesting {}", url);
                 client.get(&url).send().await?;
                 Ok::<(), Box<dyn Error>>(())
@@ -63,7 +67,11 @@ impl CordMachine {
         let command = command.to_string();
         task::block_in_place(move || {
             runtime.block_on(async move {
-                let url = format!("{}/command_silent?commandText={}", base_url, urlencoding::encode(&command));
+                let url = format!(
+                    "{}/command_silent?commandText={}",
+                    base_url,
+                    urlencoding::encode(&command)
+                );
                 println!("Requesting {}", url);
                 client.get(&url).send().await?;
                 Ok::<(), Box<dyn Error>>(())
@@ -83,25 +91,25 @@ impl CordMachine {
         task::block_in_place(move || {
             runtime.block_on(async move {
                 // Create form with file
-                let form = Form::new()
-                    .text("path", "/")
-                    .part("myfile[]", reqwest::multipart::Part::text(gcode)
+                let form = Form::new().text("path", "/").part(
+                    "myfile[]",
+                    reqwest::multipart::Part::text(gcode)
                         .file_name("wire.g")
-                        .mime_str("text/plain")?);
+                        .mime_str("text/plain")?,
+                );
 
                 // Upload G-code file
                 let upload_url = format!("{}/upload", base_url);
                 println!("Uploading Gcode file to {}", upload_url);
 
-                client.post(&upload_url)
-                    .multipart(form)
-                    .send()
-                    .await?;
+                client.post(&upload_url).multipart(form).send().await?;
 
                 // Execute the uploaded G-code
-                let exec_url = format!("{}/command_silent?commandText={}",
-                                       base_url,
-                                       urlencoding::encode("M23 /WIREG~1.G\nM24"));
+                let exec_url = format!(
+                    "{}/command_silent?commandText={}",
+                    base_url,
+                    urlencoding::encode("M23 /WIREG~1.G\nM24")
+                );
 
                 println!("Requesting {}", exec_url);
                 client.get(&exec_url).send().await?;

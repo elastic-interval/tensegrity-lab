@@ -40,8 +40,12 @@ impl PhysicsTester {
                             if interval.strain > strain_limit {
                                 let role = interval.material.properties().role;
                                 Some(match role {
-                                    Role::Pushing => role.appearance().apply_mode(AppearanceMode::HighlightedPush),
-                                    _ => role.appearance().apply_mode(AppearanceMode::HighlightedPull),
+                                    Role::Pushing => role
+                                        .appearance()
+                                        .apply_mode(AppearanceMode::HighlightedPush),
+                                    _ => role
+                                        .appearance()
+                                        .apply_mode(AppearanceMode::HighlightedPull),
                                 })
                             } else {
                                 None

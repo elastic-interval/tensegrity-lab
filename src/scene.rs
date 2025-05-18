@@ -31,7 +31,9 @@ impl Scene {
             fabric_renderer,
             surface_renderer,
             text_renderer,
-            render_style: RenderStyle::Normal,
+            render_style: RenderStyle::Normal {
+                show_attachment_points: false,
+            },
             pick_allowed: false,
         }
     }
@@ -45,10 +47,19 @@ impl Scene {
         match state_change {
             ToggleProjection => {
                 self.camera.toggle_projection();
-            },
+            }
+            ToggleAttachmentPoints => {
+                // Toggle the attachment points visibility
+                self.render_style.toggle_attachment_points();
+            }
             SetControlState(control_state) => match control_state {
                 Waiting | UnderConstruction | Animating => self.reset(),
-                Baking => self.render_style = WithAppearanceFunction(Rc::new(|_| None)),
+                Baking => {
+                    self.render_style = WithAppearanceFunction {
+                        function: Rc::new(|_| None),
+                        show_attachment_points: false,
+                    }
+                }
                 Viewing => {
                     self.reset();
                     self.pick_allowed = true;
@@ -59,8 +70,18 @@ impl Scene {
                 FailureTesting(scenario) => {
                     self.reset();
                     match scenario {
-                        TensionTest => self.render_style = WithPullMap(HashMap::new()),
-                        CompressionTest => self.render_style = WithPushMap(HashMap::new()),
+                        TensionTest => {
+                            self.render_style = WithPullMap {
+                                map: HashMap::new(),
+                                show_attachment_points: false,
+                            }
+                        }
+                        CompressionTest => {
+                            self.render_style = WithPushMap {
+                                map: HashMap::new(),
+                                show_attachment_points: false,
+                            }
+                        }
                         _ => unreachable!(),
                     }
                 }
@@ -68,7 +89,10 @@ impl Scene {
                     self.reset();
                     match scenario {
                         PhysicsTest => {
-                            self.render_style = WithAppearanceFunction(Rc::new(|_| None))
+                            self.render_style = WithAppearanceFunction {
+                                function: Rc::new(|_| None),
+                                show_attachment_points: false,
+                            }
                         }
                         _ => unreachable!(),
                     }
@@ -79,18 +103,29 @@ impl Scene {
             },
             SetAnimating(active) => self.pick_allowed = !active,
             ResetView => {
-                self.render_style = Normal;
+                self.render_style = Normal {
+                    show_attachment_points: false,
+                };
             }
             SetAppearanceFunction(appearance) => match &mut self.render_style {
-                WithAppearanceFunction(_) => {
-                    self.render_style = WithAppearanceFunction(appearance.clone())
+                WithAppearanceFunction {
+                    show_attachment_points,
+                    ..
+                } => {
+                    self.render_style = WithAppearanceFunction {
+                        function: appearance.clone(),
+                        show_attachment_points: *show_attachment_points,
+                    }
                 }
                 _ => {
                     panic!("Cannot set color function")
                 }
             },
             SetIntervalColor { key, color } => match &mut self.render_style {
-                WithPullMap(map) | WithPushMap(map) => {
+                WithPullMap { map, .. } => {
+                    map.insert(key, color);
+                }
+                WithPushMap { map, .. } => {
                     map.insert(key, color);
                 }
                 _ => {
@@ -104,11 +139,14 @@ impl Scene {
     pub fn pick_allowed(&self) -> bool {
         self.pick_allowed
     }
-    
+
     /// Returns the current pick state from the camera
     pub fn current_pick(&self) -> &Pick {
-        // The camera's current_pick method already returns a reference
-        self.camera.current_pick()
+        &self.camera.current_pick()
+    }
+
+    pub fn render_style_shows_attachment_points(&self) -> bool {
+        self.render_style.show_attachment_points()
     }
 
     fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -145,8 +183,11 @@ impl Scene {
             occlusion_query_set: None,
         });
         self.wgpu.set_bind_group(&mut render_pass);
-        self.fabric_renderer
-            .render(&mut render_pass, &self.wgpu.uniform_bind_group);
+        self.fabric_renderer.render(
+            &mut render_pass,
+            &self.wgpu.uniform_bind_group,
+            &self.render_style,
+        );
         self.surface_renderer.render(&mut render_pass);
         self.text_renderer.render(&mut render_pass, &self.wgpu);
         drop(render_pass);
@@ -157,7 +198,7 @@ impl Scene {
 
     pub fn redraw(&mut self, fabric: &Fabric) -> Result<(), wgpu::SurfaceError> {
         self.wgpu.update_mvp_matrix(self.camera.mvp_matrix());
-        self.fabric_renderer.update_from_fabric(
+        self.fabric_renderer.update(
             &mut self.wgpu,
             fabric,
             &self.camera.current_pick(),
@@ -182,7 +223,9 @@ impl Scene {
     }
 
     pub fn normal_rendering(&mut self) {
-        self.render_style = RenderStyle::Normal;
+        self.render_style = RenderStyle::Normal {
+            show_attachment_points: false,
+        };
     }
 
     pub fn reset(&mut self) {

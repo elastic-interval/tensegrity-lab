@@ -365,7 +365,7 @@ pub fn find_nearest_attachment_point(
 }
 
 /// Generates the positions of attachment points at the end of a push interval
-/// 
+///
 /// # Parameters
 /// * `end_position` - The position of the end of the push interval
 /// * `direction` - The direction vector of the push interval
@@ -441,8 +441,6 @@ pub fn generate_attachment_points(
     points
 }
 
-
-
 /// Calculates attachment points for both ends of a push interval
 pub fn calculate_interval_attachment_points(
     start: Point3<f32>,
@@ -463,8 +461,6 @@ pub fn calculate_interval_attachment_points(
     // Omega end: also clockwise when viewed from outside (false) - we need to reverse the direction
     (
         generate_attachment_points(start, direction, radius, up_vector, true),
-        generate_attachment_points(end, direction, radius, up_vector, false)
+        generate_attachment_points(end, direction, radius, up_vector, false),
     )
 }
-
-

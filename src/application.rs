@@ -304,8 +304,17 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                     _ => {}
                 }
-                if let Some(scene) = &mut self.scene {
-                    scene.update_state(app_change);
+                if let StateChange::ToggleAttachmentPoints = &app_change {
+                    if let Some(scene) = &mut self.scene {
+                        scene.update_state(app_change.clone());
+                        if scene.render_style_shows_attachment_points() {
+                            self.crucible.update_attachment_connections();
+                        }
+                    }
+                } else {
+                    if let Some(scene) = &mut self.scene {
+                        scene.update_state(app_change);
+                    }
                 }
             }
             DumpCSV => {

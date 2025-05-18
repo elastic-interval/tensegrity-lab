@@ -1,9 +1,9 @@
 use crate::wgpu::text_state::TextState;
 use crate::wgpu::Wgpu;
+use crate::StateChange;
 use wgpu::RenderPass;
 use wgpu_text::glyph_brush::ab_glyph::FontRef;
 use wgpu_text::{BrushBuilder, TextBrush};
-use crate::StateChange;
 
 pub struct TextRenderer {
     text_state: TextState,
@@ -18,7 +18,12 @@ impl TextRenderer {
             BrushBuilder::using_font_bytes(include_bytes!("../../assets/WorkSans-Regular.ttf"))
                 .unwrap()
                 .with_depth_stencil(Some(wgpu.create_depth_stencil()))
-                .build(&wgpu.device, width, height, wgpu.surface_configuration.format);
+                .build(
+                    &wgpu.device,
+                    width,
+                    height,
+                    wgpu.surface_configuration.format,
+                );
         let text_state = TextState::new(mobile_device, width, height);
         TextRenderer { brush, text_state }
     }

@@ -15,8 +15,7 @@ impl FabricLibrary {
     }
 
     pub fn fabric_list(&self) -> Vec<String> {
-        self
-            .fabric_plans
+        self.fabric_plans
             .iter()
             .map(|plan| plan.name.clone())
             .collect()
@@ -31,7 +30,8 @@ impl FabricLibrary {
         #[cfg(not(target_arch = "wasm32"))]
         {
             use std::fs;
-            source = fs::read_to_string("fabric_library.tenscript").map_err(TenscriptError::FileReadError)?;
+            source = fs::read_to_string("fabric_library.tenscript")
+                .map_err(TenscriptError::FileReadError)?;
         }
         Ok(source)
     }

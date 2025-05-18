@@ -58,7 +58,12 @@ impl PushDef {
         let mut walk = pair.into_inner();
         let alpha_name = parse_atom(walk.next().unwrap());
         let omega_name = parse_atom(walk.next().unwrap());
-        Self { alpha_name, omega_name, ideal, axis }
+        Self {
+            alpha_name,
+            omega_name,
+            ideal,
+            axis,
+        }
     }
 }
 
@@ -76,7 +81,12 @@ impl PullDef {
         let alpha_name = parse_atom(walk.next().unwrap());
         let omega_name = parse_atom(walk.next().unwrap());
         let material = walk.next().unwrap().as_str().parse().unwrap();
-        Self { alpha_name, omega_name, ideal, material }
+        Self {
+            alpha_name,
+            omega_name,
+            ideal,
+            material,
+        }
     }
 }
 
@@ -218,10 +228,7 @@ impl Prototype {
                         ];
                         let joint_names = [a, b, c].map(parse_atom);
                         let mut aliases = FaceAlias::from_pairs(inner);
-                        aliases = aliases
-                            .into_iter()
-                            .map(|a| alias.clone() + &a)
-                            .collect();
+                        aliases = aliases.into_iter().map(|a| alias.clone() + &a).collect();
                         let spin = Spin::from_pair(spin);
                         faces.push(FaceDef {
                             spin,
@@ -235,7 +242,9 @@ impl Prototype {
                     let with_atoms = FaceAlias::from_pair(inner.next().unwrap());
                     let aliases = FaceAlias::from_pairs(inner);
                     if aliases.len() != faces.len() {
-                        return Err(TenscriptError::FaceAliasError("face-aliases must have the same size as faces".to_string()));
+                        return Err(TenscriptError::FaceAliasError(
+                            "face-aliases must have the same size as faces".to_string(),
+                        ));
                     }
                     for (index, face_alias) in aliases.into_iter().enumerate() {
                         faces[index].aliases.push(face_alias + &with_atoms + &alias);
@@ -244,7 +253,13 @@ impl Prototype {
                 _ => unreachable!("{:?}", pair.as_rule()),
             }
         }
-        Ok(Prototype { alias, joints, pushes, pulls, faces })
+        Ok(Prototype {
+            alias,
+            joints,
+            pushes,
+            pulls,
+            faces,
+        })
     }
 }
 
@@ -273,7 +288,7 @@ impl BrickFace {
             Left => radial[1].cross(radial[2]),
             Right => radial[2].cross(radial[1]),
         }
-            .normalize();
+        .normalize();
         let (x_axis, y_axis, scale) = (radial[0].normalize(), inward, radial[0].magnitude());
         let z_axis = x_axis.cross(y_axis).normalize();
         Matrix4::from_translation(midpoint)
@@ -288,11 +303,12 @@ impl BrickFace {
             Left => radial[2].cross(radial[1]),
             Right => radial[1].cross(radial[2]),
         }
-            .normalize()
+        .normalize()
     }
 
     fn radial_locations(&self, baked: &Baked) -> [Vector3<f32>; 3] {
-        self.joints.map(|index| baked.joints[index].location.to_vec())
+        self.joints
+            .map(|index| baked.joints[index].location.to_vec())
     }
 
     fn midpoint(radial: [Vector3<f32>; 3]) -> Vector3<f32> {
@@ -339,7 +355,9 @@ impl Baked {
                         inner.next().unwrap().as_str().parse().unwrap(),
                         inner.next().unwrap().as_str().parse().unwrap(),
                     ];
-                    joints.push(BakedJoint { location: point3(x, y, z) });
+                    joints.push(BakedJoint {
+                        location: point3(x, y, z),
+                    });
                 }
                 Rule::interval_baked => {
                     let mut inner = pair.into_inner();
@@ -371,7 +389,11 @@ impl Baked {
                     let aliases = FaceAlias::from_pairs(inner);
                     let spin = Spin::from_pair(spin);
                     let joints = [a, b, c].map(|pair| pair.as_str().parse().unwrap());
-                    faces.push(BrickFace { joints, spin, aliases });
+                    faces.push(BrickFace {
+                        joints,
+                        spin,
+                        aliases,
+                    });
                 }
                 _ => unreachable!(),
             }
@@ -427,7 +449,9 @@ impl Baked {
                          material_name,
                          strain,
                      }| {
-                        format!("(interval {alpha_index} {omega_index} {strain:.10} {material_name})")
+                        format!(
+                            "(interval {alpha_index} {omega_index} {strain:.10} {material_name})"
+                        )
                     }
                 )
                 .collect::<Vec<_>>()
@@ -474,11 +498,17 @@ impl TryFrom<Fabric> for Baked {
             }
         }
         if !strains.is_empty() {
-            println!("Face interval strain too far from {} {strains:?}", Baked::TARGET_FACE_STRAIN);
+            println!(
+                "Face interval strain too far from {} {strains:?}",
+                Baked::TARGET_FACE_STRAIN
+            );
         }
         let average_strain = strain_sum / fabric.faces.len() as f32;
         if abs(average_strain - Baked::TARGET_FACE_STRAIN) > Baked::TOLERANCE {
-            return Err(format!("Face interval strain too far from (avg) {} {average_strain:?}", Baked::TARGET_FACE_STRAIN));
+            return Err(format!(
+                "Face interval strain too far from (avg) {} {average_strain:?}",
+                Baked::TARGET_FACE_STRAIN
+            ));
         }
         let face_joints: Vec<usize> = fabric
             .faces
@@ -488,29 +518,40 @@ impl TryFrom<Fabric> for Baked {
         Ok(Self {
             joints: joint_incidents
                 .iter()
-                .filter_map(|JointIncident { index, location, .. }| {
-                    if face_joints.contains(index) {
-                        None
-                    } else {
-                        Some(BakedJoint { location: *location })
-                    }
-                })
+                .filter_map(
+                    |JointIncident {
+                         index, location, ..
+                     }| {
+                        if face_joints.contains(index) {
+                            None
+                        } else {
+                            Some(BakedJoint {
+                                location: *location,
+                            })
+                        }
+                    },
+                )
                 .collect(),
             intervals: fabric
                 .interval_values()
                 .filter_map(
                     |&Interval {
-                        alpha_index,
-                        omega_index,
-                        material,
-                        strain,
-                        ..
-                    }| {
+                         alpha_index,
+                         omega_index,
+                         material,
+                         strain,
+                         ..
+                     }| {
                         if material == Material::FaceRadial {
                             return None;
                         }
                         let material_name = material.properties().label.to_string();
-                        Some(BakedInterval { alpha_index, omega_index, strain, material_name })
+                        Some(BakedInterval {
+                            alpha_index,
+                            omega_index,
+                            strain,
+                            material_name,
+                        })
                     },
                 )
                 .collect(),

@@ -39,7 +39,8 @@ impl Evolution {
 
     fn step(&mut self) {
         if self.evolving_pushes.is_empty() {
-            self.evolving_pushes.push(EvolvingPush::first_push(&mut self.fabric));
+            self.evolving_pushes
+                .push(EvolvingPush::first_push(&mut self.fabric));
         } else if self.evolving_pushes.len() < 5 || self.random_bool() {
             self.sprout();
         } else {
@@ -69,11 +70,13 @@ impl Evolution {
         }
         let push_a = (
             index_a,
-            self.fabric.interval_snapshot(self.evolving_pushes[index_a].interval_id),
+            self.fabric
+                .interval_snapshot(self.evolving_pushes[index_a].interval_id),
         );
         let push_b = (
             index_b,
-            self.fabric.interval_snapshot(self.evolving_pushes[index_b].interval_id),
+            self.fabric
+                .interval_snapshot(self.evolving_pushes[index_b].interval_id),
         );
         EvolvingPush::join_pushes(&mut self.fabric, &mut self.evolving_pushes, push_a, push_b);
     }

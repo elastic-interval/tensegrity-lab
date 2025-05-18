@@ -150,6 +150,12 @@ impl Keyboard {
             Box::new(|_| true),
         );
         self.key_lab_event(
+            KeyCode::KeyK,
+            "Toggle Attachment Points (Knots)",
+            UpdateState(StateChange::ToggleAttachmentPoints),
+            Box::new(|_| true),
+        );
+        self.key_lab_event(
             KeyCode::ArrowLeft,
             "\u{2190} previous test",
             Crucible(TesterDo(TesterAction::PrevExperiment)),

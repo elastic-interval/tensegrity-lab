@@ -35,7 +35,7 @@ impl FabricRenderer {
         }
     }
 
-    pub fn update_from_fabric(
+    pub fn update(
         &mut self,
         wgpu: &Wgpu,
         fabric: &Fabric,
@@ -43,19 +43,23 @@ impl FabricRenderer {
         render_style: &mut RenderStyle,
     ) {
         // Update the cylinder renderer with the new instances
-        self.cylinder_renderer.update(wgpu, fabric, pick, render_style);
+        self.cylinder_renderer
+            .update(wgpu, fabric, pick, render_style);
 
         // Enable joint renderer for joints that don't have connected push intervals
         self.joint_renderer.update(wgpu, fabric, pick);
 
-        // Update the attachment point renderer to show attachment points on selected push intervals and joints
-        self.attachment_renderer.update(wgpu, fabric, pick);
+        // Update the attachment point renderer only if attachment points should be shown
+        if render_style.show_attachment_points() {
+            self.attachment_renderer.update(wgpu, fabric, pick);
+        }
     }
 
     pub fn render<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         bind_group: &'a wgpu::BindGroup,
+        render_style: &RenderStyle,
     ) {
         // Render the cylinders for intervals
         self.cylinder_renderer.render(render_pass, bind_group);
@@ -63,9 +67,9 @@ impl FabricRenderer {
         // Render joint markers for selected joints without push intervals
         self.joint_renderer.render(render_pass, bind_group);
 
-        // Render the attachment points for selected push intervals and joints
-        self.attachment_renderer.render(render_pass, bind_group);
+        // Render the attachment points only if they should be shown
+        if render_style.show_attachment_points() {
+            self.attachment_renderer.render(render_pass, bind_group);
+        }
     }
-
-
 }

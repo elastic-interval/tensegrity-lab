@@ -1,4 +1,6 @@
 use crate::camera::Pick;
+use crate::fabric::interval::Role;
+use crate::fabric::material::Material;
 use crate::fabric::{Fabric, IntervalEnd, UniqueId};
 use crate::wgpu::Wgpu;
 use crate::{Appearance, AppearanceMode, IntervalDetails, JointDetails, RenderStyle};
@@ -6,8 +8,6 @@ use bytemuck::{Pod, Zeroable};
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
 use wgpu::PipelineCompilationOptions;
-use crate::fabric::interval::Role;
-use crate::fabric::material::Material;
 
 // Instance data for cylinders - to be transformed by the GPU
 #[repr(C)]
@@ -143,7 +143,13 @@ impl CylinderRenderer {
         }
     }
 
-    pub fn update(&mut self, wgpu: &Wgpu, fabric: &Fabric, pick: &Pick, render_style: &mut RenderStyle) {
+    pub fn update(
+        &mut self,
+        wgpu: &Wgpu,
+        fabric: &Fabric,
+        pick: &Pick,
+        render_style: &mut RenderStyle,
+    ) {
         let instances = self.create_instances_from_fabric(fabric, pick, render_style);
         self.num_instances = instances.len() as u32;
         // Update instance buffer if there are instances to render
@@ -172,8 +178,8 @@ impl CylinderRenderer {
                 let interval_id = UniqueId(index);
                 let push = interval.material == Material::Push;
                 match render_style {
-                    WithPullMap(_) if push => continue,
-                    WithPushMap(_) if !push => continue,
+                    WithPullMap { .. } if push => continue,
+                    WithPushMap { .. } if !push => continue,
                     _ => {}
                 }
                 let (alpha, omega) = (interval.alpha_index, interval.omega_index);
@@ -183,13 +189,23 @@ impl CylinderRenderer {
                 let role_appearance = material.role.appearance();
                 let appearance = match pick {
                     Pick::Nothing => match render_style {
-                        Normal => role_appearance,
-                        WithAppearanceFunction(appearance) => {
-                            appearance(interval).unwrap_or(role_appearance)
+                        Normal { .. } => role_appearance,
+                        WithAppearanceFunction { function, .. } => {
+                            function(interval).unwrap_or(role_appearance)
                         }
-                        WithPullMap(color_map) | WithPushMap(color_map) => {
+                        WithPullMap { map, .. } => {
                             let key = interval.key();
-                            match color_map.get(&key) {
+                            match map.get(&key) {
+                                None => role_appearance.apply_mode(AppearanceMode::Faded),
+                                Some(color) => Appearance {
+                                    color: *color,
+                                    radius: role_appearance.radius * 2.0, // Double thickness for colored intervals
+                                },
+                            }
+                        }
+                        WithPushMap { map, .. } => {
+                            let key = interval.key();
+                            match map.get(&key) {
                                 None => role_appearance.apply_mode(AppearanceMode::Faded),
                                 Some(color) => Appearance {
                                     color: *color,
@@ -207,21 +223,18 @@ impl CylinderRenderer {
                         }
                     }
                     Pick::Interval(IntervalDetails {
-                                       near_joint,
-                                       far_joint,
-                                       id,
-                                       role,
-                                       selected_push: original_interval_id,
-                                       ..
-                                   }) => {
+                        near_joint,
+                        far_joint,
+                        id,
+                        role,
+                        selected_push: original_interval_id,
+                        ..
+                    }) => {
                         // If this is the currently selected interval, highlight it based on its type
                         if *id == interval_id {
                             // Use the appropriate selected mode based on interval role
                             role_appearance.selected_for_role(interval.material.properties().role)
-                        }
-                        // We no longer need to handle the originally selected push interval separately
-                        // This was causing push intervals to remain purple after being deselected
-                        else if let Some(orig_id) = original_interval_id {
+                        } else if let Some(orig_id) = original_interval_id {
                             // Only highlight the interval if it's currently selected
                             if *orig_id == interval_id
                                 && *id == interval_id
@@ -289,7 +302,9 @@ impl CylinderRenderer {
                 let mut modified_end = end;
 
                 // For pull intervals, we need to connect them to attachment points on push intervals
-                if interval.material.properties().role == Role::Pulling {
+                if interval.material.properties().role == Role::Pulling
+                    && render_style.show_attachment_points()
+                {
                     // Use the current index as the pull interval ID
                     let pull_id = interval_id;
 
@@ -388,7 +403,11 @@ impl CylinderRenderer {
         instances
     }
 
-    pub fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, bind_group: &'a wgpu::BindGroup) {
+    pub fn render<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        bind_group: &'a wgpu::BindGroup,
+    ) {
         // Skip if no instances to render
         if self.num_instances == 0 || self.instance_buffer.is_none() {
             return;

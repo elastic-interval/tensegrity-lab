@@ -114,10 +114,63 @@ pub enum RunStyle {
 
 #[derive(Clone)]
 pub enum RenderStyle {
-    Normal,
-    WithAppearanceFunction(AppearanceFunction),
-    WithPullMap(HashMap<(usize, usize), [f32; 4]>),
-    WithPushMap(HashMap<(usize, usize), [f32; 4]>),
+    Normal {
+        show_attachment_points: bool,
+    },
+    WithAppearanceFunction {
+        function: AppearanceFunction,
+        show_attachment_points: bool,
+    },
+    WithPullMap {
+        map: HashMap<(usize, usize), [f32; 4]>,
+        show_attachment_points: bool,
+    },
+    WithPushMap {
+        map: HashMap<(usize, usize), [f32; 4]>,
+        show_attachment_points: bool,
+    },
+}
+
+impl RenderStyle {
+    pub fn show_attachment_points(&self) -> bool {
+        match self {
+            RenderStyle::Normal {
+                show_attachment_points,
+            } => *show_attachment_points,
+            RenderStyle::WithAppearanceFunction {
+                show_attachment_points,
+                ..
+            } => *show_attachment_points,
+            RenderStyle::WithPullMap {
+                show_attachment_points,
+                ..
+            } => *show_attachment_points,
+            RenderStyle::WithPushMap {
+                show_attachment_points,
+                ..
+            } => *show_attachment_points,
+        }
+    }
+
+    pub fn toggle_attachment_points(&mut self) {
+        match self {
+            RenderStyle::Normal {
+                show_attachment_points,
+            } => *show_attachment_points = !*show_attachment_points,
+            RenderStyle::WithAppearanceFunction {
+                show_attachment_points,
+                ..
+            } => *show_attachment_points = !*show_attachment_points,
+            RenderStyle::WithPullMap {
+                show_attachment_points,
+                ..
+            } => *show_attachment_points = !*show_attachment_points,
+            RenderStyle::WithPushMap {
+                show_attachment_points,
+                ..
+            } => *show_attachment_points = !*show_attachment_points,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Copy)]
@@ -371,6 +424,8 @@ pub enum StateChange {
     },
     /// Toggle between perspective and orthogonal projection
     ToggleProjection,
+    /// Toggle visibility of attachment points
+    ToggleAttachmentPoints,
 }
 
 impl Debug for StateChange {
@@ -388,6 +443,7 @@ impl Debug for StateChange {
             StateChange::SetPhysicsParameter(_) => "SetPhysicsParameter()",
             StateChange::Time { .. } => "Time()",
             StateChange::ToggleProjection => "ToggleProjection",
+            StateChange::ToggleAttachmentPoints => "ToggleAttachmentPoints",
         };
         write!(f, "StateChange::{name}")
     }
