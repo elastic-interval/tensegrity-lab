@@ -1,5 +1,5 @@
-use std::f32::consts::PI;
 use bytemuck::{Pod, Zeroable};
+use std::f32::consts::PI;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable, Default)]
@@ -31,4 +31,3 @@ impl SurfaceVertex {
         }
     }
 }
-

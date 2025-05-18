@@ -9,10 +9,10 @@ use wgpu::{DepthStencilState, PipelineLayout, RenderPass, ShaderModule};
 use winit::window::Window;
 
 use crate::camera::Camera;
-use crate::{LabEvent, Radio};
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
+use crate::{LabEvent, Radio};
 
 pub mod attachment_renderer;
 pub mod cylinder;
@@ -181,8 +181,9 @@ impl Wgpu {
             let wgpu = futures::executor::block_on(Self::new_async(window));
             LabEvent::ContextCreated {
                 wgpu,
-                mobile_device
-            }.send(&radio);
+                mobile_device,
+            }
+            .send(&radio);
         }
     }
 

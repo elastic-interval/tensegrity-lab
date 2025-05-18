@@ -1,6 +1,6 @@
+use crate::camera::Pick;
 use crate::fabric::Fabric;
 use crate::wgpu::Wgpu;
-use crate::camera::Pick;
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 use wgpu::PipelineCompilationOptions;
@@ -9,9 +9,9 @@ use wgpu::PipelineCompilationOptions;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct JointMarkerInstance {
-    position: [f32; 3],  // Position of the joint
-    scale: f32,          // Size of the marker
-    color: [f32; 4],     // RGBA color
+    position: [f32; 3], // Position of the joint
+    scale: f32,         // Size of the marker
+    color: [f32; 4],    // RGBA color
 }
 
 pub struct JointRenderer {
@@ -131,8 +131,8 @@ impl JointRenderer {
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled: true,  // Write to depth buffer
-                    depth_compare: wgpu::CompareFunction::Less,  // Standard depth test (closer objects appear in front)
+                    depth_write_enabled: true, // Write to depth buffer
+                    depth_compare: wgpu::CompareFunction::Less, // Standard depth test (closer objects appear in front)
                     stencil: wgpu::StencilState::default(),
                     bias: wgpu::DepthBiasState::default(),
                 }),
@@ -176,7 +176,11 @@ impl JointRenderer {
         Vec::new()
     }
 
-    pub fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, bind_group: &'a wgpu::BindGroup) {
+    pub fn render<'a>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        bind_group: &'a wgpu::BindGroup,
+    ) {
         if self.num_instances > 0 && self.instance_buffer.is_some() {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, bind_group, &[]);
@@ -194,7 +198,7 @@ pub fn create_sphere(wgpu: &Wgpu) -> (wgpu::Buffer, wgpu::Buffer, u32) {
     let radius = 1.0;
     let sectors = 12;
     let stacks = 12;
-    
+
     // Vertex format: (position[3], normal[3], uv[2])
     #[repr(C)]
     #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -203,32 +207,32 @@ pub fn create_sphere(wgpu: &Wgpu) -> (wgpu::Buffer, wgpu::Buffer, u32) {
         normal: [f32; 3],
         uv: [f32; 2],
     }
-    
+
     let mut vertices = Vec::new();
     let mut indices = Vec::new();
-    
+
     // Generate vertices
     for i in 0..=stacks {
         let stack_angle = std::f32::consts::PI * (i as f32) / (stacks as f32);
         let xy = radius * stack_angle.sin();
         let z = radius * stack_angle.cos();
-        
+
         for j in 0..=sectors {
             let sector_angle = 2.0 * std::f32::consts::PI * (j as f32) / (sectors as f32);
             let x = xy * sector_angle.cos();
             let y = xy * sector_angle.sin();
-            
+
             // Position
             let position = [x, y, z];
-            
+
             // Normal (normalized position for a sphere)
             let length = (x * x + y * y + z * z).sqrt();
             let normal = [x / length, y / length, z / length];
-            
+
             // UV coordinates
             let u = j as f32 / sectors as f32;
             let v = i as f32 / stacks as f32;
-            
+
             vertices.push(Vertex {
                 position,
                 normal,
@@ -236,12 +240,12 @@ pub fn create_sphere(wgpu: &Wgpu) -> (wgpu::Buffer, wgpu::Buffer, u32) {
             });
         }
     }
-    
+
     // Generate indices
     for i in 0..stacks {
         let k1 = i * (sectors + 1);
         let k2 = k1 + sectors + 1;
-        
+
         for j in 0..sectors {
             // 2 triangles per sector
             if i != 0 {
@@ -249,7 +253,7 @@ pub fn create_sphere(wgpu: &Wgpu) -> (wgpu::Buffer, wgpu::Buffer, u32) {
                 indices.push(k2 + j);
                 indices.push(k1 + j + 1);
             }
-            
+
             if i != (stacks - 1) {
                 indices.push(k1 + j + 1);
                 indices.push(k2 + j);
@@ -257,19 +261,23 @@ pub fn create_sphere(wgpu: &Wgpu) -> (wgpu::Buffer, wgpu::Buffer, u32) {
             }
         }
     }
-    
+
     // Create vertex and index buffers
-    let vertex_buffer = wgpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Sphere Vertex Buffer"),
-        contents: bytemuck::cast_slice(&vertices),
-        usage: wgpu::BufferUsages::VERTEX,
-    });
-    
-    let index_buffer = wgpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-        label: Some("Sphere Index Buffer"),
-        contents: bytemuck::cast_slice(&indices),
-        usage: wgpu::BufferUsages::INDEX,
-    });
-    
+    let vertex_buffer = wgpu
+        .device
+        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Sphere Vertex Buffer"),
+            contents: bytemuck::cast_slice(&vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+    let index_buffer = wgpu
+        .device
+        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Sphere Index Buffer"),
+            contents: bytemuck::cast_slice(&indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
     (vertex_buffer, index_buffer, indices.len() as u32)
 }

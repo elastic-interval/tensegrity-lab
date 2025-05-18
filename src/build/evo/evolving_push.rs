@@ -1,6 +1,6 @@
 use crate::fabric::interval::IntervalSnapshot;
-use crate::fabric::IntervalEnd;
 use crate::fabric::material::Material;
+use crate::fabric::IntervalEnd;
 use crate::fabric::{Fabric, UniqueId};
 use cgmath::{Point3, Vector3};
 
@@ -20,7 +20,13 @@ impl EvolvingPush {
         Self::new(interval_id)
     }
 
-    pub fn end_push(&mut self, fabric: &mut Fabric, snapshot: IntervalSnapshot, end: IntervalEnd, project: Vector3<f32>) -> Self {
+    pub fn end_push(
+        &mut self,
+        fabric: &mut Fabric,
+        snapshot: IntervalSnapshot,
+        end: IntervalEnd,
+        project: Vector3<f32>,
+    ) -> Self {
         let IntervalSnapshot {
             interval,
             alpha,

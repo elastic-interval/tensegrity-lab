@@ -31,20 +31,27 @@ impl Fabric {
         let (scale, spin, matrix, seed) = match base_face {
             BaseFace::ExistingFace(id) => {
                 let face = self.face(id);
-                (face.scale * scale_factor, Some(face.spin.opposite()), face.vector_space(self, rotation), None)
+                (
+                    face.scale * scale_factor,
+                    Some(face.spin.opposite()),
+                    face.vector_space(self, rotation),
+                    None,
+                )
             }
-            BaseFace::Situated { spin, vector_space, seed } =>
-                (scale_factor, Some(spin), vector_space, seed),
-            BaseFace::Seeded(orient_alias) => {
-                (scale_factor, None, Matrix4::from_scale(scale_factor), Some(orient_alias))
-            }
-            BaseFace::Baseless => {
-                (scale_factor, None, Matrix4::from_scale(scale_factor), None)
-            }
+            BaseFace::Situated {
+                spin,
+                vector_space,
+                seed,
+            } => (scale_factor, Some(spin), vector_space, seed),
+            BaseFace::Seeded(orient_alias) => (
+                scale_factor,
+                None,
+                Matrix4::from_scale(scale_factor),
+                Some(orient_alias),
+            ),
+            BaseFace::Baseless => (scale_factor, None, Matrix4::from_scale(scale_factor), None),
         };
-        let spin_alias = face_alias.spin()
-            .or(spin)
-            .map(Spin::into_alias);
+        let spin_alias = face_alias.spin().or(spin).map(Spin::into_alias);
         let search_alias = match spin_alias {
             None => face_alias.with_seed(seed),
             Some(spin_alias) => spin_alias + face_alias,
@@ -53,8 +60,7 @@ impl Fabric {
         let joints: Vec<usize> = brick
             .joints
             .into_iter()
-            .map(|BakedJoint { location, .. }|
-                self.create_joint(matrix.transform_point(location)))
+            .map(|BakedJoint { location, .. }| self.create_joint(matrix.transform_point(location)))
             .collect();
         for BakedInterval {
             alpha_index,

@@ -75,12 +75,7 @@ impl Fabric {
             .unwrap();
         let ideal = (alpha.scale + omega.scale) / 2.0;
         for (a, b) in links {
-            self.create_interval(
-                alpha_rotated[a],
-                omega_ends[b],
-                ideal,
-                Pull,
-            );
+            self.create_interval(alpha_rotated[a], omega_ends[b], ideal, Pull);
         }
         self.remove_face(alpha_id);
         self.remove_face(omega_id);

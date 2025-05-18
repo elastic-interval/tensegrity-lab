@@ -1,12 +1,12 @@
-use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::build_phase::BuildPhase;
 use crate::build::tenscript::plan_runner::Stage::*;
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
-use crate::fabric::Fabric;
-use crate::fabric::physics::Physics;
+use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::fabric::physics::presets::LIQUID;
+use crate::fabric::physics::Physics;
+use crate::fabric::Fabric;
 
 #[derive(Clone, Debug, Copy, PartialEq)]
 enum Stage {
@@ -52,10 +52,7 @@ impl PlanRunner {
         }
     }
 
-    pub fn iterate(
-        &mut self,
-        brick_library: &BrickLibrary,
-    ) -> Result<(), TenscriptError> {
+    pub fn iterate(&mut self, brick_library: &BrickLibrary) -> Result<(), TenscriptError> {
         self.fabric.iterate(&self.physics);
         if self.fabric.progress.is_busy() || self.disabled.is_some() {
             return Ok(());
@@ -68,7 +65,8 @@ impl PlanRunner {
             }
             GrowStep => {
                 if self.build_phase.is_growing() {
-                    self.build_phase.growth_step(&mut self.fabric, brick_library)?;
+                    self.build_phase
+                        .growth_step(&mut self.fabric, brick_library)?;
                     (GrowApproach, 500)
                 } else if self.shape_phase.needs_shaping() {
                     self.shape_phase.marks = self.build_phase.marks.split_off(0);
@@ -79,19 +77,22 @@ impl PlanRunner {
             }
             GrowApproach => (GrowCalm, 500),
             GrowCalm => (GrowStep, 0),
-            Shaping => match self.shape_phase.shaping_step(&mut self.fabric, brick_library)? {
+            Shaping => match self
+                .shape_phase
+                .shaping_step(&mut self.fabric, brick_library)?
+            {
                 ShapeCommand::Noop => (Shaping, 0),
                 ShapeCommand::StartCountdown(countdown) => (Shaping, countdown),
                 ShapeCommand::Stiffness(percent) => {
-                    self.physics.stiffness *= percent/100.0;
+                    self.physics.stiffness *= percent / 100.0;
                     (Shaping, 0)
                 }
                 ShapeCommand::Viscosity(percent) => {
-                    self.physics.viscosity *= percent/100.0;
+                    self.physics.viscosity *= percent / 100.0;
                     (Shaping, 0)
                 }
                 ShapeCommand::Drag(percent) => {
-                    self.physics.drag *= percent/100.0;
+                    self.physics.drag *= percent / 100.0;
                     (Shaping, 0)
                 }
                 ShapeCommand::Terminate => (Completed, 0),

@@ -1,6 +1,8 @@
 use pest::iterators::{Pair, Pairs};
 
-use crate::build::tenscript::{parse_float, parse_float_inside, parse_usize, parse_usize_inside, Rule, TenscriptError};
+use crate::build::tenscript::{
+    parse_float, parse_float_inside, parse_usize, parse_usize_inside, Rule, TenscriptError,
+};
 use crate::fabric::physics::SurfaceCharacter;
 
 #[derive(Debug, Clone, Default)]

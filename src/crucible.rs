@@ -193,6 +193,21 @@ impl Crucible {
         }
     }
 
+    pub fn update_attachment_connections(&mut self) {
+        match &mut self.stage {
+            FailureTesting(tester) => tester.fabric_mut().update_all_attachment_connections(),
+            PhysicsTesting(tester) => tester.fabric.update_all_attachment_connections(),
+            BoxingTesting(tester) => tester.fabric.update_all_attachment_connections(),
+            RunningPlan(plan_runner) => plan_runner.fabric.update_all_attachment_connections(),
+            Pretensing(pretenser) => pretenser.fabric.update_all_attachment_connections(),
+            Viewing(holder) => holder.fabric.update_all_attachment_connections(),
+            Animating(holder) => holder.fabric.update_all_attachment_connections(),
+            BakingBrick(oven) => oven.fabric.update_all_attachment_connections(),
+            Evolving(evolution) => evolution.fabric.update_all_attachment_connections(),
+            Empty => {} // No fabric to update in Empty state
+        }
+    }
+
     pub fn fabric(&mut self) -> &Fabric {
         match &mut self.stage {
             FailureTesting(tester) => tester.fabric(),

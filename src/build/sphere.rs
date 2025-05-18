@@ -1,4 +1,4 @@
-use cgmath::{InnerSpace, vec3, Vector3, VectorSpace};
+use cgmath::{vec3, InnerSpace, Vector3, VectorSpace};
 
 #[derive(Debug, Clone)]
 pub struct Vertex {

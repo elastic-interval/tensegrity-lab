@@ -526,9 +526,7 @@ impl ShapePhase {
             ShapeOperation::SetDrag(percent) => Drag(percent),
             ShapeOperation::SetViscosity(percent) => Viscosity(percent),
             ShapeOperation::Omit(pair) => {
-                fabric
-                    .joining(pair)
-                    .map(|id| fabric.remove_interval(id));
+                fabric.joining(pair).map(|id| fabric.remove_interval(id));
                 Noop
             }
             ShapeOperation::Add {

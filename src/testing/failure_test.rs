@@ -1,13 +1,10 @@
 use crate::fabric::interval::Interval;
 use crate::fabric::material::Material;
-use crate::fabric::UniqueId;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
+use crate::fabric::UniqueId;
 use crate::Age;
-use crate::{
-    CrucibleAction, Radio, StateChange, TestScenario,
-    TesterAction,
-};
+use crate::{CrucibleAction, Radio, StateChange, TestScenario, TesterAction};
 use cgmath::InnerSpace;
 
 pub struct FailureTester {
@@ -81,6 +78,10 @@ impl FailureTester {
         &self.test_case().fabric
     }
 
+    pub fn fabric_mut(&mut self) -> &mut Fabric {
+        &mut self.test_cases[self.test_number].fabric
+    }
+
     fn test_case(&self) -> &FailureTest {
         &self.test_cases[self.test_number]
     }
@@ -117,12 +118,14 @@ impl FailureTest {
             .iter()
             .enumerate()
             .filter_map(|(index, interval_opt)| {
-                interval_opt.as_ref().and_then(|interval| {
-                    match (interval.material, &scenario) {
-                        (Pull, TensionTest) | (Push, CompressionTest) | (GuyLine, TensionTest) => Some(UniqueId(index)),
+                interval_opt
+                    .as_ref()
+                    .and_then(|interval| match (interval.material, &scenario) {
+                        (Pull, TensionTest) | (Push, CompressionTest) | (GuyLine, TensionTest) => {
+                            Some(UniqueId(index))
+                        }
                         _ => None,
-                    }
-                })
+                    })
             })
             .collect();
         let mut test_cases = vec![
