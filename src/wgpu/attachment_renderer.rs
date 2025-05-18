@@ -197,9 +197,9 @@ impl AttachmentRenderer {
                 selected_push: original_interval_id,
                 ..
             }) => {
-                if *role == Role::Pushing {
+                if role.is(Role::Pushing) {
                     (Some(id.0), None, None)
-                } else if *role == Role::Pulling {
+                } else if role.is(Role::Pulling) {
                     // For pull intervals, check if there's an original push interval to highlight
                     (None, None, original_interval_id.map(|id| id.0))
                 } else {
@@ -241,7 +241,7 @@ impl AttachmentRenderer {
     ) {
         for (idx, interval_opt) in fabric.intervals.iter().enumerate() {
             if let Some(interval) = interval_opt {
-                if interval.material.properties().role == Role::Pushing {
+                if interval.has_role(Role::Pushing) {
                     // Determine if this push interval is selected, connected to a selected joint,
                     // or is the original interval of a selected pull interval
                     let is_selected = selected_push_interval
@@ -316,11 +316,11 @@ impl AttachmentRenderer {
             ..
         }) = pick
         {
-            if *role == Role::Pulling {
+            if role.is(Role::Pulling) {
                 // First, handle the original push interval if present
                 if let Some(orig_id) = original_interval_id {
                     if let Some(orig_interval) = fabric.intervals[orig_id.0].as_ref() {
-                        if orig_interval.material.properties().role == Role::Pushing {
+                        if orig_interval.has_role(Role::Pushing) {
                             // Get attachment points for the original push interval
                             if let Ok((alpha_points, omega_points)) =
                                 orig_interval.attachment_points(&fabric.joints)
@@ -364,7 +364,7 @@ impl AttachmentRenderer {
                 // Find all push intervals connected to this joint
                 for (_idx, interval_opt) in fabric.intervals.iter().enumerate() {
                     if let Some(interval) = interval_opt {
-                        if interval.material.properties().role == Role::Pushing {
+                        if interval.has_role(Role::Pushing) {
                             // Skip the original interval if it's one of the connected push intervals
                             // to avoid duplicate attachment points
                             if let Some(orig_id) = original_interval_id {

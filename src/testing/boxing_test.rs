@@ -1,4 +1,3 @@
-use crate::fabric::joint_incident::JointIncident;
 use crate::fabric::material::Material;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::fabric::{Fabric, UniqueId};
@@ -118,9 +117,12 @@ impl BoxingStep {
                 fabric
                     .joint_incidents()
                     .iter()
-                    .filter_map(|JointIncident { index, push, .. }| match push {
-                        None => Some(*index),
-                        Some(_) => None,
+                    .filter_map(|joint| {
+                        let index = joint.index;
+                        match joint.push() {
+                            None => Some(index),
+                            Some(_) => None,
+                        }
                     })
                     .rev()
                     .for_each(|index| fabric.remove_joint(index));

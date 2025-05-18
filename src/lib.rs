@@ -4,12 +4,18 @@ use crate::fabric::interval::{Interval, Role};
 use crate::fabric::{FabricStats, UniqueId};
 use crate::wgpu::Wgpu;
 use cgmath::Point3;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::ops::Mul;
 use std::rc::Rc;
 use std::time::SystemTime;
+
+// Thread-local storage for tracking attachment point visibility
+thread_local! {
+    static SHOW_ATTACHMENT_POINTS: RefCell<bool> = RefCell::new(false);
+}
 use winit::dpi::PhysicalPosition;
 
 pub mod application;
@@ -21,7 +27,7 @@ pub mod crucible;
 pub mod fabric;
 pub mod keyboard;
 pub mod scene;
-pub mod test;
+
 pub mod testing;
 pub mod wgpu;
 
@@ -170,6 +176,11 @@ impl RenderStyle {
                 ..
             } => *show_attachment_points = !*show_attachment_points,
         }
+
+        // Update the thread-local state for joint text formatting
+        SHOW_ATTACHMENT_POINTS.with(|cell| {
+            *cell.borrow_mut() = self.show_attachment_points();
+        });
     }
 }
 
@@ -196,12 +207,15 @@ impl Display for IntervalDetails {
             Role::Springy => "Spring",
         };
 
+        // Get the current attachment point visibility from thread-local storage
+        let show_attachment_points = SHOW_ATTACHMENT_POINTS.with(|cell| *cell.borrow());
+
         write!(
             f,
             "{} {}-{}\nLength: {:.1} mm\nStrain: {:.6}%\nDistance: {:.1} mm\nRight-click to jump",
             role_text,
-            self.near_joint_text(),
-            self.far_joint_text(),
+            self.near_joint_text(show_attachment_points),
+            self.far_joint_text(show_attachment_points),
             self.length_mm(),
             self.strain_percent(),
             self.distance_mm()
@@ -223,27 +237,34 @@ impl IntervalDetails {
     }
 
     /// Format a joint index as a string, optionally with a slot number
-    pub fn format_joint(&self, is_near: bool) -> String {
+    /// If show_attachment_points is false, the slot number will be hidden
+    pub fn format_joint(&self, is_near: bool, show_attachment_points: bool) -> String {
         let (joint_index, slot) = if is_near {
             (self.near_joint, self.near_slot)
         } else {
             (self.far_joint, self.far_slot)
         };
 
-        match slot {
-            Some(slot_idx) => format!("J{}:{}", joint_index, slot_idx),
-            None => format!("J{}", joint_index),
+        // Only show slot numbers if attachment points are visible
+        if show_attachment_points {
+            match slot {
+                Some(slot_idx) => format!("J{}:{}", joint_index, slot_idx),
+                None => format!("J{}", joint_index),
+            }
+        } else {
+            // Always use the simple format when attachment points are hidden
+            format!("J{}", joint_index)
         }
     }
 
     /// Format the near joint as a string
-    pub fn near_joint_text(&self) -> String {
-        self.format_joint(true)
+    pub fn near_joint_text(&self, show_attachment_points: bool) -> String {
+        self.format_joint(true, show_attachment_points)
     }
 
     /// Format the far joint as a string
-    pub fn far_joint_text(&self) -> String {
-        self.format_joint(false)
+    pub fn far_joint_text(&self, show_attachment_points: bool) -> String {
+        self.format_joint(false, show_attachment_points)
     }
 }
 
@@ -281,8 +302,10 @@ impl JointDetails {
         (y <= 0.0).then(|| (x * self.scale, z * self.scale))
     }
 
-    /// Format this joint as a string (e.g., "J1")
+    /// Format this joint as a string (e.g., "J1" or "J1:2" with attachment points)
     pub fn joint_text(&self) -> String {
+        // Always use the simple format "J{index}" for joint labels
+        // The attachment point numbers were causing confusion and showing invalid values
         format!("J{}", self.index)
     }
 }

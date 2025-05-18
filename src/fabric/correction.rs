@@ -2,7 +2,7 @@ use cgmath::InnerSpace;
 use itertools::Itertools;
 
 use crate::fabric::interval::Interval;
-use crate::fabric::joint_incident::JointIncident;
+
 use crate::fabric::{Fabric, UniqueId};
 
 #[derive(Debug, Clone)]
@@ -18,8 +18,10 @@ impl Fabric {
         let folded: Vec<_> = self
             .joint_incidents()
             .into_iter()
-            .filter(|joint| joint.push.is_some())
-            .flat_map(|JointIncident { index, pulls, .. }| {
+            .filter(|joint| joint.push().is_some())
+            .flat_map(|joint| {
+                let index = joint.index;
+                let pulls = joint.pulls();
                 pulls
                     .into_iter()
                     .tuple_windows()

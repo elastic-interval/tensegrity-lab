@@ -4,7 +4,10 @@ use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::Wgpu;
-use crate::{ControlState, PointerChange, Radio, RenderStyle, StateChange, TestScenario};
+use crate::{
+    ControlState, PointerChange, Radio, RenderStyle, StateChange, TestScenario,
+    SHOW_ATTACHMENT_POINTS,
+};
 use std::collections::HashMap;
 use std::rc::Rc;
 use winit::dpi::PhysicalSize;
@@ -25,15 +28,23 @@ impl Scene {
         let fabric_renderer = wgpu.create_fabric_renderer();
         let surface_renderer = wgpu.create_surface_renderer();
         let text_renderer = wgpu.create_text_renderer(mobile_device);
+        // Initialize the render style with attachment points hidden
+        let render_style = RenderStyle::Normal {
+            show_attachment_points: false,
+        };
+
+        // Initialize the thread-local state for joint text formatting
+        SHOW_ATTACHMENT_POINTS.with(|cell| {
+            *cell.borrow_mut() = false;
+        });
+
         Self {
             wgpu,
             camera,
             fabric_renderer,
             surface_renderer,
             text_renderer,
-            render_style: RenderStyle::Normal {
-                show_attachment_points: false,
-            },
+            render_style,
             pick_allowed: false,
         }
     }
