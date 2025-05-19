@@ -278,89 +278,33 @@ impl Fabric {
     pub fn create_muscles(&mut self, contraction: f32) {
         self.muscle_nuance = 0.5;
 
-        println!("=== MUSCLE CREATION DEBUG ====");
-        println!("Fabric name: {}", self.name);
-
-        // Count materials for debugging
-        let mut north_count = 0;
-        let mut south_count = 0;
-        let mut other_count = 0;
-
-        // Print all materials for debugging
-        println!("All materials in intervals:");
-        for (idx, interval_opt) in self.intervals.iter().enumerate() {
-            if let Some(interval) = interval_opt {
-                println!(
-                    "  Interval {}: material = {:?}, span = {:?}",
-                    idx, interval.material, interval.span
-                );
-                if interval.material == North {
-                    north_count += 1;
-                } else if interval.material == South {
-                    south_count += 1;
-                } else {
-                    other_count += 1;
-                }
-            }
-        }
-
-        println!("Material counts in fabric:");
-        println!("  North: {}", north_count);
-        println!("  South: {}", south_count);
-        println!("  Other: {}", other_count);
-
-        let mut muscle_count = 0;
-        let mut conversion_failures = 0;
-
-        for (idx, interval_opt) in self.intervals.iter_mut().enumerate() {
+        for interval_opt in self.intervals.iter_mut() {
             if let Some(interval) = interval_opt {
                 if interval.material == North || interval.material == South {
                     match interval.span {
                         Fixed { length } => {
                             let contracted = length * contraction;
-                            println!(
-                                "  Converting interval {} to muscle: length={}, contracted={}",
-                                idx, length, contracted
-                            );
                             if interval.material == North {
                                 interval.span = Muscle {
                                     length,
                                     contracted,
                                     reverse: false,
                                 };
-                                muscle_count += 1;
                             } else if interval.material == South {
                                 interval.span = Muscle {
                                     length,
                                     contracted,
                                     reverse: true,
                                 };
-                                muscle_count += 1;
                             }
                         }
                         _ => {
-                            println!(
-                                "  Interval {} has North/South material but not Fixed span: {:?}",
-                                idx, interval.span
-                            );
-                            conversion_failures += 1;
+                            // (intentionally left blank)
                         }
                     }
                 }
             }
         }
-
-        println!(
-            "Created {} muscles with contraction factor {}",
-            muscle_count, contraction
-        );
-        if conversion_failures > 0 {
-            println!(
-                "WARNING: {} intervals with North/South material could not be converted to muscles",
-                conversion_failures
-            );
-        }
-        println!("=== END MUSCLE CREATION DEBUG ====");
     }
 
     pub fn activate_muscles(&mut self, go: bool) {
