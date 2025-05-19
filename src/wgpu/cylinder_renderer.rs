@@ -186,40 +186,39 @@ impl CylinderRenderer {
                 let start = fabric.joints[alpha].location;
                 let end = fabric.joints[omega].location;
                 let material = interval.material.properties();
-                let role_appearance = material.role.appearance();
+                let appearance = material.role.appearance();
                 let appearance = match pick {
                     Pick::Nothing => match render_style {
-                        Normal { .. } => role_appearance,
+                        Normal { .. } => appearance,
                         WithAppearanceFunction { function, .. } => {
-                            function(interval).unwrap_or(role_appearance)
+                            function(interval).unwrap_or(appearance)
                         }
                         WithPullMap { map, .. } => {
                             let key = interval.key();
                             match map.get(&key) {
-                                None => role_appearance.apply_mode(AppearanceMode::Faded),
+                                None => appearance.apply_mode(AppearanceMode::Faded),
                                 Some(color) => Appearance {
                                     color: *color,
-                                    radius: role_appearance.radius * 2.0, // Double thickness for colored intervals
+                                    radius: appearance.radius * 2.0, // Double thickness for colored intervals
                                 },
                             }
                         }
                         WithPushMap { map, .. } => {
                             let key = interval.key();
                             match map.get(&key) {
-                                None => role_appearance.apply_mode(AppearanceMode::Faded),
+                                None => appearance.apply_mode(AppearanceMode::Faded),
                                 Some(color) => Appearance {
                                     color: *color,
-                                    radius: role_appearance.radius * 2.0, // Double thickness for colored intervals
+                                    radius: appearance.radius * 2.0, // Double thickness for colored intervals
                                 },
                             }
                         }
                     },
                     Pick::Joint(JointDetails { index, .. }) => {
                         if interval.touches(*index) {
-                            role_appearance
-                                .highlighted_for_role(interval.material.properties().role)
+                            appearance.highlighted_for_role(interval.material.properties().role)
                         } else {
-                            role_appearance.apply_mode(AppearanceMode::Faded)
+                            appearance.apply_mode(AppearanceMode::Faded)
                         }
                     }
                     Pick::Interval(IntervalDetails {
@@ -233,46 +232,22 @@ impl CylinderRenderer {
                         // If this is the currently selected interval, highlight it based on its type
                         if *id == interval_id {
                             // Use the appropriate selected mode based on interval role
-                            role_appearance.selected_for_role(interval.material.properties().role)
+                            appearance.selected_for_role(interval.material.properties().role)
                         } else if let Some(orig_id) = original_interval_id {
                             // Only highlight the interval if it's currently selected
                             if *orig_id == interval_id
                                 && *id == interval_id
                                 && interval.has_role(Role::Pushing)
                             {
-                                role_appearance.apply_mode(AppearanceMode::SelectedPush)
+                                appearance.apply_mode(AppearanceMode::SelectedPush)
                             } else {
-                                // For all other intervals, check if they're adjacent to either joint
-                                // When a push interval is selected, we want to keep intervals on both near and far joints highlighted
-                                // When an interval from the far joint is selected, we still want to highlight intervals on the near joint
-                                let active = match role {
-                                    Role::Pushing => {
-                                        // For push intervals, consider intervals adjacent to both near and far joints
-                                        // Also check if the interval touches the original interval's near or far joint
-                                        if let Some(orig_id) = original_interval_id {
-                                            // Get the original interval's near joint
-                                            let orig_interval = fabric.interval(*orig_id);
-                                            let orig_near = orig_interval.alpha_index;
-
-                                            // Check if the interval touches any of the relevant joints
-                                            interval.touches(*near_joint)
-                                                || interval.touches(*far_joint)
-                                                || interval.touches(orig_near)
-                                        } else {
-                                            interval.touches(*near_joint)
-                                                || interval.touches(*far_joint)
-                                        }
-                                    }
-                                    Role::Pulling => interval.touches(*near_joint),
-                                    Role::Springy => false,
-                                };
-                                if active {
+                                if interval.touches(*near_joint) {
                                     // Use the appropriate highlighted mode based on interval role
-                                    role_appearance
+                                    appearance
                                         .highlighted_for_role(interval.material.properties().role)
                                 } else {
                                     // Use the Faded mode for non-adjacent intervals
-                                    role_appearance.apply_mode(AppearanceMode::Faded)
+                                    appearance.apply_mode(AppearanceMode::Faded)
                                 }
                             }
                         } else {
@@ -288,11 +263,10 @@ impl CylinderRenderer {
                             };
                             if active {
                                 // Use the appropriate highlighted mode based on interval role
-                                role_appearance
-                                    .highlighted_for_role(interval.material.properties().role)
+                                appearance.highlighted_for_role(interval.material.properties().role)
                             } else {
                                 // Use the Faded mode for non-adjacent intervals
-                                role_appearance.apply_mode(AppearanceMode::Faded)
+                                appearance.apply_mode(AppearanceMode::Faded)
                             }
                         }
                     }
