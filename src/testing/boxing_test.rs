@@ -1,3 +1,4 @@
+use crate::crucible_context::CrucibleContext;
 use crate::fabric::material::Material;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::fabric::{Fabric, UniqueId};
@@ -15,7 +16,8 @@ pub struct BoxingTest {
 impl BoxingTest {
     pub fn new(fabric: &Fabric, physics: Physics) -> Self {
         let fabric = fabric.clone();
-        let steps = VecDeque::from([
+        let mut steps = VecDeque::new();
+        steps.extend([
             BoxingStep::RemoveSupport,
             BoxingStep::Deflate,
             BoxingStep::RemoveIntervals,
@@ -28,16 +30,14 @@ impl BoxingTest {
         }
     }
 
-    pub fn iterate(&mut self, context: &mut crate::crucible_context::CrucibleContext) {
-        // Set the physics directly to avoid expensive cloning on every iteration
+    pub fn initialize_physics(&self, context: &mut CrucibleContext) {
         *context.physics = self.physics.clone();
+    }
 
-        // Update our fabric from the context
+    pub fn iterate(&mut self, context: &mut CrucibleContext) {
         self.fabric = context.fabric.clone();
 
-        // Use the physics-defined number of iterations
         for _ in context.physics.iterations() {
-            // Iterate our fabric
             self.fabric.iterate(context.physics);
         }
 
@@ -52,7 +52,7 @@ impl BoxingTest {
 
                 // Update the context with our changes
                 context.replace_fabric(self.fabric.clone());
-                context.replace_physics(self.physics.clone());
+                *context.physics = self.physics.clone();
             }
         }
     }
