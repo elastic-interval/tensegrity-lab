@@ -10,12 +10,7 @@ use std::fmt::Debug;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::ops::Mul;
 use std::rc::Rc;
-use std::time::SystemTime;
-
-// Thread-local storage for tracking attachment point visibility
-thread_local! {
-    static SHOW_ATTACHMENT_POINTS: RefCell<bool> = RefCell::new(false);
-}
+use instant::Instant;
 use winit::dpi::PhysicalPosition;
 
 pub mod application;
@@ -311,7 +306,7 @@ impl JointDetails {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub enum ControlState {
     Waiting,
     UnderConstruction,
@@ -486,7 +481,7 @@ pub enum LabEvent {
     FabricBuilt(FabricStats),
     Crucible(CrucibleAction),
     UpdateState(StateChange),
-    UpdatedLibrary(SystemTime),
+    UpdatedLibrary(Instant),
     PrintCord(f32),
     DumpCSV,
     RequestRedraw,
@@ -515,4 +510,8 @@ pub enum PointerChange {
     Zoomed(f32),
     Pressed,
     Released(PickIntent),
+}
+
+thread_local! {
+    static SHOW_ATTACHMENT_POINTS: RefCell<bool> = RefCell::new(false);
 }

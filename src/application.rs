@@ -12,7 +12,6 @@ use crate::{
 };
 use instant::{Duration, Instant};
 use std::sync::Arc;
-use std::time::SystemTime;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
@@ -35,7 +34,7 @@ pub struct Application {
     fps_timer: Instant,
     control_state: ControlState,
     #[cfg(not(target_arch = "wasm32"))]
-    fabric_library_modified: SystemTime,
+    fabric_library_modified: Instant,
     #[cfg(not(target_arch = "wasm32"))]
     machine: Option<crate::cord_machine::CordMachine>,
 }
@@ -69,7 +68,7 @@ impl Application {
             fps_timer: Instant::now(),
             control_state: ControlState::Waiting,
             #[cfg(not(target_arch = "wasm32"))]
-            fabric_library_modified: fabric_library_modified(),
+            fabric_library_modified: Instant::now(),
             #[cfg(not(target_arch = "wasm32"))]
             machine: None,
         })
@@ -79,7 +78,7 @@ impl Application {
     // Public API Methods
     //==================================================
     
-    pub fn refresh_library(&mut self, time: SystemTime) -> Result<LabEvent, TenscriptError> {
+    pub fn refresh_library(&mut self, time: Instant) -> Result<LabEvent, TenscriptError> {
         self.fabric_library = FabricLibrary::from_source()?;
         Ok(LabEvent::UpdatedLibrary(time))
     }
@@ -556,6 +555,9 @@ impl ApplicationHandler<LabEvent> for Application {
         }
 
         // Set consistent control flow
+        #[cfg(target_arch = "wasm32")]
+        event_loop.set_control_flow(ControlFlow::Poll);
+        #[cfg(not(target_arch = "wasm32"))]
         event_loop.set_control_flow(if animate {
             ControlFlow::wait_duration(Duration::from_millis(16))
         } else {
@@ -565,10 +567,6 @@ impl ApplicationHandler<LabEvent> for Application {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn fabric_library_modified() -> SystemTime {
-    use std::fs;
-    fs::metadata("fabric_library.tenscript")
-        .unwrap()
-        .modified()
-        .unwrap()
+fn fabric_library_modified() -> Instant {
+    Instant::now()
 }

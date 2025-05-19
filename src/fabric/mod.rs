@@ -16,7 +16,7 @@ use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, Transform, Vector3};
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::time::Instant;
+use instant::Instant;
 
 pub mod attachment;
 pub mod brick;
