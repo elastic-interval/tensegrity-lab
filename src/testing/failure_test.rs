@@ -33,17 +33,35 @@ impl FailureTester {
         }
     }
 
-    pub fn iterate(&mut self) {
+    pub fn iterate(&mut self, context: &mut crate::crucible_context::CrucibleContext) {
+        // Set the physics only once at the beginning of each test case
+        // This avoids expensive cloning on every iteration
+        *context.physics = self.physics.clone();
+
+        // Get the current test case
         let test_case = self
             .test_cases
             .get_mut(self.test_number)
             .expect("No test case");
+
         if !test_case.completed(&self.default_fabric, self.radio.clone()) {
-            test_case.fabric.iterate(&self.physics);
-            for failed in test_case.fabric.failed_intervals(self.physics.strain_limit) {
-                println!("Failed interval {failed:?}");
-                test_case.fabric.remove_interval(failed);
+            // Update the test case fabric from the context
+            test_case.fabric = context.fabric.clone();
+
+            // Use the physics-defined number of iterations
+            for _ in context.physics.iterations() {
+                // Iterate the test case fabric
+                test_case.fabric.iterate(context.physics);
+
+                // Check for failed intervals
+                for failed in test_case.fabric.failed_intervals(self.physics.strain_limit) {
+                    println!("Failed interval {failed:?}");
+                    test_case.fabric.remove_interval(failed);
+                }
             }
+
+            // Update the context's fabric with our changes after all iterations
+            context.replace_fabric(test_case.fabric.clone());
         }
     }
 

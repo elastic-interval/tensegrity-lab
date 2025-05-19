@@ -595,7 +595,12 @@ impl Interval {
                 };
                 let progress_nuance = progress.nuance();
                 let muscle_length = contracted * (1.0 - nuance) + length * nuance;
-                length * (1.0 - progress_nuance) + muscle_length * progress_nuance
+                let ideal_length =
+                    length * (1.0 - progress_nuance) + muscle_length * progress_nuance;
+
+                // Calculate the ideal length based on muscle nuance
+
+                ideal_length
             }
         };
         let real_length = self.fast_length(joints);
