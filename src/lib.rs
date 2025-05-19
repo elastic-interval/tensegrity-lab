@@ -24,6 +24,7 @@ pub mod camera;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod cord_machine;
 pub mod crucible;
+pub mod crucible_context;
 pub mod fabric;
 pub mod keyboard;
 pub mod scene;

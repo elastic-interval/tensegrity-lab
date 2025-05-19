@@ -120,7 +120,7 @@ impl Application {
         F: FnOnce(&mut Scene, &mut Fabric) -> R,
     {
         self.scene.as_mut().map(|scene| {
-            let fabric = self.crucible.fabric_mut();
+            let fabric = &mut self.crucible.fabric;
             f(scene, fabric)
         })
     }
@@ -374,7 +374,7 @@ impl ApplicationHandler<LabEvent> for Application {
                     chrono::Local::now()
                         .format("pretenst-%Y-%m-%d-%H-%M.zip")
                         .to_string(),
-                    self.crucible.fabric().to_zip().unwrap(),
+                    self.crucible.fabric.to_zip().unwrap(),
                 )
                 .unwrap();
             }
@@ -515,7 +515,7 @@ impl ApplicationHandler<LabEvent> for Application {
         if fps_elapsed >= Duration::from_secs(1) {
             let frames_per_second = self.frames_count as f32 / fps_elapsed.as_secs_f32();
             // Get fabric age if we have a scene
-            let age = self.crucible.fabric().age;
+            let age = self.crucible.fabric.age;
             StateChange::Time {
                 frames_per_second,
                 age,
