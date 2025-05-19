@@ -58,16 +58,12 @@ impl Crucible {
             Empty => {}
             RunningPlan(plan_runner) => {
                 if plan_runner.is_done() {
-                    // Get a copy of the fabric from the plan runner
-                    let mut new_fabric = plan_runner.fabric.clone();
-                    new_fabric.scale = plan_runner.get_scale();
-                    new_fabric.check_orphan_joints();
+                    // Update the scale and check for orphan joints
+                    context.fabric.scale = plan_runner.get_scale();
+                    context.fabric.check_orphan_joints();
 
-                    // Replace the current fabric
-                    context.replace_fabric(new_fabric);
-
-                    // Create a new pretenser and transition to it
                     let pretenser = Pretenser::new(plan_runner.pretense_phase());
+                    pretenser.initialize_physics(&mut context);
                     context.transition_to(Pretensing(pretenser));
                 } else {
                     // Pass the context to the plan runner's iterate method
@@ -83,9 +79,8 @@ impl Crucible {
                     let stats = context.fabric.fabric_stats();
 
                     // Update the context's physics directly
-                    context.replace_physics(pretenser.physics().clone());
+                    *context.physics = pretenser.physics().clone();
 
-                    // Transition to viewing stage
                     context.transition_to(Viewing);
 
                     // Queue the FabricBuilt event
@@ -178,26 +173,27 @@ impl Crucible {
 
         match crucible_action {
             BakeBrick(prototype) => {
-                // Create a new Oven with a fresh fabric
                 let oven = Oven::new(prototype, self.radio.clone());
 
-                // Update our fabric with the oven's fabric
                 context.replace_fabric(oven.fabric.clone());
 
-                // Transition to BakingBrick stage
+                // Initialize the physics for baking
+                oven.initialize_physics(&mut context);
+
                 context.transition_to(BakingBrick(oven));
             }
             BuildFabric(fabric_plan) => {
-                // Create a new PlanRunner
+                // Get the name from the fabric plan
+                let name = fabric_plan.name.clone();
+
                 let plan_runner = PlanRunner::new(fabric_plan);
 
-                // Reset the fabric to an empty one
-                context.replace_fabric(Fabric::new("Building".to_string()));
+                // Reset the fabric to an empty one with the plan's name
+                context.replace_fabric(Fabric::new(name));
 
-                // Transition to RunningPlan stage
+                plan_runner.initialize_physics(&mut context);
                 context.transition_to(RunningPlan(plan_runner));
 
-                // Send events
                 context.send_event(LabEvent::UpdateState(SetControlState(
                     ControlState::UnderConstruction,
                 )));
@@ -212,7 +208,7 @@ impl Crucible {
                 Animating => {
                     // Deactivate muscles when transitioning back to Viewing
                     context.fabric.activate_muscles(false);
-                    
+
                     self.stage = Viewing;
 
                     context.send_event(LabEvent::UpdateState(SetControlState(
@@ -235,21 +231,20 @@ impl Crucible {
             }
             ToFailureTesting(scenario) => {
                 if let Viewing = &mut self.stage {
-                    // Create a new FailureTester using the cloned physics
+                    let fabric_clone = context.fabric.clone();
                     let tester = FailureTester::new(
                         scenario.clone(),
-                        context.fabric,
+                        &fabric_clone,
                         physics_clone.clone(),
                         self.radio.clone(),
                     );
 
-                    // Update our fabric with the tester's fabric
                     context.replace_fabric(tester.fabric().clone());
 
-                    // Transition to FailureTesting stage
+                    tester.initialize_physics(&mut context);
+
                     context.transition_to(FailureTesting(tester));
 
-                    // Send event
                     context.send_event(LabEvent::UpdateState(SetControlState(
                         ControlState::FailureTesting(scenario),
                     )));
@@ -259,20 +254,18 @@ impl Crucible {
             }
             ToPhysicsTesting(scenario) => {
                 if let Viewing = &mut self.stage {
-                    // Create a new PhysicsTester using the cloned physics
                     let tester = PhysicsTester::new(
-                        context.fabric,
+                        context.fabric.clone(),
                         physics_clone.clone(),
                         self.radio.clone(),
                     );
 
-                    // Update our fabric with the tester's fabric
                     context.replace_fabric(tester.fabric.clone());
 
-                    // Transition to PhysicsTesting stage
+                    tester.initialize_physics(&mut context);
+
                     context.transition_to(PhysicsTesting(tester));
 
-                    // Send event
                     context.send_event(LabEvent::UpdateState(SetControlState(
                         ControlState::PhysicsTesting(scenario),
                     )));
@@ -282,16 +275,15 @@ impl Crucible {
             }
             ToBoxingProcess(scenario) => {
                 if let Viewing = &mut self.stage {
-                    // Create a new BoxingTest using the cloned physics
-                    let test = BoxingTest::new(context.fabric, physics_clone.clone());
+                    let fabric_clone = context.fabric.clone();
+                    let test = BoxingTest::new(&fabric_clone, physics_clone.clone());
 
-                    // Update our fabric with the tester's fabric
                     context.replace_fabric(test.fabric.clone());
 
-                    // Transition to BoxingTesting stage
+                    test.initialize_physics(&mut context);
+
                     context.transition_to(BoxingTesting(test));
 
-                    // Send event
                     context.send_event(LabEvent::UpdateState(SetControlState(
                         ControlState::BoxingTesting(scenario),
                     )));
@@ -303,31 +295,28 @@ impl Crucible {
                 FailureTesting(tester) => {
                     tester.action(action);
 
-                    // Update our fabric with the tester's fabric
                     context.replace_fabric(tester.fabric().clone());
                 }
                 PhysicsTesting(tester) => {
                     tester.action(action);
 
-                    // Update our fabric with the tester's fabric
                     context.replace_fabric(tester.fabric.clone());
                 }
                 BoxingTesting(tester) => {
                     tester.action(action);
 
-                    // Update our fabric with the tester's fabric
                     context.replace_fabric(tester.fabric.clone());
                 }
                 _ => {}
             },
             ToEvolving(seed) => {
-                // Create a new Evolution
                 let evolution = Evolution::new(seed);
 
-                // Update our fabric with the evolution's fabric
                 context.replace_fabric(evolution.fabric.clone());
 
-                // Transition to Evolving stage
+                // Initialize the physics for evolution
+                evolution.initialize_physics(&mut context);
+
                 context.transition_to(Evolving(evolution));
             }
         }

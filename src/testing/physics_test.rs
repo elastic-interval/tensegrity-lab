@@ -1,3 +1,4 @@
+use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::{AppearanceMode, PhysicsFeature, Radio, Role, StateChange, TesterAction};
@@ -10,10 +11,7 @@ pub struct PhysicsTester {
 }
 
 impl PhysicsTester {
-    pub fn new(fabric: &Fabric, physics: Physics, radio: Radio) -> Self {
-        let mut fabric = fabric.clone();
-        physics.broadcast(&radio);
-        fabric.activate_muscles(true);
+    pub fn new(fabric: Fabric, physics: Physics, radio: Radio) -> Self {
         Self {
             fabric,
             physics,
@@ -21,16 +19,14 @@ impl PhysicsTester {
         }
     }
 
-    pub fn iterate(&mut self, context: &mut crate::crucible_context::CrucibleContext) {
-        // Set the physics directly to avoid expensive cloning on every iteration
+    pub fn initialize_physics(&self, context: &mut CrucibleContext) {
         *context.physics = self.physics.clone();
+    }
 
-        // Update our fabric from the context
+    pub fn iterate(&mut self, context: &mut CrucibleContext) {
         self.fabric = context.fabric.clone();
 
-        // Use the physics-defined number of iterations
         for _ in context.physics.iterations() {
-            // Iterate our fabric
             self.fabric.iterate(context.physics);
         }
 

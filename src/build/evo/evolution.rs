@@ -1,4 +1,5 @@
 use crate::build::evo::evolving_push::EvolvingPush;
+use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::LIQUID;
 use crate::fabric::Fabric;
 use crate::fabric::IntervalEnd;
@@ -27,13 +28,26 @@ impl Evolution {
         }
     }
 
-    pub fn iterate(&mut self) {
+    pub fn initialize_physics(&self, context: &mut CrucibleContext) {
+        *context.physics = LIQUID;
+    }
+
+    pub fn iterate(&mut self, context: &mut CrucibleContext) {
         if self.countdown > 0 {
-            self.fabric.iterate(&LIQUID);
+            // Use the physics-defined number of iterations
+            for _ in context.physics.iterations() {
+                context.fabric.iterate(context.physics);
+            }
             self.countdown -= 1;
         } else {
+            // Update our fabric from the context for the step operation
+            self.fabric = context.fabric.clone();
+
             self.countdown = DELAY;
             self.step();
+
+            // Update the context's fabric with our changes only when needed
+            *context.fabric = self.fabric.clone();
         }
     }
 

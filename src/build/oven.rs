@@ -1,4 +1,5 @@
 use crate::build::tenscript::brick::{Baked, Prototype};
+use crate::crucible_context::CrucibleContext;
 use crate::fabric::material::Material;
 use crate::fabric::physics::presets::PROTOTYPE_FORMATION;
 use crate::fabric::Fabric;
@@ -23,15 +24,20 @@ impl Oven {
         }
     }
 
-    pub fn iterate(&mut self) -> Option<Baked> {
+    pub fn initialize_physics(&self, context: &mut CrucibleContext) {
+        *context.physics = PROTOTYPE_FORMATION;
+    }
+
+    pub fn iterate(&mut self, context: &mut CrucibleContext) -> Option<Baked> {
         if self.finished {
             return None;
         }
-        for _ in 0..60 {
-            self.fabric.iterate(&PROTOTYPE_FORMATION);
+
+        for _ in context.physics.iterations() {
+            context.fabric.iterate(context.physics);
         }
-        let max_velocity = self.fabric.max_velocity();
-        let age = self.fabric.age;
+        let max_velocity = context.fabric.max_velocity();
+        let age = context.fabric.age;
         if age.brick_baked() && max_velocity < SPEED_LIMIT {
             self.finished = true;
             println!("Fabric settled in {age} at velocity {max_velocity}");
@@ -49,6 +55,10 @@ impl Oven {
             match Baked::try_from(self.fabric.clone()) {
                 Ok(baked) => {
                     self.fabric.check_orphan_joints();
+
+                    // Update the context's fabric with our changes
+                    context.replace_fabric(self.fabric.clone());
+
                     println!("Baked it!");
                     return Some(baked);
                 }
