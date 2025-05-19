@@ -21,8 +21,21 @@ impl PhysicsTester {
         }
     }
 
-    pub fn iterate(&mut self) {
-        self.fabric.iterate(&self.physics);
+    pub fn iterate(&mut self, context: &mut crate::crucible_context::CrucibleContext) {
+        // Set the physics directly to avoid expensive cloning on every iteration
+        *context.physics = self.physics.clone();
+
+        // Update our fabric from the context
+        self.fabric = context.fabric.clone();
+
+        // Use the physics-defined number of iterations
+        for _ in context.physics.iterations() {
+            // Iterate our fabric
+            self.fabric.iterate(context.physics);
+        }
+
+        // Update the context's fabric with our changes after all iterations
+        context.replace_fabric(self.fabric.clone());
     }
 
     pub fn action(&mut self, action: TesterAction) {

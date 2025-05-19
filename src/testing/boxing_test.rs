@@ -28,12 +28,31 @@ impl BoxingTest {
         }
     }
 
-    pub fn iterate(&mut self) {
-        self.fabric.iterate(&self.physics);
+    pub fn iterate(&mut self, context: &mut crate::crucible_context::CrucibleContext) {
+        // Set the physics directly to avoid expensive cloning on every iteration
+        *context.physics = self.physics.clone();
+
+        // Update our fabric from the context
+        self.fabric = context.fabric.clone();
+
+        // Use the physics-defined number of iterations
+        for _ in context.physics.iterations() {
+            // Iterate our fabric
+            self.fabric.iterate(context.physics);
+        }
+
+        // Update the context's fabric with our changes after all iterations
+        context.replace_fabric(self.fabric.clone());
+
+        // Check if we need to execute a boxing step
         if let Some(step) = self.steps.front() {
             if !self.fabric.age.within(&step.age()) {
                 step.execute(&mut self.fabric, &mut self.physics);
                 self.steps.pop_front();
+
+                // Update the context with our changes
+                context.replace_fabric(self.fabric.clone());
+                context.replace_physics(self.physics.clone());
             }
         }
     }

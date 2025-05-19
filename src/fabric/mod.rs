@@ -16,6 +16,7 @@ use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, Transform, Vector3};
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::time::Instant;
 
 pub mod attachment;
 pub mod brick;
@@ -88,6 +89,7 @@ pub struct Fabric {
     pub scale: f32,
     muscle_forward: Option<bool>,
     muscle_nuance: f32,
+    last_direction_change: Option<Instant>,
 }
 
 impl Fabric {
@@ -101,8 +103,9 @@ impl Fabric {
             interval_count: 0,
             faces: HashMap::new(),
             scale: 1.0,
-            muscle_nuance: 0.5,
             muscle_forward: None,
+            muscle_nuance: 0.5,
+            last_direction_change: None,
         }
     }
 
@@ -249,45 +252,139 @@ impl Fabric {
         }
         if let Some(forward) = self.muscle_forward {
             let increment = 1.0 / physics.cycle_ticks * if forward { 1.0 } else { -1.0 };
+            // Update the muscle_nuance value
             self.muscle_nuance += increment;
+
+            // Update muscle_nuance value based on direction
+
             if self.muscle_nuance < 0.0 {
                 self.muscle_nuance = 0.0;
                 self.muscle_forward = Some(true);
+
+                // Track time for direction change
+                self.last_direction_change = Some(Instant::now());
             } else if self.muscle_nuance > 1.0 {
                 self.muscle_nuance = 1.0;
                 self.muscle_forward = Some(false);
+
+                // Track time for direction change
+                self.last_direction_change = Some(Instant::now());
             }
+        } else {
+            // Muscles are disabled - nothing to do
         }
     }
 
     pub fn create_muscles(&mut self, contraction: f32) {
         self.muscle_nuance = 0.5;
-        for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
-            let interval = interval_opt.as_mut().unwrap();
-            let Fixed { length } = interval.span else {
-                continue;
-            };
-            let contracted = length * contraction;
-            if interval.material == North {
-                interval.span = Muscle {
-                    length,
-                    contracted,
-                    reverse: false,
-                };
-            }
-            if interval.material == South {
-                interval.span = Muscle {
-                    length,
-                    contracted,
-                    reverse: true,
-                };
+
+        println!("=== MUSCLE CREATION DEBUG ====");
+        println!("Fabric name: {}", self.name);
+
+        // Count materials for debugging
+        let mut north_count = 0;
+        let mut south_count = 0;
+        let mut other_count = 0;
+
+        // Print all materials for debugging
+        println!("All materials in intervals:");
+        for (idx, interval_opt) in self.intervals.iter().enumerate() {
+            if let Some(interval) = interval_opt {
+                println!(
+                    "  Interval {}: material = {:?}, span = {:?}",
+                    idx, interval.material, interval.span
+                );
+                if interval.material == North {
+                    north_count += 1;
+                } else if interval.material == South {
+                    south_count += 1;
+                } else {
+                    other_count += 1;
+                }
             }
         }
+
+        println!("Material counts in fabric:");
+        println!("  North: {}", north_count);
+        println!("  South: {}", south_count);
+        println!("  Other: {}", other_count);
+
+        let mut muscle_count = 0;
+        let mut conversion_failures = 0;
+
+        for (idx, interval_opt) in self.intervals.iter_mut().enumerate() {
+            if let Some(interval) = interval_opt {
+                if interval.material == North || interval.material == South {
+                    match interval.span {
+                        Fixed { length } => {
+                            let contracted = length * contraction;
+                            println!(
+                                "  Converting interval {} to muscle: length={}, contracted={}",
+                                idx, length, contracted
+                            );
+                            if interval.material == North {
+                                interval.span = Muscle {
+                                    length,
+                                    contracted,
+                                    reverse: false,
+                                };
+                                muscle_count += 1;
+                            } else if interval.material == South {
+                                interval.span = Muscle {
+                                    length,
+                                    contracted,
+                                    reverse: true,
+                                };
+                                muscle_count += 1;
+                            }
+                        }
+                        _ => {
+                            println!(
+                                "  Interval {} has North/South material but not Fixed span: {:?}",
+                                idx, interval.span
+                            );
+                            conversion_failures += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        println!(
+            "Created {} muscles with contraction factor {}",
+            muscle_count, contraction
+        );
+        if conversion_failures > 0 {
+            println!(
+                "WARNING: {} intervals with North/South material could not be converted to muscles",
+                conversion_failures
+            );
+        }
+        println!("=== END MUSCLE CREATION DEBUG ====");
     }
 
     pub fn activate_muscles(&mut self, go: bool) {
-        self.muscle_nuance = 0.5;
-        self.muscle_forward = go.then_some(true);
+        // Check if we're changing the animation state
+        let animation_state_changed = match (self.muscle_forward, go) {
+            (None, true) => true,     // Turning animation on
+            (Some(_), false) => true, // Turning animation off
+            _ => false,               // No change in animation state
+        };
+
+        // Set the new muscle_forward value
+        // When go is true, set to Some(true) to start animation
+        // When go is false, set to None to stop animation
+        self.muscle_forward = if go { Some(true) } else { None };
+
+        // Only reset the muscle_nuance value if the animation state changed
+        if animation_state_changed {
+            self.muscle_nuance = 0.5;
+
+            // Reset the time tracking when animation state changes
+            self.last_direction_change = None;
+        }
+
+        // No additional processing needed
     }
 
     pub fn midpoint(&self) -> Point3<f32> {
