@@ -22,6 +22,9 @@ pub enum Pick {
 const TARGET_HIT: f32 = 0.001;
 // Time-based camera movement constants
 const CAMERA_MOVE_SPEED: f32 = 0.6; // Units per second
+const IDEAL_VIEW_DISTANCE: f32 = 3.0; // Target distance for viewing objects
+const ZOOM_SPEED: f32 = 1.5; // Speed of zoom adjustment
+const ZOOM_DURATION: f32 = 3.0; // Duration in seconds to apply automatic zooming
 
 /// Defines the type of projection used by the camera
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -258,11 +261,12 @@ impl Camera {
     }
 
     pub fn target_approach(&mut self, fabric: &Fabric) -> bool {
-        // No need to import Duration as we're not using it directly
-        
-        // Use thread_local storage to track the last update time
+        // Use thread_local storage to track the last update time, approach state, elapsed time, and last target
         thread_local! {
             static LAST_UPDATE: std::cell::RefCell<Option<instant::Instant>> = std::cell::RefCell::new(None);
+            static APPROACHING: std::cell::RefCell<bool> = std::cell::RefCell::new(true);
+            static APPROACH_ELAPSED: std::cell::RefCell<f32> = std::cell::RefCell::new(0.0);
+            static LAST_TARGET: std::cell::RefCell<Option<Target>> = std::cell::RefCell::new(None);
         }
         
         // Get the current time and calculate elapsed time since last update
@@ -283,16 +287,89 @@ impl Camera {
         // Calculate target position
         let look_at = self.target.look_at(fabric);
         
-        // Calculate distance to target
-        let distance = (look_at - self.look_at).magnitude();
-        let working = distance > TARGET_HIT;
+        // Calculate distance to target position
+        let position_distance = (look_at - self.look_at).magnitude();
         
+        // Check if target has changed and reset state if needed
+        LAST_TARGET.with(|last_target| {
+            let mut last = last_target.borrow_mut();
+            
+            // If the target has changed, reset everything
+            if last.as_ref() != Some(&self.target) {
+                *last = Some(self.target.clone());
+                
+                // Only reset approach state for joint selections
+                if matches!(self.target, Target::AroundJoint(_)) {
+                    APPROACHING.with(|state| {
+                        *state.borrow_mut() = true;
+                    });
+                    
+                    APPROACH_ELAPSED.with(|elapsed| {
+                        *elapsed.borrow_mut() = 0.0;
+                    });
+                } else {
+                    // For intervals or fabric midpoint, don't do automatic zooming
+                    APPROACHING.with(|state| {
+                        *state.borrow_mut() = false;
+                    });
+                }
+            }
+        });
+        
+        // Update approach elapsed time and check if we're still approaching the target
+        let approaching = APPROACHING.with(|state| {
+            let mut approaching = state.borrow_mut();
+            
+            // Only update time if we're still approaching
+            if *approaching {
+                APPROACH_ELAPSED.with(|elapsed| {
+                    let mut elapsed_time = elapsed.borrow_mut();
+                    *elapsed_time += capped_delta_time;
+                    
+                    // If we've been zooming for the fixed duration, release control
+                    if *elapsed_time >= ZOOM_DURATION {
+                        *approaching = false;
+                    }
+                });
+            }
+            
+            *approaching
+        });
+        
+        // Track if we're still working on approaching
+        let mut working = position_distance > TARGET_HIT;
+        
+        // Handle position approach
         if working {
             // Calculate how much to move this frame (time-based)
             let lerp_factor = (CAMERA_MOVE_SPEED * capped_delta_time).min(1.0);
             
-            // Smoothly interpolate towards target
+            // Smoothly interpolate towards target position
             self.look_at = self.look_at + (look_at - self.look_at) * lerp_factor;
+        }
+        
+        // Handle zoom approach if we're still in approaching mode
+        if approaching {
+            // Calculate current view vector and distance
+            let view_vector = self.look_at - self.position;
+            let current_distance = view_vector.magnitude();
+            
+            // Calculate the difference from ideal distance
+            let distance_diff = current_distance - IDEAL_VIEW_DISTANCE;
+            
+            // Only adjust if we're not already at the ideal distance
+            if distance_diff.abs() > 0.1 {
+                // Calculate zoom adjustment for this frame
+                let zoom_amount = distance_diff * ZOOM_SPEED * capped_delta_time;
+                
+                // Apply zoom by moving camera position along view vector
+                if current_distance - zoom_amount > 1.0 { // Prevent getting too close
+                    self.position += view_vector.normalize() * zoom_amount;
+                }
+                
+                // We're still working if we need to adjust zoom
+                working = true;
+            }
         }
         
         // Handle camera orientation limits
@@ -511,7 +588,7 @@ const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
     1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.5, 1.0,
 );
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Target {
     FabricMidpoint,
     AroundJoint(usize),
