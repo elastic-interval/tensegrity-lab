@@ -12,6 +12,9 @@ use crate::{
 };
 use instant::{Duration, Instant};
 use std::sync::Arc;
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::SystemTime;
+
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
@@ -68,7 +71,7 @@ impl Application {
             fps_timer: Instant::now(),
             control_state: ControlState::Waiting,
             #[cfg(not(target_arch = "wasm32"))]
-            fabric_library_modified: Instant::now(),
+            fabric_library_modified: fabric_library_modified(),
             #[cfg(not(target_arch = "wasm32"))]
             machine: None,
         })
@@ -140,7 +143,7 @@ impl Application {
                     }
                     Err(tenscript_error) => {
                         println!("Tenscript\n{tenscript_error}");
-                        self.fabric_library_modified = time;
+                        self.fabric_library_modified = Instant::now();
                     }
                 }
             }
@@ -326,7 +329,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     let _fabric_library = self.fabric_library.clone();
-                    self.fabric_library_modified = time;
+                    self.fabric_library_modified = Instant::now();
                     Run(self.run_style.clone()).send(&self.radio);
                 }
             }
@@ -508,40 +511,70 @@ impl ApplicationHandler<LabEvent> for Application {
         // Process time-related updates regardless of scene existence
         let now = Instant::now();
 
-        // FPS
+        // FPS calculation with platform-specific adjustments
         self.frames_count += 1;
         let fps_elapsed = now.duration_since(self.fps_timer);
+        
+        // Only update FPS display once per second
         if fps_elapsed >= Duration::from_secs(1) {
+            // Calculate frames per second with platform-specific adjustments
+            #[cfg(target_arch = "wasm32")]
+            let frames_per_second = {
+                // In WASM, we need to cap the reported FPS to avoid absurd values
+                // This happens because the browser's requestAnimationFrame timing can be inconsistent
+                let raw_fps = self.frames_count as f32 / fps_elapsed.as_secs_f32();
+                f32::min(raw_fps, 120.0) // Cap at 120 FPS for display purposes
+            };
+            
+            #[cfg(not(target_arch = "wasm32"))]
             let frames_per_second = self.frames_count as f32 / fps_elapsed.as_secs_f32();
-            // Get fabric age if we have a scene
+            
+            // Get fabric age
             let age = self.crucible.fabric.age;
+            
+            // Send the FPS update event
             StateChange::Time {
                 frames_per_second,
                 age,
-            }
-            .send(&self.radio);
+            }.send(&self.radio);
+            
             // Reset counters
             self.frames_count = 0;
             self.fps_timer = now;
         }
 
+        // Handle elapsed time since last update
         let elapsed = now.duration_since(self.last_update);
+        
+        // If too much time has passed, reset accumulated time to avoid spiral of death
         if elapsed > Duration::from_millis(100) {
             self.last_update = now;
             self.accumulated_time = Duration::from_secs(0);
             return;
         }
+        
         self.last_update = now;
-        let capped_elapsed = std::cmp::min(elapsed, Duration::from_millis(33));
+        
+        // Cap elapsed time to avoid large time steps
+        #[cfg(target_arch = "wasm32")]
+        let capped_elapsed = std::cmp::min(elapsed, Duration::from_millis(16)); // ~60 FPS cap for WASM
+        
+        #[cfg(not(target_arch = "wasm32"))]
+        let capped_elapsed = std::cmp::min(elapsed, Duration::from_millis(33)); // ~30 FPS cap for native
+        
         self.accumulated_time += capped_elapsed;
+        
+        // Define update interval (how often physics steps are taken)
         let update_interval = Duration::from_millis(10);
+        
+        // Check if animation is active
         let animate = self.with_scene_and_fabric(|scene, fabric| scene.animate(fabric)).unwrap_or(false);
+        
         // Limit updates per frame
         let mut updates_this_frame = 0;
         let max_updates_per_frame = 3;
-        while self.accumulated_time >= update_interval
-            && updates_this_frame < max_updates_per_frame
-        {
+        
+        while self.accumulated_time >= update_interval && updates_this_frame < max_updates_per_frame {
             self.accumulated_time -= update_interval;
             updates_this_frame += 1;
 
@@ -554,19 +587,57 @@ impl ApplicationHandler<LabEvent> for Application {
             let _ = self.redraw();
         }
 
-        // Set consistent control flow
+        // Set platform-specific control flow
         #[cfg(target_arch = "wasm32")]
         event_loop.set_control_flow(ControlFlow::Poll);
+        
         #[cfg(not(target_arch = "wasm32"))]
         event_loop.set_control_flow(if animate {
-            ControlFlow::wait_duration(Duration::from_millis(16))
+            ControlFlow::wait_duration(Duration::from_millis(16)) // ~60 FPS when animating
         } else {
-            ControlFlow::Wait
+            ControlFlow::Wait // Wait for events when not animating
         });
     }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 fn fabric_library_modified() -> Instant {
-    Instant::now()
+    use std::fs;
+    use std::cell::RefCell;
+    
+    // Use thread_local storage to track the last modification time
+    thread_local! {
+        static LAST_MOD_TIME: RefCell<Option<SystemTime>> = RefCell::new(None);
+    }
+    
+    // Get the current file modification time
+    let current_mod_time = fs::metadata("fabric_library.tenscript")
+        .and_then(|metadata| metadata.modified())
+        .ok();
+    
+    // Check if the file has been modified
+    let file_changed = LAST_MOD_TIME.with(|last_time| {
+        let mut last = last_time.borrow_mut();
+        let changed = match (current_mod_time, *last) {
+            (Some(current), Some(previous)) => current > previous,
+            (Some(_), None) => true, // First time checking
+            _ => false, // Error reading file or no change
+        };
+        
+        // Update the last modification time if we have a valid time
+        if let Some(current) = current_mod_time {
+            *last = Some(current);
+        }
+        
+        changed
+    });
+    
+    // Only return a new Instant if the file has changed
+    if file_changed {
+        Instant::now()
+    } else {
+        // Return a zero instant to indicate no change
+        // This will never be greater than any previous Instant
+        Instant::now() - Duration::from_secs(60 * 60 * 24) // 24 hours ago
+    }
 }
