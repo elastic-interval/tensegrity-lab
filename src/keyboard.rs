@@ -43,7 +43,7 @@ impl Keyboard {
         use LabEvent::*;
         self.key_dynamic_lab_event(
             KeyCode::KeyP,
-            "Print",
+            "Print cord",
             Box::new(|control_state| {
                 if let ShowingInterval(interval_details) = control_state {
                     PrintCord(interval_details.length)
@@ -55,19 +55,19 @@ impl Keyboard {
         );
         self.key_lab_event(
             KeyCode::Escape,
-            "ESC to cancel selection",
+            "Cancel selection",
             Crucible(ToViewing),
             Box::new(|state| matches!(state, ShowingJoint(_) | ShowingInterval(_))),
         );
         self.key_lab_event(
             KeyCode::Space,
-            "Space to stop animation",
+            "Stop animation",
             Crucible(ToViewing),
             Box::new(|state| matches!(state, Animating)),
         );
         self.key_lab_event(
             KeyCode::Space,
-            "Space to start animation",
+            "Start animation",
             Crucible(ToAnimating),
             Box::new(|state| matches!(state, Viewing)),
         );
@@ -78,7 +78,7 @@ impl Keyboard {
                 feature: PhysicsFeature::IterationsPerFrame,
                 value: 100.0,
             },
-            Box::new(|value| format!("Time {value:.0}")),
+            Box::new(|value| format!("Iterations {value:.0}")),
             Box::new(|state| matches!(state, PhysicsTesting(_) | FailureTesting(_))),
         );
         self.float_parameter(
@@ -88,7 +88,7 @@ impl Keyboard {
                 feature: PhysicsFeature::Pretenst,
                 value: AIR_GRAVITY.pretenst,
             },
-            Box::new(|value| format!("Pretenst {value:.5}")),
+            Box::new(|value| format!("Pretenst {value:.3}")),
             Box::new(|state| matches!(state, PhysicsTesting(_) | FailureTesting(_))),
         );
         self.float_parameter(
@@ -108,7 +108,7 @@ impl Keyboard {
                 feature: PhysicsFeature::Stiffness,
                 value: 0.0,
             },
-            Box::new(|value| format!("Stiffness {:.0}", value * 1e4)),
+            Box::new(|value| format!("Stiff {:.0}", value * 1e4)),
             Box::new(|state| matches!(state, PhysicsTesting(_) | FailureTesting(_))),
         );
         self.float_parameter(
@@ -128,7 +128,7 @@ impl Keyboard {
                 feature: PhysicsFeature::StrainLimit,
                 value: 1.0,
             },
-            Box::new(|value| format!("Strain Limit {:.1}", value * 1e2)),
+            Box::new(|value| format!("Strain {:.1}%", value * 1e2)),
             Box::new(|state| matches!(state, PhysicsTesting(_) | FailureTesting(_))),
         );
         self.key_lab_event(
@@ -139,31 +139,31 @@ impl Keyboard {
         );
         self.key_lab_event(
             KeyCode::KeyR,
-            "Reset View",
+            "Default view",
             UpdateState(StateChange::ResetView),
             Box::new(|_| true),
         );
         self.key_lab_event(
             KeyCode::KeyO,
-            "Toggle Projection (Perspective/Orthogonal)",
+            "Projection",
             UpdateState(StateChange::ToggleProjection),
             Box::new(|_| true),
         );
         self.key_lab_event(
             KeyCode::KeyK,
-            "Toggle Attachment Points (Knots)",
+            "Knots",
             UpdateState(StateChange::ToggleAttachmentPoints),
             Box::new(|_| true),
         );
         self.key_lab_event(
             KeyCode::ArrowLeft,
-            "\u{2190} previous test",
+            "Previous test",
             Crucible(TesterDo(TesterAction::PrevExperiment)),
             Box::new(|state| matches!(state, FailureTesting(_))),
         );
         self.key_lab_event(
             KeyCode::ArrowRight,
-            "\u{2192} next test",
+            "Next test",
             Crucible(TesterDo(TesterAction::NextExperiment)),
             Box::new(|state| matches!(state, FailureTesting(_))),
         );
@@ -248,25 +248,46 @@ impl Keyboard {
                 KeyAction::KeyLabEvent {
                     is_active_in,
                     description,
+                    code,
                     ..
                 } => {
                     if is_active_in(control_state) && !description.is_empty() {
-                        legend.push(description.clone());
+                        // Format as "Key: Action" for consistent, brief display
+                        let key_name = Self::format_key_name(code);
+                        legend.push(format!("{}: {}", key_name, description));
                     }
                 }
                 KeyAction::FloatParameter {
                     is_active_in,
                     render,
                     physics_parameter: PhysicsParameter { value, .. },
+                    up_code,
+                    down_code,
                     ..
                 } => {
                     if is_active_in(control_state) {
-                        legend.push(render(value));
+                        // Format as "Key+/Key-: Value" for parameters
+                        legend.push(format!("{}/{}: {}", up_code, down_code, render(value)));
                     }
                 }
             }
         }
         legend
+    }
+    
+    // Helper function to format key names consistently
+    fn format_key_name(code: &KeyCode) -> String {
+        match code {
+            KeyCode::Space => "Space".to_string(),
+            KeyCode::Escape => "Esc".to_string(),
+            KeyCode::ArrowLeft => "←".to_string(),
+            KeyCode::ArrowRight => "→".to_string(),
+            KeyCode::ArrowUp => "↑".to_string(),
+            KeyCode::ArrowDown => "↓".to_string(),
+            _ => format!("{:?}", code)
+                .trim_start_matches("Key")
+                .to_string()
+        }
     }
 
     fn key_lab_event(
