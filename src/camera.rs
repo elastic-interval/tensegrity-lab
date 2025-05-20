@@ -20,7 +20,8 @@ pub enum Pick {
 }
 
 const TARGET_HIT: f32 = 0.001;
-const TARGET_ATTRACTION: f32 = 0.01;
+// Time-based camera movement constants
+const CAMERA_MOVE_SPEED: f32 = 0.6; // Units per second
 
 /// Defines the type of projection used by the camera
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -257,10 +258,44 @@ impl Camera {
     }
 
     pub fn target_approach(&mut self, fabric: &Fabric) -> bool {
+        // No need to import Duration as we're not using it directly
+        
+        // Use thread_local storage to track the last update time
+        thread_local! {
+            static LAST_UPDATE: std::cell::RefCell<Option<instant::Instant>> = std::cell::RefCell::new(None);
+        }
+        
+        // Get the current time and calculate elapsed time since last update
+        let now = instant::Instant::now();
+        let delta_time = LAST_UPDATE.with(|last| {
+            let mut last_update = last.borrow_mut();
+            let dt = match *last_update {
+                Some(time) => now.duration_since(time).as_secs_f32(),
+                None => 0.016, // Default to 16ms (60 FPS) on first call
+            };
+            *last_update = Some(now);
+            dt
+        });
+        
+        // Cap delta time to avoid large jumps if the app was in background
+        let capped_delta_time = f32::min(delta_time, 0.1); // Max 100ms
+        
+        // Calculate target position
         let look_at = self.target.look_at(fabric);
-        let delta = (look_at - self.look_at) * TARGET_ATTRACTION;
-        let working = delta.magnitude() > TARGET_HIT;
-        self.look_at += delta;
+        
+        // Calculate distance to target
+        let distance = (look_at - self.look_at).magnitude();
+        let working = distance > TARGET_HIT;
+        
+        if working {
+            // Calculate how much to move this frame (time-based)
+            let lerp_factor = (CAMERA_MOVE_SPEED * capped_delta_time).min(1.0);
+            
+            // Smoothly interpolate towards target
+            self.look_at = self.look_at + (look_at - self.look_at) * lerp_factor;
+        }
+        
+        // Handle camera orientation limits
         let gaze = (self.look_at - self.position).normalize();
         let up_dot_gaze = Vector3::unit_y().dot(gaze);
         if !(-0.9..=0.9).contains(&up_dot_gaze) {
@@ -270,6 +305,7 @@ impl Camera {
                     .rotate_vector(self.position.to_vec()),
             );
         }
+        
         working
     }
 
