@@ -17,6 +17,7 @@ use std::time::SystemTime;
 
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
+
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
 use winit::window::{WindowAttributes, WindowId};
 
@@ -468,13 +469,15 @@ impl ApplicationHandler<LabEvent> for Application {
                 WindowEvent::Touch(touch_event) => {
                     match touch_event.phase {
                         TouchPhase::Started => {
-                            scene.pointer_changed(PointerChange::Pressed, fabric);
+                            // Use the special TouchPressed variant that includes the position
+                            scene.pointer_changed(PointerChange::TouchPressed(touch_event.location), fabric);
                         },
                         TouchPhase::Moved => {
                             scene.pointer_changed(PointerChange::Moved(touch_event.location), fabric);
                         },
                         TouchPhase::Ended | TouchPhase::Cancelled => {
-                            scene.pointer_changed(PointerChange::Released(PickIntent::Reset), fabric);
+                            // Use the special TouchReleased variant
+                            scene.pointer_changed(PointerChange::TouchReleased(PickIntent::Reset), fabric);
                         }
                     }
                 },
