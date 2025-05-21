@@ -47,6 +47,7 @@ pub struct Camera {
     current_pick: Pick,
     radio: Radio,
     projection_type: ProjectionType,
+
     // Store the last ray origin for use in picking calculations
     last_ray_origin: Point3<f32>,
 }
@@ -224,11 +225,54 @@ impl Camera {
                 }
             }
             PointerChange::Pressed => {
+                // For mouse events, set the follower to the current position
                 self.mouse_follower = self.mouse_now;
                 self.mouse_click = self.mouse_now;
             }
+            PointerChange::TouchPressed(touch_position) => {
+                // For touch events, explicitly set both the current and follower positions
+                self.mouse_now = Some(touch_position);
+                self.mouse_follower = Some(touch_position);
+                self.mouse_click = Some(touch_position);
+            }
             PointerChange::Released(pick_intent) => {
+                // For mouse events, always reset the follower
                 self.mouse_follower = None;
+                
+                // Handle picking for mouse clicks
+                if let (Some(mouse_click), Some(mouse_now)) = (self.mouse_click, self.mouse_now) {
+                    let (dx, dy) = (
+                        (mouse_now.x - mouse_click.x) as f32,
+                        (mouse_now.y - mouse_click.y) as f32,
+                    );
+                    if dx * dx + dy * dy > 32.0 {
+                        // they're dragging
+                        return;
+                    }
+                    self.mouse_click = None;
+                    let PhysicalPosition { x, y } = mouse_now;
+                    let pick = self.pick_ray((x as f32, y as f32), pick_intent, fabric);
+                    match pick {
+                        Pick::Nothing => {
+                            self.set_target(Target::FabricMidpoint);
+                        }
+                        Pick::Joint(details) => {
+                            self.set_target(Target::AroundJoint(details.index));
+                            ControlState::ShowingJoint(details).send(&self.radio);
+                        }
+                        Pick::Interval(details) => {
+                            self.set_target(Target::AroundInterval(details.id));
+                            ControlState::ShowingInterval(details).send(&self.radio);
+                        }
+                    }
+                    self.current_pick = pick;
+                }
+            }
+            PointerChange::TouchReleased(pick_intent) => {
+                // For touch events, we DON'T reset the follower
+                // This preserves continuity between touches
+                
+                // We still need to handle picking for touch events
                 if let (Some(mouse_click), Some(mouse_now)) = (self.mouse_click, self.mouse_now) {
                     let (dx, dy) = (
                         (mouse_now.x - mouse_click.x) as f32,
@@ -492,35 +536,33 @@ impl Camera {
         OPENGL_TO_WGPU_MATRIX * proj_matrix
     }
 
-    fn rotation(&self, (dx, dy): (f32, f32)) -> Option<Matrix4<f32>> {
+    fn rotation(&self, diff: (f32, f32)) -> Option<Matrix4<f32>> {
+        let (dx, dy) = diff;
         if dx == 0.0 && dy == 0.0 {
             return None;
         }
-        let gaze = (self.look_at - self.position).normalize();
-        let right = gaze.cross(Vector3::unit_y()).normalize();
-        let up = right.cross(gaze).normalize();
-
-        // Vertical angle limit (about 37 degrees from vertical, arc cos(0.8) ≈ 37°)
-        let angle_limit = 0.8;
-
-        // Calculate yaw (horizontal rotation)
-        let yaw = Quaternion::from_axis_angle(up, Rad(dx / 100.0));
-
-        // Apply yaw rotation first to get intermediate gaze direction
-        let intermediate_gaze = yaw.rotate_vector(gaze);
-        let intermediate_up_dot = Vector3::unit_y().dot(intermediate_gaze);
-
-        // Only apply pitch if it won't exceed the limits
-        let pitch = if (intermediate_up_dot >= angle_limit && dy > 0.0)
-            || (intermediate_up_dot <= -angle_limit && dy < 0.0)
-        {
-            // At limit - don't apply any pitch
+        
+        // Apply a sensitivity factor to make rotation feel right
+        // Touch events need less sensitivity than mouse events
+        let sensitivity = 0.5; // Reduced sensitivity for better control
+        let dx = dx * sensitivity;
+        let dy = dy * sensitivity;
+        
+        let up = Vector3::unit_y();
+        let gaze = self.look_at - self.position;
+        let right = gaze.cross(up).normalize();
+        let dot = gaze.normalize().dot(up);
+        
+        // Limit vertical camera angle to about 37 degrees from vertical
+        let yaw = Quaternion::from_axis_angle(up, Rad(-dx / 100.0));
+        let pitch = if (dot > 0.0 && dy < 0.0 && dot > 0.8) || (dot < 0.0 && dy > 0.0 && dot < -0.8) {
+            // Disallow pitch when at the vertical limit
             Quaternion::from_axis_angle(right, Rad(0.0))
         } else {
-            // Not at limit - apply requested pitch
-            Quaternion::from_axis_angle(right, Rad(dy / 100.0))
+            // Apply pitch
+            Quaternion::from_axis_angle(right, Rad(-dy / 100.0))
         };
-
+        
         let rotation = yaw * pitch;
         let matrix = Matrix4::from(rotation);
         Some(matrix)

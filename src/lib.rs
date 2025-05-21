@@ -508,9 +508,11 @@ pub enum PickIntent {
 pub enum PointerChange {
     NoChange,
     Moved(PhysicalPosition<f64>),
-    Zoomed(f32),
     Pressed,
     Released(PickIntent),
+    TouchPressed(PhysicalPosition<f64>),
+    TouchReleased(PickIntent),
+    Zoomed(f32),
 }
 
 thread_local! {
