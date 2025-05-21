@@ -23,6 +23,7 @@ pub mod crucible_context;
 pub mod fabric;
 pub mod keyboard;
 pub mod scene;
+pub mod pinch_detector;
 
 pub mod testing;
 pub mod wgpu;
