@@ -77,9 +77,9 @@ impl PinchDetector {
                 // This prevents the black screen issue
                 // Double the zoom rate while maintaining stability
                 let zoom_amount = if scale_factor > 1.0 {
-                    0.16 // Zoom in (fingers moving apart)
+                    0.5 // Zoom in (fingers moving apart)
                 } else {
-                    -0.16 // Zoom out (fingers moving together)
+                    -0.5 // Zoom out (fingers moving together)
                 };
                 
                 return Some(zoom_amount);
