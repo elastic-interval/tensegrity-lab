@@ -8,7 +8,7 @@ use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 use crate::{
     ControlState, CrucibleAction, LabEvent, PickIntent, PointerChange, Radio, RunStyle,
-    StateChange, TestScenario, TesterAction,
+    StateChange, TestScenario, TesterAction, pinch_detector::PinchDetector,
 };
 use instant::{Duration, Instant};
 use std::sync::Arc;
@@ -36,6 +36,7 @@ pub struct Application {
     frames_count: u32,
     fps_timer: Instant,
     control_state: ControlState,
+    pinch_detector: PinchDetector,
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: Instant,
     #[cfg(not(target_arch = "wasm32"))]
@@ -67,6 +68,7 @@ impl Application {
             last_update: Instant::now(),
             accumulated_time: Duration::default(),
             active_touch_count: 0,
+            pinch_detector: PinchDetector::new(),
             frames_count: 0,
             fps_timer: Instant::now(),
             control_state: ControlState::Waiting,
@@ -430,25 +432,33 @@ impl ApplicationHandler<LabEvent> for Application {
             return;
         }
         
-        // Handle touch count updates outside the scene access
+        // Handle touch events and detect pinch gestures
         if let WindowEvent::Touch(touch_event) = &event {
+            // Track touch count for single-touch handling
             match touch_event.phase {
                 TouchPhase::Started => {
                     self.active_touch_count += 1;
-                    if self.active_touch_count != 1 {
-                        return; // Only process first touch
-                    }
-                },
-                TouchPhase::Moved => {
-                    if self.active_touch_count != 1 {
-                        return; // Only process first touch
-                    }
                 },
                 TouchPhase::Ended | TouchPhase::Cancelled => {
                     if self.active_touch_count > 0 {
                         self.active_touch_count -= 1;
                     }
+                },
+                _ => {}
+            }
+            
+            // Detect pinch gestures and convert to zoom events
+            if let Some(zoom_amount) = self.pinch_detector.process_touch(touch_event) {
+                // If we detected a pinch, send a zoom event to the scene
+                if let Some(scene) = &mut self.scene {
+                    scene.pointer_changed(PointerChange::Zoomed(zoom_amount), &mut self.crucible.fabric);
                 }
+                return; // We've handled the pinch, no need to process further
+            }
+            
+            // For non-pinch touches, only process if there's exactly one touch
+            if self.active_touch_count != 1 {
+                return; // Skip multi-touch events that aren't pinches
             }
         }
         
