@@ -4,20 +4,20 @@ use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible::Crucible;
 use crate::fabric::Fabric;
 use crate::keyboard::Keyboard;
+use crate::pointer::PointerHandler;
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 use crate::{
-    ControlState, CrucibleAction, LabEvent, PickIntent, PointerChange, Radio, RunStyle,
-    StateChange, TestScenario, TesterAction, pinch_detector::PinchDetector,
+    ControlState, CrucibleAction, LabEvent, Radio, RunStyle, StateChange, TestScenario,
+    TesterAction,
 };
 use instant::{Duration, Instant};
 use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::SystemTime;
 
+use winit::event::WindowEvent;
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent};
-
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
 use winit::window::{WindowAttributes, WindowId};
 
@@ -33,11 +33,10 @@ pub struct Application {
     radio: Radio,
     last_update: Instant,
     accumulated_time: Duration,
-    active_touch_count: usize,
     frames_count: u32,
     fps_timer: Instant,
     control_state: ControlState,
-    pinch_detector: PinchDetector,
+    pointer_handler: PointerHandler,
     #[cfg(not(target_arch = "wasm32"))]
     fabric_library_modified: Instant,
     #[cfg(not(target_arch = "wasm32"))]
@@ -60,16 +59,15 @@ impl Application {
             run_style: RunStyle::Unknown,
             mobile_device: false,
             window_attributes,
-            scene: None,
+            radio: radio.clone(),
             keyboard: Keyboard::new(radio.clone()).with_actions(),
-            crucible: Crucible::new(radio.clone()),
-            fabric_library,
             brick_library,
-            radio,
+            fabric_library,
+            scene: None,
+            crucible: Crucible::new(radio.clone()),
             last_update: Instant::now(),
             accumulated_time: Duration::default(),
-            active_touch_count: 0,
-            pinch_detector: PinchDetector::new(),
+            pointer_handler: PointerHandler::new(radio.clone()),
             frames_count: 0,
             fps_timer: Instant::now(),
             control_state: ControlState::Waiting,
@@ -401,8 +399,15 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             RequestRedraw => {
                 // Force a redraw to update the visualization immediately
-                // Ignore the result if redraw fails or scene doesn't exist
-                let _ = self.redraw();
+                if let Some(_) = &self.scene {
+                    self.redraw();
+                }
+            },
+            PointerChanged(pointer_change) => {
+                // Forward pointer events to the scene
+                self.with_scene_and_fabric(|scene, _fabric| {
+                    scene.pointer_changed(pointer_change, _fabric);
+                });
             }
         }
     }
@@ -433,87 +438,14 @@ impl ApplicationHandler<LabEvent> for Application {
             return;
         }
         
-        // Handle touch events and detect pinch gestures
-        if let WindowEvent::Touch(touch_event) = &event {
-            // Track touch count for single-touch handling
-            match touch_event.phase {
-                TouchPhase::Started => {
-                    self.active_touch_count += 1;
-                },
-                TouchPhase::Ended | TouchPhase::Cancelled => {
-                    if self.active_touch_count > 0 {
-                        self.active_touch_count -= 1;
-                    }
-                },
-                _ => {}
-            }
-            
-            // Detect pinch gestures and convert to zoom events
-            if let Some(zoom_amount) = self.pinch_detector.process_touch(touch_event) {
-                // If we detected a pinch, send a zoom event to the scene
-                if let Some(scene) = &mut self.scene {
-                    scene.pointer_changed(PointerChange::Zoomed(zoom_amount), &mut self.crucible.fabric);
-                }
-                return; // We've handled the pinch, no need to process further
-            }
-            
-            // For non-pinch touches, only process if there's exactly one touch
-            if self.active_touch_count != 1 {
-                return; // Skip multi-touch events that aren't pinches
-            }
+        // Let the pointer handler process the event first
+        if self.pointer_handler.process_window_event(&event) {
+            return; // Event was handled by the pointer handler
         }
         
-        // Handle events that need scene and fabric access
-        self.with_scene_and_fabric(|scene, fabric| {
+        // Handle other window events that need scene access
+        self.with_scene(|scene| {
             match event {
-                WindowEvent::Touch(touch_event) => {
-                    match touch_event.phase {
-                        TouchPhase::Started => {
-                            // Use the special TouchPressed variant that includes the position
-                            scene.pointer_changed(PointerChange::TouchPressed(touch_event.location), fabric);
-                        },
-                        TouchPhase::Moved => {
-                            scene.pointer_changed(PointerChange::Moved(touch_event.location), fabric);
-                        },
-                        TouchPhase::Ended | TouchPhase::Cancelled => {
-                            // Use the special TouchReleased variant
-                            scene.pointer_changed(PointerChange::TouchReleased(PickIntent::Reset), fabric);
-                        }
-                    }
-                },
-                WindowEvent::CursorMoved { position, .. } => {
-                    scene.pointer_changed(PointerChange::Moved(position), fabric);
-                },
-                WindowEvent::MouseInput { state, button, .. } => {
-                    let pick_allowed = scene.pick_allowed();
-                    
-                    let change = match state {
-                        ElementState::Pressed => PointerChange::Pressed,
-                        ElementState::Released => {
-                            let pick_intent = if pick_allowed {
-                                match button {
-                                    MouseButton::Right => PickIntent::Traverse,
-                                    _ => PickIntent::Select,
-                                }
-                            } else {
-                                PickIntent::Reset
-                            };
-                            PointerChange::Released(pick_intent)
-                        }
-                    };
-                    
-                    scene.pointer_changed(change, fabric);
-                },
-                WindowEvent::MouseWheel { delta, .. } => {
-                    let change = match delta {
-                        MouseScrollDelta::LineDelta(_, y) => PointerChange::Zoomed(y * 0.5),
-                        MouseScrollDelta::PixelDelta(position) => {
-                            PointerChange::Zoomed(position.y as f32 * 0.005)
-                        }
-                    };
-                    
-                    scene.pointer_changed(change, fabric);
-                },
                 WindowEvent::Resized(physical_size) => scene.resize(physical_size),
                 _ => {}
             }

@@ -22,8 +22,8 @@ pub mod crucible;
 pub mod crucible_context;
 pub mod fabric;
 pub mod keyboard;
+pub mod pointer;
 pub mod scene;
-pub mod pinch_detector;
 
 pub mod testing;
 pub mod wgpu;
@@ -486,6 +486,7 @@ pub enum LabEvent {
     PrintCord(f32),
     DumpCSV,
     RequestRedraw,
+    PointerChanged(PointerChange),
 }
 
 pub type Radio = winit::event_loop::EventLoopProxy<LabEvent>;
