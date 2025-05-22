@@ -284,9 +284,10 @@ impl Role {
                 Springy => 0.7,
             },
             color: match self {
-                Pushing => [0.4, 0.4, 0.9, 1.0], // Changed to bluish color similar to pull intervals
-                Pulling => [0.3, 0.3, 0.9, 1.0],
-                Springy => [0.7, 0.3, 0.7, 1.0],
+                // Use gray colors for default appearance (when nothing is selected)
+                Pushing => [0.3, 0.3, 0.3, 1.0], // Gray for push intervals
+                Pulling => [0.2, 0.2, 0.2, 1.0], // Slightly darker gray for pull intervals
+                Springy => [0.4, 0.4, 0.4, 1.0], // Lighter gray for spring intervals
             },
         }
     }

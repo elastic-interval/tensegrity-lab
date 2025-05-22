@@ -372,9 +372,21 @@ pub struct Appearance {
 impl Appearance {
     pub fn apply_mode(&self, mode: AppearanceMode) -> Self {
         match mode {
-            AppearanceMode::Faded => Self {
-                color: [0.1, 0.1, 0.1, 1.0],
-                radius: self.radius,
+            // For Faded mode, we want to preserve the gray colors from the role's appearance
+            // but make them slightly darker to indicate they're not selected
+            AppearanceMode::Faded => {
+                // Get the original color and darken it slightly
+                let original_color = self.color;
+                Self {
+                    // Darken the color by multiplying each component by 0.7
+                    color: [
+                        original_color[0] * 0.7,
+                        original_color[1] * 0.7,
+                        original_color[2] * 0.7,
+                        original_color[3],
+                    ],
+                    radius: self.radius,
+                }
             },
             AppearanceMode::HighlightedPush => Self {
                 color: [0.4, 0.4, 0.9, 1.0], // Bluish color for highlighted elements
