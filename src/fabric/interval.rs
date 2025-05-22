@@ -279,9 +279,9 @@ impl Role {
     pub fn appearance(&self) -> Appearance {
         Appearance {
             radius: match self {
-                Pushing => 1.7,
+                Pushing => 1.2,
                 Pulling => 0.2,
-                Springy => 1.0,
+                Springy => 0.7,
             },
             color: match self {
                 Pushing => [0.4, 0.4, 0.9, 1.0], // Changed to bluish color similar to pull intervals
