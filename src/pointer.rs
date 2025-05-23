@@ -130,7 +130,7 @@ impl PointerHandler {
         let change = match delta {
             MouseScrollDelta::LineDelta(_, y) => PointerChange::Zoomed(y * 0.5),
             MouseScrollDelta::PixelDelta(position) => {
-                PointerChange::Zoomed(position.y as f32 * 0.005)
+                PointerChange::Zoomed(position.y as f32 * 0.05)
             }
         };
         
@@ -162,9 +162,9 @@ impl PointerHandler {
                 
                 // Return a small zoom amount to make it gradual and stable
                 let zoom_amount = if scale_factor > 1.0 {
-                    0.08 // Zoom in (fingers moving apart)
+                    4.5 // Zoom in (fingers moving apart)
                 } else {
-                    -0.08 // Zoom out (fingers moving together)
+                    -4.5 // Zoom out (fingers moving together)
                 };
                 
                 return Some(zoom_amount);
