@@ -497,6 +497,7 @@ pub enum LabEvent {
     UpdatedLibrary(Instant),
     PrintCord(f32),
     DumpCSV,
+    ExportAttachmentPoints,
     RequestRedraw,
     PointerChanged(PointerChange),
 }
