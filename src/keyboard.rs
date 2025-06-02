@@ -156,6 +156,12 @@ impl Keyboard {
             Box::new(|_| true),
         );
         self.key_lab_event(
+            KeyCode::KeyH,
+            "Holes export",
+            ExportAttachmentPoints,
+            Box::new(|state| matches!(state, Viewing)),
+        );
+        self.key_lab_event(
             KeyCode::ArrowLeft,
             "Previous test",
             Crucible(TesterDo(TesterAction::PrevExperiment)),

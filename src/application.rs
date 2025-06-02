@@ -157,11 +157,11 @@ impl Application {
             }
         }
     }
-    
+
     //==================================================
     // Initialization Helpers
     //==================================================
-    
+
     #[cfg(target_arch = "wasm32")]
     fn initialize_wgpu_when_ready(&self, window: Arc<winit::window::Window>, radio: Radio) {
         use std::cell::RefCell;
@@ -334,6 +334,50 @@ impl ApplicationHandler<LabEvent> for Application {
                     Run(self.run_style.clone()).send(&self.radio);
                 }
             }
+            ExportAttachmentPoints => {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    let export_content = self.crucible.fabric.export_attachment_points();
+                    let filename = chrono::Local::now()
+                        .format("attachment-points-%Y-%m-%d-%H-%M.txt")
+                        .to_string();
+                    std::fs::write(&filename, export_content)
+                        .unwrap_or_else(|e| eprintln!("Failed to write {}: {}", filename, e));
+                    println!("Exported attachment points to: {}", filename);
+                }
+            }
+            DumpCSV => {
+                #[cfg(not(target_arch = "wasm32"))]
+                std::fs::write(
+                    chrono::Local::now()
+                        .format("pretenst-%Y-%m-%d-%H-%M.zip")
+                        .to_string(),
+                    self.crucible.fabric.to_zip().unwrap(),
+                )
+                .unwrap();
+            }
+            PrintCord(length) => {
+                println!("Print cord {length:?}");
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    if let Some(machine) = &self.machine {
+                        match machine.make_wire(length) {
+                            Ok(_) => {
+                                println!("Printed!")
+                            }
+                            Err(error) => {
+                                panic!("Machine: {error}");
+                            }
+                        }
+                    }
+                }
+            }
+            RequestRedraw => {
+                // Force a redraw to update the visualization immediately
+                if let Some(_) = &self.scene {
+                    self.redraw();
+                }
+            },
             UpdateState(app_change) => {
                 match &app_change {
                     StateChange::SetControlState(control_state) => {
@@ -371,38 +415,6 @@ impl ApplicationHandler<LabEvent> for Application {
                     self.with_scene(|scene| scene.update_state(app_change.clone()));
                 }
             }
-            DumpCSV => {
-                #[cfg(not(target_arch = "wasm32"))]
-                std::fs::write(
-                    chrono::Local::now()
-                        .format("pretenst-%Y-%m-%d-%H-%M.zip")
-                        .to_string(),
-                    self.crucible.fabric.to_zip().unwrap(),
-                )
-                .unwrap();
-            }
-            PrintCord(length) => {
-                println!("Print cord {length:?}");
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    if let Some(machine) = &self.machine {
-                        match machine.make_wire(length) {
-                            Ok(_) => {
-                                println!("Printed!")
-                            }
-                            Err(error) => {
-                                panic!("Machine: {error}");
-                            }
-                        }
-                    }
-                }
-            }
-            RequestRedraw => {
-                // Force a redraw to update the visualization immediately
-                if let Some(_) = &self.scene {
-                    self.redraw();
-                }
-            },
             PointerChanged(pointer_change) => {
                 // Forward pointer events to the scene
                 self.with_scene_and_fabric(|scene, _fabric| {
