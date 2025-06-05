@@ -79,12 +79,15 @@ impl Fabric {
         Ok(buffer)
     }
 
-    /// Export attachment points in a format suitable for construction
-    pub fn export_attachment_points(&self) -> String {
+    /// Export pull intervals (tension members) with their connection points
+    pub fn export_pulls(&self) -> String {
         let mut output = String::new();
 
+        // Add CSV header
+        output.push_str("Length,Connection\n");
+
         // Get all pull intervals (tension members)
-        let pull_intervals: Vec<_> = self.interval_values()
+        let pull_intervals_with_ids: Vec<_> = self.interval_values()
             .enumerate()
             .filter_map(|(idx, interval)| {
                 if !interval.is_push_interval() {
@@ -95,50 +98,85 @@ impl Fabric {
             })
             .collect();
 
-        // Process each pull interval as a single line
-        for (pull_id, pull_interval) in &pull_intervals {
-            let length_mm = pull_interval.ideal() * self.scale;
-            
-            // Find connections by searching through all push intervals
-            let mut connections = Vec::new();
-            
-            for (_push_idx, push_interval) in self.interval_values().enumerate() {
-                if !push_interval.is_push_interval() {
-                    continue;
-                }
-                
-                if let Some(push_connections) = &push_interval.connections {
-                    // Check alpha end connections
-                    for (hole_idx, conn_opt) in push_connections.alpha.iter().enumerate() {
-                        if let Some(conn) = conn_opt {
-                            if conn.pull_interval_id.0 == pull_id.0 {
-                                connections.push((push_interval.alpha_index, hole_idx));
+        for (pull_id, pull_interval) in &pull_intervals_with_ids {
+            let length = pull_interval.ideal() * self.scale;
+
+            let joint1_idx = pull_interval.alpha_index;
+            let joint2_idx = pull_interval.omega_index;
+
+            let mut hole1_idx_opt: Option<usize> = None;
+            let mut hole2_idx_opt: Option<usize> = None;
+
+            // Find hole for End 1 (connected to joint1_idx)
+            for push_candidate in self.interval_values() {
+                if !push_candidate.is_push_interval() { continue; }
+                if let Some(conns) = &push_candidate.connections {
+                    if push_candidate.alpha_index == joint1_idx {
+                        for (h_idx, conn_opt) in conns.alpha.iter().enumerate() {
+                            if let Some(conn) = conn_opt {
+                                if conn.pull_interval_id == *pull_id {
+                                    hole1_idx_opt = Some(h_idx);
+                                    break;
+                                }
                             }
                         }
                     }
-                    
-                    // Check omega end connections
-                    for (hole_idx, conn_opt) in push_connections.omega.iter().enumerate() {
-                        if let Some(conn) = conn_opt {
-                            if conn.pull_interval_id.0 == pull_id.0 {
-                                connections.push((push_interval.omega_index, hole_idx));
+                    if hole1_idx_opt.is_some() { break; }
+                    if push_candidate.omega_index == joint1_idx {
+                         for (h_idx, conn_opt) in conns.omega.iter().enumerate() {
+                            if let Some(conn) = conn_opt {
+                                if conn.pull_interval_id == *pull_id {
+                                    hole1_idx_opt = Some(h_idx);
+                                    break;
+                                }
                             }
                         }
                     }
+                    if hole1_idx_opt.is_some() { break; }
                 }
             }
-            
-            // Format as single line with exactly 2 connections
-            if connections.len() >= 2 {
-                let conn1 = connections[0];
-                let conn2 = connections[1];
-                output.push_str(&format!("C{} {:.1}mm J{}-H{} J{}-H{}\n", 
-                    pull_id.0, length_mm, conn1.0, conn1.1, conn2.0, conn2.1));
-            } else {
-                // Fallback: use joint indices without hole numbers
-                output.push_str(&format!("C{} {:.1}mm J{} J{}\n", 
-                    pull_id.0, length_mm, pull_interval.alpha_index, pull_interval.omega_index));
+
+            // Find hole for End 2 (connected to joint2_idx)
+            for push_candidate in self.interval_values() {
+                if !push_candidate.is_push_interval() { continue; }
+                 if let Some(conns) = &push_candidate.connections {
+                    if push_candidate.alpha_index == joint2_idx {
+                        for (h_idx, conn_opt) in conns.alpha.iter().enumerate() {
+                            if let Some(conn) = conn_opt {
+                                if conn.pull_interval_id == *pull_id {
+                                    hole2_idx_opt = Some(h_idx);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if hole2_idx_opt.is_some() { break; }
+                    if push_candidate.omega_index == joint2_idx {
+                         for (h_idx, conn_opt) in conns.omega.iter().enumerate() {
+                            if let Some(conn) = conn_opt {
+                                if conn.pull_interval_id == *pull_id {
+                                    hole2_idx_opt = Some(h_idx);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if hole2_idx_opt.is_some() { break; }
+                }
             }
+
+            let hole1_str = hole1_idx_opt.map_or_else(|| "N/A".to_string(), |h| h.to_string());
+            let hole2_str = hole2_idx_opt.map_or_else(|| "N/A".to_string(), |h| h.to_string());
+
+            // Format as "J10/H2 - J25/H0"
+            let connection_str = format!("J{:?}/H{} - J{:?}/H{}", 
+                joint1_idx, hole1_str, joint2_idx, hole2_str);
+
+            output.push_str(&format!(
+                "{:.2},{}\n",
+                length,
+                connection_str
+            ));
         }
 
         output
