@@ -7,7 +7,7 @@ use zip::{write::FileOptions, CompressionMethod, ZipWriter};
 use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 use crate::fabric::material::Material;
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, UniqueId};
 
 impl Fabric {
     /// Generate a ZIP file containing three CSV files with fabric data
@@ -87,11 +87,16 @@ impl Fabric {
         output.push_str("Length,Connection\n");
 
         // Get all pull intervals (tension members)
-        let pull_intervals_with_ids: Vec<_> = self.interval_values()
+        let pull_intervals_with_ids: Vec<_> = self.intervals
+            .iter()
             .enumerate()
-            .filter_map(|(idx, interval)| {
-                if !interval.is_push_interval() {
-                    Some((crate::fabric::UniqueId(idx), interval))
+            .filter_map(|(idx, interval_opt)| {
+                if let Some(interval) = interval_opt {
+                    if !interval.is_push_interval() {
+                        Some((UniqueId(idx), interval))
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
@@ -165,8 +170,8 @@ impl Fabric {
                 }
             }
 
-            let hole1_str = hole1_idx_opt.map_or_else(|| "N/A".to_string(), |h| h.to_string());
-            let hole2_str = hole2_idx_opt.map_or_else(|| "N/A".to_string(), |h| h.to_string());
+            let hole1_str = hole1_idx_opt.map_or_else(|| "?".to_string(), |h| h.to_string());
+            let hole2_str = hole2_idx_opt.map_or_else(|| "?".to_string(), |h| h.to_string());
 
             // Format as "J10/H2 - J25/H0"
             let connection_str = format!("J{:?}/H{} - J{:?}/H{}", 
