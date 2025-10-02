@@ -102,7 +102,6 @@ impl Joint {
             let degree_submerged: f32 = if -altitude < 1.0 { -altitude } else { 0.0 };
             let antigravity = physics.surface_character.antigravity() * degree_submerged;
             self.velocity += self.force / mass;
-            println!("Joint {:.6} {:?}", self.location.y, surface_character);
             match surface_character {
                 Absent => {}
                 Frozen => {
