@@ -66,7 +66,7 @@ impl FabricLibrary {
         Self::from_pair(pair)
     }
 
-    fn parse_fabric_library_pair(source: &str) -> Result<Pair<Rule>, TenscriptError> {
+    fn parse_fabric_library_pair(source: &str) -> Result<Pair<'_, Rule>, TenscriptError> {
         let pair = TenscriptParser::parse(Rule::fabric_library, source)
             .map_err(TenscriptError::PestError)?
             .next()
