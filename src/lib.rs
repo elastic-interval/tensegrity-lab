@@ -1,33 +1,4 @@
-use crate::build::tenscript::brick::Prototype;
-use crate::build::tenscript::FabricPlan;
-use crate::fabric::interval::{Interval, Role};
-use crate::fabric::{FabricStats, UniqueId};
-use crate::wgpu::Wgpu;
-use cgmath::Point3;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use std::fmt::{Display, Formatter, Result as FmtResult};
-use std::ops::Mul;
-use std::rc::Rc;
-use instant::Instant;
-use winit::dpi::PhysicalPosition;
-
-pub mod application;
-pub mod build;
-pub mod camera;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod cord_machine;
-pub mod crucible;
-pub mod crucible_context;
-pub mod fabric;
-pub mod keyboard;
-pub mod pointer;
-pub mod scene;
-
-pub mod testing;
-pub mod wgpu;
-
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub struct Age(f64);
 
@@ -67,6 +38,36 @@ impl Age {
         Self(seconds as f64 * 1_000_000.0)
     }
 }
+
+use crate::build::tenscript::brick::Prototype;
+use crate::build::tenscript::FabricPlan;
+use crate::fabric::interval::{Interval, Role};
+use crate::fabric::{FabricStats, UniqueId};
+use crate::wgpu::Wgpu;
+use cgmath::Point3;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::ops::Mul;
+use std::rc::Rc;
+use instant::Instant;
+use winit::dpi::PhysicalPosition;
+
+pub mod application;
+pub mod build;
+pub mod camera;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod cord_machine;
+pub mod crucible;
+pub mod crucible_context;
+pub mod fabric;
+pub mod keyboard;
+pub mod pointer;
+pub mod scene;
+
+pub mod testing;
+pub mod wgpu;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PhysicsFeature {
@@ -354,7 +355,7 @@ impl CrucibleAction {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum AppearanceMode {
     Faded,
     HighlightedPush,
@@ -497,7 +498,6 @@ pub enum LabEvent {
     UpdatedLibrary(Instant),
     PrintCord(f32),
     DumpCSV,
-    ExportAttachmentPoints,
     RequestRedraw,
     PointerChanged(PointerChange),
 }
