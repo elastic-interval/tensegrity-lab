@@ -187,8 +187,8 @@
 	(fabric (name "Cigar")
 		(build
 			(branch (alias Single)
-			(face (alias :next-base) (grow 2 (scale 0.8)))
-			(face (alias :base) (grow 2 (scale 0.8)))))
+			(face (alias :next-base) (grow 1 (scale 0.85)))
+			(face (alias :base) (grow 1 (scale 0.85)))))
 		(shape
 			(centralize 1.0)
 			(during 40000 (vulcanize))
