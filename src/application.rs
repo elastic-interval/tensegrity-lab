@@ -334,18 +334,6 @@ impl ApplicationHandler<LabEvent> for Application {
                     Run(self.run_style.clone()).send(&self.radio);
                 }
             }
-            ExportAttachmentPoints => {
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    let export_content = self.crucible.fabric.export_pulls();
-                    let filename = chrono::Local::now()
-                        .format("pulls-%Y-%m-%d-%H-%M.csv")
-                        .to_string();
-                    std::fs::write(&filename, export_content)
-                        .unwrap_or_else(|e| eprintln!("Failed to write {}: {}", filename, e));
-                    println!("Exported pulls to: {}", filename);
-                }
-            }
             DumpCSV => {
                 #[cfg(not(target_arch = "wasm32"))]
                 std::fs::write(
@@ -568,7 +556,7 @@ fn fabric_library_modified() -> Instant {
     }
     
     // Get the current file modification time
-    let current_mod_time = fs::metadata("fabric_library.tenscript")
+    let current_mod_time = fs::metadata("fabric_library.tenscript".to_string())
         .and_then(|metadata| metadata.modified())
         .ok();
     
