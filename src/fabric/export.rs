@@ -1,5 +1,4 @@
 use cgmath::Point3;
-use itertools::Itertools;
 use std::io;
 use std::io::{Cursor, Write};
 use zip::{write::FileOptions, CompressionMethod, ZipWriter};
@@ -35,15 +34,13 @@ impl Fabric {
         writeln!(zip, "Index;X;Y;Z")?;
         for (index, Joint { location, .. }) in self.joints.iter().enumerate() {
             let Point3 { x, y, z } = location * self.scale;
-            writeln!(zip, "{};{x:.2};{y:.2};{z:.2}", index + 1)?;
+            writeln!(zip, "{};{x:.2};{z:.2};{y:.2}", index + 1)?;
         }
 
         // Create intervals CSV
         zip.start_file("intervals.csv".to_string(), options)?;
-        writeln!(zip, "Joints;Role;Length;Strain")?;
+        writeln!(zip, "Alpha;Omega;Role")?;
         for interval in self.interval_values() {
-            let length = interval.length(&self.joints) * self.scale;
-            let strain = interval.strain;
             let role = interval.material.properties().role;
             let Interval {
                 alpha_index,
@@ -54,25 +51,8 @@ impl Fabric {
             if matches!(material, Material::North | Material::South) {
                 continue;
             }
-            writeln!(
-                zip,
-                "=\"{},{}\";{role:?};{length:.2};{strain:.10}",
-                alpha_index + 1,
-                omega_index + 1
-            )?;
+            writeln!(zip, "{},{};{}", alpha_index + 1, omega_index + 1, role as u8)?;
         }
-
-        // Create submerged CSV
-        zip.start_file("submerged.csv".to_string(), options)?;
-        let submerged = self
-            .joints
-            .iter()
-            .enumerate()
-            .filter(|(_, joint)| joint.location.y <= 0.0)
-            .map(|(index, _)| (index + 1).to_string())
-            .join(",");
-        writeln!(zip, "Submerged")?;
-        writeln!(zip, "=\"{}\"", submerged)?;
 
         // Finalize the ZIP file
         let buffer = zip.finish()?.into_inner();

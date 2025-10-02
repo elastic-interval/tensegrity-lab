@@ -14,6 +14,7 @@ use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Interval;
 use crate::fabric::material::Material;
 use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::joint::ALTITUDE_BELOW_SURFACE;
 
 const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 25_000;
 const DEFAULT_VULCANIZE_COUNTDOWN: usize = 5_000;
@@ -543,7 +544,7 @@ impl ShapePhase {
                 surface,
             } => {
                 let (x, z) = surface;
-                let base = fabric.create_fixed_joint(Point3::new(x, 0.0, z));
+                let base = fabric.create_joint(Point3::new(x, ALTITUDE_BELOW_SURFACE, z));
                 let interval_id = fabric.create_interval(joint_index, base, 0.01, Material::Pull);
                 self.shape_intervals
                     .push(ShapeInterval::SurfaceAnchor(interval_id));
@@ -556,7 +557,7 @@ impl ShapePhase {
                 material,
             } => {
                 let (x, z) = surface;
-                let base = fabric.create_fixed_joint(Point3::new(x, 0.0, z));
+                let base = fabric.create_joint(Point3::new(x, ALTITUDE_BELOW_SURFACE, z));
                 let material = material.unwrap_or(Material::GuyLine);
                 fabric.create_interval(joint_index, base, length, material);
                 StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
@@ -611,8 +612,8 @@ impl ShapePhase {
                         omega_index,
                         ..
                     } = fabric.interval(interval_id);
-                    fabric.joints[alpha_index].fixed = true;
                     fabric.joints[alpha_index].location = fabric.location(omega_index);
+                    fabric.joints[alpha_index].location.y = ALTITUDE_BELOW_SURFACE;
                     fabric.remove_interval(interval_id);
                     fabric.remove_joint(omega_index);
                     false // discard

@@ -165,7 +165,7 @@
 			(centralize 1.0)
 			(during 40000 (vulcanize))
 			(faces-to-triangles))
-		(pretense (surface :bouncy))
+		(pretense (surface :frozen))
 		(scale 430.0))
 	(fabric (name "Symmetrical")
 		(build

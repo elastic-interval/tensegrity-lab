@@ -16,15 +16,6 @@ impl Fabric {
         self.joints.push(Joint::new(point));
         index
     }
-
-    pub fn create_fixed_joint(&mut self, point: Point3<f32>) -> usize {
-        let index = self.joints.len();
-        let mut joint = Joint::new(point);
-        joint.fixed = true;
-        self.joints.push(joint);
-        index
-    }
-
     pub fn location(&self, index: usize) -> Point3<f32> {
         self.joints[index].location
     }
@@ -65,7 +56,7 @@ impl Fabric {
     }
 }
 
-const RESURFACE: f32 = 0.01;
+pub const ALTITUDE_BELOW_SURFACE: f32 = -f32::MIN_POSITIVE;
 const AMBIENT_MASS: f32 = 0.01;
 const STICKY_DOWN_DRAG_FACTOR: f32 = 0.8;
 
@@ -75,7 +66,6 @@ pub struct Joint {
     pub force: Vector3<f32>,
     pub velocity: Vector3<f32>,
     pub accumulated_mass: f32,
-    pub fixed: bool,
 }
 
 impl Joint {
@@ -85,7 +75,6 @@ impl Joint {
             force: zero(),
             velocity: zero(),
             accumulated_mass: AMBIENT_MASS,
-            fixed: false,
         }
     }
 
@@ -95,9 +84,6 @@ impl Joint {
     }
 
     pub fn iterate(&mut self, physics: &Physics, _elapsed_microseconds: f32) {
-        if self.fixed {
-            return;
-        }
         let Physics {
             surface_character,
             mass,
@@ -116,11 +102,12 @@ impl Joint {
             let degree_submerged: f32 = if -altitude < 1.0 { -altitude } else { 0.0 };
             let antigravity = physics.surface_character.antigravity() * degree_submerged;
             self.velocity += self.force / mass;
+            println!("Joint {:.6} {:?}", self.location.y, surface_character);
             match surface_character {
                 Absent => {}
                 Frozen => {
                     self.velocity = zero();
-                    self.location.y = -RESURFACE;
+                    self.location.y = ALTITUDE_BELOW_SURFACE;
                 }
                 Sticky => {
                     if self.velocity.y < 0.0 {
