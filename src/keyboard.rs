@@ -156,12 +156,6 @@ impl Keyboard {
             Box::new(|_| true),
         );
         self.key_lab_event(
-            KeyCode::KeyH,
-            "Holes export",
-            ExportAttachmentPoints,
-            Box::new(|state| matches!(state, Viewing)),
-        );
-        self.key_lab_event(
             KeyCode::ArrowLeft,
             "Previous test",
             Crucible(TesterDo(TesterAction::PrevExperiment)),
@@ -175,7 +169,7 @@ impl Keyboard {
         );
         self.key_lab_event(
             KeyCode::KeyX,
-            "", // hidden
+            "eXport", // hidden
             DumpCSV,
             Box::new(|state| matches!(state, Viewing)),
         );
