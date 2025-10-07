@@ -1,5 +1,5 @@
 use crate::wgpu::text_state::TextState;
-use crate::wgpu::Wgpu;
+use crate::wgpu::{default_depth_stencil_state, Wgpu};
 use crate::StateChange;
 use wgpu::RenderPass;
 use wgpu_text::glyph_brush::ab_glyph::FontRef;
@@ -17,7 +17,7 @@ impl TextRenderer {
         let brush =
             BrushBuilder::using_font_bytes(include_bytes!("../../assets/WorkSans-Regular.ttf"))
                 .unwrap()
-                .with_depth_stencil(Some(wgpu.create_depth_stencil()))
+                .with_depth_stencil(Some(default_depth_stencil_state()))
                 .build(
                     &wgpu.device,
                     width,

@@ -2,7 +2,7 @@ use crate::camera::Pick;
 use crate::fabric::interval::Role;
 use crate::fabric::material::Material;
 use crate::fabric::{Fabric, IntervalEnd, UniqueId};
-use crate::wgpu::Wgpu;
+use crate::wgpu::{Wgpu, DEFAULT_PRIMITIVE_STATE};
 use crate::{Appearance, AppearanceMode, IntervalDetails, JointDetails, RenderStyle};
 use bytemuck::{Pod, Zeroable};
 use std::mem::size_of;
@@ -115,16 +115,8 @@ impl CylinderRenderer {
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
                 }),
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleList,
-                    strip_index_format: None,
-                    front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: Some(wgpu::Face::Back),
-                    polygon_mode: wgpu::PolygonMode::Fill,
-                    unclipped_depth: false,
-                    conservative: false,
-                },
-                depth_stencil: Some(wgpu.create_depth_stencil()),
+                primitive: DEFAULT_PRIMITIVE_STATE,
+                depth_stencil: Some(crate::wgpu::default_depth_stencil_state()),
                 multisample: wgpu::MultisampleState {
                     count: 1,
                     mask: !0,
