@@ -5,10 +5,9 @@
 
 use crate::fabric::{IntervalEnd, UniqueId};
 use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
-use std::f32::consts::PI;
 
 /// Number of attachment points at each end of a push interval
-pub const ATTACHMENT_POINTS: usize = 10;
+pub const ATTACHMENT_POINTS: usize = 6;
 
 /// Represents an attachment point on a push interval
 #[derive(Clone, Copy, Debug)]
@@ -16,7 +15,7 @@ pub struct AttachmentPoint {
     /// The position of the attachment point in 3D space
     pub position: Point3<f32>,
 
-    /// The index of this attachment point (0-9)
+    /// The index of this attachment point (0-5)
     pub index: usize,
 }
 
@@ -215,47 +214,24 @@ impl PullConnections {
     }
 
     /// Finds the best available attachment point
-    /// Now considers the pull interval's position (midpoint) when calculating distances
+    /// Prioritizes lower indices (first positions) to ensure connections fill from the beginning
     fn find_best_attachment_point(
         attachment_points: &[AttachmentPoint],
-        joint_positions: &[Point3<f32>],
-        pull_intervals: &[(UniqueId, usize, usize)], // (pull_id, alpha_index, omega_index)
-        pull_id: UniqueId,
+        _joint_positions: &[Point3<f32>],
+        _pull_intervals: &[(UniqueId, usize, usize)], // (pull_id, alpha_index, omega_index)
+        _pull_id: UniqueId,
         target_array: &[Option<PullConnection>; ATTACHMENT_POINTS],
     ) -> Option<usize> {
-        // Find the pull interval's endpoints
-        let pull_interval = pull_intervals.iter().find(|(id, _, _)| *id == pull_id)?;
-        let (_, alpha_index, omega_index) = *pull_interval;
-
-        // Calculate the pull interval's midpoint
-        let alpha_position = joint_positions[alpha_index];
-        let omega_position = joint_positions[omega_index];
-        let pull_midpoint = Point3::new(
-            (alpha_position.x + omega_position.x) / 2.0,
-            (alpha_position.y + omega_position.y) / 2.0,
-            (alpha_position.z + omega_position.z) / 2.0,
-        );
-
-        // Calculate distances to all attachment points
-        let mut distances = Vec::new();
-        for (i, point) in attachment_points.iter().enumerate() {
+        // Find the first available (unoccupied) attachment point
+        // This ensures connections are assigned starting from index 0
+        for i in 0..attachment_points.len() {
             if target_array[i].is_none() {
-                // Only consider unoccupied points
-                // Use the pull interval's midpoint instead of just the joint position
-                let distance = pull_midpoint.distance2(point.position);
-                distances.push((i, distance));
+                return Some(i);
             }
         }
-
-        // Sort by distance (closest first)
-        distances.sort_by(|(_, dist1), (_, dist2)| {
-            dist1
-                .partial_cmp(dist2)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-
-        // Return the closest available attachment point
-        distances.first().map(|(idx, _)| *idx)
+        
+        // No available attachment points
+        None
     }
 
     /// Helper function to calculate the minimum distance between a joint and any attachment point
@@ -368,64 +344,38 @@ pub fn find_nearest_attachment_point(
 ///
 /// # Parameters
 /// * `end_position` - The position of the end of the push interval
-/// * `direction` - The direction vector of the push interval
-/// * `radius` - The radius of the push interval
-/// * `up_vector` - The up vector for orientation reference
-/// * `clockwise` - Whether to generate points in clockwise order when viewed from outside
+/// * `direction` - The direction vector of the push interval (points outward from interval)
+/// * `radius` - The radius of the push interval (used as base spacing)
 pub fn generate_attachment_points(
     end_position: Point3<f32>,
     direction: Vector3<f32>,
     radius: f32,
-    up_vector: Vector3<f32>,
-    clockwise: bool,
 ) -> [AttachmentPoint; ATTACHMENT_POINTS] {
-    // Normalize the direction vector
+    // Normalize the direction vector to get the axis
     let axis = direction.normalize();
 
-    // Create a perpendicular vector to serve as the reference for attachment point 0
-    // We use the up vector as a reference to ensure consistent orientation
-    let reference = if up_vector.magnitude2() < 0.001 {
-        // If up vector is too small, use a default
-        let default_up = Vector3::new(0.0, 1.0, 0.0);
-        if axis.dot(default_up).abs() > 0.9 {
-            // If axis is nearly parallel to default up, use a different reference
-            Vector3::new(1.0, 0.0, 0.0)
-        } else {
-            default_up
-        }
-    } else {
-        up_vector.normalize()
-    };
+    // Calculate spacing between attachment points
+    // Spacing equals the diameter of the rendered spheres so they are tangent (touching)
+    // Sphere radius in renderer is Role::Pulling.appearance().radius * 0.12
+    // Adjusted slightly larger to prevent overlap
+    let sphere_diameter = radius * 0.026; // Diameter of each sphere
+    let sphere_radius = sphere_diameter * 0.5; // Radius of each sphere
 
-    // Create a vector perpendicular to both the axis and the reference
-    // This will be the starting point for our circle of attachment points
-    let perpendicular = axis.cross(reference).normalize();
-
-    // Create the second perpendicular vector to complete the basis
-    let perpendicular2 = axis.cross(perpendicular).normalize();
-
-    // Calculate positions for all attachment points
+    // Create array to hold all attachment points
     let mut points = [AttachmentPoint {
         position: end_position,
         index: 0,
     }; ATTACHMENT_POINTS];
 
-    // The attachment points should appear at the same radius as the push interval
-    // Based on testing, we need to use a small multiplier to match the visual radius
-    let bar_radius = radius * 0.04; // Reduced to match the push interval's visual radius
-
+    // Generate attachment points extending outwards along the axis
     for i in 0..ATTACHMENT_POINTS {
-        // Calculate angle for this attachment point
-        // The direction of rotation depends on the clockwise parameter
-        let angle = if clockwise {
-            2.0 * PI * (i as f32) / (ATTACHMENT_POINTS as f32)
-        } else {
-            2.0 * PI * ((ATTACHMENT_POINTS - i) as f32) / (ATTACHMENT_POINTS as f32)
-        };
-
-        // Calculate offset from center to place points exactly at the edge of the bar
-        let offset =
-            perpendicular * angle.cos() * bar_radius + perpendicular2 * angle.sin() * bar_radius;
+        // Calculate distance from the end position
+        // First sphere starts at sphere_radius so it's tangent with the cylinder cap
+        // Subsequent spheres are spaced by sphere_diameter to be tangent with each other
+        let distance = sphere_radius + sphere_diameter * (i as f32);
+        
+        // Calculate offset vector
+        let offset = axis * distance;
 
         // Set the position and index
         points[i] = AttachmentPoint {
@@ -453,14 +403,11 @@ pub fn calculate_interval_attachment_points(
     // Calculate direction vector from start to end
     let direction = Vector3::new(end.x - start.x, end.y - start.y, end.z - start.z);
 
-    // Use world up vector as reference for consistent orientation
-    let up_vector = Vector3::new(0.0, 1.0, 0.0);
-
-    // Generate attachment points at both ends with appropriate orientation
-    // Alpha end: clockwise when viewed from outside (true)
-    // Omega end: also clockwise when viewed from outside (false) - we need to reverse the direction
+    // Generate attachment points at both ends
+    // Alpha end: points extend outward from start (opposite to interval direction)
+    // Omega end: points extend outward from end (in interval direction)
     (
-        generate_attachment_points(start, direction, radius, up_vector, true),
-        generate_attachment_points(end, direction, radius, up_vector, false),
+        generate_attachment_points(start, -direction, radius),
+        generate_attachment_points(end, direction, radius),
     )
 }
