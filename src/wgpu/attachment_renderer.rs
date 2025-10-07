@@ -16,7 +16,6 @@ use std::mem::size_of;
 use wgpu::util::DeviceExt;
 use wgpu::PipelineCompilationOptions;
 
-const BLUISH: [f32; 4] = [0.4, 0.4, 1.0, 1.0];
 const ORANGE: [f32; 4] = [1.0, 0.1, 0.0, 1.0];
 const GRAY: [f32; 4] = [0.3, 0.3, 0.3, 0.2];
 
@@ -184,6 +183,7 @@ impl AttachmentRenderer {
             selected_joint,
             original_push_interval, // Pass the original push interval ID
             point_radius,
+            pick,
         );
 
         // Handle the case of a selected pull interval
@@ -201,6 +201,7 @@ impl AttachmentRenderer {
         selected_joint: Option<usize>,
         original_push_interval: Option<usize>,
         point_radius: f32,
+        pick: &Pick,
     ) {
         for (idx, interval_opt) in fabric.intervals.iter().enumerate() {
             if let Some(interval) = interval_opt {
@@ -238,6 +239,9 @@ impl AttachmentRenderer {
                                 &alpha_occupied,
                                 point_radius,
                                 true,
+                                interval,
+                                IntervalEnd::Alpha,
+                                pick,
                             );
 
                             self.add_attachment_point_instances(
@@ -246,16 +250,45 @@ impl AttachmentRenderer {
                                 &omega_occupied,
                                 point_radius,
                                 true,
+                                interval,
+                                IntervalEnd::Omega,
+                                pick,
                             );
                         } else {
-                            // For non-selected intervals, just show faded attachment points
-                            for point in alpha_points.iter().chain(omega_points.iter()) {
-                                instances.push(self.create_attachment_point_instance(
-                                    point,
-                                    point_radius,
-                                    GRAY,
-                                ));
-                            }
+                            // For non-selected intervals, only show occupied attachment points
+                            let alpha_occupied = self.get_occupied_indices(
+                                interval,
+                                IntervalEnd::Alpha,
+                                alpha_points.len(),
+                            );
+                            let omega_occupied = self.get_occupied_indices(
+                                interval,
+                                IntervalEnd::Omega,
+                                omega_points.len(),
+                            );
+
+                            // Add only occupied attachment points
+                            self.add_attachment_point_instances(
+                                instances,
+                                &alpha_points,
+                                &alpha_occupied,
+                                point_radius,
+                                false,
+                                interval,
+                                IntervalEnd::Alpha,
+                                pick,
+                            );
+
+                            self.add_attachment_point_instances(
+                                instances,
+                                &omega_points,
+                                &omega_occupied,
+                                point_radius,
+                                false,
+                                interval,
+                                IntervalEnd::Omega,
+                                pick,
+                            );
                         }
                     }
                 }
@@ -307,6 +340,9 @@ impl AttachmentRenderer {
                                     &alpha_occupied,
                                     point_radius,
                                     true,
+                                    orig_interval,
+                                    IntervalEnd::Alpha,
+                                    pick,
                                 );
 
                                 self.add_attachment_point_instances(
@@ -315,6 +351,9 @@ impl AttachmentRenderer {
                                     &omega_occupied,
                                     point_radius,
                                     true,
+                                    orig_interval,
+                                    IntervalEnd::Omega,
+                                    pick,
                                 );
                             }
                         }
@@ -395,17 +434,48 @@ impl AttachmentRenderer {
         points: &[AttachmentPoint],
         occupied: &[bool],
         point_radius: f32,
-        is_selected: bool,
+        _is_selected: bool,
+        interval: &Interval,
+        end: IntervalEnd,
+        pick: &Pick,
     ) {
         for (i, point) in points.iter().enumerate() {
             let is_occupied = i < occupied.len() && occupied[i];
-            let color = if is_occupied {
-                ORANGE
-            } else if is_selected {
-                BLUISH
+            
+            // Only render occupied attachment points
+            if !is_occupied {
+                continue;
+            }
+            
+            // Determine color: ORANGE if connected to selected pull interval, otherwise GRAY
+            let color = if let Pick::Interval(IntervalDetails {
+                id: selected_id,
+                role,
+                ..
+            }) = pick
+            {
+                if role.is(Role::Pulling) {
+                    // Check if this specific attachment point is connected to the selected pull interval
+                    if let Some(connections) = interval.connections(end) {
+                        if let Some(Some(connection)) = connections.get(i) {
+                            if connection.pull_interval_id == *selected_id {
+                                ORANGE
+                            } else {
+                                GRAY
+                            }
+                        } else {
+                            GRAY
+                        }
+                    } else {
+                        GRAY
+                    }
+                } else {
+                    GRAY
+                }
             } else {
                 GRAY
             };
+            
             instances.push(self.create_attachment_point_instance(point, point_radius, color));
         }
     }
