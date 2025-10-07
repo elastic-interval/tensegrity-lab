@@ -1,5 +1,6 @@
 use crate::wgpu::surface_vertex::SurfaceVertex;
 use crate::wgpu::Wgpu;
+use crate::wgpu::DEFAULT_PRIMITIVE_STATE;
 use bytemuck::cast_slice;
 use wgpu::util::DeviceExt;
 use wgpu::RenderPass;
@@ -34,12 +35,8 @@ impl SurfaceRenderer {
                             write_mask: wgpu::ColorWrites::ALL,
                         })],
                     }),
-                    primitive: wgpu::PrimitiveState {
-                        topology: wgpu::PrimitiveTopology::TriangleList,
-                        strip_index_format: None,
-                        ..Default::default()
-                    },
-                    depth_stencil: Some(wgpu.create_depth_stencil()),
+                    primitive: DEFAULT_PRIMITIVE_STATE,
+                    depth_stencil: Some(crate::wgpu::default_depth_stencil_state()),
                     multisample: wgpu::MultisampleState::default(),
                     multiview: None,
                     cache: None,

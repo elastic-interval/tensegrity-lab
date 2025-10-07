@@ -8,7 +8,7 @@ use crate::fabric::attachment::AttachmentPoint;
 use crate::fabric::interval::Role;
 use crate::fabric::Fabric;
 use crate::fabric::IntervalEnd;
-use crate::wgpu::{create_sphere, Wgpu};
+use crate::wgpu::{create_sphere, vertex_layout_f32x8, Wgpu, DEFAULT_PRIMITIVE_STATE};
 use crate::Interval;
 use crate::IntervalDetails;
 use bytemuck::{Pod, Zeroable};
@@ -61,30 +61,7 @@ impl AttachmentRenderer {
             });
 
         // Define the vertex buffer layout
-        let vertex_layout = wgpu::VertexBufferLayout {
-            array_stride: size_of::<[f32; 8]>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                // position
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                // normal
-                wgpu::VertexAttribute {
-                    offset: size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                // uv
-                wgpu::VertexAttribute {
-                    offset: size_of::<[f32; 6]>() as wgpu::BufferAddress,
-                    shader_location: 2,
-                    format: wgpu::VertexFormat::Float32x2,
-                },
-            ],
-        };
+        let vertex_layout = vertex_layout_f32x8();
 
         // Define the instance buffer layout
         let instance_layout = wgpu::VertexBufferLayout {
@@ -135,22 +112,8 @@ impl AttachmentRenderer {
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
                 }),
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleList,
-                    strip_index_format: None,
-                    front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: Some(wgpu::Face::Back),
-                    polygon_mode: wgpu::PolygonMode::Fill,
-                    unclipped_depth: false,
-                    conservative: false,
-                },
-                depth_stencil: Some(wgpu::DepthStencilState {
-                    format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled: true,
-                    depth_compare: wgpu::CompareFunction::Less,
-                    stencil: wgpu::StencilState::default(),
-                    bias: wgpu::DepthBiasState::default(),
-                }),
+                primitive: DEFAULT_PRIMITIVE_STATE,
+                depth_stencil: Some(crate::wgpu::default_depth_stencil_state()),
                 multisample: wgpu::MultisampleState {
                     count: 1,
                     mask: !0,

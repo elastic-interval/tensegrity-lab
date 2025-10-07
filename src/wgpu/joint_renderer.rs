@@ -1,6 +1,6 @@
 use crate::camera::Pick;
 use crate::fabric::Fabric;
-use crate::wgpu::Wgpu;
+use crate::wgpu::{Wgpu, DEFAULT_PRIMITIVE_STATE, default_depth_stencil_state, vertex_layout_f32x8};
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 use wgpu::PipelineCompilationOptions;
@@ -46,34 +46,11 @@ impl JointRenderer {
             });
 
         // Define the vertex buffer layout
-        let vertex_layout = wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                // position
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                // normal
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                // uv
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 6]>() as wgpu::BufferAddress,
-                    shader_location: 2,
-                    format: wgpu::VertexFormat::Float32x2,
-                },
-            ],
-        };
+        let vertex_layout = vertex_layout_f32x8();
 
         // Define the instance buffer layout
         let instance_layout = wgpu::VertexBufferLayout {
-            array_stride: size_of::<JointMarkerInstance>() as wgpu::BufferAddress,
+            array_stride: std::mem::size_of::<JointMarkerInstance>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &[
                 // position
@@ -84,13 +61,13 @@ impl JointRenderer {
                 },
                 // scale
                 wgpu::VertexAttribute {
-                    offset: size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     shader_location: 4,
                     format: wgpu::VertexFormat::Float32,
                 },
                 // color
                 wgpu::VertexAttribute {
-                    offset: size_of::<[f32; 4]>() as wgpu::BufferAddress,
+                    offset: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
                     shader_location: 5,
                     format: wgpu::VertexFormat::Float32x4,
                 },
@@ -120,22 +97,8 @@ impl JointRenderer {
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
                 }),
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleList,
-                    strip_index_format: None,
-                    front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: Some(wgpu::Face::Back),
-                    polygon_mode: wgpu::PolygonMode::Fill,
-                    unclipped_depth: false,
-                    conservative: false,
-                },
-                depth_stencil: Some(wgpu::DepthStencilState {
-                    format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled: true, // Write to depth buffer
-                    depth_compare: wgpu::CompareFunction::Less, // Standard depth test (closer objects appear in front)
-                    stencil: wgpu::StencilState::default(),
-                    bias: wgpu::DepthBiasState::default(),
-                }),
+                primitive: DEFAULT_PRIMITIVE_STATE,
+                depth_stencil: Some(default_depth_stencil_state()),
                 multisample: wgpu::MultisampleState {
                     count: 1,
                     mask: !0,

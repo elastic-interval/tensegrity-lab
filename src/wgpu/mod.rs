@@ -5,7 +5,10 @@ use bytemuck::cast_slice;
 use cgmath::{Matrix4, Point3};
 use wgpu::util::DeviceExt;
 use wgpu::MemoryHints::Performance;
-use wgpu::{DepthStencilState, PipelineLayout, RenderPass, ShaderModule};
+use wgpu::VertexAttribute;
+use wgpu::VertexBufferLayout;
+use wgpu::VertexFormat;
+use wgpu::VertexStepMode;
 use winit::window::Window;
 
 use crate::camera::Camera;
@@ -25,12 +28,59 @@ pub mod surface_vertex;
 pub mod text_renderer;
 pub mod text_state;
 
+// Reusable primitive state for all renderers
+pub const DEFAULT_PRIMITIVE_STATE: wgpu::PrimitiveState = wgpu::PrimitiveState {
+    topology: wgpu::PrimitiveTopology::TriangleList,
+    strip_index_format: None,
+    front_face: wgpu::FrontFace::Ccw,
+    cull_mode: Some(wgpu::Face::Back),
+    polygon_mode: wgpu::PolygonMode::Fill,
+    unclipped_depth: false,
+    conservative: false,
+};
+
+// Reusable depth stencil state for all renderers
+pub fn default_depth_stencil_state() -> wgpu::DepthStencilState {
+    wgpu::DepthStencilState {
+        format: wgpu::TextureFormat::Depth32Float,
+        depth_write_enabled: true,
+        depth_compare: wgpu::CompareFunction::Less,
+        stencil: wgpu::StencilState::default(),
+        bias: wgpu::DepthBiasState::default(),
+    }
+}
+
+// Shared vertex buffer layout for [f32; 8] (position, normal, uv)
+pub fn vertex_layout_f32x8<'a>() -> VertexBufferLayout<'a> {
+    VertexBufferLayout {
+        array_stride: std::mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
+        step_mode: VertexStepMode::Vertex,
+        attributes: &[
+            VertexAttribute {
+                offset: 0,
+                shader_location: 0,
+                format: VertexFormat::Float32x3,
+            },
+            VertexAttribute {
+                offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                shader_location: 1,
+                format: VertexFormat::Float32x3,
+            },
+            VertexAttribute {
+                offset: std::mem::size_of::<[f32; 6]>() as wgpu::BufferAddress,
+                shader_location: 2,
+                format: VertexFormat::Float32x2,
+            },
+        ],
+    }
+}
+
 pub struct Wgpu {
     surface: wgpu::Surface<'static>,
     surface_configuration: wgpu::SurfaceConfiguration,
     uniform_buffer: wgpu::Buffer,
-    pipeline_layout: PipelineLayout,
-    shader: ShaderModule,
+    pipeline_layout: wgpu::PipelineLayout,
+    shader: wgpu::ShaderModule,
     pub queue: wgpu::Queue,
     pub device: wgpu::Device,
     pub uniform_bind_group_layout: wgpu::BindGroupLayout,
@@ -211,16 +261,6 @@ impl Wgpu {
             .create_view(&wgpu::TextureViewDescriptor::default())
     }
 
-    pub fn create_depth_stencil(&self) -> DepthStencilState {
-        DepthStencilState {
-            format: wgpu::TextureFormat::Depth32Float,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::Less,
-            stencil: wgpu::StencilState::default(),
-            bias: wgpu::DepthBiasState::default(),
-        }
-    }
-
     pub fn update_mvp_matrix(&self, matrix: Matrix4<f32>) {
         let mvp_ref: &[f32; 16] = matrix.as_ref();
         self.queue
@@ -237,7 +277,7 @@ impl Wgpu {
         )
     }
 
-    pub fn set_bind_group(&self, render_pass: &mut RenderPass) {
+    pub fn set_bind_group(&self, render_pass: &mut wgpu::RenderPass) {
         render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
     }
 
