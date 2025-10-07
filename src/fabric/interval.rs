@@ -5,7 +5,7 @@
 
 use crate::fabric::attachment::{
     calculate_interval_attachment_points, find_nearest_attachment_point, AttachmentPoint,
-    PullConnection, PullConnections, ATTACHMENT_POINTS,
+    PullConnection, PullConnections, PullIntervalData, ATTACHMENT_POINTS,
 };
 use crate::fabric::error::FabricError;
 use crate::fabric::interval::Role::*;
@@ -27,6 +27,7 @@ impl Fabric {
     pub fn update_interval_attachment_connections(&mut self, push_interval_id: UniqueId) {
         // First collect information about the push interval and connected pull intervals
         let mut connected_pulls = Vec::new();
+        let mut pull_data = Vec::new();
 
         // Get the push interval and check if it's a push interval
         if let Some(push_interval) = self.intervals[push_interval_id.0].as_ref() {
@@ -56,6 +57,15 @@ impl Fabric {
                             interval.alpha_index,
                             interval.omega_index,
                         ));
+
+                        // Collect pull interval data for moment calculation
+                        pull_data.push(PullIntervalData {
+                            id: UniqueId(idx),
+                            alpha_joint: interval.alpha_index,
+                            omega_joint: interval.omega_index,
+                            strain: interval.strain,
+                            unit: interval.unit,
+                        });
                     }
                 }
             }
@@ -64,7 +74,7 @@ impl Fabric {
         // Now update the attachment connections if we have a valid push interval
         if let Some(push_interval) = self.intervals[push_interval_id.0].as_mut() {
             // Use the new reorder_connections method to optimize attachment points
-            let _ = push_interval.reorder_connections(&self.joints, &connected_pulls);
+            let _ = push_interval.reorder_connections(&self.joints, &connected_pulls, &pull_data);
         }
     }
 
@@ -347,6 +357,7 @@ impl Interval {
         &mut self,
         joints: &[Joint],
         pull_intervals: &[(UniqueId, usize, usize)],
+        pull_data: &[PullIntervalData],
     ) -> Result<(), FabricError> {
         // Only push intervals have connections to reorder
         if self.material.properties().role != Pushing {
@@ -366,6 +377,7 @@ impl Interval {
                 &attachment_points.1,
                 &joint_positions,
                 pull_intervals,
+                pull_data,
                 self.alpha_index,
                 self.omega_index,
             );
