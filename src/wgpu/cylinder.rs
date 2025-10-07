@@ -14,7 +14,8 @@ impl Wgpu {
             uv: [f32; 2],
         }
 
-        const HALF_HEIGHT: f32 = 0.5;
+        const HALF_HEIGHT: f32 = 0.45; // Shortened by 10% (was 0.5)
+        const TIP_EXTENSION: f32 = 0.05; // Cone tips extend 5% beyond cylinder body
         const SEGMENTS: u32 = 12;
 
         let mut vertices = Vec::new();
@@ -68,68 +69,125 @@ impl Wgpu {
             indices.push(bottom_next);
         }
 
-        // Top cap center vertex
-        let top_center_idx = vertices.len() as u32;
-        vertices.push(CylinderVertex {
-            position: [0.0, HALF_HEIGHT, 0.0],
-            normal: [0.0, 1.0, 0.0], // Normal points up
-            uv: [0.5, 0.5],
-        });
-
-        // Top cap perimeter vertices
-        let top_start_idx = vertices.len() as u32;
+        // Top cone with flat shading (each face has its own normal)
+        // Each triangle needs its own set of vertices with the same face normal
+        let apex_pos = [0.0, HALF_HEIGHT + TIP_EXTENSION, 0.0];
+        
         for i in 0..SEGMENTS {
-            let (x, z, _) = ring_vertices[i as usize];
+            let current_idx = i as usize;
+            let next_idx = ((i + 1) % SEGMENTS) as usize;
+            
+            let (x1, z1, _) = ring_vertices[current_idx];
+            let (x2, z2, _) = ring_vertices[next_idx];
+            
+            let v1 = [x1, HALF_HEIGHT, z1];
+            let v2 = [x2, HALF_HEIGHT, z2];
+            
+            // Calculate face normal: (v2 - apex) × (v1 - apex)
+            let edge1 = [v2[0] - apex_pos[0], v2[1] - apex_pos[1], v2[2] - apex_pos[2]];
+            let edge2 = [v1[0] - apex_pos[0], v1[1] - apex_pos[1], v1[2] - apex_pos[2]];
+            
+            // Cross product
+            let face_normal = [
+                edge1[1] * edge2[2] - edge1[2] * edge2[1],
+                edge1[2] * edge2[0] - edge1[0] * edge2[2],
+                edge1[0] * edge2[1] - edge1[1] * edge2[0],
+            ];
+            
+            // Normalize
+            let len = (face_normal[0] * face_normal[0] + 
+                      face_normal[1] * face_normal[1] + 
+                      face_normal[2] * face_normal[2]).sqrt();
+            let face_normal = [
+                face_normal[0] / len,
+                face_normal[1] / len,
+                face_normal[2] / len,
+            ];
+            
+            // Create 3 vertices with the same face normal
+            let apex_idx = vertices.len() as u32;
             vertices.push(CylinderVertex {
-                position: [x, HALF_HEIGHT, z],
-                normal: [0.0, 1.0, 0.0], // Normal points up
-                uv: [0.5 + 0.5 * x, 0.5 + 0.5 * z],
+                position: apex_pos,
+                normal: face_normal,
+                uv: [0.5, 0.0],
             });
-        }
-
-        // Top cap indices (counter-clockwise when viewed from outside/above)
-        for i in 0..SEGMENTS {
-            indices.push(top_center_idx);
-            let top = top_start_idx + i;
-            let top_next = if i + 1 == SEGMENTS {
-                top_start_idx
-            } else {
-                top + 1
-            };
-            indices.push(top_next);
-            indices.push(top);
-        }
-
-        // Bottom cap center vertex
-        let bottom_center_idx = vertices.len() as u32;
-        vertices.push(CylinderVertex {
-            position: [0.0, -HALF_HEIGHT, 0.0],
-            normal: [0.0, -1.0, 0.0], // Normal points down
-            uv: [0.5, 0.5],
-        });
-
-        // Bottom cap perimeter vertices
-        let bottom_start_idx = vertices.len() as u32;
-        for i in 0..SEGMENTS {
-            let (x, z, _) = ring_vertices[i as usize];
+            
             vertices.push(CylinderVertex {
-                position: [x, -HALF_HEIGHT, z],
-                normal: [0.0, -1.0, 0.0], // Normal points down
-                uv: [0.5 + 0.5 * x, 0.5 + 0.5 * z],
+                position: v2,
+                normal: face_normal,
+                uv: [0.5 + 0.5 * x2, 0.5 + 0.5 * z2],
             });
+            
+            vertices.push(CylinderVertex {
+                position: v1,
+                normal: face_normal,
+                uv: [0.5 + 0.5 * x1, 0.5 + 0.5 * z1],
+            });
+            
+            // Indices for this triangle
+            indices.push(apex_idx);
+            indices.push(apex_idx + 1);
+            indices.push(apex_idx + 2);
         }
 
-        // Bottom cap indices (counter-clockwise when viewed from outside/below)
+        // Bottom cone with flat shading
+        let bottom_apex_pos = [0.0, -HALF_HEIGHT - TIP_EXTENSION, 0.0];
+        
         for i in 0..SEGMENTS {
-            indices.push(bottom_center_idx);
-            let bottom = bottom_start_idx + i;
-            let bottom_next = if i + 1 == SEGMENTS {
-                bottom_start_idx
-            } else {
-                bottom + 1
-            };
-            indices.push(bottom);
-            indices.push(bottom_next);
+            let current_idx = i as usize;
+            let next_idx = ((i + 1) % SEGMENTS) as usize;
+            
+            let (x1, z1, _) = ring_vertices[current_idx];
+            let (x2, z2, _) = ring_vertices[next_idx];
+            
+            let v1 = [x1, -HALF_HEIGHT, z1];
+            let v2 = [x2, -HALF_HEIGHT, z2];
+            
+            // Calculate face normal: (v1 - apex) × (v2 - apex)
+            let edge1 = [v1[0] - bottom_apex_pos[0], v1[1] - bottom_apex_pos[1], v1[2] - bottom_apex_pos[2]];
+            let edge2 = [v2[0] - bottom_apex_pos[0], v2[1] - bottom_apex_pos[1], v2[2] - bottom_apex_pos[2]];
+            
+            // Cross product
+            let face_normal = [
+                edge1[1] * edge2[2] - edge1[2] * edge2[1],
+                edge1[2] * edge2[0] - edge1[0] * edge2[2],
+                edge1[0] * edge2[1] - edge1[1] * edge2[0],
+            ];
+            
+            // Normalize
+            let len = (face_normal[0] * face_normal[0] + 
+                      face_normal[1] * face_normal[1] + 
+                      face_normal[2] * face_normal[2]).sqrt();
+            let face_normal = [
+                face_normal[0] / len,
+                face_normal[1] / len,
+                face_normal[2] / len,
+            ];
+            
+            // Create 3 vertices with the same face normal
+            let apex_idx = vertices.len() as u32;
+            vertices.push(CylinderVertex {
+                position: bottom_apex_pos,
+                normal: face_normal,
+                uv: [0.5, 1.0],
+            });
+            
+            vertices.push(CylinderVertex {
+                position: v1,
+                normal: face_normal,
+                uv: [0.5 + 0.5 * x1, 0.5 + 0.5 * z1],
+            });
+            
+            vertices.push(CylinderVertex {
+                position: v2,
+                normal: face_normal,
+                uv: [0.5 + 0.5 * x2, 0.5 + 0.5 * z2],
+            });
+            
+            // Indices for this triangle
+            indices.push(apex_idx);
+            indices.push(apex_idx + 1);
+            indices.push(apex_idx + 2);
         }
 
         // Create vertex buffer

@@ -159,112 +159,6 @@ impl PullConnections {
         connections_to_make
     }
 
-    /// Assigns connections to attachment points
-    fn assign_connections(
-        &mut self,
-        connections_to_make: Vec<(IntervalEnd, UniqueId, usize)>,
-        alpha_attachment_points: &[AttachmentPoint],
-        omega_attachment_points: &[AttachmentPoint],
-        joint_positions: &[Point3<f32>],
-        pull_intervals: &[(UniqueId, usize, usize)], // (pull_id, alpha_index, omega_index)
-    ) {
-        for (end, pull_id, _joint_index) in connections_to_make {
-            let attachment_points = self.get_attachment_points_for_end(
-                end,
-                alpha_attachment_points,
-                omega_attachment_points,
-            );
-
-            // Find the best available attachment point
-            let best_idx = match end {
-                IntervalEnd::Alpha => Self::find_best_attachment_point(
-                    attachment_points,
-                    joint_positions,
-                    pull_intervals,
-                    pull_id,
-                    &self.alpha,
-                ),
-                IntervalEnd::Omega => Self::find_best_attachment_point(
-                    attachment_points,
-                    joint_positions,
-                    pull_intervals,
-                    pull_id,
-                    &self.omega,
-                ),
-            };
-
-            // Assign to the closest available attachment point
-            if let Some(idx) = best_idx {
-                let connection = PullConnection {
-                    pull_interval_id: pull_id,
-                    attachment_index: idx,
-                };
-
-                // Update the appropriate array
-                match end {
-                    IntervalEnd::Alpha => self.alpha[idx] = Some(connection),
-                    IntervalEnd::Omega => self.omega[idx] = Some(connection),
-                };
-            }
-        }
-    }
-
-    /// Gets the attachment points for a specific interval end
-    fn get_attachment_points_for_end<'a>(
-        &self,
-        end: IntervalEnd,
-        alpha_attachment_points: &'a [AttachmentPoint],
-        omega_attachment_points: &'a [AttachmentPoint],
-    ) -> &'a [AttachmentPoint] {
-        match end {
-            IntervalEnd::Alpha => alpha_attachment_points,
-            IntervalEnd::Omega => omega_attachment_points,
-        }
-    }
-
-    /// Finds the best available attachment point
-    /// Prioritizes lower indices (first positions) to ensure connections fill from the beginning
-    fn find_best_attachment_point(
-        attachment_points: &[AttachmentPoint],
-        _joint_positions: &[Point3<f32>],
-        _pull_intervals: &[(UniqueId, usize, usize)], // (pull_id, alpha_index, omega_index)
-        _pull_id: UniqueId,
-        target_array: &[Option<PullConnection>; ATTACHMENT_POINTS],
-    ) -> Option<usize> {
-        // Find the first available (unoccupied) attachment point
-        // This ensures connections are assigned starting from index 0
-        for i in 0..attachment_points.len() {
-            if target_array[i].is_none() {
-                return Some(i);
-            }
-        }
-        
-        // No available attachment points
-        None
-    }
-
-    /// Helper function to calculate the minimum distance between a joint and any attachment point
-    fn calculate_min_distance(
-        joint_index: usize,
-        attachment_points: &[AttachmentPoint],
-        joint_positions: &[Point3<f32>],
-    ) -> f32 {
-        if attachment_points.is_empty() {
-            return f32::MAX;
-        }
-
-        let joint_position = joint_positions[joint_index];
-        attachment_points
-            .iter()
-            .map(|point| joint_position.distance2(point.position))
-            .min_by(|dist1, dist2| {
-                dist1
-                    .partial_cmp(dist2)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
-            .unwrap_or(f32::MAX)
-    }
-
     /// Checks if a specific index is occupied at the specified end
     pub fn is_occupied(&self, end: IntervalEnd, index: usize) -> bool {
         if index < ATTACHMENT_POINTS {
@@ -354,7 +248,7 @@ pub fn find_nearest_attachment_point(
             // This prevents unwrap failures on partial_cmp
             dist1
                 .partial_cmp(dist2)
-                .unwrap_or_else(|| std::cmp::Ordering::Equal)
+                .unwrap_or(std::cmp::Ordering::Equal)
         })
         .unwrap_or((0, f32::MAX)) // Additional safety in case min_by fails
 }
@@ -523,7 +417,7 @@ pub fn generate_attachment_points(
     // Spacing equals the diameter of the rendered spheres so they are tangent (touching)
     // Sphere radius in renderer is Role::Pulling.appearance().radius * 0.12
     // Adjusted slightly larger to prevent overlap
-    let sphere_diameter = radius * 0.026; // Diameter of each sphere
+    let sphere_diameter = radius * 0.015; // Diameter of each sphere
     let sphere_radius = sphere_diameter * 0.5; // Radius of each sphere
 
     // Create array to hold all attachment points
