@@ -5,13 +5,11 @@
 
 use crate::camera::Pick;
 use crate::fabric::attachment::AttachmentPoint;
-use crate::fabric::interval::Role;
-use crate::fabric::Fabric;
-use crate::fabric::IntervalEnd;
-use crate::wgpu::{create_sphere, vertex_layout_f32x8, Wgpu, DEFAULT_PRIMITIVE_STATE};
-use crate::Interval;
+use crate::fabric::interval::{Interval, Role};
+use crate::fabric::{Fabric, IntervalEnd};
+use crate::wgpu::create_sphere;
+use crate::wgpu::{vertex_layout_f32x8, Wgpu, DEFAULT_PRIMITIVE_STATE};
 use crate::IntervalDetails;
-use bytemuck::{Pod, Zeroable};
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
 use wgpu::PipelineCompilationOptions;
@@ -20,7 +18,7 @@ const ORANGE: [f32; 4] = [1.0, 0.1, 0.0, 1.0];
 const GRAY: [f32; 4] = [0.3, 0.3, 0.3, 0.2];
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Pod, Zeroable)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct AttachmentPointInstance {
     position: [f32; 3], // Position of the attachment point
     scale: f32,         // Size of the marker
@@ -173,7 +171,7 @@ impl AttachmentRenderer {
         };
 
         // Calculate point radius once - use a consistent size for all attachment points
-        let point_radius = Role::Pulling.appearance().radius * 0.12;
+        let point_radius = Role::Pulling.appearance().radius * 0.06;
 
         // Add all push interval attachment points with appropriate coloring
         self.add_push_interval_attachment_points(
