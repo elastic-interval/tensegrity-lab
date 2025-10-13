@@ -15,8 +15,8 @@ impl SurfaceVertex {
             .map(|angle| [radius * angle.cos(), 0.0, radius * angle.sin(), 1.0])
             .collect();
         let triangles = [
-            origin, point[0], point[1], origin, point[1], point[2], origin, point[2], point[3],
-            origin, point[3], point[4], origin, point[4], point[5], origin, point[5], point[0],
+            origin, point[1], point[0], origin, point[2], point[1], origin, point[3], point[2],
+            origin, point[4], point[3], origin, point[5], point[4], origin, point[0], point[5],
         ];
         triangles.map(|position| SurfaceVertex { position })
     }
