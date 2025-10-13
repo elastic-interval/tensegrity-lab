@@ -7,7 +7,7 @@ use crate::fabric::{IntervalEnd, UniqueId};
 use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
 
 /// Number of attachment points at each end of a push interval
-pub const ATTACHMENT_POINTS: usize = 6;
+pub const ATTACHMENT_POINTS: usize = 10;
 
 /// Represents an attachment point on a push interval
 #[derive(Clone, Copy, Debug)]
