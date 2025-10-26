@@ -77,8 +77,8 @@
 			(during 200000 (space :end 0.35))
 			(during 200000 (vulcanize))
 			(faces-to-triangles))
-		(pretense (surface :frozen))
-		(scale 1025.0))
+		(pretense (surface :sticky))
+		(scale 1030.0))
 	(fabric (name "Convergence")
 		(build
 			(branch (alias Omni) (seed 1)
