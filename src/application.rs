@@ -300,9 +300,6 @@ impl ApplicationHandler<LabEvent> for Application {
                                 CrucibleAction::ToPhysicsTesting(scenario.clone())
                                     .send(&self.radio);
                             }
-                            TestScenario::BoxingTest => {
-                                CrucibleAction::ToBoxingProcess(scenario.clone()).send(&self.radio);
-                            }
                             TestScenario::MachineTest(ip_address) => {
                                 println!("Running machine test at {ip_address}");
                                 #[cfg(not(target_arch = "wasm32"))]

@@ -101,7 +101,6 @@ pub enum TestScenario {
     TensionTest,
     CompressionTest,
     PhysicsTest,
-    BoxingTest,
     MachineTest(String),
 }
 
@@ -319,7 +318,6 @@ pub enum ControlState {
     ShowingInterval(IntervalDetails),
     FailureTesting(TestScenario),
     PhysicsTesting(TestScenario),
-    BoxingTesting(TestScenario),
 }
 
 impl ControlState {
@@ -344,7 +342,6 @@ pub enum CrucibleAction {
     ToAnimating,
     ToFailureTesting(TestScenario),
     ToPhysicsTesting(TestScenario),
-    ToBoxingProcess(TestScenario),
     ToEvolving(u64),
     TesterDo(TesterAction),
 }

@@ -8,7 +8,6 @@ use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::testing::boxing_test::BoxingTest;
 use crate::testing::failure_test::FailureTester;
 use crate::testing::physics_test::PhysicsTester;
 use crate::{ControlState, CrucibleAction, LabEvent, Radio, StateChange};
@@ -21,7 +20,6 @@ pub enum Stage {
     Animating,
     FailureTesting(FailureTester),
     PhysicsTesting(PhysicsTester),
-    BoxingTesting(BoxingTest),
     BakingBrick(Oven),
     Evolving(Evolution),
 }
@@ -116,10 +114,6 @@ impl Crucible {
                 tester.iterate(&mut context);
             }
             PhysicsTesting(tester) => {
-                // Pass the context to the tester's iterate method
-                tester.iterate(&mut context);
-            }
-            BoxingTesting(tester) => {
                 // Pass the context to the tester's iterate method
                 tester.iterate(&mut context);
             }
@@ -272,24 +266,6 @@ impl Crucible {
                     panic!("cannot start experiment");
                 }
             }
-            ToBoxingProcess(scenario) => {
-                if let Viewing = &mut self.stage {
-                    let fabric_clone = context.fabric.clone();
-                    let test = BoxingTest::new(&fabric_clone, physics_clone.clone());
-
-                    context.replace_fabric(test.fabric.clone());
-
-                    test.copy_physics_into(&mut context);
-
-                    context.transition_to(BoxingTesting(test));
-
-                    context.send_event(LabEvent::UpdateState(SetControlState(
-                        ControlState::BoxingTesting(scenario),
-                    )));
-                } else {
-                    panic!("cannot start experiment");
-                }
-            }
             TesterDo(action) => match &mut self.stage {
                 FailureTesting(tester) => {
                     tester.action(action);
@@ -297,11 +273,6 @@ impl Crucible {
                     context.replace_fabric(tester.fabric().clone());
                 }
                 PhysicsTesting(tester) => {
-                    tester.action(action);
-
-                    context.replace_fabric(tester.fabric.clone());
-                }
-                BoxingTesting(tester) => {
                     tester.action(action);
 
                     context.replace_fabric(tester.fabric.clone());
