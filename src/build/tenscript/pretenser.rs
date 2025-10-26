@@ -51,12 +51,12 @@ impl Pretenser {
             Start => Slacken,
             Slacken => {
                 context.fabric.slacken();
+                context.fabric.centralize(Some(0.0));
                 let factor = self
                     .pretense_phase
                     .pretenst
                     .unwrap_or(self.physics.pretenst);
                 context.fabric.set_pretenst(factor, self.countdown);
-
                 Pretensing
             }
             Pretensing => {

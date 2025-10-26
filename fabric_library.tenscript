@@ -70,14 +70,15 @@
     (fabric (name "Triped")
 		(build
 			(branch (alias Omni) (seed 1)
-				(face (alias BotX) (grow 10 (scale .9) (mark :end)))
-				(face (alias BotY) (grow 10 (scale .9) (mark :end)))
-				(face (alias BotZ) (grow 10 (scale .9) (mark :end)))))
+				(face (alias BotX) (grow 8 (scale .9) (mark :end)))
+				(face (alias BotY) (grow 8 (scale .9) (mark :end)))
+				(face (alias BotZ) (grow 8 (scale .9) (mark :end)))))
 		(shape
-			(during 20000 (space :end 0.4))
-			(during 20000 (vulcanize))
+			(during 200000 (space :end 0.35))
+			(during 200000 (vulcanize))
 			(faces-to-triangles))
-		(pretense (surface :bouncy)))
+		(pretense (surface :frozen))
+		(scale 1025.0))
 	(fabric (name "Convergence")
 		(build
 			(branch (alias Omni) (seed 1)
