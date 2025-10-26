@@ -6,7 +6,6 @@ use crate::{Age, PhysicsFeature, TesterAction};
 use cgmath::Point3;
 use itertools::Itertools;
 use std::collections::VecDeque;
-use crate::fabric::joint::ALTITUDE_BELOW_SURFACE;
 
 pub struct BoxingTest {
     pub fabric: Fabric,
@@ -96,7 +95,7 @@ impl BoxingStep {
         match self {
             BoxingStep::RemoveSupport => {
                 remove_supports(fabric);
-                let base = fabric.create_joint(Point3::new(10.0, ALTITUDE_BELOW_SURFACE, 0.0));
+                let base = fabric.create_joint(Point3::new(10.0, 0.0, 0.0));
                 let length = 10.0;
                 fabric.create_interval(3, base, length, Material::GuyLine);
                 fabric.progress.start(20000);
