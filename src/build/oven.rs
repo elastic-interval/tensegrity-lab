@@ -24,7 +24,7 @@ impl Oven {
         }
     }
 
-    pub fn initialize_physics(&self, context: &mut CrucibleContext) {
+    pub fn copy_physics_into(&self, context: &mut CrucibleContext) {
         *context.physics = PROTOTYPE_FORMATION;
     }
 
