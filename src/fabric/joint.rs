@@ -56,7 +56,6 @@ impl Fabric {
     }
 }
 
-pub const ALTITUDE_BELOW_SURFACE: f32 = -f32::MIN_POSITIVE;
 const AMBIENT_MASS: f32 = 0.01;
 const STICKY_DOWN_DRAG_FACTOR: f32 = 0.8;
 
@@ -93,7 +92,7 @@ impl Joint {
         } = physics;
         let altitude = self.location.y;
         let mass = self.accumulated_mass * mass;
-        if altitude >= 0.0 || !surface_character.has_gravity() {
+        if altitude > 0.0 || !surface_character.has_gravity() {
             self.velocity.y -= surface_character.gravity();
             let speed_squared = self.velocity.magnitude2();
             self.velocity += self.force / mass - self.velocity * speed_squared * *viscosity;
@@ -106,7 +105,7 @@ impl Joint {
                 Absent => {}
                 Frozen => {
                     self.velocity = zero();
-                    self.location.y = ALTITUDE_BELOW_SURFACE;
+                    self.location.y = 0.0;
                 }
                 Sticky => {
                     if self.velocity.y < 0.0 {
