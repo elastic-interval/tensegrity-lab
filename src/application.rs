@@ -16,8 +16,8 @@ use std::sync::Arc;
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::SystemTime;
 
-use winit::event::WindowEvent;
 use winit::application::ApplicationHandler;
+use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
 use winit::window::{WindowAttributes, WindowId};
 
@@ -47,7 +47,7 @@ impl Application {
     //==================================================
     // Construction and Initialization
     //==================================================
-    
+
     /// Create a new Application instance
     pub fn new(
         window_attributes: WindowAttributes,
@@ -77,16 +77,16 @@ impl Application {
             machine: None,
         })
     }
-    
+
     //==================================================
     // Public API Methods
     //==================================================
-    
+
     pub fn refresh_library(&mut self, time: Instant) -> Result<LabEvent, TenscriptError> {
         self.fabric_library = FabricLibrary::from_source()?;
         Ok(LabEvent::UpdatedLibrary(time))
     }
-    
+
     pub fn get_fabric_plan(&self, plan_name: &String) -> Result<FabricPlan, TenscriptError> {
         let plan = self
             .fabric_library
@@ -98,13 +98,11 @@ impl Application {
             Some(plan) => Ok(plan.clone()),
         }
     }
-    
+
     //==================================================
     // Private Helper Methods
     //==================================================
-    
 
-    
     /// Access the scene if it exists, executing the provided closure
     /// Returns Some(R) if the scene exists and the closure was executed
     /// Returns None if the scene doesn't exist
@@ -114,7 +112,7 @@ impl Application {
     {
         self.scene.as_mut().map(f)
     }
-    
+
     /// Access both scene and fabric at the same time if scene exists
     /// Returns Some(R) if the scene exists and the closure was executed
     /// Returns None if the scene doesn't exist
@@ -127,7 +125,7 @@ impl Application {
             f(scene, fabric)
         })
     }
-    
+
     fn redraw(&mut self) {
         // Update keyboard legend
         StateChange::SetKeyboardLegend(self.keyboard.legend(&self.control_state).join(", "))
@@ -213,9 +211,9 @@ impl Application {
 
         // Start the checking process
         let window = web_sys::window().expect("no global window");
-        
+
         let borrow = checker.borrow();
-        
+
         if let Some(closure_ref) = &borrow.closure {
             let _ = window.request_animation_frame(closure_ref.as_ref().unchecked_ref());
         }
@@ -336,13 +334,10 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             DumpCSV => {
                 #[cfg(not(target_arch = "wasm32"))]
-                std::fs::write(
-                    chrono::Local::now()
-                        .format("pretenst-%Y-%m-%d-%H-%M.zip")
-                        .to_string(),
-                    self.crucible.fabric.to_zip().unwrap(),
-                )
-                .unwrap();
+                {
+                    let name = format!("{}.zip", self.crucible.fabric.name);
+                    std::fs::write(name, self.crucible.fabric.to_zip().unwrap()).unwrap();
+                }
             }
             PrintCord(length) => {
                 println!("Print cord {length:?}");
@@ -365,7 +360,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 if let Some(_) = &self.scene {
                     self.redraw();
                 }
-            },
+            }
             UpdateState(app_change) => {
                 match &app_change {
                     StateChange::SetControlState(control_state) => {
@@ -389,15 +384,17 @@ impl ApplicationHandler<LabEvent> for Application {
                     _ => {}
                 }
                 if let StateChange::ToggleAttachmentPoints = &app_change {
-                    let should_update = self.with_scene(|scene| {
-                        scene.update_state(app_change.clone());
-                        scene.render_style_shows_attachment_points()
-                    }).unwrap_or(false);
-                    
+                    let should_update = self
+                        .with_scene(|scene| {
+                            scene.update_state(app_change.clone());
+                            scene.render_style_shows_attachment_points()
+                        })
+                        .unwrap_or(false);
+
                     if should_update {
                         self.crucible.update_attachment_connections();
                     }
-                    
+
                     RequestRedraw.send(&self.radio);
                 } else {
                     self.with_scene(|scene| scene.update_state(app_change.clone()));
@@ -423,32 +420,31 @@ impl ApplicationHandler<LabEvent> for Application {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
                 return;
-            },
+            }
             WindowEvent::KeyboardInput {
                 event: key_event, ..
             } => {
-                self.keyboard.handle_key_event(key_event, &self.control_state);
+                self.keyboard
+                    .handle_key_event(key_event, &self.control_state);
                 return;
-            },
+            }
             _ => {}
         }
-        
+
         // Early return if no scene
         if self.scene.is_none() {
             return;
         }
-        
+
         // Let the pointer handler process the event first
         if self.pointer_handler.process_window_event(&event) {
             return; // Event was handled by the pointer handler
         }
-        
+
         // Handle other window events that need scene access
-        self.with_scene(|scene| {
-            match event {
-                WindowEvent::Resized(physical_size) => scene.resize(physical_size),
-                _ => {}
-            }
+        self.with_scene(|scene| match event {
+            WindowEvent::Resized(physical_size) => scene.resize(physical_size),
+            _ => {}
         });
     }
 
@@ -459,7 +455,7 @@ impl ApplicationHandler<LabEvent> for Application {
         // FPS calculation with platform-specific adjustments
         self.frames_count += 1;
         let fps_elapsed = now.duration_since(self.fps_timer);
-        
+
         // Only update FPS display once per second
         if fps_elapsed >= Duration::from_secs(1) {
             // Calculate frames per second with platform-specific adjustments
@@ -470,19 +466,20 @@ impl ApplicationHandler<LabEvent> for Application {
                 let raw_fps = self.frames_count as f32 / fps_elapsed.as_secs_f32();
                 f32::min(raw_fps, 120.0) // Cap at 120 FPS for display purposes
             };
-            
+
             #[cfg(not(target_arch = "wasm32"))]
             let frames_per_second = self.frames_count as f32 / fps_elapsed.as_secs_f32();
-            
+
             // Get fabric age
             let age = self.crucible.fabric.age;
-            
+
             // Send the FPS update event
             StateChange::Time {
                 frames_per_second,
                 age,
-            }.send(&self.radio);
-            
+            }
+            .send(&self.radio);
+
             // Reset counters
             self.frames_count = 0;
             self.fps_timer = now;
@@ -490,36 +487,39 @@ impl ApplicationHandler<LabEvent> for Application {
 
         // Handle elapsed time since last update
         let elapsed = now.duration_since(self.last_update);
-        
+
         // If too much time has passed, reset accumulated time to avoid spiral of death
         if elapsed > Duration::from_millis(100) {
             self.last_update = now;
             self.accumulated_time = Duration::from_secs(0);
             return;
         }
-        
+
         self.last_update = now;
-        
+
         // Cap elapsed time to avoid large time steps
         #[cfg(target_arch = "wasm32")]
         let capped_elapsed = std::cmp::min(elapsed, Duration::from_millis(16)); // ~60 FPS cap for WASM
-        
+
         #[cfg(not(target_arch = "wasm32"))]
         let capped_elapsed = std::cmp::min(elapsed, Duration::from_millis(33)); // ~30 FPS cap for native
-        
+
         self.accumulated_time += capped_elapsed;
-        
+
         // Define update interval (how often physics steps are taken)
         let update_interval = Duration::from_millis(10);
-        
+
         // Check if animation is active
-        let animate = self.with_scene_and_fabric(|scene, fabric| scene.animate(fabric)).unwrap_or(false);
-        
+        let animate = self
+            .with_scene_and_fabric(|scene, fabric| scene.animate(fabric))
+            .unwrap_or(false);
+
         // Limit updates per frame
         let mut updates_this_frame = 0;
         let max_updates_per_frame = 3;
-        
-        while self.accumulated_time >= update_interval && updates_this_frame < max_updates_per_frame {
+
+        while self.accumulated_time >= update_interval && updates_this_frame < max_updates_per_frame
+        {
             self.accumulated_time -= update_interval;
             updates_this_frame += 1;
 
@@ -535,7 +535,7 @@ impl ApplicationHandler<LabEvent> for Application {
         // Set platform-specific control flow
         #[cfg(target_arch = "wasm32")]
         event_loop.set_control_flow(ControlFlow::Poll);
-        
+
         #[cfg(not(target_arch = "wasm32"))]
         event_loop.set_control_flow(if animate {
             ControlFlow::wait_duration(Duration::from_millis(16)) // ~60 FPS when animating
@@ -547,36 +547,36 @@ impl ApplicationHandler<LabEvent> for Application {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn fabric_library_modified() -> Instant {
-    use std::fs;
     use std::cell::RefCell;
-    
+    use std::fs;
+
     // Use thread_local storage to track the last modification time
     thread_local! {
         static LAST_MOD_TIME: RefCell<Option<SystemTime>> = RefCell::new(None);
     }
-    
+
     // Get the current file modification time
     let current_mod_time = fs::metadata("fabric_library.tenscript".to_string())
         .and_then(|metadata| metadata.modified())
         .ok();
-    
+
     // Check if the file has been modified
     let file_changed = LAST_MOD_TIME.with(|last_time| {
         let mut last = last_time.borrow_mut();
         let changed = match (current_mod_time, *last) {
             (Some(current), Some(previous)) => current > previous,
             (Some(_), None) => true, // First time checking
-            _ => false, // Error reading file or no change
+            _ => false,              // Error reading file or no change
         };
-        
+
         // Update the last modification time if we have a valid time
         if let Some(current) = current_mod_time {
             *last = Some(current);
         }
-        
+
         changed
     });
-    
+
     // Only return a new Instant if the file has changed
     if file_changed {
         Instant::now()

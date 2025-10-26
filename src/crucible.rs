@@ -61,9 +61,8 @@ impl Crucible {
                     // Update the scale and check for orphan joints
                     context.fabric.scale = plan_runner.get_scale();
                     context.fabric.check_orphan_joints();
-
-                    let pretenser = Pretenser::new(plan_runner.pretense_phase());
-                    pretenser.initialize_physics(&mut context);
+                    let pretenser = Pretenser::new(plan_runner.pretense_phase(), &self.radio);
+                    pretenser.copy_physics_into(&mut context);
                     context.transition_to(Pretensing(pretenser));
                 } else {
                     // Pass the context to the plan runner's iterate method
@@ -178,7 +177,7 @@ impl Crucible {
                 context.replace_fabric(oven.fabric.clone());
 
                 // Initialize the physics for baking
-                oven.initialize_physics(&mut context);
+                oven.copy_physics_into(&mut context);
 
                 context.transition_to(BakingBrick(oven));
             }
@@ -191,7 +190,7 @@ impl Crucible {
                 // Reset the fabric to an empty one with the plan's name
                 context.replace_fabric(Fabric::new(name));
 
-                plan_runner.initialize_physics(&mut context);
+                plan_runner.copy_physics_into(&mut context);
                 context.transition_to(RunningPlan(plan_runner));
 
                 context.send_event(LabEvent::UpdateState(SetControlState(
@@ -241,7 +240,7 @@ impl Crucible {
 
                     context.replace_fabric(tester.fabric().clone());
 
-                    tester.initialize_physics(&mut context);
+                    tester.adopt_physica(&mut context);
 
                     context.transition_to(FailureTesting(tester));
 
@@ -262,7 +261,7 @@ impl Crucible {
 
                     context.replace_fabric(tester.fabric.clone());
 
-                    tester.initialize_physics(&mut context);
+                    tester.copy_physics_into(&mut context);
 
                     context.transition_to(PhysicsTesting(tester));
 
@@ -280,7 +279,7 @@ impl Crucible {
 
                     context.replace_fabric(test.fabric.clone());
 
-                    test.initialize_physics(&mut context);
+                    test.copy_physics_into(&mut context);
 
                     context.transition_to(BoxingTesting(test));
 
@@ -315,7 +314,7 @@ impl Crucible {
                 context.replace_fabric(evolution.fabric.clone());
 
                 // Initialize the physics for evolution
-                evolution.initialize_physics(&mut context);
+                evolution.adopt_physica(&mut context);
 
                 context.transition_to(Evolving(evolution));
             }

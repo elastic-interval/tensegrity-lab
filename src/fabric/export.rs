@@ -26,6 +26,11 @@ impl Fabric {
             .fold(0.0f32, |h, joint| h.max(joint.location.y))
             * self.scale;
         let scale = self.scale;
+        let now = chrono::Local::now()
+            .format("%Y-%m-%d %H-%M")
+            .to_string();
+        writeln!(zip, "Name: {}", self.name)?;
+        writeln!(zip, "Created: {now}")?;
         writeln!(zip, "Height: {height:.1}")?;
         writeln!(zip, "Scale: {scale:.1}")?;
 
@@ -51,7 +56,13 @@ impl Fabric {
             if matches!(material, Material::North | Material::South) {
                 continue;
             }
-            writeln!(zip, "{},{};{}", alpha_index + 1, omega_index + 1, role as u8)?;
+            writeln!(
+                zip,
+                "{},{};{}",
+                alpha_index + 1,
+                omega_index + 1,
+                role as u8
+            )?;
         }
 
         // Finalize the ZIP file

@@ -49,7 +49,7 @@ vulcanize =
 pretense =
     { "(" ~ "pretense" ~ pretense_feature* ~ ")" }
 pretense_feature =
-    { surface | muscle | pretenst | countdown | stiffness }
+    { surface | muscle | pretenst | countdown | stiffness | altitude }
 surface =
     { "(" ~ "surface" ~ surface_character ~ ")" }
 surface_character =
@@ -60,6 +60,8 @@ pretenst =
     { "(" ~ "pretenst" ~ float ~ ")" }
 stiffness =
     { "(" ~ "stiffness" ~ float ~ ")" }
+altitude =
+    { "(" ~ "altitude" ~ float ~ ")" }
 countdown =
     { "(" ~ "countdown" ~ integer ~ ")" }
 faces_to_triangles =

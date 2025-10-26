@@ -33,7 +33,7 @@ impl FailureTester {
         }
     }
 
-    pub fn initialize_physics(&self, context: &mut CrucibleContext) {
+    pub fn adopt_physica(&self, context: &mut CrucibleContext) {
         *context.physics = self.physics.clone();
     }
 

@@ -3,6 +3,8 @@ use crate::build::tenscript::pretenser::Stage::*;
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::fabric::physics::Physics;
+use crate::LabEvent::DumpCSV;
+use crate::Radio;
 
 #[derive(Clone, Debug, PartialEq, Copy)]
 enum Stage {
@@ -19,10 +21,11 @@ pub struct Pretenser {
     pub physics: Physics,
     stage: Stage,
     countdown: usize,
+    radio: Radio,
 }
 
 impl Pretenser {
-    pub fn new(pretense_phase: PretensePhase) -> Self {
+    pub fn new(pretense_phase: PretensePhase, radio: &Radio) -> Self {
         let pretenst = pretense_phase.pretenst.unwrap_or(AIR_GRAVITY.pretenst);
         let surface_character = pretense_phase.surface_character;
         let stiffness = pretense_phase.stiffness.unwrap_or(AIR_GRAVITY.stiffness);
@@ -38,10 +41,11 @@ impl Pretenser {
             pretense_phase,
             countdown,
             physics,
+            radio: radio.clone(),
         }
     }
 
-    pub fn initialize_physics(&self, context: &mut CrucibleContext) {
+    pub fn copy_physics_into(&self, context: &mut CrucibleContext) {
         *context.physics = self.physics.clone();
     }
 
@@ -51,12 +55,14 @@ impl Pretenser {
             Start => Slacken,
             Slacken => {
                 context.fabric.slacken();
-                context.fabric.centralize(Some(0.0));
+                let altitude = self.pretense_phase.altitude.unwrap_or(0.0) / context.fabric.scale;
+                context.fabric.centralize(Some(altitude));
                 let factor = self
                     .pretense_phase
                     .pretenst
                     .unwrap_or(self.physics.pretenst);
                 context.fabric.set_pretenst(factor, self.countdown);
+                DumpCSV.send(&self.radio);
                 Pretensing
             }
             Pretensing => {

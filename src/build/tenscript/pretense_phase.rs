@@ -18,6 +18,7 @@ pub struct PretensePhase {
     pub pretenst: Option<f32>,
     pub countdown: Option<usize>,
     pub stiffness: Option<f32>,
+    pub altitude: Option<f32>,
 }
 
 impl PretensePhase {
@@ -73,6 +74,10 @@ impl PretensePhase {
                             Rule::stiffness => {
                                 let stiffness = parse_float_inside(pretense_pair, "stiffness")?;
                                 pretense.stiffness = Some(stiffness)
+                            }
+                            Rule::altitude => {
+                                let stiffness = parse_float_inside(pretense_pair, "altitude")?;
+                                pretense.altitude = Some(stiffness)
                             }
                             _ => unreachable!(),
                         }

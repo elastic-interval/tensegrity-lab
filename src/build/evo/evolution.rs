@@ -28,7 +28,7 @@ impl Evolution {
         }
     }
 
-    pub fn initialize_physics(&self, context: &mut CrucibleContext) {
+    pub fn adopt_physica(&self, context: &mut CrucibleContext) {
         *context.physics = LIQUID;
     }
 

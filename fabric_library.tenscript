@@ -77,7 +77,9 @@
 			(during 200000 (space :end 0.35))
 			(during 200000 (vulcanize))
 			(faces-to-triangles))
-		(pretense (surface :sticky))
+		(pretense
+		 (altitude 4000.0)
+		 (surface :absent))
 		(scale 1030.0))
 	(fabric (name "Convergence")
 		(build
