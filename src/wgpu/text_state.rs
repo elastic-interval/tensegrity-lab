@@ -140,10 +140,6 @@ impl TextState {
                         )),
                         _ => unreachable!(),
                     },
-                    BoxingTesting(scenario) => match scenario {
-                        TestScenario::BoxingTest => Large(format!("Boxing {fabric_name}")),
-                        _ => unreachable!(),
-                    },
                     _ => Large(fabric_name.clone()),
                 },
             );

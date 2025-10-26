@@ -53,7 +53,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "tension" => Some(TestScenario::TensionTest),
                 "compression" => Some(TestScenario::CompressionTest),
                 "physics" => Some(TestScenario::PhysicsTest),
-                "boxing" => Some(TestScenario::BoxingTest),
                 _ => panic!("unknown test: \"{test_name}\""),
             },
         },
