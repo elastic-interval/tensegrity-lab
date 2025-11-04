@@ -62,15 +62,13 @@ impl FabricPlan {
                 | ShapeOperation::Spacer { mark_name, .. } => {
                     shape_marks.insert(mark_name.clone());
                 }
+                ShapeOperation::FacesToPrisms { mark_names } => {
+                    mark_names.iter().for_each(|mark_name| {
+                        shape_marks.insert(mark_name.clone());
+                    });
+                }
                 _ => {}
             })
-        }
-        let unused_marks: Vec<_> = build_marks.difference(&shape_marks).cloned().collect();
-        if !unused_marks.is_empty() {
-            return Err(TenscriptError::InvalidError(format!(
-                "unused marks in build phase: {}",
-                unused_marks.join(", ")
-            )));
         }
         let undefined_marks: Vec<_> = shape_marks.difference(&build_marks).cloned().collect();
         if !undefined_marks.is_empty() {
