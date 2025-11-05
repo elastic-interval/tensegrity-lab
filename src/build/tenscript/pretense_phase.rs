@@ -1,9 +1,10 @@
 use pest::iterators::{Pair, Pairs};
 
 use crate::build::tenscript::{
-    parse_float, parse_float_inside, parse_usize, parse_usize_inside, Rule, TenscriptError,
+    parse_float, parse_float_inside, parse_usize, Rule, TenscriptError,
 };
 use crate::fabric::physics::SurfaceCharacter;
+use crate::Seconds;
 
 #[derive(Debug, Clone, Default)]
 pub struct MuscleMovement {
@@ -16,7 +17,7 @@ pub struct PretensePhase {
     pub surface_character: SurfaceCharacter,
     pub muscle_movement: Option<MuscleMovement>,
     pub pretenst: Option<f32>,
-    pub countdown: Option<usize>,
+    pub seconds: Option<Seconds>,
     pub stiffness: Option<f32>,
     pub altitude: Option<f32>,
 }
@@ -67,9 +68,9 @@ impl PretensePhase {
                                 let factor = parse_float_inside(pretense_pair, "pretenst")?;
                                 pretense.pretenst = Some(factor)
                             }
-                            Rule::countdown => {
-                                let factor = parse_usize_inside(pretense_pair, "countdown")?;
-                                pretense.countdown = Some(factor)
+                            Rule::seconds => {
+                                let factor = parse_float_inside(pretense_pair, "seconds")?;
+                                pretense.seconds = Some(Seconds(factor))
                             }
                             Rule::stiffness => {
                                 let stiffness = parse_float_inside(pretense_pair, "stiffness")?;

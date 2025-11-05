@@ -8,6 +8,7 @@ use crate::fabric::joint::Joint;
 use crate::fabric::joint_incident::{JointIncident, Path};
 use crate::fabric::material::Material;
 use crate::fabric::Fabric;
+use crate::Seconds;
 
 const BOW_TIE_SHORTEN: f32 = 0.5;
 
@@ -75,7 +76,7 @@ impl Fabric {
                 }
             }
         }
-        self.progress.start(10000);
+        self.progress.start(Seconds(10.0));
     }
 
     fn pair_generator(&self) -> PairGenerator {

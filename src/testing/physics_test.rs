@@ -1,7 +1,7 @@
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::{AppearanceMode, PhysicsFeature, Radio, Role, StateChange, TesterAction};
+use crate::{AppearanceMode, PhysicsFeature, Radio, Role, Seconds, StateChange, TesterAction};
 use std::rc::Rc;
 
 pub struct PhysicsTester {
@@ -41,7 +41,7 @@ impl PhysicsTester {
                 self.physics.accept(parameter);
                 match parameter.feature {
                     PhysicsFeature::Pretenst => {
-                        self.fabric.set_pretenst(parameter.value, 100);
+                        self.fabric.set_pretenst(parameter.value, Seconds(10.0));
                     }
                     PhysicsFeature::StrainLimit => {
                         let strain_limit = self.physics.strain_limit;

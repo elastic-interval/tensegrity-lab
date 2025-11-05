@@ -1,8 +1,3 @@
-use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};
-use itertools::Itertools;
-use pest::iterators::Pair;
-use std::cmp::Ordering;
-
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::shape_phase::ShapeCommand::*;
 use crate::build::tenscript::{
@@ -14,16 +9,21 @@ use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Interval;
 use crate::fabric::material::Material;
 use crate::fabric::{Fabric, UniqueId};
+use crate::Seconds;
+use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};
+use itertools::Itertools;
+use pest::iterators::Pair;
+use std::cmp::Ordering;
 
-const DEFAULT_ADD_SHAPER_COUNTDOWN: usize = 25_000;
-const DEFAULT_VULCANIZE_COUNTDOWN: usize = 5_000;
-const DEFAULT_PRISM_COUNTDOWN: usize = 5_000;
-const DEFAULT_JOINER_COUNTDOWN: usize = 30_000;
+const DEFAULT_ADD_SHAPER_COUNTDOWN: Seconds = Seconds(25.0);
+const DEFAULT_VULCANIZE_COUNTDOWN: Seconds = Seconds(5.0);
+const DEFAULT_PRISM_COUNTDOWN: Seconds = Seconds(5.0);
+const DEFAULT_JOINER_COUNTDOWN: Seconds = Seconds(30.0);
 
 #[derive(Debug)]
 pub enum ShapeCommand {
     Noop,
-    StartCountdown(usize),
+    StartProgress(Seconds),
     Stiffness(f32),
     Drag(f32),
     Viscosity(f32),
@@ -32,8 +32,8 @@ pub enum ShapeCommand {
 
 #[derive(Debug, Clone)]
 pub enum ShapeOperation {
-    Countdown {
-        count: usize,
+    During {
+        seconds: Seconds,
         operations: Vec<ShapeOperation>,
     },
     Joiner {
@@ -80,7 +80,7 @@ pub enum ShapeOperation {
 impl ShapeOperation {
     pub fn traverse(&self, f: &mut impl FnMut(&Self)) {
         f(self);
-        if let ShapeOperation::Countdown { operations, .. } = self {
+        if let ShapeOperation::During { operations, .. } = self {
             for operation in operations {
                 operation.traverse(f);
             }
@@ -180,11 +180,11 @@ impl ShapePhase {
                     })
                 }
             },
-            Rule::during_count => {
+            Rule::during => {
                 let mut inner = pair.into_inner();
-                let count = parse_usize(inner.next().unwrap().as_str(), "(during ...)")?;
+                let seconds = parse_float(inner.next().unwrap().as_str(), "(during ...)")?;
                 let operations = Self::parse_shape_operations(inner)?;
-                Ok(ShapeOperation::Countdown { count, operations })
+                Ok(ShapeOperation::During { seconds: Seconds(seconds), operations })
             }
             Rule::finalize_spacers => Ok(ShapeOperation::FinalizeSpacers),
             Rule::faces_to_triangles => Ok(ShapeOperation::FacesToTriangles),
@@ -309,7 +309,7 @@ impl ShapePhase {
                 }
             })
             .collect();
-        (self.shape_intervals.len() < before).then_some(StartCountdown(DEFAULT_JOINER_COUNTDOWN))
+        (self.shape_intervals.len() < before).then_some(StartProgress(DEFAULT_JOINER_COUNTDOWN))
     }
 
     fn execute_shape_operation(
@@ -427,7 +427,7 @@ impl ShapePhase {
                     }
                     _ => unimplemented!("Join can only be 2 or three faces"),
                 }
-                StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
+                StartProgress(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
             ShapeOperation::PointDownwards { mark_name } => {
                 let results: Result<Vec<_>, TenscriptError> = self
@@ -473,22 +473,22 @@ impl ShapePhase {
                         })
                     }
                 }
-                StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
+                StartProgress(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
             ShapeOperation::FinalizeSpacers => {
                 self.finalize_spacers(fabric);
                 Noop
             }
-            ShapeOperation::Countdown { count, operations } => {
+            ShapeOperation::During { seconds, operations } => {
                 for operation in operations {
                     // ignores the countdown returned from each sub-operation
                     let _ = self.execute_shape_operation(fabric, brick_library, operation);
                 }
-                StartCountdown(count)
+                StartProgress(seconds)
             }
             ShapeOperation::Vulcanize => {
                 fabric.install_bow_ties();
-                StartCountdown(DEFAULT_VULCANIZE_COUNTDOWN)
+                StartProgress(DEFAULT_VULCANIZE_COUNTDOWN)
             }
             ShapeOperation::FacesToTriangles => {
                 self.finalize_spacers(fabric);
@@ -520,7 +520,7 @@ impl ShapePhase {
                             });
                     }
                 }
-                StartCountdown(DEFAULT_PRISM_COUNTDOWN)
+                StartProgress(DEFAULT_PRISM_COUNTDOWN)
             }
             ShapeOperation::SetStiffness(percent) => Stiffness(percent),
             ShapeOperation::SetDrag(percent) => Drag(percent),
@@ -547,7 +547,7 @@ impl ShapePhase {
                 let interval_id = fabric.create_interval(joint_index, base, 0.01, Material::Pull);
                 self.shape_intervals
                     .push(ShapeInterval::SurfaceAnchor(interval_id));
-                StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
+                StartProgress(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
             ShapeOperation::GuyLine {
                 joint_index,
@@ -559,7 +559,7 @@ impl ShapePhase {
                 let base = fabric.create_joint(Point3::new(x, 0.0, z));
                 let material = material.unwrap_or(Material::GuyLine);
                 fabric.create_interval(joint_index, base, length, material);
-                StartCountdown(DEFAULT_ADD_SHAPER_COUNTDOWN)
+                StartProgress(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
             ShapeOperation::Centralize { altitude } => {
                 fabric.centralize(altitude);
