@@ -11,12 +11,12 @@ use crate::fabric::material::Material::{North, South};
 use crate::fabric::material::MaterialProperties;
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
-use crate::Age;
+use crate::{Age, Seconds};
 use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, Transform, Vector3};
+use instant::Instant;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use instant::Instant;
 
 pub mod attachment;
 pub mod brick;
@@ -156,7 +156,7 @@ impl Fabric {
         }
     }
 
-    pub fn set_pretenst(&mut self, pretenst: f32, countdown: usize) {
+    pub fn set_pretenst(&mut self, pretenst: f32, seconds: Seconds) {
         for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
             let interval = interval_opt.as_mut().unwrap();
             let MaterialProperties { role, support, .. } = interval.material.properties();
@@ -184,7 +184,7 @@ impl Fabric {
                 }
             }
         }
-        self.progress.start(countdown);
+        self.progress.start(seconds);
     }
 
     pub fn max_velocity(&self) -> f32 {
@@ -234,7 +234,7 @@ impl Fabric {
         for joint in &mut self.joints {
             joint.iterate(physics, elapsed);
         }
-        if self.progress.step() {
+        if self.progress.step(elapsed) {
             // final step
             for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
                 let interval = interval_opt.as_mut().unwrap();

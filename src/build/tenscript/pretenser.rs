@@ -4,7 +4,7 @@ use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::fabric::physics::Physics;
 use crate::LabEvent::DumpCSV;
-use crate::Radio;
+use crate::{Radio, Seconds, MOMENT};
 
 #[derive(Clone, Debug, PartialEq, Copy)]
 enum Stage {
@@ -20,7 +20,7 @@ pub struct Pretenser {
     pub pretense_phase: PretensePhase,
     pub physics: Physics,
     stage: Stage,
-    countdown: usize,
+    countdown: Seconds,
     radio: Radio,
 }
 
@@ -35,7 +35,7 @@ impl Pretenser {
             stiffness,
             ..AIR_GRAVITY
         };
-        let countdown = pretense_phase.countdown.unwrap_or(7000);
+        let countdown = pretense_phase.seconds.unwrap_or(Seconds(15.0));
         Self {
             stage: Start,
             pretense_phase,
@@ -94,7 +94,7 @@ impl Pretenser {
                     self.physics.cycle_ticks = muscle_movement.countdown as f32;
                     // Update physics when cycle_ticks changes
                     *context.physics = self.physics.clone();
-                    context.fabric.progress.start(500);
+                    context.fabric.progress.start(MOMENT);
 
                     Pretenst
                 }

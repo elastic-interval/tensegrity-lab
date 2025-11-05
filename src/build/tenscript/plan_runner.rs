@@ -6,6 +6,7 @@ use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::LIQUID;
 use crate::fabric::physics::Physics;
+use crate::{IMMEDIATE, MOMENT};
 
 #[derive(Clone, Debug, Copy, PartialEq)]
 enum Stage {
@@ -60,61 +61,61 @@ impl PlanRunner {
         if context.fabric.progress.is_busy() || self.disabled.is_some() {
             return Ok(());
         }
-        let (next_stage, countdown) = match self.stage {
+        let (next_stage, seconds) = match self.stage {
             Initialize => {
                 self.build_phase
                     .init(context.fabric, context.brick_library)?;
                 context.fabric.scale = self.get_scale();
 
-                (GrowApproach, 500)
+                (GrowApproach, MOMENT)
             }
             GrowStep => {
                 if self.build_phase.is_growing() {
                     self.build_phase
                         .growth_step(context.fabric, context.brick_library)?;
 
-                    (GrowApproach, 500)
+                    (GrowApproach, MOMENT)
                 } else if self.shape_phase.needs_shaping() {
                     self.shape_phase.marks = self.build_phase.marks.split_off(0);
-                    (Shaping, 0)
+                    (Shaping, IMMEDIATE)
                 } else {
-                    (Completed, 0)
+                    (Completed, IMMEDIATE)
                 }
             }
-            GrowApproach => (GrowCalm, 500),
-            GrowCalm => (GrowStep, 0),
+            GrowApproach => (GrowCalm, MOMENT),
+            GrowCalm => (GrowStep, IMMEDIATE),
             Shaping => match self
                 .shape_phase
                 .shaping_step(context.fabric, context.brick_library)?
             {
-                ShapeCommand::Noop => (Shaping, 0),
-                ShapeCommand::StartCountdown(countdown) => (Shaping, countdown),
+                ShapeCommand::Noop => (Shaping, IMMEDIATE),
+                ShapeCommand::StartProgress(seconds) => (Shaping, seconds),
                 ShapeCommand::Stiffness(percent) => {
                     self.physics.stiffness *= percent / 100.0;
                     // Update physics when stiffness changes
                     *context.physics = self.physics.clone();
 
-                    (Shaping, 0)
+                    (Shaping, IMMEDIATE)
                 }
                 ShapeCommand::Viscosity(percent) => {
                     self.physics.viscosity *= percent / 100.0;
                     // Update physics when viscosity changes
                     *context.physics = self.physics.clone();
 
-                    (Shaping, 0)
+                    (Shaping, IMMEDIATE)
                 }
                 ShapeCommand::Drag(percent) => {
                     self.physics.drag *= percent / 100.0;
                     // Update physics when drag changes
                     *context.physics = self.physics.clone();
 
-                    (Shaping, 0)
+                    (Shaping, IMMEDIATE)
                 }
-                ShapeCommand::Terminate => (Completed, 0),
+                ShapeCommand::Terminate => (Completed, IMMEDIATE)
             },
-            Completed => (Completed, 0),
+            Completed => (Completed, IMMEDIATE),
         };
-        context.fabric.progress.start(countdown);
+        context.fabric.progress.start(seconds);
         self.stage = next_stage;
 
         Ok(())

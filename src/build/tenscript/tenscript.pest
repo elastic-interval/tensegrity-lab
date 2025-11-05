@@ -15,9 +15,9 @@ basic_shape_operation =
     faces_to_prisms | set_stiffness | set_drag | set_viscosity | down | centralize | omit | add
     }
 shape_operation =
-    { basic_shape_operation | during_count }
-during_count = // iteration-count
-    { "(" ~ "during" ~ integer ~ basic_shape_operation+ ~ ")" }
+    { basic_shape_operation | during }
+during = // iteration-count
+    { "(" ~ "during" ~ float ~ basic_shape_operation+ ~ ")" }
 omit =
     {  "(" ~ "omit" ~ integer ~ integer ~ ")" }
 add =
@@ -49,7 +49,7 @@ vulcanize =
 pretense =
     { "(" ~ "pretense" ~ pretense_feature* ~ ")" }
 pretense_feature =
-    { surface | muscle | pretenst | countdown | stiffness | altitude }
+    { surface | muscle | pretenst | seconds | stiffness | altitude }
 surface =
     { "(" ~ "surface" ~ surface_character ~ ")" }
 surface_character =
@@ -62,8 +62,8 @@ stiffness =
     { "(" ~ "stiffness" ~ float ~ ")" }
 altitude =
     { "(" ~ "altitude" ~ float ~ ")" }
-countdown =
-    { "(" ~ "countdown" ~ integer ~ ")" }
+seconds =
+    { "(" ~ "seconds" ~ float ~ ")" }
 faces_to_triangles =
     { "(" ~ "faces-to-triangles" ~ ")" }
 faces_to_prisms =

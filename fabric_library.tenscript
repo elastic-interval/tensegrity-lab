@@ -76,12 +76,11 @@
 				(face (alias Top) (grow 1))
 				))
 		(shape
-			(during 200000 (space :end 0.4))
-			(during 200000 (vulcanize))
-			)
+			(during 10.0 (space :end 0.4))
+			(during 10.0 (vulcanize)))
 		(pretense
 		 (altitude 4000.0)
-		 (surface :absent))
+		 (surface :frozen))
 		(scale 1030.0))
 	(fabric (name "Convergence")
 		(build
@@ -218,8 +217,8 @@
 							(face (alias BotZ) (mark :chest-2))
 							(face (alias BotX) (grow "...X.." (scale .9) (mark :hands))))))))
 		(shape
-			(during 50000 (space :legs .4) (space :hands .2)  (space :chest-2 .4))
-			(during 800000 (vulcanize))
+			(during 6.0 (space :legs .4) (space :hands .2)  (space :chest-2 .4))
+			(during 6.0 (vulcanize))
 			(faces-to-triangles)
 			(centralize 1.0))
 		(pretense (surface :frozen)))
