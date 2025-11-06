@@ -55,7 +55,10 @@ impl Pretenser {
             Start => {
                 let face_ids: Vec<_> = context.fabric.faces.keys().copied().collect();
                 for face_id in face_ids {
-                    context.fabric.add_face_triangle(face_id);
+                    let face = context.fabric.face(face_id);
+                    if !face.has_prism {
+                        context.fabric.add_face_triangle(face_id);
+                    }
                     context.fabric.remove_face(face_id);
                 }
                 Slacken
