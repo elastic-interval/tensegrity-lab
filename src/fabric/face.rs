@@ -98,7 +98,7 @@ impl Fabric {
 
     pub fn add_face_prism(&mut self, face_id: UniqueId) {
         let face = self.face(face_id);
-        let push_length = face.scale / 2.0;
+        let push_length = face.scale;
         // Radial joints are at distance `scale` from midpoint in the plane.
         // Alpha/omega are at distance `push_length/2` along the normal.
         // By Pythagorean theorem: pull_length² = scale² + (push_length/2)²

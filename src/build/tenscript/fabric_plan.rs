@@ -62,11 +62,6 @@ impl FabricPlan {
                 | ShapeOperation::Spacer { mark_name, .. } => {
                     shape_marks.insert(mark_name.clone());
                 }
-                ShapeOperation::FacesToPrisms { mark_names } => {
-                    mark_names.iter().for_each(|mark_name| {
-                        shape_marks.insert(mark_name.clone());
-                    });
-                }
                 _ => {}
             })
         }

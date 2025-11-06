@@ -12,7 +12,7 @@ shape =
 basic_shape_operation =
     {
     anchor | guy_line | spacer | joiner | vulcanize |
-    faces_to_prisms | set_stiffness | set_drag | set_viscosity | down | centralize | omit | add
+    set_stiffness | set_drag | set_viscosity | down | centralize | omit | add
     }
 shape_operation =
     { basic_shape_operation | during }
@@ -62,8 +62,6 @@ altitude =
     { "(" ~ "altitude" ~ float ~ ")" }
 seconds =
     { "(" ~ "seconds" ~ float ~ ")" }
-faces_to_prisms =
-    { "(" ~ "faces-to-prisms" ~ atom+ ~ ")" }
 build =
     { "(" ~ "build" ~ branch ~ ")" }
 build_node =
