@@ -7,7 +7,7 @@ use pest::iterators::Pair;
 use crate::build::tenscript::build_phase::BuildNode;
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeOperation, ShapePhase};
-use crate::build::tenscript::{parse_float_inside, BuildPhase, Rule, TenscriptError};
+use crate::build::tenscript::{BuildPhase, PairExt, Rule, TenscriptError};
 
 #[derive(Debug, Clone)]
 pub struct FabricPlan {
@@ -27,10 +27,10 @@ impl FabricPlan {
         let build_phase = BuildPhase::from_pair(build)?;
         let shape_phase = ShapePhase::from_pair(inner.next().unwrap())?;
         let pretense_phase = PretensePhase::from_pair(inner.next().unwrap())?;
-        let scale = match inner.next() {
-            None => Ok(1.0),
-            Some(pair) => parse_float_inside(pair, "fabric/scale"),
-        }?;
+        let scale = inner.next()
+            .map(|pair| pair.parse_float_inner("fabric/scale"))
+            .transpose()?
+            .unwrap_or(1.0);
         let plan = FabricPlan {
             name,
             build_phase,
