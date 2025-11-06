@@ -123,105 +123,133 @@ impl PairGenerator {
     }
 
     fn bow_tie_pulls(mut self, joints: &[Joint]) -> impl Iterator<Item = Pair> {
-        for interval in self.intervals.values() {
-            if interval.material.properties().role != Role::Pushing {
-                continue;
-            }
-            let mut meeting_pairs = vec![];
-            for alpha_path in self.paths_for(interval.alpha_index, 2) {
-                for omega_path in self.paths_for(interval.omega_index, 2) {
-                    if alpha_path.last_interval().key() == omega_path.last_interval().key() {
-                        // second interval is the bridge
-                        meeting_pairs.push((6, alpha_path.clone(), omega_path.clone()));
-                    }
-                    if alpha_path.last_joint() == omega_path.last_joint() {
-                        meeting_pairs.push((8, alpha_path.clone(), omega_path.clone()));
-                    }
-                }
-            }
-            meeting_pairs.sort_by_key(|(size, _, _)| *size);
+        let push_intervals: Vec<_> = self
+            .intervals
+            .values()
+            .filter(|interval| interval.material.properties().role == Role::Pushing)
+            .cloned()
+            .collect();
+
+        for interval in push_intervals {
+            let meeting_pairs = self.find_meeting_pairs(&interval);
             match meeting_pairs.as_slice() {
                 [(6, alpha1, omega1), (6, alpha2, omega2), ..] => {
-                    let diagonals = [
-                        (alpha1.last_joint(), omega2.last_joint()),
-                        (alpha2.last_joint(), omega1.last_joint()),
-                    ];
-                    let cross_twist_diagonals: Vec<_> = diagonals
-                        .iter()
-                        .filter_map(|&(a, b)| {
-                            if self.interval_exists(
-                                self.joints[a].across_push()?,
-                                self.joints[b].across_push()?,
-                            ) {
-                                return None;
-                            }
-                            Some((a, b))
-                        })
-                        .collect();
-                    if let &[(alpha_index, omega_index)] = cross_twist_diagonals.as_slice() {
-                        let distance = joints[alpha_index]
-                            .location
-                            .distance(joints[omega_index].location);
-                        let pair = Pair {
-                            alpha_index,
-                            omega_index,
-                            length: distance * BOW_TIE_SHORTEN,
-                        };
-                        self.pairs.insert(pair.key(), pair);
-                    } else {
-                        let candidate_completions = [
-                            (alpha1, alpha2),
-                            (alpha2, alpha1),
-                            (omega1, omega2),
-                            (omega2, omega1),
-                        ];
-                        let triangle_completions: Vec<_> = candidate_completions
-                            .iter()
-                            .filter_map(|&(path, other_path)| {
-                                if self.joints[other_path.joint_indices[1]].push().is_some() {
-                                    return None;
-                                }
-                                Some((path.joint_indices[0], path.last_joint()))
-                            })
-                            .collect();
-                        if let &[(alpha_index, omega_index)] = triangle_completions.as_slice() {
-                            let distance = joints[alpha_index]
-                                .location
-                                .distance(joints[omega_index].location);
-                            let pair = Pair {
-                                alpha_index,
-                                omega_index,
-                                length: distance * BOW_TIE_SHORTEN,
-                            };
-                            self.pairs.insert(pair.key(), pair);
-                        }
-                    }
+                    self.handle_bridge_meeting(alpha1, omega1, alpha2, omega2, joints);
                 }
                 [(8, alpha1, omega1), (8, alpha2, omega2)] => {
-                    let candidates = [
-                        (alpha1, alpha2.last_joint()),
-                        (alpha2, alpha1.last_joint()),
-                        (omega1, omega2.last_joint()),
-                        (omega2, omega1.last_joint()),
-                    ];
-                    for (path, omega_index) in candidates {
-                        let alpha_index = path.joint_indices[1];
-                        if self.joints[alpha_index].push().is_none() {
-                            continue;
-                        }
-                        let pair = Pair {
-                            alpha_index,
-                            omega_index,
-                            length: interval.ideal() / 4.0,
-                        };
-                        self.pairs.insert(pair.key(), pair);
-                    }
+                    self.handle_joint_meeting(alpha1, omega1, alpha2, omega2, &interval);
                 }
                 _ => {}
             }
         }
 
         self.pairs.into_values()
+    }
+
+    fn find_meeting_pairs(&self, interval: &Interval) -> Vec<(usize, Path, Path)> {
+        let mut meeting_pairs = vec![];
+        for alpha_path in self.paths_for(interval.alpha_index, 2) {
+            for omega_path in self.paths_for(interval.omega_index, 2) {
+                if alpha_path.last_interval().key() == omega_path.last_interval().key() {
+                    // second interval is the bridge
+                    meeting_pairs.push((6, alpha_path.clone(), omega_path.clone()));
+                }
+                if alpha_path.last_joint() == omega_path.last_joint() {
+                    meeting_pairs.push((8, alpha_path.clone(), omega_path.clone()));
+                }
+            }
+        }
+        meeting_pairs.sort_by_key(|(size, _, _)| *size);
+        meeting_pairs
+    }
+    fn handle_bridge_meeting(
+        &mut self,
+        alpha1: &Path,
+        omega1: &Path,
+        alpha2: &Path,
+        omega2: &Path,
+        joints: &[Joint],
+    ) {
+        let diagonals = [
+            (alpha1.last_joint(), omega2.last_joint()),
+            (alpha2.last_joint(), omega1.last_joint()),
+        ];
+        let cross_twist_diagonals: Vec<_> = diagonals
+            .iter()
+            .filter_map(|&(a, b)| {
+                if self
+                    .interval_exists(self.joints[a].across_push()?, self.joints[b].across_push()?)
+                {
+                    return None;
+                }
+                Some((a, b))
+            })
+            .collect();
+        if let &[(alpha_index, omega_index)] = cross_twist_diagonals.as_slice() {
+            let distance = joints[alpha_index]
+                .location
+                .distance(joints[omega_index].location);
+            let pair = Pair {
+                alpha_index,
+                omega_index,
+                length: distance * BOW_TIE_SHORTEN,
+            };
+            self.pairs.insert(pair.key(), pair);
+        } else {
+            let candidate_completions = [
+                (alpha1, alpha2),
+                (alpha2, alpha1),
+                (omega1, omega2),
+                (omega2, omega1),
+            ];
+            let triangle_completions: Vec<_> = candidate_completions
+                .iter()
+                .filter_map(|&(path, other_path)| {
+                    if self.joints[other_path.joint_indices[1]].push().is_some() {
+                        return None;
+                    }
+                    Some((path.joint_indices[0], path.last_joint()))
+                })
+                .collect();
+            if let &[(alpha_index, omega_index)] = triangle_completions.as_slice() {
+                let distance = joints[alpha_index]
+                    .location
+                    .distance(joints[omega_index].location);
+                let pair = Pair {
+                    alpha_index,
+                    omega_index,
+                    length: distance * BOW_TIE_SHORTEN,
+                };
+                self.pairs.insert(pair.key(), pair);
+            }
+        }
+    }
+    fn handle_joint_meeting(
+        &mut self,
+        alpha1: &Path,
+        omega1: &Path,
+        alpha2: &Path,
+        omega2: &Path,
+        interval: &Interval,
+    ) {
+        let candidates = [
+            (alpha1, alpha2.last_joint()),
+            (alpha2, alpha1.last_joint()),
+            (omega1, omega2.last_joint()),
+            (omega2, omega1.last_joint()),
+        ];
+        for (path, omega_index) in candidates {
+            let alpha_index = path.joint_indices[1];
+            if self.joints[alpha_index].push().is_none() {
+                continue;
+            }
+            let pair = Pair {
+                alpha_index,
+                omega_index,
+                length: interval.ideal() / 4.0,
+            };
+            self.pairs.insert(pair.key(), pair);
+        }
     }
 
     fn interval_exists(&self, a: usize, b: usize) -> bool {
