@@ -28,6 +28,7 @@ impl Fabric {
                 scale,
                 spin,
                 radial_intervals,
+                has_prism: false,
             },
         );
         id
@@ -114,6 +115,10 @@ impl Fabric {
             self.create_interval(alpha, radial, pull_length, Pull);
             self.create_interval(omega, radial, pull_length, Pull);
         }
+        // Mark the face as having a prism
+        if let Some(face) = self.faces.get_mut(&face_id) {
+            face.has_prism = true;
+        }
     }
 }
 
@@ -141,6 +146,7 @@ pub struct Face {
     pub scale: f32,
     pub spin: Spin,
     pub radial_intervals: [UniqueId; 3],
+    pub has_prism: bool,
 }
 
 impl Face {
