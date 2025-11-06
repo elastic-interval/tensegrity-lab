@@ -16,7 +16,7 @@ pub struct Bud {
     face_id: UniqueId,
     forward: String,
     scale_factor: f32,
-    node: Option<BuildNode>,
+    nodes: Vec<BuildNode>,
 }
 
 #[derive(Debug, Clone)]
@@ -28,7 +28,7 @@ pub enum BuildNode {
     Grow {
         forward: String,
         scale_factor: f32,
-        post_growth_node: Option<Box<BuildNode>>,
+        post_growth_nodes: Vec<BuildNode>,
     },
     Mark {
         mark_name: String,
@@ -40,23 +40,23 @@ pub enum BuildNode {
         seed: Option<usize>,
         face_nodes: Vec<BuildNode>,
     },
+    Prism,
 }
 
 impl BuildNode {
     pub fn traverse(&self, f: &mut impl FnMut(&Self)) {
         f(self);
         match self {
-            Mark { .. } => {}
+            Mark { .. }| Prism{..} => {}
             Face { node, .. } => {
                 node.traverse(f);
             }
             Grow {
-                post_growth_node, ..
+                post_growth_nodes, ..
             } => {
-                let Some(node) = post_growth_node else {
-                    return;
-                };
-                node.traverse(f);
+                for node in post_growth_nodes {
+                    node.traverse(f);
+                }
             }
             Branch { face_nodes, .. } => {
                 for node in face_nodes {
@@ -120,14 +120,14 @@ impl BuildPhase {
                     Err(_) => forward_string[1..forward_string.len() - 1].into(),
                 };
                 let mut scale = None;
-                let mut post_growth_node = None;
+                let mut post_growth_nodes = Vec::new();
                 for inner_pair in inner {
                     match inner_pair.as_rule() {
                         Rule::scale => {
                             scale = Some(inner_pair.parse_float_inner("grow/scale")?);
                         }
                         Rule::build_node => {
-                            post_growth_node = Some(Box::new(Self::parse_build_node(inner_pair)?));
+                            post_growth_nodes.push(Self::parse_build_node(inner_pair)?);
                         }
                         _ => unreachable!(),
                     }
@@ -136,7 +136,7 @@ impl BuildPhase {
                 Ok(Grow {
                     forward,
                     scale_factor,
-                    post_growth_node,
+                    post_growth_nodes,
                 })
             }
             Rule::mark => {
@@ -165,9 +165,6 @@ impl BuildPhase {
                             let node = Self::parse_build_node(node_pair)?;
                             face_nodes.push(node);
                         }
-                        Rule::other_faces => {
-                            // TODO: finish off the other faces somehow
-                        }
                         _ => unreachable!("{:?}", node_pair),
                     }
                 }
@@ -179,6 +176,9 @@ impl BuildPhase {
                     seed,
                     scale_factor,
                 })
+            }
+            Rule::prism => {
+                Ok(Prism)
             }
             _ => unreachable!("node {:?}", pair.as_rule()),
         }
@@ -220,7 +220,7 @@ impl BuildPhase {
             face_id,
             forward,
             scale_factor,
-            node,
+            nodes,
         }: Bud,
         brick_library: &BrickLibrary,
     ) -> Result<(Vec<Bud>, Vec<FaceMark>), TenscriptError> {
@@ -248,18 +248,20 @@ impl BuildPhase {
                     .expect("face matching top face alias"),
                 forward: forward[1..].into(),
                 scale_factor,
-                node,
+                nodes,
             });
-        } else if let Some(node) = node {
-            let (node_buds, node_marks) = Self::execute_node(
-                fabric,
-                IdentifiedFace(face_id),
-                &node,
-                vec![],
-                brick_library,
-            )?;
-            buds.extend(node_buds);
-            marks.extend(node_marks);
+        } else if !nodes.is_empty() {
+            for child_node in &nodes {
+                let (node_buds, node_marks) = Self::execute_node(
+                    fabric,
+                    IdentifiedFace(face_id),
+                    child_node,
+                    vec![],
+                    brick_library,
+                )?;
+                buds.extend(node_buds);
+                marks.extend(node_marks);
+            }
         };
         Ok((buds, marks))
     }
@@ -287,19 +289,18 @@ impl BuildPhase {
             Grow {
                 forward,
                 scale_factor,
-                post_growth_node,
+                post_growth_nodes,
                 ..
             } => {
                 let face_id = Self::find_launch_face(&launch, &faces, fabric)?;
                 let face_id = face_id.ok_or(TenscriptError::FaceAliasError(
                     "Unable to find the launch face by id in execute_node".to_string(),
                 ))?;
-                let node = post_growth_node.clone().map(|x| *x);
                 buds.push(Bud {
                     face_id,
                     forward: forward.clone(),
                     scale_factor: *scale_factor,
-                    node,
+                    nodes: post_growth_nodes.clone(),
                 })
             }
             Branch {
@@ -342,6 +343,13 @@ impl BuildPhase {
                     face_id,
                     mark_name: mark_name.clone(),
                 });
+            }
+            Prism => {
+                let maybe_face_id = Self::find_launch_face(&launch, &faces, fabric)?;
+                let face_id = maybe_face_id.ok_or(TenscriptError::FaceAliasError(
+                    "Unable to find face for prism".to_string(),
+                ))?;
+                fabric.add_face_prism(face_id);
             }
         };
         Ok((buds, marks))

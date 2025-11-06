@@ -104,8 +104,7 @@ A fairly simple example is *"Halo by Crane"* described by this *Tenscript*.
 	              (face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))))
 	    (shape
 	      (join :halo-end)
-	      (vulcanize)
-	      (faces-to-triangles))
+	      (vulcanize))
 	    (pretense (surface :frozen)))
 
 What happens here in the **growth** phase is thet first the stem is built by growing four twists on top of a base twist, while scaling down from one to the next, and then it branches using the *Omni-Twist* brick.
@@ -116,7 +115,7 @@ Finally the ends of the arms are marked *:halo-end* so that in the **shaping** p
 
 ![Halo by Crane](halo-build.png)
 
-Following the join command comes *vulcanize*, which adds extra support tension intervals to make the tensegrity more rigid, and the faces with radial tension are replaced by tension triangles with *faces-to-triangles*.
+Following the join command comes *vulcanize*, which adds extra support tension intervals to make the tensegrity more rigid, and finally the faces with radial tension are replaced by tension triangles.
 
 Finally, the *pretense* phase describes the world in which the structure will end up, in this case specifying a *frozen* surface which permanently grabs and fixes any joint that touches the surface.
 

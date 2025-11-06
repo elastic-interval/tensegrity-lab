@@ -81,7 +81,7 @@ impl Fabric {
         self.remove_face(omega_id);
     }
 
-    pub fn face_triangle(&mut self, face_id: UniqueId) {
+    pub fn add_face_triangle(&mut self, face_id: UniqueId) {
         let face = self.face(face_id);
         let side_length = face.scale * ROOT3;
         let radial_joints = face.radial_joints(self);
@@ -95,13 +95,14 @@ impl Fabric {
         }
     }
 
-    pub fn face_to_prism(&mut self, face_id: UniqueId) {
+    pub fn add_face_prism(&mut self, face_id: UniqueId) {
         let face = self.face(face_id);
-        let push_length = face.scale;
+        let push_length = face.scale / 2.0;
         // Radial joints are at distance `scale` from midpoint in the plane.
         // Alpha/omega are at distance `push_length/2` along the normal.
         // By Pythagorean theorem: pull_length² = scale² + (push_length/2)²
-        let pull_length = (face.scale * face.scale + (push_length / 2.0) * (push_length / 2.0)).sqrt();
+        let pull_length =
+            (face.scale * face.scale + (push_length / 2.0) * (push_length / 2.0)).sqrt();
         let radial_joints = face.radial_joints(self);
         let normal = face.normal(&self);
         let midpoint = face.midpoint(&self);

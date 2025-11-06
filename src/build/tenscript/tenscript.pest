@@ -11,7 +11,7 @@ shape =
     { "(" ~ "shape" ~ shape_operation* ~ ")" }
 basic_shape_operation =
     {
-    anchor | guy_line | spacer | joiner | vulcanize | finalize_spacers | faces_to_triangles |
+    anchor | guy_line | spacer | joiner | vulcanize |
     faces_to_prisms | set_stiffness | set_drag | set_viscosity | down | centralize | omit | add
     }
 shape_operation =
@@ -34,8 +34,6 @@ joiner = // mark-name
     { "(" ~ "join" ~ atom ~ seed? ~ ")" }
 down = // mark-name
     { "(" ~ "down" ~ atom ~ ")" }
-finalize_spacers =
-    { "(" ~ "finalize-spacers" ~ ")" }
 set_stiffness =
     { "(" ~ "set-stiffness" ~ float ~ ")" }
 set_drag =
@@ -64,26 +62,24 @@ altitude =
     { "(" ~ "altitude" ~ float ~ ")" }
 seconds =
     { "(" ~ "seconds" ~ float ~ ")" }
-faces_to_triangles =
-    { "(" ~ "faces-to-triangles" ~ ")" }
 faces_to_prisms =
     { "(" ~ "faces-to-prisms" ~ atom+ ~ ")" }
 build =
     { "(" ~ "build" ~ branch ~ ")" }
 build_node =
-    { grow | mark | branch }
+    { grow | mark | branch | prism }
 on_face =
     { "(" ~ "on-face" ~ face_alias ~ build_node ~ ")" }
-other_faces =
-    { "(" ~ "other-faces" ~ atom ~ ")" }
 grow =
-    { "(" ~ "grow" ~ (integer | forward) ~ scale? ~ build_node? ~ ")" }
+    { "(" ~ "grow" ~ (integer | forward) ~ scale? ~ build_node* ~ ")" }
 mark =
     { "(" ~ "mark" ~ atom ~ ")" }
 seed =
     { "(" ~ "seed" ~ integer ~")"}
 branch =
-    { "(" ~ "branch" ~ partial_alias ~ scale? ~ seed? ~ face_rotation* ~ on_face* ~ other_faces? ~ ")" }
+    { "(" ~ "branch" ~ partial_alias ~ scale? ~ seed? ~ face_rotation* ~ on_face* ~ ")" }
+prism =
+    { "(" ~ "prism" ~ ")" }
 face_rotation =
     { "(" ~ "rotate" ~ ")" }
 scale =
