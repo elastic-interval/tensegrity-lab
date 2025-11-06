@@ -67,13 +67,15 @@ seconds =
 faces_to_triangles =
     { "(" ~ "faces-to-triangles" ~ ")" }
 faces_to_prisms =
-    { "(" ~ "faces-to-prisms" ~ atom* ~ ")" }
+    { "(" ~ "faces-to-prisms" ~ atom+ ~ ")" }
 build =
     { "(" ~ "build" ~ branch ~ ")" }
 build_node =
-    { on_face | grow | mark | branch }
+    { grow | mark | branch }
 on_face =
-    { "(" ~ "face" ~ face_alias ~ build_node ~ ")" }
+    { "(" ~ "on-face" ~ face_alias ~ build_node ~ ")" }
+other_faces =
+    { "(" ~ "other-faces" ~ atom ~ ")" }
 grow =
     { "(" ~ "grow" ~ (integer | forward) ~ scale? ~ build_node? ~ ")" }
 mark =
@@ -81,7 +83,7 @@ mark =
 seed =
     { "(" ~ "seed" ~ integer ~")"}
 branch =
-    { "(" ~ "branch" ~ partial_alias ~ scale? ~ seed? ~ face_rotation* ~ on_face* ~ ")" }
+    { "(" ~ "branch" ~ partial_alias ~ scale? ~ seed? ~ face_rotation* ~ on_face* ~ other_faces? ~ ")" }
 face_rotation =
     { "(" ~ "rotate" ~ ")" }
 scale =

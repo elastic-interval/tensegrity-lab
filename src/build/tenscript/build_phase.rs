@@ -172,6 +172,9 @@ impl BuildPhase {
                             let node = Self::parse_build_node(node_pair)?;
                             face_nodes.push(node);
                         }
+                        Rule::other_faces => {
+                            // TODO: finish off the other faces somehow
+                        }
                         _ => unreachable!("{:?}", node_pair),
                     }
                 }
@@ -187,17 +190,6 @@ impl BuildPhase {
             _ => unreachable!("node {:?}", pair.as_rule()),
         }
     }
-
-    fn _parse_scale(scale_pair: Option<Pair<Rule>>) -> f32 {
-        match scale_pair {
-            None => 1.0,
-            Some(scale_pair) => {
-                let scale_string = scale_pair.into_inner().next().unwrap().as_str();
-                scale_string.parse().unwrap()
-            }
-        }
-    }
-
     pub fn init(
         &mut self,
         fabric: &mut Fabric,
