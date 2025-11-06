@@ -8,13 +8,11 @@ use crate::fabric::material::Material;
 use crate::fabric::{Fabric, UniqueId};
 use crate::Seconds;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};
-use itertools::Itertools;
 use pest::iterators::Pair;
 use std::cmp::Ordering;
 
 const DEFAULT_ADD_SHAPER_COUNTDOWN: Seconds = Seconds(25.0);
 const DEFAULT_VULCANIZE_COUNTDOWN: Seconds = Seconds(5.0);
-const DEFAULT_PRISM_COUNTDOWN: Seconds = Seconds(5.0);
 const DEFAULT_JOINER_COUNTDOWN: Seconds = Seconds(30.0);
 
 #[derive(Debug)]
@@ -58,9 +56,6 @@ pub enum ShapeOperation {
         material: Option<Material>,
     },
     Vulcanize,
-    FacesToPrisms {
-        mark_names: Vec<String>,
-    },
     SetStiffness(f32),
     SetDrag(f32),
     SetViscosity(f32),
@@ -164,10 +159,6 @@ impl ShapePhase {
                     seconds: Seconds(seconds),
                     operations,
                 })
-            }
-            Rule::faces_to_prisms => {
-                let mark_names = pair.into_inner().map(|p| p.as_atom()).collect();
-                Ok(ShapeOperation::FacesToPrisms { mark_names })
             }
             Rule::vulcanize => Ok(ShapeOperation::Vulcanize),
             Rule::set_stiffness => {
@@ -428,18 +419,6 @@ impl ShapePhase {
                 fabric.install_bow_ties();
                 StartProgress(DEFAULT_VULCANIZE_COUNTDOWN)
             }
-            ShapeOperation::FacesToPrisms { mark_names } => {
-                for mark_name in mark_names {
-                    self.marks
-                        .iter()
-                        .filter(|mark| mark.mark_name == mark_name)
-                        .sorted_by(|&mark_a, &mark_b| Ord::cmp(&mark_a.face_id, &mark_b.face_id))
-                        .for_each(|&FaceMark { face_id, .. }| {
-                            fabric.add_face_prism(face_id);
-                        });
-                }
-                StartProgress(DEFAULT_PRISM_COUNTDOWN)
-            }
             ShapeOperation::SetStiffness(percent) => Stiffness(percent),
             ShapeOperation::SetDrag(percent) => Drag(percent),
             ShapeOperation::SetViscosity(percent) => Viscosity(percent),
@@ -499,7 +478,6 @@ impl ShapePhase {
             .map(|face_id| fabric.face(*face_id).middle_joint(fabric))
             .collect()
     }
-
     pub fn complete_joiners(&mut self, fabric: &mut Fabric) -> Option<ShapeCommand> {
         let joiner_active = !self.joiners.is_empty();
         for Joiner {
