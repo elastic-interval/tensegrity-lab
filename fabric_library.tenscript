@@ -38,7 +38,7 @@
                 (space :shoulders 0.5))
             (during 25000 (vulcanize))
             ;(finalize-spacers)
-            (faces-to-prisms :legs)
+            ;(faces-to-prisms :legs)
             (omit 1 16)
             (omit 5 17)
             (omit 56 68)
