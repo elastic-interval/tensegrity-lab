@@ -57,9 +57,7 @@ pub enum ShapeOperation {
         surface: (f32, f32),
         material: Option<Material>,
     },
-    FinalizeSpacers,
     Vulcanize,
-    FacesToTriangles,
     FacesToPrisms {
         mark_names: Vec<String>,
     },
@@ -167,8 +165,6 @@ impl ShapePhase {
                     operations,
                 })
             }
-            Rule::finalize_spacers => Ok(ShapeOperation::FinalizeSpacers),
-            Rule::faces_to_triangles => Ok(ShapeOperation::FacesToTriangles),
             Rule::faces_to_prisms => {
                 let mark_names = pair.into_inner().map(|p| p.as_atom()).collect();
                 Ok(ShapeOperation::FacesToPrisms { mark_names })
@@ -255,8 +251,7 @@ impl ShapePhase {
             return Ok(countdown);
         }
         let Some(operation) = self.operations.get(self.shape_operation_index) else {
-            self.finalize_spacers(fabric);
-            self.remove_anchors(fabric);
+            self.cleanup(fabric);
             return Ok(Terminate);
         };
         self.shape_operation_index += 1;
@@ -419,10 +414,6 @@ impl ShapePhase {
                 }
                 StartProgress(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
-            ShapeOperation::FinalizeSpacers => {
-                self.finalize_spacers(fabric);
-                Noop
-            }
             ShapeOperation::During {
                 seconds,
                 operations,
@@ -437,14 +428,6 @@ impl ShapePhase {
                 fabric.install_bow_ties();
                 StartProgress(DEFAULT_VULCANIZE_COUNTDOWN)
             }
-            ShapeOperation::FacesToTriangles => {
-                self.finalize_spacers(fabric);
-                let face_ids: Vec<UniqueId> = fabric.faces.keys().cloned().collect();
-                for face_id in face_ids {
-                    fabric.face_triangle(face_id);
-                }
-                Noop
-            }
             ShapeOperation::FacesToPrisms { mark_names } => {
                 for mark_name in mark_names {
                     self.marks
@@ -452,7 +435,7 @@ impl ShapePhase {
                         .filter(|mark| mark.mark_name == mark_name)
                         .sorted_by(|&mark_a, &mark_b| Ord::cmp(&mark_a.face_id, &mark_b.face_id))
                         .for_each(|&FaceMark { face_id, .. }| {
-                            fabric.face_to_prism(face_id);
+                            fabric.add_face_prism(face_id);
                         });
                 }
                 StartProgress(DEFAULT_PRISM_COUNTDOWN)
@@ -531,14 +514,10 @@ impl ShapePhase {
         }
         joiner_active.then_some(StartProgress(DEFAULT_JOINER_COUNTDOWN))
     }
-
-    fn finalize_spacers(&mut self, fabric: &mut Fabric) {
+    fn cleanup(&mut self, fabric: &mut Fabric) {
         for interval in self.spacers.drain(..) {
             fabric.remove_interval(interval);
         }
-    }
-
-    fn remove_anchors(&mut self, fabric: &mut Fabric) {
         for interval in self.anchors.drain(..) {
             fabric.remove_interval(interval);
         }

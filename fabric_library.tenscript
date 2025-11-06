@@ -7,10 +7,12 @@
 				(on-face (alias BotZ) (grow 8 (scale .9) (mark :end)))
 				(on-face (alias Top) (grow 1))))
 		(shape
-			(during 10.0 (space :end 0.4) (vulcanize)))
+			(during 10.0 (space :end 0.4))
+			(during 10.0 (vulcanize))
+			)
 		(pretense
-		 (altitude 4000.0)
-		 (surface :frozen))
+            (altitude 4000.0)
+            (surface :absent))
 		(scale 1030.0))
 	(fabric	(name "De Twips")
         (build
@@ -35,9 +37,8 @@
                 (space :hands 0.1)
                 (space :shoulders 0.5))
             (during 25000 (vulcanize))
-            (finalize-spacers)
+            ;(finalize-spacers)
             (faces-to-prisms :legs)
-            (during 50000 (faces-to-triangles))
             (omit 1 16)
             (omit 5 17)
             (omit 56 68)
@@ -77,8 +78,7 @@
 							(on-face (alias TopY) (grow 11 (scale .92) (mark :halo-end))))))))
 		(shape
 			(join :halo-end)
-			(vulcanize)
-			(faces-to-triangles))
+			(vulcanize))
 		(pretense (surface :frozen)))
 	(fabric (name "Convergence")
 		(build
@@ -90,8 +90,7 @@
 		(shape
 			(during 18000 (join :end (seed 1)))
 			(during 20000 (vulcanize))
-			(centralize 5.0)
-			(faces-to-triangles))
+			(centralize 5.0))
 		(pretense (surface :frozen)))
 	(fabric (name "Torque Walker")
 		(build
@@ -102,7 +101,7 @@
 				(on-face (alias RightBackBottom) (grow 1 (branch (alias TorqueRight) )))
 				)
 			)
-		(shape (faces-to-triangles))
+		(shape)
 		(pretense
 			(muscle 0.5 22000)
 			(surface :bouncy))
@@ -111,9 +110,7 @@
 		(build
 			(branch (alias Single)
 				(on-face (alias :next-base) (grow 20 (scale .95)))))
-		(shape
-			(vulcanize)
-			(faces-to-triangles))
+		(shape (vulcanize))
 		(pretense (surface :frozen)))
 	(fabric (name "Tetrapod")
 		(build
@@ -122,7 +119,7 @@
 				(on-face (alias BottomRight) (grow 3 (scale .9)))
 				(on-face (alias BackLeft) (grow 3 (scale .9)))
 				(on-face (alias FrontLeft) (grow 3 (scale .9)))))
-		(shape (vulcanize) (faces-to-triangles))
+		(shape (vulcanize))
 		(pretense (surface :bouncy))
 		(scale 46.0))
 	(fabric (name "Twisted Infinity")
@@ -136,7 +133,6 @@
 		(shape
 			(during 20000 (join :ring-a) (join :ring-b))
 			(during 5000 (vulcanize))
-			(faces-to-triangles)
 			(centralize 1.0))
 		(pretense
 		    (surface :absent)
@@ -155,7 +151,6 @@
 		(shape
 			(during 15000 (join :ring-x) (join :ring-y) (join :ring-z))
 			(during 40000 (vulcanize))
-			(faces-to-triangles)
 			(centralize 1.0))
 		(pretense (surface :absent)))
 	(fabric (name "X")
@@ -165,25 +160,20 @@
 			(on-face (alias :base) (grow 1 (scale 0.8)))))
 		(shape
 			(centralize 1.0)
-			(during 40000 (vulcanize))
-			(faces-to-triangles))
+			(during 40000 (vulcanize)))
 		(pretense (surface :frozen))
 		(scale 430.0))
 	(fabric (name "Symmetrical")
 		(build
 			(branch (alias Omni)))
-		(shape
-			(centralize 1.0)
-			(faces-to-triangles))
+		(shape (centralize 1.0))
 		(pretense (surface :absent))
 		(scale 74.6))
 	(fabric (name "Vertebra")
 		(build
 			(branch (alias Single)
 			(on-face (alias :next-base) (grow 1))))
-		(shape
-			(centralize 1.0)
-			(faces-to-triangles))
+		(shape (centralize 1.0))
 		(pretense (surface :absent))
 		(scale 74.6))
 	(fabric (name "Cigar")
@@ -193,8 +183,7 @@
 			(on-face (alias :base) (grow 1 (scale 0.85)))))
 		(shape
 			(centralize 1.0)
-			(during 40000 (vulcanize))
-			(faces-to-triangles))
+			(during 40000 (vulcanize)))
 		(pretense (surface :absent))
 		(scale 74.6))
 	(fabric (name "Headless Hug")
@@ -217,7 +206,6 @@
 		(shape
 			(during 6.0 (space :legs .4) (space :hands .2)  (space :chest-2 .4))
 			(during 6.0 (vulcanize))
-			(faces-to-triangles)
 			(centralize 1.0))
 		(pretense (surface :frozen)))
 	(fabric (name "Torque Ring")
@@ -233,9 +221,7 @@
 								(on-face (alias FarSide) (mark :loose))))))))
 		(shape
 			(join :loose)
-			(faces-to-triangles)
-			(centralize)
-			)
+			(centralize))
 		(pretense
 			(surface :bouncy)
 			(muscle 0.3 12000)))

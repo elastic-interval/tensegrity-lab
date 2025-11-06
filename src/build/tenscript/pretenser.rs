@@ -20,7 +20,7 @@ pub struct Pretenser {
     pub pretense_phase: PretensePhase,
     pub physics: Physics,
     stage: Stage,
-    countdown: Seconds,
+    seconds_to_pretense: Seconds,
     radio: Radio,
 }
 
@@ -35,11 +35,11 @@ impl Pretenser {
             stiffness,
             ..AIR_GRAVITY
         };
-        let countdown = pretense_phase.seconds.unwrap_or(Seconds(15.0));
+        let seconds_to_pretense = pretense_phase.seconds.unwrap_or(Seconds(15.0));
         Self {
             stage: Start,
             pretense_phase,
-            countdown,
+            seconds_to_pretense,
             physics,
             radio: radio.clone(),
         }
@@ -52,7 +52,14 @@ impl Pretenser {
     pub fn iterate(&mut self, context: &mut CrucibleContext) {
         // Process the current stage
         self.stage = match self.stage {
-            Start => Slacken,
+            Start => {
+                let face_ids: Vec<_> = context.fabric.faces.keys().copied().collect();
+                for face_id in face_ids {
+                    context.fabric.add_face_triangle(face_id);
+                    context.fabric.remove_face(face_id);
+                }
+                Slacken
+            },
             Slacken => {
                 context.fabric.slacken();
                 let altitude = self.pretense_phase.altitude.unwrap_or(0.0) / context.fabric.scale;
@@ -61,7 +68,7 @@ impl Pretenser {
                     .pretense_phase
                     .pretenst
                     .unwrap_or(self.physics.pretenst);
-                context.fabric.set_pretenst(factor, self.countdown);
+                context.fabric.set_pretenst(factor, self.seconds_to_pretense);
                 DumpCSV.send(&self.radio);
                 Pretensing
             }
