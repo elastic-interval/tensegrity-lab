@@ -6,7 +6,7 @@ use std::io::Error as IOError;
 use std::ops::Add;
 
 use pest::error::Error as PestError;
-use pest::iterators::Pair;
+use pest::iterators::{Pair, Pairs};
 use pest_derive::Parser;
 
 pub use fabric_plan::FabricPlan;
@@ -59,6 +59,101 @@ pub fn parse_float_inside(pair: Pair<Rule>, spot: &str) -> Result<f32, Tenscript
 pub fn parse_usize_inside(pair: Pair<Rule>, spot: &str) -> Result<usize, TenscriptError> {
     parse_usize(pair.into_inner().next().unwrap().as_str(), spot)
         .map_err(|error| TenscriptError::FormatError(format!("Not a usize pair: [{error}]")))
+}
+
+/// Extension trait for Pair to simplify parsing
+pub trait PairExt {
+    /// Parse the pair's inner content as a float
+    fn parse_float_inner(&self, context: &str) -> Result<f32, TenscriptError>;
+    
+    /// Parse the pair's inner content as a usize
+    fn parse_usize_inner(&self, context: &str) -> Result<usize, TenscriptError>;
+    
+    /// Parse the pair's string directly as a float
+    fn parse_float_str(&self, context: &str) -> Result<f32, TenscriptError>;
+    
+    /// Parse the pair's string directly as a usize
+    fn parse_usize_str(&self, context: &str) -> Result<usize, TenscriptError>;
+    
+    /// Get the atom string (strips leading ':' if present)
+    fn as_atom(&self) -> String;
+}
+
+impl PairExt for Pair<'_, Rule> {
+    fn parse_float_inner(&self, context: &str) -> Result<f32, TenscriptError> {
+        parse_float_inside(self.clone(), context)
+    }
+    
+    fn parse_usize_inner(&self, context: &str) -> Result<usize, TenscriptError> {
+        parse_usize_inside(self.clone(), context)
+    }
+    
+    fn parse_float_str(&self, context: &str) -> Result<f32, TenscriptError> {
+        parse_float(self.as_str(), context)
+    }
+    
+    fn parse_usize_str(&self, context: &str) -> Result<usize, TenscriptError> {
+        parse_usize(self.as_str(), context)
+    }
+    
+    fn as_atom(&self) -> String {
+        let s = self.as_str();
+        if s.starts_with(':') {
+            s[1..].to_string()
+        } else {
+            s.to_string()
+        }
+    }
+}
+
+/// Extension trait for Pairs iterator to simplify parsing
+pub trait PairsExt<'i> {
+    /// Get the next pair and parse it as a float
+    fn next_float(&mut self, context: &str) -> Result<f32, TenscriptError>;
+    
+    /// Get the next pair and parse it as a usize
+    fn next_usize(&mut self, context: &str) -> Result<usize, TenscriptError>;
+    
+    /// Get the next pair and parse its inner content as a float
+    fn next_float_inner(&mut self, context: &str) -> Result<f32, TenscriptError>;
+    
+    /// Get the next pair and parse its inner content as a usize
+    fn next_usize_inner(&mut self, context: &str) -> Result<usize, TenscriptError>;
+    
+    /// Get the next pair as an atom string
+    fn next_atom(&mut self) -> String;
+}
+
+impl<'i> PairsExt<'i> for Pairs<'i, Rule> {
+    fn next_float(&mut self, context: &str) -> Result<f32, TenscriptError> {
+        self.next()
+            .ok_or_else(|| TenscriptError::FormatError(format!("[{context}]: Missing float")))
+            .and_then(|p| p.parse_float_str(context))
+    }
+    
+    fn next_usize(&mut self, context: &str) -> Result<usize, TenscriptError> {
+        self.next()
+            .ok_or_else(|| TenscriptError::FormatError(format!("[{context}]: Missing usize")))
+            .and_then(|p| p.parse_usize_str(context))
+    }
+    
+    fn next_float_inner(&mut self, context: &str) -> Result<f32, TenscriptError> {
+        self.next()
+            .ok_or_else(|| TenscriptError::FormatError(format!("[{context}]: Missing float")))
+            .and_then(|p| p.parse_float_inner(context))
+    }
+    
+    fn next_usize_inner(&mut self, context: &str) -> Result<usize, TenscriptError> {
+        self.next()
+            .ok_or_else(|| TenscriptError::FormatError(format!("[{context}]: Missing usize")))
+            .and_then(|p| p.parse_usize_inner(context))
+    }
+    
+    fn next_atom(&mut self) -> String {
+        self.next()
+            .map(|p| p.as_atom())
+            .unwrap_or_default()
+    }
 }
 
 impl Fabric {

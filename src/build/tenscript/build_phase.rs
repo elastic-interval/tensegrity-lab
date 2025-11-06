@@ -5,7 +5,7 @@ use pest::iterators::Pair;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::build_phase::BuildNode::*;
 use crate::build::tenscript::build_phase::Launch::*;
-use crate::build::tenscript::{parse_float_inside, parse_usize, Rule};
+use crate::build::tenscript::{PairExt, Rule};
 use crate::build::tenscript::{FaceAlias, FaceMark, TenscriptError};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::FaceRotation;
@@ -124,12 +124,10 @@ impl BuildPhase {
                 for inner_pair in inner {
                     match inner_pair.as_rule() {
                         Rule::scale => {
-                            let parsed_scale = parse_float_inside(inner_pair, "grow/scale")?;
-                            scale = Some(parsed_scale);
+                            scale = Some(inner_pair.parse_float_inner("grow/scale")?);
                         }
                         Rule::build_node => {
-                            let parsed_node = Self::parse_build_node(inner_pair)?;
-                            post_growth_node = Some(Box::new(parsed_node))
+                            post_growth_node = Some(Box::new(Self::parse_build_node(inner_pair)?));
                         }
                         _ => unreachable!(),
                     }
@@ -158,15 +156,10 @@ impl BuildPhase {
                             rotation += 1;
                         }
                         Rule::scale => {
-                            let parsed_scale = parse_float_inside(node_pair, "branch/scale")?;
-                            scale = Some(parsed_scale);
+                            scale = Some(node_pair.parse_float_inner("branch/scale")?);
                         }
                         Rule::seed => {
-                            let index = parse_usize(
-                                node_pair.into_inner().next().unwrap().as_str(),
-                                "(seed ...)",
-                            )?;
-                            seed = Some(index);
+                            seed = Some(node_pair.parse_usize_inner("(seed ...)")?);
                         }
                         Rule::on_face => {
                             let node = Self::parse_build_node(node_pair)?;

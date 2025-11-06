@@ -1,8 +1,6 @@
 use pest::iterators::{Pair, Pairs};
 
-use crate::build::tenscript::{
-    parse_float, parse_float_inside, parse_usize, Rule, TenscriptError,
-};
+use crate::build::tenscript::{PairExt, PairsExt, Rule, TenscriptError};
 use crate::fabric::physics::SurfaceCharacter;
 use crate::Seconds;
 
@@ -51,34 +49,25 @@ impl PretensePhase {
                             }
                             Rule::muscle => {
                                 let mut inner = pretense_pair.into_inner();
-                                let contraction = parse_float(
-                                    inner.next().unwrap().as_str(),
-                                    "muscle contraction",
-                                )?;
-                                let countdown = parse_usize(
-                                    inner.next().unwrap().as_str(),
-                                    "muscle countdown",
-                                )?;
+                                let contraction = inner.next_float("muscle contraction")?;
+                                let countdown = inner.next_usize("muscle countdown")?;
                                 pretense.muscle_movement = Some(MuscleMovement {
                                     contraction,
                                     countdown,
                                 })
                             }
                             Rule::pretenst => {
-                                let factor = parse_float_inside(pretense_pair, "pretenst")?;
-                                pretense.pretenst = Some(factor)
+                                pretense.pretenst = Some(pretense_pair.parse_float_inner("pretenst")?);
                             }
                             Rule::seconds => {
-                                let factor = parse_float_inside(pretense_pair, "seconds")?;
-                                pretense.seconds = Some(Seconds(factor))
+                                let factor = pretense_pair.parse_float_inner("seconds")?;
+                                pretense.seconds = Some(Seconds(factor));
                             }
                             Rule::stiffness => {
-                                let stiffness = parse_float_inside(pretense_pair, "stiffness")?;
-                                pretense.stiffness = Some(stiffness)
+                                pretense.stiffness = Some(pretense_pair.parse_float_inner("stiffness")?);
                             }
                             Rule::altitude => {
-                                let stiffness = parse_float_inside(pretense_pair, "altitude")?;
-                                pretense.altitude = Some(stiffness)
+                                pretense.altitude = Some(pretense_pair.parse_float_inner("altitude")?);
                             }
                             _ => unreachable!(),
                         }

@@ -1,8 +1,6 @@
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::shape_phase::ShapeCommand::*;
-use crate::build::tenscript::{
-    parse_atom, parse_float, parse_float_inside, parse_usize, FaceAlias, Rule, Spin,
-};
+use crate::build::tenscript::{FaceAlias, PairExt, PairsExt, Rule, Spin};
 use crate::build::tenscript::{FaceMark, TenscriptError};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
@@ -130,52 +128,39 @@ impl ShapePhase {
             }
             Rule::spacer => {
                 let mut inner = pair.into_inner();
-                let [mark_name, distance_string] = [
-                    inner.next().unwrap().as_str(),
-                    inner.next().unwrap().as_str(),
-                ];
-                let distance_factor = parse_float(distance_string, "(space ..)")?;
+                let mark_name = inner.next_atom();
+                let distance_factor = inner.next_float("(space ..)")?;
                 Ok(ShapeOperation::Spacer {
-                    mark_name: mark_name[1..].into(),
+                    mark_name,
                     distance_factor,
                 })
             }
             Rule::joiner => {
                 let mut inner = pair.into_inner();
-                let mark_name = inner.next().unwrap().as_str();
-                let seed = match inner.next() {
-                    None => None,
-                    Some(seed_pair) => {
-                        let index = parse_usize(
-                            seed_pair.into_inner().next().unwrap().as_str(),
-                            "(seed ...)",
-                        )?;
-                        Some(index)
-                    }
-                };
+                let mark_name = inner.next_atom();
+                let seed = inner.next()
+                    .map(|seed_pair| seed_pair.parse_usize_inner("(seed ...)"))
+                    .transpose()?;
                 Ok(ShapeOperation::Joiner {
-                    mark_name: mark_name[1..].into(),
+                    mark_name,
                     seed,
                 })
             }
             Rule::down => {
-                let mark_name = pair.into_inner().next().unwrap().as_str();
+                let mark_name = pair.into_inner().next_atom();
                 Ok(ShapeOperation::PointDownwards {
-                    mark_name: mark_name[1..].into(),
+                    mark_name,
                 })
             }
-            Rule::centralize => match pair.into_inner().next() {
-                None => Ok(ShapeOperation::Centralize { altitude: None }),
-                Some(pair) => {
-                    let altitude = parse_float(pair.as_str(), "(centralize)")?;
-                    Ok(ShapeOperation::Centralize {
-                        altitude: Some(altitude),
-                    })
-                }
-            },
+            Rule::centralize => {
+                let altitude = pair.into_inner().next()
+                    .map(|p| p.parse_float_str("(centralize)"))
+                    .transpose()?;
+                Ok(ShapeOperation::Centralize { altitude })
+            }
             Rule::during => {
                 let mut inner = pair.into_inner();
-                let seconds = parse_float(inner.next().unwrap().as_str(), "(during ...)")?;
+                let seconds = inner.next_float("(during ...)")?;
                 let operations = Self::parse_shape_operations(inner)?;
                 Ok(ShapeOperation::During {
                     seconds: Seconds(seconds),
@@ -185,35 +170,35 @@ impl ShapePhase {
             Rule::finalize_spacers => Ok(ShapeOperation::FinalizeSpacers),
             Rule::faces_to_triangles => Ok(ShapeOperation::FacesToTriangles),
             Rule::faces_to_prisms => {
-                let mark_names = pair.into_inner().map(|p| p.as_str()[1..].into()).collect();
+                let mark_names = pair.into_inner().map(|p| p.as_atom()).collect();
                 Ok(ShapeOperation::FacesToPrisms { mark_names })
             }
             Rule::vulcanize => Ok(ShapeOperation::Vulcanize),
             Rule::set_stiffness => {
-                let percent = parse_float_inside(pair, "(set-stiffness ..)")?;
+                let percent = pair.parse_float_inner("(set-stiffness ..)")?;
                 Ok(ShapeOperation::SetStiffness(percent))
             }
             Rule::set_drag => {
-                let percent = parse_float_inside(pair, "(set-drag ..)")?;
+                let percent = pair.parse_float_inner("(set-drag ..)")?;
                 Ok(ShapeOperation::SetDrag(percent))
             }
             Rule::set_viscosity => {
-                let percent = parse_float_inside(pair, "(set-viscosity ..)")?;
+                let percent = pair.parse_float_inner("(set-viscosity ..)")?;
                 Ok(ShapeOperation::SetViscosity(percent))
             }
             Rule::omit => {
                 let mut inner = pair.into_inner();
-                let alpha_index = parse_usize(inner.next().unwrap().as_str(), "(omit ...)")?;
-                let omega_index = parse_usize(inner.next().unwrap().as_str(), "(omit ...)")?;
+                let alpha_index = inner.next_usize("(omit ...)")?;
+                let omega_index = inner.next_usize("(omit ...)")?;
                 Ok(ShapeOperation::Omit((alpha_index, omega_index)))
             }
             Rule::add => {
                 let mut inner = pair.into_inner();
-                let alpha_index = parse_usize(inner.next().unwrap().as_str(), "(add ...)")?;
-                let omega_index = parse_usize(inner.next().unwrap().as_str(), "(add ...)")?;
-                let length_factor = inner
-                    .next()
-                    .map(|p| parse_float(p.as_str(), "(add ...)").expect("float"))
+                let alpha_index = inner.next_usize("(add ...)")?;
+                let omega_index = inner.next_usize("(add ...)")?;
+                let length_factor = inner.next()
+                    .map(|p| p.parse_float_str("(add ...)"))
+                    .transpose()?
                     .unwrap_or(1.0);
                 Ok(ShapeOperation::Add {
                     alpha_index,
@@ -223,33 +208,28 @@ impl ShapePhase {
             }
             Rule::anchor => {
                 let mut inner = pair.into_inner();
-                let joint_index = parse_usize(inner.next().unwrap().as_str(), "(anchor ...)")?;
+                let joint_index = inner.next_usize("(anchor ...)")?;
                 let surface = Self::parse_surface_location(inner.next().unwrap())?;
-                let operation = ShapeOperation::Anchor {
+                Ok(ShapeOperation::Anchor {
                     joint_index,
                     surface,
-                };
-                Ok(operation)
+                })
             }
             Rule::guy_line => {
                 let mut inner = pair.into_inner();
-                let joint_index =
-                    parse_usize(inner.next().unwrap().as_str(), "(guy-line joint-index ...)")?;
-                let length =
-                    parse_float(inner.next().unwrap().as_str(), "(guy-line <> length ...)")?;
+                let joint_index = inner.next_usize("(guy-line joint-index ...)")?;
+                let length = inner.next_float("(guy-line <> length ...)")?;
                 let mut surface = inner.next().unwrap().into_inner();
-                let x = parse_float(surface.next().unwrap().as_str(), "(surface x ..)")?;
-                let z = parse_float(surface.next().unwrap().as_str(), "(surface .. z)")?;
-                let material = inner
-                    .next()
-                    .map(|p| Material::from_label(&parse_atom(p)).unwrap());
-                let operation = ShapeOperation::GuyLine {
+                let x = surface.next_float("(surface x ..)")?;
+                let z = surface.next_float("(surface .. z)")?;
+                let material = inner.next()
+                    .map(|p| Material::from_label(&p.as_atom()).unwrap());
+                Ok(ShapeOperation::GuyLine {
                     joint_index,
                     length,
                     surface: (x, z),
                     material,
-                };
-                Ok(operation)
+                })
             }
             _ => unreachable!("shape phase: {pair}"),
         }
@@ -257,8 +237,8 @@ impl ShapePhase {
 
     fn parse_surface_location(pair: Pair<Rule>) -> Result<(f32, f32), TenscriptError> {
         let mut inner = pair.into_inner();
-        let x = parse_float(inner.next().unwrap().as_str(), "(surface x ..)")?;
-        let z = parse_float(inner.next().unwrap().as_str(), "(surface .. z)")?;
+        let x = inner.next_float("(surface x ..)")?;
+        let z = inner.next_float("(surface .. z)")?;
         Ok((x, z))
     }
 
