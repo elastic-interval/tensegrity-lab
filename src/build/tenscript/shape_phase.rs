@@ -6,7 +6,6 @@ use crate::build::tenscript::{
 use crate::build::tenscript::{FaceMark, TenscriptError};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
-use crate::fabric::interval::Interval;
 use crate::fabric::material::Material;
 use crate::fabric::{Fabric, UniqueId};
 use crate::Seconds;
@@ -89,27 +88,19 @@ impl ShapeOperation {
 }
 
 #[derive(Debug, Clone)]
-pub enum ShapeInterval {
-    FaceJoiner {
-        interval: UniqueId,
-        alpha_face: UniqueId,
-        omega_face: UniqueId,
-        mark_name: String,
-    },
-    FaceSpacer {
-        interval: UniqueId,
-        alpha_face: UniqueId,
-        omega_face: UniqueId,
-        mark_name: String,
-    },
-    SurfaceAnchor(UniqueId),
+pub struct Joiner {
+    interval: UniqueId,
+    alpha_face: UniqueId,
+    omega_face: UniqueId,
 }
 
 #[derive(Debug, Clone)]
 pub struct ShapePhase {
     pub operations: Vec<ShapeOperation>,
     pub marks: Vec<FaceMark>,
-    pub shape_intervals: Vec<ShapeInterval>,
+    pub spacers: Vec<UniqueId>,
+    pub joiners: Vec<Joiner>,
+    pub anchors: Vec<UniqueId>,
     shape_operation_index: usize,
 }
 
@@ -119,7 +110,9 @@ impl ShapePhase {
         Ok(ShapePhase {
             operations,
             marks: Vec::new(),
-            shape_intervals: Vec::new(),
+            spacers: Vec::new(),
+            joiners: Vec::new(),
+            anchors: Vec::new(),
             shape_operation_index: 0,
         })
     }
@@ -184,7 +177,10 @@ impl ShapePhase {
                 let mut inner = pair.into_inner();
                 let seconds = parse_float(inner.next().unwrap().as_str(), "(during ...)")?;
                 let operations = Self::parse_shape_operations(inner)?;
-                Ok(ShapeOperation::During { seconds: Seconds(seconds), operations })
+                Ok(ShapeOperation::During {
+                    seconds: Seconds(seconds),
+                    operations,
+                })
             }
             Rule::finalize_spacers => Ok(ShapeOperation::FinalizeSpacers),
             Rule::faces_to_triangles => Ok(ShapeOperation::FacesToTriangles),
@@ -287,31 +283,6 @@ impl ShapePhase {
         self.execute_shape_operation(fabric, brick_library, operation.clone())
     }
 
-    pub fn complete_joiners(&mut self, fabric: &mut Fabric) -> Option<ShapeCommand> {
-        let before = self.shape_intervals.len();
-        self.shape_intervals = self
-            .shape_intervals
-            .iter()
-            .cloned()
-            .filter(|shape_interval| {
-                if let ShapeInterval::FaceJoiner {
-                    interval,
-                    alpha_face,
-                    omega_face,
-                    ..
-                } = shape_interval
-                {
-                    fabric.remove_interval(*interval);
-                    fabric.join_faces(*alpha_face, *omega_face);
-                    false
-                } else {
-                    true
-                }
-            })
-            .collect();
-        (self.shape_intervals.len() < before).then_some(StartProgress(DEFAULT_JOINER_COUNTDOWN))
-    }
-
     fn execute_shape_operation(
         &mut self,
         fabric: &mut Fabric,
@@ -326,11 +297,10 @@ impl ShapePhase {
                     2 => {
                         let interval =
                             fabric.create_interval(joints[0], joints[1], 0.01, Material::Pull);
-                        self.shape_intervals.push(ShapeInterval::FaceJoiner {
+                        self.joiners.push(Joiner {
                             interval,
                             alpha_face: face_ids[0],
                             omega_face: face_ids[1],
-                            mark_name,
                         });
                     }
                     3 => {
@@ -417,11 +387,10 @@ impl ShapePhase {
                         for (near_face_id, near_joint, far_face_id, far_joint) in shapers {
                             let interval =
                                 fabric.create_interval(near_joint, far_joint, 0.01, Material::Pull);
-                            self.shape_intervals.push(ShapeInterval::FaceJoiner {
+                            self.joiners.push(Joiner {
                                 interval,
                                 alpha_face: near_face_id,
                                 omega_face: far_face_id,
-                                mark_name: mark_name.clone(),
                             })
                         }
                     }
@@ -465,12 +434,7 @@ impl ShapePhase {
                             length,
                             Material::Pull,
                         );
-                        self.shape_intervals.push(ShapeInterval::FaceSpacer {
-                            interval,
-                            alpha_face: faces[alpha],
-                            omega_face: faces[omega],
-                            mark_name: mark_name.clone(),
-                        })
+                        self.spacers.push(interval);
                     }
                 }
                 StartProgress(DEFAULT_ADD_SHAPER_COUNTDOWN)
@@ -479,7 +443,10 @@ impl ShapePhase {
                 self.finalize_spacers(fabric);
                 Noop
             }
-            ShapeOperation::During { seconds, operations } => {
+            ShapeOperation::During {
+                seconds,
+                operations,
+            } => {
                 for operation in operations {
                     // ignores the countdown returned from each sub-operation
                     let _ = self.execute_shape_operation(fabric, brick_library, operation);
@@ -494,31 +461,19 @@ impl ShapePhase {
                 self.finalize_spacers(fabric);
                 let face_ids: Vec<UniqueId> = fabric.faces.keys().cloned().collect();
                 for face_id in face_ids {
-                    fabric.face_to_triangle(face_id);
-                    fabric.remove_face(face_id);
+                    fabric.face_triangle(face_id);
                 }
                 Noop
             }
             ShapeOperation::FacesToPrisms { mark_names } => {
-                if mark_names.is_empty() {
-                    let face_ids: Vec<UniqueId> = fabric.faces.keys().cloned().collect();
-                    for face_id in face_ids {
-                        fabric.face_to_prism(face_id);
-                        fabric.remove_face(face_id);
-                    }
-                } else {
-                    for mark_name in mark_names {
-                        self.marks
-                            .iter()
-                            .filter(|mark| mark.mark_name == mark_name)
-                            .sorted_by(|&mark_a, &mark_b| {
-                                Ord::cmp(&mark_a.face_id, &mark_b.face_id)
-                            })
-                            .for_each(|&FaceMark { face_id, .. }| {
-                                fabric.face_to_prism(face_id);
-                                fabric.remove_face(face_id);
-                            });
-                    }
+                for mark_name in mark_names {
+                    self.marks
+                        .iter()
+                        .filter(|mark| mark.mark_name == mark_name)
+                        .sorted_by(|&mark_a, &mark_b| Ord::cmp(&mark_a.face_id, &mark_b.face_id))
+                        .for_each(|&FaceMark { face_id, .. }| {
+                            fabric.face_to_prism(face_id);
+                        });
                 }
                 StartProgress(DEFAULT_PRISM_COUNTDOWN)
             }
@@ -545,8 +500,7 @@ impl ShapePhase {
                 let (x, z) = surface;
                 let base = fabric.create_joint(Point3::new(x, 0.0, z));
                 let interval_id = fabric.create_interval(joint_index, base, 0.01, Material::Pull);
-                self.shape_intervals
-                    .push(ShapeInterval::SurfaceAnchor(interval_id));
+                self.anchors.push(interval_id);
                 StartProgress(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
             ShapeOperation::GuyLine {
@@ -583,43 +537,30 @@ impl ShapePhase {
             .collect()
     }
 
+    pub fn complete_joiners(&mut self, fabric: &mut Fabric) -> Option<ShapeCommand> {
+        let joiner_active = !self.joiners.is_empty();
+        for Joiner {
+            interval,
+            alpha_face,
+            omega_face,
+            ..
+        } in self.joiners.drain(..)
+        {
+            fabric.remove_interval(interval);
+            fabric.join_faces(alpha_face, omega_face);
+        }
+        joiner_active.then_some(StartProgress(DEFAULT_JOINER_COUNTDOWN))
+    }
+
     fn finalize_spacers(&mut self, fabric: &mut Fabric) {
-        self.shape_intervals = self
-            .shape_intervals
-            .iter()
-            .cloned()
-            .filter(|shape_interval| {
-                if let ShapeInterval::FaceSpacer { interval, .. } = shape_interval {
-                    fabric.remove_interval(*interval);
-                    false
-                } else {
-                    true
-                }
-            })
-            .collect();
+        for interval in self.spacers.drain(..) {
+            fabric.remove_interval(interval);
+        }
     }
 
     fn remove_anchors(&mut self, fabric: &mut Fabric) {
-        self.shape_intervals = self
-            .shape_intervals
-            .iter()
-            .cloned()
-            .filter(|shape_interval| {
-                if let &ShapeInterval::SurfaceAnchor(interval_id) = shape_interval {
-                    let &Interval {
-                        alpha_index,
-                        omega_index,
-                        ..
-                    } = fabric.interval(interval_id);
-                    fabric.joints[alpha_index].location = fabric.location(omega_index);
-                    fabric.joints[alpha_index].location.y = 0.0;
-                    fabric.remove_interval(interval_id);
-                    fabric.remove_joint(omega_index);
-                    false // discard
-                } else {
-                    true
-                }
-            })
-            .collect();
+        for interval in self.anchors.drain(..) {
+            fabric.remove_interval(interval);
+        }
     }
 }
