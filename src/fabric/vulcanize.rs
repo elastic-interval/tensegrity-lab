@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 
-use cgmath::MetricSpace;
+use cgmath::{InnerSpace, MetricSpace};
+use itertools::Itertools;
 
+use crate::fabric::interval::Role::{BowTie, Pushing};
 use crate::fabric::interval::Span::Approaching;
 use crate::fabric::interval::{Interval, Span};
-use crate::fabric::interval::Role::{BowTie, Pushing};
 use crate::fabric::joint::Joint;
 use crate::fabric::joint_incident::{JointIncident, Path};
 use crate::fabric::material::Material;
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, UniqueId};
 use crate::Seconds;
 
 const BOW_TIE_SHORTEN: f32 = 0.5;
@@ -89,6 +90,73 @@ impl Fabric {
             .map(|interval| (interval.key(), interval.clone()))
             .collect()
     }
+
+    pub fn correct_folded_pulls(&mut self, minimum_dot_product: f32) {
+        let folded: Vec<_> = self
+            .joint_incidents()
+            .into_iter()
+            .filter(|joint| joint.push().is_some())
+            .flat_map(|joint| {
+                let index = joint.index;
+                let pulls = joint.pulls();
+                pulls
+                    .into_iter()
+                    .tuple_windows()
+                    .map(|(a, b)| {
+                        let ray_a = a.1.ray_from(index);
+                        let ray_b = b.1.ray_from(index);
+                        let (short_pull, long_pull) = if a.1.ideal() < b.1.ideal() {
+                            (a, b)
+                        } else {
+                            (b, a)
+                        };
+                        let dot_product = ray_a.dot(ray_b);
+                        FoldedPull {
+                            joint_index: index,
+                            short_pull,
+                            long_pull,
+                            dot_product,
+                        }
+                    })
+                    .max_by(|a, b| a.dot_product.total_cmp(&b.dot_product))
+            })
+            .filter(|&FoldedPull { dot_product, .. }| dot_product > minimum_dot_product)
+            .collect();
+        println!(
+            "Folded Pulls: {:?}",
+            folded.iter().map(|p| p.dot_product).collect::<Vec<f32>>()
+        );
+        // for to_remove in folded.iter().map(|FoldedPull { long_pull, .. }| long_pull.0) {
+        //     println!("Remove {:?}", to_remove);
+        //     self.remove_interval(to_remove);
+        // }
+        for FoldedPull {
+            joint_index,
+            short_pull: (_, short_interval),
+            long_pull: (_, long_interval),
+            ..
+        } in folded
+        {
+            let middle_joint = joint_index;
+            let far_joint = long_interval.other_joint(middle_joint);
+            let missing_length = long_interval.ideal() - short_interval.ideal();
+            let id = self.create_interval(
+                middle_joint,
+                far_joint,
+                missing_length,
+                short_interval.role,
+            );
+            println!("Add {:?}", self.interval(id));
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct FoldedPull {
+    joint_index: usize,
+    short_pull: (UniqueId, Interval),
+    long_pull: (UniqueId, Interval),
+    dot_product: f32,
 }
 
 #[derive(Debug)]

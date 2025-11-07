@@ -18,7 +18,6 @@ use std::fmt::Debug;
 
 pub mod attachment;
 pub mod brick;
-pub mod correction;
 pub mod error;
 pub mod face;
 pub mod interval;
