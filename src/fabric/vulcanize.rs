@@ -91,7 +91,7 @@ impl Fabric {
             .collect()
     }
 
-    pub fn correct_folded_pulls(&mut self, minimum_dot_product: f32) {
+    pub fn _correct_folded_pulls(&mut self, minimum_dot_product: f32) {
         let folded: Vec<_> = self
             .joint_incidents()
             .into_iter()
@@ -134,19 +134,26 @@ impl Fabric {
             joint_index,
             short_pull: (_, short_interval),
             long_pull: (_, long_interval),
-            ..
+            dot_product,
         } in folded
         {
             let middle_joint = joint_index;
             let far_joint = long_interval.other_joint(middle_joint);
             let missing_length = long_interval.ideal() - short_interval.ideal();
+            println!("Folded pull at joint {}: short {:?} (ideal {:.3}), long {:?} (ideal {:.3}), dot {:.3}",
+                     joint_index,
+                     short_interval.role,
+                     short_interval.ideal(),
+                     long_interval.role,
+                     long_interval.ideal(),
+                     dot_product);
             let id = self.create_interval(
                 middle_joint,
                 far_joint,
                 missing_length,
                 short_interval.role,
             );
-            println!("Add {:?}", self.interval(id));
+            println!("  -> Added interval {:?}", self.interval(id));
         }
     }
 }
