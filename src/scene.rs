@@ -115,6 +115,13 @@ impl Scene {
                     show_attachment_points: false,
                 };
             }
+            ToggleColorByRole => {
+                let show_attachment_points = self.render_style.show_attachment_points();
+                self.render_style = match &self.render_style {
+                    ColorByRole { .. } => Normal { show_attachment_points },
+                    _ => ColorByRole { show_attachment_points },
+                };
+            }
             SetAppearanceFunction(appearance) => match &mut self.render_style {
                 WithAppearanceFunction {
                     show_attachment_points,

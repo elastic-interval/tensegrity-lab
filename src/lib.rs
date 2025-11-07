@@ -129,6 +129,9 @@ pub enum RenderStyle {
     Normal {
         show_attachment_points: bool,
     },
+    ColorByRole {
+        show_attachment_points: bool,
+    },
     WithAppearanceFunction {
         function: AppearanceFunction,
         show_attachment_points: bool,
@@ -148,16 +151,19 @@ impl RenderStyle {
         match self {
             RenderStyle::Normal {
                 show_attachment_points,
-            } => *show_attachment_points,
-            RenderStyle::WithAppearanceFunction {
+            }
+            | RenderStyle::ColorByRole {
+                show_attachment_points,
+            }
+            | RenderStyle::WithAppearanceFunction {
                 show_attachment_points,
                 ..
-            } => *show_attachment_points,
-            RenderStyle::WithPullMap {
+            }
+            | RenderStyle::WithPullMap {
                 show_attachment_points,
                 ..
-            } => *show_attachment_points,
-            RenderStyle::WithPushMap {
+            }
+            | RenderStyle::WithPushMap {
                 show_attachment_points,
                 ..
             } => *show_attachment_points,
@@ -168,16 +174,19 @@ impl RenderStyle {
         match self {
             RenderStyle::Normal {
                 show_attachment_points,
-            } => *show_attachment_points = !*show_attachment_points,
-            RenderStyle::WithAppearanceFunction {
+            }
+            | RenderStyle::ColorByRole {
+                show_attachment_points,
+            }
+            | RenderStyle::WithAppearanceFunction {
                 show_attachment_points,
                 ..
-            } => *show_attachment_points = !*show_attachment_points,
-            RenderStyle::WithPullMap {
+            }
+            | RenderStyle::WithPullMap {
                 show_attachment_points,
                 ..
-            } => *show_attachment_points = !*show_attachment_points,
-            RenderStyle::WithPushMap {
+            }
+            | RenderStyle::WithPushMap {
                 show_attachment_points,
                 ..
             } => *show_attachment_points = !*show_attachment_points,
@@ -452,6 +461,7 @@ pub enum StateChange {
     SetFabricStats(Option<FabricStats>),
     SetControlState(ControlState),
     ResetView,
+    ToggleColorByRole,
     SetAppearanceFunction(AppearanceFunction),
     SetIntervalColor {
         key: (usize, usize),
@@ -490,6 +500,7 @@ impl Debug for StateChange {
             StateChange::Time { .. } => "Time()",
             StateChange::ToggleProjection => "ToggleProjection",
             StateChange::ToggleAttachmentPoints => "ToggleAttachmentPoints",
+            StateChange::ToggleColorByRole => "ToggleColorByRole",
         };
         write!(f, "StateChange::{name}")
     }

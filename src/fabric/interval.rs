@@ -346,27 +346,50 @@ impl Role {
 
     pub fn appearance(&self) -> Appearance {
         Appearance {
-            radius: match self {
-                Pushing => 1.2,
-                Pulling | BowTie | Support | GuyLine => 0.2,
-                Springy => 0.7,
-                Circumference => 0.25,
-                FaceRadial => 0.15,
-                North | South => 0.15,
-            },
-            color: match self {
-                // Use gray colors for default appearance (when nothing is selected)
-                Pushing => [0.3, 0.3, 0.3, 1.0], // Gray for push intervals
-                Pulling => [0.2, 0.2, 0.2, 1.0], // Slightly darker gray for pull intervals
-                Springy => [0.4, 0.4, 0.4, 1.0], // Lighter gray for spring intervals
-                Circumference => [0.25, 0.25, 0.35, 1.0], // Slightly blue-tinted gray
-                BowTie => [0.2, 0.25, 0.2, 1.0], // Slightly green-tinted gray
-                FaceRadial => [0.15, 0.15, 0.15, 1.0], // Very dark gray
-                Support => [0.25, 0.2, 0.2, 1.0], // Slightly red-tinted gray
-                North => [0.2, 0.2, 0.25, 1.0], // Slightly blue-tinted for North
-                South => [0.25, 0.2, 0.2, 1.0], // Slightly red-tinted for South
-                GuyLine => [0.22, 0.22, 0.22, 1.0], // Medium gray for guy lines
-            },
+            radius: self.radius(),
+            color: self.gray_color(),
+        }
+    }
+
+    pub fn radius(&self) -> f32 {
+        match self {
+            Pushing => 1.2,
+            Pulling | BowTie | Support | GuyLine => 0.2,
+            Springy => 0.7,
+            Circumference => 0.25,
+            FaceRadial => 0.15,
+            North | South => 0.15,
+        }
+    }
+
+    fn gray_color(&self) -> [f32; 4] {
+        match self {
+            Pushing => [0.3, 0.3, 0.3, 1.0],
+            Pulling => [0.2, 0.2, 0.2, 1.0],
+            Springy => [0.4, 0.4, 0.4, 1.0],
+            Circumference => [0.25, 0.25, 0.35, 1.0],
+            BowTie => [0.2, 0.25, 0.2, 1.0],
+            FaceRadial => [0.15, 0.15, 0.15, 1.0],
+            Support => [0.25, 0.2, 0.2, 1.0],
+            North => [0.2, 0.2, 0.25, 1.0],
+            South => [0.25, 0.2, 0.2, 1.0],
+            GuyLine => [0.22, 0.22, 0.22, 1.0],
+        }
+    }
+
+    /// Get a distinct color for this role (for color-by-role rendering)
+    pub fn color(&self) -> [f32; 4] {
+        match self {
+            Pushing => [1.0, 1.0, 1.0, 1.0],        // White
+            Pulling => [0.3, 0.6, 0.9, 1.0],        // Blue
+            Springy => [0.9, 0.7, 0.2, 1.0],        // Yellow/Gold
+            Circumference => [1.0, 0.5, 0.5, 1.0],  // Pastel bright red
+            BowTie => [0.2, 0.8, 0.3, 1.0],         // Green
+            FaceRadial => [0.5, 0.5, 0.5, 1.0],     // Gray
+            Support => [0.9, 0.5, 0.2, 1.0],        // Orange
+            North => [0.3, 0.8, 0.9, 1.0],          // Cyan
+            South => [0.9, 0.3, 0.7, 1.0],          // Magenta
+            GuyLine => [0.7, 0.7, 0.3, 1.0],        // Olive
         }
     }
 }
