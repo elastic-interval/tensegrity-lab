@@ -134,7 +134,7 @@ impl FailureTest {
                 interval_opt
                     .as_ref()
                     .and_then(|interval| match (interval.material, &scenario) {
-                        (Pull, TensionTest) | (Push, CompressionTest) | (GuyLine, TensionTest) => {
+                        (Pull, TensionTest) | (Push, CompressionTest) => {
                             Some(UniqueId(index))
                         }
                         _ => None,

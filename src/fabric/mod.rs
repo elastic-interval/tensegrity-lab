@@ -7,8 +7,6 @@ use crate::fabric::face::Face;
 use crate::fabric::interval::Span::{Approaching, Fixed, Muscle, Pretenst};
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::Joint;
-use crate::fabric::material::Material::{North, South};
-use crate::fabric::material::MaterialProperties;
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
 use crate::{Age, Seconds};
@@ -143,8 +141,7 @@ impl Fabric {
     pub fn slacken(&mut self) {
         for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
             let interval = interval_opt.as_mut().unwrap();
-            let MaterialProperties { support, .. } = interval.material.properties();
-            if !support {
+            if !interval.has_role(Role::Support) {
                 interval.span = Fixed {
                     length: interval.fast_length(&self.joints),
                 };
@@ -159,11 +156,11 @@ impl Fabric {
     pub fn set_pretenst(&mut self, pretenst: f32, seconds: Seconds) {
         for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
             let interval = interval_opt.as_mut().unwrap();
-            let MaterialProperties { role, support, .. } = interval.material.properties();
-            if !support {
-                match &mut interval.span {
+            if !interval.has_role(Role::Support) {
+                let is_pushing = interval.has_role(Role::Pushing);
+                match &interval.span {
                     Fixed { length } => {
-                        if matches!(role, Role::Pushing) {
+                        if is_pushing {
                             interval.span = Pretenst {
                                 begin: *length,
                                 length: *length * (1.0 + pretenst / 100.0),
@@ -280,17 +277,17 @@ impl Fabric {
 
         for interval_opt in self.intervals.iter_mut() {
             if let Some(interval) = interval_opt {
-                if interval.material == North || interval.material == South {
+                if interval.role == Role::North || interval.role == Role::South {
                     match interval.span {
                         Fixed { length } => {
                             let contracted = length * contraction;
-                            if interval.material == North {
+                            if interval.role == Role::North {
                                 interval.span = Muscle {
                                     length,
                                     contracted,
                                     reverse: false,
                                 };
-                            } else if interval.material == South {
+                            } else if interval.role == Role::South {
                                 interval.span = Muscle {
                                     length,
                                     contracted,
@@ -384,9 +381,8 @@ impl Fabric {
         for interval_opt in self.intervals.iter().filter(|i| i.is_some()) {
             let interval = interval_opt.as_ref().unwrap();
             let length = interval.length(&self.joints);
-            let material = interval.material.properties();
-            if !material.support {
-                match material.role {
+            if !interval.has_role(Role::Support) {
+                match interval.role {
                     Role::Pushing => {
                         push_count += 1;
                         push_total += length;

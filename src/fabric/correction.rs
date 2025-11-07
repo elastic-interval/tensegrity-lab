@@ -60,14 +60,14 @@ impl Fabric {
             ..
         } in folded
         {
-            let middle_joint = short_interval.other_joint(joint_index);
-            let far_joint = long_interval.other_joint(joint_index);
+            let middle_joint = joint_index;
+            let far_joint = long_interval.other_joint(middle_joint);
             let missing_length = long_interval.ideal() - short_interval.ideal();
             let id = self.create_interval(
                 middle_joint,
                 far_joint,
                 missing_length,
-                short_interval.material,
+                short_interval.role,
             );
             println!("Add {:?}", self.interval(id));
         }

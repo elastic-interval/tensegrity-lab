@@ -10,9 +10,8 @@ use pest::iterators::Pair;
 use crate::build::tenscript::Rule;
 use crate::build::tenscript::Spin::{Left, Right};
 use crate::build::tenscript::{FaceAlias, PairExt, PairsExt, Spin, TenscriptError};
-use crate::fabric::interval::Interval;
+use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint_incident::JointIncident;
-use crate::fabric::material::Material;
 use crate::fabric::Fabric;
 
 #[derive(Copy, Clone, Debug)]
@@ -145,7 +144,7 @@ impl From<Prototype> for Fabric {
                 }
                 joint_index
             });
-            fabric.create_interval(alpha_index, omega_index, ideal, Material::Push);
+            fabric.create_interval(alpha_index, omega_index, ideal, Role::Pushing);
         }
         for PullDef {
             alpha_name,
@@ -157,11 +156,13 @@ impl From<Prototype> for Fabric {
         {
             let [alpha_index, omega_index] =
                 [alpha_name, omega_name].map(|name| *joints_by_name.get(&name).expect(&name));
+            let role = Role::from_label(&material)
+                .expect(&format!("Unknown role label: {}", material));
             fabric.create_interval(
                 alpha_index,
                 omega_index,
                 ideal,
-                Material::from_label(&material).unwrap(),
+                role,
             );
         }
         for FaceDef {
@@ -176,7 +177,7 @@ impl From<Prototype> for Fabric {
             let midpoint = joints.into_iter().sum::<Vector3<_>>() / 3.0;
             let alpha_index = fabric.create_joint(Point3::from_vec(midpoint));
             let radial_intervals = joint_indices.map(|omega_index| {
-                fabric.create_interval(alpha_index, omega_index, 1.0, Material::FaceRadial)
+                fabric.create_interval(alpha_index, omega_index, 1.0, Role::FaceRadial)
             });
             fabric.create_face(aliases, 1.0, spin, radial_intervals);
         }
@@ -518,14 +519,14 @@ impl TryFrom<Fabric> for Baked {
                     |&Interval {
                          alpha_index,
                          omega_index,
-                         material,
+                         role,
                          strain,
                          ..
                      }| {
-                        if material == Material::FaceRadial {
+                        if role == Role::FaceRadial {
                             return None;
                         }
-                        let material_name = material.properties().label.to_string();
+                        let material_name = role.label().to_string();
                         Some(BakedInterval {
                             alpha_index,
                             omega_index,

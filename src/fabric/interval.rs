@@ -11,7 +11,7 @@ use crate::fabric::error::FabricError;
 use crate::fabric::interval::Role::*;
 use crate::fabric::interval::Span::*;
 use crate::fabric::joint::Joint;
-use crate::fabric::material::{Material, MaterialProperties};
+use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
 use crate::fabric::{Fabric, IntervalEnd, Progress, UniqueId};
 use crate::Appearance;
@@ -115,18 +115,20 @@ impl Fabric {
         }
     }
 
+    /// Create an interval with a specified role
+    /// The material is automatically determined from the role
     pub fn create_interval(
         &mut self,
         alpha_index: usize,
         omega_index: usize,
         ideal: f32,
-        material: Material,
+        role: Role,
     ) -> UniqueId {
         let id = self.create_id();
         let interval = Interval::new(
             alpha_index,
             omega_index,
-            material,
+            role,
             Approaching {
                 begin: self.distance(alpha_index, omega_index),
                 length: ideal,
@@ -141,9 +143,8 @@ impl Fabric {
         self.intervals[id.0] = Some(interval);
         self.interval_count += 1;
 
-        // If we added a pull interval, update connections for any push intervals it might connect to
-        // Using direct comparison here as we don't have a Role instance to call is() on
-        if material.properties().role == Pulling {
+        // If we added a pull-like interval, update connections for any push intervals it might connect to
+        if role != Pushing && role != Springy {
             // Find all push intervals connected to this pull interval
             let mut push_intervals = Vec::new();
             for (idx, interval_opt) in self.intervals.iter().enumerate() {
@@ -278,6 +279,13 @@ pub enum Role {
     Pushing = 0,
     Pulling = 1,
     Springy = 2,
+    Circumference = 3,
+    BowTie = 4,
+    FaceRadial = 5,
+    Support = 6,
+    North = 7,
+    South = 8,
+    GuyLine = 9,
 }
 
 impl Role {
@@ -286,18 +294,78 @@ impl Role {
         *self == other
     }
 
+    /// Check if this role behaves like a pull interval (tension-only)
+    pub fn is_pull_like(&self) -> bool {
+        matches!(
+            self,
+            Pulling | Circumference | BowTie | FaceRadial | Support | North | South | GuyLine
+        )
+    }
+
+    /// Get a label string for this role (for serialization)
+    pub fn label(&self) -> &'static str {
+        match self {
+            Pushing => "push",
+            Pulling => "pull",
+            Springy => "spring",
+            Circumference => "circumference",
+            BowTie => "bow-tie",
+            FaceRadial => "face-radial",
+            Support => "support",
+            North => "north",
+            South => "south",
+            GuyLine => "guy-line",
+        }
+    }
+
+    /// Get role from a label string (for deserialization)
+    pub fn from_label(label: &str) -> Option<Self> {
+        match label {
+            "push" => Some(Pushing),
+            "pull" => Some(Pulling),
+            "spring" => Some(Springy),
+            "circumference" => Some(Circumference),
+            "bow-tie" => Some(BowTie),
+            "face-radial" => Some(FaceRadial),
+            "support" => Some(Support),
+            "north" => Some(North),
+            "south" => Some(South),
+            "guy-line" => Some(GuyLine),
+            _ => None,
+        }
+    }
+
+    /// Get the material for this role
+    pub fn material(&self) -> Material {
+        match self {
+            Pushing => Material::Push,
+            Springy => Material::Spring,
+            _ => Material::Pull,
+        }
+    }
+
     pub fn appearance(&self) -> Appearance {
         Appearance {
             radius: match self {
                 Pushing => 1.2,
-                Pulling => 0.2,
+                Pulling | BowTie | Support | GuyLine => 0.2,
                 Springy => 0.7,
+                Circumference => 0.25,
+                FaceRadial => 0.15,
+                North | South => 0.15,
             },
             color: match self {
                 // Use gray colors for default appearance (when nothing is selected)
                 Pushing => [0.3, 0.3, 0.3, 1.0], // Gray for push intervals
                 Pulling => [0.2, 0.2, 0.2, 1.0], // Slightly darker gray for pull intervals
                 Springy => [0.4, 0.4, 0.4, 1.0], // Lighter gray for spring intervals
+                Circumference => [0.25, 0.25, 0.35, 1.0], // Slightly blue-tinted gray
+                BowTie => [0.2, 0.25, 0.2, 1.0], // Slightly green-tinted gray
+                FaceRadial => [0.15, 0.15, 0.15, 1.0], // Very dark gray
+                Support => [0.25, 0.2, 0.2, 1.0], // Slightly red-tinted gray
+                North => [0.2, 0.2, 0.25, 1.0], // Slightly blue-tinted for North
+                South => [0.25, 0.2, 0.2, 1.0], // Slightly red-tinted for South
+                GuyLine => [0.22, 0.22, 0.22, 1.0], // Medium gray for guy lines
             },
         }
     }
@@ -307,6 +375,7 @@ impl Role {
 pub struct Interval {
     pub alpha_index: usize,
     pub omega_index: usize,
+    pub role: Role,
     pub material: Material,
     pub span: Span,
     pub unit: Vector3<f32>,
@@ -320,17 +389,19 @@ pub struct Interval {
 impl Interval {
     /// Check if the interval has the specified role
     pub fn has_role(&self, role: Role) -> bool {
-        self.material.properties().role.is(role)
+        self.role.is(role)
     }
-    pub fn new(alpha_index: usize, omega_index: usize, material: Material, span: Span) -> Interval {
+
+    pub fn new(alpha_index: usize, omega_index: usize, role: Role, span: Span) -> Interval {
         // Only allocate connections for push intervals
-        let is_push = material.properties().role == Pushing; // Using direct check here as the interval isn't created yet
+        let is_push = role == Pushing;
         let connections = is_push.then_some(Box::new(PullConnections::new()));
 
         Interval {
             alpha_index,
             omega_index,
-            material,
+            role,
+            material: role.material(),
             span,
             unit: zero(),
             strain: 0.0,
@@ -360,7 +431,7 @@ impl Interval {
         pull_data: &[PullIntervalData],
     ) -> Result<(), FabricError> {
         // Only push intervals have connections to reorder
-        if self.material.properties().role != Pushing {
+        if self.role != Pushing {
             return Err(FabricError::NotPushInterval);
         }
 
@@ -400,14 +471,14 @@ impl Interval {
         FabricError,
     > {
         // Only push intervals have attachment points
-        if self.material.properties().role != Pushing {
+        if self.role != Pushing {
             return Err(FabricError::NotPushInterval);
         }
 
         let (alpha_location, omega_location) = self.locations(joints);
 
-        // Calculate the radius based on the material properties
-        let radius = self.material.properties().role.appearance().radius;
+        // Calculate the radius based on the role
+        let radius = self.role.appearance().radius;
 
         // Calculate attachment points at both ends of the interval
         Ok(calculate_interval_attachment_points(
@@ -617,16 +688,12 @@ impl Interval {
             }
         };
         let real_length = self.fast_length(joints);
-        let MaterialProperties {
-            role,
-            stiffness,
-            mass,
-            ..
-        } = self.material.properties();
+        let stiffness = self.material.stiffness();
+        let mass = self.material.mass();
         self.strain = (real_length - ideal) / ideal;
-        match role {
+        match self.role {
             Pushing if real_length > ideal => self.strain = 0.0, // do not pull
-            Pulling if real_length < ideal => self.strain = 0.0, // do not push
+            Pulling | Circumference | BowTie | FaceRadial | Support if real_length < ideal => self.strain = 0.0, // do not push
             _ => {}
         };
         let force = self.strain * stiffness * physics.stiffness;

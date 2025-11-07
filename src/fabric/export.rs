@@ -3,9 +3,8 @@ use std::io;
 use std::io::{Cursor, Write};
 use zip::{write::FileOptions, CompressionMethod, ZipWriter};
 
-use crate::fabric::interval::Interval;
+use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::Joint;
-use crate::fabric::material::Material;
 use crate::fabric::Fabric;
 
 impl Fabric {
@@ -46,14 +45,13 @@ impl Fabric {
         zip.start_file("intervals.csv".to_string(), options)?;
         writeln!(zip, "Alpha;Omega;Role")?;
         for interval in self.interval_values() {
-            let role = interval.material.properties().role;
+            let role = interval.role;
             let Interval {
                 alpha_index,
                 omega_index,
-                material,
                 ..
             } = interval;
-            if matches!(material, Material::North | Material::South) {
+            if interval.role == Role::North || interval.role == Role::South {
                 continue;
             }
             writeln!(

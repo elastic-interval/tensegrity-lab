@@ -5,9 +5,8 @@
 use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, MetricSpace, Point3, Vector3};
 
 use crate::build::tenscript::{FaceAlias, Spin};
-use crate::fabric::interval::Interval;
+use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::Joint;
-use crate::fabric::material::Material::{Pull, Push};
 use crate::fabric::{Fabric, UniqueId};
 
 const ROOT3: f32 = 1.732_050_8;
@@ -76,7 +75,7 @@ impl Fabric {
             .unwrap();
         let ideal = (alpha.scale + omega.scale) / 2.0;
         for (a, b) in links {
-            self.create_interval(alpha_rotated[a], omega_ends[b], ideal, Pull);
+            self.create_interval(alpha_rotated[a], omega_ends[b], ideal, Role::Circumference);
         }
         self.remove_face(alpha_id);
         self.remove_face(omega_id);
@@ -91,7 +90,7 @@ impl Fabric {
                 radial_joints[alpha],
                 radial_joints[omega],
                 side_length,
-                Pull,
+                Role::Pulling,
             );
         }
     }
@@ -109,11 +108,11 @@ impl Fabric {
         let midpoint = face.midpoint(&self);
         let alpha = self.create_joint(Point3::from_vec(midpoint - normal * push_length / 2.0));
         let omega = self.create_joint(Point3::from_vec(midpoint + normal * push_length / 2.0));
-        self.create_interval(alpha, omega, push_length, Push);
+        self.create_interval(alpha, omega, push_length, Role::Pushing);
         for joint in 0..3 {
             let radial = radial_joints[joint];
-            self.create_interval(alpha, radial, pull_length, Pull);
-            self.create_interval(omega, radial, pull_length, Pull);
+            self.create_interval(alpha, radial, pull_length, Role::FaceRadial);
+            self.create_interval(omega, radial, pull_length, Role::FaceRadial);
         }
         // Mark the face as having a prism
         if let Some(face) = self.faces.get_mut(&face_id) {
