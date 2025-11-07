@@ -181,6 +181,10 @@ impl CylinderRenderer {
                 let appearance = match pick {
                     Pick::Nothing => match render_style {
                         Normal { .. } => appearance,
+                        ColorByRole { .. } => Appearance {
+                            color: interval.role.color(),
+                            radius: appearance.radius,
+                        },
                         WithAppearanceFunction { function, .. } => {
                             function(interval).unwrap_or(appearance)
                         }

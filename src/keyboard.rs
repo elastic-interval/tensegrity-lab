@@ -139,8 +139,8 @@ impl Keyboard {
         );
         self.key_lab_event(
             KeyCode::KeyR,
-            "Default view",
-            UpdateState(StateChange::ResetView),
+            "Color by Role",
+            UpdateState(StateChange::ToggleColorByRole),
             Box::new(|_| true),
         );
         self.key_lab_event(
