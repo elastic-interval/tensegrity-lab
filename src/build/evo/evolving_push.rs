@@ -1,5 +1,4 @@
-use crate::fabric::interval::IntervalSnapshot;
-use crate::fabric::material::Material;
+use crate::fabric::interval::{IntervalSnapshot, Role};
 use crate::fabric::IntervalEnd;
 use crate::fabric::{Fabric, UniqueId};
 use cgmath::{Point3, Vector3};
@@ -16,7 +15,7 @@ impl EvolvingPush {
     pub fn first_push(fabric: &mut Fabric) -> Self {
         let alpha = fabric.create_joint(Point3::new(0.5, 0.0, 0.0));
         let omega = fabric.create_joint(Point3::new(-0.5, 0.0, 0.0));
-        let interval_id = fabric.create_interval(alpha, omega, 1.0, Material::Push);
+        let interval_id = fabric.create_interval(alpha, omega, 1.0, Role::Pushing);
         Self::new(interval_id)
     }
 
@@ -38,9 +37,9 @@ impl EvolvingPush {
         };
         let alpha = fabric.create_joint(here - project / 2.0);
         let omega = fabric.create_joint(here + project / 2.0);
-        let interval_id = fabric.create_interval(alpha, omega, 1.0, Material::Push);
-        let alpha_pull = fabric.create_interval(here_id, alpha, 0.5, Material::Pull);
-        let omega_pull = fabric.create_interval(here_id, omega, 0.5, Material::Pull);
+        let interval_id = fabric.create_interval(alpha, omega, 1.0, Role::Pushing);
+        let alpha_pull = fabric.create_interval(here_id, alpha, 0.5, Role::Pulling);
+        let omega_pull = fabric.create_interval(here_id, omega, 0.5, Role::Pulling);
         pulls.push(alpha_pull);
         pulls.push(omega_pull);
         Self {
@@ -76,7 +75,7 @@ impl EvolvingPush {
         for (end_a, end_b) in ends {
             let index_a = snapshot_a.1.end_index(&end_a);
             let index_b = snapshot_b.1.end_index(&end_b);
-            let pull = fabric.create_interval(index_a, index_b, 0.5, Material::Pull);
+            let pull = fabric.create_interval(index_a, index_b, 0.5, Role::Pulling);
             evolving_pushes[snapshot_a.0].add_pull(&end_a, pull);
             evolving_pushes[snapshot_b.0].add_pull(&end_b, pull);
         }

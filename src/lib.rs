@@ -211,6 +211,13 @@ impl Display for IntervalDetails {
             Role::Pushing => "Strut",
             Role::Pulling => "Cable",
             Role::Springy => "Spring",
+            Role::Circumference => "Circumference",
+            Role::BowTie => "BowTie",
+            Role::FaceRadial => "FaceRadial",
+            Role::Support => "Support",
+            Role::North => "North",
+            Role::South => "South",
+            Role::GuyLine => "GuyLine",
         };
 
         // Get the current attachment point visibility from thread-local storage

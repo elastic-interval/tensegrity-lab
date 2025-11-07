@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use cgmath::MetricSpace;
 
 use crate::fabric::interval::Span::Approaching;
-use crate::fabric::interval::{Interval, Role, Span};
+use crate::fabric::interval::{Interval, Span};
+use crate::fabric::interval::Role::{BowTie, Pushing};
 use crate::fabric::joint::Joint;
 use crate::fabric::joint_incident::{JointIncident, Path};
 use crate::fabric::material::Material;
@@ -20,7 +21,7 @@ impl Fabric {
             length,
         } in self.pair_generator().bow_tie_pulls(&self.joints)
         {
-            self.create_interval(alpha_index, omega_index, length, Material::Pull);
+            self.create_interval(alpha_index, omega_index, length, BowTie);
         }
     }
 
@@ -126,7 +127,7 @@ impl PairGenerator {
         let push_intervals: Vec<_> = self
             .intervals
             .values()
-            .filter(|interval| interval.material.properties().role == Role::Pushing)
+            .filter(|interval| interval.role == Pushing)
             .cloned()
             .collect();
 

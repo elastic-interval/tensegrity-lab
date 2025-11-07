@@ -44,12 +44,10 @@ impl JointIncident {
         self.intervals.push((id, interval.clone()));
     }
 
-    // Get all intervals connected to this joint
-    pub fn get_intervals(&self) -> &[(UniqueId, Interval)] {
+    pub fn intervals(&self) -> &[(UniqueId, Interval)] {
         &self.intervals
     }
 
-    // Find the push interval (if any) connected to this joint
     pub fn push(&self) -> Option<(UniqueId, Interval)> {
         self.intervals
             .iter()
@@ -57,16 +55,14 @@ impl JointIncident {
             .map(|(id, interval)| (*id, interval.clone()))
     }
 
-    // Find all pull intervals connected to this joint
     pub fn pulls(&self) -> Vec<(UniqueId, Interval)> {
         self.intervals
             .iter()
-            .filter(|(_, interval)| interval.has_role(Role::Pulling))
+            .filter(|(_, interval)| interval.role.is_pull_like())
             .map(|(id, interval)| (*id, interval.clone()))
             .collect()
     }
 
-    // Find all spring intervals connected to this joint
     pub fn springs(&self) -> Vec<Interval> {
         self.intervals
             .iter()
@@ -75,16 +71,14 @@ impl JointIncident {
             .collect()
     }
 
-    // Get all joints connected to this joint by pull intervals
-    pub fn pull_adjacent_joints(&self) -> HashSet<usize> {
+    pub fn adjacent_joints(&self) -> HashSet<usize> {
         self.intervals
             .iter()
-            .filter(|(_, interval)| interval.has_role(Role::Pulling))
+            .filter(|(_, interval)| interval.role.is_pull_like())
             .map(|(_, interval)| interval.other_joint(self.index))
             .collect()
     }
 
-    // Find the interval connecting this joint to another joint
     pub fn interval_to(&self, joint_index: usize) -> Option<(UniqueId, Interval)> {
         self.intervals
             .iter()
@@ -92,7 +86,6 @@ impl JointIncident {
             .map(|(id, interval)| (*id, interval.clone()))
     }
 
-    // Calculate extended paths for vulcanization
     pub(crate) fn extended_paths(&self, path: &Path) -> Vec<Path> {
         self.pulls()
             .iter()
@@ -100,7 +93,6 @@ impl JointIncident {
             .collect()
     }
 
-    // Find the joint on the other side of the push interval (if any)
     pub fn across_push(&self) -> Option<usize> {
         self.push().map(|(_, push)| push.other_joint(self.index))
     }

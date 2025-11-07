@@ -4,8 +4,7 @@ use crate::build::tenscript::brick::{Baked, BakedInterval, BakedJoint, BrickFace
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::{FaceAlias, Spin, TenscriptError};
 use crate::fabric::face::FaceRotation;
-use crate::fabric::material::Material;
-use crate::fabric::material::Material::FaceRadial;
+use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, UniqueId};
 
 pub enum BaseFace {
@@ -71,11 +70,13 @@ impl Fabric {
         {
             let (alpha_index, omega_index) = (joints[alpha_index], joints[omega_index]);
             let ideal = self.ideal(alpha_index, omega_index, strain);
+            let role = Role::from_label(&material_name)
+                .expect(&format!("Unknown role label: {}", material_name));
             self.create_interval(
                 alpha_index,
                 omega_index,
                 ideal,
-                Material::from_label(&material_name).unwrap(),
+                role,
             );
         }
         let brick_faces = brick
@@ -96,7 +97,7 @@ impl Fabric {
                     let radial_intervals = brick_joints.map(|omega| {
                         let omega_index = joints[omega];
                         let ideal = self.ideal(alpha_index, omega_index, Baked::TARGET_FACE_STRAIN);
-                        self.create_interval(alpha_index, omega_index, ideal, FaceRadial)
+                        self.create_interval(alpha_index, omega_index, ideal, Role::FaceRadial)
                     });
                     let single_alias: Vec<_> = aliases
                         .into_iter()

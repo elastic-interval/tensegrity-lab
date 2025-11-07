@@ -47,7 +47,7 @@ impl PhysicsTester {
                         let strain_limit = self.physics.strain_limit;
                         StateChange::SetAppearanceFunction(Rc::new(move |interval| {
                             if interval.strain > strain_limit {
-                                let role = interval.material.properties().role;
+                                let role = interval.role;
                                 Some(match role {
                                     Role::Pushing => role
                                         .appearance()

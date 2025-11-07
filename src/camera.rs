@@ -503,7 +503,7 @@ impl Camera {
             length: interval.ideal(),
             strain: interval.strain,
             distance: fabric.distance(near_joint, far_joint),
-            role: interval.material.properties().role,
+            role: interval.role,
             scale: fabric.scale,
             selected_push,
             near_slot,

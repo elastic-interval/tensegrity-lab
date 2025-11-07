@@ -45,7 +45,7 @@ impl Oven {
             StateChange::SetAppearanceFunction(Rc::new(move |interval| {
                 let strain = interval.strain;
                 let intensity = strain / max;
-                let role = interval.material.properties().role;
+                let role = interval.role;
                 Some(
                     role.appearance()
                         .with_color([intensity, intensity, intensity, 1.0]),
