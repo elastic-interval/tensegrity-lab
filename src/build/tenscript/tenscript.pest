@@ -47,7 +47,7 @@ vulcanize =
 pretense =
     { "(" ~ "pretense" ~ pretense_feature* ~ ")" }
 pretense_feature =
-    { surface | muscle | pretenst | seconds | stiffness | altitude }
+    { surface | muscle | pretenst | seconds | stiffness | altitude | viscosity | drag }
 surface =
     { "(" ~ "surface" ~ surface_character ~ ")" }
 surface_character =
@@ -62,6 +62,10 @@ altitude =
     { "(" ~ "altitude" ~ float ~ ")" }
 seconds =
     { "(" ~ "seconds" ~ float ~ ")" }
+viscosity =
+    { "(" ~ "viscosity" ~ float ~ ")" }
+drag =
+    { "(" ~ "drag" ~ float ~ ")" }
 build =
     { "(" ~ "build" ~ branch ~ ")" }
 build_node =

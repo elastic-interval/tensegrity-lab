@@ -98,21 +98,26 @@ impl Fabric {
     pub fn add_face_prism(&mut self, face_id: UniqueId) {
         let face = self.face(face_id);
         let push_length = face.scale;
-        // Radial joints are at distance `scale` from midpoint in the plane.
-        // Alpha/omega are at distance `push_length/2` along the normal.
-        // By Pythagorean theorem: pull_length² = scale² + (push_length/2)²
-        let pull_length =
-            (face.scale * face.scale + (push_length / 2.0) * (push_length / 2.0)).sqrt();
         let radial_joints = face.radial_joints(self);
         let normal = face.normal(&self);
         let midpoint = face.midpoint(&self);
+        // Calculate actual distance from face center to radial joints
+        let radial_distance = self.joints[radial_joints[0]].location.distance(Point3::from_vec(midpoint));
+        // Alpha/omega are at distance `push_length/2` along the normal.
+        // By Pythagorean theorem: pull_length² = radial_distance² + (push_length/2)²
+        let pull_length =
+            (radial_distance * radial_distance + (push_length / 2.0) * (push_length / 2.0)).sqrt();
+        
         let alpha = self.create_joint(Point3::from_vec(midpoint - normal * push_length / 2.0));
         let omega = self.create_joint(Point3::from_vec(midpoint + normal * push_length / 2.0));
+        
         self.create_interval(alpha, omega, push_length, Role::Pushing);
+        
+        // Connect prism push joints to radials
         for joint in 0..3 {
             let radial = radial_joints[joint];
-            self.create_interval(alpha, radial, pull_length, Role::FaceRadial);
-            self.create_interval(omega, radial, pull_length, Role::FaceRadial);
+            self.create_interval(alpha, radial, pull_length, Role::PrismPull);
+            self.create_interval(omega, radial, pull_length, Role::PrismPull);
         }
         // Mark the face as having a prism
         if let Some(face) = self.faces.get_mut(&face_id) {
