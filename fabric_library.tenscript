@@ -3,16 +3,17 @@
 		(build
 			(branch (alias Omni) (seed 1)
 				(on-face (alias BotX) (grow 8 (scale .9) (mark :end)))
-				(on-face (alias BotY) (grow 8 (scale .9) (mark :end)))
-				(on-face (alias BotZ) (grow 8 (scale .9) (mark :end)))
+				(on-face (alias BotY) (grow 8 (scale .9) (mark :end) (prism)))
+				(on-face (alias BotZ) (grow 8 (scale .9) (mark :end) (prism)))
 				(on-face (alias Top) (grow 1))))
 		(shape
-			(during 10.0 (space :end 0.4))
-			(during 10.0 (vulcanize))
+			(during 25.0 (space :end 0.4))
+			(during 5.0 (vulcanize))
 			)
 		(pretense
-            (altitude 4000.0)
-            (surface :absent))
+            (altitude 1000.0)
+            (surface :frozen)
+            (drag 5000.0))
 		(scale 1030.0))
 	(fabric	(name "De Twips")
         (build

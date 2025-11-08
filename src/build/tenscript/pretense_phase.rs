@@ -18,6 +18,8 @@ pub struct PretensePhase {
     pub seconds: Option<Seconds>,
     pub stiffness: Option<f32>,
     pub altitude: Option<f32>,
+    pub viscosity: Option<f32>,
+    pub drag: Option<f32>,
 }
 
 impl PretensePhase {
@@ -68,6 +70,12 @@ impl PretensePhase {
                             }
                             Rule::altitude => {
                                 pretense.altitude = Some(pretense_pair.parse_float_inner("altitude")?);
+                            }
+                            Rule::viscosity => {
+                                pretense.viscosity = Some(pretense_pair.parse_float_inner("viscosity")?);
+                            }
+                            Rule::drag => {
+                                pretense.drag = Some(pretense_pair.parse_float_inner("drag")?);
                             }
                             _ => unreachable!(),
                         }

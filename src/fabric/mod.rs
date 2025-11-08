@@ -87,6 +87,7 @@ pub struct Fabric {
     muscle_forward: Option<bool>,
     muscle_nuance: f32,
     last_direction_change: Option<Instant>,
+    frozen: bool,
 }
 
 impl Fabric {
@@ -103,6 +104,7 @@ impl Fabric {
             muscle_forward: None,
             muscle_nuance: 0.5,
             last_direction_change: None,
+            frozen: false,
         }
     }
 
@@ -157,22 +159,22 @@ impl Fabric {
             let interval = interval_opt.as_mut().unwrap();
             if !interval.has_role(Role::Support) {
                 let is_pushing = interval.has_role(Role::Pushing);
-                match &interval.span {
-                    Fixed { length } => {
+                match interval.span {
+                    Fixed { length: rest_length } => {
                         if is_pushing {
                             interval.span = Pretenst {
-                                begin: *length,
-                                length: *length * (1.0 + pretenst / 100.0),
-                                slack: *length,
+                                start_length: rest_length,
+                                target_length: rest_length * (1.0 + pretenst / 100.0),
+                                rest_length,
                                 finished: false,
                             };
                         }
                     }
-                    Pretenst { length, slack, .. } => {
+                    Pretenst { target_length, rest_length, .. } => {
                         interval.span = Pretenst {
-                            begin: *length,
-                            length: *slack * (1.0 + pretenst / 100.0),
-                            slack: *slack,
+                            start_length: target_length,
+                            target_length: rest_length * (1.0 + pretenst / 100.0),
+                            rest_length,
                             finished: false,
                         }
                     }
@@ -213,10 +215,16 @@ impl Fabric {
             .collect()
     }
 
+
     pub fn iterate(&mut self, physics: &Physics) {
+        if self.frozen {
+            return;
+        }
+        
         for joint in &mut self.joints {
             joint.reset();
         }
+        
         for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
             let interval = interval_opt.as_mut().unwrap();
             interval.iterate(
@@ -227,8 +235,24 @@ impl Fabric {
             );
         }
         let elapsed = self.age.tick();
-        for joint in &mut self.joints {
+        
+        // Check for excessive speed during joint iteration (indicates instability/NaN)
+        const MAX_SPEED_SQUARED: f32 = 1000.0 * 1000.0; // (mm per tick)²
+        let mut max_speed_squared = 0.0;
+        
+        for joint in self.joints.iter_mut() {
             joint.iterate(physics, elapsed);
+            let speed_squared = joint.velocity.magnitude2();
+            if speed_squared > max_speed_squared {
+                max_speed_squared = speed_squared;
+            }
+        }
+        
+        if max_speed_squared > MAX_SPEED_SQUARED || max_speed_squared.is_nan() {
+            eprintln!("Excessive speed detected: {:.2} mm/tick - freezing fabric", 
+                      max_speed_squared.sqrt());
+            self.frozen = true;
+            return;
         }
         if self.progress.step(elapsed) {
             // final step
@@ -239,8 +263,11 @@ impl Fabric {
                     Pretenst { finished, .. } => {
                         *finished = true;
                     }
-                    Approaching { length, .. } => {
-                        interval.span = Fixed { length: *length };
+                    Approaching { target_length, .. } => {
+                        interval.span = Approaching {
+                            start_length: *target_length,
+                            target_length: *target_length,
+                        };
                     }
                     Muscle { .. } => {}
                 }
@@ -250,7 +277,6 @@ impl Fabric {
             let increment = 1.0 / physics.cycle_ticks * if forward { 1.0 } else { -1.0 };
             // Update the muscle_nuance value
             self.muscle_nuance += increment;
-
             // Update muscle_nuance value based on direction
 
             if self.muscle_nuance < 0.0 {
@@ -278,18 +304,18 @@ impl Fabric {
             if let Some(interval) = interval_opt {
                 if interval.role == Role::North || interval.role == Role::South {
                     match interval.span {
-                        Fixed { length } => {
-                            let contracted = length * contraction;
+                        Fixed { length: rest_length } => {
+                            let contracted_length = rest_length * contraction;
                             if interval.role == Role::North {
                                 interval.span = Muscle {
-                                    length,
-                                    contracted,
+                                    rest_length,
+                                    contracted_length,
                                     reverse: false,
                                 };
                             } else if interval.role == Role::South {
                                 interval.span = Muscle {
-                                    length,
-                                    contracted,
+                                    rest_length,
+                                    contracted_length,
                                     reverse: true,
                                 };
                             }
@@ -381,29 +407,27 @@ impl Fabric {
             let interval = interval_opt.as_ref().unwrap();
             let length = interval.length(&self.joints);
             if !interval.has_role(Role::Support) {
-                match interval.role {
-                    Role::Pushing => {
-                        push_count += 1;
-                        push_total += length;
-                        if length < push_range.0 {
-                            push_range.0 = length;
-                        }
-                        if length > push_range.1 {
-                            push_range.1 = length;
-                        }
+                // Categorize by push-like vs pull-like behavior
+                if interval.role == Role::Pushing {
+                    push_count += 1;
+                    push_total += length;
+                    if length < push_range.0 {
+                        push_range.0 = length;
                     }
-                    Role::Pulling => {
-                        pull_count += 1;
-                        pull_total += length;
-                        if length < pull_range.0 {
-                            pull_range.0 = length;
-                        }
-                        if length > pull_range.1 {
-                            pull_range.1 = length;
-                        }
+                    if length > push_range.1 {
+                        push_range.1 = length;
                     }
-                    _ => unreachable!(),
+                } else if interval.role.is_pull_like() {
+                    pull_count += 1;
+                    pull_total += length;
+                    if length < pull_range.0 {
+                        pull_range.0 = length;
+                    }
+                    if length > pull_range.1 {
+                        pull_range.1 = length;
+                    }
                 }
+                // Springy and other roles are ignored in stats
             }
         }
         FabricStats {

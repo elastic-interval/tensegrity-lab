@@ -130,8 +130,8 @@ impl Fabric {
             omega_index,
             role,
             Approaching {
-                begin: self.distance(alpha_index, omega_index),
-                length: ideal,
+                start_length: self.distance(alpha_index, omega_index),
+                target_length: ideal,
             },
         );
 
@@ -258,18 +258,18 @@ pub enum Span {
         length: f32,
     },
     Pretenst {
-        length: f32,
-        begin: f32,
-        slack: f32,
+        target_length: f32,
+        start_length: f32,
+        rest_length: f32,
         finished: bool,
     },
     Approaching {
-        length: f32,
-        begin: f32,
+        target_length: f32,
+        start_length: f32,
     },
     Muscle {
-        length: f32,
-        contracted: f32,
+        rest_length: f32,
+        contracted_length: f32,
         reverse: bool,
     },
 }
@@ -286,6 +286,7 @@ pub enum Role {
     North = 7,
     South = 8,
     GuyLine = 9,
+    PrismPull = 11,
 }
 
 impl Role {
@@ -298,7 +299,7 @@ impl Role {
     pub fn is_pull_like(&self) -> bool {
         matches!(
             self,
-            Pulling | Circumference | BowTie | FaceRadial | Support | North | South | GuyLine
+            Pulling | Circumference | BowTie | FaceRadial | Support | North | South | GuyLine | PrismPull
         )
     }
 
@@ -315,6 +316,7 @@ impl Role {
             North => "north",
             South => "south",
             GuyLine => "guy-line",
+            PrismPull => "prism-pull",
         }
     }
 
@@ -331,6 +333,7 @@ impl Role {
             "north" => Some(North),
             "south" => Some(South),
             "guy-line" => Some(GuyLine),
+            "prism-pull" => Some(PrismPull),
             _ => None,
         }
     }
@@ -359,6 +362,7 @@ impl Role {
             Circumference => 0.25,
             FaceRadial => 0.15,
             North | South => 0.15,
+            PrismPull => 0.2,
         }
     }
 
@@ -374,6 +378,7 @@ impl Role {
             North => [0.2, 0.2, 0.25, 1.0],
             South => [0.25, 0.2, 0.2, 1.0],
             GuyLine => [0.22, 0.22, 0.22, 1.0],
+            PrismPull => [0.2, 0.2, 0.2, 1.0],
         }
     }
 
@@ -390,6 +395,7 @@ impl Role {
             North => [0.3, 0.8, 0.9, 1.0],          // Cyan
             South => [0.9, 0.3, 0.7, 1.0],          // Magenta
             GuyLine => [0.7, 0.7, 0.3, 1.0],        // Olive
+            PrismPull => [0.6, 0.4, 0.8, 1.0],      // Purple
         }
     }
 }
@@ -657,10 +663,10 @@ impl Interval {
 
     pub fn ideal(&self) -> f32 {
         match self.span {
-            Fixed { length, .. } | Pretenst { length, .. } | Approaching { length, .. } => length,
+            Fixed { length, .. } | Pretenst { target_length: length, .. } | Approaching { target_length: length, .. } => length,
             Muscle {
-                length, contracted, ..
-            } => (length + contracted) / 2.0,
+                rest_length, contracted_length, ..
+            } => (rest_length + contracted_length) / 2.0,
         }
     }
 
@@ -674,25 +680,25 @@ impl Interval {
         let ideal = match self.span {
             Fixed { length } => length,
             Pretenst {
-                begin,
-                length,
+                start_length,
+                target_length,
                 finished,
                 ..
             } => {
                 if finished {
-                    length
+                    target_length
                 } else {
                     let progress_nuance = progress.nuance();
-                    begin * (1.0 - progress_nuance) + length * progress_nuance
+                    start_length * (1.0 - progress_nuance) + target_length * progress_nuance
                 }
             }
-            Approaching { begin, length, .. } => {
+            Approaching { start_length, target_length, .. } => {
                 let progress_nuance = progress.nuance();
-                begin * (1.0 - progress_nuance) + length * progress_nuance
+                start_length * (1.0 - progress_nuance) + target_length * progress_nuance
             }
             Muscle {
-                length,
-                contracted,
+                rest_length,
+                contracted_length,
                 reverse,
             } => {
                 let nuance = if reverse {
@@ -700,14 +706,7 @@ impl Interval {
                 } else {
                     muscle_nuance
                 };
-                let progress_nuance = progress.nuance();
-                let muscle_length = contracted * (1.0 - nuance) + length * nuance;
-                let ideal_length =
-                    length * (1.0 - progress_nuance) + muscle_length * progress_nuance;
-
-                // Calculate the ideal length based on muscle nuance
-
-                ideal_length
+                contracted_length * (1.0 - nuance) + rest_length * nuance
             }
         };
         let real_length = self.fast_length(joints);
@@ -716,7 +715,7 @@ impl Interval {
         self.strain = (real_length - ideal) / ideal;
         match self.role {
             Pushing if real_length > ideal => self.strain = 0.0, // do not pull
-            Pulling | Circumference | BowTie | FaceRadial | Support if real_length < ideal => self.strain = 0.0, // do not push
+            Pulling | Circumference | BowTie | FaceRadial | Support | PrismPull if real_length < ideal => self.strain = 0.0, // do not push
             _ => {}
         };
         let force = self.strain * stiffness * physics.stiffness;

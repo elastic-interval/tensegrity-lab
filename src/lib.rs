@@ -39,7 +39,7 @@ impl Display for Age {
     }
 }
 
-const TICK_MICROSECONDS: f64 = 25.0;
+const TICK_MICROSECONDS: f64 = 250.0;
 
 impl Default for Age {
     fn default() -> Self {
@@ -227,6 +227,7 @@ impl Display for IntervalDetails {
             Role::North => "North",
             Role::South => "South",
             Role::GuyLine => "GuyLine",
+            Role::PrismPull => "PrismPull",
         };
 
         // Get the current attachment point visibility from thread-local storage

@@ -29,10 +29,19 @@ impl Pretenser {
         let pretenst = pretense_phase.pretenst.unwrap_or(AIR_GRAVITY.pretenst);
         let surface_character = pretense_phase.surface_character;
         let stiffness = pretense_phase.stiffness.unwrap_or(AIR_GRAVITY.stiffness);
+        // Viscosity and drag are percentages of the default values
+        let viscosity = pretense_phase.viscosity
+            .map(|percent| AIR_GRAVITY.viscosity * percent / 100.0)
+            .unwrap_or(AIR_GRAVITY.viscosity);
+        let drag = pretense_phase.drag
+            .map(|percent| AIR_GRAVITY.drag * percent / 100.0)
+            .unwrap_or(AIR_GRAVITY.drag);
         let physics = Physics {
             pretenst,
             surface_character,
             stiffness,
+            viscosity,
+            drag,
             ..AIR_GRAVITY
         };
         let seconds_to_pretense = pretense_phase.seconds.unwrap_or(Seconds(15.0));
@@ -67,6 +76,7 @@ impl Pretenser {
                 context.fabric.slacken();
                 let altitude = self.pretense_phase.altitude.unwrap_or(0.0) / context.fabric.scale;
                 context.fabric.centralize(Some(altitude));
+                
                 let factor = self
                     .pretense_phase
                     .pretenst

@@ -90,7 +90,7 @@ pub mod presets {
 
     pub const LIQUID: Physics = Physics {
         drag: 5e-6,
-        iterations_per_frame: 1000.0,
+        iterations_per_frame: 100.0,
         mass: 1.0,
         cycle_ticks: 1000.0,
         stiffness: 1e-4,
@@ -114,10 +114,10 @@ pub mod presets {
 
     pub const AIR_GRAVITY: Physics = Physics {
         drag: 1e-3,
-        iterations_per_frame: 50.0,
+        iterations_per_frame: 100.0,
         mass: 5.0,
         cycle_ticks: 1000.0,
-        stiffness: 0.5,
+        stiffness: 0.3,
         pretenst: 1.0,
         strain_limit: 0.02,
         surface_character: Frozen,

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use cgmath::{InnerSpace, MetricSpace};
 use itertools::Itertools;
 
-use crate::fabric::interval::Role::{BowTie, Pushing};
+use crate::fabric::interval::Role::{BowTie, PrismPull, Pushing};
 use crate::fabric::interval::Span::Approaching;
 use crate::fabric::interval::{Interval, Span};
 use crate::fabric::joint::Joint;
@@ -65,13 +65,13 @@ impl Fabric {
                 ..
             } = interval_opt.as_mut().unwrap();
             if *material == target_material {
-                match span {
-                    Span::Fixed { length } => {
-                        let slack_length = *length * (1.0 - *strain);
-                        let new_length = slack_length * (1.0 + average_strain);
+                match *span {
+                    Span::Fixed { length: start_length } => {
+                        let slack_length = start_length * (1.0 - *strain);
+                        let target_length = slack_length * (1.0 + average_strain);
                         *span = Approaching {
-                            length: new_length,
-                            begin: *length,
+                            target_length,
+                            start_length,
                         }
                     }
                     _ => {}
@@ -262,15 +262,18 @@ impl PairGenerator {
             })
             .collect();
         if let &[(alpha_index, omega_index)] = cross_twist_diagonals.as_slice() {
-            let distance = joints[alpha_index]
-                .location
-                .distance(joints[omega_index].location);
-            let pair = Pair {
-                alpha_index,
-                omega_index,
-                length: distance * BOW_TIE_SHORTEN,
-            };
-            self.pairs.insert(pair.key(), pair);
+            // Don't create bow-ties to prism joints
+            if !self.is_prism_joint(alpha_index) && !self.is_prism_joint(omega_index) {
+                let distance = joints[alpha_index]
+                    .location
+                    .distance(joints[omega_index].location);
+                let pair = Pair {
+                    alpha_index,
+                    omega_index,
+                    length: distance * BOW_TIE_SHORTEN,
+                };
+                self.pairs.insert(pair.key(), pair);
+            }
         } else {
             let candidate_completions = [
                 (alpha1, alpha2),
@@ -288,15 +291,18 @@ impl PairGenerator {
                 })
                 .collect();
             if let &[(alpha_index, omega_index)] = triangle_completions.as_slice() {
-                let distance = joints[alpha_index]
-                    .location
-                    .distance(joints[omega_index].location);
-                let pair = Pair {
-                    alpha_index,
-                    omega_index,
-                    length: distance * BOW_TIE_SHORTEN,
-                };
-                self.pairs.insert(pair.key(), pair);
+                // Don't create bow-ties to prism joints
+                if !self.is_prism_joint(alpha_index) && !self.is_prism_joint(omega_index) {
+                    let distance = joints[alpha_index]
+                        .location
+                        .distance(joints[omega_index].location);
+                    let pair = Pair {
+                        alpha_index,
+                        omega_index,
+                        length: distance * BOW_TIE_SHORTEN,
+                    };
+                    self.pairs.insert(pair.key(), pair);
+                }
             }
         }
     }
@@ -319,6 +325,10 @@ impl PairGenerator {
             if self.joints[alpha_index].push().is_none() {
                 continue;
             }
+            // Don't create bow-ties to prism joints
+            if self.is_prism_joint(alpha_index) || self.is_prism_joint(omega_index) {
+                continue;
+            }
             let pair = Pair {
                 alpha_index,
                 omega_index,
@@ -334,6 +344,14 @@ impl PairGenerator {
         } else {
             self.intervals.contains_key(&(b, a))
         }
+    }
+
+    fn is_prism_joint(&self, joint_index: usize) -> bool {
+        // A prism joint is one that has PrismPull intervals connected to it
+        self.joints[joint_index]
+            .intervals()
+            .iter()
+            .any(|(_, i)| i.has_role(PrismPull))
     }
 
     fn paths_for(&self, joint_index: usize, max_size: usize) -> Vec<Path> {

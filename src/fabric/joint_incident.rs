@@ -58,7 +58,9 @@ impl JointIncident {
     pub fn pulls(&self) -> Vec<(UniqueId, Interval)> {
         self.intervals
             .iter()
-            .filter(|(_, interval)| interval.role.is_pull_like())
+            .filter(|(_, interval)| {
+                interval.role.is_pull_like() && !interval.has_role(Role::PrismPull)
+            })
             .map(|(id, interval)| (*id, interval.clone()))
             .collect()
     }
