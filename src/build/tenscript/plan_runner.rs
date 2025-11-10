@@ -6,7 +6,7 @@ use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::LIQUID;
 use crate::fabric::physics::Physics;
-use crate::{IMMEDIATE, MOMENT};
+use crate::units::{IMMEDIATE, MOMENT};
 
 #[derive(Clone, Debug, Copy, PartialEq)]
 enum Stage {

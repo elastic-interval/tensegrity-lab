@@ -9,7 +9,8 @@ use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::Joint;
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
-use crate::{Age, Seconds};
+use crate::units::Seconds;
+use crate::Age;
 use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, Transform, Vector3};
 use instant::Instant;
@@ -30,7 +31,6 @@ pub mod vulcanize;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod export;
-
 /// Represents which end of an interval (alpha or omega)
 /// This is used throughout the fabric module for consistent handling of interval ends
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

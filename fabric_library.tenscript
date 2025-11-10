@@ -2,7 +2,7 @@
     (fabric (name "Triped")
 		(build
 			(branch (alias Omni) (seed 1)
-				(on-face (alias BotX) (grow 8 (scale .9) (mark :end)))
+				(on-face (alias BotX) (grow 8 (scale .9) (mark :end) (prism)))
 				(on-face (alias BotY) (grow 8 (scale .9) (mark :end) (prism)))
 				(on-face (alias BotZ) (grow 8 (scale .9) (mark :end) (prism)))
 				(on-face (alias Top) (grow 1))))

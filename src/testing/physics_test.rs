@@ -1,7 +1,8 @@
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::{AppearanceMode, PhysicsFeature, Radio, Role, Seconds, StateChange, TesterAction};
+use crate::units::Seconds;
+use crate::{AppearanceMode, PhysicsFeature, Radio, Role, StateChange, TesterAction};
 use std::rc::Rc;
 
 pub struct PhysicsTester {

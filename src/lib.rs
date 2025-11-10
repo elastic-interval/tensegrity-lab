@@ -26,6 +26,7 @@ pub mod fabric;
 pub mod keyboard;
 pub mod pointer;
 pub mod scene;
+pub mod units;
 
 pub mod testing;
 pub mod wgpu;
@@ -66,17 +67,6 @@ impl Age {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Seconds(f32);
-
-impl Display for Seconds {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:.1}s", self.0)
-    }
-}
-
-pub const IMMEDIATE: Seconds = Seconds(0.0);
-pub const MOMENT: Seconds = Seconds(0.2);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PhysicsFeature {
