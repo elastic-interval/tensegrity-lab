@@ -232,6 +232,7 @@ impl Fabric {
                 &self.progress,
                 self.muscle_nuance,
                 physics,
+                self.scale,
             );
         }
         let elapsed = self.age.tick();

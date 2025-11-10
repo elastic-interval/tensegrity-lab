@@ -14,6 +14,7 @@ use crate::fabric::joint::Joint;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
 use crate::fabric::{Fabric, IntervalEnd, Progress, UniqueId};
+use crate::units::Millimeters;
 use crate::Appearance;
 use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
@@ -676,6 +677,7 @@ impl Interval {
         progress: &Progress,
         muscle_nuance: f32,
         physics: &Physics,
+        scale: f32,
     ) {
         let ideal = match self.span {
             Fixed { length } => length,
@@ -710,15 +712,19 @@ impl Interval {
             }
         };
         let real_length = self.fast_length(joints);
-        let stiffness = self.material.stiffness();
-        let mass = self.material.mass();
+        let real_length_mm = Millimeters(real_length * scale);
+        
+        // Calculate strain
         self.strain = (real_length - ideal) / ideal;
         match self.role {
-            Pushing if real_length > ideal => self.strain = 0.0, // do not pull
-            Pulling | Circumference | BowTie | FaceRadial | Support | PrismPull if real_length < ideal => self.strain = 0.0, // do not push
+            Pushing if real_length > ideal => self.strain = 0.0,
+            Pulling | Circumference | BowTie | FaceRadial | Support | PrismPull if real_length < ideal => self.strain = 0.0,
             _ => {}
         };
-        let force = self.strain * stiffness * physics.stiffness;
+        
+        // Force: strain × material_stiffness × phase_softening
+        let material_stiffness = self.material.stiffness();
+        let force = self.strain * material_stiffness * physics.stiffness_factor;
         let force_vector: Vector3<f32> = self.unit * force / 2.0;
 
         // Apply forces to both ends
@@ -727,8 +733,9 @@ impl Interval {
         joints[alpha_idx].force += force_vector;
         joints[omega_idx].force -= force_vector;
 
-        // Distribute mass to both ends
-        let half_mass = mass * real_length / 2.0;
+        // Mass from linear density × length
+        let interval_mass = self.material.linear_density() * real_length_mm;
+        let half_mass = interval_mass / 2.0;
         joints[alpha_idx].accumulated_mass += half_mass;
         joints[omega_idx].accumulated_mass += half_mass;
     }

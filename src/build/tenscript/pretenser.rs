@@ -29,7 +29,7 @@ impl Pretenser {
     pub fn new(pretense_phase: PretensePhase, radio: &Radio) -> Self {
         let pretenst = pretense_phase.pretenst.unwrap_or(AIR_GRAVITY.pretenst);
         let surface_character = pretense_phase.surface_character;
-        let stiffness = pretense_phase.stiffness.unwrap_or(AIR_GRAVITY.stiffness);
+        let stiffness_factor = pretense_phase.stiffness.unwrap_or(AIR_GRAVITY.stiffness_factor);
         // Viscosity and drag are percentages of the default values
         let viscosity = pretense_phase.viscosity
             .map(|percent| AIR_GRAVITY.viscosity * percent / 100.0)
@@ -40,7 +40,7 @@ impl Pretenser {
         let physics = Physics {
             pretenst,
             surface_character,
-            stiffness,
+            stiffness_factor,
             viscosity,
             drag,
             ..AIR_GRAVITY

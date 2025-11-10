@@ -8,7 +8,7 @@
 //! This module provides type-safe wrappers for physical quantities,
 //! making the physics more intuitive and preventing unit errors.
 
-use std::ops::{Div, Mul};
+use std::ops::{Add, AddAssign, Deref, Div, Mul};
 
 /// Mass in grams
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
@@ -45,6 +45,43 @@ pub struct GramsPerMillimeter(pub f32);
 /// Stiffness in Newtons per millimeter (force per unit extension)
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct NewtonsPerMillimeter(pub f32);
+
+// Deref implementations for ergonomic access to inner values
+
+impl Deref for Grams {
+    type Target = f32;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Deref for Millimeters {
+    type Target = f32;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Deref for Newtons {
+    type Target = f32;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Deref for GramsPerMillimeter {
+    type Target = f32;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Deref for NewtonsPerMillimeter {
+    type Target = f32;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 // Physical constants
 
@@ -112,7 +149,7 @@ impl Mul<Millimeters> for GramsPerMillimeter {
     type Output = Grams;
     
     fn mul(self, length: Millimeters) -> Grams {
-        Grams(self.0 * length.0)
+        Grams(*self * *length)
     }
 }
 
@@ -137,10 +174,65 @@ impl Div<Grams> for Newtons {
 impl Mul<f32> for NewtonsPerMillimeter {
     type Output = Newtons;
     
-    fn mul(self, strain: f32) -> Newtons {
-        // Force = stiffness × extension
-        // extension = strain × length, but we work with strain directly
-        Newtons(self.0 * strain)
+    fn mul(self, extension: f32) -> Newtons {
+        Newtons(*self * extension)
+    }
+}
+
+impl Mul<Millimeters> for NewtonsPerMillimeter {
+    type Output = Newtons;
+    
+    fn mul(self, extension: Millimeters) -> Newtons {
+        Newtons(*self * *extension)
+    }
+}
+
+// Scalar multiplication for units
+impl Mul<f32> for Millimeters {
+    type Output = Millimeters;
+    
+    fn mul(self, scalar: f32) -> Millimeters {
+        Millimeters(*self * scalar)
+    }
+}
+
+impl Mul<f32> for Grams {
+    type Output = Grams;
+    
+    fn mul(self, scalar: f32) -> Grams {
+        Grams(*self * scalar)
+    }
+}
+
+// Division for units
+impl Div<f32> for Grams {
+    type Output = Grams;
+    
+    fn div(self, scalar: f32) -> Grams {
+        Grams(*self / scalar)
+    }
+}
+
+impl Div<f32> for Newtons {
+    type Output = Newtons;
+    
+    fn div(self, scalar: f32) -> Newtons {
+        Newtons(*self / scalar)
+    }
+}
+
+// Addition for units
+impl Add for Grams {
+    type Output = Grams;
+    
+    fn add(self, other: Grams) -> Grams {
+        Grams(*self + *other)
+    }
+}
+
+impl AddAssign for Grams {
+    fn add_assign(&mut self, other: Grams) {
+        self.0 += *other;
     }
 }
 

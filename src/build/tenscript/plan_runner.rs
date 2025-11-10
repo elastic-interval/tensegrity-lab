@@ -91,7 +91,7 @@ impl PlanRunner {
                 ShapeCommand::Noop => (Shaping, IMMEDIATE),
                 ShapeCommand::StartProgress(seconds) => (Shaping, seconds),
                 ShapeCommand::Stiffness(percent) => {
-                    self.physics.stiffness *= percent / 100.0;
+                    self.physics.stiffness_factor *= percent / 100.0;
                     // Update physics when stiffness changes
                     *context.physics = self.physics.clone();
 
