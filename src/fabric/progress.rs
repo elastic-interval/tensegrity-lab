@@ -1,4 +1,4 @@
-use crate::Seconds;
+use crate::units::Seconds;
 
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Progress {

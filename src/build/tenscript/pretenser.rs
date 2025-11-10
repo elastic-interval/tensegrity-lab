@@ -4,7 +4,8 @@ use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::fabric::physics::Physics;
 use crate::LabEvent::DumpCSV;
-use crate::{Radio, Seconds, MOMENT};
+use crate::units::{Seconds, MOMENT};
+use crate::Radio;
 
 #[derive(Clone, Debug, PartialEq, Copy)]
 enum Stage {

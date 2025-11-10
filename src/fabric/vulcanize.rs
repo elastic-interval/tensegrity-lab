@@ -10,7 +10,7 @@ use crate::fabric::joint::Joint;
 use crate::fabric::joint_incident::{JointIncident, Path};
 use crate::fabric::material::Material;
 use crate::fabric::{Fabric, UniqueId};
-use crate::Seconds;
+use crate::units::Seconds;
 
 const BOW_TIE_SHORTEN: f32 = 0.5;
 

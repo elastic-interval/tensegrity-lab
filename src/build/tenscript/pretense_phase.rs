@@ -2,7 +2,7 @@ use pest::iterators::{Pair, Pairs};
 
 use crate::build::tenscript::{PairExt, PairsExt, Rule, TenscriptError};
 use crate::fabric::physics::SurfaceCharacter;
-use crate::Seconds;
+use crate::units::Seconds;
 
 #[derive(Debug, Clone, Default)]
 pub struct MuscleMovement {

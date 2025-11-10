@@ -6,7 +6,7 @@ use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, UniqueId};
-use crate::Seconds;
+use crate::units::Seconds;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};
 use pest::iterators::Pair;
 use std::cmp::Ordering;
