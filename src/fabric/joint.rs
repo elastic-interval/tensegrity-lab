@@ -6,6 +6,7 @@
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter::*;
 use crate::fabric::{Fabric, UniqueId};
+use crate::units::Grams;
 use cgmath::num_traits::zero;
 use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
 use itertools::Itertools;
@@ -56,7 +57,7 @@ impl Fabric {
     }
 }
 
-const AMBIENT_MASS: f32 = 0.01;
+const AMBIENT_MASS: Grams = Grams(0.01);
 const STICKY_DOWN_DRAG_FACTOR: f32 = 0.8;
 
 #[derive(Clone, Copy, Debug)]
@@ -64,7 +65,7 @@ pub struct Joint {
     pub location: Point3<f32>,
     pub force: Vector3<f32>,
     pub velocity: Vector3<f32>,
-    pub accumulated_mass: f32,
+    pub accumulated_mass: Grams,
 }
 
 impl Joint {
@@ -91,7 +92,7 @@ impl Joint {
             ..
         } = physics;
         let altitude = self.location.y;
-        let mass = self.accumulated_mass * mass;
+        let mass = *self.accumulated_mass * mass;
         if altitude > 0.0 || !surface_character.has_gravity() {
             self.velocity.y -= surface_character.gravity();
             let speed_squared = self.velocity.magnitude2();
