@@ -114,4 +114,11 @@ pub mod presets {
         surface_character: Frozen,
         viscosity: 1e2,
     };
+
+    pub const PRETENSING: Physics = Physics {
+        drag: 1e-1,
+        surface_character: Absent,
+        viscosity: 1e5,
+        ..AIR_GRAVITY
+    };
 }

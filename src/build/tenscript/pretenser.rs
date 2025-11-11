@@ -1,10 +1,10 @@
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::pretenser::Stage::*;
 use crate::crucible_context::CrucibleContext;
-use crate::fabric::physics::presets::AIR_GRAVITY;
+use crate::fabric::physics::presets::PRETENSING;
 use crate::fabric::physics::Physics;
-use crate::LabEvent::DumpCSV;
 use crate::units::{Seconds, MOMENT};
+use crate::LabEvent::DumpCSV;
 use crate::Radio;
 
 #[derive(Clone, Debug, PartialEq, Copy)]
@@ -19,7 +19,6 @@ enum Stage {
 #[derive(Clone)]
 pub struct Pretenser {
     pub pretense_phase: PretensePhase,
-    pub physics: Physics,
     stage: Stage,
     seconds_to_pretense: Seconds,
     radio: Radio,
@@ -27,36 +26,17 @@ pub struct Pretenser {
 
 impl Pretenser {
     pub fn new(pretense_phase: PretensePhase, radio: &Radio) -> Self {
-        let pretenst = pretense_phase.pretenst.unwrap_or(AIR_GRAVITY.pretenst);
-        let surface_character = pretense_phase.surface_character;
-        let stiffness_factor = pretense_phase.stiffness.unwrap_or(AIR_GRAVITY.stiffness_factor);
-        // Viscosity and drag are percentages of the default values
-        let viscosity = pretense_phase.viscosity
-            .map(|percent| AIR_GRAVITY.viscosity * percent / 100.0)
-            .unwrap_or(AIR_GRAVITY.viscosity);
-        let drag = pretense_phase.drag
-            .map(|percent| AIR_GRAVITY.drag * percent / 100.0)
-            .unwrap_or(AIR_GRAVITY.drag);
-        let physics = Physics {
-            pretenst,
-            surface_character,
-            stiffness_factor,
-            viscosity,
-            drag,
-            ..AIR_GRAVITY
-        };
         let seconds_to_pretense = pretense_phase.seconds.unwrap_or(Seconds(15.0));
         Self {
             stage: Start,
             pretense_phase,
             seconds_to_pretense,
-            physics,
             radio: radio.clone(),
         }
     }
 
     pub fn copy_physics_into(&self, context: &mut CrucibleContext) {
-        *context.physics = self.physics.clone();
+        *context.physics = PRETENSING;
     }
 
     pub fn iterate(&mut self, context: &mut CrucibleContext) {
@@ -81,7 +61,7 @@ impl Pretenser {
                 let factor = self
                     .pretense_phase
                     .pretenst
-                    .unwrap_or(self.physics.pretenst);
+                    .unwrap_or(PRETENSING.pretenst);
                 context.fabric.set_pretenst(factor, self.seconds_to_pretense);
                 DumpCSV.send(&self.radio);
                 Pretensing
@@ -112,9 +92,10 @@ impl Pretenser {
                         panic!("expected a muscle movement")
                     };
                     context.fabric.create_muscles(muscle_movement.contraction);
-                    self.physics.cycle_ticks = muscle_movement.countdown as f32;
+                    let mut physics = self.pretense_phase.viewing_physics();
+                    physics.cycle_ticks = muscle_movement.countdown as f32;
                     // Update physics when cycle_ticks changes
-                    *context.physics = self.physics.clone();
+                    *context.physics = physics;
                     context.fabric.progress.start(MOMENT);
 
                     Pretenst
@@ -134,7 +115,7 @@ impl Pretenser {
         self.stage == Pretenst
     }
 
-    pub fn physics(&self) -> &Physics {
-        &self.physics
+    pub fn physics(&self) -> Physics {
+        self.pretense_phase.viewing_physics()
     }
 }

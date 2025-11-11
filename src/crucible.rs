@@ -76,10 +76,7 @@ impl Crucible {
                     let stats = context.fabric.fabric_stats();
 
                     // Update the context's physics directly
-                    *context.physics = pretenser.physics().clone();
-
-                    // Enable gravity now that pretensing is complete
-                    context.fabric.gravity_enabled = true;
+                    *context.physics = pretenser.physics();
 
                     context.transition_to(Viewing);
 
