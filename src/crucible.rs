@@ -78,6 +78,9 @@ impl Crucible {
                     // Update the context's physics directly
                     *context.physics = pretenser.physics().clone();
 
+                    // Enable gravity now that pretensing is complete
+                    context.fabric.gravity_enabled = true;
+
                     context.transition_to(Viewing);
 
                     // Queue the FabricBuilt event

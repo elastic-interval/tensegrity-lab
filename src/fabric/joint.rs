@@ -83,18 +83,20 @@ impl Joint {
         self.accumulated_mass = AMBIENT_MASS;
     }
 
-    pub fn iterate(&mut self, physics: &Physics, _elapsed_microseconds: f32) {
+    pub fn iterate(&mut self, physics: &Physics, _elapsed_microseconds: f32, gravity_enabled: bool) {
         let Physics {
             surface_character,
-            mass,
             viscosity,
             drag,
             ..
         } = physics;
         let altitude = self.location.y;
-        let mass = *self.accumulated_mass * mass;
+        let mass = *self.accumulated_mass;
         if altitude > 0.0 || !surface_character.has_gravity() {
-            self.velocity.y -= surface_character.gravity();
+            // Only apply gravity when enabled
+            if gravity_enabled {
+                self.velocity.y -= surface_character.gravity();
+            }
             let speed_squared = self.velocity.magnitude2();
             self.velocity += self.force / mass - self.velocity * speed_squared * *viscosity;
             self.velocity *= 1.0 - *drag;

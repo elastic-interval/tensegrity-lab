@@ -36,12 +36,12 @@ impl Material {
     }
 
     /// Material stiffness coefficient
-    /// Relative stiffness between materials (Push=9, Pull=0.3, Spring=0.15)
+    /// Relative stiffness between materials (Push=0.9, Pull=0.03, Spring=0.015)
     pub fn stiffness(&self) -> f32 {
         match self {
-            Push => 9.0,
-            Pull => 0.3,
-            Spring => 0.15,
+            Push => 0.9,
+            Pull => 0.03,
+            Spring => 0.015,
         }
     }
 
