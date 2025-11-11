@@ -70,10 +70,8 @@ impl Age {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PhysicsFeature {
-    Mass,
     Pretenst,
     Stiffness,
-    IterationsPerFrame,
     CycleTicks,
     Viscosity,
     Drag,

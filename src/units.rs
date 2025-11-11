@@ -36,7 +36,7 @@ pub struct Seconds(pub f32);
 
 // Common time constants
 pub const IMMEDIATE: Seconds = Seconds(0.0);
-pub const MOMENT: Seconds = Seconds(0.2);
+pub const MOMENT: Seconds = Seconds(0.1);
 
 /// Linear density (mass per unit length) in grams per millimeter
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]

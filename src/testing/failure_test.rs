@@ -20,7 +20,6 @@ impl FailureTester {
     pub fn new(scenario: TestScenario, fabric: &Fabric, physics: Physics, radio: Radio) -> Self {
         let max_age = fabric.age.advanced(100_000);
         let physics = Physics {
-            iterations_per_frame: 1000.0,
             strain_limit: 0.03,
             ..physics
         };

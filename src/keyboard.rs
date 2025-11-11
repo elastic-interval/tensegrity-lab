@@ -72,16 +72,6 @@ impl Keyboard {
             Box::new(|state| matches!(state, Viewing)),
         );
         self.float_parameter(
-            "T",
-            "t",
-            PhysicsParameter {
-                feature: PhysicsFeature::IterationsPerFrame,
-                value: 100.0,
-            },
-            Box::new(|value| format!("Iterations {value:.0}")),
-            Box::new(|state| matches!(state, PhysicsTesting(_) | FailureTesting(_))),
-        );
-        self.float_parameter(
             "P",
             "p",
             PhysicsParameter {
@@ -109,16 +99,6 @@ impl Keyboard {
                 value: 0.0,
             },
             Box::new(|value| format!("Stiff {:.0}", value * 1e4)),
-            Box::new(|state| matches!(state, PhysicsTesting(_) | FailureTesting(_))),
-        );
-        self.float_parameter(
-            "M",
-            "m",
-            PhysicsParameter {
-                feature: PhysicsFeature::Mass,
-                value: 1.0,
-            },
-            Box::new(|value| format!("Mass {:.0}", value * 1e2)),
             Box::new(|state| matches!(state, PhysicsTesting(_) | FailureTesting(_))),
         );
         self.float_parameter(

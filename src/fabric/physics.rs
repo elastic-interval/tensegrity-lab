@@ -4,6 +4,9 @@
  */
 use crate::{PhysicsFeature, PhysicsParameter, Radio, StateChange};
 
+/// Number of physics iterations per frame (constant across all physics presets)
+pub const ITERATIONS_PER_FRAME: usize = 100;
+
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub enum SurfaceCharacter {
     #[default]
@@ -36,8 +39,6 @@ impl SurfaceCharacter {
 #[derive(Debug, Clone)]
 pub struct Physics {
     pub drag: f32,
-    pub iterations_per_frame: f32,
-    pub mass: f32,
     pub cycle_ticks: f32,
     pub pretenst: f32,
     pub stiffness_factor: f32,
@@ -52,8 +53,6 @@ impl Physics {
         let PhysicsParameter { feature, value } = parameter;
         match feature {
             Drag => self.drag = value,
-            IterationsPerFrame => self.iterations_per_frame = value,
-            Mass => self.mass = value,
             CycleTicks => self.cycle_ticks = value,
             Pretenst => self.pretenst = value,
             Stiffness => self.stiffness_factor = value,
@@ -66,8 +65,6 @@ impl Physics {
         use PhysicsFeature::*;
         let parameters = [
             Drag.parameter(self.drag),
-            IterationsPerFrame.parameter(self.iterations_per_frame),
-            Mass.parameter(self.mass),
             CycleTicks.parameter(self.cycle_ticks),
             Stiffness.parameter(self.stiffness_factor),
             Pretenst.parameter(self.pretenst),
@@ -80,7 +77,7 @@ impl Physics {
     }
 
     pub fn iterations(&self) -> std::ops::Range<usize> {
-        0..self.iterations_per_frame as usize
+        0..ITERATIONS_PER_FRAME
     }
 }
 
@@ -90,8 +87,6 @@ pub mod presets {
 
     pub const LIQUID: Physics = Physics {
         drag: 5e-6,
-        iterations_per_frame: 100.0,
-        mass: 1.0,
         cycle_ticks: 1000.0,
         stiffness_factor: 1e-2,
         pretenst: 20.0, // not used
@@ -102,8 +97,6 @@ pub mod presets {
 
     pub const PROTOTYPE_FORMATION: Physics = Physics {
         drag: 1e-3,
-        iterations_per_frame: 100.0,
-        mass: 1.0,
         cycle_ticks: 1000.0,
         stiffness_factor: 1e-2,
         pretenst: 1.0,
@@ -113,9 +106,7 @@ pub mod presets {
     };
 
     pub const AIR_GRAVITY: Physics = Physics {
-        drag: 1e-4,
-        iterations_per_frame: 100.0,
-        mass: 10.0,
+        drag: 1e-5,
         cycle_ticks: 1000.0,
         stiffness_factor: 1.0,
         pretenst: 2.0,
