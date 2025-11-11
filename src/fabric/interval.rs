@@ -300,7 +300,15 @@ impl Role {
     pub fn is_pull_like(&self) -> bool {
         matches!(
             self,
-            Pulling | Circumference | BowTie | FaceRadial | Support | North | South | GuyLine | PrismPull
+            Pulling
+                | Circumference
+                | BowTie
+                | FaceRadial
+                | Support
+                | North
+                | South
+                | GuyLine
+                | PrismPull
         )
     }
 
@@ -386,17 +394,17 @@ impl Role {
     /// Get a distinct color for this role (for color-by-role rendering)
     pub fn color(&self) -> [f32; 4] {
         match self {
-            Pushing => [1.0, 1.0, 1.0, 1.0],        // White
-            Pulling => [0.3, 0.6, 0.9, 1.0],        // Blue
-            Springy => [0.9, 0.7, 0.2, 1.0],        // Yellow/Gold
-            Circumference => [1.0, 0.5, 0.5, 1.0],  // Pastel bright red
-            BowTie => [0.2, 0.8, 0.3, 1.0],         // Green
-            FaceRadial => [0.5, 0.5, 0.5, 1.0],     // Gray
-            Support => [0.9, 0.5, 0.2, 1.0],        // Orange
-            North => [0.3, 0.8, 0.9, 1.0],          // Cyan
-            South => [0.9, 0.3, 0.7, 1.0],          // Magenta
-            GuyLine => [0.7, 0.7, 0.3, 1.0],        // Olive
-            PrismPull => [0.6, 0.4, 0.8, 1.0],      // Purple
+            Pushing => [1.0, 1.0, 1.0, 1.0],       // White
+            Pulling => [0.3, 0.6, 0.9, 1.0],       // Blue
+            Springy => [0.9, 0.7, 0.2, 1.0],       // Yellow/Gold
+            Circumference => [1.0, 0.5, 0.5, 1.0], // Pastel bright red
+            BowTie => [0.2, 0.8, 0.3, 1.0],        // Green
+            FaceRadial => [0.5, 0.5, 0.5, 1.0],    // Gray
+            Support => [0.9, 0.5, 0.2, 1.0],       // Orange
+            North => [0.3, 0.8, 0.9, 1.0],         // Cyan
+            South => [0.9, 0.3, 0.7, 1.0],         // Magenta
+            GuyLine => [0.7, 0.7, 0.3, 1.0],       // Olive
+            PrismPull => [0.6, 0.4, 0.8, 1.0],     // Purple
         }
     }
 }
@@ -442,6 +450,10 @@ impl Interval {
     /// Check if this is a push interval
     pub fn is_push_interval(&self) -> bool {
         self.has_role(Pushing)
+    }
+
+    pub fn is_pull_interval(&self) -> bool {
+        self.role.is_pull_like()
     }
 
     /// Get connections for a specific end if this is a push interval
@@ -664,9 +676,19 @@ impl Interval {
 
     pub fn ideal(&self) -> f32 {
         match self.span {
-            Fixed { length, .. } | Pretenst { target_length: length, .. } | Approaching { target_length: length, .. } => length,
+            Fixed { length, .. }
+            | Pretenst {
+                target_length: length,
+                ..
+            }
+            | Approaching {
+                target_length: length,
+                ..
+            } => length,
             Muscle {
-                rest_length, contracted_length, ..
+                rest_length,
+                contracted_length,
+                ..
             } => (rest_length + contracted_length) / 2.0,
         }
     }
@@ -694,7 +716,11 @@ impl Interval {
                     start_length * (1.0 - progress_nuance) + target_length * progress_nuance
                 }
             }
-            Approaching { start_length, target_length, .. } => {
+            Approaching {
+                start_length,
+                target_length,
+                ..
+            } => {
                 let progress_nuance = progress.nuance();
                 start_length * (1.0 - progress_nuance) + target_length * progress_nuance
             }
@@ -713,21 +739,18 @@ impl Interval {
         };
         let real_length = self.fast_length(joints);
         let real_length_mm = Millimeters(real_length * scale);
-        
-        // Calculate strain
-        self.strain = (real_length - ideal) / ideal;
-        match self.role {
-            Pushing if real_length > ideal => {
-                println!("⚠️  SLACK PUSH: {} <-> {} ({:?})", self.alpha_index, self.omega_index, self.role);
-                self.strain = 0.0;
-            }
-            Pulling | Circumference | BowTie | FaceRadial | Support | PrismPull if real_length < ideal => {
-                println!("⚠️  SLACK PULL: {} <-> {} ({:?})", self.alpha_index, self.omega_index, self.role);
-                self.strain = 0.0;
-            }
-            _ => {}
+
+        // Check if interval is slack (push stretched or pull compressed)
+        let is_slack = (self.is_push_interval() && real_length > ideal)
+            || (self.is_pull_interval() && real_length < ideal);
+
+        // Calculate strain, zeroing it out when slack
+        self.strain = if is_slack {
+            0.0
+        } else {
+            (real_length - ideal) / ideal
         };
-        
+
         // Force: strain × material_stiffness × phase_softening
         let material_stiffness = self.material.stiffness();
         let force = self.strain * material_stiffness * physics.stiffness_factor;
