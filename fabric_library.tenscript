@@ -7,7 +7,7 @@
 				(on-face (alias BotZ) (grow 8 (scale .9) (mark :end) (prism)))
 				(on-face (alias Top) (grow 1))))
 		(shape
-			(during 25.0 (space :end 0.4))
+			(during 15.0 (space :end 0.4))
 			(during 5.0 (vulcanize))
 			)
 		(pretense

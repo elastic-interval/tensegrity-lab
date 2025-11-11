@@ -717,8 +717,14 @@ impl Interval {
         // Calculate strain
         self.strain = (real_length - ideal) / ideal;
         match self.role {
-            Pushing if real_length > ideal => self.strain = 0.0,
-            Pulling | Circumference | BowTie | FaceRadial | Support | PrismPull if real_length < ideal => self.strain = 0.0,
+            Pushing if real_length > ideal => {
+                println!("⚠️  SLACK PUSH: {} <-> {} ({:?})", self.alpha_index, self.omega_index, self.role);
+                self.strain = 0.0;
+            }
+            Pulling | Circumference | BowTie | FaceRadial | Support | PrismPull if real_length < ideal => {
+                println!("⚠️  SLACK PULL: {} <-> {} ({:?})", self.alpha_index, self.omega_index, self.role);
+                self.strain = 0.0;
+            }
             _ => {}
         };
         
