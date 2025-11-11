@@ -262,18 +262,15 @@ impl PairGenerator {
             })
             .collect();
         if let &[(alpha_index, omega_index)] = cross_twist_diagonals.as_slice() {
-            // Don't create bow-ties to prism joints
-            if !self.is_prism_joint(alpha_index) && !self.is_prism_joint(omega_index) {
-                let distance = joints[alpha_index]
-                    .location
-                    .distance(joints[omega_index].location);
-                let pair = Pair {
-                    alpha_index,
-                    omega_index,
-                    length: distance * BOW_TIE_SHORTEN,
-                };
-                self.pairs.insert(pair.key(), pair);
-            }
+            let distance = joints[alpha_index]
+                .location
+                .distance(joints[omega_index].location);
+            let pair = Pair {
+                alpha_index,
+                omega_index,
+                length: distance * BOW_TIE_SHORTEN,
+            };
+            self.pairs.insert(pair.key(), pair);
         } else {
             let candidate_completions = [
                 (alpha1, alpha2),
@@ -291,18 +288,15 @@ impl PairGenerator {
                 })
                 .collect();
             if let &[(alpha_index, omega_index)] = triangle_completions.as_slice() {
-                // Don't create bow-ties to prism joints
-                if !self.is_prism_joint(alpha_index) && !self.is_prism_joint(omega_index) {
-                    let distance = joints[alpha_index]
-                        .location
-                        .distance(joints[omega_index].location);
-                    let pair = Pair {
-                        alpha_index,
-                        omega_index,
-                        length: distance * BOW_TIE_SHORTEN,
-                    };
-                    self.pairs.insert(pair.key(), pair);
-                }
+                let distance = joints[alpha_index]
+                    .location
+                    .distance(joints[omega_index].location);
+                let pair = Pair {
+                    alpha_index,
+                    omega_index,
+                    length: distance * BOW_TIE_SHORTEN,
+                };
+                self.pairs.insert(pair.key(), pair);
             }
         }
     }
@@ -323,10 +317,6 @@ impl PairGenerator {
         for (path, omega_index) in candidates {
             let alpha_index = path.joint_indices[1];
             if self.joints[alpha_index].push().is_none() {
-                continue;
-            }
-            // Don't create bow-ties to prism joints
-            if self.is_prism_joint(alpha_index) || self.is_prism_joint(omega_index) {
                 continue;
             }
             let pair = Pair {
