@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use cgmath::{InnerSpace, MetricSpace};
 use itertools::Itertools;
 
-use crate::fabric::interval::Role::{BowTie, PrismPull, Pushing};
+use crate::fabric::interval::Role::{BowTie, Pushing};
 use crate::fabric::interval::Span::Approaching;
 use crate::fabric::interval::{Interval, Span};
 use crate::fabric::joint::Joint;
@@ -335,15 +335,6 @@ impl PairGenerator {
             self.intervals.contains_key(&(b, a))
         }
     }
-
-    fn is_prism_joint(&self, joint_index: usize) -> bool {
-        // A prism joint is one that has PrismPull intervals connected to it
-        self.joints[joint_index]
-            .intervals()
-            .iter()
-            .any(|(_, i)| i.has_role(PrismPull))
-    }
-
     fn paths_for(&self, joint_index: usize, max_size: usize) -> Vec<Path> {
         let paths: Vec<_> = self.joints[joint_index]
             .pulls()
