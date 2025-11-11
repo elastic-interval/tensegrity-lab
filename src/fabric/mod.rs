@@ -84,7 +84,6 @@ pub struct Fabric {
     pub interval_count: usize,
     pub faces: HashMap<UniqueId, Face>,
     pub scale: f32,
-    pub gravity_enabled: bool,
     muscle_forward: Option<bool>,
     muscle_nuance: f32,
     last_direction_change: Option<Instant>,
@@ -93,11 +92,11 @@ pub struct Fabric {
 
 impl Fabric {
     pub fn new(name: String) -> Self {
-        Self {
-            name,
-            age: Age::default(),
-            progress: Progress::default(),
-            joints: Vec::new(),
+    Self {
+        name,
+        age: Age::default(),
+        progress: Progress::default(),
+        joints: Vec::new(),
             intervals: Vec::new(),
             interval_count: 0,
             faces: HashMap::new(),
@@ -106,7 +105,6 @@ impl Fabric {
             muscle_nuance: 0.5,
             last_direction_change: None,
             frozen: false,
-            gravity_enabled: false,
         }
     }
 
@@ -244,7 +242,7 @@ impl Fabric {
         let mut max_speed_squared = 0.0;
         
         for joint in self.joints.iter_mut() {
-            joint.iterate(physics, elapsed, self.gravity_enabled);
+            joint.iterate(physics);
             let speed_squared = joint.velocity.magnitude2();
             if speed_squared > max_speed_squared {
                 max_speed_squared = speed_squared;

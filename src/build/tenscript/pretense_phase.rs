@@ -1,7 +1,8 @@
 use pest::iterators::{Pair, Pairs};
 
 use crate::build::tenscript::{PairExt, PairsExt, Rule, TenscriptError};
-use crate::fabric::physics::SurfaceCharacter;
+use crate::fabric::physics::presets::AIR_GRAVITY;
+use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::units::Seconds;
 
 #[derive(Debug, Clone, Default)]
@@ -87,5 +88,27 @@ impl PretensePhase {
             }
         }
         Ok(pretense)
+    }
+
+    /// Create the viewing physics by applying pretense customizations to AIR_GRAVITY
+    pub fn viewing_physics(&self) -> Physics {
+        let pretenst = self.pretenst.unwrap_or(AIR_GRAVITY.pretenst);
+        let surface_character = self.surface_character;
+        let stiffness_factor = self.stiffness.unwrap_or(AIR_GRAVITY.stiffness_factor);
+        // Viscosity and drag are percentages of the default values
+        let viscosity = self.viscosity
+            .map(|percent| AIR_GRAVITY.viscosity * percent / 100.0)
+            .unwrap_or(AIR_GRAVITY.viscosity);
+        let drag = self.drag
+            .map(|percent| AIR_GRAVITY.drag * percent / 100.0)
+            .unwrap_or(AIR_GRAVITY.drag);
+        Physics {
+            pretenst,
+            surface_character,
+            stiffness_factor,
+            viscosity,
+            drag,
+            ..AIR_GRAVITY
+        }
     }
 }
