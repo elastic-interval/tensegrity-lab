@@ -19,23 +19,22 @@ impl Material {
         }
     }
 
-    /// Spring constant at 100mm reference length
-    /// These values were calibrated for typical interval lengths around 100mm
-    fn spring_constant_at_100mm(&self) -> f32 {
+    /// Spring constant at 1mm reference length
+    /// k × L = constant, so k(1mm) = k(1000mm) × 1000
+    fn spring_constant_at_1mm(&self) -> f32 {
         match self {
-            Push => 54_000_000.0,  // stiff compression members
-            Pull => 1_800_000.0,   // flexible tension cables
-            Spring => 900_000.0,   // very flexible springs
+            Push => 5_400_000_000.0,   // stiff compression members
+            Pull => 180_000_000.0,     // flexible tension cables
+            Spring => 90_000_000.0,    // very flexible springs
         }
     }
 
     /// Spring constant for a given length in millimeters
     /// Spring constant scales as k ∝ 1/L (shorter intervals are stiffer)
-    /// Reference length is 100mm
     pub fn spring_constant(&self, length_mm: f32) -> f32 {
-        let k_ref = self.spring_constant_at_100mm();
-        // k = k_ref × (100mm / length_mm)
-        k_ref * 100.0 / length_mm.max(1.0)
+        let k_at_1mm = self.spring_constant_at_1mm();
+        // k(L) = k(1mm) × (1mm / L)
+        k_at_1mm / length_mm.max(1.0)
     }
 
     pub fn default_role(&self) -> Role {
