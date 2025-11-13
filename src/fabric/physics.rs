@@ -21,10 +21,13 @@ impl SurfaceCharacter {
         !matches!(self, SurfaceCharacter::Absent)
     }
 
-    pub fn gravity(&self) -> f32 {
+    pub fn force_of_gravity(&self, mass: f32) -> f32 {
         match self {
             SurfaceCharacter::Absent => 0.0,
-            _ => 1e-6,
+            _ => {
+                let gravity_per_gram = 5e-7;
+                mass * gravity_per_gram
+            }
         }
     }
 
