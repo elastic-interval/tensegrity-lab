@@ -242,7 +242,7 @@ impl Fabric {
         let mut max_speed_squared = 0.0;
         
         for joint in self.joints.iter_mut() {
-            joint.iterate(physics, Age::tick_microseconds());
+            joint.iterate(physics, self.scale);
             let speed_squared = joint.velocity.magnitude2();
             if speed_squared > max_speed_squared {
                 max_speed_squared = speed_squared;
@@ -297,7 +297,7 @@ impl Fabric {
             // Muscles are disabled - nothing to do
         }
         
-        Age::tick_microseconds()
+        elapsed.as_micros() as f32
     }
 
     pub fn create_muscles(&mut self, contraction: f32) {

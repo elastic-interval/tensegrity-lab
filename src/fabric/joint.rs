@@ -3,8 +3,7 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use crate::fabric::physics::Physics;
-use crate::fabric::physics::SurfaceCharacter::*;
+use crate::fabric::physics::{Physics, SurfaceCharacter::*, DT};
 use crate::fabric::{Fabric, UniqueId};
 use crate::units::Grams;
 use cgmath::num_traits::zero;
@@ -83,24 +82,33 @@ impl Joint {
         self.accumulated_mass = AMBIENT_MASS;
     }
 
-    pub fn iterate(&mut self, physics: &Physics, _elapsed_microseconds: f32) {
+    pub fn iterate(&mut self, physics: &Physics, scale: f32) {
         let Physics {
             surface_character,
-            viscosity,
             drag,
             ..
         } = physics;
+        let viscosity = physics.effective_viscosity();
+        let drag_factor = physics.effective_drag_factor();
         let altitude = self.location.y;
         let mass = *self.accumulated_mass;
+        
         if altitude > 0.0 || !surface_character.has_gravity() {
-            self.velocity.y -= surface_character.force_of_gravity(mass);
+            // Gravity acceleration: mass is in grams (from mm-based lengths), 
+            // EARTH_GRAVITY is in mm/µs², so result is dimensionless (like other forces)
+            // Apply effective_gravity_factor to compensate for DT
+            self.velocity.y -= *surface_character.force_of_gravity(mass) * DT * physics.effective_gravity_factor();
             let speed_squared = self.velocity.magnitude2();
-            self.velocity += self.force / mass - self.velocity * speed_squared * *viscosity;
-            self.velocity *= 1.0 - *drag;
+            // Forces are already in pre-scaled units from interval calculations
+            // Apply: acceleration = force/mass, then velocity_change = acceleration * dt
+            self.velocity += (self.force / mass) * DT - self.velocity * speed_squared * viscosity * DT;
+            self.velocity *= 1.0 - *drag * DT * drag_factor;
         } else {
             let degree_submerged: f32 = if -altitude < 1.0 { -altitude } else { 0.0 };
             let antigravity = physics.surface_character.antigravity() * degree_submerged;
-            self.velocity += self.force / mass;
+            let gravity_factor = physics.effective_gravity_factor();
+            // Forces are already in pre-scaled units from interval calculations
+            self.velocity += (self.force / mass) * DT;
             match surface_character {
                 Absent => {}
                 Frozen => {
@@ -110,21 +118,22 @@ impl Joint {
                 Sticky => {
                     if self.velocity.y < 0.0 {
                         self.velocity.x *= STICKY_DOWN_DRAG_FACTOR;
-                        self.velocity.y += antigravity;
+                        self.velocity.y += (antigravity / scale) * DT * gravity_factor;
                         self.velocity.z *= STICKY_DOWN_DRAG_FACTOR;
                     } else {
-                        self.velocity.x *= 1.0 - drag;
-                        self.velocity.y += antigravity;
-                        self.velocity.z *= 1.0 - drag;
+                        self.velocity.x *= 1.0 - drag * DT * drag_factor;
+                        self.velocity.y += (antigravity / scale) * DT * gravity_factor;
+                        self.velocity.z *= 1.0 - drag * DT * drag_factor;
                     }
                 }
                 Bouncy => {
                     let degree_cushioned: f32 = 1.0 - degree_submerged;
                     self.velocity *= degree_cushioned;
-                    self.velocity.y += antigravity;
+                    self.velocity.y += (antigravity / scale) * DT * gravity_factor;
                 }
             }
         }
-        self.location += self.velocity;
+        // Update position: velocity is in pre-scaled units per iteration
+        self.location += self.velocity * DT;
     }
 }

@@ -751,9 +751,9 @@ impl Interval {
             (real_length - ideal) / ideal
         };
 
-        // Force: strain × material_rigidity × rigidity_factor
+        // Force: strain × material_rigidity × rigidity_factor (compensated for DT)
         let material_rigidity = self.material.rigidity();
-        let force = self.strain * material_rigidity * physics.rigidity_factor;
+        let force = self.strain * material_rigidity * physics.effective_rigidity_factor();
         let force_vector: Vector3<f32> = self.unit * force / 2.0;
 
         // Apply forces to both ends
