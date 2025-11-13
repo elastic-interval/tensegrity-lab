@@ -1,37 +1,38 @@
 use crate::units::Seconds;
+use std::time::Duration;
 
 #[derive(Clone, Default, Debug, PartialEq)]
 pub struct Progress {
-    limit_microseconds: f64,
-    current: f64,
+    limit: Duration,
+    current: Duration,
 }
 
 impl Progress {
     pub fn start(&mut self, seconds: Seconds) {
-        self.current = 0.0;
-        self.limit_microseconds = (seconds.0 * 1_000_000.0) as f64;
+        self.current = Duration::ZERO;
+        self.limit = Duration::from_secs_f32(seconds.0);
     }
 
-    pub fn step(&mut self, elapsed: f32) -> bool {
+    pub fn step(&mut self, elapsed: Duration) -> bool {
         // true if it takes the final step
-        let next = self.current + elapsed as f64;
-        if next >= self.limit_microseconds {
-            self.current = self.limit_microseconds;
+        let next = self.current + elapsed;
+        if next >= self.limit {
+            self.current = self.limit;
             return true;
         }
         self.current = next;
-        self.current >= self.limit_microseconds // final step?
+        self.current >= self.limit // final step?
     }
 
     pub fn is_busy(&self) -> bool {
-        self.current < self.limit_microseconds
+        self.current < self.limit
     }
 
     pub fn nuance(&self) -> f32 {
-        if self.limit_microseconds <= 0.0 { // immediate so nuance is already complete
+        if self.limit.is_zero() { // immediate so nuance is already complete
             1.0
         } else {
-            (self.current / self.limit_microseconds) as f32
+            self.current.as_secs_f32() / self.limit.as_secs_f32()
         }
     }
 }

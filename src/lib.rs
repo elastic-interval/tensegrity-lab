@@ -31,43 +31,49 @@ pub mod units;
 pub mod testing;
 pub mod wgpu;
 
+use std::time::Duration;
+
 #[derive(Debug, Clone, Copy)]
-pub struct Age(f64);
+pub struct Age(Duration);
 
 impl Display for Age {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:.1}s", self.0 / 1_000_000.0)
+        write!(f, "{:.1}s", self.0.as_secs_f64())
     }
 }
 
-const TICK_MICROSECONDS: f64 = 250.0;
+/// Duration of each physics iteration tick
+pub const TICK_DURATION: Duration = Duration::from_micros(400);
+
+/// Legacy constant for backward compatibility
+pub const TICK_MICROSECONDS: f64 = 250.0;
 
 impl Default for Age {
     fn default() -> Self {
-        Self(0.0)
+        Self(Duration::ZERO)
     }
 }
 
 impl Age {
-    pub fn tick(&mut self) -> f32 {
-        self.0 += TICK_MICROSECONDS;
-        TICK_MICROSECONDS as f32
-    }
-
-    pub fn tick_microseconds() -> f32 {
-        TICK_MICROSECONDS as f32
+    pub fn tick(&mut self) -> Duration {
+        self.0 += TICK_DURATION;
+        TICK_DURATION
     }
 
     pub fn advanced(&self, ticks: usize) -> Self {
-        Self(self.0 + TICK_MICROSECONDS * (ticks as f64))
+        Self(self.0 + TICK_DURATION * ticks as u32)
     }
 
     pub fn brick_baked(&self) -> bool {
-        self.0 > 20000.0 * TICK_MICROSECONDS
+        self.0 > TICK_DURATION * 20000
     }
 
     pub fn within(&self, limit: &Self) -> bool {
         self.0 < limit.0
+    }
+    
+    pub fn as_duration(&self) -> Duration {
+        self.0
     }
 }
 

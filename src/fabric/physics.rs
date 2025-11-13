@@ -2,11 +2,16 @@
  * Copyright (c) 2020. Beautiful Code BV, Rotterdam, Netherlands
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
-use crate::units::EARTH_GRAVITY;
+use crate::units::{MillimetersPerMicrosecondSquared, EARTH_GRAVITY};
 use crate::{PhysicsFeature, PhysicsParameter, Radio, StateChange};
 
 /// Number of physics iterations per frame (constant across all physics presets)
 pub const ITERATIONS_PER_FRAME: usize = 100;
+
+/// Time step for physics integration (normalized to 1.0 per iteration)
+/// All physics constants are calibrated for DT=1.0
+/// Adjusting this will affect the simulation speed and may require recalibration
+pub const DT: f32 = 0.001;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub enum SurfaceCharacter {
@@ -22,12 +27,10 @@ impl SurfaceCharacter {
         !matches!(self, SurfaceCharacter::Absent)
     }
 
-    pub fn force_of_gravity(&self, mass: f32) -> f32 {
+    pub fn force_of_gravity(&self, mass: f32) -> MillimetersPerMicrosecondSquared {
         match self {
-            SurfaceCharacter::Absent => 0.0,
-            _ => {
-                mass * *EARTH_GRAVITY
-            }
+            SurfaceCharacter::Absent => MillimetersPerMicrosecondSquared(0.0),
+            _ => MillimetersPerMicrosecondSquared(mass * *EARTH_GRAVITY),
         }
     }
 
@@ -52,6 +55,31 @@ pub struct Physics {
 }
 
 impl Physics {
+    /// Get rigidity factor compensated for DT to maintain stability
+    /// Larger time steps need softer springs to avoid overshooting
+    /// Scales by DT² because spring acceleration error grows quadratically
+    pub fn effective_rigidity_factor(&self) -> f32 {
+        self.rigidity_factor / DT / DT
+    }
+
+    /// Get viscosity compensated for DT to maintain damping
+    /// Larger time steps need more damping to absorb energy
+    pub fn effective_viscosity(&self) -> f32 {
+        self.viscosity * DT
+    }
+
+    /// Get gravity scaling factor compensated for DT
+    /// Gravity should scale inversely with DT to maintain same fall rate
+    pub fn effective_gravity_factor(&self) -> f32 {
+        1.0 / DT.powf(1.6)
+    }
+
+    /// Get drag scaling factor compensated for DT
+    /// Drag is exponential decay per iteration, needs to scale with DT
+    pub fn effective_drag_factor(&self) -> f32 {
+        1.0 / DT
+    }
+
     pub fn accept(&mut self, parameter: PhysicsParameter) {
         use PhysicsFeature::*;
         let PhysicsParameter { feature, value } = parameter;
