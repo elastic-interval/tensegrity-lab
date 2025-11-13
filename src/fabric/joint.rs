@@ -93,13 +93,13 @@ impl Joint {
         let altitude = self.location.y;
         let mass = *self.accumulated_mass;
         let dt = TICK_DURATION.as_secs_f32();
-        let gravity_scale = physics.gravity_scale();
+        let dt_micros = TICK_DURATION.as_micros() as f32;
         
         if altitude > 0.0 || !surface_character.has_gravity() {
             // Gravity acceleration: mass is in grams (from mm-based lengths), 
-            // EARTH_GRAVITY is in mm/µs², so result is dimensionless (like other forces)
-            // Apply gravity_scale to compensate for TICK_DURATION
-            self.velocity.y -= *surface_character.force_of_gravity(mass) * dt * gravity_scale;
+            // EARTH_GRAVITY is in mm/µs², dt_micros is in µs
+            // Result: velocity change in mm/µs (simulation velocity units)
+            self.velocity.y -= *surface_character.force_of_gravity(mass) * dt_micros;
             let speed_squared = self.velocity.magnitude2();
             // Forces are already in pre-scaled units from interval calculations
             // Apply: acceleration = force/mass, then velocity_change = acceleration * dt
@@ -119,18 +119,18 @@ impl Joint {
                 Sticky => {
                     if self.velocity.y < 0.0 {
                         self.velocity.x *= STICKY_DOWN_DRAG_FACTOR;
-                        self.velocity.y += (antigravity / scale) * dt * gravity_scale;
+                        self.velocity.y += (antigravity / scale) * dt_micros;
                         self.velocity.z *= STICKY_DOWN_DRAG_FACTOR;
                     } else {
                         self.velocity.x *= 1.0 - drag * dt;
-                        self.velocity.y += (antigravity / scale) * dt * gravity_scale;
+                        self.velocity.y += (antigravity / scale) * dt_micros;
                         self.velocity.z *= 1.0 - drag * dt;
                     }
                 }
                 Bouncy => {
                     let degree_cushioned: f32 = 1.0 - degree_submerged;
                     self.velocity *= degree_cushioned;
-                    self.velocity.y += (antigravity / scale) * dt * gravity_scale;
+                    self.velocity.y += (antigravity / scale) * dt_micros;
                 }
             }
         }

@@ -92,16 +92,6 @@ impl Keyboard {
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.float_parameter(
-            "S",
-            "s",
-            PhysicsParameter {
-                feature: PhysicsFeature::Rigidity,
-                value: 0.0,
-            },
-            Box::new(|value| format!("Rigid {:.0}", value * 1e4)),
-            Box::new(|state| matches!(state, PhysicsTesting(_) | FailureTesting(_))),
-        );
-        self.float_parameter(
             "L",
             "l",
             PhysicsParameter {

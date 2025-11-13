@@ -231,7 +231,6 @@ impl Fabric {
                 &mut self.joints,
                 &self.progress,
                 self.muscle_nuance,
-                physics,
                 self.scale,
             );
         }

@@ -94,7 +94,6 @@ impl PretensePhase {
     pub fn viewing_physics(&self) -> Physics {
         let pretenst = self.pretenst.unwrap_or(AIR_GRAVITY.pretenst);
         let surface_character = self.surface_character;
-        let rigidity_factor = self.rigidity.unwrap_or(AIR_GRAVITY.rigidity_factor);
         // Viscosity and drag are percentages of the default values
         let viscosity = self.viscosity
             .map(|percent| AIR_GRAVITY.viscosity * percent / 100.0)
@@ -105,7 +104,6 @@ impl PretensePhase {
         Physics {
             pretenst,
             surface_character,
-            rigidity_factor,
             viscosity,
             drag,
             ..AIR_GRAVITY

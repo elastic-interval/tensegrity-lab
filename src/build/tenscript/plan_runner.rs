@@ -91,11 +91,8 @@ impl PlanRunner {
             {
                 ShapeCommand::Noop => (Shaping, IMMEDIATE),
                 ShapeCommand::StartProgress(seconds) => (Shaping, seconds),
-                ShapeCommand::Rigidity(percent) => {
-                    self.physics.rigidity_factor *= percent / 100.0;
-                    // Update physics when rigidity changes
-                    *context.physics = self.physics.clone();
-
+                ShapeCommand::Rigidity(_percent) => {
+                    // Rigidity is now baked into material properties
                     (Shaping, IMMEDIATE)
                 }
                 ShapeCommand::Viscosity(percent) => {
@@ -183,9 +180,8 @@ impl PlanRunner {
                             context.fabric.iterate(context.physics);
                         }
                     },
-                    ShapeCommand::Rigidity(percent) => {
-                        runner.physics.rigidity_factor *= percent / 100.0;
-                        *context.physics = runner.physics.clone();
+                    ShapeCommand::Rigidity(_percent) => {
+                        // Rigidity is now baked into material properties
                     },
                     ShapeCommand::Viscosity(percent) => {
                         runner.physics.viscosity *= percent / 100.0;
