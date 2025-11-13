@@ -8,10 +8,9 @@ use crate::{PhysicsFeature, PhysicsParameter, Radio, StateChange};
 /// Number of physics iterations per frame (constant across all physics presets)
 pub const ITERATIONS_PER_FRAME: usize = 100;
 
-/// Time step for physics integration (normalized to 1.0 per iteration)
-/// All physics constants are calibrated for DT=1.0
-/// Adjusting this will affect the simulation speed and may require recalibration
-pub const DT: f32 = 0.001;
+/// Gravity scaling factor for TICK_DURATION (400µs)
+/// Compensates for the small time step to maintain realistic fall rates
+const GRAVITY_SCALE: f32 = 39_810.717;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub enum SurfaceCharacter {
@@ -55,29 +54,9 @@ pub struct Physics {
 }
 
 impl Physics {
-    /// Get rigidity factor compensated for DT to maintain stability
-    /// Larger time steps need softer springs to avoid overshooting
-    /// Scales by DT² because spring acceleration error grows quadratically
-    pub fn effective_rigidity_factor(&self) -> f32 {
-        self.rigidity_factor / DT / DT
-    }
-
-    /// Get viscosity compensated for DT to maintain damping
-    /// Larger time steps need more damping to absorb energy
-    pub fn effective_viscosity(&self) -> f32 {
-        self.viscosity * DT
-    }
-
-    /// Get gravity scaling factor compensated for DT
-    /// Gravity should scale inversely with DT to maintain same fall rate
-    pub fn effective_gravity_factor(&self) -> f32 {
-        1.0 / DT.powf(1.6)
-    }
-
-    /// Get drag scaling factor compensated for DT
-    /// Drag is exponential decay per iteration, needs to scale with DT
-    pub fn effective_drag_factor(&self) -> f32 {
-        1.0 / DT
+    /// Get gravity scaling factor for realistic physics with TICK_DURATION
+    pub fn gravity_scale(&self) -> f32 {
+        GRAVITY_SCALE
     }
 
     pub fn accept(&mut self, parameter: PhysicsParameter) {
@@ -120,42 +99,42 @@ pub mod presets {
     use crate::fabric::physics::SurfaceCharacter::{Absent, Frozen};
 
     pub const LIQUID: Physics = Physics {
-        drag: 5e-6,
+        drag: 0.0125,
         cycle_ticks: 1000.0,
-        rigidity_factor: 0.51,
+        rigidity_factor: 3_187_500.0,
         mass_factor: 51.0,
         pretenst: 20.0, // not used
         strain_limit: 1_000.0,
         surface_character: Absent,
-        viscosity: 1e5,
+        viscosity: 40.0,
     };
 
     pub const PROTOTYPE_FORMATION: Physics = Physics {
-        drag: 1e-3,
+        drag: 2.5,
         cycle_ticks: 1000.0,
-        rigidity_factor: 0.51,
+        rigidity_factor: 3_187_500.0,
         mass_factor: 51.0,
         pretenst: 1.0,
         strain_limit: 1_000.0,
         surface_character: Absent,
-        viscosity: 2e4,
+        viscosity: 8.0,
     };
 
     pub const AIR_GRAVITY: Physics = Physics {
-        drag: 1e-5,
+        drag: 0.025,
         cycle_ticks: 1000.0,
-        rigidity_factor: 51.0,
+        rigidity_factor: 318_750_000.0,
         mass_factor: 51.0,
         pretenst: 2.0,
         strain_limit: 0.02,
         surface_character: Frozen,
-        viscosity: 1e2,
+        viscosity: 0.04,
     };
 
     pub const PRETENSING: Physics = Physics {
-        drag: 1e-1,
+        drag: 250.0,
         surface_character: Absent,
-        viscosity: 1e5,
+        viscosity: 40.0,
         ..AIR_GRAVITY
     };
 }
