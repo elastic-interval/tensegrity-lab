@@ -19,9 +19,9 @@ impl Material {
         }
     }
 
-    /// Stiffness at 1-meter reference length (N/mm)
-    /// Actual stiffness scales as k ∝ 1/L (shorter intervals are stiffer)
-    pub fn stiffness_per_meter(&self) -> NewtonsPerMillimeter {
+    /// Rigidity at 1-meter reference length (N/mm)
+    /// Actual rigidity scales as k ∝ 1/L (shorter intervals are more rigid)
+    pub fn rigidity_per_meter(&self) -> NewtonsPerMillimeter {
         match self {
             Push => NewtonsPerMillimeter(30_000.0),
             Pull => NewtonsPerMillimeter(1_000.0),
@@ -29,15 +29,15 @@ impl Material {
         }
     }
 
-    /// Stiffness adjusted for interval length (k ∝ 1/L)
-    pub fn stiffness_at_length(&self, length: Millimeters) -> NewtonsPerMillimeter {
-        let k_ref = self.stiffness_per_meter();
+    /// Rigidity adjusted for interval length (k ∝ 1/L)
+    pub fn rigidity_at_length(&self, length: Millimeters) -> NewtonsPerMillimeter {
+        let k_ref = self.rigidity_per_meter();
         NewtonsPerMillimeter(*k_ref * 1000.0 / length.max(0.1))
     }
 
-    /// Material stiffness coefficient
-    /// Relative stiffness between materials (Push=0.9, Pull=0.03, Spring=0.015)
-    pub fn stiffness(&self) -> f32 {
+    /// Material rigidity coefficient
+    /// Relative rigidity between materials (Push=0.9, Pull=0.03, Spring=0.015)
+    pub fn rigidity(&self) -> f32 {
         match self {
             Push => 0.9,
             Pull => 0.03,

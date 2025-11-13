@@ -2,6 +2,7 @@
  * Copyright (c) 2020. Beautiful Code BV, Rotterdam, Netherlands
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
+use crate::units::EARTH_GRAVITY;
 use crate::{PhysicsFeature, PhysicsParameter, Radio, StateChange};
 
 /// Number of physics iterations per frame (constant across all physics presets)
@@ -25,8 +26,7 @@ impl SurfaceCharacter {
         match self {
             SurfaceCharacter::Absent => 0.0,
             _ => {
-                let gravity_per_gram = 5e-7;
-                mass * gravity_per_gram
+                mass * *EARTH_GRAVITY
             }
         }
     }
@@ -44,7 +44,7 @@ pub struct Physics {
     pub drag: f32,
     pub cycle_ticks: f32,
     pub pretenst: f32,
-    pub stiffness_factor: f32,
+    pub rigidity_factor: f32,
     pub mass_factor: f32,
     pub strain_limit: f32,
     pub surface_character: SurfaceCharacter,
@@ -59,7 +59,7 @@ impl Physics {
             Drag => self.drag = value,
             CycleTicks => self.cycle_ticks = value,
             Pretenst => self.pretenst = value,
-            Stiffness => self.stiffness_factor = value,
+            Rigidity => self.rigidity_factor = value,
             MassFactor => self.mass_factor = value,
             StrainLimit => self.strain_limit = value,
             Viscosity => self.viscosity = value,
@@ -71,7 +71,7 @@ impl Physics {
         let parameters = [
             Drag.parameter(self.drag),
             CycleTicks.parameter(self.cycle_ticks),
-            Stiffness.parameter(self.stiffness_factor),
+            Rigidity.parameter(self.rigidity_factor),
             MassFactor.parameter(self.mass_factor),
             Pretenst.parameter(self.pretenst),
             StrainLimit.parameter(self.strain_limit),
@@ -94,8 +94,8 @@ pub mod presets {
     pub const LIQUID: Physics = Physics {
         drag: 5e-6,
         cycle_ticks: 1000.0,
-        stiffness_factor: 1e-2,
-        mass_factor: 1.0,
+        rigidity_factor: 0.51,
+        mass_factor: 51.0,
         pretenst: 20.0, // not used
         strain_limit: 1_000.0,
         surface_character: Absent,
@@ -105,8 +105,8 @@ pub mod presets {
     pub const PROTOTYPE_FORMATION: Physics = Physics {
         drag: 1e-3,
         cycle_ticks: 1000.0,
-        stiffness_factor: 1e-2,
-        mass_factor: 1.0,
+        rigidity_factor: 0.51,
+        mass_factor: 51.0,
         pretenst: 1.0,
         strain_limit: 1_000.0,
         surface_character: Absent,
@@ -116,8 +116,8 @@ pub mod presets {
     pub const AIR_GRAVITY: Physics = Physics {
         drag: 1e-5,
         cycle_ticks: 1000.0,
-        stiffness_factor: 1.0,
-        mass_factor: 1.0,
+        rigidity_factor: 51.0,
+        mass_factor: 51.0,
         pretenst: 2.0,
         strain_limit: 0.02,
         surface_character: Frozen,

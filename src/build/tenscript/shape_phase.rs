@@ -19,7 +19,7 @@ const DEFAULT_JOINER_COUNTDOWN: Seconds = Seconds(30.0);
 pub enum ShapeCommand {
     Noop,
     StartProgress(Seconds),
-    Stiffness(f32),
+    Rigidity(f32),
     Drag(f32),
     Viscosity(f32),
     Terminate,
@@ -56,7 +56,7 @@ pub enum ShapeOperation {
         role: Option<Role>,
     },
     Vulcanize,
-    SetStiffness(f32),
+    SetRigidity(f32),
     SetDrag(f32),
     SetViscosity(f32),
     Omit((usize, usize)),
@@ -161,9 +161,9 @@ impl ShapePhase {
                 })
             }
             Rule::vulcanize => Ok(ShapeOperation::Vulcanize),
-            Rule::set_stiffness => {
-                let percent = pair.parse_float_inner("(set-stiffness ..)")?;
-                Ok(ShapeOperation::SetStiffness(percent))
+            Rule::set_rigidity => {
+                let percent = pair.parse_float_inner("(set-rigidity ..)")?;
+                Ok(ShapeOperation::SetRigidity(percent))
             }
             Rule::set_drag => {
                 let percent = pair.parse_float_inner("(set-drag ..)")?;
@@ -419,7 +419,7 @@ impl ShapePhase {
                 fabric.install_bow_ties();
                 StartProgress(DEFAULT_VULCANIZE_COUNTDOWN)
             }
-            ShapeOperation::SetStiffness(percent) => Stiffness(percent),
+            ShapeOperation::SetRigidity(percent) => Rigidity(percent),
             ShapeOperation::SetDrag(percent) => Drag(percent),
             ShapeOperation::SetViscosity(percent) => Viscosity(percent),
             ShapeOperation::Omit(pair) => {

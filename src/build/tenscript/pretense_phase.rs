@@ -17,7 +17,7 @@ pub struct PretensePhase {
     pub muscle_movement: Option<MuscleMovement>,
     pub pretenst: Option<f32>,
     pub seconds: Option<Seconds>,
-    pub stiffness: Option<f32>,
+    pub rigidity: Option<f32>,
     pub altitude: Option<f32>,
     pub viscosity: Option<f32>,
     pub drag: Option<f32>,
@@ -66,8 +66,8 @@ impl PretensePhase {
                                 let factor = pretense_pair.parse_float_inner("seconds")?;
                                 pretense.seconds = Some(Seconds(factor));
                             }
-                            Rule::stiffness => {
-                                pretense.stiffness = Some(pretense_pair.parse_float_inner("stiffness")?);
+                            Rule::rigidity => {
+                                pretense.rigidity = Some(pretense_pair.parse_float_inner("rigidity")?);
                             }
                             Rule::altitude => {
                                 pretense.altitude = Some(pretense_pair.parse_float_inner("altitude")?);
@@ -94,7 +94,7 @@ impl PretensePhase {
     pub fn viewing_physics(&self) -> Physics {
         let pretenst = self.pretenst.unwrap_or(AIR_GRAVITY.pretenst);
         let surface_character = self.surface_character;
-        let stiffness_factor = self.stiffness.unwrap_or(AIR_GRAVITY.stiffness_factor);
+        let rigidity_factor = self.rigidity.unwrap_or(AIR_GRAVITY.rigidity_factor);
         // Viscosity and drag are percentages of the default values
         let viscosity = self.viscosity
             .map(|percent| AIR_GRAVITY.viscosity * percent / 100.0)
@@ -105,7 +105,7 @@ impl PretensePhase {
         Physics {
             pretenst,
             surface_character,
-            stiffness_factor,
+            rigidity_factor,
             viscosity,
             drag,
             ..AIR_GRAVITY
