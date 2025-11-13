@@ -54,6 +54,10 @@ impl Age {
         TICK_MICROSECONDS as f32
     }
 
+    pub fn tick_microseconds() -> f32 {
+        TICK_MICROSECONDS as f32
+    }
+
     pub fn advanced(&self, ticks: usize) -> Self {
         Self(self.0 + TICK_MICROSECONDS * (ticks as f64))
     }

@@ -83,7 +83,7 @@ impl Joint {
         self.accumulated_mass = AMBIENT_MASS;
     }
 
-    pub fn iterate(&mut self, physics: &Physics) {
+    pub fn iterate(&mut self, physics: &Physics, _elapsed_microseconds: f32) {
         let Physics {
             surface_character,
             viscosity,
