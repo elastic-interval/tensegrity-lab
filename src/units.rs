@@ -30,6 +30,16 @@ pub struct MetersPerSecondSquared(pub f32);
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct MillimetersPerSecondSquared(pub f32);
 
+/// Acceleration in millimeters per microsecond squared (simulation units)
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct MillimetersPerMicrosecondSquared(pub f32);
+
+/// Force in nanoNewtons (nN)
+/// In the simulation's unit system: 1 nN = 1 g⋅mm/µs²
+/// Conversion: 1 Newton = 10^9 nanoNewtons
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct NanoNewtons(pub f32);
+
 /// Time in seconds
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Seconds(pub f32);
@@ -83,6 +93,20 @@ impl Deref for NewtonsPerMillimeter {
     }
 }
 
+impl Deref for MillimetersPerMicrosecondSquared {
+    type Target = f32;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Deref for NanoNewtons {
+    type Target = f32;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 // Physical constants
 
 /// Standard Earth gravity: 9.81 m/s²
@@ -90,6 +114,12 @@ pub const EARTH_GRAVITY_M_S2: MetersPerSecondSquared = MetersPerSecondSquared(9.
 
 /// Standard Earth gravity: 9810 mm/s²
 pub const EARTH_GRAVITY_MM_S2: MillimetersPerSecondSquared = MillimetersPerSecondSquared(9810.0);
+
+/// Standard Earth gravity in simulation units: 9.81e-9 mm/µs²
+/// This is the value to use in physics calculations since the simulation
+/// uses microseconds for time and millimeters for length.
+/// Derivation: 9.81 m/s² = 9810 mm/s² = 9810 mm / (10^6 µs)² = 9.81e-9 mm/µs²
+pub const EARTH_GRAVITY: MillimetersPerMicrosecondSquared = MillimetersPerMicrosecondSquared(9.81e-9);
 
 // Conversion implementations
 
@@ -129,6 +159,37 @@ impl MillimetersPerSecondSquared {
     pub fn to_m_s2(self) -> MetersPerSecondSquared {
         MetersPerSecondSquared(self.0 / 1000.0)
     }
+    
+    /// Convert to millimeters per microsecond squared (simulation units)
+    pub fn to_mm_us2(self) -> MillimetersPerMicrosecondSquared {
+        // 1 s = 10^6 µs, so 1 s² = 10^12 µs²
+        // mm/s² → mm/µs² means dividing by 10^12
+        MillimetersPerMicrosecondSquared(self.0 / 1e12)
+    }
+}
+
+impl MillimetersPerMicrosecondSquared {
+    /// Convert to millimeters per second squared
+    pub fn to_mm_s2(self) -> MillimetersPerSecondSquared {
+        // mm/µs² → mm/s² means multiplying by 10^12
+        MillimetersPerSecondSquared(self.0 * 1e12)
+    }
+}
+
+impl Newtons {
+    /// Convert to nanoNewtons (simulation units)
+    pub fn to_nano_newtons(self) -> NanoNewtons {
+        // 1 N = 10^9 nN
+        NanoNewtons(self.0 * 1e9)
+    }
+}
+
+impl NanoNewtons {
+    /// Convert to Newtons
+    pub fn to_newtons(self) -> Newtons {
+        // 1 nN = 10^-9 N
+        Newtons(self.0 / 1e9)
+    }
 }
 
 impl Seconds {
@@ -158,6 +219,27 @@ impl Mul<Seconds> for MillimetersPerSecondSquared {
     
     fn mul(self, time: Seconds) -> f32 {
         self.0 * time.0
+    }
+}
+
+// F = ma: Multiply mass by acceleration to get force
+// In simulation units: grams × (mm/µs²) → nanoNewtons
+impl Mul<MillimetersPerMicrosecondSquared> for Grams {
+    type Output = NanoNewtons;
+    
+    fn mul(self, acceleration: MillimetersPerMicrosecondSquared) -> NanoNewtons {
+        // F = ma
+        NanoNewtons(self.0 * acceleration.0)
+    }
+}
+
+// Allow multiplication in either order
+impl Mul<Grams> for MillimetersPerMicrosecondSquared {
+    type Output = NanoNewtons;
+    
+    fn mul(self, mass: Grams) -> NanoNewtons {
+        // F = ma
+        NanoNewtons(mass.0 * self.0)
     }
 }
 
@@ -201,6 +283,14 @@ impl Mul<f32> for Grams {
     
     fn mul(self, scalar: f32) -> Grams {
         Grams(*self * scalar)
+    }
+}
+
+impl Mul<f32> for NanoNewtons {
+    type Output = NanoNewtons;
+    
+    fn mul(self, scalar: f32) -> NanoNewtons {
+        NanoNewtons(*self * scalar)
     }
 }
 
@@ -274,6 +364,12 @@ impl std::fmt::Display for Seconds {
     }
 }
 
+impl std::fmt::Display for NanoNewtons {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:.3e}nN", self.0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -300,6 +396,15 @@ mod tests {
     fn test_gravity_conversion() {
         let g = EARTH_GRAVITY_M_S2.to_mm_s2();
         assert_eq!(g.0, 9810.0);
+        
+        // Test simulation units conversion (use relative error for very small numbers)
+        let g_sim = EARTH_GRAVITY_MM_S2.to_mm_us2();
+        let relative_error = (g_sim.0 - 9.81e-9).abs() / 9.81e-9;
+        assert!(relative_error < 1e-10, "relative error: {}", relative_error);
+        
+        // Test round-trip
+        let g_back = EARTH_GRAVITY.to_mm_s2();
+        assert!((g_back.0 - 9810.0).abs() < 1e-6);
     }
 
     #[test]
@@ -315,5 +420,41 @@ mod tests {
         let dt = Seconds::from_microseconds(250.0);
         assert!((dt.0 - 0.00025).abs() < 1e-9);
         assert!((dt.to_microseconds() - 250.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn test_gravity_force() {
+        // Test F = ma with Earth's gravity
+        let mass = Grams(100.0); // 100 grams
+        let gravity_force = mass * EARTH_GRAVITY;
+        
+        // Expected: 100 g × 9.81e-9 mm/µs² = 9.81e-7 g⋅mm/µs²
+        assert!((*gravity_force - 9.81e-7).abs() < 1e-15);
+        
+        // Test multiplication in reverse order
+        let gravity_force2 = EARTH_GRAVITY * mass;
+        assert_eq!(gravity_force, gravity_force2);
+        
+        // Test scalar multiplication
+        let doubled = gravity_force * 2.0;
+        assert!((*doubled - 1.962e-6).abs() < 1e-15);
+    }
+
+    #[test]
+    fn test_newton_conversions() {
+        // Test Newton to NanoNewton conversion
+        let force = Newtons(1.0);
+        let nano_force = force.to_nano_newtons();
+        assert_eq!(*nano_force, 1e9);
+        
+        // Test NanoNewton to Newton conversion
+        let nano = NanoNewtons(1e9);
+        let newtons = nano.to_newtons();
+        assert_eq!(*newtons, 1.0);
+        
+        // Test round-trip
+        let original = Newtons(5.5);
+        let round_trip = original.to_nano_newtons().to_newtons();
+        assert!((round_trip.0 - original.0).abs() < 1e-6);
     }
 }
