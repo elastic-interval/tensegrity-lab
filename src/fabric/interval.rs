@@ -12,7 +12,6 @@ use crate::fabric::interval::Role::*;
 use crate::fabric::interval::Span::*;
 use crate::fabric::joint::Joint;
 use crate::fabric::material::Material;
-use crate::fabric::physics::Physics;
 use crate::fabric::{Fabric, IntervalEnd, Progress, UniqueId};
 use crate::units::Millimeters;
 use crate::Appearance;
@@ -698,7 +697,6 @@ impl Interval {
         joints: &mut [Joint],
         progress: &Progress,
         muscle_nuance: f32,
-        physics: &Physics,
         scale: f32,
     ) {
         let ideal = match self.span {
@@ -738,22 +736,20 @@ impl Interval {
             }
         };
         let real_length = self.fast_length(joints);
-        let real_length_mm = Millimeters(real_length * scale);
 
         // Check if interval is slack (push stretched or pull compressed)
         let is_slack = (self.is_push_interval() && real_length > ideal)
             || (self.is_pull_interval() && real_length < ideal);
 
-        // Calculate strain, zeroing it out when slack
+        // Calculate strain (dimensionless)
         self.strain = if is_slack {
             0.0
         } else {
             (real_length - ideal) / ideal
         };
 
-        // Force: strain × material_rigidity × rigidity_factor
-        let material_rigidity = self.material.rigidity();
-        let force = self.strain * material_rigidity * physics.rigidity_factor;
+        // Force: strain × spring_constant
+        let force = self.strain * self.material.spring_constant();
         let force_vector: Vector3<f32> = self.unit * force / 2.0;
 
         // Apply forces to both ends
@@ -762,9 +758,9 @@ impl Interval {
         joints[alpha_idx].force += force_vector;
         joints[omega_idx].force -= force_vector;
 
-        // Mass from linear density × length × mass_factor
-        let interval_mass = self.material.linear_density() * real_length_mm;
-        let half_mass = (interval_mass / 2.0) * physics.mass_factor;
+        // Mass from linear density × length
+        let interval_mass = self.material.linear_density() * Millimeters(real_length * scale);
+        let half_mass = interval_mass / 2.0;
         joints[alpha_idx].accumulated_mass += half_mass;
         joints[omega_idx].accumulated_mass += half_mass;
     }
