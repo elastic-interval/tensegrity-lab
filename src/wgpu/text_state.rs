@@ -185,9 +185,7 @@ impl TextState {
                 None => Nothing,
                 Some(fabric_stats) => {
                     let FabricStats {
-                        scale,
                         joint_count,
-                        max_height,
                         push_count,
                         push_total,
                         push_range,
@@ -195,11 +193,11 @@ impl TextState {
                         pull_range,
                         pull_total,
                         age,
+                        scale,
                         ..
                     } = fabric_stats;
                     Normal(format!(
                         "Stats at {age}:\n\
-                         Height: {:.1}m\n\
                          Joints: {:?}\n\
                          Bars: {:?}\n\
                          → {:.1}-{:.1}mm\n\
@@ -208,7 +206,6 @@ impl TextState {
                          → {:.1}-{:.1}mm\n\
                          → total {:.1}m\n\
                          ",
-                        max_height * scale / 1000.0,
                         joint_count,
                         push_count,
                         push_range.0 * scale,
