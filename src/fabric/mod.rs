@@ -216,9 +216,9 @@ impl Fabric {
     }
 
 
-    pub fn iterate(&mut self, physics: &Physics) {
+    pub fn iterate(&mut self, physics: &Physics) -> f32 {
         if self.frozen {
-            return;
+            return 0.0;
         }
         
         for joint in &mut self.joints {
@@ -242,7 +242,7 @@ impl Fabric {
         let mut max_speed_squared = 0.0;
         
         for joint in self.joints.iter_mut() {
-            joint.iterate(physics);
+            joint.iterate(physics, Age::tick_microseconds());
             let speed_squared = joint.velocity.magnitude2();
             if speed_squared > max_speed_squared {
                 max_speed_squared = speed_squared;
@@ -253,7 +253,7 @@ impl Fabric {
             eprintln!("Excessive speed detected: {:.2} mm/tick - freezing fabric", 
                       max_speed_squared.sqrt());
             self.frozen = true;
-            return;
+            return 0.0;
         }
         if self.progress.step(elapsed) {
             // final step
@@ -296,6 +296,8 @@ impl Fabric {
         } else {
             // Muscles are disabled - nothing to do
         }
+        
+        Age::tick_microseconds()
     }
 
     pub fn create_muscles(&mut self, contraction: f32) {
