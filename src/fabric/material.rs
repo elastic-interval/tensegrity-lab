@@ -19,14 +19,23 @@ impl Material {
         }
     }
 
-    /// Spring constant for physics simulation
-    /// These are effective constants calibrated for the simulation, not physical N/mm values
-    pub fn spring_constant(&self) -> f32 {
+    /// Spring constant at 100mm reference length
+    /// These values were calibrated for typical interval lengths around 100mm
+    fn spring_constant_at_100mm(&self) -> f32 {
         match self {
             Push => 54_000_000.0,  // stiff compression members
             Pull => 1_800_000.0,   // flexible tension cables
             Spring => 900_000.0,   // very flexible springs
         }
+    }
+
+    /// Spring constant for a given length in millimeters
+    /// Spring constant scales as k ∝ 1/L (shorter intervals are stiffer)
+    /// Reference length is 100mm
+    pub fn spring_constant(&self, length_mm: f32) -> f32 {
+        let k_ref = self.spring_constant_at_100mm();
+        // k = k_ref × (100mm / length_mm)
+        k_ref * 100.0 / length_mm.max(1.0)
     }
 
     pub fn default_role(&self) -> Role {
