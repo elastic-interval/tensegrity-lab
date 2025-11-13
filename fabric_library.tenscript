@@ -136,7 +136,7 @@
 			(centralize 1.0))
 		(pretense
 		    (surface :absent)
-		    (stiffness 0.1))
+		    (rigidity 0.1))
 		(scale 60.0))
 	(fabric (name "Propellor")
 		(build

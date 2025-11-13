@@ -751,9 +751,9 @@ impl Interval {
             (real_length - ideal) / ideal
         };
 
-        // Force: strain × material_stiffness × phase_softening
-        let material_stiffness = self.material.stiffness();
-        let force = self.strain * material_stiffness * physics.stiffness_factor;
+        // Force: strain × material_rigidity × rigidity_factor
+        let material_rigidity = self.material.rigidity();
+        let force = self.strain * material_rigidity * physics.rigidity_factor;
         let force_vector: Vector3<f32> = self.unit * force / 2.0;
 
         // Apply forces to both ends
@@ -762,9 +762,9 @@ impl Interval {
         joints[alpha_idx].force += force_vector;
         joints[omega_idx].force -= force_vector;
 
-        // Mass from linear density × length
+        // Mass from linear density × length × mass_factor
         let interval_mass = self.material.linear_density() * real_length_mm;
-        let half_mass = interval_mass / 2.0;
+        let half_mass = (interval_mass / 2.0) * physics.mass_factor;
         joints[alpha_idx].accumulated_mass += half_mass;
         joints[omega_idx].accumulated_mass += half_mass;
     }
