@@ -76,6 +76,7 @@ pub enum PhysicsFeature {
     Viscosity,
     Drag,
     StrainLimit,
+    MassFactor,
 }
 
 #[derive(Debug, Clone, Copy)]
