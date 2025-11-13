@@ -45,9 +45,6 @@ impl Display for Age {
 /// Duration of each physics iteration tick
 pub const TICK_DURATION: Duration = Duration::from_micros(400);
 
-/// Legacy constant for backward compatibility
-pub const TICK_MICROSECONDS: f64 = 250.0;
-
 impl Default for Age {
     fn default() -> Self {
         Self(Duration::ZERO)
