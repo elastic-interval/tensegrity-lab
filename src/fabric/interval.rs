@@ -748,8 +748,10 @@ impl Interval {
             (real_length - ideal) / ideal
         };
 
-        // Force: strain × spring_constant
-        let force = self.strain * self.material.spring_constant();
+        // Force: strain × spring_constant(length)
+        // Spring constant scales with 1/L for proper physics
+        let ideal_length_mm = ideal * scale;
+        let force = self.strain * self.material.spring_constant(ideal_length_mm);
         let force_vector: Vector3<f32> = self.unit * force / 2.0;
 
         // Apply forces to both ends
