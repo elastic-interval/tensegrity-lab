@@ -20,6 +20,7 @@ pub mod brick_library;
 pub mod build_phase;
 pub mod fabric_library;
 pub mod fabric_plan;
+pub mod plan_context;
 pub mod plan_runner;
 pub mod pretense_phase;
 pub mod pretenser;
