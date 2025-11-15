@@ -1,5 +1,6 @@
 use crate::camera::{Camera, Pick};
 use crate::fabric::Fabric;
+use crate::fabric::physics::SurfaceCharacter;
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
@@ -164,7 +165,7 @@ impl Scene {
         self.render_style.show_attachment_points()
     }
 
-    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+    fn render(&mut self, show_surface: bool) -> Result<(), wgpu::SurfaceError> {
         let surface_texture = self.wgpu.get_surface_texture()?;
         let view = surface_texture
             .texture
@@ -203,7 +204,10 @@ impl Scene {
             &self.wgpu.uniform_bind_group,
             &self.render_style,
         );
-        self.surface_renderer.render(&mut render_pass);
+        // Only render surface when gravity is present
+        if show_surface {
+            self.surface_renderer.render(&mut render_pass);
+        }
         self.text_renderer.render(&mut render_pass, &self.wgpu);
         drop(render_pass);
         self.wgpu.queue.submit(std::iter::once(encoder.finish()));
@@ -211,7 +215,7 @@ impl Scene {
         Ok(())
     }
 
-    pub fn redraw(&mut self, fabric: &Fabric) -> Result<(), wgpu::SurfaceError> {
+    pub fn redraw(&mut self, fabric: &Fabric, surface_character: SurfaceCharacter) -> Result<(), wgpu::SurfaceError> {
         self.wgpu.update_mvp_matrix(self.camera.mvp_matrix());
         self.fabric_renderer.update(
             &mut self.wgpu,
@@ -219,7 +223,9 @@ impl Scene {
             &self.camera.current_pick(),
             &mut self.render_style,
         );
-        self.render()?;
+        // Only show surface when gravity is present (not Absent)
+        let show_surface = surface_character.has_gravity();
+        self.render(show_surface)?;
         Ok(())
     }
 

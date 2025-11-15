@@ -143,6 +143,12 @@ impl Keyboard {
             DumpCSV,
             Box::new(|state| matches!(state, Viewing)),
         );
+        self.key_lab_event(
+            KeyCode::Enter,
+            "Reload fabric",
+            RefreshLibrary,
+            Box::new(|_| true),
+        );
         self
     }
 
@@ -250,6 +256,7 @@ impl Keyboard {
         match code {
             KeyCode::Space => "Space".to_string(),
             KeyCode::Escape => "Esc".to_string(),
+            KeyCode::Enter => "Enter".to_string(),
             KeyCode::ArrowLeft => "←".to_string(),
             KeyCode::ArrowRight => "→".to_string(),
             KeyCode::ArrowUp => "↑".to_string(),

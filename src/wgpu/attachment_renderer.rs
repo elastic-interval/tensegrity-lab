@@ -236,7 +236,6 @@ impl AttachmentRenderer {
                                 &alpha_points,
                                 &alpha_occupied,
                                 point_radius,
-                                true,
                                 interval,
                                 IntervalEnd::Alpha,
                                 pick,
@@ -247,7 +246,6 @@ impl AttachmentRenderer {
                                 &omega_points,
                                 &omega_occupied,
                                 point_radius,
-                                true,
                                 interval,
                                 IntervalEnd::Omega,
                                 pick,
@@ -271,7 +269,6 @@ impl AttachmentRenderer {
                                 &alpha_points,
                                 &alpha_occupied,
                                 point_radius,
-                                false,
                                 interval,
                                 IntervalEnd::Alpha,
                                 pick,
@@ -282,7 +279,6 @@ impl AttachmentRenderer {
                                 &omega_points,
                                 &omega_occupied,
                                 point_radius,
-                                false,
                                 interval,
                                 IntervalEnd::Omega,
                                 pick,
@@ -337,7 +333,6 @@ impl AttachmentRenderer {
                                     &alpha_points,
                                     &alpha_occupied,
                                     point_radius,
-                                    true,
                                     orig_interval,
                                     IntervalEnd::Alpha,
                                     pick,
@@ -348,7 +343,6 @@ impl AttachmentRenderer {
                                     &omega_points,
                                     &omega_occupied,
                                     point_radius,
-                                    true,
                                     orig_interval,
                                     IntervalEnd::Omega,
                                     pick,
@@ -432,14 +426,13 @@ impl AttachmentRenderer {
         points: &[AttachmentPoint],
         occupied: &[bool],
         point_radius: f32,
-        _is_selected: bool,
         interval: &Interval,
         end: IntervalEnd,
         pick: &Pick,
     ) {
         for (i, point) in points.iter().enumerate() {
             let is_occupied = i < occupied.len() && occupied[i];
-            
+
             // Only render occupied attachment points
             if !is_occupied {
                 continue;

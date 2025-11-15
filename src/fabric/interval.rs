@@ -41,8 +41,8 @@ impl Fabric {
             // Find all pull intervals connected to this push interval
             for (idx, interval_opt) in self.intervals.iter().enumerate() {
                 if let Some(interval) = interval_opt {
-                    // Only consider pull intervals
-                    if !interval.has_role(Pulling) {
+                    // Only consider pull-like intervals (all tension-only types)
+                    if !interval.role.is_pull_like() {
                         continue;
                     }
 
