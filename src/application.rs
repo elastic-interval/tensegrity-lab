@@ -281,6 +281,9 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                 };
             }
+            FabricCentralized(translation) => {
+                self.with_scene(|scene| scene.apply_fabric_translation(translation));
+            }
             FabricBuilt(fabric_stats) => {
                 StateChange::SetFabricName(fabric_stats.name.clone()).send(&self.radio);
                 StateChange::SetFabricStats(Some(fabric_stats)).send(&self.radio);
@@ -540,6 +543,11 @@ impl ApplicationHandler<LabEvent> for Application {
 
             if animate {
                 self.crucible.iterate(&self.brick_library);
+                
+                // Apply any pending camera translation synchronously
+                if let Some(translation) = self.crucible.take_camera_translation() {
+                    self.with_scene(|scene| scene.apply_fabric_translation(translation));
+                }
             }
         }
 

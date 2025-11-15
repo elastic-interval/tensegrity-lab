@@ -29,6 +29,7 @@ pub struct Crucible {
     radio: Radio,
     pub fabric: Fabric,
     pub physics: Physics,
+    pending_camera_translation: Option<cgmath::Vector3<f32>>,
 }
 
 impl Crucible {
@@ -38,7 +39,18 @@ impl Crucible {
             radio,
             fabric: Fabric::new("Empty".to_string()),
             physics: AIR_GRAVITY,
+            pending_camera_translation: None,
         }
+    }
+
+    /// Take and clear any pending camera translation
+    pub fn take_camera_translation(&mut self) -> Option<cgmath::Vector3<f32>> {
+        self.pending_camera_translation.take()
+    }
+
+    /// Set a pending camera translation
+    pub fn set_camera_translation(&mut self, translation: cgmath::Vector3<f32>) {
+        self.pending_camera_translation = Some(translation);
     }
 }
 
@@ -132,9 +144,13 @@ impl Crucible {
             }
         }
 
-        // Apply any stage transition requested by the context
-        if let Some(new_stage) = context.apply_changes() {
+        // Apply any stage transition and camera translation requested by the context
+        let (new_stage, camera_translation) = context.apply_changes();
+        if let Some(new_stage) = new_stage {
             self.stage = new_stage;
+        }
+        if let Some(translation) = camera_translation {
+            self.pending_camera_translation = Some(translation);
         }
     }
 
@@ -291,9 +307,13 @@ impl Crucible {
             }
         }
 
-        // Apply any stage transition requested by the context
-        if let Some(new_stage) = context.apply_changes() {
+        // Apply any stage transition and camera translation requested by the context
+        let (new_stage, camera_translation) = context.apply_changes();
+        if let Some(new_stage) = new_stage {
             self.stage = new_stage;
+        }
+        if let Some(translation) = camera_translation {
+            self.pending_camera_translation = Some(translation);
         }
     }
 

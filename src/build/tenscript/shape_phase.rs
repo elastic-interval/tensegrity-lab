@@ -458,7 +458,8 @@ impl ShapePhase {
                 StartProgress(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
             ShapeOperation::Centralize { altitude } => {
-                fabric.centralize(altitude);
+                let translation = fabric.centralize_translation(altitude);
+                fabric.apply_translation(translation);
                 Noop
             }
         })

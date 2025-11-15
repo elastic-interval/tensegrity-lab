@@ -212,7 +212,8 @@ impl PlanRunner {
         // Step 2: Slacken and centralize
         context.fabric.slacken();
         let altitude = runner.pretense_phase.altitude.unwrap_or(0.0) / context.fabric.scale;
-        context.fabric.centralize(Some(altitude));
+        let translation = context.fabric.centralize_translation(Some(altitude));
+        context.fabric.apply_translation(translation);
         
         // Step 3: Set pretenst and run pretensing
         let pretenst_factor = runner.pretense_phase.pretenst.unwrap_or(PRETENSING.pretenst);
