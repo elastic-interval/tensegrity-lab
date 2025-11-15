@@ -270,8 +270,9 @@ impl CylinderRenderer {
                 let mut modified_start = start;
                 let mut modified_end = end;
 
-                // For pull intervals, we need to connect them to attachment points on push intervals
-                if interval.has_role(Role::Pulling) && render_style.show_attachment_points() {
+                // For pull-like intervals, connect them to attachment points on push intervals
+                // only when attachment points are visible (knots mode)
+                if interval.role.is_pull_like() && render_style.show_attachment_points() {
                     // Use the current index as the pull interval ID
                     let pull_id = interval_id;
 

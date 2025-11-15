@@ -295,6 +295,9 @@ pub struct JointDetails {
 
 impl Display for JointDetails {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let location_mm = self.location_mm();
+        let height_m = location_mm.y / 1000.0; // Convert mm to meters
+        
         let surface_location = match self.surface_location_mm() {
             None => "".into(),
             Some((x, z)) => format!(" at ({x:.1} mm, {z:.1} mm)"),
@@ -302,8 +305,9 @@ impl Display for JointDetails {
 
         write!(
             f,
-            "{}{}\nClick interval for details",
+            "{} at {:.2} m{}\nClick interval for details",
             self.joint_text(),
+            height_m,
             surface_location
         )
     }
@@ -515,6 +519,7 @@ pub enum LabEvent {
     Crucible(CrucibleAction),
     UpdateState(StateChange),
     UpdatedLibrary(Instant),
+    RefreshLibrary,
     PrintCord(f32),
     DumpCSV,
     RequestRedraw,

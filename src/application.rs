@@ -149,7 +149,8 @@ impl Application {
         }
 
         // Use with_scene_and_fabric and handle the Option return type
-        if let Some(result) = self.with_scene_and_fabric(|scene, fabric| scene.redraw(fabric)) {
+        let surface_character = self.crucible.physics.surface_character;
+        if let Some(result) = self.with_scene_and_fabric(|scene, fabric| scene.redraw(fabric, surface_character)) {
             if let Err(error) = result {
                 eprintln!("Error redrawing scene: {:?}", error);
             }
@@ -320,6 +321,16 @@ impl ApplicationHandler<LabEvent> for Application {
             Crucible(crucible_action) => {
                 self.crucible.action(crucible_action);
             }
+            RefreshLibrary => {
+                println!("Manual library refresh requested");
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    match self.refresh_library(Instant::now()) {
+                        Ok(event) => event.send(&self.radio),
+                        Err(e) => eprintln!("Failed to refresh library: {:?}", e),
+                    }
+                }
+            }
             UpdatedLibrary(time) => {
                 println!("Reloading library at {time:?}");
                 #[cfg(not(target_arch = "wasm32"))]
@@ -381,14 +392,21 @@ impl ApplicationHandler<LabEvent> for Application {
                     _ => {}
                 }
                 if let StateChange::ToggleAttachmentPoints = &app_change {
-                    let should_update = self
+                    // First toggle the state
+                    self.with_scene(|scene| {
+                        scene.update_state(app_change.clone());
+                    });
+                    
+                    // Then check if we toggled ON (not OFF)
+                    let is_now_on = self
                         .with_scene(|scene| {
-                            scene.update_state(app_change.clone());
                             scene.render_style_shows_attachment_points()
                         })
                         .unwrap_or(false);
 
-                    if should_update {
+                    // Always recalculate attachment connections when toggling ON
+                    // because the structure may have deformed since last time
+                    if is_now_on {
                         self.crucible.update_attachment_connections();
                     }
 
