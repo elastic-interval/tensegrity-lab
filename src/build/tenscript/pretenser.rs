@@ -56,7 +56,11 @@ impl Pretenser {
             Slacken => {
                 context.fabric.slacken();
                 let altitude = self.pretense_phase.altitude.unwrap_or(0.0) / context.fabric.scale;
-                context.fabric.centralize(Some(altitude));
+                
+                // Calculate translation, set it in context for synchronous camera update, then apply
+                let translation = context.fabric.centralize_translation(Some(altitude));
+                context.set_camera_translation(translation);
+                context.fabric.apply_translation(translation);
                 
                 let factor = self
                     .pretense_phase

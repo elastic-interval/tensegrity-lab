@@ -5,7 +5,7 @@ use crate::build::tenscript::FabricPlan;
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::{FabricStats, UniqueId};
 use crate::wgpu::Wgpu;
-use cgmath::Point3;
+use cgmath::{Point3, Vector3};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -516,6 +516,7 @@ pub enum LabEvent {
     Run(RunStyle),
     ContextCreated { wgpu: Wgpu, mobile_device: bool },
     FabricBuilt(FabricStats),
+    FabricCentralized(Vector3<f32>),
     Crucible(CrucibleAction),
     UpdateState(StateChange),
     UpdatedLibrary(Instant),

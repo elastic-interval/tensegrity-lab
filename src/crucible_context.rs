@@ -12,6 +12,7 @@ pub struct CrucibleContext<'a> {
     pub brick_library: &'a BrickLibrary,
     transition_stage: Option<Stage>,
     events: Vec<LabEvent>,
+    camera_translation: Option<cgmath::Vector3<f32>>,
 }
 
 impl<'a> CrucibleContext<'a> {
@@ -28,6 +29,7 @@ impl<'a> CrucibleContext<'a> {
             brick_library,
             transition_stage: None,
             events: Vec::new(),
+            camera_translation: None,
         }
     }
 
@@ -56,14 +58,19 @@ impl<'a> CrucibleContext<'a> {
         event.send(self.radio);
     }
 
-    /// Apply all queued changes and return the requested stage transition
-    pub fn apply_changes(self) -> Option<Stage> {
+    /// Set a camera translation to be applied synchronously
+    pub fn set_camera_translation(&mut self, translation: cgmath::Vector3<f32>) {
+        self.camera_translation = Some(translation);
+    }
+
+    /// Apply all queued changes and return the requested stage transition and camera translation
+    pub fn apply_changes(self) -> (Option<Stage>, Option<cgmath::Vector3<f32>>) {
         // Send all queued events
         for event in self.events {
             event.send(self.radio);
         }
 
-        // Return the stage transition if requested
-        self.transition_stage
+        // Return the stage transition and camera translation
+        (self.transition_stage, self.camera_translation)
     }
 }

@@ -212,6 +212,13 @@ impl Camera {
         self.set_target(Target::FabricMidpoint);
     }
 
+    /// Apply a translation to the camera position and look_at point
+    /// This is used when the fabric is centralized to keep the camera in the same relative position
+    pub fn apply_translation(&mut self, translation: Vector3<f32>) {
+        self.position += translation;
+        self.look_at += translation;
+    }
+
     pub fn pointer_changed(&mut self, pointer_change: PointerChange, fabric: &Fabric) {
         match pointer_change {
             PointerChange::NoChange => {}
@@ -249,7 +256,7 @@ impl Camera {
             PointerChange::Released(pick_intent) => {
                 // For mouse events, always reset the follower
                 self.mouse_follower = None;
-                
+
                 // Handle picking for mouse clicks
                 if let (Some(mouse_click), Some(mouse_now)) = (self.mouse_click, self.mouse_now) {
                     let (dx, dy) = (
@@ -282,7 +289,7 @@ impl Camera {
             PointerChange::TouchReleased(pick_intent) => {
                 // For touch events, we DON'T reset the follower
                 // This preserves continuity between touches
-                
+
                 // We still need to handle picking for touch events
                 if let (Some(mouse_click), Some(mouse_now)) = (self.mouse_click, self.mouse_now) {
                     let (dx, dy) = (
@@ -325,7 +332,7 @@ impl Camera {
             static START_POSITION: std::cell::RefCell<Option<Point3<f32>>> = std::cell::RefCell::new(None);
             static INITIAL_DISTANCE: std::cell::RefCell<f32> = std::cell::RefCell::new(0.0);
         }
-        
+
         // Get the current time and calculate elapsed time since last update
         let now = instant::Instant::now();
         let delta_time = LAST_UPDATE.with(|last| {
@@ -337,125 +344,145 @@ impl Camera {
             *last_update = Some(now);
             dt
         });
-        
+
         // Cap delta time to avoid large jumps if the app was in background
         let capped_delta_time = f32::min(delta_time, 0.1); // Max 100ms
-        
+
         // Calculate target position
         let look_at = self.target.look_at(fabric);
-        
+
         // Calculate distance to target position
         let position_distance = (look_at - self.look_at).magnitude();
-        
+
         // Check if target has changed and reset state if needed
         LAST_TARGET.with(|last_target| {
             let mut last = last_target.borrow_mut();
-            
+
             // If the target has changed, reset everything
             if last.as_ref() != Some(&self.target) {
                 *last = Some(self.target.clone());
-                
+
                 // Store the starting position for smooth interpolation
                 START_POSITION.with(|start_pos| {
                     *start_pos.borrow_mut() = Some(self.look_at);
                 });
-                
+
                 // Store the initial distance for progress calculation
                 INITIAL_DISTANCE.with(|init_dist| {
                     *init_dist.borrow_mut() = position_distance;
                 });
-                
-                // Only reset approach state for joint selections
-                if matches!(self.target, Target::AroundJoint(_)) {
+
+                // Reset approach state if target has an ideal distance
+                // Note: We don't cache ideal_distance here because the fabric may still be growing
+                // during pretensing. We'll recalculate it each frame while approaching.
+                if self.target.ideal_distance(fabric).is_some() {
                     APPROACHING.with(|state| {
                         *state.borrow_mut() = true;
                     });
-                    
+
                     APPROACH_ELAPSED.with(|elapsed| {
                         *elapsed.borrow_mut() = 0.0;
                     });
                 } else {
-                    // For intervals or fabric midpoint, don't do automatic zooming
+                    // For targets without ideal distance (e.g., intervals), don't do automatic zooming
                     APPROACHING.with(|state| {
                         *state.borrow_mut() = false;
                     });
                 }
             }
         });
-        
+
         // Update approach elapsed time and check if we're still approaching the target
         let approaching = APPROACHING.with(|state| {
             let mut approaching = state.borrow_mut();
-            
+
             // Only update time if we're still approaching
             if *approaching {
                 APPROACH_ELAPSED.with(|elapsed| {
                     let mut elapsed_time = elapsed.borrow_mut();
                     *elapsed_time += capped_delta_time;
-                    
+
                     // If we've been zooming for the fixed duration, release control
                     if *elapsed_time >= ZOOM_DURATION {
                         *approaching = false;
                     }
                 });
             }
-            
+
             *approaching
         });
-        
+
         // Track if we're still working on approaching
         let mut working = position_distance > TARGET_HIT;
-        
+
         // Handle position approach with smooth easing
         if working {
             // Get the initial distance to calculate progress
             let initial_distance = INITIAL_DISTANCE.with(|dist| *dist.borrow());
-            
+
             // Calculate progress (0.0 to 1.0) based on distance traveled
             let progress = if initial_distance > 0.0 {
                 1.0 - (position_distance / initial_distance).min(1.0)
             } else {
                 1.0
             };
-            
+
             // Calculate how much to move this frame using easing
             // We blend between the eased approach and time-based movement
             let base_lerp = (CAMERA_MOVE_SPEED * capped_delta_time).min(1.0);
-            
+
             // Use easing to modulate the movement speed
             // When progress is low (start), ease is small (slow start)
             // When progress is mid, ease accelerates (faster middle)
             // When progress is high (end), ease decelerates (slow end)
             let lerp_factor = base_lerp * (1.0 + ease_in_out_cubic(progress) * 2.0);
-            
+
             // Smoothly interpolate towards target position
             self.look_at = self.look_at + (look_at - self.look_at) * lerp_factor.min(1.0);
         }
-        
+
         // Handle zoom approach if we're still in approaching mode
         if approaching {
-            // Calculate current view vector and distance
-            let view_vector = self.look_at - self.position;
-            let current_distance = view_vector.magnitude();
-            
-            // Calculate the difference from ideal distance
-            let distance_diff = current_distance - IDEAL_VIEW_DISTANCE;
-            
-            // Only adjust if we're not already at the ideal distance
-            if distance_diff.abs() > 0.1 {
-                // Calculate zoom adjustment for this frame
-                let zoom_amount = distance_diff * ZOOM_SPEED * capped_delta_time;
-                
-                // Apply zoom by moving camera position along view vector
-                if current_distance - zoom_amount > 1.0 { // Prevent getting too close
-                    self.position += view_vector.normalize() * zoom_amount;
+            // Recalculate ideal distance each frame to handle growing fabric during pretensing
+            if let Some(ideal_distance) = self.target.ideal_distance(fabric) {
+                // Calculate current view vector and distance
+                let view_vector = self.look_at - self.position;
+                let current_distance = view_vector.magnitude();
+
+                // For fabric midpoint, also adjust altitude to mid-height
+                if matches!(self.target, Target::FabricMidpoint) {
+                    let (min_y, max_y) = fabric.altitude_range();
+                    let mid_altitude = (min_y + max_y) / 2.0;
+                    let altitude_diff = self.position.y - mid_altitude;
+
+                    // Adjust altitude if not at mid-height
+                    if altitude_diff.abs() > 0.1 {
+                        let altitude_adjustment = altitude_diff * ZOOM_SPEED * capped_delta_time;
+                        self.position.y -= altitude_adjustment;
+                        working = true;
+                    }
                 }
-                
-                // We're still working if we need to adjust zoom
-                working = true;
+
+                // Calculate the difference from ideal distance
+                let distance_diff = current_distance - ideal_distance;
+
+                // Only adjust if we're not already at the ideal distance
+                if distance_diff.abs() > 0.1 {
+                    // Calculate zoom adjustment for this frame
+                    let zoom_amount = distance_diff * ZOOM_SPEED * capped_delta_time;
+
+                    // Apply zoom by moving camera position along view vector
+                    if current_distance - zoom_amount > 1.0 {
+                        // Prevent getting too close
+                        self.position += view_vector.normalize() * zoom_amount;
+                    }
+
+                    // We're still working if we need to adjust zoom
+                    working = true;
+                }
             }
         }
-        
+
         // Handle camera orientation limits
         let gaze = (self.look_at - self.position).normalize();
         let up_dot_gaze = Vector3::unit_y().dot(gaze);
@@ -466,7 +493,7 @@ impl Camera {
                     .rotate_vector(self.position.to_vec()),
             );
         }
-        
+
         working
     }
 
@@ -581,28 +608,29 @@ impl Camera {
         if dx == 0.0 && dy == 0.0 {
             return None;
         }
-        
+
         // Apply a sensitivity factor to make rotation feel right
         // Touch events need less sensitivity than mouse events
         let sensitivity = 0.5; // Reduced sensitivity for better control
         let dx = dx * sensitivity;
         let dy = dy * sensitivity;
-        
+
         let up = Vector3::unit_y();
         let gaze = self.look_at - self.position;
         let right = gaze.cross(up).normalize();
         let dot = gaze.normalize().dot(up);
-        
+
         // Limit vertical camera angle to about 37 degrees from vertical
         let yaw = Quaternion::from_axis_angle(up, Rad(-dx / 100.0));
-        let pitch = if (dot > 0.0 && dy < 0.0 && dot > 0.8) || (dot < 0.0 && dy > 0.0 && dot < -0.8) {
+        let pitch = if (dot > 0.0 && dy < 0.0 && dot > 0.8) || (dot < 0.0 && dy > 0.0 && dot < -0.8)
+        {
             // Disallow pitch when at the vertical limit
             Quaternion::from_axis_angle(right, Rad(0.0))
         } else {
             // Apply pitch
             Quaternion::from_axis_angle(right, Rad(-dy / 100.0))
         };
-        
+
         let rotation = yaw * pitch;
         let matrix = Matrix4::from(rotation);
         Some(matrix)
@@ -689,6 +717,23 @@ impl Target {
             Target::FabricMidpoint => fabric.midpoint(),
             Target::AroundJoint(index) => fabric.location(*index),
             Target::AroundInterval(id) => fabric.interval(*id).midpoint(&fabric.joints),
+        }
+    }
+
+    /// Get the ideal viewing distance for this target
+    /// Returns None if no specific distance is required (use current distance)
+    pub fn ideal_distance(&self, fabric: &Fabric) -> Option<f32> {
+        match self {
+            Target::FabricMidpoint => {
+                // For fabric overview, calculate distance based on bounding sphere
+                // Use a field of view factor to ensure everything fits in view
+                let radius = fabric.bounding_radius();
+                // Assuming 45-degree FOV, distance = radius / tan(22.5°) ≈ radius * 2.4
+                // Add extra margin for comfortable viewing
+                Some(radius * 3.0)
+            }
+            Target::AroundJoint(_) => Some(IDEAL_VIEW_DISTANCE),
+            Target::AroundInterval(_) => None, // Keep current distance for intervals
         }
     }
 }
