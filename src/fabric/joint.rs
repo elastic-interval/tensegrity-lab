@@ -94,43 +94,101 @@ impl Joint {
         let mass = *self.accumulated_mass;
         let dt = TICK_DURATION.as_secs_f32();
         let dt_micros = TICK_DURATION.as_micros() as f32;
-        
+
         if altitude > 0.0 || !surface_character.has_gravity() {
-            // Gravity acceleration: mass is in grams (from mm-based lengths), 
+            // Gravity acceleration: mass is in grams (from mm-based lengths),
             // EARTH_GRAVITY is in mm/µs², dt_micros is in µs
             // Result: velocity change in mm/µs (simulation velocity units)
             self.velocity.y -= *surface_character.force_of_gravity(mass) * dt_micros;
             let speed_squared = self.velocity.magnitude2();
             // Forces are already in pre-scaled units from interval calculations
             // Apply: acceleration = force/mass, then velocity_change = acceleration * dt
-            self.velocity += (self.force / mass) * dt - self.velocity * speed_squared * *viscosity * dt;
+            self.velocity +=
+                (self.force / mass) * dt - self.velocity * speed_squared * *viscosity * dt;
             self.velocity *= 1.0 - *drag * dt;
         } else {
-            let degree_submerged: f32 = if -altitude < 1.0 { -altitude } else { 0.0 };
-            let antigravity = physics.surface_character.antigravity() * degree_submerged;
-            // Forces are already in pre-scaled units from interval calculations
+            // Joint is at or below surface (altitude <= 0)
+            let depth = -altitude; // How far below surface (positive value)
+            let degree_submerged: f32 = depth.min(1.0); // Clamp to [0, 1]
+            
+            // Apply forces from intervals
             self.velocity += (self.force / mass) * dt;
+            
             match surface_character {
-                Absent => {}
+                Absent => {
+                    // No surface interaction
+                }
                 Frozen => {
+                    // Completely locked to surface
                     self.velocity = zero();
                     self.location.y = 0.0;
                 }
                 Sticky => {
-                    if self.velocity.y < 0.0 {
-                        self.velocity.x *= STICKY_DOWN_DRAG_FACTOR;
-                        self.velocity.y += (antigravity / scale) * dt_micros;
-                        self.velocity.z *= STICKY_DOWN_DRAG_FACTOR;
+                    // High friction surface - resists horizontal motion and prevents sinking
+                    
+                    // Very strong horizontal friction
+                    let friction = if self.velocity.y < 0.0 {
+                        STICKY_DOWN_DRAG_FACTOR // 0.8 - strong damping when pushing down
                     } else {
-                        self.velocity.x *= 1.0 - drag * dt;
-                        self.velocity.y += (antigravity / scale) * dt_micros;
-                        self.velocity.z *= 1.0 - drag * dt;
+                        1.0 - drag * dt // Normal drag when pulling up
+                    };
+                    self.velocity.x *= friction;
+                    self.velocity.z *= friction;
+                    
+                    // Strong upward force to prevent sinking - much stronger than other surfaces
+                    let antigravity = physics.surface_character.antigravity() * *surface_character.force_of_gravity(mass) * degree_submerged * 50.0;
+                    self.velocity.y += (antigravity / scale) * dt_micros;
+                    
+                    // Hard clamp: don't allow sinking below surface
+                    if self.velocity.y < 0.0 {
+                        self.velocity.y *= 0.5; // Dampen downward motion
+                    }
+                    
+                    // If significantly submerged, force back to surface
+                    if depth > 0.1 {
+                        self.location.y = -0.1;
+                        self.velocity.y = 0.0;
                     }
                 }
                 Bouncy => {
-                    let degree_cushioned: f32 = 1.0 - degree_submerged;
-                    self.velocity *= degree_cushioned;
+                    // Elastic collision - reflects velocity with energy loss
+                    // Strong resistance to horizontal slipping
+                    if self.velocity.y < 0.0 {
+                        // Bounce back with coefficient of restitution ~0.5
+                        self.velocity.y *= -0.5;
+                    }
+                    
+                    // Strong horizontal friction on contact - resist slipping
+                    let horizontal_friction = 0.6; // High friction coefficient
+                    self.velocity.x *= horizontal_friction;
+                    self.velocity.z *= horizontal_friction;
+                    
+                    // Push out of surface
+                    let antigravity = physics.surface_character.antigravity() * *surface_character.force_of_gravity(mass) * degree_submerged * 5.0;
                     self.velocity.y += (antigravity / scale) * dt_micros;
+                }
+                Slippery => {
+                    // Frictionless surface - allows free horizontal gliding
+                    // but prevents vertical penetration
+                    
+                    // Zero out downward velocity (can't penetrate)
+                    if self.velocity.y < 0.0 {
+                        self.velocity.y = 0.0;
+                    }
+                    
+                    // No horizontal damping - free gliding
+                    // Only minimal air drag
+                    self.velocity.x *= 1.0 - drag * dt * 0.1;
+                    self.velocity.z *= 1.0 - drag * dt * 0.1;
+                    
+                    // Strong upward force to prevent sinking
+                    let antigravity = physics.surface_character.antigravity() * *surface_character.force_of_gravity(mass) * degree_submerged * 10.0;
+                    self.velocity.y += (antigravity / scale) * dt_micros;
+                    
+                    // Clamp to surface if very close
+                    if depth < 0.01 {
+                        self.location.y = 0.0;
+                    }
                 }
             }
         }

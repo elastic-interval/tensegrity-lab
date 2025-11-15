@@ -14,8 +14,8 @@ impl Material {
     pub fn linear_density(&self) -> GramsPerMillimeter {
         match self {
             Push => GramsPerMillimeter(0.01),
-            Pull => GramsPerMillimeter(0.001),
-            Spring => GramsPerMillimeter(0.0001),
+            Pull => GramsPerMillimeter(0.0005),
+            Spring => GramsPerMillimeter(0.01),
         }
     }
 
@@ -23,9 +23,9 @@ impl Material {
     /// k × L = constant, so k(1mm) = k(1000mm) × 1000
     fn spring_constant_at_1mm(&self) -> f32 {
         match self {
-            Push => 5_400_000_000.0,   // stiff compression members
-            Pull => 180_000_000.0,     // flexible tension cables
-            Spring => 90_000_000.0,    // very flexible springs
+            Push => 750_000_000.0,   // stiff compression members
+            Pull => 60_000_000.0,     // flexible tension cables
+            Spring => 9_000_000.0,    // very flexible springs
         }
     }
 
