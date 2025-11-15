@@ -13,7 +13,7 @@ pub struct MuscleMovement {
 
 #[derive(Debug, Clone, Default)]
 pub struct PretensePhase {
-    pub surface_character: SurfaceCharacter,
+    pub surface_character: Option<SurfaceCharacter>,
     pub muscle_movement: Option<MuscleMovement>,
     pub pretenst: Option<f32>,
     pub seconds: Option<Seconds>,
@@ -41,14 +41,16 @@ impl PretensePhase {
                     for pretense_pair in feature_pair.into_inner() {
                         match pretense_pair.as_rule() {
                             Rule::surface => {
-                                pretense.surface_character =
+                                pretense.surface_character = Some(
                                     match pretense_pair.into_inner().next().unwrap().as_str() {
                                         ":frozen" => SurfaceCharacter::Frozen,
                                         ":bouncy" => SurfaceCharacter::Bouncy,
                                         ":absent" => SurfaceCharacter::Absent,
                                         ":sticky" => SurfaceCharacter::Sticky,
+                                        ":slippery" => SurfaceCharacter::Slippery,
                                         _ => unreachable!("surface character"),
                                     }
+                                )
                             }
                             Rule::muscle => {
                                 let mut inner = pretense_pair.into_inner();
@@ -93,7 +95,7 @@ impl PretensePhase {
     /// Create the viewing physics by applying pretense customizations to AIR_GRAVITY
     pub fn viewing_physics(&self) -> Physics {
         let pretenst = self.pretenst.unwrap_or(AIR_GRAVITY.pretenst);
-        let surface_character = self.surface_character;
+        let surface_character = self.surface_character.unwrap_or(AIR_GRAVITY.surface_character);
         // Viscosity and drag are percentages of the default values
         let viscosity = self.viscosity
             .map(|percent| AIR_GRAVITY.viscosity * percent / 100.0)

@@ -6,7 +6,7 @@ use crate::units::{MillimetersPerMicrosecondSquared, EARTH_GRAVITY};
 use crate::{PhysicsFeature, PhysicsParameter, Radio, StateChange};
 
 /// Number of physics iterations per frame (constant across all physics presets)
-pub const ITERATIONS_PER_FRAME: usize = 100;
+pub const ITERATIONS_PER_FRAME: usize = 1200;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub enum SurfaceCharacter {
@@ -15,6 +15,7 @@ pub enum SurfaceCharacter {
     Frozen,
     Sticky,
     Bouncy,
+    Slippery,
 }
 
 impl SurfaceCharacter {
@@ -102,18 +103,18 @@ pub mod presets {
     };
 
     pub const AIR_GRAVITY: Physics = Physics {
-        drag: 0.025,
+        drag: 0.01,
         cycle_ticks: 1000.0,
-        pretenst: 2.0,
+        pretenst: 3.0,
         strain_limit: 0.02,
         surface_character: Frozen,
-        viscosity: 0.04,
+        viscosity: 0.5,
     };
 
     pub const PRETENSING: Physics = Physics {
-        drag: 250.0,
+        drag: 25.0,
         surface_character: Absent,
-        viscosity: 40.0,
+        viscosity: 4.0,
         ..AIR_GRAVITY
     };
 }
