@@ -26,6 +26,17 @@ const IDEAL_VIEW_DISTANCE: f32 = 3.0; // Target distance for viewing objects
 const ZOOM_SPEED: f32 = 1.5; // Speed of zoom adjustment
 const ZOOM_DURATION: f32 = 3.0; // Duration in seconds to apply automatic zooming
 
+/// Ease-in-out cubic function for smooth camera movement
+/// Returns a value between 0.0 and 1.0 with smooth acceleration and deceleration
+fn ease_in_out_cubic(t: f32) -> f32 {
+    if t < 0.5 {
+        4.0 * t * t * t
+    } else {
+        let f = 2.0 * t - 2.0;
+        1.0 + f * f * f / 2.0
+    }
+}
+
 /// Defines the type of projection used by the camera
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ProjectionType {
@@ -311,6 +322,8 @@ impl Camera {
             static APPROACHING: std::cell::RefCell<bool> = std::cell::RefCell::new(true);
             static APPROACH_ELAPSED: std::cell::RefCell<f32> = std::cell::RefCell::new(0.0);
             static LAST_TARGET: std::cell::RefCell<Option<Target>> = std::cell::RefCell::new(None);
+            static START_POSITION: std::cell::RefCell<Option<Point3<f32>>> = std::cell::RefCell::new(None);
+            static INITIAL_DISTANCE: std::cell::RefCell<f32> = std::cell::RefCell::new(0.0);
         }
         
         // Get the current time and calculate elapsed time since last update
@@ -341,6 +354,16 @@ impl Camera {
             // If the target has changed, reset everything
             if last.as_ref() != Some(&self.target) {
                 *last = Some(self.target.clone());
+                
+                // Store the starting position for smooth interpolation
+                START_POSITION.with(|start_pos| {
+                    *start_pos.borrow_mut() = Some(self.look_at);
+                });
+                
+                // Store the initial distance for progress calculation
+                INITIAL_DISTANCE.with(|init_dist| {
+                    *init_dist.borrow_mut() = position_distance;
+                });
                 
                 // Only reset approach state for joint selections
                 if matches!(self.target, Target::AroundJoint(_)) {
@@ -383,13 +406,30 @@ impl Camera {
         // Track if we're still working on approaching
         let mut working = position_distance > TARGET_HIT;
         
-        // Handle position approach
+        // Handle position approach with smooth easing
         if working {
-            // Calculate how much to move this frame (time-based)
-            let lerp_factor = (CAMERA_MOVE_SPEED * capped_delta_time).min(1.0);
+            // Get the initial distance to calculate progress
+            let initial_distance = INITIAL_DISTANCE.with(|dist| *dist.borrow());
+            
+            // Calculate progress (0.0 to 1.0) based on distance traveled
+            let progress = if initial_distance > 0.0 {
+                1.0 - (position_distance / initial_distance).min(1.0)
+            } else {
+                1.0
+            };
+            
+            // Calculate how much to move this frame using easing
+            // We blend between the eased approach and time-based movement
+            let base_lerp = (CAMERA_MOVE_SPEED * capped_delta_time).min(1.0);
+            
+            // Use easing to modulate the movement speed
+            // When progress is low (start), ease is small (slow start)
+            // When progress is mid, ease accelerates (faster middle)
+            // When progress is high (end), ease decelerates (slow end)
+            let lerp_factor = base_lerp * (1.0 + ease_in_out_cubic(progress) * 2.0);
             
             // Smoothly interpolate towards target position
-            self.look_at = self.look_at + (look_at - self.look_at) * lerp_factor;
+            self.look_at = self.look_at + (look_at - self.look_at) * lerp_factor.min(1.0);
         }
         
         // Handle zoom approach if we're still in approaching mode
