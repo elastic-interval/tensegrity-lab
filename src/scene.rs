@@ -65,7 +65,7 @@ impl Scene {
                 self.render_style.toggle_attachment_points();
             }
             SetControlState(control_state) => match control_state {
-                Waiting | UnderConstruction | Animating => self.reset(),
+                Waiting | Building | UnderConstruction | Shaping | Pretensing | Converging | Animating | Converged => self.reset(),
                 Baking => {
                     self.render_style = WithAppearanceFunction {
                         function: Rc::new(|_| None),

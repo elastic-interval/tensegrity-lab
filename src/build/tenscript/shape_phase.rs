@@ -53,7 +53,6 @@ pub enum ShapeOperation {
         joint_index: usize,
         length: f32,
         surface: (f32, f32),
-        role: Option<Role>,
     },
     Vulcanize,
     SetRigidity(f32),
@@ -209,13 +208,10 @@ impl ShapePhase {
                 let mut surface = inner.next().unwrap().into_inner();
                 let x = surface.next_float("(surface x ..)")?;
                 let z = surface.next_float("(surface .. z)")?;
-                let role = inner.next()
-                    .and_then(|p| Role::from_label(&p.as_atom()));
                 Ok(ShapeOperation::GuyLine {
                     joint_index,
                     length,
                     surface: (x, z),
-                    role,
                 })
             }
             _ => unreachable!("shape phase: {pair}"),
@@ -449,12 +445,10 @@ impl ShapePhase {
                 joint_index,
                 length,
                 surface,
-                role,
             } => {
                 let (x, z) = surface;
                 let base = fabric.create_joint(Point3::new(x, 0.0, z));
-                let role = role.unwrap_or(Role::Support);
-                fabric.create_interval(joint_index, base, length, role);
+                fabric.create_interval(joint_index, base, length, Role::Support);
                 StartProgress(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
             ShapeOperation::Centralize { altitude } => {

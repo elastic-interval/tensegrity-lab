@@ -9,15 +9,16 @@ use wgpu_text::glyph_brush::{
 #[derive(Clone, Debug, Copy)]
 pub enum SectionName {
     Top = 0,
-    Bottom = 1,
-    Left = 2,
-    Right = 3,
-    BottomLeft = 4,
+    TopSubtitle = 1,
+    Bottom = 2,
+    Left = 3,
+    Right = 4,
+    BottomLeft = 5,
 }
 
 impl SectionName {
     const fn count() -> usize {
-        5
+        6
     }
 }
 
@@ -29,6 +30,7 @@ pub struct TextState {
     fabric_name: Option<String>,
     experiment_title: String,
     control_state: ControlState,
+    stage_label: String,
     fabric_stats: Option<FabricStats>,
     sections: [Option<OwnedSection>; SectionName::count()],
     keyboard_legend: Option<String>,
@@ -39,6 +41,7 @@ pub struct TextState {
 
 enum TextInstance {
     Nothing,
+    Small(String),
     Normal(String),
     Large(String),
 }
@@ -47,6 +50,7 @@ impl TextInstance {
     pub fn scale_factor(&self) -> f32 {
         match self {
             TextInstance::Nothing => 10.0,
+            TextInstance::Small(_) => 20.0,
             TextInstance::Normal(_) => 30.0,
             TextInstance::Large(_) => 60.0,
         }
@@ -63,6 +67,7 @@ impl TextState {
             animating: false,
             experiment_title: "".to_string(),
             control_state: ControlState::Waiting,
+            stage_label: "Waiting".to_string(),
             fabric_stats: None,
             keyboard_legend: None,
             sections: Default::default(),
@@ -78,6 +83,9 @@ impl TextState {
         match app_change {
             SetControlState(control_state) => {
                 self.control_state = control_state.clone();
+            }
+            SetStageLabel(label) => {
+                self.stage_label = label.clone();
             }
             SetFabricName(fabric_name) => {
                 self.fabric_name = Some(fabric_name.to_string());
@@ -143,19 +151,27 @@ impl TextState {
                     _ => Large(fabric_name.clone()),
                 },
             );
+            
+            // Add state subtitle below title
+            self.update_section(
+                SectionName::TopSubtitle,
+                Small(self.stage_label.clone()),
+            );
         }
 
+        let bottom_left_text = format!("{:.0}fps {}", self.frames_per_second, self.age);
+        
         self.update_section(
             SectionName::BottomLeft,
-            Normal(format!("{:.0}fps {}", self.frames_per_second, self.age)),
+            Normal(bottom_left_text),
         );
 
         if !self.mobile_device {
             self.update_section(
                 SectionName::Bottom,
                 match &self.keyboard_legend {
-                    None => Nothing,
                     Some(legend) => Normal(legend.clone()),
+                    None => Nothing,
                 },
             );
             self.update_section(
@@ -194,9 +210,11 @@ impl TextState {
                         pull_total,
                         age,
                         scale,
+                        convergence_stats,
                         ..
                     } = fabric_stats;
-                    Normal(format!(
+                    
+                    let mut text = format!(
                         "Stats at {age}:\n\
                          Joints: {:?}\n\
                          Bars: {:?}\n\
@@ -204,8 +222,7 @@ impl TextState {
                          → total {:.1}m\n\
                          Cables: {:?}\n\
                          → {:.1}-{:.1}mm\n\
-                         → total {:.1}m\n\
-                         ",
+                         → total {:.1}m",
                         joint_count,
                         push_count,
                         push_range.0 * scale,
@@ -215,7 +232,29 @@ impl TextState {
                         pull_range.0 * scale,
                         pull_range.1 * scale,
                         pull_total * scale / 1000.0,
-                    ))
+                    );
+                    
+                    // Add convergence stats if present (end of time)
+                    if let Some(conv) = convergence_stats {
+                        let speed_mm_per_us = conv.max_speed / 50.0;
+                        let mass_kg = conv.total_mass / 1000.0;
+                        
+                        text.push_str(&format!(
+                            "\n\n\
+                             KE: {:.2e} g·mm²/µs²\n\
+                             Mass: {:.2}kg\n\
+                             Max Speed: {:.3e} mm/µs\n\
+                             Max Strain: {:.3}\n\
+                             Avg Strain: {:.3}",
+                            conv.kinetic_energy,
+                            mass_kg,
+                            speed_mm_per_us,
+                            conv.max_strain,
+                            conv.avg_strain,
+                        ));
+                    }
+                    
+                    Normal(text)
                 }
             },
         );
@@ -227,7 +266,7 @@ impl TextState {
         let scale_factor = text_instance.scale_factor();
         self.sections[section_name as usize] = Some(match text_instance {
             Nothing => section,
-            Normal(text) | Large(text) => section.add_text(
+            Small(text) | Normal(text) | Large(text) => section.add_text(
                 OwnedText::new(text)
                     .with_color([0.8, 0.8, 0.8, 1.0])
                     .with_scale(scale_factor),
@@ -246,14 +285,14 @@ impl TextState {
         use SectionName::*;
         Layout::default()
             .v_align(match section_name {
-                Top => VerticalAlign::Top,
+                Top | TopSubtitle => VerticalAlign::Top,
                 Bottom => VerticalAlign::Bottom,
                 Left => VerticalAlign::Center,
                 Right => VerticalAlign::Center,
                 BottomLeft => VerticalAlign::Bottom,
             })
             .h_align(match section_name {
-                Top => HorizontalAlign::Center,
+                Top | TopSubtitle => HorizontalAlign::Center,
                 Bottom => HorizontalAlign::Center,
                 Left => HorizontalAlign::Left,
                 Right => HorizontalAlign::Right,
@@ -265,7 +304,7 @@ impl TextState {
         use SectionName::*;
         let middle = self.width / 2.0;
         match section_name {
-            Top => [self.width, self.width],
+            Top | TopSubtitle => [self.width, self.width],
             Bottom => [self.width, self.width],
             Left => [middle, self.width],
             Right => [middle, self.width],
@@ -280,6 +319,7 @@ impl TextState {
         let margin = 50.0;
         match section_name {
             Top => [middle_h, margin],
+            TopSubtitle => [middle_h, margin + 70.0],  // Below the title
             Bottom => [middle_h, self.height - margin],
             Left => [margin, middle_v],
             Right => [self.width - margin, middle_v],

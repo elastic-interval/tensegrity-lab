@@ -71,6 +71,18 @@ impl Keyboard {
             Crucible(ToAnimating),
             Box::new(|state| matches!(state, Viewing)),
         );
+        self.key_lab_event(
+            KeyCode::KeyM,
+            "Increase mass (+50%)",
+            Crucible(IncreaseMass),
+            Box::new(|_| true), // Works in all states
+        );
+        self.key_lab_event(
+            KeyCode::KeyI,
+            "Increase rigidity (+50%)",
+            Crucible(IncreaseRigidity),
+            Box::new(|_| true), // Works in all states
+        );
         self.float_parameter(
             "P",
             "p",
@@ -80,16 +92,6 @@ impl Keyboard {
             },
             Box::new(|value| format!("Pretenst {value:.3}")),
             Box::new(|state| matches!(state, PhysicsTesting(_) | FailureTesting(_))),
-        );
-        self.float_parameter(
-            "C",
-            "c",
-            PhysicsParameter {
-                feature: PhysicsFeature::CycleTicks,
-                value: 1000.0,
-            },
-            Box::new(|value| format!("Cycle {:.0}", value)),
-            Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.float_parameter(
             "L",

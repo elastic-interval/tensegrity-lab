@@ -1,20 +1,13 @@
 use pest::iterators::{Pair, Pairs};
 
-use crate::build::tenscript::{PairExt, PairsExt, Rule, TenscriptError};
+use crate::build::tenscript::{PairExt, Rule, TenscriptError};
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::units::Seconds;
 
 #[derive(Debug, Clone, Default)]
-pub struct MuscleMovement {
-    pub(crate) contraction: f32,
-    pub(crate) countdown: usize,
-}
-
-#[derive(Debug, Clone, Default)]
 pub struct PretensePhase {
     pub surface_character: Option<SurfaceCharacter>,
-    pub muscle_movement: Option<MuscleMovement>,
     pub pretenst: Option<f32>,
     pub seconds: Option<Seconds>,
     pub rigidity: Option<f32>,
@@ -51,15 +44,6 @@ impl PretensePhase {
                                         _ => unreachable!("surface character"),
                                     }
                                 )
-                            }
-                            Rule::muscle => {
-                                let mut inner = pretense_pair.into_inner();
-                                let contraction = inner.next_float("muscle contraction")?;
-                                let countdown = inner.next_usize("muscle countdown")?;
-                                pretense.muscle_movement = Some(MuscleMovement {
-                                    contraction,
-                                    countdown,
-                                })
                             }
                             Rule::pretenst => {
                                 pretense.pretenst = Some(pretense_pair.parse_float_inner("pretenst")?);

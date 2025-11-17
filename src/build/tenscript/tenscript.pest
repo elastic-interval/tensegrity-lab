@@ -4,7 +4,7 @@ fabric_library =
     { "(" ~ "fabric-library" ~ fabric_plan* ~ ")" }
 
 fabric_plan =
-    { "(" ~ "fabric" ~ name ~ build ~ shape ~ pretense ~ scale? ~ ")" }
+    { "(" ~ "fabric" ~ name ~ build ~ shape ~ pretense ~ converge? ~ animate? ~ scale? ~ ")" }
 name =
     { "(" ~ "name" ~ string+ ~ ")" }
 shape =
@@ -25,7 +25,7 @@ add =
 anchor = // joint number, location
     { "(" ~ "anchor" ~ integer ~ surface_location ~ ")" }
 guy_line = // joint number, length, location
-    { "(" ~ "guy-line" ~ integer ~ float ~ surface_location ~ atom? ~ ")" }
+    { "(" ~ "guy-line" ~ integer ~ float ~ surface_location ~ ")" }
 surface_location =
     { "(" ~ "surface" ~ float ~ float ~ ")" }
 spacer = // mark-name, spacing-factor
@@ -47,13 +47,25 @@ vulcanize =
 pretense =
     { "(" ~ "pretense" ~ pretense_feature* ~ ")" }
 pretense_feature =
-    { surface | muscle | pretenst | seconds | rigidity | altitude | viscosity | drag }
+    { surface | pretenst | seconds | rigidity | altitude | viscosity | drag }
 surface =
     { "(" ~ "surface" ~ surface_character ~ ")" }
 surface_character =
     { ":frozen" | ":bouncy" | ":absent" | ":sticky" | ":slippery" }
-muscle =
-    { "(" ~ "muscle" ~ float ~ integer ~ integer* ~ ")" }
+converge =
+    { "(" ~ "converge" ~ float ~ ")" }
+animate =
+    { "(" ~ "animate" ~ frequency ~ animate_feature* ~ ")" }
+animate_feature =
+    { contraction | muscle_interval }
+contraction =
+    { "(" ~ "contraction" ~ float ~ ")" }
+frequency =
+    { "(" ~ "frequency" ~ float ~ ")" }
+muscle_interval =
+    { "(" ~ "muscle" ~ integer ~ integer ~ muscle_group ~ ")" }
+muscle_group =
+    { ":alpha" | ":omega" }
 pretenst =
     { "(" ~ "pretenst" ~ float ~ ")" }
 rigidity =

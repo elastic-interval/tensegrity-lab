@@ -56,6 +56,12 @@ impl Age {
         self.0 += TICK_DURATION;
         TICK_DURATION
     }
+    
+    pub fn tick_scaled(&mut self, dt_scale: f32) -> Duration {
+        let scaled_duration = TICK_DURATION.mul_f32(dt_scale);
+        self.0 += scaled_duration;
+        scaled_duration
+    }
 
     pub fn advanced(&self, ticks: usize) -> Self {
         Self(self.0 + TICK_DURATION * ticks as u32)
@@ -78,10 +84,11 @@ impl Age {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PhysicsFeature {
     Pretenst,
-    CycleTicks,
     Viscosity,
     Drag,
     StrainLimit,
+    MassScale,
+    RigidityScale,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -218,8 +225,6 @@ impl Display for IntervalDetails {
             Role::BowTie => "BowTie",
             Role::FaceRadial => "FaceRadial",
             Role::Support => "Support",
-            Role::North => "North",
-            Role::South => "South",
             Role::GuyLine => "GuyLine",
             Role::PrismPull => "PrismPull",
         };
@@ -334,14 +339,19 @@ impl JointDetails {
 #[derive(Debug, Clone)]
 pub enum ControlState {
     Waiting,
-    UnderConstruction,
-    Baking,
+    Building,
+    Shaping,
+    Pretensing,
+    Converging,
     Viewing,
     Animating,
+    Converged,
     ShowingJoint(JointDetails),
     ShowingInterval(IntervalDetails),
     FailureTesting(TestScenario),
     PhysicsTesting(TestScenario),
+    Baking,
+    UnderConstruction, // Deprecated - use Building instead
 }
 
 impl ControlState {
@@ -368,6 +378,8 @@ pub enum CrucibleAction {
     ToPhysicsTesting(TestScenario),
     ToEvolving(u64),
     TesterDo(TesterAction),
+    IncreaseMass,
+    IncreaseRigidity,
 }
 
 impl CrucibleAction {
@@ -459,6 +471,7 @@ pub enum StateChange {
     SetFabricName(String),
     SetFabricStats(Option<FabricStats>),
     SetControlState(ControlState),
+    SetStageLabel(String), // Simple string label for current stage
     ResetView,
     ToggleColorByRole,
     SetAppearanceFunction(AppearanceFunction),
@@ -489,6 +502,7 @@ impl Debug for StateChange {
             StateChange::SetFabricName(_) => "SetFabricName()",
             StateChange::SetFabricStats(_) => "SetFabricStats()",
             StateChange::SetControlState(_) => "SetControlState()",
+            StateChange::SetStageLabel(_) => "SetStageLabel()",
             StateChange::SetAppearanceFunction(_) => "SetColorFunction()",
             StateChange::SetIntervalColor { .. } => "SetIntervalColor()",
             StateChange::ResetView => "ResetView()",
@@ -521,6 +535,7 @@ pub enum LabEvent {
     UpdateState(StateChange),
     UpdatedLibrary(Instant),
     RefreshLibrary,
+    RebuildFabric,
     PrintCord(f32),
     DumpCSV,
     RequestRedraw,

@@ -57,7 +57,7 @@ impl Fabric {
     }
 }
 
-const AMBIENT_MASS: Grams = Grams(0.01);
+pub const AMBIENT_MASS: Grams = Grams(0.01);
 const STICKY_DOWN_DRAG_FACTOR: f32 = 0.8;
 
 #[derive(Clone, Copy, Debug)]
@@ -168,7 +168,7 @@ impl Joint {
                     self.velocity.y += (antigravity / scale) * dt_micros;
                 }
                 Slippery => {
-                    // Frictionless surface - allows free horizontal gliding
+                    // Moderate-friction surface - uses adaptive drag/viscosity for convergence
                     // but prevents vertical penetration
                     
                     // Zero out downward velocity (can't penetrate)
@@ -176,10 +176,12 @@ impl Joint {
                         self.velocity.y = 0.0;
                     }
                     
-                    // No horizontal damping - free gliding
-                    // Only minimal air drag
-                    self.velocity.x *= 1.0 - drag * dt * 0.1;
-                    self.velocity.z *= 1.0 - drag * dt * 0.1;
+                    // Apply drag and viscosity to horizontal motion for better settling
+                    // These increase adaptively during convergence
+                    let speed_horizontal = (self.velocity.x * self.velocity.x + self.velocity.z * self.velocity.z).sqrt();
+                    let friction = 1.0 - (drag * dt + viscosity * speed_horizontal * dt);
+                    self.velocity.x *= friction;
+                    self.velocity.z *= friction;
                     
                     // Strong upward force to prevent sinking
                     let antigravity = physics.surface_character.antigravity() * *surface_character.force_of_gravity(mass) * degree_submerged * 10.0;

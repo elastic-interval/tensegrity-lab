@@ -12,6 +12,7 @@ use crate::fabric::interval::Role::*;
 use crate::fabric::interval::Span::*;
 use crate::fabric::joint::Joint;
 use crate::fabric::material::Material;
+use crate::fabric::physics::Physics;
 use crate::fabric::{Fabric, IntervalEnd, Progress, UniqueId};
 use crate::units::Millimeters;
 use crate::Appearance;
@@ -283,8 +284,6 @@ pub enum Role {
     BowTie = 4,
     FaceRadial = 5,
     Support = 6,
-    North = 7,
-    South = 8,
     GuyLine = 9,
     PrismPull = 11,
 }
@@ -304,8 +303,6 @@ impl Role {
                 | BowTie
                 | FaceRadial
                 | Support
-                | North
-                | South
                 | GuyLine
                 | PrismPull
         )
@@ -321,8 +318,6 @@ impl Role {
             BowTie => "bow-tie",
             FaceRadial => "face-radial",
             Support => "support",
-            North => "north",
-            South => "south",
             GuyLine => "guy-line",
             PrismPull => "prism-pull",
         }
@@ -338,8 +333,6 @@ impl Role {
             "bow-tie" => Some(BowTie),
             "face-radial" => Some(FaceRadial),
             "support" => Some(Support),
-            "north" => Some(North),
-            "south" => Some(South),
             "guy-line" => Some(GuyLine),
             "prism-pull" => Some(PrismPull),
             _ => None,
@@ -369,7 +362,6 @@ impl Role {
             Springy => 0.7,
             Circumference => 0.25,
             FaceRadial => 0.15,
-            North | South => 0.15,
             PrismPull => 0.2,
         }
     }
@@ -383,8 +375,6 @@ impl Role {
             BowTie => [0.2, 0.25, 0.2, 1.0],
             FaceRadial => [0.15, 0.15, 0.15, 1.0],
             Support => [0.25, 0.2, 0.2, 1.0],
-            North => [0.2, 0.2, 0.25, 1.0],
-            South => [0.25, 0.2, 0.2, 1.0],
             GuyLine => [0.22, 0.22, 0.22, 1.0],
             PrismPull => [0.2, 0.2, 0.2, 1.0],
         }
@@ -400,8 +390,6 @@ impl Role {
             BowTie => [0.2, 0.8, 0.3, 1.0],        // Green
             FaceRadial => [0.5, 0.5, 0.5, 1.0],    // Gray
             Support => [0.9, 0.5, 0.2, 1.0],       // Orange
-            North => [0.3, 0.8, 0.9, 1.0],         // Cyan
-            South => [0.9, 0.3, 0.7, 1.0],         // Magenta
             GuyLine => [0.7, 0.7, 0.3, 1.0],       // Olive
             PrismPull => [0.6, 0.4, 0.8, 1.0],     // Purple
         }
@@ -698,6 +686,7 @@ impl Interval {
         progress: &Progress,
         muscle_nuance: f32,
         scale: f32,
+        physics: &Physics,
     ) {
         let ideal = match self.span {
             Fixed { length } => length,
@@ -751,7 +740,7 @@ impl Interval {
         // Force: strain × spring_constant(length)
         // Spring constant scales with 1/L for proper physics
         let ideal_length_mm = ideal * scale;
-        let force = self.strain * self.material.spring_constant(ideal_length_mm);
+        let force = self.strain * self.material.spring_constant(ideal_length_mm, physics);
         let force_vector: Vector3<f32> = self.unit * force / 2.0;
 
         // Apply forces to both ends
@@ -761,7 +750,7 @@ impl Interval {
         joints[omega_idx].force -= force_vector;
 
         // Mass from linear density × length
-        let interval_mass = self.material.linear_density() * Millimeters(real_length * scale);
+        let interval_mass = self.material.linear_density(physics) * Millimeters(real_length * scale);
         let half_mass = interval_mass / 2.0;
         joints[alpha_idx].accumulated_mass += half_mass;
         joints[omega_idx].accumulated_mass += half_mass;

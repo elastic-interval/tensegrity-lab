@@ -52,7 +52,7 @@ pub const MOMENT: Seconds = Seconds(0.1);
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct GramsPerMillimeter(pub f32);
 
-/// Stiffness in Newtons per millimeter (force per unit extension)
+/// Rigidity in Newtons per millimeter (force per unit extension)
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct NewtonsPerMillimeter(pub f32);
 
