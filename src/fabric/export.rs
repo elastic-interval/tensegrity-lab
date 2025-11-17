@@ -3,7 +3,7 @@ use std::io;
 use std::io::{Cursor, Write};
 use zip::{write::FileOptions, CompressionMethod, ZipWriter};
 
-use crate::fabric::interval::{Interval, Role};
+use crate::fabric::interval::Interval;
 use crate::fabric::joint::Joint;
 use crate::fabric::Fabric;
 
@@ -51,9 +51,6 @@ impl Fabric {
                 omega_index,
                 ..
             } = interval;
-            if interval.role == Role::North || interval.role == Role::South {
-                continue;
-            }
             writeln!(
                 zip,
                 "{},{};{}",

@@ -7,12 +7,12 @@
 				(on-face (alias BotZ) (grow 8 (scale .9) (mark :end) (prism)))
 				(on-face (alias Top) (grow 1))))
 		(shape
-			(during 15.0 (space :end 0.4))
-			(during 15.0 (vulcanize))
-			)
+			(during 15.0 (space :end 0.3))
+			(during 15.0 (vulcanize)))
 		(pretense
-            (altitude 5000.0)
-            (surface :bouncy))
+            (altitude 1000.0)
+            (surface :slippery))
+		(converge 10.0)
 		(scale 1030.0))
 	(fabric	(name "De Twips")
         (build
@@ -60,13 +60,19 @@
                 (guy-line 24 12.5 (surface -7.0 6.0))
                 (guy-line 18 14.5 (surface 12.0 -8.0))
                 (guy-line 28 14.5 (surface 12.0 8.0))
-                (guy-line 12 15.4 (surface 3.0 -10.0) :north)
-                (guy-line 10 15.4 (surface 3.0 10.0) :south)
+                (guy-line 12 15.4 (surface 3.0 -10.0))
+                (guy-line 10 15.4 (surface 3.0 10.0))
                 ))
         (pretense
             (pretenst 0.8)
-            (muscle 0.96 2700)
             (surface :frozen))
+        ; TODO: Add animation phase once guy-line interval endpoints are identified
+        ; Example:
+        ; (animate
+        ;     (contraction 0.96)
+        ;     (period 2700)
+        ;     (muscle <joint-from-guy-line-12> <joint-to>)
+        ;     (muscle <joint-from-guy-line-10> <joint-to>))
         (scale 510.0))
 	(fabric (name "Halo by Crane")
 		(build
@@ -103,7 +109,6 @@
 			)
 		(shape)
 		(pretense
-			(muscle 0.5 22000)
 			(surface :bouncy))
 		)
 	(fabric (name "Flagellum")
@@ -223,6 +228,5 @@
 			(join :loose)
 			(centralize))
 		(pretense
-			(surface :bouncy)
-			(muscle 0.3 12000)))
+			(surface :bouncy)))
 	)

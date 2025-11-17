@@ -3,7 +3,7 @@ use crate::build::tenscript::pretenser::Stage::*;
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::PRETENSING;
 use crate::fabric::physics::Physics;
-use crate::units::{Seconds, MOMENT};
+use crate::units::Seconds;
 use crate::LabEvent::DumpCSV;
 use crate::Radio;
 
@@ -12,7 +12,6 @@ enum Stage {
     Start,
     Slacken,
     Pretensing,
-    CreateMuscles,
     Pretenst,
 }
 
@@ -78,30 +77,6 @@ impl Pretenser {
                 if context.fabric.progress.is_busy() {
                     Pretensing
                 } else {
-                    if self.pretense_phase.muscle_movement.is_some() {
-                        CreateMuscles
-                    } else {
-                        Pretenst
-                    }
-                }
-            }
-            CreateMuscles => {
-                if context.fabric.progress.is_busy() {
-                    // Perform a single physics iteration
-                    context.fabric.iterate(context.physics);
-
-                    CreateMuscles
-                } else {
-                    let Some(muscle_movement) = &self.pretense_phase.muscle_movement else {
-                        panic!("expected a muscle movement")
-                    };
-                    context.fabric.create_muscles(muscle_movement.contraction);
-                    let mut physics = self.pretense_phase.viewing_physics();
-                    physics.cycle_ticks = muscle_movement.countdown as f32;
-                    // Update physics when cycle_ticks changes
-                    *context.physics = physics;
-                    context.fabric.progress.start(MOMENT);
-
                     Pretenst
                 }
             }

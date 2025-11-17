@@ -4,7 +4,9 @@ use std::collections::HashSet;
 
 use pest::iterators::Pair;
 
+use crate::build::tenscript::animate_phase::AnimatePhase;
 use crate::build::tenscript::build_phase::BuildNode;
+use crate::build::tenscript::converge_phase::ConvergePhase;
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeOperation, ShapePhase};
 use crate::build::tenscript::{BuildPhase, PairExt, Rule, TenscriptError};
@@ -15,6 +17,8 @@ pub struct FabricPlan {
     pub build_phase: BuildPhase,
     pub shape_phase: ShapePhase,
     pub pretense_phase: PretensePhase,
+    pub converge_phase: Option<ConvergePhase>,
+    pub animate_phase: Option<AnimatePhase>,
     pub scale: f32,
 }
 
@@ -27,15 +31,35 @@ impl FabricPlan {
         let build_phase = BuildPhase::from_pair(build)?;
         let shape_phase = ShapePhase::from_pair(inner.next().unwrap())?;
         let pretense_phase = PretensePhase::from_pair(inner.next().unwrap())?;
-        let scale = inner.next()
-            .map(|pair| pair.parse_float_inner("fabric/scale"))
-            .transpose()?
-            .unwrap_or(1.0);
+        
+        // Parse optional converge phase
+        let mut converge_phase = None;
+        let mut animate_phase = None;
+        let mut scale = 1.0;
+        
+        // Process remaining optional phases
+        for pair in inner {
+            match pair.as_rule() {
+                Rule::converge => {
+                    converge_phase = Some(ConvergePhase::from_pair(pair)?);
+                }
+                Rule::animate => {
+                    animate_phase = Some(AnimatePhase::from_pair(pair)?);
+                }
+                Rule::scale => {
+                    scale = pair.parse_float_inner("fabric/scale")?;
+                }
+                _ => {}
+            }
+        }
+        
         let plan = FabricPlan {
             name,
             build_phase,
             shape_phase,
             pretense_phase,
+            converge_phase,
+            animate_phase,
             scale,
         };
         Self::validate_fabric_plan(&plan)?;

@@ -8,8 +8,8 @@ use crate::pointer::PointerHandler;
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 use crate::{
-    ControlState, CrucibleAction, LabEvent, Radio, RunStyle, StateChange, TestScenario,
-    TesterAction,
+    ControlState, CrucibleAction, LabEvent, PhysicsFeature, Radio, RunStyle, StateChange,
+    TestScenario, TesterAction,
 };
 use instant::{Duration, Instant};
 use std::sync::Arc;
@@ -150,7 +150,9 @@ impl Application {
 
         // Use with_scene_and_fabric and handle the Option return type
         let surface_character = self.crucible.physics.surface_character;
-        if let Some(result) = self.with_scene_and_fabric(|scene, fabric| scene.redraw(fabric, surface_character)) {
+        if let Some(result) =
+            self.with_scene_and_fabric(|scene, fabric| scene.redraw(fabric, surface_character))
+        {
             if let Err(error) = result {
                 eprintln!("Error redrawing scene: {:?}", error);
             }
@@ -334,6 +336,10 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                 }
             }
+            RebuildFabric => {
+                // Rebuild the current fabric with updated physics parameters
+                Run(self.run_style.clone()).send(&self.radio);
+            }
             UpdatedLibrary(time) => {
                 println!("Reloading library at {time:?}");
                 #[cfg(not(target_arch = "wasm32"))]
@@ -383,6 +389,16 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                     StateChange::SetPhysicsParameter(parameter) => {
                         self.keyboard.set_float_parameter(parameter);
+                        self.crucible.physics.accept(parameter.clone());
+
+                        // If it's mass or rigidity scale, trigger fabric rebuild
+                        if matches!(
+                            parameter.feature,
+                            PhysicsFeature::MassScale | PhysicsFeature::RigidityScale
+                        ) {
+                            RebuildFabric.send(&self.radio);
+                        }
+
                         CrucibleAction::TesterDo(TesterAction::SetPhysicalParameter(
                             parameter.clone(),
                         ))
@@ -399,12 +415,10 @@ impl ApplicationHandler<LabEvent> for Application {
                     self.with_scene(|scene| {
                         scene.update_state(app_change.clone());
                     });
-                    
+
                     // Then check if we toggled ON (not OFF)
                     let is_now_on = self
-                        .with_scene(|scene| {
-                            scene.render_style_shows_attachment_points()
-                        })
+                        .with_scene(|scene| scene.render_style_shows_attachment_points())
                         .unwrap_or(false);
 
                     // Always recalculate attachment connections when toggling ON
@@ -543,7 +557,7 @@ impl ApplicationHandler<LabEvent> for Application {
 
             if animate {
                 self.crucible.iterate(&self.brick_library);
-                
+
                 // Apply any pending camera translation synchronously
                 if let Some(translation) = self.crucible.take_camera_translation() {
                     self.with_scene(|scene| scene.apply_fabric_translation(translation));

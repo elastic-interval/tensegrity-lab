@@ -7,6 +7,7 @@ use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::{LIQUID, PRETENSING};
 use crate::fabric::physics::Physics;
+use crate::{LabEvent, StateChange};
 use crate::units::{Seconds, IMMEDIATE, MOMENT};
 
 #[derive(Clone, Debug, Copy, PartialEq)]
@@ -78,6 +79,10 @@ impl PlanRunner {
                     (GrowApproach, MOMENT)
                 } else if self.shape_phase.needs_shaping() {
                     self.shape_phase.marks = self.build_phase.marks.split_off(0);
+                    // Notify that we're transitioning to shaping
+                    context.send_event(LabEvent::UpdateState(
+                        StateChange::SetStageLabel("Shaping".to_string())
+                    ));
                     (Shaping, IMMEDIATE)
                 } else {
                     (Completed, IMMEDIATE)
@@ -223,11 +228,6 @@ impl PlanRunner {
         // Run pretensing until progress is complete (like the UI does)
         while context.fabric.progress.is_busy() {
             context.fabric.iterate(context.physics);
-        }
-        
-        // Step 4: Create muscles if needed
-        if let Some(muscle_movement) = &runner.pretense_phase.muscle_movement {
-            context.fabric.create_muscles(muscle_movement.contraction);
         }
         
         // Phase 3: Settle with viewing physics (includes gravity)

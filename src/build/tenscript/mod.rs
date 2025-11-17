@@ -15,9 +15,11 @@ use crate::build::tenscript::build_phase::BuildPhase;
 use crate::fabric::face::Face;
 use crate::fabric::{Fabric, UniqueId};
 
+pub mod animate_phase;
 pub mod brick;
 pub mod brick_library;
 pub mod build_phase;
+pub mod converge_phase;
 pub mod fabric_library;
 pub mod fabric_plan;
 pub mod plan_context;
@@ -66,16 +68,16 @@ pub fn parse_usize_inside(pair: Pair<Rule>, spot: &str) -> Result<usize, Tenscri
 pub trait PairExt {
     /// Parse the pair's inner content as a float
     fn parse_float_inner(&self, context: &str) -> Result<f32, TenscriptError>;
-    
+
     /// Parse the pair's inner content as a usize
     fn parse_usize_inner(&self, context: &str) -> Result<usize, TenscriptError>;
-    
+
     /// Parse the pair's string directly as a float
     fn parse_float_str(&self, context: &str) -> Result<f32, TenscriptError>;
-    
+
     /// Parse the pair's string directly as a usize
     fn parse_usize_str(&self, context: &str) -> Result<usize, TenscriptError>;
-    
+
     /// Get the atom string (strips leading ':' if present)
     fn as_atom(&self) -> String;
 }
@@ -84,19 +86,19 @@ impl PairExt for Pair<'_, Rule> {
     fn parse_float_inner(&self, context: &str) -> Result<f32, TenscriptError> {
         parse_float_inside(self.clone(), context)
     }
-    
+
     fn parse_usize_inner(&self, context: &str) -> Result<usize, TenscriptError> {
         parse_usize_inside(self.clone(), context)
     }
-    
+
     fn parse_float_str(&self, context: &str) -> Result<f32, TenscriptError> {
         parse_float(self.as_str(), context)
     }
-    
+
     fn parse_usize_str(&self, context: &str) -> Result<usize, TenscriptError> {
         parse_usize(self.as_str(), context)
     }
-    
+
     fn as_atom(&self) -> String {
         let s = self.as_str();
         if s.starts_with(':') {
@@ -111,16 +113,16 @@ impl PairExt for Pair<'_, Rule> {
 pub trait PairsExt<'i> {
     /// Get the next pair and parse it as a float
     fn next_float(&mut self, context: &str) -> Result<f32, TenscriptError>;
-    
+
     /// Get the next pair and parse it as a usize
     fn next_usize(&mut self, context: &str) -> Result<usize, TenscriptError>;
-    
+
     /// Get the next pair and parse its inner content as a float
     fn next_float_inner(&mut self, context: &str) -> Result<f32, TenscriptError>;
-    
+
     /// Get the next pair and parse its inner content as a usize
     fn next_usize_inner(&mut self, context: &str) -> Result<usize, TenscriptError>;
-    
+
     /// Get the next pair as an atom string
     fn next_atom(&mut self) -> String;
 }
@@ -131,29 +133,27 @@ impl<'i> PairsExt<'i> for Pairs<'i, Rule> {
             .ok_or_else(|| TenscriptError::FormatError(format!("[{context}]: Missing float")))
             .and_then(|p| p.parse_float_str(context))
     }
-    
+
     fn next_usize(&mut self, context: &str) -> Result<usize, TenscriptError> {
         self.next()
             .ok_or_else(|| TenscriptError::FormatError(format!("[{context}]: Missing usize")))
             .and_then(|p| p.parse_usize_str(context))
     }
-    
+
     fn next_float_inner(&mut self, context: &str) -> Result<f32, TenscriptError> {
         self.next()
             .ok_or_else(|| TenscriptError::FormatError(format!("[{context}]: Missing float")))
             .and_then(|p| p.parse_float_inner(context))
     }
-    
+
     fn next_usize_inner(&mut self, context: &str) -> Result<usize, TenscriptError> {
         self.next()
             .ok_or_else(|| TenscriptError::FormatError(format!("[{context}]: Missing usize")))
             .and_then(|p| p.parse_usize_inner(context))
     }
-    
+
     fn next_atom(&mut self) -> String {
-        self.next()
-            .map(|p| p.as_atom())
-            .unwrap_or_default()
+        self.next().map(|p| p.as_atom()).unwrap_or_default()
     }
 }
 

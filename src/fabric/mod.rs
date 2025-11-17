@@ -6,14 +6,13 @@
 use crate::fabric::face::Face;
 use crate::fabric::interval::Span::{Approaching, Fixed, Muscle, Pretenst};
 use crate::fabric::interval::{Interval, Role};
-use crate::fabric::joint::Joint;
+use crate::fabric::joint::{Joint, AMBIENT_MASS};
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
-use crate::units::Seconds;
+use crate::units::{Grams, Millimeters, Seconds};
 use crate::Age;
 use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Transform, Vector3};
-use instant::Instant;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -31,6 +30,62 @@ pub mod vulcanize;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod export;
+
+/// Statistics accumulated during iteration with zero-cost pass-through
+#[derive(Clone, Debug, Default)]
+pub struct IterationStats {
+    pub kinetic_energy: f32,
+    pub max_speed: f32,
+    pub total_mass: f32,
+    pub max_strain: f32,
+    pub strain_sum: f32,
+    pub strain_count: usize,
+    max_speed_squared: f32,
+}
+
+impl IterationStats {
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
+    
+    pub fn avg_strain(&self) -> f32 {
+        if self.strain_count > 0 {
+            self.strain_sum / self.strain_count as f32
+        } else {
+            0.0
+        }
+    }
+    
+    #[inline]
+    pub fn accumulate_strain(&mut self, strain: f32) {
+        let abs_strain = strain.abs();
+        self.strain_sum += abs_strain;
+        self.strain_count += 1;
+        if abs_strain > self.max_strain {
+            self.max_strain = abs_strain;
+        }
+    }
+    
+    #[inline]
+    pub fn accumulate_joint(&mut self, mass: f32, speed_squared: f32) {
+        self.kinetic_energy += 0.5 * mass * speed_squared;
+        self.total_mass += mass;
+    }
+    
+    #[inline]
+    pub fn update_max_speed_squared(&mut self, speed_squared: f32) {
+        if speed_squared > self.max_speed_squared {
+            self.max_speed_squared = speed_squared;
+        }
+    }
+    
+    /// Finalize max_speed by computing sqrt once at the end
+    #[inline]
+    pub fn finalize(&mut self) {
+        self.max_speed = self.max_speed_squared.sqrt();
+    }
+}
+
 /// Represents which end of an interval (alpha or omega)
 /// This is used throughout the fabric module for consistent handling of interval ends
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -72,6 +127,16 @@ pub struct FabricStats {
     pub pull_count: usize,
     pub pull_range: (f32, f32),
     pub pull_total: f32,
+    pub convergence_stats: Option<ConvergenceStats>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ConvergenceStats {
+    pub kinetic_energy: f32,
+    pub max_speed: f32,
+    pub total_mass: f32,
+    pub max_strain: f32,
+    pub avg_strain: f32,
 }
 
 #[derive(Clone, Debug)]
@@ -84,10 +149,8 @@ pub struct Fabric {
     pub interval_count: usize,
     pub faces: HashMap<UniqueId, Face>,
     pub scale: f32,
-    muscle_forward: Option<bool>,
-    muscle_nuance: f32,
-    last_direction_change: Option<Instant>,
-    frozen: bool,
+    pub frozen: bool,
+    pub stats: IterationStats,
 }
 
 impl Fabric {
@@ -101,10 +164,8 @@ impl Fabric {
             interval_count: 0,
             faces: HashMap::new(),
             scale: 1.0,
-            muscle_forward: None,
-            muscle_nuance: 0.5,
-            last_direction_change: None,
             frozen: false,
+            stats: IterationStats::default(),
         }
     }
 
@@ -146,6 +207,15 @@ impl Fabric {
     pub fn apply_translation(&mut self, translation: Vector3<f32>) {
         for joint in self.joints.iter_mut() {
             joint.location += translation;
+        }
+    }
+
+    /// Zero out all joint velocities and forces
+    /// Useful when freezing the fabric to prevent accumulated velocity artifacts
+    pub fn zero_velocities(&mut self) {
+        for joint in self.joints.iter_mut() {
+            joint.velocity = zero();
+            joint.force = zero();
         }
     }
 
@@ -231,36 +301,55 @@ impl Fabric {
             return 0.0;
         }
         
+        // Reset stats for this iteration
+        self.stats.reset();
+        
         for joint in &mut self.joints {
             joint.reset();
         }
         
+        // Accumulate strain stats during interval iteration
         for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
             let interval = interval_opt.as_mut().unwrap();
             interval.iterate(
                 &mut self.joints,
                 &self.progress,
-                self.muscle_nuance,
+                0.5, // muscle_nuance - only used during animation by Animator
                 self.scale,
+                physics,
             );
+            
+            // Accumulate strain (zero-cost pass-through)
+            self.stats.accumulate_strain(interval.strain);
         }
-        let elapsed = self.age.tick();
+        let elapsed = self.age.tick_scaled(physics.dt_scale);
         
-        // Check for excessive speed during joint iteration (indicates instability/NaN)
+        // Check for excessive speed and accumulate velocity/energy stats
         const MAX_SPEED_SQUARED: f32 = 1000.0 * 1000.0; // (mm per tick)²
         let mut max_speed_squared = 0.0;
         
         for joint in self.joints.iter_mut() {
             joint.iterate(physics, self.scale);
+            
+            // Accumulate stats (zero-cost - already computing these values)
             let speed_squared = joint.velocity.magnitude2();
+            let mass = *joint.accumulated_mass;
+            
+            self.stats.accumulate_joint(mass, speed_squared);
+            self.stats.update_max_speed_squared(speed_squared);
+            
             if speed_squared > max_speed_squared {
                 max_speed_squared = speed_squared;
             }
         }
         
+        // Finalize stats (compute sqrt once at the end)
+        self.stats.finalize();
+        
         if max_speed_squared > MAX_SPEED_SQUARED || max_speed_squared.is_nan() {
             eprintln!("Excessive speed detected: {:.2} mm/tick - freezing fabric", 
                       max_speed_squared.sqrt());
+            self.zero_velocities();
             self.frozen = true;
             return 0.0;
         }
@@ -283,86 +372,18 @@ impl Fabric {
                 }
             }
         }
-        if let Some(forward) = self.muscle_forward {
-            let increment = 1.0 / physics.cycle_ticks * if forward { 1.0 } else { -1.0 };
-            // Update the muscle_nuance value
-            self.muscle_nuance += increment;
-            // Update muscle_nuance value based on direction
-
-            if self.muscle_nuance < 0.0 {
-                self.muscle_nuance = 0.0;
-                self.muscle_forward = Some(true);
-
-                // Track time for direction change
-                self.last_direction_change = Some(Instant::now());
-            } else if self.muscle_nuance > 1.0 {
-                self.muscle_nuance = 1.0;
-                self.muscle_forward = Some(false);
-
-                // Track time for direction change
-                self.last_direction_change = Some(Instant::now());
-            }
-        } else {
-            // Muscles are disabled - nothing to do
-        }
         
         elapsed.as_micros() as f32
     }
-
-    pub fn create_muscles(&mut self, contraction: f32) {
-        self.muscle_nuance = 0.5;
-
-        for interval_opt in self.intervals.iter_mut() {
-            if let Some(interval) = interval_opt {
-                if interval.role == Role::North || interval.role == Role::South {
-                    match interval.span {
-                        Fixed { length: rest_length } => {
-                            let contracted_length = rest_length * contraction;
-                            if interval.role == Role::North {
-                                interval.span = Muscle {
-                                    rest_length,
-                                    contracted_length,
-                                    reverse: false,
-                                };
-                            } else if interval.role == Role::South {
-                                interval.span = Muscle {
-                                    rest_length,
-                                    contracted_length,
-                                    reverse: true,
-                                };
-                            }
-                        }
-                        _ => {
-                            // (intentionally left blank)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn activate_muscles(&mut self, go: bool) {
-        // Check if we're changing the animation state
-        let animation_state_changed = match (self.muscle_forward, go) {
-            (None, true) => true,     // Turning animation on
-            (Some(_), false) => true, // Turning animation off
-            _ => false,               // No change in animation state
-        };
-
-        // Set the new muscle_forward value
-        // When go is true, set to Some(true) to start animation
-        // When go is false, set to None to stop animation
-        self.muscle_forward = if go { Some(true) } else { None };
-
-        // Only reset the muscle_nuance value if the animation state changed
-        if animation_state_changed {
-            self.muscle_nuance = 0.5;
-
-            // Reset the time tracking when animation state changes
-            self.last_direction_change = None;
-        }
-
-        // No additional processing needed
+    
+    /// Calculate total kinetic energy of the system
+    pub fn kinetic_energy(&self) -> f32 {
+        self.joints.iter()
+            .map(|joint| {
+                let speed_squared = joint.velocity.magnitude2();
+                0.5 * *joint.accumulated_mass * speed_squared
+            })
+            .sum()
     }
 
     pub fn midpoint(&self) -> Point3<f32> {
@@ -480,7 +501,46 @@ impl Fabric {
             pull_count,
             pull_range,
             pull_total,
+            convergence_stats: None,
         }
+    }
+    
+    /// Calculate total mass from intervals using current physics
+    /// This is done on-demand rather than cached, so it always reflects current physics.mass_scale
+    fn calculate_total_mass(&self, physics: &Physics) -> Grams {
+        let mut total_mass = Grams(0.0);
+        
+        // Add ambient mass for each joint
+        total_mass += AMBIENT_MASS * self.joints.len() as f32;
+        
+        // Add mass from each interval
+        for interval_opt in &self.intervals {
+            if let Some(interval) = interval_opt {
+                let alpha = &self.joints[interval.alpha_index];
+                let omega = &self.joints[interval.omega_index];
+                let real_length = (omega.location - alpha.location).magnitude();
+                let interval_mass = interval.material.linear_density(physics) * Millimeters(real_length * self.scale);
+                total_mass += interval_mass;
+            }
+        }
+        
+        total_mass
+    }
+    
+    pub fn stats_with_convergence(&self, physics: &Physics) -> FabricStats {
+        let mut stats = self.fabric_stats();
+        
+        // Calculate total mass fresh using current physics
+        let total_mass = self.calculate_total_mass(physics);
+        
+        stats.convergence_stats = Some(ConvergenceStats {
+            kinetic_energy: self.stats.kinetic_energy,
+            max_speed: self.stats.max_speed,
+            total_mass: *total_mass,
+            max_strain: self.stats.max_strain,
+            avg_strain: self.stats.avg_strain(),
+        });
+        stats
     }
 }
 
