@@ -2,20 +2,21 @@ use crate::build::tenscript::animate_phase::{AnimatePhase, MuscleDirection};
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::interval::Span;
 use crate::fabric::UniqueId;
+use crate::ITERATIONS_PER_FRAME;
 use crate::TICK_DURATION;
 use cgmath::InnerSpace;
 
 /// Animation cycle phase - whether muscles are contracting or relaxing
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AnimationPhase {
-    Relaxing,     // Moving from contracted to rest length
-    Contracting,  // Moving from rest to contracted length
+    Relaxing,    // Moving from contracted to rest length
+    Contracting, // Moving from rest to contracted length
 }
 
 /// Handles animation of muscle intervals
-/// 
-/// The Animator wraps specified intervals and progressively adjusts their ideal 
-/// lengths to create animation. Outside of the Animator, the system is unaware 
+///
+/// The Animator wraps specified intervals and progressively adjusts their ideal
+/// lengths to create animation. Outside of the Animator, the system is unaware
 /// of this "sorcery" - it just sees intervals with changing ideal lengths.
 pub struct Animator {
     muscle_nuance: f32,
@@ -27,16 +28,16 @@ impl Animator {
     /// Create a new Animator with the animate phase specification
     pub fn new(animate_phase: AnimatePhase, context: &mut CrucibleContext) -> Self {
         let contraction = animate_phase.contraction.unwrap_or(0.9);
-        
+
         // Calculate cycle_ticks from frequency (Hz = cycles/second)
         // ticks_per_cycle = seconds_per_cycle / seconds_per_tick
         //                 = (1 / frequency_hz) / tick_duration_seconds
         let tick_duration_seconds = TICK_DURATION.as_secs_f32();
         let cycle_ticks = 1.0 / (animate_phase.frequency_hz * tick_duration_seconds);
-        
+
         // Wrap the specified intervals in Muscle spans
         Self::wrap_muscles(context, &animate_phase.muscle_intervals, contraction);
-        
+
         Self {
             muscle_nuance: 0.5,
             animation_phase: AnimationPhase::Relaxing,
@@ -55,11 +56,16 @@ impl Animator {
             // Find the interval with these endpoints
             for interval_opt in context.fabric.intervals.iter_mut() {
                 if let Some(interval) = interval_opt {
-                    let matches = (interval.alpha_index == alpha_id.0 && interval.omega_index == omega_id.0)
-                        || (interval.alpha_index == omega_id.0 && interval.omega_index == alpha_id.0);
-                    
+                    let matches = (interval.alpha_index == alpha_id.0
+                        && interval.omega_index == omega_id.0)
+                        || (interval.alpha_index == omega_id.0
+                            && interval.omega_index == alpha_id.0);
+
                     if matches {
-                        if let Span::Fixed { length: rest_length } = interval.span {
+                        if let Span::Fixed {
+                            length: rest_length,
+                        } = interval.span
+                        {
                             let contracted_length = rest_length * contraction;
                             interval.span = Span::Muscle {
                                 rest_length,
@@ -79,7 +85,9 @@ impl Animator {
         for interval_opt in context.fabric.intervals.iter_mut() {
             if let Some(interval) = interval_opt {
                 if let Span::Muscle { rest_length, .. } = interval.span {
-                    interval.span = Span::Fixed { length: rest_length };
+                    interval.span = Span::Fixed {
+                        length: rest_length,
+                    };
                 }
             }
         }
@@ -87,10 +95,11 @@ impl Animator {
 
     pub fn iterate(&mut self, context: &mut CrucibleContext) {
         // Update muscle_nuance based on animation phase
-        let increment = 1.0 / self.cycle_ticks * match self.animation_phase {
-            AnimationPhase::Relaxing => 1.0,
-            AnimationPhase::Contracting => -1.0,
-        };
+        let increment = 1.0 / self.cycle_ticks
+            * match self.animation_phase {
+                AnimationPhase::Relaxing => 1.0,
+                AnimationPhase::Contracting => -1.0,
+            };
         self.muscle_nuance += increment;
 
         // Reverse direction at boundaries
@@ -104,7 +113,7 @@ impl Animator {
 
         // Iterate physics - muscles will use the current muscle_nuance
         // to calculate their ideal lengths
-        for _ in context.physics.iterations() {
+        for _ in 0..ITERATIONS_PER_FRAME {
             self.iterate_fabric_with_muscles(context);
         }
     }
@@ -137,7 +146,7 @@ impl Animator {
             context.fabric.stats.accumulate_strain(interval.strain);
         }
 
-        let elapsed = context.fabric.age.tick_scaled(context.physics.dt_scale);
+        let elapsed = context.fabric.age.tick_scaled(context.physics.time_scale);
 
         // Check for excessive speed and accumulate velocity/energy stats
         const MAX_SPEED_SQUARED: f32 = 1000.0 * 1000.0; // (mm per tick)²

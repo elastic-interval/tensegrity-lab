@@ -1,18 +1,17 @@
 #[allow(dead_code)]
-
 use crate::build::tenscript::brick::Prototype;
 use crate::build::tenscript::FabricPlan;
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::{FabricStats, UniqueId};
 use crate::wgpu::Wgpu;
 use cgmath::{Point3, Vector3};
+use instant::Instant;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::ops::Mul;
 use std::rc::Rc;
-use instant::Instant;
 use winit::dpi::PhysicalPosition;
 
 pub mod application;
@@ -28,7 +27,6 @@ pub mod pointer;
 pub mod scene;
 pub mod units;
 
-pub mod testing;
 pub mod wgpu;
 
 use std::time::Duration;
@@ -45,6 +43,9 @@ impl Display for Age {
 /// Duration of each physics iteration tick
 pub const TICK_DURATION: Duration = Duration::from_micros(50);
 
+/// Number of physics iterations per frame
+pub const ITERATIONS_PER_FRAME: usize = 1200;
+
 impl Default for Age {
     fn default() -> Self {
         Self(Duration::ZERO)
@@ -56,7 +57,7 @@ impl Age {
         self.0 += TICK_DURATION;
         TICK_DURATION
     }
-    
+
     pub fn tick_scaled(&mut self, dt_scale: f32) -> Duration {
         let scaled_duration = TICK_DURATION.mul_f32(dt_scale);
         self.0 += scaled_duration;
@@ -74,21 +75,18 @@ impl Age {
     pub fn within(&self, limit: &Self) -> bool {
         self.0 < limit.0
     }
-    
+
     pub fn as_duration(&self) -> Duration {
         self.0
     }
 }
 
-
+// Actual physics parameters that affect simulation behavior
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PhysicsFeature {
     Pretenst,
     Viscosity,
     Drag,
-    StrainLimit,
-    MassScale,
-    RigidityScale,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -106,10 +104,30 @@ impl PhysicsFeature {
     }
 }
 
+// Tweak parameters that scale/modify the physics (user-controlled view on physics)
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TweakFeature {
+    MassScale,
+    RigidityScale,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TweakParameter {
+    pub feature: TweakFeature,
+    pub value: f32,
+}
+
+impl TweakFeature {
+    pub fn parameter(self, value: f32) -> TweakParameter {
+        TweakParameter {
+            feature: self,
+            value,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum TestScenario {
-    TensionTest,
-    CompressionTest,
     PhysicsTest,
     MachineTest(String),
 }
@@ -302,7 +320,7 @@ impl Display for JointDetails {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let location_mm = self.location_mm();
         let height_m = location_mm.y / 1000.0; // Convert mm to meters
-        
+
         let surface_location = match self.surface_location_mm() {
             None => "".into(),
             Some((x, z)) => format!(" at ({x:.1} mm, {z:.1} mm)"),
@@ -348,7 +366,6 @@ pub enum ControlState {
     Converged,
     ShowingJoint(JointDetails),
     ShowingInterval(IntervalDetails),
-    FailureTesting(TestScenario),
     PhysicsTesting(TestScenario),
     Baking,
     UnderConstruction, // Deprecated - use Building instead
@@ -362,9 +379,8 @@ impl ControlState {
 
 #[derive(Debug, Clone)]
 pub enum TesterAction {
-    PrevExperiment,
-    NextExperiment,
     SetPhysicalParameter(PhysicsParameter),
+    SetTweakParameter(TweakParameter),
     DumpPhysics,
 }
 
@@ -374,12 +390,9 @@ pub enum CrucibleAction {
     BuildFabric(FabricPlan),
     ToViewing,
     ToAnimating,
-    ToFailureTesting(TestScenario),
     ToPhysicsTesting(TestScenario),
     ToEvolving(u64),
     TesterDo(TesterAction),
-    IncreaseMass,
-    IncreaseRigidity,
 }
 
 impl CrucibleAction {
@@ -421,7 +434,7 @@ impl Appearance {
                     ],
                     radius: self.radius,
                 }
-            },
+            }
             AppearanceMode::HighlightedPush => Self {
                 color: [0.4, 0.4, 0.9, 1.0], // Bluish color for highlighted elements
                 radius: self.radius,         // Keep radius unchanged
@@ -486,6 +499,7 @@ pub enum StateChange {
     },
     SetKeyboardLegend(String),
     SetPhysicsParameter(PhysicsParameter),
+    SetTweakParameter(TweakParameter),
     Time {
         frames_per_second: f32,
         age: Age,
@@ -510,6 +524,7 @@ impl Debug for StateChange {
             StateChange::SetExperimentTitle { .. } => "SetExperimentTitle()",
             StateChange::SetKeyboardLegend(_) => "SetKeyboardLegend()",
             StateChange::SetPhysicsParameter(_) => "SetPhysicsParameter()",
+            StateChange::SetTweakParameter(_) => "SetTweakParameter()",
             StateChange::Time { .. } => "Time()",
             StateChange::ToggleProjection => "ToggleProjection",
             StateChange::ToggleAttachmentPoints => "ToggleAttachmentPoints",

@@ -3,10 +3,7 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 use crate::units::{MillimetersPerMicrosecondSquared, EARTH_GRAVITY};
-use crate::{PhysicsFeature, PhysicsParameter, Radio, StateChange};
-
-/// Base number of physics iterations per frame (can be reduced adaptively)
-pub const BASE_ITERATIONS_PER_FRAME: usize = 1200;
+use crate::{PhysicsFeature, PhysicsParameter, Radio, StateChange, TweakFeature, TweakParameter};
 
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -39,49 +36,65 @@ impl SurfaceCharacter {
     }
 }
 
+/// Core physics environment - what the world is like
 #[derive(Debug, Clone)]
 pub struct Physics {
-    // Environmental damping (current values, modified during convergence)
     pub drag: f32,
     pub viscosity: f32,
     pub surface_character: SurfaceCharacter,
-    
-    // Base damping values (stored at convergence start)
-    pub base_drag: f32,
-    pub base_viscosity: f32,
-    pub base_dt_scale: f32,
-    
-    // Base material properties (user-controlled, persistent)
-    pub base_rigidity_scale: f32,
-    pub base_mass_scale: f32,
-    
-    // Effective material properties (base × convergence multipliers)
-    pub rigidity_scale: f32,
-    pub mass_scale: f32,
-    
-    // Temporal parameters
-    pub dt_scale: f32,
-    pub iterations_per_frame: usize,
-    
-    // Legacy/UI parameters
+    pub time_scale: f32,
     pub pretenst: f32,
-    pub strain_limit: f32,
-    
-    // Convergence tracking
-    pub convergence: Option<ConvergenceState>,
+    pub tweak: Tweak,
 }
 
+/// Optional modification layer on top of base physics
 #[derive(Debug, Clone)]
-pub struct ConvergenceState {
+pub enum Tweak {
+    None,
+    Scaling(ScalingTweak),
+    Convergence(ConvergenceTweak),
+}
+
+/// User-controlled scaling for experimentation
+#[derive(Debug, Clone)]
+pub struct ScalingTweak {
+    pub mass_scale: f32,
+    pub rigidity_scale: f32,
+}
+
+/// Temporary automated modifications to help structures settle
+#[derive(Debug, Clone)]
+pub struct ConvergenceTweak {
     pub enabled: bool,
     pub started: bool,
+    pub base_physics: Box<Physics>,
+    pub drag_multiplier: f32,
+    pub viscosity_multiplier: f32,
+    pub time_scale_multiplier: f32,
 }
 
-impl ConvergenceState {
-    pub fn new(enabled: bool) -> Self {
+impl ConvergenceTweak {
+    pub fn new(physics: &Physics) -> Self {
+        // Clone physics but without tweak to avoid recursion
+        let mut base = physics.clone();
+        base.tweak = Tweak::None;
+        
         Self { 
-            enabled,
+            enabled: true,
             started: false,
+            base_physics: Box::new(base),
+            drag_multiplier: 1.0,
+            viscosity_multiplier: 1.0,
+            time_scale_multiplier: 1.0,
+        }
+    }
+}
+
+impl ScalingTweak {
+    pub fn new(mass_scale: f32, rigidity_scale: f32) -> Self {
+        Self {
+            mass_scale,
+            rigidity_scale,
         }
     }
 }
@@ -93,136 +106,152 @@ impl Physics {
         match feature {
             Drag => self.drag = value,
             Pretenst => self.pretenst = value,
-            StrainLimit => self.strain_limit = value,
             Viscosity => self.viscosity = value,
-            MassScale => {
-                self.base_mass_scale = value;
-                self.update_effective_scales();
-            },
-            RigidityScale => {
-                self.base_rigidity_scale = value;
-                self.update_effective_scales();
-            }
         }
     }
     
-    /// Update effective scales from base scales
-    pub fn update_effective_scales(&mut self) {
-        self.rigidity_scale = self.base_rigidity_scale;
-        self.mass_scale = self.base_mass_scale;
-    }
-
     pub fn broadcast(&self, radio: &Radio) {
         use PhysicsFeature::*;
-        let parameters = [
+        
+        let physics_params = [
             Drag.parameter(self.drag),
             Pretenst.parameter(self.pretenst),
-            StrainLimit.parameter(self.strain_limit),
             Viscosity.parameter(self.viscosity),
-            MassScale.parameter(self.base_mass_scale),
-            RigidityScale.parameter(self.base_rigidity_scale),
         ];
-        for p in parameters {
+        for p in physics_params {
             StateChange::SetPhysicsParameter(p).send(radio);
         }
     }
+    
+    pub fn broadcast_with_tweaks(&self, radio: &Radio) {
+        use TweakFeature::*;
+        
+        // Broadcast physics first
+        self.broadcast(radio);
+        
+        // Then broadcast tweaks if present
+        if let Tweak::Scaling(s) = &self.tweak {
+            let tweak_params = [
+                MassScale.parameter(s.mass_scale),
+                RigidityScale.parameter(s.rigidity_scale),
+            ];
+            for p in tweak_params {
+                StateChange::SetTweakParameter(p).send(radio);
+            }
+        }
+    }
 
-    pub fn iterations(&self) -> std::ops::Range<usize> {
-        0..self.iterations_per_frame
+    /// Accept a tweak parameter (mass/rigidity scaling)
+    pub fn accept_tweak(&mut self, parameter: TweakParameter) {
+        use TweakFeature::*;
+        let TweakParameter { feature, value } = parameter;
+        
+        // Get or create scaling tweak
+        let scaling = match &mut self.tweak {
+            Tweak::Scaling(s) => s,
+            _ => {
+                self.tweak = Tweak::Scaling(ScalingTweak::new(1.0, 1.0));
+                if let Tweak::Scaling(s) = &mut self.tweak {
+                    s
+                } else {
+                    unreachable!()
+                }
+            }
+        };
+        
+        match feature {
+            MassScale => scaling.mass_scale = value,
+            RigidityScale => scaling.rigidity_scale = value,
+        }
+    }
+    
+    /// Get mass scale (from tweak or default 1.0)
+    pub fn mass_scale(&self) -> f32 {
+        match &self.tweak {
+            Tweak::Scaling(s) => s.mass_scale,
+            _ => 1.0,
+        }
+    }
+    
+    /// Get rigidity scale (from tweak or default 1.0)
+    pub fn rigidity_scale(&self) -> f32 {
+        match &self.tweak {
+            Tweak::Scaling(s) => s.rigidity_scale,
+            _ => 1.0,
+        }
     }
     
     /// Update convergence based on time progress (0.0 to 1.0)
     /// Gradually increases damping to slow the system down over time
     pub fn update_convergence_progress(&mut self, progress: f32) {
-        // Store base values on first call
-        if let Some(conv) = &mut self.convergence {
+        if let Tweak::Convergence(conv) = &mut self.tweak {
             if !conv.started {
-                self.base_drag = self.drag;
-                self.base_viscosity = self.viscosity;
-                self.base_dt_scale = self.dt_scale;
                 conv.started = true;
             }
+            
+            // Apply progressive multipliers to damping
+            // This gradually slows the system down
+            let damping_mult = 1.0 + progress.powi(3) * 50.0;
+            
+            // Update multipliers
+            conv.drag_multiplier = damping_mult;
+            conv.viscosity_multiplier = damping_mult;
+            conv.time_scale_multiplier = 1.0 + progress * 0.5;
+            
+            // Apply to current physics values
+            self.drag = conv.base_physics.drag * conv.drag_multiplier;
+            self.viscosity = conv.base_physics.viscosity * conv.viscosity_multiplier;
+            self.time_scale = conv.base_physics.time_scale * conv.time_scale_multiplier;
         }
-        
-        // Calculate damping multiplier based on progress
-        // progress^3 gives a smooth ramp-up that accelerates near the end
-        let damping_mult = 1.0 + progress.powi(3) * 50.0;
-        
-        // Set values based on base, don't multiply repeatedly
-        self.drag = self.base_drag * damping_mult;
-        self.viscosity = self.base_viscosity * damping_mult;
-        self.dt_scale = self.base_dt_scale * (1.0 + progress * 0.5);
     }
     
-    /// Enable convergence tracking with default settings
+    /// Enable convergence tracking
     pub fn enable_convergence(&mut self) {
-        self.convergence = Some(ConvergenceState::new(true));
+        self.tweak = Tweak::Convergence(ConvergenceTweak::new(self));
     }
     
     /// Disable convergence tracking
     pub fn disable_convergence(&mut self) {
-        if let Some(conv) = &mut self.convergence {
-            conv.enabled = false;
+        if let Tweak::Convergence(conv) = &self.tweak {
+            if conv.enabled {
+                // Restore base physics
+                let base = conv.base_physics.clone();
+                *self = *base;
+            }
         }
+        self.tweak = Tweak::None;
     }
-    
 }
 
+
 pub mod presets {
-    use crate::fabric::physics::{Physics, BASE_ITERATIONS_PER_FRAME};
+    use crate::fabric::physics::{Physics, Tweak};
     use crate::fabric::physics::SurfaceCharacter::{Absent, Frozen};
 
     pub const LIQUID: Physics = Physics {
         drag: 0.0125,
         viscosity: 40.0,
         surface_character: Absent,
-        base_drag: 0.0125,
-        base_viscosity: 40.0,
-        base_dt_scale: 1.0,
-        base_rigidity_scale: 0.00001,
-        base_mass_scale: 0.00001,
-        rigidity_scale: 0.0001,
-        mass_scale: 0.0001,
-        dt_scale: 1.0,
-        iterations_per_frame: BASE_ITERATIONS_PER_FRAME,
+        time_scale: 1.0,
         pretenst: 20.0,
-        strain_limit: 1_000.0,
-        convergence: None,
+        tweak: Tweak::None,
     };
 
     pub const AIR_GRAVITY: Physics = Physics {
         drag: 0.01,
         viscosity: 0.5,
         surface_character: Frozen,
-        base_drag: 0.01,
-        base_viscosity: 0.5,
-        base_dt_scale: 1.0,
-        base_rigidity_scale: 1.0,
-        base_mass_scale: 1.0,
-        rigidity_scale: 1.0,
-        mass_scale: 1.0,
-        dt_scale: 1.0,
-        iterations_per_frame: BASE_ITERATIONS_PER_FRAME,
+        time_scale: 1.0,
         pretenst: 3.0,
-        strain_limit: 0.02,
-        convergence: None,
+        tweak: Tweak::None,
     };
 
     pub const PRETENSING: Physics = Physics {
         drag: 25.0,
         viscosity: 4.0,
         surface_character: Absent,
-        base_drag: 25.0,
-        base_viscosity: 4.0,
-        base_dt_scale: 1.0,
-        base_rigidity_scale: 1.0,
-        base_mass_scale: 1.0,
-        rigidity_scale: 1.0,
-        mass_scale: 1.0,
-        dt_scale: 1.0,
-        iterations_per_frame: BASE_ITERATIONS_PER_FRAME,
+        time_scale: 1.0,
         pretenst: 3.0,
-        strain_limit: 0.02,
-        convergence: None,
+        tweak: Tweak::None,
     };
 }

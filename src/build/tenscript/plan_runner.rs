@@ -9,6 +9,7 @@ use crate::fabric::physics::presets::{LIQUID, PRETENSING};
 use crate::fabric::physics::Physics;
 use crate::{LabEvent, StateChange};
 use crate::units::{Seconds, IMMEDIATE, MOMENT};
+use crate::ITERATIONS_PER_FRAME;
 
 #[derive(Clone, Debug, Copy, PartialEq)]
 enum Stage {
@@ -56,7 +57,7 @@ impl PlanRunner {
     }
 
     pub fn iterate(&mut self, context: &mut CrucibleContext) -> Result<(), TenscriptError> {
-        for _ in context.physics.iterations() {
+        for _ in 0..ITERATIONS_PER_FRAME {
             context.fabric.iterate(context.physics);
         }
 

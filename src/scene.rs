@@ -9,7 +9,6 @@ use crate::{
     ControlState, PointerChange, Radio, RenderStyle, StateChange, TestScenario,
     SHOW_ATTACHMENT_POINTS,
 };
-use std::collections::HashMap;
 use std::rc::Rc;
 use winit::dpi::PhysicalSize;
 
@@ -78,24 +77,6 @@ impl Scene {
                 }
                 ShowingJoint(_) | ShowingInterval(_) => {
                     self.pick_allowed = true;
-                }
-                FailureTesting(scenario) => {
-                    self.reset();
-                    match scenario {
-                        TensionTest => {
-                            self.render_style = WithPullMap {
-                                map: HashMap::new(),
-                                show_attachment_points: false,
-                            }
-                        }
-                        CompressionTest => {
-                            self.render_style = WithPushMap {
-                                map: HashMap::new(),
-                                show_attachment_points: false,
-                            }
-                        }
-                        _ => unreachable!(),
-                    }
                 }
                 PhysicsTesting(scenario) => {
                     self.reset();

@@ -130,17 +130,6 @@ impl TextState {
             self.update_section(
                 SectionName::Top,
                 match control_state {
-                    FailureTesting(scenario) => match scenario {
-                        TestScenario::TensionTest => Large(format!(
-                            "Tension test of {} {}",
-                            fabric_name, self.experiment_title
-                        )),
-                        TestScenario::CompressionTest => Large(format!(
-                            "Compression test of {} {}",
-                            fabric_name, self.experiment_title
-                        )),
-                        _ => unreachable!(),
-                    },
                     PhysicsTesting(scenario) => match scenario {
                         TestScenario::PhysicsTest => Large(format!(
                             "Physics test of {} {}",
@@ -210,7 +199,7 @@ impl TextState {
                         pull_total,
                         age,
                         scale,
-                        convergence_stats,
+                        dynamic_stats,
                         ..
                     } = fabric_stats;
                     
@@ -235,20 +224,23 @@ impl TextState {
                     );
                     
                     // Add convergence stats if present (end of time)
-                    if let Some(conv) = convergence_stats {
-                        let speed_mm_per_us = conv.max_speed / 50.0;
+                    if let Some(conv) = dynamic_stats {
+                        // Convert from mm/µs to m/s: mm/µs * 1000 = m/s
+                        let speed_m_per_s = conv.max_speed * 1000.0;
                         let mass_kg = conv.total_mass / 1000.0;
                         
                         text.push_str(&format!(
                             "\n\n\
+                             Height: {:.3}m\n\
                              KE: {:.2e} g·mm²/µs²\n\
                              Mass: {:.2}kg\n\
-                             Max Speed: {:.3e} mm/µs\n\
+                             Max Speed: {:.2} m/s\n\
                              Max Strain: {:.3}\n\
                              Avg Strain: {:.3}",
+                            conv.max_height * scale / 1000.0,
                             conv.kinetic_energy,
                             mass_kg,
-                            speed_mm_per_us,
+                            speed_m_per_s,
                             conv.max_strain,
                             conv.avg_strain,
                         ));
