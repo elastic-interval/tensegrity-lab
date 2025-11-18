@@ -5,7 +5,7 @@ use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
 use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible_context::CrucibleContext;
-use crate::fabric::physics::presets::{LIQUID, PRETENSING};
+use crate::fabric::physics::presets::{CONSTRUCTION, PRETENSING};
 use crate::fabric::physics::Physics;
 use crate::{LabEvent, StateChange};
 use crate::units::{Seconds, IMMEDIATE, MOMENT};
@@ -42,7 +42,7 @@ impl PlanRunner {
         }: FabricPlan,
     ) -> Self {
         Self {
-            physics: LIQUID,
+            physics: CONSTRUCTION,
             shape_phase,
             build_phase,
             pretense_phase,
@@ -155,7 +155,7 @@ impl PlanRunner {
         context.fabric.scale = runner.get_scale();
         
         // Phase 1: Build with LIQUID physics
-        *context.physics = LIQUID;
+        *context.physics = CONSTRUCTION;
         runner.build_phase.init(context.fabric, context.brick_library)?;
         
         while runner.build_phase.is_growing() {

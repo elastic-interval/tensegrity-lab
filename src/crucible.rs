@@ -8,7 +8,7 @@ use crate::build::tenscript::pretenser::Pretenser;
 use crate::build::tenscript::FabricPlan;
 use crate::crucible::Stage::*;
 use crate::crucible_context::CrucibleContext;
-use crate::fabric::physics::presets::AIR_GRAVITY;
+use crate::fabric::physics::presets::BASE_PHYSICS;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::fabric::physics_test::PhysicsTester;
@@ -42,7 +42,7 @@ impl Crucible {
             stage: Empty,
             radio,
             fabric: Fabric::new("Empty".to_string()),
-            physics: AIR_GRAVITY,
+            physics: BASE_PHYSICS,
             pending_camera_translation: None,
             fabric_plan: None,
         }

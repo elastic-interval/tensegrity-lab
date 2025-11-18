@@ -4,7 +4,7 @@ mod tests {
     use crate::build::tenscript::fabric_library::FabricLibrary;
     use crate::build::tenscript::plan_context::PlanContext;
     use crate::build::tenscript::plan_runner::PlanRunner;
-    use crate::fabric::physics::presets::AIR_GRAVITY;
+    use crate::fabric::physics::presets::BASE_PHYSICS;
     use crate::fabric::Fabric;
 
     #[test]
@@ -27,7 +27,7 @@ mod tests {
 
         // Create fabric and physics
         let mut fabric = Fabric::new(plan.name.clone());
-        let mut physics = AIR_GRAVITY;
+        let mut physics = BASE_PHYSICS;
 
         // Create context
         let mut context = PlanContext::new(&mut fabric, &mut physics, &brick_library);
