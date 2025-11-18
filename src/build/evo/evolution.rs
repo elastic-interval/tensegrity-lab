@@ -1,6 +1,6 @@
 use crate::build::evo::evolving_push::EvolvingPush;
 use crate::crucible_context::CrucibleContext;
-use crate::fabric::physics::presets::LIQUID;
+use crate::fabric::physics::presets::CONSTRUCTION;
 use crate::fabric::Fabric;
 use crate::fabric::IntervalEnd;
 use crate::ITERATIONS_PER_FRAME;
@@ -30,7 +30,7 @@ impl Evolution {
     }
 
     pub fn adopt_physica(&self, context: &mut CrucibleContext) {
-        *context.physics = LIQUID;
+        *context.physics = CONSTRUCTION;
     }
 
     pub fn iterate(&mut self, context: &mut CrucibleContext) {

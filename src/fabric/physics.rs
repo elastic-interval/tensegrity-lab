@@ -228,7 +228,7 @@ pub mod presets {
     use crate::fabric::physics::{Physics, Tweak};
     use crate::fabric::physics::SurfaceCharacter::{Absent, Frozen};
 
-    pub const LIQUID: Physics = Physics {
+    pub const CONSTRUCTION: Physics = Physics {
         drag: 0.0125,
         viscosity: 40.0,
         surface_character: Absent,
@@ -246,7 +246,7 @@ pub mod presets {
         tweak: Tweak::None,
     };
 
-    pub const AIR_GRAVITY: Physics = Physics {
+    pub const BASE_PHYSICS: Physics = Physics {
         drag: 0.01,
         viscosity: 0.5,
         surface_character: Frozen,

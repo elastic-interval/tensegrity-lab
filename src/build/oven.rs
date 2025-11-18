@@ -1,6 +1,6 @@
 use crate::build::tenscript::brick::{Baked, Prototype};
 use crate::crucible_context::CrucibleContext;
-use crate::fabric::physics::presets::LIQUID;
+use crate::fabric::physics::presets::CONSTRUCTION;
 use crate::ITERATIONS_PER_FRAME;
 use crate::fabric::Fabric;
 use crate::{Radio, StateChange};
@@ -26,7 +26,7 @@ impl Oven {
     }
 
     pub fn copy_physics_into(&self, context: &mut CrucibleContext) {
-        *context.physics = LIQUID;
+        *context.physics = CONSTRUCTION;
     }
 
     pub fn iterate(&mut self, context: &mut CrucibleContext) -> Option<Baked> {

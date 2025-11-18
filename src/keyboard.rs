@@ -1,4 +1,4 @@
-use crate::fabric::physics::presets::AIR_GRAVITY;
+use crate::fabric::physics::presets::BASE_PHYSICS;
 use crate::{
     ControlState, CrucibleAction, LabEvent, PhysicsFeature, PhysicsParameter, Radio, StateChange,
     TestScenario, TesterAction, TweakFeature, TweakParameter,
@@ -101,7 +101,7 @@ impl Keyboard {
             "p",
             PhysicsParameter {
                 feature: PhysicsFeature::Pretenst,
-                value: AIR_GRAVITY.pretenst,
+                value: BASE_PHYSICS.pretenst,
             },
             Box::new(|value| format!("Pretenst {value:.3}")),
             Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),
