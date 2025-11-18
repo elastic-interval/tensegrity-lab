@@ -113,6 +113,9 @@ impl Crucible {
 
                     // Check if converge phase is specified
                     if let Some(converge_phase) = self.fabric_plan.as_ref().and_then(|p| p.converge_phase.as_ref()) {
+                        // Enable convergence mode in physics
+                        context.physics.enable_convergence();
+                        
                         // Transition to Converging stage with specified time
                         // Send initial stats now, FabricBuilt with convergence stats will be sent when convergence completes
                         context.transition_to(Converging(Converger::new(converge_phase)));

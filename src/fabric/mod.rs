@@ -9,7 +9,7 @@ use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::{Joint, AMBIENT_MASS};
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
-use crate::units::{Grams, Millimeters, Seconds};
+use crate::units::{Grams, Millimeters, Percent, Seconds};
 use crate::Age;
 use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Transform, Vector3};
@@ -235,7 +235,17 @@ impl Fabric {
         }
     }
 
-    pub fn set_pretenst(&mut self, pretenst: f32, seconds: Seconds) {
+    /// Set pretensing target for push intervals
+    /// 
+    /// Extends push intervals by the specified percentage of their rest length.
+    /// For example, with pretenst=1%, a 100mm push interval will target 101mm.
+    /// 
+    /// Note: During the pretensing phase, the physics simulation continues to run,
+    /// so actual extensions may vary slightly from the target due to forces from
+    /// pull intervals and other structural dynamics.
+    pub fn set_pretenst(&mut self, pretenst: Percent, seconds: Seconds) {
+        let factor = pretenst.as_factor();
+        
         for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
             let interval = interval_opt.as_mut().unwrap();
             if !interval.has_role(Role::Support) {
@@ -245,7 +255,7 @@ impl Fabric {
                         if is_pushing {
                             interval.span = Pretenst {
                                 start_length: rest_length,
-                                target_length: rest_length * (1.0 + pretenst / 100.0),
+                                target_length: rest_length * (1.0 + factor),
                                 rest_length,
                                 finished: false,
                             };
@@ -254,7 +264,7 @@ impl Fabric {
                     Pretenst { target_length, rest_length, .. } => {
                         interval.span = Pretenst {
                             start_length: target_length,
-                            target_length: rest_length * (1.0 + pretenst / 100.0),
+                            target_length: rest_length * (1.0 + factor),
                             rest_length,
                             finished: false,
                         }
@@ -323,7 +333,7 @@ impl Fabric {
             // Accumulate strain (zero-cost pass-through)
             self.stats.accumulate_strain(interval.strain);
         }
-        let elapsed = self.age.tick_scaled(physics.time_scale);
+        let elapsed = self.age.tick_scaled(physics.time_scale());
         
         // Check for excessive speed and accumulate velocity/energy stats
         const MAX_SPEED_SQUARED: f32 = 1000.0 * 1000.0; // (mm per tick)²

@@ -3,7 +3,7 @@ use pest::iterators::{Pair, Pairs};
 use crate::build::tenscript::{PairExt, Rule, TenscriptError};
 use crate::fabric::physics::presets::BASE_PHYSICS;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
-use crate::units::Seconds;
+use crate::units::{Percent, Seconds};
 
 #[derive(Debug, Clone, Default)]
 pub struct PretensePhase {
@@ -78,7 +78,9 @@ impl PretensePhase {
 
     /// Create the viewing physics by applying pretense customizations to BASE_PHYSICS
     pub fn viewing_physics(&self) -> Physics {
-        let pretenst = self.pretenst.unwrap_or(BASE_PHYSICS.pretenst);
+        let pretenst = self.pretenst
+            .map(|p| Percent(p))
+            .unwrap_or(BASE_PHYSICS.pretenst);
         let surface_character = self.surface_character.unwrap_or(BASE_PHYSICS.surface_character);
         // Viscosity and drag are percentages of the default values
         let viscosity = self.viscosity

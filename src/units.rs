@@ -44,6 +44,11 @@ pub struct NanoNewtons(pub f32);
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Seconds(pub f32);
 
+/// Percentage value (0-100)
+/// Provides type-safe conversion to factors (0.0-1.0)
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct Percent(pub f32);
+
 // Common time constants
 pub const IMMEDIATE: Seconds = Seconds(0.0);
 pub const MOMENT: Seconds = Seconds(0.1);
@@ -55,6 +60,11 @@ pub struct GramsPerMillimeter(pub f32);
 /// Rigidity in Newtons per millimeter (force per unit extension)
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct NewtonsPerMillimeter(pub f32);
+
+/// Spring constant in Newtons per meter (N/m)
+/// Standard SI unit for spring stiffness: k in F = kx
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct NewtonsPerMeter(pub f32);
 
 // Deref implementations for ergonomic access to inner values
 
@@ -93,6 +103,13 @@ impl Deref for NewtonsPerMillimeter {
     }
 }
 
+impl Deref for NewtonsPerMeter {
+    type Target = f32;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl Deref for MillimetersPerMicrosecondSquared {
     type Target = f32;
     fn deref(&self) -> &Self::Target {
@@ -101,6 +118,13 @@ impl Deref for MillimetersPerMicrosecondSquared {
 }
 
 impl Deref for NanoNewtons {
+    type Target = f32;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Deref for Percent {
     type Target = f32;
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -201,6 +225,36 @@ impl Seconds {
     /// Create from microseconds
     pub fn from_microseconds(us: f32) -> Self {
         Self(us / 1_000_000.0)
+    }
+}
+
+impl Percent {
+    /// Convert percentage to a factor (0.0-1.0)
+    /// Example: 50% → 0.5, 100% → 1.0
+    pub fn as_factor(self) -> f32 {
+        self.0 / 100.0
+    }
+    
+    /// Create from a factor (0.0-1.0)
+    /// Example: 0.5 → 50%, 1.0 → 100%
+    pub fn from_factor(factor: f32) -> Self {
+        Self(factor * 100.0)
+    }
+}
+
+impl NewtonsPerMeter {
+    /// Convert to Newtons per millimeter
+    /// N/m → N/mm: divide by 1000 (1 meter = 1000 mm)
+    pub fn to_n_per_mm(self) -> NewtonsPerMillimeter {
+        NewtonsPerMillimeter(self.0 / 1000.0)
+    }
+}
+
+impl NewtonsPerMillimeter {
+    /// Convert to Newtons per meter
+    /// N/mm → N/m: multiply by 1000 (1 meter = 1000 mm)
+    pub fn to_n_per_m(self) -> NewtonsPerMeter {
+        NewtonsPerMeter(self.0 * 1000.0)
     }
 }
 
@@ -358,6 +412,12 @@ impl std::fmt::Display for NewtonsPerMillimeter {
     }
 }
 
+impl std::fmt::Display for NewtonsPerMeter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:.2e}N/m", self.0)
+    }
+}
+
 impl std::fmt::Display for Seconds {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:.1}s", self.0)
@@ -367,6 +427,12 @@ impl std::fmt::Display for Seconds {
 impl std::fmt::Display for NanoNewtons {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:.3e}nN", self.0)
+    }
+}
+
+impl std::fmt::Display for Percent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:.1}%", self.0)
     }
 }
 
