@@ -95,7 +95,11 @@ impl Joint {
         let dt = TICK_DURATION.as_secs_f32();
         let dt_micros = TICK_DURATION.as_micros() as f32;
 
-        if altitude > 0.0 || !surface_character.has_gravity() {
+        // Surface contact tolerance - treat joints very close to surface as "on surface"
+        // This prevents hovering/wobbling from numerical precision issues
+        const SURFACE_TOLERANCE: f32 = 0.01; // mm - joints within this distance are "on surface"
+        
+        if altitude > SURFACE_TOLERANCE || !surface_character.has_gravity() {
             // Gravity acceleration: mass is in grams (from mm-based lengths),
             // EARTH_GRAVITY is in mm/µs², dt_micros is in µs
             // Result: velocity change in mm/µs (simulation velocity units)
@@ -168,29 +172,32 @@ impl Joint {
                     self.velocity.y += (antigravity / scale) * dt_micros;
                 }
                 Slippery => {
-                    // Moderate-friction surface - uses adaptive drag/viscosity for convergence
-                    // but prevents vertical penetration
+                    // Surface that holds joints on contact (like Frozen) but allows horizontal sliding
+                    // Once a joint touches, it cannot leave the surface - prevents bouncing/wobbling
                     
-                    // Zero out downward velocity (can't penetrate)
-                    if self.velocity.y < 0.0 {
-                        self.velocity.y = 0.0;
-                    }
+                    // Clamp to surface and zero all vertical motion
+                    self.location.y = 0.0;
+                    self.velocity.y = 0.0;
                     
-                    // Apply drag and viscosity to horizontal motion for better settling
-                    // These increase adaptively during convergence
                     let speed_horizontal = (self.velocity.x * self.velocity.x + self.velocity.z * self.velocity.z).sqrt();
-                    let friction = 1.0 - (drag * dt + viscosity * speed_horizontal * dt);
-                    self.velocity.x *= friction;
-                    self.velocity.z *= friction;
                     
-                    // Strong upward force to prevent sinking
-                    let antigravity = physics.surface_character.antigravity() * *surface_character.force_of_gravity(mass) * degree_submerged * 10.0;
-                    self.velocity.y += (antigravity / scale) * dt_micros;
+                    // Base surface damping coefficient (independent of physics parameters)
+                    // Applied to both drag and viscosity for consistent strong damping
+                    const SURFACE_DAMPING: f32 = 10.0;
                     
-                    // Clamp to surface if very close
-                    if depth < 0.01 {
-                        self.location.y = 0.0;
-                    }
+                    // Linear damping: surface damping multiplier + physics drag/viscosity
+                    // Physics values increase during convergence for additional damping
+                    let linear_friction = 1.0 - ((SURFACE_DAMPING + drag) * dt + SURFACE_DAMPING * viscosity * speed_horizontal * dt);
+                    
+                    // Quadratic damping (speed-squared) - strongly damps fast motion
+                    // This is key for suppressing oscillations
+                    let quadratic_damping = 1.0 - (2.0 * speed_horizontal * speed_horizontal * dt);
+                    
+                    // Combine both damping effects
+                    let total_friction = (linear_friction * quadratic_damping.max(0.0)).max(0.0);
+                    
+                    self.velocity.x *= total_friction;
+                    self.velocity.z *= total_friction;
                 }
             }
         }

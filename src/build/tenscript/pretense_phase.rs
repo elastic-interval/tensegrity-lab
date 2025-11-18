@@ -76,7 +76,7 @@ impl PretensePhase {
         Ok(pretense)
     }
 
-    /// Create the viewing physics by applying pretense customizations to AIR_GRAVITY
+    /// Create the viewing physics by applying pretense customizations to BASE_PHYSICS
     pub fn viewing_physics(&self) -> Physics {
         let pretenst = self.pretenst.unwrap_or(BASE_PHYSICS.pretenst);
         let surface_character = self.surface_character.unwrap_or(BASE_PHYSICS.surface_character);
