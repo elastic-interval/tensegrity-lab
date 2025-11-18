@@ -154,7 +154,7 @@ impl PlanRunner {
         // Set scale
         context.fabric.scale = runner.get_scale();
         
-        // Phase 1: Build with LIQUID physics
+        // Phase 1: Build with CONSTRUCTION physics
         *context.physics = CONSTRUCTION;
         runner.build_phase.init(context.fabric, context.brick_library)?;
         
@@ -162,7 +162,7 @@ impl PlanRunner {
             runner.build_phase.growth_step(context.fabric, context.brick_library)?;
         }
         
-        // Run LIQUID physics for 30 seconds to let structure form
+        // Run CONSTRUCTION physics for 30 seconds to let structure form
         // TICK_MICROSECONDS = 250, so 1 second = 4000 iterations
         for _ in 0..(30.0 * 4000.0) as usize {
             context.fabric.iterate(context.physics);
