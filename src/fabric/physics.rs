@@ -266,8 +266,8 @@ pub mod presets {
     };
 
     pub const BASE_PHYSICS: Physics = Physics {
-        drag: 0.01,
-        viscosity: 0.5,
+        drag: 0.1,  // Increased from 0.01 to dampen high-frequency oscillations
+        viscosity: 5.0,  // Increased from 0.5 for better stability with stiff springs
         surface_character: Frozen,
         pretenst: Percent(1.0),
         tweak: Tweak::None,

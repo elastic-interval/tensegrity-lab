@@ -41,7 +41,6 @@ pub struct TextState {
 
 enum TextInstance {
     Nothing,
-    Small(String),
     Normal(String),
     Large(String),
 }
@@ -50,7 +49,6 @@ impl TextInstance {
     pub fn scale_factor(&self) -> f32 {
         match self {
             TextInstance::Nothing => 10.0,
-            TextInstance::Small(_) => 20.0,
             TextInstance::Normal(_) => 30.0,
             TextInstance::Large(_) => 60.0,
         }
@@ -141,10 +139,10 @@ impl TextState {
                 },
             );
             
-            // Add state subtitle below title
+            // Add state subtitle below title (normal size, not small)
             self.update_section(
                 SectionName::TopSubtitle,
-                Small(self.stage_label.clone()),
+                Normal(self.stage_label.clone()),
             );
         }
 
@@ -226,7 +224,8 @@ impl TextState {
                     // Add convergence stats if present (end of time)
                     if let Some(conv) = dynamic_stats {
                         // Convert from mm/µs to m/s: mm/µs * 1000 = m/s
-                        let speed_m_per_s = conv.max_speed * 1000.0;
+                        let max_speed_m_per_s = conv.max_speed * 1000.0;
+                        let avg_speed_m_per_s = conv.avg_speed * 1000.0;
                         let mass_kg = conv.total_mass / 1000.0;
                         
                         text.push_str(&format!(
@@ -235,12 +234,14 @@ impl TextState {
                              KE: {:.2e} g·mm²/µs²\n\
                              Mass: {:.2}kg\n\
                              Max Speed: {:.2} m/s\n\
+                             Avg Speed: {:.2} m/s\n\
                              Max Strain: {:.3}\n\
                              Avg Strain: {:.3}",
                             conv.max_height * scale / 1000.0,
                             conv.kinetic_energy,
                             mass_kg,
-                            speed_m_per_s,
+                            max_speed_m_per_s,
+                            avg_speed_m_per_s,
                             conv.max_strain,
                             conv.avg_strain,
                         ));
@@ -258,12 +259,12 @@ impl TextState {
         let scale_factor = text_instance.scale_factor();
         self.sections[section_name as usize] = Some(match text_instance {
             Nothing => section,
-            Small(text) | Normal(text) | Large(text) => section.add_text(
+            Normal(text) | Large(text) => section.add_text(
                 OwnedText::new(text)
                     .with_color([0.8, 0.8, 0.8, 1.0])
                     .with_scale(scale_factor),
             ),
-        })
+        });
     }
 
     fn create_section(&self, section_name: SectionName) -> OwnedSection {

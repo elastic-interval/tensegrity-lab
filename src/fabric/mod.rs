@@ -135,6 +135,7 @@ pub struct DynamicStats {
     pub max_height: f32,
     pub kinetic_energy: f32,
     pub max_speed: f32,
+    pub avg_speed: f32,
     pub total_mass: f32,
     pub max_strain: f32,
     pub avg_strain: f32,
@@ -537,18 +538,26 @@ impl Fabric {
         // Calculate total mass fresh using current physics
         let total_mass = self.calculate_total_mass(physics);
         
-        // Calculate max_height from current joint positions
+        // Calculate max_height and average speed from current joint positions
         let mut max_height = 0.0;
-        for Joint { location, .. } in self.joints.iter() {
+        let mut speed_sum = 0.0;
+        for Joint { location, velocity, .. } in self.joints.iter() {
             if location.y > max_height {
                 max_height = location.y;
             }
+            speed_sum += velocity.magnitude();
         }
+        let avg_speed = if !self.joints.is_empty() {
+            speed_sum / self.joints.len() as f32
+        } else {
+            0.0
+        };
         
         stats.dynamic_stats = Some(DynamicStats {
             max_height,
             kinetic_energy: self.stats.kinetic_energy,
             max_speed: self.stats.max_speed,
+            avg_speed,
             total_mass: *total_mass,
             max_strain: self.stats.max_strain,
             avg_strain: self.stats.avg_strain(),
