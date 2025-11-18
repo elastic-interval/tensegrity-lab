@@ -36,7 +36,17 @@ pub struct Age(Duration);
 
 impl Display for Age {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:.1}s", self.0.as_secs_f64())
+        let total_secs = self.0.as_secs_f64();
+        
+        if total_secs < 60.0 {
+            // Less than a minute: show as seconds with 1 decimal
+            write!(f, "{:.1}s", total_secs)
+        } else {
+            // 60 seconds or more: show as minutes:seconds
+            let minutes = (total_secs / 60.0).floor() as u64;
+            let seconds = total_secs % 60.0;
+            write!(f, "{}:{:04.1}", minutes, seconds)
+        }
     }
 }
 
@@ -109,6 +119,7 @@ impl PhysicsFeature {
 pub enum TweakFeature {
     MassScale,
     RigidityScale,
+    TimeScale,
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -2,7 +2,7 @@
  * Copyright (c) 2020. Beautiful Code BV, Rotterdam, Netherlands
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
-use crate::units::{MillimetersPerMicrosecondSquared, EARTH_GRAVITY};
+use crate::units::{MillimetersPerMicrosecondSquared, Percent, EARTH_GRAVITY};
 use crate::{PhysicsFeature, PhysicsParameter, Radio, StateChange, TweakFeature, TweakParameter};
 
 
@@ -42,8 +42,7 @@ pub struct Physics {
     pub drag: f32,
     pub viscosity: f32,
     pub surface_character: SurfaceCharacter,
-    pub time_scale: f32,
-    pub pretenst: f32,
+    pub pretenst: Percent,
     pub tweak: Tweak,
 }
 
@@ -60,6 +59,7 @@ pub enum Tweak {
 pub struct ScalingTweak {
     pub mass_scale: f32,
     pub rigidity_scale: f32,
+    pub time_scale: f32,
 }
 
 /// Temporary automated modifications to help structures settle
@@ -91,10 +91,11 @@ impl ConvergenceTweak {
 }
 
 impl ScalingTweak {
-    pub fn new(mass_scale: f32, rigidity_scale: f32) -> Self {
+    pub fn new(mass_scale: f32, rigidity_scale: f32, time_scale: f32) -> Self {
         Self {
             mass_scale,
             rigidity_scale,
+            time_scale,
         }
     }
 }
@@ -105,7 +106,7 @@ impl Physics {
         let PhysicsParameter { feature, value } = parameter;
         match feature {
             Drag => self.drag = value,
-            Pretenst => self.pretenst = value,
+            Pretenst => self.pretenst = Percent(value),
             Viscosity => self.viscosity = value,
         }
     }
@@ -115,7 +116,7 @@ impl Physics {
         
         let physics_params = [
             Drag.parameter(self.drag),
-            Pretenst.parameter(self.pretenst),
+            Pretenst.parameter(*self.pretenst),
             Viscosity.parameter(self.viscosity),
         ];
         for p in physics_params {
@@ -134,6 +135,7 @@ impl Physics {
             let tweak_params = [
                 MassScale.parameter(s.mass_scale),
                 RigidityScale.parameter(s.rigidity_scale),
+                TimeScale.parameter(s.time_scale),
             ];
             for p in tweak_params {
                 StateChange::SetTweakParameter(p).send(radio);
@@ -150,7 +152,7 @@ impl Physics {
         let scaling = match &mut self.tweak {
             Tweak::Scaling(s) => s,
             _ => {
-                self.tweak = Tweak::Scaling(ScalingTweak::new(1.0, 1.0));
+                self.tweak = Tweak::Scaling(ScalingTweak::new(1.0, 1.0, 1.0));
                 if let Tweak::Scaling(s) = &mut self.tweak {
                     s
                 } else {
@@ -162,6 +164,7 @@ impl Physics {
         match feature {
             MassScale => scaling.mass_scale = value,
             RigidityScale => scaling.rigidity_scale = value,
+            TimeScale => scaling.time_scale = value,
         }
     }
     
@@ -181,8 +184,21 @@ impl Physics {
         }
     }
     
+    /// Get time scale (from tweak or default 1.0)
+    pub fn time_scale(&self) -> f32 {
+        match &self.tweak {
+            Tweak::Scaling(s) => s.time_scale,
+            Tweak::Convergence(c) => {
+                // During convergence, time scale increases geometrically to speed up settling
+                c.base_physics.time_scale() * c.time_scale_multiplier
+            }
+            _ => 1.0,
+        }
+    }
+    
     /// Update convergence based on time progress (0.0 to 1.0)
     /// Gradually increases damping to slow the system down over time
+    /// and increases time scale geometrically to speed up settling
     pub fn update_convergence_progress(&mut self, progress: f32) {
         if let Tweak::Convergence(conv) = &mut self.tweak {
             if !conv.started {
@@ -193,15 +209,19 @@ impl Physics {
             // This gradually slows the system down
             let damping_mult = 1.0 + progress.powi(3) * 50.0;
             
+            // Time scale increases geometrically: 1.0 → 100.0
+            // Using exponential growth: e^(progress * ln(100)) = 100^progress
+            // This gives much more aggressive speedup in the later stages
+            let time_scale_mult = 100.0_f32.powf(progress);
+            
             // Update multipliers
             conv.drag_multiplier = damping_mult;
             conv.viscosity_multiplier = damping_mult;
-            conv.time_scale_multiplier = 1.0 + progress * 0.5;
+            conv.time_scale_multiplier = time_scale_mult;
             
             // Apply to current physics values
             self.drag = conv.base_physics.drag * conv.drag_multiplier;
             self.viscosity = conv.base_physics.viscosity * conv.viscosity_multiplier;
-            self.time_scale = conv.base_physics.time_scale * conv.time_scale_multiplier;
         }
     }
     
@@ -227,13 +247,13 @@ impl Physics {
 pub mod presets {
     use crate::fabric::physics::{Physics, Tweak};
     use crate::fabric::physics::SurfaceCharacter::{Absent, Frozen};
+    use crate::units::Percent;
 
     pub const CONSTRUCTION: Physics = Physics {
         drag: 0.0125,
         viscosity: 40.0,
         surface_character: Absent,
-        time_scale: 1.0,
-        pretenst: 20.0,
+        pretenst: Percent(20.0),
         tweak: Tweak::None,
     };
 
@@ -241,8 +261,7 @@ pub mod presets {
         drag: 25.0,
         viscosity: 4.0,
         surface_character: Absent,
-        time_scale: 1.0,
-        pretenst: 3.0,
+        pretenst: Percent(1.0),
         tweak: Tweak::None,
     };
 
@@ -250,8 +269,7 @@ pub mod presets {
         drag: 0.01,
         viscosity: 0.5,
         surface_character: Frozen,
-        time_scale: 1.0,
-        pretenst: 3.0,
+        pretenst: Percent(1.0),
         tweak: Tweak::None,
     };
 }

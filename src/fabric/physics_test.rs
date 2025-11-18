@@ -1,7 +1,7 @@
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::Fabric;
 use crate::fabric::physics::Physics;
-use crate::units::Seconds;
+use crate::units::{Percent, Seconds};
 use crate::{PhysicsFeature, Radio, StateChange, TesterAction, ITERATIONS_PER_FRAME};
 
 pub struct PhysicsTester {
@@ -57,7 +57,7 @@ impl PhysicsTester {
                 self.physics.accept(parameter);
                 match parameter.feature {
                     PhysicsFeature::Pretenst => {
-                        self.fabric.set_pretenst(parameter.value, Seconds(10.0));
+                        self.fabric.set_pretenst(Percent(parameter.value), Seconds(10.0));
                     }
                     _ => {}
                 }

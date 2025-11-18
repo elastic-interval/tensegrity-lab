@@ -3,7 +3,7 @@ use crate::build::tenscript::pretenser::Stage::*;
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::PRETENSING;
 use crate::fabric::physics::Physics;
-use crate::units::Seconds;
+use crate::units::{Percent, Seconds};
 use crate::LabEvent::DumpCSV;
 use crate::Radio;
 use crate::ITERATIONS_PER_FRAME;
@@ -62,11 +62,12 @@ impl Pretenser {
                 context.set_camera_translation(translation);
                 context.fabric.apply_translation(translation);
                 
-                let factor = self
+                let pretenst_percent = self
                     .pretense_phase
                     .pretenst
+                    .map(|p| Percent(p))
                     .unwrap_or(PRETENSING.pretenst);
-                context.fabric.set_pretenst(factor, self.seconds_to_pretense);
+                context.fabric.set_pretenst(pretenst_percent, self.seconds_to_pretense);
                 DumpCSV.send(&self.radio);
                 Pretensing
             }

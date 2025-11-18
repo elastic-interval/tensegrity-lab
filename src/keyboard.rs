@@ -101,7 +101,7 @@ impl Keyboard {
             "p",
             PhysicsParameter {
                 feature: PhysicsFeature::Pretenst,
-                value: BASE_PHYSICS.pretenst,
+                value: *BASE_PHYSICS.pretenst,
             },
             Box::new(|value| format!("Pretenst {value:.3}")),
             Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),

@@ -146,7 +146,7 @@ impl Animator {
             context.fabric.stats.accumulate_strain(interval.strain);
         }
 
-        let elapsed = context.fabric.age.tick_scaled(context.physics.time_scale);
+        let elapsed = context.fabric.age.tick_scaled(context.physics.time_scale());
 
         // Check for excessive speed and accumulate velocity/energy stats
         const MAX_SPEED_SQUARED: f32 = 1000.0 * 1000.0; // (mm per tick)²

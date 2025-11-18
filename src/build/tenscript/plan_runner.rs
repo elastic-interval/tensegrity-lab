@@ -8,7 +8,7 @@ use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::{CONSTRUCTION, PRETENSING};
 use crate::fabric::physics::Physics;
 use crate::{LabEvent, StateChange};
-use crate::units::{Seconds, IMMEDIATE, MOMENT};
+use crate::units::{Percent, Seconds, IMMEDIATE, MOMENT};
 use crate::ITERATIONS_PER_FRAME;
 
 #[derive(Clone, Debug, Copy, PartialEq)]
@@ -222,9 +222,11 @@ impl PlanRunner {
         context.fabric.apply_translation(translation);
         
         // Step 3: Set pretenst and run pretensing
-        let pretenst_factor = runner.pretense_phase.pretenst.unwrap_or(PRETENSING.pretenst);
+        let pretenst_percent = runner.pretense_phase.pretenst
+            .map(|p| Percent(p))
+            .unwrap_or(PRETENSING.pretenst);
         let seconds_to_pretense = runner.pretense_phase.seconds.unwrap_or(Seconds(15.0));
-        context.fabric.set_pretenst(pretenst_factor, seconds_to_pretense);
+        context.fabric.set_pretenst(pretenst_percent, seconds_to_pretense);
         
         // Run pretensing until progress is complete (like the UI does)
         while context.fabric.progress.is_busy() {
