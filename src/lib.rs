@@ -39,13 +39,13 @@ impl Display for Age {
         let total_secs = self.0.as_secs_f64();
         
         if total_secs < 60.0 {
-            // Less than a minute: show as seconds with 1 decimal
-            write!(f, "{:.1}s", total_secs)
+            // Less than a minute: show as whole seconds
+            write!(f, "{}s", total_secs as u64)
         } else {
             // 60 seconds or more: show as minutes:seconds
             let minutes = (total_secs / 60.0).floor() as u64;
-            let seconds = total_secs % 60.0;
-            write!(f, "{}:{:04.1}", minutes, seconds)
+            let seconds = (total_secs % 60.0) as u64;
+            write!(f, "{}:{:02}", minutes, seconds)
         }
     }
 }

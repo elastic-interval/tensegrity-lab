@@ -110,6 +110,14 @@ impl Joint {
             self.velocity +=
                 (self.force / mass) * dt - self.velocity * speed_squared * *viscosity * dt;
             self.velocity *= 1.0 - *drag * dt;
+            
+            // Clamp velocity to prevent numerical instability from stiff springs
+            // Maximum reasonable velocity: 100 mm/µs = 100 km/s (far beyond physical reality)
+            const MAX_VELOCITY: f32 = 100.0; // mm/µs
+            let speed = self.velocity.magnitude();
+            if speed > MAX_VELOCITY {
+                self.velocity *= MAX_VELOCITY / speed;
+            }
         } else {
             // Joint is at or below surface (altitude <= 0)
             let depth = -altitude; // How far below surface (positive value)

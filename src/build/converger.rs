@@ -25,6 +25,12 @@ impl Converger {
         let elapsed = self.start_time.elapsed().as_secs_f32();
         let progress = (elapsed / self.duration.0).min(1.0);
         
+        // Update stage label to show convergence progress
+        let progress_pct = (progress * 100.0) as u32;
+        context.send_event(LabEvent::UpdateState(SetStageLabel(
+            format!("Converging {}%", progress_pct)
+        )));
+        
         // Gradually increase damping as we approach the end of convergence time
         // This gives the fabric time to settle naturally before freezing
         context.physics.update_convergence_progress(progress);
