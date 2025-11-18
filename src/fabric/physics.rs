@@ -237,19 +237,19 @@ pub mod presets {
         tweak: Tweak::None,
     };
 
-    pub const AIR_GRAVITY: Physics = Physics {
-        drag: 0.01,
-        viscosity: 0.5,
-        surface_character: Frozen,
+    pub const PRETENSING: Physics = Physics {
+        drag: 25.0,
+        viscosity: 4.0,
+        surface_character: Absent,
         time_scale: 1.0,
         pretenst: 3.0,
         tweak: Tweak::None,
     };
 
-    pub const PRETENSING: Physics = Physics {
-        drag: 25.0,
-        viscosity: 4.0,
-        surface_character: Absent,
+    pub const AIR_GRAVITY: Physics = Physics {
+        drag: 0.01,
+        viscosity: 0.5,
+        surface_character: Frozen,
         time_scale: 1.0,
         pretenst: 3.0,
         tweak: Tweak::None,
