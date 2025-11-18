@@ -1,10 +1,11 @@
 use crate::build::tenscript::brick::{Baked, Prototype};
 use crate::crucible_context::CrucibleContext;
-use crate::fabric::material::Material;
+use crate::fabric::physics::presets::LIQUID;
+use crate::ITERATIONS_PER_FRAME;
 use crate::fabric::Fabric;
 use crate::{Radio, StateChange};
 use std::rc::Rc;
-use crate::fabric::physics::presets::LIQUID;
+use crate::fabric::material::Material;
 
 const SPEED_LIMIT: f32 = 3e-6;
 
@@ -33,7 +34,7 @@ impl Oven {
             return None;
         }
 
-        for _ in context.physics.iterations() {
+        for _ in 0..ITERATIONS_PER_FRAME {
             context.fabric.iterate(context.physics);
         }
         let max_velocity = context.fabric.max_velocity();

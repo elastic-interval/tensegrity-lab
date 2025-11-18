@@ -1,3 +1,4 @@
+use crate::ITERATIONS_PER_FRAME;
 use crate::build::tenscript::converge_phase::ConvergePhase;
 use crate::crucible_context::CrucibleContext;
 use crate::units::Seconds;
@@ -28,7 +29,7 @@ impl Converger {
         // This gives the fabric time to settle naturally before freezing
         context.physics.update_convergence_progress(progress);
         
-        for _ in context.physics.iterations() {
+        for _ in 0..ITERATIONS_PER_FRAME {
             context.fabric.iterate(context.physics);
         }
         
@@ -39,10 +40,12 @@ impl Converger {
             context.fabric.frozen = true;
             context.transition_to(crate::crucible::Stage::Viewing);
             
+            // Calculate fresh stats with convergence data
+            let stats_with_dynamics = context.fabric.stats_with_dynamics(context.physics);
+            
+            // Send FabricBuilt with convergence stats - this will trigger Viewing state
+            context.queue_event(LabEvent::FabricBuilt(stats_with_dynamics));
             context.send_event(LabEvent::UpdateState(SetStageLabel("Viewing".to_string())));
-            context.send_event(LabEvent::UpdateState(SetFabricStats(
-                Some(context.fabric.stats_with_convergence(context.physics))
-            )));
         }
     }
 }

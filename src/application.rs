@@ -8,8 +8,8 @@ use crate::pointer::PointerHandler;
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 use crate::{
-    ControlState, CrucibleAction, LabEvent, PhysicsFeature, Radio, RunStyle, StateChange,
-    TestScenario, TesterAction,
+    ControlState, CrucibleAction, LabEvent, Radio, RunStyle, StateChange, TestScenario,
+    TesterAction,
 };
 use instant::{Duration, Instant};
 use std::sync::Arc;
@@ -298,10 +298,6 @@ impl ApplicationHandler<LabEvent> for Application {
                     } = &self.run_style
                     {
                         match scenario {
-                            TestScenario::TensionTest | TestScenario::CompressionTest => {
-                                CrucibleAction::ToFailureTesting(scenario.clone())
-                                    .send(&self.radio);
-                            }
                             TestScenario::PhysicsTest => {
                                 CrucibleAction::ToPhysicsTesting(scenario.clone())
                                     .send(&self.radio);
@@ -391,15 +387,25 @@ impl ApplicationHandler<LabEvent> for Application {
                         self.keyboard.set_float_parameter(parameter);
                         self.crucible.physics.accept(parameter.clone());
 
-                        // If it's mass or rigidity scale, trigger fabric rebuild
-                        if matches!(
-                            parameter.feature,
-                            PhysicsFeature::MassScale | PhysicsFeature::RigidityScale
-                        ) {
+                        CrucibleAction::TesterDo(TesterAction::SetPhysicalParameter(
+                            parameter.clone(),
+                        ))
+                        .send(&self.radio);
+                        StateChange::SetKeyboardLegend(
+                            self.keyboard.legend(&self.control_state).join(", "),
+                        )
+                        .send(&self.radio);
+                    }
+                    StateChange::SetTweakParameter(parameter) => {
+                        self.keyboard.set_tweak_parameter(parameter);
+                        self.crucible.physics.accept_tweak(parameter.clone());
+
+                        // Trigger fabric rebuild (but not in PhysicsTesting mode)
+                        if !matches!(self.control_state, ControlState::PhysicsTesting(_)) {
                             RebuildFabric.send(&self.radio);
                         }
 
-                        CrucibleAction::TesterDo(TesterAction::SetPhysicalParameter(
+                        CrucibleAction::TesterDo(TesterAction::SetTweakParameter(
                             parameter.clone(),
                         ))
                         .send(&self.radio);

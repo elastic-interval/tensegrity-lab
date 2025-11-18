@@ -11,9 +11,8 @@ use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::testing::failure_test::FailureTester;
-use crate::testing::physics_test::PhysicsTester;
-use crate::{ControlState, CrucibleAction, LabEvent, PhysicsFeature, PhysicsParameter, Radio, StateChange};
+use crate::fabric::physics_test::PhysicsTester;
+use crate::{ControlState, CrucibleAction, LabEvent, Radio, StateChange};
 use StateChange::*;
 
 pub enum Stage {
@@ -23,7 +22,6 @@ pub enum Stage {
     Converging(Converger),
     Viewing,
     Animating(Animator),
-    FailureTesting(FailureTester),
     PhysicsTesting(PhysicsTester),
     BakingBrick(Oven),
     Evolving(Evolution),
@@ -75,19 +73,19 @@ impl Crucible {
             Empty => {}
             RunningPlan(plan_runner) => {
                 if plan_runner.is_done() {
-                    // Preserve user's base scales
-                    let base_mass_scale = context.physics.base_mass_scale;
-                    let base_rigidity_scale = context.physics.base_rigidity_scale;
+                    // Preserve user's scaling tweaks
+                    let mass_scale = context.physics.mass_scale();
+                    let rigidity_scale = context.physics.rigidity_scale();
                     
                     context.fabric.scale = plan_runner.get_scale();
                     context.fabric.check_orphan_joints();
                     let pretenser = Pretenser::new(plan_runner.pretense_phase(), &self.radio);
                     pretenser.copy_physics_into(&mut context);
                     
-                    // Restore user's base scales after pretenser overwrites physics
-                    context.physics.base_mass_scale = base_mass_scale;
-                    context.physics.base_rigidity_scale = base_rigidity_scale;
-                    context.physics.update_effective_scales();
+                    // Restore user's scaling tweaks after pretenser overwrites physics
+                    use crate::TweakFeature::*;
+                    context.physics.accept_tweak(MassScale.parameter(mass_scale));
+                    context.physics.accept_tweak(RigidityScale.parameter(rigidity_scale));
                     
                     context.transition_to(Pretensing(pretenser));
                     
@@ -103,22 +101,24 @@ impl Crucible {
             }
             Pretensing(pretenser) => {
                 if pretenser.is_done() {
-                    let base_mass_scale = context.physics.base_mass_scale;
-                    let base_rigidity_scale = context.physics.base_rigidity_scale;
+                    let mass_scale = context.physics.mass_scale();
+                    let rigidity_scale = context.physics.rigidity_scale();
                     
                     let stats = context.fabric.fabric_stats();
                     *context.physics = pretenser.physics();
                     
-                    context.physics.base_mass_scale = base_mass_scale;
-                    context.physics.base_rigidity_scale = base_rigidity_scale;
-                    context.physics.update_effective_scales();
+                    use crate::TweakFeature::*;
+                    context.physics.accept_tweak(MassScale.parameter(mass_scale));
+                    context.physics.accept_tweak(RigidityScale.parameter(rigidity_scale));
 
                     // Check if converge phase is specified
                     if let Some(converge_phase) = self.fabric_plan.as_ref().and_then(|p| p.converge_phase.as_ref()) {
                         // Transition to Converging stage with specified time
+                        // Send initial stats now, FabricBuilt with convergence stats will be sent when convergence completes
                         context.transition_to(Converging(Converger::new(converge_phase)));
-                        context.queue_event(LabEvent::FabricBuilt(stats));
+                        context.send_event(LabEvent::UpdateState(SetControlState(ControlState::Building)));
                         context.send_event(LabEvent::UpdateState(SetStageLabel("Converging".to_string())));
+                        context.send_event(LabEvent::UpdateState(SetFabricStats(Some(stats))));
                     } else {
                         // No converge phase - go directly to Viewing
                         context.fabric.zero_velocities();
@@ -127,7 +127,7 @@ impl Crucible {
                         context.queue_event(LabEvent::FabricBuilt(stats));
                         context.send_event(LabEvent::UpdateState(SetStageLabel("Viewing".to_string())));
                         context.send_event(LabEvent::UpdateState(SetFabricStats(
-                            Some(context.fabric.stats_with_convergence(context.physics))
+                            Some(context.fabric.stats_with_dynamics(context.physics))
                         )));
                     }
                 } else {
@@ -140,10 +140,6 @@ impl Crucible {
             Viewing => {}
             Animating(animator) => {
                 animator.iterate(&mut context);
-            }
-            FailureTesting(tester) => {
-                // Pass the context to the tester's iterate method
-                tester.iterate(&mut context);
             }
             PhysicsTesting(tester) => {
                 // Pass the context to the tester's iterate method
@@ -211,9 +207,9 @@ impl Crucible {
                 context.transition_to(BakingBrick(oven));
             }
             BuildFabric(fabric_plan) => {
-                // Preserve user's base scales before rebuilding
-                let base_mass_scale = context.physics.base_mass_scale;
-                let base_rigidity_scale = context.physics.base_rigidity_scale;
+                // Preserve user's scaling tweaks before rebuilding
+                let mass_scale = context.physics.mass_scale();
+                let rigidity_scale = context.physics.rigidity_scale();
                 
                 let name = fabric_plan.name.clone();
                 let mut plan_runner = PlanRunner::new(fabric_plan.clone());
@@ -221,10 +217,10 @@ impl Crucible {
                 // Store the fabric_plan for later use (animate, converge, etc.)
                 self.fabric_plan = Some(fabric_plan);
                 
-                // Apply user's base scales to plan_runner's physics before construction
-                plan_runner.physics.base_mass_scale = base_mass_scale;
-                plan_runner.physics.base_rigidity_scale = base_rigidity_scale;
-                plan_runner.physics.update_effective_scales();
+                // Apply user's scaling tweaks to plan_runner's physics before construction
+                use crate::TweakFeature::*;
+                plan_runner.physics.accept_tweak(MassScale.parameter(mass_scale));
+                plan_runner.physics.accept_tweak(RigidityScale.parameter(rigidity_scale));
 
                 context.replace_fabric(Fabric::new(name.clone()));
                 plan_runner.copy_physics_into(&mut context);
@@ -247,6 +243,15 @@ impl Crucible {
 
                     context.send_event(LabEvent::UpdateState(SetControlState(ControlState::Viewing)));
                 }
+                PhysicsTesting(_) => {
+                    // Freeze the fabric when exiting PhysicsTesting
+                    context.fabric.zero_velocities();
+                    context.fabric.frozen = true;
+                    
+                    self.stage = Viewing;
+                    
+                    context.send_event(LabEvent::UpdateState(SetControlState(ControlState::Viewing)));
+                }
                 _ => {}
             },
             ToAnimating => {
@@ -263,33 +268,14 @@ impl Crucible {
                     }
                 }
             }
-            ToFailureTesting(scenario) => {
-                if let Viewing = &mut self.stage {
-                    let fabric_clone = context.fabric.clone();
-                    let tester = FailureTester::new(
-                        scenario.clone(),
-                        &fabric_clone,
-                        physics_clone.clone(),
-                        self.radio.clone(),
-                    );
-
-                    context.replace_fabric(tester.fabric().clone());
-
-                    tester.adopt_physica(&mut context);
-
-                    context.transition_to(FailureTesting(tester));
-
-                    context.send_event(LabEvent::UpdateState(SetControlState(
-                        ControlState::FailureTesting(scenario),
-                    )));
-                } else {
-                    panic!("cannot start experiment");
-                }
-            }
             ToPhysicsTesting(scenario) => {
                 if let Viewing = &mut self.stage {
+                    let mut fabric = context.fabric.clone();
+                    // Unfreeze the fabric so physics changes can take effect
+                    fabric.frozen = false;
+                    
                     let tester = PhysicsTester::new(
-                        context.fabric.clone(),
+                        fabric,
                         physics_clone.clone(),
                         self.radio.clone(),
                     );
@@ -303,16 +289,15 @@ impl Crucible {
                     context.send_event(LabEvent::UpdateState(SetControlState(
                         ControlState::PhysicsTesting(scenario),
                     )));
-                } else {
-                    panic!("cannot start experiment");
+                    
+                    // Send initial stats with convergence data
+                    context.send_event(LabEvent::UpdateState(SetFabricStats(
+                        Some(context.fabric.stats_with_dynamics(context.physics))
+                    )));
                 }
+                // Silently ignore if not in Viewing stage - can only test physics after convergence
             }
             TesterDo(action) => match &mut self.stage {
-                FailureTesting(tester) => {
-                    tester.action(action);
-
-                    context.replace_fabric(tester.fabric().clone());
-                }
                 PhysicsTesting(tester) => {
                     tester.action(action);
 
@@ -320,20 +305,6 @@ impl Crucible {
                 }
                 _ => {}
             },
-            IncreaseMass => {
-                let new_mass = context.physics.base_mass_scale * 1.5;
-                SetPhysicsParameter(PhysicsParameter {
-                    feature: PhysicsFeature::MassScale,
-                    value: new_mass,
-                }).send(&context.radio);
-            }
-            IncreaseRigidity => {
-                let new_rigidity = context.physics.base_rigidity_scale * 1.5;
-                SetPhysicsParameter(PhysicsParameter {
-                    feature: PhysicsFeature::RigidityScale,
-                    value: new_rigidity,
-                }).send(&context.radio);
-            }
             ToEvolving(seed) => {
                 let evolution = Evolution::new(seed);
 

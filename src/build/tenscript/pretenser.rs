@@ -6,6 +6,7 @@ use crate::fabric::physics::Physics;
 use crate::units::Seconds;
 use crate::LabEvent::DumpCSV;
 use crate::Radio;
+use crate::ITERATIONS_PER_FRAME;
 
 #[derive(Clone, Debug, PartialEq, Copy)]
 enum Stage {
@@ -70,7 +71,7 @@ impl Pretenser {
                 Pretensing
             }
             Pretensing => {
-                for _ in context.physics.iterations() {
+                for _ in 0..ITERATIONS_PER_FRAME {
                     context.fabric.iterate(context.physics);
                 }
 
@@ -81,7 +82,7 @@ impl Pretenser {
                 }
             }
             Pretenst => {
-                for _ in context.physics.iterations() {
+                for _ in 0..ITERATIONS_PER_FRAME {
                     context.fabric.iterate(context.physics);
                 }
 

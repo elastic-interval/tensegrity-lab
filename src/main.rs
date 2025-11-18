@@ -50,8 +50,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         (Some(fabric_name), None, None, Some(test_name), None) => RunStyle::Fabric {
             fabric_name,
             scenario: match test_name.as_ref() {
-                "tension" => Some(TestScenario::TensionTest),
-                "compression" => Some(TestScenario::CompressionTest),
                 "physics" => Some(TestScenario::PhysicsTest),
                 _ => panic!("unknown test: \"{test_name}\""),
             },

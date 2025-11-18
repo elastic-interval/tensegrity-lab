@@ -30,6 +30,7 @@ pub mod vulcanize;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod export;
+pub mod physics_test;
 
 /// Statistics accumulated during iteration with zero-cost pass-through
 #[derive(Clone, Debug, Default)]
@@ -120,18 +121,18 @@ pub struct FabricStats {
     pub age: Age,
     pub scale: f32,
     pub joint_count: usize,
-    pub max_height: f32,
     pub push_count: usize,
     pub push_range: (f32, f32),
     pub push_total: f32,
     pub pull_count: usize,
     pub pull_range: (f32, f32),
     pub pull_total: f32,
-    pub convergence_stats: Option<ConvergenceStats>,
+    pub dynamic_stats: Option<DynamicStats>,
 }
 
 #[derive(Clone, Debug)]
-pub struct ConvergenceStats {
+pub struct DynamicStats {
+    pub max_height: f32,
     pub kinetic_energy: f32,
     pub max_speed: f32,
     pub total_mass: f32,
@@ -322,7 +323,7 @@ impl Fabric {
             // Accumulate strain (zero-cost pass-through)
             self.stats.accumulate_strain(interval.strain);
         }
-        let elapsed = self.age.tick_scaled(physics.dt_scale);
+        let elapsed = self.age.tick_scaled(physics.time_scale);
         
         // Check for excessive speed and accumulate velocity/energy stats
         const MAX_SPEED_SQUARED: f32 = 1000.0 * 1000.0; // (mm per tick)²
@@ -456,12 +457,6 @@ impl Fabric {
         let mut push_total = 0.0;
         let mut pull_count = 0;
         let mut pull_total = 0.0;
-        let mut max_height = 0.0;
-        for Joint { location, .. } in self.joints.iter() {
-            if location.y > max_height {
-                max_height = location.y;
-            }
-        }
         for interval_opt in self.intervals.iter().filter(|i| i.is_some()) {
             let interval = interval_opt.as_ref().unwrap();
             let length = interval.length(&self.joints);
@@ -494,14 +489,13 @@ impl Fabric {
             age: self.age,
             scale: self.scale,
             joint_count: self.joints.len(),
-            max_height,
             push_count,
             push_range,
             push_total,
             pull_count,
             pull_range,
             pull_total,
-            convergence_stats: None,
+            dynamic_stats: None,
         }
     }
     
@@ -527,13 +521,22 @@ impl Fabric {
         total_mass
     }
     
-    pub fn stats_with_convergence(&self, physics: &Physics) -> FabricStats {
+    pub fn stats_with_dynamics(&self, physics: &Physics) -> FabricStats {
         let mut stats = self.fabric_stats();
         
         // Calculate total mass fresh using current physics
         let total_mass = self.calculate_total_mass(physics);
         
-        stats.convergence_stats = Some(ConvergenceStats {
+        // Calculate max_height from current joint positions
+        let mut max_height = 0.0;
+        for Joint { location, .. } in self.joints.iter() {
+            if location.y > max_height {
+                max_height = location.y;
+            }
+        }
+        
+        stats.dynamic_stats = Some(DynamicStats {
+            max_height,
             kinetic_energy: self.stats.kinetic_energy,
             max_speed: self.stats.max_speed,
             total_mass: *total_mass,

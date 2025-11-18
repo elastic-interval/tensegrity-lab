@@ -1,7 +1,7 @@
 use crate::fabric::physics::presets::AIR_GRAVITY;
 use crate::{
     ControlState, CrucibleAction, LabEvent, PhysicsFeature, PhysicsParameter, Radio, StateChange,
-    TesterAction,
+    TestScenario, TesterAction, TweakFeature, TweakParameter,
 };
 use winit::event::KeyEvent;
 use winit::keyboard::{KeyCode, PhysicalKey, SmolStr};
@@ -14,10 +14,18 @@ enum KeyAction {
         radio: Radio,
         is_active_in: Box<dyn Fn(&ControlState) -> bool>,
     },
-    FloatParameter {
+    PhysicsParameter {
         up_code: SmolStr,
         down_code: SmolStr,
-        physics_parameter: PhysicsParameter,
+        parameter: PhysicsParameter,
+        radio: Radio,
+        render: Box<dyn Fn(&f32) -> String>,
+        is_active_in: Box<dyn Fn(&ControlState) -> bool>,
+    },
+    TweakParameter {
+        up_code: SmolStr,
+        down_code: SmolStr,
+        parameter: TweakParameter,
         radio: Radio,
         render: Box<dyn Fn(&f32) -> String>,
         is_active_in: Box<dyn Fn(&ControlState) -> bool>,
@@ -57,31 +65,36 @@ impl Keyboard {
             KeyCode::Escape,
             "Cancel selection",
             Crucible(ToViewing),
-            Box::new(|state| matches!(state, ShowingJoint(_) | ShowingInterval(_))),
+            Box::new(|state| {
+                matches!(
+                    state,
+                    ControlState::ShowingJoint(_) | ControlState::ShowingInterval(_)
+                )
+            }),
+        );
+        self.key_lab_event(
+            KeyCode::Escape,
+            "Stop physics testing",
+            Crucible(ToViewing),
+            Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),
         );
         self.key_lab_event(
             KeyCode::Space,
             "Stop animation",
             Crucible(ToViewing),
-            Box::new(|state| matches!(state, Animating)),
+            Box::new(|state| matches!(state, ControlState::Animating)),
         );
         self.key_lab_event(
             KeyCode::Space,
             "Start animation",
             Crucible(ToAnimating),
-            Box::new(|state| matches!(state, Viewing)),
+            Box::new(|state| matches!(state, ControlState::Viewing)),
         );
         self.key_lab_event(
-            KeyCode::KeyM,
-            "Increase mass (+50%)",
-            Crucible(IncreaseMass),
-            Box::new(|_| true), // Works in all states
-        );
-        self.key_lab_event(
-            KeyCode::KeyI,
-            "Increase rigidity (+50%)",
-            Crucible(IncreaseRigidity),
-            Box::new(|_| true), // Works in all states
+            KeyCode::KeyT,
+            "Physics testing",
+            Crucible(ToPhysicsTesting(TestScenario::PhysicsTest)),
+            Box::new(|state| matches!(state, ControlState::Viewing)),
         );
         self.float_parameter(
             "P",
@@ -91,59 +104,57 @@ impl Keyboard {
                 value: AIR_GRAVITY.pretenst,
             },
             Box::new(|value| format!("Pretenst {value:.3}")),
-            Box::new(|state| matches!(state, PhysicsTesting(_) | FailureTesting(_))),
+            Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),
         );
-        self.float_parameter(
-            "L",
-            "l",
-            PhysicsParameter {
-                feature: PhysicsFeature::StrainLimit,
+        self.tweak_parameter(
+            "M",
+            "m",
+            TweakParameter {
+                feature: TweakFeature::MassScale,
                 value: 1.0,
             },
-            Box::new(|value| format!("Strain {:.1}%", value * 1e2)),
-            Box::new(|state| matches!(state, PhysicsTesting(_) | FailureTesting(_))),
+            Box::new(|value| format!("Mass scale {value:.4}")),
+            Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),
+        );
+        self.tweak_parameter(
+            "R",
+            "r",
+            TweakParameter {
+                feature: TweakFeature::RigidityScale,
+                value: 1.0,
+            },
+            Box::new(|value| format!("Rigidity scale {value:.4}")),
+            Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),
         );
         self.key_lab_event(
             KeyCode::KeyY,
             "",
             Crucible(TesterDo(TesterAction::DumpPhysics)),
-            Box::new(|state| matches!(state, PhysicsTesting(_))),
+            Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),
         );
         self.key_lab_event(
-            KeyCode::KeyR,
+            KeyCode::KeyC,
             "Color by Role",
             UpdateState(StateChange::ToggleColorByRole),
-            Box::new(|_| true),
+            Box::new(|state| matches!(state, ControlState::Viewing)),
         );
         self.key_lab_event(
             KeyCode::KeyO,
             "Projection",
             UpdateState(StateChange::ToggleProjection),
-            Box::new(|_| true),
+            Box::new(|state| matches!(state, ControlState::Viewing)),
         );
         self.key_lab_event(
             KeyCode::KeyK,
             "Knots",
             UpdateState(StateChange::ToggleAttachmentPoints),
-            Box::new(|_| true),
-        );
-        self.key_lab_event(
-            KeyCode::ArrowLeft,
-            "Previous test",
-            Crucible(TesterDo(TesterAction::PrevExperiment)),
-            Box::new(|state| matches!(state, FailureTesting(_))),
-        );
-        self.key_lab_event(
-            KeyCode::ArrowRight,
-            "Next test",
-            Crucible(TesterDo(TesterAction::NextExperiment)),
-            Box::new(|state| matches!(state, FailureTesting(_))),
+            Box::new(|state| matches!(state, ControlState::Viewing)),
         );
         self.key_lab_event(
             KeyCode::KeyX,
             "eXport", // hidden
             DumpCSV,
-            Box::new(|state| matches!(state, Viewing)),
+            Box::new(|state| matches!(state, ControlState::Viewing)),
         );
         self.key_lab_event(
             KeyCode::Enter,
@@ -156,12 +167,19 @@ impl Keyboard {
 
     pub fn set_float_parameter(&mut self, parameter_to_set: &PhysicsParameter) {
         for action in self.actions.iter_mut() {
-            if let KeyAction::FloatParameter {
-                physics_parameter, ..
-            } = action
-            {
-                if physics_parameter.feature == parameter_to_set.feature {
-                    physics_parameter.value = parameter_to_set.value;
+            if let KeyAction::PhysicsParameter { parameter, .. } = action {
+                if parameter.feature == parameter_to_set.feature {
+                    parameter.value = parameter_to_set.value;
+                }
+            }
+        }
+    }
+
+    pub fn set_tweak_parameter(&mut self, parameter_to_set: &TweakParameter) {
+        for action in self.actions.iter_mut() {
+            if let KeyAction::TweakParameter { parameter, .. } = action {
+                if parameter.feature == parameter_to_set.feature {
+                    parameter.value = parameter_to_set.value;
                 }
             }
         }
@@ -189,28 +207,50 @@ impl Keyboard {
                                 lab_event(control_state).send(&radio);
                             }
                         }
-                        KeyAction::FloatParameter {
+                        KeyAction::PhysicsParameter {
                             up_code,
                             down_code,
                             radio,
-                            physics_parameter,
+                            parameter,
+                            is_active_in,
                             ..
                         } => {
-                            if text == *up_code {
-                                StateChange::SetPhysicsParameter(
-                                    physics_parameter
-                                        .feature
-                                        .parameter(physics_parameter.value * 1.1),
-                                )
-                                .send(radio);
+                            if is_active_in(control_state) {
+                                if text == *up_code {
+                                    StateChange::SetPhysicsParameter(
+                                        parameter.feature.parameter(parameter.value * 1.1),
+                                    )
+                                    .send(radio);
+                                }
+                                if text == *down_code {
+                                    StateChange::SetPhysicsParameter(
+                                        parameter.feature.parameter(parameter.value * 0.9),
+                                    )
+                                    .send(radio);
+                                }
                             }
-                            if text == *down_code {
-                                StateChange::SetPhysicsParameter(
-                                    physics_parameter
-                                        .feature
-                                        .parameter(physics_parameter.value * 0.9),
-                                )
-                                .send(radio);
+                        }
+                        KeyAction::TweakParameter {
+                            up_code,
+                            down_code,
+                            radio,
+                            parameter,
+                            is_active_in,
+                            ..
+                        } => {
+                            if is_active_in(control_state) {
+                                if text == *up_code {
+                                    StateChange::SetTweakParameter(
+                                        parameter.feature.parameter(parameter.value * 1.1),
+                                    )
+                                    .send(radio);
+                                }
+                                if text == *down_code {
+                                    StateChange::SetTweakParameter(
+                                        parameter.feature.parameter(parameter.value * 0.9),
+                                    )
+                                    .send(radio);
+                                }
                             }
                         }
                     }
@@ -235,10 +275,23 @@ impl Keyboard {
                         legend.push(format!("{}: {}", key_name, description));
                     }
                 }
-                KeyAction::FloatParameter {
+                KeyAction::PhysicsParameter {
                     is_active_in,
                     render,
-                    physics_parameter: PhysicsParameter { value, .. },
+                    parameter: PhysicsParameter { value, .. },
+                    up_code,
+                    down_code,
+                    ..
+                } => {
+                    if is_active_in(control_state) {
+                        // Format as "Key+/Key-: Value" for parameters
+                        legend.push(format!("{}/{}: {}", up_code, down_code, render(value)));
+                    }
+                }
+                KeyAction::TweakParameter {
+                    is_active_in,
+                    render,
+                    parameter: TweakParameter { value, .. },
                     up_code,
                     down_code,
                     ..
@@ -252,7 +305,7 @@ impl Keyboard {
         }
         legend
     }
-    
+
     // Helper function to format key names consistently
     fn format_key_name(code: &KeyCode) -> String {
         match code {
@@ -263,9 +316,7 @@ impl Keyboard {
             KeyCode::ArrowRight => "→".to_string(),
             KeyCode::ArrowUp => "↑".to_string(),
             KeyCode::ArrowDown => "↓".to_string(),
-            _ => format!("{:?}", code)
-                .trim_start_matches("Key")
-                .to_string()
+            _ => format!("{:?}", code).trim_start_matches("Key").to_string(),
         }
     }
 
@@ -305,16 +356,34 @@ impl Keyboard {
         &mut self,
         up_code: &str,
         down_code: &str,
-        physics_parameter: PhysicsParameter,
+        parameter: PhysicsParameter,
         render: Box<dyn Fn(&f32) -> String>,
         is_active_in: Box<dyn Fn(&ControlState) -> bool>,
     ) {
-        self.actions.push(KeyAction::FloatParameter {
+        self.actions.push(KeyAction::PhysicsParameter {
             up_code: up_code.into(),
             down_code: down_code.into(),
             render,
             is_active_in,
-            physics_parameter,
+            parameter,
+            radio: self.radio.clone(),
+        })
+    }
+
+    fn tweak_parameter(
+        &mut self,
+        up_code: &str,
+        down_code: &str,
+        parameter: TweakParameter,
+        render: Box<dyn Fn(&f32) -> String>,
+        is_active_in: Box<dyn Fn(&ControlState) -> bool>,
+    ) {
+        self.actions.push(KeyAction::TweakParameter {
+            up_code: up_code.into(),
+            down_code: down_code.into(),
+            render,
+            is_active_in,
+            parameter,
             radio: self.radio.clone(),
         })
     }
