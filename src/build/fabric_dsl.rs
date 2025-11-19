@@ -1,7 +1,4 @@
-/// Rust DSL for defining fabric plans
-///
-/// This module provides a type-safe, fluent API for constructing fabric plans
-/// without needing to parse tenscript files.
+/// Type-safe DSL for defining fabric plans with a fluent API.
 
 use crate::build::tenscript::build_phase::{BuildNode, BuildPhase};
 use crate::build::tenscript::converge_phase::ConvergePhase;
@@ -12,14 +9,10 @@ use crate::build::tenscript::FaceAlias;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Millimeters, Seconds};
 
-// Re-export type-safe types for use in fabric definitions
 pub use crate::build::brick_dsl::{BrickName, Face};
 pub use crate::build::tenscript::build_phase::BuildNode as Node;
 pub use crate::units::{Millimeters as Mm, Seconds as Sec};
 
-// ============================================================================
-// Helper Functions for Type-Safe Face Aliases
-// ============================================================================
 
 /// Create a FaceAlias from a Face enum
 impl From<Face> for FaceAlias {
@@ -35,9 +28,6 @@ impl From<BrickName> for FaceAlias {
     }
 }
 
-// ============================================================================
-// Fabric Builder
-// ============================================================================
 
 /// Start building a fabric plan
 pub fn fabric(name: impl Into<String>) -> FabricBuilder {
@@ -109,9 +99,6 @@ impl FabricBuilder {
     }
 }
 
-// ============================================================================
-// Build Node Constructors
-// ============================================================================
 
 /// Create a branch node
 pub fn branch(alias: impl Into<FaceAlias>) -> BranchBuilder {
@@ -221,9 +208,7 @@ impl GrowBuilder {
     }
 }
 
-// ============================================================================
 // Shape Operations
-// ============================================================================
 
 pub fn during<const N: usize>(seconds: Seconds, ops: [ShapeOperation; N]) -> ShapeOperation {
     ShapeOperation::During {
@@ -300,9 +285,7 @@ pub fn add(alpha_index: usize, omega_index: usize, length_factor: f32) -> ShapeO
     }
 }
 
-// ============================================================================
 // Pretense Phase
-// ============================================================================
 
 #[derive(Default)]
 pub struct PretensePhaseBuilder {

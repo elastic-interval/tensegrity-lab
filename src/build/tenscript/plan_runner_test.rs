@@ -15,8 +15,8 @@ mod tests {
         println!("=== Building Triped Headlessly ===\n");
 
         // Load libraries using Rust DSL
-        let fabric_library = FabricLibrary::from_rust(build_fabric_library());
-        let brick_library = BrickLibrary::from_rust(build_brick_library());
+        let fabric_library = FabricLibrary::new(build_fabric_library());
+        let brick_library = BrickLibrary::new(build_brick_library());
 
         // Get Triped plan
         let plan = fabric_library

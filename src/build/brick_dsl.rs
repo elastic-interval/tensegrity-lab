@@ -5,14 +5,8 @@ use crate::build::tenscript::brick::{
 };
 use crate::build::tenscript::{FaceAlias, Spin};
 
-// Re-export Material from fabric for convenience
 pub use crate::fabric::material::Material;
 
-// ============================================================================
-// Type-safe enums for brick system
-// ============================================================================
-
-// Helper to convert Material to string name
 pub fn material_name(material: Material) -> &'static str {
     match material {
         Material::Pull => "pull",
@@ -21,7 +15,6 @@ pub fn material_name(material: Material) -> &'static str {
     }
 }
 
-// Extension trait to add interval creation methods to Material
 pub trait MaterialIntervalExt {
     fn interval(self, alpha: usize, omega: usize, strain: f32) -> BakedInterval;
 }
@@ -78,10 +71,6 @@ impl FaceContext {
         }
     }
 }
-
-// ============================================================================
-// Joint name enums for type-safe connections
-// ============================================================================
 
 /// Joint names for Single brick (both left and right variants)
 #[derive(Copy, Clone, Debug)]
@@ -147,9 +136,6 @@ impl From<OmniJoint> for String {
     }
 }
 
-// ============================================================================
-// Face alias system - context-dependent face naming
-// ============================================================================
 
 /// Unified face names for all bricks
 #[derive(Copy, Clone, Debug)]
@@ -222,9 +208,6 @@ impl Face {
     }
 }
 
-// ============================================================================
-// Type-safe builder helpers
-// ============================================================================
 
 /// Create a FaceAlias from a list of strings
 pub fn alias(names: &[&str]) -> FaceAlias {

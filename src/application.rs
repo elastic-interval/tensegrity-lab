@@ -52,8 +52,8 @@ impl Application {
         radio: Radio,
     ) -> Result<Application, TenscriptError> {
         // Use Rust DSL instead of tenscript parsing
-        let brick_library = BrickLibrary::from_rust(build_brick_library());
-        let fabric_library = FabricLibrary::from_rust(build_fabric_library());
+        let brick_library = BrickLibrary::new(build_brick_library());
+        let fabric_library = FabricLibrary::new(build_fabric_library());
         Ok(Application {
             run_style: RunStyle::Unknown,
             mobile_device: false,
@@ -80,7 +80,7 @@ impl Application {
     //==================================================
 
     pub fn refresh_library(&mut self, time: Instant) -> Result<LabEvent, TenscriptError> {
-        self.fabric_library = FabricLibrary::from_rust(build_fabric_library());
+        self.fabric_library = FabricLibrary::new(build_fabric_library());
         Ok(LabEvent::UpdatedLibrary(time))
     }
 

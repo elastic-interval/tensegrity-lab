@@ -6,18 +6,16 @@ pub struct FabricLibrary {
 }
 
 impl FabricLibrary {
-    /// Create FabricLibrary from Rust DSL fabric definitions
-    ///
-    /// This uses type-safe Rust builders instead of parsing tenscript.
+    /// Create a FabricLibrary from fabric plans.
     ///
     /// # Example
     /// ```
     /// use tensegrity_lab::build::fabric_builders::build_fabric_library;
     /// use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
     ///
-    /// let fabric_library = FabricLibrary::from_rust(build_fabric_library());
+    /// let fabric_library = FabricLibrary::new(build_fabric_library());
     /// ```
-    pub fn from_rust(fabric_plans: Vec<FabricPlan>) -> Self {
+    pub fn new(fabric_plans: Vec<FabricPlan>) -> Self {
         FabricLibrary { fabric_plans }
     }
 

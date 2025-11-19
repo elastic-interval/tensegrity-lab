@@ -175,7 +175,7 @@ impl Crucible {
         use CrucibleAction::*;
 
         // Create a brick library for the context using Rust DSL
-        let dummy_brick_library = BrickLibrary::from_rust(build_brick_library());
+        let dummy_brick_library = BrickLibrary::new(build_brick_library());
 
         // Clone physics for use in testers to avoid borrow checker issues
         let physics_clone = self.physics.clone();

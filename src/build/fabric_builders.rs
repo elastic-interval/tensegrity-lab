@@ -1,17 +1,12 @@
-/// Pure Rust fabric definitions - replacing Tenscript parsing
+/// Fabric definitions using the type-safe Rust DSL.
 ///
-/// This module contains only the fabric definition functions.
 /// All supporting types and helpers are in the `fabric_dsl` module.
 
 use crate::build::fabric_dsl::*;
 use crate::build::tenscript::fabric_plan::FabricPlan;
 use crate::fabric::physics::SurfaceCharacter;
 
-// ============================================================================
-// Fabric Definitions
-// ============================================================================
-
-/// Build the Triped fabric using Rust DSL
+/// Build the Triped fabric
 pub fn triped() -> FabricPlan {
     fabric("Triped")
         .build(
@@ -33,11 +28,7 @@ pub fn triped() -> FabricPlan {
         .build_plan()
 }
 
-// ============================================================================
-// Fabric Library
-// ============================================================================
-
-/// Build the Symmetrical fabric using Rust DSL
+/// Build the Symmetrical fabric
 pub fn symmetrical() -> FabricPlan {
     fabric("Symmetrical")
         .build(branch(BrickName::Omni).build())
@@ -47,7 +38,7 @@ pub fn symmetrical() -> FabricPlan {
         .build_plan()
 }
 
-/// Build the Vertebra fabric using Rust DSL
+/// Build the Vertebra fabric
 pub fn vertebra() -> FabricPlan {
     fabric("Vertebra")
         .build(
@@ -61,7 +52,7 @@ pub fn vertebra() -> FabricPlan {
         .build_plan()
 }
 
-/// Build the Flagellum fabric using Rust DSL
+/// Build the Flagellum fabric
 pub fn flagellum() -> FabricPlan {
     fabric("Flagellum")
         .build(
@@ -74,7 +65,7 @@ pub fn flagellum() -> FabricPlan {
         .build_plan()
 }
 
-/// Build the Cigar fabric using Rust DSL
+/// Build the Cigar fabric
 pub fn cigar() -> FabricPlan {
     fabric("Cigar")
         .build(
@@ -89,7 +80,7 @@ pub fn cigar() -> FabricPlan {
         .build_plan()
 }
 
-/// Build the X fabric using Rust DSL
+/// Build the X fabric
 pub fn x() -> FabricPlan {
     fabric("X")
         .build(
@@ -104,7 +95,7 @@ pub fn x() -> FabricPlan {
         .build_plan()
 }
 
-/// Build the Tetrapod fabric using Rust DSL
+/// Build the Tetrapod fabric
 pub fn tetrapod() -> FabricPlan {
     fabric("Tetrapod")
         .build(
@@ -121,7 +112,7 @@ pub fn tetrapod() -> FabricPlan {
         .build_plan()
 }
 
-/// Build the Halo by Crane fabric using Rust DSL
+/// Build the Halo by Crane fabric
 pub fn halo_by_crane() -> FabricPlan {
     fabric("Halo by Crane")
         .build(
@@ -147,7 +138,7 @@ pub fn halo_by_crane() -> FabricPlan {
         .build_plan()
 }
 
-/// Build the Convergence fabric using Rust DSL
+/// Build the Convergence fabric
 pub fn convergence() -> FabricPlan {
     fabric("Convergence")
         .build(
@@ -168,7 +159,7 @@ pub fn convergence() -> FabricPlan {
         .build_plan()
 }
 
-/// Build the Torque Walker fabric using Rust DSL
+/// Build the Torque Walker fabric
 pub fn torque_walker() -> FabricPlan {
     fabric("Torque Walker")
         .build(
@@ -204,7 +195,7 @@ pub fn torque_walker() -> FabricPlan {
         .build_plan()
 }
 
-/// Build the Twisted Infinity fabric using Rust DSL
+/// Build the Twisted Infinity fabric
 pub fn twisted_infinity() -> FabricPlan {
     fabric("Twisted Infinity")
         .build(
@@ -225,7 +216,7 @@ pub fn twisted_infinity() -> FabricPlan {
         .build_plan()
 }
 
-/// Build the Propellor fabric using Rust DSL
+/// Build the Propellor fabric
 pub fn propellor() -> FabricPlan {
     fabric("Propellor")
         .build(
@@ -248,7 +239,7 @@ pub fn propellor() -> FabricPlan {
         .build_plan()
 }
 
-/// Build the Headless Hug fabric using Rust DSL
+/// Build the Headless Hug fabric
 pub fn headless_hug() -> FabricPlan {
     fabric("Headless Hug")
         .build(
@@ -292,7 +283,7 @@ pub fn headless_hug() -> FabricPlan {
         .build_plan()
 }
 
-/// Build the Torque Ring fabric using Rust DSL
+/// Build the Torque Ring fabric
 pub fn torque_ring() -> FabricPlan {
     fabric("Torque Ring")
         .build(
@@ -343,7 +334,7 @@ pub fn torque_ring() -> FabricPlan {
         .build_plan()
 }
 
-/// Build all fabric plans using Rust DSL
+/// Build all fabric plans
 pub fn build_fabric_library() -> Vec<FabricPlan> {
     vec![
         triped(),

@@ -6,7 +6,7 @@ use tensegrity_lab::build::tenscript::brick_library::BrickLibrary;
 #[test]
 fn test_brick_library_construction() {
     // Build the brick library using Rust DSL
-    let brick_library = BrickLibrary::from_rust(build_brick_library());
+    let brick_library = BrickLibrary::new(build_brick_library());
 
     // Verify we got the expected number of bricks
     assert_eq!(brick_library.brick_definitions.len(), 7, "Should have 7 bricks");
