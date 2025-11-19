@@ -1,11 +1,7 @@
-use std::iter;
-
 use cgmath::SquareMatrix;
-use pest::iterators::Pair;
-use pest::Parser;
 
 use crate::build::tenscript::brick::{Baked, BrickDefinition};
-use crate::build::tenscript::{FaceAlias, Rule, TenscriptError, TenscriptParser};
+use crate::build::tenscript::{FaceAlias, TenscriptError};
 
 #[derive(Clone, Debug)]
 pub struct BrickLibrary {
@@ -14,49 +10,49 @@ pub struct BrickLibrary {
 }
 
 impl BrickLibrary {
-    pub fn from_source() -> Result<Self, TenscriptError> {
-        let source: String;
-        #[cfg(target_arch = "wasm32")]
-        {
-            source = include_str!("../../../brick_library.tenscript").to_string();
+    /// Create BrickLibrary from Rust DSL brick definitions
+    ///
+    /// This uses type-safe Rust builders instead of parsing tenscript.
+    ///
+    /// # Example
+    /// ```
+    /// use tensegrity_lab::build::brick_builders::build_brick_library;
+    /// use tensegrity_lab::build::tenscript::brick_library::BrickLibrary;
+    ///
+    /// let brick_library = BrickLibrary::from_rust(build_brick_library());
+    /// ```
+    pub fn from_rust(brick_definitions: Vec<BrickDefinition>) -> Self {
+        let baked_bricks = Self::compute_baked_bricks(&brick_definitions);
+        BrickLibrary {
+            brick_definitions,
+            baked_bricks,
         }
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            use std::fs;
-            source = fs::read_to_string("brick_library.tenscript")
-                .map_err(TenscriptError::FileReadError)?;
-        }
-        Self::from_tenscript(&source)
     }
 
-    fn from_tenscript(source: &str) -> Result<Self, TenscriptError> {
-        let pair = TenscriptParser::parse(Rule::brick_library, source)
-            .map_err(TenscriptError::PestError)?
-            .next()
-            .expect("no (bricks ..)");
-        Self::from_pair(pair)
-    }
-
-    fn from_pair(pair: Pair<Rule>) -> Result<Self, TenscriptError> {
-        let mut brick_definitions = Vec::new();
-        for definition in pair.into_inner() {
-            match definition.as_rule() {
-                Rule::brick_definition => {
-                    let brick = BrickDefinition::from_pair(definition)?;
-                    brick_definitions.push(brick);
-                }
-                _ => unreachable!(),
-            }
-        }
-        let baked_bricks: Vec<_> = brick_definitions
+    /// Compute baked bricks with all face transformations
+    ///
+    /// This transforms brick_definitions into pre-computed baked bricks with all possible
+    /// face orientations, used for efficient brick instantiation during construction.
+    fn compute_baked_bricks(brick_definitions: &[BrickDefinition]) -> Vec<(FaceAlias, Baked)> {
+        brick_definitions
             .iter()
-            .filter_map(|brick| brick.baked.clone())
+            .filter_map(|brick_def| {
+                // Get baked brick with faces populated
+                let mut baked = brick_def.baked.clone()?;
+                // Ensure faces are populated (either from baked.faces or derived from proto)
+                if baked.faces.is_empty() {
+                    baked.faces = brick_def.baked_faces();
+                }
+                Some(baked)
+            })
             .flat_map(|baked| {
-                let cloned_bricks = iter::repeat(baked.clone());
+                // Clone baked repeatedly for each face
+                let baked_iter = std::iter::repeat(baked.clone());
                 baked
                     .faces
+                    .clone()
                     .into_iter()
-                    .zip(cloned_bricks)
+                    .zip(baked_iter)
                     .flat_map(|(face, baked)| {
                         let face_space = face.vector_space(&baked).invert().unwrap();
                         let aliases: Vec<_> = face
@@ -80,11 +76,7 @@ impl BrickLibrary {
                         })
                     })
             })
-            .collect();
-        Ok(BrickLibrary {
-            brick_definitions,
-            baked_bricks,
-        })
+            .collect()
     }
 
     pub fn new_brick(&self, search_alias: &FaceAlias) -> Result<Baked, TenscriptError> {

@@ -1,3 +1,4 @@
+use crate::build::brick_builders::build_brick_library;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, TenscriptError};
@@ -53,7 +54,8 @@ impl Application {
         window_attributes: WindowAttributes,
         radio: Radio,
     ) -> Result<Application, TenscriptError> {
-        let brick_library = BrickLibrary::from_source()?;
+        // Use Rust DSL instead of tenscript parsing for brick library
+        let brick_library = BrickLibrary::from_rust(build_brick_library());
         let fabric_library = FabricLibrary::from_source()?;
         Ok(Application {
             run_style: RunStyle::Unknown,
