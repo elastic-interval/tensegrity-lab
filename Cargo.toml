@@ -14,8 +14,6 @@ futures = "0.3.30"
 getrandom = { version = "0.2", features = ["js"] }
 itertools = "0.14.0"
 log = "0.4.26"
-pest = "2.7.15"
-pest_derive = "2.7.15"
 rand = { version = "0.8", features = ["getrandom"] }
 winit = { version = "0.30.5", features = ["rwh_04"] }
 rand_chacha = "0.3.1"

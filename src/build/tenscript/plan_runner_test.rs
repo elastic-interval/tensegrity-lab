@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::build::brick_builders::build_brick_library;
+    use crate::build::fabric_builders::build_fabric_library;
     use crate::build::tenscript::brick_library::BrickLibrary;
     use crate::build::tenscript::fabric_library::FabricLibrary;
     use crate::build::tenscript::plan_context::PlanContext;
@@ -9,13 +10,12 @@ mod tests {
     use crate::fabric::Fabric;
 
     #[test]
-    #[ignore] // Disabled - needs investigation with Rust DSL brick migration
+    #[ignore] // Disabled - needs investigation with Rust DSL migration
     fn test_build_triped_headless() {
         println!("=== Building Triped Headlessly ===\n");
 
-        // Load libraries
-        let fabric_library = FabricLibrary::from_source()
-            .expect("Failed to load fabric library");
+        // Load libraries using Rust DSL
+        let fabric_library = FabricLibrary::from_rust(build_fabric_library());
         let brick_library = BrickLibrary::from_rust(build_brick_library());
 
         // Get Triped plan

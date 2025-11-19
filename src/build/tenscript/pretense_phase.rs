@@ -1,6 +1,3 @@
-use pest::iterators::{Pair, Pairs};
-
-use crate::build::tenscript::{PairExt, Rule, TenscriptError};
 use crate::fabric::physics::presets::BASE_PHYSICS;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::units::{Percent, Seconds};
@@ -17,65 +14,6 @@ pub struct PretensePhase {
 }
 
 impl PretensePhase {
-    pub fn from_pair(pair: Pair<Rule>) -> Result<PretensePhase, TenscriptError> {
-        match pair.as_rule() {
-            Rule::pretense => Self::parse_features(pair.into_inner()),
-            _ => {
-                unreachable!()
-            }
-        }
-    }
-
-    fn parse_features(pairs: Pairs<Rule>) -> Result<PretensePhase, TenscriptError> {
-        let mut pretense = PretensePhase::default();
-        for feature_pair in pairs {
-            match feature_pair.as_rule() {
-                Rule::pretense_feature => {
-                    for pretense_pair in feature_pair.into_inner() {
-                        match pretense_pair.as_rule() {
-                            Rule::surface => {
-                                pretense.surface_character = Some(
-                                    match pretense_pair.into_inner().next().unwrap().as_str() {
-                                        ":frozen" => SurfaceCharacter::Frozen,
-                                        ":bouncy" => SurfaceCharacter::Bouncy,
-                                        ":absent" => SurfaceCharacter::Absent,
-                                        ":sticky" => SurfaceCharacter::Sticky,
-                                        ":slippery" => SurfaceCharacter::Slippery,
-                                        _ => unreachable!("surface character"),
-                                    }
-                                )
-                            }
-                            Rule::pretenst => {
-                                pretense.pretenst = Some(pretense_pair.parse_float_inner("pretenst")?);
-                            }
-                            Rule::seconds => {
-                                let factor = pretense_pair.parse_float_inner("seconds")?;
-                                pretense.seconds = Some(Seconds(factor));
-                            }
-                            Rule::rigidity => {
-                                pretense.rigidity = Some(pretense_pair.parse_float_inner("rigidity")?);
-                            }
-                            Rule::altitude => {
-                                pretense.altitude = Some(pretense_pair.parse_float_inner("altitude")?);
-                            }
-                            Rule::viscosity => {
-                                pretense.viscosity = Some(pretense_pair.parse_float_inner("viscosity")?);
-                            }
-                            Rule::drag => {
-                                pretense.drag = Some(pretense_pair.parse_float_inner("drag")?);
-                            }
-                            _ => unreachable!(),
-                        }
-                    }
-                }
-                _ => {
-                    unreachable!()
-                }
-            }
-        }
-        Ok(pretense)
-    }
-
     /// Create the viewing physics by applying pretense customizations to BASE_PHYSICS
     pub fn viewing_physics(&self) -> Physics {
         let pretenst = self.pretenst
