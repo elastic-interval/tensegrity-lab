@@ -1,5 +1,3 @@
-brick_library =
-    { "(" ~ "brick-library" ~ brick_definition* ~ ")" }
 fabric_library =
     { "(" ~ "fabric-library" ~ fabric_plan* ~ ")" }
 
@@ -99,47 +97,11 @@ face_rotation =
 scale =
     { "(" ~ "scale" ~ float ~ ")" }
 
-brick_definition =
-    { "(" ~ "brick" ~ brick_proto ~ brick_baked? ~ ")" }
+// Shared alias rules used by fabric plans
 partial_alias =
     { "(" ~ "alias" ~ atom ~ ")" }
-brick_proto =
-    { "(" ~ "proto" ~ partial_alias ~ joints_proto? ~ pushes_proto+ ~ pulls_proto* ~ faces_proto+ ~ face_aliases+ ~ ")" }
-pushes_proto = // axis, ideal
-    { "(" ~ "pushes" ~ axis ~ float ~ push_proto+ ~ ")" }
-axis = { axis_x | axis_y | axis_z }
-axis_x = { ":x-axis" | "X" }
-axis_y = { ":y-axis" | "Y" }
-axis_z = { ":z-axis" | "Z" }
-joints_proto = // alpha, omega
-    { "(" ~ "joints" ~ atom+ ~ ")" }
-push_proto = // alpha, omega
-    { "(" ~ "push" ~ atom ~ atom ~ ")" }
-pulls_proto = // ideal
-    { "(" ~ "pulls" ~ float ~ pull_proto+ ~ ")" }
-pull_proto = // alpha, omega, material-name
-    { "(" ~ "pull" ~ atom ~ atom ~ atom ~ ")" }
-faces_proto =
-    { "(" ~ "faces" ~ face_proto+ ~ ")" }
-left = { "left" }
-right = { "right" }
-chirality = { left | right }
-face_proto = // a, b, c, name
-    { "(" ~ chirality ~ atom ~ atom ~ atom ~ face_alias* ~ ")" }
 face_alias =
     { "(" ~ "alias" ~ atom+ ~ ")" }
-face_aliases =
-    { "(" ~ "face-aliases" ~ face_aliases_with ~ face_alias+ ~ ")" }
-face_aliases_with =
-    { "(" ~ "with" ~ atom+ ~ ")" }
-brick_baked =
-    { "(" ~ "baked" ~ joint_baked+ ~ interval_baked+ ~ face_baked+ ~ ")" }
-joint_baked = // x, y, z
-    { "(" ~ "joint" ~ float ~ float ~ float ~ ")" }
-interval_baked = // alpha_index, omega_index, strain, material-name
-    { "(" ~ "interval" ~ integer ~ integer ~ float ~ atom ~ ")" }
-face_baked = // a, b, c, name
-    { "(" ~ chirality ~ integer ~ integer ~ integer ~ face_alias* ~ ")" }
 
 ident = @{ XID_START ~ (XID_CONTINUE | "-")* }
 ident_uppercase = @{ ASCII_ALPHA_UPPER ~ (XID_CONTINUE | "-")* }
