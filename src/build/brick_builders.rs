@@ -1,9 +1,9 @@
 /// Pure Rust brick definitions - replacing Tenscript parsing
-/// 
+///
 /// This module contains only the brick definition functions.
-/// All supporting types and helpers are in the `dsl` module.
+/// All supporting types and helpers are in the `brick_dsl` module.
 
-use crate::build::dsl::*;
+use crate::build::brick_dsl::*;
 use crate::build::tenscript::brick::BrickDefinition;
 use crate::build::tenscript::Spin;
 

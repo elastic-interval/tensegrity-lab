@@ -1,11 +1,8 @@
 use std::convert::Into;
 
-use pest::iterators::Pair;
-
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::build_phase::BuildNode::*;
 use crate::build::tenscript::build_phase::Launch::*;
-use crate::build::tenscript::{PairExt, Rule};
 use crate::build::tenscript::{FaceAlias, FaceMark, TenscriptError};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::FaceRotation;
@@ -92,97 +89,6 @@ impl BuildPhase {
 }
 
 impl BuildPhase {
-    pub fn from_pair(pair: Pair<Rule>) -> Result<BuildPhase, TenscriptError> {
-        pair.into_inner()
-            .next()
-            .map(|build_node_pair| Self::parse_build_node(build_node_pair).map(BuildPhase::new))
-            .unwrap()
-    }
-
-    fn parse_build_node(pair: Pair<Rule>) -> Result<BuildNode, TenscriptError> {
-        match pair.as_rule() {
-            Rule::build_node => Self::parse_build_node(pair.into_inner().next().unwrap()),
-            Rule::on_face => {
-                let mut inner = pair.into_inner();
-                let [face_name_pair, node_pair] = [inner.next().unwrap(), inner.next().unwrap()];
-                let alias = FaceAlias::from_pair(face_name_pair);
-                let node = Self::parse_build_node(node_pair)?;
-                Ok(Face {
-                    alias,
-                    node: Box::new(node),
-                })
-            }
-            Rule::grow => {
-                let mut inner = pair.into_inner();
-                let forward_string = inner.next().unwrap().as_str();
-                let forward = match forward_string.parse() {
-                    Ok(count) => "X".repeat(count),
-                    Err(_) => forward_string[1..forward_string.len() - 1].into(),
-                };
-                let mut scale = None;
-                let mut post_growth_nodes = Vec::new();
-                for inner_pair in inner {
-                    match inner_pair.as_rule() {
-                        Rule::scale => {
-                            scale = Some(inner_pair.parse_float_inner("grow/scale")?);
-                        }
-                        Rule::build_node => {
-                            post_growth_nodes.push(Self::parse_build_node(inner_pair)?);
-                        }
-                        _ => unreachable!(),
-                    }
-                }
-                let scale_factor = scale.unwrap_or(1.0);
-                Ok(Grow {
-                    forward,
-                    scale_factor,
-                    post_growth_nodes,
-                })
-            }
-            Rule::mark => {
-                let mark_name = pair.into_inner().next().unwrap().as_str()[1..].into();
-                Ok(Mark { mark_name })
-            }
-            Rule::branch => {
-                let mut inner = pair.into_inner();
-                let alias = FaceAlias::from_pair(inner.next().unwrap());
-                let mut scale = None;
-                let mut face_nodes = Vec::new();
-                let mut rotation = 0;
-                let mut seed = None;
-                for node_pair in inner {
-                    match node_pair.as_rule() {
-                        Rule::face_rotation => {
-                            rotation += 1;
-                        }
-                        Rule::scale => {
-                            scale = Some(node_pair.parse_float_inner("branch/scale")?);
-                        }
-                        Rule::seed => {
-                            seed = Some(node_pair.parse_usize_inner("(seed ...)")?);
-                        }
-                        Rule::on_face => {
-                            let node = Self::parse_build_node(node_pair)?;
-                            face_nodes.push(node);
-                        }
-                        _ => unreachable!("{:?}", node_pair),
-                    }
-                }
-                let scale_factor = scale.unwrap_or(1.0);
-                Ok(Branch {
-                    alias,
-                    rotation,
-                    face_nodes,
-                    seed,
-                    scale_factor,
-                })
-            }
-            Rule::prism => {
-                Ok(Prism)
-            }
-            _ => unreachable!("node {:?}", pair.as_rule()),
-        }
-    }
     pub fn init(
         &mut self,
         fabric: &mut Fabric,

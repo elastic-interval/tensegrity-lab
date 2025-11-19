@@ -1,4 +1,5 @@
 use crate::build::brick_builders::build_brick_library;
+use crate::build::fabric_builders::build_fabric_library;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
 use crate::build::tenscript::{FabricPlan, TenscriptError};
@@ -14,8 +15,6 @@ use crate::{
 };
 use instant::{Duration, Instant};
 use std::sync::Arc;
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::SystemTime;
 
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -39,8 +38,6 @@ pub struct Application {
     control_state: ControlState,
     pointer_handler: PointerHandler,
     #[cfg(not(target_arch = "wasm32"))]
-    fabric_library_modified: Instant,
-    #[cfg(not(target_arch = "wasm32"))]
     machine: Option<crate::cord_machine::CordMachine>,
 }
 
@@ -54,9 +51,9 @@ impl Application {
         window_attributes: WindowAttributes,
         radio: Radio,
     ) -> Result<Application, TenscriptError> {
-        // Use Rust DSL instead of tenscript parsing for brick library
+        // Use Rust DSL instead of tenscript parsing
         let brick_library = BrickLibrary::from_rust(build_brick_library());
-        let fabric_library = FabricLibrary::from_source()?;
+        let fabric_library = FabricLibrary::from_rust(build_fabric_library());
         Ok(Application {
             run_style: RunStyle::Unknown,
             mobile_device: false,
@@ -74,8 +71,6 @@ impl Application {
             fps_timer: Instant::now(),
             control_state: ControlState::Waiting,
             #[cfg(not(target_arch = "wasm32"))]
-            fabric_library_modified: fabric_library_modified(),
-            #[cfg(not(target_arch = "wasm32"))]
             machine: None,
         })
     }
@@ -85,7 +80,7 @@ impl Application {
     //==================================================
 
     pub fn refresh_library(&mut self, time: Instant) -> Result<LabEvent, TenscriptError> {
-        self.fabric_library = FabricLibrary::from_source()?;
+        self.fabric_library = FabricLibrary::from_rust(build_fabric_library());
         Ok(LabEvent::UpdatedLibrary(time))
     }
 
@@ -132,23 +127,6 @@ impl Application {
         // Update keyboard legend
         StateChange::SetKeyboardLegend(self.keyboard.legend(&self.control_state).join(", "))
             .send(&self.radio);
-
-        // Check if fabric library has been modified
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let time = fabric_library_modified();
-            if time > self.fabric_library_modified {
-                match self.refresh_library(time) {
-                    Ok(action) => {
-                        action.send(&self.radio);
-                    }
-                    Err(tenscript_error) => {
-                        println!("Tenscript\n{tenscript_error}");
-                        self.fabric_library_modified = Instant::now();
-                    }
-                }
-            }
-        }
 
         // Use with_scene_and_fabric and handle the Option return type
         let surface_character = self.crucible.physics.surface_character;
@@ -343,7 +321,6 @@ impl ApplicationHandler<LabEvent> for Application {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     let _fabric_library = self.fabric_library.clone();
-                    self.fabric_library_modified = Instant::now();
                     Run(self.run_style.clone()).send(&self.radio);
                 }
             }
@@ -587,47 +564,5 @@ impl ApplicationHandler<LabEvent> for Application {
         } else {
             ControlFlow::Wait // Wait for events when not animating
         });
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn fabric_library_modified() -> Instant {
-    use std::cell::RefCell;
-    use std::fs;
-
-    // Use thread_local storage to track the last modification time
-    thread_local! {
-        static LAST_MOD_TIME: RefCell<Option<SystemTime>> = RefCell::new(None);
-    }
-
-    // Get the current file modification time
-    let current_mod_time = fs::metadata("fabric_library.tenscript".to_string())
-        .and_then(|metadata| metadata.modified())
-        .ok();
-
-    // Check if the file has been modified
-    let file_changed = LAST_MOD_TIME.with(|last_time| {
-        let mut last = last_time.borrow_mut();
-        let changed = match (current_mod_time, *last) {
-            (Some(current), Some(previous)) => current > previous,
-            (Some(_), None) => true, // First time checking
-            _ => false,              // Error reading file or no change
-        };
-
-        // Update the last modification time if we have a valid time
-        if let Some(current) = current_mod_time {
-            *last = Some(current);
-        }
-
-        changed
-    });
-
-    // Only return a new Instant if the file has changed
-    if file_changed {
-        Instant::now()
-    } else {
-        // Return a zero instant to indicate no change
-        // This will never be greater than any previous Instant
-        Instant::now() - Duration::from_secs(60 * 60 * 24) // 24 hours ago
     }
 }
