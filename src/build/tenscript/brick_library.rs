@@ -10,18 +10,16 @@ pub struct BrickLibrary {
 }
 
 impl BrickLibrary {
-    /// Create BrickLibrary from Rust DSL brick definitions
-    ///
-    /// This uses type-safe Rust builders instead of parsing tenscript.
+    /// Create a BrickLibrary from brick definitions.
     ///
     /// # Example
     /// ```
     /// use tensegrity_lab::build::brick_builders::build_brick_library;
     /// use tensegrity_lab::build::tenscript::brick_library::BrickLibrary;
     ///
-    /// let brick_library = BrickLibrary::from_rust(build_brick_library());
+    /// let brick_library = BrickLibrary::new(build_brick_library());
     /// ```
-    pub fn from_rust(brick_definitions: Vec<BrickDefinition>) -> Self {
+    pub fn new(brick_definitions: Vec<BrickDefinition>) -> Self {
         let baked_bricks = Self::compute_baked_bricks(&brick_definitions);
         BrickLibrary {
             brick_definitions,

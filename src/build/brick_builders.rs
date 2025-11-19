@@ -1,13 +1,12 @@
-/// Pure Rust brick definitions - replacing Tenscript parsing
+/// Brick definitions using the type-safe Rust DSL.
 ///
-/// This module contains only the brick definition functions.
 /// All supporting types and helpers are in the `brick_dsl` module.
 
 use crate::build::brick_dsl::*;
 use crate::build::tenscript::brick::BrickDefinition;
 use crate::build::tenscript::Spin;
 
-/// Build the Single-right brick (prototype 0)
+/// Build the Single-right brick
 pub fn single_right() -> BrickDefinition {
     use SingleJoint::*;
     
@@ -58,7 +57,7 @@ pub fn single_right() -> BrickDefinition {
         .build()
 }
 
-/// Build the Single-left brick (prototype 1)
+/// Build the Single-left brick
 pub fn single_left() -> BrickDefinition {
     use SingleJoint::*;
     
@@ -109,7 +108,7 @@ pub fn single_left() -> BrickDefinition {
         .build()
 }
 
-/// Build the Omni brick (prototype 2)
+/// Build the Omni brick
 pub fn omni() -> BrickDefinition {
     use OmniJoint::*;
     
@@ -202,7 +201,7 @@ pub fn omni() -> BrickDefinition {
         .build()
 }
 
-/// Build the Torque brick (prototype 3)
+/// Build the Torque brick
 pub fn torque() -> BrickDefinition {
     
     
@@ -321,7 +320,7 @@ pub fn torque() -> BrickDefinition {
         .build()
 }
 
-/// Build the TorqueRight brick (prototype 4)
+/// Build the TorqueRight brick
 pub fn torque_right() -> BrickDefinition {
     
     
@@ -449,7 +448,7 @@ pub fn torque_right() -> BrickDefinition {
         .build()
 }
 
-/// Build the TorqueLeft brick (prototype 5)
+/// Build the TorqueLeft brick
 pub fn torque_left() -> BrickDefinition {
     
     
@@ -577,8 +576,7 @@ pub fn torque_left() -> BrickDefinition {
         .build()
 }
 
-/// Build the Equals brick (prototype 6)
-/// Note: This brick doesn't have baked data in the original Tenscript
+/// Build the Equals brick
 pub fn equals() -> BrickDefinition {
     
     
