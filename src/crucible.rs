@@ -1,4 +1,5 @@
 use crate::build::animator::Animator;
+use crate::build::brick_builders::build_brick_library;
 use crate::build::converger::Converger;
 use crate::build::evo::evolution::Evolution;
 use crate::build::oven::Oven;
@@ -151,10 +152,7 @@ impl Crucible {
             BakingBrick(oven) => {
                 // Pass the context to the oven's iterate method
                 if let Some(baked) = oven.iterate(&mut context) {
-                    #[cfg(target_arch = "wasm32")]
-                    println!("Baked {:?}", baked.into_tenscript());
-                    #[cfg(not(target_arch = "wasm32"))]
-                    std::fs::write("baked-brick.tenscript", baked.into_tenscript()).unwrap();
+                    panic!("Better way to bake bricks please?: {:?}", baked);
                 }
             }
             Evolving(evolution) => {
@@ -176,16 +174,8 @@ impl Crucible {
     pub fn action(&mut self, crucible_action: CrucibleAction) {
         use CrucibleAction::*;
 
-        // Create a dummy brick library for the context
-        // We don't actually use it in actions, but the context requires it
-        let dummy_brick_library = BrickLibrary::from_source().unwrap_or_else(|_| {
-            // If we can't load the brick library, create an empty one
-            // This is just a placeholder for the context and won't be used
-            BrickLibrary {
-                brick_definitions: Vec::new(),
-                baked_bricks: Vec::new(),
-            }
-        });
+        // Create a brick library for the context using Rust DSL
+        let dummy_brick_library = BrickLibrary::from_rust(build_brick_library());
 
         // Clone physics for use in testers to avoid borrow checker issues
         let physics_clone = self.physics.clone();

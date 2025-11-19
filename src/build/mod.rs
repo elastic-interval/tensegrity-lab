@@ -1,6 +1,8 @@
 pub mod animator;
 pub mod ball;
+pub mod brick_builders;
 pub mod converger;
+pub mod dsl;
 pub mod evo;
 pub mod klein;
 pub mod mobius;

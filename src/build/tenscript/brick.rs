@@ -2,14 +2,12 @@ use std::collections::HashMap;
 
 use cgmath::num_traits::abs;
 use cgmath::{
-    point3, EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Quaternion, Rotation, Transform,
+    EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Quaternion, Rotation, Transform,
     Vector3,
 };
-use pest::iterators::Pair;
 
-use crate::build::tenscript::Rule;
 use crate::build::tenscript::Spin::{Left, Right};
-use crate::build::tenscript::{FaceAlias, PairExt, PairsExt, Spin, TenscriptError};
+use crate::build::tenscript::{FaceAlias, Spin};
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint_incident::JointIncident;
 use crate::fabric::Fabric;
@@ -22,24 +20,13 @@ pub enum Axis {
 }
 
 impl Axis {
-    pub fn from_pair(pair: Pair<Rule>) -> Self {
-        match pair.as_rule() {
-            Rule::axis => Self::from_pair(pair.into_inner().next().unwrap()),
-            Rule::axis_x => Axis::X,
-            Rule::axis_y => Axis::Y,
-            Rule::axis_z => Axis::Z,
-            _ => unreachable!("{:?}", pair.as_rule()),
-        }
-    }
-}
-
-impl Spin {
-    pub fn from_pair(pair: Pair<Rule>) -> Self {
-        match pair.as_rule() {
-            Rule::chirality => Self::from_pair(pair.into_inner().next().unwrap()),
-            Rule::left => Left,
-            Rule::right => Right,
-            _ => unreachable!(),
+    /// Create a push interval definition along this axis
+    pub fn push(self, ideal: f32, alpha: impl Into<String>, omega: impl Into<String>) -> PushDef {
+        PushDef {
+            axis: self,
+            ideal,
+            alpha_name: alpha.into(),
+            omega_name: omega.into(),
         }
     }
 }
@@ -52,41 +39,12 @@ pub struct PushDef {
     pub omega_name: String,
 }
 
-impl PushDef {
-    fn from_pair(pair: Pair<Rule>, axis: Axis, ideal: f32) -> Self {
-        let mut walk = pair.into_inner();
-        let alpha_name = walk.next_atom();
-        let omega_name = walk.next_atom();
-        Self {
-            alpha_name,
-            omega_name,
-            ideal,
-            axis,
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct PullDef {
     pub alpha_name: String,
     pub omega_name: String,
     pub ideal: f32,
     pub material: String,
-}
-
-impl PullDef {
-    fn from_pair(pair: Pair<Rule>, ideal: f32) -> Self {
-        let mut walk = pair.into_inner();
-        let alpha_name = walk.next_atom();
-        let omega_name = walk.next_atom();
-        let material = walk.next().unwrap().as_str().parse().unwrap();
-        Self {
-            alpha_name,
-            omega_name,
-            ideal,
-            material,
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -109,6 +67,20 @@ pub struct Prototype {
 pub struct BrickDefinition {
     pub proto: Prototype,
     pub baked: Option<Baked>,
+}
+
+impl BrickDefinition {
+    /// Get the baked faces, deriving them from the prototype if not stored
+    pub fn baked_faces(&self) -> Vec<BrickFace> {
+        if let Some(baked) = &self.baked {
+            if !baked.faces.is_empty() {
+                return baked.faces.clone();
+            }
+        }
+        
+        // Derive faces from prototype
+        crate::build::dsl::derive_baked_faces(&self.proto)
+    }
 }
 
 impl From<Prototype> for Fabric {
@@ -186,82 +158,7 @@ impl From<Prototype> for Fabric {
     }
 }
 
-impl Prototype {
-    pub fn from_pair(pair: Pair<Rule>) -> Result<Self, TenscriptError> {
-        let mut inner = pair.into_inner();
-        let alias = FaceAlias::from_pair(inner.next().unwrap());
-        let mut joints = Vec::new();
-        let mut pushes = Vec::new();
-        let mut pulls = Vec::new();
-        let mut faces = Vec::new();
-        for pair in inner {
-            match pair.as_rule() {
-                Rule::joints_proto => {
-                    joints = pair.into_inner().map(|p| p.as_atom()).collect();
-                }
-                Rule::pushes_proto => {
-                    let mut inner = pair.into_inner();
-                    let axis = Axis::from_pair(inner.next().unwrap());
-                    let ideal = inner.next_float("pushes_proto ideal")?;
-                    for push_pair in inner {
-                        pushes.push(PushDef::from_pair(push_pair, axis, ideal));
-                    }
-                }
-                Rule::pulls_proto => {
-                    let mut inner = pair.into_inner();
-                    let ideal = inner.next_float("pulls_proto ideal")?;
-                    for pull_pair in inner {
-                        pulls.push(PullDef::from_pair(pull_pair, ideal));
-                    }
-                }
-                Rule::faces_proto => {
-                    for face_pair in pair.into_inner() {
-                        let mut inner = face_pair.into_inner();
-                        let spin = Spin::from_pair(inner.next().unwrap());
-                        let joint_names = [inner.next_atom(), inner.next_atom(), inner.next_atom()];
-                        let mut aliases = FaceAlias::from_pairs(inner);
-                        aliases = aliases.into_iter().map(|a| alias.clone() + &a).collect();
-                        faces.push(FaceDef {
-                            spin,
-                            joint_names,
-                            aliases,
-                        });
-                    }
-                }
-                Rule::face_aliases => {
-                    let mut inner = pair.into_inner();
-                    let with_atoms = FaceAlias::from_pair(inner.next().unwrap());
-                    let aliases = FaceAlias::from_pairs(inner);
-                    if aliases.len() != faces.len() {
-                        return Err(TenscriptError::FaceAliasError(
-                            "face-aliases must have the same size as faces".to_string(),
-                        ));
-                    }
-                    for (index, face_alias) in aliases.into_iter().enumerate() {
-                        faces[index].aliases.push(face_alias + &with_atoms + &alias);
-                    }
-                }
-                _ => unreachable!("{:?}", pair.as_rule()),
-            }
-        }
-        Ok(Prototype {
-            alias,
-            joints,
-            pushes,
-            pulls,
-            faces,
-        })
-    }
-}
-
-impl BrickDefinition {
-    pub fn from_pair(pair: Pair<Rule>) -> Result<Self, TenscriptError> {
-        let mut inner = pair.into_inner();
-        let proto = Prototype::from_pair(inner.next().unwrap())?;
-        let baked = inner.next().map(Baked::from_pair);
-        Ok(Self { proto, baked })
-    }
-}
+// Tenscript parsing removed - bricks are now defined using Rust DSL in brick_builders.rs
 
 #[derive(Debug, Clone, Default)]
 pub struct BrickFace {
@@ -314,15 +211,15 @@ impl BrickFace {
 
 #[derive(Debug, Clone)]
 pub struct BakedJoint {
-    pub(crate) location: Point3<f32>,
+    pub location: Point3<f32>,
 }
 
 #[derive(Debug, Clone)]
 pub struct BakedInterval {
     pub alpha_index: usize,
     pub omega_index: usize,
-    pub material_name: String,
     pub strain: f32,
+    pub material_name: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -333,59 +230,6 @@ pub struct Baked {
 }
 
 impl Baked {
-    pub fn from_pair(pair: Pair<Rule>) -> Self {
-        let mut joints = Vec::new();
-        let mut intervals = Vec::new();
-        let mut faces = Vec::new();
-        for pair in pair.into_inner() {
-            match pair.as_rule() {
-                Rule::joint_baked => {
-                    let mut inner = pair.into_inner();
-                    let x = inner.next_float("joint_baked x").unwrap();
-                    let y = inner.next_float("joint_baked y").unwrap();
-                    let z = inner.next_float("joint_baked z").unwrap();
-                    joints.push(BakedJoint {
-                        location: point3(x, y, z),
-                    });
-                }
-                Rule::interval_baked => {
-                    let mut inner = pair.into_inner();
-                    let alpha_index = inner.next_usize("interval_baked alpha").unwrap();
-                    let omega_index = inner.next_usize("interval_baked omega").unwrap();
-                    let strain = inner.next_float("interval_baked strain").unwrap();
-                    let material_name = inner.next_atom();
-                    intervals.push(BakedInterval {
-                        alpha_index,
-                        omega_index,
-                        strain,
-                        material_name,
-                    });
-                }
-                Rule::face_baked => {
-                    let mut inner = pair.into_inner();
-                    let spin = Spin::from_pair(inner.next().unwrap());
-                    let joints = [
-                        inner.next_usize("face_baked joint").unwrap(),
-                        inner.next_usize("face_baked joint").unwrap(),
-                        inner.next_usize("face_baked joint").unwrap(),
-                    ];
-                    let aliases = FaceAlias::from_pairs(inner);
-                    faces.push(BrickFace {
-                        joints,
-                        spin,
-                        aliases,
-                    });
-                }
-                _ => unreachable!(),
-            }
-        }
-        Baked {
-            joints,
-            intervals,
-            faces,
-        }
-    }
-
     pub(crate) fn apply_matrix(&mut self, matrix: Matrix4<f32>) {
         for joint in &mut self.joints {
             joint.location = matrix.transform_point(joint.location)
@@ -409,59 +253,6 @@ impl Baked {
 
     pub const TARGET_FACE_STRAIN: f32 = 0.1;
     pub const TOLERANCE: f32 = 0.001;
-
-    pub fn into_tenscript(self) -> String {
-        format!(
-            "\t\t(baked\n\t\t\t{joints}\n\t\t\t{intervals}\n\t\t\t{faces})",
-            joints = self
-                .joints
-                .into_iter()
-                .map(|BakedJoint { location, .. }| location)
-                .map(|Point3 { x, y, z }| format!("(joint {x:.6} {y:.6} {z:.6})"))
-                .collect::<Vec<_>>()
-                .join("\n\t\t\t"),
-            intervals = self
-                .intervals
-                .into_iter()
-                .map(
-                    |BakedInterval {
-                         alpha_index,
-                         omega_index,
-                         material_name,
-                         strain,
-                     }| {
-                        format!(
-                            "(interval {alpha_index} {omega_index} {strain:.10} {material_name})"
-                        )
-                    }
-                )
-                .collect::<Vec<_>>()
-                .join("\n\t\t\t"),
-            faces = self
-                .faces
-                .into_iter()
-                .map(
-                    |BrickFace {
-                         joints: [a, b, c],
-                         aliases,
-                         spin,
-                     }| format!(
-                        "({spin} {a} {b} {c} {aliases})",
-                        spin = match spin {
-                            Left => "left",
-                            Right => "right",
-                        },
-                        aliases = aliases
-                            .into_iter()
-                            .map(|alias| format!("(alias {})", alias.into_vec().join(" ")))
-                            .collect::<Vec<_>>()
-                            .join(" "),
-                    )
-                )
-                .collect::<Vec<_>>()
-                .join("\n\t\t\t")
-        )
-    }
 }
 
 impl TryFrom<Fabric> for Baked {
