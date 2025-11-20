@@ -23,7 +23,7 @@ pub fn triped() -> FabricPlan {
             during(Sec(15.0), [vulcanize()]),
         ])
         .pretense(pretense().altitude(Mm(1000.0)).surface(SurfaceCharacter::Slippery))
-        .converge(Sec(10.0))
+        .converge(Sec(30.0))
         .scale(Mm(1030.0))
         .build_plan()
 }

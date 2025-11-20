@@ -54,7 +54,7 @@ impl Display for Age {
 pub const TICK_DURATION: Duration = Duration::from_micros(50);
 
 /// Number of physics iterations per frame
-pub const ITERATIONS_PER_FRAME: usize = 1200;
+pub const ITERATIONS_PER_FRAME: usize = 1000;
 
 impl Default for Age {
     fn default() -> Self {
