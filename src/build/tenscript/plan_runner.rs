@@ -5,14 +5,15 @@ use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
 use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::crucible_context::CrucibleContext;
-use crate::fabric::physics::presets::{CONSTRUCTION, PRETENSING};
+use crate::fabric::physics::presets::CONSTRUCTION;
 use crate::fabric::physics::Physics;
 use crate::{LabEvent, StateChange};
-use crate::units::{Percent, Seconds, IMMEDIATE, MOMENT};
+use crate::units::{IMMEDIATE, MOMENT};
 use crate::ITERATIONS_PER_FRAME;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Clone, Debug, Copy, PartialEq)]
-enum Stage {
+pub enum Stage {
     Initialize,
     GrowStep,
     GrowApproach,
@@ -23,8 +24,8 @@ enum Stage {
 
 pub struct PlanRunner {
     pub physics: Physics,
-    stage: Stage,
-    build_phase: BuildPhase,
+    pub stage: Stage,
+    pub build_phase: BuildPhase,
     shape_phase: ShapePhase,
     pretense_phase: PretensePhase,
     disabled: Option<TenscriptError>,
@@ -56,71 +57,157 @@ impl PlanRunner {
         *context.physics = self.physics.clone();
     }
 
-    pub fn iterate(&mut self, context: &mut CrucibleContext) -> Result<(), TenscriptError> {
-        for _ in 0..ITERATIONS_PER_FRAME {
-            context.fabric.iterate(context.physics);
-        }
-
-        if context.fabric.progress.is_busy() || self.disabled.is_some() {
-            return Ok(());
-        }
-        let (next_stage, seconds) = match self.stage {
-            Initialize => {
-                self.build_phase
-                    .init(context.fabric, context.brick_library)?;
-                context.fabric.scale = self.get_scale();
-
-                (GrowApproach, MOMENT)
-            }
-            GrowStep => {
-                if self.build_phase.is_growing() {
+    /// Simplified version for use with PlanContext (no events)
+    pub fn check_and_advance_stage_simple(&mut self, context: &mut PlanContext) -> Result<bool, TenscriptError> {
+        if !context.fabric.progress.is_busy() && self.disabled.is_none() {
+            let (next_stage, seconds) = match self.stage {
+                Initialize => {
                     self.build_phase
-                        .growth_step(context.fabric, context.brick_library)?;
-
+                        .init(context.fabric, context.brick_library)?;
+                    context.fabric.scale = self.get_scale();
                     (GrowApproach, MOMENT)
-                } else if self.shape_phase.needs_shaping() {
-                    self.shape_phase.marks = self.build_phase.marks.split_off(0);
-                    // Notify that we're transitioning to shaping
-                    context.send_event(LabEvent::UpdateState(
-                        StateChange::SetStageLabel("Shaping".to_string())
-                    ));
-                    (Shaping, IMMEDIATE)
+                }
+                GrowStep => {
+                    if self.build_phase.is_growing() {
+                        self.build_phase
+                            .growth_step(context.fabric, context.brick_library)?;
+                        (GrowApproach, MOMENT)
+                    } else if self.shape_phase.needs_shaping() {
+                        self.shape_phase.marks = self.build_phase.marks.split_off(0);
+                        (Shaping, IMMEDIATE)
+                    } else {
+                        // Growth complete - transition immediately so executor can start PRETENSE phase
+                        (Completed, IMMEDIATE)
+                    }
+                }
+                GrowApproach => (GrowCalm, MOMENT),
+                GrowCalm => (GrowStep, IMMEDIATE),
+                Shaping => match self
+                    .shape_phase
+                    .shaping_step(context.fabric, context.brick_library)?
+                {
+                    ShapeCommand::Noop => (Shaping, IMMEDIATE),
+                    ShapeCommand::StartProgress(seconds) => (Shaping, seconds),
+                    ShapeCommand::Rigidity(_percent) => (Shaping, IMMEDIATE),
+                    ShapeCommand::Viscosity(percent) => {
+                        self.physics.viscosity *= percent / 100.0;
+                        *context.physics = self.physics.clone();
+                        (Shaping, IMMEDIATE)
+                    }
+                    ShapeCommand::Drag(percent) => {
+                        self.physics.drag *= percent / 100.0;
+                        *context.physics = self.physics.clone();
+                        (Shaping, IMMEDIATE)
+                    }
+                    ShapeCommand::Terminate => (Completed, IMMEDIATE)
+                },
+                Completed => (Completed, IMMEDIATE),
+            };
+
+            let stage_changed = self.stage != next_stage;
+            context.fabric.progress.start(seconds);
+            self.stage = next_stage;
+            Ok(stage_changed)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Check if progress has completed and advance to the next stage if needed.
+    /// This should be called AFTER running one fabric iteration.
+    /// Returns true if a stage transition occurred.
+    pub fn check_and_advance_stage(&mut self, context: &mut CrucibleContext) -> Result<bool, TenscriptError> {
+        if !context.fabric.progress.is_busy() && self.disabled.is_none() {
+            let (next_stage, seconds) = match self.stage {
+                Initialize => {
+                    self.build_phase
+                        .init(context.fabric, context.brick_library)?;
+                    context.fabric.scale = self.get_scale();
+                    (GrowApproach, MOMENT)
+                }
+                GrowStep => {
+                    if self.build_phase.is_growing() {
+                        self.build_phase
+                            .growth_step(context.fabric, context.brick_library)?;
+                        (GrowApproach, MOMENT)
+                    } else if self.shape_phase.needs_shaping() {
+                        self.shape_phase.marks = self.build_phase.marks.split_off(0);
+                        context.send_event(LabEvent::UpdateState(
+                            StateChange::SetStageLabel("Shaping".to_string())
+                        ));
+                        (Shaping, IMMEDIATE)
+                    } else {
+                        (Completed, IMMEDIATE)
+                    }
+                }
+                GrowApproach => (GrowCalm, MOMENT),
+                GrowCalm => (GrowStep, IMMEDIATE),
+                Shaping => match self
+                    .shape_phase
+                    .shaping_step(context.fabric, context.brick_library)?
+                {
+                    ShapeCommand::Noop => (Shaping, IMMEDIATE),
+                    ShapeCommand::StartProgress(seconds) => (Shaping, seconds),
+                    ShapeCommand::Rigidity(_percent) => {
+                        (Shaping, IMMEDIATE)
+                    }
+                    ShapeCommand::Viscosity(percent) => {
+                        self.physics.viscosity *= percent / 100.0;
+                        *context.physics = self.physics.clone();
+                        (Shaping, IMMEDIATE)
+                    }
+                    ShapeCommand::Drag(percent) => {
+                        self.physics.drag *= percent / 100.0;
+                        *context.physics = self.physics.clone();
+                        (Shaping, IMMEDIATE)
+                    }
+                    ShapeCommand::Terminate => (Completed, IMMEDIATE)
+                },
+                Completed => (Completed, IMMEDIATE),
+            };
+
+            let stage_changed = self.stage != next_stage;
+            context.fabric.progress.start(seconds);
+            self.stage = next_stage;
+            Ok(stage_changed)
+        } else {
+            Ok(false)
+        }
+    }
+
+    pub fn iterate(&mut self, context: &mut CrucibleContext) -> Result<(), TenscriptError> {
+        // Iterate frame by frame, checking progress after each iteration
+        // This ensures stage logic executes at exact fabric time, independent of ITERATIONS_PER_FRAME
+        static TOTAL_ITERATIONS: AtomicUsize = AtomicUsize::new(0);
+        for _ in 0..ITERATIONS_PER_FRAME {
+            // DETAILED LOGGING FOR FIRST 100 AND AROUND 12000
+            let iter_count = TOTAL_ITERATIONS.fetch_add(1, Ordering::Relaxed);
+            let should_log = iter_count <= 100 || (iter_count >= 11900 && iter_count <= 12100);
+            if should_log {
+                let (min_y, max_y) = context.fabric.altitude_range();
+                let height_mm = if context.fabric.scale > 0.0 {
+                    (max_y - min_y) * context.fabric.scale
                 } else {
-                    (Completed, IMMEDIATE)
-                }
+                    0.0
+                };
+                let radius = context.fabric.bounding_radius();
+                let progress_busy = context.fabric.progress.is_busy();
+
+                eprintln!("[UI-{:05}] joints:{:3} height:{:8.3}mm radius:{:8.5}m busy:{} stage:{:?}",
+                    iter_count,
+                    context.fabric.joints.len(),
+                    height_mm,
+                    radius,
+                    progress_busy,
+                    self.stage
+                );
             }
-            GrowApproach => (GrowCalm, MOMENT),
-            GrowCalm => (GrowStep, IMMEDIATE),
-            Shaping => match self
-                .shape_phase
-                .shaping_step(context.fabric, context.brick_library)?
-            {
-                ShapeCommand::Noop => (Shaping, IMMEDIATE),
-                ShapeCommand::StartProgress(seconds) => (Shaping, seconds),
-                ShapeCommand::Rigidity(_percent) => {
-                    // Rigidity is now baked into material properties
-                    (Shaping, IMMEDIATE)
-                }
-                ShapeCommand::Viscosity(percent) => {
-                    self.physics.viscosity *= percent / 100.0;
-                    // Update physics when viscosity changes
-                    *context.physics = self.physics.clone();
 
-                    (Shaping, IMMEDIATE)
-                }
-                ShapeCommand::Drag(percent) => {
-                    self.physics.drag *= percent / 100.0;
-                    // Update physics when drag changes
-                    *context.physics = self.physics.clone();
+            context.fabric.iterate(context.physics);
 
-                    (Shaping, IMMEDIATE)
-                }
-                ShapeCommand::Terminate => (Completed, IMMEDIATE)
-            },
-            Completed => (Completed, IMMEDIATE),
-        };
-        context.fabric.progress.start(seconds);
-        self.stage = next_stage;
+            // Check if we need to advance to the next stage
+            self.check_and_advance_stage(context)?;
+        }
 
         Ok(())
     }
@@ -141,111 +228,8 @@ impl PlanRunner {
         self.pretense_phase.clone()
     }
 
-    /// Run the plan to completion headlessly (without UI)
-    /// This builds the structure, applies pretensing, and settles it with gravity
-    /// Returns after approximately `settle_seconds` of fabric time
-    pub fn run_headless(
-        plan: FabricPlan,
-        context: &mut PlanContext,
-        settle_seconds: f32,
-    ) -> Result<(), TenscriptError> {
-        let mut runner = Self::new(plan);
-        
-        // Set scale
-        context.fabric.scale = runner.get_scale();
-        
-        // Phase 1: Build with CONSTRUCTION physics
-        *context.physics = CONSTRUCTION;
-        runner.build_phase.init(context.fabric, context.brick_library)?;
-        
-        while runner.build_phase.is_growing() {
-            runner.build_phase.growth_step(context.fabric, context.brick_library)?;
-        }
-        
-        // Run CONSTRUCTION physics for 30 seconds to let structure form
-        // TICK_MICROSECONDS = 250, so 1 second = 4000 iterations
-        for _ in 0..(30.0 * 4000.0) as usize {
-            context.fabric.iterate(context.physics);
-        }
-        
-        // Phase 1.5: Shaping (if needed)
-        if runner.shape_phase.needs_shaping() {
-            runner.shape_phase.marks = runner.build_phase.marks.split_off(0);
-            
-            // Execute all shaping operations
-            loop {
-                use crate::build::tenscript::shape_phase::ShapeCommand;
-                
-                match runner.shape_phase.shaping_step(context.fabric, context.brick_library)? {
-                    ShapeCommand::Noop => {},
-                    ShapeCommand::StartProgress(seconds) => {
-                        // Start the progress countdown
-                        context.fabric.progress.start(seconds);
-                        // Run physics until progress is complete
-                        while context.fabric.progress.is_busy() {
-                            context.fabric.iterate(context.physics);
-                        }
-                    },
-                    ShapeCommand::Rigidity(_percent) => {
-                        // Rigidity is now baked into material properties
-                    },
-                    ShapeCommand::Viscosity(percent) => {
-                        runner.physics.viscosity *= percent / 100.0;
-                        *context.physics = runner.physics.clone();
-                    },
-                    ShapeCommand::Drag(percent) => {
-                        runner.physics.drag *= percent / 100.0;
-                        *context.physics = runner.physics.clone();
-                    },
-                    ShapeCommand::Terminate => break,
-                }
-            }
-        }
-        
-        // Phase 2: Pretensing (complete pretense phase)
-        *context.physics = PRETENSING;
-        
-        // Step 1: Remove faces and add triangles
-        let face_ids: Vec<_> = context.fabric.faces.keys().copied().collect();
-        for face_id in face_ids {
-            let face = context.fabric.face(face_id);
-            if !face.has_prism {
-                context.fabric.add_face_triangle(face_id);
-            }
-            context.fabric.remove_face(face_id);
-        }
-        
-        // Step 2: Slacken and centralize
-        context.fabric.slacken();
-        let altitude = runner.pretense_phase.altitude.unwrap_or(0.0) / context.fabric.scale;
-        let translation = context.fabric.centralize_translation(Some(altitude));
-        context.fabric.apply_translation(translation);
-        
-        // Step 3: Set pretenst and run pretensing
-        let pretenst_percent = runner.pretense_phase.pretenst
-            .map(|p| Percent(p))
-            .unwrap_or(PRETENSING.pretenst);
-        let seconds_to_pretense = runner.pretense_phase.seconds.unwrap_or(Seconds(15.0));
-        context.fabric.set_pretenst(pretenst_percent, seconds_to_pretense);
-        
-        // Run pretensing until progress is complete (like the UI does)
-        while context.fabric.progress.is_busy() {
-            context.fabric.iterate(context.physics);
-        }
-        
-        // Phase 3: Settle with viewing physics (includes gravity)
-        *context.physics = runner.pretense_phase.viewing_physics();
-        
-        // Settle for the requested time
-        // The structure needs time to extend upward after pretensing
-        // In the UI, this continues indefinitely, but we settle for a fixed time
-        let settle_iterations = (settle_seconds * 4000.0) as usize;
-        for _ in 0..settle_iterations {
-            context.fabric.iterate(context.physics);
-        }
-        
-        Ok(())
-    }
+    // REMOVED: run_headless() - Now obsolete, use FabricPlanExecutor instead
+    // FabricPlanExecutor provides frame-independent execution that works for both UI and tests
 }
 
 #[cfg(test)]

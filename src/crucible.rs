@@ -1,11 +1,9 @@
 use crate::build::animator::Animator;
 use crate::build::brick_builders::build_brick_library;
-use crate::build::converger::Converger;
 use crate::build::evo::evolution::Evolution;
 use crate::build::oven::Oven;
 use crate::build::tenscript::brick_library::BrickLibrary;
-use crate::build::tenscript::plan_runner::PlanRunner;
-use crate::build::tenscript::pretenser::Pretenser;
+use crate::build::tenscript::fabric_plan_executor::FabricPlanExecutor;
 use crate::build::tenscript::FabricPlan;
 use crate::crucible::Stage::*;
 use crate::crucible_context::CrucibleContext;
@@ -13,14 +11,12 @@ use crate::fabric::physics::presets::BASE_PHYSICS;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::fabric::physics_test::PhysicsTester;
-use crate::{ControlState, CrucibleAction, LabEvent, Radio, StateChange};
+use crate::{ControlState, CrucibleAction, LabEvent, Radio, StateChange, ITERATIONS_PER_FRAME};
 use StateChange::*;
 
 pub enum Stage {
     Empty,
-    RunningPlan(PlanRunner),
-    Pretensing(Pretenser),
-    Converging(Converger),
+    RunningPlan(FabricPlanExecutor),
     Viewing,
     Animating(Animator),
     PhysicsTesting(PhysicsTester),
@@ -35,6 +31,7 @@ pub struct Crucible {
     pub physics: Physics,
     pending_camera_translation: Option<cgmath::Vector3<f32>>,
     fabric_plan: Option<FabricPlan>,
+    last_stage_label: Option<String>,
 }
 
 impl Crucible {
@@ -46,6 +43,7 @@ impl Crucible {
             physics: BASE_PHYSICS,
             pending_camera_translation: None,
             fabric_plan: None,
+            last_stage_label: None,
         }
     }
 
@@ -62,117 +60,192 @@ impl Crucible {
 
 impl Crucible {
     pub fn iterate(&mut self, brick_library: &BrickLibrary) {
-        // Create a context for this iteration
-        let mut context = CrucibleContext::new(
-            &mut self.fabric,
-            &mut self.physics,
-            &self.radio,
-            brick_library,
-        );
+        // Track if we need to transition to Viewing after the match
+        let mut transition_to_viewing = false;
 
         match &mut self.stage {
             Empty => {}
-            RunningPlan(plan_runner) => {
-                if plan_runner.is_done() {
-                    // Preserve user's scaling tweaks
-                    let mass_scale = context.physics.mass_scale();
-                    let rigidity_scale = context.physics.rigidity_scale();
-                    
-                    context.fabric.scale = plan_runner.get_scale();
-                    context.fabric.check_orphan_joints();
-                    let pretenser = Pretenser::new(plan_runner.pretense_phase(), &self.radio);
-                    pretenser.copy_physics_into(&mut context);
-                    
-                    // Restore user's scaling tweaks after pretenser overwrites physics
-                    use crate::TweakFeature::*;
-                    context.physics.accept_tweak(MassScale.parameter(mass_scale));
-                    context.physics.accept_tweak(RigidityScale.parameter(rigidity_scale));
-                    
-                    context.transition_to(Pretensing(pretenser));
-                    
-                    // Notify that we're pretensing
-                    context.send_event(LabEvent::UpdateState(SetStageLabel("Pretensing".to_string())));
-                } else {
-                    // Pass the context to the plan runner's iterate method
-                    if let Err(tenscript_error) = plan_runner.iterate(&mut context) {
+            RunningPlan(executor) => {
+                for _ in 0..ITERATIONS_PER_FRAME {
+                    if let Err(tenscript_error) = executor.iterate(brick_library) {
                         println!("Error:\n{tenscript_error}");
-                        plan_runner.disable(tenscript_error);
+                        // On error, sync fabric/physics and mark for transition
+                        self.fabric = executor.fabric.clone();
+                        self.physics = executor.physics.clone();
+                        transition_to_viewing = true;
+                        let _ = self.radio.send_event(LabEvent::UpdateState(SetStageLabel("Viewing".to_string())));
+                        break;
                     }
                 }
-            }
-            Pretensing(pretenser) => {
-                if pretenser.is_done() {
-                    let mass_scale = context.physics.mass_scale();
-                    let rigidity_scale = context.physics.rigidity_scale();
-                    
-                    let stats = context.fabric.fabric_stats();
-                    *context.physics = pretenser.physics();
-                    
-                    use crate::TweakFeature::*;
-                    context.physics.accept_tweak(MassScale.parameter(mass_scale));
-                    context.physics.accept_tweak(RigidityScale.parameter(rigidity_scale));
 
-                    // Check if converge phase is specified
-                    if let Some(converge_phase) = self.fabric_plan.as_ref().and_then(|p| p.converge_phase.as_ref()) {
-                        // Enable convergence mode in physics
-                        context.physics.enable_convergence();
-                        
-                        // Transition to Converging stage with specified time
-                        // Send initial stats now, FabricBuilt with convergence stats will be sent when convergence completes
-                        context.transition_to(Converging(Converger::new(converge_phase)));
-                        context.send_event(LabEvent::UpdateState(SetControlState(ControlState::Building)));
-                        context.send_event(LabEvent::UpdateState(SetStageLabel("Converging".to_string())));
-                        context.send_event(LabEvent::UpdateState(SetFabricStats(Some(stats))));
-                    } else {
-                        // No converge phase - go directly to Viewing
-                        context.fabric.zero_velocities();
-                        context.fabric.frozen = true;
-                        context.transition_to(Viewing);
-                        context.queue_event(LabEvent::FabricBuilt(stats));
-                        context.send_event(LabEvent::UpdateState(SetStageLabel("Viewing".to_string())));
-                        context.send_event(LabEvent::UpdateState(SetFabricStats(
-                            Some(context.fabric.stats_with_dynamics(context.physics))
-                        )));
-                    }
-                } else {
-                    pretenser.iterate(&mut context);
+                // Always sync fabric and physics from executor to Crucible (even when transitioning)
+                self.fabric = executor.fabric.clone();
+                self.physics = executor.physics.clone();
+
+                // Check for and apply camera translation from executor
+                if let Some(translation) = executor.take_camera_translation() {
+                    self.pending_camera_translation = Some(translation);
                 }
-            }
-            Converging(converger) => {
-                converger.iterate(&mut context);
+
+                if transition_to_viewing {
+                    // Will transition after match
+                } else {
+
+                    // Check if BUILD phase is done and we should start PRETENSE
+                    use crate::build::tenscript::fabric_plan_executor::ExecutorStage;
+                    if matches!(executor.stage(), ExecutorStage::Building) {
+                        if let Some(plan_runner) = executor.plan_runner() {
+                            if plan_runner.is_done() {
+                                // BUILD phase complete - start PRETENSE
+                                executor.start_pretension();
+                            }
+                        }
+                    }
+
+                    // Check if executor is complete
+                    if executor.is_complete() {
+                        transition_to_viewing = true;
+                        // Send FabricBuilt with complete stats (including dynamics)
+                        let stats = self.fabric.stats_with_dynamics(&self.physics);
+                        let _ = self.radio.send_event(LabEvent::FabricBuilt(stats));
+                    } else {
+                        // Send stage label updates based on executor stage
+                        use crate::build::tenscript::fabric_plan_executor::ExecutorStage;
+                        let stage_label = match executor.stage() {
+                            ExecutorStage::Building => "Building",
+                            ExecutorStage::Pretensing => "Pretensing",
+                            ExecutorStage::Converging => "Converging",
+                            ExecutorStage::Complete => "Complete",
+                        };
+
+                        // Only send update if stage changed
+                        if self.last_stage_label.as_ref().map_or(true, |s| s != stage_label) {
+                            self.last_stage_label = Some(stage_label.to_string());
+                            let _ = self.radio.send_event(LabEvent::UpdateState(SetStageLabel(stage_label.to_string())));
+                        }
+                    }
+                }
             }
             Viewing => {}
             Animating(animator) => {
+                // Create a context for animator
+                let mut context = CrucibleContext::new(
+                    &mut self.fabric,
+                    &mut self.physics,
+                    &self.radio,
+                    brick_library,
+                );
                 animator.iterate(&mut context);
+
+                // Apply any stage transition and camera translation
+                let (new_stage, camera_translation) = context.apply_changes();
+                if let Some(new_stage) = new_stage {
+                    self.stage = new_stage;
+                }
+                if let Some(translation) = camera_translation {
+                    self.pending_camera_translation = Some(translation);
+                }
             }
             PhysicsTesting(tester) => {
-                // Pass the context to the tester's iterate method
+                // Create a context for tester
+                let mut context = CrucibleContext::new(
+                    &mut self.fabric,
+                    &mut self.physics,
+                    &self.radio,
+                    brick_library,
+                );
                 tester.iterate(&mut context);
+
+                // Apply any stage transition
+                let (new_stage, camera_translation) = context.apply_changes();
+                if let Some(new_stage) = new_stage {
+                    self.stage = new_stage;
+                }
+                if let Some(translation) = camera_translation {
+                    self.pending_camera_translation = Some(translation);
+                }
             }
             BakingBrick(oven) => {
-                // Pass the context to the oven's iterate method
+                // Create a context for oven
+                let mut context = CrucibleContext::new(
+                    &mut self.fabric,
+                    &mut self.physics,
+                    &self.radio,
+                    brick_library,
+                );
                 if let Some(baked) = oven.iterate(&mut context) {
                     panic!("Better way to bake bricks please?: {:?}", baked);
                 }
+
+                // Apply any stage transition
+                let (new_stage, camera_translation) = context.apply_changes();
+                if let Some(new_stage) = new_stage {
+                    self.stage = new_stage;
+                }
+                if let Some(translation) = camera_translation {
+                    self.pending_camera_translation = Some(translation);
+                }
             }
             Evolving(evolution) => {
-                // Pass the context to the evolution's iterate method
+                // Create a context for evolution
+                let mut context = CrucibleContext::new(
+                    &mut self.fabric,
+                    &mut self.physics,
+                    &self.radio,
+                    brick_library,
+                );
                 evolution.iterate(&mut context);
+
+                // Apply any stage transition
+                let (new_stage, camera_translation) = context.apply_changes();
+                if let Some(new_stage) = new_stage {
+                    self.stage = new_stage;
+                }
+                if let Some(translation) = camera_translation {
+                    self.pending_camera_translation = Some(translation);
+                }
             }
         }
 
-        // Apply any stage transition and camera translation requested by the context
-        let (new_stage, camera_translation) = context.apply_changes();
-        if let Some(new_stage) = new_stage {
-            self.stage = new_stage;
-        }
-        if let Some(translation) = camera_translation {
-            self.pending_camera_translation = Some(translation);
+        // Handle transition to Viewing if flagged
+        if transition_to_viewing {
+            self.stage = Viewing;
         }
     }
 
     pub fn action(&mut self, crucible_action: CrucibleAction) {
         use CrucibleAction::*;
+
+        // Handle BuildFabric separately (doesn't need context since executor owns fabric/physics)
+        if let BuildFabric(fabric_plan) = crucible_action {
+            // Preserve user's scaling tweaks before rebuilding
+            let mass_scale = self.physics.mass_scale();
+            let rigidity_scale = self.physics.rigidity_scale();
+
+            let name = fabric_plan.name.clone();
+            let mut executor = FabricPlanExecutor::new(fabric_plan.clone());
+
+            // Store the fabric_plan for later use (animate, converge, etc.)
+            self.fabric_plan = Some(fabric_plan);
+
+            // Apply user's scaling tweaks to executor's physics before construction
+            use crate::TweakFeature::*;
+            executor.physics.accept_tweak(MassScale.parameter(mass_scale));
+            executor.physics.accept_tweak(RigidityScale.parameter(rigidity_scale));
+
+            // Sync executor's fabric/physics to Crucible (will be updated each frame)
+            self.fabric = executor.fabric.clone();
+            self.physics = executor.physics.clone();
+
+            // Transition to RunningPlan with executor
+            self.stage = RunningPlan(executor);
+
+            // Set fabric name immediately so title appears right away
+            let _ = self.radio.send_event(LabEvent::UpdateState(SetFabricName(name.clone())));
+            let _ = self.radio.send_event(LabEvent::UpdateState(SetStageLabel("Building".to_string())));
+            let _ = self.radio.send_event(LabEvent::UpdateState(SetFabricStats(None)));
+            return;
+        }
 
         // Create a brick library for the context using Rust DSL
         let dummy_brick_library = BrickLibrary::new(build_brick_library());
@@ -199,30 +272,9 @@ impl Crucible {
 
                 context.transition_to(BakingBrick(oven));
             }
-            BuildFabric(fabric_plan) => {
-                // Preserve user's scaling tweaks before rebuilding
-                let mass_scale = context.physics.mass_scale();
-                let rigidity_scale = context.physics.rigidity_scale();
-                
-                let name = fabric_plan.name.clone();
-                let mut plan_runner = PlanRunner::new(fabric_plan.clone());
-                
-                // Store the fabric_plan for later use (animate, converge, etc.)
-                self.fabric_plan = Some(fabric_plan);
-                
-                // Apply user's scaling tweaks to plan_runner's physics before construction
-                use crate::TweakFeature::*;
-                plan_runner.physics.accept_tweak(MassScale.parameter(mass_scale));
-                plan_runner.physics.accept_tweak(RigidityScale.parameter(rigidity_scale));
-
-                context.replace_fabric(Fabric::new(name.clone()));
-                plan_runner.copy_physics_into(&mut context);
-                context.transition_to(RunningPlan(plan_runner));
-
-                // Set fabric name immediately so title appears right away
-                context.send_event(LabEvent::UpdateState(SetFabricName(name)));
-                context.send_event(LabEvent::UpdateState(SetStageLabel("Building".to_string())));
-                context.send_event(LabEvent::UpdateState(SetFabricStats(None)));
+            BuildFabric(_) => {
+                // Already handled above
+                unreachable!()
             }
             ToViewing => match &mut self.stage {
                 Viewing => {
@@ -240,10 +292,11 @@ impl Crucible {
                     // Freeze the fabric when exiting PhysicsTesting
                     context.fabric.zero_velocities();
                     context.fabric.frozen = true;
-                    
+
                     self.stage = Viewing;
-                    
+
                     context.send_event(LabEvent::UpdateState(SetControlState(ControlState::Viewing)));
+                    context.send_event(LabEvent::UpdateState(SetStageLabel("Viewing".to_string())));
                 }
                 _ => {}
             },
@@ -282,7 +335,8 @@ impl Crucible {
                     context.send_event(LabEvent::UpdateState(SetControlState(
                         ControlState::PhysicsTesting(scenario),
                     )));
-                    
+                    context.send_event(LabEvent::UpdateState(SetStageLabel("Testing Physics".to_string())));
+
                     // Send initial stats with convergence data
                     context.send_event(LabEvent::UpdateState(SetFabricStats(
                         Some(context.fabric.stats_with_dynamics(context.physics))

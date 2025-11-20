@@ -198,27 +198,26 @@ impl Physics {
     
     /// Update convergence based on time progress (0.0 to 1.0)
     /// Gradually increases damping to slow the system down over time
-    /// and increases time scale geometrically to speed up settling
+    /// Time scale remains constant at 1.0 to match UI timing
     pub fn update_convergence_progress(&mut self, progress: f32) {
         if let Tweak::Convergence(conv) = &mut self.tweak {
             if !conv.started {
                 conv.started = true;
             }
-            
+
             // Apply progressive multipliers to damping
             // This gradually slows the system down
             let damping_mult = 1.0 + progress.powi(3) * 50.0;
-            
-            // Time scale increases geometrically: 1.0 → 100.0
-            // Using exponential growth: e^(progress * ln(100)) = 100^progress
-            // This gives much more aggressive speedup in the later stages
-            let time_scale_mult = 100.0_f32.powf(progress);
-            
+
+            // Keep time scale constant at 1.0 (no speedup)
+            // This ensures fabric time matches what user sees in UI
+            let time_scale_mult = 1.0;
+
             // Update multipliers
             conv.drag_multiplier = damping_mult;
             conv.viscosity_multiplier = damping_mult;
             conv.time_scale_multiplier = time_scale_mult;
-            
+
             // Apply to current physics values
             self.drag = conv.base_physics.drag * conv.drag_multiplier;
             self.viscosity = conv.base_physics.viscosity * conv.viscosity_multiplier;
@@ -266,8 +265,8 @@ pub mod presets {
     };
 
     pub const BASE_PHYSICS: Physics = Physics {
-        drag: 0.1,  // Increased from 0.01 to dampen high-frequency oscillations
-        viscosity: 5.0,  // Increased from 0.5 for better stability with stiff springs
+        drag: 0.01,
+        viscosity: 0.5,
         surface_character: Frozen,
         pretenst: Percent(1.0),
         tweak: Tweak::None,

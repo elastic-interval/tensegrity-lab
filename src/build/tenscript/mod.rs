@@ -16,6 +16,7 @@ pub mod build_phase;
 pub mod converge_phase;
 pub mod fabric_library;
 pub mod fabric_plan;
+pub mod fabric_plan_executor;
 pub mod plan_context;
 pub mod plan_runner;
 pub mod pretense_phase;

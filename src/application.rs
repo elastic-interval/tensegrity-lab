@@ -267,8 +267,11 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.with_scene(|scene| scene.apply_fabric_translation(translation));
             }
             FabricBuilt(fabric_stats) => {
+                // Convergence complete - show stats and transition to viewing
                 StateChange::SetFabricName(fabric_stats.name.clone()).send(&self.radio);
                 StateChange::SetFabricStats(Some(fabric_stats)).send(&self.radio);
+                StateChange::SetControlState(ControlState::Viewing).send(&self.radio);
+                StateChange::SetStageLabel("Viewing".to_string()).send(&self.radio);
                 if self.mobile_device {
                     CrucibleAction::ToAnimating.send(&self.radio);
                 } else {
