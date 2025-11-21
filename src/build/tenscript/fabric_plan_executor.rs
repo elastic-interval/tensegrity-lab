@@ -101,7 +101,6 @@ pub struct FabricPlanExecutor {
     pub physics: Physics,
     plan: FabricPlan,
     current_iteration: usize,
-    converge_start_iteration: Option<usize>,
     execution_log: Vec<ExecutionEvent>,
     pending_camera_translation: Option<cgmath::Vector3<f32>>,
     stored_surface_character: Option<SurfaceCharacter>,
@@ -122,7 +121,6 @@ impl FabricPlanExecutor {
             physics,
             plan,
             current_iteration: 0,
-            converge_start_iteration: None,
             execution_log: Vec::new(),
             pending_camera_translation: None,
             stored_surface_character: None,
@@ -235,26 +233,14 @@ impl FabricPlanExecutor {
                 }
             }
             ExecutorStage::Converging => {
-                // Update convergence progress based on iterations since converge started
-                if let Some(converge_phase) = &self.plan.converge_phase {
-                    if let Some(start_iter) = self.converge_start_iteration {
-                        // Use plan duration for damping ramp-up
-                        // Fabric time runs at 20,000 iterations per second (TICK_DURATION = 50 microseconds)
-                        let ramp_duration = converge_phase.seconds.0;
-                        let ramp_iterations = (ramp_duration * 20000.0) as usize;
-                        let elapsed_iterations = self.current_iteration - start_iter;
+                // Use fabric's built-in progress tracking for convergence
+                // Update physics with convergence progress for gradually increasing damping
+                let progress = self.fabric.progress.nuance();
+                self.physics.update_convergence_progress(progress);
 
-                        // Update convergence progress for gradually increasing damping
-                        // Progress reaches 1.0 at ramp_duration, then stays at 1.0
-                        let progress = (elapsed_iterations as f32 / ramp_iterations as f32).min(1.0);
-                        self.physics.update_convergence_progress(progress);
-
-                        // CONVERGE phase continues for the duration specified in the plan
-                        // This gives structure time to settle under gravity with constant time scale
-                        if elapsed_iterations >= ramp_iterations {
-                            self.complete();
-                        }
-                    }
+                // Check if convergence is complete
+                if !self.fabric.progress.is_busy() {
+                    self.complete();
                 }
             }
             ExecutorStage::Complete => {}
@@ -385,8 +371,10 @@ impl FabricPlanExecutor {
                 description: "CONVERGING".to_string(),
             });
 
-            // Track when converge started
-            self.converge_start_iteration = Some(self.current_iteration);
+            // Start progress tracking for convergence duration
+            let converge_phase = self.plan.converge_phase.as_ref().unwrap();
+            self.fabric.progress.start(converge_phase.seconds);
+
             self.pretenser = None; // No longer needed
             self.stage = ExecutorStage::Converging;
         } else {

@@ -92,24 +92,6 @@ mod tests {
         }
     }
 
-    /// Log fabric state every N seconds of fabric time for deterministic debugging
-    fn log_fabric_state(fabric: &Fabric, frame: usize, phase: &str) {
-        const FRAMES_PER_SEC: f32 = 4000.0;
-        let fabric_time = frame as f32 / FRAMES_PER_SEC;
-        let bounding_radius = fabric.bounding_radius();
-        let (min_y, max_y) = fabric.altitude_range();
-        let height_mm = (max_y - min_y) * fabric.scale;
-
-        // Count ground contacts (within 10mm)
-        let ground_tolerance = 10.0 / fabric.scale;
-        let ground_count = fabric.joints.iter()
-            .filter(|j| j.location.y.abs() < ground_tolerance)
-            .count();
-
-        eprintln!("[{:8.1}s] {} | Radius: {:7.3}m | Height: {:7.1}mm | Ground: {:3} | Joints: {:3}",
-            fabric_time, phase, bounding_radius, height_mm, ground_count, fabric.joints.len());
-    }
-
     #[test]
     fn test_executor_phases() {
         eprintln!("\n=== Testing FabricPlanExecutor Phases ===\n");
@@ -254,7 +236,7 @@ mod tests {
 
         let mut executor = FabricPlanExecutor::new(plan);
         let mut current_stage = ExecutorStage::Building;
-        let mut stage_entry_times: Vec<(ExecutorStage, usize)> = vec![];
+        let mut stage_entry_times: Vec<(ExecutorStage, usize)> = vec![(ExecutorStage::Building, 0)];
 
         eprintln!("Starting execution...");
         let mut iteration = 0;
@@ -275,6 +257,12 @@ mod tests {
         }
 
         eprintln!("\n✓ Execution completed at iteration {} (age: {})", iteration, executor.fabric.age);
+
+        // Check for final stage transition to Complete
+        let final_stage = executor.stage();
+        if final_stage != &current_stage {
+            stage_entry_times.push((final_stage.clone(), iteration));
+        }
 
         // Verify all stages were reached
         let stages: Vec<_> = stage_entry_times.iter().map(|(s, _)| s).collect();
