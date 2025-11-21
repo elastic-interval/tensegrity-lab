@@ -35,4 +35,9 @@ impl Progress {
             self.current.as_secs_f32() / self.limit.as_secs_f32()
         }
     }
+
+    /// Returns a countdown from 10 to 0 based on progress
+    pub fn countdown(&self) -> i32 {
+        ((1.0 - self.nuance()) * 10.0).ceil().max(0.0) as i32
+    }
 }

@@ -9,8 +9,8 @@ use crate::crucible::Stage::*;
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::BASE_PHYSICS;
 use crate::fabric::physics::Physics;
-use crate::fabric::Fabric;
 use crate::fabric::physics_test::PhysicsTester;
+use crate::fabric::Fabric;
 use crate::{ControlState, CrucibleAction, LabEvent, Radio, StateChange, ITERATIONS_PER_FRAME};
 use StateChange::*;
 
@@ -73,7 +73,9 @@ impl Crucible {
                         self.fabric = executor.fabric.clone();
                         self.physics = executor.physics.clone();
                         transition_to_viewing = true;
-                        let _ = self.radio.send_event(LabEvent::UpdateState(SetStageLabel("Viewing".to_string())));
+                        let _ = self.radio.send_event(LabEvent::UpdateState(SetStageLabel(
+                            "Viewing".to_string(),
+                        )));
                         break;
                     }
                 }
@@ -90,7 +92,6 @@ impl Crucible {
                 if transition_to_viewing {
                     // Will transition after match
                 } else {
-
                     // Check if BUILD phase is done and we should start PRETENSE
                     use crate::build::tenscript::fabric_plan_executor::ExecutorStage;
                     if matches!(executor.stage(), ExecutorStage::Building) {
@@ -112,16 +113,30 @@ impl Crucible {
                         // Send stage label updates based on executor stage
                         use crate::build::tenscript::fabric_plan_executor::ExecutorStage;
                         let stage_label = match executor.stage() {
-                            ExecutorStage::Building => "Building",
-                            ExecutorStage::Pretensing => "Pretensing",
-                            ExecutorStage::Converging => "Converging",
-                            ExecutorStage::Complete => "Complete",
+                            ExecutorStage::Building => "Building".to_string(),
+                            ExecutorStage::Pretensing => {
+                                format!("Pretensing {}", self.fabric.progress.countdown())
+                            }
+                            ExecutorStage::Converging => {
+                                format!("Converging {}", self.fabric.progress.countdown())
+                            }
+                            ExecutorStage::Complete => "Complete".to_string(),
                         };
 
-                        // Only send update if stage changed
-                        if self.last_stage_label.as_ref().map_or(true, |s| s != stage_label) {
-                            self.last_stage_label = Some(stage_label.to_string());
-                            let _ = self.radio.send_event(LabEvent::UpdateState(SetStageLabel(stage_label.to_string())));
+                        // Always update during Pretensing/Converging (for countdown), otherwise only when changed
+                        let should_update = matches!(
+                            executor.stage(),
+                            ExecutorStage::Pretensing | ExecutorStage::Converging
+                        ) || self
+                            .last_stage_label
+                            .as_ref()
+                            .map_or(true, |s| s != &stage_label);
+
+                        if should_update {
+                            self.last_stage_label = Some(stage_label.clone());
+                            let _ = self
+                                .radio
+                                .send_event(LabEvent::UpdateState(SetStageLabel(stage_label)));
                         }
                     }
                 }
@@ -230,8 +245,12 @@ impl Crucible {
 
             // Apply user's scaling tweaks to executor's physics before construction
             use crate::TweakFeature::*;
-            executor.physics.accept_tweak(MassScale.parameter(mass_scale));
-            executor.physics.accept_tweak(RigidityScale.parameter(rigidity_scale));
+            executor
+                .physics
+                .accept_tweak(MassScale.parameter(mass_scale));
+            executor
+                .physics
+                .accept_tweak(RigidityScale.parameter(rigidity_scale));
 
             // Sync executor's fabric/physics to Crucible (will be updated each frame)
             self.fabric = executor.fabric.clone();
@@ -241,9 +260,15 @@ impl Crucible {
             self.stage = RunningPlan(executor);
 
             // Set fabric name immediately so title appears right away
-            let _ = self.radio.send_event(LabEvent::UpdateState(SetFabricName(name.clone())));
-            let _ = self.radio.send_event(LabEvent::UpdateState(SetStageLabel("Building".to_string())));
-            let _ = self.radio.send_event(LabEvent::UpdateState(SetFabricStats(None)));
+            let _ = self
+                .radio
+                .send_event(LabEvent::UpdateState(SetFabricName(name.clone())));
+            let _ = self
+                .radio
+                .send_event(LabEvent::UpdateState(SetStageLabel("Building".to_string())));
+            let _ = self
+                .radio
+                .send_event(LabEvent::UpdateState(SetFabricStats(None)));
             return;
         }
 
@@ -278,7 +303,9 @@ impl Crucible {
             }
             ToViewing => match &mut self.stage {
                 Viewing => {
-                    context.send_event(LabEvent::UpdateState(SetControlState(ControlState::Viewing)));
+                    context.send_event(LabEvent::UpdateState(SetControlState(
+                        ControlState::Viewing,
+                    )));
                 }
                 Animating(_) => {
                     // Unwrap muscles back to Fixed spans when transitioning back to Viewing
@@ -286,7 +313,9 @@ impl Crucible {
 
                     self.stage = Viewing;
 
-                    context.send_event(LabEvent::UpdateState(SetControlState(ControlState::Viewing)));
+                    context.send_event(LabEvent::UpdateState(SetControlState(
+                        ControlState::Viewing,
+                    )));
                 }
                 PhysicsTesting(_) => {
                     // Freeze the fabric when exiting PhysicsTesting
@@ -295,7 +324,9 @@ impl Crucible {
 
                     self.stage = Viewing;
 
-                    context.send_event(LabEvent::UpdateState(SetControlState(ControlState::Viewing)));
+                    context.send_event(LabEvent::UpdateState(SetControlState(
+                        ControlState::Viewing,
+                    )));
                     context.send_event(LabEvent::UpdateState(SetStageLabel("Viewing".to_string())));
                 }
                 _ => {}
@@ -303,7 +334,11 @@ impl Crucible {
             ToAnimating => {
                 if let Viewing = &mut self.stage {
                     // Only animate if we have a fabric plan with an animate phase
-                    if let Some(animate_phase) = self.fabric_plan.as_ref().and_then(|p| p.animate_phase.as_ref()) {
+                    if let Some(animate_phase) = self
+                        .fabric_plan
+                        .as_ref()
+                        .and_then(|p| p.animate_phase.as_ref())
+                    {
                         // Create animator and transition to Animating stage
                         let animator = Animator::new(animate_phase.clone(), &mut context);
                         self.stage = Animating(animator);
@@ -319,12 +354,9 @@ impl Crucible {
                     let mut fabric = context.fabric.clone();
                     // Unfreeze the fabric so physics changes can take effect
                     fabric.frozen = false;
-                    
-                    let tester = PhysicsTester::new(
-                        fabric,
-                        physics_clone.clone(),
-                        self.radio.clone(),
-                    );
+
+                    let tester =
+                        PhysicsTester::new(fabric, physics_clone.clone(), self.radio.clone());
 
                     context.replace_fabric(tester.fabric.clone());
 
@@ -335,12 +367,14 @@ impl Crucible {
                     context.send_event(LabEvent::UpdateState(SetControlState(
                         ControlState::PhysicsTesting(scenario),
                     )));
-                    context.send_event(LabEvent::UpdateState(SetStageLabel("Testing Physics".to_string())));
+                    context.send_event(LabEvent::UpdateState(SetStageLabel(
+                        "Testing Physics".to_string(),
+                    )));
 
                     // Send initial stats with convergence data
-                    context.send_event(LabEvent::UpdateState(SetFabricStats(
-                        Some(context.fabric.stats_with_dynamics(context.physics))
-                    )));
+                    context.send_event(LabEvent::UpdateState(SetFabricStats(Some(
+                        context.fabric.stats_with_dynamics(context.physics),
+                    ))));
                 }
                 // Silently ignore if not in Viewing stage - can only test physics after convergence
             }
