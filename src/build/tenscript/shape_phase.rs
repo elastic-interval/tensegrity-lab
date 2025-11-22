@@ -251,8 +251,8 @@ impl ShapePhase {
                     for omega in (alpha + 1)..faces.len() {
                         let alpha_index = joints[alpha];
                         let omega_index = joints[omega];
-                        let alpha_pt = fabric.joints[alpha_index].location.current();
-                        let omega_pt = fabric.joints[omega_index].location.current();
+                        let alpha_pt = fabric.joints[alpha_index].location;
+                        let omega_pt = fabric.joints[omega_index].location;
                         let length = alpha_pt.distance(omega_pt) * distance_factor;
                         let interval = fabric.create_interval(
                             alpha_index,

@@ -48,7 +48,7 @@ mod tests {
         let height_mm = (max_y - min_y) * fabric.scale;
         let ground_tolerance = 10.0 / fabric.scale;
         let ground_count = fabric.joints.iter()
-            .filter(|j| j.location.y().abs() < ground_tolerance)
+            .filter(|j| j.location.y.abs() < ground_tolerance)
             .count();
 
         // Log current state
@@ -302,7 +302,7 @@ mod tests {
         let radius = executor.fabric.bounding_radius();
         let ground_tolerance = 10.0 / executor.fabric.scale;
         let ground_count = executor.fabric.joints.iter()
-            .filter(|j| j.location.y().abs() < ground_tolerance)
+            .filter(|j| j.location.y.abs() < ground_tolerance)
             .count();
 
         eprintln!("\n=== FINAL CONVERGED STATE ===");
