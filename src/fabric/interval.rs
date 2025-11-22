@@ -192,8 +192,8 @@ impl Fabric {
             return Err(FabricError::InvalidJointIndices);
         }
 
-        let alpha = self.joints[interval.alpha_index];
-        let omega = self.joints[interval.omega_index];
+        let alpha = self.joints[interval.alpha_index].clone();
+        let omega = self.joints[interval.omega_index].clone();
 
         Ok(IntervalSnapshot {
             interval: interval.clone(),
@@ -468,7 +468,7 @@ impl Interval {
         let attachment_points = self.attachment_points(joints)?;
 
         // Create a vector of joint positions
-        let joint_positions: Vec<Point3<f32>> = joints.iter().map(|joint| joint.location).collect();
+        let joint_positions: Vec<Point3<f32>> = joints.iter().map(|joint| joint.location.current()).collect();
 
         // Reorder connections
         if let Some(conn) = &mut self.connections {
@@ -511,8 +511,8 @@ impl Interval {
 
         // Calculate attachment points at both ends of the interval
         Ok(calculate_interval_attachment_points(
-            *alpha_location,
-            *omega_location,
+            alpha_location,
+            omega_location,
             radius,
         ))
     }
@@ -623,11 +623,11 @@ impl Interval {
     }
 
     /// Get the joint location for a specific end of the interval
-    pub fn end_location<'a>(&self, joints: &'a [Joint], end: IntervalEnd) -> &'a Point3<f32> {
-        &joints[self.end_index(end)].location
+    pub fn end_location<'a>(&self, joints: &'a [Joint], end: IntervalEnd) -> Point3<f32> {
+        joints[self.end_index(end)].location.current()
     }
 
-    pub fn locations<'a>(&self, joints: &'a [Joint]) -> (&'a Point3<f32>, &'a Point3<f32>) {
+    pub fn locations<'a>(&self, joints: &'a [Joint]) -> (Point3<f32>, Point3<f32>) {
         (
             self.end_location(joints, IntervalEnd::Alpha),
             self.end_location(joints, IntervalEnd::Omega),

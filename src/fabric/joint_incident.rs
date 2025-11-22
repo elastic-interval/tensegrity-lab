@@ -11,7 +11,7 @@ impl Fabric {
             .joints
             .iter()
             .enumerate()
-            .map(|(index, joint)| JointIncident::new(index, joint.location))
+            .map(|(index, joint)| JointIncident::new(index, joint.location.current()))
             .collect();
         for (index, interval_opt) in self.intervals.iter().enumerate() {
             if let Some(interval) = interval_opt {

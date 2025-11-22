@@ -262,9 +262,9 @@ impl PairGenerator {
             })
             .collect();
         if let &[(alpha_index, omega_index)] = cross_twist_diagonals.as_slice() {
-            let distance = joints[alpha_index]
-                .location
-                .distance(joints[omega_index].location);
+            let alpha_pt = joints[alpha_index].location.current();
+            let omega_pt = joints[omega_index].location.current();
+            let distance = alpha_pt.distance(omega_pt);
             let pair = Pair {
                 alpha_index,
                 omega_index,
@@ -288,9 +288,9 @@ impl PairGenerator {
                 })
                 .collect();
             if let &[(alpha_index, omega_index)] = triangle_completions.as_slice() {
-                let distance = joints[alpha_index]
-                    .location
-                    .distance(joints[omega_index].location);
+                let alpha_pt = joints[alpha_index].location.current();
+                let omega_pt = joints[omega_index].location.current();
+                let distance = alpha_pt.distance(omega_pt);
                 let pair = Pair {
                     alpha_index,
                     omega_index,

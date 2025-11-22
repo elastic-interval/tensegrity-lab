@@ -12,7 +12,7 @@ use crate::fabric::progress::Progress;
 use crate::units::{Grams, Millimeters, Percent, Seconds};
 use crate::Age;
 use cgmath::num_traits::zero;
-use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Transform, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, Transform, Vector3};
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -23,6 +23,7 @@ pub mod face;
 pub mod interval;
 pub mod joint;
 pub mod joint_incident;
+pub mod location;
 pub mod material;
 pub mod physics;
 pub mod progress;
@@ -173,7 +174,8 @@ impl Fabric {
 
     pub fn apply_matrix4(&mut self, matrix: Matrix4<f32>) {
         for joint in &mut self.joints {
-            joint.location = matrix.transform_point(joint.location);
+            // Transform all positions in history, not just current
+            joint.location.transform(matrix);
             joint.velocity = matrix.transform_vector(joint.velocity);
         }
     }
@@ -186,29 +188,30 @@ impl Fabric {
         }
         midpoint /= self.joints.len() as f32;
         midpoint.y = 0.0;
-        
+
         let mut total_translation = -midpoint;
-        
+
         // Calculate altitude adjustment if specified
         if let Some(altitude) = altitude {
             let min_y = self
                 .joints
                 .iter()
-                .map(|Joint { location, .. }| location.y)
+                .map(|Joint { location, .. }| location.y())
                 .min_by(|a, b| a.partial_cmp(b).unwrap());
             if let Some(min_y) = min_y {
                 let altitude_adjustment = min_y - altitude;
                 total_translation.y -= altitude_adjustment;
             }
         }
-        
+
         total_translation
     }
 
     /// Apply a translation to all joints
     pub fn apply_translation(&mut self, translation: Vector3<f32>) {
         for joint in self.joints.iter_mut() {
-            joint.location += translation;
+            // Translate all positions in history, not just current
+            joint.location.translate(translation);
         }
     }
 
@@ -415,12 +418,12 @@ impl Fabric {
     /// This represents the maximum distance from the center to any joint
     pub fn bounding_radius(&self) -> f32 {
         let midpoint = self.midpoint();
-        
+
         let max_distance_squared = self.joints
             .iter()
             .map(|joint| joint.location.distance2(midpoint))
             .fold(0.0_f32, |max, dist_sq| max.max(dist_sq));
-        
+
         // Add a small margin to ensure everything is visible
         // Only one sqrt call at the end
         max_distance_squared.sqrt() * 1.1
@@ -431,7 +434,7 @@ impl Fabric {
     pub fn altitude_range(&self) -> (f32, f32) {
         self.joints
             .iter()
-            .map(|joint| joint.location.y)
+            .map(|joint| joint.location.y())
             .fold((f32::INFINITY, f32::NEG_INFINITY), |(min, max), y| {
                 (min.min(y), max.max(y))
             })
@@ -523,7 +526,7 @@ impl Fabric {
             if let Some(interval) = interval_opt {
                 let alpha = &self.joints[interval.alpha_index];
                 let omega = &self.joints[interval.omega_index];
-                let real_length = (omega.location - alpha.location).magnitude();
+                let real_length = (&omega.location - &alpha.location).magnitude();
                 let interval_mass = interval.material.linear_density(physics) * Millimeters(real_length * self.scale);
                 total_mass += interval_mass;
             }
@@ -542,8 +545,8 @@ impl Fabric {
         let mut max_height = 0.0;
         let mut speed_sum = 0.0;
         for Joint { location, velocity, .. } in self.joints.iter() {
-            if location.y > max_height {
-                max_height = location.y;
+            if location.y() > max_height {
+                max_height = location.y();
             }
             speed_sum += velocity.magnitude();
         }

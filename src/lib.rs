@@ -95,8 +95,6 @@ impl Age {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PhysicsFeature {
     Pretenst,
-    Viscosity,
-    Drag,
 }
 
 #[derive(Debug, Clone, Copy)]

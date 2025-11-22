@@ -192,8 +192,8 @@ impl Face {
 
     pub fn radial_joint_locations(&self, fabric: &Fabric) -> [Point3<f32>; 3] {
         self.radial_joints(fabric)
-            .map(|joint_index| fabric.joints[joint_index])
-            .map(|Joint { location, .. }| location)
+            .map(|joint_index| &fabric.joints[joint_index])
+            .map(|Joint { location, .. }| location.current())
     }
 
     pub fn middle_joint(&self, fabric: &Fabric) -> usize {

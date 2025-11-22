@@ -175,8 +175,8 @@ impl CylinderRenderer {
                     _ => {}
                 }
                 let (alpha, omega) = (interval.alpha_index, interval.omega_index);
-                let start = fabric.joints[alpha].location;
-                let end = fabric.joints[omega].location;
+                let start = fabric.joints[alpha].location.current();
+                let end = fabric.joints[omega].location.current();
                 let appearance = interval.role.appearance();
                 let appearance = match pick {
                     Pick::Nothing => match render_style {
