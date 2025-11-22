@@ -305,6 +305,14 @@ impl Crucible {
                 // Already handled above
                 unreachable!()
             }
+            CentralizeFabric(altitude) => {
+                // Convert altitude from mm to internal coordinate system
+                let altitude_internal = altitude.map(|mm| *mm / context.fabric.scale);
+                let translation = context.fabric.centralize_translation(altitude_internal);
+                context.fabric.apply_translation(translation);
+                context.fabric.zero_velocities();
+                context.send_event(LabEvent::FabricCentralized(translation));
+            }
             ToViewing => match &mut self.stage {
                 Viewing => {
                     context.send_event(LabEvent::UpdateState(SetControlState(

@@ -392,12 +392,14 @@ pub enum TesterAction {
     SetTweakParameter(TweakParameter),
     DumpPhysics,
     ToggleMovementSampler,
+    DropFromHeight,
 }
 
 #[derive(Debug, Clone)]
 pub enum CrucibleAction {
     BakeBrick(Prototype),
     BuildFabric(FabricPlan),
+    CentralizeFabric(Option<units::Millimeters>),
     ToViewing,
     ToAnimating,
     ToPhysicsTesting(TestScenario),

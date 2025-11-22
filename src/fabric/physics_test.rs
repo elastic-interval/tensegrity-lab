@@ -1,7 +1,7 @@
 use crate::crucible_context::CrucibleContext;
-use crate::fabric::Fabric;
-use crate::fabric::movement_sampler::{MovementSampler, MovementAnalysis};
+use crate::fabric::movement_sampler::{MovementAnalysis, MovementSampler};
 use crate::fabric::physics::Physics;
+use crate::fabric::Fabric;
 use crate::units::{Percent, Seconds};
 use crate::{PhysicsFeature, Radio, StateChange, TesterAction, ITERATIONS_PER_FRAME};
 
@@ -103,7 +103,8 @@ impl PhysicsTester {
                 self.physics.accept(parameter);
                 match parameter.feature {
                     PhysicsFeature::Pretenst => {
-                        self.fabric.set_pretenst(Percent(parameter.value), Seconds(10.0));
+                        self.fabric
+                            .set_pretenst(Percent(parameter.value), Seconds(10.0));
                     }
                 }
             }
@@ -132,6 +133,11 @@ impl PhysicsTester {
                     StateChange::ShowMovementAnalysis(Some(progress)).send(&self.radio);
                     self.movement_sampler = Some(sampler);
                 }
+            }
+            DropFromHeight => {
+                use crate::{units::Millimeters, CrucibleAction};
+                // Centralize fabric at 1m altitude - this handles everything
+                CrucibleAction::CentralizeFabric(Some(Millimeters(1000.0))).send(&self.radio);
             }
         }
     }
