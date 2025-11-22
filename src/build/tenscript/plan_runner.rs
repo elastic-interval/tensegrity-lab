@@ -89,16 +89,6 @@ impl PlanRunner {
                     ShapeCommand::Noop => (Shaping, IMMEDIATE),
                     ShapeCommand::StartProgress(seconds) => (Shaping, seconds),
                     ShapeCommand::Rigidity(_percent) => (Shaping, IMMEDIATE),
-                    ShapeCommand::Viscosity(percent) => {
-                        self.physics.viscosity *= percent / 100.0;
-                        *context.physics = self.physics.clone();
-                        (Shaping, IMMEDIATE)
-                    }
-                    ShapeCommand::Drag(percent) => {
-                        self.physics.drag *= percent / 100.0;
-                        *context.physics = self.physics.clone();
-                        (Shaping, IMMEDIATE)
-                    }
                     ShapeCommand::Terminate => (Completed, IMMEDIATE)
                 },
                 Completed => (Completed, IMMEDIATE),
@@ -149,16 +139,6 @@ impl PlanRunner {
                     ShapeCommand::Noop => (Shaping, IMMEDIATE),
                     ShapeCommand::StartProgress(seconds) => (Shaping, seconds),
                     ShapeCommand::Rigidity(_percent) => {
-                        (Shaping, IMMEDIATE)
-                    }
-                    ShapeCommand::Viscosity(percent) => {
-                        self.physics.viscosity *= percent / 100.0;
-                        *context.physics = self.physics.clone();
-                        (Shaping, IMMEDIATE)
-                    }
-                    ShapeCommand::Drag(percent) => {
-                        self.physics.drag *= percent / 100.0;
-                        *context.physics = self.physics.clone();
                         (Shaping, IMMEDIATE)
                     }
                     ShapeCommand::Terminate => (Completed, IMMEDIATE)

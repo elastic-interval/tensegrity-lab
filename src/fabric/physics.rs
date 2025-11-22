@@ -39,8 +39,6 @@ impl SurfaceCharacter {
 /// Core physics environment - what the world is like
 #[derive(Debug, Clone)]
 pub struct Physics {
-    pub drag: f32,
-    pub viscosity: f32,
     pub surface_character: SurfaceCharacter,
     pub pretenst: Percent,
     pub tweak: Tweak,
@@ -51,6 +49,7 @@ pub struct Physics {
 pub enum Tweak {
     None,
     Scaling(ScalingTweak),
+    Construction(ConstructionTweak),
     Convergence(ConvergenceTweak),
 }
 
@@ -62,14 +61,27 @@ pub struct ScalingTweak {
     pub time_scale: f32,
 }
 
+/// Fixed damping for construction phases
+#[derive(Debug, Clone)]
+pub struct ConstructionTweak {
+    pub drag: f32,
+    pub viscosity: f32,
+}
+
+impl ConstructionTweak {
+    pub fn new(drag: f32, viscosity: f32) -> Self {
+        Self { drag, viscosity }
+    }
+}
+
 /// Temporary automated modifications to help structures settle
 #[derive(Debug, Clone)]
 pub struct ConvergenceTweak {
     pub enabled: bool,
     pub started: bool,
     pub base_physics: Box<Physics>,
-    pub drag_multiplier: f32,
-    pub viscosity_multiplier: f32,
+    pub drag: f32,           // Computed convergence drag
+    pub viscosity: f32,      // Computed convergence viscosity
     pub time_scale_multiplier: f32,
 }
 
@@ -78,13 +90,13 @@ impl ConvergenceTweak {
         // Clone physics but without tweak to avoid recursion
         let mut base = physics.clone();
         base.tweak = Tweak::None;
-        
-        Self { 
+
+        Self {
             enabled: true,
             started: false,
             base_physics: Box::new(base),
-            drag_multiplier: 1.0,
-            viscosity_multiplier: 1.0,
+            drag: 0.0,        // Start with no damping
+            viscosity: 0.0,   // Start with no damping
             time_scale_multiplier: 1.0,
         }
     }
@@ -105,19 +117,15 @@ impl Physics {
         use PhysicsFeature::*;
         let PhysicsParameter { feature, value } = parameter;
         match feature {
-            Drag => self.drag = value,
             Pretenst => self.pretenst = Percent(value),
-            Viscosity => self.viscosity = value,
         }
     }
-    
+
     pub fn broadcast(&self, radio: &Radio) {
         use PhysicsFeature::*;
-        
+
         let physics_params = [
-            Drag.parameter(self.drag),
             Pretenst.parameter(*self.pretenst),
-            Viscosity.parameter(self.viscosity),
         ];
         for p in physics_params {
             StateChange::SetPhysicsParameter(p).send(radio);
@@ -147,8 +155,14 @@ impl Physics {
     pub fn accept_tweak(&mut self, parameter: TweakParameter) {
         use TweakFeature::*;
         let TweakParameter { feature, value } = parameter;
-        
-        // Get or create scaling tweak
+
+        // Don't overwrite Construction or Convergence tweaks with Scaling tweaks
+        // Those tweaks provide essential damping and should not be replaced
+        if matches!(self.tweak, Tweak::Construction(_) | Tweak::Convergence(_)) {
+            return;
+        }
+
+        // Get or create scaling tweak (only if not Construction/Convergence)
         let scaling = match &mut self.tweak {
             Tweak::Scaling(s) => s,
             _ => {
@@ -195,7 +209,25 @@ impl Physics {
             _ => 1.0,
         }
     }
-    
+
+    /// Get drag coefficient (0.0 normally, construction/convergence value when tweaked)
+    pub fn drag(&self) -> f32 {
+        match &self.tweak {
+            Tweak::Construction(c) => c.drag,
+            Tweak::Convergence(c) => c.drag,
+            _ => 0.0,
+        }
+    }
+
+    /// Get viscosity coefficient (0.0 normally, construction/convergence value when tweaked)
+    pub fn viscosity(&self) -> f32 {
+        match &self.tweak {
+            Tweak::Construction(c) => c.viscosity,
+            Tweak::Convergence(c) => c.viscosity,
+            _ => 0.0,
+        }
+    }
+
     /// Update convergence based on time progress (0.0 to 1.0)
     /// Gradually increases damping to slow the system down over time
     /// Time scale remains constant at 1.0 to match UI timing
@@ -205,22 +237,23 @@ impl Physics {
                 conv.started = true;
             }
 
-            // Apply progressive multipliers to damping
+            // Apply progressive damping during convergence
             // This gradually slows the system down
             let damping_mult = 1.0 + progress.powi(3) * 50.0;
+
+            // Convergence-specific base damping values (independent of BASE_PHYSICS)
+            // These are tuned for convergence behavior
+            const CONVERGENCE_BASE_DRAG: f32 = 0.01;
+            const CONVERGENCE_BASE_VISCOSITY: f32 = 0.5;
 
             // Keep time scale constant at 1.0 (no speedup)
             // This ensures fabric time matches what user sees in UI
             let time_scale_mult = 1.0;
 
-            // Update multipliers
-            conv.drag_multiplier = damping_mult;
-            conv.viscosity_multiplier = damping_mult;
+            // Compute and store convergence damping values
+            conv.drag = CONVERGENCE_BASE_DRAG * damping_mult;
+            conv.viscosity = CONVERGENCE_BASE_VISCOSITY * damping_mult;
             conv.time_scale_multiplier = time_scale_mult;
-
-            // Apply to current physics values
-            self.drag = conv.base_physics.drag * conv.drag_multiplier;
-            self.viscosity = conv.base_physics.viscosity * conv.viscosity_multiplier;
         }
     }
     
@@ -244,29 +277,29 @@ impl Physics {
 
 
 pub mod presets {
-    use crate::fabric::physics::{Physics, Tweak};
+    use crate::fabric::physics::{ConstructionTweak, Physics, Tweak};
     use crate::fabric::physics::SurfaceCharacter::{Absent, Frozen};
     use crate::units::Percent;
 
     pub const CONSTRUCTION: Physics = Physics {
-        drag: 0.0125,
-        viscosity: 40.0,
         surface_character: Absent,
         pretenst: Percent(20.0),
-        tweak: Tweak::None,
+        tweak: Tweak::Construction(ConstructionTweak {
+            drag: 0.0125,
+            viscosity: 40.0,
+        }),
     };
 
     pub const PRETENSING: Physics = Physics {
-        drag: 25.0,
-        viscosity: 4.0,
         surface_character: Absent,
         pretenst: Percent(1.0),
-        tweak: Tweak::None,
+        tweak: Tweak::Construction(ConstructionTweak {
+            drag: 25.0,
+            viscosity: 4.0,
+        }),
     };
 
     pub const BASE_PHYSICS: Physics = Physics {
-        drag: 0.01,
-        viscosity: 0.5,
         surface_character: Frozen,
         pretenst: Percent(1.0),
         tweak: Tweak::None,

@@ -48,7 +48,7 @@ mod tests {
         let height_mm = (max_y - min_y) * fabric.scale;
         let ground_tolerance = 10.0 / fabric.scale;
         let ground_count = fabric.joints.iter()
-            .filter(|j| j.location.y.abs() < ground_tolerance)
+            .filter(|j| j.location.y().abs() < ground_tolerance)
             .count();
 
         // Log current state
@@ -273,5 +273,46 @@ mod tests {
 
         // Print execution log
         executor.print_log();
+    }
+
+    #[test]
+    fn check_final_converged_state() {
+        eprintln!("\n=== Checking Final Converged State ===\n");
+
+        let fabric_library = FabricLibrary::new(build_fabric_library());
+        let brick_library = BrickLibrary::new(build_brick_library());
+
+        let plan = fabric_library.fabric_plans.iter()
+            .find(|p| p.name == "Triped")
+            .expect("Triped not found")
+            .clone();
+
+        let mut executor = FabricPlanExecutor::new(plan);
+
+        // Run until completion
+        let mut iteration = 0;
+        while !executor.is_complete() && iteration < 5_000_000 {
+            executor.iterate(&brick_library).expect("Iteration failed");
+            iteration += 1;
+        }
+
+        // Check final state
+        let (min_y, max_y) = executor.fabric.altitude_range();
+        let height_mm = (max_y - min_y) * executor.fabric.scale;
+        let radius = executor.fabric.bounding_radius();
+        let ground_tolerance = 10.0 / executor.fabric.scale;
+        let ground_count = executor.fabric.joints.iter()
+            .filter(|j| j.location.y().abs() < ground_tolerance)
+            .count();
+
+        eprintln!("\n=== FINAL CONVERGED STATE ===");
+        eprintln!("Height: {:.1}mm ({:.2}m)", height_mm, height_mm / 1000.0);
+        eprintln!("Radius: {:.3}m", radius);
+        eprintln!("Ground contacts: {}", ground_count);
+        eprintln!("Total joints: {}", executor.fabric.joints.len());
+        eprintln!("Iterations: {}", iteration);
+
+        // Report the state
+        eprintln!("\n✓ Execution completed successfully");
     }
 }

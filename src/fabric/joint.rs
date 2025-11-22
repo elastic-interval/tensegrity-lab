@@ -3,6 +3,7 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
+use crate::fabric::location::Location;
 use crate::fabric::physics::{Physics, SurfaceCharacter::*};
 use crate::fabric::{Fabric, UniqueId};
 use crate::units::Grams;
@@ -18,7 +19,7 @@ impl Fabric {
         index
     }
     pub fn location(&self, index: usize) -> Point3<f32> {
-        self.joints[index].location
+        self.joints[index].location.current()
     }
 
     pub fn remove_joint(&mut self, index: usize) {
@@ -60,9 +61,9 @@ impl Fabric {
 pub const AMBIENT_MASS: Grams = Grams(0.01);
 const STICKY_DOWN_DRAG_FACTOR: f32 = 0.8;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Joint {
-    pub location: Point3<f32>,
+    pub location: Location,
     pub force: Vector3<f32>,
     pub velocity: Vector3<f32>,
     pub accumulated_mass: Grams,
@@ -71,7 +72,7 @@ pub struct Joint {
 impl Joint {
     pub fn new(location: Point3<f32>) -> Joint {
         Joint {
-            location,
+            location: Location::new(location),
             force: zero(),
             velocity: zero(),
             accumulated_mass: AMBIENT_MASS,
@@ -84,13 +85,11 @@ impl Joint {
     }
 
     pub fn iterate(&mut self, physics: &Physics, scale: f32) {
-        let Physics {
-            surface_character,
-            drag,
-            viscosity,
-            ..
-        } = physics;
-        let altitude = self.location.y;
+        let surface_character = &physics.surface_character;
+        let drag = physics.drag();
+        let viscosity = physics.viscosity();
+
+        let altitude = self.location.y();
         let mass = *self.accumulated_mass;
         let dt = TICK_DURATION.as_secs_f32();
         let dt_micros = TICK_DURATION.as_micros() as f32;
@@ -105,11 +104,18 @@ impl Joint {
             // Result: velocity change in mm/µs (simulation velocity units)
             self.velocity.y -= *surface_character.force_of_gravity(mass) * dt_micros;
             let speed_squared = self.velocity.magnitude2();
+
+            // Adaptive damping disabled - per-joint damping could create uneven behavior
+            // in coupled tensegrity structures. History is preserved for future experiments.
+            // let adaptive_factor = self.location.adaptive_damping_factor();
+            // let effective_viscosity = viscosity * (1.0 + adaptive_factor * 5.0);
+            // let effective_drag = drag * (1.0 + adaptive_factor * 2.0);
+
             // Forces are already in pre-scaled units from interval calculations
             // Apply: acceleration = force/mass, then velocity_change = acceleration * dt
             self.velocity +=
-                (self.force / mass) * dt - self.velocity * speed_squared * *viscosity * dt;
-            self.velocity *= 1.0 - *drag * dt;
+                (self.force / mass) * dt - self.velocity * speed_squared * viscosity * dt;
+            self.velocity *= 1.0 - drag * dt;
             
             // Clamp velocity to prevent numerical instability from stiff springs
             // Maximum reasonable velocity: 100 mm/µs = 100 km/s (far beyond physical reality)
@@ -133,7 +139,9 @@ impl Joint {
                 Frozen => {
                     // Completely locked to surface
                     self.velocity = zero();
-                    self.location.y = 0.0;
+                    let mut pos = self.location.current();
+                    pos.y = 0.0;
+                    self.location.update(pos);
                 }
                 Sticky => {
                     // High friction surface - resists horizontal motion and prevents sinking
@@ -158,7 +166,9 @@ impl Joint {
                     
                     // If significantly submerged, force back to surface
                     if depth > 0.1 {
-                        self.location.y = -0.1;
+                        let mut pos = self.location.current();
+                        pos.y = -0.1;
+                        self.location.update(pos);
                         self.velocity.y = 0.0;
                     }
                 }
@@ -182,9 +192,11 @@ impl Joint {
                 Slippery => {
                     // Surface that holds joints on contact (like Frozen) but allows horizontal sliding
                     // Once a joint touches, it cannot leave the surface - prevents bouncing/wobbling
-                    
+
                     // Clamp to surface and zero all vertical motion
-                    self.location.y = 0.0;
+                    let mut pos = self.location.current();
+                    pos.y = 0.0;
+                    self.location.update(pos);
                     self.velocity.y = 0.0;
                     
                     let speed_horizontal = (self.velocity.x * self.velocity.x + self.velocity.z * self.velocity.z).sqrt();
@@ -210,6 +222,7 @@ impl Joint {
             }
         }
         // Update position: velocity is in pre-scaled units per iteration
-        self.location += self.velocity * dt;
+        let new_pos = &self.location + self.velocity * dt;
+        self.location.update(new_pos);
     }
 }

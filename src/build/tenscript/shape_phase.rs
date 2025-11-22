@@ -19,8 +19,6 @@ pub enum ShapeCommand {
     Noop,
     StartProgress(Seconds),
     Rigidity(f32),
-    Drag(f32),
-    Viscosity(f32),
     Terminate,
 }
 
@@ -55,8 +53,6 @@ pub enum ShapeOperation {
     },
     Vulcanize,
     SetRigidity(f32),
-    SetDrag(f32),
-    SetViscosity(f32),
     Omit((usize, usize)),
     Add {
         alpha_index: usize,
@@ -255,10 +251,9 @@ impl ShapePhase {
                     for omega in (alpha + 1)..faces.len() {
                         let alpha_index = joints[alpha];
                         let omega_index = joints[omega];
-                        let length = fabric.joints[alpha_index]
-                            .location
-                            .distance(fabric.joints[omega_index].location)
-                            * distance_factor;
+                        let alpha_pt = fabric.joints[alpha_index].location.current();
+                        let omega_pt = fabric.joints[omega_index].location.current();
+                        let length = alpha_pt.distance(omega_pt) * distance_factor;
                         let interval = fabric.create_interval(
                             alpha_index,
                             omega_index,
@@ -285,8 +280,6 @@ impl ShapePhase {
                 StartProgress(DEFAULT_VULCANIZE_COUNTDOWN)
             }
             ShapeOperation::SetRigidity(percent) => Rigidity(percent),
-            ShapeOperation::SetDrag(percent) => Drag(percent),
-            ShapeOperation::SetViscosity(percent) => Viscosity(percent),
             ShapeOperation::Omit(pair) => {
                 fabric.joining(pair).map(|id| fabric.remove_interval(id));
                 Noop

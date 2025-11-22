@@ -224,6 +224,10 @@ impl Crucible {
 
         // Handle transition to Viewing if flagged
         if transition_to_viewing {
+            // Zero out all velocities to prevent "spaceship" effect when switching from
+            // construction physics (with damping) to viewing physics (zero damping)
+            self.fabric.zero_velocities();
+            self.fabric.frozen = true;
             self.stage = Viewing;
         }
     }

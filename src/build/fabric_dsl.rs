@@ -293,8 +293,6 @@ pub struct PretensePhaseBuilder {
     altitude: Option<Millimeters>,
     pretenst: Option<f32>,
     rigidity: Option<f32>,
-    viscosity: Option<f32>,
-    drag: Option<f32>,
 }
 
 impl PretensePhaseBuilder {
@@ -325,8 +323,6 @@ impl PretensePhaseBuilder {
             seconds: None,
             rigidity: self.rigidity,
             altitude: self.altitude.map(|mm| mm.0),
-            viscosity: self.viscosity,
-            drag: self.drag,
         }
     }
 }

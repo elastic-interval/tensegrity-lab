@@ -59,7 +59,6 @@ impl PhysicsTester {
                     PhysicsFeature::Pretenst => {
                         self.fabric.set_pretenst(Percent(parameter.value), Seconds(10.0));
                     }
-                    _ => {}
                 }
             }
             SetTweakParameter(parameter) => {

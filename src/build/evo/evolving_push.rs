@@ -35,8 +35,8 @@ impl EvolvingPush {
             IntervalEnd::Alpha => (interval.alpha_index, alpha.location, &mut self.alpha_pulls),
             IntervalEnd::Omega => (interval.omega_index, omega.location, &mut self.omega_pulls),
         };
-        let alpha = fabric.create_joint(here - project / 2.0);
-        let omega = fabric.create_joint(here + project / 2.0);
+        let alpha = fabric.create_joint(&here - project / 2.0);
+        let omega = fabric.create_joint(&here + project / 2.0);
         let interval_id = fabric.create_interval(alpha, omega, 1.0, Role::Pushing);
         let alpha_pull = fabric.create_interval(here_id, alpha, 0.5, Role::Pulling);
         let omega_pull = fabric.create_interval(here_id, omega, 0.5, Role::Pulling);
