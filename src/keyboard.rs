@@ -139,6 +139,12 @@ impl Keyboard {
             Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),
         );
         self.key_lab_event(
+            KeyCode::KeyJ,
+            "Jump",
+            Crucible(TesterDo(TesterAction::DropFromHeight)),
+            Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),
+        );
+        self.key_lab_event(
             KeyCode::KeyC,
             "Color by Role",
             UpdateState(StateChange::ToggleColorByRole),
