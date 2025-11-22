@@ -391,6 +391,7 @@ pub enum TesterAction {
     SetPhysicalParameter(PhysicsParameter),
     SetTweakParameter(TweakParameter),
     DumpPhysics,
+    ToggleMovementSampler,
 }
 
 #[derive(Debug, Clone)]
@@ -517,6 +518,8 @@ pub enum StateChange {
     ToggleProjection,
     /// Toggle visibility of attachment points
     ToggleAttachmentPoints,
+    /// Show movement analysis overlay (None to hide)
+    ShowMovementAnalysis(Option<String>),
 }
 
 impl Debug for StateChange {
@@ -538,6 +541,7 @@ impl Debug for StateChange {
             StateChange::ToggleProjection => "ToggleProjection",
             StateChange::ToggleAttachmentPoints => "ToggleAttachmentPoints",
             StateChange::ToggleColorByRole => "ToggleColorByRole",
+            StateChange::ShowMovementAnalysis(_) => "ShowMovementAnalysis()",
         };
         write!(f, "StateChange::{name}")
     }

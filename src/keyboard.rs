@@ -133,6 +133,12 @@ impl Keyboard {
             Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),
         );
         self.key_lab_event(
+            KeyCode::KeyS,
+            "Movement stats",
+            Crucible(TesterDo(TesterAction::ToggleMovementSampler)),
+            Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),
+        );
+        self.key_lab_event(
             KeyCode::KeyC,
             "Color by Role",
             UpdateState(StateChange::ToggleColorByRole),

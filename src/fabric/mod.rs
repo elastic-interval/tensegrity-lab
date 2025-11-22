@@ -12,7 +12,7 @@ use crate::fabric::progress::Progress;
 use crate::units::{Grams, Millimeters, Percent, Seconds};
 use crate::Age;
 use cgmath::num_traits::zero;
-use cgmath::{EuclideanSpace, InnerSpace, Matrix4, Point3, Transform, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Transform, Vector3};
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -23,8 +23,8 @@ pub mod face;
 pub mod interval;
 pub mod joint;
 pub mod joint_incident;
-pub mod location;
 pub mod material;
+pub mod movement_sampler;
 pub mod physics;
 pub mod progress;
 pub mod vulcanize;
@@ -32,6 +32,12 @@ pub mod vulcanize;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod export;
 pub mod physics_test;
+
+// Type aliases for physics quantities - improves readability and provides
+// hook for future unit-aware types without cluttering code with f32 generics
+pub type Location = Point3<f32>;
+pub type Velocity = Vector3<f32>;
+pub type Force = Vector3<f32>;
 
 /// Statistics accumulated during iteration with zero-cost pass-through
 #[derive(Clone, Debug, Default)]
@@ -49,7 +55,7 @@ impl IterationStats {
     pub fn reset(&mut self) {
         *self = Self::default();
     }
-    
+
     pub fn avg_strain(&self) -> f32 {
         if self.strain_count > 0 {
             self.strain_sum / self.strain_count as f32
@@ -57,7 +63,7 @@ impl IterationStats {
             0.0
         }
     }
-    
+
     #[inline]
     pub fn accumulate_strain(&mut self, strain: f32) {
         let abs_strain = strain.abs();
@@ -67,20 +73,20 @@ impl IterationStats {
             self.max_strain = abs_strain;
         }
     }
-    
+
     #[inline]
     pub fn accumulate_joint(&mut self, mass: f32, speed_squared: f32) {
         self.kinetic_energy += 0.5 * mass * speed_squared;
         self.total_mass += mass;
     }
-    
+
     #[inline]
     pub fn update_max_speed_squared(&mut self, speed_squared: f32) {
         if speed_squared > self.max_speed_squared {
             self.max_speed_squared = speed_squared;
         }
     }
-    
+
     /// Finalize max_speed by computing sqrt once at the end
     #[inline]
     pub fn finalize(&mut self) {
@@ -158,11 +164,11 @@ pub struct Fabric {
 
 impl Fabric {
     pub fn new(name: String) -> Self {
-    Self {
-        name,
-        age: Age::default(),
-        progress: Progress::default(),
-        joints: Vec::new(),
+        Self {
+            name,
+            age: Age::default(),
+            progress: Progress::default(),
+            joints: Vec::new(),
             intervals: Vec::new(),
             interval_count: 0,
             faces: HashMap::new(),
@@ -174,8 +180,7 @@ impl Fabric {
 
     pub fn apply_matrix4(&mut self, matrix: Matrix4<f32>) {
         for joint in &mut self.joints {
-            // Transform all positions in history, not just current
-            joint.location.transform(matrix);
+            joint.location = matrix.transform_point(joint.location);
             joint.velocity = matrix.transform_vector(joint.velocity);
         }
     }
@@ -196,7 +201,7 @@ impl Fabric {
             let min_y = self
                 .joints
                 .iter()
-                .map(|Joint { location, .. }| location.y())
+                .map(|Joint { location, .. }| location.y)
                 .min_by(|a, b| a.partial_cmp(b).unwrap());
             if let Some(min_y) = min_y {
                 let altitude_adjustment = min_y - altitude;
@@ -210,8 +215,7 @@ impl Fabric {
     /// Apply a translation to all joints
     pub fn apply_translation(&mut self, translation: Vector3<f32>) {
         for joint in self.joints.iter_mut() {
-            // Translate all positions in history, not just current
-            joint.location.translate(translation);
+            joint.location += translation;
         }
     }
 
@@ -240,22 +244,24 @@ impl Fabric {
     }
 
     /// Set pretensing target for push intervals
-    /// 
+    ///
     /// Extends push intervals by the specified percentage of their rest length.
     /// For example, with pretenst=1%, a 100mm push interval will target 101mm.
-    /// 
+    ///
     /// Note: During the pretensing phase, the physics simulation continues to run,
     /// so actual extensions may vary slightly from the target due to forces from
     /// pull intervals and other structural dynamics.
     pub fn set_pretenst(&mut self, pretenst: Percent, seconds: Seconds) {
         let factor = pretenst.as_factor();
-        
+
         for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
             let interval = interval_opt.as_mut().unwrap();
             if !interval.has_role(Role::Support) {
                 let is_pushing = interval.has_role(Role::Pushing);
                 match interval.span {
-                    Fixed { length: rest_length } => {
+                    Fixed {
+                        length: rest_length,
+                    } => {
                         if is_pushing {
                             interval.span = Pretenst {
                                 start_length: rest_length,
@@ -265,7 +271,11 @@ impl Fabric {
                             };
                         }
                     }
-                    Pretenst { target_length, rest_length, .. } => {
+                    Pretenst {
+                        target_length,
+                        rest_length,
+                        ..
+                    } => {
                         interval.span = Pretenst {
                             start_length: target_length,
                             target_length: rest_length * (1.0 + factor),
@@ -310,19 +320,18 @@ impl Fabric {
             .collect()
     }
 
-
     pub fn iterate(&mut self, physics: &Physics) -> f32 {
         if self.frozen {
             return 0.0;
         }
-        
+
         // Reset stats for this iteration
         self.stats.reset();
-        
+
         for joint in &mut self.joints {
             joint.reset();
         }
-        
+
         // Accumulate strain stats during interval iteration
         for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
             let interval = interval_opt.as_mut().unwrap();
@@ -333,37 +342,39 @@ impl Fabric {
                 self.scale,
                 physics,
             );
-            
+
             // Accumulate strain (zero-cost pass-through)
             self.stats.accumulate_strain(interval.strain);
         }
         let elapsed = self.age.tick_scaled(physics.time_scale());
-        
+
         // Check for excessive speed and accumulate velocity/energy stats
         const MAX_SPEED_SQUARED: f32 = 1000.0 * 1000.0; // (mm per tick)²
         let mut max_speed_squared = 0.0;
-        
+
         for joint in self.joints.iter_mut() {
             joint.iterate(physics, self.scale);
-            
+
             // Accumulate stats (zero-cost - already computing these values)
             let speed_squared = joint.velocity.magnitude2();
             let mass = *joint.accumulated_mass;
-            
+
             self.stats.accumulate_joint(mass, speed_squared);
             self.stats.update_max_speed_squared(speed_squared);
-            
+
             if speed_squared > max_speed_squared {
                 max_speed_squared = speed_squared;
             }
         }
-        
+
         // Finalize stats (compute sqrt once at the end)
         self.stats.finalize();
-        
+
         if max_speed_squared > MAX_SPEED_SQUARED || max_speed_squared.is_nan() {
-            eprintln!("Excessive speed detected: {:.2} mm/tick - freezing fabric", 
-                      max_speed_squared.sqrt());
+            eprintln!(
+                "Excessive speed detected: {:.2} mm/tick - freezing fabric",
+                max_speed_squared.sqrt()
+            );
             self.zero_velocities();
             self.frozen = true;
             return 0.0;
@@ -387,13 +398,14 @@ impl Fabric {
                 }
             }
         }
-        
+
         elapsed.as_micros() as f32
     }
-    
+
     /// Calculate total kinetic energy of the system
     pub fn kinetic_energy(&self) -> f32 {
-        self.joints.iter()
+        self.joints
+            .iter()
             .map(|joint| {
                 let speed_squared = joint.velocity.magnitude2();
                 0.5 * *joint.accumulated_mass * speed_squared
@@ -419,7 +431,8 @@ impl Fabric {
     pub fn bounding_radius(&self) -> f32 {
         let midpoint = self.midpoint();
 
-        let max_distance_squared = self.joints
+        let max_distance_squared = self
+            .joints
             .iter()
             .map(|joint| joint.location.distance2(midpoint))
             .fold(0.0_f32, |max, dist_sq| max.max(dist_sq));
@@ -434,7 +447,7 @@ impl Fabric {
     pub fn altitude_range(&self) -> (f32, f32) {
         self.joints
             .iter()
-            .map(|joint| joint.location.y())
+            .map(|joint| joint.location.y)
             .fold((f32::INFINITY, f32::NEG_INFINITY), |(min, max), y| {
                 (min.min(y), max.max(y))
             })
@@ -512,41 +525,45 @@ impl Fabric {
             dynamic_stats: None,
         }
     }
-    
+
     /// Calculate total mass from intervals using current physics
     /// This is done on-demand rather than cached, so it always reflects current physics.mass_scale
     fn calculate_total_mass(&self, physics: &Physics) -> Grams {
         let mut total_mass = Grams(0.0);
-        
+
         // Add ambient mass for each joint
         total_mass += AMBIENT_MASS * self.joints.len() as f32;
-        
+
         // Add mass from each interval
         for interval_opt in &self.intervals {
             if let Some(interval) = interval_opt {
                 let alpha = &self.joints[interval.alpha_index];
                 let omega = &self.joints[interval.omega_index];
                 let real_length = (&omega.location - &alpha.location).magnitude();
-                let interval_mass = interval.material.linear_density(physics) * Millimeters(real_length * self.scale);
+                let interval_mass = interval.material.linear_density(physics)
+                    * Millimeters(real_length * self.scale);
                 total_mass += interval_mass;
             }
         }
-        
+
         total_mass
     }
-    
+
     pub fn stats_with_dynamics(&self, physics: &Physics) -> FabricStats {
         let mut stats = self.fabric_stats();
-        
+
         // Calculate total mass fresh using current physics
         let total_mass = self.calculate_total_mass(physics);
-        
+
         // Calculate max_height and average speed from current joint positions
         let mut max_height = 0.0;
         let mut speed_sum = 0.0;
-        for Joint { location, velocity, .. } in self.joints.iter() {
-            if location.y() > max_height {
-                max_height = location.y();
+        for Joint {
+            location, velocity, ..
+        } in self.joints.iter()
+        {
+            if location.y > max_height {
+                max_height = location.y;
             }
             speed_sum += velocity.magnitude();
         }
@@ -555,7 +572,7 @@ impl Fabric {
         } else {
             0.0
         };
-        
+
         stats.dynamic_stats = Some(DynamicStats {
             max_height,
             kinetic_energy: self.stats.kinetic_energy,

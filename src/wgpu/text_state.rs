@@ -14,11 +14,12 @@ pub enum SectionName {
     Left = 3,
     Right = 4,
     BottomLeft = 5,
+    Center = 6,
 }
 
 impl SectionName {
     const fn count() -> usize {
-        6
+        7
     }
 }
 
@@ -32,6 +33,7 @@ pub struct TextState {
     control_state: ControlState,
     stage_label: String,
     fabric_stats: Option<FabricStats>,
+    movement_analysis: Option<String>,
     sections: [Option<OwnedSection>; SectionName::count()],
     keyboard_legend: Option<String>,
     animating: bool,
@@ -67,6 +69,7 @@ impl TextState {
             control_state: ControlState::Waiting,
             stage_label: "Waiting".to_string(),
             fabric_stats: None,
+            movement_analysis: None,
             keyboard_legend: None,
             sections: Default::default(),
             frames_per_second: 0.0,
@@ -110,6 +113,9 @@ impl TextState {
             } => {
                 self.frames_per_second = frames_per_second.clone();
                 self.age = *age;
+            }
+            ShowMovementAnalysis(text) => {
+                self.movement_analysis = text.clone();
             }
             _ => {}
         }
@@ -167,6 +173,10 @@ impl TextState {
                     Viewing => Large("Click to select".to_string()),
                     ShowingJoint(joint_details) => Large(joint_details.to_string()),
                     ShowingInterval(interval_details) => Large(interval_details.to_string()),
+                    PhysicsTesting(_) => match &self.movement_analysis {
+                        Some(text) => Normal(text.clone()),
+                        None => Nothing,
+                    },
                     _ => Nothing,
                 },
             );
@@ -175,7 +185,7 @@ impl TextState {
                 SectionName::Right,
                 match control_state {
                     Animating => {
-                        Normal("2025\nGerald de Jong\nAte Snijder\npretenst.com".to_string())
+                        Normal("2025\nGerald de Jong\npretenst.com".to_string())
                     }
                     _ => Nothing,
                 },
@@ -251,6 +261,9 @@ impl TextState {
                 }
             },
         );
+
+        // Center section reserved for future use
+        self.update_section(SectionName::Center, Nothing);
     }
 
     fn update_section(&mut self, section_name: SectionName, text_instance: TextInstance) {
@@ -283,6 +296,7 @@ impl TextState {
                 Left => VerticalAlign::Center,
                 Right => VerticalAlign::Center,
                 BottomLeft => VerticalAlign::Bottom,
+                Center => VerticalAlign::Center,
             })
             .h_align(match section_name {
                 Top | TopSubtitle => HorizontalAlign::Center,
@@ -290,6 +304,7 @@ impl TextState {
                 Left => HorizontalAlign::Left,
                 Right => HorizontalAlign::Right,
                 BottomLeft => HorizontalAlign::Left,
+                Center => HorizontalAlign::Center,
             })
     }
 
@@ -302,6 +317,7 @@ impl TextState {
             Left => [middle, self.width],
             Right => [middle, self.width],
             BottomLeft => [middle, middle],
+            Center => [self.width * 0.8, self.height * 0.8], // Large center area
         }
     }
 
@@ -317,6 +333,7 @@ impl TextState {
             Left => [margin, middle_v],
             Right => [self.width - margin, middle_v],
             BottomLeft => [margin, self.height - margin],
+            Center => [middle_h, middle_v], // Dead center of screen
         }
     }
 }
