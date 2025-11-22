@@ -3,13 +3,12 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use crate::fabric::location::Location;
+use crate::fabric::{Fabric, Force, Location, UniqueId, Velocity};
 use crate::fabric::physics::{Physics, SurfaceCharacter::*};
-use crate::fabric::{Fabric, UniqueId};
 use crate::units::Grams;
 use crate::TICK_DURATION;
 use cgmath::num_traits::zero;
-use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
+use cgmath::{InnerSpace, MetricSpace, Point3};
 use itertools::Itertools;
 
 impl Fabric {
@@ -19,7 +18,7 @@ impl Fabric {
         index
     }
     pub fn location(&self, index: usize) -> Point3<f32> {
-        self.joints[index].location.current()
+        self.joints[index].location
     }
 
     pub fn remove_joint(&mut self, index: usize) {
@@ -64,15 +63,15 @@ const STICKY_DOWN_DRAG_FACTOR: f32 = 0.8;
 #[derive(Clone, Debug)]
 pub struct Joint {
     pub location: Location,
-    pub force: Vector3<f32>,
-    pub velocity: Vector3<f32>,
+    pub force: Force,
+    pub velocity: Velocity,
     pub accumulated_mass: Grams,
 }
 
 impl Joint {
     pub fn new(location: Point3<f32>) -> Joint {
         Joint {
-            location: Location::new(location),
+            location,
             force: zero(),
             velocity: zero(),
             accumulated_mass: AMBIENT_MASS,
@@ -89,7 +88,7 @@ impl Joint {
         let drag = physics.drag();
         let viscosity = physics.viscosity();
 
-        let altitude = self.location.y();
+        let altitude = self.location.y;
         let mass = *self.accumulated_mass;
         let dt = TICK_DURATION.as_secs_f32();
         let dt_micros = TICK_DURATION.as_micros() as f32;
@@ -139,9 +138,9 @@ impl Joint {
                 Frozen => {
                     // Completely locked to surface
                     self.velocity = zero();
-                    let mut pos = self.location.current();
+                    let mut pos = self.location;
                     pos.y = 0.0;
-                    self.location.update(pos);
+                    self.location = pos;
                 }
                 Sticky => {
                     // High friction surface - resists horizontal motion and prevents sinking
@@ -166,9 +165,9 @@ impl Joint {
                     
                     // If significantly submerged, force back to surface
                     if depth > 0.1 {
-                        let mut pos = self.location.current();
+                        let mut pos = self.location;
                         pos.y = -0.1;
-                        self.location.update(pos);
+                        self.location = pos;
                         self.velocity.y = 0.0;
                     }
                 }
@@ -194,9 +193,9 @@ impl Joint {
                     // Once a joint touches, it cannot leave the surface - prevents bouncing/wobbling
 
                     // Clamp to surface and zero all vertical motion
-                    let mut pos = self.location.current();
+                    let mut pos = self.location;
                     pos.y = 0.0;
-                    self.location.update(pos);
+                    self.location = pos;
                     self.velocity.y = 0.0;
                     
                     let speed_horizontal = (self.velocity.x * self.velocity.x + self.velocity.z * self.velocity.z).sqrt();
@@ -223,6 +222,6 @@ impl Joint {
         }
         // Update position: velocity is in pre-scaled units per iteration
         let new_pos = &self.location + self.velocity * dt;
-        self.location.update(new_pos);
+        self.location = new_pos;
     }
 }

@@ -307,6 +307,7 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             RefreshLibrary => {
                 println!("Manual library refresh requested");
+                StateChange::ShowMovementAnalysis(None).send(&self.radio);
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     match self.refresh_library(Instant::now()) {
