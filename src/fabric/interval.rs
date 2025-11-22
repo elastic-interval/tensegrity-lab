@@ -468,7 +468,7 @@ impl Interval {
         let attachment_points = self.attachment_points(joints)?;
 
         // Create a vector of joint positions
-        let joint_positions: Vec<Point3<f32>> = joints.iter().map(|joint| joint.location.current()).collect();
+        let joint_positions: Vec<Point3<f32>> = joints.iter().map(|joint| joint.location).collect();
 
         // Reorder connections
         if let Some(conn) = &mut self.connections {
@@ -624,7 +624,7 @@ impl Interval {
 
     /// Get the joint location for a specific end of the interval
     pub fn end_location<'a>(&self, joints: &'a [Joint], end: IntervalEnd) -> Point3<f32> {
-        joints[self.end_index(end)].location.current()
+        joints[self.end_index(end)].location
     }
 
     pub fn locations<'a>(&self, joints: &'a [Joint]) -> (Point3<f32>, Point3<f32>) {

@@ -22,7 +22,7 @@ impl Fabric {
         let height = self
             .joints
             .iter()
-            .fold(0.0f32, |h, joint| h.max(joint.location.y()))
+            .fold(0.0f32, |h, joint| h.max(joint.location.y))
             * self.scale;
         let scale = self.scale;
         let now = chrono::Local::now()
@@ -37,7 +37,7 @@ impl Fabric {
         zip.start_file("joints.csv".to_string(), options)?;
         writeln!(zip, "Index;X;Y;Z")?;
         for (index, Joint { location, .. }) in self.joints.iter().enumerate() {
-            let Point3 { x, y, z } = location.current() * self.scale;
+            let Point3 { x, y, z } = location * self.scale;
             writeln!(zip, "{};{x:.2};{z:.2};{y:.2}", index + 1)?;
         }
 
