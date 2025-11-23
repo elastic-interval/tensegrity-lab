@@ -275,6 +275,57 @@ src/
 - Physics testing achieves true 1:1 real time
 - Average speed tracking over 100 iterations
 
+### Camera Animation and Interaction System
+
+**Critical Architecture Fix:**
+
+The camera must ALWAYS update via `scene.animate()`, regardless of control state. This was broken by short-circuit evaluation.
+
+**Problem:** In `application.rs`, the condition for running animation was:
+```rust
+let animate = matches!(control_state, Viewing | PhysicsTesting(_)) || scene.animate(fabric)
+```
+
+When in `Viewing` mode, the `||` short-circuited and `scene.animate()` never ran, preventing camera from approaching its target.
+
+**Solution:** Always call `scene.animate()` first (application.rs:527-533):
+```rust
+let camera_animating = scene.animate(fabric);  // Always call first
+let animate = matches!(control_state, Viewing | PhysicsTesting(_)) || camera_animating;
+```
+
+**Camera Reset Pattern:**
+
+Keep `camera.reset()` simple - just set the target (camera.rs:221-224):
+```rust
+pub fn reset(&mut self) {
+    self.current_pick = Pick::Nothing;
+    self.set_target(Target::FabricMidpoint);
+}
+```
+
+Let `target_approach()` detect target changes naturally via thread_local state. Don't manually manipulate thread_local variables in reset().
+
+**Picking Restrictions:**
+
+Only allow picking when in Viewing mode. Check implemented in `scene.pointer_changed()` (scene.rs:223-237):
+```rust
+let pointer_changed = if !self.pick_allowed {
+    match pointer_changed {
+        PointerChange::Released(_) | PointerChange::TouchReleased(_) => PointerChange::NoChange,
+        other => other,  // Allow rotation, zoom in all modes
+    }
+} else {
+    pointer_changed
+};
+```
+
+This allows camera rotation and zooming in all states, but restricts selection to Viewing mode only.
+
+**WASM Compatibility:**
+
+Removed `#[cfg(not(target_arch = "wasm32"))]` guards from `RefreshLibrary` and `UpdatedLibrary` handlers (application.rs:298-312). The code uses WASM-compatible `instant` crate and doesn't access filesystem, so reload fabric (Enter key) now works in browser.
+
 ## Common Operations
 
 ### Adding New Physics Features
