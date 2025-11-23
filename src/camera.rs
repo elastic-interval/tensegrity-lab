@@ -212,13 +212,6 @@ impl Camera {
         self.set_target(Target::FabricMidpoint);
     }
 
-    /// Apply a translation to the camera position and look_at point
-    /// This is used when the fabric is centralized to keep the camera in the same relative position
-    pub fn apply_translation(&mut self, translation: Vector3<f32>) {
-        self.position += translation;
-        self.look_at += translation;
-    }
-
     pub fn pointer_changed(&mut self, pointer_change: PointerChange, fabric: &Fabric) {
         match pointer_change {
             PointerChange::NoChange => {}
@@ -415,8 +408,9 @@ impl Camera {
         // Track if we're still working on approaching
         let mut working = position_distance > TARGET_HIT;
 
-        // Handle position approach with smooth easing
-        if working {
+        // Always track the target to keep it in view, even after initial approach completes
+        if position_distance > TARGET_HIT {
+            // Handle position approach with smooth easing during initial approach
             // Get the initial distance to calculate progress
             let initial_distance = INITIAL_DISTANCE.with(|dist| *dist.borrow());
 
@@ -439,6 +433,11 @@ impl Camera {
 
             // Smoothly interpolate towards target position
             self.look_at = self.look_at + (look_at - self.look_at) * lerp_factor.min(1.0);
+        } else {
+            // After reaching target, continue tracking with gentle following
+            // Use a small lerp factor to smoothly follow the moving fabric
+            let gentle_lerp = (CAMERA_MOVE_SPEED * 0.3 * capped_delta_time).min(1.0);
+            self.look_at = self.look_at + (look_at - self.look_at) * gentle_lerp;
         }
 
         // Handle zoom approach if we're still in approaching mode

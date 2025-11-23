@@ -202,7 +202,7 @@ impl Joint {
 
                     // Base surface damping coefficient (independent of physics parameters)
                     // Applied to both drag and viscosity for consistent strong damping
-                    const SURFACE_DAMPING: f32 = 10.0;
+                    const SURFACE_DAMPING: f32 = 50.0;
 
                     // Linear damping: surface damping multiplier + physics drag/viscosity
                     // Physics values increase during convergence for additional damping

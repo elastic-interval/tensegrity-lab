@@ -401,7 +401,6 @@ impl FabricPlanExecutor {
         });
 
         self.fabric.zero_velocities();
-        self.fabric.frozen = true;
         self.converger = None;
         self.stage = ExecutorStage::Complete;
     }

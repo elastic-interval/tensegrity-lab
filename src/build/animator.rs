@@ -118,10 +118,6 @@ impl Animator {
 
     /// Iterate the fabric, passing muscle_nuance to intervals
     fn iterate_fabric_with_muscles(&self, context: &mut CrucibleContext) {
-        if context.fabric.frozen {
-            return;
-        }
-
         // Reset stats for this iteration
         context.fabric.stats.reset();
 
@@ -174,7 +170,6 @@ impl Animator {
                 max_speed_squared.sqrt()
             );
             context.fabric.zero_velocities();
-            context.fabric.frozen = true;
             return;
         }
 

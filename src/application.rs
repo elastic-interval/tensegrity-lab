@@ -256,9 +256,6 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                 };
             }
-            FabricCentralized(translation) => {
-                self.with_scene(|scene| scene.apply_fabric_translation(translation));
-            }
             FabricBuilt(fabric_stats) => {
                 // Convergence complete - show stats and transition to viewing
                 StateChange::SetFabricName(fabric_stats.name.clone()).send(&self.radio);
@@ -472,7 +469,7 @@ impl ApplicationHandler<LabEvent> for Application {
         if fps_elapsed >= Duration::from_secs(1) {
             // Calculate frames per second with platform-specific adjustments
             #[cfg(target_arch = "wasm32")]
-            let frames_per_second = {
+            let raw_frames_per_second = {
                 // In WASM, we need to cap the reported FPS to avoid absurd values
                 // This happens because the browser's requestAnimationFrame timing can be inconsistent
                 let raw_fps = self.frames_count as f32 / fps_elapsed.as_secs_f32();
@@ -480,10 +477,15 @@ impl ApplicationHandler<LabEvent> for Application {
             };
 
             #[cfg(not(target_arch = "wasm32"))]
-            let frames_per_second = self.frames_count as f32 / fps_elapsed.as_secs_f32();
+            let raw_frames_per_second = self.frames_count as f32 / fps_elapsed.as_secs_f32();
 
-            // Store current FPS for dynamic iteration calculation
-            self.current_fps = frames_per_second;
+            // Store current FPS for dynamic iteration calculation with exponential smoothing
+            // This prevents oscillation by gradually adapting to FPS changes
+            let alpha = 0.15; // Smoothing factor (lower = more gradual, 0.1-0.2 works well)
+            self.current_fps = alpha * raw_frames_per_second + (1.0 - alpha) * self.current_fps;
+
+            // For display purposes, use the smoothed value
+            let frames_per_second = self.current_fps;
 
             // Get fabric age and target time scale
             let age = self.crucible.fabric.age;
@@ -526,8 +528,12 @@ impl ApplicationHandler<LabEvent> for Application {
         // Define update interval (how often physics steps are taken)
         let update_interval = Duration::from_millis(10);
 
-        // Check if animation is active
-        let animate = self
+        // Check if animation/physics should be active
+        // Always run in Viewing and PhysicsTesting modes, or when camera is animating
+        let animate = matches!(
+            self.control_state,
+            ControlState::Viewing | ControlState::PhysicsTesting(_)
+        ) || self
             .with_scene_and_fabric(|scene, fabric| scene.animate(fabric))
             .unwrap_or(false);
 
@@ -551,11 +557,6 @@ impl ApplicationHandler<LabEvent> for Application {
                 };
 
                 self.crucible.iterate(&self.brick_library, iterations_per_frame);
-
-                // Apply any pending camera translation synchronously
-                if let Some(translation) = self.crucible.take_camera_translation() {
-                    self.with_scene(|scene| scene.apply_fabric_translation(translation));
-                }
             }
         }
 

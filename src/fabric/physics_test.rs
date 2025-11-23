@@ -1,5 +1,5 @@
 use crate::crucible_context::CrucibleContext;
-use crate::fabric::movement_sampler::{MovementAnalysis, MovementSampler};
+use crate::fabric::fabric_sampler::{FabricAnalysis, FabricSampler};
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::units::{Percent, Seconds};
@@ -10,8 +10,8 @@ pub struct PhysicsTester {
     pub physics: Physics,
     radio: Radio,
     iterations_since_stats_update: usize,
-    movement_sampler: Option<MovementSampler>,
-    movement_analysis: Option<MovementAnalysis>,
+    fabric_sampler: Option<FabricSampler>,
+    fabric_analysis: Option<FabricAnalysis>,
     showing_analysis: bool,
 }
 
@@ -22,8 +22,8 @@ impl PhysicsTester {
             physics,
             radio,
             iterations_since_stats_update: 0,
-            movement_sampler: None,
-            movement_analysis: None,
+            fabric_sampler: None,
+            fabric_analysis: None,
             showing_analysis: false,
         }
     }
@@ -41,7 +41,7 @@ impl PhysicsTester {
         }
 
         // Record sample if sampler is active
-        if let Some(sampler) = &mut self.movement_sampler {
+        if let Some(sampler) = &mut self.fabric_sampler {
             let prev_count = sampler.sample_count();
             sampler.record_sample(&self.fabric);
 
@@ -54,32 +54,21 @@ impl PhysicsTester {
             // Check if sampling is complete
             if sampler.is_complete() {
                 // Analyze and show results
-                if let Some(analysis) = sampler.analyze(self.fabric.scale) {
+                if let Some(analysis) = sampler.analyze(&self.fabric, &self.physics) {
                     let text = analysis.format();
                     StateChange::ShowMovementAnalysis(Some(text)).send(&self.radio);
 
-                    self.movement_analysis = Some(analysis);
+                    self.fabric_analysis = Some(analysis);
                     self.showing_analysis = true;
 
                     // Clear the sampler
-                    self.movement_sampler = None;
+                    self.fabric_sampler = None;
                 }
             }
         }
 
         // Track iterations for stats updates (count frames, not iterations)
         self.iterations_since_stats_update += 1;
-
-        // Update stats approximately every second (60 frames)
-        if self.iterations_since_stats_update >= 60 {
-            self.iterations_since_stats_update = 0;
-
-            // Recalculate and broadcast updated stats
-            let stats = self.fabric.stats_with_dynamics(&self.physics);
-            StateChange::SetFabricStats(Some(stats)).send(&self.radio);
-        }
-
-        // Update the context's fabric and physics with our changes
         context.replace_fabric(self.fabric.clone());
         *context.physics = self.physics.clone();
     }
@@ -107,24 +96,19 @@ impl PhysicsTester {
                 if self.showing_analysis {
                     // Hide analysis
                     self.showing_analysis = false;
-                    self.movement_analysis = None;
+                    self.fabric_analysis = None;
                     StateChange::ShowMovementAnalysis(None).send(&self.radio);
-                } else if self.movement_sampler.is_some() {
+                } else if self.fabric_sampler.is_some() {
                     // Cancel active sampling
-                    self.movement_sampler = None;
+                    self.fabric_sampler = None;
                     StateChange::ShowMovementAnalysis(None).send(&self.radio);
                 } else {
                     // Start new sampling
-                    let sampler = MovementSampler::new(self.fabric.joints.len());
+                    let sampler = FabricSampler::new(self.fabric.joints.len());
                     let progress = sampler.format_progress();
                     StateChange::ShowMovementAnalysis(Some(progress)).send(&self.radio);
-                    self.movement_sampler = Some(sampler);
+                    self.fabric_sampler = Some(sampler);
                 }
-            }
-            DropFromHeight => {
-                use crate::{units::Millimeters, CrucibleAction};
-                // Centralize fabric at 1m altitude - this handles everything
-                CrucibleAction::CentralizeFabric(Some(Millimeters(1000.0))).send(&self.radio);
             }
         }
     }

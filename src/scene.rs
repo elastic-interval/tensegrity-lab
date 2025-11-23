@@ -234,8 +234,4 @@ impl Scene {
         self.pick_allowed = false;
         self.camera.reset();
     }
-
-    pub fn apply_fabric_translation(&mut self, translation: cgmath::Vector3<f32>) {
-        self.camera.apply_translation(translation);
-    }
 }

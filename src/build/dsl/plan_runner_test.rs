@@ -22,21 +22,27 @@ mod tests {
         vec![
             // BUILD phase - From FabricPlanExecutor (frame-independent)
             Benchmark { time:   0.0, joints:   0, height_mm:     0.0, radius:  0.000, ground: 0 },
-            Benchmark { time:   3.0, joints: 176, height_mm:  9266.1, radius: 14.019, ground: 0 },
-            Benchmark { time:   6.0, joints: 176, height_mm: 11334.5, radius: 12.761, ground: 0 },
-            Benchmark { time:   9.0, joints: 176, height_mm: 12852.1, radius: 11.449, ground: 0 },
-            Benchmark { time:  12.0, joints: 176, height_mm: 13826.9, radius: 10.149, ground: 0 },
-            Benchmark { time:  15.0, joints: 176, height_mm: 14370.4, radius:  9.367, ground: 0 },
-            Benchmark { time:  18.0, joints: 176, height_mm: 14481.9, radius:  9.505, ground: 0 },
-            Benchmark { time:  21.0, joints: 176, height_mm: 13808.6, radius:  9.040, ground: 0 },
-            Benchmark { time:  24.0, joints: 176, height_mm: 13136.9, radius:  8.571, ground: 0 },
-            Benchmark { time:  27.0, joints: 176, height_mm: 12456.4, radius:  8.096, ground: 0 },
-            Benchmark { time:  30.0, joints: 176, height_mm: 11765.6, radius:  7.618, ground: 0 },
-            Benchmark { time:  33.0, joints: 168, height_mm: 11300.2, radius:  7.360, ground: 0 },
-            Benchmark { time:  36.0, joints: 168, height_mm: 11328.6, radius:  7.379, ground: 0 },
-            Benchmark { time:  39.0, joints: 168, height_mm: 11322.6, radius:  7.375, ground: 0 },
-            Benchmark { time:  42.0, joints: 168, height_mm: 11313.7, radius:  7.368, ground: 0 },
-            Benchmark { time:  45.0, joints: 168, height_mm: 11310.6, radius:  7.365, ground: 0 },
+            Benchmark { time:   3.0, joints: 176, height_mm:  9215.9, radius: 14.140, ground: 0 },
+            Benchmark { time:   6.0, joints: 176, height_mm: 10859.4, radius: 13.370, ground: 0 },
+            Benchmark { time:   9.0, joints: 176, height_mm: 11993.9, radius: 12.612, ground: 0 },
+            Benchmark { time:  12.0, joints: 176, height_mm: 12887.7, radius: 11.911, ground: 0 },
+            Benchmark { time:  15.0, joints: 176, height_mm: 13568.0, radius: 11.210, ground: 0 },
+            Benchmark { time:  18.0, joints: 176, height_mm: 14086.2, radius: 10.495, ground: 0 },
+            Benchmark { time:  21.0, joints: 176, height_mm: 14471.2, radius:  9.796, ground: 0 },
+            Benchmark { time:  24.0, joints: 176, height_mm: 14741.7, radius:  9.559, ground: 0 },
+            Benchmark { time:  27.0, joints: 176, height_mm: 14911.1, radius:  9.724, ground: 0 },
+            Benchmark { time:  30.0, joints: 176, height_mm: 14214.4, radius:  9.253, ground: 0 },
+            Benchmark { time:  33.0, joints: 176, height_mm: 13495.5, radius:  8.769, ground: 0 },
+            Benchmark { time:  36.0, joints: 176, height_mm: 12769.9, radius:  8.276, ground: 0 },
+            Benchmark { time:  39.0, joints: 176, height_mm: 12030.2, radius:  7.775, ground: 0 },
+            Benchmark { time:  42.0, joints: 176, height_mm: 11277.4, radius:  7.343, ground: 0 },
+            Benchmark { time:  45.0, joints: 168, height_mm: 11300.2, radius:  7.373, ground: 0 },
+            // PRETENSE/CONVERGE phase - structure settles to ground
+            Benchmark { time:  50.0, joints: 168, height_mm: 11278.7, radius:  7.533, ground: 0 },
+            Benchmark { time:  55.0, joints: 168, height_mm: 11271.6, radius:  7.624, ground: 0 },
+            Benchmark { time:  60.0, joints: 168, height_mm: 11121.4, radius:  7.628, ground: 3 },
+            Benchmark { time:  65.0, joints: 168, height_mm: 11183.7, radius:  7.759, ground: 3 },
+            Benchmark { time:  70.0, joints: 168, height_mm: 11200.6, radius:  7.747, ground: 3 },
         ]
     }
 
@@ -169,17 +175,17 @@ mod tests {
         // Use FabricPlanExecutor instead of manual stage management
         let mut executor = FabricPlanExecutor::new(plan);
 
-        // Get BUILD phase benchmarks
+        // Get all benchmarks up to 70s
         let build_benchmarks = ui_benchmarks();
         let build_benchmarks: Vec<_> = build_benchmarks.iter()
-            .filter(|b| b.time <= 45.0)
+            .filter(|b| b.time <= 70.0)
             .collect();
         let mut benchmark_idx = 0;
 
-        eprintln!("Running through BUILD phase, checking {} benchmarks...\n", build_benchmarks.len());
+        eprintln!("Running through all phases, checking {} benchmarks...\n", build_benchmarks.len());
 
-        // Run until all benchmarks checked (up to 50s to be safe)
-        let max_iterations = (50.0 * 4000.0) as usize;
+        // Run until all benchmarks checked (up to 75s to be safe)
+        let max_iterations = (75.0 * 4000.0) as usize;
 
         // Check iteration 0 before running any iterations
         if benchmark_idx < build_benchmarks.len() {
