@@ -88,7 +88,7 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(start))]
 pub fn run() {
     run_with(RunStyle::Fabric {
-        fabric_name: "De Twips".to_string(),
+        fabric_name: "Triped".to_string(),
         scenario: None,
     })
     .unwrap();
