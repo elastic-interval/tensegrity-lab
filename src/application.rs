@@ -1,8 +1,8 @@
-use crate::build::brick_builders::build_brick_library;
-use crate::build::fabric_builders::build_fabric_library;
+use crate::build::tenscript::brick_builders::build_brick_library;
+use crate::build::tenscript::fabric_builders::build_fabric_library;
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::fabric_library::FabricLibrary;
-use crate::build::tenscript::{FabricPlan, TenscriptError};
+use crate::build::tenscript::FabricPlan;
 use crate::crucible::Crucible;
 use crate::fabric::Fabric;
 use crate::keyboard::Keyboard;
@@ -35,6 +35,7 @@ pub struct Application {
     accumulated_time: Duration,
     frames_count: u32,
     fps_timer: Instant,
+    current_fps: f32,
     control_state: ControlState,
     pointer_handler: PointerHandler,
     #[cfg(not(target_arch = "wasm32"))]
@@ -50,11 +51,11 @@ impl Application {
     pub fn new(
         window_attributes: WindowAttributes,
         radio: Radio,
-    ) -> Result<Application, TenscriptError> {
+    ) -> Application {
         // Use Rust DSL instead of tenscript parsing
         let brick_library = BrickLibrary::new(build_brick_library());
         let fabric_library = FabricLibrary::new(build_fabric_library());
-        Ok(Application {
+        Application {
             run_style: RunStyle::Unknown,
             mobile_device: false,
             window_attributes,
@@ -69,31 +70,29 @@ impl Application {
             pointer_handler: PointerHandler::new(radio.clone()),
             frames_count: 0,
             fps_timer: Instant::now(),
+            current_fps: 60.0,
             control_state: ControlState::Waiting,
             #[cfg(not(target_arch = "wasm32"))]
             machine: None,
-        })
+        }
     }
 
     //==================================================
     // Public API Methods
     //==================================================
 
-    pub fn refresh_library(&mut self, time: Instant) -> Result<LabEvent, TenscriptError> {
+    pub fn refresh_library(&mut self, time: Instant) -> LabEvent {
         self.fabric_library = FabricLibrary::new(build_fabric_library());
-        Ok(LabEvent::UpdatedLibrary(time))
+        LabEvent::UpdatedLibrary(time)
     }
 
-    pub fn get_fabric_plan(&self, plan_name: &String) -> Result<FabricPlan, TenscriptError> {
-        let plan = self
-            .fabric_library
+    pub fn get_fabric_plan(&self, plan_name: &String) -> FabricPlan {
+        self.fabric_library
             .fabric_plans
             .iter()
-            .find(|plan| plan.name == *plan_name);
-        match plan {
-            None => Err(TenscriptError::InvalidError(plan_name.clone())),
-            Some(plan) => Ok(plan.clone()),
-        }
+            .find(|plan| plan.name == *plan_name)
+            .expect(&format!("Fabric plan not found: {}", plan_name))
+            .clone()
     }
 
     //==================================================
@@ -238,14 +237,8 @@ impl ApplicationHandler<LabEvent> for Application {
                         unreachable!()
                     }
                     RunStyle::Fabric { fabric_name, .. } => {
-                        match self.get_fabric_plan(&fabric_name) {
-                            Ok(fabric_plan) => {
-                                CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
-                            }
-                            Err(error) => {
-                                panic!("Error loading fabric [{fabric_name}]: {error}");
-                            }
-                        }
+                        let fabric_plan = self.get_fabric_plan(&fabric_name);
+                        CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
                     }
                     RunStyle::Prototype(brick_index) => {
                         let prototype = self
@@ -310,10 +303,8 @@ impl ApplicationHandler<LabEvent> for Application {
                 StateChange::ShowMovementAnalysis(None).send(&self.radio);
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    match self.refresh_library(Instant::now()) {
-                        Ok(event) => event.send(&self.radio),
-                        Err(e) => eprintln!("Failed to refresh library: {:?}", e),
-                    }
+                    let event = self.refresh_library(Instant::now());
+                    event.send(&self.radio);
                 }
             }
             RebuildFabric => {
@@ -491,13 +482,18 @@ impl ApplicationHandler<LabEvent> for Application {
             #[cfg(not(target_arch = "wasm32"))]
             let frames_per_second = self.frames_count as f32 / fps_elapsed.as_secs_f32();
 
-            // Get fabric age
+            // Store current FPS for dynamic iteration calculation
+            self.current_fps = frames_per_second;
+
+            // Get fabric age and target time scale
             let age = self.crucible.fabric.age;
+            let target_time_scale = self.crucible.target_time_scale();
 
             // Send the FPS update event
             StateChange::Time {
                 frames_per_second,
                 age,
+                target_time_scale,
             }
             .send(&self.radio);
 
@@ -545,7 +541,16 @@ impl ApplicationHandler<LabEvent> for Application {
             updates_this_frame += 1;
 
             if animate {
-                self.crucible.iterate(&self.brick_library);
+                // Calculate iterations needed to maintain target time scale
+                // Formula: iterations = target_scale × 20000 / FPS
+                let target_scale = self.crucible.target_time_scale();
+                let iterations_per_frame = if self.current_fps > 0.0 {
+                    (target_scale * 20000.0 / self.current_fps).round() as usize
+                } else {
+                    0
+                };
+
+                self.crucible.iterate(&self.brick_library, iterations_per_frame);
 
                 // Apply any pending camera translation synchronously
                 if let Some(translation) = self.crucible.take_camera_translation() {

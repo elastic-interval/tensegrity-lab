@@ -79,7 +79,7 @@ impl BrickDefinition {
         }
         
         // Derive faces from prototype
-        crate::build::brick_dsl::derive_baked_faces(&self.proto)
+        crate::build::tenscript::brick_dsl::derive_baked_faces(&self.proto)
     }
 }
 

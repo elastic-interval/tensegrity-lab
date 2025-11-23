@@ -2,7 +2,6 @@
 
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
-use std::io::Error as IOError;
 use std::ops::Add;
 
 pub use fabric_plan::FabricPlan;
@@ -11,9 +10,13 @@ use crate::fabric::{Fabric, UniqueId};
 
 pub mod animate_phase;
 pub mod brick;
+pub mod brick_builders;
+pub mod brick_dsl;
 pub mod brick_library;
 pub mod build_phase;
 pub mod converge_phase;
+pub mod fabric_builders;
+pub mod fabric_dsl;
 pub mod fabric_library;
 pub mod fabric_plan;
 pub mod fabric_plan_executor;
@@ -22,35 +25,13 @@ pub mod plan_runner;
 pub mod pretense_phase;
 pub mod pretenser;
 pub mod shape_phase;
-
-#[derive(Debug)]
-pub enum TenscriptError {
-    FileReadError(IOError),
-    FormatError(String),
-    InvalidError(String),
-    FaceAliasError(String),
-    MarkError(String),
-}
+pub mod single_interval_drop_test;
 
 impl Fabric {
-    pub fn expect_face(&self, face_id: UniqueId) -> Result<&crate::fabric::face::Face, TenscriptError> {
+    pub fn expect_face(&self, face_id: UniqueId) -> &crate::fabric::face::Face {
         self.faces
             .get(&face_id)
-            .ok_or(TenscriptError::InvalidError("Face missing".to_string()))
-    }
-}
-
-impl Display for TenscriptError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TenscriptError::FileReadError(error) => write!(f, "TenscriptError::FileRead: {error}"),
-            TenscriptError::FormatError(error) => write!(f, "TenscriptError::Format: {error}"),
-            TenscriptError::InvalidError(warning) => {
-                write!(f, "TenscriptError::Invalid: {warning}")
-            }
-            TenscriptError::FaceAliasError(name) => write!(f, "TenscriptError::FaceAlias: {name}"),
-            TenscriptError::MarkError(name) => write!(f, "TenscriptError::Mark: {name}"),
-        }
+            .expect("Face missing")
     }
 }
 

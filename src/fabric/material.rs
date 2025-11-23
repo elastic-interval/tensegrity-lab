@@ -36,8 +36,8 @@ impl Material {
     /// (Dyneema has modulus ~100-120 GPa, cross-section ~78.5 mm², axial stiffness EA ≈ 8-9 MN)
     fn spring_constant_at_1m(&self) -> NewtonsPerMeter {
         NewtonsPerMeter(match self {
-            Push => 2e10,
-            Pull => 2e9,
+            Push => 1e13,
+            Pull => 1e12,
             Spring => 9.0e7,
         })
     }

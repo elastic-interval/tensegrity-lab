@@ -39,6 +39,7 @@ pub struct TextState {
     animating: bool,
     frames_per_second: f32,
     age: Age,
+    target_time_scale: f32,
 }
 
 enum TextInstance {
@@ -74,6 +75,7 @@ impl TextState {
             sections: Default::default(),
             frames_per_second: 0.0,
             age: Age::default(),
+            target_time_scale: 1.0,
         };
         fresh.update_sections();
         fresh
@@ -110,9 +112,11 @@ impl TextState {
             Time {
                 frames_per_second,
                 age,
+                target_time_scale,
             } => {
                 self.frames_per_second = frames_per_second.clone();
                 self.age = *age;
+                self.target_time_scale = *target_time_scale;
             }
             ShowMovementAnalysis(text) => {
                 self.movement_analysis = text.clone();
@@ -152,8 +156,13 @@ impl TextState {
             );
         }
 
-        let bottom_left_text = format!("{:.0}fps {}", self.frames_per_second, self.age);
-        
+        // Show target time scale if accelerated (> 1.0)
+        let bottom_left_text = if self.target_time_scale > 1.01 {
+            format!("{:.0}fps {} ({:.0}×)", self.frames_per_second, self.age, self.target_time_scale)
+        } else {
+            format!("{:.0}fps {}", self.frames_per_second, self.age)
+        };
+
         self.update_section(
             SectionName::BottomLeft,
             Normal(bottom_left_text),

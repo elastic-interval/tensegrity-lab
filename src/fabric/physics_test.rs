@@ -3,7 +3,7 @@ use crate::fabric::movement_sampler::{MovementAnalysis, MovementSampler};
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::units::{Percent, Seconds};
-use crate::{PhysicsFeature, Radio, StateChange, TesterAction, ITERATIONS_PER_FRAME};
+use crate::{PhysicsFeature, Radio, StateChange, TesterAction};
 
 pub struct PhysicsTester {
     pub fabric: Fabric,
@@ -34,7 +34,7 @@ impl PhysicsTester {
         *context.physics = self.physics.clone();
     }
 
-    pub fn iterate(&mut self, context: &mut CrucibleContext) {
+    pub fn iterate(&mut self, context: &mut CrucibleContext, iterations_per_frame: usize) {
         self.fabric = context.fabric.clone();
 
         // If showing analysis, fabric should be frozen
@@ -46,7 +46,7 @@ impl PhysicsTester {
         }
 
         // Use our own physics (which has user modifications) instead of context.physics
-        for _ in 0..ITERATIONS_PER_FRAME {
+        for _ in 0..iterations_per_frame {
             self.fabric.iterate(&self.physics);
         }
 

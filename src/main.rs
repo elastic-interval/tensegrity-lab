@@ -79,10 +79,7 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
     let window_attributes = create_window_attributes();
     #[cfg(target_arch = "wasm32")]
     let window_attributes = create_window_attributes();
-    let mut application = match Application::new(window_attributes, radio.clone()) {
-        Ok(app) => app,
-        Err(error) => panic!("Tenscript Error: [{:?}]", error),
-    };
+    let mut application = Application::new(window_attributes, radio.clone());
     LabEvent::Run(run_style).send(&radio);
     event_loop.run_app(&mut application)?;
     Ok(())

@@ -2,8 +2,7 @@ use crate::build::tenscript::animate_phase::{AnimatePhase, MuscleDirection};
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::interval::Span;
 use crate::fabric::UniqueId;
-use crate::ITERATIONS_PER_FRAME;
-use crate::TICK_DURATION;
+use crate::ITERATION_DURATION;
 use cgmath::InnerSpace;
 
 /// Animation cycle phase - whether muscles are contracting or relaxing
@@ -32,8 +31,7 @@ impl Animator {
         // Calculate cycle_ticks from frequency (Hz = cycles/second)
         // ticks_per_cycle = seconds_per_cycle / seconds_per_tick
         //                 = (1 / frequency_hz) / tick_duration_seconds
-        let tick_duration_seconds = TICK_DURATION.as_secs_f32();
-        let cycle_ticks = 1.0 / (animate_phase.frequency_hz * tick_duration_seconds);
+        let cycle_ticks = 1.0 / (animate_phase.frequency_hz * ITERATION_DURATION.secs);
 
         // Wrap the specified intervals in Muscle spans
         Self::wrap_muscles(context, &animate_phase.muscle_intervals, contraction);
@@ -113,7 +111,7 @@ impl Animator {
 
         // Iterate physics - muscles will use the current muscle_nuance
         // to calculate their ideal lengths
-        for _ in 0..ITERATIONS_PER_FRAME {
+        for _ in 0..1000 {  // Nominal value, outer loop adjusts dynamically
             self.iterate_fabric_with_muscles(context);
         }
     }

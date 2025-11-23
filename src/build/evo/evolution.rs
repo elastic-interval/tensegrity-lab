@@ -3,7 +3,6 @@ use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::CONSTRUCTION;
 use crate::fabric::Fabric;
 use crate::fabric::IntervalEnd;
-use crate::ITERATIONS_PER_FRAME;
 use cgmath::{InnerSpace, Vector3};
 use rand::Rng;
 use rand_chacha::rand_core::{RngCore, SeedableRng};
@@ -36,7 +35,7 @@ impl Evolution {
     pub fn iterate(&mut self, context: &mut CrucibleContext) {
         if self.countdown > 0 {
             // Use the physics-defined number of iterations
-            for _ in 0..ITERATIONS_PER_FRAME {
+            for _ in 0..1000 {  // Nominal value, outer loop adjusts dynamically
                 context.fabric.iterate(context.physics);
             }
             self.countdown -= 1;

@@ -1,6 +1,6 @@
 /// Integration test to verify Rust DSL brick definitions
 
-use tensegrity_lab::build::brick_builders::build_brick_library;
+use tensegrity_lab::build::tenscript::brick_builders::build_brick_library;
 use tensegrity_lab::build::tenscript::brick_library::BrickLibrary;
 
 #[test]
@@ -38,7 +38,7 @@ fn test_brick_library_construction() {
 
 #[test]
 fn test_individual_bricks() {
-    use tensegrity_lab::build::brick_builders::*;
+    use tensegrity_lab::build::tenscript::brick_builders::*;
 
     // Test each brick function individually
     let single_r = single_right();
