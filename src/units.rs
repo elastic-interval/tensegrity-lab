@@ -30,6 +30,13 @@ pub struct MetersPerSecondSquared(pub f32);
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct MillimetersPerSecondSquared(pub f32);
 
+impl Deref for MillimetersPerSecondSquared {
+    type Target = f32;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 /// Acceleration in millimeters per microsecond squared (simulation units)
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct MillimetersPerMicrosecondSquared(pub f32);

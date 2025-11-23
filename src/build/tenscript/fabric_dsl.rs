@@ -9,7 +9,7 @@ use crate::build::tenscript::FaceAlias;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Millimeters, Seconds};
 
-pub use crate::build::brick_dsl::{BrickName, Face};
+pub use crate::build::tenscript::brick_dsl::{BrickName, Face};
 pub use crate::build::tenscript::build_phase::BuildNode as Node;
 pub use crate::units::{Millimeters as Mm, Seconds as Sec};
 

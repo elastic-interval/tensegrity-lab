@@ -37,7 +37,7 @@ pub struct Age(Duration);
 impl Display for Age {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let total_secs = self.0.as_secs_f64();
-        
+
         if total_secs < 60.0 {
             // Less than a minute: show as whole seconds
             write!(f, "{}s", total_secs as u64)
@@ -50,11 +50,24 @@ impl Display for Age {
     }
 }
 
-/// Duration of each physics iteration tick
-pub const TICK_DURATION: Duration = Duration::from_micros(50);
+/// Time values for each physics iteration, with pre-computed derivatives
+#[derive(Debug, Clone, Copy)]
+pub struct IterationDuration {
+    pub duration: Duration,
+    pub secs: f32,
+}
 
-/// Number of physics iterations per frame
-pub const ITERATIONS_PER_FRAME: usize = 1000;
+impl IterationDuration {
+    const fn new(microseconds: u64) -> Self {
+        let duration = Duration::from_micros(microseconds);
+        let secs = microseconds as f32 / 1_000_000.0;
+
+        Self { duration, secs }
+    }
+}
+
+/// Duration of each physics iteration tick
+pub const ITERATION_DURATION: IterationDuration = IterationDuration::new(50);
 
 impl Default for Age {
     fn default() -> Self {
@@ -64,22 +77,22 @@ impl Default for Age {
 
 impl Age {
     pub fn tick(&mut self) -> Duration {
-        self.0 += TICK_DURATION;
-        TICK_DURATION
+        self.0 += ITERATION_DURATION.duration;
+        ITERATION_DURATION.duration
     }
 
     pub fn tick_scaled(&mut self, dt_scale: f32) -> Duration {
-        let scaled_duration = TICK_DURATION.mul_f32(dt_scale);
+        let scaled_duration = ITERATION_DURATION.duration.mul_f32(dt_scale);
         self.0 += scaled_duration;
         scaled_duration
     }
 
     pub fn advanced(&self, ticks: usize) -> Self {
-        Self(self.0 + TICK_DURATION * ticks as u32)
+        Self(self.0 + ITERATION_DURATION.duration * ticks as u32)
     }
 
     pub fn brick_baked(&self) -> bool {
-        self.0 > TICK_DURATION * 20000
+        self.0 > ITERATION_DURATION.duration * 20000
     }
 
     pub fn within(&self, limit: &Self) -> bool {
@@ -515,6 +528,7 @@ pub enum StateChange {
     Time {
         frames_per_second: f32,
         age: Age,
+        target_time_scale: f32,
     },
     /// Toggle between perspective and orthogonal projection
     ToggleProjection,

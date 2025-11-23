@@ -2,7 +2,7 @@
 ///
 /// All supporting types and helpers are in the `fabric_dsl` module.
 
-use crate::build::fabric_dsl::*;
+use crate::build::tenscript::fabric_dsl::*;
 use crate::build::tenscript::fabric_plan::FabricPlan;
 use crate::fabric::physics::SurfaceCharacter;
 

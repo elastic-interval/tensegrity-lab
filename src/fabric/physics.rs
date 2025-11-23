@@ -2,7 +2,7 @@
  * Copyright (c) 2020. Beautiful Code BV, Rotterdam, Netherlands
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
-use crate::units::{MillimetersPerMicrosecondSquared, Percent, EARTH_GRAVITY};
+use crate::units::{MillimetersPerSecondSquared, Percent, EARTH_GRAVITY_MM_S2};
 use crate::{PhysicsFeature, PhysicsParameter, Radio, StateChange, TweakFeature, TweakParameter};
 
 
@@ -21,10 +21,10 @@ impl SurfaceCharacter {
         !matches!(self, SurfaceCharacter::Absent)
     }
 
-    pub fn force_of_gravity(&self, mass: f32) -> MillimetersPerMicrosecondSquared {
+    pub fn acceleration_of_gravity(&self) -> MillimetersPerSecondSquared {
         match self {
-            SurfaceCharacter::Absent => MillimetersPerMicrosecondSquared(0.0),
-            _ => MillimetersPerMicrosecondSquared(mass * *EARTH_GRAVITY),
+            SurfaceCharacter::Absent => MillimetersPerSecondSquared(0.0),
+            _ => EARTH_GRAVITY_MM_S2,
         }
     }
 
@@ -66,12 +66,7 @@ pub struct ScalingTweak {
 pub struct ConstructionTweak {
     pub drag: f32,
     pub viscosity: f32,
-}
-
-impl ConstructionTweak {
-    pub fn new(drag: f32, viscosity: f32) -> Self {
-        Self { drag, viscosity }
-    }
+    pub time_contraction: f32,
 }
 
 /// Temporary automated modifications to help structures settle
@@ -201,6 +196,7 @@ impl Physics {
     /// Get time scale (from tweak or default 1.0)
     pub fn time_scale(&self) -> f32 {
         match &self.tweak {
+            Tweak::Construction(c) => c.time_contraction,
             Tweak::Scaling(s) => s.time_scale,
             Tweak::Convergence(c) => {
                 // During convergence, time scale increases geometrically to speed up settling
@@ -225,6 +221,16 @@ impl Physics {
             Tweak::Construction(c) => c.viscosity,
             Tweak::Convergence(c) => c.viscosity,
             _ => 0.0,
+        }
+    }
+
+    /// Get time contraction multiplier (how many iterations per frame)
+    /// Higher values speed up fabric time relative to real time
+    pub fn time_contraction(&self) -> f32 {
+        match &self.tweak {
+            Tweak::Construction(c) => c.time_contraction,
+            Tweak::Convergence(c) => c.base_physics.time_contraction(),
+            _ => 1.0,
         }
     }
 
@@ -287,6 +293,7 @@ pub mod presets {
         tweak: Tweak::Construction(ConstructionTweak {
             drag: 0.0125,
             viscosity: 40.0,
+            time_contraction: 5.0,
         }),
     };
 
@@ -296,6 +303,7 @@ pub mod presets {
         tweak: Tweak::Construction(ConstructionTweak {
             drag: 25.0,
             viscosity: 4.0,
+            time_contraction: 5.0,
         }),
     };
 
@@ -304,4 +312,32 @@ pub mod presets {
         pretenst: Percent(1.0),
         tweak: Tweak::None,
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::presets::*;
+
+    #[test]
+    fn test_time_scale_after_disable_convergence() {
+        println!("\n=== Testing time_scale after disable_convergence ===\n");
+
+        // Start with CONSTRUCTION physics (time_scale = 5.0)
+        let mut physics = CONSTRUCTION.clone();
+        println!("CONSTRUCTION time_scale: {}", physics.time_scale());
+        assert_eq!(physics.time_scale(), 5.0);
+
+        // Enable convergence (stores base_physics with Tweak::None)
+        physics.enable_convergence();
+        println!("After enable_convergence time_scale: {}", physics.time_scale());
+
+        // Disable convergence - should restore base_physics with Tweak::None
+        physics.disable_convergence();
+        println!("After disable_convergence time_scale: {}", physics.time_scale());
+        println!("Tweak: {:?}", physics.tweak);
+
+        assert_eq!(physics.time_scale(), 1.0, "disable_convergence should clear all tweaks");
+
+        println!("\n✓ Test passed");
+    }
 }

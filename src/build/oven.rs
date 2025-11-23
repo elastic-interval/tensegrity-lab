@@ -1,7 +1,6 @@
 use crate::build::tenscript::brick::{Baked, Prototype};
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::CONSTRUCTION;
-use crate::ITERATIONS_PER_FRAME;
 use crate::fabric::Fabric;
 use crate::{Radio, StateChange};
 use std::rc::Rc;
@@ -34,7 +33,7 @@ impl Oven {
             return None;
         }
 
-        for _ in 0..ITERATIONS_PER_FRAME {
+        for _ in 0..1000 {  // Nominal value, outer loop adjusts dynamically
             context.fabric.iterate(context.physics);
         }
         let max_velocity = context.fabric.max_velocity();

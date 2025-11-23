@@ -1,5 +1,5 @@
 use crate::build::animator::Animator;
-use crate::build::brick_builders::build_brick_library;
+use crate::build::tenscript::brick_builders::build_brick_library;
 use crate::build::evo::evolution::Evolution;
 use crate::build::oven::Oven;
 use crate::build::tenscript::brick_library::BrickLibrary;
@@ -11,7 +11,7 @@ use crate::fabric::physics::presets::BASE_PHYSICS;
 use crate::fabric::physics::Physics;
 use crate::fabric::physics_test::PhysicsTester;
 use crate::fabric::Fabric;
-use crate::{ControlState, CrucibleAction, LabEvent, Radio, StateChange, ITERATIONS_PER_FRAME};
+use crate::{ControlState, CrucibleAction, LabEvent, Radio, StateChange};
 use StateChange::*;
 
 pub enum Stage {
@@ -56,91 +56,110 @@ impl Crucible {
     pub fn set_camera_translation(&mut self, translation: cgmath::Vector3<f32>) {
         self.pending_camera_translation = Some(translation);
     }
+
+    /// Get the target time scale for the current stage
+    /// 5.0 for construction (5× speedup), 1.0 for physics testing (real time), 0.0 for viewing
+    pub fn target_time_scale(&self) -> f32 {
+        match &self.stage {
+            PhysicsTesting(_) => 1.0,
+            Viewing => 0.0,
+            _ => 5.0,
+        }
+    }
 }
 
 impl Crucible {
-    pub fn iterate(&mut self, brick_library: &BrickLibrary) {
-        // Track if we need to transition to Viewing after the match
-        let mut transition_to_viewing = false;
+    /// Finalize and transition to Viewing stage
+    fn finalize_to_viewing(&mut self) {
+        self.fabric.zero_velocities();
+        self.fabric.frozen = true;
+        self.physics.disable_convergence();
+        self.stage = Viewing;
+    }
 
-        match &mut self.stage {
-            Empty => {}
-            RunningPlan(executor) => {
-                for _ in 0..ITERATIONS_PER_FRAME {
-                    if let Err(tenscript_error) = executor.iterate(brick_library) {
-                        println!("Error:\n{tenscript_error}");
-                        // On error, sync fabric/physics and mark for transition
+    pub fn iterate(&mut self, brick_library: &BrickLibrary, iterations_per_frame: usize) {
+        // Check if RunningPlan completed and needs transition
+        if let RunningPlan(executor) = &mut self.stage {
+            use crate::build::tenscript::fabric_plan_executor::IterateResult;
+
+            for _ in 0..iterations_per_frame {
+                match executor.iterate(brick_library) {
+                    IterateResult::Complete => {
+                        // Sync fabric and physics from executor
                         self.fabric = executor.fabric.clone();
                         self.physics = executor.physics.clone();
-                        transition_to_viewing = true;
-                        let _ = self.radio.send_event(LabEvent::UpdateState(SetStageLabel(
-                            "Viewing".to_string(),
-                        )));
-                        break;
-                    }
-                }
-
-                // Always sync fabric and physics from executor to Crucible (even when transitioning)
-                self.fabric = executor.fabric.clone();
-                self.physics = executor.physics.clone();
-
-                // Check for and apply camera translation from executor
-                if let Some(translation) = executor.take_camera_translation() {
-                    self.pending_camera_translation = Some(translation);
-                }
-
-                if transition_to_viewing {
-                    // Will transition after match
-                } else {
-                    // Check if BUILD phase is done and we should start PRETENSE
-                    use crate::build::tenscript::fabric_plan_executor::ExecutorStage;
-                    if matches!(executor.stage(), ExecutorStage::Building) {
-                        if let Some(plan_runner) = executor.plan_runner() {
-                            if plan_runner.is_done() {
-                                // BUILD phase complete - start PRETENSE
-                                executor.start_pretension();
-                            }
-                        }
-                    }
-
-                    // Check if executor is complete
-                    if executor.is_complete() {
-                        transition_to_viewing = true;
                         // Send FabricBuilt with complete stats (including dynamics)
                         let stats = self.fabric.stats_with_dynamics(&self.physics);
                         let _ = self.radio.send_event(LabEvent::FabricBuilt(stats));
-                    } else {
-                        // Send stage label updates based on executor stage
-                        use crate::build::tenscript::fabric_plan_executor::ExecutorStage;
-                        let stage_label = match executor.stage() {
-                            ExecutorStage::Building => "Building".to_string(),
-                            ExecutorStage::Pretensing => {
-                                format!("Pretensing {}", self.fabric.progress.countdown())
-                            }
-                            ExecutorStage::Converging => {
-                                format!("Converging {}", self.fabric.progress.countdown())
-                            }
-                            ExecutorStage::Complete => "Complete".to_string(),
-                        };
-
-                        // Always update during Pretensing/Converging (for countdown), otherwise only when changed
-                        let should_update = matches!(
-                            executor.stage(),
-                            ExecutorStage::Pretensing | ExecutorStage::Converging
-                        ) || self
-                            .last_stage_label
-                            .as_ref()
-                            .map_or(true, |s| s != &stage_label);
-
-                        if should_update {
-                            self.last_stage_label = Some(stage_label.clone());
-                            let _ = self
-                                .radio
-                                .send_event(LabEvent::UpdateState(SetStageLabel(stage_label)));
+                        // Check for and apply camera translation before finalizing
+                        if let Some(translation) = executor.take_camera_translation() {
+                            self.pending_camera_translation = Some(translation);
                         }
+                        // Finalize and exit immediately
+                        self.finalize_to_viewing();
+                        return;
+                    }
+                    IterateResult::Continue => {
+                        // Continue iterating
                     }
                 }
             }
+
+            // Always sync fabric and physics from executor to Crucible
+            self.fabric = executor.fabric.clone();
+            self.physics = executor.physics.clone();
+
+            // Check for and apply camera translation from executor
+            if let Some(translation) = executor.take_camera_translation() {
+                self.pending_camera_translation = Some(translation);
+            }
+
+            // Check if BUILD phase is done and we should start PRETENSE
+            use crate::build::tenscript::fabric_plan_executor::ExecutorStage;
+            if matches!(executor.stage(), ExecutorStage::Building) {
+                if let Some(plan_runner) = executor.plan_runner() {
+                    if plan_runner.is_done() {
+                        // BUILD phase complete - start PRETENSE
+                        executor.start_pretension();
+                    }
+                }
+            }
+
+            // Send stage label updates based on executor stage
+            let stage_label = match executor.stage() {
+                ExecutorStage::Building => "Building".to_string(),
+                ExecutorStage::Pretensing => {
+                    format!("Pretensing {}", self.fabric.progress.countdown())
+                }
+                ExecutorStage::Converging => {
+                    format!("Converging {}", self.fabric.progress.countdown())
+                }
+                ExecutorStage::Complete => "Complete".to_string(),
+            };
+
+            // Always update during Pretensing/Converging (for countdown), otherwise only when changed
+            let should_update = matches!(
+                executor.stage(),
+                ExecutorStage::Pretensing | ExecutorStage::Converging
+            ) || self
+                .last_stage_label
+                .as_ref()
+                .map_or(true, |s| s != &stage_label);
+
+            if should_update {
+                self.last_stage_label = Some(stage_label.clone());
+                let _ = self
+                    .radio
+                    .send_event(LabEvent::UpdateState(SetStageLabel(stage_label)));
+            }
+
+            return;
+        }
+
+        // Handle other stages
+        match &mut self.stage {
+            Empty => {}
+            RunningPlan(_) => {} // Already handled above
             Viewing => {}
             Animating(animator) => {
                 // Create a context for animator
@@ -169,7 +188,7 @@ impl Crucible {
                     &self.radio,
                     brick_library,
                 );
-                tester.iterate(&mut context);
+                tester.iterate(&mut context, iterations_per_frame);
 
                 // Apply any stage transition
                 let (new_stage, camera_translation) = context.apply_changes();
@@ -221,15 +240,6 @@ impl Crucible {
                 }
             }
         }
-
-        // Handle transition to Viewing if flagged
-        if transition_to_viewing {
-            // Zero out all velocities to prevent "spaceship" effect when switching from
-            // construction physics (with damping) to viewing physics (zero damping)
-            self.fabric.zero_velocities();
-            self.fabric.frozen = true;
-            self.stage = Viewing;
-        }
     }
 
     pub fn action(&mut self, crucible_action: CrucibleAction) {
@@ -279,8 +289,8 @@ impl Crucible {
         // Create a brick library for the context using Rust DSL
         let dummy_brick_library = BrickLibrary::new(build_brick_library());
 
-        // Clone physics for use in testers to avoid borrow checker issues
-        let physics_clone = self.physics.clone();
+        // Clone physics for passing to tester (avoids borrow checker issues)
+        let tester_physics = self.physics.clone();
 
         // Create a context for this action
         let mut context = CrucibleContext::new(
@@ -367,8 +377,7 @@ impl Crucible {
                     // Unfreeze the fabric so physics changes can take effect
                     fabric.frozen = false;
 
-                    let tester =
-                        PhysicsTester::new(fabric, physics_clone.clone(), self.radio.clone());
+                    let tester = PhysicsTester::new(fabric, tester_physics, self.radio.clone());
 
                     context.replace_fabric(tester.fabric.clone());
 

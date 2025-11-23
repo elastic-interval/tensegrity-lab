@@ -3,13 +3,12 @@ use crate::build::tenscript::plan_context::PlanContext;
 use crate::build::tenscript::plan_runner::Stage::*;
 use crate::build::tenscript::pretense_phase::PretensePhase;
 use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
-use crate::build::tenscript::{FabricPlan, TenscriptError};
+use crate::build::tenscript::FabricPlan;
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::CONSTRUCTION;
 use crate::fabric::physics::Physics;
 use crate::{LabEvent, StateChange};
 use crate::units::{IMMEDIATE, MOMENT};
-use crate::ITERATIONS_PER_FRAME;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Clone, Debug, Copy, PartialEq)]
@@ -28,7 +27,7 @@ pub struct PlanRunner {
     pub build_phase: BuildPhase,
     shape_phase: ShapePhase,
     pretense_phase: PretensePhase,
-    disabled: Option<TenscriptError>,
+    disabled: Option<String>,
     scale: f32,
 }
 
@@ -58,19 +57,19 @@ impl PlanRunner {
     }
 
     /// Simplified version for use with PlanContext (no events)
-    pub fn check_and_advance_stage_simple(&mut self, context: &mut PlanContext) -> Result<bool, TenscriptError> {
+    pub fn check_and_advance_stage_simple(&mut self, context: &mut PlanContext) -> bool {
         if !context.fabric.progress.is_busy() && self.disabled.is_none() {
             let (next_stage, seconds) = match self.stage {
                 Initialize => {
                     self.build_phase
-                        .init(context.fabric, context.brick_library)?;
+                        .init(context.fabric, context.brick_library);
                     context.fabric.scale = self.get_scale();
                     (GrowApproach, MOMENT)
                 }
                 GrowStep => {
                     if self.build_phase.is_growing() {
                         self.build_phase
-                            .growth_step(context.fabric, context.brick_library)?;
+                            .growth_step(context.fabric, context.brick_library);
                         (GrowApproach, MOMENT)
                     } else if self.shape_phase.needs_shaping() {
                         self.shape_phase.marks = self.build_phase.marks.split_off(0);
@@ -84,7 +83,7 @@ impl PlanRunner {
                 GrowCalm => (GrowStep, IMMEDIATE),
                 Shaping => match self
                     .shape_phase
-                    .shaping_step(context.fabric, context.brick_library)?
+                    .shaping_step(context.fabric, context.brick_library)
                 {
                     ShapeCommand::Noop => (Shaping, IMMEDIATE),
                     ShapeCommand::StartProgress(seconds) => (Shaping, seconds),
@@ -97,28 +96,28 @@ impl PlanRunner {
             let stage_changed = self.stage != next_stage;
             context.fabric.progress.start(seconds);
             self.stage = next_stage;
-            Ok(stage_changed)
+            stage_changed
         } else {
-            Ok(false)
+            false
         }
     }
 
     /// Check if progress has completed and advance to the next stage if needed.
     /// This should be called AFTER running one fabric iteration.
     /// Returns true if a stage transition occurred.
-    pub fn check_and_advance_stage(&mut self, context: &mut CrucibleContext) -> Result<bool, TenscriptError> {
+    pub fn check_and_advance_stage(&mut self, context: &mut CrucibleContext) -> bool {
         if !context.fabric.progress.is_busy() && self.disabled.is_none() {
             let (next_stage, seconds) = match self.stage {
                 Initialize => {
                     self.build_phase
-                        .init(context.fabric, context.brick_library)?;
+                        .init(context.fabric, context.brick_library);
                     context.fabric.scale = self.get_scale();
                     (GrowApproach, MOMENT)
                 }
                 GrowStep => {
                     if self.build_phase.is_growing() {
                         self.build_phase
-                            .growth_step(context.fabric, context.brick_library)?;
+                            .growth_step(context.fabric, context.brick_library);
                         (GrowApproach, MOMENT)
                     } else if self.shape_phase.needs_shaping() {
                         self.shape_phase.marks = self.build_phase.marks.split_off(0);
@@ -134,7 +133,7 @@ impl PlanRunner {
                 GrowCalm => (GrowStep, IMMEDIATE),
                 Shaping => match self
                     .shape_phase
-                    .shaping_step(context.fabric, context.brick_library)?
+                    .shaping_step(context.fabric, context.brick_library)
                 {
                     ShapeCommand::Noop => (Shaping, IMMEDIATE),
                     ShapeCommand::StartProgress(seconds) => (Shaping, seconds),
@@ -149,17 +148,17 @@ impl PlanRunner {
             let stage_changed = self.stage != next_stage;
             context.fabric.progress.start(seconds);
             self.stage = next_stage;
-            Ok(stage_changed)
+            stage_changed
         } else {
-            Ok(false)
+            false
         }
     }
 
-    pub fn iterate(&mut self, context: &mut CrucibleContext) -> Result<(), TenscriptError> {
+    pub fn iterate(&mut self, context: &mut CrucibleContext) {
         // Iterate frame by frame, checking progress after each iteration
-        // This ensures stage logic executes at exact fabric time, independent of ITERATIONS_PER_FRAME
+        // Stage logic executes at exact fabric time, outer loop adjusts dynamically to maintain target time scale
         static TOTAL_ITERATIONS: AtomicUsize = AtomicUsize::new(0);
-        for _ in 0..ITERATIONS_PER_FRAME {
+        for _ in 0..1000 {  // Nominal value, outer loop adjusts dynamically
             // DETAILED LOGGING FOR FIRST 100 AND AROUND 12000
             let iter_count = TOTAL_ITERATIONS.fetch_add(1, Ordering::Relaxed);
             let should_log = iter_count <= 100 || (iter_count >= 11900 && iter_count <= 12100);
@@ -186,13 +185,11 @@ impl PlanRunner {
             context.fabric.iterate(context.physics);
 
             // Check if we need to advance to the next stage
-            self.check_and_advance_stage(context)?;
+            self.check_and_advance_stage(context);
         }
-
-        Ok(())
     }
 
-    pub fn disable(&mut self, error: TenscriptError) {
+    pub fn disable(&mut self, error: String) {
         self.disabled = Some(error);
     }
 

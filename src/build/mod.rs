@@ -1,11 +1,7 @@
 pub mod animator;
 pub mod ball;
-pub mod brick_builders;
-pub mod brick_dsl;
 pub mod converger;
 pub mod evo;
-pub mod fabric_builders;
-pub mod fabric_dsl;
 pub mod klein;
 pub mod mobius;
 pub mod oven;

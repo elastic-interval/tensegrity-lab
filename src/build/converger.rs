@@ -1,4 +1,3 @@
-use crate::ITERATIONS_PER_FRAME;
 use crate::build::tenscript::converge_phase::ConvergePhase;
 use crate::crucible_context::CrucibleContext;
 use crate::units::Seconds;
@@ -35,7 +34,7 @@ impl Converger {
         // This gives the fabric time to settle naturally before freezing
         context.physics.update_convergence_progress(progress);
         
-        for _ in 0..ITERATIONS_PER_FRAME {
+        for _ in 0..1000 {  // Nominal value, outer loop adjusts dynamically
             context.fabric.iterate(context.physics);
         }
         

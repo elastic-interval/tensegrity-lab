@@ -2,7 +2,7 @@
 ///
 /// All supporting types and helpers are in the `brick_dsl` module.
 
-use crate::build::brick_dsl::*;
+use crate::build::tenscript::brick_dsl::*;
 use crate::build::tenscript::brick::BrickDefinition;
 use crate::build::tenscript::Spin;
 

@@ -1,7 +1,6 @@
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::shape_phase::ShapeCommand::*;
-use crate::build::tenscript::{FaceAlias, Spin};
-use crate::build::tenscript::{FaceMark, TenscriptError};
+use crate::build::tenscript::{FaceAlias, FaceMark, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Role;
@@ -98,13 +97,13 @@ impl ShapePhase {
         &mut self,
         fabric: &mut Fabric,
         brick_library: &BrickLibrary,
-    ) -> Result<ShapeCommand, TenscriptError> {
+    ) -> ShapeCommand {
         if let Some(countdown) = self.complete_joiners(fabric) {
-            return Ok(countdown);
+            return countdown;
         }
         let Some(operation) = self.operations.get(self.shape_operation_index) else {
             self.cleanup(fabric);
-            return Ok(Terminate);
+            return Terminate;
         };
         self.shape_operation_index += 1;
         self.execute_shape_operation(fabric, brick_library, operation.clone())
@@ -115,8 +114,8 @@ impl ShapePhase {
         fabric: &mut Fabric,
         brick_library: &BrickLibrary,
         operation: ShapeOperation,
-    ) -> Result<ShapeCommand, TenscriptError> {
-        Ok(match operation {
+    ) -> ShapeCommand {
+        match operation {
             ShapeOperation::Joiner { mark_name, seed } => {
                 let face_ids = self.marked_faces(&mark_name);
                 let joints = self.marked_middle_joints(fabric, &face_ids);
@@ -170,7 +169,7 @@ impl ShapePhase {
                             scale,
                             base_face,
                             brick_library,
-                        )?;
+                        );
                         let mut brick_face_midpoints = Vec::new();
                         for brick_face_id in brick_faces {
                             let face = fabric.face(brick_face_id);
@@ -226,12 +225,11 @@ impl ShapePhase {
                 StartProgress(DEFAULT_ADD_SHAPER_COUNTDOWN)
             }
             ShapeOperation::PointDownwards { mark_name } => {
-                let results: Result<Vec<_>, TenscriptError> = self
+                let faces: Vec<_> = self
                     .marked_faces(&mark_name)
                     .into_iter()
                     .map(|id| fabric.expect_face(id))
                     .collect();
-                let faces = results?;
                 let down = faces
                     .into_iter()
                     .map(|face| face.normal(fabric))
@@ -318,7 +316,7 @@ impl ShapePhase {
                 fabric.apply_translation(translation);
                 Noop
             }
-        })
+        }
     }
 
     fn marked_faces(&self, mark_name: &String) -> Vec<UniqueId> {

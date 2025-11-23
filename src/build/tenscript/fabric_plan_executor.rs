@@ -10,13 +10,19 @@
 use crate::build::tenscript::brick_library::BrickLibrary;
 use crate::build::tenscript::plan_runner::PlanRunner;
 use crate::build::tenscript::pretenser::Pretenser;
+use crate::build::tenscript::FabricPlan;
 use crate::build::converger::Converger;
-use crate::build::tenscript::{FabricPlan, TenscriptError};
 use crate::fabric::Fabric;
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::{CONSTRUCTION, PRETENSING};
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::Percent;
+
+#[derive(Debug, PartialEq)]
+pub enum IterateResult {
+    Continue,
+    Complete,
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum ExecutorStage {
@@ -163,7 +169,8 @@ impl FabricPlanExecutor {
 
     /// Execute one iteration of physics and check for stage transitions.
     /// This is frame-independent and operates in pure fabric time.
-    pub fn iterate(&mut self, brick_library: &BrickLibrary) -> Result<(), TenscriptError> {
+    /// Returns Complete when the execution is finished, Continue otherwise.
+    pub fn iterate(&mut self, brick_library: &BrickLibrary) -> IterateResult {
         self.current_iteration += 1;
 
         // Run one physics iteration
@@ -183,7 +190,7 @@ impl FabricPlanExecutor {
                     let was_growing = plan_runner.build_phase.is_growing();
 
                     // Always check and advance stage - plan_runner handles progress checking internally
-                    plan_runner.check_and_advance_stage_simple(&mut context)?;
+                    plan_runner.check_and_advance_stage_simple(&mut context);
 
                     // Check if we should log growth steps
                     let new_stage = plan_runner.stage;
@@ -246,7 +253,12 @@ impl FabricPlanExecutor {
             ExecutorStage::Complete => {}
         }
 
-        Ok(())
+        // Return Complete when execution is finished, Continue otherwise
+        if self.stage == ExecutorStage::Complete {
+            IterateResult::Complete
+        } else {
+            IterateResult::Continue
+        }
     }
 
     /// Access to plan_runner for tests (temporary, until refactoring is complete)

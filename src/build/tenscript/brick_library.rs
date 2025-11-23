@@ -1,7 +1,7 @@
 use cgmath::SquareMatrix;
 
 use crate::build::tenscript::brick::{Baked, BrickDefinition};
-use crate::build::tenscript::{FaceAlias, TenscriptError};
+use crate::build::tenscript::FaceAlias;
 
 #[derive(Clone, Debug)]
 pub struct BrickLibrary {
@@ -14,7 +14,7 @@ impl BrickLibrary {
     ///
     /// # Example
     /// ```
-    /// use tensegrity_lab::build::brick_builders::build_brick_library;
+    /// use tensegrity_lab::build::tenscript::brick_builders::build_brick_library;
     /// use tensegrity_lab::build::tenscript::brick_library::BrickLibrary;
     ///
     /// let brick_library = BrickLibrary::new(build_brick_library());
@@ -77,17 +77,17 @@ impl BrickLibrary {
             .collect()
     }
 
-    pub fn new_brick(&self, search_alias: &FaceAlias) -> Result<Baked, TenscriptError> {
+    pub fn new_brick(&self, search_alias: &FaceAlias) -> Baked {
         let search_with_base = search_alias.with_base();
         let (_, baked) = self
             .baked_bricks
             .iter()
             .filter(|(baked_alias, _)| search_with_base.matches(baked_alias))
             .min_by_key(|(brick_alias, _)| brick_alias.0.len())
-            .ok_or(TenscriptError::FaceAliasError(format!(
+            .expect(&format!(
                 "Cannot find a face to match {:?}",
                 search_with_base
-            )))?;
+            ));
         let mut thawed = baked.clone();
         for face in &mut thawed.faces {
             face.aliases
@@ -99,6 +99,6 @@ impl BrickLibrary {
                 face.aliases
             );
         }
-        Ok(thawed)
+        thawed
     }
 }
