@@ -26,6 +26,17 @@ const IDEAL_VIEW_DISTANCE: f32 = 3.0; // Target distance for viewing objects
 const ZOOM_SPEED: f32 = 1.5; // Speed of zoom adjustment
 const ZOOM_DURATION: f32 = 3.0; // Duration in seconds to apply automatic zooming
 
+// Thread-local storage for camera approach state
+// This is shared between target_approach() and reset() to track animation progress
+thread_local! {
+    static CAMERA_LAST_UPDATE: std::cell::RefCell<Option<instant::Instant>> = std::cell::RefCell::new(None);
+    static CAMERA_APPROACHING: std::cell::RefCell<bool> = std::cell::RefCell::new(true);
+    static CAMERA_APPROACH_ELAPSED: std::cell::RefCell<f32> = std::cell::RefCell::new(0.0);
+    static CAMERA_LAST_TARGET: std::cell::RefCell<Option<Target>> = std::cell::RefCell::new(None);
+    static CAMERA_START_POSITION: std::cell::RefCell<Option<Point3<f32>>> = std::cell::RefCell::new(None);
+    static CAMERA_INITIAL_DISTANCE: std::cell::RefCell<f32> = std::cell::RefCell::new(0.0);
+}
+
 /// Ease-in-out cubic function for smooth camera movement
 /// Returns a value between 0.0 and 1.0 with smooth acceleration and deceleration
 fn ease_in_out_cubic(t: f32) -> f32 {
@@ -208,7 +219,7 @@ impl Camera {
     }
 
     pub fn reset(&mut self) {
-        self.current_pick = Pick::Nothing; // more?
+        self.current_pick = Pick::Nothing;
         self.set_target(Target::FabricMidpoint);
     }
 
@@ -316,19 +327,9 @@ impl Camera {
     }
 
     pub fn target_approach(&mut self, fabric: &Fabric) -> bool {
-        // Use thread_local storage to track the last update time, approach state, elapsed time, and last target
-        thread_local! {
-            static LAST_UPDATE: std::cell::RefCell<Option<instant::Instant>> = std::cell::RefCell::new(None);
-            static APPROACHING: std::cell::RefCell<bool> = std::cell::RefCell::new(true);
-            static APPROACH_ELAPSED: std::cell::RefCell<f32> = std::cell::RefCell::new(0.0);
-            static LAST_TARGET: std::cell::RefCell<Option<Target>> = std::cell::RefCell::new(None);
-            static START_POSITION: std::cell::RefCell<Option<Point3<f32>>> = std::cell::RefCell::new(None);
-            static INITIAL_DISTANCE: std::cell::RefCell<f32> = std::cell::RefCell::new(0.0);
-        }
-
         // Get the current time and calculate elapsed time since last update
         let now = instant::Instant::now();
-        let delta_time = LAST_UPDATE.with(|last| {
+        let delta_time = CAMERA_LAST_UPDATE.with(|last| {
             let mut last_update = last.borrow_mut();
             let dt = match *last_update {
                 Some(time) => now.duration_since(time).as_secs_f32(),
@@ -348,7 +349,7 @@ impl Camera {
         let position_distance = (look_at - self.look_at).magnitude();
 
         // Check if target has changed and reset state if needed
-        LAST_TARGET.with(|last_target| {
+        CAMERA_LAST_TARGET.with(|last_target| {
             let mut last = last_target.borrow_mut();
 
             // If the target has changed, reset everything
@@ -356,12 +357,12 @@ impl Camera {
                 *last = Some(self.target.clone());
 
                 // Store the starting position for smooth interpolation
-                START_POSITION.with(|start_pos| {
+                CAMERA_START_POSITION.with(|start_pos| {
                     *start_pos.borrow_mut() = Some(self.look_at);
                 });
 
                 // Store the initial distance for progress calculation
-                INITIAL_DISTANCE.with(|init_dist| {
+                CAMERA_INITIAL_DISTANCE.with(|init_dist| {
                     *init_dist.borrow_mut() = position_distance;
                 });
 
@@ -369,16 +370,16 @@ impl Camera {
                 // Note: We don't cache ideal_distance here because the fabric may still be growing
                 // during pretensing. We'll recalculate it each frame while approaching.
                 if self.target.ideal_distance(fabric).is_some() {
-                    APPROACHING.with(|state| {
+                    CAMERA_APPROACHING.with(|state| {
                         *state.borrow_mut() = true;
                     });
 
-                    APPROACH_ELAPSED.with(|elapsed| {
+                    CAMERA_APPROACH_ELAPSED.with(|elapsed| {
                         *elapsed.borrow_mut() = 0.0;
                     });
                 } else {
                     // For targets without ideal distance (e.g., intervals), don't do automatic zooming
-                    APPROACHING.with(|state| {
+                    CAMERA_APPROACHING.with(|state| {
                         *state.borrow_mut() = false;
                     });
                 }
@@ -386,12 +387,12 @@ impl Camera {
         });
 
         // Update approach elapsed time and check if we're still approaching the target
-        let approaching = APPROACHING.with(|state| {
+        let approaching = CAMERA_APPROACHING.with(|state| {
             let mut approaching = state.borrow_mut();
 
             // Only update time if we're still approaching
             if *approaching {
-                APPROACH_ELAPSED.with(|elapsed| {
+                CAMERA_APPROACH_ELAPSED.with(|elapsed| {
                     let mut elapsed_time = elapsed.borrow_mut();
                     *elapsed_time += capped_delta_time;
 
@@ -412,7 +413,7 @@ impl Camera {
         if position_distance > TARGET_HIT {
             // Handle position approach with smooth easing during initial approach
             // Get the initial distance to calculate progress
-            let initial_distance = INITIAL_DISTANCE.with(|dist| *dist.borrow());
+            let initial_distance = CAMERA_INITIAL_DISTANCE.with(|dist| *dist.borrow());
 
             // Calculate progress (0.0 to 1.0) based on distance traveled
             let progress = if initial_distance > 0.0 {

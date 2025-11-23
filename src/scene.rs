@@ -75,7 +75,10 @@ impl Scene {
                     self.reset();
                     self.pick_allowed = true;
                 }
-                ShowingJoint(_) | ShowingInterval(_) => {
+                ShowingJoint(_) => {
+                    self.pick_allowed = true;
+                }
+                ShowingInterval(_) => {
                     self.pick_allowed = true;
                 }
                 PhysicsTesting(scenario) => {
@@ -217,6 +220,18 @@ impl Scene {
     }
 
     pub fn pointer_changed(&mut self, pointer_changed: PointerChange, fabric: &Fabric) {
+        // Only allow picking when in Viewing mode
+        let pointer_changed = if !self.pick_allowed {
+            match pointer_changed {
+                // Block picking events when not in Viewing mode
+                PointerChange::Released(_) | PointerChange::TouchReleased(_) => PointerChange::NoChange,
+                // Allow all other pointer events (rotation, zoom, etc)
+                other => other,
+            }
+        } else {
+            pointer_changed
+        };
+
         self.camera.pointer_changed(pointer_changed, fabric);
     }
 
