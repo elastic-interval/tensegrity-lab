@@ -62,15 +62,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
-    cfg_if::cfg_if! {
-        if #[cfg(target_arch = "wasm32")] {
-            std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-            console_log::init_with_level(log::Level::Info).expect("Couldn't initialize logger");
-        } else {
-            env_logger::init();
-        }
-    }
-
     let mut builder = EventLoop::<LabEvent>::with_user_event();
     let event_loop: EventLoop<LabEvent> = builder.build()?;
     let radio = event_loop.create_proxy();
