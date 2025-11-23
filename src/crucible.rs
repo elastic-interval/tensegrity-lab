@@ -1,10 +1,10 @@
 use crate::build::animator::Animator;
 use crate::build::dsl::brick_builders::build_brick_library;
-use crate::build::evo::evolution::Evolution;
-use crate::build::oven::Oven;
 use crate::build::dsl::brick_library::BrickLibrary;
 use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
 use crate::build::dsl::FabricPlan;
+use crate::build::evo::evolution::Evolution;
+use crate::build::oven::Oven;
 use crate::crucible::Stage::*;
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::BASE_PHYSICS;
@@ -58,11 +58,10 @@ impl Crucible {
     }
 
     /// Get the target time scale for the current stage
-    /// 5.0 for construction (5× speedup), 1.0 for physics testing (real time), 0.0 for viewing
+    /// 5.0 for construction (5× speedup), 1.0 for physics testing and viewing (real time)
     pub fn target_time_scale(&self) -> f32 {
         match &self.stage {
-            PhysicsTesting(_) => 1.0,
-            Viewing => 0.0,
+            PhysicsTesting(_) | Viewing => 1.0,
             _ => 5.0,
         }
     }
@@ -72,7 +71,6 @@ impl Crucible {
     /// Finalize and transition to Viewing stage
     fn finalize_to_viewing(&mut self) {
         self.fabric.zero_velocities();
-        self.fabric.frozen = true;
         self.physics.disable_convergence();
         self.stage = Viewing;
     }
@@ -89,8 +87,7 @@ impl Crucible {
                         self.fabric = executor.fabric.clone();
                         self.physics = executor.physics.clone();
                         // Send FabricBuilt with complete stats (including dynamics)
-                        let stats = self.fabric.stats_with_dynamics(&self.physics);
-                        let _ = self.radio.send_event(LabEvent::FabricBuilt(stats));
+                        let _ = self.radio.send_event(LabEvent::FabricBuilt(self.fabric.fabric_stats()));
                         // Check for and apply camera translation before finalizing
                         if let Some(translation) = executor.take_camera_translation() {
                             self.pending_camera_translation = Some(translation);
@@ -160,7 +157,12 @@ impl Crucible {
         match &mut self.stage {
             Empty => {}
             RunningPlan(_) => {} // Already handled above
-            Viewing => {}
+            Viewing => {
+                // Run physics at real-time speed in viewing mode
+                for _ in 0..iterations_per_frame {
+                    self.fabric.iterate(&self.physics);
+                }
+            }
             Animating(animator) => {
                 // Create a context for animator
                 let mut context = CrucibleContext::new(
@@ -315,13 +317,17 @@ impl Crucible {
                 // Already handled above
                 unreachable!()
             }
+            DropFromHeight => {
+                use crate::units::Millimeters;
+                // Centralize fabric at 1m altitude - this handles everything
+                CentralizeFabric(Some(Millimeters(1000.0))).send(&self.radio);
+            }
             CentralizeFabric(altitude) => {
                 // Convert altitude from mm to internal coordinate system
                 let altitude_internal = altitude.map(|mm| *mm / context.fabric.scale);
                 let translation = context.fabric.centralize_translation(altitude_internal);
                 context.fabric.apply_translation(translation);
                 context.fabric.zero_velocities();
-                context.send_event(LabEvent::FabricCentralized(translation));
             }
             ToViewing => match &mut self.stage {
                 Viewing => {
@@ -340,12 +346,8 @@ impl Crucible {
                     )));
                 }
                 PhysicsTesting(_) => {
-                    // Freeze the fabric when exiting PhysicsTesting
                     context.fabric.zero_velocities();
-                    context.fabric.frozen = true;
-
                     self.stage = Viewing;
-
                     context.send_event(LabEvent::UpdateState(SetControlState(
                         ControlState::Viewing,
                     )));
@@ -373,31 +375,17 @@ impl Crucible {
             }
             ToPhysicsTesting(scenario) => {
                 if let Viewing = &mut self.stage {
-                    let mut fabric = context.fabric.clone();
-                    // Unfreeze the fabric so physics changes can take effect
-                    fabric.frozen = false;
-
-                    let tester = PhysicsTester::new(fabric, tester_physics, self.radio.clone());
-
+                    let tester = PhysicsTester::new(context.fabric.clone(), tester_physics, self.radio.clone());
                     context.replace_fabric(tester.fabric.clone());
-
                     tester.copy_physics_into(&mut context);
-
                     context.transition_to(PhysicsTesting(tester));
-
                     context.send_event(LabEvent::UpdateState(SetControlState(
                         ControlState::PhysicsTesting(scenario),
                     )));
                     context.send_event(LabEvent::UpdateState(SetStageLabel(
                         "Testing Physics".to_string(),
                     )));
-
-                    // Send initial stats with convergence data
-                    context.send_event(LabEvent::UpdateState(SetFabricStats(Some(
-                        context.fabric.stats_with_dynamics(context.physics),
-                    ))));
                 }
-                // Silently ignore if not in Viewing stage - can only test physics after convergence
             }
             TesterDo(action) => match &mut self.stage {
                 PhysicsTesting(tester) => {

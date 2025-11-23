@@ -3,11 +3,12 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-//! On-demand movement analysis for detecting oscillations and instability
+//! On-demand fabric analysis for detecting oscillations and measuring properties
 //!
-//! MovementSampler records joint positions over time and analyzes movement patterns.
-//! Unlike the old position history (which tracked every joint always), this sampler
-//! only activates when requested, making it efficient and targeted.
+//! FabricSampler records joint positions over time and analyzes movement patterns
+//! and fabric properties like mass. Unlike the old position history (which tracked
+//! every joint always), this sampler only activates when requested, making it
+//! efficient and targeted.
 
 use cgmath::{MetricSpace, Point3};
 use crate::fabric::Fabric;
@@ -73,9 +74,9 @@ pub struct JointAnalysis {
     pub pattern: OscillationPattern,
 }
 
-/// Complete movement analysis results
+/// Complete fabric analysis results
 #[derive(Debug, Clone)]
-pub struct MovementAnalysis {
+pub struct FabricAnalysis {
     pub joint_analyses: Vec<JointAnalysis>,
     pub frozen_count: usize,
     pub stable_count: usize,
@@ -86,10 +87,11 @@ pub struct MovementAnalysis {
     pub max_amplitude_mm: f32,
     pub max_amplitude_joint: usize,
     pub growing_pattern_count: usize,
+    pub total_mass_kg: f32,
 }
 
-/// On-demand sampler for movement analysis with multi-resolution sampling
-pub struct MovementSampler {
+/// On-demand sampler for fabric analysis with multi-resolution sampling
+pub struct FabricSampler {
     samples: Vec<Sample>,
     joint_count: usize,
     is_complete: bool,
@@ -98,7 +100,7 @@ pub struct MovementSampler {
     frames_since_last_sample: usize,
 }
 
-impl MovementSampler {
+impl FabricSampler {
     /// Create a new sampler
     pub fn new(joint_count: usize) -> Self {
         Self {
@@ -174,11 +176,12 @@ impl MovementSampler {
     }
 
     /// Analyze collected samples to detect oscillations and movement patterns
-    pub fn analyze(&self, scale: f32) -> Option<MovementAnalysis> {
+    pub fn analyze(&self, fabric: &Fabric, physics: &crate::fabric::physics::Physics) -> Option<FabricAnalysis> {
         if !self.is_complete || self.samples.is_empty() {
             return None;
         }
 
+        let scale = fabric.scale;
         let mut joint_analyses = Vec::with_capacity(self.joint_count);
         let mut frozen_count = 0;
         let mut stable_count = 0;
@@ -189,6 +192,9 @@ impl MovementSampler {
         let mut growing_pattern_count = 0;
         let mut max_amplitude_mm = 0.0;
         let mut max_amplitude_joint = 0;
+
+        // Calculate total mass (convert from grams to kg)
+        let total_mass_kg = fabric.calculate_total_mass(physics).0 / 1000.0;
 
         // Analyze each joint
         for joint_idx in 0..self.joint_count {
@@ -215,7 +221,7 @@ impl MovementSampler {
             joint_analyses.push(analysis);
         }
 
-        Some(MovementAnalysis {
+        Some(FabricAnalysis {
             joint_analyses,
             frozen_count,
             stable_count,
@@ -226,6 +232,7 @@ impl MovementSampler {
             max_amplitude_mm,
             max_amplitude_joint,
             growing_pattern_count,
+            total_mass_kg,
         })
     }
 
@@ -412,10 +419,13 @@ impl MovementSampler {
     }
 }
 
-impl MovementAnalysis {
+impl FabricAnalysis {
     /// Format analysis as human-readable text with adaptive histogram
     pub fn format(&self) -> String {
         let mut lines = Vec::new();
+
+        // Display total mass first
+        lines.push(format!("Mass: {:.3} kg", self.total_mass_kg));
 
         // Sort amplitudes to create adaptive histogram
         let mut amplitudes: Vec<f32> = self.joint_analyses.iter()

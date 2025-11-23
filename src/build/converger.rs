@@ -42,14 +42,7 @@ impl Converger {
         if elapsed >= self.duration.0 {
             // Zero out velocities to prevent accumulated velocity artifacts
             context.fabric.zero_velocities();
-            context.fabric.frozen = true;
             context.transition_to(crate::crucible::Stage::Viewing);
-            
-            // Calculate fresh stats with convergence data
-            let stats_with_dynamics = context.fabric.stats_with_dynamics(context.physics);
-            
-            // Send FabricBuilt with convergence stats - this will trigger Viewing state
-            context.queue_event(LabEvent::FabricBuilt(stats_with_dynamics));
             context.send_event(LabEvent::UpdateState(SetStageLabel("Viewing".to_string())));
         }
     }

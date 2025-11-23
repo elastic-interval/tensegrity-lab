@@ -3,8 +3,8 @@ use crate::build::dsl::pretenser::Stage::*;
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::PRETENSING;
 use crate::fabric::physics::Physics;
-use crate::units::{Percent, Seconds};
 use crate::LabEvent::DumpCSV;
+use crate::units::{Percent, Seconds};
 use crate::Radio;
 
 #[derive(Clone, Debug, PartialEq, Copy)]

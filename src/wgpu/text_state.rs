@@ -216,11 +216,10 @@ impl TextState {
                         pull_total,
                         age,
                         scale,
-                        dynamic_stats,
                         ..
                     } = fabric_stats;
                     
-                    let mut text = format!(
+                    let text = format!(
                         "Stats at {age}:\n\
                          Joints: {:?}\n\
                          Bars: {:?}\n\
@@ -239,33 +238,6 @@ impl TextState {
                         pull_range.1 * scale,
                         pull_total * scale / 1000.0,
                     );
-                    
-                    // Add convergence stats if present (end of time)
-                    if let Some(conv) = dynamic_stats {
-                        // Convert from mm/µs to m/s: mm/µs * 1000 = m/s
-                        let max_speed_m_per_s = conv.max_speed * 1000.0;
-                        let avg_speed_m_per_s = conv.avg_speed * 1000.0;
-                        let mass_kg = conv.total_mass / 1000.0;
-                        
-                        text.push_str(&format!(
-                            "\n\n\
-                             Height: {:.3}m\n\
-                             KE: {:.2e} g·mm²/µs²\n\
-                             Mass: {:.2}kg\n\
-                             Max Speed: {:.2} m/s\n\
-                             Avg Speed: {:.2} m/s\n\
-                             Max Strain: {:.3}\n\
-                             Avg Strain: {:.3}",
-                            conv.max_height * scale / 1000.0,
-                            conv.kinetic_energy,
-                            mass_kg,
-                            max_speed_m_per_s,
-                            avg_speed_m_per_s,
-                            conv.max_strain,
-                            conv.avg_strain,
-                        ));
-                    }
-                    
                     Normal(text)
                 }
             },

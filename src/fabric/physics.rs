@@ -310,7 +310,11 @@ pub mod presets {
     pub const BASE_PHYSICS: Physics = Physics {
         surface_character: Frozen,
         pretenst: Percent(1.0),
-        tweak: Tweak::None,
+        tweak: Tweak::Construction(ConstructionTweak {
+            drag: 0.05,
+            viscosity: 3.0,
+            time_contraction: 1.0,
+        }),
     };
 }
 

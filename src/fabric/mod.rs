@@ -24,7 +24,7 @@ pub mod interval;
 pub mod joint;
 pub mod joint_incident;
 pub mod material;
-pub mod movement_sampler;
+pub mod fabric_sampler;
 pub mod physics;
 pub mod progress;
 pub mod vulcanize;
@@ -134,18 +134,6 @@ pub struct FabricStats {
     pub pull_count: usize,
     pub pull_range: (f32, f32),
     pub pull_total: f32,
-    pub dynamic_stats: Option<DynamicStats>,
-}
-
-#[derive(Clone, Debug)]
-pub struct DynamicStats {
-    pub max_height: f32,
-    pub kinetic_energy: f32,
-    pub max_speed: f32,
-    pub avg_speed: f32,
-    pub total_mass: f32,
-    pub max_strain: f32,
-    pub avg_strain: f32,
 }
 
 #[derive(Clone, Debug)]
@@ -324,15 +312,10 @@ impl Fabric {
         if self.frozen {
             return 0.0;
         }
-
-        // Reset stats for this iteration
         self.stats.reset();
-
         for joint in &mut self.joints {
             joint.reset();
         }
-
-        // Accumulate strain stats during interval iteration
         for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
             let interval = interval_opt.as_mut().unwrap();
             interval.iterate(
@@ -342,8 +325,6 @@ impl Fabric {
                 self.scale,
                 physics,
             );
-
-            // Accumulate strain (zero-cost pass-through)
             self.stats.accumulate_strain(interval.strain);
         }
         let elapsed = self.age.tick_scaled(physics.time_scale());
@@ -354,22 +335,15 @@ impl Fabric {
 
         for joint in self.joints.iter_mut() {
             joint.iterate(physics, self.scale);
-
-            // Accumulate stats (zero-cost - already computing these values)
             let speed_squared = joint.velocity.magnitude2();
             let mass = *joint.accumulated_mass;
-
             self.stats.accumulate_joint(mass, speed_squared);
             self.stats.update_max_speed_squared(speed_squared);
-
             if speed_squared > max_speed_squared {
                 max_speed_squared = speed_squared;
             }
         }
-
-        // Finalize stats (compute sqrt once at the end)
         self.stats.finalize();
-
         if max_speed_squared > MAX_SPEED_SQUARED || max_speed_squared.is_nan() {
             eprintln!(
                 "Excessive speed detected: {:.2} mm/tick - freezing fabric",
@@ -402,7 +376,6 @@ impl Fabric {
         elapsed.as_micros() as f32
     }
 
-    /// Calculate total kinetic energy of the system
     pub fn kinetic_energy(&self) -> f32 {
         self.joints
             .iter()
@@ -426,8 +399,6 @@ impl Fabric {
         midpoint / denominator
     }
 
-    /// Calculate the bounding sphere radius from the midpoint
-    /// This represents the maximum distance from the center to any joint
     pub fn bounding_radius(&self) -> f32 {
         let midpoint = self.midpoint();
 
@@ -442,7 +413,6 @@ impl Fabric {
         max_distance_squared.sqrt() * 1.1
     }
 
-    /// Calculate the altitude range (min Y, max Y) of all joints
     /// Returns (min_y, max_y)
     pub fn altitude_range(&self) -> (f32, f32) {
         self.joints
@@ -522,7 +492,6 @@ impl Fabric {
             pull_count,
             pull_range,
             pull_total,
-            dynamic_stats: None,
         }
     }
 
@@ -547,42 +516,6 @@ impl Fabric {
         }
 
         total_mass
-    }
-
-    pub fn stats_with_dynamics(&self, physics: &Physics) -> FabricStats {
-        let mut stats = self.fabric_stats();
-
-        // Calculate total mass fresh using current physics
-        let total_mass = self.calculate_total_mass(physics);
-
-        // Calculate max_height and average speed from current joint positions
-        let mut max_height = 0.0;
-        let mut speed_sum = 0.0;
-        for Joint {
-            location, velocity, ..
-        } in self.joints.iter()
-        {
-            if location.y > max_height {
-                max_height = location.y;
-            }
-            speed_sum += velocity.magnitude();
-        }
-        let avg_speed = if !self.joints.is_empty() {
-            speed_sum / self.joints.len() as f32
-        } else {
-            0.0
-        };
-
-        stats.dynamic_stats = Some(DynamicStats {
-            max_height,
-            kinetic_energy: self.stats.kinetic_energy,
-            max_speed: self.stats.max_speed,
-            avg_speed,
-            total_mass: *total_mass,
-            max_strain: self.stats.max_strain,
-            avg_strain: self.stats.avg_strain(),
-        });
-        stats
     }
 }
 

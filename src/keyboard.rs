@@ -5,6 +5,7 @@ use crate::{
 };
 use winit::event::KeyEvent;
 use winit::keyboard::{KeyCode, PhysicalKey, SmolStr};
+use crate::ControlState::*;
 
 enum KeyAction {
     KeyLabEvent {
@@ -46,7 +47,6 @@ impl Keyboard {
     }
 
     pub fn with_actions(mut self) -> Self {
-        use ControlState::*;
         use CrucibleAction::*;
         use LabEvent::*;
         self.key_dynamic_lab_event(
@@ -68,33 +68,33 @@ impl Keyboard {
             Box::new(|state| {
                 matches!(
                     state,
-                    ControlState::ShowingJoint(_) | ControlState::ShowingInterval(_)
+                    ShowingJoint(_) | ShowingInterval(_)
                 )
             }),
         );
         self.key_lab_event(
             KeyCode::Escape,
-            "Stop physics testing",
+            "Exit",
             Crucible(ToViewing),
-            Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),
+            Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
-        self.key_lab_event(
-            KeyCode::Space,
-            "Stop animation",
-            Crucible(ToViewing),
-            Box::new(|state| matches!(state, ControlState::Animating)),
-        );
-        self.key_lab_event(
-            KeyCode::Space,
-            "Start animation",
-            Crucible(ToAnimating),
-            Box::new(|state| matches!(state, ControlState::Viewing)),
-        );
+        // self.key_lab_event(
+        //     KeyCode::Space,
+        //     "Stop animation",
+        //     Crucible(ToViewing),
+        //     Box::new(|state| matches!(state, Animating)),
+        // );
+        // self.key_lab_event(
+        //     KeyCode::Space,
+        //     "Start animation",
+        //     Crucible(ToAnimating),
+        //     Box::new(|state| matches!(state, Viewing)),
+        // );
         self.key_lab_event(
             KeyCode::KeyT,
             "Physics testing",
             Crucible(ToPhysicsTesting(TestScenario::PhysicsTest)),
-            Box::new(|state| matches!(state, ControlState::Viewing)),
+            Box::new(|state| matches!(state, Viewing)),
         );
         self.float_parameter(
             "P",
@@ -104,7 +104,7 @@ impl Keyboard {
                 value: *BASE_PHYSICS.pretenst,
             },
             Box::new(|value| format!("Pretenst {value:.3}")),
-            Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),
+            Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.tweak_parameter(
             "M",
@@ -113,8 +113,8 @@ impl Keyboard {
                 feature: TweakFeature::MassScale,
                 value: 1.0,
             },
-            Box::new(|value| format!("Mass scale {value:.4}")),
-            Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),
+            Box::new(|value| format!("Mass {value:.4}")),
+            Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.tweak_parameter(
             "R",
@@ -123,50 +123,32 @@ impl Keyboard {
                 feature: TweakFeature::RigidityScale,
                 value: 1.0,
             },
-            Box::new(|value| format!("Rigidity scale {value:.4}")),
-            Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),
-        );
-        self.key_lab_event(
-            KeyCode::KeyY,
-            "",
-            Crucible(TesterDo(TesterAction::DumpPhysics)),
-            Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),
+            Box::new(|value| format!("Rigidity {value:.4}")),
+            Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.key_lab_event(
             KeyCode::KeyS,
             "Movement stats",
             Crucible(TesterDo(TesterAction::ToggleMovementSampler)),
-            Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),
+            Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.key_lab_event(
             KeyCode::KeyJ,
             "Jump",
-            Crucible(TesterDo(TesterAction::DropFromHeight)),
-            Box::new(|state| matches!(state, ControlState::PhysicsTesting(_))),
+            Crucible(CrucibleAction::DropFromHeight),
+            Box::new(|state| matches!(state, PhysicsTesting(_) | Viewing)),
         );
         self.key_lab_event(
             KeyCode::KeyC,
             "Color by Role",
             UpdateState(StateChange::ToggleColorByRole),
-            Box::new(|state| matches!(state, ControlState::Viewing)),
-        );
-        self.key_lab_event(
-            KeyCode::KeyO,
-            "Projection",
-            UpdateState(StateChange::ToggleProjection),
-            Box::new(|state| matches!(state, ControlState::Viewing)),
+            Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.key_lab_event(
             KeyCode::KeyK,
             "Knots",
             UpdateState(StateChange::ToggleAttachmentPoints),
-            Box::new(|state| matches!(state, ControlState::Viewing)),
-        );
-        self.key_lab_event(
-            KeyCode::KeyX,
-            "eXport", // hidden
-            DumpCSV,
-            Box::new(|state| matches!(state, ControlState::Viewing)),
+            Box::new(|state| matches!(state, Viewing)),
         );
         self.key_lab_event(
             KeyCode::Enter,
