@@ -298,11 +298,8 @@ impl ApplicationHandler<LabEvent> for Application {
             RefreshLibrary => {
                 println!("Manual library refresh requested");
                 StateChange::ShowMovementAnalysis(None).send(&self.radio);
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    let event = self.refresh_library(Instant::now());
-                    event.send(&self.radio);
-                }
+                let event = self.refresh_library(Instant::now());
+                event.send(&self.radio);
             }
             RebuildFabric => {
                 // Rebuild the current fabric with updated physics parameters
@@ -310,11 +307,8 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             UpdatedLibrary(time) => {
                 println!("Reloading library at {time:?}");
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    let _fabric_library = self.fabric_library.clone();
-                    Run(self.run_style.clone()).send(&self.radio);
-                }
+                let _fabric_library = self.fabric_library.clone();
+                Run(self.run_style.clone()).send(&self.radio);
             }
             DumpCSV => {
                 #[cfg(not(target_arch = "wasm32"))]
@@ -529,13 +523,14 @@ impl ApplicationHandler<LabEvent> for Application {
         let update_interval = Duration::from_millis(10);
 
         // Check if animation/physics should be active
-        // Always run in Viewing and PhysicsTesting modes, or when camera is animating
+        // Always call scene.animate() to update camera, then check if physics should run
+        let camera_animating = self
+            .with_scene_and_fabric(|scene, fabric| scene.animate(fabric))
+            .unwrap_or(false);
         let animate = matches!(
             self.control_state,
             ControlState::Viewing | ControlState::PhysicsTesting(_)
-        ) || self
-            .with_scene_and_fabric(|scene, fabric| scene.animate(fabric))
-            .unwrap_or(false);
+        ) || camera_animating;
 
         // Limit updates per frame
         let mut updates_this_frame = 0;
