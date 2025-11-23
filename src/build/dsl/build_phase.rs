@@ -8,10 +8,57 @@ use crate::fabric::brick::BaseFace;
 use crate::fabric::face::FaceRotation;
 use crate::fabric::{Fabric, UniqueId};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Chirality {
+    Chiral,
+    Alternating,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct GrowStyle {
+    pub count: usize,
+    pub chirality: Chirality,
+}
+
+impl GrowStyle {
+    pub fn new(count: usize, chirality: Chirality) -> Self {
+        Self { count, chirality }
+    }
+
+    pub fn alternating(count: usize) -> Self {
+        Self {
+            count,
+            chirality: Chirality::Alternating,
+        }
+    }
+
+    pub fn chiral(count: usize) -> Self {
+        Self {
+            count,
+            chirality: Chirality::Chiral,
+        }
+    }
+
+    pub fn is_alternating(&self) -> bool {
+        self.chirality == Chirality::Alternating
+    }
+
+    pub fn decrement(&self) -> Option<GrowStyle> {
+        if self.count > 1 {
+            Some(GrowStyle {
+                count: self.count - 1,
+                chirality: self.chirality,
+            })
+        } else {
+            None
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct Bud {
     face_id: UniqueId,
-    forward: String,
+    grow_style: Option<GrowStyle>,
     scale_factor: f32,
     nodes: Vec<BuildNode>,
 }
@@ -23,7 +70,7 @@ pub enum BuildNode {
         node: Box<BuildNode>,
     },
     Grow {
-        forward: String,
+        style: GrowStyle,
         scale_factor: f32,
         post_growth_nodes: Vec<BuildNode>,
     },
@@ -122,20 +169,21 @@ impl BuildPhase {
         fabric: &mut Fabric,
         Bud {
             face_id,
-            forward,
+            grow_style,
             scale_factor,
             nodes,
         }: Bud,
         brick_library: &BrickLibrary,
     ) -> (Vec<Bud>, Vec<FaceMark>) {
         let (mut buds, mut marks) = (vec![], vec![]);
-        let face = fabric.expect_face(face_id);
-        let spin = if forward.starts_with('X') {
-            face.spin.opposite()
-        } else {
-            face.spin
-        };
-        if !forward.is_empty() {
+
+        if let Some(style) = grow_style {
+            let face = fabric.expect_face(face_id);
+            let spin = if style.is_alternating() {
+                face.spin.opposite()
+            } else {
+                face.spin
+            };
             let face_alias = FaceAlias::single("Single") + &spin.into_alias();
             let (base_face, faces) = fabric.create_brick(
                 &face_alias,
@@ -150,7 +198,7 @@ impl BuildPhase {
                 face_id: top_face_alias
                     .find_face_in(&faces, fabric)
                     .expect("face matching top face alias"),
-                forward: forward[1..].into(),
+                grow_style: style.decrement(),
                 scale_factor,
                 nodes,
             });
@@ -191,7 +239,7 @@ impl BuildPhase {
                 );
             }
             Grow {
-                forward,
+                style,
                 scale_factor,
                 post_growth_nodes,
                 ..
@@ -200,7 +248,7 @@ impl BuildPhase {
                 let face_id = face_id.expect("Unable to find the launch face by id in execute_node");
                 buds.push(Bud {
                     face_id,
-                    forward: forward.clone(),
+                    grow_style: Some(*style),
                     scale_factor: *scale_factor,
                     nodes: post_growth_nodes.clone(),
                 })
