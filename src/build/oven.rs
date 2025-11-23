@@ -1,4 +1,4 @@
-use crate::build::tenscript::brick::{Baked, Prototype};
+use crate::build::dsl::brick::{Baked, Prototype};
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::CONSTRUCTION;
 use crate::fabric::Fabric;

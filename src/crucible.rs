@@ -1,10 +1,10 @@
 use crate::build::animator::Animator;
-use crate::build::tenscript::brick_builders::build_brick_library;
+use crate::build::dsl::brick_builders::build_brick_library;
 use crate::build::evo::evolution::Evolution;
 use crate::build::oven::Oven;
-use crate::build::tenscript::brick_library::BrickLibrary;
-use crate::build::tenscript::fabric_plan_executor::FabricPlanExecutor;
-use crate::build::tenscript::FabricPlan;
+use crate::build::dsl::brick_library::BrickLibrary;
+use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
+use crate::build::dsl::FabricPlan;
 use crate::crucible::Stage::*;
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::BASE_PHYSICS;
@@ -80,7 +80,7 @@ impl Crucible {
     pub fn iterate(&mut self, brick_library: &BrickLibrary, iterations_per_frame: usize) {
         // Check if RunningPlan completed and needs transition
         if let RunningPlan(executor) = &mut self.stage {
-            use crate::build::tenscript::fabric_plan_executor::IterateResult;
+            use crate::build::dsl::fabric_plan_executor::IterateResult;
 
             for _ in 0..iterations_per_frame {
                 match executor.iterate(brick_library) {
@@ -115,7 +115,7 @@ impl Crucible {
             }
 
             // Check if BUILD phase is done and we should start PRETENSE
-            use crate::build::tenscript::fabric_plan_executor::ExecutorStage;
+            use crate::build::dsl::fabric_plan_executor::ExecutorStage;
             if matches!(executor.stage(), ExecutorStage::Building) {
                 if let Some(plan_runner) = executor.plan_runner() {
                     if plan_runner.is_done() {

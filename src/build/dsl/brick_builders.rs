@@ -2,9 +2,9 @@
 ///
 /// All supporting types and helpers are in the `brick_dsl` module.
 
-use crate::build::tenscript::brick_dsl::*;
-use crate::build::tenscript::brick::BrickDefinition;
-use crate::build::tenscript::Spin;
+use crate::build::dsl::brick_dsl::*;
+use crate::build::dsl::brick::BrickDefinition;
+use crate::build::dsl::Spin;
 
 /// Build the Single-right brick
 pub fn single_right() -> BrickDefinition {

@@ -4,7 +4,7 @@
  */
 use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, MetricSpace, Point3, Vector3};
 
-use crate::build::tenscript::{FaceAlias, Spin};
+use crate::build::dsl::{FaceAlias, Spin};
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::Joint;
 use crate::fabric::{Fabric, UniqueId};

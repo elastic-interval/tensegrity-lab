@@ -1,4 +1,4 @@
-use crate::build::tenscript::brick_library::BrickLibrary;
+use crate::build::dsl::brick_library::BrickLibrary;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 

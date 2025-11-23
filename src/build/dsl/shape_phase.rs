@@ -1,6 +1,6 @@
-use crate::build::tenscript::brick_library::BrickLibrary;
-use crate::build::tenscript::shape_phase::ShapeCommand::*;
-use crate::build::tenscript::{FaceAlias, FaceMark, Spin};
+use crate::build::dsl::brick_library::BrickLibrary;
+use crate::build::dsl::shape_phase::ShapeCommand::*;
+use crate::build::dsl::{FaceAlias, FaceMark, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Role;
