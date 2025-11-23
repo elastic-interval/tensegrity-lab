@@ -12,18 +12,18 @@ pub fn triped() -> FabricPlan {
         .build(
             branch(BrickName::Omni)
                 .seed(1)
-                .on_face(Face::BotX, grow("XXXXXXXX").scale(0.9).mark("end").prism().build())
-                .on_face(Face::BotY, grow("XXXXXXXX").scale(0.9).mark("end").prism().build())
-                .on_face(Face::BotZ, grow("XXXXXXXX").scale(0.9).mark("end").prism().build())
-                .on_face(Face::Top, grow("X").build())
+                .on_face(Face::BotX, grow(8).scale(0.9).mark("end").prism().build())
+                .on_face(Face::BotY, grow(8).scale(0.9).mark("end").prism().build())
+                .on_face(Face::BotZ, grow(8).scale(0.9).mark("end").prism().build())
+                .on_face(Face::Top, grow(1).build())
                 .build(),
         )
         .shape([
             during(Sec(15.0), [space("end", 0.35)]),
             during(Sec(15.0), [vulcanize()]),
         ])
-        .pretense(pretense().altitude(Mm(1000.0)).surface(SurfaceCharacter::Slippery))
-        .converge(Sec(30.0))
+        .pretense(pretense(Sec(15.0)).altitude(Mm(1000.0)).surface(SurfaceCharacter::Slippery))
+        .converge(Sec(10.0))
         .scale(Mm(1030.0))
         .build_plan()
 }
@@ -33,7 +33,7 @@ pub fn symmetrical() -> FabricPlan {
     fabric("Symmetrical")
         .build(branch(BrickName::Omni).build())
         .shape([centralize_at(1.0)])
-        .pretense(pretense().surface(SurfaceCharacter::Absent))
+        .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Absent))
         .scale(Mm(74.6))
         .build_plan()
 }
@@ -43,11 +43,11 @@ pub fn vertebra() -> FabricPlan {
     fabric("Vertebra")
         .build(
             branch(BrickName::Single)
-                .on_face(Face::NextBase, grow("X").build())
+                .on_face(Face::NextBase, grow(1).build())
                 .build(),
         )
         .shape([centralize_at(1.0)])
-        .pretense(pretense().surface(SurfaceCharacter::Absent))
+        .pretense(pretense(Sec(10.0)).surface(SurfaceCharacter::Absent))
         .scale(Mm(74.6))
         .build_plan()
 }
@@ -57,11 +57,11 @@ pub fn flagellum() -> FabricPlan {
     fabric("Flagellum")
         .build(
             branch(BrickName::Single)
-                .on_face(Face::NextBase, grow("XXXXXXXXXXXXXXXXXXXX").scale(0.95).build())
+                .on_face(Face::NextBase, grow(20).scale(0.95).build())
                 .build(),
         )
         .shape([vulcanize()])
-        .pretense(pretense().surface(SurfaceCharacter::Frozen))
+        .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Frozen))
         .build_plan()
 }
 
@@ -70,12 +70,12 @@ pub fn cigar() -> FabricPlan {
     fabric("Cigar")
         .build(
             branch(BrickName::Single)
-                .on_face(Face::NextBase, grow("X").scale(0.85).build())
-                .on_face(Face::Base, grow("X").scale(0.85).build())
+                .on_face(Face::NextBase, grow(1).scale(0.85).build())
+                .on_face(Face::Base, grow(1).scale(0.85).build())
                 .build(),
         )
         .shape([centralize_at(1.0), during(Sec(40000.0), [vulcanize()])])
-        .pretense(pretense().surface(SurfaceCharacter::Absent))
+        .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Absent))
         .scale(Mm(74.6))
         .build_plan()
 }
@@ -85,12 +85,12 @@ pub fn x() -> FabricPlan {
     fabric("X")
         .build(
             branch(BrickName::Single)
-                .on_face(Face::NextBase, grow("X").scale(0.8).build())
-                .on_face(Face::Base, grow("X").scale(0.8).build())
+                .on_face(Face::NextBase, grow(1).scale(0.8).build())
+                .on_face(Face::Base, grow(1).scale(0.8).build())
                 .build(),
         )
         .shape([centralize_at(1.0), during(Sec(40000.0), [vulcanize()])])
-        .pretense(pretense().surface(SurfaceCharacter::Frozen))
+        .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Frozen))
         .scale(Mm(430.0))
         .build_plan()
 }
@@ -100,14 +100,14 @@ pub fn tetrapod() -> FabricPlan {
     fabric("Tetrapod")
         .build(
             branch(BrickName::Omni)
-                .on_face(Face::TopRight, grow("XXX").scale(0.9).build())
-                .on_face(Face::BottomRight, grow("XXX").scale(0.9).build())
-                .on_face(Face::BackLeft, grow("XXX").scale(0.9).build())
-                .on_face(Face::FrontLeft, grow("XXX").scale(0.9).build())
+                .on_face(Face::TopRight, grow(3).scale(0.9).build())
+                .on_face(Face::BottomRight, grow(3).scale(0.9).build())
+                .on_face(Face::BackLeft, grow(3).scale(0.9).build())
+                .on_face(Face::FrontLeft, grow(3).scale(0.9).build())
                 .build(),
         )
         .shape([vulcanize()])
-        .pretense(pretense().surface(SurfaceCharacter::Bouncy))
+        .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Bouncy))
         .scale(Mm(46.0))
         .build_plan()
 }
@@ -121,12 +121,12 @@ pub fn halo_by_crane() -> FabricPlan {
                 .rotate()
                 .on_face(
                     Face::NextBase,
-                    grow("XXXX")
+                    grow(4)
                         .scale(0.92)
                         .build_node(
                             branch(BrickName::Omni)
-                                .on_face(Face::TopX, grow("XXXXXXXXXXXX").scale(0.92).mark("halo-end").build())
-                                .on_face(Face::TopY, grow("XXXXXXXXXXX").scale(0.92).mark("halo-end").build())
+                                .on_face(Face::TopX, grow(12).scale(0.92).mark("halo-end").build())
+                                .on_face(Face::TopY, grow(11).scale(0.92).mark("halo-end").build())
                                 .build(),
                         )
                         .build(),
@@ -134,7 +134,7 @@ pub fn halo_by_crane() -> FabricPlan {
                 .build(),
         )
         .shape([join("halo-end"), vulcanize()])
-        .pretense(pretense().surface(SurfaceCharacter::Frozen))
+        .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Frozen))
         .build_plan()
 }
 
@@ -144,10 +144,10 @@ pub fn convergence() -> FabricPlan {
         .build(
             branch(BrickName::Omni)
                 .seed(1)
-                .on_face(Face::Bot, grow("XX").scale(0.9).build())
-                .on_face(Face::TopY, grow("XXXXXXXXXX").scale(0.9).mark("end").build())
-                .on_face(Face::TopX, grow("XXXXXXXXXX").scale(0.9).mark("end").build())
-                .on_face(Face::TopZ, grow("XXXXXXXXXX").scale(0.9).mark("end").build())
+                .on_face(Face::Bot, grow(2).scale(0.9).build())
+                .on_face(Face::TopY, grow(10).scale(0.9).mark("end").build())
+                .on_face(Face::TopX, grow(10).scale(0.9).mark("end").build())
+                .on_face(Face::TopZ, grow(10).scale(0.9).mark("end").build())
                 .build(),
         )
         .shape([
@@ -155,7 +155,7 @@ pub fn convergence() -> FabricPlan {
             during(Sec(20000.0), [vulcanize()]),
             centralize_at(5.0),
         ])
-        .pretense(pretense().surface(SurfaceCharacter::Frozen))
+        .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Frozen))
         .build_plan()
 }
 
@@ -166,32 +166,32 @@ pub fn torque_walker() -> FabricPlan {
             branch(BrickName::Torque)
                 .on_face(
                     Face::LeftFrontBottom,
-                    grow("X")
+                    grow(1)
                         .build_node(branch(BrickName::TorqueLeft).build())
                         .build(),
                 )
                 .on_face(
                     Face::LeftBackBottom,
-                    grow("X")
+                    grow(1)
                         .build_node(branch(BrickName::TorqueRight).build())
                         .build(),
                 )
                 .on_face(
                     Face::RightFrontBottom,
-                    grow("X")
+                    grow(1)
                         .build_node(branch(BrickName::TorqueLeft).build())
                         .build(),
                 )
                 .on_face(
                     Face::RightBackBottom,
-                    grow("X")
+                    grow(1)
                         .build_node(branch(BrickName::TorqueRight).build())
                         .build(),
                 )
                 .build(),
         )
         .shape([])
-        .pretense(pretense().surface(SurfaceCharacter::Bouncy))
+        .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Bouncy))
         .build_plan()
 }
 
@@ -200,10 +200,10 @@ pub fn twisted_infinity() -> FabricPlan {
     fabric("Twisted Infinity")
         .build(
             branch(BrickName::Omni)
-                .on_face(Face::TopRight, grow("XXXXXX").scale(0.83).mark("ring-a").build())
-                .on_face(Face::BottomRight, grow("XXXXX").scale(0.83).mark("ring-a").build())
-                .on_face(Face::BackLeft, grow("XXXXXX").scale(0.83).mark("ring-b").build())
-                .on_face(Face::FrontLeft, grow("XXXXX").scale(0.83).mark("ring-b").build())
+                .on_face(Face::TopRight, grow(6).scale(0.83).mark("ring-a").build())
+                .on_face(Face::BottomRight, grow(5).scale(0.83).mark("ring-a").build())
+                .on_face(Face::BackLeft, grow(6).scale(0.83).mark("ring-b").build())
+                .on_face(Face::FrontLeft, grow(5).scale(0.83).mark("ring-b").build())
                 .build(),
         )
         .shape([
@@ -211,7 +211,7 @@ pub fn twisted_infinity() -> FabricPlan {
             during(Sec(5000.0), [vulcanize()]),
             centralize_at(1.0),
         ])
-        .pretense(pretense().surface(SurfaceCharacter::Absent).rigidity(0.1))
+        .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Absent).rigidity(0.1))
         .scale(Mm(60.0))
         .build_plan()
 }
@@ -222,12 +222,12 @@ pub fn propellor() -> FabricPlan {
         .build(
             branch(BrickName::Omni)
                 .seed(1)
-                .on_face(Face::TopX, grow("XXXXXX").scale(0.83).mark("ring-x").build())
-                .on_face(Face::BotY, grow("XXXXX").scale(0.83).mark("ring-x").build())
-                .on_face(Face::TopY, grow("XXXXXX").scale(0.83).mark("ring-y").build())
-                .on_face(Face::BotZ, grow("XXXXX").scale(0.83).mark("ring-y").build())
-                .on_face(Face::TopZ, grow("XXXXXX").scale(0.83).mark("ring-z").build())
-                .on_face(Face::BotX, grow("XXXXX").scale(0.83).mark("ring-z").build())
+                .on_face(Face::TopX, grow(6).scale(0.83).mark("ring-x").build())
+                .on_face(Face::BotY, grow(5).scale(0.83).mark("ring-x").build())
+                .on_face(Face::TopY, grow(6).scale(0.83).mark("ring-y").build())
+                .on_face(Face::BotZ, grow(5).scale(0.83).mark("ring-y").build())
+                .on_face(Face::TopZ, grow(6).scale(0.83).mark("ring-z").build())
+                .on_face(Face::BotX, grow(5).scale(0.83).mark("ring-z").build())
                 .build(),
         )
         .shape([
@@ -235,7 +235,7 @@ pub fn propellor() -> FabricPlan {
             during(Sec(40000.0), [vulcanize()]),
             centralize_at(1.0),
         ])
-        .pretense(pretense().surface(SurfaceCharacter::Absent))
+        .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Absent))
         .build_plan()
 }
 
@@ -244,30 +244,30 @@ pub fn headless_hug() -> FabricPlan {
     fabric("Headless Hug")
         .build(
             branch(BrickName::Omni)
-                .on_face(Face::BottomLeft, grow("....X..").scale(0.92).mark("legs").build())
-                .on_face(Face::BottomRight, grow("....X..").scale(0.92).mark("legs").build())
+                .on_face(Face::BottomLeft, grow(4).chiral().scale(0.92).build_node(grow(1).build_node(grow(2).chiral().mark("legs").build()).build()).build())
+                .on_face(Face::BottomRight, grow(4).chiral().scale(0.92).build_node(grow(1).build_node(grow(2).chiral().mark("legs").build()).build()).build())
                 .on_face(
                     Face::TopLeft,
-                    grow("XX")
+                    grow(2)
                         .scale(0.9)
                         .build_node(
                             branch(BrickName::Omni)
                                 .on_face(Face::TopZ, grow_mark("chest-1"))
                                 .on_face(Face::BotX, grow_mark("chest-2"))
-                                .on_face(Face::BotY, grow("...X..").scale(0.9).mark("hands").build())
+                                .on_face(Face::BotY, grow(3).chiral().scale(0.9).build_node(grow(1).build_node(grow(2).chiral().mark("hands").build()).build()).build())
                                 .build(),
                         )
                         .build(),
                 )
                 .on_face(
                     Face::TopRight,
-                    grow("XX")
+                    grow(2)
                         .scale(0.9)
                         .build_node(
                             branch(BrickName::Omni)
                                 .on_face(Face::TopY, grow_mark("chest-1"))
                                 .on_face(Face::BotZ, grow_mark("chest-2"))
-                                .on_face(Face::BotX, grow("...X..").scale(0.9).mark("hands").build())
+                                .on_face(Face::BotX, grow(3).chiral().scale(0.9).build_node(grow(1).build_node(grow(2).chiral().mark("hands").build()).build()).build())
                                 .build(),
                         )
                         .build(),
@@ -279,7 +279,7 @@ pub fn headless_hug() -> FabricPlan {
             during(Sec(6.0), [vulcanize()]),
             centralize_at(1.0),
         ])
-        .pretense(pretense().surface(SurfaceCharacter::Frozen))
+        .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Frozen))
         .build_plan()
 }
 
@@ -330,7 +330,7 @@ pub fn torque_ring() -> FabricPlan {
                 .build(),
         )
         .shape([join("loose"), centralize()])
-        .pretense(pretense().surface(SurfaceCharacter::Bouncy))
+        .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Bouncy))
         .build_plan()
 }
 

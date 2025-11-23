@@ -1,6 +1,6 @@
 /// Type-safe DSL for defining fabric plans with a fluent API.
 
-use crate::build::dsl::build_phase::{BuildNode, BuildPhase};
+use crate::build::dsl::build_phase::{BuildNode, BuildPhase, Chirality, GrowStyle};
 use crate::build::dsl::converge_phase::ConvergePhase;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::pretense_phase::PretensePhase;
@@ -154,10 +154,10 @@ impl BranchBuilder {
     }
 }
 
-/// Create a grow node
-pub fn grow(forward: impl Into<String>) -> GrowBuilder {
+/// Create a grow node (defaults to alternating chirality)
+pub fn grow(count: usize) -> GrowBuilder {
     GrowBuilder {
-        forward: forward.into(),
+        style: GrowStyle::alternating(count),
         scale_factor: 1.0,
         post_growth_nodes: Vec::new(),
     }
@@ -171,12 +171,17 @@ pub fn grow_mark(mark_name: impl Into<String>) -> BuildNode {
 }
 
 pub struct GrowBuilder {
-    forward: String,
+    style: GrowStyle,
     scale_factor: f32,
     post_growth_nodes: Vec<BuildNode>,
 }
 
 impl GrowBuilder {
+    pub fn chiral(mut self) -> Self {
+        self.style.chirality = Chirality::Chiral;
+        self
+    }
+
     pub fn scale(mut self, scale: f32) -> Self {
         self.scale_factor = scale;
         self
@@ -201,7 +206,7 @@ impl GrowBuilder {
 
     pub fn build(self) -> BuildNode {
         BuildNode::Grow {
-            forward: self.forward,
+            style: self.style,
             scale_factor: self.scale_factor,
             post_growth_nodes: self.post_growth_nodes,
         }
@@ -293,6 +298,7 @@ pub struct PretensePhaseBuilder {
     altitude: Option<Millimeters>,
     pretenst: Option<f32>,
     rigidity: Option<f32>,
+    seconds: Option<Seconds>,
 }
 
 impl PretensePhaseBuilder {
@@ -320,13 +326,16 @@ impl PretensePhaseBuilder {
         PretensePhase {
             surface_character: self.surface_character,
             pretenst: self.pretenst,
-            seconds: None,
+            seconds: self.seconds,
             rigidity: self.rigidity,
             altitude: self.altitude.map(|mm| mm.0),
         }
     }
 }
 
-pub fn pretense() -> PretensePhaseBuilder {
-    PretensePhaseBuilder::default()
+pub fn pretense(seconds: Seconds) -> PretensePhaseBuilder {
+    PretensePhaseBuilder {
+        seconds: Some(seconds),
+        ..Default::default()
+    }
 }

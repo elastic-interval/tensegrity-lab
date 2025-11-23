@@ -13,7 +13,6 @@ pub struct PhysicsTester {
     movement_sampler: Option<MovementSampler>,
     movement_analysis: Option<MovementAnalysis>,
     showing_analysis: bool,
-    fabric_was_frozen: bool,
 }
 
 impl PhysicsTester {
@@ -26,7 +25,6 @@ impl PhysicsTester {
             movement_sampler: None,
             movement_analysis: None,
             showing_analysis: false,
-            fabric_was_frozen: false,
         }
     }
 
@@ -36,14 +34,6 @@ impl PhysicsTester {
 
     pub fn iterate(&mut self, context: &mut CrucibleContext, iterations_per_frame: usize) {
         self.fabric = context.fabric.clone();
-
-        // If showing analysis, fabric should be frozen
-        if self.showing_analysis {
-            // Don't run physics while showing analysis
-            context.replace_fabric(self.fabric.clone());
-            *context.physics = self.physics.clone();
-            return;
-        }
 
         // Use our own physics (which has user modifications) instead of context.physics
         for _ in 0..iterations_per_frame {
@@ -70,8 +60,6 @@ impl PhysicsTester {
 
                     self.movement_analysis = Some(analysis);
                     self.showing_analysis = true;
-                    self.fabric_was_frozen = self.fabric.frozen;
-                    self.fabric.frozen = true;
 
                     // Clear the sampler
                     self.movement_sampler = None;
@@ -117,10 +105,9 @@ impl PhysicsTester {
             }
             ToggleMovementSampler => {
                 if self.showing_analysis {
-                    // Hide analysis and restore fabric state
+                    // Hide analysis
                     self.showing_analysis = false;
                     self.movement_analysis = None;
-                    self.fabric.frozen = self.fabric_was_frozen;
                     StateChange::ShowMovementAnalysis(None).send(&self.radio);
                 } else if self.movement_sampler.is_some() {
                     // Cancel active sampling
