@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod tests {
-    use crate::build::tenscript::brick_builders::build_brick_library;
-    use crate::build::tenscript::fabric_builders::build_fabric_library;
-    use crate::build::tenscript::brick_library::BrickLibrary;
-    use crate::build::tenscript::fabric_library::FabricLibrary;
-    use crate::build::tenscript::fabric_plan_executor::{FabricPlanExecutor, ExecutorStage};
+    use crate::build::dsl::brick_builders::build_brick_library;
+    use crate::build::dsl::fabric_builders::build_fabric_library;
+    use crate::build::dsl::brick_library::BrickLibrary;
+    use crate::build::dsl::fabric_library::FabricLibrary;
+    use crate::build::dsl::fabric_plan_executor::{FabricPlanExecutor, ExecutorStage};
     use crate::fabric::Fabric;
 
     /// Benchmark data point from UI reference run

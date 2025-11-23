@@ -1,4 +1,4 @@
-use crate::build::tenscript::animate_phase::{AnimatePhase, MuscleDirection};
+use crate::build::dsl::animate_phase::{AnimatePhase, MuscleDirection};
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::interval::Span;
 use crate::fabric::UniqueId;

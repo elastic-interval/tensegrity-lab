@@ -1,9 +1,9 @@
 use std::convert::Into;
 
-use crate::build::tenscript::brick_library::BrickLibrary;
-use crate::build::tenscript::build_phase::BuildNode::*;
-use crate::build::tenscript::build_phase::Launch::*;
-use crate::build::tenscript::{FaceAlias, FaceMark};
+use crate::build::dsl::brick_library::BrickLibrary;
+use crate::build::dsl::build_phase::BuildNode::*;
+use crate::build::dsl::build_phase::Launch::*;
+use crate::build::dsl::{FaceAlias, FaceMark};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::FaceRotation;
 use crate::fabric::{Fabric, UniqueId};

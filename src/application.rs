@@ -1,8 +1,8 @@
-use crate::build::tenscript::brick_builders::build_brick_library;
-use crate::build::tenscript::fabric_builders::build_fabric_library;
-use crate::build::tenscript::brick_library::BrickLibrary;
-use crate::build::tenscript::fabric_library::FabricLibrary;
-use crate::build::tenscript::FabricPlan;
+use crate::build::dsl::brick_builders::build_brick_library;
+use crate::build::dsl::fabric_builders::build_fabric_library;
+use crate::build::dsl::brick_library::BrickLibrary;
+use crate::build::dsl::fabric_library::FabricLibrary;
+use crate::build::dsl::FabricPlan;
 use crate::crucible::Crucible;
 use crate::fabric::Fabric;
 use crate::keyboard::Keyboard;
@@ -52,7 +52,7 @@ impl Application {
         window_attributes: WindowAttributes,
         radio: Radio,
     ) -> Application {
-        // Use Rust DSL instead of tenscript parsing
+        // Use Rust DSL instead of dsl parsing
         let brick_library = BrickLibrary::new(build_brick_library());
         let fabric_library = FabricLibrary::new(build_fabric_library());
         Application {

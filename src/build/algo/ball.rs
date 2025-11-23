@@ -1,6 +1,6 @@
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Quaternion, Rad, Rotation3, VectorSpace};
 
-use crate::build::sphere::{SphereScaffold, Vertex};
+use crate::build::algo::sphere::{SphereScaffold, Vertex};
 use crate::fabric::interval::Role;
 use crate::fabric::Fabric;
 

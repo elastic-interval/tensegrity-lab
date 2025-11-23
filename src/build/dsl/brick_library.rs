@@ -1,7 +1,7 @@
 use cgmath::SquareMatrix;
 
-use crate::build::tenscript::brick::{Baked, BrickDefinition};
-use crate::build::tenscript::FaceAlias;
+use crate::build::dsl::brick::{Baked, BrickDefinition};
+use crate::build::dsl::FaceAlias;
 
 #[derive(Clone, Debug)]
 pub struct BrickLibrary {
@@ -14,8 +14,8 @@ impl BrickLibrary {
     ///
     /// # Example
     /// ```
-    /// use tensegrity_lab::build::tenscript::brick_builders::build_brick_library;
-    /// use tensegrity_lab::build::tenscript::brick_library::BrickLibrary;
+    /// use tensegrity_lab::build::dsl::brick_builders::build_brick_library;
+    /// use tensegrity_lab::build::dsl::brick_library::BrickLibrary;
     ///
     /// let brick_library = BrickLibrary::new(build_brick_library());
     /// ```

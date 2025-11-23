@@ -1,5 +1,5 @@
-use crate::build::tenscript::pretense_phase::PretensePhase;
-use crate::build::tenscript::pretenser::Stage::*;
+use crate::build::dsl::pretense_phase::PretensePhase;
+use crate::build::dsl::pretenser::Stage::*;
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::PRETENSING;
 use crate::fabric::physics::Physics;

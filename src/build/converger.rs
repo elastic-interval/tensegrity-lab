@@ -1,4 +1,4 @@
-use crate::build::tenscript::converge_phase::ConvergePhase;
+use crate::build::dsl::converge_phase::ConvergePhase;
 use crate::crucible_context::CrucibleContext;
 use crate::units::Seconds;
 use crate::LabEvent;

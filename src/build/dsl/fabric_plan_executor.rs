@@ -7,10 +7,10 @@
 /// The executor maintains an execution log of critical events with precise timing,
 /// which can be inspected and verified in tests.
 
-use crate::build::tenscript::brick_library::BrickLibrary;
-use crate::build::tenscript::plan_runner::PlanRunner;
-use crate::build::tenscript::pretenser::Pretenser;
-use crate::build::tenscript::FabricPlan;
+use crate::build::dsl::brick_library::BrickLibrary;
+use crate::build::dsl::plan_runner::PlanRunner;
+use crate::build::dsl::pretenser::Pretenser;
+use crate::build::dsl::FabricPlan;
 use crate::build::converger::Converger;
 use crate::fabric::Fabric;
 use crate::fabric::physics::Physics;
@@ -183,7 +183,7 @@ impl FabricPlanExecutor {
                 let mut events_to_log = Vec::new();
 
                 if let Some(plan_runner) = &mut self.plan_runner {
-                    use crate::build::tenscript::plan_context::PlanContext;
+                    use crate::build::dsl::plan_context::PlanContext;
                     let mut context = PlanContext::new(&mut self.fabric, &mut self.physics, brick_library);
 
                     let prev_stage = plan_runner.stage;
@@ -195,7 +195,7 @@ impl FabricPlanExecutor {
                     // Check if we should log growth steps
                     let new_stage = plan_runner.stage;
                     if prev_stage != new_stage {
-                        if was_growing && prev_stage == crate::build::tenscript::plan_runner::Stage::GrowStep {
+                        if was_growing && prev_stage == crate::build::dsl::plan_runner::Stage::GrowStep {
                             events_to_log.push(ExecutionEvent::GrowthStep {
                                 iteration: self.current_iteration,
                                 joint_count: self.fabric.joints.len(),

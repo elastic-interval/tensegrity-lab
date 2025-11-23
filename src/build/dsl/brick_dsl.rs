@@ -1,9 +1,9 @@
 use cgmath::Point3;
-use crate::build::tenscript::brick::{
+use crate::build::dsl::brick::{
     Baked, BakedJoint, BakedInterval, BrickDefinition, BrickFace, 
     FaceDef, Prototype, PullDef, PushDef
 };
-use crate::build::tenscript::{FaceAlias, Spin};
+use crate::build::dsl::{FaceAlias, Spin};
 
 pub use crate::fabric::material::Material;
 
@@ -57,12 +57,12 @@ pub enum FaceContext {
     /// Alternative initial orientation
     Initial1,
     /// Placed on top of a parent face with this spin
-    OnSpin(crate::build::tenscript::Spin),
+    OnSpin(crate::build::dsl::Spin),
 }
 
 impl FaceContext {
     pub fn name(self) -> &'static str {
-        use crate::build::tenscript::Spin;
+        use crate::build::dsl::Spin;
         match self {
             FaceContext::Initial => ":seed",
             FaceContext::Initial1 => ":seed-1",
@@ -243,7 +243,7 @@ impl ProtoBuilder {
     }
 
     pub fn pushes<const N: usize>(mut self, ideal: f32, pushes: [(impl Into<String>, impl Into<String>); N]) -> Self {
-        use crate::build::tenscript::brick::Axis;
+        use crate::build::dsl::brick::Axis;
         self.pushes.extend(pushes.into_iter().map(|(alpha, omega)| PushDef {
             axis: Axis::X, // Axis is metadata, not used in our simplified builder
             alpha_name: alpha.into(),

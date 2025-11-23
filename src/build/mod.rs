@@ -1,9 +1,6 @@
+pub mod algo;
 pub mod animator;
-pub mod ball;
 pub mod converger;
 pub mod evo;
-pub mod klein;
-pub mod mobius;
 pub mod oven;
-pub mod sphere;
-pub mod tenscript;
+pub mod dsl;

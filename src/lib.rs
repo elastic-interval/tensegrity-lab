@@ -1,6 +1,6 @@
 #[allow(dead_code)]
-use crate::build::tenscript::brick::Prototype;
-use crate::build::tenscript::FabricPlan;
+use crate::build::dsl::brick::Prototype;
+use crate::build::dsl::FabricPlan;
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::{FabricStats, UniqueId};
 use crate::wgpu::Wgpu;

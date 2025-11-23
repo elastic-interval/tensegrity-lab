@@ -1,9 +1,9 @@
-use crate::build::tenscript::build_phase::BuildPhase;
-use crate::build::tenscript::plan_context::PlanContext;
-use crate::build::tenscript::plan_runner::Stage::*;
-use crate::build::tenscript::pretense_phase::PretensePhase;
-use crate::build::tenscript::shape_phase::{ShapeCommand, ShapePhase};
-use crate::build::tenscript::FabricPlan;
+use crate::build::dsl::build_phase::BuildPhase;
+use crate::build::dsl::plan_context::PlanContext;
+use crate::build::dsl::plan_runner::Stage::*;
+use crate::build::dsl::pretense_phase::PretensePhase;
+use crate::build::dsl::shape_phase::{ShapeCommand, ShapePhase};
+use crate::build::dsl::FabricPlan;
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::CONSTRUCTION;
 use crate::fabric::physics::Physics;

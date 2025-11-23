@@ -41,7 +41,6 @@ mod tests {
         eprintln!("Time(ms)  Altitude(m)  Velocity(m/s)  Accel(m/s²)");
         eprintln!("--------  -----------  -------------  -----------");
 
-        let mut last_altitude = altitude_mm;
         let mut last_velocity = 0.0;
 
         loop {
@@ -72,7 +71,6 @@ mod tests {
                 acceleration
             );
 
-            last_altitude = avg_altitude_mm;
             last_velocity = velocity_m_s;
 
             // Check if hit surface (altitude <= 0)

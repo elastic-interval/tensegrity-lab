@@ -6,8 +6,8 @@ use cgmath::{
     Vector3,
 };
 
-use crate::build::tenscript::Spin::{Left, Right};
-use crate::build::tenscript::{FaceAlias, Spin};
+use crate::build::dsl::Spin::{Left, Right};
+use crate::build::dsl::{FaceAlias, Spin};
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint_incident::JointIncident;
 use crate::fabric::Fabric;
@@ -79,7 +79,7 @@ impl BrickDefinition {
         }
         
         // Derive faces from prototype
-        crate::build::tenscript::brick_dsl::derive_baked_faces(&self.proto)
+        crate::build::dsl::brick_dsl::derive_baked_faces(&self.proto)
     }
 }
 

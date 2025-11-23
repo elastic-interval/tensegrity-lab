@@ -2,8 +2,8 @@
 ///
 /// All supporting types and helpers are in the `fabric_dsl` module.
 
-use crate::build::tenscript::fabric_dsl::*;
-use crate::build::tenscript::fabric_plan::FabricPlan;
+use crate::build::dsl::fabric_dsl::*;
+use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::fabric::physics::SurfaceCharacter;
 
 /// Build the Triped fabric

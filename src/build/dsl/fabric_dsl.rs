@@ -1,16 +1,16 @@
 /// Type-safe DSL for defining fabric plans with a fluent API.
 
-use crate::build::tenscript::build_phase::{BuildNode, BuildPhase};
-use crate::build::tenscript::converge_phase::ConvergePhase;
-use crate::build::tenscript::fabric_plan::FabricPlan;
-use crate::build::tenscript::pretense_phase::PretensePhase;
-use crate::build::tenscript::shape_phase::ShapeOperation;
-use crate::build::tenscript::FaceAlias;
+use crate::build::dsl::build_phase::{BuildNode, BuildPhase};
+use crate::build::dsl::converge_phase::ConvergePhase;
+use crate::build::dsl::fabric_plan::FabricPlan;
+use crate::build::dsl::pretense_phase::PretensePhase;
+use crate::build::dsl::shape_phase::ShapeOperation;
+use crate::build::dsl::FaceAlias;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Millimeters, Seconds};
 
-pub use crate::build::tenscript::brick_dsl::{BrickName, Face};
-pub use crate::build::tenscript::build_phase::BuildNode as Node;
+pub use crate::build::dsl::brick_dsl::{BrickName, Face};
+pub use crate::build::dsl::build_phase::BuildNode as Node;
 pub use crate::units::{Millimeters as Mm, Seconds as Sec};
 
 
@@ -83,7 +83,7 @@ impl FabricBuilder {
         FabricPlan {
             name: self.name,
             build_phase: BuildPhase::new(self.build.expect("build phase required")),
-            shape_phase: crate::build::tenscript::shape_phase::ShapePhase {
+            shape_phase: crate::build::dsl::shape_phase::ShapePhase {
                 operations: self.shape,
                 marks: Vec::new(),
                 spacers: Vec::new(),

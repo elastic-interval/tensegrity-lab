@@ -1,8 +1,8 @@
 use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
 
-use crate::build::tenscript::brick::{Baked, BakedInterval, BakedJoint, BrickFace};
-use crate::build::tenscript::brick_library::BrickLibrary;
-use crate::build::tenscript::{FaceAlias, Spin};
+use crate::build::dsl::brick::{Baked, BakedInterval, BakedJoint, BrickFace};
+use crate::build::dsl::brick_library::BrickLibrary;
+use crate::build::dsl::{FaceAlias, Spin};
 use crate::fabric::face::FaceRotation;
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, UniqueId};
