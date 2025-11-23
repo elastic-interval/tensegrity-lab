@@ -10,7 +10,7 @@ impl FabricLibrary {
     ///
     /// # Example
     /// ```
-    /// use tensegrity_lab::build::fabric_builders::build_fabric_library;
+    /// use tensegrity_lab::build::tenscript::fabric_builders::build_fabric_library;
     /// use tensegrity_lab::build::tenscript::fabric_library::FabricLibrary;
     ///
     /// let fabric_library = FabricLibrary::new(build_fabric_library());
