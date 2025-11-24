@@ -1,21 +1,21 @@
+use crate::build::dsl::brick::BrickDefinition;
 /// Brick definitions using the type-safe Rust DSL.
 ///
 /// All supporting types and helpers are in the `brick_dsl` module.
 
 use crate::build::dsl::brick_dsl::*;
-use crate::build::dsl::brick::BrickDefinition;
+use crate::build::dsl::brick_dsl::FaceName::{Single, OmiFaceDown, Four, TorqueOnTop, TorqueFourDown, TorqueTied};
 use crate::build::dsl::Spin;
 
 /// Build the Single-right brick
 pub fn single_right() -> BrickDefinition {
-    use SingleJoint::*;
-    
-    
+    use JointName::*;
+    use SingleFace::*;
+
     use BrickName::*;
     use FaceContext::*;
-    use Face::*;
-    
-    proto(Single)
+
+    proto(SingleBrick)
         .pushes(3.204, [
             (AlphaX, OmegaX),
             (AlphaY, OmegaY),
@@ -27,12 +27,12 @@ pub fn single_right() -> BrickDefinition {
             (AlphaZ, OmegaY),
         ])
         .face(Spin::Right, [AlphaZ, AlphaY, AlphaX], [
-            (OnSpin(Spin::Right), &[Base]),
-            (Initial, &[Base]),
+            OnSpinRight.calls_it(&[Single(Base)]),
+            SeedA.calls_it(&[Single(Base)]),
         ])
         .face(Spin::Right, [OmegaX, OmegaY, OmegaZ], [
-            (OnSpin(Spin::Right), &[Top, NextBase]),
-            (Initial, &[NextBase]),
+            OnSpinRight.calls_it(&[Single(Top), Single(NextBase)]),
+            SeedA.calls_it(&[Single(NextBase)]),
         ])
         .baked()
         .joints([
@@ -59,14 +59,13 @@ pub fn single_right() -> BrickDefinition {
 
 /// Build the Single-left brick
 pub fn single_left() -> BrickDefinition {
-    use SingleJoint::*;
-    
-    
+    use JointName::*;
+    use SingleFace::*;
+
     use BrickName::*;
     use FaceContext::*;
-    use Face::*;
-    
-    proto(Single)
+
+    proto(SingleBrick)
         .pushes(3.204, [
             (AlphaX, OmegaX),
             (AlphaY, OmegaY),
@@ -78,12 +77,12 @@ pub fn single_left() -> BrickDefinition {
             (AlphaZ, OmegaX),
         ])
         .face(Spin::Left, [AlphaX, AlphaY, AlphaZ], [
-            (OnSpin(Spin::Left), &[Base]),
-            (Initial, &[Base]),
+            OnSpinLeft.calls_it(&[Single(Base)]),
+            SeedA.calls_it(&[Single(Base)]),
         ])
         .face(Spin::Left, [OmegaZ, OmegaY, OmegaX], [
-            (OnSpin(Spin::Left), &[Top, NextBase]),
-            (Initial, &[NextBase]),
+            OnSpinLeft.calls_it(&[Single(Top), Single(NextBase)]),
+            SeedA.calls_it(&[Single(NextBase)]),
         ])
         .baked()
         .joints([
@@ -110,12 +109,13 @@ pub fn single_left() -> BrickDefinition {
 
 /// Build the Omni brick
 pub fn omni() -> BrickDefinition {
-    use OmniJoint::*;
-    
-    
+    use JointName::*;
+    use OmniFaceDown::*;
+    use FourDown::{BackLeft, BackRight, BottomLeft, BottomRight, FrontLeft, FrontRight, TopLeft, TopRight};
+    use SingleFace::Base;
+
     use BrickName::*;
     use FaceContext::*;
-    use Face::*;
     
     proto(Omni)
         .pushes(3.271, [
@@ -127,52 +127,52 @@ pub fn omni() -> BrickDefinition {
             (TopAlphaZ, TopOmegaZ),
         ])
         .face(Spin::Right, [TopOmegaX, TopOmegaY, TopOmegaZ], [
-            (OnSpin(Spin::Left), &[Top]),
-            (OnSpin(Spin::Right), &[Base]),
-            (Initial, &[TopRight]),
-            (Initial1, &[Base, Bot]),
+            OnSpinLeft.calls_it(&[OmiFaceDown(Top)]),
+            OnSpinRight.calls_it(&[Single(Base)]),
+            SeedA.calls_it(&[Four(TopRight)]),
+            SeedB.calls_it(&[Single(Base), OmiFaceDown(Bot)]),
         ])
         .face(Spin::Left, [TopOmegaX, TopAlphaY, BotOmegaZ], [
-            (OnSpin(Spin::Left), &[TopX]),
-            (OnSpin(Spin::Right), &[BotX]),
-            (Initial, &[FrontRight]),
-            (Initial1, &[BotX]),
+            OnSpinLeft.calls_it(&[OmiFaceDown(TopX)]),
+            OnSpinRight.calls_it(&[OmiFaceDown(BotX)]),
+            SeedA.calls_it(&[Four(FrontRight)]),
+            SeedB.calls_it(&[OmiFaceDown(BotX)]),
         ])
         .face(Spin::Left, [TopOmegaY, TopAlphaZ, BotOmegaX], [
-            (OnSpin(Spin::Left), &[TopY]),
-            (OnSpin(Spin::Right), &[BotY]),
-            (Initial, &[BackRight]),
-            (Initial1, &[BotY]),
+            OnSpinLeft.calls_it(&[OmiFaceDown(TopY)]),
+            OnSpinRight.calls_it(&[OmiFaceDown(BotY)]),
+            SeedA.calls_it(&[Four(BackRight)]),
+            SeedB.calls_it(&[OmiFaceDown(BotY)]),
         ])
         .face(Spin::Left, [TopOmegaZ, TopAlphaX, BotOmegaY], [
-            (OnSpin(Spin::Left), &[TopZ]),
-            (OnSpin(Spin::Right), &[BotZ]),
-            (Initial, &[TopLeft]),
-            (Initial1, &[BotZ]),
+            OnSpinLeft.calls_it(&[OmiFaceDown(TopZ)]),
+            OnSpinRight.calls_it(&[OmiFaceDown(BotZ)]),
+            SeedA.calls_it(&[Four(TopLeft)]),
+            SeedB.calls_it(&[OmiFaceDown(BotZ)]),
         ])
         .face(Spin::Right, [BotAlphaZ, BotOmegaX, TopAlphaY], [
-            (OnSpin(Spin::Left), &[BotZ]),
-            (OnSpin(Spin::Right), &[TopZ]),
-            (Initial, &[Base, BottomRight]),
-            (Initial1, &[TopZ]),
+            OnSpinLeft.calls_it(&[OmiFaceDown(BotZ)]),
+            OnSpinRight.calls_it(&[OmiFaceDown(TopZ)]),
+            SeedA.calls_it(&[Single(Base), Four(BottomRight)]),
+            SeedB.calls_it(&[OmiFaceDown(TopZ)]),
         ])
         .face(Spin::Right, [BotAlphaY, BotOmegaZ, TopAlphaX], [
-            (OnSpin(Spin::Left), &[BotY]),
-            (OnSpin(Spin::Right), &[TopY]),
-            (Initial, &[FrontLeft]),
-            (Initial1, &[TopY]),
+            OnSpinLeft.calls_it(&[OmiFaceDown(BotY)]),
+            OnSpinRight.calls_it(&[OmiFaceDown(TopY)]),
+            SeedA.calls_it(&[Four(FrontLeft)]),
+            SeedB.calls_it(&[OmiFaceDown(TopY)]),
         ])
         .face(Spin::Right, [BotAlphaX, BotOmegaY, TopAlphaZ], [
-            (OnSpin(Spin::Left), &[BotX]),
-            (OnSpin(Spin::Right), &[TopX]),
-            (Initial, &[BackLeft]),
-            (Initial1, &[TopX]),
+            OnSpinLeft.calls_it(&[OmiFaceDown(BotX)]),
+            OnSpinRight.calls_it(&[OmiFaceDown(TopX)]),
+            SeedA.calls_it(&[Four(BackLeft)]),
+            SeedB.calls_it(&[OmiFaceDown(TopX)]),
         ])
         .face(Spin::Left, [BotAlphaX, BotAlphaY, BotAlphaZ], [
-            (OnSpin(Spin::Left), &[Base]),
-            (OnSpin(Spin::Right), &[Top]),
-            (Initial, &[Base, BottomLeft]),
-            (Initial1, &[Top]),
+            OnSpinLeft.calls_it(&[Single(Base)]),
+            OnSpinRight.calls_it(&[OmiFaceDown(Top)]),
+            SeedA.calls_it(&[Single(Base), Four(BottomLeft)]),
+            SeedB.calls_it(&[OmiFaceDown(Top)]),
         ])
         .baked()
         .joints([
@@ -203,77 +203,81 @@ pub fn omni() -> BrickDefinition {
 
 /// Build the Torque brick
 pub fn torque() -> BrickDefinition {
-    
-    
+    use JointName::*;
+
     use BrickName::*;
     use FaceContext::*;
-    use Face::*;
+    use TorqueFaceOnTop::*;
+    use TorqueFaceFourDown::*;
+    use SingleFace::Base;
+    
+    
 
     proto(Torque)
         .pushes(3.0, [
-            ("left_front", "left_back"),
-            ("middle_front", "middle_back"),
-            ("right_front", "right_back"),
+            (LeftFront, LeftBack),
+            (MiddleFront, MiddleBack),
+            (RightFront, RightBack),
         ])
         .pushes(3.0, [
-            ("front_left_bottom", "front_left_top"),
-            ("front_right_bottom", "front_right_top"),
-            ("back_left_bottom", "back_left_top"),
-            ("back_right_bottom", "back_right_top"),
+            (FrontLeftBottom, FrontLeftTop),
+            (FrontRightBottom, FrontRightTop),
+            (BackLeftBottom, BackLeftTop),
+            (BackRightBottom, BackRightTop),
         ])
         .pushes(6.0, [
-            ("top_left", "top_right"),
-            ("bottom_left", "bottom_right"),
+            (TopLeft, TopRight),
+            (BottomLeft, BottomRight),
         ])
         .pulls(1.86, [
-            ("middle_front", "front_left_bottom"),
-            ("middle_front", "front_left_top"),
-            ("middle_front", "front_right_bottom"),
-            ("middle_front", "front_right_top"),
-            ("middle_back", "back_left_bottom"),
-            ("middle_back", "back_left_top"),
-            ("middle_back", "back_right_bottom"),
-            ("middle_back", "back_right_top"),
+            (MiddleFront, FrontLeftBottom),
+            (MiddleFront, FrontLeftTop),
+            (MiddleFront, FrontRightBottom),
+            (MiddleFront, FrontRightTop),
+            (MiddleBack, BackLeftBottom),
+            (MiddleBack, BackLeftTop),
+            (MiddleBack, BackRightBottom),
+            (MiddleBack, BackRightTop),
         ])
-        .face(Spin::Left, ["bottom_left", "left_front", "front_left_bottom"], [
-            (OnSpin(Spin::Left), &[Base]),
-            (OnSpin(Spin::Right), &[FarSide]),
-            (Initial, &[LeftFrontBottom, Base]),
+        .face(Spin::Left, [BottomLeft, LeftFront, FrontLeftBottom], [
+            OnSpinLeft.calls_it(&[Single(Base)]),
+            OnSpinRight.calls_it(&[TorqueOnTop(FarSide)]),
+            SeedA.calls_it(&[TorqueFourDown(LeftFrontBottom), Single(Base)]),
         ])
-        .face(Spin::Right, ["bottom_left", "left_back", "back_left_bottom"], [
-            (OnSpin(Spin::Left), &[BaseBack]),
-            (OnSpin(Spin::Right), &[FarBack]),
-            (Initial, &[LeftBackBottom, Base]),
+        .face(Spin::Right, [BottomLeft, LeftBack, BackLeftBottom], [
+            OnSpinLeft.calls_it(&[TorqueOnTop(BaseBack)]),
+            OnSpinRight.calls_it(&[TorqueOnTop(FarBack)]),
+            SeedA.calls_it(&[TorqueFourDown(LeftBackBottom), Single(Base)]),
         ])
-        .face(Spin::Left, ["bottom_right", "right_back", "back_right_bottom"], [
-            (OnSpin(Spin::Left), &[FarBack]),
-            (OnSpin(Spin::Right), &[BaseBack]),
-            (Initial, &[RightBackBottom, Base]),
+        .face(Spin::Left, [BottomRight, RightBack, BackRightBottom], [
+            OnSpinLeft.calls_it(&[TorqueOnTop(FarBack)]),
+            OnSpinRight.calls_it(&[TorqueOnTop(BaseBack)]),
+            SeedA.calls_it(&[TorqueFourDown(RightBackBottom), Single(Base)]),
         ])
-        .face(Spin::Right, ["bottom_right", "right_front", "front_right_bottom"], [
-            (OnSpin(Spin::Left), &[FarSide]),
-            (OnSpin(Spin::Right), &[Base]),
-            (Initial, &[RightFrontBottom, Base]),
+        .face(Spin::Right, [BottomRight, RightFront, FrontRightBottom], [
+            OnSpinLeft.calls_it(&[TorqueOnTop(FarSide)]),
+            OnSpinRight.calls_it(&[Single(Base)]),
+            SeedA.calls_it(&[TorqueFourDown(RightFrontBottom), Single(Base)]),
         ])
-        .face(Spin::Left, ["top_left", "left_back", "back_left_top"], [
-            (OnSpin(Spin::Left), &[BaseSide]),
-            (OnSpin(Spin::Right), &[FarBase]),
-            (Initial, &[LeftBackTop]),
+        .face(Spin::Left, [TopLeft, LeftBack, BackLeftTop], [
+            OnSpinLeft.calls_it(&[TorqueOnTop(BaseSide)]),
+            OnSpinRight.calls_it(&[TorqueOnTop(FarBase)]),
+            SeedA.calls_it(&[TorqueFourDown(LeftBackTop)]),
         ])
-        .face(Spin::Right, ["top_left", "left_front", "front_left_top"], [
-            (OnSpin(Spin::Left), &[BaseFront]),
-            (OnSpin(Spin::Right), &[FarFront]),
-            (Initial, &[LeftFrontTop]),
+        .face(Spin::Right, [TopLeft, LeftFront, FrontLeftTop], [
+            OnSpinLeft.calls_it(&[TorqueOnTop(BaseFront)]),
+            OnSpinRight.calls_it(&[TorqueOnTop(FarFront)]),
+            SeedA.calls_it(&[TorqueFourDown(LeftFrontTop)]),
         ])
-        .face(Spin::Left, ["top_right", "right_front", "front_right_top"], [
-            (OnSpin(Spin::Left), &[FarFront]),
-            (OnSpin(Spin::Right), &[BaseFront]),
-            (Initial, &[RightFrontTop]),
+        .face(Spin::Left, [TopRight, RightFront, FrontRightTop], [
+            OnSpinLeft.calls_it(&[TorqueOnTop(FarFront)]),
+            OnSpinRight.calls_it(&[TorqueOnTop(BaseFront)]),
+            SeedA.calls_it(&[TorqueFourDown(RightFrontTop)]),
         ])
-        .face(Spin::Right, ["top_right", "right_back", "back_right_top"], [
-            (OnSpin(Spin::Left), &[FarBase]),
-            (OnSpin(Spin::Right), &[BaseSide]),
-            (Initial, &[RightBackTop]),
+        .face(Spin::Right, [TopRight, RightBack, BackRightTop], [
+            OnSpinLeft.calls_it(&[TorqueOnTop(FarBase)]),
+            OnSpinRight.calls_it(&[TorqueOnTop(BaseSide)]),
+            SeedA.calls_it(&[TorqueFourDown(RightBackTop)]),
         ])
         .baked()
         .joints([
@@ -322,83 +326,88 @@ pub fn torque() -> BrickDefinition {
 
 /// Build the TorqueRight brick
 pub fn torque_right() -> BrickDefinition {
-    
-    
+    use JointName::*;
+
     use BrickName::*;
     use FaceContext::*;
-    use Face::*;
+    use TorqueFaceOnTop::*;
+    use TorqueFaceFourDown::*;
+    use TorqueTiedFace::*;
+    use SingleFace::Base;
+    
+    
 
     proto(TorqueRight)
-        .joints(["middle_front", "middle_back"])
+        .joints([MiddleFront, MiddleBack])
         .pushes(3.35, [
-            ("left_front", "left_back"),
-            ("right_front", "right_back"),
+            (LeftFront, LeftBack),
+            (RightFront, RightBack),
         ])
         .pushes(3.6, [
-            ("front_left_bottom", "front_left_top"),
-            ("front_right_bottom", "front_right_top"),
-            ("back_left_bottom", "back_left_top"),
-            ("back_right_bottom", "back_right_top"),
+            (FrontLeftBottom, FrontLeftTop),
+            (FrontRightBottom, FrontRightTop),
+            (BackLeftBottom, BackLeftTop),
+            (BackRightBottom, BackRightTop),
         ])
         .pushes(5.6, [
-            ("top_left", "top_right"),
-            ("bottom_left", "bottom_right"),
+            (TopLeft, TopRight),
+            (BottomLeft, BottomRight),
         ])
         .pulls(1.98, [
-            ("middle_front", "front_left_bottom"),
-            ("middle_front", "front_left_top"),
-            ("middle_front", "front_right_bottom"),
-            ("middle_front", "front_right_top"),
-            ("middle_back", "back_left_bottom"),
-            ("middle_back", "back_left_top"),
-            ("middle_back", "back_right_bottom"),
-            ("middle_back", "back_right_top"),
+            (MiddleFront, FrontLeftBottom),
+            (MiddleFront, FrontLeftTop),
+            (MiddleFront, FrontRightBottom),
+            (MiddleFront, FrontRightTop),
+            (MiddleBack, BackLeftBottom),
+            (MiddleBack, BackLeftTop),
+            (MiddleBack, BackRightBottom),
+            (MiddleBack, BackRightTop),
         ])
         .pulls(1.92, [
-            ("middle_front", "back_left_bottom"),
-            ("middle_front", "back_right_top"),
-            ("middle_back", "front_right_bottom"),
-            ("middle_back", "front_left_top"),
+            (MiddleFront, BackLeftBottom),
+            (MiddleFront, BackRightTop),
+            (MiddleBack, FrontRightBottom),
+            (MiddleBack, FrontLeftTop),
         ])
-        .face(Spin::Left, ["bottom_left", "left_front", "front_left_bottom"], [
-            (OnSpin(Spin::Left), &[Base]),
-            (OnSpin(Spin::Right), &[OtherA]),
-            (Initial, &[LeftFrontBottom, Base]),
+        .face(Spin::Left, [BottomLeft, LeftFront, FrontLeftBottom], [
+            OnSpinLeft.calls_it(&[Single(Base)]),
+            OnSpinRight.calls_it(&[TorqueTied(OtherA)]),
+            SeedA.calls_it(&[TorqueFourDown(LeftFrontBottom), Single(Base)]),
         ])
-        .face(Spin::Right, ["bottom_left", "left_back", "back_left_bottom"], [
-            (OnSpin(Spin::Left), &[OtherA]),
-            (OnSpin(Spin::Right), &[Base]),
-            (Initial, &[LeftBackBottom, Base]),
+        .face(Spin::Right, [BottomLeft, LeftBack, BackLeftBottom], [
+            OnSpinLeft.calls_it(&[TorqueTied(OtherA)]),
+            OnSpinRight.calls_it(&[Single(Base)]),
+            SeedA.calls_it(&[TorqueFourDown(LeftBackBottom), Single(Base)]),
         ])
-        .face(Spin::Left, ["bottom_right", "right_back", "back_right_bottom"], [
-            (OnSpin(Spin::Left), &[FarBase]),
-            (OnSpin(Spin::Right), &[FarOtherA]),
-            (Initial, &[RightBackBottom, Base]),
+        .face(Spin::Left, [BottomRight, RightBack, BackRightBottom], [
+            OnSpinLeft.calls_it(&[TorqueOnTop(FarBase)]),
+            OnSpinRight.calls_it(&[TorqueTied(FarOtherA)]),
+            SeedA.calls_it(&[TorqueFourDown(RightBackBottom), Single(Base)]),
         ])
-        .face(Spin::Right, ["bottom_right", "right_front", "front_right_bottom"], [
-            (OnSpin(Spin::Left), &[FarOtherB]),
-            (OnSpin(Spin::Right), &[FarBrother]),
-            (Initial, &[RightFrontBottom, Base]),
+        .face(Spin::Right, [BottomRight, RightFront, FrontRightBottom], [
+            OnSpinLeft.calls_it(&[TorqueTied(FarOtherB)]),
+            OnSpinRight.calls_it(&[TorqueOnTop(FarBrother)]),
+            SeedA.calls_it(&[TorqueFourDown(RightFrontBottom), Single(Base)]),
         ])
-        .face(Spin::Left, ["top_left", "left_back", "back_left_top"], [
-            (OnSpin(Spin::Left), &[Brother]),
-            (OnSpin(Spin::Right), &[OtherB]),
-            (Initial, &[LeftBackTop]),
+        .face(Spin::Left, [TopLeft, LeftBack, BackLeftTop], [
+            OnSpinLeft.calls_it(&[TorqueTied(Brother)]),
+            OnSpinRight.calls_it(&[TorqueTied(OtherB)]),
+            SeedA.calls_it(&[TorqueFourDown(LeftBackTop)]),
         ])
-        .face(Spin::Right, ["top_left", "left_front", "front_left_top"], [
-            (OnSpin(Spin::Left), &[OtherB]),
-            (OnSpin(Spin::Right), &[Brother]),
-            (Initial, &[LeftFrontTop]),
+        .face(Spin::Right, [TopLeft, LeftFront, FrontLeftTop], [
+            OnSpinLeft.calls_it(&[TorqueTied(OtherB)]),
+            OnSpinRight.calls_it(&[TorqueTied(Brother)]),
+            SeedA.calls_it(&[TorqueFourDown(LeftFrontTop)]),
         ])
-        .face(Spin::Left, ["top_right", "right_front", "front_right_top"], [
-            (OnSpin(Spin::Left), &[FarBrother]),
-            (OnSpin(Spin::Right), &[FarOtherB]),
-            (Initial, &[RightFrontTop]),
+        .face(Spin::Left, [TopRight, RightFront, FrontRightTop], [
+            OnSpinLeft.calls_it(&[TorqueOnTop(FarBrother)]),
+            OnSpinRight.calls_it(&[TorqueTied(FarOtherB)]),
+            SeedA.calls_it(&[TorqueFourDown(RightFrontTop)]),
         ])
-        .face(Spin::Right, ["top_right", "right_back", "back_right_top"], [
-            (OnSpin(Spin::Left), &[FarOtherA]),
-            (OnSpin(Spin::Right), &[FarBase]),
-            (Initial, &[RightBackTop]),
+        .face(Spin::Right, [TopRight, RightBack, BackRightTop], [
+            OnSpinLeft.calls_it(&[TorqueTied(FarOtherA)]),
+            OnSpinRight.calls_it(&[TorqueOnTop(FarBase)]),
+            SeedA.calls_it(&[TorqueFourDown(RightBackTop)]),
         ])
         .baked()
         .joints([
@@ -450,83 +459,88 @@ pub fn torque_right() -> BrickDefinition {
 
 /// Build the TorqueLeft brick
 pub fn torque_left() -> BrickDefinition {
-    
-    
+    use JointName::*;
+
     use BrickName::*;
     use FaceContext::*;
-    use Face::*;
+    use TorqueFaceOnTop::*;
+    use TorqueFaceFourDown::*;
+    use TorqueTiedFace::*;
+    use SingleFace::Base;
+    
+    
 
     proto(TorqueLeft)
-        .joints(["middle_front", "middle_back"])
+        .joints([MiddleFront, MiddleBack])
         .pushes(3.35, [
-            ("left_front", "left_back"),
-            ("right_front", "right_back"),
+            (LeftFront, LeftBack),
+            (RightFront, RightBack),
         ])
         .pushes(3.6, [
-            ("front_left_bottom", "front_left_top"),
-            ("front_right_bottom", "front_right_top"),
-            ("back_left_bottom", "back_left_top"),
-            ("back_right_bottom", "back_right_top"),
+            (FrontLeftBottom, FrontLeftTop),
+            (FrontRightBottom, FrontRightTop),
+            (BackLeftBottom, BackLeftTop),
+            (BackRightBottom, BackRightTop),
         ])
         .pushes(5.6, [
-            ("top_left", "top_right"),
-            ("bottom_left", "bottom_right"),
+            (TopLeft, TopRight),
+            (BottomLeft, BottomRight),
         ])
         .pulls(1.98, [
-            ("middle_front", "front_left_bottom"),
-            ("middle_front", "front_left_top"),
-            ("middle_front", "front_right_bottom"),
-            ("middle_front", "front_right_top"),
-            ("middle_back", "back_left_bottom"),
-            ("middle_back", "back_left_top"),
-            ("middle_back", "back_right_bottom"),
-            ("middle_back", "back_right_top"),
+            (MiddleFront, FrontLeftBottom),
+            (MiddleFront, FrontLeftTop),
+            (MiddleFront, FrontRightBottom),
+            (MiddleFront, FrontRightTop),
+            (MiddleBack, BackLeftBottom),
+            (MiddleBack, BackLeftTop),
+            (MiddleBack, BackRightBottom),
+            (MiddleBack, BackRightTop),
         ])
         .pulls(1.92, [
-            ("middle_back", "front_left_bottom"),
-            ("middle_back", "front_right_top"),
-            ("middle_front", "back_right_bottom"),
-            ("middle_front", "back_left_top"),
+            (MiddleBack, FrontLeftBottom),
+            (MiddleBack, FrontRightTop),
+            (MiddleFront, BackRightBottom),
+            (MiddleFront, BackLeftTop),
         ])
-        .face(Spin::Left, ["bottom_left", "left_front", "front_left_bottom"], [
-            (OnSpin(Spin::Right), &[OtherA]),
-            (OnSpin(Spin::Left), &[Base]),
-            (Initial, &[LeftFrontBottom, Base]),
+        .face(Spin::Left, [BottomLeft, LeftFront, FrontLeftBottom], [
+            OnSpinRight.calls_it(&[TorqueTied(OtherA)]),
+            OnSpinLeft.calls_it(&[Single(Base)]),
+            SeedA.calls_it(&[TorqueFourDown(LeftFrontBottom), Single(Base)]),
         ])
-        .face(Spin::Right, ["bottom_left", "left_back", "back_left_bottom"], [
-            (OnSpin(Spin::Right), &[Base]),
-            (OnSpin(Spin::Left), &[OtherA]),
-            (Initial, &[LeftBackBottom, Base]),
+        .face(Spin::Right, [BottomLeft, LeftBack, BackLeftBottom], [
+            OnSpinRight.calls_it(&[Single(Base)]),
+            OnSpinLeft.calls_it(&[TorqueTied(OtherA)]),
+            SeedA.calls_it(&[TorqueFourDown(LeftBackBottom), Single(Base)]),
         ])
-        .face(Spin::Left, ["bottom_right", "right_back", "back_right_bottom"], [
-            (OnSpin(Spin::Right), &[FarOtherB]),
-            (OnSpin(Spin::Left), &[FarBrother]),
-            (Initial, &[RightBackBottom, Base]),
+        .face(Spin::Left, [BottomRight, RightBack, BackRightBottom], [
+            OnSpinRight.calls_it(&[TorqueTied(FarOtherB)]),
+            OnSpinLeft.calls_it(&[TorqueOnTop(FarBrother)]),
+            SeedA.calls_it(&[TorqueFourDown(RightBackBottom), Single(Base)]),
         ])
-        .face(Spin::Right, ["bottom_right", "right_front", "front_right_bottom"], [
-            (OnSpin(Spin::Right), &[FarBase]),
-            (OnSpin(Spin::Left), &[FarOtherA]),
-            (Initial, &[RightFrontBottom, Base]),
+        .face(Spin::Right, [BottomRight, RightFront, FrontRightBottom], [
+            OnSpinRight.calls_it(&[TorqueOnTop(FarBase)]),
+            OnSpinLeft.calls_it(&[TorqueTied(FarOtherA)]),
+            SeedA.calls_it(&[TorqueFourDown(RightFrontBottom), Single(Base)]),
         ])
-        .face(Spin::Left, ["top_left", "left_back", "back_left_top"], [
-            (OnSpin(Spin::Right), &[OtherB]),
-            (OnSpin(Spin::Left), &[Brother]),
-            (Initial, &[LeftBackTop]),
+        .face(Spin::Left, [TopLeft, LeftBack, BackLeftTop], [
+            OnSpinRight.calls_it(&[TorqueTied(OtherB)]),
+            OnSpinLeft.calls_it(&[TorqueTied(Brother)]),
+            SeedA.calls_it(&[TorqueFourDown(LeftBackTop)]),
         ])
-        .face(Spin::Right, ["top_left", "left_front", "front_left_top"], [
-            (OnSpin(Spin::Right), &[Brother]),
-            (OnSpin(Spin::Left), &[OtherB]),
-            (Initial, &[LeftFrontTop]),
+        .face(Spin::Right, [TopLeft, LeftFront, FrontLeftTop], [
+            OnSpinRight.calls_it(&[TorqueTied(Brother)]),
+            OnSpinLeft.calls_it(&[TorqueTied(OtherB)]),
+            SeedA.calls_it(&[TorqueFourDown(LeftFrontTop)]),
         ])
-        .face(Spin::Left, ["top_right", "right_front", "front_right_top"], [
-            (OnSpin(Spin::Right), &[FarOtherA]),
-            (OnSpin(Spin::Left), &[FarBase]),
-            (Initial, &[RightFrontTop]),
+        .face(Spin::Left, [TopRight, RightFront, FrontRightTop], [
+            OnSpinRight.calls_it(&[TorqueTied(FarOtherA)]),
+            OnSpinLeft.calls_it(&[TorqueOnTop(FarBase)]),
+            SeedA.calls_it(&[TorqueFourDown(RightFrontTop)]),
         ])
-        .face(Spin::Right, ["top_right", "right_back", "back_right_top"], [
-            (OnSpin(Spin::Right), &[FarBrother]),
-            (OnSpin(Spin::Left), &[FarOtherB]),
-            (Initial, &[RightBackTop]),
+        .face(Spin::Right, [TopRight, RightBack, BackRightTop], [
+            OnSpinRight.calls_it(&[TorqueOnTop(FarBrother)]),
+            OnSpinLeft.calls_it(&[TorqueTied(FarOtherB)]),
+            SeedA.calls_it(&[TorqueFourDown(RightBackTop)]),
         ])
         .baked()
         .joints([
@@ -578,77 +592,81 @@ pub fn torque_left() -> BrickDefinition {
 
 /// Build the Equals brick
 pub fn equals() -> BrickDefinition {
-    
-    
+    use JointName::*;
+
     use BrickName::*;
     use FaceContext::*;
-    use Face::*;
+    use TorqueFaceOnTop::*;
+    use TorqueFaceFourDown::*;
+    use SingleFace::Base;
+    
+    
 
     let proto = proto(Equals)
         .pushes(4.0, [
-            ("left_front", "left_back"),
-            ("middle_front", "middle_back"),
-            ("right_front", "right_back"),
+            (LeftFront, LeftBack),
+            (MiddleFront, MiddleBack),
+            (RightFront, RightBack),
         ])
         .pushes(4.0, [
-            ("front_left_bottom", "front_left_top"),
-            ("front_right_bottom", "front_right_top"),
-            ("back_left_bottom", "back_left_top"),
-            ("back_right_bottom", "back_right_top"),
+            (FrontLeftBottom, FrontLeftTop),
+            (FrontRightBottom, FrontRightTop),
+            (BackLeftBottom, BackLeftTop),
+            (BackRightBottom, BackRightTop),
         ])
         .pushes(6.0, [
-            ("top_left", "top_right"),
-            ("bottom_left", "bottom_right"),
+            (TopLeft, TopRight),
+            (BottomLeft, BottomRight),
         ])
         .pulls(1.8, [
-            ("middle_front", "front_left_bottom"),
-            ("middle_front", "front_left_top"),
-            ("middle_front", "front_right_bottom"),
-            ("middle_front", "front_right_top"),
-            ("middle_back", "back_left_bottom"),
-            ("middle_back", "back_left_top"),
-            ("middle_back", "back_right_bottom"),
-            ("middle_back", "back_right_top"),
+            (MiddleFront, FrontLeftBottom),
+            (MiddleFront, FrontLeftTop),
+            (MiddleFront, FrontRightBottom),
+            (MiddleFront, FrontRightTop),
+            (MiddleBack, BackLeftBottom),
+            (MiddleBack, BackLeftTop),
+            (MiddleBack, BackRightBottom),
+            (MiddleBack, BackRightTop),
         ])
-        .face(Spin::Left, ["bottom_left", "left_front", "front_left_bottom"], [
-            (OnSpin(Spin::Left), &[Base]),
-            (OnSpin(Spin::Right), &[FarSide]),
-            (Initial, &[LeftFrontBottom, Base]),
+        .face(Spin::Left, [BottomLeft, LeftFront, FrontLeftBottom], [
+            OnSpinLeft.calls_it(&[Single(Base)]),
+            OnSpinRight.calls_it(&[TorqueOnTop(FarSide)]),
+            SeedA.calls_it(&[TorqueFourDown(LeftFrontBottom), Single(Base)]),
         ])
-        .face(Spin::Right, ["bottom_left", "left_back", "back_left_bottom"], [
-            (OnSpin(Spin::Left), &[BaseBack]),
-            (OnSpin(Spin::Right), &[FarBack]),
-            (Initial, &[LeftBackBottom, Base]),
+        .face(Spin::Right, [BottomLeft, LeftBack, BackLeftBottom], [
+            OnSpinLeft.calls_it(&[TorqueOnTop(BaseBack)]),
+            OnSpinRight.calls_it(&[TorqueOnTop(FarBack)]),
+            SeedA.calls_it(&[TorqueFourDown(LeftBackBottom), Single(Base)]),
         ])
-        .face(Spin::Left, ["bottom_right", "right_back", "back_right_bottom"], [
-            (OnSpin(Spin::Left), &[FarBack]),
-            (OnSpin(Spin::Right), &[BaseBack]),
-            (Initial, &[RightBackBottom, Base]),
+        .face(Spin::Left, [BottomRight, RightBack, BackRightBottom], [
+            OnSpinLeft.calls_it(&[TorqueOnTop(FarBack)]),
+            OnSpinRight.calls_it(&[TorqueOnTop(BaseBack)]),
+            SeedA.calls_it(&[TorqueFourDown(RightBackBottom), Single(Base)]),
         ])
-        .face(Spin::Right, ["bottom_right", "right_front", "front_right_bottom"], [
-            (OnSpin(Spin::Left), &[FarSide]),
-            (OnSpin(Spin::Right), &[Base]),
-            (Initial, &[RightFrontBottom, Base]),
+        .face(Spin::Right, [BottomRight, RightFront, FrontRightBottom], [
+            OnSpinLeft.calls_it(&[TorqueOnTop(FarSide)]),
+            OnSpinRight.calls_it(&[Single(Base)]),
+            SeedA.calls_it(&[TorqueFourDown(RightFrontBottom), Single(Base)]),
         ])
-        .face(Spin::Left, ["top_left", "left_back", "back_left_top"], [
-            (OnSpin(Spin::Left), &[BaseSide]),
-            (OnSpin(Spin::Right), &[FarBase]),
-            (Initial, &[LeftBackTop]),
+        .face(Spin::Left, [TopLeft, LeftBack, BackLeftTop], [
+            OnSpinLeft.calls_it(&[TorqueOnTop(BaseSide)]),
+            OnSpinRight.calls_it(&[TorqueOnTop(FarBase)]),
+            SeedA.calls_it(&[TorqueFourDown(LeftBackTop)]),
         ])
-        .face(Spin::Right, ["top_left", "left_front", "front_left_top"], [
-            (OnSpin(Spin::Left), &[BaseFront]),
-            (OnSpin(Spin::Right), &[FarFront]),
-            (Initial, &[LeftFrontTop]),
+        .face(Spin::Right, [TopLeft, LeftFront, FrontLeftTop], [
+            OnSpinLeft.calls_it(&[TorqueOnTop(BaseFront)]),
+            OnSpinRight.calls_it(&[TorqueOnTop(FarFront)]),
+            SeedA.calls_it(&[TorqueFourDown(LeftFrontTop)]),
         ])
-        .face(Spin::Left, ["top_right", "right_front", "front_right_top"], [
-            (OnSpin(Spin::Left), &[FarFront]),
-            (OnSpin(Spin::Right), &[BaseFront]),
-            (Initial, &[RightFrontTop]),
+        .face(Spin::Left, [TopRight, RightFront, FrontRightTop], [
+            OnSpinLeft.calls_it(&[TorqueOnTop(FarFront)]),
+            OnSpinRight.calls_it(&[TorqueOnTop(BaseFront)]),
+            SeedA.calls_it(&[TorqueFourDown(RightFrontTop)]),
         ])
-        .face(Spin::Right, ["top_right", "right_back", "back_right_top"], [
-            (OnSpin(Spin::Left), &[FarBase]),
-            (OnSpin(Spin::Right), &[BaseSide]),
-            (Initial, &[RightBackTop]),
+        .face(Spin::Right, [TopRight, RightBack, BackRightTop], [
+            OnSpinLeft.calls_it(&[TorqueOnTop(FarBase)]),
+            OnSpinRight.calls_it(&[TorqueOnTop(BaseSide)]),
+            SeedA.calls_it(&[TorqueFourDown(RightBackTop)]),
         ])
         .build_proto();
 

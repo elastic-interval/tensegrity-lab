@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use cgmath::num_traits::abs;
 use cgmath::{
-    EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Quaternion, Rotation, Transform,
-    Vector3,
+    EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Quaternion, Rotation, Transform, Vector3,
 };
 
+use crate::build::dsl::brick_dsl::JointName;
 use crate::build::dsl::Spin::{Left, Right};
 use crate::build::dsl::{FaceAlias, Spin};
 use crate::fabric::interval::{Interval, Role};
@@ -21,12 +21,12 @@ pub enum Axis {
 
 impl Axis {
     /// Create a push interval definition along this axis
-    pub fn push(self, ideal: f32, alpha: impl Into<String>, omega: impl Into<String>) -> PushDef {
+    pub fn push(self, ideal: f32, alpha: JointName, omega: JointName) -> PushDef {
         PushDef {
             axis: self,
             ideal,
-            alpha_name: alpha.into(),
-            omega_name: omega.into(),
+            alpha,
+            omega,
         }
     }
 }
@@ -35,14 +35,14 @@ impl Axis {
 pub struct PushDef {
     pub axis: Axis,
     pub ideal: f32,
-    pub alpha_name: String,
-    pub omega_name: String,
+    pub alpha: JointName,
+    pub omega: JointName,
 }
 
 #[derive(Clone, Debug)]
 pub struct PullDef {
-    pub alpha_name: String,
-    pub omega_name: String,
+    pub alpha: JointName,
+    pub omega: JointName,
     pub ideal: f32,
     pub material: String,
 }
@@ -50,14 +50,14 @@ pub struct PullDef {
 #[derive(Clone, Debug)]
 pub struct FaceDef {
     pub spin: Spin,
-    pub joint_names: [String; 3],
+    pub joints: [JointName; 3],
     pub aliases: Vec<FaceAlias>,
 }
 
 #[derive(Clone, Default, Debug)]
 pub struct Prototype {
     pub alias: FaceAlias,
-    pub joints: Vec<String>,
+    pub joints: Vec<JointName>,
     pub pushes: Vec<PushDef>,
     pub pulls: Vec<PullDef>,
     pub faces: Vec<FaceDef>,
@@ -77,7 +77,7 @@ impl BrickDefinition {
                 return baked.faces.clone();
             }
         }
-        
+
         // Derive faces from prototype
         crate::build::dsl::brick_dsl::derive_baked_faces(&self.proto)
     }
@@ -86,7 +86,7 @@ impl BrickDefinition {
 impl From<Prototype> for Fabric {
     fn from(proto: Prototype) -> Self {
         let mut fabric = Fabric::new("prototype".to_string());
-        let mut joints_by_name = HashMap::new();
+        let mut joints_by_name: HashMap<JointName, usize> = HashMap::new();
         for name in proto.joints {
             let joint_index = fabric.create_joint(Point3::origin());
             if joints_by_name.insert(name, joint_index).is_some() {
@@ -94,8 +94,8 @@ impl From<Prototype> for Fabric {
             }
         }
         for PushDef {
-            alpha_name,
-            omega_name,
+            alpha,
+            omega,
             axis,
             ideal,
         } in proto.pushes
@@ -106,8 +106,8 @@ impl From<Prototype> for Fabric {
                 Axis::Z => Vector3::unit_z(),
             };
             let ends = [
-                (alpha_name, -vector * ideal / 2.0),
-                (omega_name, vector * ideal / 2.0),
+                (alpha, -vector * ideal / 2.0),
+                (omega, vector * ideal / 2.0),
             ];
             let [alpha_index, omega_index] = ends.map(|(name, loc)| {
                 let joint_index = fabric.create_joint(Point3::from_vec(loc));
@@ -119,32 +119,33 @@ impl From<Prototype> for Fabric {
             fabric.create_interval(alpha_index, omega_index, ideal, Role::Pushing);
         }
         for PullDef {
-            alpha_name,
-            omega_name,
+            alpha,
+            omega,
             ideal,
             material,
             ..
         } in proto.pulls
         {
-            let [alpha_index, omega_index] =
-                [alpha_name, omega_name].map(|name| *joints_by_name.get(&name).expect(&name));
-            let role = Role::from_label(&material)
-                .expect(&format!("Unknown role label: {}", material));
-            fabric.create_interval(
-                alpha_index,
-                omega_index,
-                ideal,
-                role,
-            );
+            let [alpha_index, omega_index] = [alpha, omega].map(|name| {
+                *joints_by_name
+                    .get(&name)
+                    .expect(&format!("Joint {:?} not found", name))
+            });
+            let role =
+                Role::from_label(&material).expect(&format!("Unknown role label: {}", material));
+            fabric.create_interval(alpha_index, omega_index, ideal, role);
         }
         for FaceDef {
             aliases,
-            joint_names,
+            joints,
             spin,
         } in proto.faces
         {
-            let joint_indices = joint_names
-                .map(|name| *joints_by_name.get(&name).expect("no joint with that name"));
+            let joint_indices = joints.map(|name| {
+                *joints_by_name
+                    .get(&name)
+                    .expect(&format!("Joint {:?} not found", name))
+            });
             let joints = joint_indices.map(|index| fabric.joints[index].location.to_vec());
             let midpoint = joints.into_iter().sum::<Vector3<_>>() / 3.0;
             let alpha_index = fabric.create_joint(Point3::from_vec(midpoint));

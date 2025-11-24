@@ -1,9 +1,11 @@
 use std::convert::Into;
 
+use crate::build::dsl::brick_dsl::{BrickName, SingleFace};
+use crate::build::dsl::brick_dsl::FaceName::Single;
 use crate::build::dsl::brick_library::BrickLibrary;
 use crate::build::dsl::build_phase::BuildNode::*;
 use crate::build::dsl::build_phase::Launch::*;
-use crate::build::dsl::{FaceAlias, FaceMark};
+use crate::build::dsl::{FaceAlias, FaceTag, FaceMark};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::FaceRotation;
 use crate::fabric::{Fabric, UniqueId};
@@ -184,7 +186,7 @@ impl BuildPhase {
             } else {
                 face.spin
             };
-            let face_alias = FaceAlias::single("Single") + &spin.into_alias();
+            let face_alias = FaceAlias::single(FaceTag::Brick(BrickName::SingleBrick)) + &spin.into_alias();
             let (base_face, faces) = fabric.create_brick(
                 &face_alias,
                 FaceRotation::Zero,
@@ -193,7 +195,7 @@ impl BuildPhase {
                 brick_library,
             );
             fabric.join_faces(base_face, face_id);
-            let top_face_alias = face_alias + &FaceAlias::single(":next-base");
+            let top_face_alias = face_alias + &FaceAlias::single(FaceTag::Face(Single(SingleFace::NextBase)));
             buds.push(Bud {
                 face_id: top_face_alias
                     .find_face_in(&faces, fabric)
