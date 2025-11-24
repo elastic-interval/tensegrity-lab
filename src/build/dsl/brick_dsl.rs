@@ -57,6 +57,23 @@ impl FaceContext {
     }
 }
 
+/// Mark names used in fabric definitions
+#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
+pub enum MarkName {
+    End,
+    HaloEnd,
+    RingA,
+    RingB,
+    RingX,
+    RingY,
+    RingZ,
+    Legs,
+    Chest1,
+    Chest2,
+    Hands,
+    Loose,
+}
+
 /// Unified joint names for all bricks
 #[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
 pub enum JointName {

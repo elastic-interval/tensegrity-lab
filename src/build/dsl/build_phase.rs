@@ -1,6 +1,6 @@
 use std::convert::Into;
 
-use crate::build::dsl::brick_dsl::{BrickName, SingleFace};
+use crate::build::dsl::brick_dsl::{BrickName, MarkName, SingleFace};
 use crate::build::dsl::brick_dsl::FaceName::Single;
 use crate::build::dsl::brick_library::BrickLibrary;
 use crate::build::dsl::build_phase::BuildNode::*;
@@ -77,7 +77,7 @@ pub enum BuildNode {
         post_growth_nodes: Vec<BuildNode>,
     },
     Mark {
-        mark_name: String,
+        mark_name: MarkName,
     },
     Branch {
         alias: FaceAlias,

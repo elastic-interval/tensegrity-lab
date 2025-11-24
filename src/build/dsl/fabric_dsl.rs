@@ -9,7 +9,7 @@ use crate::build::dsl::{FaceAlias, FaceTag};
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Millimeters, Seconds};
 
-pub use crate::build::dsl::brick_dsl::{BrickName, FaceName};
+pub use crate::build::dsl::brick_dsl::{BrickName, FaceName, MarkName};
 pub use crate::build::dsl::build_phase::BuildNode as Node;
 pub use crate::units::{Millimeters as Mm, Seconds as Sec};
 
@@ -164,10 +164,8 @@ pub fn grow(count: usize) -> GrowBuilder {
 }
 
 /// Create a BuildNode that just marks a location (no grow)
-pub fn grow_mark(mark_name: impl Into<String>) -> BuildNode {
-    BuildNode::Mark {
-        mark_name: mark_name.into(),
-    }
+pub fn grow_mark(mark_name: MarkName) -> BuildNode {
+    BuildNode::Mark { mark_name }
 }
 
 pub struct GrowBuilder {
@@ -187,10 +185,8 @@ impl GrowBuilder {
         self
     }
 
-    pub fn mark(mut self, mark_name: impl Into<String>) -> Self {
-        self.post_growth_nodes.push(BuildNode::Mark {
-            mark_name: mark_name.into(),
-        });
+    pub fn mark(mut self, mark_name: MarkName) -> Self {
+        self.post_growth_nodes.push(BuildNode::Mark { mark_name });
         self
     }
 
@@ -222,9 +218,9 @@ pub fn during<const N: usize>(seconds: Seconds, ops: [ShapeOperation; N]) -> Sha
     }
 }
 
-pub fn space(mark_name: impl Into<String>, distance_factor: f32) -> ShapeOperation {
+pub fn space(mark_name: MarkName, distance_factor: f32) -> ShapeOperation {
     ShapeOperation::Spacer {
-        mark_name: mark_name.into(),
+        mark_name,
         distance_factor,
     }
 }
@@ -233,24 +229,22 @@ pub fn vulcanize() -> ShapeOperation {
     ShapeOperation::Vulcanize
 }
 
-pub fn join(mark_name: impl Into<String>) -> ShapeOperation {
+pub fn join(mark_name: MarkName) -> ShapeOperation {
     ShapeOperation::Joiner {
-        mark_name: mark_name.into(),
+        mark_name,
         seed: None,
     }
 }
 
-pub fn join_seed(mark_name: impl Into<String>, seed: usize) -> ShapeOperation {
+pub fn join_seed(mark_name: MarkName, seed: usize) -> ShapeOperation {
     ShapeOperation::Joiner {
-        mark_name: mark_name.into(),
+        mark_name,
         seed: Some(seed),
     }
 }
 
-pub fn down(mark_name: impl Into<String>) -> ShapeOperation {
-    ShapeOperation::PointDownwards {
-        mark_name: mark_name.into(),
-    }
+pub fn down(mark_name: MarkName) -> ShapeOperation {
+    ShapeOperation::PointDownwards { mark_name }
 }
 
 pub fn centralize() -> ShapeOperation {

@@ -6,7 +6,7 @@ use std::ops::Add;
 pub use fabric_plan::FabricPlan;
 
 use crate::fabric::{Fabric, UniqueId};
-use crate::build::dsl::brick_dsl::{BrickName, FaceName, FaceContext, SingleFace};
+use crate::build::dsl::brick_dsl::{BrickName, FaceName, FaceContext, MarkName, SingleFace};
 use crate::build::dsl::brick_dsl::FaceName::Single;
 
 pub mod animate_phase;
@@ -167,10 +167,10 @@ impl Spin {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct FaceMark {
     face_id: UniqueId,
-    mark_name: String,
+    mark_name: MarkName,
 }
 
 pub fn into_atom(name: String) -> String {
