@@ -1,6 +1,7 @@
+use crate::build::dsl::brick_dsl::BrickName;
 use crate::build::dsl::brick_library::BrickLibrary;
 use crate::build::dsl::shape_phase::ShapeCommand::*;
-use crate::build::dsl::{FaceAlias, FaceMark, Spin};
+use crate::build::dsl::{FaceAlias, FaceTag, FaceMark, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Role;
@@ -162,7 +163,7 @@ impl ShapePhase {
                             vector_space,
                             seed,
                         };
-                        let alias = FaceAlias::single("Omni");
+                        let alias = FaceAlias::single(FaceTag::Brick(BrickName::Omni));
                         let (_, brick_faces) = fabric.create_brick(
                             &alias,
                             FaceRotation::Zero,

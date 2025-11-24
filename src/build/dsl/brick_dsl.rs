@@ -1,9 +1,10 @@
 use cgmath::Point3;
+use strum::Display;
 use crate::build::dsl::brick::{
-    Baked, BakedJoint, BakedInterval, BrickDefinition, BrickFace, 
+    Baked, BakedJoint, BakedInterval, BrickDefinition, BrickFace,
     FaceDef, Prototype, PullDef, PushDef
 };
-use crate::build::dsl::{FaceAlias, Spin};
+use crate::build::dsl::{FaceAlias, FaceTag, Spin};
 
 pub use crate::fabric::material::Material;
 
@@ -26,9 +27,9 @@ impl MaterialIntervalExt for Material {
 }
 
 /// Brick type names
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
 pub enum BrickName {
-    Single,
+    SingleBrick,
     Omni,
     Torque,
     TorqueRight,
@@ -36,189 +37,138 @@ pub enum BrickName {
     Equals,
 }
 
-impl BrickName {
-    pub fn name(self) -> &'static str {
-        match self {
-            BrickName::Single => "Single",
-            BrickName::Omni => "Omni",
-            BrickName::Torque => "Torque",
-            BrickName::TorqueRight => "TorqueRight",
-            BrickName::TorqueLeft => "TorqueLeft",
-            BrickName::Equals => "Equals",
-        }
-    }
-}
-
 /// Context in which a brick face is being used
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
 pub enum FaceContext {
     /// No parent face - used as the initial brick (seed)
-    Initial,
+    SeedA,
     /// Alternative initial orientation
-    Initial1,
-    /// Placed on top of a parent face with this spin
-    OnSpin(crate::build::dsl::Spin),
+    SeedB,
+    /// Placed on top of a parent face with left spin
+    OnSpinLeft,
+    /// Placed on top of a parent face with right spin
+    OnSpinRight,
 }
 
 impl FaceContext {
-    pub fn name(self) -> &'static str {
-        use crate::build::dsl::Spin;
-        match self {
-            FaceContext::Initial => ":seed",
-            FaceContext::Initial1 => ":seed-1",
-            FaceContext::OnSpin(Spin::Right) => ":right",
-            FaceContext::OnSpin(Spin::Left) => ":left",
-        }
+    /// Create a face alias entry with the given faces
+    pub const fn calls_it(self, faces: &[FaceName]) -> (Self, &[FaceName]) {
+        (self, faces)
     }
 }
 
-/// Joint names for Single brick (both left and right variants)
-#[derive(Copy, Clone, Debug)]
-pub enum SingleJoint {
-    AlphaX,
-    AlphaY,
-    AlphaZ,
-    OmegaX,
-    OmegaY,
-    OmegaZ,
-}
+/// Unified joint names for all bricks
+#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
+pub enum JointName {
+    // Single brick joints
+    AlphaX, AlphaY, AlphaZ,
+    OmegaX, OmegaY, OmegaZ,
 
-impl SingleJoint {
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::AlphaX => "alpha_x",
-            Self::AlphaY => "alpha_y",
-            Self::AlphaZ => "alpha_z",
-            Self::OmegaX => "omega_x",
-            Self::OmegaY => "omega_y",
-            Self::OmegaZ => "omega_z",
-        }
-    }
-}
-
-impl From<SingleJoint> for String {
-    fn from(joint: SingleJoint) -> String {
-        joint.name().to_string()
-    }
-}
-
-/// Joint names for Omni brick
-#[derive(Copy, Clone, Debug)]
-pub enum OmniJoint {
+    // Omni brick joints
     BotAlphaX, BotAlphaY, BotAlphaZ,
     BotOmegaX, BotOmegaY, BotOmegaZ,
     TopAlphaX, TopAlphaY, TopAlphaZ,
     TopOmegaX, TopOmegaY, TopOmegaZ,
-}
 
-impl OmniJoint {
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::BotAlphaX => "bot_alpha_x",
-            Self::BotAlphaY => "bot_alpha_y",
-            Self::BotAlphaZ => "bot_alpha_z",
-            Self::BotOmegaX => "bot_omega_x",
-            Self::BotOmegaY => "bot_omega_y",
-            Self::BotOmegaZ => "bot_omega_z",
-            Self::TopAlphaX => "top_alpha_x",
-            Self::TopAlphaY => "top_alpha_y",
-            Self::TopAlphaZ => "top_alpha_z",
-            Self::TopOmegaX => "top_omega_x",
-            Self::TopOmegaY => "top_omega_y",
-            Self::TopOmegaZ => "top_omega_z",
-        }
-    }
+    // Torque brick joints
+    LeftFront, LeftBack,
+    MiddleFront, MiddleBack,
+    RightFront, RightBack,
+    FrontLeftBottom, FrontLeftTop,
+    FrontRightBottom, FrontRightTop,
+    BackLeftBottom, BackLeftTop,
+    BackRightBottom, BackRightTop,
+    TopLeft, TopRight,
+    BottomLeft, BottomRight,
 }
-
-impl From<OmniJoint> for String {
-    fn from(joint: OmniJoint) -> String {
-        joint.name().to_string()
-    }
-}
-
 
 /// Unified face names for all bricks
-#[derive(Copy, Clone, Debug)]
-pub enum Face {
-    // Base faces
-    Base,
-    NextBase,  // Special marker for :next-base
-    // Single brick faces
+#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
+pub enum SingleFace {
     Top,
-    // Omni brick faces
-    TopRight, TopLeft, TopX, TopY, TopZ,
+    Bot,
+    Base,
+    NextBase,
+}
+
+#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
+pub enum OmniFaceDown {
+    Top,
+    TopX, TopY, TopZ,
     BotX, BotY, BotZ,
     Bot,
+}
+
+#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
+pub enum FourDown {
+    TopRight, TopLeft,
     FrontRight, FrontLeft,
     BackRight, BackLeft,
     BottomRight, BottomLeft,
-    // Torque/Equals brick faces
+}
+
+#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
+pub enum TorqueFaceOnTop {
     BaseBack, BaseSide, BaseFront,
     FarBack, FarSide, FarFront, FarBase, FarBrother,
+}
+
+#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
+pub enum TorqueFaceFourDown {
     LeftFrontBottom, LeftBackBottom, RightBackBottom, RightFrontBottom,
     LeftBackTop, LeftFrontTop, RightFrontTop, RightBackTop,
-    // TorqueRight/TorqueLeft specific faces
+}
+
+#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
+pub enum TorqueTiedFace {
     OtherA, OtherB, Brother,
     FarOtherA, FarOtherB,
 }
 
-impl Face {
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Base => ":base",
-            Self::NextBase => ":next-base",
-            Self::Top => "Top",
-            Self::TopRight => "TopRight",
-            Self::TopLeft => "TopLeft",
-            Self::TopX => "TopX",
-            Self::TopY => "TopY",
-            Self::TopZ => "TopZ",
-            Self::BotX => "BotX",
-            Self::BotY => "BotY",
-            Self::BotZ => "BotZ",
-            Self::Bot => "Bot",
-            Self::FrontRight => "FrontRight",
-            Self::FrontLeft => "FrontLeft",
-            Self::BackRight => "BackRight",
-            Self::BackLeft => "BackLeft",
-            Self::BottomRight => "BottomRight",
-            Self::BottomLeft => "BottomLeft",
-            Self::BaseBack => "BaseBack",
-            Self::BaseSide => "BaseSide",
-            Self::BaseFront => "BaseFront",
-            Self::FarBack => "FarBack",
-            Self::FarSide => "FarSide",
-            Self::FarFront => "FarFront",
-            Self::FarBase => "FarBase",
-            Self::FarBrother => "FarBrother",
-            Self::LeftFrontBottom => "LeftFrontBottom",
-            Self::LeftBackBottom => "LeftBackBottom",
-            Self::RightBackBottom => "RightBackBottom",
-            Self::RightFrontBottom => "RightFrontBottom",
-            Self::LeftBackTop => "LeftBackTop",
-            Self::LeftFrontTop => "LeftFrontTop",
-            Self::RightFrontTop => "RightFrontTop",
-            Self::RightBackTop => "RightBackTop",
-            Self::OtherA => "OtherA",
-            Self::OtherB => "OtherB",
-            Self::Brother => "Brother",
-            Self::FarOtherA => "FarOtherA",
-            Self::FarOtherB => "FarOtherB",
-        }
+#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
+pub enum FaceName {
+    Single(SingleFace),
+    OmiFaceDown(OmniFaceDown),
+    OmniFaceUp(OmniFaceDown),
+    Four(FourDown),
+    TorqueOnTop(TorqueFaceOnTop),
+    TorqueFourDown(TorqueFaceFourDown),
+    TorqueTied(TorqueTiedFace),
+}
+
+/// Create a FaceAlias from a list of FaceTags
+pub fn alias(tags: &[FaceTag]) -> FaceAlias {
+    FaceAlias(tags.to_vec())
+}
+
+/// Trait for converting face context and names into a face alias
+pub trait IntoFaceAlias {
+    fn into_face_alias(self, brick_name: BrickName) -> FaceAlias;
+}
+
+impl IntoFaceAlias for (FaceContext, &[FaceName]) {
+    fn into_face_alias(self, brick_name: BrickName) -> FaceAlias {
+        face_alias_for(brick_name, self.0, self.1)
     }
 }
 
+impl<const M: usize> IntoFaceAlias for (FaceContext, &[FaceName; M]) {
+    fn into_face_alias(self, brick_name: BrickName) -> FaceAlias {
+        face_alias_for(brick_name, self.0, self.1)
+    }
+}
 
-/// Create a FaceAlias from a list of strings
-pub fn alias(names: &[&str]) -> FaceAlias {
-    FaceAlias(names.iter().map(|s| s.to_string()).collect())
+impl<const M: usize> IntoFaceAlias for (FaceContext, [FaceName; M]) {
+    fn into_face_alias(self, brick_name: BrickName) -> FaceAlias {
+        face_alias_for(brick_name, self.0, &self.1)
+    }
 }
 
 /// Builder for Prototype - provides a fluent API for constructing brick prototypes
 pub struct ProtoBuilder {
     brick_name: BrickName,
     alias: FaceAlias,
-    joints: Vec<String>,
+    joints: Vec<JointName>,
     pushes: Vec<PushDef>,
     pulls: Vec<PullDef>,
     faces: Vec<FaceDef>,
@@ -228,7 +178,7 @@ impl ProtoBuilder {
     pub fn new(brick_name: BrickName) -> Self {
         Self {
             brick_name,
-            alias: alias(&[brick_name.name()]),
+            alias: alias(&[FaceTag::Brick(brick_name)]),
             joints: vec![],
             pushes: vec![],
             pulls: vec![],
@@ -237,54 +187,51 @@ impl ProtoBuilder {
     }
 
     /// Add explicit joint declarations (joints that aren't created by pushes)
-    pub fn joints<const N: usize>(mut self, joints: [impl Into<String>; N]) -> Self {
-        self.joints = joints.into_iter().map(|j| j.into()).collect();
+    pub fn joints<const N: usize>(mut self, joints: [JointName; N]) -> Self {
+        self.joints = joints.into_iter().collect();
         self
     }
 
-    pub fn pushes<const N: usize>(mut self, ideal: f32, pushes: [(impl Into<String>, impl Into<String>); N]) -> Self {
+    pub fn pushes<const N: usize>(mut self, ideal: f32, pushes: [(JointName, JointName); N]) -> Self {
         use crate::build::dsl::brick::Axis;
         self.pushes.extend(pushes.into_iter().map(|(alpha, omega)| PushDef {
             axis: Axis::X, // Axis is metadata, not used in our simplified builder
-            alpha_name: alpha.into(),
-            omega_name: omega.into(),
+            alpha,
+            omega,
             ideal,
         }));
         self
     }
-    
-    pub fn pulls<const N: usize>(mut self, ideal: f32, pulls: [(impl Into<String>, impl Into<String>); N]) -> Self {
+
+    pub fn pulls<const N: usize>(mut self, ideal: f32, pulls: [(JointName, JointName); N]) -> Self {
         self.pulls.extend(pulls.into_iter().map(|(alpha, omega)| PullDef {
-            alpha_name: alpha.into(),
-            omega_name: omega.into(),
+            alpha,
+            omega,
             ideal,
             material: "pull".to_string(),
         }));
         self
     }
-    
+
     /// Add a face with multiple context/face-name pairs - brick name is automatically added to aliases
-    pub fn face<const N: usize>(mut self, spin: Spin, joints: [impl Into<String>; 3], 
-                aliases: [(FaceContext, &[Face]); N]) -> Self {
+    pub fn face<T: IntoFaceAlias>(mut self, spin: Spin, joints: [JointName; 3],
+                aliases: impl IntoIterator<Item = T>) -> Self {
         let face_aliases = aliases.into_iter()
-            .map(|(context, faces)| {
-                let names: Vec<&str> = faces.iter().map(|f| f.name()).collect();
-                face_alias_for(self.brick_name, context, &names)
-            })
+            .map(|entry| entry.into_face_alias(self.brick_name))
             .collect();
         self.faces.push(FaceDef {
             spin,
-            joint_names: joints.map(|j| j.into()),
+            joints,
             aliases: face_aliases,
         });
         self
     }
-    
+
     pub fn faces(mut self, faces: impl Into<Vec<FaceDef>>) -> Self {
         self.faces = faces.into();
         self
     }
-    
+
     /// Build just the prototype
     pub fn build_proto(self) -> Prototype {
         Prototype {
@@ -295,7 +242,7 @@ impl ProtoBuilder {
             faces: self.faces,
         }
     }
-    
+
     /// Continue to build the baked data
     pub fn baked(self) -> BakedBuilder {
         let proto = self.build_proto();
@@ -325,36 +272,36 @@ impl BakedBuilder {
             faces: vec![],
         }
     }
-    
+
     pub fn joints<const N: usize>(mut self, joints: [(f32, f32, f32); N]) -> Self {
         self.joints = joints.into_iter().map(|(x, y, z)| joint(x, y, z)).collect();
         self
     }
-    
+
     pub fn intervals(mut self, intervals: impl Into<Vec<BakedInterval>>) -> Self {
         self.intervals = intervals.into();
         self
     }
-    
+
     pub fn pushes<const N: usize>(mut self, pushes: [(usize, usize, f32); N]) -> Self {
         self.intervals.extend(pushes.into_iter().map(|(alpha, omega, strain)| {
             interval(alpha, omega, strain, Material::Push)
         }));
         self
     }
-    
+
     pub fn pulls<const N: usize>(mut self, pulls: [(usize, usize, f32); N]) -> Self {
         self.intervals.extend(pulls.into_iter().map(|(alpha, omega, strain)| {
             interval(alpha, omega, strain, Material::Pull)
         }));
         self
     }
-    
+
     pub fn faces(mut self, faces: impl Into<Vec<BrickFace>>) -> Self {
         self.faces = faces.into();
         self
     }
-    
+
     pub fn build(self) -> BrickDefinition {
         let baked = Baked {
             joints: self.joints,
@@ -376,7 +323,7 @@ pub fn derive_baked_faces(proto: &Prototype) -> Vec<BrickFace> {
 
     // Add explicit joints first (they get indices 0, 1, 2, ...)
     for (idx, joint_name) in proto.joints.iter().enumerate() {
-        joint_map.insert(joint_name.clone(), idx);
+        joint_map.insert(*joint_name, idx);
     }
 
     // Add joints from pushes (starting after explicit joints)
@@ -384,16 +331,16 @@ pub fn derive_baked_faces(proto: &Prototype) -> Vec<BrickFace> {
     for (idx, push) in proto.pushes.iter().enumerate() {
         let alpha_idx = offset + idx * 2;
         let omega_idx = offset + idx * 2 + 1;
-        joint_map.insert(push.alpha_name.clone(), alpha_idx);
-        joint_map.insert(push.omega_name.clone(), omega_idx);
+        joint_map.insert(push.alpha, alpha_idx);
+        joint_map.insert(push.omega, omega_idx);
     }
 
     // Convert proto faces to baked faces
     proto.faces.iter().map(|face_def| {
         let joints = [
-            *joint_map.get(&face_def.joint_names[0]).expect("Joint name not found"),
-            *joint_map.get(&face_def.joint_names[1]).expect("Joint name not found"),
-            *joint_map.get(&face_def.joint_names[2]).expect("Joint name not found"),
+            *joint_map.get(&face_def.joints[0]).expect("Joint name not found"),
+            *joint_map.get(&face_def.joints[1]).expect("Joint name not found"),
+            *joint_map.get(&face_def.joints[2]).expect("Joint name not found"),
         ];
         BrickFace {
             spin: face_def.spin,
@@ -405,28 +352,28 @@ pub fn derive_baked_faces(proto: &Prototype) -> Vec<BrickFace> {
 
 /// Helper to build face aliases for a specific context
 /// Combines context, face names, and brick type into a complete alias
-pub fn face_alias_for(brick: BrickName, context: FaceContext, names: &[&str]) -> FaceAlias {
-    let mut parts = vec![context.name()];
-    parts.extend_from_slice(names);
-    parts.push(brick.name());
-    alias(&parts)
+pub fn face_alias_for(brick: BrickName, context: FaceContext, faces: &[FaceName]) -> FaceAlias {
+    let mut tags = vec![FaceTag::Context(context)];
+    tags.extend(faces.iter().map(|&f| FaceTag::Face(f)));
+    tags.push(FaceTag::Brick(brick));
+    FaceAlias(tags)
 }
 
 /// Create a pull interval (cable) definition
-pub fn pull(alpha: impl Into<String>, omega: impl Into<String>, ideal: f32, material: Material) -> PullDef {
+pub fn pull(alpha: JointName, omega: JointName, ideal: f32, material: Material) -> PullDef {
     PullDef {
-        alpha_name: alpha.into(),
-        omega_name: omega.into(),
+        alpha,
+        omega,
         ideal,
         material: material_name(material).to_string(),
     }
 }
 
 /// Create a face definition with spin and joint names
-pub fn face<J: Into<String>>(spin: Spin, joints: [J; 3], aliases: impl Into<Vec<FaceAlias>>) -> FaceDef {
+pub fn face(spin: Spin, joints: [JointName; 3], aliases: impl Into<Vec<FaceAlias>>) -> FaceDef {
     FaceDef {
         spin,
-        joint_names: joints.map(|j| j.into()),
+        joints,
         aliases: aliases.into(),
     }
 }

@@ -2784,6 +2784,7 @@ dependencies = [
  "rand",
  "rand_chacha",
  "reqwest",
+ "strum",
  "tokio",
  "urlencoding",
  "wasm-bindgen",

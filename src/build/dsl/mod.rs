@@ -1,12 +1,13 @@
 #![allow(clippy::result_large_err)]
 
-use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 use std::ops::Add;
 
 pub use fabric_plan::FabricPlan;
 
 use crate::fabric::{Fabric, UniqueId};
+use crate::build::dsl::brick_dsl::{BrickName, FaceName, FaceContext, SingleFace};
+use crate::build::dsl::brick_dsl::FaceName::Single;
 
 pub mod animate_phase;
 pub mod brick;
@@ -35,8 +36,26 @@ impl Fabric {
     }
 }
 
+/// A tag that identifies faces - can be a brick name, face name, or context
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+pub enum FaceTag {
+    Brick(BrickName),
+    Face(FaceName),
+    Context(FaceContext),
+}
+
+impl FaceTag {
+    pub fn as_str(&self) -> String {
+        match self {
+            FaceTag::Brick(b) => b.to_string(),
+            FaceTag::Face(f) => f.to_string(),
+            FaceTag::Context(c) => c.to_string(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct FaceAlias(pub HashSet<String>);
+pub struct FaceAlias(pub Vec<FaceTag>);
 
 impl Add<&FaceAlias> for FaceAlias {
     type Output = FaceAlias;
@@ -50,11 +69,12 @@ impl Add<&FaceAlias> for FaceAlias {
 
 impl FaceAlias {
     pub fn matches(&self, haystack: &FaceAlias) -> bool {
-        self.0.is_subset(&haystack.0)
+        // Check if all tags in self are also in haystack (subset check)
+        self.0.iter().all(|tag| haystack.0.contains(tag))
     }
 
     pub fn into_vec(self) -> Vec<String> {
-        let mut sorted: Vec<_> = self.0.into_iter().collect();
+        let mut sorted: Vec<_> = self.0.into_iter().map(|tag| tag.as_str()).collect();
         sorted.sort();
         sorted
     }
@@ -66,49 +86,51 @@ impl FaceAlias {
         })
     }
 
-    pub fn single(name: &str) -> Self {
-        Self(HashSet::from([name.to_string()]))
+    pub fn single(tag: FaceTag) -> Self {
+        Self(vec![tag])
     }
 
     pub fn is_base(&self) -> bool {
-        self.has(":base")
+        self.has(&FaceTag::Face(Single(SingleFace::Base)))
     }
 
     pub fn with_base(&self) -> Self {
-        self.with(":base")
+        self.with(FaceTag::Face(Single(SingleFace::Base)))
     }
 
     pub fn is_seed(&self, which: Option<usize>) -> bool {
         match which {
-            Some(which) => self.has(format!(":seed-{}", which).as_str()),
-            None => self.has(":seed"),
+            Some(1) => self.has(&FaceTag::Context(FaceContext::SeedB)),
+            Some(_) => false, // Only SeedB is supported in FaceContext
+            None => self.has(&FaceTag::Context(FaceContext::SeedA)),
         }
     }
 
     pub fn with_seed(&self, which: Option<usize>) -> Self {
         match which {
-            Some(which) => self.with(format!(":seed-{}", which).as_str()),
-            None => self.with(":seed"),
+            Some(1) => self.with(FaceTag::Context(FaceContext::SeedB)),
+            Some(_) => self.clone(), // Only SeedB is supported
+            None => self.with(FaceTag::Context(FaceContext::SeedA)),
         }
     }
 
-    fn has(&self, sought_part: &str) -> bool {
-        self.0.iter().any(|part| part == sought_part)
+    fn has(&self, sought_tag: &FaceTag) -> bool {
+        self.0.contains(sought_tag)
     }
 
-    fn with(&self, extra: &str) -> Self {
-        let mut set = self.0.clone();
-        set.insert(extra.to_string());
-        Self(set)
+    fn with(&self, extra: FaceTag) -> Self {
+        let mut vec = self.0.clone();
+        vec.push(extra);
+        Self(vec)
     }
 
     pub fn spin(&self) -> Option<Spin> {
-        for part in &self.0 {
-            return Some(match part.as_str() {
-                ":left" => Spin::Left,
-                ":right" => Spin::Right,
+        for tag in &self.0 {
+            match tag {
+                FaceTag::Context(FaceContext::OnSpinLeft) => return Some(Spin::Left),
+                FaceTag::Context(FaceContext::OnSpinRight) => return Some(Spin::Right),
                 _ => continue,
-            });
+            }
         }
         None
     }
@@ -121,7 +143,7 @@ impl Display for FaceAlias {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Spin {
     #[default]
     Left,
@@ -137,10 +159,11 @@ impl Spin {
     }
 
     pub fn into_alias(self) -> FaceAlias {
-        FaceAlias::single(match self {
-            Spin::Left => ":left",
-            Spin::Right => ":right",
-        })
+        let context = match self {
+            Spin::Left => FaceContext::OnSpinLeft,
+            Spin::Right => FaceContext::OnSpinRight,
+        };
+        FaceAlias::single(FaceTag::Context(context))
     }
 }
 

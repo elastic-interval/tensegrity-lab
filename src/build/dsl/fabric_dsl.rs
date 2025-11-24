@@ -5,26 +5,26 @@ use crate::build::dsl::converge_phase::ConvergePhase;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::shape_phase::ShapeOperation;
-use crate::build::dsl::FaceAlias;
+use crate::build::dsl::{FaceAlias, FaceTag};
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Millimeters, Seconds};
 
-pub use crate::build::dsl::brick_dsl::{BrickName, Face};
+pub use crate::build::dsl::brick_dsl::{BrickName, FaceName};
 pub use crate::build::dsl::build_phase::BuildNode as Node;
 pub use crate::units::{Millimeters as Mm, Seconds as Sec};
 
 
-/// Create a FaceAlias from a Face enum
-impl From<Face> for FaceAlias {
-    fn from(face: Face) -> Self {
-        FaceAlias::single(face.name())
+/// Create a FaceAlias from a FaceName enum
+impl From<FaceName> for FaceAlias {
+    fn from(face: FaceName) -> Self {
+        FaceAlias::single(FaceTag::Face(face))
     }
 }
 
 /// Create a FaceAlias from a BrickName enum
 impl From<BrickName> for FaceAlias {
     fn from(brick: BrickName) -> Self {
-        FaceAlias::single(brick.name())
+        FaceAlias::single(FaceTag::Brick(brick))
     }
 }
 

@@ -3,6 +3,10 @@
 /// All supporting types and helpers are in the `fabric_dsl` module.
 
 use crate::build::dsl::fabric_dsl::*;
+use crate::build::dsl::brick_dsl::{
+    OmniFaceDown, SingleFace, FourDown, TorqueFaceFourDown, TorqueFaceOnTop,
+    FaceName::{Single, OmiFaceDown, Four, TorqueOnTop, TorqueFourDown},
+};
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::fabric::physics::SurfaceCharacter;
 
@@ -12,10 +16,10 @@ pub fn triped() -> FabricPlan {
         .build(
             branch(BrickName::Omni)
                 .seed(1)
-                .on_face(Face::BotX, grow(8).scale(0.9).mark("end").prism().build())
-                .on_face(Face::BotY, grow(8).scale(0.9).mark("end").prism().build())
-                .on_face(Face::BotZ, grow(8).scale(0.9).mark("end").prism().build())
-                .on_face(Face::Top, grow(1).build())
+                .on_face(OmiFaceDown(OmniFaceDown::BotX), grow(8).scale(0.9).mark("end").prism().build())
+                .on_face(OmiFaceDown(OmniFaceDown::BotY), grow(8).scale(0.9).mark("end").prism().build())
+                .on_face(OmiFaceDown(OmniFaceDown::BotZ), grow(8).scale(0.9).mark("end").prism().build())
+                .on_face(OmiFaceDown(OmniFaceDown::Top), grow(1).build())
                 .build(),
         )
         .shape([
@@ -42,8 +46,8 @@ pub fn symmetrical() -> FabricPlan {
 pub fn vertebra() -> FabricPlan {
     fabric("Vertebra")
         .build(
-            branch(BrickName::Single)
-                .on_face(Face::NextBase, grow(1).build())
+            branch(BrickName::SingleBrick)
+                .on_face(Single(SingleFace::NextBase), grow(1).build())
                 .build(),
         )
         .shape([centralize_at(1.0)])
@@ -56,8 +60,8 @@ pub fn vertebra() -> FabricPlan {
 pub fn flagellum() -> FabricPlan {
     fabric("Flagellum")
         .build(
-            branch(BrickName::Single)
-                .on_face(Face::NextBase, grow(20).scale(0.95).build())
+            branch(BrickName::SingleBrick)
+                .on_face(Single(SingleFace::NextBase), grow(20).scale(0.95).build())
                 .build(),
         )
         .shape([vulcanize()])
@@ -69,9 +73,9 @@ pub fn flagellum() -> FabricPlan {
 pub fn cigar() -> FabricPlan {
     fabric("Cigar")
         .build(
-            branch(BrickName::Single)
-                .on_face(Face::NextBase, grow(1).scale(0.85).build())
-                .on_face(Face::Base, grow(1).scale(0.85).build())
+            branch(BrickName::SingleBrick)
+                .on_face(Single(SingleFace::NextBase), grow(1).scale(0.85).build())
+                .on_face(Single(SingleFace::Base), grow(1).scale(0.85).build())
                 .build(),
         )
         .shape([centralize_at(1.0), during(Sec(40000.0), [vulcanize()])])
@@ -84,9 +88,9 @@ pub fn cigar() -> FabricPlan {
 pub fn x() -> FabricPlan {
     fabric("X")
         .build(
-            branch(BrickName::Single)
-                .on_face(Face::NextBase, grow(1).scale(0.8).build())
-                .on_face(Face::Base, grow(1).scale(0.8).build())
+            branch(BrickName::SingleBrick)
+                .on_face(Single(SingleFace::NextBase), grow(1).scale(0.8).build())
+                .on_face(Single(SingleFace::Base), grow(1).scale(0.8).build())
                 .build(),
         )
         .shape([centralize_at(1.0), during(Sec(40000.0), [vulcanize()])])
@@ -100,10 +104,10 @@ pub fn tetrapod() -> FabricPlan {
     fabric("Tetrapod")
         .build(
             branch(BrickName::Omni)
-                .on_face(Face::TopRight, grow(3).scale(0.9).build())
-                .on_face(Face::BottomRight, grow(3).scale(0.9).build())
-                .on_face(Face::BackLeft, grow(3).scale(0.9).build())
-                .on_face(Face::FrontLeft, grow(3).scale(0.9).build())
+                .on_face(Four(FourDown::TopRight), grow(3).scale(0.9).build())
+                .on_face(Four(FourDown::BottomRight), grow(3).scale(0.9).build())
+                .on_face(Four(FourDown::BackLeft), grow(3).scale(0.9).build())
+                .on_face(Four(FourDown::FrontLeft), grow(3).scale(0.9).build())
                 .build(),
         )
         .shape([vulcanize()])
@@ -116,17 +120,17 @@ pub fn tetrapod() -> FabricPlan {
 pub fn halo_by_crane() -> FabricPlan {
     fabric("Halo by Crane")
         .build(
-            branch(BrickName::Single)
+            branch(BrickName::SingleBrick)
                 .rotate()
                 .rotate()
                 .on_face(
-                    Face::NextBase,
+                    Single(SingleFace::NextBase),
                     grow(4)
                         .scale(0.92)
                         .build_node(
                             branch(BrickName::Omni)
-                                .on_face(Face::TopX, grow(12).scale(0.92).mark("halo-end").build())
-                                .on_face(Face::TopY, grow(11).scale(0.92).mark("halo-end").build())
+                                .on_face(OmiFaceDown(OmniFaceDown::TopX), grow(12).scale(0.92).mark("halo-end").build())
+                                .on_face(OmiFaceDown(OmniFaceDown::TopY), grow(11).scale(0.92).mark("halo-end").build())
                                 .build(),
                         )
                         .build(),
@@ -144,10 +148,10 @@ pub fn convergence() -> FabricPlan {
         .build(
             branch(BrickName::Omni)
                 .seed(1)
-                .on_face(Face::Bot, grow(2).scale(0.9).build())
-                .on_face(Face::TopY, grow(10).scale(0.9).mark("end").build())
-                .on_face(Face::TopX, grow(10).scale(0.9).mark("end").build())
-                .on_face(Face::TopZ, grow(10).scale(0.9).mark("end").build())
+                .on_face(OmiFaceDown(OmniFaceDown::Bot), grow(2).scale(0.9).build())
+                .on_face(OmiFaceDown(OmniFaceDown::TopY), grow(10).scale(0.9).mark("end").build())
+                .on_face(OmiFaceDown(OmniFaceDown::TopX), grow(10).scale(0.9).mark("end").build())
+                .on_face(OmiFaceDown(OmniFaceDown::TopZ), grow(10).scale(0.9).mark("end").build())
                 .build(),
         )
         .shape([
@@ -165,25 +169,25 @@ pub fn torque_walker() -> FabricPlan {
         .build(
             branch(BrickName::Torque)
                 .on_face(
-                    Face::LeftFrontBottom,
+                    TorqueFourDown(TorqueFaceFourDown::LeftFrontBottom),
                     grow(1)
                         .build_node(branch(BrickName::TorqueLeft).build())
                         .build(),
                 )
                 .on_face(
-                    Face::LeftBackBottom,
+                    TorqueFourDown(TorqueFaceFourDown::LeftBackBottom),
                     grow(1)
                         .build_node(branch(BrickName::TorqueRight).build())
                         .build(),
                 )
                 .on_face(
-                    Face::RightFrontBottom,
+                    TorqueFourDown(TorqueFaceFourDown::RightFrontBottom),
                     grow(1)
                         .build_node(branch(BrickName::TorqueLeft).build())
                         .build(),
                 )
                 .on_face(
-                    Face::RightBackBottom,
+                    TorqueFourDown(TorqueFaceFourDown::RightBackBottom),
                     grow(1)
                         .build_node(branch(BrickName::TorqueRight).build())
                         .build(),
@@ -200,10 +204,10 @@ pub fn twisted_infinity() -> FabricPlan {
     fabric("Twisted Infinity")
         .build(
             branch(BrickName::Omni)
-                .on_face(Face::TopRight, grow(6).scale(0.83).mark("ring-a").build())
-                .on_face(Face::BottomRight, grow(5).scale(0.83).mark("ring-a").build())
-                .on_face(Face::BackLeft, grow(6).scale(0.83).mark("ring-b").build())
-                .on_face(Face::FrontLeft, grow(5).scale(0.83).mark("ring-b").build())
+                .on_face(Four(FourDown::TopRight), grow(6).scale(0.83).mark("ring-a").build())
+                .on_face(Four(FourDown::BottomRight), grow(5).scale(0.83).mark("ring-a").build())
+                .on_face(Four(FourDown::BackLeft), grow(6).scale(0.83).mark("ring-b").build())
+                .on_face(Four(FourDown::FrontLeft), grow(5).scale(0.83).mark("ring-b").build())
                 .build(),
         )
         .shape([
@@ -222,12 +226,12 @@ pub fn propellor() -> FabricPlan {
         .build(
             branch(BrickName::Omni)
                 .seed(1)
-                .on_face(Face::TopX, grow(6).scale(0.83).mark("ring-x").build())
-                .on_face(Face::BotY, grow(5).scale(0.83).mark("ring-x").build())
-                .on_face(Face::TopY, grow(6).scale(0.83).mark("ring-y").build())
-                .on_face(Face::BotZ, grow(5).scale(0.83).mark("ring-y").build())
-                .on_face(Face::TopZ, grow(6).scale(0.83).mark("ring-z").build())
-                .on_face(Face::BotX, grow(5).scale(0.83).mark("ring-z").build())
+                .on_face(OmiFaceDown(OmniFaceDown::TopX), grow(6).scale(0.83).mark("ring-x").build())
+                .on_face(OmiFaceDown(OmniFaceDown::BotY), grow(5).scale(0.83).mark("ring-x").build())
+                .on_face(OmiFaceDown(OmniFaceDown::TopY), grow(6).scale(0.83).mark("ring-y").build())
+                .on_face(OmiFaceDown(OmniFaceDown::BotZ), grow(5).scale(0.83).mark("ring-y").build())
+                .on_face(OmiFaceDown(OmniFaceDown::TopZ), grow(6).scale(0.83).mark("ring-z").build())
+                .on_face(OmiFaceDown(OmniFaceDown::BotX), grow(5).scale(0.83).mark("ring-z").build())
                 .build(),
         )
         .shape([
@@ -244,30 +248,30 @@ pub fn headless_hug() -> FabricPlan {
     fabric("Headless Hug")
         .build(
             branch(BrickName::Omni)
-                .on_face(Face::BottomLeft, grow(4).chiral().scale(0.92).build_node(grow(1).build_node(grow(2).chiral().mark("legs").build()).build()).build())
-                .on_face(Face::BottomRight, grow(4).chiral().scale(0.92).build_node(grow(1).build_node(grow(2).chiral().mark("legs").build()).build()).build())
+                .on_face(Four(FourDown::BottomLeft), grow(4).chiral().scale(0.92).build_node(grow(1).build_node(grow(2).chiral().mark("legs").build()).build()).build())
+                .on_face(Four(FourDown::BottomRight), grow(4).chiral().scale(0.92).build_node(grow(1).build_node(grow(2).chiral().mark("legs").build()).build()).build())
                 .on_face(
-                    Face::TopLeft,
+                    Four(FourDown::TopLeft),
                     grow(2)
                         .scale(0.9)
                         .build_node(
                             branch(BrickName::Omni)
-                                .on_face(Face::TopZ, grow_mark("chest-1"))
-                                .on_face(Face::BotX, grow_mark("chest-2"))
-                                .on_face(Face::BotY, grow(3).chiral().scale(0.9).build_node(grow(1).build_node(grow(2).chiral().mark("hands").build()).build()).build())
+                                .on_face(OmiFaceDown(OmniFaceDown::TopZ), grow_mark("chest-1"))
+                                .on_face(OmiFaceDown(OmniFaceDown::BotX), grow_mark("chest-2"))
+                                .on_face(OmiFaceDown(OmniFaceDown::BotY), grow(3).chiral().scale(0.9).build_node(grow(1).build_node(grow(2).chiral().mark("hands").build()).build()).build())
                                 .build(),
                         )
                         .build(),
                 )
                 .on_face(
-                    Face::TopRight,
+                    Four(FourDown::TopRight),
                     grow(2)
                         .scale(0.9)
                         .build_node(
                             branch(BrickName::Omni)
-                                .on_face(Face::TopY, grow_mark("chest-1"))
-                                .on_face(Face::BotZ, grow_mark("chest-2"))
-                                .on_face(Face::BotX, grow(3).chiral().scale(0.9).build_node(grow(1).build_node(grow(2).chiral().mark("hands").build()).build()).build())
+                                .on_face(OmiFaceDown(OmniFaceDown::TopY), grow_mark("chest-1"))
+                                .on_face(OmiFaceDown(OmniFaceDown::BotZ), grow_mark("chest-2"))
+                                .on_face(OmiFaceDown(OmniFaceDown::BotX), grow(3).chiral().scale(0.9).build_node(grow(1).build_node(grow(2).chiral().mark("hands").build()).build()).build())
                                 .build(),
                         )
                         .build(),
@@ -289,14 +293,14 @@ pub fn torque_ring() -> FabricPlan {
         .build(
             branch(BrickName::Torque)
                 .on_face(
-                    Face::LeftFrontBottom,
+                    TorqueFourDown(TorqueFaceFourDown::LeftFrontBottom),
                     Node::Branch {
                         alias: BrickName::Torque.into(),
                         rotation: 2,
                         scale_factor: 1.0,
                         seed: None,
                         face_nodes: vec![Node::Face {
-                            alias: Face::FarSide.into(),
+                            alias: TorqueOnTop(TorqueFaceOnTop::FarSide).into(),
                             node: Box::new(Node::Mark {
                                 mark_name: ":loose".to_string(),
                             }),
@@ -304,21 +308,21 @@ pub fn torque_ring() -> FabricPlan {
                     },
                 )
                 .on_face(
-                    Face::RightFrontBottom,
+                    TorqueFourDown(TorqueFaceFourDown::RightFrontBottom),
                     Node::Branch {
                         alias: BrickName::Torque.into(),
                         rotation: 2,
                         scale_factor: 1.0,
                         seed: None,
                         face_nodes: vec![Node::Face {
-                            alias: Face::FarSide.into(),
+                            alias: TorqueOnTop(TorqueFaceOnTop::FarSide).into(),
                             node: Box::new(Node::Branch {
                                 alias: BrickName::Torque.into(),
                                 rotation: 0,
                                 scale_factor: 1.0,
                                 seed: None,
                                 face_nodes: vec![Node::Face {
-                                    alias: Face::FarSide.into(),
+                                    alias: TorqueOnTop(TorqueFaceOnTop::FarSide).into(),
                                     node: Box::new(Node::Mark {
                                         mark_name: ":loose".to_string(),
                                     }),
