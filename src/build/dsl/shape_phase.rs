@@ -1,4 +1,4 @@
-use crate::build::dsl::brick_dsl::BrickName;
+use crate::build::dsl::brick_dsl::{BrickName, MarkName};
 use crate::build::dsl::brick_library::BrickLibrary;
 use crate::build::dsl::shape_phase::ShapeCommand::*;
 use crate::build::dsl::{FaceAlias, FaceTag, FaceMark, Spin};
@@ -29,17 +29,17 @@ pub enum ShapeOperation {
         operations: Vec<ShapeOperation>,
     },
     Joiner {
-        mark_name: String,
+        mark_name: MarkName,
         seed: Option<usize>,
     },
     PointDownwards {
-        mark_name: String,
+        mark_name: MarkName,
     },
     Centralize {
         altitude: Option<f32>,
     },
     Spacer {
-        mark_name: String,
+        mark_name: MarkName,
         distance_factor: f32,
     },
     Anchor {
@@ -320,7 +320,7 @@ impl ShapePhase {
         }
     }
 
-    fn marked_faces(&self, mark_name: &String) -> Vec<UniqueId> {
+    fn marked_faces(&self, mark_name: &MarkName) -> Vec<UniqueId> {
         self.marks
             .iter()
             .filter(|post_mark| *mark_name == post_mark.mark_name)
