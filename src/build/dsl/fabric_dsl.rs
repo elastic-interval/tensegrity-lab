@@ -5,29 +5,15 @@ use crate::build::dsl::converge_phase::ConvergePhase;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::shape_phase::ShapeOperation;
-use crate::build::dsl::{FaceAlias, FaceTag};
+use crate::build::dsl::FaceAlias;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Millimeters, Seconds};
 
-pub use crate::build::dsl::brick_dsl::{BrickName, FaceName, MarkName};
+
+use crate::build::dsl::brick_dsl::{BrickRole, FaceName};
+pub use crate::build::dsl::brick_dsl::{BrickName, BrickOrientation, MarkName};
 pub use crate::build::dsl::build_phase::BuildNode as Node;
 pub use crate::units::{Millimeters as Mm, Seconds as Sec};
-
-
-/// Create a FaceAlias from a FaceName enum
-impl From<FaceName> for FaceAlias {
-    fn from(face: FaceName) -> Self {
-        FaceAlias::single(FaceTag::Face(face))
-    }
-}
-
-/// Create a FaceAlias from a BrickName enum
-impl From<BrickName> for FaceAlias {
-    fn from(brick: BrickName) -> Self {
-        FaceAlias::single(FaceTag::Brick(brick))
-    }
-}
-
 
 /// Start building a fabric plan
 pub fn fabric(name: impl Into<String>) -> FabricBuilder {
@@ -37,7 +23,6 @@ pub fn fabric(name: impl Into<String>) -> FabricBuilder {
         shape: Vec::new(),
         pretense: PretensePhaseBuilder::default(),
         converge: None,
-        animate: None,
         scale: Millimeters(1.0),
     }
 }
@@ -48,8 +33,6 @@ pub struct FabricBuilder {
     shape: Vec<ShapeOperation>,
     pretense: PretensePhaseBuilder,
     converge: Option<Seconds>,
-    #[allow(dead_code)]
-    animate: Option<()>, // TODO: AnimatePhase when needed
     scale: Millimeters,
 }
 
@@ -101,30 +84,25 @@ impl FabricBuilder {
 
 
 /// Create a branch node
-pub fn branch(alias: impl Into<FaceAlias>) -> BranchBuilder {
+pub fn branching(brick_name: BrickName, brick_role: BrickRole) -> BranchBuilder {
     BranchBuilder {
-        alias: alias.into(),
+        brick_name,
+        brick_role,
         rotation: 0,
         scale_factor: 1.0,
-        seed: None,
         face_nodes: Vec::new(),
     }
 }
 
 pub struct BranchBuilder {
-    alias: FaceAlias,
+    brick_name: BrickName,
+    brick_role: BrickRole,
     rotation: usize,
     scale_factor: f32,
-    seed: Option<usize>,
     face_nodes: Vec<BuildNode>,
 }
 
 impl BranchBuilder {
-    pub fn seed(mut self, seed: usize) -> Self {
-        self.seed = Some(seed);
-        self
-    }
-
     pub fn scale(mut self, scale: f32) -> Self {
         self.scale_factor = scale;
         self
@@ -135,9 +113,9 @@ impl BranchBuilder {
         self
     }
 
-    pub fn on_face(mut self, alias: impl Into<FaceAlias>, node: BuildNode) -> Self {
+    pub fn on_face(mut self, face_name: FaceName, node: BuildNode) -> Self {
         self.face_nodes.push(BuildNode::Face {
-            alias: alias.into(),
+            alias: self.brick_role.calls_it(face_name),
             node: Box::new(node),
         });
         self
@@ -145,17 +123,17 @@ impl BranchBuilder {
 
     pub fn build(self) -> BuildNode {
         BuildNode::Branch {
-            alias: self.alias,
+            brick_name: self.brick_name,
+            brick_role: self.brick_role,
             rotation: self.rotation,
             scale_factor: self.scale_factor,
-            seed: self.seed,
             face_nodes: self.face_nodes,
         }
     }
 }
 
 /// Create a grow node (defaults to alternating chirality)
-pub fn grow(count: usize) -> GrowBuilder {
+pub fn growing(count: usize) -> GrowBuilder {
     GrowBuilder {
         style: GrowStyle::alternating(count),
         scale_factor: 1.0,

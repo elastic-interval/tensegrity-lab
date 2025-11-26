@@ -163,7 +163,7 @@ impl ShapePhase {
                             vector_space,
                             seed,
                         };
-                        let alias = FaceAlias::single(FaceTag::Brick(BrickName::Omni));
+                        let alias = FaceAlias::single(FaceTag::Brick(BrickName::OmniBrick));
                         let (_, brick_faces) = fabric.create_brick(
                             &alias,
                             FaceRotation::Zero,

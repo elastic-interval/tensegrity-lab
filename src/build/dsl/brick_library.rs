@@ -1,15 +1,22 @@
 use cgmath::SquareMatrix;
 
-use crate::build::dsl::brick::{Baked, BrickDefinition};
+use crate::build::dsl::brick::{Baked, Brick};
+use crate::build::dsl::brick_dsl::BrickName;
 use crate::build::dsl::FaceAlias;
 
 #[derive(Clone, Debug)]
 pub struct BrickLibrary {
-    pub brick_definitions: Vec<BrickDefinition>,
+    pub brick_definitions: Vec<Brick>,
     pub baked_bricks: Vec<(FaceAlias, Baked)>,
 }
 
 impl BrickLibrary {
+    
+    pub fn get_brick(&self, brick_name: BrickName) -> Baked {
+        let definition = self.brick_definitions.iter().find(|definition|definition.proto.brick_name == brick_name).unwrap();
+        definition.clone().baked.unwrap()
+    }
+    
     /// Create a BrickLibrary from brick definitions.
     ///
     /// # Example
@@ -19,7 +26,7 @@ impl BrickLibrary {
     ///
     /// let brick_library = BrickLibrary::new(build_brick_library());
     /// ```
-    pub fn new(brick_definitions: Vec<BrickDefinition>) -> Self {
+    pub fn new(brick_definitions: Vec<Brick>) -> Self {
         let baked_bricks = Self::compute_baked_bricks(&brick_definitions);
         BrickLibrary {
             brick_definitions,
@@ -31,7 +38,7 @@ impl BrickLibrary {
     ///
     /// This transforms brick_definitions into pre-computed baked bricks with all possible
     /// face orientations, used for efficient brick instantiation during construction.
-    fn compute_baked_bricks(brick_definitions: &[BrickDefinition]) -> Vec<(FaceAlias, Baked)> {
+    fn compute_baked_bricks(brick_definitions: &[Brick]) -> Vec<(FaceAlias, Baked)> {
         brick_definitions
             .iter()
             .filter_map(|brick_def| {
@@ -78,16 +85,12 @@ impl BrickLibrary {
     }
 
     pub fn new_brick(&self, search_alias: &FaceAlias) -> Baked {
-        let search_with_base = search_alias.with_base();
         let (_, baked) = self
             .baked_bricks
             .iter()
-            .filter(|(baked_alias, _)| search_with_base.matches(baked_alias))
-            .min_by_key(|(brick_alias, _)| brick_alias.0.len())
-            .expect(&format!(
-                "Cannot find a face to match {:?}",
-                search_with_base
-            ));
+            .filter(|(baked_alias, _)| baked_alias.is_base())
+            .min_by_key(|(face_alias, _)| face_alias.0.len())
+            .expect(&format!("Cannot find a face to match {:?}", search_alias));
         let mut thawed = baked.clone();
         for face in &mut thawed.faces {
             face.aliases

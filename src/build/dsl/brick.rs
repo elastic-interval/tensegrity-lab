@@ -5,7 +5,7 @@ use cgmath::{
     EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Quaternion, Rotation, Transform, Vector3,
 };
 
-use crate::build::dsl::brick_dsl::JointName;
+use crate::build::dsl::brick_dsl::{BrickName, JointName};
 use crate::build::dsl::Spin::{Left, Right};
 use crate::build::dsl::{FaceAlias, Spin};
 use crate::fabric::interval::{Interval, Role};
@@ -54,9 +54,9 @@ pub struct FaceDef {
     pub aliases: Vec<FaceAlias>,
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct Prototype {
-    pub alias: FaceAlias,
+    pub brick_name: BrickName,
     pub joints: Vec<JointName>,
     pub pushes: Vec<PushDef>,
     pub pulls: Vec<PullDef>,
@@ -64,12 +64,12 @@ pub struct Prototype {
 }
 
 #[derive(Clone, Debug)]
-pub struct BrickDefinition {
+pub struct Brick {
     pub proto: Prototype,
     pub baked: Option<Baked>,
 }
 
-impl BrickDefinition {
+impl Brick {
     /// Get the baked faces, deriving them from the prototype if not stored
     pub fn baked_faces(&self) -> Vec<BrickFace> {
         if let Some(baked) = &self.baked {

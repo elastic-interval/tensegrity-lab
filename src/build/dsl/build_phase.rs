@@ -1,11 +1,10 @@
 use std::convert::Into;
 
-use crate::build::dsl::brick_dsl::{BrickName, MarkName, SingleFace};
-use crate::build::dsl::brick_dsl::FaceName::Single;
+use crate::build::dsl::brick_dsl::{BrickName, BrickRole, MarkName};
 use crate::build::dsl::brick_library::BrickLibrary;
 use crate::build::dsl::build_phase::BuildNode::*;
 use crate::build::dsl::build_phase::Launch::*;
-use crate::build::dsl::{FaceAlias, FaceTag, FaceMark};
+use crate::build::dsl::{FaceAlias, FaceMark, FaceTag, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::FaceRotation;
 use crate::fabric::{Fabric, UniqueId};
@@ -80,10 +79,10 @@ pub enum BuildNode {
         mark_name: MarkName,
     },
     Branch {
-        alias: FaceAlias,
+        brick_name: BrickName,
+        brick_role: BrickRole,
         rotation: usize,
         scale_factor: f32,
-        seed: Option<usize>,
         face_nodes: Vec<BuildNode>,
     },
     Prism,
@@ -186,19 +185,23 @@ impl BuildPhase {
             } else {
                 face.spin
             };
-            let face_alias = FaceAlias::single(FaceTag::Brick(BrickName::SingleBrick)) + &spin.into_alias();
-            let (base_face, faces) = fabric.create_brick(
-                &face_alias,
+            // TODO: Create either a Left or Right single brick, depending on Spin
+            let brick_name = match spin {
+                Spin::Left => BrickName::SingleLeftBrick,
+                Spin::Right => BrickName::SingleRightBrick,
+            };
+            let (base_face, brick_faces) = fabric.create_brick(
+                brick_name,
                 FaceRotation::Zero,
                 scale_factor,
                 BaseFace::ExistingFace(face_id),
                 brick_library,
             );
             fabric.join_faces(base_face, face_id);
-            let top_face_alias = face_alias + &FaceAlias::single(FaceTag::Face(Single(SingleFace::NextBase)));
+            let attach_next = FaceAlias::single(FaceTag::AttachNext(spin));
             buds.push(Bud {
-                face_id: top_face_alias
-                    .find_face_in(&faces, fabric)
+                face_id: attach_next
+                    .find_face_in(&brick_faces, fabric)
                     .expect("face matching top face alias"),
                 grow_style: style.decrement(),
                 scale_factor,
@@ -256,9 +259,9 @@ impl BuildPhase {
                 })
             }
             Branch {
+                brick_name,
                 face_nodes,
                 rotation,
-                alias,
                 seed,
                 scale_factor,
             } => {
@@ -267,7 +270,7 @@ impl BuildPhase {
                     .map(BaseFace::ExistingFace)
                     .unwrap_or((*seed).map(BaseFace::Seeded).unwrap_or(BaseFace::Baseless));
                 let (base_face_id, brick_faces) = fabric.create_brick(
-                    alias,
+                    *brick_name,
                     rotation.into(),
                     *scale_factor,
                     base_face,
