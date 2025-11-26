@@ -1,5 +1,5 @@
 use crate::build::dsl::brick::{
-    Baked, BakedInterval, BakedJoint, Brick, BrickFace, FaceDef, Prototype, PullDef, PushDef,
+    BakedInterval, BakedJoint, Brick, BrickFace, FaceDef, Prototype, PullDef, PushDef,
 };
 use crate::build::dsl::{FaceAlias, Spin};
 pub use crate::fabric::material::Material;
@@ -49,6 +49,13 @@ impl BrickRole {
             brick_role: self,
             face_name,
         }
+    }
+
+    pub fn is_seed(&self) -> bool {
+        matches!(
+            self,
+            BrickRole::Seed | BrickRole::SeedFourDown | BrickRole::SeedFaceDown
+        )
     }
 }
 
@@ -130,6 +137,10 @@ pub enum BrickOrientation {
 pub enum FaceName {
     // Building faces
     Attach(Spin),
+    AttachNext,
+
+    // Orientation faces
+    Downwards,
 
     // Single brick faces
     SingleTop,
@@ -323,60 +334,8 @@ impl BakedBuilder {
     }
 
     pub fn build(self) -> Brick {
-        let baked = Baked {
-            joints: self.joints,
-            intervals: self.intervals,
-            faces: self.faces,
-        };
-        Brick {
-            proto: self.proto,
-            baked: Some(baked),
-        }
+        Brick::new(self.proto, self.joints, self.intervals)
     }
-}
-
-/// Derive baked faces from prototype faces by mapping joint names to indices
-pub fn derive_baked_faces(proto: &Prototype) -> Vec<BrickFace> {
-    // Build a map from joint names to indices
-    let mut joint_map = std::collections::HashMap::new();
-
-    // Add explicit joints first (they get indices 0, 1, 2, ...)
-    for (idx, joint_name) in proto.joints.iter().enumerate() {
-        joint_map.insert(*joint_name, idx);
-    }
-
-    // Add joints from pushes (starting after explicit joints)
-    let offset = proto.joints.len();
-    for (idx, push) in proto.pushes.iter().enumerate() {
-        let alpha_idx = offset + idx * 2;
-        let omega_idx = offset + idx * 2 + 1;
-        joint_map.insert(push.alpha, alpha_idx);
-        joint_map.insert(push.omega, omega_idx);
-    }
-
-    // Convert proto faces to baked faces
-    proto
-        .faces
-        .iter()
-        .map(|face_def| {
-            let joints = [
-                *joint_map
-                    .get(&face_def.joints[0])
-                    .expect("Joint name not found"),
-                *joint_map
-                    .get(&face_def.joints[1])
-                    .expect("Joint name not found"),
-                *joint_map
-                    .get(&face_def.joints[2])
-                    .expect("Joint name not found"),
-            ];
-            BrickFace {
-                spin: face_def.spin,
-                joints,
-                aliases: face_def.aliases.clone(),
-            }
-        })
-        .collect()
 }
 
 /// Create a pull interval (cable) definition

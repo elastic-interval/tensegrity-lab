@@ -1,4 +1,3 @@
-use crate::build::dsl::brick_library::BrickLibrary;
 use crate::crucible::Stage;
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
@@ -9,7 +8,6 @@ pub struct CrucibleContext<'a> {
     pub fabric: &'a mut Fabric,
     pub physics: &'a mut Physics,
     pub radio: &'a Radio,
-    pub brick_library: &'a BrickLibrary,
     transition_stage: Option<Stage>,
     events: Vec<LabEvent>,
     camera_translation: Option<cgmath::Vector3<f32>>,
@@ -20,13 +18,11 @@ impl<'a> CrucibleContext<'a> {
         fabric: &'a mut Fabric,
         physics: &'a mut Physics,
         radio: &'a Radio,
-        brick_library: &'a BrickLibrary,
     ) -> Self {
         Self {
             fabric,
             physics,
             radio,
-            brick_library,
             transition_stage: None,
             events: Vec::new(),
             camera_translation: None,

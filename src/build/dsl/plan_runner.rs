@@ -7,8 +7,8 @@ use crate::build::dsl::FabricPlan;
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::CONSTRUCTION;
 use crate::fabric::physics::Physics;
-use crate::{LabEvent, StateChange};
 use crate::units::{IMMEDIATE, MOMENT};
+use crate::{LabEvent, StateChange};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Clone, Debug, Copy, PartialEq)]
@@ -61,15 +61,13 @@ impl PlanRunner {
         if !context.fabric.progress.is_busy() && self.disabled.is_none() {
             let (next_stage, seconds) = match self.stage {
                 Initialize => {
-                    self.build_phase
-                        .init(context.fabric, context.brick_library);
+                    self.build_phase.init(context.fabric);
                     context.fabric.scale = self.get_scale();
                     (GrowApproach, MOMENT)
                 }
                 GrowStep => {
                     if self.build_phase.is_growing() {
-                        self.build_phase
-                            .growth_step(context.fabric, context.brick_library);
+                        self.build_phase.growth_step(context.fabric);
                         (GrowApproach, MOMENT)
                     } else if self.shape_phase.needs_shaping() {
                         self.shape_phase.marks = self.build_phase.marks.split_off(0);
@@ -81,14 +79,11 @@ impl PlanRunner {
                 }
                 GrowApproach => (GrowCalm, MOMENT),
                 GrowCalm => (GrowStep, IMMEDIATE),
-                Shaping => match self
-                    .shape_phase
-                    .shaping_step(context.fabric, context.brick_library)
-                {
+                Shaping => match self.shape_phase.shaping_step(context.fabric) {
                     ShapeCommand::Noop => (Shaping, IMMEDIATE),
                     ShapeCommand::StartProgress(seconds) => (Shaping, seconds),
                     ShapeCommand::Rigidity(_percent) => (Shaping, IMMEDIATE),
-                    ShapeCommand::Terminate => (Completed, IMMEDIATE)
+                    ShapeCommand::Terminate => (Completed, IMMEDIATE),
                 },
                 Completed => (Completed, IMMEDIATE),
             };
@@ -109,21 +104,19 @@ impl PlanRunner {
         if !context.fabric.progress.is_busy() && self.disabled.is_none() {
             let (next_stage, seconds) = match self.stage {
                 Initialize => {
-                    self.build_phase
-                        .init(context.fabric, context.brick_library);
+                    self.build_phase.init(context.fabric);
                     context.fabric.scale = self.get_scale();
                     (GrowApproach, MOMENT)
                 }
                 GrowStep => {
                     if self.build_phase.is_growing() {
-                        self.build_phase
-                            .growth_step(context.fabric, context.brick_library);
+                        self.build_phase.growth_step(context.fabric);
                         (GrowApproach, MOMENT)
                     } else if self.shape_phase.needs_shaping() {
                         self.shape_phase.marks = self.build_phase.marks.split_off(0);
-                        context.send_event(LabEvent::UpdateState(
-                            StateChange::SetStageLabel("Shaping".to_string())
-                        ));
+                        context.send_event(LabEvent::UpdateState(StateChange::SetStageLabel(
+                            "Shaping".to_string(),
+                        )));
                         (Shaping, IMMEDIATE)
                     } else {
                         (Completed, IMMEDIATE)
@@ -131,16 +124,11 @@ impl PlanRunner {
                 }
                 GrowApproach => (GrowCalm, MOMENT),
                 GrowCalm => (GrowStep, IMMEDIATE),
-                Shaping => match self
-                    .shape_phase
-                    .shaping_step(context.fabric, context.brick_library)
-                {
+                Shaping => match self.shape_phase.shaping_step(context.fabric) {
                     ShapeCommand::Noop => (Shaping, IMMEDIATE),
                     ShapeCommand::StartProgress(seconds) => (Shaping, seconds),
-                    ShapeCommand::Rigidity(_percent) => {
-                        (Shaping, IMMEDIATE)
-                    }
-                    ShapeCommand::Terminate => (Completed, IMMEDIATE)
+                    ShapeCommand::Rigidity(_percent) => (Shaping, IMMEDIATE),
+                    ShapeCommand::Terminate => (Completed, IMMEDIATE),
                 },
                 Completed => (Completed, IMMEDIATE),
             };
@@ -158,7 +146,8 @@ impl PlanRunner {
         // Iterate frame by frame, checking progress after each iteration
         // Stage logic executes at exact fabric time, outer loop adjusts dynamically to maintain target time scale
         static TOTAL_ITERATIONS: AtomicUsize = AtomicUsize::new(0);
-        for _ in 0..1000 {  // Nominal value, outer loop adjusts dynamically
+        for _ in 0..1000 {
+            // Nominal value, outer loop adjusts dynamically
             // DETAILED LOGGING FOR FIRST 100 AND AROUND 12000
             let iter_count = TOTAL_ITERATIONS.fetch_add(1, Ordering::Relaxed);
             let should_log = iter_count <= 100 || (iter_count >= 11900 && iter_count <= 12100);
@@ -172,7 +161,8 @@ impl PlanRunner {
                 let radius = context.fabric.bounding_radius();
                 let progress_busy = context.fabric.progress.is_busy();
 
-                eprintln!("[UI-{:05}] joints:{:3} height:{:8.3}mm radius:{:8.5}m busy:{} stage:{:?}",
+                eprintln!(
+                    "[UI-{:05}] joints:{:3} height:{:8.3}mm radius:{:8.5}m busy:{} stage:{:?}",
                     iter_count,
                     context.fabric.joints.len(),
                     height_mm,

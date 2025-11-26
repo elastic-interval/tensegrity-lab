@@ -153,7 +153,7 @@ impl Keyboard {
         self.key_lab_event(
             KeyCode::Enter,
             "Reload fabric",
-            RefreshLibrary,
+            RebuildFabric,
             Box::new(|_| true),
         );
         self

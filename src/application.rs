@@ -1,8 +1,4 @@
-use crate::build::dsl::brick_builders::build_brick_library;
-use crate::build::dsl::fabric_builders::build_fabric_library;
-use crate::build::dsl::brick_library::BrickLibrary;
-use crate::build::dsl::fabric_library::FabricLibrary;
-use crate::build::dsl::FabricPlan;
+use crate::build::dsl::{brick_library, fabric_library};
 use crate::crucible::Crucible;
 use crate::fabric::Fabric;
 use crate::keyboard::Keyboard;
@@ -28,8 +24,6 @@ pub struct Application {
     scene: Option<Scene>,
     keyboard: Keyboard,
     crucible: Crucible,
-    fabric_library: FabricLibrary,
-    brick_library: BrickLibrary,
     radio: Radio,
     last_update: Instant,
     accumulated_time: Duration,
@@ -52,17 +46,12 @@ impl Application {
         window_attributes: WindowAttributes,
         radio: Radio,
     ) -> Application {
-        // Use Rust DSL instead of dsl parsing
-        let brick_library = BrickLibrary::new(build_brick_library());
-        let fabric_library = FabricLibrary::new(build_fabric_library());
         Application {
             run_style: RunStyle::Unknown,
             mobile_device: false,
             window_attributes,
             radio: radio.clone(),
             keyboard: Keyboard::new(radio.clone()).with_actions(),
-            brick_library,
-            fabric_library,
             scene: None,
             crucible: Crucible::new(radio.clone()),
             last_update: Instant::now(),
@@ -77,23 +66,6 @@ impl Application {
         }
     }
 
-    //==================================================
-    // Public API Methods
-    //==================================================
-
-    pub fn refresh_library(&mut self, time: Instant) -> LabEvent {
-        self.fabric_library = FabricLibrary::new(build_fabric_library());
-        LabEvent::UpdatedLibrary(time)
-    }
-
-    pub fn get_fabric_plan(&self, plan_name: &String) -> FabricPlan {
-        self.fabric_library
-            .fabric_plans
-            .iter()
-            .find(|plan| plan.name == *plan_name)
-            .expect(&format!("Fabric plan not found: {}", plan_name))
-            .clone()
-    }
 
     //==================================================
     // Private Helper Methods
@@ -237,16 +209,15 @@ impl ApplicationHandler<LabEvent> for Application {
                         unreachable!()
                     }
                     RunStyle::Fabric { fabric_name, .. } => {
-                        let fabric_plan = self.get_fabric_plan(&fabric_name);
+                        let fabric_plan = fabric_library().get_fabric_plan(&fabric_name);
                         CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
                     }
                     RunStyle::Prototype(brick_index) => {
-                        let prototype = self
-                            .brick_library
-                            .brick_definitions
+                        let prototype = brick_library()
+                            .bricks
                             .get(*brick_index)
                             .expect("no such brick")
-                            .proto
+                            .prototype
                             .clone();
                         ControlState::Baking.send(&self.radio);
                         self.crucible.action(CrucibleAction::BakeBrick(prototype));
@@ -295,19 +266,8 @@ impl ApplicationHandler<LabEvent> for Application {
             Crucible(crucible_action) => {
                 self.crucible.action(crucible_action);
             }
-            RefreshLibrary => {
-                println!("Manual library refresh requested");
-                StateChange::ShowMovementAnalysis(None).send(&self.radio);
-                let event = self.refresh_library(Instant::now());
-                event.send(&self.radio);
-            }
             RebuildFabric => {
                 // Rebuild the current fabric with updated physics parameters
-                Run(self.run_style.clone()).send(&self.radio);
-            }
-            UpdatedLibrary(time) => {
-                println!("Reloading library at {time:?}");
-                let _fabric_library = self.fabric_library.clone();
                 Run(self.run_style.clone()).send(&self.radio);
             }
             DumpCSV => {
@@ -551,7 +511,7 @@ impl ApplicationHandler<LabEvent> for Application {
                     0
                 };
 
-                self.crucible.iterate(&self.brick_library, iterations_per_frame);
+                self.crucible.iterate(iterations_per_frame);
             }
         }
 

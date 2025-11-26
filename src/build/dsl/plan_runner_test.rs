@@ -1,10 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use crate::build::dsl::brick_builders::build_brick_library;
-    use crate::build::dsl::fabric_builders::build_fabric_library;
     use crate::build::dsl::brick_library::BrickLibrary;
+    use crate::build::dsl::fabric_library;
     use crate::build::dsl::fabric_library::FabricLibrary;
-    use crate::build::dsl::fabric_plan_executor::{FabricPlanExecutor, ExecutorStage};
+    use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
     use crate::fabric::Fabric;
 
     /// Benchmark data point from UI reference run
@@ -102,10 +101,7 @@ mod tests {
     fn test_executor_phases() {
         eprintln!("\n=== Testing FabricPlanExecutor Phases ===\n");
 
-        let fabric_library = FabricLibrary::new(build_fabric_library());
-        let brick_library = BrickLibrary::new(build_brick_library());
-
-        let plan = fabric_library
+        let plan = fabric_library()
             .fabric_plans
             .iter()
             .find(|p| p.name == "Triped")
@@ -146,7 +142,7 @@ mod tests {
             }
 
             // Do one iteration
-            let _ = executor.iterate(&brick_library);
+            let _ = executor.iterate();
             iteration += 1;
         }
 
@@ -162,8 +158,8 @@ mod tests {
     fn test_all_build_benchmarks() {
         eprintln!("\n=== Testing All BUILD Phase Benchmarks ===\n");
 
-        let fabric_library = FabricLibrary::new(build_fabric_library());
-        let brick_library = BrickLibrary::new(build_brick_library());
+        let fabric_library = FabricLibrary::default();
+        let brick_library = BrickLibrary::default();
 
         let plan = fabric_library
             .fabric_plans
@@ -198,7 +194,7 @@ mod tests {
 
         // Run executor iteration by iteration, checking benchmarks
         for current_iteration in 1..=max_iterations {
-            let _ = executor.iterate(&brick_library);
+            let _ = executor.iterate();
 
             // Check if we've hit a benchmark time
             if benchmark_idx < build_benchmarks.len() {
@@ -230,8 +226,8 @@ mod tests {
     fn test_triped_full_execution() {
         eprintln!("\n=== Testing Triped Full Execution: BUILD → PRETENSE → CONVERGE ===\n");
 
-        let fabric_library = FabricLibrary::new(build_fabric_library());
-        let brick_library = BrickLibrary::new(build_brick_library());
+        let fabric_library = FabricLibrary::default();
+        let brick_library = BrickLibrary::default();
 
         let plan = fabric_library
             .fabric_plans
@@ -258,7 +254,7 @@ mod tests {
                 current_stage = stage.clone();
             }
 
-            let _ = executor.iterate(&brick_library);
+            let _ = executor.iterate();
             iteration += 1;
         }
 
@@ -285,8 +281,8 @@ mod tests {
     fn check_final_converged_state() {
         eprintln!("\n=== Checking Final Converged State ===\n");
 
-        let fabric_library = FabricLibrary::new(build_fabric_library());
-        let brick_library = BrickLibrary::new(build_brick_library());
+        let fabric_library = FabricLibrary::default();
+        let brick_library = BrickLibrary::default();
 
         let plan = fabric_library.fabric_plans.iter()
             .find(|p| p.name == "Triped")
@@ -298,7 +294,7 @@ mod tests {
         // Run until completion
         let mut iteration = 0;
         while !executor.is_complete() && iteration < 5_000_000 {
-            let _ = executor.iterate(&brick_library);
+            let _ = executor.iterate();
             iteration += 1;
         }
 

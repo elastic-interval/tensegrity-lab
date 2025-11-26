@@ -1,6 +1,4 @@
 use crate::build::animator::Animator;
-use crate::build::dsl::brick_builders::build_brick_library;
-use crate::build::dsl::brick_library::BrickLibrary;
 use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
 use crate::build::dsl::FabricPlan;
 use crate::build::evo::evolution::Evolution;
@@ -75,13 +73,13 @@ impl Crucible {
         self.stage = Viewing;
     }
 
-    pub fn iterate(&mut self, brick_library: &BrickLibrary, iterations_per_frame: usize) {
+    pub fn iterate(&mut self, iterations_per_frame: usize) {
         // Check if RunningPlan completed and needs transition
         if let RunningPlan(executor) = &mut self.stage {
             use crate::build::dsl::fabric_plan_executor::IterateResult;
 
             for _ in 0..iterations_per_frame {
-                match executor.iterate(brick_library) {
+                match executor.iterate() {
                     IterateResult::Complete => {
                         // Sync fabric and physics from executor
                         self.fabric = executor.fabric.clone();
@@ -169,7 +167,6 @@ impl Crucible {
                     &mut self.fabric,
                     &mut self.physics,
                     &self.radio,
-                    brick_library,
                 );
                 animator.iterate(&mut context);
 
@@ -188,7 +185,6 @@ impl Crucible {
                     &mut self.fabric,
                     &mut self.physics,
                     &self.radio,
-                    brick_library,
                 );
                 tester.iterate(&mut context, iterations_per_frame);
 
@@ -207,7 +203,6 @@ impl Crucible {
                     &mut self.fabric,
                     &mut self.physics,
                     &self.radio,
-                    brick_library,
                 );
                 if let Some(baked) = oven.iterate(&mut context) {
                     panic!("Better way to bake bricks please?: {:?}", baked);
@@ -228,7 +223,6 @@ impl Crucible {
                     &mut self.fabric,
                     &mut self.physics,
                     &self.radio,
-                    brick_library,
                 );
                 evolution.iterate(&mut context);
 
@@ -288,9 +282,6 @@ impl Crucible {
             return;
         }
 
-        // Create a brick library for the context using Rust DSL
-        let dummy_brick_library = BrickLibrary::new(build_brick_library());
-
         // Clone physics for passing to tester (avoids borrow checker issues)
         let tester_physics = self.physics.clone();
 
@@ -299,18 +290,14 @@ impl Crucible {
             &mut self.fabric,
             &mut self.physics,
             &self.radio,
-            &dummy_brick_library,
         );
 
         match crucible_action {
             BakeBrick(prototype) => {
                 let oven = Oven::new(prototype, self.radio.clone());
-
                 context.replace_fabric(oven.fabric.clone());
-
                 // Initialize the physics for baking
                 oven.copy_physics_into(&mut context);
-
                 context.transition_to(BakingBrick(oven));
             }
             BuildFabric(_) => {

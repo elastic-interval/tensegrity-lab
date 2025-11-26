@@ -1,17 +1,14 @@
 /// Type-safe DSL for defining fabric plans with a fluent API.
-
 use crate::build::dsl::build_phase::{BuildNode, BuildPhase, Chirality, GrowStyle};
 use crate::build::dsl::converge_phase::ConvergePhase;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::shape_phase::ShapeOperation;
-use crate::build::dsl::FaceAlias;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Millimeters, Seconds};
 
-
-use crate::build::dsl::brick_dsl::{BrickRole, FaceName};
 pub use crate::build::dsl::brick_dsl::{BrickName, BrickOrientation, MarkName};
+use crate::build::dsl::brick_dsl::{BrickRole, FaceName};
 pub use crate::build::dsl::build_phase::BuildNode as Node;
 pub use crate::units::{Millimeters as Mm, Seconds as Sec};
 
@@ -81,7 +78,6 @@ impl FabricBuilder {
         }
     }
 }
-
 
 /// Create a branch node
 pub fn branching(brick_name: BrickName, brick_role: BrickRole) -> BranchBuilder {
@@ -208,19 +204,8 @@ pub fn vulcanize() -> ShapeOperation {
 }
 
 pub fn join(mark_name: MarkName) -> ShapeOperation {
-    ShapeOperation::Joiner {
-        mark_name,
-        seed: None,
-    }
+    ShapeOperation::Joiner { mark_name }
 }
-
-pub fn join_seed(mark_name: MarkName, seed: usize) -> ShapeOperation {
-    ShapeOperation::Joiner {
-        mark_name,
-        seed: Some(seed),
-    }
-}
-
 pub fn down(mark_name: MarkName) -> ShapeOperation {
     ShapeOperation::PointDownwards { mark_name }
 }

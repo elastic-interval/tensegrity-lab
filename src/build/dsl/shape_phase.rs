@@ -1,7 +1,8 @@
-use crate::build::dsl::brick_dsl::{BrickName, MarkName};
-use crate::build::dsl::brick_library::BrickLibrary;
+use crate::build::dsl::brick_dsl::BrickName::OmniBrick;
+use crate::build::dsl::brick_dsl::BrickRole::{OnSpinLeft, OnSpinRight};
+use crate::build::dsl::brick_dsl::MarkName;
 use crate::build::dsl::shape_phase::ShapeCommand::*;
-use crate::build::dsl::{FaceAlias, FaceTag, FaceMark, Spin};
+use crate::build::dsl::{brick_library, FaceMark, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Role;
@@ -30,7 +31,6 @@ pub enum ShapeOperation {
     },
     Joiner {
         mark_name: MarkName,
-        seed: Option<usize>,
     },
     PointDownwards {
         mark_name: MarkName,
@@ -94,11 +94,7 @@ impl ShapePhase {
         !self.operations.is_empty()
     }
 
-    pub fn shaping_step(
-        &mut self,
-        fabric: &mut Fabric,
-        brick_library: &BrickLibrary,
-    ) -> ShapeCommand {
+    pub fn shaping_step(&mut self, fabric: &mut Fabric) -> ShapeCommand {
         if let Some(countdown) = self.complete_joiners(fabric) {
             return countdown;
         }
@@ -107,17 +103,16 @@ impl ShapePhase {
             return Terminate;
         };
         self.shape_operation_index += 1;
-        self.execute_shape_operation(fabric, brick_library, operation.clone())
+        self.execute_shape_operation(fabric, operation.clone())
     }
 
     fn execute_shape_operation(
         &mut self,
         fabric: &mut Fabric,
-        brick_library: &BrickLibrary,
         operation: ShapeOperation,
     ) -> ShapeCommand {
         match operation {
-            ShapeOperation::Joiner { mark_name, seed } => {
+            ShapeOperation::Joiner { mark_name } => {
                 let face_ids = self.marked_faces(&mark_name);
                 let joints = self.marked_middle_joints(fabric, &face_ids);
                 match face_ids.len() {
@@ -158,18 +153,18 @@ impl ShapePhase {
                         };
                         let points = ordered_rays.map(|ray| ray + midpoint).map(Point3::from_vec);
                         let vector_space = vector_space(points, scale, spin, FaceRotation::Zero);
-                        let base_face = BaseFace::Situated {
-                            spin,
-                            vector_space,
-                            seed,
+                        let base_face = BaseFace::Situated { spin, vector_space };
+                        let brick_role = match spin {
+                            Spin::Left => OnSpinLeft,
+                            Spin::Right => OnSpinRight,
                         };
-                        let alias = FaceAlias::single(FaceTag::Brick(BrickName::OmniBrick));
-                        let (_, brick_faces) = fabric.create_brick(
-                            &alias,
+                        let brick = brick_library().get_brick(OmniBrick, brick_role);
+                        let (_, brick_faces) = fabric.attach_brick(
+                            &brick,
+                            brick_role,
                             FaceRotation::Zero,
                             scale,
                             base_face,
-                            brick_library,
                         );
                         let mut brick_face_midpoints = Vec::new();
                         for brick_face_id in brick_faces {
@@ -253,12 +248,8 @@ impl ShapePhase {
                         let alpha_pt = fabric.joints[alpha_index].location;
                         let omega_pt = fabric.joints[omega_index].location;
                         let length = alpha_pt.distance(omega_pt) * distance_factor;
-                        let interval = fabric.create_interval(
-                            alpha_index,
-                            omega_index,
-                            length,
-                            Role::Pulling,
-                        );
+                        let interval =
+                            fabric.create_interval(alpha_index, omega_index, length, Role::Pulling);
                         self.spacers.push(interval);
                     }
                 }
@@ -270,7 +261,7 @@ impl ShapePhase {
             } => {
                 for operation in operations {
                     // ignores the countdown returned from each sub-operation
-                    let _ = self.execute_shape_operation(fabric, brick_library, operation);
+                    let _ = self.execute_shape_operation(fabric, operation);
                 }
                 StartProgress(seconds)
             }
