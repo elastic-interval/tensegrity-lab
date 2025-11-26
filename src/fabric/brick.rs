@@ -1,8 +1,9 @@
 use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
 
-use crate::build::dsl::brick::{Baked, BakedInterval, BakedJoint, BrickFace};
+use crate::build::dsl::brick::{Baked, BakedInterval, BakedJoint, Brick, BrickFace};
+use crate::build::dsl::brick_dsl::BrickName;
 use crate::build::dsl::brick_library::BrickLibrary;
-use crate::build::dsl::{FaceAlias, Spin};
+use crate::build::dsl::Spin;
 use crate::fabric::face::FaceRotation;
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, UniqueId};
@@ -19,13 +20,12 @@ pub enum BaseFace {
 }
 
 impl Fabric {
-    pub fn create_brick(
+    pub fn attach_brick(
         &mut self,
-        face_alias: &FaceAlias,
+        brick_definition: &Brick,
         rotation: FaceRotation,
         scale_factor: f32,
         base_face: BaseFace,
-        brick_library: &BrickLibrary,
     ) -> (UniqueId, Vec<UniqueId>) {
         let (scale, spin, matrix, seed) = match base_face {
             BaseFace::ExistingFace(id) => {
@@ -50,13 +50,8 @@ impl Fabric {
             ),
             BaseFace::Baseless => (scale_factor, None, Matrix4::from_scale(scale_factor), None),
         };
-        let spin_alias = face_alias.spin().or(spin).map(Spin::into_alias);
-        let search_alias = match spin_alias {
-            None => face_alias.with_seed(seed),
-            Some(spin_alias) => spin_alias + face_alias,
-        };
-        let brick = brick_library.new_brick(&search_alias);
-        let joints: Vec<usize> = brick
+        let baked = brick_definition.baked.unwrap();
+        let joints: Vec<usize> = baked
             .joints
             .into_iter()
             .map(|BakedJoint { location, .. }| self.create_joint(matrix.transform_point(location)))
@@ -66,7 +61,7 @@ impl Fabric {
             omega_index,
             material_name,
             strain,
-        } in brick.intervals
+        } in baked.intervals
         {
             let (alpha_index, omega_index) = (joints[alpha_index], joints[omega_index]);
             let ideal = self.ideal(alpha_index, omega_index, strain);
@@ -99,6 +94,11 @@ impl Fabric {
                         let ideal = self.ideal(alpha_index, omega_index, Baked::TARGET_FACE_STRAIN);
                         self.create_interval(alpha_index, omega_index, ideal, Role::FaceRadial)
                     });
+                    let spin_alias = face_alias.spin().or(spin).map(Spin::into_alias);
+                    let search_alias = match spin_alias {
+                        None => face_alias.with_seed(seed),
+                        Some(spin_alias) => spin_alias + face_alias,
+                    };
                     let single_alias: Vec<_> = aliases
                         .into_iter()
                         .filter(|alias| search_alias.matches(alias))
@@ -112,10 +112,9 @@ impl Fabric {
                 },
             )
             .collect::<Vec<_>>();
-        let search_base = search_alias.with_base();
         let base_face = brick_faces
             .iter()
-            .find(|&&face_id| search_base.matches(self.face(face_id).alias()))
+            .find(|&&face_id| self.face(face_id).alias().is_base())
             .expect("missing face after creating brick");
         (*base_face, brick_faces)
     }
