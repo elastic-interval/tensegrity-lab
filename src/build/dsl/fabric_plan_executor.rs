@@ -1,21 +1,11 @@
-/// FabricPlanExecutor: A unified machine that executes a complete FabricPlan
-/// in pure fabric time (iterations), independent of frames.
-///
-/// This machine orchestrates BUILD → PRETENSE → CONVERGE phases and can be used
-/// identically by both UI (headful) and headless tests.
-///
-/// The executor maintains an execution log of critical events with precise timing,
-/// which can be inspected and verified in tests.
-
-use crate::build::dsl::brick_library::BrickLibrary;
+use crate::build::converger::Converger;
 use crate::build::dsl::plan_runner::PlanRunner;
 use crate::build::dsl::pretenser::Pretenser;
 use crate::build::dsl::FabricPlan;
-use crate::build::converger::Converger;
-use crate::fabric::Fabric;
-use crate::fabric::physics::Physics;
 use crate::fabric::physics::presets::{CONSTRUCTION, PRETENSING};
+use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter;
+use crate::fabric::Fabric;
 use crate::units::Percent;
 
 #[derive(Debug, PartialEq)]
@@ -170,7 +160,7 @@ impl FabricPlanExecutor {
     /// Execute one iteration of physics and check for stage transitions.
     /// This is frame-independent and operates in pure fabric time.
     /// Returns Complete when the execution is finished, Continue otherwise.
-    pub fn iterate(&mut self, brick_library: &BrickLibrary) -> IterateResult {
+    pub fn iterate(&mut self) -> IterateResult {
         self.current_iteration += 1;
 
         // Run one physics iteration
@@ -184,7 +174,7 @@ impl FabricPlanExecutor {
 
                 if let Some(plan_runner) = &mut self.plan_runner {
                     use crate::build::dsl::plan_context::PlanContext;
-                    let mut context = PlanContext::new(&mut self.fabric, &mut self.physics, brick_library);
+                    let mut context = PlanContext::new(&mut self.fabric, &mut self.physics);
 
                     let prev_stage = plan_runner.stage;
                     let was_growing = plan_runner.build_phase.is_growing();

@@ -8,6 +8,7 @@ use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
 use tensegrity_lab::{LabEvent, RunStyle, TestScenario};
+use tensegrity_lab::build::dsl::init_libraries;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -62,6 +63,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
+    init_libraries();
     let mut builder = EventLoop::<LabEvent>::with_user_event();
     let event_loop: EventLoop<LabEvent> = builder.build()?;
     let radio = event_loop.create_proxy();

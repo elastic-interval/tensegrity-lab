@@ -1,13 +1,12 @@
-use std::convert::Into;
-
+use crate::build::dsl::brick_dsl::FaceName::AttachNext;
 use crate::build::dsl::brick_dsl::{BrickName, BrickRole, MarkName};
-use crate::build::dsl::brick_library::BrickLibrary;
 use crate::build::dsl::build_phase::BuildNode::*;
 use crate::build::dsl::build_phase::Launch::*;
-use crate::build::dsl::{FaceAlias, FaceMark, FaceTag, Spin};
+use crate::build::dsl::{brick_library, FaceAlias, FaceMark, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::FaceRotation;
 use crate::fabric::{Fabric, UniqueId};
+use std::convert::Into;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Chirality {
@@ -92,7 +91,7 @@ impl BuildNode {
     pub fn traverse(&self, f: &mut impl FnMut(&Self)) {
         f(self);
         match self {
-            Mark { .. }| Prism{..} => {}
+            Mark { .. } | Prism { .. } => {}
             Face { node, .. } => {
                 node.traverse(f);
             }
@@ -137,12 +136,8 @@ impl BuildPhase {
 }
 
 impl BuildPhase {
-    pub fn init(
-        &mut self,
-        fabric: &mut Fabric,
-        brick_library: &BrickLibrary,
-    ) {
-        let (buds, marks) = Self::execute_node(fabric, Scratch, &self.root, vec![], brick_library);
+    pub fn init(&mut self, fabric: &mut Fabric) {
+        let (buds, marks) = Self::execute_node(fabric, Scratch, &self.root, vec![]);
         self.buds = buds;
         self.marks = marks;
     }
@@ -151,15 +146,11 @@ impl BuildPhase {
         !self.buds.is_empty()
     }
 
-    pub fn growth_step(
-        &mut self,
-        fabric: &mut Fabric,
-        brick_library: &BrickLibrary,
-    ) {
+    pub fn growth_step(&mut self, fabric: &mut Fabric) {
         let buds = self.buds.clone();
         self.buds.clear();
         for bud in buds {
-            let (new_buds, new_marks) = self.execute_bud(fabric, bud, brick_library);
+            let (new_buds, new_marks) = self.execute_bud(fabric, bud);
             self.buds.extend(new_buds);
             self.marks.extend(new_marks);
         }
@@ -174,10 +165,8 @@ impl BuildPhase {
             scale_factor,
             nodes,
         }: Bud,
-        brick_library: &BrickLibrary,
     ) -> (Vec<Bud>, Vec<FaceMark>) {
         let (mut buds, mut marks) = (vec![], vec![]);
-
         if let Some(style) = grow_style {
             let face = fabric.expect_face(face_id);
             let spin = if style.is_alternating() {
@@ -185,24 +174,31 @@ impl BuildPhase {
             } else {
                 face.spin
             };
-            // TODO: Create either a Left or Right single brick, depending on Spin
-            let brick_name = match spin {
-                Spin::Left => BrickName::SingleLeftBrick,
-                Spin::Right => BrickName::SingleRightBrick,
+            let (brick_name, brick_role) = match spin {
+                Spin::Left => (BrickName::SingleLeftBrick, BrickRole::OnSpinRight),
+                Spin::Right => (BrickName::SingleRightBrick, BrickRole::OnSpinLeft),
             };
-            let (base_face, brick_faces) = fabric.create_brick(
-                brick_name,
+            let brick = brick_library().get_brick(brick_name, brick_role);
+            let (base_face, brick_faces) = fabric.attach_brick(
+                &brick,
+                brick_role,
                 FaceRotation::Zero,
                 scale_factor,
                 BaseFace::ExistingFace(face_id),
-                brick_library,
             );
             fabric.join_faces(base_face, face_id);
-            let attach_next = FaceAlias::single(FaceTag::AttachNext(spin));
+            let next_face_id: UniqueId = brick_faces
+                .into_iter()
+                .find(|brick_face| {
+                    fabric
+                        .expect_face(*brick_face)
+                        .aliases
+                        .iter()
+                        .any(|FaceAlias { face_name, .. }| *face_name == AttachNext)
+                })
+                .expect(format!("Brick {}: next face not found", brick_name).as_str());
             buds.push(Bud {
-                face_id: attach_next
-                    .find_face_in(&brick_faces, fabric)
-                    .expect("face matching top face alias"),
+                face_id: next_face_id,
                 grow_style: style.decrement(),
                 scale_factor,
                 nodes,
@@ -214,7 +210,6 @@ impl BuildPhase {
                     IdentifiedFace(face_id),
                     child_node,
                     vec![],
-                    brick_library,
                 );
                 buds.extend(node_buds);
                 marks.extend(node_marks);
@@ -228,7 +223,6 @@ impl BuildPhase {
         launch: Launch,
         node: &BuildNode,
         faces: Vec<UniqueId>,
-        brick_library: &BrickLibrary,
     ) -> (Vec<Bud>, Vec<FaceMark>) {
         let mut buds: Vec<Bud> = vec![];
         let mut marks: Vec<FaceMark> = vec![];
@@ -240,7 +234,6 @@ impl BuildPhase {
                     NamedFace(alias.clone()),
                     build_node,
                     faces,
-                    brick_library,
                 );
             }
             Grow {
@@ -249,8 +242,8 @@ impl BuildPhase {
                 post_growth_nodes,
                 ..
             } => {
-                let face_id = Self::find_launch_face(&launch, &faces, fabric);
-                let face_id = face_id.expect("Unable to find the launch face by id in execute_node");
+                let face_id =
+                    Self::find_launch_face(&launch, &faces, fabric).expect("No launch face");
                 buds.push(Bud {
                     face_id,
                     grow_style: Some(*style),
@@ -260,21 +253,22 @@ impl BuildPhase {
             }
             Branch {
                 brick_name,
+                brick_role,
                 face_nodes,
                 rotation,
-                seed,
                 scale_factor,
             } => {
+                let brick = brick_library().get_brick(*brick_name, *brick_role);
                 let launch_face = Self::find_launch_face(&launch, &faces, fabric);
                 let base_face = launch_face
                     .map(BaseFace::ExistingFace)
-                    .unwrap_or((*seed).map(BaseFace::Seeded).unwrap_or(BaseFace::Baseless));
-                let (base_face_id, brick_faces) = fabric.create_brick(
-                    *brick_name,
+                    .unwrap_or(BaseFace::Seeded);
+                let (base_face_id, brick_faces) = fabric.attach_brick(
+                    &brick,
+                    *brick_role,
                     rotation.into(),
                     *scale_factor,
                     base_face,
-                    brick_library,
                 );
                 if let Some(face_id) = launch_face {
                     fabric.join_faces(base_face_id, face_id)
@@ -285,38 +279,35 @@ impl BuildPhase {
                         NamedFace(branch_face_alias),
                         branch_node,
                         brick_faces.clone(),
-                        brick_library,
                     );
                     buds.extend(new_buds);
                     marks.extend(new_marks);
                 }
             }
             Mark { mark_name } => {
-                let maybe_face_id = Self::find_launch_face(&launch, &faces, fabric);
-                let face_id = maybe_face_id.expect(&format!("Unable to find face for mark: {}", mark_name));
+                let face_id = Self::find_launch_face(&launch, &faces, fabric)
+                    .expect(&format!("Unable to find face for mark: {}", mark_name));
                 marks.push(FaceMark {
                     face_id,
-                    mark_name: mark_name.clone(),
+                    mark_name: *mark_name,
                 });
             }
             Prism => {
-                let maybe_face_id = Self::find_launch_face(&launch, &faces, fabric);
-                let face_id = maybe_face_id.expect("Unable to find face for prism");
+                let face_id = Self::find_launch_face(&launch, &faces, fabric)
+                    .expect("Unable to find face for prism");
                 fabric.add_face_prism(face_id);
             }
         };
         (buds, marks)
     }
 
-    fn find_launch_face(
-        launch: &Launch,
-        faces: &[UniqueId],
-        fabric: &Fabric,
-    ) -> Option<UniqueId> {
+    fn find_launch_face(launch: &Launch, faces: &[UniqueId], fabric: &Fabric) -> Option<UniqueId> {
         match launch {
             Scratch => None,
-            NamedFace(face_alias) => face_alias.find_face_in(faces, fabric)
-                .or_else(|| panic!("Unable to find face alias {:?}", face_alias)),
+            NamedFace(face_alias) => faces
+                .iter()
+                .copied()
+                .find(|id| fabric.expect_face(*id).aliases.contains(face_alias)),
             IdentifiedFace(face_id) => Some(*face_id),
         }
     }

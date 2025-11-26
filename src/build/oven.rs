@@ -1,4 +1,4 @@
-use crate::build::dsl::brick::{Baked, Prototype};
+use crate::build::dsl::brick::{BakedBrick, Prototype};
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::CONSTRUCTION;
 use crate::fabric::Fabric;
@@ -28,7 +28,7 @@ impl Oven {
         *context.physics = CONSTRUCTION;
     }
 
-    pub fn iterate(&mut self, context: &mut CrucibleContext) -> Option<Baked> {
+    pub fn iterate(&mut self, context: &mut CrucibleContext) -> Option<BakedBrick> {
         if self.finished {
             return None;
         }
@@ -52,7 +52,7 @@ impl Oven {
                 )
             }))
             .send(&self.radio.clone());
-            match Baked::try_from(self.fabric.clone()) {
+            match BakedBrick::try_from(self.fabric.clone()) {
                 Ok(baked) => {
                     self.fabric.check_orphan_joints();
 

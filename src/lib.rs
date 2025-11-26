@@ -5,7 +5,6 @@ use crate::fabric::interval::{Interval, Role};
 use crate::fabric::{FabricStats, UniqueId};
 use crate::wgpu::Wgpu;
 use cgmath::Point3;
-use instant::Instant;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -576,8 +575,6 @@ pub enum LabEvent {
     FabricBuilt(FabricStats),
     Crucible(CrucibleAction),
     UpdateState(StateChange),
-    UpdatedLibrary(Instant),
-    RefreshLibrary,
     RebuildFabric,
     PrintCord(f32),
     DumpCSV,

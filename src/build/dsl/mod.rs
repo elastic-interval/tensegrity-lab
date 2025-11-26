@@ -1,23 +1,20 @@
 #![allow(clippy::result_large_err)]
 
 pub use fabric_plan::FabricPlan;
-use std::fmt::Display;
-use std::ops::Add;
 use strum::Display;
+use std::sync::OnceLock;
 
 use crate::build::dsl::brick_dsl::{BrickName, BrickOrientation, BrickRole, FaceName, MarkName};
 use crate::fabric::{Fabric, UniqueId};
 
 pub mod animate_phase;
 pub mod brick;
-pub mod brick_builders;
-pub mod brick_dsl;
 pub mod brick_library;
+pub mod brick_dsl;
 pub mod build_phase;
 pub mod converge_phase;
-pub mod fabric_builders;
-pub mod fabric_dsl;
 pub mod fabric_library;
+pub mod fabric_dsl;
 pub mod fabric_plan;
 pub mod fabric_plan_executor;
 pub mod plan_context;
@@ -26,6 +23,30 @@ pub mod pretense_phase;
 pub mod pretenser;
 pub mod shape_phase;
 pub mod single_interval_drop_test;
+
+// Global singleton libraries
+static BRICK_LIBRARY: OnceLock<brick_library::BrickLibrary> = OnceLock::new();
+static FABRIC_LIBRARY: OnceLock<fabric_library::FabricLibrary> = OnceLock::new();
+
+/// Initialize both libraries at startup
+pub fn init_libraries() {
+    BRICK_LIBRARY
+        .set(brick_library::BrickLibrary::default())
+        .expect("BrickLibrary already initialized");
+    FABRIC_LIBRARY
+        .set(fabric_library::FabricLibrary::default())
+        .expect("FabricLibrary already initialized");
+}
+
+/// Get global BrickLibrary reference
+pub fn brick_library() -> &'static brick_library::BrickLibrary {
+    BRICK_LIBRARY.get().expect("BrickLibrary not initialized - call init_libraries() first")
+}
+
+/// Get global FabricLibrary reference
+pub fn fabric_library() -> &'static fabric_library::FabricLibrary {
+    FABRIC_LIBRARY.get().expect("FabricLibrary not initialized - call init_libraries() first")
+}
 
 impl Fabric {
     pub fn expect_face(&self, face_id: UniqueId) -> &crate::fabric::face::Face {

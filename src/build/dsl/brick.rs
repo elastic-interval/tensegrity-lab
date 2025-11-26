@@ -5,7 +5,8 @@ use cgmath::{
     EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Quaternion, Rotation, Transform, Vector3,
 };
 
-use crate::build::dsl::brick_dsl::{BrickName, JointName};
+use crate::build::dsl::brick_dsl::FaceName::Downwards;
+use crate::build::dsl::brick_dsl::{BrickName, BrickRole, JointName};
 use crate::build::dsl::Spin::{Left, Right};
 use crate::build::dsl::{FaceAlias, Spin};
 use crate::fabric::interval::{Interval, Role};
@@ -65,21 +66,62 @@ pub struct Prototype {
 
 #[derive(Clone, Debug)]
 pub struct Brick {
-    pub proto: Prototype,
-    pub baked: Option<Baked>,
+    pub prototype: Prototype,
+    pub baked: BakedBrick,
 }
 
 impl Brick {
-    /// Get the baked faces, deriving them from the prototype if not stored
-    pub fn baked_faces(&self) -> Vec<BrickFace> {
-        if let Some(baked) = &self.baked {
-            if !baked.faces.is_empty() {
-                return baked.faces.clone();
-            }
+    pub fn new(prototype: Prototype, joints: Vec<BakedJoint>, intervals: Vec<BakedInterval>) -> Self {
+        let faces = Self::derive_baked_faces(&prototype);
+        let baked = BakedBrick {
+            joints,
+            intervals,
+            faces,
+        };
+        Self { prototype, baked }
+    }
+
+    fn derive_baked_faces(prototype: &Prototype) -> Vec<BrickFace> {
+        // Build a map from joint names to indices
+        let mut joint_map = HashMap::new();
+
+        // Add explicit joints first (they get indices 0, 1, 2, ...)
+        for (idx, joint_name) in prototype.joints.iter().enumerate() {
+            joint_map.insert(*joint_name, idx);
         }
 
-        // Derive faces from prototype
-        crate::build::dsl::brick_dsl::derive_baked_faces(&self.proto)
+        // Add joints from pushes (starting after explicit joints)
+        let offset = prototype.joints.len();
+        for (idx, push) in prototype.pushes.iter().enumerate() {
+            let alpha_idx = offset + idx * 2;
+            let omega_idx = offset + idx * 2 + 1;
+            joint_map.insert(push.alpha, alpha_idx);
+            joint_map.insert(push.omega, omega_idx);
+        }
+
+        // Convert proto faces to baked faces
+        prototype
+            .faces
+            .iter()
+            .map(|face_def| {
+                let joints = [
+                    *joint_map
+                        .get(&face_def.joints[0])
+                        .expect("Joint name not found"),
+                    *joint_map
+                        .get(&face_def.joints[1])
+                        .expect("Joint name not found"),
+                    *joint_map
+                        .get(&face_def.joints[2])
+                        .expect("Joint name not found"),
+                ];
+                BrickFace {
+                    spin: face_def.spin,
+                    joints,
+                    aliases: face_def.aliases.clone(),
+                }
+            })
+            .collect()
     }
 }
 
@@ -159,8 +201,6 @@ impl From<Prototype> for Fabric {
     }
 }
 
-// Tenscript parsing removed - bricks are now defined using Rust DSL in brick_builders.rs
-
 #[derive(Debug, Clone, Default)]
 pub struct BrickFace {
     pub joints: [usize; 3],
@@ -169,7 +209,7 @@ pub struct BrickFace {
 }
 
 impl BrickFace {
-    pub fn vector_space(&self, baked: &Baked) -> Matrix4<f32> {
+    pub fn vector_space(&self, baked: &BakedBrick) -> Matrix4<f32> {
         let location = self.radial_locations(baked);
         let midpoint = Self::midpoint(location);
         let radial = self.radial_vectors(location);
@@ -177,7 +217,7 @@ impl BrickFace {
             Left => radial[1].cross(radial[2]),
             Right => radial[2].cross(radial[1]),
         }
-        .normalize();
+            .normalize();
         let (x_axis, y_axis, scale) = (radial[0].normalize(), inward, radial[0].magnitude());
         let z_axis = x_axis.cross(y_axis).normalize();
         Matrix4::from_translation(midpoint)
@@ -185,17 +225,17 @@ impl BrickFace {
             * Matrix4::from_scale(scale)
     }
 
-    pub fn normal(&self, baked: &Baked) -> Vector3<f32> {
+    pub fn normal(&self, baked: &BakedBrick) -> Vector3<f32> {
         let location = self.radial_locations(baked);
         let radial = self.radial_vectors(location);
         match self.spin {
             Left => radial[2].cross(radial[1]),
             Right => radial[1].cross(radial[2]),
         }
-        .normalize()
+            .normalize()
     }
 
-    fn radial_locations(&self, baked: &Baked) -> [Vector3<f32>; 3] {
+    fn radial_locations(&self, baked: &BakedBrick) -> [Vector3<f32>; 3] {
         self.joints
             .map(|index| baked.joints[index].location.to_vec())
     }
@@ -224,27 +264,30 @@ pub struct BakedInterval {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct Baked {
+pub struct BakedBrick {
     pub joints: Vec<BakedJoint>,
     pub intervals: Vec<BakedInterval>,
     pub faces: Vec<BrickFace>,
 }
 
-impl Baked {
-    pub(crate) fn apply_matrix(&mut self, matrix: Matrix4<f32>) {
+impl BakedBrick {
+    pub fn apply_matrix(&mut self, matrix: Matrix4<f32>) {
         for joint in &mut self.joints {
             joint.location = matrix.transform_point(joint.location)
         }
     }
 
-    pub(crate) fn down_rotation(&self, seed: Option<usize>) -> Matrix4<f32> {
+    pub fn down_rotation(&self, brick_role: BrickRole) -> Matrix4<f32> {
+        if !brick_role.is_seed() {
+            panic!("Brick role {:?} is not a seed", brick_role);
+        }
         let down = self
             .faces
             .iter()
             .filter_map(|face| {
                 face.aliases
                     .iter()
-                    .find(|alias| alias.is_seed(seed) && alias.is_base())
+                    .find(|alias| alias.face_name == Downwards)
                     .map(|_| face.normal(self))
             })
             .sum::<Vector3<f32>>()
@@ -256,7 +299,7 @@ impl Baked {
     pub const TOLERANCE: f32 = 0.001;
 }
 
-impl TryFrom<Fabric> for Baked {
+impl TryFrom<Fabric> for BakedBrick {
     type Error = String;
 
     fn try_from(fabric: Fabric) -> Result<Self, String> {
@@ -266,21 +309,21 @@ impl TryFrom<Fabric> for Baked {
         for face in fabric.faces.values() {
             let strain = face.strain(&fabric);
             strain_sum += strain;
-            if abs(strain - Baked::TARGET_FACE_STRAIN) > Baked::TOLERANCE {
+            if abs(strain - BakedBrick::TARGET_FACE_STRAIN) > BakedBrick::TOLERANCE {
                 strains.push(strain);
             }
         }
         if !strains.is_empty() {
             println!(
                 "Face interval strain too far from {} {strains:?}",
-                Baked::TARGET_FACE_STRAIN
+                BakedBrick::TARGET_FACE_STRAIN
             );
         }
         let average_strain = strain_sum / fabric.faces.len() as f32;
-        if abs(average_strain - Baked::TARGET_FACE_STRAIN) > Baked::TOLERANCE {
+        if abs(average_strain - BakedBrick::TARGET_FACE_STRAIN) > BakedBrick::TOLERANCE {
             return Err(format!(
                 "Face interval strain too far from (avg) {} {average_strain:?}",
-                Baked::TARGET_FACE_STRAIN
+                BakedBrick::TARGET_FACE_STRAIN
             ));
         }
         let face_joints: Vec<usize> = fabric
@@ -309,12 +352,12 @@ impl TryFrom<Fabric> for Baked {
                 .interval_values()
                 .filter_map(
                     |&Interval {
-                         alpha_index,
-                         omega_index,
-                         role,
-                         strain,
-                         ..
-                     }| {
+                        alpha_index,
+                        omega_index,
+                        role,
+                        strain,
+                        ..
+                    }| {
                         if role == Role::FaceRadial {
                             return None;
                         }
