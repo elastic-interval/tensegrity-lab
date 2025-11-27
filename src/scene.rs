@@ -64,7 +64,7 @@ impl Scene {
                 self.render_style.toggle_attachment_points();
             }
             SetControlState(control_state) => match control_state {
-                Waiting | Building | UnderConstruction | Shaping | Pretensing | Converging | Animating | Converged => self.reset(),
+                Waiting | Animating => self.reset(),
                 Baking => {
                     self.render_style = WithAppearanceFunction {
                         function: Rc::new(|_| None),
@@ -248,5 +248,15 @@ impl Scene {
     pub fn reset(&mut self) {
         self.pick_allowed = false;
         self.camera.reset();
+    }
+
+    /// Jump camera to ideal viewing position for the given fabric
+    pub fn jump_to_fabric(&mut self, fabric: &Fabric) {
+        self.camera.jump_to_fabric(fabric);
+    }
+
+    /// Check if camera needs initialization
+    pub fn needs_camera_init(&self) -> bool {
+        !self.camera.is_initialized()
     }
 }

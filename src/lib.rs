@@ -1,5 +1,3 @@
-#[allow(dead_code)]
-use crate::build::dsl::brick::Prototype;
 use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::FabricPlan;
 use crate::fabric::interval::{Interval, Role};
@@ -89,10 +87,6 @@ impl Age {
 
     pub fn advanced(&self, ticks: usize) -> Self {
         Self(self.0 + ITERATION_DURATION.duration * ticks as u32)
-    }
-
-    pub fn brick_baked(&self) -> bool {
-        self.0 > ITERATION_DURATION.duration * 20000
     }
 
     pub fn within(&self, limit: &Self) -> bool {
@@ -379,18 +373,12 @@ impl JointDetails {
 #[derive(Debug, Clone)]
 pub enum ControlState {
     Waiting,
-    Building,
-    Shaping,
-    Pretensing,
-    Converging,
     Viewing,
     Animating,
-    Converged,
     ShowingJoint(JointDetails),
     ShowingInterval(IntervalDetails),
     PhysicsTesting(TestScenario),
     Baking,
-    UnderConstruction, // Deprecated - use Building instead
 }
 
 impl ControlState {
@@ -409,7 +397,8 @@ pub enum TesterAction {
 
 #[derive(Debug, Clone)]
 pub enum CrucibleAction {
-    BakeBrick(Prototype),
+    StartBaking,
+    CycleBrick,
     BuildFabric(FabricPlan),
     DropFromHeight,
     CentralizeFabric(Option<units::Millimeters>),
@@ -479,7 +468,6 @@ impl Appearance {
         }
     }
 
-    // Keep these methods for backward compatibility
     pub fn with_color(&self, color: [f32; 4]) -> Self {
         Self {
             color,
@@ -578,6 +566,7 @@ pub enum LabEvent {
     UpdateState(StateChange),
     RebuildFabric,
     NextBrick,
+    ExportBrick,
     PrintCord(f32),
     DumpCSV,
     RequestRedraw,

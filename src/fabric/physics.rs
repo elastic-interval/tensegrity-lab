@@ -320,11 +320,11 @@ pub mod presets {
     /// Physics for baking brick prototypes - extreme damping for settling under strain
     pub const BAKING: Physics = Physics {
         surface_character: Absent,
-        pretenst: Percent(100.0),
+        pretenst: Percent(5.0),
         tweak: Tweak::Construction(ConstructionTweak {
             drag: 500.0,
             viscosity: 1000.0,
-            time_contraction: 1.0,
+            time_contraction: 0.01,
         }),
     };
 }

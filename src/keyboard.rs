@@ -151,9 +151,15 @@ impl Keyboard {
             Box::new(|state| matches!(state, Viewing)),
         );
         self.key_lab_event(
-            KeyCode::Enter,
+            KeyCode::Space,
             "Next brick",
             NextBrick,
+            Box::new(|state| matches!(state, Baking)),
+        );
+        self.key_lab_event(
+            KeyCode::KeyX,
+            "Export brick",
+            LabEvent::ExportBrick,
             Box::new(|state| matches!(state, Baking)),
         );
         self.key_lab_event(

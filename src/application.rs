@@ -1,7 +1,5 @@
-use crate::build::dsl::brick_dsl::BrickName;
-use crate::build::dsl::{brick_library, fabric_library};
+use crate::build::dsl::fabric_library;
 use crate::crucible::Crucible;
-use crate::fabric::Fabric;
 use crate::keyboard::Keyboard;
 use crate::pointer::PointerHandler;
 use crate::scene::Scene;
@@ -33,7 +31,6 @@ pub struct Application {
     current_fps: f32,
     control_state: ControlState,
     pointer_handler: PointerHandler,
-    current_brick: Option<BrickName>,
     #[cfg(not(target_arch = "wasm32"))]
     machine: Option<crate::cord_machine::CordMachine>,
 }
@@ -63,7 +60,6 @@ impl Application {
             fps_timer: Instant::now(),
             current_fps: 60.0,
             control_state: ControlState::Waiting,
-            current_brick: None,
             #[cfg(not(target_arch = "wasm32"))]
             machine: None,
         }
@@ -84,30 +80,18 @@ impl Application {
         self.scene.as_mut().map(f)
     }
 
-    /// Access both scene and fabric at the same time if scene exists
-    /// Returns Some(R) if the scene exists and the closure was executed
-    /// Returns None if the scene doesn't exist
-    fn with_scene_and_fabric<F, R>(&mut self, f: F) -> Option<R>
-    where
-        F: FnOnce(&mut Scene, &mut Fabric) -> R,
-    {
-        self.scene.as_mut().map(|scene| {
-            let fabric = &mut self.crucible.fabric;
-            f(scene, fabric)
-        })
-    }
-
     fn redraw(&mut self) {
         // Update keyboard legend
         StateChange::SetKeyboardLegend(self.keyboard.legend(&self.control_state).join(", "))
             .send(&self.radio);
 
-        // Use with_scene_and_fabric and handle the Option return type
         let surface_character = self.crucible.physics.surface_character;
-        if let Some(result) =
-            self.with_scene_and_fabric(|scene, fabric| scene.redraw(fabric, surface_character))
-        {
-            if let Err(error) = result {
+        if let Some(scene) = &mut self.scene {
+            // Initialize camera if needed (handles case where Run event arrived before ContextCreated)
+            if scene.needs_camera_init() {
+                scene.jump_to_fabric(&self.crucible.fabric);
+            }
+            if let Err(error) = scene.redraw(&self.crucible.fabric, surface_character) {
                 eprintln!("Error redrawing scene: {:?}", error);
             }
         }
@@ -215,20 +199,12 @@ impl ApplicationHandler<LabEvent> for Application {
                         CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
                     }
                     RunStyle::BakeBricks => {
-                        use strum::IntoEnumIterator;
-                        // Start with first brick if none selected
-                        let brick_name = self.current_brick.unwrap_or_else(|| {
-                            BrickName::iter().next().unwrap()
-                        });
-                        self.current_brick = Some(brick_name);
-                        let prototype = brick_library::get_prototype(brick_name);
-                        StateChange::SetFabricName(format!("{}", brick_name)).send(&self.radio);
                         StateChange::SetStageLabel("Baking".to_string()).send(&self.radio);
                         ControlState::Baking.send(&self.radio);
-                        self.crucible.action(CrucibleAction::BakeBrick(prototype));
+                        self.crucible.action(CrucibleAction::StartBaking);
                     }
                     RunStyle::Seeded(seed) => {
-                        let _ = self.crucible.action(CrucibleAction::ToEvolving(*seed));
+                        self.crucible.action(CrucibleAction::ToEvolving(*seed));
                     }
                 };
             }
@@ -238,6 +214,9 @@ impl ApplicationHandler<LabEvent> for Application {
                 StateChange::SetFabricStats(Some(fabric_stats)).send(&self.radio);
                 StateChange::SetControlState(ControlState::Viewing).send(&self.radio);
                 StateChange::SetStageLabel("Viewing".to_string()).send(&self.radio);
+                if let Some(scene) = &mut self.scene {
+                    scene.jump_to_fabric(&self.crucible.fabric);
+                }
                 if self.mobile_device {
                     CrucibleAction::ToAnimating.send(&self.radio);
                 } else {
@@ -276,16 +255,17 @@ impl ApplicationHandler<LabEvent> for Application {
                 Run(self.run_style.clone()).send(&self.radio);
             }
             NextBrick => {
-                // Cycle to the next brick when in baking mode
                 if let RunStyle::BakeBricks = &self.run_style {
-                    use strum::IntoEnumIterator;
-                    let bricks: Vec<_> = BrickName::iter().collect();
-                    let current_idx = self.current_brick
-                        .and_then(|b| bricks.iter().position(|&brick| brick == b))
-                        .unwrap_or(0);
-                    let next_idx = (current_idx + 1) % bricks.len();
-                    self.current_brick = Some(bricks[next_idx]);
-                    Run(self.run_style.clone()).send(&self.radio);
+                    self.crucible.action(CrucibleAction::CycleBrick);
+                    if let Some(scene) = &mut self.scene {
+                        scene.jump_to_fabric(&self.crucible.fabric);
+                    }
+                }
+            }
+            ExportBrick => {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    self.crucible.export_brick();
                 }
             }
             DumpCSV => {
@@ -382,10 +362,9 @@ impl ApplicationHandler<LabEvent> for Application {
                 }
             }
             PointerChanged(pointer_change) => {
-                // Forward pointer events to the scene
-                self.with_scene_and_fabric(|scene, _fabric| {
-                    scene.pointer_changed(pointer_change, _fabric);
-                });
+                if let Some(scene) = &mut self.scene {
+                    scene.pointer_changed(pointer_change, &self.crucible.fabric);
+                }
             }
         }
     }
@@ -502,8 +481,9 @@ impl ApplicationHandler<LabEvent> for Application {
 
         // Check if animation/physics should be active
         // Always call scene.animate() to update camera, then check if physics should run
-        let camera_animating = self
-            .with_scene_and_fabric(|scene, fabric| scene.animate(fabric))
+        let camera_animating = self.scene
+            .as_mut()
+            .map(|scene| scene.animate(&self.crucible.fabric))
             .unwrap_or(false);
         let animate = matches!(
             self.control_state,

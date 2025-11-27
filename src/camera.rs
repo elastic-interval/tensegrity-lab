@@ -1,6 +1,6 @@
 use cgmath::num_traits::abs;
 use cgmath::{
-    ortho, perspective, point3, Deg, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion, Rad,
+    ortho, perspective, Deg, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion, Rad,
     Rotation, Rotation3, SquareMatrix, Transform, Vector3,
 };
 use winit::dpi::PhysicalPosition;
@@ -69,17 +69,17 @@ pub struct Camera {
     current_pick: Pick,
     radio: Radio,
     projection_type: ProjectionType,
-
-    // Store the last ray origin for use in picking calculations
     last_ray_origin: Point3<f32>,
+    initialized: bool,
 }
 
 impl Camera {
-    pub fn new(position: Point3<f32>, width: f32, height: f32, radio: Radio) -> Self {
+    pub fn new(width: f32, height: f32, radio: Radio) -> Self {
+        // Uninitialized - call jump_to_fabric() to position for a specific fabric
         Self {
-            position,
+            position: Point3::origin(),
             target: Target::default(),
-            look_at: point3(0.0, 3.0, 0.0),
+            look_at: Point3::origin(),
             width,
             height,
             mouse_now: None,
@@ -87,13 +87,19 @@ impl Camera {
             mouse_click: None,
             current_pick: Pick::Nothing,
             radio,
-            projection_type: ProjectionType::Perspective, // Default to perspective projection
-            last_ray_origin: position,                    // Initialize with camera position
+            projection_type: ProjectionType::Perspective,
+            last_ray_origin: Point3::origin(),
+            initialized: false,
         }
     }
 
     pub fn set_target(&mut self, target: Target) {
         self.target = target
+    }
+
+    /// Check if camera has been initialized with a fabric position
+    pub fn is_initialized(&self) -> bool {
+        self.initialized
     }
 
     /// Toggle between perspective and orthogonal projection
@@ -223,6 +229,23 @@ impl Camera {
         self.set_target(Target::FabricMidpoint);
     }
 
+    /// Jump camera to ideal viewing position for the given fabric
+    pub fn jump_to_fabric(&mut self, fabric: &Fabric) {
+        self.current_pick = Pick::Nothing;
+        self.set_target(Target::FabricMidpoint);
+
+        // Calculate ideal position based on fabric
+        let midpoint = fabric.midpoint();
+        let ideal_distance = self.target.ideal_distance(fabric).unwrap_or(IDEAL_VIEW_DISTANCE);
+
+        // Position camera at 45-degree angle from above, looking at midpoint
+        let offset = Vector3::new(1.0, 0.5, 1.0).normalize() * ideal_distance;
+        self.position = midpoint + offset;
+        self.look_at = midpoint;
+        self.last_ray_origin = self.position;
+        self.initialized = true;
+    }
+
     pub fn pointer_changed(&mut self, pointer_change: PointerChange, fabric: &Fabric) {
         match pointer_change {
             PointerChange::NoChange => {}
@@ -242,7 +265,8 @@ impl Camera {
             }
             PointerChange::Zoomed(delta) => {
                 let gaze = self.look_at - self.position;
-                if gaze.magnitude() - delta > 1.0 {
+                // Allow zooming as long as we don't get too close (minimum 0.1 distance)
+                if gaze.magnitude() - delta > 0.1 {
                     self.position += gaze.normalize() * delta;
                 }
             }
@@ -503,6 +527,9 @@ impl Camera {
     }
 
     pub fn mvp_matrix(&self) -> Matrix4<f32> {
+        if !self.initialized {
+            return Matrix4::identity();
+        }
         self.projection_matrix() * self.view_matrix()
     }
 
@@ -604,6 +631,11 @@ impl Camera {
     }
 
     fn rotation(&self, diff: (f32, f32)) -> Option<Matrix4<f32>> {
+        // Don't allow rotation if not initialized (would produce NaN)
+        if !self.initialized {
+            return None;
+        }
+
         let (dx, dy) = diff;
         if dx == 0.0 && dy == 0.0 {
             return None;
@@ -729,8 +761,8 @@ impl Target {
                 // Use a field of view factor to ensure everything fits in view
                 let radius = fabric.bounding_radius();
                 // Assuming 45-degree FOV, distance = radius / tan(22.5°) ≈ radius * 2.4
-                // Add extra margin for comfortable viewing
-                Some(radius * 3.0)
+                // Add extra margin for comfortable viewing, with minimum distance
+                Some((radius * 3.0).max(IDEAL_VIEW_DISTANCE))
             }
             Target::AroundJoint(_) => Some(IDEAL_VIEW_DISTANCE),
             Target::AroundInterval(_) => None, // Keep current distance for intervals

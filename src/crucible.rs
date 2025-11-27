@@ -27,7 +27,6 @@ pub struct Crucible {
     radio: Radio,
     pub fabric: Fabric,
     pub physics: Physics,
-    pending_camera_translation: Option<cgmath::Vector3<f32>>,
     fabric_plan: Option<FabricPlan>,
     last_stage_label: Option<String>,
 }
@@ -39,20 +38,9 @@ impl Crucible {
             radio,
             fabric: Fabric::new("Empty".to_string()),
             physics: BASE_PHYSICS,
-            pending_camera_translation: None,
             fabric_plan: None,
             last_stage_label: None,
         }
-    }
-
-    /// Take and clear any pending camera translation
-    pub fn take_camera_translation(&mut self) -> Option<cgmath::Vector3<f32>> {
-        self.pending_camera_translation.take()
-    }
-
-    /// Set a pending camera translation
-    pub fn set_camera_translation(&mut self, translation: cgmath::Vector3<f32>) {
-        self.pending_camera_translation = Some(translation);
     }
 
     /// Get the target time scale from physics settings
@@ -82,10 +70,6 @@ impl Crucible {
                         self.physics = executor.physics.clone();
                         // Send FabricBuilt with complete stats (including dynamics)
                         let _ = self.radio.send_event(LabEvent::FabricBuilt(self.fabric.fabric_stats()));
-                        // Check for and apply camera translation before finalizing
-                        if let Some(translation) = executor.take_camera_translation() {
-                            self.pending_camera_translation = Some(translation);
-                        }
                         // Finalize and exit immediately
                         self.finalize_to_viewing();
                         return;
@@ -99,11 +83,6 @@ impl Crucible {
             // Always sync fabric and physics from executor to Crucible
             self.fabric = executor.fabric.clone();
             self.physics = executor.physics.clone();
-
-            // Check for and apply camera translation from executor
-            if let Some(translation) = executor.take_camera_translation() {
-                self.pending_camera_translation = Some(translation);
-            }
 
             // Check if BUILD phase is done and we should start PRETENSE
             use crate::build::dsl::fabric_plan_executor::ExecutorStage;
@@ -166,13 +145,9 @@ impl Crucible {
                 );
                 animator.iterate(&mut context);
 
-                // Apply any stage transition and camera translation
-                let (new_stage, camera_translation) = context.apply_changes();
-                if let Some(new_stage) = new_stage {
+                // Apply any stage transition
+                if let Some(new_stage) = context.apply_changes() {
                     self.stage = new_stage;
-                }
-                if let Some(translation) = camera_translation {
-                    self.pending_camera_translation = Some(translation);
                 }
             }
             PhysicsTesting(tester) => {
@@ -185,12 +160,8 @@ impl Crucible {
                 tester.iterate(&mut context, iterations_per_frame);
 
                 // Apply any stage transition
-                let (new_stage, camera_translation) = context.apply_changes();
-                if let Some(new_stage) = new_stage {
+                if let Some(new_stage) = context.apply_changes() {
                     self.stage = new_stage;
-                }
-                if let Some(translation) = camera_translation {
-                    self.pending_camera_translation = Some(translation);
                 }
             }
             BakingBrick(oven) => {
@@ -200,18 +171,7 @@ impl Crucible {
                     &mut self.physics,
                     &self.radio,
                 );
-                if let Some(baked) = oven.iterate(&mut context) {
-                    panic!("Better way to bake bricks please?: {:?}", baked);
-                }
-
-                // Apply any stage transition
-                let (new_stage, camera_translation) = context.apply_changes();
-                if let Some(new_stage) = new_stage {
-                    self.stage = new_stage;
-                }
-                if let Some(translation) = camera_translation {
-                    self.pending_camera_translation = Some(translation);
-                }
+                oven.iterate(&mut context);
             }
             Evolving(evolution) => {
                 // Create a context for evolution
@@ -223,12 +183,8 @@ impl Crucible {
                 evolution.iterate(&mut context);
 
                 // Apply any stage transition
-                let (new_stage, camera_translation) = context.apply_changes();
-                if let Some(new_stage) = new_stage {
+                if let Some(new_stage) = context.apply_changes() {
                     self.stage = new_stage;
-                }
-                if let Some(translation) = camera_translation {
-                    self.pending_camera_translation = Some(translation);
                 }
             }
         }
@@ -289,12 +245,20 @@ impl Crucible {
         );
 
         match crucible_action {
-            BakeBrick(prototype) => {
-                let oven = Oven::new(prototype, self.radio.clone());
-                context.replace_fabric(oven.fabric.clone());
+            StartBaking => {
+                let oven = Oven::new(self.radio.clone());
+                let fresh_fabric = oven.create_fresh_fabric();
+                StateChange::SetFabricName(format!("{}", oven.current_brick_name())).send(&self.radio);
+                context.replace_fabric(fresh_fabric);
                 // Initialize the physics for baking
                 oven.copy_physics_into(&mut context);
                 context.transition_to(BakingBrick(oven));
+            }
+            CycleBrick => {
+                if let BakingBrick(oven) = &mut self.stage {
+                    let fresh_fabric = oven.next_brick();
+                    context.replace_fabric(fresh_fabric);
+                }
             }
             BuildFabric(_) => {
                 // Already handled above
@@ -390,20 +354,20 @@ impl Crucible {
             }
         }
 
-        // Apply any stage transition and camera translation requested by the context
-        let (new_stage, camera_translation) = context.apply_changes();
-        if let Some(new_stage) = new_stage {
+        // Apply any stage transition requested by the context
+        if let Some(new_stage) = context.apply_changes() {
             self.stage = new_stage;
-        }
-        if let Some(translation) = camera_translation {
-            self.pending_camera_translation = Some(translation);
         }
     }
 
     pub fn update_attachment_connections(&mut self) {
-        // Directly update the attachment connections on the main fabric
         self.fabric.update_all_attachment_connections();
     }
 
-    // fabric() and fabric_mut() methods removed - access fabric directly
+    /// Export baked brick data if in baking mode
+    pub fn export_brick(&self) {
+        if let BakingBrick(oven) = &self.stage {
+            oven.export_baked_data(&self.fabric);
+        }
+    }
 }

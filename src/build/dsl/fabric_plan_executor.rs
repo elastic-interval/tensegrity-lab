@@ -98,7 +98,6 @@ pub struct FabricPlanExecutor {
     plan: FabricPlan,
     current_iteration: usize,
     execution_log: Vec<ExecutionEvent>,
-    pending_camera_translation: Option<cgmath::Vector3<f32>>,
     stored_surface_character: Option<SurfaceCharacter>,
 }
 
@@ -118,7 +117,6 @@ impl FabricPlanExecutor {
             plan,
             current_iteration: 0,
             execution_log: Vec::new(),
-            pending_camera_translation: None,
             stored_surface_character: None,
         };
 
@@ -251,7 +249,6 @@ impl FabricPlanExecutor {
         }
     }
 
-    /// Access to plan_runner for tests (temporary, until refactoring is complete)
     pub fn plan_runner(&self) -> Option<&PlanRunner> {
         self.plan_runner.as_ref()
     }
@@ -299,9 +296,6 @@ impl FabricPlanExecutor {
             .unwrap_or(0.0) / self.fabric.scale;
         let translation = self.fabric.centralize_translation(Some(altitude));
         self.fabric.apply_translation(translation);
-
-        // Store camera translation for Crucible to apply
-        self.pending_camera_translation = Some(translation);
 
         let pretenst_percent = self.plan.pretense_phase.pretenst
             .map(|p| Percent(p))
@@ -409,10 +403,5 @@ impl FabricPlanExecutor {
         if self.stage == ExecutorStage::Building {
             self.transition_to_pretense();
         }
-    }
-
-    /// Take and clear any pending camera translation
-    pub fn take_camera_translation(&mut self) -> Option<cgmath::Vector3<f32>> {
-        self.pending_camera_translation.take()
     }
 }
