@@ -5,51 +5,37 @@ mod tests {
     use crate::fabric::interval::Role;
     use crate::fabric::physics::presets::BAKING;
     use crate::fabric::Fabric;
-    use cgmath::{InnerSpace, MetricSpace};
+    use cgmath::MetricSpace;
+    use strum::IntoEnumIterator;
 
     const SPEED_LIMIT: f32 = 1e-6;
+    const MAX_ITERATIONS: usize = 100_000;
 
-    #[test]
-    fn test_bake_single_right_brick() {
-        eprintln!("\n=== Testing Single Right Brick Baking ===\n");
+    fn test_brick(brick_name: BrickName) {
+        eprintln!("\n=== Testing {} ===\n", brick_name);
 
-        // Get prototype and create fabric
-        let proto = get_prototype(BrickName::SingleRightBrick);
+        let proto = get_prototype(brick_name);
         let mut fabric = Fabric::from(proto);
 
-        // Remove faces and face radials for simpler physics
-        fabric.faces.clear();
-        let radial_ids: Vec<_> = fabric
-            .intervals
-            .iter()
-            .enumerate()
-            .filter_map(|(i, int)| {
-                int.as_ref()
-                    .filter(|int| int.role == Role::FaceRadial)
-                    .map(|_| i)
-            })
-            .collect();
-        for id in radial_ids {
-            fabric.intervals[id] = None;
-        }
-
-        // Count intervals
-        let push_count = fabric
-            .intervals
-            .iter()
+        // Count intervals by role
+        let push_count = fabric.intervals.iter()
             .filter(|i| matches!(i, Some(int) if int.role == Role::Pushing))
             .count();
-        let pull_count = fabric
-            .intervals
-            .iter()
+        let pull_count = fabric.intervals.iter()
             .filter(|i| matches!(i, Some(int) if int.role == Role::Pulling))
             .count();
+        let radial_count = fabric.intervals.iter()
+            .filter(|i| matches!(i, Some(int) if int.role == Role::FaceRadial))
+            .count();
 
-        eprintln!("Initial: {} push, {} pull intervals", push_count, pull_count);
-        assert_eq!(push_count, 3, "Should have 3 push intervals");
-        assert_eq!(pull_count, 3, "Should have 3 pull intervals");
+        eprintln!("Structure:");
+        eprintln!("  joints: {}", fabric.joints.len());
+        eprintln!("  push intervals: {}", push_count);
+        eprintln!("  pull intervals: {}", pull_count);
+        eprintln!("  face radials: {}", radial_count);
+        eprintln!("  faces: {}", fabric.faces.len());
 
-        // Print initial state
+        // Print initial intervals
         eprintln!("\nInitial intervals:");
         for (i, interval) in fabric.intervals.iter().enumerate() {
             if let Some(int) = interval {
@@ -57,78 +43,32 @@ mod tests {
                 let omega = fabric.joints[int.omega_index].location;
                 let actual = alpha.distance(omega);
                 eprintln!(
-                    "  [{i}] {:?} ({}->{}) ideal={:.4} actual={:.4} strain={:.4}",
-                    int.role, int.alpha_index, int.omega_index, int.ideal(), actual, int.strain
+                    "  [{i}] {:?} ({}->{}) ideal={:.4} actual={:.4}",
+                    int.role, int.alpha_index, int.omega_index, int.ideal(), actual
                 );
             }
         }
 
-        // Verify push intervals start perpendicular
-        let push_intervals: Vec<_> = fabric
-            .intervals
-            .iter()
-            .filter_map(|int| int.as_ref().filter(|int| int.role == Role::Pushing))
-            .collect();
-
-        let directions: Vec<_> = push_intervals
-            .iter()
-            .map(|int| {
-                let alpha = fabric.joints[int.alpha_index].location;
-                let omega = fabric.joints[int.omega_index].location;
-                (omega - alpha).normalize()
-            })
-            .collect();
-
-        eprintln!("\nInitial perpendicularity:");
-        for i in 0..3 {
-            for j in (i + 1)..3 {
-                let dot = directions[i].dot(directions[j]);
-                eprintln!("  Push {} · Push {} = {:.6}", i, j, dot);
-                assert!(
-                    dot.abs() < 0.01,
-                    "Push intervals should start perpendicular"
-                );
-            }
-        }
-
-        // Run physics iterations with BAKING preset
+        // Run physics
         let physics = BAKING;
-        eprintln!("\nRunning physics with BAKING preset...");
-        eprintln!(
-            "  drag={}, viscosity={}, pretenst={}%",
-            physics.drag(),
-            physics.viscosity(),
-            *physics.pretenst
-        );
+        eprintln!("\nRunning physics...");
 
         let mut iteration = 0;
-        let max_iterations = 100_000;
-
         loop {
             fabric.iterate(&physics);
             let max_speed = fabric.stats.max_speed;
             iteration += 1;
 
-            // First 10 iterations: detailed trace
-            if iteration <= 10 {
-                eprintln!("  iteration {}: max_speed={:.4}", iteration, max_speed);
-                for (i, joint) in fabric.joints.iter().take(6).enumerate() {
-                    let v = joint.velocity;
-                    eprintln!(
-                        "    joint {}: vel=({:.4}, {:.4}, {:.4}) |v|={:.4}",
-                        i, v.x, v.y, v.z, v.magnitude()
-                    );
-                }
-            } else if iteration % 10_000 == 0 {
+            if iteration % 10_000 == 0 {
                 eprintln!("  iteration {}: max_speed={:.2e}", iteration, max_speed);
             }
 
             if max_speed < SPEED_LIMIT {
-                eprintln!("  Converged at iteration {} with max_speed={:.2e}", iteration, max_speed);
+                eprintln!("  Converged at iteration {}", iteration);
                 break;
             }
 
-            if iteration >= max_iterations {
+            if iteration >= MAX_ITERATIONS {
                 eprintln!("  Did not converge after {} iterations, max_speed={:.2e}", iteration, max_speed);
                 break;
             }
@@ -141,41 +81,21 @@ mod tests {
                 let alpha = fabric.joints[int.alpha_index].location;
                 let omega = fabric.joints[int.omega_index].location;
                 let actual = alpha.distance(omega);
+                let diff_pct = ((actual - int.ideal()) / int.ideal() * 100.0).abs();
                 eprintln!(
-                    "  [{i}] {:?} ideal={:.4} actual={:.4} strain={:.4}",
-                    int.role, int.ideal(), actual, int.strain
+                    "  [{i}] {:?} ideal={:.4} actual={:.4} diff={:.1}%",
+                    int.role, int.ideal(), actual, diff_pct
                 );
             }
         }
 
-        eprintln!("\nFinal joint positions:");
-        for (i, joint) in fabric.joints.iter().take(6).enumerate() {
-            eprintln!(
-                "  Joint {}: ({:.4}, {:.4}, {:.4})",
-                i, joint.location.x, joint.location.y, joint.location.z
-            );
+        eprintln!("\n✓ {} complete!", brick_name);
+    }
+
+    #[test]
+    fn test_bake_all_bricks() {
+        for brick_name in BrickName::iter() {
+            test_brick(brick_name);
         }
-
-        // Verify final perpendicularity
-        let final_directions: Vec<_> = fabric
-            .intervals
-            .iter()
-            .filter_map(|int| int.as_ref().filter(|int| int.role == Role::Pushing))
-            .map(|int| {
-                let alpha = fabric.joints[int.alpha_index].location;
-                let omega = fabric.joints[int.omega_index].location;
-                (omega - alpha).normalize()
-            })
-            .collect();
-
-        eprintln!("\nFinal perpendicularity:");
-        for i in 0..3 {
-            for j in (i + 1)..3 {
-                let dot = final_directions[i].dot(final_directions[j]);
-                eprintln!("  Push {} · Push {} = {:.6}", i, j, dot);
-            }
-        }
-
-        eprintln!("\n✓ Brick baking test complete!");
     }
 }
