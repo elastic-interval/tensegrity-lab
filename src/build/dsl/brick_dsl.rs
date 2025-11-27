@@ -1,5 +1,5 @@
 use crate::build::dsl::brick::{
-    BakedInterval, BakedJoint, Brick, BrickFace, FaceDef, Prototype, PullDef, PushDef,
+    Axis, BakedInterval, BakedJoint, Brick, BrickFace, FaceDef, Prototype, PullDef, PushDef,
 };
 use crate::build::dsl::{FaceAlias, Spin};
 pub use crate::fabric::material::Material;
@@ -218,15 +218,44 @@ impl ProtoBuilder {
         self
     }
 
-    pub fn pushes<const N: usize>(
+    pub fn pushes_x<const N: usize>(
         mut self,
         ideal: f32,
         pushes: [(JointName, JointName); N],
     ) -> Self {
-        use crate::build::dsl::brick::Axis;
         self.pushes
             .extend(pushes.into_iter().map(|(alpha, omega)| PushDef {
-                axis: alpha.axis().unwrap_or(Axis::X),
+                axis: Axis::X,
+                alpha,
+                omega,
+                ideal,
+            }));
+        self
+    }
+
+    pub fn pushes_y<const N: usize>(
+        mut self,
+        ideal: f32,
+        pushes: [(JointName, JointName); N],
+    ) -> Self {
+        self.pushes
+            .extend(pushes.into_iter().map(|(alpha, omega)| PushDef {
+                axis: Axis::Y,
+                alpha,
+                omega,
+                ideal,
+            }));
+        self
+    }
+
+    pub fn pushes_z<const N: usize>(
+        mut self,
+        ideal: f32,
+        pushes: [(JointName, JointName); N],
+    ) -> Self {
+        self.pushes
+            .extend(pushes.into_iter().map(|(alpha, omega)| PushDef {
+                axis: Axis::Z,
                 alpha,
                 omega,
                 ideal,

@@ -17,10 +17,9 @@ pub fn single_right() -> Brick {
     use JointName::*;
 
     proto(SingleRightBrick, [Seed, OnSpinRight])
-        .pushes(
-            3.204,
-            [(AlphaX, OmegaX), (AlphaY, OmegaY), (AlphaZ, OmegaZ)],
-        )
+        .pushes_x(3.204, [(AlphaX, OmegaX)])
+        .pushes_y(3.204, [(AlphaY, OmegaY)])
+        .pushes_z(3.204, [(AlphaZ, OmegaZ)])
         .pulls(2.0, [(AlphaX, OmegaZ), (AlphaY, OmegaX), (AlphaZ, OmegaY)])
         .face(
             Spin::Right,
@@ -63,10 +62,9 @@ pub fn single_left() -> Brick {
     use JointName::*;
 
     proto(SingleLeftBrick, [Seed, OnSpinLeft])
-        .pushes(
-            3.204,
-            [(AlphaX, OmegaX), (AlphaY, OmegaY), (AlphaZ, OmegaZ)],
-        )
+        .pushes_x(3.204, [(AlphaX, OmegaX)])
+        .pushes_y(3.204, [(AlphaY, OmegaY)])
+        .pushes_z(3.204, [(AlphaZ, OmegaZ)])
         .pulls(2.0, [(AlphaX, OmegaY), (AlphaY, OmegaZ), (AlphaZ, OmegaX)])
         .face(
             Spin::Left,
@@ -112,17 +110,9 @@ pub fn omni() -> Brick {
         OmniBrick,
         [OnSpinLeft, OnSpinRight, SeedFourDown, SeedFaceDown],
     )
-    .pushes(
-        3.271,
-        [
-            (BotAlphaX, BotOmegaX),
-            (TopAlphaX, TopOmegaX),
-            (BotAlphaY, BotOmegaY),
-            (TopAlphaY, TopOmegaY),
-            (BotAlphaZ, BotOmegaZ),
-            (TopAlphaZ, TopOmegaZ),
-        ],
-    )
+    .pushes_x(3.271, [(BotAlphaX, BotOmegaX), (TopAlphaX, TopOmegaX)])
+    .pushes_y(3.271, [(BotAlphaY, BotOmegaY), (TopAlphaY, TopOmegaY)])
+    .pushes_z(3.271, [(BotAlphaZ, BotOmegaZ), (TopAlphaZ, TopOmegaZ)])
     .face(
         Spin::Right,
         [TopOmegaX, TopOmegaY, TopOmegaZ],
@@ -239,24 +229,18 @@ pub fn torque() -> Brick {
     use JointName::*;
 
     proto(TorqueBrick, [OnSpinLeft, OnSpinRight, SeedFourDown])
-        .pushes(
-            3.0,
-            [
-                (LeftFront, LeftBack),
-                (MiddleFront, MiddleBack),
-                (RightFront, RightBack),
-            ],
-        )
-        .pushes(
-            3.0,
-            [
-                (FrontLeftBottom, FrontLeftTop),
-                (FrontRightBottom, FrontRightTop),
-                (BackLeftBottom, BackLeftTop),
-                (BackRightBottom, BackRightTop),
-            ],
-        )
-        .pushes(6.0, [(TopLeft, TopRight), (BottomLeft, BottomRight)])
+        .pushes_x(3.0, [
+            (LeftFront, LeftBack),
+            (MiddleFront, MiddleBack),
+            (RightFront, RightBack),
+        ])
+        .pushes_y(3.0, [
+            (FrontLeftBottom, FrontLeftTop),
+            (FrontRightBottom, FrontRightTop),
+            (BackLeftBottom, BackLeftTop),
+            (BackRightBottom, BackRightTop),
+        ])
+        .pushes_z(6.0, [(TopLeft, TopRight), (BottomLeft, BottomRight)])
         .pulls(
             1.86,
             [
