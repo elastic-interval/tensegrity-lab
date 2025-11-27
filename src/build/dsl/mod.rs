@@ -23,6 +23,7 @@ pub mod pretense_phase;
 pub mod pretenser;
 pub mod shape_phase;
 pub mod single_interval_drop_test;
+pub mod bake_brick_test;
 
 impl Fabric {
     pub fn expect_face(&self, face_id: UniqueId) -> &crate::fabric::face::Face {

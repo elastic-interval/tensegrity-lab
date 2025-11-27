@@ -25,7 +25,7 @@ impl MaterialIntervalExt for Material {
 }
 
 /// Brick type names
-#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash, clap::ValueEnum)]
+#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash, clap::ValueEnum, strum::EnumIter)]
 pub enum BrickName {
     SingleLeftBrick,
     SingleRightBrick,
@@ -121,6 +121,21 @@ pub enum JointName {
     BottomLeft,
     BottomRight,
 }
+
+impl JointName {
+    /// Get the axis for joints that have an axis suffix (X, Y, Z)
+    pub fn axis(&self) -> Option<crate::build::dsl::brick::Axis> {
+        use crate::build::dsl::brick::Axis;
+        use JointName::*;
+        match self {
+            AlphaX | OmegaX | BotAlphaX | BotOmegaX | TopAlphaX | TopOmegaX => Some(Axis::X),
+            AlphaY | OmegaY | BotAlphaY | BotOmegaY | TopAlphaY | TopOmegaY => Some(Axis::Y),
+            AlphaZ | OmegaZ | BotAlphaZ | BotOmegaZ | TopAlphaZ | TopOmegaZ => Some(Axis::Z),
+            _ => None,
+        }
+    }
+}
+
 /// Simple brick orientation types
 #[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
 pub enum BrickOrientation {
@@ -211,7 +226,7 @@ impl ProtoBuilder {
         use crate::build::dsl::brick::Axis;
         self.pushes
             .extend(pushes.into_iter().map(|(alpha, omega)| PushDef {
-                axis: Axis::X, // Axis is metadata, not used in our simplified builder
+                axis: alpha.axis().unwrap_or(Axis::X),
                 alpha,
                 omega,
                 ideal,

@@ -2,7 +2,8 @@ use std::collections::HashMap;
 
 use cgmath::num_traits::abs;
 use cgmath::{
-    EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Quaternion, Rotation, Transform, Vector3,
+    EuclideanSpace, InnerSpace, Matrix3, Matrix4, MetricSpace, Point3, Quaternion, Rotation,
+    Transform, Vector3,
 };
 
 use crate::build::dsl::brick_dsl::FaceName::Downwards;
@@ -195,8 +196,11 @@ impl From<Prototype> for Fabric {
             let joints = joint_indices.map(|index| fabric.joints[index].location.to_vec());
             let midpoint = joints.into_iter().sum::<Vector3<_>>() / 3.0;
             let alpha_index = fabric.create_joint(Point3::from_vec(midpoint));
+            let midpoint_loc = Point3::from_vec(midpoint);
             let radial_intervals = joint_indices.map(|omega_index| {
-                fabric.create_interval(alpha_index, omega_index, 1.0, Role::FaceRadial)
+                let omega_loc = fabric.joints[omega_index].location;
+                let ideal_length = midpoint_loc.distance(omega_loc);
+                fabric.create_interval(alpha_index, omega_index, ideal_length, Role::FaceRadial)
             });
             fabric.create_face(aliases, 1.0, spin, radial_intervals);
         }

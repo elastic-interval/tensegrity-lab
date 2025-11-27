@@ -1,3 +1,4 @@
+use crate::build::dsl::brick_dsl::BrickName;
 use crate::build::dsl::{brick_library, fabric_library};
 use crate::crucible::Crucible;
 use crate::fabric::Fabric;
@@ -32,6 +33,7 @@ pub struct Application {
     current_fps: f32,
     control_state: ControlState,
     pointer_handler: PointerHandler,
+    current_brick: Option<BrickName>,
     #[cfg(not(target_arch = "wasm32"))]
     machine: Option<crate::cord_machine::CordMachine>,
 }
@@ -61,6 +63,7 @@ impl Application {
             fps_timer: Instant::now(),
             current_fps: 60.0,
             control_state: ControlState::Waiting,
+            current_brick: None,
             #[cfg(not(target_arch = "wasm32"))]
             machine: None,
         }
@@ -198,7 +201,6 @@ impl ApplicationHandler<LabEvent> for Application {
             } => {
                 self.mobile_device = mobile_device;
                 self.scene = Some(Scene::new(self.mobile_device, wgpu, self.radio.clone()));
-                ControlState::Waiting.send(&self.radio);
             }
             Run(run_style) => {
                 self.run_style = run_style;
@@ -212,8 +214,16 @@ impl ApplicationHandler<LabEvent> for Application {
                         let fabric_plan = fabric_library::get_fabric_plan(*fabric_name);
                         CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
                     }
-                    RunStyle::Prototype(brick_name) => {
-                        let prototype = brick_library::get_prototype(*brick_name);
+                    RunStyle::BakeBricks => {
+                        use strum::IntoEnumIterator;
+                        // Start with first brick if none selected
+                        let brick_name = self.current_brick.unwrap_or_else(|| {
+                            BrickName::iter().next().unwrap()
+                        });
+                        self.current_brick = Some(brick_name);
+                        let prototype = brick_library::get_prototype(brick_name);
+                        StateChange::SetFabricName(format!("{}", brick_name)).send(&self.radio);
+                        StateChange::SetStageLabel("Baking".to_string()).send(&self.radio);
                         ControlState::Baking.send(&self.radio);
                         self.crucible.action(CrucibleAction::BakeBrick(prototype));
                     }
@@ -264,6 +274,19 @@ impl ApplicationHandler<LabEvent> for Application {
             RebuildFabric => {
                 // Rebuild the current fabric with updated physics parameters
                 Run(self.run_style.clone()).send(&self.radio);
+            }
+            NextBrick => {
+                // Cycle to the next brick when in baking mode
+                if let RunStyle::BakeBricks = &self.run_style {
+                    use strum::IntoEnumIterator;
+                    let bricks: Vec<_> = BrickName::iter().collect();
+                    let current_idx = self.current_brick
+                        .and_then(|b| bricks.iter().position(|&brick| brick == b))
+                        .unwrap_or(0);
+                    let next_idx = (current_idx + 1) % bricks.len();
+                    self.current_brick = Some(bricks[next_idx]);
+                    Run(self.run_style.clone()).send(&self.radio);
+                }
             }
             DumpCSV => {
                 #[cfg(not(target_arch = "wasm32"))]

@@ -152,9 +152,15 @@ impl Keyboard {
         );
         self.key_lab_event(
             KeyCode::Enter,
+            "Next brick",
+            NextBrick,
+            Box::new(|state| matches!(state, Baking)),
+        );
+        self.key_lab_event(
+            KeyCode::Enter,
             "Reload fabric",
             RebuildFabric,
-            Box::new(|_| true),
+            Box::new(|state| !matches!(state, Baking)),
         );
         self
     }
