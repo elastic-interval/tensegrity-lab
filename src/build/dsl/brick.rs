@@ -71,7 +71,11 @@ pub struct Brick {
 }
 
 impl Brick {
-    pub fn new(prototype: Prototype, joints: Vec<BakedJoint>, intervals: Vec<BakedInterval>) -> Self {
+    pub fn new(
+        prototype: Prototype,
+        joints: Vec<BakedJoint>,
+        intervals: Vec<BakedInterval>,
+    ) -> Self {
         let faces = Self::derive_baked_faces(&prototype);
         let baked = BakedBrick {
             joints,
@@ -216,9 +220,12 @@ impl BrickFace {
         let inward = match self.spin {
             Left => radial[1].cross(radial[2]),
             Right => radial[2].cross(radial[1]),
-        }
-            .normalize();
-        let (x_axis, y_axis, scale) = (radial[0].normalize(), inward, radial[0].magnitude());
+        };
+        let (x_axis, y_axis, scale) = (
+            radial[0].normalize(),
+            inward.normalize(),
+            radial[0].magnitude(),
+        );
         let z_axis = x_axis.cross(y_axis).normalize();
         Matrix4::from_translation(midpoint)
             * Matrix4::from(Matrix3::from_cols(x_axis, y_axis, z_axis))
@@ -228,11 +235,11 @@ impl BrickFace {
     pub fn normal(&self, baked: &BakedBrick) -> Vector3<f32> {
         let location = self.radial_locations(baked);
         let radial = self.radial_vectors(location);
-        match self.spin {
+        let direction = match self.spin {
             Left => radial[2].cross(radial[1]),
             Right => radial[1].cross(radial[2]),
-        }
-            .normalize()
+        };
+        direction.normalize()
     }
 
     fn radial_locations(&self, baked: &BakedBrick) -> [Vector3<f32>; 3] {
@@ -293,13 +300,10 @@ impl BakedBrick {
             .collect();
 
         if downward_faces.is_empty() {
-            panic!("Brick with role {:?} has no Downwards face alias - cannot compute down_rotation", brick_role);
+            panic!("{:?} has no Downwards", brick_role);
         }
 
-        let down = downward_faces
-            .into_iter()
-            .sum::<Vector3<f32>>()
-            .normalize();
+        let down = downward_faces.into_iter().sum::<Vector3<f32>>().normalize();
         Matrix4::from(Quaternion::between_vectors(down, -Vector3::unit_y()))
     }
 
@@ -360,12 +364,12 @@ impl TryFrom<Fabric> for BakedBrick {
                 .interval_values()
                 .filter_map(
                     |&Interval {
-                        alpha_index,
-                        omega_index,
-                        role,
-                        strain,
-                        ..
-                    }| {
+                         alpha_index,
+                         omega_index,
+                         role,
+                         strain,
+                         ..
+                     }| {
                         if role == Role::FaceRadial {
                             return None;
                         }
