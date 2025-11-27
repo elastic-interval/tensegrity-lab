@@ -281,7 +281,7 @@ impl BakedBrick {
         if !brick_role.is_seed() {
             panic!("Brick role {:?} is not a seed", brick_role);
         }
-        let down = self
+        let downward_faces: Vec<_> = self
             .faces
             .iter()
             .filter_map(|face| {
@@ -290,6 +290,14 @@ impl BakedBrick {
                     .find(|alias| alias.face_name == Downwards)
                     .map(|_| face.normal(self))
             })
+            .collect();
+
+        if downward_faces.is_empty() {
+            panic!("Brick with role {:?} has no Downwards face alias - cannot compute down_rotation", brick_role);
+        }
+
+        let down = downward_faces
+            .into_iter()
             .sum::<Vector3<f32>>()
             .normalize();
         Matrix4::from(Quaternion::between_vectors(down, -Vector3::unit_y()))

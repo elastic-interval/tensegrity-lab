@@ -1,9 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use crate::build::dsl::brick_library::BrickLibrary;
     use crate::build::dsl::fabric_library;
-    use crate::build::dsl::fabric_library::FabricLibrary;
     use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
+    use crate::build::dsl::init_libraries;
     use crate::fabric::Fabric;
 
     /// Benchmark data point from UI reference run
@@ -99,6 +98,7 @@ mod tests {
 
     #[test]
     fn test_executor_phases() {
+        init_libraries();
         eprintln!("\n=== Testing FabricPlanExecutor Phases ===\n");
 
         let plan = fabric_library()
@@ -156,12 +156,10 @@ mod tests {
 
     #[test]
     fn test_all_build_benchmarks() {
+        init_libraries();
         eprintln!("\n=== Testing All BUILD Phase Benchmarks ===\n");
 
-        let fabric_library = FabricLibrary::default();
-        let brick_library = BrickLibrary::default();
-
-        let plan = fabric_library
+        let plan = fabric_library()
             .fabric_plans
             .iter()
             .find(|p| p.name == "Triped")
@@ -224,12 +222,10 @@ mod tests {
 
     #[test]
     fn test_triped_full_execution() {
+        init_libraries();
         eprintln!("\n=== Testing Triped Full Execution: BUILD → PRETENSE → CONVERGE ===\n");
 
-        let fabric_library = FabricLibrary::default();
-        let brick_library = BrickLibrary::default();
-
-        let plan = fabric_library
+        let plan = fabric_library()
             .fabric_plans
             .iter()
             .find(|p| p.name == "Triped")
@@ -279,12 +275,10 @@ mod tests {
 
     #[test]
     fn check_final_converged_state() {
+        init_libraries();
         eprintln!("\n=== Checking Final Converged State ===\n");
 
-        let fabric_library = FabricLibrary::default();
-        let brick_library = BrickLibrary::default();
-
-        let plan = fabric_library.fabric_plans.iter()
+        let plan = fabric_library().fabric_plans.iter()
             .find(|p| p.name == "Triped")
             .expect("Triped not found")
             .clone();

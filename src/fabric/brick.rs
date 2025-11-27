@@ -59,12 +59,27 @@ impl Fabric {
         let brick_faces = brick
             .faces
             .into_iter()
-            .map(
+            .filter_map(
                 |BrickFace {
                      joints: brick_joints,
                      aliases,
                      spin,
                  }| {
+                    let aliases_for_role: Vec<_> = aliases
+                        .into_iter()
+                        .filter(
+                            |FaceAlias {
+                                 brick_role: alias_role,
+                                 ..
+                             }| { *alias_role == brick_role },
+                        )
+                        .collect();
+
+                    // Skip faces with no aliases for this brick_role
+                    if aliases_for_role.is_empty() {
+                        return None;
+                    }
+
                     let midpoint = brick_joints
                         .map(|index| self.joints[joints[index]].location.to_vec())
                         .into_iter()
@@ -76,31 +91,26 @@ impl Fabric {
                         let ideal = self.ideal(alpha_index, omega_index, BakedBrick::TARGET_FACE_STRAIN);
                         self.create_interval(alpha_index, omega_index, ideal, Role::FaceRadial)
                     });
-                    let aliases_for_role: Vec<_> = aliases
-                        .into_iter()
-                        .filter(
-                            |FaceAlias {
-                                 brick_role: alias_role,
-                                 ..
-                             }| { *alias_role == brick_role },
-                        )
-                        .collect();
-                    self.create_face(aliases_for_role, scale, spin, radial_intervals)
+                    Some(self.create_face(aliases_for_role, scale, spin, radial_intervals))
                 },
             )
             .collect::<Vec<_>>();
-        let base_face = brick_faces
-            .iter()
-            .find(|&&face_id| {
-                self.face(face_id)
-                    .aliases
-                    .iter()
-                    .any(|FaceAlias { face_name, .. }| match spin {
-                        None => matches!(face_name, Attach(_)),
-                        Some(spin) => *face_name == Attach(spin),
-                    })
-            })
-            .expect("missing face after creating brick");
-        (*base_face, brick_faces)
+        let base_face = if spin.is_none() {
+            // For seed bricks, use the first face with any alias (already filtered by brick_role)
+            brick_faces.first().copied().expect("brick has no faces")
+        } else {
+            // For attached bricks, find the Attach face with matching spin
+            brick_faces
+                .iter()
+                .find(|&&face_id| {
+                    self.face(face_id)
+                        .aliases
+                        .iter()
+                        .any(|FaceAlias { face_name, .. }| *face_name == Attach(spin.unwrap()))
+                })
+                .copied()
+                .expect("missing attach face after creating brick")
+        };
+        (base_face, brick_faces)
     }
 }

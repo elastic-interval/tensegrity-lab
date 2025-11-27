@@ -175,8 +175,8 @@ impl BuildPhase {
                 face.spin
             };
             let (brick_name, brick_role) = match spin {
-                Spin::Left => (BrickName::SingleLeftBrick, BrickRole::OnSpinRight),
-                Spin::Right => (BrickName::SingleRightBrick, BrickRole::OnSpinLeft),
+                Spin::Left => (BrickName::SingleLeftBrick, BrickRole::OnSpinLeft),
+                Spin::Right => (BrickName::SingleRightBrick, BrickRole::OnSpinRight),
             };
             let brick = brick_library().get_brick(brick_name, brick_role);
             let (base_face, brick_faces) = fabric.attach_brick(
@@ -187,8 +187,10 @@ impl BuildPhase {
                 BaseFace::ExistingFace(face_id),
             );
             fabric.join_faces(base_face, face_id);
+            // Filter out base_face since it was deleted by join_faces
             let next_face_id: UniqueId = brick_faces
                 .into_iter()
+                .filter(|brick_face| *brick_face != base_face)
                 .find(|brick_face| {
                     fabric
                         .expect_face(*brick_face)
