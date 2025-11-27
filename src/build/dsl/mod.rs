@@ -5,7 +5,7 @@ use std::fmt::{Display, Formatter};
 use std::sync::OnceLock;
 use strum::Display;
 
-use crate::build::dsl::brick_dsl::{BrickName, BrickOrientation, BrickRole, FaceName, MarkName};
+use crate::build::dsl::brick_dsl::{BrickRole, FaceName, MarkName};
 use crate::fabric::{Fabric, UniqueId};
 
 pub mod animate_phase;
@@ -52,28 +52,6 @@ pub fn fabric_library() -> &'static fabric_library::FabricLibrary {
 impl Fabric {
     pub fn expect_face(&self, face_id: UniqueId) -> &crate::fabric::face::Face {
         self.faces.get(&face_id).expect(&format!("Expected face {:?} in fabric with {} faces", &face_id, self.faces.len()))
-    }
-}
-
-/// A tag that identifies faces - can be a brick name, face name, or context
-#[derive(Clone, Debug, Hash, Eq, PartialEq)]
-pub enum FaceTag {
-    Attach(Spin),
-    AttachNext(Spin),
-    Brick(BrickName),
-    Face(BrickOrientation),
-    Context(BrickRole),
-}
-
-impl FaceTag {
-    pub fn as_str(&self) -> String {
-        use self::FaceTag::*;
-        match self {
-            Brick(b) => b.to_string(),
-            Face(f) => f.to_string(),
-            Context(c) => c.to_string(),
-            Attach(s) | AttachNext(s) => s.to_string(),
-        }
     }
 }
 
