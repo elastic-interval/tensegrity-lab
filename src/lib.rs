@@ -1,6 +1,5 @@
 #[allow(dead_code)]
 use crate::build::dsl::brick::Prototype;
-use crate::build::dsl::brick_dsl::BrickName;
 use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::FabricPlan;
 use crate::fabric::interval::{Interval, Role};
@@ -162,7 +161,7 @@ pub enum RunStyle {
         fabric_name: FabricName,
         scenario: Option<TestScenario>,
     },
-    Prototype(BrickName),
+    BakeBricks,
     Seeded(u64),
 }
 
@@ -578,6 +577,7 @@ pub enum LabEvent {
     Crucible(CrucibleAction),
     UpdateState(StateChange),
     RebuildFabric,
+    NextBrick,
     PrintCord(f32),
     DumpCSV,
     RequestRedraw,

@@ -8,7 +8,6 @@ use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
 use tensegrity_lab::{LabEvent, RunStyle, TestScenario};
-use tensegrity_lab::build::dsl::brick_dsl::BrickName;
 use tensegrity_lab::build::dsl::fabric_library::FabricName;
 
 #[derive(Parser, Debug)]
@@ -18,7 +17,7 @@ struct Args {
     fabric: Option<FabricName>,
 
     #[arg(long)]
-    prototype: Option<BrickName>,
+    bake_bricks: bool,
 
     #[arg(long)]
     seed: Option<u64>,
@@ -33,23 +32,23 @@ struct Args {
 fn main() -> Result<(), Box<dyn Error>> {
     let Args {
         fabric,
-        prototype,
+        bake_bricks,
         seed,
         test,
         machine,
     } = Args::parse();
-    let run_style = match (fabric, prototype, seed, test, machine) {
-        (Some(fabric_name), None, None, None, Some(ip_address)) => RunStyle::Fabric {
+    let run_style = match (fabric, bake_bricks, seed, test, machine) {
+        (Some(fabric_name), false, None, None, Some(ip_address)) => RunStyle::Fabric {
             fabric_name,
             scenario: Some(TestScenario::MachineTest(ip_address)),
         },
-        (Some(fabric_name), None, None, None, None) => RunStyle::Fabric {
+        (Some(fabric_name), false, None, None, None) => RunStyle::Fabric {
             fabric_name,
             scenario: None,
         },
-        (None, Some(prototype), None, None, None) => RunStyle::Prototype(prototype),
-        (None, None, Some(seed), None, None) => RunStyle::Seeded(seed),
-        (Some(fabric_name), None, None, Some(test_name), None) => RunStyle::Fabric {
+        (None, true, None, None, None) => RunStyle::BakeBricks,
+        (None, false, Some(seed), None, None) => RunStyle::Seeded(seed),
+        (Some(fabric_name), false, None, Some(test_name), None) => RunStyle::Fabric {
             fabric_name,
             scenario: match test_name.as_ref() {
                 "physics" => Some(TestScenario::PhysicsTest),
@@ -57,7 +56,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             },
         },
         _ => {
-            return Err("use --fabric <name> or --prototype <number> or --seed <seed>".into());
+            return Err("use --fabric <name> or --bake-bricks or --seed <seed>".into());
         }
     };
     run_with(run_style)
