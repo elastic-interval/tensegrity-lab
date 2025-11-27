@@ -1,20 +1,21 @@
 #![allow(clippy::result_large_err)]
 
 pub use fabric_plan::FabricPlan;
-use strum::Display;
+use std::fmt::{Display, Formatter};
 use std::sync::OnceLock;
+use strum::Display;
 
 use crate::build::dsl::brick_dsl::{BrickName, BrickOrientation, BrickRole, FaceName, MarkName};
 use crate::fabric::{Fabric, UniqueId};
 
 pub mod animate_phase;
 pub mod brick;
-pub mod brick_library;
 pub mod brick_dsl;
+pub mod brick_library;
 pub mod build_phase;
 pub mod converge_phase;
-pub mod fabric_library;
 pub mod fabric_dsl;
+pub mod fabric_library;
 pub mod fabric_plan;
 pub mod fabric_plan_executor;
 pub mod plan_context;
@@ -28,29 +29,29 @@ pub mod single_interval_drop_test;
 static BRICK_LIBRARY: OnceLock<brick_library::BrickLibrary> = OnceLock::new();
 static FABRIC_LIBRARY: OnceLock<fabric_library::FabricLibrary> = OnceLock::new();
 
-/// Initialize both libraries at startup
+/// Initialize both libraries at startup (idempotent - safe to call multiple times)
 pub fn init_libraries() {
-    BRICK_LIBRARY
-        .set(brick_library::BrickLibrary::default())
-        .expect("BrickLibrary already initialized");
-    FABRIC_LIBRARY
-        .set(fabric_library::FabricLibrary::default())
-        .expect("FabricLibrary already initialized");
+    BRICK_LIBRARY.get_or_init(|| brick_library::BrickLibrary::default());
+    FABRIC_LIBRARY.get_or_init(|| fabric_library::FabricLibrary::default());
 }
 
 /// Get global BrickLibrary reference
 pub fn brick_library() -> &'static brick_library::BrickLibrary {
-    BRICK_LIBRARY.get().expect("BrickLibrary not initialized - call init_libraries() first")
+    BRICK_LIBRARY
+        .get()
+        .expect("BrickLibrary not initialized - call init_libraries() first")
 }
 
 /// Get global FabricLibrary reference
 pub fn fabric_library() -> &'static fabric_library::FabricLibrary {
-    FABRIC_LIBRARY.get().expect("FabricLibrary not initialized - call init_libraries() first")
+    FABRIC_LIBRARY
+        .get()
+        .expect("FabricLibrary not initialized - call init_libraries() first")
 }
 
 impl Fabric {
     pub fn expect_face(&self, face_id: UniqueId) -> &crate::fabric::face::Face {
-        self.faces.get(&face_id).expect("Face missing")
+        self.faces.get(&face_id).expect(&format!("Expected face {:?} in fabric with {} faces", &face_id, self.faces.len()))
     }
 }
 
@@ -80,6 +81,12 @@ impl FaceTag {
 pub struct FaceAlias {
     pub brick_role: BrickRole,
     pub face_name: FaceName,
+}
+
+impl Display for FaceAlias {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.brick_role, self.face_name)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Display)]

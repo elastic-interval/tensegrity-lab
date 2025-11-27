@@ -164,7 +164,7 @@ pub fn omni() -> Brick {
             OnSpinLeft.calls_it(OmniBotZ),
             OnSpinRight.calls_it(OmniTopZ),
             SeedFourDown.calls_it(RightBackBottom),
-            SeedFaceDown.calls_it(OmniTopZ),
+            SeedFaceDown.calls_it(OmniBotZ),
         ],
     )
     .face(
@@ -195,6 +195,7 @@ pub fn omni() -> Brick {
             OnSpinRight.calls_it(Attach(Spin::Left)),
             SeedFourDown.calls_it(LeftBackBottom),
             SeedFaceDown.calls_it(OmniBot),
+            SeedFaceDown.calls_it(Downwards),
         ],
     )
     .baked()
@@ -410,11 +411,12 @@ impl BrickLibrary {
                 .faces
                 .iter()
                 .find(|face| {
-                    face.aliases
-                        .iter()
-                        .any(|alias| matches!(alias.face_name, FaceName::Attach(_)))
+                    face.aliases.iter().any(|alias| {
+                        alias.brick_role == brick_role
+                            && matches!(alias.face_name, FaceName::Attach(_))
+                    })
                 })
-                .expect("Brick does not have any face aliases");
+                .expect("Brick does not have any face aliases for this role");
             face.vector_space(&baked).invert().unwrap()
         };
         baked.apply_matrix(space);
