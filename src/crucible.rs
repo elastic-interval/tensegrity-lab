@@ -55,13 +55,9 @@ impl Crucible {
         self.pending_camera_translation = Some(translation);
     }
 
-    /// Get the target time scale for the current stage
-    /// 5.0 for construction (5× speedup), 1.0 for physics testing and viewing (real time)
+    /// Get the target time scale from physics settings
     pub fn target_time_scale(&self) -> f32 {
-        match &self.stage {
-            PhysicsTesting(_) | Viewing => 1.0,
-            _ => 5.0,
-        }
+        self.physics.time_scale()
     }
 }
 

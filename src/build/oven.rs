@@ -1,6 +1,6 @@
 use crate::build::dsl::brick::{BakedBrick, Prototype};
 use crate::crucible_context::CrucibleContext;
-use crate::fabric::physics::presets::CONSTRUCTION;
+use crate::fabric::physics::presets::BAKING;
 use crate::fabric::Fabric;
 use crate::{Radio, StateChange};
 use std::rc::Rc;
@@ -25,7 +25,7 @@ impl Oven {
     }
 
     pub fn copy_physics_into(&self, context: &mut CrucibleContext) {
-        *context.physics = CONSTRUCTION;
+        *context.physics = BAKING;
     }
 
     pub fn iterate(&mut self, context: &mut CrucibleContext) -> Option<BakedBrick> {

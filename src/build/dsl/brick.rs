@@ -199,7 +199,10 @@ impl From<Prototype> for Fabric {
             let midpoint_loc = Point3::from_vec(midpoint);
             let radial_intervals = joint_indices.map(|omega_index| {
                 let omega_loc = fabric.joints[omega_index].location;
-                let ideal_length = midpoint_loc.distance(omega_loc);
+                let actual_length = midpoint_loc.distance(omega_loc);
+                // Apply target strain: ideal = actual / (1 + strain)
+                // This makes the face radials want to contract to their ideal length
+                let ideal_length = actual_length / (1.0 + BakedBrick::TARGET_FACE_STRAIN);
                 fabric.create_interval(alpha_index, omega_index, ideal_length, Role::FaceRadial)
             });
             fabric.create_face(aliases, 1.0, spin, radial_intervals);
