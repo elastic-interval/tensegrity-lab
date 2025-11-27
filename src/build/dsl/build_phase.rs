@@ -178,7 +178,7 @@ impl BuildPhase {
                 Spin::Left => (BrickName::SingleLeftBrick, BrickRole::OnSpinLeft),
                 Spin::Right => (BrickName::SingleRightBrick, BrickRole::OnSpinRight),
             };
-            let brick = brick_library().get_brick(brick_name, brick_role);
+            let brick = brick_library::get_brick(brick_name, brick_role);
             let (base_face, brick_faces) = fabric.attach_brick(
                 &brick,
                 brick_role,
@@ -260,7 +260,7 @@ impl BuildPhase {
                 rotation,
                 scale_factor,
             } => {
-                let brick = brick_library().get_brick(*brick_name, *brick_role);
+                let brick = brick_library::get_brick(*brick_name, *brick_role);
                 let launch_face = Self::find_launch_face(&launch, &faces, fabric);
                 let base_face = launch_face
                     .map(BaseFace::ExistingFace)
