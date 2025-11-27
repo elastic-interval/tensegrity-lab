@@ -2,7 +2,6 @@
 
 pub use fabric_plan::FabricPlan;
 use std::fmt::{Display, Formatter};
-use std::sync::OnceLock;
 use strum::Display;
 
 use crate::build::dsl::brick_dsl::{BrickRole, FaceName, MarkName};
@@ -24,30 +23,6 @@ pub mod pretense_phase;
 pub mod pretenser;
 pub mod shape_phase;
 pub mod single_interval_drop_test;
-
-// Global singleton libraries
-static BRICK_LIBRARY: OnceLock<brick_library::BrickLibrary> = OnceLock::new();
-static FABRIC_LIBRARY: OnceLock<fabric_library::FabricLibrary> = OnceLock::new();
-
-/// Initialize both libraries at startup (idempotent - safe to call multiple times)
-pub fn init_libraries() {
-    BRICK_LIBRARY.get_or_init(|| brick_library::BrickLibrary::default());
-    FABRIC_LIBRARY.get_or_init(|| fabric_library::FabricLibrary::default());
-}
-
-/// Get global BrickLibrary reference
-pub fn brick_library() -> &'static brick_library::BrickLibrary {
-    BRICK_LIBRARY
-        .get()
-        .expect("BrickLibrary not initialized - call init_libraries() first")
-}
-
-/// Get global FabricLibrary reference
-pub fn fabric_library() -> &'static fabric_library::FabricLibrary {
-    FABRIC_LIBRARY
-        .get()
-        .expect("FabricLibrary not initialized - call init_libraries() first")
-}
 
 impl Fabric {
     pub fn expect_face(&self, face_id: UniqueId) -> &crate::fabric::face::Face {

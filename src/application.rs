@@ -209,16 +209,11 @@ impl ApplicationHandler<LabEvent> for Application {
                         unreachable!()
                     }
                     RunStyle::Fabric { fabric_name, .. } => {
-                        let fabric_plan = fabric_library().get_fabric_plan(&fabric_name);
+                        let fabric_plan = fabric_library::get_fabric_plan(*fabric_name);
                         CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
                     }
-                    RunStyle::Prototype(brick_index) => {
-                        let prototype = brick_library()
-                            .bricks
-                            .get(*brick_index)
-                            .expect("no such brick")
-                            .prototype
-                            .clone();
+                    RunStyle::Prototype(brick_name) => {
+                        let prototype = brick_library::get_prototype(*brick_name);
                         ControlState::Baking.send(&self.radio);
                         self.crucible.action(CrucibleAction::BakeBrick(prototype));
                     }

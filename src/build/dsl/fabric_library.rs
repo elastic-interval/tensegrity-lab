@@ -2,6 +2,25 @@ use crate::build::dsl::brick_dsl::{BrickName::*, BrickRole::*, FaceName::*, Mark
 use crate::build::dsl::fabric_dsl::*;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::fabric::physics::SurfaceCharacter;
+use std::sync::OnceLock;
+use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
+
+static TRIPED: OnceLock<FabricPlan> = OnceLock::new();
+static VERTEBRA: OnceLock<FabricPlan> = OnceLock::new();
+static FLAGELLUM: OnceLock<FabricPlan> = OnceLock::new();
+static CIGAR: OnceLock<FabricPlan> = OnceLock::new();
+static HALO_BY_CRANE: OnceLock<FabricPlan> = OnceLock::new();
+static HEADLESS_HUG: OnceLock<FabricPlan> = OnceLock::new();
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, EnumIter)]
+pub enum FabricName {
+    Triped,
+    Vertebra,
+    Flagellum,
+    Cigar,
+    HaloByCrane,
+    HeadlessHug,
+}
 
 /// Build the Triped fabric
 pub fn triped() -> FabricPlan {
@@ -185,33 +204,18 @@ pub fn headless_hug() -> FabricPlan {
         .build_plan()
 }
 
-/// Build all fa
-#[derive(Debug)]
-pub struct FabricLibrary {
-    pub fabric_plans: Vec<FabricPlan>,
+pub fn get_fabric_plan(fabric_name: FabricName) -> FabricPlan {
+    match fabric_name {
+        FabricName::Triped => TRIPED.get_or_init(triped),
+        FabricName::Vertebra => VERTEBRA.get_or_init(vertebra),
+        FabricName::Flagellum => FLAGELLUM.get_or_init(flagellum),
+        FabricName::Cigar => CIGAR.get_or_init(cigar),
+        FabricName::HaloByCrane => HALO_BY_CRANE.get_or_init(halo_by_crane),
+        FabricName::HeadlessHug => HEADLESS_HUG.get_or_init(headless_hug),
+    }
+    .clone()
 }
 
-impl Default for FabricLibrary {
-    fn default() -> Self {
-        Self {
-            fabric_plans: vec![
-                triped(),
-                vertebra(),
-                flagellum(),
-                cigar(),
-                halo_by_crane(),
-                headless_hug(),
-            ],
-        }
-    }
-}
-
-impl FabricLibrary {
-    pub fn get_fabric_plan(&self, plan_name: &String) -> FabricPlan {
-        self.fabric_plans
-            .iter()
-            .find(|plan| plan.name == *plan_name)
-            .expect(&format!("Fabric plan not found: {}", plan_name))
-            .clone()
-    }
+pub fn all_fabric_plans() -> impl Iterator<Item = FabricPlan> {
+    FabricName::iter().map(get_fabric_plan)
 }

@@ -1,7 +1,13 @@
-use crate::build::dsl::brick::{BakedBrick, Brick};
+use crate::build::dsl::brick::{BakedBrick, Brick, Prototype};
 use crate::build::dsl::brick_dsl::*;
 use crate::build::dsl::Spin;
 use cgmath::SquareMatrix;
+use std::sync::OnceLock;
+
+static SINGLE_RIGHT: OnceLock<Brick> = OnceLock::new();
+static SINGLE_LEFT: OnceLock<Brick> = OnceLock::new();
+static OMNI: OnceLock<Brick> = OnceLock::new();
+static TORQUE: OnceLock<Brick> = OnceLock::new();
 
 /// Build the Single-right brick
 pub fn single_right() -> Brick {
@@ -380,46 +386,40 @@ pub fn torque() -> Brick {
         .build()
 }
 
-#[derive(Debug)]
-pub struct BrickLibrary {
-    pub bricks: Vec<Brick>,
-}
-
-impl Default for BrickLibrary {
-    fn default() -> Self {
-        Self {
-            bricks: vec![single_right(), single_left(), omni(), torque()],
-        }
+fn get_brick_definition(brick_name: BrickName) -> &'static Brick {
+    match brick_name {
+        BrickName::SingleLeftBrick => SINGLE_LEFT.get_or_init(single_left),
+        BrickName::SingleRightBrick => SINGLE_RIGHT.get_or_init(single_right),
+        BrickName::OmniBrick => OMNI.get_or_init(omni),
+        BrickName::TorqueBrick => TORQUE.get_or_init(torque),
     }
 }
 
-impl BrickLibrary {
-    pub fn get_brick(&self, brick_name: BrickName, brick_role: BrickRole) -> BakedBrick {
-        let brick = self
-            .bricks
+pub fn get_prototype(brick_name: BrickName) -> Prototype {
+    get_brick_definition(brick_name).prototype.clone()
+}
+
+pub fn get_brick(brick_name: BrickName, brick_role: BrickRole) -> BakedBrick {
+    let brick = get_brick_definition(brick_name);
+    let mut baked = brick.baked.clone();
+    for face in &mut baked.faces {
+        face.aliases.retain(|alias| alias.brick_role == brick_role);
+    }
+    let space = if brick_role.is_seed() {
+        baked.down_rotation(brick_role)
+    } else {
+        let face = baked
+            .faces
             .iter()
-            .find(|brick| brick.prototype.brick_name == brick_name)
-            .unwrap();
-        let mut baked = brick.baked.clone();
-        for face in &mut baked.faces {
-            face.aliases.retain(|alias| alias.brick_role == brick_role);
-        }
-        let space = if brick_role.is_seed() {
-            baked.down_rotation(brick_role)
-        } else {
-            let face = baked
-                .faces
-                .iter()
-                .find(|face| {
-                    face.aliases.iter().any(|alias| {
-                        alias.brick_role == brick_role
-                            && matches!(alias.face_name, FaceName::Attach(_))
-                    })
+            .find(|face| {
+                face.aliases.iter().any(|alias| {
+                    alias.brick_role == brick_role
+                        && matches!(alias.face_name, FaceName::Attach(_))
                 })
-                .expect("Brick does not have any face aliases for this role");
-            face.vector_space(&baked).invert().unwrap()
-        };
-        baked.apply_matrix(space);
-        baked
-    }
+            })
+            .expect("Brick does not have any face aliases for this role");
+        face.vector_space(&baked).invert().unwrap()
+    };
+    baked.apply_matrix(space);
+    baked
 }

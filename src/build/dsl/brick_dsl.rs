@@ -25,7 +25,7 @@ impl MaterialIntervalExt for Material {
 }
 
 /// Brick type names
-#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash, clap::ValueEnum)]
 pub enum BrickName {
     SingleLeftBrick,
     SingleRightBrick,

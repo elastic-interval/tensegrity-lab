@@ -158,7 +158,7 @@ impl ShapePhase {
                             Spin::Left => OnSpinLeft,
                             Spin::Right => OnSpinRight,
                         };
-                        let brick = brick_library().get_brick(OmniBrick, brick_role);
+                        let brick = brick_library::get_brick(OmniBrick, brick_role);
                         let (_, brick_faces) = fabric.attach_brick(
                             &brick,
                             brick_role,

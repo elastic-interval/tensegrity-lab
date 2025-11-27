@@ -1,5 +1,7 @@
 #[allow(dead_code)]
 use crate::build::dsl::brick::Prototype;
+use crate::build::dsl::brick_dsl::BrickName;
+use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::FabricPlan;
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::{FabricStats, UniqueId};
@@ -157,10 +159,10 @@ pub enum TestScenario {
 pub enum RunStyle {
     Unknown,
     Fabric {
-        fabric_name: String,
+        fabric_name: FabricName,
         scenario: Option<TestScenario>,
     },
-    Prototype(usize),
+    Prototype(BrickName),
     Seeded(u64),
 }
 

@@ -8,16 +8,17 @@ use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
 use tensegrity_lab::{LabEvent, RunStyle, TestScenario};
-use tensegrity_lab::build::dsl::init_libraries;
+use tensegrity_lab::build::dsl::brick_dsl::BrickName;
+use tensegrity_lab::build::dsl::fabric_library::FabricName;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     #[arg(long)]
-    fabric: Option<String>,
+    fabric: Option<FabricName>,
 
     #[arg(long)]
-    prototype: Option<usize>,
+    prototype: Option<BrickName>,
 
     #[arg(long)]
     seed: Option<u64>,
@@ -63,7 +64,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
-    init_libraries();
     let mut builder = EventLoop::<LabEvent>::with_user_event();
     let event_loop: EventLoop<LabEvent> = builder.build()?;
     let radio = event_loop.create_proxy();
@@ -81,7 +81,7 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(start))]
 pub fn run() {
     run_with(RunStyle::Fabric {
-        fabric_name: "Triped".to_string(),
+        fabric_name: FabricName::Triped,
         scenario: None,
     })
     .unwrap();
