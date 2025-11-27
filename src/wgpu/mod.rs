@@ -2,7 +2,7 @@ use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
 use bytemuck::cast_slice;
-use cgmath::{Matrix4, Point3};
+use cgmath::Matrix4;
 use wgpu::util::DeviceExt;
 use wgpu::MemoryHints::Performance;
 use wgpu::VertexAttribute;
@@ -268,9 +268,7 @@ impl Wgpu {
     }
 
     pub fn create_camera(&self, radio: Radio) -> Camera {
-        let scale = 9.0;
         Camera::new(
-            Point3::new(2.0 * scale, 1.0 * scale, 2.0 * scale),
             self.surface_configuration.width as f32,
             self.surface_configuration.height as f32,
             radio,

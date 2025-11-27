@@ -194,9 +194,6 @@ impl PlanRunner {
     pub fn pretense_phase(&self) -> PretensePhase {
         self.pretense_phase.clone()
     }
-
-    // REMOVED: run_headless() - Now obsolete, use FabricPlanExecutor instead
-    // FabricPlanExecutor provides frame-independent execution that works for both UI and tests
 }
 
 #[cfg(test)]

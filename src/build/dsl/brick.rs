@@ -193,9 +193,8 @@ impl From<Prototype> for Fabric {
                     .get(&name)
                     .expect(&format!("Joint {:?} not found", name))
             });
-            let joints = joint_indices.map(|index| fabric.joints[index].location.to_vec());
-            let midpoint = joints.into_iter().sum::<Vector3<_>>() / 3.0;
-            let alpha_index = fabric.create_joint(Point3::from_vec(midpoint));
+            // Start face center at origin - radial tensions will pull it into position
+            let alpha_index = fabric.create_joint(Point3::origin());
             let radial_intervals = joint_indices.map(|omega_index| {
                 fabric.create_interval(alpha_index, omega_index, 1.0, Role::FaceRadial)
             });

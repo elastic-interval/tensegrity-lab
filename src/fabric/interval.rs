@@ -178,7 +178,6 @@ impl Fabric {
     }
 
     /// Get an interval by its ID
-    /// This maintains backward compatibility with existing code
     pub fn interval(&self, id: UniqueId) -> &Interval {
         self.interval_result(id).expect("Interval not found")
     }
@@ -203,7 +202,6 @@ impl Fabric {
     }
 
     /// Get an interval snapshot by its ID
-    /// This maintains backward compatibility with existing code
     pub fn interval_snapshot(&self, id: UniqueId) -> IntervalSnapshot {
         self.interval_snapshot_result(id)
             .expect("Failed to get interval snapshot")

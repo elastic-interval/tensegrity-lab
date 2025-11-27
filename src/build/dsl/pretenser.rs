@@ -56,9 +56,8 @@ impl Pretenser {
                 context.fabric.slacken();
                 let altitude = self.pretense_phase.altitude.unwrap_or(0.0) / context.fabric.scale;
                 
-                // Calculate translation, set it in context for synchronous camera update, then apply
+                // Calculate translation and apply
                 let translation = context.fabric.centralize_translation(Some(altitude));
-                context.set_camera_translation(translation);
                 context.fabric.apply_translation(translation);
                 
                 let pretenst_percent = self

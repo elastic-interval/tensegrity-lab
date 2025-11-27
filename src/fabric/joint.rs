@@ -57,7 +57,7 @@ impl Fabric {
     }
 }
 
-pub const AMBIENT_MASS: Grams = Grams(0.01);
+pub const AMBIENT_MASS: Grams = Grams(100.0);
 const STICKY_DOWN_DRAG_FACTOR: f32 = 0.8;
 
 #[derive(Clone, Debug)]
