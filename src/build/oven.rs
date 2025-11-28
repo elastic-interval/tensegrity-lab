@@ -98,7 +98,7 @@ impl Oven {
             }
         }
 
-        // Build joints string
+        // Build joints lines
         let joints_str: Vec<String> = joint_incidents
             .iter()
             .filter(|inc| !face_joints.contains(&inc.index))
@@ -108,7 +108,7 @@ impl Oven {
             })
             .collect();
 
-        // Build pushes and pulls strings
+        // Build pushes and pulls
         let mut pushes: Vec<String> = Vec::new();
         let mut pulls: Vec<String> = Vec::new();
 
@@ -119,7 +119,7 @@ impl Oven {
             let alpha = fabric_to_baked.get(&interval.alpha_index);
             let omega = fabric_to_baked.get(&interval.omega_index);
             if let (Some(&a), Some(&o)) = (alpha, omega) {
-                let entry = format!("({}, {}, {:.4})", a, o, interval.strain);
+                let entry = format!("            ({}, {}, {:.4}),", a, o, interval.strain);
                 if interval.role == Role::Pushing {
                     pushes.push(entry);
                 } else {
@@ -128,17 +128,29 @@ impl Oven {
             }
         }
 
+        // Format pushes and pulls - each on its own line
+        let pushes_str = if pushes.is_empty() {
+            String::new()
+        } else {
+            format!("\n{}\n        ", pushes.join("\n"))
+        };
+        let pulls_str = if pulls.is_empty() {
+            String::new()
+        } else {
+            format!("\n{}\n        ", pulls.join("\n"))
+        };
+
         format!(
-            r#".baked()
+            ".baked()
         .joints([
 {}
         ])
         .pushes([{}])
         .pulls([{}])
-        .build()"#,
+        .build()",
             joints_str.join("\n"),
-            pushes.join(", "),
-            pulls.join(", "),
+            pushes_str,
+            pulls_str,
         )
     }
 
