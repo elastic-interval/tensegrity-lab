@@ -304,10 +304,15 @@ impl ProtoBuilder {
         }
     }
 
-    /// Continue to build the baked data
-    pub fn baked(self) -> BakedBuilder {
-        let proto = self.build_proto();
-        BakedBuilder::new(proto)
+    pub fn baked(self, scale: f32) -> BakedBuilder {
+        let mut proto = self.build_proto();
+        for push in &mut proto.pushes {
+            push.ideal *= scale;
+        }
+        for pull in &mut proto.pulls {
+            pull.ideal *= scale;
+        }
+        BakedBuilder::new(proto, scale)
     }
 }
 
@@ -316,18 +321,19 @@ pub fn proto<const N: usize>(brick_name: BrickName, brick_roles: [BrickRole; N])
     ProtoBuilder::new(brick_name, brick_roles.into())
 }
 
-/// Builder for Baked brick data
 pub struct BakedBuilder {
     proto: Prototype,
+    scale: f32,
     joints: Vec<BakedJoint>,
     intervals: Vec<BakedInterval>,
     faces: Vec<BrickFace>,
 }
 
 impl BakedBuilder {
-    pub fn new(proto: Prototype) -> Self {
+    pub fn new(proto: Prototype, scale: f32) -> Self {
         Self {
             proto,
+            scale,
             joints: vec![],
             intervals: vec![],
             faces: vec![],
@@ -368,7 +374,7 @@ impl BakedBuilder {
     }
 
     pub fn build(self) -> Brick {
-        Brick::new(self.proto, self.joints, self.intervals)
+        Brick::new(self.proto, self.scale, self.joints, self.intervals)
     }
 }
 

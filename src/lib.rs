@@ -500,8 +500,9 @@ pub enum StateChange {
     SetFabricName(String),
     SetFabricStats(Option<FabricStats>),
     SetControlState(ControlState),
-    SetStageLabel(String), // Simple string label for current stage
+    SetStageLabel(String),
     ResetView,
+    RestartApproach,
     ToggleColorByRole,
     SetAppearanceFunction(AppearanceFunction),
     SetIntervalColor {
@@ -539,6 +540,7 @@ impl Debug for StateChange {
             StateChange::SetAppearanceFunction(_) => "SetColorFunction()",
             StateChange::SetIntervalColor { .. } => "SetIntervalColor()",
             StateChange::ResetView => "ResetView()",
+            StateChange::RestartApproach => "RestartApproach()",
             StateChange::SetAnimating(_) => "SetAnimating()",
             StateChange::SetExperimentTitle { .. } => "SetExperimentTitle()",
             StateChange::SetKeyboardLegend(_) => "SetKeyboardLegend()",

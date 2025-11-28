@@ -100,6 +100,9 @@ impl Scene {
                     show_attachment_points: false,
                 };
             }
+            RestartApproach => {
+                self.camera.restart_approach();
+            }
             ToggleColorByRole => {
                 let show_attachment_points = self.render_style.show_attachment_points();
                 self.render_style = match &self.render_style {
@@ -253,6 +256,10 @@ impl Scene {
     /// Jump camera to ideal viewing position for the given fabric
     pub fn jump_to_fabric(&mut self, fabric: &Fabric) {
         self.camera.jump_to_fabric(fabric);
+    }
+
+    pub fn restart_approach(&mut self) {
+        self.camera.restart_approach();
     }
 
     /// Check if camera needs initialization
