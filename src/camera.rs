@@ -229,6 +229,15 @@ impl Camera {
         self.set_target(Target::FabricMidpoint);
     }
 
+    pub fn restart_approach(&mut self) {
+        CAMERA_APPROACHING.with(|state| {
+            *state.borrow_mut() = true;
+        });
+        CAMERA_APPROACH_ELAPSED.with(|elapsed| {
+            *elapsed.borrow_mut() = 0.0;
+        });
+    }
+
     /// Jump camera to ideal viewing position for the given fabric
     pub fn jump_to_fabric(&mut self, fabric: &Fabric) {
         self.current_pick = Pick::Nothing;

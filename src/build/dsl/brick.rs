@@ -83,12 +83,14 @@ impl Prototype {
 #[derive(Clone, Debug)]
 pub struct Brick {
     pub prototype: Prototype,
+    pub scale: f32,
     pub baked: BakedBrick,
 }
 
 impl Brick {
     pub fn new(
         prototype: Prototype,
+        scale: f32,
         joints: Vec<BakedJoint>,
         intervals: Vec<BakedInterval>,
     ) -> Self {
@@ -98,7 +100,7 @@ impl Brick {
             intervals,
             faces,
         };
-        Self { prototype, baked }
+        Self { prototype, scale, baked }
     }
 
     fn derive_baked_faces(prototype: &Prototype) -> Vec<BrickFace> {

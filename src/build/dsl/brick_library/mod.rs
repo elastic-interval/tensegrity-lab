@@ -31,6 +31,10 @@ pub fn get_prototype(brick_name: BrickName) -> Prototype {
     get_brick_definition(brick_name).prototype.clone()
 }
 
+pub fn get_scale(brick_name: BrickName) -> f32 {
+    get_brick_definition(brick_name).scale
+}
+
 pub fn get_brick(brick_name: BrickName, brick_role: BrickRole) -> BakedBrick {
     let brick = get_brick_definition(brick_name);
     let mut baked = brick.baked.clone();

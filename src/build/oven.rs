@@ -1,3 +1,5 @@
+use crate::build::dsl::brick::BakedBrick;
+use crate::build::dsl::brick::Prototype;
 use crate::build::dsl::brick_dsl::BrickName;
 use crate::build::dsl::brick_library;
 use crate::crucible_context::CrucibleContext;
@@ -18,18 +20,47 @@ const REORIENT_DURATION: Duration = Duration::from_millis(500);
 /// Path to brick_library directory (relative to project root)
 const BRICK_LIBRARY_DIR: &str = "src/build/dsl/brick_library";
 
+/// Tolerance for face strain convergence
+const STRAIN_TOLERANCE: f32 = 0.001;
+
+struct TuningState {
+    base_scale: f32,
+    adjustment: f32,
+    prev_adjustment: Option<f32>,
+    prev_strain: Option<f32>,
+    iteration: usize,
+}
+
+impl TuningState {
+    fn new(base_scale: f32) -> Self {
+        Self {
+            base_scale,
+            adjustment: 1.0,
+            prev_adjustment: None,
+            prev_strain: None,
+            iteration: 0,
+        }
+    }
+
+    fn current_scale(&self) -> f32 {
+        self.base_scale * self.adjustment
+    }
+}
+
 pub struct Oven {
     brick_names: Vec<BrickName>,
     current_index: usize,
     radio: Radio,
     baked_fabrics: Vec<Option<Fabric>>,
     reoriented: bool,
+    tuning: TuningState,
 }
 
 impl Oven {
     pub fn new(radio: Radio) -> Self {
         let brick_names: Vec<BrickName> = BrickName::iter().collect();
         let baked_fabrics = vec![None; brick_names.len()];
+        let initial_scale = brick_library::get_scale(brick_names[0]);
 
         Self {
             brick_names,
@@ -37,6 +68,7 @@ impl Oven {
             radio,
             baked_fabrics,
             reoriented: false,
+            tuning: TuningState::new(initial_scale),
         }
     }
 
@@ -65,10 +97,25 @@ impl Oven {
         None
     }
 
-    /// Create a fresh fabric from the current brick's prototype
     pub fn create_fresh_fabric(&self) -> Fabric {
         let prototype = brick_library::get_prototype(self.current_brick_name());
-        Fabric::from(prototype)
+        if (self.tuning.adjustment - 1.0).abs() < 1e-6 {
+            Fabric::from(prototype)
+        } else {
+            let scaled = Self::scale_prototype(&prototype, self.tuning.adjustment);
+            Fabric::from(scaled)
+        }
+    }
+
+    fn scale_prototype(proto: &Prototype, scale: f32) -> Prototype {
+        let mut scaled = proto.clone();
+        for push in &mut scaled.pushes {
+            push.ideal *= scale;
+        }
+        for pull in &mut scaled.pulls {
+            pull.ideal *= scale;
+        }
+        scaled
     }
 
     /// Get the fabric for the current brick - either baked or fresh
@@ -80,10 +127,10 @@ impl Oven {
         }
     }
 
-    /// Cycle to the next brick (manual) - only cycles through baked bricks when all are done
     pub fn next_brick(&mut self) -> Fabric {
         self.current_index = (self.current_index + 1) % self.brick_names.len();
         self.reoriented = false;
+        self.tuning = TuningState::new(brick_library::get_scale(self.current_brick_name()));
         self.send_name_and_label();
         self.current_fabric()
     }
@@ -108,9 +155,32 @@ impl Oven {
         *context.physics = BAKING;
     }
 
-    /// Iterate the oven. Returns Some(fabric) if we need to switch to a new brick.
+    fn average_face_strain(fabric: &Fabric) -> f32 {
+        let strain_sum: f32 = fabric.faces.values().map(|face| face.strain(fabric)).sum();
+        strain_sum / fabric.faces.len() as f32
+    }
+
+    fn compute_new_adjustment(&mut self, current_strain: f32) -> f32 {
+        let target = BakedBrick::TARGET_FACE_STRAIN;
+        let error = current_strain - target;
+
+        if let (Some(prev_adj), Some(prev_strain)) = (self.tuning.prev_adjustment, self.tuning.prev_strain) {
+            let prev_error = prev_strain - target;
+            let adj_diff = self.tuning.adjustment - prev_adj;
+            let error_diff = error - prev_error;
+
+            if error_diff.abs() > 1e-6 {
+                let gradient = adj_diff / error_diff;
+                self.tuning.adjustment - error * gradient
+            } else {
+                self.tuning.adjustment * (target / current_strain)
+            }
+        } else {
+            self.tuning.adjustment * (target / current_strain)
+        }
+    }
+
     pub fn iterate(&mut self, context: &mut CrucibleContext) -> Option<Fabric> {
-        // Skip iterations if current brick is already baked
         if self.current_is_baked() {
             return None;
         }
@@ -119,7 +189,6 @@ impl Oven {
             context.fabric.iterate(context.physics);
         }
 
-        // Reorient at 0.5 seconds so user can see the final orientation
         if !self.reoriented && context.fabric.age.as_duration() >= REORIENT_DURATION {
             let prototype = brick_library::get_prototype(self.current_brick_name());
             let rotation = context.fabric.down_rotation(prototype.max_seed());
@@ -130,25 +199,53 @@ impl Oven {
             self.reoriented = true;
         }
 
-        // Check if baked (1 second of fabric time)
         if context.fabric.age.as_duration() >= BAKED_DURATION {
+            let current_strain = Self::average_face_strain(&context.fabric);
+            let error = (current_strain - BakedBrick::TARGET_FACE_STRAIN).abs();
+
+            if error > STRAIN_TOLERANCE {
+                let new_adj = self.compute_new_adjustment(current_strain);
+                println!(
+                    "Tuning {}: strain={:.4}, adjustment {:.4} -> {:.4}",
+                    self.current_brick_name(),
+                    current_strain,
+                    self.tuning.adjustment,
+                    new_adj
+                );
+
+                self.tuning.prev_adjustment = Some(self.tuning.adjustment);
+                self.tuning.prev_strain = Some(current_strain);
+                self.tuning.adjustment = new_adj;
+                self.tuning.iteration += 1;
+                self.reoriented = false;
+
+                return Some(self.create_fresh_fabric());
+            }
+
+            let final_scale = self.tuning.current_scale();
+            if self.tuning.iteration > 0 {
+                println!(
+                    "Tuned {} in {} iterations: scale={:.4}, strain={:.4}",
+                    self.current_brick_name(),
+                    self.tuning.iteration,
+                    final_scale,
+                    current_strain
+                );
+            }
+
             let brick_name = self.current_brick_name();
-            let code = self.generate_baked_code(&context.fabric);
-
-            // Store baked fabric
+            let code = self.generate_baked_code(&context.fabric, final_scale);
             self.baked_fabrics[self.current_index] = Some(context.fabric.clone());
-
-            // Auto-export
             self.export_brick(brick_name, &code);
 
-            // Auto-cycle to next unbaked brick if any
             if let Some(next_index) = self.next_unbaked_index() {
                 self.current_index = next_index;
                 self.reoriented = false;
+                self.tuning = TuningState::new(brick_library::get_scale(self.brick_names[next_index]));
                 self.send_name_and_label();
+                StateChange::RestartApproach.send(&self.radio);
                 return Some(self.create_fresh_fabric());
             } else {
-                // All done
                 self.send_stage_label();
             }
         }
@@ -156,9 +253,7 @@ impl Oven {
         None
     }
 
-    /// Generate the baked code string from the current fabric state
-    fn generate_baked_code(&self, fabric: &Fabric) -> String {
-        // Orient and centralize the fabric for baked output
+    fn generate_baked_code(&self, fabric: &Fabric, scale: f32) -> String {
         let mut oriented = fabric.clone();
         let prototype = brick_library::get_prototype(self.current_brick_name());
         let rotation = oriented.down_rotation(prototype.max_seed());
@@ -227,13 +322,14 @@ impl Oven {
         };
 
         format!(
-            ".baked()
+            ".baked({:.4})
         .joints([
 {}
         ])
         .pushes([{}])
         .pulls([{}])
         .build()",
+            scale,
             joints_str.join("\n"),
             pushes_str,
             pulls_str,
@@ -251,13 +347,10 @@ impl Oven {
         format!("{}/{}.rs", BRICK_LIBRARY_DIR, file_name)
     }
 
-    /// Export baked brick by substituting directly into the brick's source file
-    /// Only works in native builds (not WASM)
     #[cfg(not(target_arch = "wasm32"))]
     fn export_brick(&self, brick_name: BrickName, baked_code: &str) {
         let file_path = Self::brick_file_path(brick_name);
 
-        // Read the current source file
         let source = match std::fs::read_to_string(&file_path) {
             Ok(s) => s,
             Err(e) => {
@@ -266,40 +359,27 @@ impl Oven {
             }
         };
 
-        // Find the brick and replace between .baked() and .build()
         let Some(new_source) = Self::substitute_baked_section(&source, baked_code) else {
             eprintln!("Failed to find baked section in {}", file_path);
             return;
         };
 
-        // Write back
         match std::fs::write(&file_path, &new_source) {
-            Ok(_) => {
-                println!("=== Updated {} ===", file_path);
-            }
-            Err(e) => {
-                eprintln!("Failed to write {}: {}", file_path, e);
-            }
+            Ok(_) => println!("=== Updated {} ===", file_path),
+            Err(e) => eprintln!("Failed to write {}: {}", file_path, e),
         }
     }
 
-    /// WASM stub - does nothing
     #[cfg(target_arch = "wasm32")]
-    fn export_brick(&self, _brick_name: BrickName, _baked_code: &str) {
-        // Cannot write to filesystem in WASM
-    }
+    fn export_brick(&self, _brick_name: BrickName, _baked_code: &str) {}
 
-    /// Replace the section from .baked() to .build() (inclusive) in a brick source file
     fn substitute_baked_section(source: &str, replacement: &str) -> Option<String> {
-        // Find .baked() in the source
-        let baked_start = source.find(".baked()")?;
+        let baked_start = source.find(".baked(")?;
 
-        // Find .build() after .baked()
         let after_baked = &source[baked_start..];
         let build_offset = after_baked.find(".build()")?;
         let build_end = baked_start + build_offset + ".build()".len();
 
-        // Construct the new source
         let mut new_source = String::with_capacity(source.len());
         new_source.push_str(&source[..baked_start]);
         new_source.push_str(replacement);
