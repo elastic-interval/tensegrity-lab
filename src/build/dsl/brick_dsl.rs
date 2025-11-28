@@ -1,27 +1,40 @@
-use crate::build::dsl::brick::{
-    Axis, BakedInterval, BakedJoint, Brick, BrickFace, FaceDef, Prototype, PullDef, PushDef,
-};
+use crate::build::dsl::brick::{Axis, BrickPrototype, FaceDef, PullDef, PushDef};
 use crate::build::dsl::brick_dsl::FaceName::Downwards;
 use crate::build::dsl::{FaceAlias, Spin};
 pub use crate::fabric::material::Material;
-use cgmath::Point3;
+use cgmath::Vector3;
 use strum::Display;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct OmniParams {
+    pub push_lengths: Vector3<f32>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct SingleParams {
+    pub push_lengths: Vector3<f32>,
+    pub pull_length: f32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TorqueParams {
+    pub push_lengths: Vector3<f32>,
+    pub pull_length: f32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum BrickParams {
+    Omni(OmniParams),
+    SingleLeft(SingleParams),
+    SingleRight(SingleParams),
+    Torque(TorqueParams),
+}
 
 pub fn material_name(material: Material) -> &'static str {
     match material {
         Material::Pull => "pull",
         Material::Push => "push",
         Material::Spring => "spring",
-    }
-}
-
-pub trait MaterialIntervalExt {
-    fn interval(self, alpha: usize, omega: usize, strain: f32) -> BakedInterval;
-}
-
-impl MaterialIntervalExt for Material {
-    fn interval(self, alpha: usize, omega: usize, strain: f32) -> BakedInterval {
-        interval(alpha, omega, strain, self)
     }
 }
 
@@ -292,9 +305,8 @@ impl ProtoBuilder {
         self
     }
 
-    /// Build just the prototype
-    pub fn build_proto(self) -> Prototype {
-        Prototype {
+    pub fn build(self) -> BrickPrototype {
+        BrickPrototype {
             brick_name: self.brick_name,
             brick_roles: self.brick_roles,
             joints: self.joints,
@@ -303,79 +315,11 @@ impl ProtoBuilder {
             faces: self.faces,
         }
     }
-
-    pub fn baked(self, scale: f32) -> BakedBuilder {
-        let mut proto = self.build_proto();
-        for push in &mut proto.pushes {
-            push.ideal *= scale;
-        }
-        for pull in &mut proto.pulls {
-            pull.ideal *= scale;
-        }
-        BakedBuilder::new(proto, scale)
-    }
 }
 
 /// Start building a prototype
 pub fn proto<const N: usize>(brick_name: BrickName, brick_roles: [BrickRole; N]) -> ProtoBuilder {
     ProtoBuilder::new(brick_name, brick_roles.into())
-}
-
-pub struct BakedBuilder {
-    proto: Prototype,
-    scale: f32,
-    joints: Vec<BakedJoint>,
-    intervals: Vec<BakedInterval>,
-    faces: Vec<BrickFace>,
-}
-
-impl BakedBuilder {
-    pub fn new(proto: Prototype, scale: f32) -> Self {
-        Self {
-            proto,
-            scale,
-            joints: vec![],
-            intervals: vec![],
-            faces: vec![],
-        }
-    }
-
-    pub fn joints<const N: usize>(mut self, joints: [(f32, f32, f32); N]) -> Self {
-        self.joints = joints.into_iter().map(|(x, y, z)| joint(x, y, z)).collect();
-        self
-    }
-
-    pub fn intervals(mut self, intervals: impl Into<Vec<BakedInterval>>) -> Self {
-        self.intervals = intervals.into();
-        self
-    }
-
-    pub fn pushes<const N: usize>(mut self, pushes: [(usize, usize, f32); N]) -> Self {
-        self.intervals.extend(
-            pushes
-                .into_iter()
-                .map(|(alpha, omega, strain)| interval(alpha, omega, strain, Material::Push)),
-        );
-        self
-    }
-
-    pub fn pulls<const N: usize>(mut self, pulls: [(usize, usize, f32); N]) -> Self {
-        self.intervals.extend(
-            pulls
-                .into_iter()
-                .map(|(alpha, omega, strain)| interval(alpha, omega, strain, Material::Pull)),
-        );
-        self
-    }
-
-    pub fn faces(mut self, faces: impl Into<Vec<BrickFace>>) -> Self {
-        self.faces = faces.into();
-        self
-    }
-
-    pub fn build(self) -> Brick {
-        Brick::new(self.proto, self.scale, self.joints, self.intervals)
-    }
 }
 
 /// Create a pull interval (cable) definition
@@ -391,32 +335,6 @@ pub fn pull(alpha: JointName, omega: JointName, ideal: f32, material: Material) 
 /// Create a face definition with spin and joint names
 pub fn face(spin: Spin, joints: [JointName; 3], aliases: impl Into<Vec<FaceAlias>>) -> FaceDef {
     FaceDef {
-        spin,
-        joints,
-        aliases: aliases.into(),
-    }
-}
-
-/// Create a baked joint at (x, y, z)
-pub fn joint(x: f32, y: f32, z: f32) -> BakedJoint {
-    BakedJoint {
-        location: Point3::new(x, y, z),
-    }
-}
-
-/// Create a baked interval with strain
-pub fn interval(alpha: usize, omega: usize, strain: f32, material: Material) -> BakedInterval {
-    BakedInterval {
-        alpha_index: alpha,
-        omega_index: omega,
-        strain,
-        material_name: material_name(material).to_string(),
-    }
-}
-
-/// Create a baked face with joint indices
-pub fn baked_face(spin: Spin, joints: [usize; 3], aliases: impl Into<Vec<FaceAlias>>) -> BrickFace {
-    BrickFace {
         spin,
         joints,
         aliases: aliases.into(),
