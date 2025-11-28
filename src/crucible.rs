@@ -171,7 +171,9 @@ impl Crucible {
                     &mut self.physics,
                     &self.radio,
                 );
-                oven.iterate(&mut context);
+                if let Some(new_fabric) = oven.iterate(&mut context) {
+                    context.replace_fabric(new_fabric);
+                }
             }
             Evolving(evolution) => {
                 // Create a context for evolution
@@ -363,12 +365,5 @@ impl Crucible {
 
     pub fn update_attachment_connections(&mut self) {
         self.fabric.update_all_attachment_connections();
-    }
-
-    /// Export baked brick data if in baking mode
-    pub fn export_brick(&self) {
-        if let BakingBrick(oven) = &self.stage {
-            oven.export_baked_data();
-        }
     }
 }

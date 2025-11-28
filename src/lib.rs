@@ -569,7 +569,6 @@ pub enum LabEvent {
     UpdateState(StateChange),
     RebuildFabric,
     NextBrick,
-    ExportBrick,
     PrintCord(f32),
     DumpCSV,
     RequestRedraw,

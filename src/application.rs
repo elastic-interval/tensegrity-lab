@@ -262,12 +262,6 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                 }
             }
-            ExportBrick => {
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    self.crucible.export_brick();
-                }
-            }
             DumpCSV => {
                 #[cfg(not(target_arch = "wasm32"))]
                 {

@@ -19,23 +19,45 @@ pub struct Oven {
     brick_names: Vec<BrickName>,
     current_index: usize,
     radio: Radio,
-    baked_code: Option<String>,
+    baked_fabrics: Vec<Option<Fabric>>,
 }
 
 impl Oven {
     pub fn new(radio: Radio) -> Self {
         let brick_names: Vec<BrickName> = BrickName::iter().collect();
+        let baked_fabrics = vec![None; brick_names.len()];
 
         Self {
             brick_names,
             current_index: 0,
             radio,
-            baked_code: None,
+            baked_fabrics,
         }
     }
 
     pub fn current_brick_name(&self) -> BrickName {
         self.brick_names[self.current_index]
+    }
+
+    /// Check if the current brick is already baked
+    fn current_is_baked(&self) -> bool {
+        self.baked_fabrics[self.current_index].is_some()
+    }
+
+    /// Check if all bricks are baked
+    fn all_baked(&self) -> bool {
+        self.baked_fabrics.iter().all(|f| f.is_some())
+    }
+
+    /// Find the next unbaked brick index, if any
+    fn next_unbaked_index(&self) -> Option<usize> {
+        for i in 0..self.brick_names.len() {
+            let index = (self.current_index + 1 + i) % self.brick_names.len();
+            if self.baked_fabrics[index].is_none() {
+                return Some(index);
+            }
+        }
+        None
     }
 
     /// Create a fresh fabric from the current brick's prototype
@@ -44,18 +66,35 @@ impl Oven {
         Fabric::from(prototype)
     }
 
-    /// Cycle to the next brick and return a fresh fabric for it
+    /// Get the fabric for the current brick - either baked or fresh
+    fn current_fabric(&self) -> Fabric {
+        if let Some(fabric) = &self.baked_fabrics[self.current_index] {
+            fabric.clone()
+        } else {
+            self.create_fresh_fabric()
+        }
+    }
+
+    /// Cycle to the next brick (manual) - only cycles through baked bricks when all are done
     pub fn next_brick(&mut self) -> Fabric {
         self.current_index = (self.current_index + 1) % self.brick_names.len();
-        self.baked_code = None;
+        self.send_name_and_label();
+        self.current_fabric()
+    }
+
+    /// Send fabric name and stage label for current brick
+    fn send_name_and_label(&self) {
         StateChange::SetFabricName(format!("{}", self.current_brick_name())).send(&self.radio);
         self.send_stage_label();
-        self.create_fresh_fabric()
     }
 
     /// Send the appropriate stage label based on baked state
     pub fn send_stage_label(&self) {
-        let label = if self.baked_code.is_some() { "Baked" } else { "Baking" };
+        let label = if self.current_is_baked() {
+            if self.all_baked() { "All Baked" } else { "Baked" }
+        } else {
+            "Baking"
+        };
         StateChange::SetStageLabel(label.to_string()).send(&self.radio);
     }
 
@@ -63,19 +102,40 @@ impl Oven {
         *context.physics = BAKING;
     }
 
-    pub fn iterate(&mut self, context: &mut CrucibleContext) {
-        // Skip iterations if already baked
-        if self.baked_code.is_none() {
-            for _ in 0..60 {
-                context.fabric.iterate(context.physics);
-            }
+    /// Iterate the oven. Returns Some(fabric) if we need to switch to a new brick.
+    pub fn iterate(&mut self, context: &mut CrucibleContext) -> Option<Fabric> {
+        // Skip iterations if current brick is already baked
+        if self.current_is_baked() {
+            return None;
+        }
 
-            // Check if baked (1 second of fabric time)
-            if context.fabric.age.as_duration() >= BAKED_DURATION {
-                self.baked_code = Some(self.generate_baked_code(&context.fabric));
+        for _ in 0..60 {
+            context.fabric.iterate(context.physics);
+        }
+
+        // Check if baked (1 second of fabric time)
+        if context.fabric.age.as_duration() >= BAKED_DURATION {
+            let brick_name = self.current_brick_name();
+            let code = self.generate_baked_code(&context.fabric);
+
+            // Store baked fabric
+            self.baked_fabrics[self.current_index] = Some(context.fabric.clone());
+
+            // Auto-export
+            self.export_brick(brick_name, &code);
+
+            // Auto-cycle to next unbaked brick if any
+            if let Some(next_index) = self.next_unbaked_index() {
+                self.current_index = next_index;
+                self.send_name_and_label();
+                return Some(self.create_fresh_fabric());
+            } else {
+                // All done
                 self.send_stage_label();
             }
         }
+
+        None
     }
 
     /// Generate the baked code string from the current fabric state
@@ -154,17 +214,10 @@ impl Oven {
         )
     }
 
-    /// Export baked data by substituting directly into brick_library.rs source
+    /// Export baked brick by substituting directly into brick_library.rs source
     /// Only works in native builds (not WASM)
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn export_baked_data(&self) {
-        let Some(baked_code) = &self.baked_code else {
-            eprintln!("Cannot export: brick not yet baked");
-            return;
-        };
-
-        let brick_name = self.current_brick_name();
-
+    fn export_brick(&self, brick_name: BrickName, baked_code: &str) {
         // Read the current source file
         let source = match std::fs::read_to_string(BRICK_LIBRARY_PATH) {
             Ok(s) => s,
@@ -193,7 +246,7 @@ impl Oven {
 
     /// WASM stub - does nothing
     #[cfg(target_arch = "wasm32")]
-    pub fn export_baked_data(&self) {
+    fn export_brick(&self, _brick_name: BrickName, _baked_code: &str) {
         // Cannot write to filesystem in WASM
     }
 
