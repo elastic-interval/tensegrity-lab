@@ -130,6 +130,7 @@ pub fn omni() -> Brick {
             OnSpinLeft.calls_it(OmniTopX),
             OnSpinRight.calls_it(OmniBotX),
             Seed(4).calls_it(RightFrontBottom),
+            Seed(4).downwards(),
             Seed(1).calls_it(OmniTopX),
         ],
     )
@@ -160,6 +161,7 @@ pub fn omni() -> Brick {
             OnSpinLeft.calls_it(OmniBotZ),
             OnSpinRight.calls_it(OmniTopZ),
             Seed(4).calls_it(RightBackBottom),
+            Seed(4).downwards(),
             Seed(1).calls_it(OmniBotZ),
         ],
     )
@@ -170,6 +172,7 @@ pub fn omni() -> Brick {
             OnSpinLeft.calls_it(OmniBotY),
             OnSpinRight.calls_it(OmniTopY),
             Seed(4).calls_it(LeftFrontBottom),
+            Seed(4).downwards(),
             Seed(1).calls_it(OmniBotY),
         ],
     )
@@ -190,6 +193,7 @@ pub fn omni() -> Brick {
             OnSpinLeft.calls_it(OmniBot),
             OnSpinRight.calls_it(Attach(Spin::Left)),
             Seed(4).calls_it(LeftBackBottom),
+            Seed(4).downwards(),
             Seed(1).calls_it(OmniBot),
             Seed(1).downwards(),
         ],
