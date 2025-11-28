@@ -26,7 +26,7 @@ pub enum FabricName {
 pub fn triped() -> FabricPlan {
     fabric("Triped")
         .build(
-            branching(OmniBrick, SeedFaceDown)
+            branching(OmniBrick, Seed(1))
                 .on_face(OmniBotX, growing(8).scale(0.9).mark(End).prism().build())
                 .on_face(OmniBotY, growing(8).scale(0.9).mark(End).prism().build())
                 .on_face(OmniBotZ, growing(8).scale(0.9).mark(End).prism().build())
@@ -51,7 +51,7 @@ pub fn triped() -> FabricPlan {
 pub fn vertebra() -> FabricPlan {
     fabric("Vertebra")
         .build(
-            branching(SingleLeftBrick, Seed)
+            branching(SingleLeftBrick, Seed(1))
                 .on_face(SingleTop, growing(1).build())
                 .build(),
         )
@@ -65,7 +65,7 @@ pub fn vertebra() -> FabricPlan {
 pub fn flagellum() -> FabricPlan {
     fabric("Flagellum")
         .build(
-            branching(SingleLeftBrick, Seed)
+            branching(SingleLeftBrick, Seed(1))
                 .on_face(SingleTop, growing(20).scale(0.95).build())
                 .build(),
         )
@@ -78,7 +78,7 @@ pub fn flagellum() -> FabricPlan {
 pub fn cigar() -> FabricPlan {
     fabric("Cigar")
         .build(
-            branching(SingleLeftBrick, Seed)
+            branching(SingleLeftBrick, Seed(1))
                 .on_face(SingleTop, growing(1).scale(0.85).build())
                 .on_face(SingleBot, growing(1).scale(0.85).build())
                 .build(),
@@ -93,7 +93,7 @@ pub fn cigar() -> FabricPlan {
 pub fn halo_by_crane() -> FabricPlan {
     fabric("Halo by Crane")
         .build(
-            branching(SingleLeftBrick, Seed)
+            branching(SingleLeftBrick, Seed(1))
                 .on_face(
                     SingleTop,
                     growing(4)
@@ -117,7 +117,7 @@ pub fn halo_by_crane() -> FabricPlan {
 pub fn headless_hug() -> FabricPlan {
     fabric("Headless Hug")
         .build(
-            branching(OmniBrick, SeedFourDown)
+            branching(OmniBrick, Seed(4))
                 .on_face(
                     LeftBackBottom,
                     growing(4)

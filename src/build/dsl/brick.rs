@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use cgmath::num_traits::abs;
 use cgmath::{
-    EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Quaternion, Rotation,
-    Transform, Vector3,
+    EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Quaternion, Rotation, Transform, Vector3,
 };
 
 use crate::build::dsl::brick_dsl::FaceName::Downwards;
@@ -285,24 +284,25 @@ impl BakedBrick {
     }
 
     pub fn down_rotation(&self, brick_role: BrickRole) -> Matrix4<f32> {
-        if !brick_role.is_seed() {
-            panic!("Brick role {:?} is not a seed", brick_role);
-        }
+        let downward_count = match brick_role {
+            BrickRole::Seed(downward_count) => downward_count,
+            _ => {
+                panic!("Brick role {:?} is not a seed", brick_role);
+            }
+        };
         let downward_faces: Vec<_> = self
             .faces
             .iter()
             .filter_map(|face| {
                 face.aliases
                     .iter()
-                    .find(|alias| alias.face_name == Downwards)
+                    .find(|alias| alias.face_name == Downwards(downward_count))
                     .map(|_| face.normal(self))
             })
             .collect();
-
-        if downward_faces.is_empty() {
-            panic!("{:?} has no Downwards", brick_role);
+        if downward_faces.len() != downward_count {
+            panic!("{:?} but found {} downward faces", brick_role, downward_faces.len());
         }
-
         let down = downward_faces.into_iter().sum::<Vector3<f32>>().normalize();
         Matrix4::from(Quaternion::between_vectors(down, -Vector3::unit_y()))
     }
