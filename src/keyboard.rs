@@ -157,12 +157,6 @@ impl Keyboard {
             Box::new(|state| matches!(state, Baking)),
         );
         self.key_lab_event(
-            KeyCode::KeyX,
-            "Export brick",
-            LabEvent::ExportBrick,
-            Box::new(|state| matches!(state, Baking)),
-        );
-        self.key_lab_event(
             KeyCode::Enter,
             "Reload fabric",
             RebuildFabric,
