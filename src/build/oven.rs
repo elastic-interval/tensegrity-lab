@@ -15,8 +15,8 @@ const BAKED_DURATION: Duration = Duration::from_secs(1);
 /// Reorient the brick at this time so user can see it
 const REORIENT_DURATION: Duration = Duration::from_millis(500);
 
-/// Path to brick_library.rs source file (relative to project root)
-const BRICK_LIBRARY_PATH: &str = "src/build/dsl/brick_library.rs";
+/// Path to brick_library directory (relative to project root)
+const BRICK_LIBRARY_DIR: &str = "src/build/dsl/brick_library";
 
 pub struct Oven {
     brick_names: Vec<BrickName>,
@@ -240,32 +240,45 @@ impl Oven {
         )
     }
 
-    /// Export baked brick by substituting directly into brick_library.rs source
+    /// Get the source file path for a brick
+    fn brick_file_path(brick_name: BrickName) -> String {
+        let file_name = match brick_name {
+            BrickName::SingleLeftBrick => "single_left",
+            BrickName::SingleRightBrick => "single_right",
+            BrickName::OmniBrick => "omni",
+            BrickName::TorqueBrick => "torque",
+        };
+        format!("{}/{}.rs", BRICK_LIBRARY_DIR, file_name)
+    }
+
+    /// Export baked brick by substituting directly into the brick's source file
     /// Only works in native builds (not WASM)
     #[cfg(not(target_arch = "wasm32"))]
     fn export_brick(&self, brick_name: BrickName, baked_code: &str) {
+        let file_path = Self::brick_file_path(brick_name);
+
         // Read the current source file
-        let source = match std::fs::read_to_string(BRICK_LIBRARY_PATH) {
+        let source = match std::fs::read_to_string(&file_path) {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("Failed to read {}: {}", BRICK_LIBRARY_PATH, e);
+                eprintln!("Failed to read {}: {}", file_path, e);
                 return;
             }
         };
 
         // Find the brick and replace between .baked() and .build()
-        let Some(new_source) = Self::substitute_baked_section(&source, brick_name, baked_code) else {
-            eprintln!("Failed to find baked section for {:?} in source", brick_name);
+        let Some(new_source) = Self::substitute_baked_section(&source, baked_code) else {
+            eprintln!("Failed to find baked section in {}", file_path);
             return;
         };
 
         // Write back
-        match std::fs::write(BRICK_LIBRARY_PATH, &new_source) {
+        match std::fs::write(&file_path, &new_source) {
             Ok(_) => {
-                println!("=== Updated {:?} in {} ===", brick_name, BRICK_LIBRARY_PATH);
+                println!("=== Updated {} ===", file_path);
             }
             Err(e) => {
-                eprintln!("Failed to write {}: {}", BRICK_LIBRARY_PATH, e);
+                eprintln!("Failed to write {}: {}", file_path, e);
             }
         }
     }
@@ -276,27 +289,10 @@ impl Oven {
         // Cannot write to filesystem in WASM
     }
 
-    /// Find the brick by name and replace the section from .baked() to .build() (inclusive)
-    fn substitute_baked_section(source: &str, brick_name: BrickName, replacement: &str) -> Option<String> {
-        // Find the brick name in a proto call - handles both single-line and multi-line formats
-        let brick_name_str = format!("{:?}", brick_name);
-        let proto_start = source.find(&brick_name_str)?;
-
-        // Verify it's actually in a proto() call by checking backwards for "proto"
-        let before_name = &source[..proto_start];
-        if !before_name.trim_end().ends_with("proto(")
-            && !before_name.trim_end_matches(|c: char| c.is_whitespace()).ends_with("proto(") {
-            // Try to find it by looking for "proto(" before the brick name
-            let search_start = proto_start.saturating_sub(20);
-            if !source[search_start..proto_start].contains("proto(") {
-                return None;
-            }
-        }
-
-        // Find .baked() after the proto call
-        let after_proto = &source[proto_start..];
-        let baked_offset = after_proto.find(".baked()")?;
-        let baked_start = proto_start + baked_offset;
+    /// Replace the section from .baked() to .build() (inclusive) in a brick source file
+    fn substitute_baked_section(source: &str, replacement: &str) -> Option<String> {
+        // Find .baked() in the source
+        let baked_start = source.find(".baked()")?;
 
         // Find .build() after .baked()
         let after_baked = &source[baked_start..];
