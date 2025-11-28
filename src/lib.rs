@@ -36,7 +36,10 @@ impl Display for Age {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let total_secs = self.0.as_secs_f64();
 
-        if total_secs < 60.0 {
+        if total_secs < 1.0 {
+            // Less than a second: show hundredths
+            write!(f, "{:.2}s", total_secs)
+        } else if total_secs < 60.0 {
             // Less than a minute: show as whole seconds
             write!(f, "{}s", total_secs as u64)
         } else {

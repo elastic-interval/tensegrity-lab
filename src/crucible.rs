@@ -249,6 +249,7 @@ impl Crucible {
                 let oven = Oven::new(self.radio.clone());
                 let fresh_fabric = oven.create_fresh_fabric();
                 StateChange::SetFabricName(format!("{}", oven.current_brick_name())).send(&self.radio);
+                oven.send_stage_label();
                 context.replace_fabric(fresh_fabric);
                 // Initialize the physics for baking
                 oven.copy_physics_into(&mut context);
@@ -367,7 +368,7 @@ impl Crucible {
     /// Export baked brick data if in baking mode
     pub fn export_brick(&self) {
         if let BakingBrick(oven) = &self.stage {
-            oven.export_baked_data(&self.fabric);
+            oven.export_baked_data();
         }
     }
 }
