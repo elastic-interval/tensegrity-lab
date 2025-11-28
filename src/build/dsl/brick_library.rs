@@ -267,6 +267,7 @@ pub fn torque() -> Brick {
                 OnSpinLeft.calls_it(Far),
                 OnSpinRight.calls_it(Attach(Spin::Left)),
                 Seed(4).calls_it(LeftFrontBottom),
+                Seed(4).downwards(),
             ],
         )
         .face(
@@ -276,6 +277,7 @@ pub fn torque() -> Brick {
                 OnSpinLeft.calls_it(FarC),
                 OnSpinRight.calls_it(NearC),
                 Seed(4).calls_it(LeftBackBottom),
+                Seed(4).downwards(),
             ],
         )
         .face(
@@ -285,6 +287,7 @@ pub fn torque() -> Brick {
                 OnSpinLeft.calls_it(NearC),
                 OnSpinRight.calls_it(FarC),
                 Seed(4).calls_it(RightBackBottom),
+                Seed(4).downwards(),
             ],
         )
         .face(
@@ -293,6 +296,7 @@ pub fn torque() -> Brick {
             [
                 OnSpinRight.calls_it(FarA),
                 Seed(4).calls_it(RightFrontBottom),
+                Seed(4).downwards(),
             ],
         )
         .face(
