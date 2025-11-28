@@ -1,7 +1,7 @@
 use crate::build::dsl::brick::{BakedBrick, Brick, Prototype};
 use crate::build::dsl::brick_dsl::*;
 use crate::build::dsl::Spin;
-use cgmath::SquareMatrix;
+use cgmath::{SquareMatrix, Vector3};
 use std::sync::OnceLock;
 
 static SINGLE_RIGHT: OnceLock<Brick> = OnceLock::new();
@@ -10,17 +10,17 @@ static OMNI: OnceLock<Brick> = OnceLock::new();
 static TORQUE: OnceLock<Brick> = OnceLock::new();
 
 /// Build the Single-right brick
-pub fn single_right() -> Brick {
+pub fn single_right(push_lengths: Vector3<f32>, pull_length: f32) -> Brick {
     use BrickName::*;
     use BrickRole::*;
     use FaceName::*;
     use JointName::*;
 
     proto(SingleRightBrick, [Seed(1), OnSpinRight])
-        .pushes_x(3.204, [(AlphaX, OmegaX)])
-        .pushes_y(3.204, [(AlphaY, OmegaY)])
-        .pushes_z(3.204, [(AlphaZ, OmegaZ)])
-        .pulls(2.0, [(AlphaX, OmegaZ), (AlphaY, OmegaX), (AlphaZ, OmegaY)])
+        .pushes_x(push_lengths.x, [(AlphaX, OmegaX)])
+        .pushes_y(push_lengths.y, [(AlphaY, OmegaY)])
+        .pushes_z(push_lengths.z, [(AlphaZ, OmegaZ)])
+        .pulls(pull_length, [(AlphaX, OmegaZ), (AlphaY, OmegaX), (AlphaZ, OmegaY)])
         .face(
             Spin::Right,
             [AlphaZ, AlphaY, AlphaX],
@@ -62,17 +62,17 @@ pub fn single_right() -> Brick {
 }
 
 /// Build the Single-left brick
-pub fn single_left() -> Brick {
+pub fn single_left(push_lengths: Vector3<f32>, pull_length: f32) -> Brick {
     use BrickName::*;
     use BrickRole::*;
     use FaceName::*;
     use JointName::*;
 
     proto(SingleLeftBrick, [Seed(1), OnSpinLeft])
-        .pushes_x(3.204, [(AlphaX, OmegaX)])
-        .pushes_y(3.204, [(AlphaY, OmegaY)])
-        .pushes_z(3.204, [(AlphaZ, OmegaZ)])
-        .pulls(2.0, [(AlphaX, OmegaY), (AlphaY, OmegaZ), (AlphaZ, OmegaX)])
+        .pushes_x(push_lengths.x, [(AlphaX, OmegaX)])
+        .pushes_y(push_lengths.y, [(AlphaY, OmegaY)])
+        .pushes_z(push_lengths.z, [(AlphaZ, OmegaZ)])
+        .pulls(pull_length, [(AlphaX, OmegaY), (AlphaY, OmegaZ), (AlphaZ, OmegaX)])
         .face(
             Spin::Left,
             [AlphaX, AlphaY, AlphaZ],
@@ -114,7 +114,7 @@ pub fn single_left() -> Brick {
 }
 
 /// Build the Omni brick
-pub fn omni() -> Brick {
+pub fn omni(push_lengths: Vector3<f32>) -> Brick {
     use BrickName::*;
     use BrickRole::*;
     use FaceName::*;
@@ -124,9 +124,9 @@ pub fn omni() -> Brick {
         OmniBrick,
         [OnSpinLeft, OnSpinRight, Seed(4), Seed(1)],
     )
-    .pushes_x(3.271, [(BotAlphaX, BotOmegaX), (TopAlphaX, TopOmegaX)])
-    .pushes_y(3.271, [(BotAlphaY, BotOmegaY), (TopAlphaY, TopOmegaY)])
-    .pushes_z(3.271, [(BotAlphaZ, BotOmegaZ), (TopAlphaZ, TopOmegaZ)])
+    .pushes_x(push_lengths.x, [(BotAlphaX, BotOmegaX), (TopAlphaX, TopOmegaX)])
+    .pushes_y(push_lengths.y, [(BotAlphaY, BotOmegaY), (TopAlphaY, TopOmegaY)])
+    .pushes_z(push_lengths.z, [(BotAlphaZ, BotOmegaZ), (TopAlphaZ, TopOmegaZ)])
     .face(
         Spin::Right,
         [TopOmegaX, TopOmegaY, TopOmegaZ],
@@ -240,7 +240,7 @@ pub fn omni() -> Brick {
 }
 
 /// Build the Torque brick
-pub fn torque() -> Brick {
+pub fn torque(push_lengths: Vector3<f32>, pull_length: f32) -> Brick {
     use BrickName::*;
     use BrickRole::*;
     use FaceName::*;
@@ -248,7 +248,7 @@ pub fn torque() -> Brick {
 
     proto(TorqueBrick, [OnSpinLeft, OnSpinRight, Seed(4)])
         .pushes_x(
-            3.0,
+            push_lengths.x,
             [
                 (LeftFront, LeftBack),
                 (MiddleFront, MiddleBack),
@@ -256,7 +256,7 @@ pub fn torque() -> Brick {
             ],
         )
         .pushes_y(
-            3.0,
+            push_lengths.y,
             [
                 (FrontLeftBottom, FrontLeftTop),
                 (FrontRightBottom, FrontRightTop),
@@ -264,9 +264,9 @@ pub fn torque() -> Brick {
                 (BackRightBottom, BackRightTop),
             ],
         )
-        .pushes_z(6.0, [(TopLeft, TopRight), (BottomLeft, BottomRight)])
+        .pushes_z(push_lengths.z, [(TopLeft, TopRight), (BottomLeft, BottomRight)])
         .pulls(
-            1.86,
+            pull_length,
             [
                 (MiddleFront, FrontLeftBottom),
                 (MiddleFront, FrontLeftTop),
@@ -400,10 +400,10 @@ pub fn torque() -> Brick {
 
 fn get_brick_definition(brick_name: BrickName) -> &'static Brick {
     match brick_name {
-        BrickName::SingleLeftBrick => SINGLE_LEFT.get_or_init(single_left),
-        BrickName::SingleRightBrick => SINGLE_RIGHT.get_or_init(single_right),
-        BrickName::OmniBrick => OMNI.get_or_init(omni),
-        BrickName::TorqueBrick => TORQUE.get_or_init(torque),
+        BrickName::SingleLeftBrick => SINGLE_LEFT.get_or_init(|| single_left(Vector3::new(3.204, 3.204, 3.204), 2.0)),
+        BrickName::SingleRightBrick => SINGLE_RIGHT.get_or_init(|| single_right(Vector3::new(3.204, 3.204, 3.204), 2.0)),
+        BrickName::OmniBrick => OMNI.get_or_init(|| omni(Vector3::new(3.271, 3.271, 3.271))),
+        BrickName::TorqueBrick => TORQUE.get_or_init(|| torque(Vector3::new(3.0, 3.0, 6.0), 1.86)),
     }
 }
 
