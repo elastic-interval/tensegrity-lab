@@ -296,6 +296,7 @@ impl ProtoBuilder {
     pub fn build_proto(self) -> Prototype {
         Prototype {
             brick_name: self.brick_name,
+            brick_roles: self.brick_roles,
             joints: self.joints,
             pushes: self.pushes,
             pulls: self.pulls,
