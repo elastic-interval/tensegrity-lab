@@ -58,10 +58,26 @@ pub struct FaceDef {
 #[derive(Clone, Debug)]
 pub struct Prototype {
     pub brick_name: BrickName,
+    pub brick_roles: Vec<BrickRole>,
     pub joints: Vec<JointName>,
     pub pushes: Vec<PushDef>,
     pub pulls: Vec<PullDef>,
     pub faces: Vec<FaceDef>,
+}
+
+impl Prototype {
+    /// Get the maximum seed role (the one with the most downward faces)
+    pub fn max_seed(&self) -> BrickRole {
+        self.brick_roles
+            .iter()
+            .filter_map(|role| match role {
+                BrickRole::Seed(n) => Some((*role, *n)),
+                _ => None,
+            })
+            .max_by_key(|(_, n)| *n)
+            .map(|(role, _)| role)
+            .expect("Prototype has no Seed roles")
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -301,7 +317,11 @@ impl BakedBrick {
             })
             .collect();
         if downward_faces.len() != downward_count {
-            panic!("{:?} but found {} downward faces", brick_role, downward_faces.len());
+            panic!(
+                "{:?} but found {} downward faces",
+                brick_role,
+                downward_faces.len()
+            );
         }
         let down = downward_faces.into_iter().sum::<Vector3<f32>>().normalize();
         Matrix4::from(Quaternion::between_vectors(down, -Vector3::unit_y()))

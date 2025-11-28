@@ -12,6 +12,9 @@ use strum::IntoEnumIterator;
 /// Bricks are considered done after this much fabric time
 const BAKED_DURATION: Duration = Duration::from_secs(1);
 
+/// Reorient the brick at this time so user can see it
+const REORIENT_DURATION: Duration = Duration::from_millis(500);
+
 /// Path to brick_library.rs source file (relative to project root)
 const BRICK_LIBRARY_PATH: &str = "src/build/dsl/brick_library.rs";
 
@@ -20,6 +23,7 @@ pub struct Oven {
     current_index: usize,
     radio: Radio,
     baked_fabrics: Vec<Option<Fabric>>,
+    reoriented: bool,
 }
 
 impl Oven {
@@ -32,6 +36,7 @@ impl Oven {
             current_index: 0,
             radio,
             baked_fabrics,
+            reoriented: false,
         }
     }
 
@@ -78,6 +83,7 @@ impl Oven {
     /// Cycle to the next brick (manual) - only cycles through baked bricks when all are done
     pub fn next_brick(&mut self) -> Fabric {
         self.current_index = (self.current_index + 1) % self.brick_names.len();
+        self.reoriented = false;
         self.send_name_and_label();
         self.current_fabric()
     }
@@ -113,6 +119,17 @@ impl Oven {
             context.fabric.iterate(context.physics);
         }
 
+        // Reorient at 0.5 seconds so user can see the final orientation
+        if !self.reoriented && context.fabric.age.as_duration() >= REORIENT_DURATION {
+            let prototype = brick_library::get_prototype(self.current_brick_name());
+            let rotation = context.fabric.down_rotation(prototype.max_seed());
+            context.fabric.apply_matrix4(rotation);
+            let translation = context.fabric.centralize_translation(Some(0.0));
+            context.fabric.apply_translation(translation);
+            context.fabric.zero_velocities();
+            self.reoriented = true;
+        }
+
         // Check if baked (1 second of fabric time)
         if context.fabric.age.as_duration() >= BAKED_DURATION {
             let brick_name = self.current_brick_name();
@@ -127,6 +144,7 @@ impl Oven {
             // Auto-cycle to next unbaked brick if any
             if let Some(next_index) = self.next_unbaked_index() {
                 self.current_index = next_index;
+                self.reoriented = false;
                 self.send_name_and_label();
                 return Some(self.create_fresh_fabric());
             } else {
@@ -140,17 +158,25 @@ impl Oven {
 
     /// Generate the baked code string from the current fabric state
     fn generate_baked_code(&self, fabric: &Fabric) -> String {
+        // Orient and centralize the fabric for baked output
+        let mut oriented = fabric.clone();
+        let prototype = brick_library::get_prototype(self.current_brick_name());
+        let rotation = oriented.down_rotation(prototype.max_seed());
+        oriented.apply_matrix4(rotation);
+        let translation = oriented.centralize_translation(Some(0.0));
+        oriented.apply_translation(translation);
+
         // Get face center joints to exclude them
-        let face_joints: Vec<usize> = fabric
+        let face_joints: Vec<usize> = oriented
             .faces
             .values()
-            .map(|face| face.middle_joint(fabric))
+            .map(|face| face.middle_joint(&oriented))
             .collect();
 
         // Build mapping from fabric joint index to baked joint index
         let mut fabric_to_baked: HashMap<usize, usize> = HashMap::new();
         let mut baked_index = 0;
-        let joint_incidents = fabric.joint_incidents();
+        let joint_incidents = oriented.joint_incidents();
         for incident in &joint_incidents {
             if !face_joints.contains(&incident.index) {
                 fabric_to_baked.insert(incident.index, baked_index);
@@ -172,7 +198,7 @@ impl Oven {
         let mut pushes: Vec<String> = Vec::new();
         let mut pulls: Vec<String> = Vec::new();
 
-        for interval in fabric.interval_values() {
+        for interval in oriented.interval_values() {
             if interval.role == Role::FaceRadial {
                 continue;
             }
@@ -252,9 +278,20 @@ impl Oven {
 
     /// Find the brick by name and replace the section from .baked() to .build() (inclusive)
     fn substitute_baked_section(source: &str, brick_name: BrickName, replacement: &str) -> Option<String> {
-        // Find the proto call: "proto(BrickName, " - using Debug format for enum variant
-        let proto_pattern = format!("proto({:?},", brick_name);
-        let proto_start = source.find(&proto_pattern)?;
+        // Find the brick name in a proto call - handles both single-line and multi-line formats
+        let brick_name_str = format!("{:?}", brick_name);
+        let proto_start = source.find(&brick_name_str)?;
+
+        // Verify it's actually in a proto() call by checking backwards for "proto"
+        let before_name = &source[..proto_start];
+        if !before_name.trim_end().ends_with("proto(")
+            && !before_name.trim_end_matches(|c: char| c.is_whitespace()).ends_with("proto(") {
+            // Try to find it by looking for "proto(" before the brick name
+            let search_start = proto_start.saturating_sub(20);
+            if !source[search_start..proto_start].contains("proto(") {
+                return None;
+            }
+        }
 
         // Find .baked() after the proto call
         let after_proto = &source[proto_start..];

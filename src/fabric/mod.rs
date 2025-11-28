@@ -3,6 +3,7 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
+use crate::build::dsl::brick_dsl::{BrickRole, FaceName};
 use crate::fabric::face::Face;
 use crate::fabric::interval::Span::{Approaching, Fixed, Muscle, Pretenst};
 use crate::fabric::interval::{Interval, Role};
@@ -12,7 +13,7 @@ use crate::fabric::progress::Progress;
 use crate::units::{Grams, Millimeters, Percent, Seconds};
 use crate::Age;
 use cgmath::num_traits::zero;
-use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Transform, Vector3};
+use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Rotation, Transform, Vector3};
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -205,6 +206,33 @@ impl Fabric {
         for joint in self.joints.iter_mut() {
             joint.location += translation;
         }
+    }
+
+    /// Get the rotation matrix to orient the fabric so faces with Downwards(n) point down
+    pub fn down_rotation(&self, brick_role: BrickRole) -> Matrix4<f32> {
+        let downward_count = match brick_role {
+            BrickRole::Seed(n) => n,
+            _ => panic!("Brick role {:?} is not a seed", brick_role),
+        };
+        let downward_normals: Vec<_> = self
+            .faces
+            .values()
+            .filter_map(|face| {
+                face.aliases
+                    .iter()
+                    .find(|alias| alias.face_name == FaceName::Downwards(downward_count))
+                    .map(|_| face.normal(self))
+            })
+            .collect();
+        if downward_normals.len() != downward_count {
+            panic!(
+                "{:?} but found {} downward faces",
+                brick_role,
+                downward_normals.len()
+            );
+        }
+        let down = downward_normals.into_iter().sum::<Vector3<f32>>().normalize();
+        Matrix4::from(Quaternion::between_vectors(down, -Vector3::unit_y()))
     }
 
     /// Zero out all joint velocities and forces
