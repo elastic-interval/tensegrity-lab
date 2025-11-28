@@ -1,6 +1,7 @@
 use crate::build::dsl::brick::{
     Axis, BakedInterval, BakedJoint, Brick, BrickFace, FaceDef, Prototype, PullDef, PushDef,
 };
+use crate::build::dsl::brick_dsl::FaceName::Downwards;
 use crate::build::dsl::{FaceAlias, Spin};
 pub use crate::fabric::material::Material;
 use cgmath::Point3;
@@ -36,9 +37,7 @@ pub enum BrickName {
 /// Context in which a brick face is being used
 #[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
 pub enum BrickRole {
-    Seed,
-    SeedFourDown,
-    SeedFaceDown,
+    Seed(usize), // how many faces down
     OnSpinLeft,
     OnSpinRight,
 }
@@ -51,11 +50,15 @@ impl BrickRole {
         }
     }
 
-    pub fn is_seed(&self) -> bool {
-        matches!(
-            self,
-            BrickRole::Seed | BrickRole::SeedFourDown | BrickRole::SeedFaceDown
-        )
+    pub const fn downwards(self) -> FaceAlias {
+        let downwards_count = match self {
+            BrickRole::Seed(downward_count) => downward_count,
+            _ => panic!("Downwards requires a seed variant"),
+        };
+        FaceAlias {
+            brick_role: self,
+            face_name: Downwards(downwards_count),
+        }
     }
 }
 
@@ -122,20 +125,6 @@ pub enum JointName {
     BottomRight,
 }
 
-impl JointName {
-    /// Get the axis for joints that have an axis suffix (X, Y, Z)
-    pub fn axis(&self) -> Option<crate::build::dsl::brick::Axis> {
-        use crate::build::dsl::brick::Axis;
-        use JointName::*;
-        match self {
-            AlphaX | OmegaX | BotAlphaX | BotOmegaX | TopAlphaX | TopOmegaX => Some(Axis::X),
-            AlphaY | OmegaY | BotAlphaY | BotOmegaY | TopAlphaY | TopOmegaY => Some(Axis::Y),
-            AlphaZ | OmegaZ | BotAlphaZ | BotOmegaZ | TopAlphaZ | TopOmegaZ => Some(Axis::Z),
-            _ => None,
-        }
-    }
-}
-
 /// Simple brick orientation types
 #[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
 pub enum BrickOrientation {
@@ -155,7 +144,7 @@ pub enum FaceName {
     AttachNext,
 
     // Orientation faces
-    Downwards,
+    Downwards(usize),
 
     // Single brick faces
     SingleTop,

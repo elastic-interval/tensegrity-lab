@@ -16,7 +16,7 @@ pub fn single_right() -> Brick {
     use FaceName::*;
     use JointName::*;
 
-    proto(SingleRightBrick, [Seed, OnSpinRight])
+    proto(SingleRightBrick, [Seed(1), OnSpinRight])
         .pushes_x(3.204, [(AlphaX, OmegaX)])
         .pushes_y(3.204, [(AlphaY, OmegaY)])
         .pushes_z(3.204, [(AlphaZ, OmegaZ)])
@@ -26,8 +26,8 @@ pub fn single_right() -> Brick {
             [AlphaZ, AlphaY, AlphaX],
             [
                 OnSpinRight.calls_it(Attach(Spin::Right)),
-                Seed.calls_it(SingleBot),
-                Seed.calls_it(Downwards),
+                Seed(1).calls_it(SingleBot),
+                Seed(1).downwards(),
             ],
         )
         .face(
@@ -36,7 +36,7 @@ pub fn single_right() -> Brick {
             [
                 OnSpinRight.calls_it(SingleTop),
                 OnSpinRight.calls_it(AttachNext),
-                Seed.calls_it(SingleTop),
+                Seed(1).calls_it(SingleTop),
             ],
         )
         .baked()
@@ -61,7 +61,7 @@ pub fn single_left() -> Brick {
     use FaceName::*;
     use JointName::*;
 
-    proto(SingleLeftBrick, [Seed, OnSpinLeft])
+    proto(SingleLeftBrick, [Seed(1), OnSpinLeft])
         .pushes_x(3.204, [(AlphaX, OmegaX)])
         .pushes_y(3.204, [(AlphaY, OmegaY)])
         .pushes_z(3.204, [(AlphaZ, OmegaZ)])
@@ -71,8 +71,8 @@ pub fn single_left() -> Brick {
             [AlphaX, AlphaY, AlphaZ],
             [
                 OnSpinLeft.calls_it(Attach(Spin::Left)),
-                Seed.calls_it(SingleBot),
-                Seed.calls_it(Downwards),
+                Seed(1).calls_it(SingleBot),
+                Seed(1).downwards(),
             ],
         )
         .face(
@@ -81,7 +81,7 @@ pub fn single_left() -> Brick {
             [
                 OnSpinLeft.calls_it(SingleTop),
                 OnSpinLeft.calls_it(AttachNext),
-                Seed.calls_it(SingleTop),
+                Seed(1).calls_it(SingleTop),
             ],
         )
         .baked()
@@ -108,7 +108,7 @@ pub fn omni() -> Brick {
 
     proto(
         OmniBrick,
-        [OnSpinLeft, OnSpinRight, SeedFourDown, SeedFaceDown],
+        [OnSpinLeft, OnSpinRight, Seed(4), Seed(1)],
     )
     .pushes_x(3.271, [(BotAlphaX, BotOmegaX), (TopAlphaX, TopOmegaX)])
     .pushes_y(3.271, [(BotAlphaY, BotOmegaY), (TopAlphaY, TopOmegaY)])
@@ -119,8 +119,8 @@ pub fn omni() -> Brick {
         [
             OnSpinLeft.calls_it(Attach(Spin::Right)),
             OnSpinRight.calls_it(OmniTop),
-            SeedFourDown.calls_it(RightFrontTop),
-            SeedFaceDown.calls_it(OmniTop),
+            Seed(4).calls_it(RightFrontTop),
+            Seed(1).calls_it(OmniTop),
         ],
     )
     .face(
@@ -129,8 +129,8 @@ pub fn omni() -> Brick {
         [
             OnSpinLeft.calls_it(OmniTopX),
             OnSpinRight.calls_it(OmniBotX),
-            SeedFourDown.calls_it(RightFrontBottom),
-            SeedFaceDown.calls_it(OmniTopX),
+            Seed(4).calls_it(RightFrontBottom),
+            Seed(1).calls_it(OmniTopX),
         ],
     )
     .face(
@@ -139,8 +139,8 @@ pub fn omni() -> Brick {
         [
             OnSpinLeft.calls_it(OmniTopY),
             OnSpinRight.calls_it(OmniBotY),
-            SeedFourDown.calls_it(RightBackTop),
-            SeedFaceDown.calls_it(OmniTopY),
+            Seed(4).calls_it(RightBackTop),
+            Seed(1).calls_it(OmniTopY),
         ],
     )
     .face(
@@ -149,8 +149,8 @@ pub fn omni() -> Brick {
         [
             OnSpinLeft.calls_it(OmniTopZ),
             OnSpinRight.calls_it(OmniBotZ),
-            SeedFourDown.calls_it(LeftFrontTop),
-            SeedFaceDown.calls_it(OmniTopZ),
+            Seed(4).calls_it(LeftFrontTop),
+            Seed(1).calls_it(OmniTopZ),
         ],
     )
     .face(
@@ -159,8 +159,8 @@ pub fn omni() -> Brick {
         [
             OnSpinLeft.calls_it(OmniBotZ),
             OnSpinRight.calls_it(OmniTopZ),
-            SeedFourDown.calls_it(RightBackBottom),
-            SeedFaceDown.calls_it(OmniBotZ),
+            Seed(4).calls_it(RightBackBottom),
+            Seed(1).calls_it(OmniBotZ),
         ],
     )
     .face(
@@ -169,8 +169,8 @@ pub fn omni() -> Brick {
         [
             OnSpinLeft.calls_it(OmniBotY),
             OnSpinRight.calls_it(OmniTopY),
-            SeedFourDown.calls_it(LeftFrontBottom),
-            SeedFaceDown.calls_it(OmniBotY),
+            Seed(4).calls_it(LeftFrontBottom),
+            Seed(1).calls_it(OmniBotY),
         ],
     )
     .face(
@@ -179,8 +179,8 @@ pub fn omni() -> Brick {
         [
             OnSpinLeft.calls_it(OmniBotX),
             OnSpinRight.calls_it(OmniTopX),
-            SeedFourDown.calls_it(LeftBackTop),
-            SeedFaceDown.calls_it(OmniBotX),
+            Seed(4).calls_it(LeftBackTop),
+            Seed(1).calls_it(OmniBotX),
         ],
     )
     .face(
@@ -189,9 +189,9 @@ pub fn omni() -> Brick {
         [
             OnSpinLeft.calls_it(OmniBot),
             OnSpinRight.calls_it(Attach(Spin::Left)),
-            SeedFourDown.calls_it(LeftBackBottom),
-            SeedFaceDown.calls_it(OmniBot),
-            SeedFaceDown.calls_it(Downwards),
+            Seed(4).calls_it(LeftBackBottom),
+            Seed(1).calls_it(OmniBot),
+            Seed(1).downwards(),
         ],
     )
     .baked()
@@ -228,18 +228,24 @@ pub fn torque() -> Brick {
     use FaceName::*;
     use JointName::*;
 
-    proto(TorqueBrick, [OnSpinLeft, OnSpinRight, SeedFourDown])
-        .pushes_x(3.0, [
-            (LeftFront, LeftBack),
-            (MiddleFront, MiddleBack),
-            (RightFront, RightBack),
-        ])
-        .pushes_y(3.0, [
-            (FrontLeftBottom, FrontLeftTop),
-            (FrontRightBottom, FrontRightTop),
-            (BackLeftBottom, BackLeftTop),
-            (BackRightBottom, BackRightTop),
-        ])
+    proto(TorqueBrick, [OnSpinLeft, OnSpinRight, Seed(4)])
+        .pushes_x(
+            3.0,
+            [
+                (LeftFront, LeftBack),
+                (MiddleFront, MiddleBack),
+                (RightFront, RightBack),
+            ],
+        )
+        .pushes_y(
+            3.0,
+            [
+                (FrontLeftBottom, FrontLeftTop),
+                (FrontRightBottom, FrontRightTop),
+                (BackLeftBottom, BackLeftTop),
+                (BackRightBottom, BackRightTop),
+            ],
+        )
         .pushes_z(6.0, [(TopLeft, TopRight), (BottomLeft, BottomRight)])
         .pulls(
             1.86,
@@ -260,7 +266,7 @@ pub fn torque() -> Brick {
             [
                 OnSpinLeft.calls_it(Far),
                 OnSpinRight.calls_it(Attach(Spin::Left)),
-                SeedFourDown.calls_it(LeftFrontBottom),
+                Seed(4).calls_it(LeftFrontBottom),
             ],
         )
         .face(
@@ -269,7 +275,7 @@ pub fn torque() -> Brick {
             [
                 OnSpinLeft.calls_it(FarC),
                 OnSpinRight.calls_it(NearC),
-                SeedFourDown.calls_it(LeftBackBottom),
+                Seed(4).calls_it(LeftBackBottom),
             ],
         )
         .face(
@@ -278,7 +284,7 @@ pub fn torque() -> Brick {
             [
                 OnSpinLeft.calls_it(NearC),
                 OnSpinRight.calls_it(FarC),
-                SeedFourDown.calls_it(RightBackBottom),
+                Seed(4).calls_it(RightBackBottom),
             ],
         )
         .face(
@@ -286,7 +292,7 @@ pub fn torque() -> Brick {
             [BottomRight, RightFront, FrontRightBottom],
             [
                 OnSpinRight.calls_it(FarA),
-                SeedFourDown.calls_it(RightFrontBottom),
+                Seed(4).calls_it(RightFrontBottom),
             ],
         )
         .face(
@@ -295,7 +301,7 @@ pub fn torque() -> Brick {
             [
                 OnSpinLeft.calls_it(NearA),
                 OnSpinRight.calls_it(FarA),
-                SeedFourDown.calls_it(LeftBackTop),
+                Seed(4).calls_it(LeftBackTop),
             ],
         )
         .face(
@@ -304,7 +310,7 @@ pub fn torque() -> Brick {
             [
                 OnSpinLeft.calls_it(NearB),
                 OnSpinRight.calls_it(FarB),
-                SeedFourDown.calls_it(LeftFrontTop),
+                Seed(4).calls_it(LeftFrontTop),
             ],
         )
         .face(
@@ -313,7 +319,7 @@ pub fn torque() -> Brick {
             [
                 OnSpinLeft.calls_it(FarC),
                 OnSpinRight.calls_it(NearC),
-                SeedFourDown.calls_it(RightFrontTop),
+                Seed(4).calls_it(RightFrontTop),
             ],
         )
         .face(
@@ -322,7 +328,7 @@ pub fn torque() -> Brick {
             [
                 OnSpinLeft.calls_it(Attach(Spin::Right)),
                 OnSpinRight.calls_it(Far),
-                SeedFourDown.calls_it(RightBackTop),
+                Seed(4).calls_it(RightBackTop),
             ],
         )
         .baked()
@@ -389,20 +395,21 @@ pub fn get_brick(brick_name: BrickName, brick_role: BrickRole) -> BakedBrick {
     for face in &mut baked.faces {
         face.aliases.retain(|alias| alias.brick_role == brick_role);
     }
-    let space = if brick_role.is_seed() {
-        baked.down_rotation(brick_role)
-    } else {
-        let face = baked
-            .faces
-            .iter()
-            .find(|face| {
-                face.aliases.iter().any(|alias| {
-                    alias.brick_role == brick_role
-                        && matches!(alias.face_name, FaceName::Attach(_))
+    let space = match brick_role {
+        BrickRole::Seed(_) => baked.down_rotation(brick_role),
+        BrickRole::OnSpinLeft | BrickRole::OnSpinRight => {
+            let face = baked
+                .faces
+                .iter()
+                .find(|face| {
+                    face.aliases.iter().any(|alias| {
+                        alias.brick_role == brick_role
+                            && matches!(alias.face_name, FaceName::Attach(_))
+                    })
                 })
-            })
-            .expect("Brick does not have any face aliases for this role");
-        face.vector_space(&baked).invert().unwrap()
+                .expect("Brick does not have any face aliases for this role");
+            face.vector_space(&baked).invert().unwrap()
+        }
     };
     baked.apply_matrix(space);
     baked
