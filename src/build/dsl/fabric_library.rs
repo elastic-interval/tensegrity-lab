@@ -2,6 +2,7 @@ use crate::build::dsl::brick_dsl::{BrickName::*, BrickRole::*, FaceName::*, Mark
 use crate::build::dsl::fabric_dsl::*;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::fabric::physics::SurfaceCharacter;
+use crate::units::Amplitude;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
@@ -40,9 +41,18 @@ pub fn triped() -> FabricPlan {
         .pretense(
             pretense(Sec(15.0))
                 .altitude(Mm(1000.0))
-                .surface(SurfaceCharacter::Slippery),
+                .surface(SurfaceCharacter::Frozen),
         )
         .converge(Sec(10.0))
+        .animate(
+            Sec(0.8266),
+            Amplitude::new(0.01),
+            vec![
+                MuscleSpec::Alpha.between(151, 48),
+                MuscleSpec::Alpha.between(157, 36),
+                MuscleSpec::Alpha.between(145, 42),
+            ],
+        )
         .scale(Mm(1030.0))
         .build_plan()
 }

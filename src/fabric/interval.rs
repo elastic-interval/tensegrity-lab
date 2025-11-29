@@ -256,7 +256,7 @@ pub enum Span {
     Fixed {
         length: f32,
     },
-    Pretenst {
+    Pretensing {
         target_length: f32,
         start_length: f32,
         rest_length: f32,
@@ -265,11 +265,6 @@ pub enum Span {
     Approaching {
         target_length: f32,
         start_length: f32,
-    },
-    Muscle {
-        rest_length: f32,
-        contracted_length: f32,
-        reverse: bool,
     },
 }
 
@@ -662,7 +657,7 @@ impl Interval {
     pub fn ideal(&self) -> f32 {
         match self.span {
             Fixed { length, .. }
-            | Pretenst {
+            | Pretensing {
                 target_length: length,
                 ..
             }
@@ -670,11 +665,6 @@ impl Interval {
                 target_length: length,
                 ..
             } => length,
-            Muscle {
-                rest_length,
-                contracted_length,
-                ..
-            } => (rest_length + contracted_length) / 2.0,
         }
     }
 
@@ -682,13 +672,12 @@ impl Interval {
         &mut self,
         joints: &mut [Joint],
         progress: &Progress,
-        muscle_nuance: f32,
         scale: f32,
         physics: &Physics,
     ) {
         let ideal = match self.span {
             Fixed { length } => length,
-            Pretenst {
+            Pretensing {
                 start_length,
                 target_length,
                 finished,
@@ -708,18 +697,6 @@ impl Interval {
             } => {
                 let progress_nuance = progress.nuance();
                 start_length * (1.0 - progress_nuance) + target_length * progress_nuance
-            }
-            Muscle {
-                rest_length,
-                contracted_length,
-                reverse,
-            } => {
-                let nuance = if reverse {
-                    1.0 - muscle_nuance
-                } else {
-                    muscle_nuance
-                };
-                contracted_length * (1.0 - nuance) + rest_length * nuance
             }
         };
         let real_length = self.fast_length(joints);

@@ -405,6 +405,8 @@ pub enum CrucibleAction {
     BuildFabric(FabricPlan),
     DropFromHeight,
     CentralizeFabric(Option<units::Millimeters>),
+    ClearSelection,
+    AdjustAnimationPeriod(f32),
     ToViewing,
     ToAnimating,
     ToPhysicsTesting(TestScenario),

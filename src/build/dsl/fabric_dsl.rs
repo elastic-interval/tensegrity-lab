@@ -1,4 +1,5 @@
 /// Type-safe DSL for defining fabric plans with a fluent API.
+use crate::build::dsl::animate_phase::AnimatePhase;
 use crate::build::dsl::build_phase::{BuildNode, BuildPhase, Chirality, GrowStyle};
 use crate::build::dsl::converge_phase::ConvergePhase;
 use crate::build::dsl::fabric_plan::FabricPlan;
@@ -7,7 +8,9 @@ use crate::build::dsl::shape_phase::ShapeOperation;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Millimeters, Seconds};
 
+pub use crate::build::dsl::animate_phase::{Muscle, MuscleSpec};
 pub use crate::build::dsl::brick_dsl::{BrickName, BrickOrientation, MarkName};
+pub use crate::units::Amplitude;
 use crate::build::dsl::brick_dsl::{BrickRole, FaceName};
 pub use crate::build::dsl::build_phase::BuildNode as Node;
 pub use crate::units::{Millimeters as Mm, Seconds as Sec};
@@ -20,6 +23,7 @@ pub fn fabric(name: impl Into<String>) -> FabricBuilder {
         shape: Vec::new(),
         pretense: PretensePhaseBuilder::default(),
         converge: None,
+        animate: None,
         scale: Millimeters(1.0),
     }
 }
@@ -30,6 +34,7 @@ pub struct FabricBuilder {
     shape: Vec<ShapeOperation>,
     pretense: PretensePhaseBuilder,
     converge: Option<Seconds>,
+    animate: Option<AnimatePhase>,
     scale: Millimeters,
 }
 
@@ -54,6 +59,20 @@ impl FabricBuilder {
         self
     }
 
+    pub fn animate(
+        mut self,
+        period: Seconds,
+        amplitude: Amplitude,
+        muscles: Vec<Muscle>,
+    ) -> Self {
+        self.animate = Some(AnimatePhase {
+            period,
+            amplitude,
+            muscles,
+        });
+        self
+    }
+
     pub fn scale(mut self, scale: Millimeters) -> Self {
         self.scale = scale;
         self
@@ -73,7 +92,7 @@ impl FabricBuilder {
             },
             pretense_phase: self.pretense.build(),
             converge_phase: self.converge.map(|seconds| ConvergePhase { seconds }),
-            animate_phase: None,
+            animate_phase: self.animate,
             scale: self.scale.0,
         }
     }

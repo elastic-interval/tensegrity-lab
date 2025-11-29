@@ -5,7 +5,7 @@
 
 use crate::build::dsl::brick_dsl::{BrickRole, FaceName};
 use crate::fabric::face::Face;
-use crate::fabric::interval::Span::{Approaching, Fixed, Muscle, Pretenst};
+use crate::fabric::interval::Span::{Approaching, Fixed, Pretensing};
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::{Joint, AMBIENT_MASS};
 use crate::fabric::physics::Physics;
@@ -279,7 +279,7 @@ impl Fabric {
                         length: rest_length,
                     } => {
                         if is_pushing {
-                            interval.span = Pretenst {
+                            interval.span = Pretensing {
                                 start_length: rest_length,
                                 target_length: rest_length * (1.0 + factor),
                                 rest_length,
@@ -287,12 +287,12 @@ impl Fabric {
                             };
                         }
                     }
-                    Pretenst {
+                    Pretensing {
                         target_length,
                         rest_length,
                         ..
                     } => {
-                        interval.span = Pretenst {
+                        interval.span = Pretensing {
                             start_length: target_length,
                             target_length: rest_length * (1.0 + factor),
                             rest_length,
@@ -349,7 +349,6 @@ impl Fabric {
             interval.iterate(
                 &mut self.joints,
                 &self.progress,
-                0.5, // muscle_nuance - only used during animation by Animator
                 self.scale,
                 physics,
             );
@@ -387,7 +386,7 @@ impl Fabric {
                 let interval = interval_opt.as_mut().unwrap();
                 match &mut interval.span {
                     Fixed { .. } => {}
-                    Pretenst { finished, .. } => {
+                    Pretensing { finished, .. } => {
                         *finished = true;
                     }
                     Approaching { target_length, .. } => {
@@ -396,7 +395,6 @@ impl Fabric {
                             target_length: *target_length,
                         };
                     }
-                    Muscle { .. } => {}
                 }
             }
         }
