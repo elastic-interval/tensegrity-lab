@@ -6,7 +6,7 @@ use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 use crate::{
     ControlState, CrucibleAction, LabEvent, Radio, RunStyle, StateChange, TestScenario,
-    TesterAction,
+    TesterAction, ITERATION_DURATION,
 };
 use instant::{Duration, Instant};
 use std::sync::Arc;
@@ -495,10 +495,11 @@ impl ApplicationHandler<LabEvent> for Application {
 
             if animate {
                 // Calculate iterations needed to maintain target time scale
-                // Formula: iterations = target_scale × 20000 / FPS
+                // iterations_per_second = 1.0 / ITERATION_DURATION.secs (e.g., 20000 for 50µs)
+                let iterations_per_second = 1.0 / ITERATION_DURATION.secs;
                 let target_scale = self.crucible.target_time_scale();
                 let iterations_per_frame = if self.current_fps > 0.0 {
-                    (target_scale * 20000.0 / self.current_fps).round() as usize
+                    (target_scale * iterations_per_second / self.current_fps).round() as usize
                 } else {
                     0
                 };

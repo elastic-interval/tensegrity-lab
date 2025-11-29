@@ -47,6 +47,11 @@ impl PointerHandler {
                 self.handle_mouse_wheel(*delta);
                 true
             },
+            WindowEvent::CursorLeft { .. } => {
+                // Cursor left the window - release any active drag
+                LabEvent::PointerChanged(PointerChange::Released(PickIntent::Reset)).send(&self.radio);
+                true
+            },
             _ => false, // Event not handled by this handler
         }
     }

@@ -1,14 +1,42 @@
-use crate::fabric::UniqueId;
+use crate::units::{Amplitude, Seconds};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MuscleDirection {
-    Alpha, // First muscle group - contracts while Omega relaxes
-    Omega, // Second muscle group - contracts while Alpha relaxes
+pub enum MuscleSpec {
+    Alpha,
+    Omega,
+}
+
+impl MuscleSpec {
+    pub fn to_surface(self, joint: usize, surface: (f32, f32)) -> Muscle {
+        Muscle {
+            direction: self,
+            attachment: MuscleAttachment::ToSurface { joint, surface },
+        }
+    }
+
+    pub fn between(self, alpha: usize, omega: usize) -> Muscle {
+        Muscle {
+            direction: self,
+            attachment: MuscleAttachment::Between { alpha: alpha, omega: omega },
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum MuscleAttachment {
+    ToSurface { joint: usize, surface: (f32, f32) },
+    Between { alpha: usize, omega: usize },
+}
+
+#[derive(Debug, Clone)]
+pub struct Muscle {
+    pub direction: MuscleSpec,
+    pub attachment: MuscleAttachment,
 }
 
 #[derive(Debug, Clone)]
 pub struct AnimatePhase {
-    pub contraction: Option<f32>,
-    pub frequency_hz: f32, // Obligatory - cycles per second (Hertz)
-    pub muscle_intervals: Vec<(UniqueId, UniqueId, MuscleDirection)>,
+    pub period: Seconds,
+    pub amplitude: Amplitude,
+    pub muscles: Vec<Muscle>,
 }

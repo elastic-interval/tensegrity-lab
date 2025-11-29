@@ -41,6 +41,7 @@ impl SurfaceCharacter {
 pub struct Physics {
     pub surface_character: SurfaceCharacter,
     pub pretenst: Percent,
+    pub drag: f32,
     pub tweak: Tweak,
 }
 
@@ -51,6 +52,7 @@ pub enum Tweak {
     Scaling(ScalingTweak),
     Construction(ConstructionTweak),
     Convergence(ConvergenceTweak),
+    Animation(AnimationTweak),
 }
 
 /// User-controlled scaling for experimentation
@@ -92,9 +94,15 @@ impl ConvergenceTweak {
             base_physics: Box::new(base),
             drag: 0.0,        // Start with no damping
             viscosity: 0.0,   // Start with no damping
-            time_scale_multiplier: 1.0,
+            time_scale_multiplier: 5.0,
         }
     }
+}
+
+/// Slow-motion physics for animation visualization
+#[derive(Debug, Clone)]
+pub struct AnimationTweak {
+    pub time_contraction: f32,
 }
 
 impl ScalingTweak {
@@ -202,6 +210,7 @@ impl Physics {
                 // During convergence, time scale increases geometrically to speed up settling
                 c.base_physics.time_scale() * c.time_scale_multiplier
             }
+            Tweak::Animation(a) => a.time_contraction,
             _ => 1.0,
         }
     }
@@ -211,7 +220,7 @@ impl Physics {
         match &self.tweak {
             Tweak::Construction(c) => c.drag,
             Tweak::Convergence(c) => c.drag,
-            _ => 0.0,
+            _ => self.drag,
         }
     }
 
@@ -230,6 +239,7 @@ impl Physics {
         match &self.tweak {
             Tweak::Construction(c) => c.time_contraction,
             Tweak::Convergence(c) => c.base_physics.time_contraction(),
+            Tweak::Animation(a) => a.time_contraction,
             _ => 1.0,
         }
     }
@@ -252,14 +262,10 @@ impl Physics {
             const CONVERGENCE_BASE_DRAG: f32 = 0.01;
             const CONVERGENCE_BASE_VISCOSITY: f32 = 0.5;
 
-            // Keep time scale constant at 1.0 (no speedup)
-            // This ensures fabric time matches what user sees in UI
-            let time_scale_mult = 1.0;
-
             // Compute and store convergence damping values
+            // (time_scale_multiplier is set once at construction and not modified)
             conv.drag = CONVERGENCE_BASE_DRAG * damping_mult;
             conv.viscosity = CONVERGENCE_BASE_VISCOSITY * damping_mult;
-            conv.time_scale_multiplier = time_scale_mult;
         }
     }
     
@@ -283,13 +289,14 @@ impl Physics {
 
 
 pub mod presets {
-    use crate::fabric::physics::{ConstructionTweak, Physics, Tweak};
+    use crate::fabric::physics::{AnimationTweak, ConstructionTweak, Physics, Tweak};
     use crate::fabric::physics::SurfaceCharacter::{Absent, Frozen};
     use crate::units::Percent;
 
     pub const CONSTRUCTION: Physics = Physics {
         surface_character: Absent,
         pretenst: Percent(20.0),
+        drag: 1.0,
         tweak: Tweak::Construction(ConstructionTweak {
             drag: 0.0125,
             viscosity: 40.0,
@@ -300,6 +307,7 @@ pub mod presets {
     pub const PRETENSING: Physics = Physics {
         surface_character: Absent,
         pretenst: Percent(1.0),
+        drag: 1.0,
         tweak: Tweak::Construction(ConstructionTweak {
             drag: 25.0,
             viscosity: 4.0,
@@ -307,25 +315,33 @@ pub mod presets {
         }),
     };
 
-    pub const BASE_PHYSICS: Physics = Physics {
-        surface_character: Frozen,
-        pretenst: Percent(1.0),
-        tweak: Tweak::Construction(ConstructionTweak {
-            drag: 0.05,
-            viscosity: 3.0,
-            time_contraction: 1.0,
-        }),
-    };
-
     /// Physics for baking brick prototypes - extreme damping for settling under strain
     pub const BAKING: Physics = Physics {
         surface_character: Absent,
         pretenst: Percent(5.0),
+        drag: 1.0,
         tweak: Tweak::Construction(ConstructionTweak {
             drag: 500.0,
             viscosity: 1000.0,
             time_contraction: 1.0,
         }),
+    };
+
+    /// Physics for animation - slow time for visible dynamics
+    pub const ANIMATING: Physics = Physics {
+        surface_character: Frozen,
+        pretenst: Percent(1.0),
+        drag: 0.5,
+        tweak: Tweak::Animation(AnimationTweak {
+            time_contraction: 1.0,
+        }),
+    };
+
+    pub const BASE_PHYSICS: Physics = Physics {
+        surface_character: Frozen,
+        pretenst: Percent(1.0),
+        drag: 0.5,
+        tweak: Tweak::None,
     };
 }
 

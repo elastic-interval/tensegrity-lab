@@ -6,7 +6,7 @@ use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::Wgpu;
 use crate::{
-    ControlState, PointerChange, Radio, RenderStyle, StateChange, TestScenario,
+    ControlState, PickIntent, PointerChange, Radio, RenderStyle, StateChange, TestScenario,
     SHOW_ATTACHMENT_POINTS,
 };
 use std::rc::Rc;
@@ -64,7 +64,11 @@ impl Scene {
                 self.render_style.toggle_attachment_points();
             }
             SetControlState(control_state) => match control_state {
-                Waiting | Animating => self.reset(),
+                Waiting => self.reset(),
+                Animating => {
+                    self.reset();
+                    self.pick_allowed = true;
+                }
                 Baking => {
                     self.render_style = WithAppearanceFunction {
                         function: Rc::new(|_| None),
@@ -94,7 +98,7 @@ impl Scene {
                     }
                 }
             },
-            SetAnimating(active) => self.pick_allowed = !active,
+            SetAnimating(_) => {}
             ResetView => {
                 self.render_style = Normal {
                     show_attachment_points: false,
@@ -223,12 +227,11 @@ impl Scene {
     }
 
     pub fn pointer_changed(&mut self, pointer_changed: PointerChange, fabric: &Fabric) {
-        // Only allow picking when in Viewing mode
+        // When picking is not allowed, convert pick intents to Reset (release without picking)
         let pointer_changed = if !self.pick_allowed {
             match pointer_changed {
-                // Block picking events when not in Viewing mode
-                PointerChange::Released(_) | PointerChange::TouchReleased(_) => PointerChange::NoChange,
-                // Allow all other pointer events (rotation, zoom, etc)
+                PointerChange::Released(_) => PointerChange::Released(PickIntent::Reset),
+                PointerChange::TouchReleased(_) => PointerChange::TouchReleased(PickIntent::Reset),
                 other => other,
             }
         } else {

@@ -31,6 +31,12 @@ enum KeyAction {
         render: Box<dyn Fn(&f32) -> String>,
         is_active_in: Box<dyn Fn(&ControlState) -> bool>,
     },
+    AnimationPeriod {
+        up_code: SmolStr,
+        down_code: SmolStr,
+        radio: Radio,
+        is_active_in: Box<dyn Fn(&ControlState) -> bool>,
+    },
 }
 
 pub struct Keyboard {
@@ -64,7 +70,7 @@ impl Keyboard {
         self.key_lab_event(
             KeyCode::Escape,
             "Cancel selection",
-            Crucible(ToViewing),
+            Crucible(ClearSelection),
             Box::new(|state| {
                 matches!(
                     state,
@@ -78,18 +84,23 @@ impl Keyboard {
             Crucible(ToViewing),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
-        // self.key_lab_event(
-        //     KeyCode::Space,
-        //     "Stop animation",
-        //     Crucible(ToViewing),
-        //     Box::new(|state| matches!(state, Animating)),
-        // );
-        // self.key_lab_event(
-        //     KeyCode::Space,
-        //     "Start animation",
-        //     Crucible(ToAnimating),
-        //     Box::new(|state| matches!(state, Viewing)),
-        // );
+        self.key_lab_event(
+            KeyCode::KeyA,
+            "Stop animation",
+            Crucible(ToViewing),
+            Box::new(|state| matches!(state, Animating)),
+        );
+        self.key_lab_event(
+            KeyCode::KeyA,
+            "Start animation",
+            Crucible(ToAnimating),
+            Box::new(|state| matches!(state, Viewing)),
+        );
+        self.animation_period(
+            "P",
+            "p",
+            Box::new(|state| matches!(state, Animating)),
+        );
         self.key_lab_event(
             KeyCode::KeyT,
             "Physics testing",
@@ -253,6 +264,21 @@ impl Keyboard {
                                 }
                             }
                         }
+                        KeyAction::AnimationPeriod {
+                            up_code,
+                            down_code,
+                            radio,
+                            is_active_in,
+                        } => {
+                            if is_active_in(control_state) {
+                                if text == *up_code {
+                                    CrucibleAction::AdjustAnimationPeriod(1.01).send(radio);
+                                }
+                                if text == *down_code {
+                                    CrucibleAction::AdjustAnimationPeriod(0.99).send(radio);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -299,6 +325,16 @@ impl Keyboard {
                     if is_active_in(control_state) {
                         // Format as "Key+/Key-: Value" for parameters
                         legend.push(format!("{}/{}: {}", up_code, down_code, render(value)));
+                    }
+                }
+                KeyAction::AnimationPeriod {
+                    is_active_in,
+                    up_code,
+                    down_code,
+                    ..
+                } => {
+                    if is_active_in(control_state) {
+                        legend.push(format!("{}/{}: Period", up_code, down_code));
                     }
                 }
             }
@@ -384,6 +420,20 @@ impl Keyboard {
             render,
             is_active_in,
             parameter,
+            radio: self.radio.clone(),
+        })
+    }
+
+    fn animation_period(
+        &mut self,
+        up_code: &str,
+        down_code: &str,
+        is_active_in: Box<dyn Fn(&ControlState) -> bool>,
+    ) {
+        self.actions.push(KeyAction::AnimationPeriod {
+            up_code: up_code.into(),
+            down_code: down_code.into(),
+            is_active_in,
             radio: self.radio.clone(),
         })
     }

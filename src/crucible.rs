@@ -5,7 +5,7 @@ use crate::build::evo::evolution::Evolution;
 use crate::build::oven::Oven;
 use crate::crucible::Stage::*;
 use crate::crucible_context::CrucibleContext;
-use crate::fabric::physics::presets::BASE_PHYSICS;
+use crate::fabric::physics::presets::{ANIMATING, BASE_PHYSICS};
 use crate::fabric::physics::Physics;
 use crate::fabric::physics_test::PhysicsTester;
 use crate::fabric::Fabric;
@@ -143,7 +143,7 @@ impl Crucible {
                     &mut self.physics,
                     &self.radio,
                 );
-                animator.iterate(&mut context);
+                animator.iterate(&mut context, iterations_per_frame);
 
                 // Apply any stage transition
                 if let Some(new_stage) = context.apply_changes() {
@@ -279,21 +279,40 @@ impl Crucible {
                 context.fabric.apply_translation(translation);
                 context.fabric.zero_velocities();
             }
+            ClearSelection => {
+                // Clear UI selection without changing crucible stage
+                let control_state = match &self.stage {
+                    Viewing => ControlState::Viewing,
+                    Animating(_) => ControlState::Animating,
+                    _ => return,
+                };
+                context.send_event(LabEvent::UpdateState(SetControlState(control_state)));
+            }
+            AdjustAnimationPeriod(factor) => {
+                if let Animating(animator) = &mut self.stage {
+                    animator.adjust_period(factor);
+                    let period = animator.period_secs();
+                    context.send_event(LabEvent::UpdateState(SetStageLabel(
+                        format!("Period: {:.4}s", period),
+                    )));
+                }
+            }
             ToViewing => match &mut self.stage {
                 Viewing => {
                     context.send_event(LabEvent::UpdateState(SetControlState(
                         ControlState::Viewing,
                     )));
                 }
-                Animating(_) => {
-                    // Unwrap muscles back to Fixed spans when transitioning back to Viewing
-                    Animator::unwrap_muscles(&mut context);
-
+                Animating(animator) => {
+                    animator.remove_muscles(&mut context);
                     self.stage = Viewing;
 
                     context.send_event(LabEvent::UpdateState(SetControlState(
                         ControlState::Viewing,
                     )));
+                    drop(context);
+                    self.physics = BASE_PHYSICS;
+                    return;
                 }
                 PhysicsTesting(_) => {
                     context.fabric.zero_velocities();
@@ -312,14 +331,19 @@ impl Crucible {
                         .fabric_plan
                         .as_ref()
                         .and_then(|p| p.animate_phase.as_ref())
+                        .cloned()
                     {
                         // Create animator and transition to Animating stage
-                        let animator = Animator::new(animate_phase.clone(), &mut context);
+                        let animator = Animator::new(animate_phase, &mut context);
                         self.stage = Animating(animator);
 
                         context.send_event(LabEvent::UpdateState(SetControlState(
                             ControlState::Animating,
                         )));
+                        drop(context);
+                        // Switch to animation physics (slow time)
+                        self.physics = ANIMATING;
+                        return;
                     }
                 }
             }
