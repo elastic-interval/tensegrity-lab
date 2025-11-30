@@ -179,7 +179,7 @@ impl TextState {
             self.update_section(
                 SectionName::Right,
                 match control_state {
-                    Viewing => Large("Click to select".to_string()),
+                    Viewing { .. } => Large("Click to select".to_string()),
                     ShowingJoint(joint_details) => Large(joint_details.to_string()),
                     ShowingInterval(interval_details) => Large(interval_details.to_string()),
                     PhysicsTesting(_) => match &self.movement_analysis {

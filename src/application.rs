@@ -41,10 +41,7 @@ impl Application {
     //==================================================
 
     /// Create a new Application instance
-    pub fn new(
-        window_attributes: WindowAttributes,
-        radio: Radio,
-    ) -> Application {
+    pub fn new(window_attributes: WindowAttributes, radio: Radio) -> Application {
         Application {
             run_style: RunStyle::Unknown,
             mobile_device: false,
@@ -64,7 +61,6 @@ impl Application {
             machine: None,
         }
     }
-
 
     //==================================================
     // Private Helper Methods
@@ -212,7 +208,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 // Convergence complete - show stats and transition to viewing
                 StateChange::SetFabricName(fabric_stats.name.clone()).send(&self.radio);
                 StateChange::SetFabricStats(Some(fabric_stats)).send(&self.radio);
-                StateChange::SetControlState(ControlState::Viewing).send(&self.radio);
+                StateChange::SetControlState(self.crucible.viewing_state()).send(&self.radio);
                 StateChange::SetStageLabel("Viewing".to_string()).send(&self.radio);
                 if let Some(scene) = &mut self.scene {
                     scene.jump_to_fabric(&self.crucible.fabric);
@@ -239,11 +235,11 @@ impl ApplicationHandler<LabEvent> for Application {
                                         panic!("Machine [{ip_address}]: {error}");
                                     }
                                 }
-                                ControlState::Viewing.send(&self.radio);
+                                self.crucible.viewing_state().send(&self.radio);
                             }
                         }
                     } else {
-                        ControlState::Viewing.send(&self.radio);
+                        self.crucible.viewing_state().send(&self.radio);
                     }
                 }
             }
@@ -475,13 +471,14 @@ impl ApplicationHandler<LabEvent> for Application {
 
         // Check if animation/physics should be active
         // Always call scene.animate() to update camera, then check if physics should run
-        let camera_animating = self.scene
+        let camera_animating = self
+            .scene
             .as_mut()
             .map(|scene| scene.animate(&self.crucible.fabric))
             .unwrap_or(false);
         let animate = matches!(
             self.control_state,
-            ControlState::Viewing | ControlState::PhysicsTesting(_)
+            ControlState::Viewing { .. } | ControlState::PhysicsTesting(_)
         ) || camera_animating;
 
         // Limit updates per frame

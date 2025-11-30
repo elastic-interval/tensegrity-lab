@@ -376,7 +376,7 @@ impl JointDetails {
 #[derive(Debug, Clone)]
 pub enum ControlState {
     Waiting,
-    Viewing,
+    Viewing { animation_available: bool },
     Animating,
     ShowingJoint(JointDetails),
     ShowingInterval(IntervalDetails),

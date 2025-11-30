@@ -94,7 +94,7 @@ impl Keyboard {
             KeyCode::KeyA,
             "Start animation",
             Crucible(ToAnimating),
-            Box::new(|state| matches!(state, Viewing)),
+            Box::new(|state| matches!(state, Viewing { animation_available: true })),
         );
         self.animation_period(
             "P",
@@ -105,7 +105,7 @@ impl Keyboard {
             KeyCode::KeyT,
             "Physics testing",
             Crucible(ToPhysicsTesting(TestScenario::PhysicsTest)),
-            Box::new(|state| matches!(state, Viewing)),
+            Box::new(|state| matches!(state, Viewing { .. })),
         );
         self.float_parameter(
             "P",
@@ -147,7 +147,7 @@ impl Keyboard {
             KeyCode::KeyJ,
             "Jump",
             Crucible(CrucibleAction::DropFromHeight),
-            Box::new(|state| matches!(state, PhysicsTesting(_) | Viewing)),
+            Box::new(|state| matches!(state, PhysicsTesting(_) | Viewing { .. })),
         );
         self.key_lab_event(
             KeyCode::KeyC,
@@ -159,7 +159,7 @@ impl Keyboard {
             KeyCode::KeyK,
             "Knots",
             UpdateState(StateChange::ToggleAttachmentPoints),
-            Box::new(|state| matches!(state, Viewing)),
+            Box::new(|state| matches!(state, Viewing { .. })),
         );
         self.key_lab_event(
             KeyCode::Space,
