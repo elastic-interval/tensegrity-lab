@@ -75,7 +75,7 @@ impl Scene {
                         show_attachment_points: false,
                     }
                 }
-                Viewing => {
+                Viewing { .. } => {
                     self.reset();
                     self.pick_allowed = true;
                 }

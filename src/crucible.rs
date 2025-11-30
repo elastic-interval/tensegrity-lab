@@ -47,6 +47,21 @@ impl Crucible {
     pub fn target_time_scale(&self) -> f32 {
         self.physics.time_scale()
     }
+
+    /// Check if animation is available for the current fabric plan
+    pub fn animation_available(&self) -> bool {
+        self.fabric_plan
+            .as_ref()
+            .map(|p| p.animate_phase.is_some())
+            .unwrap_or(false)
+    }
+
+    /// Get ControlState::Viewing with correct animation_available flag
+    pub fn viewing_state(&self) -> ControlState {
+        ControlState::Viewing {
+            animation_available: self.animation_available(),
+        }
+    }
 }
 
 impl Crucible {
@@ -238,6 +253,7 @@ impl Crucible {
 
         // Clone physics for passing to tester (avoids borrow checker issues)
         let tester_physics = self.physics.clone();
+        let viewing_state = self.viewing_state();
 
         // Create a context for this action
         let mut context = CrucibleContext::new(
@@ -282,7 +298,7 @@ impl Crucible {
             ClearSelection => {
                 // Clear UI selection without changing crucible stage
                 let control_state = match &self.stage {
-                    Viewing => ControlState::Viewing,
+                    Viewing => viewing_state.clone(),
                     Animating(_) => ControlState::Animating,
                     _ => return,
                 };
@@ -300,7 +316,7 @@ impl Crucible {
             ToViewing => match &mut self.stage {
                 Viewing => {
                     context.send_event(LabEvent::UpdateState(SetControlState(
-                        ControlState::Viewing,
+                        viewing_state.clone(),
                     )));
                 }
                 Animating(animator) => {
@@ -308,7 +324,7 @@ impl Crucible {
                     self.stage = Viewing;
 
                     context.send_event(LabEvent::UpdateState(SetControlState(
-                        ControlState::Viewing,
+                        viewing_state.clone(),
                     )));
                     drop(context);
                     self.physics = BASE_PHYSICS;
@@ -318,7 +334,7 @@ impl Crucible {
                     context.fabric.zero_velocities();
                     self.stage = Viewing;
                     context.send_event(LabEvent::UpdateState(SetControlState(
-                        ControlState::Viewing,
+                        viewing_state.clone(),
                     )));
                     context.send_event(LabEvent::UpdateState(SetStageLabel("Viewing".to_string())));
                 }
