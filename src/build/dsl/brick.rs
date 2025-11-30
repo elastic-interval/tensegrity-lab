@@ -7,7 +7,7 @@ use cgmath::{
 use crate::build::dsl::brick_dsl::FaceName::Downwards;
 use crate::build::dsl::brick_dsl::{BrickName, BrickParams, BrickRole, JointName};
 use crate::build::dsl::Spin::{Left, Right};
-use crate::build::dsl::{FaceAlias, Spin};
+use crate::build::dsl::{FaceAlias, ScaleMode, Spin};
 use crate::fabric::interval::Role;
 use crate::fabric::Fabric;
 
@@ -51,12 +51,29 @@ pub struct FaceDef {
     pub spin: Spin,
     pub joints: [JointName; 3],
     pub aliases: Vec<FaceAlias>,
+    pub scale_overrides: Vec<(ScaleMode, f32)>,
+}
+
+impl FaceDef {
+    /// Get the scale factor for a given scaling scheme
+    pub fn scale_for(&self, scaling: ScaleMode) -> f32 {
+        match scaling {
+            ScaleMode::None => 1.0,
+            scheme => self
+                .scale_overrides
+                .iter()
+                .find(|(s, _)| *s == scheme)
+                .map(|(_, scale)| *scale)
+                .unwrap_or(1.0),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct BrickPrototype {
     pub brick_name: BrickName,
     pub brick_roles: Vec<BrickRole>,
+    pub scale_modes: Vec<ScaleMode>,
     pub joints: Vec<JointName>,
     pub pushes: Vec<PushDef>,
     pub pulls: Vec<PullDef>,
@@ -111,32 +128,27 @@ impl BrickPrototype {
     }
 }
 
-
-impl From<BrickPrototype> for Fabric {
-    fn from(proto: BrickPrototype) -> Self {
+impl BrickPrototype {
+    /// Convert prototype to fabric for baking, applying face scaling
+    pub fn to_fabric(&self, face_scaling: ScaleMode) -> Fabric {
         let mut fabric = Fabric::new("prototype".to_string());
         let mut joints_by_name: HashMap<JointName, usize> = HashMap::new();
-        for name in proto.joints {
+        for name in &self.joints {
             let joint_index = fabric.create_joint(Point3::origin());
-            if joints_by_name.insert(name, joint_index).is_some() {
+            if joints_by_name.insert(*name, joint_index).is_some() {
                 panic!("joint with that name already exists")
             }
         }
-        for PushDef {
-            alpha,
-            omega,
-            axis,
-            ideal,
-        } in proto.pushes
-        {
-            let vector = match axis {
+        for push in &self.pushes {
+            let vector = match push.axis {
                 Axis::X => Vector3::unit_x(),
                 Axis::Y => Vector3::unit_y(),
                 Axis::Z => Vector3::unit_z(),
             };
+            let ideal = push.ideal;
             let ends = [
-                (alpha, -vector * ideal / 2.0),
-                (omega, vector * ideal / 2.0),
+                (push.alpha, -vector * ideal / 2.0),
+                (push.omega, vector * ideal / 2.0),
             ];
             let [alpha_index, omega_index] = ends.map(|(name, loc)| {
                 let joint_index = fabric.create_joint(Point3::from_vec(loc));
@@ -147,40 +159,34 @@ impl From<BrickPrototype> for Fabric {
             });
             fabric.create_interval(alpha_index, omega_index, ideal, Role::Pushing);
         }
-        for PullDef {
-            alpha,
-            omega,
-            ideal,
-            material,
-            ..
-        } in proto.pulls
-        {
-            let [alpha_index, omega_index] = [alpha, omega].map(|name| {
+        for pull in &self.pulls {
+            let [alpha_index, omega_index] = [pull.alpha, pull.omega].map(|name| {
                 *joints_by_name
                     .get(&name)
                     .expect(&format!("Joint {:?} not found", name))
             });
-            let role =
-                Role::from_label(&material).expect(&format!("Unknown role label: {}", material));
-            fabric.create_interval(alpha_index, omega_index, ideal, role);
+            let role = Role::from_label(&pull.material)
+                .expect(&format!("Unknown role label: {}", pull.material));
+            fabric.create_interval(alpha_index, omega_index, pull.ideal, role);
         }
-        for FaceDef {
-            aliases,
-            joints,
-            spin,
-        } in proto.faces
-        {
-            let joint_indices = joints.map(|name| {
+        for face_def in &self.faces {
+            let joint_indices = face_def.joints.map(|name| {
                 *joints_by_name
                     .get(&name)
                     .expect(&format!("Joint {:?} not found", name))
             });
+            let face_scale = face_def.scale_for(face_scaling);
             // Start face center at origin - radial tensions will pull it into position
             let alpha_index = fabric.create_joint(Point3::origin());
             let radial_intervals = joint_indices.map(|omega_index| {
-                fabric.create_interval(alpha_index, omega_index, 1.0, Role::FaceRadial)
+                fabric.create_interval(alpha_index, omega_index, face_scale, Role::FaceRadial)
             });
-            fabric.create_face(aliases, 1.0, spin, radial_intervals);
+            fabric.create_face(
+                face_def.aliases.clone(),
+                face_scale,
+                face_def.spin,
+                radial_intervals,
+            );
         }
         fabric.check_orphan_joints();
         fabric

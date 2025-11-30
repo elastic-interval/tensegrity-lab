@@ -4,7 +4,6 @@ mod tests {
     use crate::build::dsl::brick_library::get_prototype;
     use crate::fabric::interval::Role;
     use crate::fabric::physics::presets::BAKING;
-    use crate::fabric::Fabric;
     use cgmath::MetricSpace;
     use strum::IntoEnumIterator;
 
@@ -15,16 +14,22 @@ mod tests {
         eprintln!("\n=== Testing {} ===\n", brick_name);
 
         let proto = get_prototype(brick_name);
-        let mut fabric = Fabric::from(proto);
+        let mut fabric = proto.to_fabric(brick_name.face_scaling());
 
         // Count intervals by role
-        let push_count = fabric.intervals.iter()
+        let push_count = fabric
+            .intervals
+            .iter()
             .filter(|i| matches!(i, Some(int) if int.role == Role::Pushing))
             .count();
-        let pull_count = fabric.intervals.iter()
+        let pull_count = fabric
+            .intervals
+            .iter()
             .filter(|i| matches!(i, Some(int) if int.role == Role::Pulling))
             .count();
-        let radial_count = fabric.intervals.iter()
+        let radial_count = fabric
+            .intervals
+            .iter()
             .filter(|i| matches!(i, Some(int) if int.role == Role::FaceRadial))
             .count();
 
@@ -44,7 +49,11 @@ mod tests {
                 let actual = alpha.distance(omega);
                 eprintln!(
                     "  [{i}] {:?} ({}->{}) ideal={:.4} actual={:.4}",
-                    int.role, int.alpha_index, int.omega_index, int.ideal(), actual
+                    int.role,
+                    int.alpha_index,
+                    int.omega_index,
+                    int.ideal(),
+                    actual
                 );
             }
         }
@@ -69,7 +78,10 @@ mod tests {
             }
 
             if iteration >= MAX_ITERATIONS {
-                eprintln!("  Did not converge after {} iterations, max_speed={:.2e}", iteration, max_speed);
+                eprintln!(
+                    "  Did not converge after {} iterations, max_speed={:.2e}",
+                    iteration, max_speed
+                );
                 break;
             }
         }
@@ -84,7 +96,10 @@ mod tests {
                 let diff_pct = ((actual - int.ideal()) / int.ideal() * 100.0).abs();
                 eprintln!(
                     "  [{i}] {:?} ideal={:.4} actual={:.4} diff={:.1}%",
-                    int.role, int.ideal(), actual, diff_pct
+                    int.role,
+                    int.ideal(),
+                    actual,
+                    diff_pct
                 );
             }
         }

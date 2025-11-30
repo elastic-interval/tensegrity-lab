@@ -1,6 +1,6 @@
 use crate::build::dsl::brick::{Axis, BrickPrototype, FaceDef, PullDef, PushDef};
 use crate::build::dsl::brick_dsl::FaceName::Downwards;
-use crate::build::dsl::{FaceAlias, Spin};
+use crate::build::dsl::{FaceAlias, ScaleMode, Spin};
 pub use crate::fabric::material::Material;
 use cgmath::Vector3;
 use strum::Display;
@@ -44,7 +44,17 @@ pub enum BrickName {
     SingleLeftBrick,
     SingleRightBrick,
     OmniBrick,
+    OmniTetrahedral,
     TorqueBrick,
+}
+
+impl BrickName {
+    pub fn face_scaling(&self) -> ScaleMode {
+        match self {
+            BrickName::OmniTetrahedral => ScaleMode::Tetrahedral,
+            _ => ScaleMode::None,
+        }
+    }
 }
 
 /// Context in which a brick face is being used
@@ -56,14 +66,14 @@ pub enum BrickRole {
 }
 
 impl BrickRole {
-    pub const fn calls_it(self, face_name: FaceName) -> FaceAlias {
+    pub fn calls_it(self, face_name: FaceName) -> FaceAlias {
         FaceAlias {
             brick_role: self,
             face_name,
         }
     }
 
-    pub const fn downwards(self) -> FaceAlias {
+    pub fn downwards(self) -> FaceAlias {
         let downwards_count = match self {
             BrickRole::Seed(downward_count) => downward_count,
             _ => panic!("Downwards requires a seed variant"),
@@ -196,6 +206,7 @@ pub enum FaceName {
 pub struct ProtoBuilder {
     brick_name: BrickName,
     brick_roles: Vec<BrickRole>,
+    scale_modes: Vec<ScaleMode>,
     joints: Vec<JointName>,
     pushes: Vec<PushDef>,
     pulls: Vec<PullDef>,
@@ -203,10 +214,15 @@ pub struct ProtoBuilder {
 }
 
 impl ProtoBuilder {
-    pub fn new(brick_name: BrickName, brick_roles: Vec<BrickRole>) -> Self {
+    pub fn new(
+        brick_name: BrickName,
+        brick_roles: Vec<BrickRole>,
+        scale_modes: Vec<ScaleMode>,
+    ) -> Self {
         Self {
             brick_name,
             brick_roles,
+            scale_modes,
             joints: vec![],
             pushes: vec![],
             pulls: vec![],
@@ -296,7 +312,24 @@ impl ProtoBuilder {
             spin,
             joints,
             aliases: aliases.into(),
+            scale_overrides: vec![],
         });
+        self
+    }
+
+    /// Add a scale override for the most recently added face
+    pub fn with_scale(mut self, scaling: ScaleMode, scale: f32) -> Self {
+        if !self.scale_modes.contains(&scaling) {
+            panic!(
+                "Face uses scaling {:?} which is not declared in scale_modes {:?}",
+                scaling, self.scale_modes
+            );
+        }
+        if let Some(face) = self.faces.last_mut() {
+            face.scale_overrides.push((scaling, scale));
+        } else {
+            panic!("with_scale called before any face was added");
+        }
         self
     }
 
@@ -309,6 +342,7 @@ impl ProtoBuilder {
         BrickPrototype {
             brick_name: self.brick_name,
             brick_roles: self.brick_roles,
+            scale_modes: self.scale_modes,
             joints: self.joints,
             pushes: self.pushes,
             pulls: self.pulls,
@@ -317,9 +351,18 @@ impl ProtoBuilder {
     }
 }
 
-/// Start building a prototype
+/// Start building a prototype with no scaling
 pub fn proto<const N: usize>(brick_name: BrickName, brick_roles: [BrickRole; N]) -> ProtoBuilder {
-    ProtoBuilder::new(brick_name, brick_roles.into())
+    ProtoBuilder::new(brick_name, brick_roles.into(), vec![])
+}
+
+/// Start building a prototype with face scalings
+pub fn proto_scaled<const N: usize, const M: usize>(
+    brick_name: BrickName,
+    brick_roles: [BrickRole; N],
+    scale_modes: [ScaleMode; M],
+) -> ProtoBuilder {
+    ProtoBuilder::new(brick_name, brick_roles.into(), scale_modes.into())
 }
 
 /// Create a pull interval (cable) definition
@@ -338,5 +381,6 @@ pub fn face(spin: Spin, joints: [JointName; 3], aliases: impl Into<Vec<FaceAlias
         spin,
         joints,
         aliases: aliases.into(),
+        scale_overrides: vec![],
     }
 }

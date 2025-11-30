@@ -31,6 +31,33 @@ impl Fabric {
     }
 }
 
+/// Named scaling schemes for face size variations
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum ScaleMode {
+    None,        // Use default 1.0 for all faces
+    Tetrahedral, // Tetrahedral variant (4 large + 4 small faces)
+}
+
+impl ScaleMode {
+    /// The ratio between large and small faces (large/small = ratio)
+    pub fn ratio(self) -> f32 {
+        match self {
+            ScaleMode::None => 1.0,
+            ScaleMode::Tetrahedral => 3.0,
+        }
+    }
+
+    /// Scale factor for large faces (√ratio)
+    pub fn large(self) -> f32 {
+        self.ratio().sqrt()
+    }
+
+    /// Scale factor for small faces (1/√ratio)
+    pub fn small(self) -> f32 {
+        1.0 / self.ratio().sqrt()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct FaceAlias {
     pub brick_role: BrickRole,

@@ -33,7 +33,7 @@ pub fn get_prototype(brick_name: BrickName) -> BrickPrototype {
                 pull_length: 2.0,
             }))
             .clone(),
-        BrickName::OmniBrick => OMNI_PROTO
+        BrickName::OmniBrick | BrickName::OmniTetrahedral => OMNI_PROTO
             .get_or_init(|| omni(&OmniParams {
                 push_lengths: Vector3::new(3.271, 3.271, 3.271),
             }))
