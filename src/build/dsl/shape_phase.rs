@@ -13,7 +13,7 @@ use std::cmp::Ordering;
 
 const DEFAULT_ADD_SHAPER_COUNTDOWN: Seconds = Seconds(25.0);
 const DEFAULT_VULCANIZE_COUNTDOWN: Seconds = Seconds(5.0);
-const DEFAULT_JOINER_COUNTDOWN: Seconds = Seconds(30.0);
+const DEFAULT_JOINER_COUNTDOWN: Seconds = Seconds(3.0);
 
 #[derive(Debug)]
 pub enum ShapeCommand {

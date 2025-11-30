@@ -22,9 +22,9 @@ pub fn fabric(name: impl Into<String>) -> FabricBuilder {
         build: None,
         shape: Vec::new(),
         pretense: PretensePhaseBuilder::default(),
-        converge: None,
+        converge: Seconds(10.0),
         animate: None,
-        scale: Millimeters(1.0),
+        scale: Millimeters(1000.0),
     }
 }
 
@@ -33,7 +33,7 @@ pub struct FabricBuilder {
     build: Option<BuildNode>,
     shape: Vec<ShapeOperation>,
     pretense: PretensePhaseBuilder,
-    converge: Option<Seconds>,
+    converge: Seconds,
     animate: Option<AnimatePhase>,
     scale: Millimeters,
 }
@@ -55,7 +55,7 @@ impl FabricBuilder {
     }
 
     pub fn converge(mut self, seconds: Seconds) -> Self {
-        self.converge = Some(seconds);
+        self.converge = seconds;
         self
     }
 
@@ -91,7 +91,7 @@ impl FabricBuilder {
                 shape_operation_index: 0,
             },
             pretense_phase: self.pretense.build(),
-            converge_phase: self.converge.map(|seconds| ConvergePhase { seconds }),
+            converge_phase: ConvergePhase { seconds: self.converge },
             animate_phase: self.animate,
             scale: self.scale.0,
         }

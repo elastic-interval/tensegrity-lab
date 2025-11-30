@@ -42,7 +42,7 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         Spin::Left,
         [TopOmegaX, TopAlphaY, BotOmegaZ],
         [
-            OnSpinLeft.calls_it(OmniTopX),
+            OnSpinLeft.calls_it(OmniBotX),
             OnSpinRight.calls_it(OmniBotX),
             Seed(4).calls_it(RightFrontBottom),
             Seed(4).downwards(),
@@ -54,7 +54,7 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         Spin::Left,
         [TopOmegaY, TopAlphaZ, BotOmegaX],
         [
-            OnSpinLeft.calls_it(OmniTopY),
+            OnSpinLeft.calls_it(OmniBotY),
             OnSpinRight.calls_it(OmniBotY),
             Seed(4).calls_it(RightBackTop),
             Seed(1).calls_it(OmniTopY),
@@ -65,7 +65,7 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         Spin::Left,
         [TopOmegaZ, TopAlphaX, BotOmegaY],
         [
-            OnSpinLeft.calls_it(OmniTopZ),
+            OnSpinLeft.calls_it(OmniBotZ),
             OnSpinRight.calls_it(OmniBotZ),
             Seed(4).calls_it(LeftFrontTop),
             Seed(1).calls_it(OmniTopZ),
@@ -76,7 +76,7 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         Spin::Right,
         [BotAlphaZ, BotOmegaX, TopAlphaY],
         [
-            OnSpinLeft.calls_it(OmniBotZ),
+            OnSpinLeft.calls_it(OmniTopZ),
             OnSpinRight.calls_it(OmniTopZ),
             Seed(4).calls_it(RightBackBottom),
             Seed(4).downwards(),
@@ -88,7 +88,7 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         Spin::Right,
         [BotAlphaY, BotOmegaZ, TopAlphaX],
         [
-            OnSpinLeft.calls_it(OmniBotY),
+            OnSpinLeft.calls_it(OmniTopY),
             OnSpinRight.calls_it(OmniTopY),
             Seed(4).calls_it(LeftFrontBottom),
             Seed(4).downwards(),
@@ -100,7 +100,7 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         Spin::Right,
         [BotAlphaX, BotOmegaY, TopAlphaZ],
         [
-            OnSpinLeft.calls_it(OmniBotX),
+            OnSpinLeft.calls_it(OmniTopX),
             OnSpinRight.calls_it(OmniTopX),
             Seed(4).calls_it(LeftBackTop),
             Seed(1).calls_it(OmniBotX),
