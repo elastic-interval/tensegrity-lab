@@ -1,4 +1,4 @@
-use crate::build::dsl::brick_dsl::BrickName::OmniBrick;
+use crate::build::dsl::brick_dsl::BrickName::OmniSymmetrical;
 use crate::build::dsl::brick_dsl::BrickRole::{OnSpinLeft, OnSpinRight};
 use crate::build::dsl::brick_dsl::MarkName;
 use crate::build::dsl::shape_phase::ShapeCommand::*;
@@ -158,7 +158,7 @@ impl ShapePhase {
                             Spin::Left => OnSpinLeft,
                             Spin::Right => OnSpinRight,
                         };
-                        let brick = brick_library::get_brick(OmniBrick, brick_role);
+                        let brick = brick_library::get_brick(OmniSymmetrical, brick_role);
                         let (_, brick_faces) = fabric.attach_brick(
                             &brick,
                             brick_role,

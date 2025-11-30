@@ -41,11 +41,11 @@ pub fn material_name(material: Material) -> &'static str {
 /// Brick type names
 #[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash, clap::ValueEnum, strum::EnumIter)]
 pub enum BrickName {
-    SingleLeftBrick,
-    SingleRightBrick,
-    OmniBrick,
+    SingleTwistLeft,
+    SingleTwistRight,
+    OmniSymmetrical,
     OmniTetrahedral,
-    TorqueBrick,
+    TorqueSymmetrical,
 }
 
 impl BrickName {
@@ -292,13 +292,13 @@ impl ProtoBuilder {
         self
     }
 
-    pub fn face<const N: usize>(
+    pub fn face<const N: usize, const M: usize>(
         mut self,
         spin: Spin,
         joints: [JointName; 3],
         aliases: [FaceAlias; N],
+        scale_overrides: [(ScaleMode, f32); M],
     ) -> Self {
-        // Check that all aliases only use roles declared in brick_roles
         for alias in &aliases {
             if !self.brick_roles.contains(&alias.brick_role) {
                 panic!(
@@ -307,29 +307,20 @@ impl ProtoBuilder {
                 );
             }
         }
-
+        for (mode, _) in &scale_overrides {
+            if !self.scale_modes.contains(mode) {
+                panic!(
+                    "Face uses scaling {:?} which is not declared in scale_modes {:?}",
+                    mode, self.scale_modes
+                );
+            }
+        }
         self.faces.push(FaceDef {
             spin,
             joints,
             aliases: aliases.into(),
-            scale_overrides: vec![],
+            scale_overrides: scale_overrides.into(),
         });
-        self
-    }
-
-    /// Add a scale override for the most recently added face
-    pub fn with_scale(mut self, scaling: ScaleMode, scale: f32) -> Self {
-        if !self.scale_modes.contains(&scaling) {
-            panic!(
-                "Face uses scaling {:?} which is not declared in scale_modes {:?}",
-                scaling, self.scale_modes
-            );
-        }
-        if let Some(face) = self.faces.last_mut() {
-            face.scale_overrides.push((scaling, scale));
-        } else {
-            panic!("with_scale called before any face was added");
-        }
         self
     }
 

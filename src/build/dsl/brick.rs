@@ -95,7 +95,7 @@ impl BrickPrototype {
     }
 
     /// Derive baked faces from the prototype
-    pub fn derive_baked_faces(&self) -> Vec<BrickFace> {
+    pub fn derive_baked_faces(&self, scale_mode: ScaleMode) -> Vec<BrickFace> {
         let mut joint_map = HashMap::new();
 
         for (idx, joint_name) in self.joints.iter().enumerate() {
@@ -122,6 +122,7 @@ impl BrickPrototype {
                     spin: face_def.spin,
                     joints,
                     aliases: face_def.aliases.clone(),
+                    scale: face_def.scale_for(scale_mode),
                 }
             })
             .collect()
@@ -198,6 +199,7 @@ pub struct BrickFace {
     pub joints: [usize; 3],
     pub aliases: Vec<FaceAlias>,
     pub spin: Spin,
+    pub scale: f32,
 }
 
 impl BrickFace {
