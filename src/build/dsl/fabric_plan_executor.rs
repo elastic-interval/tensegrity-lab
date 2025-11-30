@@ -219,12 +219,7 @@ impl FabricPlanExecutor {
             ExecutorStage::Pretensing => {
                 // Check if pretension is complete (progress is no longer busy)
                 if !self.fabric.progress.is_busy() {
-                    // Pretension complete - check if we should transition to converge
-                    if self.plan.converge_phase.is_some() {
-                        self.transition_to_converge();
-                    } else {
-                        self.complete();
-                    }
+                    self.transition_to_converge();
                 }
             }
             ExecutorStage::Converging => {
@@ -333,50 +328,44 @@ impl FabricPlanExecutor {
     }
 
     fn transition_to_converge(&mut self) {
-        if self.plan.converge_phase.is_some() {
-            self.log_event(ExecutionEvent::StageTransition {
-                iteration: self.current_iteration,
-                from: "PRETENSE".to_string(),
-                to: "CONVERGE".to_string(),
-            });
+        self.log_event(ExecutionEvent::StageTransition {
+            iteration: self.current_iteration,
+            from: "PRETENSE".to_string(),
+            to: "CONVERGE".to_string(),
+        });
 
-            // Preserve user's scaling tweaks before switching physics
-            let mass_scale = self.physics.mass_scale();
-            let rigidity_scale = self.physics.rigidity_scale();
+        // Preserve user's scaling tweaks before switching physics
+        let mass_scale = self.physics.mass_scale();
+        let rigidity_scale = self.physics.rigidity_scale();
 
-            // Switch to BASE_PHYSICS for convergence (lower drag allows visible falling)
-            use crate::fabric::physics::presets::BASE_PHYSICS;
-            self.physics = BASE_PHYSICS;
+        // Switch to BASE_PHYSICS for convergence (lower drag allows visible falling)
+        use crate::fabric::physics::presets::BASE_PHYSICS;
+        self.physics = BASE_PHYSICS;
 
-            // NOW apply the surface_character stored during PRETENSE
-            // This is when gravity should appear!
-            if let Some(surface) = self.stored_surface_character {
-                self.physics.surface_character = surface;
-            }
-
-            // Restore user's scaling tweaks
-            use crate::TweakFeature::*;
-            self.physics.accept_tweak(MassScale.parameter(mass_scale));
-            self.physics.accept_tweak(RigidityScale.parameter(rigidity_scale));
-
-            // Enable convergence mode (gradually increases damping over time)
-            self.physics.enable_convergence();
-
-            self.log_event(ExecutionEvent::PhysicsChanged {
-                iteration: self.current_iteration,
-                description: "CONVERGING".to_string(),
-            });
-
-            // Start progress tracking for convergence duration
-            let converge_phase = self.plan.converge_phase.as_ref().unwrap();
-            self.fabric.progress.start(converge_phase.seconds);
-
-            self.pretenser = None; // No longer needed
-            self.stage = ExecutorStage::Converging;
-        } else {
-            // No converge phase - go directly to Complete
-            self.complete();
+        // NOW apply the surface_character stored during PRETENSE
+        // This is when gravity should appear!
+        if let Some(surface) = self.stored_surface_character {
+            self.physics.surface_character = surface;
         }
+
+        // Restore user's scaling tweaks
+        use crate::TweakFeature::*;
+        self.physics.accept_tweak(MassScale.parameter(mass_scale));
+        self.physics.accept_tweak(RigidityScale.parameter(rigidity_scale));
+
+        // Enable convergence mode (gradually increases damping over time)
+        self.physics.enable_convergence();
+
+        self.log_event(ExecutionEvent::PhysicsChanged {
+            iteration: self.current_iteration,
+            description: "CONVERGING".to_string(),
+        });
+
+        // Start progress tracking for convergence duration
+        self.fabric.progress.start(self.plan.converge_phase.seconds);
+
+        self.pretenser = None; // No longer needed
+        self.stage = ExecutorStage::Converging;
     }
 
     fn complete(&mut self) {

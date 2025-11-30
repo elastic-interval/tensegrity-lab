@@ -12,7 +12,7 @@ pub struct FabricPlan {
     pub build_phase: BuildPhase,
     pub shape_phase: ShapePhase,
     pub pretense_phase: PretensePhase,
-    pub converge_phase: Option<ConvergePhase>,
+    pub converge_phase: ConvergePhase,
     pub animate_phase: Option<AnimatePhase>,
     pub scale: f32,
 }

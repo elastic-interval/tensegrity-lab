@@ -207,12 +207,8 @@ impl BuildPhase {
             });
         } else if !nodes.is_empty() {
             for child_node in &nodes {
-                let (node_buds, node_marks) = Self::execute_node(
-                    fabric,
-                    IdentifiedFace(face_id),
-                    child_node,
-                    vec![],
-                );
+                let (node_buds, node_marks) =
+                    Self::execute_node(fabric, IdentifiedFace(face_id), child_node, vec![]);
                 buds.extend(node_buds);
                 marks.extend(node_marks);
             }
@@ -231,12 +227,7 @@ impl BuildPhase {
         match node {
             Face { alias, node } => {
                 let build_node = node.as_ref();
-                return Self::execute_node(
-                    fabric,
-                    NamedFace(alias.clone()),
-                    build_node,
-                    faces,
-                );
+                return Self::execute_node(fabric, NamedFace(alias.clone()), build_node, faces);
             }
             Grow {
                 style,
@@ -272,15 +263,23 @@ impl BuildPhase {
                     *scale_factor,
                     base_face,
                 );
-                if let Some(face_id) = launch_face {
-                    fabric.join_faces(base_face_id, face_id)
-                }
+                // Filter out base_face_id only if it was deleted by join_faces
+                let available_faces: Vec<_> = if let Some(face_id) = launch_face {
+                    fabric.join_faces(base_face_id, face_id);
+                    brick_faces
+                        .iter()
+                        .copied()
+                        .filter(|&f| f != base_face_id)
+                        .collect()
+                } else {
+                    brick_faces.clone()
+                };
                 for (branch_face_alias, branch_node) in Self::branch_pairs(face_nodes) {
                     let (new_buds, new_marks) = Self::execute_node(
                         fabric,
                         NamedFace(branch_face_alias),
                         branch_node,
-                        brick_faces.clone(),
+                        available_faces.clone(),
                     );
                     buds.extend(new_buds);
                     marks.extend(new_marks);

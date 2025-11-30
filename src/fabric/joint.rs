@@ -105,13 +105,6 @@ impl Joint {
             self.velocity +=
                 (self.force / mass / scale) * dt - self.velocity * speed_squared * viscosity * dt;
             self.velocity *= 1.0 - drag * dt;
-
-            // Clamp velocity to prevent numerical instability
-            const MAX_VELOCITY: f32 = 100.0; // internal_unit/s
-            let speed = self.velocity.magnitude();
-            if speed > MAX_VELOCITY {
-                self.velocity *= MAX_VELOCITY / speed;
-            }
         } else {
             let depth = -altitude;
             let degree_submerged: f32 = depth.min(1.0); // Clamp to [0, 1]

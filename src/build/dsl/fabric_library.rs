@@ -23,7 +23,6 @@ pub enum FabricName {
     HeadlessHug,
 }
 
-/// Build the Triped fabric
 pub fn triped() -> FabricPlan {
     fabric("Triped")
         .build(
@@ -57,7 +56,32 @@ pub fn triped() -> FabricPlan {
         .build_plan()
 }
 
-/// Build the Vertebra fabric
+pub fn halo_by_crane() -> FabricPlan {
+    fabric("Halo by Crane")
+        .build(
+            branching(SingleTwistLeft, Seed(1))
+                .on_face(
+                    SingleTop,
+                    growing(4)
+                        .scale(0.92)
+                        .build_node(
+                            branching(OmniSymmetrical, OnSpinLeft)
+                                .on_face(OmniTopX, growing(12).scale(0.92).mark(HaloEnd).build())
+                                .on_face(OmniTopY, growing(11).scale(0.92).mark(HaloEnd).build())
+                                .build(),
+                        )
+                        .build(),
+                )
+                .build(),
+        )
+        .shape([
+            during(Sec(10.0), [join(HaloEnd)]),
+            during(Sec(5.0), [vulcanize()]),
+        ])
+        .pretense(pretense(Sec(10.0)).surface(SurfaceCharacter::Frozen))
+        .build_plan()
+}
+
 pub fn vertebra() -> FabricPlan {
     fabric("Vertebra")
         .build(
@@ -71,7 +95,6 @@ pub fn vertebra() -> FabricPlan {
         .build_plan()
 }
 
-/// Build the Flagellum fabric
 pub fn flagellum() -> FabricPlan {
     fabric("Flagellum")
         .build(
@@ -84,7 +107,6 @@ pub fn flagellum() -> FabricPlan {
         .build_plan()
 }
 
-/// Build the Cigar fabric
 pub fn cigar() -> FabricPlan {
     fabric("Cigar")
         .build(
@@ -99,31 +121,6 @@ pub fn cigar() -> FabricPlan {
         .build_plan()
 }
 
-/// Build the Halo by Crane fabric
-pub fn halo_by_crane() -> FabricPlan {
-    fabric("Halo by Crane")
-        .build(
-            branching(SingleTwistLeft, Seed(1))
-                .on_face(
-                    SingleTop,
-                    growing(4)
-                        .scale(0.92)
-                        .build_node(
-                            branching(OmniSymmetrical, OnSpinRight)
-                                .on_face(OmniTopX, growing(12).scale(0.92).mark(HaloEnd).build())
-                                .on_face(OmniTopY, growing(11).scale(0.92).mark(HaloEnd).build())
-                                .build(),
-                        )
-                        .build(),
-                )
-                .build(),
-        )
-        .shape([join(HaloEnd), vulcanize()])
-        .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Frozen))
-        .build_plan()
-}
-
-/// Build the Headless Hug fabric
 pub fn headless_hug() -> FabricPlan {
     fabric("Headless Hug")
         .build(
