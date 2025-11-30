@@ -92,9 +92,10 @@ impl Oven {
     }
 
     pub fn create_fresh_fabric(&self) -> Fabric {
-        let prototype = brick_library::get_prototype(self.current_brick_name());
+        let brick_name = self.current_brick_name();
+        let prototype = brick_library::get_prototype(brick_name);
         let scaled = Self::scale_prototype(&prototype, self.tuning.scale);
-        Fabric::from(scaled)
+        scaled.to_fabric(brick_name.face_scaling())
     }
 
     fn scale_prototype(proto: &BrickPrototype, scale: f32) -> BrickPrototype {
@@ -134,7 +135,11 @@ impl Oven {
     /// Send the appropriate stage label based on baked state
     pub fn send_stage_label(&self) {
         let label = if self.current_is_baked() {
-            if self.all_baked() { "All Baked" } else { "Baked" }
+            if self.all_baked() {
+                "All Baked"
+            } else {
+                "Baked"
+            }
         } else {
             "Baking"
         };
@@ -233,7 +238,8 @@ impl Oven {
             if let Some(next_index) = self.next_unbaked_index() {
                 self.current_index = next_index;
                 self.reoriented = false;
-                self.tuning = TuningState::new(brick_library::get_scale(self.brick_names[next_index]));
+                self.tuning =
+                    TuningState::new(brick_library::get_scale(self.brick_names[next_index]));
                 self.send_name_and_label();
                 StateChange::RestartApproach.send(&self.radio);
                 return Some(self.create_fresh_fabric());
@@ -277,7 +283,10 @@ impl Oven {
             .filter(|inc| !face_joints.contains(&inc.index))
             .map(|inc| {
                 let loc = inc.location;
-                format!("            joint({:.4}, {:.4}, {:.4}),", loc.x, loc.y, loc.z)
+                format!(
+                    "            joint({:.5}, {:.5}, {:.5}),",
+                    loc.x, loc.y, loc.z
+                )
             })
             .collect();
 
@@ -293,9 +302,15 @@ impl Oven {
             let omega = fabric_to_baked.get(&interval.omega_index);
             if let (Some(&a), Some(&o)) = (alpha, omega) {
                 if interval.role == Role::Pushing {
-                    pushes.push(format!("            push({}, {}, {:.4}),", a, o, interval.strain));
+                    pushes.push(format!(
+                        "            push({}, {}, {:.5}),",
+                        a, o, interval.strain
+                    ));
                 } else {
-                    pulls.push(format!("            pull({}, {}, {:.4}),", a, o, interval.strain));
+                    pulls.push(format!(
+                        "            pull({}, {}, {:.5}),",
+                        a, o, interval.strain
+                    ));
                 }
             }
         }
@@ -305,7 +320,7 @@ impl Oven {
         intervals.extend(pulls);
 
         format!(
-            "        scale: {:.4},
+            "        scale: {:.5},
         joints: vec![
 {}
         ],
@@ -323,6 +338,7 @@ impl Oven {
             BrickName::SingleLeftBrick => "single_left_baked",
             BrickName::SingleRightBrick => "single_right_baked",
             BrickName::OmniBrick => "omni_baked",
+            BrickName::OmniTetrahedral => "omni_tetrahedral_baked",
             BrickName::TorqueBrick => "torque_baked",
         }
     }
@@ -338,7 +354,8 @@ impl Oven {
         };
 
         let func_name = Self::function_name(brick_name);
-        let Some(new_source) = Self::substitute_baked_section(&source, func_name, baked_code) else {
+        let Some(new_source) = Self::substitute_baked_section(&source, func_name, baked_code)
+        else {
             eprintln!("Failed to find {} in {}", func_name, BAKED_BRICKS_PATH);
             return;
         };
@@ -352,7 +369,11 @@ impl Oven {
     #[cfg(target_arch = "wasm32")]
     fn export_brick(&self, _brick_name: BrickName, _baked_code: &str) {}
 
-    fn substitute_baked_section(source: &str, func_name: &str, replacement: &str) -> Option<String> {
+    fn substitute_baked_section(
+        source: &str,
+        func_name: &str,
+        replacement: &str,
+    ) -> Option<String> {
         // Find the function
         let func_start = source.find(&format!("fn {}()", func_name))?;
 
