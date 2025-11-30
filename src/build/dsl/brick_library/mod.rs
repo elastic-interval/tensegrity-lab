@@ -21,24 +21,24 @@ static TORQUE_PROTO: OnceLock<BrickPrototype> = OnceLock::new();
 
 pub fn get_prototype(brick_name: BrickName) -> BrickPrototype {
     match brick_name {
-        BrickName::SingleLeftBrick => SINGLE_LEFT_PROTO
+        BrickName::SingleTwistLeft => SINGLE_LEFT_PROTO
             .get_or_init(|| single_left(&SingleParams {
                 push_lengths: Vector3::new(3.204, 3.204, 3.204),
                 pull_length: 2.0,
             }))
             .clone(),
-        BrickName::SingleRightBrick => SINGLE_RIGHT_PROTO
+        BrickName::SingleTwistRight => SINGLE_RIGHT_PROTO
             .get_or_init(|| single_right(&SingleParams {
                 push_lengths: Vector3::new(3.204, 3.204, 3.204),
                 pull_length: 2.0,
             }))
             .clone(),
-        BrickName::OmniBrick | BrickName::OmniTetrahedral => OMNI_PROTO
+        BrickName::OmniSymmetrical | BrickName::OmniTetrahedral => OMNI_PROTO
             .get_or_init(|| omni(&OmniParams {
                 push_lengths: Vector3::new(3.271, 3.271, 3.271),
             }))
             .clone(),
-        BrickName::TorqueBrick => TORQUE_PROTO
+        BrickName::TorqueSymmetrical => TORQUE_PROTO
             .get_or_init(|| torque(&TorqueParams {
                 push_lengths: Vector3::new(3.0, 3.0, 6.0),
                 pull_length: 1.86,

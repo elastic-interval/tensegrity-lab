@@ -335,35 +335,23 @@ impl Oven {
 
     fn function_name(brick_name: BrickName) -> &'static str {
         match brick_name {
-            BrickName::SingleLeftBrick => "single_left_baked",
-            BrickName::SingleRightBrick => "single_right_baked",
-            BrickName::OmniBrick => "omni_baked",
+            BrickName::SingleTwistLeft => "single_twist_left_baked",
+            BrickName::SingleTwistRight => "single_twist_right_baked",
+            BrickName::OmniSymmetrical => "omni_symmetrical_baked",
             BrickName::OmniTetrahedral => "omni_tetrahedral_baked",
-            BrickName::TorqueBrick => "torque_baked",
+            BrickName::TorqueSymmetrical => "torque_symmetrical_baked",
         }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     fn export_brick(&self, brick_name: BrickName, baked_code: &str) {
-        let source = match std::fs::read_to_string(BAKED_BRICKS_PATH) {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("Failed to read {}: {}", BAKED_BRICKS_PATH, e);
-                return;
-            }
-        };
-
+        let source = std::fs::read_to_string(BAKED_BRICKS_PATH)
+            .expect("Failed to read baked_bricks.rs");
         let func_name = Self::function_name(brick_name);
-        let Some(new_source) = Self::substitute_baked_section(&source, func_name, baked_code)
-        else {
-            eprintln!("Failed to find {} in {}", func_name, BAKED_BRICKS_PATH);
-            return;
-        };
-
-        match std::fs::write(BAKED_BRICKS_PATH, &new_source) {
-            Ok(_) => println!("=== Updated {} in {} ===", func_name, BAKED_BRICKS_PATH),
-            Err(e) => eprintln!("Failed to write {}: {}", BAKED_BRICKS_PATH, e),
-        }
+        let new_source = Self::substitute_baked_section(&source, func_name, baked_code)
+            .expect(&format!("Failed to find {} in baked_bricks.rs", func_name));
+        std::fs::write(BAKED_BRICKS_PATH, &new_source)
+            .expect("Failed to write baked_bricks.rs");
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -374,21 +362,20 @@ impl Oven {
         func_name: &str,
         replacement: &str,
     ) -> Option<String> {
-        // Find the function
         let func_start = source.find(&format!("fn {}()", func_name))?;
-
-        // Find "scale:" after the function start
         let after_func = &source[func_start..];
         let scale_offset = after_func.find("scale:")?;
         let scale_start = func_start + scale_offset;
 
-        // Find the closing of intervals vec ("],") followed by faces
+        // Back up to start of line (after newline)
+        let line_start = source[..scale_start].rfind('\n').map(|i| i + 1).unwrap_or(0);
+
         let after_scale = &source[scale_start..];
         let faces_offset = after_scale.find("faces:")?;
         let faces_start = scale_start + faces_offset;
 
         let mut new_source = String::with_capacity(source.len());
-        new_source.push_str(&source[..scale_start]);
+        new_source.push_str(&source[..line_start]);
         new_source.push_str(replacement);
         new_source.push_str("\n        ");
         new_source.push_str(&source[faces_start..]);

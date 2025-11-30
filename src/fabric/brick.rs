@@ -27,7 +27,7 @@ impl Fabric {
         scale_factor: f32,
         base_face: BaseFace,
     ) -> (UniqueId, Vec<UniqueId>) {
-        let (scale, spin, matrix) = match base_face {
+        let (base_scale, spin, matrix) = match base_face {
             BaseFace::ExistingFace(id) => {
                 let face = self.face(id);
                 let matrix = face.vector_space(self, rotation);
@@ -64,6 +64,7 @@ impl Fabric {
                      joints: brick_joints,
                      aliases,
                      spin,
+                     scale,
                  }| {
                     let aliases_for_role: Vec<_> = aliases
                         .into_iter()
@@ -91,7 +92,7 @@ impl Fabric {
                         let ideal = self.ideal(alpha_index, omega_index, BakedBrick::TARGET_FACE_STRAIN);
                         self.create_interval(alpha_index, omega_index, ideal, Role::FaceRadial)
                     });
-                    Some(self.create_face(aliases_for_role, scale, spin, radial_intervals))
+                    Some(self.create_face(aliases_for_role, base_scale * scale, spin, radial_intervals))
                 },
             )
             .collect::<Vec<_>>();

@@ -47,14 +47,14 @@ impl ScaleMode {
         }
     }
 
-    /// Scale factor for large faces (√ratio)
-    pub fn large(self) -> f32 {
-        self.ratio().sqrt()
+    /// Scale override for large faces: (self, √ratio)
+    pub fn small(self) -> (ScaleMode, f32) {
+        (self, 1.0 / self.ratio().sqrt())
     }
 
-    /// Scale factor for small faces (1/√ratio)
-    pub fn small(self) -> f32 {
-        1.0 / self.ratio().sqrt()
+    /// Scale override for small faces: (self, 1/√ratio)
+    pub fn large(self) -> (ScaleMode, f32) {
+        (self, self.ratio().sqrt())
     }
 }
 

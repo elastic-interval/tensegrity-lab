@@ -9,7 +9,7 @@ pub fn single_left(params: &SingleParams) -> BrickPrototype {
     use FaceName::*;
     use JointName::*;
 
-    proto(SingleLeftBrick, [Seed(1), OnSpinLeft])
+    proto(SingleTwistLeft, [Seed(1), OnSpinLeft])
         .pushes_x(params.push_lengths.x, [(AlphaX, OmegaX)])
         .pushes_y(params.push_lengths.y, [(AlphaY, OmegaY)])
         .pushes_z(params.push_lengths.z, [(AlphaZ, OmegaZ)])
@@ -22,6 +22,7 @@ pub fn single_left(params: &SingleParams) -> BrickPrototype {
                 Seed(1).calls_it(SingleBot),
                 Seed(1).downwards(),
             ],
+            [],
         )
         .face(
             Spin::Left,
@@ -31,6 +32,7 @@ pub fn single_left(params: &SingleParams) -> BrickPrototype {
                 OnSpinLeft.calls_it(AttachNext),
                 Seed(1).calls_it(SingleTop),
             ],
+            [],
         )
         .build()
 }

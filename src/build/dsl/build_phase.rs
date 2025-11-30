@@ -175,8 +175,8 @@ impl BuildPhase {
                 face.spin
             };
             let (brick_name, brick_role) = match spin {
-                Spin::Left => (BrickName::SingleLeftBrick, BrickRole::OnSpinLeft),
-                Spin::Right => (BrickName::SingleRightBrick, BrickRole::OnSpinRight),
+                Spin::Left => (BrickName::SingleTwistLeft, BrickRole::OnSpinLeft),
+                Spin::Right => (BrickName::SingleTwistRight, BrickRole::OnSpinRight),
             };
             let brick = brick_library::get_brick(brick_name, brick_role);
             let (base_face, brick_faces) = fabric.attach_brick(
