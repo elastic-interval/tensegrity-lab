@@ -173,6 +173,13 @@ impl Keyboard {
             RebuildFabric,
             Box::new(|state| !matches!(state, Baking)),
         );
+        #[cfg(not(target_arch = "wasm32"))]
+        self.key_lab_event(
+            KeyCode::KeyM,
+            "Movie",
+            ToggleAnimationExport,
+            Box::new(|state| matches!(state, Viewing { .. } | Animating)),
+        );
         self
     }
 

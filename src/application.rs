@@ -33,6 +33,8 @@ pub struct Application {
     pointer_handler: PointerHandler,
     #[cfg(not(target_arch = "wasm32"))]
     machine: Option<crate::cord_machine::CordMachine>,
+    #[cfg(not(target_arch = "wasm32"))]
+    animation_exporter: crate::animation_exporter::AnimationExporter,
 }
 
 impl Application {
@@ -59,6 +61,12 @@ impl Application {
             control_state: ControlState::Waiting,
             #[cfg(not(target_arch = "wasm32"))]
             machine: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            animation_exporter: crate::animation_exporter::AnimationExporter::new(
+                "animation_export",
+                30.0,  // 30 fps
+                10,    // capture every 10th iteration
+            ),
         }
     }
 
@@ -356,6 +364,23 @@ impl ApplicationHandler<LabEvent> for Application {
                     scene.pointer_changed(pointer_change, &self.crucible.fabric);
                 }
             }
+            #[cfg(not(target_arch = "wasm32"))]
+            ToggleAnimationExport => {
+                match self.animation_exporter.toggle() {
+                    Ok(is_enabled) => {
+                        let label = if is_enabled {
+                            "Recording...".to_string()
+                        } else {
+                            format!("Saved {} frames", self.animation_exporter.frame_count())
+                        };
+                        StateChange::SetStageLabel(label).send(&self.radio);
+                    }
+                    Err(e) => {
+                        eprintln!("Animation export error: {}", e);
+                        StateChange::SetStageLabel("Export error".to_string()).send(&self.radio);
+                    }
+                }
+            }
         }
     }
 
@@ -502,6 +527,19 @@ impl ApplicationHandler<LabEvent> for Application {
                 };
 
                 self.crucible.iterate(iterations_per_frame);
+
+                // Capture frame for animation export if enabled
+                #[cfg(not(target_arch = "wasm32"))]
+                if self.animation_exporter.is_enabled() {
+                    if let Some(scene) = &self.scene {
+                        let (camera_pos, camera_target) = scene.export_view();
+                        let _ = self.animation_exporter.capture_frame(
+                            &self.crucible.fabric,
+                            Some(camera_pos),
+                            Some(camera_target),
+                        );
+                    }
+                }
             }
         }
 

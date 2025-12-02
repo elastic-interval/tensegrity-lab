@@ -12,6 +12,8 @@ use std::ops::Mul;
 use std::rc::Rc;
 use winit::dpi::PhysicalPosition;
 
+#[cfg(not(target_arch = "wasm32"))]
+pub mod animation_exporter;
 pub mod application;
 pub mod build;
 pub mod camera;
@@ -577,6 +579,8 @@ pub enum LabEvent {
     DumpCSV,
     RequestRedraw,
     PointerChanged(PointerChange),
+    #[cfg(not(target_arch = "wasm32"))]
+    ToggleAnimationExport,
 }
 
 pub type Radio = winit::event_loop::EventLoopProxy<LabEvent>;
