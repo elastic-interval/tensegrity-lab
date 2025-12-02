@@ -34,7 +34,7 @@ pub struct Application {
     #[cfg(not(target_arch = "wasm32"))]
     machine: Option<crate::cord_machine::CordMachine>,
     #[cfg(not(target_arch = "wasm32"))]
-    animation_exporter: crate::animation_exporter::AnimationExporter,
+    animation_exporter: crate::blender::AnimationExporter,
 }
 
 impl Application {
@@ -62,11 +62,7 @@ impl Application {
             #[cfg(not(target_arch = "wasm32"))]
             machine: None,
             #[cfg(not(target_arch = "wasm32"))]
-            animation_exporter: crate::animation_exporter::AnimationExporter::new(
-                "animation_export",
-                30.0,  // 30 fps
-                10,    // capture every 10th iteration
-            ),
+            animation_exporter: crate::blender::AnimationExporter::new("animation_export", 20.0),
         }
     }
 
