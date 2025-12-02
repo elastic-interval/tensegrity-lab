@@ -300,7 +300,7 @@ pub mod presets {
         tweak: Tweak::Construction(ConstructionTweak {
             drag: 0.0125,
             viscosity: 40.0,
-            time_contraction: 3.0,
+            time_contraction: 5.0,
         }),
     };
 

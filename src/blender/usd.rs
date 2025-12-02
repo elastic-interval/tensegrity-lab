@@ -58,10 +58,6 @@ impl Color3 {
     pub fn new(r: f32, g: f32, b: f32) -> Self {
         Self { r, g, b }
     }
-
-    pub fn gray(v: f32) -> Self {
-        Self::new(v, v, v)
-    }
 }
 
 impl Display for Color3 {

@@ -24,7 +24,7 @@ impl CameraRig {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
-            focal_length: 50.0,
+            focal_length: 25.0,
             horizontal_aperture: 36.0,
             vertical_aperture: 24.0,
             clipping_range: (0.1, 1000.0),

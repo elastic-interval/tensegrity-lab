@@ -213,48 +213,14 @@ impl Display for GroundPlane {
     }
 }
 
-pub struct SkyDome {
-    pub radius: f64,
-    pub material_binding: Option<String>,
-}
-
-impl SkyDome {
-    pub fn new(radius: f64) -> Self {
-        Self {
-            radius,
-            material_binding: None,
-        }
-    }
-
-    pub fn with_material(mut self, material_path: &str) -> Self {
-        self.material_binding = Some(material_path.to_string());
-        self
-    }
-}
-
-impl Display for SkyDome {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        writeln!(f, "    def Sphere \"SkyDome\"")?;
-        writeln!(f, "    {{")?;
-        writeln!(f, "        double radius = {}", self.radius)?;
-        if let Some(ref binding) = self.material_binding {
-            writeln!(f, "        rel material:binding = <{binding}>")?;
-        }
-        writeln!(f, "    }}")?;
-        Ok(())
-    }
-}
-
 pub struct Environment {
     pub ground: GroundPlane,
-    pub sky: SkyDome,
 }
 
 impl Environment {
     pub fn new() -> Self {
         Self {
             ground: GroundPlane::new(100.0).with_material("/Materials/GroundMaterial"),
-            sky: SkyDome::new(500.0).with_material("/Materials/SkyMaterial"),
         }
     }
 }
@@ -270,8 +236,6 @@ impl Display for Environment {
         writeln!(f, "def Xform \"Environment\"")?;
         writeln!(f, "{{")?;
         write!(f, "{}", self.ground)?;
-        writeln!(f)?;
-        write!(f, "{}", self.sky)?;
         writeln!(f, "}}")?;
         Ok(())
     }
