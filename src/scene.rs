@@ -269,4 +269,9 @@ impl Scene {
     pub fn needs_camera_init(&self) -> bool {
         !self.camera.is_initialized()
     }
+
+    /// Get camera view for export (position, look_at)
+    pub fn export_view(&self) -> (cgmath::Point3<f32>, cgmath::Point3<f32>) {
+        self.camera.export_view()
+    }
 }

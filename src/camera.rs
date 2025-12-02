@@ -102,6 +102,11 @@ impl Camera {
         self.initialized
     }
 
+    /// Get camera position and look-at target for export
+    pub fn export_view(&self) -> (Point3<f32>, Point3<f32>) {
+        (self.position, self.look_at)
+    }
+
     /// Toggle between perspective and orthogonal projection
     pub fn toggle_projection(&mut self) {
         self.projection_type = match self.projection_type {
