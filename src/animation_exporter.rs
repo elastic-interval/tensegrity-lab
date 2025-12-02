@@ -64,6 +64,10 @@ struct FrameData {
     joint_positions: Vec<Point3<f32>>,
     /// Interval endpoint indices (alpha, omega) - same across all frames
     interval_endpoints: Vec<(usize, usize, Role)>,
+    /// Camera position for this frame
+    camera_pos: Option<Point3<f32>>,
+    /// Camera look-at target for this frame
+    camera_target: Option<Point3<f32>>,
 }
 
 /// Manages the export of animation frames to USD format with time samples
@@ -172,6 +176,9 @@ impl AnimationExporter {
         output.push_str(&format!("    timeCodesPerSecond = {}\n", self.fps));
         output.push_str(&format!("    framesPerSecond = {}\n", self.fps));
         output.push_str(")\n\n");
+
+        // Add animated camera
+        self.write_camera(&mut output);
 
         output.push_str("def Xform \"Animation\" (\n");
         output.push_str("    kind = \"component\"\n");
@@ -309,6 +316,151 @@ impl AnimationExporter {
         Ok(output)
     }
 
+    /// Write environment elements (sky dome with clouds, grass ground plane)
+    fn write_environment(&self, output: &mut String) {
+        // Ground plane with grass material
+        output.push_str("def Xform \"Environment\"\n");
+        output.push_str("{\n");
+
+        // Large ground plane (100m x 100m)
+        output.push_str("    def Mesh \"Ground\"\n");
+        output.push_str("    {\n");
+        output.push_str("        int[] faceVertexCounts = [4]\n");
+        output.push_str("        int[] faceVertexIndices = [0, 1, 2, 3]\n");
+        output.push_str("        point3f[] points = [(-50, 0, -50), (50, 0, -50), (50, 0, 50), (-50, 0, 50)]\n");
+        output.push_str("        texCoord2f[] primvars:st = [(0, 0), (20, 0), (20, 20), (0, 20)] (\n");
+        output.push_str("            interpolation = \"vertex\"\n");
+        output.push_str("        )\n");
+        output.push_str("        rel material:binding = </Environment/Materials/GrassMaterial>\n");
+        output.push_str("    }\n\n");
+
+        // Sky dome (large inverted sphere)
+        output.push_str("    def Sphere \"SkyDome\"\n");
+        output.push_str("    {\n");
+        output.push_str("        double radius = 500\n");
+        output.push_str("        rel material:binding = </Environment/Materials/SkyMaterial>\n");
+        output.push_str("    }\n\n");
+
+        // Materials scope
+        output.push_str("    def Scope \"Materials\"\n");
+        output.push_str("    {\n");
+
+        // Grass material - green with slight variation
+        output.push_str("        def Material \"GrassMaterial\"\n");
+        output.push_str("        {\n");
+        output.push_str("            token outputs:surface.connect = </Environment/Materials/GrassMaterial/GrassShader.outputs:surface>\n");
+        output.push_str("            \n");
+        output.push_str("            def Shader \"GrassShader\"\n");
+        output.push_str("            {\n");
+        output.push_str("                uniform token info:id = \"UsdPreviewSurface\"\n");
+        // Grass green color
+        output.push_str("                color3f inputs:diffuseColor = (0.15, 0.45, 0.12)\n");
+        output.push_str("                float inputs:roughness = 0.9\n");
+        output.push_str("                float inputs:metallic = 0.0\n");
+        output.push_str("                token outputs:surface\n");
+        output.push_str("            }\n");
+        output.push_str("        }\n\n");
+
+        // Sky material - gradient from light blue to white (simulating clouds)
+        output.push_str("        def Material \"SkyMaterial\"\n");
+        output.push_str("        {\n");
+        output.push_str("            token outputs:surface.connect = </Environment/Materials/SkyMaterial/SkyShader.outputs:surface>\n");
+        output.push_str("            \n");
+        output.push_str("            def Shader \"SkyShader\"\n");
+        output.push_str("            {\n");
+        output.push_str("                uniform token info:id = \"UsdPreviewSurface\"\n");
+        // Light sky blue - partly cloudy feel
+        output.push_str("                color3f inputs:diffuseColor = (0.53, 0.73, 0.87)\n");
+        // Make it emissive so it glows like a sky
+        output.push_str("                color3f inputs:emissiveColor = (0.6, 0.78, 0.92)\n");
+        output.push_str("                float inputs:roughness = 1.0\n");
+        output.push_str("                float inputs:metallic = 0.0\n");
+        output.push_str("                token outputs:surface\n");
+        output.push_str("            }\n");
+        output.push_str("        }\n");
+
+        output.push_str("    }\n");  // Close Materials scope
+        output.push_str("}\n\n");     // Close Environment xform
+
+        // Add a sun light for better illumination
+        output.push_str("def DistantLight \"Sun\"\n");
+        output.push_str("{\n");
+        output.push_str("    float inputs:angle = 0.53\n");  // Sun's angular diameter
+        output.push_str("    color3f inputs:color = (1.0, 0.98, 0.95)\n");  // Warm white
+        output.push_str("    float inputs:intensity = 5000\n");
+        // Position sun at an angle (morning/afternoon feel)
+        output.push_str("    float3 xformOp:rotateXYZ = (-45, 30, 0)\n");
+        output.push_str("    uniform token[] xformOpOrder = [\"xformOp:rotateXYZ\"]\n");
+        output.push_str("}\n\n");
+    }
+
+    /// Write animated camera with time-sampled look-at transform
+    fn write_camera(&self, output: &mut String) {
+        // Check if we have camera data
+        let has_camera = self.frames.iter().any(|f| f.camera_pos.is_some());
+        if !has_camera {
+            return;
+        }
+
+        let export_scale = self.scale / 1000.0;
+
+        output.push_str("def Camera \"Camera\"\n");
+        output.push_str("{\n");
+        output.push_str("    float focalLength = 50.0\n");
+        output.push_str("    float horizontalAperture = 36.0\n");
+        output.push_str("    float verticalAperture = 24.0\n");
+        output.push_str("    float2 clippingRange = (0.1, 1000.0)\n");
+
+        // Build time-sampled transform
+        let mut frames_str = String::new();
+        frames_str.push_str("{\n");
+
+        let mut first = true;
+        for (frame_num, frame) in self.frames.iter().enumerate() {
+            if let (Some(pos), Some(target)) = (frame.camera_pos, frame.camera_target) {
+                let pos = pos * export_scale;
+                let target = target * export_scale;
+
+                // Build look-at matrix
+                let forward = (target - pos).normalize();
+                let world_up = Vector3::new(0.0f32, 1.0, 0.0);
+                let right = forward.cross(world_up).normalize();
+                let up = right.cross(forward).normalize();
+
+                // Camera in USD/Blender looks down -Z, so we need to adjust
+                // The matrix transforms from camera space to world space
+                // Camera's local -Z should point at target (forward direction)
+                // So we use: X = right, Y = up, Z = -forward
+                let neg_forward = -forward;
+
+                // Build 4x4 matrix (row-vector convention)
+                // Row 0: right (X axis)
+                // Row 1: up (Y axis)
+                // Row 2: -forward (Z axis, camera looks down -Z)
+                // Row 3: position
+                if !first {
+                    frames_str.push_str(",\n");
+                }
+                first = false;
+
+                frames_str.push_str(&format!(
+                    "        {}: ( ({:.6}, {:.6}, {:.6}, 0), ({:.6}, {:.6}, {:.6}, 0), ({:.6}, {:.6}, {:.6}, 0), ({:.6}, {:.6}, {:.6}, 1) )",
+                    frame_num,
+                    right.x, right.y, right.z,
+                    up.x, up.y, up.z,
+                    neg_forward.x, neg_forward.y, neg_forward.z,
+                    pos.x, pos.y, pos.z
+                ));
+            }
+        }
+
+        frames_str.push_str("\n    }");
+
+        output.push_str(&format!("    matrix4d xformOp:transform.timeSamples = {}\n", frames_str));
+        output.push_str("    uniform token[] xformOpOrder = [\"xformOp:transform\"]\n");
+        output.push_str("}\n\n");
+    }
+
     /// Build time samples for a cylinder connecting two joints
     fn build_cylinder_time_samples(
         &self,
@@ -383,8 +535,8 @@ impl AnimationExporter {
     pub fn capture_frame(
         &mut self,
         fabric: &Fabric,
-        _camera_pos: Option<Point3<f32>>,
-        _camera_target: Option<Point3<f32>>,
+        camera_pos: Option<Point3<f32>>,
+        camera_target: Option<Point3<f32>>,
     ) -> io::Result<()> {
         if !self.enabled {
             return Ok(());
@@ -415,6 +567,8 @@ impl AnimationExporter {
             self.frames.push(FrameData {
                 joint_positions,
                 interval_endpoints,
+                camera_pos,
+                camera_target,
             });
 
             self.frame_count += 1;
