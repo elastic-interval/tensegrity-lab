@@ -3,14 +3,70 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
+use crate::fabric::interval::{Interval, Role};
 use crate::fabric::Fabric;
-use cgmath::Point3;
+use cgmath::{InnerSpace, Point3, Vector3};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, Write};
 use std::path::PathBuf;
-use zip::{write::FileOptions, CompressionMethod, ZipWriter};
 
-/// Manages the export of animation frames to USD format for Blender
+/// Stores transform data for a single object across all frames
+#[derive(Clone)]
+struct TransformTimeSamples {
+    /// Frame number -> 4x4 matrix as 16 floats (row-major)
+    samples: HashMap<usize, [f32; 16]>,
+}
+
+impl TransformTimeSamples {
+    fn new() -> Self {
+        Self {
+            samples: HashMap::new(),
+        }
+    }
+
+    fn add_sample(&mut self, frame: usize, matrix: [f32; 16]) {
+        self.samples.insert(frame, matrix);
+    }
+
+    /// Format as USD time samples string
+    fn to_usd_string(&self) -> String {
+        let mut frames: Vec<_> = self.samples.keys().collect();
+        frames.sort();
+
+        let mut output = String::new();
+        output.push_str("{\n");
+
+        for (i, &frame) in frames.iter().enumerate() {
+            let m = &self.samples[frame];
+            // Format matrix in USD row-vector format
+            output.push_str(&format!(
+                "                {}: ( ({:.6}, {:.6}, {:.6}, {:.6}), ({:.6}, {:.6}, {:.6}, {:.6}), ({:.6}, {:.6}, {:.6}, {:.6}), ({:.6}, {:.6}, {:.6}, {:.6}) )",
+                frame,
+                m[0], m[1], m[2], m[3],
+                m[4], m[5], m[6], m[7],
+                m[8], m[9], m[10], m[11],
+                m[12], m[13], m[14], m[15]
+            ));
+            if i < frames.len() - 1 {
+                output.push(',');
+            }
+            output.push('\n');
+        }
+        output.push_str("            }");
+        output
+    }
+}
+
+/// Frame data captured for time-sampled animation
+struct FrameData {
+    /// Joint positions at this frame
+    joint_positions: Vec<Point3<f32>>,
+    /// Interval endpoint indices (alpha, omega) - same across all frames
+    interval_endpoints: Vec<(usize, usize, Role)>,
+}
+
+/// Manages the export of animation frames to USD format with time samples
 pub struct AnimationExporter {
     output_dir: PathBuf,
     frame_count: usize,
@@ -18,7 +74,12 @@ pub struct AnimationExporter {
     capture_interval: usize,
     iteration_count: usize,
     enabled: bool,
-    frame_data: Vec<(usize, String)>,
+    /// All captured frames
+    frames: Vec<FrameData>,
+    /// Scale factor from fabric
+    scale: f32,
+    /// Fabric name
+    fabric_name: String,
 }
 
 impl AnimationExporter {
@@ -31,7 +92,9 @@ impl AnimationExporter {
             capture_interval,
             iteration_count: 0,
             enabled: false,
-            frame_data: Vec::new(),
+            frames: Vec::new(),
+            scale: 1.0,
+            fabric_name: String::new(),
         }
     }
 
@@ -40,8 +103,8 @@ impl AnimationExporter {
         self.enabled = true;
         self.frame_count = 0;
         self.iteration_count = 0;
-        self.frame_data.clear();
-        println!("Animation export started (will save to ZIP when stopped)");
+        self.frames.clear();
+        println!("Animation export started (will save time-sampled USD when stopped)");
     }
 
     /// Stop capturing frames and finalize the animation
@@ -57,96 +120,258 @@ impl AnimationExporter {
             return Ok(());
         }
 
-        println!("Creating ZIP archive with {} frames...", self.frame_count);
+        println!(
+            "Creating time-sampled USD animation with {} frames...",
+            self.frame_count
+        );
 
-        // Create ZIP file with timestamp
+        // Create USD file with timestamp
         let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-        let zip_path = self.output_dir.with_file_name(format!(
-            "animation_export_{}.zip",
+        let usd_path = self.output_dir.with_file_name(format!(
+            "animation_{}.usda",
             timestamp
         ));
-        let zip_file = File::create(&zip_path)?;
-        let mut zip = ZipWriter::new(zip_file);
 
-        let options: FileOptions<'_, ()> = FileOptions::default()
-            .compression_method(CompressionMethod::Deflated);
+        let usd_content = self.create_time_sampled_usd()?;
 
-        // Write all frame files to ZIP
-        for (frame_num, content) in &self.frame_data {
-            let filename = format!("frame_{:06}.usda", frame_num);
-            zip.start_file(filename, options)?;
-            zip.write_all(content.as_bytes())?;
-        }
-
-        // Create and write the main animation USD file
-        let main_usd = Self::create_animation_sequence_usd(self.frame_count, self.fps);
-        zip.start_file("animation.usda", options)?;
-        zip.write_all(main_usd.as_bytes())?;
-
-        // Add README
-        let readme = format!(
-            "USD Animation Export\n\
-             ===================\n\n\
-             Frames: {}\n\
-             FPS: {}\n\n\
-             To use in Blender:\n\
-             1. Extract this ZIP file\n\
-             2. File -> Import -> Universal Scene Description\n\
-             3. Select animation.usda\n\n\
-             Each frame includes camera position and orientation.\n",
-            self.frame_count, self.fps
-        );
-        zip.start_file("README.txt", options)?;
-        zip.write_all(readme.as_bytes())?;
-
-        zip.finish()?;
+        let mut file = File::create(&usd_path)?;
+        file.write_all(usd_content.as_bytes())?;
 
         // Clear frame data from memory
-        self.frame_data.clear();
+        self.frames.clear();
 
         println!("Animation export completed!");
-        println!("ZIP file: {:?}", zip_path);
+        println!("USD file: {:?}", usd_path);
         println!("Frames: {}", self.frame_count);
         println!("\nTo use in Blender:");
-        println!("  1. Extract the ZIP file");
-        println!("  2. File -> Import -> Universal Scene Description");
-        println!("  3. Select animation.usda");
+        println!("  1. File -> Import -> Universal Scene Description");
+        println!("  2. Select the .usda file");
+        println!("  3. Animation should play automatically in the timeline");
 
         Ok(())
     }
 
-    /// Create the main animation USD file content
-    fn create_animation_sequence_usd(frame_count: usize, fps: f64) -> String {
+    /// Create a time-sampled USD file from all captured frames
+    fn create_time_sampled_usd(&self) -> io::Result<String> {
         let mut output = String::new();
 
+        // Convert scale from millimeters to meters
+        let export_scale = self.scale / 1000.0;
+
+        // USD header
         output.push_str("#usda 1.0\n");
         output.push_str("(\n");
         output.push_str("    defaultPrim = \"Animation\"\n");
-        output.push_str("    metersPerUnit = 0.001\n");
+        output.push_str("    metersPerUnit = 1.0\n");
         output.push_str("    upAxis = \"Y\"\n");
         output.push_str("    startTimeCode = 0\n");
-        output.push_str(&format!("    endTimeCode = {}\n", frame_count.saturating_sub(1)));
-        output.push_str(&format!("    timeCodesPerSecond = {}\n", fps));
-        output.push_str(&format!("    framesPerSecond = {}\n", fps));
+        output.push_str(&format!(
+            "    endTimeCode = {}\n",
+            self.frame_count.saturating_sub(1)
+        ));
+        output.push_str(&format!("    timeCodesPerSecond = {}\n", self.fps));
+        output.push_str(&format!("    framesPerSecond = {}\n", self.fps));
         output.push_str(")\n\n");
-        output.push_str("def Xform \"Animation\"\n");
+
+        output.push_str("def Xform \"Animation\" (\n");
+        output.push_str("    kind = \"component\"\n");
+        output.push_str(")\n");
         output.push_str("{\n");
 
-        // Create references to frame files
-        for frame in 0..frame_count {
-            output.push_str(&format!("    def \"Frame_{}\" (\n", frame));
-            output.push_str(&format!(
-                "        prepend references = @./frame_{:06}.usda@</Fabric>\n",
-                frame
-            ));
-            output.push_str("    )\n");
+        // Build time samples for each joint
+        let joint_radius = 0.01f32; // 1cm radius in meters
+
+        if let Some(first_frame) = self.frames.first() {
+            let num_joints = first_frame.joint_positions.len();
+
+            // Joints scope
+            output.push_str("    def Scope \"Joints\"\n");
             output.push_str("    {\n");
+
+            for joint_idx in 0..num_joints {
+                let mut samples = TransformTimeSamples::new();
+
+                for (frame_num, frame) in self.frames.iter().enumerate() {
+                    if joint_idx < frame.joint_positions.len() {
+                        let pos = frame.joint_positions[joint_idx] * export_scale;
+                        // Identity rotation/scale, just translation
+                        // For spheres we use uniform scale for radius
+                        let matrix = [
+                            joint_radius, 0.0, 0.0, 0.0,
+                            0.0, joint_radius, 0.0, 0.0,
+                            0.0, 0.0, joint_radius, 0.0,
+                            pos.x, pos.y, pos.z, 1.0,
+                        ];
+                        samples.add_sample(frame_num, matrix);
+                    }
+                }
+
+                output.push_str(&format!("        def Sphere \"Joint_{:04}\"\n", joint_idx));
+                output.push_str("        {\n");
+                output.push_str(&format!(
+                    "            matrix4d xformOp:transform.timeSamples = {}\n",
+                    samples.to_usd_string()
+                ));
+                output.push_str(
+                    "            uniform token[] xformOpOrder = [\"xformOp:transform\"]\n",
+                );
+                output.push_str("        }\n");
+            }
+
+            output.push_str("    }\n\n");
+
+            // Intervals scope
+            output.push_str("    def Scope \"Intervals\"\n");
+            output.push_str("    {\n");
+
+            // Group intervals by role
+            let mut push_indices = Vec::new();
+            let mut pull_indices = Vec::new();
+
+            for (idx, &(alpha, omega, role)) in first_frame.interval_endpoints.iter().enumerate() {
+                if role == Role::Support {
+                    continue;
+                }
+                match role {
+                    Role::Pushing => push_indices.push((idx, alpha, omega)),
+                    _ if role.is_pull_like() => pull_indices.push((idx, alpha, omega)),
+                    _ => {}
+                }
+            }
+
+            // Push intervals
+            if !push_indices.is_empty() {
+                output.push_str("        def Scope \"Push\"\n");
+                output.push_str("        {\n");
+
+                for (local_idx, (_, alpha, omega)) in push_indices.iter().enumerate() {
+                    let samples = self.build_cylinder_time_samples(
+                        *alpha,
+                        *omega,
+                        0.012, // 1.2cm radius for push
+                        export_scale,
+                    );
+
+                    output.push_str(&format!(
+                        "            def Cylinder \"Push_{:04}\"\n",
+                        local_idx
+                    ));
+                    output.push_str("            {\n");
+                    output.push_str(&format!(
+                        "                matrix4d xformOp:transform.timeSamples = {}\n",
+                        samples.to_usd_string()
+                    ));
+                    output.push_str(
+                        "                uniform token[] xformOpOrder = [\"xformOp:transform\"]\n",
+                    );
+                    output.push_str("            }\n");
+                }
+
+                output.push_str("        }\n\n");
+            }
+
+            // Pull intervals
+            if !pull_indices.is_empty() {
+                output.push_str("        def Scope \"Pull\"\n");
+                output.push_str("        {\n");
+
+                for (local_idx, (_, alpha, omega)) in pull_indices.iter().enumerate() {
+                    let samples = self.build_cylinder_time_samples(
+                        *alpha,
+                        *omega,
+                        0.005, // 5mm radius for pull
+                        export_scale,
+                    );
+
+                    output.push_str(&format!(
+                        "            def Cylinder \"Pull_{:04}\"\n",
+                        local_idx
+                    ));
+                    output.push_str("            {\n");
+                    output.push_str(&format!(
+                        "                matrix4d xformOp:transform.timeSamples = {}\n",
+                        samples.to_usd_string()
+                    ));
+                    output.push_str(
+                        "                uniform token[] xformOpOrder = [\"xformOp:transform\"]\n",
+                    );
+                    output.push_str("            }\n");
+                }
+
+                output.push_str("        }\n");
+            }
+
             output.push_str("    }\n");
         }
 
         output.push_str("}\n");
 
-        output
+        Ok(output)
+    }
+
+    /// Build time samples for a cylinder connecting two joints
+    fn build_cylinder_time_samples(
+        &self,
+        alpha_idx: usize,
+        omega_idx: usize,
+        radius: f32,
+        export_scale: f32,
+    ) -> TransformTimeSamples {
+        let mut samples = TransformTimeSamples::new();
+
+        for (frame_num, frame) in self.frames.iter().enumerate() {
+            if alpha_idx >= frame.joint_positions.len()
+                || omega_idx >= frame.joint_positions.len()
+            {
+                continue;
+            }
+
+            let alpha_loc = frame.joint_positions[alpha_idx] * export_scale;
+            let omega_loc = frame.joint_positions[omega_idx] * export_scale;
+
+            // Midpoint
+            let mid_x = (alpha_loc.x + omega_loc.x) / 2.0;
+            let mid_y = (alpha_loc.y + omega_loc.y) / 2.0;
+            let mid_z = (alpha_loc.z + omega_loc.z) / 2.0;
+
+            // Direction and length
+            let dx = omega_loc.x - alpha_loc.x;
+            let dy = omega_loc.y - alpha_loc.y;
+            let dz = omega_loc.z - alpha_loc.z;
+            let length = (dx * dx + dy * dy + dz * dz).sqrt();
+
+            if length < 1e-6 {
+                continue; // Skip degenerate intervals
+            }
+
+            // Build orthonormal basis
+            let y_axis = Vector3::new(dx / length, dy / length, dz / length);
+            let arbitrary = if y_axis.y.abs() < 0.9 {
+                Vector3::new(0.0, 1.0, 0.0)
+            } else {
+                Vector3::new(1.0, 0.0, 0.0)
+            };
+
+            let x_axis = y_axis.cross(arbitrary).normalize();
+            let z_axis = x_axis.cross(y_axis).normalize();
+
+            // Scale columns: X and Z by radius, Y by length/2 (USD cylinder height=2)
+            let c0 = x_axis * radius;
+            let c1 = y_axis * (length / 2.0);
+            let c2 = z_axis * radius;
+
+            // USD row-vector format: translation in last row
+            let matrix = [
+                c0.x, c0.y, c0.z, 0.0,
+                c1.x, c1.y, c1.z, 0.0,
+                c2.x, c2.y, c2.z, 0.0,
+                mid_x, mid_y, mid_z, 1.0,
+            ];
+
+            samples.add_sample(frame_num, matrix);
+        }
+
+        samples
     }
 
     /// Check if we should capture this iteration
@@ -154,12 +379,12 @@ impl AnimationExporter {
         self.enabled && (self.iteration_count % self.capture_interval == 0)
     }
 
-    /// Capture a frame from the current fabric state with optional camera
+    /// Capture a frame from the current fabric state
     pub fn capture_frame(
         &mut self,
         fabric: &Fabric,
-        camera_pos: Option<Point3<f32>>,
-        camera_target: Option<Point3<f32>>,
+        _camera_pos: Option<Point3<f32>>,
+        _camera_target: Option<Point3<f32>>,
     ) -> io::Result<()> {
         if !self.enabled {
             return Ok(());
@@ -168,9 +393,30 @@ impl AnimationExporter {
         self.iteration_count += 1;
 
         if self.should_capture() {
-            // Generate USD content and store in memory
-            let usd_content = fabric.to_usda_with_camera(camera_pos, camera_target)?;
-            self.frame_data.push((self.frame_count, usd_content));
+            // Store scale and name on first frame
+            if self.frames.is_empty() {
+                self.scale = fabric.scale;
+                self.fabric_name = fabric.name.clone();
+            }
+
+            // Capture joint positions
+            let joint_positions: Vec<Point3<f32>> = fabric
+                .joints
+                .iter()
+                .map(|j| j.location)
+                .collect();
+
+            // Capture interval topology (only need this once, but we store per frame for safety)
+            let interval_endpoints: Vec<(usize, usize, Role)> = fabric
+                .interval_values()
+                .map(|interval: &Interval| (interval.alpha_index, interval.omega_index, interval.role))
+                .collect();
+
+            self.frames.push(FrameData {
+                joint_positions,
+                interval_endpoints,
+            });
+
             self.frame_count += 1;
 
             if self.frame_count % 10 == 0 {
