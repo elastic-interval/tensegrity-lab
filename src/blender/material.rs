@@ -34,12 +34,8 @@ impl Material {
         self
     }
 
-    pub fn ground() -> Self {
-        Self::new("GroundMaterial", Color3::gray(0.3)).with_roughness(0.8)
-    }
-
-    pub fn sky() -> Self {
-        Self::new("SkyMaterial", Color3::new(0.01, 0.01, 0.02)).with_roughness(1.0)
+    pub fn grass() -> Self {
+        Self::new("GroundMaterial", Color3::new(0.08, 0.2, 0.04)).with_roughness(0.9)
     }
 
     pub fn aluminum() -> Self {
@@ -91,8 +87,7 @@ impl MaterialScope {
 
     pub fn fabric_defaults() -> Self {
         Self::new()
-            .add(Material::ground())
-            .add(Material::sky())
+            .add(Material::grass())
             .add(Material::aluminum())
             .add(Material::rope())
     }

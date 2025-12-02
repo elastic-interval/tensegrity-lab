@@ -20,14 +20,15 @@ use crate::fabric::Fabric;
 
 use camera::CameraRig;
 use geometry::{AnimatedCylinder, AnimatedSphere, Environment};
+use light::{DistantLight, DomeLight};
 use material::MaterialScope;
 use usd::UsdHeader;
 
 const HEADLIGHT_WATTS: f32 = 600.0;
-const JOINT_RADIUS: f32 = 0.01;
-const PUSH_RADIUS: f32 = 0.030;
+const JOINT_RADIUS: f32 = 0.015;
+const PUSH_RADIUS: f32 = 0.04;
 const HOLDER_RADIUS: f32 = PUSH_RADIUS / 5.0;
-const PULL_RADIUS: f32 = 0.005;
+const PULL_RADIUS: f32 = 0.007;
 
 struct FrameData {
     joint_positions: Vec<Point3<f32>>,
@@ -77,8 +78,7 @@ impl AnimationExporter {
 
         println!("Creating USD animation with {} frames...", self.frame_count);
 
-        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-        let usd_path = self.output_dir.with_file_name(format!("animation_{}.usda", timestamp));
+        let usd_path = self.output_dir.with_file_name("animation.usda".to_string());
 
         let usd_content = self.create_usd()?;
 
@@ -105,6 +105,12 @@ impl AnimationExporter {
         output.push('\n');
 
         output.push_str(&MaterialScope::fabric_defaults().to_string());
+        output.push('\n');
+
+        output.push_str(&DomeLight::sky_ambient().to_string());
+        output.push('\n');
+
+        output.push_str(&DistantLight::sun().to_string());
         output.push('\n');
 
         let mut camera_rig = CameraRig::new("CameraRig").with_headlights(HEADLIGHT_WATTS);
