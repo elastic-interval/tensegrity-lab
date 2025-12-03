@@ -21,11 +21,14 @@ from bpy_extras.io_utils import ImportHelper
 
 def find_prototypes_blend():
     """Try to find prototypes.blend in common locations."""
+    candidates = []
+
     # Check in addon/script directory first (same folder as this script)
-    addon_dir = os.path.dirname(__file__)
-    candidates = [
-        os.path.join(addon_dir, "prototypes.blend"),
-    ]
+    try:
+        addon_dir = os.path.dirname(__file__)
+        candidates.append(os.path.join(addon_dir, "prototypes.blend"))
+    except NameError:
+        pass  # __file__ not defined when running from Blender text editor
 
     # Check relative to current blend file
     if bpy.data.filepath:
@@ -35,6 +38,21 @@ def find_prototypes_blend():
             os.path.join(blend_dir, "..", "scripts", "prototypes.blend"),
             os.path.join(blend_dir, "prototypes.blend"),
         ])
+
+    # Check relative to JSON file being imported (stored in scene property if available)
+    if hasattr(bpy.context, 'scene') and bpy.context.scene:
+        json_path = bpy.context.scene.get('tensegrity_last_json_dir')
+        if json_path:
+            candidates.extend([
+                os.path.join(json_path, "scripts", "prototypes.blend"),
+                os.path.join(json_path, "..", "scripts", "prototypes.blend"),
+            ])
+
+    # Common project locations
+    home = os.path.expanduser("~")
+    candidates.extend([
+        os.path.join(home, "RustroverProjects", "tensegrity-lab", "scripts", "prototypes.blend"),
+    ])
 
     for path in candidates:
         if os.path.exists(path):
@@ -54,19 +72,41 @@ def get_or_create_prototypes_scene():
     return proto_scene
 
 
+def center_mesh_to_origin(obj):
+    """Move mesh vertices so the geometry is centered at the object's origin."""
+    if obj.type != 'MESH':
+        return
+
+    mesh = obj.data
+    # Calculate the center of the mesh bounding box
+    verts = [v.co for v in mesh.vertices]
+    if not verts:
+        return
+
+    center = sum(verts, mathutils.Vector()) / len(verts)
+
+    # Move all vertices so center is at origin
+    for v in mesh.vertices:
+        v.co -= center
+
+    mesh.update()
+
+
 def load_prototypes_from_blend(filepath):
     """Load prototype objects from a .blend file into a Prototypes scene."""
     if not os.path.exists(filepath):
         return None, f"File not found: {filepath}"
 
     proto_scene = get_or_create_prototypes_scene()
-    prototype_names = ['Bar', 'Holder', 'Pull', 'Joint']
+    # Push is a composite (may contain Bar+Holder as children or combined mesh)
+    # Pull and Joint are simple objects
+    prototype_names = ['Push', 'Pull', 'Joint']
     loaded = []
 
+    # Load ALL objects from the file to get the hierarchy
     with bpy.data.libraries.load(filepath, link=False) as (data_from, data_to):
-        # Find which prototypes exist in the file
-        available = [name for name in prototype_names if name in data_from.objects]
-        data_to.objects = available
+        # Load all objects so we get children too
+        data_to.objects = data_from.objects[:]
 
     # Link imported objects to the prototypes scene
     for obj in data_to.objects:
@@ -74,18 +114,27 @@ def load_prototypes_from_blend(filepath):
             # Check if already linked to scene
             if obj.name not in proto_scene.objects:
                 proto_scene.collection.objects.link(obj)
-            loaded.append(obj.name)
+
+            # Center mesh geometry for mesh objects
+            center_mesh_to_origin(obj)
+
+            # Only reset transform and track loading for top-level prototypes
+            base_name = obj.name.split('.')[0]
+            if base_name in prototype_names:
+                obj.location = (0, 0, 0)
+                obj.rotation_euler = (0, 0, 0)
+                obj.scale = (1, 1, 1)
+                loaded.append(obj.name)
 
     return loaded, None
 
 
 def find_prototype_objects():
-    """Find prototype objects in the current file."""
+    """Find prototype objects in the current file and ensure they're at origin."""
     prototypes = {
-        'Bar': None,
-        'Holder': None,
-        'Pull': None,
-        'Joint': None,
+        'Push': None,  # Composite prototype for push intervals
+        'Pull': None,  # Prototype for pull intervals
+        'Joint': None, # Prototype for joints
     }
 
     # First check in Prototypes scene
@@ -102,6 +151,13 @@ def find_prototype_objects():
         if base_name in prototypes and prototypes[base_name] is None:
             prototypes[base_name] = obj
 
+    # Ensure all found prototypes are at origin (in case they were moved)
+    for name, obj in prototypes.items():
+        if obj is not None:
+            obj.location = (0, 0, 0)
+            obj.rotation_euler = (0, 0, 0)
+            obj.scale = (1, 1, 1)
+
     return prototypes
 
 
@@ -115,6 +171,43 @@ def matrix_from_list(m):
         (m[2], m[6], m[10], m[14]),
         (m[3], m[7], m[11], m[15]),
     ))
+
+
+def create_instance_from_prototype(prototype_obj, target_matrix, collection):
+    """Create a linked duplicate of prototype with compensated transform.
+
+    The prototype may be positioned away from the world origin in prototypes.blend
+    (e.g., placed side-by-side for visibility). We need to compensate for this
+    so the instance ends up at the correct world position.
+
+    The mesh vertices are in the prototype's local space. When we copy the object,
+    we get the same mesh data. To place it correctly:
+    - target_matrix defines where we want the object (assumes mesh centered at origin)
+    - prototype's matrix_world tells us where the prototype currently is
+    - We need: target_matrix @ inverse(prototype.matrix_world) to cancel out prototype's transform
+
+    But since we're doing a copy (not instance), the mesh is relative to object origin.
+    The issue is prototype.location is non-zero. We apply target transform directly,
+    but the object's origin offset from world origin causes the shift.
+
+    Solution: The new object should have matrix_world = target_matrix, but we need
+    to ensure the mesh is actually centered. Since mesh data is shared, we compensate
+    by baking the prototype's offset into understanding that the prototype's local
+    origin IS at world origin for the mesh, just the object is translated.
+
+    Actually simpler: just set matrix_world = target_matrix. The issue is the
+    prototypes.blend file - the objects should have their origins at their geometric center.
+    """
+    new_obj = prototype_obj.copy()
+    new_obj.data = prototype_obj.data  # Linked data (shared mesh)
+
+    # The target_matrix is what we want. Just apply it directly.
+    # If prototypes appear offset, the fix is in prototypes.blend:
+    # Select each prototype -> Object -> Set Origin -> Origin to Geometry
+    new_obj.matrix_world = target_matrix
+
+    collection.objects.link(new_obj)
+    return new_obj
 
 
 class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
@@ -146,6 +239,10 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
     )
 
     def execute(self, context):
+        # Store JSON directory for prototype search
+        json_dir = os.path.dirname(self.filepath)
+        context.scene['tensegrity_last_json_dir'] = json_dir
+
         # Load JSON
         try:
             with open(self.filepath, 'r') as f:
@@ -164,19 +261,28 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
         missing = [name for name, obj in prototypes.items() if obj is None]
 
         if missing:
-            # Try to load from prototypes.blend
+            # Try to load from prototypes.blend - check multiple locations
             proto_path = self.prototypes_path or find_prototypes_blend()
+
+            # Also check relative to the JSON file
+            if not proto_path:
+                json_relative = os.path.join(json_dir, "scripts", "prototypes.blend")
+                if os.path.exists(json_relative):
+                    proto_path = json_relative
+
             if proto_path:
                 loaded, error = load_prototypes_from_blend(proto_path)
                 if error:
-                    self.report({'WARNING'}, error)
+                    self.report({'WARNING'}, f"Error loading prototypes: {error}")
                 elif loaded:
-                    self.report({'INFO'}, f"Loaded prototypes: {', '.join(loaded)}")
+                    self.report({'INFO'}, f"Auto-loaded prototypes from {proto_path}")
                     prototypes = find_prototype_objects()
                     missing = [name for name, obj in prototypes.items() if obj is None]
+            else:
+                self.report({'WARNING'}, "Could not find prototypes.blend")
 
         if missing:
-            self.report({'ERROR'}, f"Missing prototypes: {', '.join(missing)}. Load prototypes.blend first.")
+            self.report({'ERROR'}, f"Missing prototypes: {', '.join(missing)}. Use the Tensegrity panel to load prototypes.blend.")
             return {'CANCELLED'}
 
         # Create collection for the structure
@@ -243,41 +349,39 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                     obj.keyframe_insert(data_path="rotation_euler", frame=blender_frame)
                     obj.keyframe_insert(data_path="scale", frame=blender_frame)
 
-            # Import push intervals
+            # Import push intervals (single matrix per push, prototype is composite)
             for push in frame.get('intervals', {}).get('push', []):
                 name = push['name']
-                bar_matrix = matrix_from_list(push['bar']['matrix'])
-                holder_matrix = matrix_from_list(push['holder']['matrix'])
+                matrix = matrix_from_list(push['matrix'])
 
-                bar_name = f"{name}_Bar"
-                holder_name = f"{name}_Holder"
+                if name not in created_objects:
+                    # Create instance of Push prototype (which may be a composite with children)
+                    proto = prototypes['Push']
+                    new_obj = proto.copy()
+                    if proto.data:
+                        new_obj.data = proto.data
+                    new_obj.name = name
+                    push_collection.objects.link(new_obj)
+                    created_objects[name] = new_obj
 
-                if bar_name not in created_objects:
-                    # Create bar
-                    bar_obj = prototypes['Bar'].copy()
-                    bar_obj.data = prototypes['Bar'].data
-                    bar_obj.name = bar_name
-                    push_collection.objects.link(bar_obj)
-                    created_objects[bar_name] = bar_obj
+                    # Also duplicate children and maintain parent relationship
+                    for child in proto.children:
+                        child_copy = child.copy()
+                        if child.data:
+                            child_copy.data = child.data
+                        child_copy.name = f"{name}_{child.name}"
+                        child_copy.parent = new_obj
+                        # Preserve the relative transform
+                        child_copy.matrix_parent_inverse = child.matrix_parent_inverse.copy()
+                        push_collection.objects.link(child_copy)
 
-                    # Create holder
-                    holder_obj = prototypes['Holder'].copy()
-                    holder_obj.data = prototypes['Holder'].data
-                    holder_obj.name = holder_name
-                    push_collection.objects.link(holder_obj)
-                    created_objects[holder_name] = holder_obj
-
-                bar_obj = created_objects[bar_name]
-                holder_obj = created_objects[holder_name]
-
-                bar_obj.matrix_world = bar_matrix
-                holder_obj.matrix_world = holder_matrix
+                obj = created_objects[name]
+                obj.matrix_world = matrix
 
                 if is_animation:
-                    for obj in [bar_obj, holder_obj]:
-                        obj.keyframe_insert(data_path="location", frame=blender_frame)
-                        obj.keyframe_insert(data_path="rotation_euler", frame=blender_frame)
-                        obj.keyframe_insert(data_path="scale", frame=blender_frame)
+                    obj.keyframe_insert(data_path="location", frame=blender_frame)
+                    obj.keyframe_insert(data_path="rotation_euler", frame=blender_frame)
+                    obj.keyframe_insert(data_path="scale", frame=blender_frame)
 
             # Import pull intervals
             for pull in frame.get('intervals', {}).get('pull', []):
@@ -373,6 +477,23 @@ class TENSEGRITY_OT_load_prototypes(bpy.types.Operator, ImportHelper):
         return {'RUNNING_MODAL'}
 
 
+def ensure_prototypes_loaded():
+    """Auto-load prototypes if missing and prototypes.blend can be found."""
+    prototypes = find_prototype_objects()
+    missing = [name for name, obj in prototypes.items() if obj is None]
+
+    if missing:
+        proto_path = find_prototypes_blend()
+        if proto_path:
+            loaded, error = load_prototypes_from_blend(proto_path)
+            if loaded:
+                return find_prototype_objects(), f"Auto-loaded: {', '.join(loaded)}"
+            elif error:
+                return prototypes, f"Failed to load: {error}"
+        return prototypes, None
+    return prototypes, None
+
+
 class TENSEGRITY_PT_panel(bpy.types.Panel):
     """Panel in the 3D View sidebar"""
     bl_label = "Tensegrity Import"
@@ -384,9 +505,12 @@ class TENSEGRITY_PT_panel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
 
-        # Check prototype status
-        prototypes = find_prototype_objects()
+        # Auto-load prototypes if missing
+        prototypes, message = ensure_prototypes_loaded()
         missing = [name for name, obj in prototypes.items() if obj is None]
+
+        if message:
+            layout.label(text=message, icon='INFO')
 
         if missing:
             box = layout.box()
