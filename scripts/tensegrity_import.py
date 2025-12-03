@@ -226,12 +226,6 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
         min=-1,
     )
 
-    import_camera: BoolProperty(
-        name="Import Camera",
-        description="Import camera position from JSON",
-        default=True,
-    )
-
     prototypes_path: StringProperty(
         name="Prototypes File",
         description="Path to prototypes.blend (leave empty to auto-detect)",
@@ -325,9 +319,6 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
             frame = frames[frame_idx]
             blender_frame = frame_num + 1  # Blender frames start at 1
 
-            if is_animation:
-                context.scene.frame_set(blender_frame)
-
             # Import joints
             for joint in frame.get('joints', []):
                 name = joint['name']
@@ -342,11 +333,16 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                     created_objects[name] = new_obj
 
                 obj = created_objects[name]
-                obj.matrix_world = matrix
+                # Decompose matrix into location, rotation, scale for proper keyframing
+                loc, rot, scale = matrix.decompose()
+                obj.location = loc
+                obj.rotation_mode = 'QUATERNION'
+                obj.rotation_quaternion = rot
+                obj.scale = scale
 
                 if is_animation:
                     obj.keyframe_insert(data_path="location", frame=blender_frame)
-                    obj.keyframe_insert(data_path="rotation_euler", frame=blender_frame)
+                    obj.keyframe_insert(data_path="rotation_quaternion", frame=blender_frame)
                     obj.keyframe_insert(data_path="scale", frame=blender_frame)
 
             # Import push intervals (single matrix per push, prototype is composite)
@@ -376,11 +372,16 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                         push_collection.objects.link(child_copy)
 
                 obj = created_objects[name]
-                obj.matrix_world = matrix
+                # Decompose matrix into location, rotation, scale for proper keyframing
+                loc, rot, scale = matrix.decompose()
+                obj.location = loc
+                obj.rotation_mode = 'QUATERNION'
+                obj.rotation_quaternion = rot
+                obj.scale = scale
 
                 if is_animation:
                     obj.keyframe_insert(data_path="location", frame=blender_frame)
-                    obj.keyframe_insert(data_path="rotation_euler", frame=blender_frame)
+                    obj.keyframe_insert(data_path="rotation_quaternion", frame=blender_frame)
                     obj.keyframe_insert(data_path="scale", frame=blender_frame)
 
             # Import pull intervals
@@ -396,39 +397,17 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                     created_objects[name] = new_obj
 
                 obj = created_objects[name]
-                obj.matrix_world = matrix
+                # Decompose matrix into location, rotation, scale for proper keyframing
+                loc, rot, scale = matrix.decompose()
+                obj.location = loc
+                obj.rotation_mode = 'QUATERNION'
+                obj.rotation_quaternion = rot
+                obj.scale = scale
 
                 if is_animation:
                     obj.keyframe_insert(data_path="location", frame=blender_frame)
-                    obj.keyframe_insert(data_path="rotation_euler", frame=blender_frame)
+                    obj.keyframe_insert(data_path="rotation_quaternion", frame=blender_frame)
                     obj.keyframe_insert(data_path="scale", frame=blender_frame)
-
-            # Import camera
-            if self.import_camera and frame.get('camera'):
-                cam = frame['camera']
-                cam_name = "TensegrityCamera"
-
-                if cam_name not in created_objects:
-                    # Create camera
-                    cam_data = bpy.data.cameras.new(cam_name)
-                    cam_obj = bpy.data.objects.new(cam_name, cam_data)
-                    main_collection.objects.link(cam_obj)
-                    created_objects[cam_name] = cam_obj
-
-                cam_obj = created_objects[cam_name]
-                pos = cam['position']
-                target = cam['target']
-
-                cam_obj.location = mathutils.Vector(pos)
-
-                # Point camera at target
-                direction = mathutils.Vector(target) - mathutils.Vector(pos)
-                rot_quat = direction.to_track_quat('-Z', 'Y')
-                cam_obj.rotation_euler = rot_quat.to_euler()
-
-                if is_animation:
-                    cam_obj.keyframe_insert(data_path="location", frame=blender_frame)
-                    cam_obj.keyframe_insert(data_path="rotation_euler", frame=blender_frame)
 
         # Set animation range
         if is_animation:
@@ -437,9 +416,17 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
             context.scene.render.fps = int(fps)
             context.scene.frame_set(1)
 
+            # Debug: Check that keyframes were actually created
+            keyframe_count = 0
+            for obj in created_objects.values():
+                if obj.animation_data and obj.animation_data.action:
+                    for fcurve in obj.animation_data.action.fcurves:
+                        keyframe_count += len(fcurve.keyframe_points)
+            print(f"Total keyframes created: {keyframe_count}")
+
         obj_count = len(created_objects)
         if is_animation:
-            self.report({'INFO'}, f"Imported {obj_count} objects with {len(frames)} frames of animation")
+            self.report({'INFO'}, f"Imported {obj_count} objects with {len(frames)} frames, {keyframe_count} keyframes")
         else:
             self.report({'INFO'}, f"Imported {obj_count} objects from frame {self.frame_index}")
 

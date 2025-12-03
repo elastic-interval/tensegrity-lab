@@ -38,15 +38,8 @@ struct PrototypeDimensions {
 
 #[derive(Serialize)]
 struct FrameExport {
-    camera: Option<CameraExport>,
     joints: Vec<JointExport>,
     intervals: IntervalsExport,
-}
-
-#[derive(Serialize)]
-struct CameraExport {
-    position: [f32; 3],
-    target: [f32; 3],
 }
 
 #[derive(Serialize)]
@@ -70,8 +63,6 @@ struct IntervalExport {
 struct FrameData {
     joint_positions: Vec<Point3<f32>>,
     interval_endpoints: Vec<(usize, usize, Role)>,
-    camera_pos: Option<Point3<f32>>,
-    camera_target: Option<Point3<f32>>,
 }
 
 pub struct AnimationExporter {
@@ -152,13 +143,6 @@ impl AnimationExporter {
     }
 
     fn export_frame(&self, frame: &FrameData, export_scale: f32) -> FrameExport {
-        let camera = frame.camera_pos.zip(frame.camera_target).map(|(pos, target)| {
-            CameraExport {
-                position: [pos.x * export_scale, pos.y * export_scale, pos.z * export_scale],
-                target: [target.x * export_scale, target.y * export_scale, target.z * export_scale],
-            }
-        });
-
         let joints: Vec<JointExport> = frame
             .joint_positions
             .iter()
@@ -257,20 +241,14 @@ impl AnimationExporter {
             .collect();
 
         FrameExport {
-            camera,
             joints,
             intervals: IntervalsExport { push, pull },
         }
     }
 
-    pub fn capture_frame(
-        &mut self,
-        fabric: &Fabric,
-        camera_pos: Option<Point3<f32>>,
-        camera_target: Option<Point3<f32>>,
-    ) -> io::Result<()> {
+    pub fn capture_frame(&mut self, fabric: &Fabric) {
         if !self.enabled {
-            return Ok(());
+            return;
         }
 
         if self.frames.is_empty() {
@@ -287,8 +265,6 @@ impl AnimationExporter {
         self.frames.push(FrameData {
             joint_positions,
             interval_endpoints,
-            camera_pos,
-            camera_target,
         });
 
         self.frame_count += 1;
@@ -296,8 +272,6 @@ impl AnimationExporter {
         if self.frame_count % 10 == 0 {
             println!("Captured {} frames...", self.frame_count);
         }
-
-        Ok(())
     }
 
     pub fn frame_count(&self) -> usize {
@@ -318,12 +292,7 @@ impl AnimationExporter {
         }
     }
 
-    pub fn snapshot(
-        &mut self,
-        fabric: &Fabric,
-        camera_pos: Option<Point3<f32>>,
-        camera_target: Option<Point3<f32>>,
-    ) -> io::Result<PathBuf> {
+    pub fn snapshot(&mut self, fabric: &Fabric) -> io::Result<PathBuf> {
         self.scale = fabric.scale;
         self.frames.clear();
         self.frame_count = 0;
@@ -337,8 +306,6 @@ impl AnimationExporter {
         self.frames.push(FrameData {
             joint_positions,
             interval_endpoints,
-            camera_pos,
-            camera_target,
         });
         self.frame_count = 1;
 
