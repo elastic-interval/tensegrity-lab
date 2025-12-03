@@ -2784,6 +2784,8 @@ dependencies = [
  "rand",
  "rand_chacha",
  "reqwest",
+ "serde",
+ "serde_json",
  "strum",
  "tokio",
  "urlencoding",

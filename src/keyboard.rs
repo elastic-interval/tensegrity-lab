@@ -178,7 +178,14 @@ impl Keyboard {
             KeyCode::KeyM,
             "Movie",
             ToggleAnimationExport,
-            Box::new(|state| matches!(state, Viewing { .. } | Animating)),
+            Box::new(|_| true),
+        );
+        #[cfg(not(target_arch = "wasm32"))]
+        self.key_lab_event(
+            KeyCode::KeyN,
+            "Snapshot",
+            ExportSnapshot,
+            Box::new(|_| true),
         );
         self
     }
