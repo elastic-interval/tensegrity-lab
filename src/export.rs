@@ -57,25 +57,13 @@ struct JointExport {
 
 #[derive(Serialize)]
 struct IntervalsExport {
-    push: Vec<PushExport>,
-    pull: Vec<PullExport>,
+    push: Vec<IntervalExport>,
+    pull: Vec<IntervalExport>,
 }
 
 #[derive(Serialize)]
-struct PushExport {
+struct IntervalExport {
     name: String,
-    bar: TransformExport,
-    holder: TransformExport,
-}
-
-#[derive(Serialize)]
-struct PullExport {
-    name: String,
-    matrix: [f32; 16],
-}
-
-#[derive(Serialize)]
-struct TransformExport {
     matrix: [f32; 16],
 }
 
@@ -198,7 +186,7 @@ impl AnimationExporter {
             }
         }
 
-        let push: Vec<PushExport> = push_intervals
+        let push: Vec<IntervalExport> = push_intervals
             .iter()
             .enumerate()
             .filter_map(|(idx, (alpha, omega))| {
@@ -222,26 +210,18 @@ impl AnimationExporter {
 
                 let (x_axis, y_axis, z_axis) = compute_cylinder_axes(delta, full_length);
 
-                // Bar: inset from joints
-                let bar_length = full_length - 2.0 * JOINT_RADIUS;
-                let bar_matrix = if bar_length > 0.0 {
-                    create_cylinder_matrix(mid, x_axis, y_axis, z_axis, PUSH_RADIUS, bar_length)
-                } else {
-                    [0.0; 16] // Degenerate case
-                };
+                // Single matrix for the whole Push prototype
+                // Prototype is unit cylinder (radius=1, height=2), transform scales radius and length
+                let matrix = create_cylinder_matrix(mid, x_axis, y_axis, z_axis, PUSH_RADIUS, full_length);
 
-                // Holder: full length
-                let holder_matrix = create_cylinder_matrix(mid, x_axis, y_axis, z_axis, HOLDER_RADIUS, full_length);
-
-                Some(PushExport {
+                Some(IntervalExport {
                     name: format!("Push_{:04}", idx),
-                    bar: TransformExport { matrix: bar_matrix },
-                    holder: TransformExport { matrix: holder_matrix },
+                    matrix,
                 })
             })
             .collect();
 
-        let pull: Vec<PullExport> = pull_intervals
+        let pull: Vec<IntervalExport> = pull_intervals
             .iter()
             .enumerate()
             .filter_map(|(idx, (alpha, omega))| {
@@ -264,9 +244,12 @@ impl AnimationExporter {
                 );
 
                 let (x_axis, y_axis, z_axis) = compute_cylinder_axes(delta, full_length);
+
+                // Single matrix for the whole Pull prototype
+                // Prototype is unit cylinder (radius=1, height=2), transform scales radius and length
                 let matrix = create_cylinder_matrix(mid, x_axis, y_axis, z_axis, PULL_RADIUS, full_length);
 
-                Some(PullExport {
+                Some(IntervalExport {
                     name: format!("Pull_{:04}", idx),
                     matrix,
                 })
