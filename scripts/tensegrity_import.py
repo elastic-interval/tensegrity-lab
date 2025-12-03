@@ -219,13 +219,6 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
     filename_ext = ".json"
     filter_glob: StringProperty(default="*.json", options={'HIDDEN'})
 
-    frame_index: IntProperty(
-        name="Frame",
-        description="Frame index to import (0 for first frame, -1 for all frames as animation)",
-        default=0,
-        min=-1,
-    )
-
     prototypes_path: StringProperty(
         name="Prototypes File",
         description="Path to prototypes.blend (leave empty to auto-detect)",
@@ -300,16 +293,9 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
         pull_collection = bpy.data.collections.new("Pull")
         main_collection.children.link(pull_collection)
 
-        # Determine which frames to import
-        if self.frame_index == -1:
-            # Animation mode: import all frames
-            frame_indices = range(len(frames))
-            is_animation = True
-        else:
-            # Single frame mode
-            idx = min(self.frame_index, len(frames) - 1)
-            frame_indices = [idx]
-            is_animation = False
+        # Import all frames; animate if more than one frame
+        frame_indices = range(len(frames))
+        is_animation = len(frames) > 1
 
         # For animation, create objects on first frame then keyframe
         created_objects = {}
