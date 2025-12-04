@@ -34,11 +34,11 @@ pub fn triped() -> FabricPlan {
                 .build(),
         )
         .shape([
-            during(Sec(25.0), [space(End, 0.38)]),
-            during(Sec(15.0), [vulcanize()]),
+            during(Sec(5.0), [space(End, 0.38)]),
+            during(Sec(1.0), [vulcanize()]),
         ])
         .pretense(
-            pretense(Sec(15.0))
+            pretense(Sec(1.0))
                 .surface(SurfaceCharacter::Frozen),
         )
         .fall(Sec(8.0))
