@@ -7,11 +7,15 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
+use std::time::Duration;
+
 use cgmath::{InnerSpace, Point3, Vector3};
 use serde::Serialize;
 
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::Fabric;
+
+const EXPORT_FPS: f64 = 30.0;
 
 const JOINT_RADIUS: f32 = 0.015;
 const PUSH_RADIUS: f32 = 0.04;
@@ -68,21 +72,26 @@ struct FrameData {
 pub struct AnimationExporter {
     output_dir: PathBuf,
     frame_count: usize,
-    fps: f64,
     enabled: bool,
     frames: Vec<FrameData>,
     scale: f32,
+    /// Fabric time when next frame should be captured
+    next_frame_time: Duration,
+    /// Duration between frames in fabric time
+    frame_interval: Duration,
 }
 
 impl AnimationExporter {
-    pub fn new<P: Into<PathBuf>>(output_dir: P, fps: f64) -> Self {
+    pub fn new<P: Into<PathBuf>>(output_dir: P) -> Self {
+        let frame_interval = Duration::from_secs_f64(1.0 / EXPORT_FPS);
         Self {
             output_dir: output_dir.into(),
             frame_count: 0,
-            fps,
             enabled: false,
             frames: Vec::new(),
             scale: 1.0,
+            next_frame_time: Duration::ZERO,
+            frame_interval,
         }
     }
 
@@ -90,7 +99,8 @@ impl AnimationExporter {
         self.enabled = true;
         self.frame_count = 0;
         self.frames.clear();
-        println!("Animation export started");
+        self.next_frame_time = Duration::ZERO;
+        println!("Animation export started at {} FPS", EXPORT_FPS);
     }
 
     pub fn stop(&mut self) -> io::Result<()> {
@@ -131,7 +141,7 @@ impl AnimationExporter {
             .collect();
 
         ExportData {
-            fps: self.fps,
+            fps: EXPORT_FPS,
             prototypes: PrototypeDimensions {
                 joint_radius: JOINT_RADIUS,
                 push_radius: PUSH_RADIUS,
@@ -251,8 +261,17 @@ impl AnimationExporter {
             return;
         }
 
+        let fabric_time = fabric.age.as_duration();
+
+        // Only capture if we've reached the next frame time
+        if fabric_time < self.next_frame_time {
+            return;
+        }
+
         if self.frames.is_empty() {
             self.scale = fabric.scale;
+            // Start from current fabric time
+            self.next_frame_time = fabric_time;
         }
 
         let joint_positions: Vec<Point3<f32>> = fabric.joints.iter().map(|j| j.location).collect();
@@ -268,9 +287,10 @@ impl AnimationExporter {
         });
 
         self.frame_count += 1;
+        self.next_frame_time += self.frame_interval;
 
-        if self.frame_count % 10 == 0 {
-            println!("Captured {} frames...", self.frame_count);
+        if self.frame_count % 30 == 0 {
+            println!("Captured {} frames ({:.1}s of fabric time)", self.frame_count, fabric_time.as_secs_f64());
         }
     }
 
