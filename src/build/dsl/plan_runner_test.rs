@@ -17,155 +17,30 @@ mod tests {
     /// Executor benchmarks - Values collected from FabricPlanExecutor
     fn ui_benchmarks() -> Vec<Benchmark> {
         vec![
-            // BUILD phase - From FabricPlanExecutor (frame-independent)
-            Benchmark {
-                time: 0.0,
-                joints: 0,
-                height_mm: 0.0,
-                radius: 0.000,
-                ground: 0,
-            },
-            Benchmark {
-                time: 3.0,
-                joints: 176,
-                height_mm: 9215.9,
-                radius: 14.140,
-                ground: 0,
-            },
-            Benchmark {
-                time: 6.0,
-                joints: 176,
-                height_mm: 10859.4,
-                radius: 13.370,
-                ground: 0,
-            },
-            Benchmark {
-                time: 9.0,
-                joints: 176,
-                height_mm: 11993.9,
-                radius: 12.612,
-                ground: 0,
-            },
-            Benchmark {
-                time: 12.0,
-                joints: 176,
-                height_mm: 12887.7,
-                radius: 11.911,
-                ground: 0,
-            },
-            Benchmark {
-                time: 15.0,
-                joints: 176,
-                height_mm: 13568.0,
-                radius: 11.210,
-                ground: 0,
-            },
-            Benchmark {
-                time: 18.0,
-                joints: 176,
-                height_mm: 14086.2,
-                radius: 10.495,
-                ground: 0,
-            },
-            Benchmark {
-                time: 21.0,
-                joints: 176,
-                height_mm: 14471.2,
-                radius: 9.796,
-                ground: 0,
-            },
-            Benchmark {
-                time: 24.0,
-                joints: 176,
-                height_mm: 14741.7,
-                radius: 9.559,
-                ground: 0,
-            },
-            Benchmark {
-                time: 27.0,
-                joints: 176,
-                height_mm: 14911.1,
-                radius: 9.724,
-                ground: 0,
-            },
-            Benchmark {
-                time: 30.0,
-                joints: 176,
-                height_mm: 14214.4,
-                radius: 9.253,
-                ground: 0,
-            },
-            Benchmark {
-                time: 33.0,
-                joints: 176,
-                height_mm: 13495.5,
-                radius: 8.769,
-                ground: 0,
-            },
-            Benchmark {
-                time: 36.0,
-                joints: 176,
-                height_mm: 12769.9,
-                radius: 8.276,
-                ground: 0,
-            },
-            Benchmark {
-                time: 39.0,
-                joints: 176,
-                height_mm: 12030.2,
-                radius: 7.775,
-                ground: 0,
-            },
-            Benchmark {
-                time: 42.0,
-                joints: 176,
-                height_mm: 11277.4,
-                radius: 7.343,
-                ground: 0,
-            },
-            Benchmark {
-                time: 45.0,
-                joints: 168,
-                height_mm: 11300.2,
-                radius: 7.373,
-                ground: 0,
-            },
-            // PRETENSE/CONVERGE phase - structure settles to ground
-            Benchmark {
-                time: 50.0,
-                joints: 168,
-                height_mm: 11278.7,
-                radius: 7.533,
-                ground: 0,
-            },
-            Benchmark {
-                time: 55.0,
-                joints: 168,
-                height_mm: 11271.6,
-                radius: 7.624,
-                ground: 0,
-            },
-            Benchmark {
-                time: 60.0,
-                joints: 168,
-                height_mm: 11121.4,
-                radius: 7.628,
-                ground: 3,
-            },
-            Benchmark {
-                time: 65.0,
-                joints: 168,
-                height_mm: 11183.7,
-                radius: 7.759,
-                ground: 3,
-            },
-            Benchmark {
-                time: 70.0,
-                joints: 168,
-                height_mm: 11200.6,
-                radius: 7.747,
-                ground: 3,
-            },
+            Benchmark { time: 0.0, joints: 0, height_mm: 0.0, radius: 0.000, ground: 0 },
+            Benchmark { time: 3.0, joints: 176, height_mm: 7961.8, radius: 12.043, ground: 0 },
+            Benchmark { time: 6.0, joints: 176, height_mm: 9380.2, radius: 11.389, ground: 0 },
+            Benchmark { time: 9.0, joints: 176, height_mm: 10355.7, radius: 10.732, ground: 0 },
+            Benchmark { time: 12.0, joints: 176, height_mm: 11109.0, radius: 10.127, ground: 0 },
+            Benchmark { time: 15.0, joints: 176, height_mm: 11693.1, radius: 9.532, ground: 0 },
+            Benchmark { time: 18.0, joints: 176, height_mm: 12128.3, radius: 8.946, ground: 0 },
+            Benchmark { time: 21.0, joints: 176, height_mm: 12457.6, radius: 8.351, ground: 0 },
+            Benchmark { time: 24.0, joints: 176, height_mm: 12684.7, radius: 8.194, ground: 0 },
+            Benchmark { time: 27.0, joints: 176, height_mm: 12827.6, radius: 8.331, ground: 0 },
+            Benchmark { time: 30.0, joints: 176, height_mm: 12190.9, radius: 7.898, ground: 0 },
+            Benchmark { time: 33.0, joints: 176, height_mm: 11560.7, radius: 7.472, ground: 0 },
+            Benchmark { time: 36.0, joints: 176, height_mm: 10940.7, radius: 7.055, ground: 0 },
+            Benchmark { time: 39.0, joints: 176, height_mm: 10317.6, radius: 6.635, ground: 0 },
+            Benchmark { time: 42.0, joints: 176, height_mm: 9704.2, radius: 6.249, ground: 0 },
+            Benchmark { time: 45.0, joints: 168, height_mm: 9724.0, radius: 6.296, ground: 0 },
+            Benchmark { time: 50.0, joints: 168, height_mm: 9690.5, radius: 6.465, ground: 0 },
+            Benchmark { time: 55.0, joints: 168, height_mm: 9673.2, radius: 6.563, ground: 0 },
+            Benchmark { time: 60.0, joints: 168, height_mm: 9674.2, radius: 6.607, ground: 0 },
+            Benchmark { time: 65.0, joints: 168, height_mm: 9670.0, radius: 6.624, ground: 0 },
+            Benchmark { time: 68.0, joints: 168, height_mm: 9434.2, radius: 6.659, ground: 3 },
+            Benchmark { time: 70.0, joints: 168, height_mm: 9942.9, radius: 6.643, ground: 3 },
+            Benchmark { time: 75.0, joints: 168, height_mm: 9632.9, radius: 6.618, ground: 3 },
+            Benchmark { time: 80.0, joints: 168, height_mm: 9612.2, radius: 6.616, ground: 3 },
         ]
     }
 
@@ -182,14 +57,14 @@ mod tests {
             .filter(|j| j.location.y.abs() < ground_tolerance)
             .count();
 
-        // Log current state
+        // Print benchmark format for easy copy-paste
         eprintln!(
-            "[{:8.1}s] Radius: {:7.3}m | Height: {:7.1}mm | Ground: {:3} | Joints: {:3}",
+            "            Benchmark {{ time: {:.1}, joints: {}, height_mm: {:.1}, radius: {:.3}, ground: {} }},",
             fabric_time,
-            bounding_radius,
+            fabric.joints.len(),
             height_mm,
-            ground_count,
-            fabric.joints.len()
+            bounding_radius,
+            ground_count
         );
 
         // Check joints (exact)
@@ -224,8 +99,8 @@ mod tests {
             );
         }
 
-        // Check ground contacts (exact for key checkpoints at 150s and 270s+)
-        if fabric_time >= 150.0 && fabric_time <= 151.0 || fabric_time >= 270.0 {
+        // Check ground contacts at end
+        if benchmark.ground > 0 {
             assert_eq!(
                 ground_count, benchmark.ground,
                 "At {:.1}s: Expected {} ground contacts, got {}",
@@ -244,7 +119,7 @@ mod tests {
         let mut executor = FabricPlanExecutor::new(plan);
         let mut current_stage = ExecutorStage::Building;
 
-        // Run until completion, logging key points (allow up to 5M iterations for full convergence)
+        // Run until completion
         let mut iteration = 0;
         while !executor.is_complete() && iteration < 5_000_000 {
             // Log stage transitions
@@ -311,8 +186,8 @@ mod tests {
             build_benchmarks.len()
         );
 
-        // Run until all benchmarks checked (up to 75s to be safe)
-        let max_iterations = (75.0 * 4000.0) as usize;
+        // Run until all benchmarks checked (up to 85s to be safe)
+        let max_iterations = (85.0 * 4000.0) as usize;
 
         // Check iteration 0 before running any iterations
         if benchmark_idx < build_benchmarks.len() {
@@ -412,8 +287,12 @@ mod tests {
             "Should have Pretensing stage"
         );
         assert!(
-            stages.contains(&&ExecutorStage::Converging),
-            "Should have Converging stage"
+            stages.contains(&&ExecutorStage::Falling),
+            "Should have Falling stage"
+        );
+        assert!(
+            stages.contains(&&ExecutorStage::Settling),
+            "Should have Settling stage"
         );
         assert!(
             stages.contains(&&ExecutorStage::Complete),
@@ -425,8 +304,8 @@ mod tests {
     }
 
     #[test]
-    fn check_final_converged_state() {
-        eprintln!("\n=== Checking Final Converged State ===\n");
+    fn check_final_settled_state() {
+        eprintln!("\n=== Checking Final Settled State ===\n");
 
         let plan = fabric_library::get_fabric_plan(FabricName::Triped);
 

@@ -1,7 +1,8 @@
 /// Type-safe DSL for defining fabric plans with a fluent API.
 use crate::build::dsl::animate_phase::AnimatePhase;
 use crate::build::dsl::build_phase::{BuildNode, BuildPhase, Chirality, GrowStyle};
-use crate::build::dsl::converge_phase::ConvergePhase;
+use crate::build::dsl::fall_phase::FallPhase;
+use crate::build::dsl::settle_phase::SettlePhase;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::shape_phase::ShapeOperation;
@@ -15,14 +16,16 @@ use crate::build::dsl::brick_dsl::{BrickRole, FaceName};
 pub use crate::build::dsl::build_phase::BuildNode as Node;
 pub use crate::units::{Millimeters as Mm, Seconds as Sec};
 
-/// Start building a fabric plan
-pub fn fabric(name: impl Into<String>) -> FabricBuilder {
+/// Start building a fabric plan with initial altitude
+pub fn fabric(name: impl Into<String>, altitude: Millimeters) -> FabricBuilder {
     FabricBuilder {
         name: name.into(),
+        altitude,
         build: None,
         shape: Vec::new(),
         pretense: PretensePhaseBuilder::default(),
-        converge: Seconds(10.0),
+        fall: Seconds(5.0),
+        settle: Seconds(10.0),
         animate: None,
         scale: Millimeters(1000.0),
     }
@@ -30,10 +33,12 @@ pub fn fabric(name: impl Into<String>) -> FabricBuilder {
 
 pub struct FabricBuilder {
     name: String,
+    altitude: Millimeters,
     build: Option<BuildNode>,
     shape: Vec<ShapeOperation>,
     pretense: PretensePhaseBuilder,
-    converge: Seconds,
+    fall: Seconds,
+    settle: Seconds,
     animate: Option<AnimatePhase>,
     scale: Millimeters,
 }
@@ -54,8 +59,13 @@ impl FabricBuilder {
         self
     }
 
-    pub fn converge(mut self, seconds: Seconds) -> Self {
-        self.converge = seconds;
+    pub fn fall(mut self, seconds: Seconds) -> Self {
+        self.fall = seconds;
+        self
+    }
+
+    pub fn settle(mut self, seconds: Seconds) -> Self {
+        self.settle = seconds;
         self
     }
 
@@ -81,7 +91,10 @@ impl FabricBuilder {
     pub fn build_plan(self) -> FabricPlan {
         FabricPlan {
             name: self.name,
-            build_phase: BuildPhase::new(self.build.expect("build phase required")),
+            build_phase: BuildPhase::new(
+                self.build.expect("build phase required"),
+                self.altitude.0 / self.scale.0,
+            ),
             shape_phase: crate::build::dsl::shape_phase::ShapePhase {
                 operations: self.shape,
                 marks: Vec::new(),
@@ -91,9 +104,11 @@ impl FabricBuilder {
                 shape_operation_index: 0,
             },
             pretense_phase: self.pretense.build(),
-            converge_phase: ConvergePhase { seconds: self.converge },
+            fall_phase: FallPhase { seconds: self.fall },
+            settle_phase: SettlePhase { seconds: self.settle },
             animate_phase: self.animate,
             scale: self.scale.0,
+            altitude: self.altitude,
         }
     }
 }

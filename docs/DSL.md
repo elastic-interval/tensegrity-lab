@@ -60,9 +60,9 @@ Seed.calls_it(Downwards),                    // Orientation marker
 Fabrics are defined in `src/build/dsl/fabric_library.rs`:
 
 ```rust
-fabric("Triped")
+fabric("Triped", Mm(11000.0))
     .build(
-        branching(OmniBrick, SeedFaceDown)
+        branching(OmniSymmetrical, Seed(1))
             .on_face(OmniBotX, growing(8).scale(0.9).mark(End).prism().build())
             .on_face(OmniBotY, growing(8).scale(0.9).mark(End).prism().build())
             .on_face(OmniBotZ, growing(8).scale(0.9).mark(End).prism().build())
@@ -73,16 +73,17 @@ fabric("Triped")
         during(Sec(25.0), [space(End, 0.38)]),
         during(Sec(15.0), [vulcanize()]),
     ])
-    .pretense(pretense(Sec(15.0)).altitude(Mm(1000.0)).surface(SurfaceCharacter::Slippery))
-    .converge(Sec(10.0))
+    .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Frozen))
+    .fall(Sec(2.0))
+    .settle(Sec(10.0))
     .scale(Mm(1030.0))
     .build_plan()
 ```
 
-### Construction Phases
+### Execution Phases
 
-1. **Build Phase** - Construct the structure by growing/branching bricks
-   - `branching(brick, role)` - Place a seed brick
+1. **BUILD** - Construct the structure by growing/branching bricks (no gravity)
+   - `branching(brick, role)` - Place a seed brick at the specified altitude
    - `growing(n)` - Grow a column of n bricks
    - `.on_face(alias, ...)` - Specify growth from specific faces
    - `.scale(factor)` - Scale each successive brick
@@ -90,18 +91,26 @@ fabric("Triped")
    - `.chiral()` - Alternate left/right chirality
    - `.prism()` - Add prism reinforcement
 
-2. **Shape Phase** - Manipulate the settled structure
+2. **SHAPE** - Manipulate the structure while still in construction physics
    - `space(mark, factor)` - Adjust spacing at marked faces
    - `join(mark)` - Connect faces with the same mark
    - `vulcanize()` - Add reinforcing intervals
-   - `centralize_at(factor)` - Center the structure
 
-3. **Pretense Phase** - Define the settling environment
-   - `.altitude(height)` - Starting height above surface
-   - `.surface(character)` - Surface interaction (Frozen, Slippery, Absent)
-   - Duration in seconds
+3. **PRETENSE** - Apply pretension to cables (no gravity)
+   - Removes construction faces, leaving only the tensegrity structure
+   - Applies pretension percentage to all cable intervals
+   - `.surface(character)` - Surface interaction for later phases
+   - Duration controls how gradually pretension is applied
 
-4. **Converge Phase** - Final physics settling time
+4. **FALL** - Drop the structure with gravity (minimal damping)
+   - Gravity is enabled based on surface_character
+   - Structure falls freely and bounces/wobbles
+   - Duration should be enough for the structure to hit ground (~2s from 10m)
+
+5. **SETTLE** - Calm the structure down (progressive damping)
+   - Gradually increases damping over time
+   - Structure wobbles less and less until stable
+   - Joints that touch Frozen surface lock in place
 
 ## Baking Process
 

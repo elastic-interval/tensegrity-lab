@@ -51,7 +51,7 @@ pub enum Tweak {
     None,
     Scaling(ScalingTweak),
     Construction(ConstructionTweak),
-    Convergence(ConvergenceTweak),
+    Settling(SettlingTweak),
     Animation(AnimationTweak),
 }
 
@@ -71,29 +71,26 @@ pub struct ConstructionTweak {
     pub time_contraction: f32,
 }
 
-/// Temporary automated modifications to help structures settle
 #[derive(Debug, Clone)]
-pub struct ConvergenceTweak {
+pub struct SettlingTweak {
     pub enabled: bool,
     pub started: bool,
     pub base_physics: Box<Physics>,
-    pub drag: f32,           // Computed convergence drag
-    pub viscosity: f32,      // Computed convergence viscosity
+    pub drag: f32,
+    pub viscosity: f32,
     pub time_scale_multiplier: f32,
 }
 
-impl ConvergenceTweak {
+impl SettlingTweak {
     pub fn new(physics: &Physics) -> Self {
-        // Clone physics but without tweak to avoid recursion
         let mut base = physics.clone();
         base.tweak = Tweak::None;
-
         Self {
             enabled: true,
             started: false,
             base_physics: Box::new(base),
-            drag: 0.0,        // Start with no damping
-            viscosity: 0.0,   // Start with no damping
+            drag: 0.0,
+            viscosity: 0.0,
             time_scale_multiplier: 5.0,
         }
     }
@@ -159,13 +156,13 @@ impl Physics {
         use TweakFeature::*;
         let TweakParameter { feature, value } = parameter;
 
-        // Don't overwrite Construction or Convergence tweaks with Scaling tweaks
+        // Don't overwrite Construction or Settling tweaks with Scaling tweaks
         // Those tweaks provide essential damping and should not be replaced
-        if matches!(self.tweak, Tweak::Construction(_) | Tweak::Convergence(_)) {
+        if matches!(self.tweak, Tweak::Construction(_) | Tweak::Settling(_)) {
             return;
         }
 
-        // Get or create scaling tweak (only if not Construction/Convergence)
+        // Get or create scaling tweak (only if not Construction/Settling)
         let scaling = match &mut self.tweak {
             Tweak::Scaling(s) => s,
             _ => {
@@ -206,80 +203,61 @@ impl Physics {
         match &self.tweak {
             Tweak::Construction(c) => c.time_contraction,
             Tweak::Scaling(s) => s.time_scale,
-            Tweak::Convergence(c) => {
-                // During convergence, time scale increases geometrically to speed up settling
-                c.base_physics.time_scale() * c.time_scale_multiplier
+            Tweak::Settling(s) => {
+                // During settling, time scale increases geometrically to speed up settling
+                s.base_physics.time_scale() * s.time_scale_multiplier
             }
             Tweak::Animation(a) => a.time_contraction,
             _ => 1.0,
         }
     }
 
-    /// Get drag coefficient (0.0 normally, construction/convergence value when tweaked)
     pub fn drag(&self) -> f32 {
         match &self.tweak {
             Tweak::Construction(c) => c.drag,
-            Tweak::Convergence(c) => c.drag,
+            Tweak::Settling(s) => s.drag,
             _ => self.drag,
         }
     }
 
-    /// Get viscosity coefficient (0.0 normally, construction/convergence value when tweaked)
     pub fn viscosity(&self) -> f32 {
         match &self.tweak {
             Tweak::Construction(c) => c.viscosity,
-            Tweak::Convergence(c) => c.viscosity,
+            Tweak::Settling(s) => s.viscosity,
             _ => 0.0,
         }
     }
 
-    /// Get time contraction multiplier (how many iterations per frame)
-    /// Higher values speed up fabric time relative to real time
     pub fn time_contraction(&self) -> f32 {
         match &self.tweak {
             Tweak::Construction(c) => c.time_contraction,
-            Tweak::Convergence(c) => c.base_physics.time_contraction(),
+            Tweak::Settling(s) => s.base_physics.time_contraction(),
             Tweak::Animation(a) => a.time_contraction,
             _ => 1.0,
         }
     }
 
-    /// Update convergence based on time progress (0.0 to 1.0)
-    /// Gradually increases damping to slow the system down over time
-    /// Time scale remains constant at 1.0 to match UI timing
-    pub fn update_convergence_progress(&mut self, progress: f32) {
-        if let Tweak::Convergence(conv) = &mut self.tweak {
-            if !conv.started {
-                conv.started = true;
+    pub fn update_settling_progress(&mut self, progress: f32) {
+        if let Tweak::Settling(settling) = &mut self.tweak {
+            if !settling.started {
+                settling.started = true;
             }
-
-            // Apply progressive damping during convergence
-            // This gradually slows the system down
             let damping_mult = 1.0 + progress.powi(3) * 50.0;
-
-            // Convergence-specific base damping values (independent of BASE_PHYSICS)
-            // These are tuned for convergence behavior
-            const CONVERGENCE_BASE_DRAG: f32 = 0.01;
-            const CONVERGENCE_BASE_VISCOSITY: f32 = 0.5;
-
-            // Compute and store convergence damping values
-            // (time_scale_multiplier is set once at construction and not modified)
-            conv.drag = CONVERGENCE_BASE_DRAG * damping_mult;
-            conv.viscosity = CONVERGENCE_BASE_VISCOSITY * damping_mult;
+            const SETTLING_BASE_DRAG: f32 = 0.01;
+            const SETTLING_BASE_VISCOSITY: f32 = 0.5;
+            settling.drag = SETTLING_BASE_DRAG * damping_mult;
+            settling.viscosity = SETTLING_BASE_VISCOSITY * damping_mult;
         }
     }
-    
-    /// Enable convergence tracking
-    pub fn enable_convergence(&mut self) {
-        self.tweak = Tweak::Convergence(ConvergenceTweak::new(self));
+
+    pub fn enable_settling(&mut self) {
+        self.tweak = Tweak::Settling(SettlingTweak::new(self));
     }
-    
-    /// Disable convergence tracking
-    pub fn disable_convergence(&mut self) {
-        if let Tweak::Convergence(conv) = &self.tweak {
-            if conv.enabled {
-                // Restore base physics
-                let base = conv.base_physics.clone();
+
+    pub fn disable_settling(&mut self) {
+        if let Tweak::Settling(settling) = &self.tweak {
+            if settling.enabled {
+                let base = settling.base_physics.clone();
                 *self = *base;
             }
         }
@@ -300,7 +278,7 @@ pub mod presets {
         tweak: Tweak::Construction(ConstructionTweak {
             drag: 0.0125,
             viscosity: 40.0,
-            time_contraction: 5.0,
+            time_contraction: 2.0,
         }),
     };
 
@@ -311,7 +289,7 @@ pub mod presets {
         tweak: Tweak::Construction(ConstructionTweak {
             drag: 25.0,
             viscosity: 4.0,
-            time_contraction: 4.0,
+            time_contraction: 2.0,
         }),
     };
 
@@ -350,25 +328,11 @@ mod tests {
     use super::presets::*;
 
     #[test]
-    fn test_time_scale_after_disable_convergence() {
-        println!("\n=== Testing time_scale after disable_convergence ===\n");
-
-        // Start with CONSTRUCTION physics (time_scale = 5.0)
+    fn test_time_scale_after_disable_settling() {
         let mut physics = CONSTRUCTION.clone();
-        println!("CONSTRUCTION time_scale: {}", physics.time_scale());
         assert_eq!(physics.time_scale(), 5.0);
-
-        // Enable convergence (stores base_physics with Tweak::None)
-        physics.enable_convergence();
-        println!("After enable_convergence time_scale: {}", physics.time_scale());
-
-        // Disable convergence - should restore base_physics with Tweak::None
-        physics.disable_convergence();
-        println!("After disable_convergence time_scale: {}", physics.time_scale());
-        println!("Tweak: {:?}", physics.tweak);
-
-        assert_eq!(physics.time_scale(), 1.0, "disable_convergence should clear all tweaks");
-
-        println!("\n✓ Test passed");
+        physics.enable_settling();
+        physics.disable_settling();
+        assert_eq!(physics.time_scale(), 1.0);
     }
 }

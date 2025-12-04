@@ -13,9 +13,8 @@ pub enum BaseFace {
     Situated {
         spin: Spin,
         vector_space: Matrix4<f32>,
-        // seed: Option<usize>,
     },
-    Seeded,
+    Seeded { altitude: f32 },
 }
 
 impl Fabric {
@@ -35,7 +34,11 @@ impl Fabric {
                 (face.scale * scale_factor, spin, matrix)
             }
             BaseFace::Situated { spin, vector_space } => (scale_factor, Some(spin), vector_space),
-            BaseFace::Seeded => (scale_factor, None, Matrix4::from_scale(scale_factor)),
+            BaseFace::Seeded { altitude } => {
+                let matrix = Matrix4::from_translation(Vector3::new(0.0, altitude, 0.0))
+                    * Matrix4::from_scale(scale_factor);
+                (scale_factor, None, matrix)
+            }
         };
         let brick = baked_brick.clone();
         let joints: Vec<usize> = brick
