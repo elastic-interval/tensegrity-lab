@@ -123,21 +123,23 @@ pub struct BuildPhase {
     pub root: BuildNode,
     pub buds: Vec<Bud>,
     pub marks: Vec<FaceMark>,
+    pub seed_altitude: f32,
 }
 
 impl BuildPhase {
-    pub fn new(root: BuildNode) -> Self {
+    pub fn new(root: BuildNode, seed_altitude: f32) -> Self {
         Self {
             root,
             buds: Vec::new(),
             marks: Vec::new(),
+            seed_altitude,
         }
     }
 }
 
 impl BuildPhase {
     pub fn init(&mut self, fabric: &mut Fabric) {
-        let (buds, marks) = Self::execute_node(fabric, Scratch, &self.root, vec![]);
+        let (buds, marks) = Self::execute_node(fabric, Scratch, &self.root, vec![], self.seed_altitude);
         self.buds = buds;
         self.marks = marks;
     }
@@ -208,7 +210,7 @@ impl BuildPhase {
         } else if !nodes.is_empty() {
             for child_node in &nodes {
                 let (node_buds, node_marks) =
-                    Self::execute_node(fabric, IdentifiedFace(face_id), child_node, vec![]);
+                    Self::execute_node(fabric, IdentifiedFace(face_id), child_node, vec![], self.seed_altitude);
                 buds.extend(node_buds);
                 marks.extend(node_marks);
             }
@@ -221,13 +223,14 @@ impl BuildPhase {
         launch: Launch,
         node: &BuildNode,
         faces: Vec<UniqueId>,
+        seed_altitude: f32,
     ) -> (Vec<Bud>, Vec<FaceMark>) {
         let mut buds: Vec<Bud> = vec![];
         let mut marks: Vec<FaceMark> = vec![];
         match node {
             Face { alias, node } => {
                 let build_node = node.as_ref();
-                return Self::execute_node(fabric, NamedFace(alias.clone()), build_node, faces);
+                return Self::execute_node(fabric, NamedFace(alias.clone()), build_node, faces, seed_altitude);
             }
             Grow {
                 style,
@@ -255,7 +258,7 @@ impl BuildPhase {
                 let launch_face = Self::find_launch_face(&launch, &faces, fabric);
                 let base_face = launch_face
                     .map(BaseFace::ExistingFace)
-                    .unwrap_or(BaseFace::Seeded);
+                    .unwrap_or(BaseFace::Seeded { altitude: seed_altitude });
                 let (base_face_id, brick_faces) = fabric.attach_brick(
                     &brick,
                     *brick_role,
@@ -280,6 +283,7 @@ impl BuildPhase {
                         NamedFace(branch_face_alias),
                         branch_node,
                         available_faces.clone(),
+                        seed_altitude,
                     );
                     buds.extend(new_buds);
                     marks.extend(new_marks);

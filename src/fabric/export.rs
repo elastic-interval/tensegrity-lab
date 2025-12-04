@@ -1,4 +1,4 @@
-use cgmath::{InnerSpace, Point3, Vector3};
+use cgmath::{InnerSpace, Point3};
 use std::io;
 use std::io::{Cursor, Write};
 use zip::{write::FileOptions, CompressionMethod, ZipWriter};
@@ -6,113 +6,6 @@ use zip::{write::FileOptions, CompressionMethod, ZipWriter};
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::Joint;
 use crate::fabric::Fabric;
-
-/// Create a minimal test USD with a single cylinder for debugging
-/// This creates a cylinder from point A to point B with known coordinates
-#[allow(dead_code)]
-pub fn test_single_cylinder() -> String {
-    let mut output = String::new();
-
-    // USD header
-    output.push_str("#usda 1.0\n");
-    output.push_str("(\n");
-    output.push_str("    defaultPrim = \"Test\"\n");
-    output.push_str("    metersPerUnit = 0.001\n");
-    output.push_str("    upAxis = \"Y\"\n");
-    output.push_str(")\n\n");
-
-    output.push_str("def Xform \"Test\"\n");
-    output.push_str("{\n");
-
-    // Create spheres at the endpoints so we can see where the cylinder should connect
-    // Point A at (0, 0, 0)
-    output.push_str("    def Sphere \"PointA\"\n");
-    output.push_str("    {\n");
-    output.push_str("        double radius = 5.0\n");
-    output.push_str("        double3 xformOp:translate = (0, 0, 0)\n");
-    output.push_str("        uniform token[] xformOpOrder = [\"xformOp:translate\"]\n");
-    output.push_str("    }\n");
-
-    // Point B at (100, 50, 0) - a diagonal line
-    output.push_str("    def Sphere \"PointB\"\n");
-    output.push_str("    {\n");
-    output.push_str("        double radius = 5.0\n");
-    output.push_str("        double3 xformOp:translate = (100, 50, 0)\n");
-    output.push_str("        uniform token[] xformOpOrder = [\"xformOp:translate\"]\n");
-    output.push_str("    }\n");
-
-    // Now create the cylinder connecting them
-    let alpha = Point3::new(0.0f32, 0.0, 0.0);
-    let omega = Point3::new(100.0f32, 50.0, 0.0);
-
-    let mid_x = (alpha.x + omega.x) / 2.0;
-    let mid_y = (alpha.y + omega.y) / 2.0;
-    let mid_z = (alpha.z + omega.z) / 2.0;
-
-    let dx = omega.x - alpha.x;
-    let dy = omega.y - alpha.y;
-    let dz = omega.z - alpha.z;
-    let length = (dx * dx + dy * dy + dz * dz).sqrt();
-
-    let radius = 2.0f32;
-
-    let y_axis = Vector3::new(dx / length, dy / length, dz / length);
-
-    let arbitrary = if y_axis.y.abs() < 0.9 {
-        Vector3::new(0.0, 1.0, 0.0)
-    } else {
-        Vector3::new(1.0, 0.0, 0.0)
-    };
-
-    let x_axis = y_axis.cross(arbitrary).normalize();
-    let z_axis = x_axis.cross(y_axis).normalize();
-
-    // USD default cylinder has height=2 (from -1 to +1 on axis), radius=1
-    // We scale Y by length/2 so total height becomes length
-    let c0 = x_axis * radius;
-    let c1 = y_axis * (length / 2.0);  // Divide by 2 because default height is 2
-    let c2 = z_axis * radius;
-
-    output.push_str("    def Cylinder \"TestCylinder\"\n");
-    output.push_str("    {\n");
-    // Use USD defaults: radius=1, height=2
-    // USD uses row-vector convention with translation in the LAST ROW:
-    // row0 = (Xx, Xy, Xz, 0)  - X basis (scaled by radius)
-    // row1 = (Yx, Yy, Yz, 0)  - Y basis (scaled by length/2, since default height=2)
-    // row2 = (Zx, Zy, Zz, 0)  - Z basis (scaled by radius)
-    // row3 = (Tx, Ty, Tz, 1)  - Translation
-    output.push_str(&format!(
-        "        matrix4d xformOp:transform = ( ({:.6}, {:.6}, {:.6}, 0), ({:.6}, {:.6}, {:.6}, 0), ({:.6}, {:.6}, {:.6}, 0), ({:.6}, {:.6}, {:.6}, 1) )\n",
-        c0.x, c0.y, c0.z,
-        c1.x, c1.y, c1.z,
-        c2.x, c2.y, c2.z,
-        mid_x, mid_y, mid_z
-    ));
-    output.push_str("        uniform token[] xformOpOrder = [\"xformOp:transform\"]\n");
-    output.push_str("    }\n");
-
-    output.push_str("}\n");
-
-    output
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs::File;
-    use std::io::Write;
-
-    #[test]
-    fn generate_test_cylinder_usd() {
-        let usd = test_single_cylinder();
-        println!("{}", usd);
-
-        // Write to file for manual inspection
-        let mut file = File::create("test_cylinder.usda").unwrap();
-        file.write_all(usd.as_bytes()).unwrap();
-        println!("\nWritten to test_cylinder.usda");
-    }
-}
 
 impl Fabric {
     /// Generate a ZIP file containing three CSV files with fabric data

@@ -209,14 +209,10 @@ impl ApplicationHandler<LabEvent> for Application {
                 };
             }
             FabricBuilt(fabric_stats) => {
-                // Convergence complete - show stats and transition to viewing
                 StateChange::SetFabricName(fabric_stats.name.clone()).send(&self.radio);
                 StateChange::SetFabricStats(Some(fabric_stats)).send(&self.radio);
                 StateChange::SetControlState(self.crucible.viewing_state()).send(&self.radio);
                 StateChange::SetStageLabel("Viewing".to_string()).send(&self.radio);
-                if let Some(scene) = &mut self.scene {
-                    scene.jump_to_fabric(&self.crucible.fabric);
-                }
                 if self.mobile_device {
                     CrucibleAction::ToAnimating.send(&self.radio);
                 } else {

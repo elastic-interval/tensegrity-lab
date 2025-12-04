@@ -1,4 +1,4 @@
-use crate::build::converger::Converger;
+use crate::build::settler::Settler;
 use crate::build::dsl::plan_runner::PlanRunner;
 use crate::build::dsl::pretenser::Pretenser;
 use crate::build::dsl::FabricPlan;
@@ -18,7 +18,8 @@ pub enum IterateResult {
 pub enum ExecutorStage {
     Building,
     Pretensing,
-    Converging,
+    Falling,
+    Settling,
     Complete,
 }
 
@@ -92,7 +93,7 @@ pub struct FabricPlanExecutor {
     stage: ExecutorStage,
     plan_runner: Option<PlanRunner>,
     pretenser: Option<Pretenser>,
-    converger: Option<Converger>,
+    settler: Option<Settler>,
     pub fabric: Fabric,
     pub physics: Physics,
     plan: FabricPlan,
@@ -111,7 +112,7 @@ impl FabricPlanExecutor {
             stage: ExecutorStage::Building,
             plan_runner: Some(plan_runner),
             pretenser: None,
-            converger: None,
+            settler: None,
             fabric,
             physics,
             plan,
@@ -217,18 +218,18 @@ impl FabricPlanExecutor {
                 }
             }
             ExecutorStage::Pretensing => {
-                // Check if pretension is complete (progress is no longer busy)
                 if !self.fabric.progress.is_busy() {
-                    self.transition_to_converge();
+                    self.transition_to_fall();
                 }
             }
-            ExecutorStage::Converging => {
-                // Use fabric's built-in progress tracking for convergence
-                // Update physics with convergence progress for gradually increasing damping
+            ExecutorStage::Falling => {
+                if !self.fabric.progress.is_busy() {
+                    self.transition_to_settle();
+                }
+            }
+            ExecutorStage::Settling => {
                 let progress = self.fabric.progress.nuance();
-                self.physics.update_convergence_progress(progress);
-
-                // Check if convergence is complete
+                self.physics.update_settling_progress(progress);
                 if !self.fabric.progress.is_busy() {
                     self.complete();
                 }
@@ -287,10 +288,6 @@ impl FabricPlanExecutor {
 
         // Apply pretension
         self.fabric.slacken();
-        let altitude = self.plan.pretense_phase.altitude
-            .unwrap_or(0.0) / self.fabric.scale;
-        let translation = self.fabric.centralize_translation(Some(altitude));
-        self.fabric.apply_translation(translation);
 
         let pretenst_percent = self.plan.pretense_phase.pretenst
             .map(|p| Percent(p))
@@ -323,49 +320,58 @@ impl FabricPlanExecutor {
         self.physics.accept_tweak(MassScale.parameter(mass_scale));
         self.physics.accept_tweak(RigidityScale.parameter(rigidity_scale));
 
-        self.plan_runner = None; // No longer needed
+        self.plan_runner = None;
         self.stage = ExecutorStage::Pretensing;
     }
 
-    fn transition_to_converge(&mut self) {
+    fn transition_to_fall(&mut self) {
         self.log_event(ExecutionEvent::StageTransition {
             iteration: self.current_iteration,
             from: "PRETENSE".to_string(),
-            to: "CONVERGE".to_string(),
+            to: "FALL".to_string(),
         });
 
-        // Preserve user's scaling tweaks before switching physics
         let mass_scale = self.physics.mass_scale();
         let rigidity_scale = self.physics.rigidity_scale();
 
-        // Switch to BASE_PHYSICS for convergence (lower drag allows visible falling)
         use crate::fabric::physics::presets::BASE_PHYSICS;
         self.physics = BASE_PHYSICS;
 
-        // NOW apply the surface_character stored during PRETENSE
-        // This is when gravity should appear!
         if let Some(surface) = self.stored_surface_character {
             self.physics.surface_character = surface;
         }
 
-        // Restore user's scaling tweaks
         use crate::TweakFeature::*;
         self.physics.accept_tweak(MassScale.parameter(mass_scale));
         self.physics.accept_tweak(RigidityScale.parameter(rigidity_scale));
 
-        // Enable convergence mode (gradually increases damping over time)
-        self.physics.enable_convergence();
+        self.log_event(ExecutionEvent::PhysicsChanged {
+            iteration: self.current_iteration,
+            description: "FALLING".to_string(),
+        });
+
+        self.fabric.progress.start(self.plan.fall_phase.seconds);
+
+        self.pretenser = None;
+        self.stage = ExecutorStage::Falling;
+    }
+
+    fn transition_to_settle(&mut self) {
+        self.log_event(ExecutionEvent::StageTransition {
+            iteration: self.current_iteration,
+            from: "FALL".to_string(),
+            to: "SETTLE".to_string(),
+        });
+
+        self.physics.enable_settling();
 
         self.log_event(ExecutionEvent::PhysicsChanged {
             iteration: self.current_iteration,
-            description: "CONVERGING".to_string(),
+            description: "SETTLING".to_string(),
         });
 
-        // Start progress tracking for convergence duration
-        self.fabric.progress.start(self.plan.converge_phase.seconds);
-
-        self.pretenser = None; // No longer needed
-        self.stage = ExecutorStage::Converging;
+        self.fabric.progress.start(self.plan.settle_phase.seconds);
+        self.stage = ExecutorStage::Settling;
     }
 
     fn complete(&mut self) {
@@ -374,7 +380,7 @@ impl FabricPlanExecutor {
         });
 
         self.fabric.zero_velocities();
-        self.converger = None;
+        self.settler = None;
         self.stage = ExecutorStage::Complete;
     }
 

@@ -68,7 +68,7 @@ impl Crucible {
     /// Finalize and transition to Viewing stage
     fn finalize_to_viewing(&mut self) {
         self.fabric.zero_velocities();
-        self.physics.disable_convergence();
+        self.physics.disable_settling();
         self.stage = Viewing;
     }
 
@@ -116,16 +116,18 @@ impl Crucible {
                 ExecutorStage::Pretensing => {
                     format!("Pretensing {}", self.fabric.progress.countdown())
                 }
-                ExecutorStage::Converging => {
-                    format!("Converging {}", self.fabric.progress.countdown())
+                ExecutorStage::Falling => {
+                    format!("Falling {}", self.fabric.progress.countdown())
+                }
+                ExecutorStage::Settling => {
+                    format!("Settling {}", self.fabric.progress.countdown())
                 }
                 ExecutorStage::Complete => "Complete".to_string(),
             };
 
-            // Always update during Pretensing/Converging (for countdown), otherwise only when changed
             let should_update = matches!(
                 executor.stage(),
-                ExecutorStage::Pretensing | ExecutorStage::Converging
+                ExecutorStage::Pretensing | ExecutorStage::Falling | ExecutorStage::Settling
             ) || self
                 .last_stage_label
                 .as_ref()
@@ -219,7 +221,7 @@ impl Crucible {
             let name = fabric_plan.name.clone();
             let mut executor = FabricPlanExecutor::new(fabric_plan.clone());
 
-            // Store the fabric_plan for later use (animate, converge, etc.)
+            // Store the fabric_plan for later use (animate, settle, etc.)
             self.fabric_plan = Some(fabric_plan);
 
             // Apply user's scaling tweaks to executor's physics before construction

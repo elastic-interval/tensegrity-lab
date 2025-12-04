@@ -24,7 +24,7 @@ pub enum FabricName {
 }
 
 pub fn triped() -> FabricPlan {
-    fabric("Triped")
+    fabric("Triped", Mm(10000.0))
         .build(
             branching(OmniSymmetrical, Seed(1))
                 .on_face(OmniBotX, growing(8).scale(0.9).mark(End).prism().build())
@@ -39,10 +39,10 @@ pub fn triped() -> FabricPlan {
         ])
         .pretense(
             pretense(Sec(15.0))
-                .altitude(Mm(1000.0))
                 .surface(SurfaceCharacter::Frozen),
         )
-        .converge(Sec(10.0))
+        .fall(Sec(10.0))
+        .settle(Sec(10.0))
         .animate(
             Sec(0.8266),
             Amplitude::new(0.01),
@@ -57,7 +57,7 @@ pub fn triped() -> FabricPlan {
 }
 
 pub fn halo_by_crane() -> FabricPlan {
-    fabric("Halo by Crane")
+    fabric("Halo by Crane", Mm(2000.0))
         .build(
             branching(SingleTwistLeft, Seed(1))
                 .on_face(
@@ -83,7 +83,7 @@ pub fn halo_by_crane() -> FabricPlan {
 }
 
 pub fn vertebra() -> FabricPlan {
-    fabric("Vertebra")
+    fabric("Vertebra", Mm(500.0))
         .build(
             branching(SingleTwistLeft, Seed(1))
                 .on_face(SingleTop, growing(1).build())
@@ -96,7 +96,7 @@ pub fn vertebra() -> FabricPlan {
 }
 
 pub fn flagellum() -> FabricPlan {
-    fabric("Flagellum")
+    fabric("Flagellum", Mm(2000.0))
         .build(
             branching(SingleTwistLeft, Seed(1))
                 .on_face(SingleTop, growing(20).scale(0.95).build())
@@ -108,7 +108,7 @@ pub fn flagellum() -> FabricPlan {
 }
 
 pub fn cigar() -> FabricPlan {
-    fabric("Cigar")
+    fabric("Cigar", Mm(500.0))
         .build(
             branching(SingleTwistLeft, Seed(1))
                 .on_face(SingleTop, growing(1).scale(0.85).build())
@@ -122,7 +122,7 @@ pub fn cigar() -> FabricPlan {
 }
 
 pub fn headless_hug() -> FabricPlan {
-    fabric("Headless Hug")
+    fabric("Headless Hug", Mm(2000.0))
         .build(
             branching(OmniSymmetrical, Seed(4))
                 .on_face(
