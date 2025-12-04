@@ -285,7 +285,7 @@ pub fn add(alpha_index: usize, omega_index: usize, length_factor: f32) -> ShapeO
 
 #[derive(Default)]
 pub struct PretensePhaseBuilder {
-    surface_character: Option<SurfaceCharacter>,
+    surface: Option<SurfaceCharacter>,
     altitude: Option<Millimeters>,
     pretenst: Option<f32>,
     rigidity: Option<f32>,
@@ -293,8 +293,8 @@ pub struct PretensePhaseBuilder {
 }
 
 impl PretensePhaseBuilder {
-    pub fn surface(mut self, character: SurfaceCharacter) -> Self {
-        self.surface_character = Some(character);
+    pub fn surface(mut self, surface: SurfaceCharacter) -> Self {
+        self.surface = Some(surface);
         self
     }
 
@@ -315,7 +315,7 @@ impl PretensePhaseBuilder {
 
     pub(crate) fn build(self) -> PretensePhase {
         PretensePhase {
-            surface_character: self.surface_character,
+            surface: self.surface,
             pretenst: self.pretenst,
             seconds: self.seconds,
             rigidity: self.rigidity,

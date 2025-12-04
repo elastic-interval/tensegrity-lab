@@ -2,44 +2,129 @@
  * Copyright (c) 2020. Beautiful Code BV, Rotterdam, Netherlands
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
-use crate::units::{MillimetersPerSecondSquared, Percent, EARTH_GRAVITY_MM_S2};
+use crate::units::Percent;
 use crate::{PhysicsFeature, PhysicsParameter, Radio, StateChange, TweakFeature, TweakParameter};
 
 
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SurfaceCharacter {
-    #[default]
-    Absent,
     Frozen,
     Sticky,
     Bouncy,
     Slippery,
 }
 
+use crate::fabric::Velocity;
+use crate::units::EARTH_GRAVITY_MM_S2;
+use cgmath::num_traits::zero;
+
+/// Parameters for surface interaction calculation
+pub struct SurfaceInteraction {
+    pub altitude: f32,
+    pub velocity: Velocity,
+    pub force_velocity: Velocity,
+    pub drag: f32,
+    pub viscosity: f32,
+    pub mass: f32,
+    pub scale: f32,
+    pub dt: f32,
+}
+
+/// Result of surface interaction
+pub struct SurfaceResult {
+    pub velocity: Velocity,
+    pub clamp_y: Option<f32>,
+}
+
+const SURFACE_TOLERANCE: f32 = 0.01;
+const STICKY_DOWN_DRAG_FACTOR: f32 = 0.8;
+
 impl SurfaceCharacter {
-    pub fn has_gravity(&self) -> bool {
-        !matches!(self, SurfaceCharacter::Absent)
-    }
+    /// Apply surface physics and return the resulting velocity and optional y-position clamp
+    pub fn interact(&self, s: SurfaceInteraction) -> SurfaceResult {
+        let gravity = *EARTH_GRAVITY_MM_S2;
+        let mut velocity = s.velocity;
+        let mut clamp_y = None;
 
-    pub fn acceleration_of_gravity(&self) -> MillimetersPerSecondSquared {
-        match self {
-            SurfaceCharacter::Absent => MillimetersPerSecondSquared(0.0),
-            _ => EARTH_GRAVITY_MM_S2,
-        }
-    }
+        if s.altitude > SURFACE_TOLERANCE {
+            // Above surface - apply gravity and standard physics
+            velocity.y -= gravity * s.dt / s.scale;
+            let speed_squared = velocity.magnitude2();
+            velocity += s.force_velocity - velocity * speed_squared * s.viscosity * s.dt;
+            velocity *= 1.0 - s.drag * s.dt;
+        } else {
+            // On or below surface
+            let depth = -s.altitude;
+            let degree_submerged: f32 = depth.min(1.0);
 
-    pub fn antigravity(&self) -> f32 {
-        match self {
-            SurfaceCharacter::Absent => 0.0,
-            _ => 1e-3,
+            velocity += s.force_velocity;
+
+            match self {
+                SurfaceCharacter::Frozen => {
+                    velocity = zero();
+                    clamp_y = Some(0.0);
+                }
+                SurfaceCharacter::Sticky => {
+                    let friction = if velocity.y < 0.0 {
+                        STICKY_DOWN_DRAG_FACTOR
+                    } else {
+                        1.0 - s.drag * s.dt
+                    };
+                    velocity.x *= friction;
+                    velocity.z *= friction;
+
+                    let antigravity = gravity * s.mass * degree_submerged * 50.0;
+                    velocity.y += (antigravity / s.scale) * s.dt;
+
+                    if velocity.y < 0.0 {
+                        velocity.y *= 0.5;
+                    }
+
+                    if depth > 0.1 {
+                        clamp_y = Some(-0.1);
+                        velocity.y = 0.0;
+                    }
+                }
+                SurfaceCharacter::Bouncy => {
+                    if velocity.y < 0.0 {
+                        velocity.y *= -0.5;
+                    }
+
+                    velocity.x *= 0.6;
+                    velocity.z *= 0.6;
+
+                    let antigravity = gravity * s.mass * degree_submerged * 5.0;
+                    velocity.y += (antigravity / s.scale) * s.dt;
+                }
+                SurfaceCharacter::Slippery => {
+                    clamp_y = Some(0.0);
+                    velocity.y = 0.0;
+
+                    let speed_horizontal = (velocity.x * velocity.x + velocity.z * velocity.z).sqrt();
+
+                    const SURFACE_DAMPING: f32 = 50.0;
+                    let linear_friction = 1.0
+                        - ((SURFACE_DAMPING + s.drag) * s.dt
+                            + SURFACE_DAMPING * s.viscosity * speed_horizontal * s.dt);
+                    let quadratic_damping = 1.0 - (2.0 * speed_horizontal * speed_horizontal * s.dt);
+                    let total_friction = (linear_friction * quadratic_damping.max(0.0)).max(0.0);
+
+                    velocity.x *= total_friction;
+                    velocity.z *= total_friction;
+                }
+            }
         }
+
+        SurfaceResult { velocity, clamp_y }
     }
 }
+
+use cgmath::InnerSpace;
 
 /// Core physics environment with base values
 #[derive(Debug, Clone)]
 pub struct Physics {
-    pub surface_character: SurfaceCharacter,
+    pub surface: Option<SurfaceCharacter>,
     pub pretenst: Percent,
     pub drag: f32,
     pub viscosity: f32,
@@ -151,7 +236,6 @@ impl Physics {
 
 pub mod presets {
     use crate::fabric::physics::{Physics, Tweak};
-    use crate::fabric::physics::SurfaceCharacter::{Absent, Frozen};
     use crate::units::Percent;
 
     const NO_TWEAK: Tweak = Tweak {
@@ -163,7 +247,7 @@ pub mod presets {
     };
 
     pub const VIEWING: Physics = Physics {
-        surface_character: Frozen,
+        surface: None,
         pretenst: Percent(1.0),
         drag: 0.5,
         viscosity: 0.0,
@@ -172,7 +256,7 @@ pub mod presets {
     };
 
     pub const CONSTRUCTION: Physics = Physics {
-        surface_character: Absent,
+        surface: None,
         pretenst: Percent(20.0),
         drag: 0.0125,
         viscosity: 40.0,
@@ -181,7 +265,7 @@ pub mod presets {
     };
 
     pub const PRETENSING: Physics = Physics {
-        surface_character: Absent,
+        surface: None,
         pretenst: Percent(1.0),
         drag: 25.0,
         viscosity: 4.0,
@@ -190,7 +274,7 @@ pub mod presets {
     };
 
     pub const BAKING: Physics = Physics {
-        surface_character: Absent,
+        surface: None,
         pretenst: Percent(5.0),
         drag: 500.0,
         viscosity: 1000.0,
@@ -199,7 +283,7 @@ pub mod presets {
     };
 
     pub const ANIMATING: Physics = Physics {
-        surface_character: Frozen,
+        surface: None,
         pretenst: Percent(1.0),
         drag: 0.5,
         viscosity: 0.0,
@@ -208,7 +292,7 @@ pub mod presets {
     };
 
     pub const FALLING: Physics = Physics {
-        surface_character: Frozen,
+        surface: None,
         pretenst: Percent(1.0),
         drag: 0.5,
         viscosity: 0.0,
@@ -217,7 +301,7 @@ pub mod presets {
     };
 
     pub const SETTLING: Physics = Physics {
-        surface_character: Frozen,
+        surface: None,
         pretenst: Percent(1.0),
         drag: 0.01,
         viscosity: 0.5,
