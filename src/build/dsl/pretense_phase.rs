@@ -4,7 +4,7 @@ use crate::units::{Percent, Seconds};
 
 #[derive(Debug, Clone, Default)]
 pub struct PretensePhase {
-    pub surface_character: Option<SurfaceCharacter>,
+    pub surface: Option<SurfaceCharacter>,
     pub pretenst: Option<f32>,
     pub seconds: Option<Seconds>,
     pub rigidity: Option<f32>,
@@ -16,11 +16,10 @@ impl PretensePhase {
         let pretenst = self.pretenst
             .map(|p| Percent(p))
             .unwrap_or(VIEWING.pretenst);
-        let surface_character = self.surface_character.unwrap_or(VIEWING.surface_character);
 
         Physics {
             pretenst,
-            surface_character,
+            surface: self.surface,
             ..VIEWING
         }
     }

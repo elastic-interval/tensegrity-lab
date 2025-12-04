@@ -85,13 +85,12 @@ impl Application {
         StateChange::SetKeyboardLegend(self.keyboard.legend(&self.control_state).join(", "))
             .send(&self.radio);
 
-        let surface_character = self.crucible.physics.surface_character;
+        let surface = self.crucible.physics.surface;
         if let Some(scene) = &mut self.scene {
-            // Initialize camera if needed (handles case where Run event arrived before ContextCreated)
             if scene.needs_camera_init() {
                 scene.jump_to_fabric(&self.crucible.fabric);
             }
-            if let Err(error) = scene.redraw(&self.crucible.fabric, surface_character) {
+            if let Err(error) = scene.redraw(&self.crucible.fabric, surface) {
                 eprintln!("Error redrawing scene: {:?}", error);
             }
         }

@@ -67,8 +67,26 @@ impl Crucible {
 impl Crucible {
     fn finalize_to_viewing(&mut self) {
         self.fabric.zero_velocities();
-        self.physics = VIEWING;
+        self.physics = self.viewing_physics();
         self.stage = Viewing;
+    }
+
+    fn viewing_physics(&self) -> Physics {
+        self.plan_physics(VIEWING)
+    }
+
+    fn animating_physics(&self) -> Physics {
+        self.plan_physics(ANIMATING)
+    }
+
+    fn plan_physics(&self, base: Physics) -> Physics {
+        self.fabric_plan
+            .as_ref()
+            .map(|plan| Physics {
+                surface: plan.pretense_phase.surface,
+                ..base.clone()
+            })
+            .unwrap_or(base)
     }
 
     pub fn iterate(&mut self, iterations_per_frame: usize) {
@@ -328,7 +346,7 @@ impl Crucible {
                         viewing_state.clone(),
                     )));
                     drop(context);
-                    self.physics = VIEWING;
+                    self.physics = self.viewing_physics();
                     return;
                 }
                 PhysicsTesting(_) => {
@@ -359,7 +377,7 @@ impl Crucible {
                         )));
                         drop(context);
                         // Switch to animation physics (slow time)
-                        self.physics = ANIMATING;
+                        self.physics = self.animating_physics();
                         return;
                     }
                 }

@@ -24,7 +24,7 @@ pub enum FabricName {
 }
 
 pub fn triped() -> FabricPlan {
-    fabric("Triped", Mm(10000.0))
+    fabric("Triped", Mm(7500.0))
         .build(
             branching(OmniSymmetrical, Seed(1))
                 .on_face(OmniBotX, growing(8).scale(0.9).mark(End).prism().build())
@@ -41,8 +41,8 @@ pub fn triped() -> FabricPlan {
             pretense(Sec(15.0))
                 .surface(SurfaceCharacter::Frozen),
         )
-        .fall(Sec(10.0))
-        .settle(Sec(10.0))
+        .fall(Sec(8.0))
+        .settle(Sec(3.0))
         .animate(
             Sec(0.8266),
             Amplitude::new(0.01),
@@ -90,7 +90,7 @@ pub fn vertebra() -> FabricPlan {
                 .build(),
         )
         .shape([centralize_at(1.0)])
-        .pretense(pretense(Sec(10.0)).surface(SurfaceCharacter::Absent))
+        .pretense(pretense(Sec(10.0)))
         .scale(Mm(74.6))
         .build_plan()
 }
@@ -116,7 +116,7 @@ pub fn cigar() -> FabricPlan {
                 .build(),
         )
         .shape([centralize_at(1.0), during(Sec(40000.0), [vulcanize()])])
-        .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Absent))
+        .pretense(pretense(Sec(15.0)))
         .scale(Mm(74.6))
         .build_plan()
 }

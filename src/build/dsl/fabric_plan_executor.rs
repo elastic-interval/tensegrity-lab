@@ -99,7 +99,7 @@ pub struct FabricPlanExecutor {
     plan: FabricPlan,
     current_iteration: usize,
     execution_log: Vec<ExecutionEvent>,
-    stored_surface_character: Option<SurfaceCharacter>,
+    stored_surface: Option<SurfaceCharacter>,
 }
 
 impl FabricPlanExecutor {
@@ -118,7 +118,7 @@ impl FabricPlanExecutor {
             plan,
             current_iteration: 0,
             execution_log: Vec::new(),
-            stored_surface_character: None,
+            stored_surface: None,
         };
 
         executor.log_event(ExecutionEvent::Started { iteration: 0 });
@@ -304,11 +304,7 @@ impl FabricPlanExecutor {
         // Switch to PRETENSING physics
         self.physics = PRETENSING;
 
-        // Store surface_character from plan for later use during CONVERGE
-        // PRETENSING should NOT have gravity - that only appears during CONVERGE
-        if let Some(surface) = self.plan.pretense_phase.surface_character {
-            self.stored_surface_character = Some(surface);
-        }
+        self.stored_surface = self.plan.pretense_phase.surface;
 
         self.log_event(ExecutionEvent::PhysicsChanged {
             iteration: self.current_iteration,
@@ -337,9 +333,7 @@ impl FabricPlanExecutor {
         use crate::fabric::physics::presets::FALLING;
         self.physics = FALLING;
 
-        if let Some(surface) = self.stored_surface_character {
-            self.physics.surface_character = surface;
-        }
+        self.physics.surface = self.stored_surface;
 
         use crate::TweakFeature::*;
         self.physics.accept_tweak(MassScale.parameter(mass_multiplier));
@@ -365,11 +359,11 @@ impl FabricPlanExecutor {
 
         let mass_multiplier = self.physics.mass_multiplier();
         let rigidity_multiplier = self.physics.rigidity_multiplier();
-        let surface = self.physics.surface_character;
+        let surface = self.physics.surface;
 
         use crate::fabric::physics::presets::SETTLING;
         self.physics = SETTLING;
-        self.physics.surface_character = surface;
+        self.physics.surface = surface;
 
         use crate::TweakFeature::*;
         self.physics.accept_tweak(MassScale.parameter(mass_multiplier));

@@ -206,7 +206,7 @@ impl Scene {
         Ok(())
     }
 
-    pub fn redraw(&mut self, fabric: &Fabric, surface_character: SurfaceCharacter) -> Result<(), wgpu::SurfaceError> {
+    pub fn redraw(&mut self, fabric: &Fabric, surface: Option<SurfaceCharacter>) -> Result<(), wgpu::SurfaceError> {
         self.wgpu.update_mvp_matrix(self.camera.mvp_matrix());
         self.fabric_renderer.update(
             &mut self.wgpu,
@@ -214,9 +214,7 @@ impl Scene {
             &self.camera.current_pick(),
             &mut self.render_style,
         );
-        // Only show surface when gravity is present (not Absent)
-        let show_surface = surface_character.has_gravity();
-        self.render(show_surface)?;
+        self.render(surface.is_some())?;
         Ok(())
     }
 
