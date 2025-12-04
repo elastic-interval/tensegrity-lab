@@ -5,7 +5,7 @@ use crate::build::evo::evolution::Evolution;
 use crate::build::oven::Oven;
 use crate::crucible::Stage::*;
 use crate::crucible_context::CrucibleContext;
-use crate::fabric::physics::presets::{ANIMATING, BASE_PHYSICS};
+use crate::fabric::physics::presets::{ANIMATING, VIEWING};
 use crate::fabric::physics::Physics;
 use crate::fabric::physics_test::PhysicsTester;
 use crate::fabric::Fabric;
@@ -37,7 +37,7 @@ impl Crucible {
             stage: Empty,
             radio,
             fabric: Fabric::new("Empty".to_string()),
-            physics: BASE_PHYSICS,
+            physics: VIEWING,
             fabric_plan: None,
             last_stage_label: None,
         }
@@ -65,10 +65,9 @@ impl Crucible {
 }
 
 impl Crucible {
-    /// Finalize and transition to Viewing stage
     fn finalize_to_viewing(&mut self) {
         self.fabric.zero_velocities();
-        self.physics.disable_settling();
+        self.physics = VIEWING;
         self.stage = Viewing;
     }
 
@@ -215,8 +214,8 @@ impl Crucible {
         // Handle BuildFabric separately (doesn't need context since executor owns fabric/physics)
         if let BuildFabric(fabric_plan) = crucible_action {
             // Preserve user's scaling tweaks before rebuilding
-            let mass_scale = self.physics.mass_scale();
-            let rigidity_scale = self.physics.rigidity_scale();
+            let mass_multiplier = self.physics.mass_multiplier();
+            let rigidity_multiplier = self.physics.rigidity_multiplier();
 
             let name = fabric_plan.name.clone();
             let mut executor = FabricPlanExecutor::new(fabric_plan.clone());
@@ -228,10 +227,10 @@ impl Crucible {
             use crate::TweakFeature::*;
             executor
                 .physics
-                .accept_tweak(MassScale.parameter(mass_scale));
+                .accept_tweak(MassScale.parameter(mass_multiplier));
             executor
                 .physics
-                .accept_tweak(RigidityScale.parameter(rigidity_scale));
+                .accept_tweak(RigidityScale.parameter(rigidity_multiplier));
 
             // Sync executor's fabric/physics to Crucible (will be updated each frame)
             self.fabric = executor.fabric.clone();
@@ -329,7 +328,7 @@ impl Crucible {
                         viewing_state.clone(),
                     )));
                     drop(context);
-                    self.physics = BASE_PHYSICS;
+                    self.physics = VIEWING;
                     return;
                 }
                 PhysicsTesting(_) => {

@@ -1,4 +1,4 @@
-use crate::fabric::physics::presets::BASE_PHYSICS;
+use crate::fabric::physics::presets::VIEWING;
 use crate::{
     ControlState, CrucibleAction, LabEvent, PhysicsFeature, PhysicsParameter, Radio, StateChange,
     TestScenario, TesterAction, TweakFeature, TweakParameter,
@@ -112,7 +112,7 @@ impl Keyboard {
             "p",
             PhysicsParameter {
                 feature: PhysicsFeature::Pretenst,
-                value: *BASE_PHYSICS.pretenst,
+                value: *VIEWING.pretenst,
             },
             Box::new(|value| format!("Pretenst {value:.3}")),
             Box::new(|state| matches!(state, PhysicsTesting(_))),

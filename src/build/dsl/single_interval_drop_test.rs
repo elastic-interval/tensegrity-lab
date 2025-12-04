@@ -2,7 +2,7 @@
 #[cfg(test)]
 mod tests {
     use crate::fabric::Fabric;
-    use crate::fabric::physics::presets::BASE_PHYSICS;
+    use crate::fabric::physics::presets::VIEWING;
     use crate::fabric::material::Material;
     use cgmath::Point3;
 
@@ -31,8 +31,7 @@ mod tests {
         eprintln!("  Interval: Push, 1 meter length");
         eprintln!();
 
-        // Use BASE_PHYSICS (Frozen surface with gravity)
-        let physics = BASE_PHYSICS;
+        let physics = VIEWING;
 
         // Measure falling motion every 50ms (1000 iterations)
         let mut frame = 0;

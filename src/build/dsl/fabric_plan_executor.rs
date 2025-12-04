@@ -229,7 +229,7 @@ impl FabricPlanExecutor {
             }
             ExecutorStage::Settling => {
                 let progress = self.fabric.progress.nuance();
-                self.physics.update_settling_progress(progress);
+                self.physics.update_settling_multipliers(progress);
                 if !self.fabric.progress.is_busy() {
                     self.complete();
                 }
@@ -261,8 +261,8 @@ impl FabricPlanExecutor {
         });
 
         // Preserve user's scaling tweaks
-        let mass_scale = self.physics.mass_scale();
-        let rigidity_scale = self.physics.rigidity_scale();
+        let mass_multiplier = self.physics.mass_multiplier();
+        let rigidity_multiplier = self.physics.rigidity_multiplier();
 
         // Set fabric scale from plan
         if let Some(plan_runner) = &self.plan_runner {
@@ -317,8 +317,8 @@ impl FabricPlanExecutor {
 
         // Restore user's scaling tweaks
         use crate::TweakFeature::*;
-        self.physics.accept_tweak(MassScale.parameter(mass_scale));
-        self.physics.accept_tweak(RigidityScale.parameter(rigidity_scale));
+        self.physics.accept_tweak(MassScale.parameter(mass_multiplier));
+        self.physics.accept_tweak(RigidityScale.parameter(rigidity_multiplier));
 
         self.plan_runner = None;
         self.stage = ExecutorStage::Pretensing;
@@ -331,19 +331,19 @@ impl FabricPlanExecutor {
             to: "FALL".to_string(),
         });
 
-        let mass_scale = self.physics.mass_scale();
-        let rigidity_scale = self.physics.rigidity_scale();
+        let mass_multiplier = self.physics.mass_multiplier();
+        let rigidity_multiplier = self.physics.rigidity_multiplier();
 
-        use crate::fabric::physics::presets::BASE_PHYSICS;
-        self.physics = BASE_PHYSICS;
+        use crate::fabric::physics::presets::FALLING;
+        self.physics = FALLING;
 
         if let Some(surface) = self.stored_surface_character {
             self.physics.surface_character = surface;
         }
 
         use crate::TweakFeature::*;
-        self.physics.accept_tweak(MassScale.parameter(mass_scale));
-        self.physics.accept_tweak(RigidityScale.parameter(rigidity_scale));
+        self.physics.accept_tweak(MassScale.parameter(mass_multiplier));
+        self.physics.accept_tweak(RigidityScale.parameter(rigidity_multiplier));
 
         self.log_event(ExecutionEvent::PhysicsChanged {
             iteration: self.current_iteration,
@@ -363,7 +363,17 @@ impl FabricPlanExecutor {
             to: "SETTLE".to_string(),
         });
 
-        self.physics.enable_settling();
+        let mass_multiplier = self.physics.mass_multiplier();
+        let rigidity_multiplier = self.physics.rigidity_multiplier();
+        let surface = self.physics.surface_character;
+
+        use crate::fabric::physics::presets::SETTLING;
+        self.physics = SETTLING;
+        self.physics.surface_character = surface;
+
+        use crate::TweakFeature::*;
+        self.physics.accept_tweak(MassScale.parameter(mass_multiplier));
+        self.physics.accept_tweak(RigidityScale.parameter(rigidity_multiplier));
 
         self.log_event(ExecutionEvent::PhysicsChanged {
             iteration: self.current_iteration,

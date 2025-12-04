@@ -20,9 +20,8 @@ impl Material {
         })
     }
     
-    /// Linear density scaled by physics parameters
     pub fn linear_density(&self, physics: &Physics) -> GramsPerMillimeter {
-        GramsPerMillimeter(self.base_linear_density().0 * physics.mass_scale())
+        GramsPerMillimeter(self.base_linear_density().0 * physics.mass_multiplier())
     }
 
     /// Spring constant at 1m (1000mm) reference length
@@ -42,16 +41,9 @@ impl Material {
         })
     }
 
-    /// Spring constant for a given length in millimeters
-    /// Spring constant scales as k ∝ 1/L (shorter intervals are stiffer)
-    /// Also scaled by physics rigidity_scale parameter
-    /// Returns N/mm (force per unit extension in millimeters)
     pub fn spring_constant(&self, length_mm: f32, physics: &Physics) -> NewtonsPerMillimeter {
         let k_at_1m = self.spring_constant_at_1m();
-        // k(L) = k(1m) / 1000 × (1000mm / L) × rigidity_scale
-        // Simplifies to: k(L) = k(1m) / L × rigidity_scale
-        // This gives N/mm since k(1m) is in N/m and we divide by mm
-        let k_n_per_mm = (*k_at_1m / length_mm.max(1.0)) * physics.rigidity_scale();
+        let k_n_per_mm = (*k_at_1m / length_mm.max(1.0)) * physics.rigidity_multiplier();
         NewtonsPerMillimeter(k_n_per_mm)
     }
 

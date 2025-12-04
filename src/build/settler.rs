@@ -30,9 +30,7 @@ impl Settler {
             format!("Settling {}%", progress_pct)
         )));
 
-        // Gradually increase damping as we approach the end of settling time
-        // This gives the fabric time to settle naturally before freezing
-        context.physics.update_settling_progress(progress);
+        context.physics.update_settling_multipliers(progress);
 
         for _ in 0..1000 {  // Nominal value, outer loop adjusts dynamically
             context.fabric.iterate(context.physics);
