@@ -62,7 +62,7 @@ impl Application {
             #[cfg(not(target_arch = "wasm32"))]
             machine: None,
             #[cfg(not(target_arch = "wasm32"))]
-            animation_exporter: crate::export::AnimationExporter::new("animation_export", 20.0),
+            animation_exporter: crate::export::AnimationExporter::new("animation_export"),
         }
     }
 
