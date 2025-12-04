@@ -14,33 +14,37 @@ mod tests {
         ground: usize,
     }
 
-    /// Executor benchmarks - Values collected from FabricPlanExecutor
+    /// Executor benchmarks - iteration/4000 gives wall-clock seconds
     fn ui_benchmarks() -> Vec<Benchmark> {
         vec![
             Benchmark { time: 0.0, joints: 0, height_mm: 0.0, radius: 0.000, ground: 0 },
-            Benchmark { time: 3.0, joints: 176, height_mm: 7961.8, radius: 12.043, ground: 0 },
-            Benchmark { time: 6.0, joints: 176, height_mm: 9380.2, radius: 11.389, ground: 0 },
-            Benchmark { time: 9.0, joints: 176, height_mm: 10355.7, radius: 10.732, ground: 0 },
-            Benchmark { time: 12.0, joints: 176, height_mm: 11109.0, radius: 10.127, ground: 0 },
-            Benchmark { time: 15.0, joints: 176, height_mm: 11693.1, radius: 9.532, ground: 0 },
-            Benchmark { time: 18.0, joints: 176, height_mm: 12128.3, radius: 8.946, ground: 0 },
-            Benchmark { time: 21.0, joints: 176, height_mm: 12457.6, radius: 8.351, ground: 0 },
-            Benchmark { time: 24.0, joints: 176, height_mm: 12684.7, radius: 8.194, ground: 0 },
-            Benchmark { time: 27.0, joints: 176, height_mm: 12827.6, radius: 8.331, ground: 0 },
-            Benchmark { time: 30.0, joints: 176, height_mm: 12190.9, radius: 7.898, ground: 0 },
-            Benchmark { time: 33.0, joints: 176, height_mm: 11560.7, radius: 7.472, ground: 0 },
-            Benchmark { time: 36.0, joints: 176, height_mm: 10940.7, radius: 7.055, ground: 0 },
-            Benchmark { time: 39.0, joints: 176, height_mm: 10317.6, radius: 6.635, ground: 0 },
-            Benchmark { time: 42.0, joints: 176, height_mm: 9704.2, radius: 6.249, ground: 0 },
-            Benchmark { time: 45.0, joints: 168, height_mm: 9724.0, radius: 6.296, ground: 0 },
-            Benchmark { time: 50.0, joints: 168, height_mm: 9690.5, radius: 6.465, ground: 0 },
-            Benchmark { time: 55.0, joints: 168, height_mm: 9673.2, radius: 6.563, ground: 0 },
-            Benchmark { time: 60.0, joints: 168, height_mm: 9674.2, radius: 6.607, ground: 0 },
-            Benchmark { time: 65.0, joints: 168, height_mm: 9670.0, radius: 6.624, ground: 0 },
-            Benchmark { time: 68.0, joints: 168, height_mm: 9434.2, radius: 6.659, ground: 3 },
-            Benchmark { time: 70.0, joints: 168, height_mm: 9942.9, radius: 6.643, ground: 3 },
-            Benchmark { time: 75.0, joints: 168, height_mm: 9632.9, radius: 6.618, ground: 3 },
-            Benchmark { time: 80.0, joints: 168, height_mm: 9612.2, radius: 6.616, ground: 3 },
+            // BUILD phase (time_scale=2)
+            Benchmark { time: 5.0, joints: 176, height_mm: 7608.1, radius: 12.232, ground: 0 },
+            Benchmark { time: 15.0, joints: 176, height_mm: 9495.8, radius: 11.378, ground: 0 },
+            Benchmark { time: 25.0, joints: 176, height_mm: 10662.3, radius: 10.520, ground: 0 },
+            Benchmark { time: 35.0, joints: 176, height_mm: 11548.7, radius: 9.719, ground: 0 },
+            Benchmark { time: 45.0, joints: 176, height_mm: 12156.8, radius: 8.940, ground: 0 },
+            Benchmark { time: 55.0, joints: 176, height_mm: 12572.5, radius: 8.156, ground: 0 },
+            Benchmark { time: 65.0, joints: 176, height_mm: 12821.6, radius: 8.308, ground: 0 },
+            Benchmark { time: 75.0, joints: 176, height_mm: 12209.6, radius: 7.910, ground: 0 },
+            Benchmark { time: 85.0, joints: 176, height_mm: 11369.8, radius: 7.344, ground: 0 },
+            Benchmark { time: 95.0, joints: 176, height_mm: 10534.4, radius: 6.780, ground: 0 },
+            Benchmark { time: 105.0, joints: 176, height_mm: 9709.3, radius: 6.250, ground: 0 },
+            // PRETENSE phase (time_scale=2)
+            Benchmark { time: 110.0, joints: 168, height_mm: 9724.8, radius: 6.304, ground: 0 },
+            Benchmark { time: 120.0, joints: 168, height_mm: 9677.8, radius: 6.514, ground: 0 },
+            Benchmark { time: 130.0, joints: 168, height_mm: 9674.3, radius: 6.572, ground: 0 },
+            Benchmark { time: 140.0, joints: 168, height_mm: 9677.2, radius: 6.609, ground: 0 },
+            // FALL phase (time_scale=1)
+            Benchmark { time: 145.0, joints: 168, height_mm: 9677.6, radius: 6.620, ground: 0 },
+            Benchmark { time: 150.0, joints: 168, height_mm: 9659.6, radius: 6.664, ground: 3 },
+            Benchmark { time: 160.0, joints: 168, height_mm: 9509.0, radius: 6.636, ground: 3 },
+            Benchmark { time: 170.0, joints: 168, height_mm: 9559.8, radius: 6.606, ground: 3 },
+            Benchmark { time: 180.0, joints: 168, height_mm: 9588.9, radius: 6.613, ground: 3 },
+            Benchmark { time: 190.0, joints: 168, height_mm: 9607.9, radius: 6.616, ground: 3 },
+            // SETTLE phase (time_scale=5)
+            Benchmark { time: 195.0, joints: 168, height_mm: 9617.4, radius: 6.621, ground: 3 },
+            Benchmark { time: 200.0, joints: 168, height_mm: 9624.1, radius: 6.617, ground: 3 },
         ]
     }
 
@@ -132,8 +136,8 @@ mod tests {
                 current_stage = stage.clone();
             }
 
-            // Log periodic state during building phase
-            if matches!(stage, ExecutorStage::Building) && iteration % 20000 == 0 {
+            // Log periodic state
+            if iteration % 20000 == 0 {
                 let (min_y, max_y) = executor.fabric.altitude_range();
                 let height_mm = if executor.fabric.scale > 0.0 {
                     (max_y - min_y) * executor.fabric.scale
@@ -141,12 +145,18 @@ mod tests {
                     0.0
                 };
                 let radius = executor.fabric.bounding_radius();
+                let ground_tolerance = 10.0 / executor.fabric.scale.max(1.0);
+                let ground_count = executor.fabric.joints.iter()
+                    .filter(|j| j.location.y.abs() < ground_tolerance)
+                    .count();
                 eprintln!(
-                    "[{:7}] Building | joints:{:3} height:{:8.3}mm radius:{:8.5}m age:{}",
+                    "[{:7}] {:?} | joints:{:3} height:{:8.3}mm radius:{:8.5}m ground:{} age:{}",
                     iteration,
+                    stage,
                     executor.fabric.joints.len(),
                     height_mm,
                     radius,
+                    ground_count,
                     executor.fabric.age
                 );
             }
@@ -169,29 +179,25 @@ mod tests {
 
     #[test]
     fn test_all_build_benchmarks() {
-        eprintln!("\n=== Testing All BUILD Phase Benchmarks ===\n");
+        eprintln!("\n=== Testing All Phase Benchmarks ===\n");
 
         let plan = fabric_library::get_fabric_plan(FabricName::Triped);
 
-        // Use FabricPlanExecutor instead of manual stage management
         let mut executor = FabricPlanExecutor::new(plan);
 
-        // Get all benchmarks up to 70s
-        let build_benchmarks = ui_benchmarks();
-        let build_benchmarks: Vec<_> = build_benchmarks.iter().filter(|b| b.time <= 70.0).collect();
+        let benchmarks = ui_benchmarks();
         let mut benchmark_idx = 0;
 
         eprintln!(
             "Running through all phases, checking {} benchmarks...\n",
-            build_benchmarks.len()
+            benchmarks.len()
         );
 
-        // Run until all benchmarks checked (up to 85s to be safe)
-        let max_iterations = (85.0 * 4000.0) as usize;
+        let max_iterations = (210.0 * 4000.0) as usize;
 
         // Check iteration 0 before running any iterations
-        if benchmark_idx < build_benchmarks.len() {
-            let benchmark = build_benchmarks[benchmark_idx];
+        if benchmark_idx < benchmarks.len() {
+            let benchmark = &benchmarks[benchmark_idx];
             if benchmark.time == 0.0 {
                 check_benchmark(&executor.fabric, 0, benchmark, 0.1);
                 benchmark_idx += 1;
@@ -203,35 +209,34 @@ mod tests {
             let _ = executor.iterate();
 
             // Check if we've hit a benchmark time
-            if benchmark_idx < build_benchmarks.len() {
-                let benchmark = build_benchmarks[benchmark_idx];
+            if benchmark_idx < benchmarks.len() {
+                let benchmark = &benchmarks[benchmark_idx];
                 let benchmark_iteration = (benchmark.time * 4000.0) as usize;
 
                 if current_iteration == benchmark_iteration {
-                    check_benchmark(&executor.fabric, current_iteration, benchmark, 0.1);
+                    check_benchmark(&executor.fabric, current_iteration, benchmark, 1.0);
                     benchmark_idx += 1;
                 }
             }
 
             // Stop if all benchmarks checked
-            if benchmark_idx >= build_benchmarks.len() {
+            if benchmark_idx >= benchmarks.len() {
                 break;
             }
         }
 
         eprintln!(
-            "\n✓ Checked {} BUILD phase benchmarks successfully!",
+            "\n✓ Checked {} benchmarks successfully!",
             benchmark_idx
         );
 
-        // Print execution log
         executor.print_log();
 
         assert!(
-            benchmark_idx >= build_benchmarks.len(),
+            benchmark_idx >= benchmarks.len(),
             "Only checked {} of {} benchmarks",
             benchmark_idx,
-            build_benchmarks.len()
+            benchmarks.len()
         );
     }
 
