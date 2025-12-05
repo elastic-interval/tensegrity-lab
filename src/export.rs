@@ -66,7 +66,7 @@ struct IntervalExport {
 
 struct FrameData {
     joint_positions: Vec<Point3<f32>>,
-    /// (slot_index, alpha_joint, omega_joint, role)
+    /// (unique_id, alpha_joint, omega_joint, role)
     interval_data: Vec<(usize, usize, usize, Role)>,
 }
 
@@ -273,14 +273,12 @@ impl AnimationExporter {
 
         let joint_positions: Vec<Point3<f32>> = fabric.joints.iter().map(|j| j.location).collect();
 
-        // Capture interval data with stable slot index for naming
         let interval_data: Vec<(usize, usize, usize, Role)> = fabric
             .intervals
             .iter()
-            .enumerate()
-            .filter_map(|(slot, opt)| {
+            .filter_map(|opt| {
                 opt.as_ref().map(|interval| {
-                    (slot, interval.alpha_index, interval.omega_index, interval.role)
+                    (interval.unique_id, interval.alpha_index, interval.omega_index, interval.role)
                 })
             })
             .collect();
@@ -325,10 +323,9 @@ impl AnimationExporter {
         let interval_data: Vec<(usize, usize, usize, Role)> = fabric
             .intervals
             .iter()
-            .enumerate()
-            .filter_map(|(slot, opt)| {
+            .filter_map(|opt| {
                 opt.as_ref().map(|interval| {
-                    (slot, interval.alpha_index, interval.omega_index, interval.role)
+                    (interval.unique_id, interval.alpha_index, interval.omega_index, interval.role)
                 })
             })
             .collect();

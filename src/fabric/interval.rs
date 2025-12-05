@@ -117,7 +117,6 @@ impl Fabric {
     }
 
     /// Create an interval with a specified role
-    /// The material is automatically determined from the role
     pub fn create_interval(
         &mut self,
         alpha_index: usize,
@@ -125,8 +124,12 @@ impl Fabric {
         ideal: f32,
         role: Role,
     ) -> UniqueId {
-        let id = self.create_id();
+        let slot = self.create_id();
+        let unique_id = self.next_interval_id;
+        self.next_interval_id += 1;
+
         let interval = Interval::new(
+            unique_id,
             alpha_index,
             omega_index,
             role,
@@ -136,12 +139,11 @@ impl Fabric {
             },
         );
 
-        // Ensure the vector is large enough
-        if id.0 >= self.intervals.len() {
-            self.intervals.resize_with(id.0 + 1, || None);
+        if slot.0 >= self.intervals.len() {
+            self.intervals.resize_with(slot.0 + 1, || None);
         }
 
-        self.intervals[id.0] = Some(interval);
+        self.intervals[slot.0] = Some(interval);
         self.interval_count += 1;
 
         // If we added a pull-like interval, update connections for any push intervals it might connect to
@@ -164,7 +166,7 @@ impl Fabric {
             }
         }
 
-        id
+        slot
     }
 
     /// Get an interval by its ID, returning a Result
@@ -391,6 +393,7 @@ impl Role {
 
 #[derive(Clone, Debug)]
 pub struct Interval {
+    pub unique_id: usize,
     pub alpha_index: usize,
     pub omega_index: usize,
     pub role: Role,
@@ -398,9 +401,6 @@ pub struct Interval {
     pub span: Span,
     pub unit: Vector3<f32>,
     pub strain: f32,
-
-    // Connections structure that contains both alpha and omega connections
-    // Only allocated for push intervals and boxed to reduce memory footprint
     pub connections: Option<Box<PullConnections>>,
 }
 
@@ -410,12 +410,12 @@ impl Interval {
         self.role.is(role)
     }
 
-    pub fn new(alpha_index: usize, omega_index: usize, role: Role, span: Span) -> Interval {
-        // Only allocate connections for push intervals
+    pub fn new(unique_id: usize, alpha_index: usize, omega_index: usize, role: Role, span: Span) -> Interval {
         let is_push = role == Pushing;
         let connections = is_push.then_some(Box::new(PullConnections::new()));
 
         Interval {
+            unique_id,
             alpha_index,
             omega_index,
             role,

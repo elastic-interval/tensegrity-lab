@@ -11,7 +11,7 @@ bl_info = {
     "category": "Import-Export",
 }
 
-SCRIPT_VERSION = "1.2 - 2024-12-05"
+SCRIPT_VERSION = "1.3 - 2024-12-05"
 
 import bpy
 import json
@@ -373,7 +373,7 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
 
             def keyframe_visibility(obj, first_frame, last_frame, total_frames):
                 """Set visibility keyframes for an object with CONSTANT interpolation."""
-                # Hidden before appearance
+                # Always start hidden if object doesn't appear at frame 1
                 if first_frame > 1:
                     obj.hide_viewport = True
                     obj.hide_render = True
@@ -400,6 +400,12 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                         if fcurve.data_path in ("hide_viewport", "hide_render"):
                             for keyframe in fcurve.keyframe_points:
                                 keyframe.interpolation = 'CONSTANT'
+
+                # Ensure the object's current state is hidden if it appears after frame 1
+                # (Blender uses current property value for frames before first keyframe)
+                if first_frame > 1:
+                    obj.hide_viewport = True
+                    obj.hide_render = True
 
             # Create all objects upfront at their first-appearance position, initially hidden
             print(f"Creating {len(object_visibility)} objects...")
