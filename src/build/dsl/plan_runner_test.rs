@@ -7,50 +7,37 @@ mod tests {
     /// Benchmark data point from UI reference run
     #[derive(Debug)]
     struct Benchmark {
-        time: f32,
+        age: f32,
         joints: usize,
         height_mm: f32,
         radius: f32,
         ground: usize,
     }
 
-    /// Executor benchmarks - iteration/4000 gives wall-clock seconds
+    /// Executor benchmarks - age is fabric.age (scaled by physics.time_scale)
+    /// Updated for faster Triped construction (5s space, 1s vulcanize, 1s pretense)
     fn ui_benchmarks() -> Vec<Benchmark> {
         vec![
-            Benchmark { time: 0.0, joints: 0, height_mm: 0.0, radius: 0.000, ground: 0 },
-            // BUILD phase (time_scale=2)
-            Benchmark { time: 5.0, joints: 176, height_mm: 7608.1, radius: 12.232, ground: 0 },
-            Benchmark { time: 15.0, joints: 176, height_mm: 9495.8, radius: 11.378, ground: 0 },
-            Benchmark { time: 25.0, joints: 176, height_mm: 10662.3, radius: 10.520, ground: 0 },
-            Benchmark { time: 35.0, joints: 176, height_mm: 11548.7, radius: 9.719, ground: 0 },
-            Benchmark { time: 45.0, joints: 176, height_mm: 12156.8, radius: 8.940, ground: 0 },
-            Benchmark { time: 55.0, joints: 176, height_mm: 12572.5, radius: 8.156, ground: 0 },
-            Benchmark { time: 65.0, joints: 176, height_mm: 12821.6, radius: 8.308, ground: 0 },
-            Benchmark { time: 75.0, joints: 176, height_mm: 12209.6, radius: 7.910, ground: 0 },
-            Benchmark { time: 85.0, joints: 176, height_mm: 11369.8, radius: 7.344, ground: 0 },
-            Benchmark { time: 95.0, joints: 176, height_mm: 10534.4, radius: 6.780, ground: 0 },
-            Benchmark { time: 105.0, joints: 176, height_mm: 9709.3, radius: 6.250, ground: 0 },
-            // PRETENSE phase (time_scale=2)
-            Benchmark { time: 110.0, joints: 168, height_mm: 9724.8, radius: 6.304, ground: 0 },
-            Benchmark { time: 120.0, joints: 168, height_mm: 9677.8, radius: 6.514, ground: 0 },
-            Benchmark { time: 130.0, joints: 168, height_mm: 9674.3, radius: 6.572, ground: 0 },
-            Benchmark { time: 140.0, joints: 168, height_mm: 9677.2, radius: 6.609, ground: 0 },
-            // FALL phase (time_scale=1)
-            Benchmark { time: 145.0, joints: 168, height_mm: 9677.6, radius: 6.620, ground: 0 },
-            Benchmark { time: 150.0, joints: 168, height_mm: 9659.6, radius: 6.664, ground: 3 },
-            Benchmark { time: 160.0, joints: 168, height_mm: 9509.0, radius: 6.636, ground: 3 },
-            Benchmark { time: 170.0, joints: 168, height_mm: 9559.8, radius: 6.606, ground: 3 },
-            Benchmark { time: 180.0, joints: 168, height_mm: 9588.9, radius: 6.613, ground: 3 },
-            Benchmark { time: 190.0, joints: 168, height_mm: 9607.9, radius: 6.616, ground: 3 },
-            // SETTLE phase (time_scale=5)
-            Benchmark { time: 195.0, joints: 168, height_mm: 9617.4, radius: 6.621, ground: 3 },
-            Benchmark { time: 200.0, joints: 168, height_mm: 9624.1, radius: 6.617, ground: 3 },
+            Benchmark { age: 0.0, joints: 0, height_mm: 0.0, radius: 0.000, ground: 0 },
+            // BUILD phase (fabric age 0-8s)
+            Benchmark { age: 2.0, joints: 176, height_mm: 7608.0, radius: 12.232, ground: 0 },
+            Benchmark { age: 4.0, joints: 176, height_mm: 10671.3, radius: 10.215, ground: 0 },
+            Benchmark { age: 6.0, joints: 176, height_mm: 12251.1, radius: 8.152, ground: 0 },
+            Benchmark { age: 8.0, joints: 176, height_mm: 9724.6, radius: 6.256, ground: 0 },
+            // PRETENSE phase (fabric age ~8-9s)
+            // FALL phase (fabric age ~9-17s)
+            Benchmark { age: 10.0, joints: 168, height_mm: 9709.8, radius: 6.644, ground: 3 },
+            Benchmark { age: 12.0, joints: 168, height_mm: 9654.7, radius: 6.699, ground: 3 },
+            Benchmark { age: 14.0, joints: 168, height_mm: 9659.8, radius: 6.686, ground: 3 },
+            Benchmark { age: 16.0, joints: 168, height_mm: 9625.0, radius: 6.664, ground: 3 },
+            // SETTLE phase (fabric age ~17-20s)
+            Benchmark { age: 19.0, joints: 168, height_mm: 9589.7, radius: 6.663, ground: 3 },
         ]
     }
 
     /// Check if fabric state matches benchmark (with tolerance)
-    fn check_benchmark(fabric: &Fabric, frame: usize, benchmark: &Benchmark, tolerance_pct: f32) {
-        let fabric_time = frame as f32 / 4000.0;
+    fn check_benchmark(fabric: &Fabric, benchmark: &Benchmark, tolerance_pct: f32) {
+        let fabric_age = fabric.age.as_duration().as_secs_f32();
         let bounding_radius = fabric.bounding_radius();
         let (min_y, max_y) = fabric.altitude_range();
         let height_mm = (max_y - min_y) * fabric.scale;
@@ -63,8 +50,8 @@ mod tests {
 
         // Print benchmark format for easy copy-paste
         eprintln!(
-            "            Benchmark {{ time: {:.1}, joints: {}, height_mm: {:.1}, radius: {:.3}, ground: {} }},",
-            fabric_time,
+            "            Benchmark {{ age: {:.1}, joints: {}, height_mm: {:.1}, radius: {:.3}, ground: {} }},",
+            fabric_age,
             fabric.joints.len(),
             height_mm,
             bounding_radius,
@@ -75,8 +62,8 @@ mod tests {
         assert_eq!(
             fabric.joints.len(),
             benchmark.joints,
-            "At {:.1}s: Expected {} joints, got {}",
-            fabric_time,
+            "At age {:.1}s: Expected {} joints, got {}",
+            fabric_age,
             benchmark.joints,
             fabric.joints.len()
         );
@@ -87,8 +74,8 @@ mod tests {
                 ((height_mm - benchmark.height_mm) / benchmark.height_mm * 100.0).abs();
             assert!(
                 height_diff_pct < tolerance_pct,
-                "At {:.1}s: Height {:.1}mm differs from benchmark {:.1}mm by {:.1}% (tolerance: {:.1}%)",
-                fabric_time, height_mm, benchmark.height_mm, height_diff_pct, tolerance_pct
+                "At age {:.1}s: Height {:.1}mm differs from benchmark {:.1}mm by {:.1}% (tolerance: {:.1}%)",
+                fabric_age, height_mm, benchmark.height_mm, height_diff_pct, tolerance_pct
             );
         }
 
@@ -98,8 +85,8 @@ mod tests {
                 ((bounding_radius - benchmark.radius) / benchmark.radius * 100.0).abs();
             assert!(
                 radius_diff_pct < tolerance_pct,
-                "At {:.1}s: Radius {:.3}m differs from benchmark {:.3}m by {:.1}% (tolerance: {:.1}%)",
-                fabric_time, bounding_radius, benchmark.radius, radius_diff_pct, tolerance_pct
+                "At age {:.1}s: Radius {:.3}m differs from benchmark {:.3}m by {:.1}% (tolerance: {:.1}%)",
+                fabric_age, bounding_radius, benchmark.radius, radius_diff_pct, tolerance_pct
             );
         }
 
@@ -107,8 +94,8 @@ mod tests {
         if benchmark.ground > 0 {
             assert_eq!(
                 ground_count, benchmark.ground,
-                "At {:.1}s: Expected {} ground contacts, got {}",
-                fabric_time, benchmark.ground, ground_count
+                "At age {:.1}s: Expected {} ground contacts, got {}",
+                fabric_age, benchmark.ground, ground_count
             );
         }
     }
@@ -195,26 +182,26 @@ mod tests {
 
         let max_iterations = (210.0 * 4000.0) as usize;
 
-        // Check iteration 0 before running any iterations
+        // Check age 0 before running any iterations
         if benchmark_idx < benchmarks.len() {
             let benchmark = &benchmarks[benchmark_idx];
-            if benchmark.time == 0.0 {
-                check_benchmark(&executor.fabric, 0, benchmark, 0.1);
+            if benchmark.age == 0.0 {
+                check_benchmark(&executor.fabric, benchmark, 0.1);
                 benchmark_idx += 1;
             }
         }
 
-        // Run executor iteration by iteration, checking benchmarks
-        for current_iteration in 1..=max_iterations {
+        // Run executor iteration by iteration, checking benchmarks by fabric age
+        for _ in 1..=max_iterations {
             let _ = executor.iterate();
 
-            // Check if we've hit a benchmark time
+            // Check if we've reached a benchmark age
             if benchmark_idx < benchmarks.len() {
                 let benchmark = &benchmarks[benchmark_idx];
-                let benchmark_iteration = (benchmark.time * 4000.0) as usize;
+                let fabric_age = executor.fabric.age.as_duration().as_secs_f32();
 
-                if current_iteration == benchmark_iteration {
-                    check_benchmark(&executor.fabric, current_iteration, benchmark, 1.0);
+                if fabric_age >= benchmark.age {
+                    check_benchmark(&executor.fabric, benchmark, 5.0);
                     benchmark_idx += 1;
                 }
             }

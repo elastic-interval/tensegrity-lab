@@ -7,6 +7,7 @@ use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
+use tensegrity_lab::units::Seconds;
 use tensegrity_lab::{LabEvent, RunStyle, TestScenario};
 use tensegrity_lab::build::dsl::fabric_library::FabricName;
 
@@ -27,6 +28,10 @@ struct Args {
 
     #[arg(long)]
     machine: Option<String>,
+
+    /// Record animation for specified duration (seconds) from start of fabric construction
+    #[arg(long)]
+    record: Option<f32>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -36,15 +41,19 @@ fn main() -> Result<(), Box<dyn Error>> {
         seed,
         test,
         machine,
+        record,
     } = Args::parse();
+    let record_duration = record.map(Seconds);
     let run_style = match (fabric, bake_bricks, seed, test, machine) {
         (Some(fabric_name), false, None, None, Some(ip_address)) => RunStyle::Fabric {
             fabric_name,
             scenario: Some(TestScenario::MachineTest(ip_address)),
+            record: record_duration,
         },
         (Some(fabric_name), false, None, None, None) => RunStyle::Fabric {
             fabric_name,
             scenario: None,
+            record: record_duration,
         },
         (None, true, None, None, None) => RunStyle::BakeBricks,
         (None, false, Some(seed), None, None) => RunStyle::Seeded(seed),
@@ -54,6 +63,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "physics" => Some(TestScenario::PhysicsTest),
                 _ => panic!("unknown test: \"{test_name}\""),
             },
+            record: record_duration,
         },
         _ => {
             return Err("use --fabric <name> or --bake-bricks or --seed <seed>".into());
@@ -82,6 +92,7 @@ pub fn run() {
     run_with(RunStyle::Fabric {
         fabric_name: FabricName::Triped,
         scenario: None,
+        record: None,
     })
     .unwrap();
 }
