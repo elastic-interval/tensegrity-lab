@@ -159,6 +159,8 @@ pub enum RunStyle {
     Fabric {
         fabric_name: FabricName,
         scenario: Option<TestScenario>,
+        /// Record animation for this duration from start
+        record: Option<units::Seconds>,
     },
     BakeBricks,
     Seeded(u64),

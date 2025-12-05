@@ -4,6 +4,7 @@ use crate::keyboard::Keyboard;
 use crate::pointer::PointerHandler;
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
+use crate::units::Seconds;
 use crate::{
     ControlState, CrucibleAction, LabEvent, Radio, RunStyle, StateChange, TestScenario,
     TesterAction, ITERATION_DURATION,
@@ -35,6 +36,8 @@ pub struct Application {
     machine: Option<crate::cord_machine::CordMachine>,
     #[cfg(not(target_arch = "wasm32"))]
     animation_exporter: crate::export::AnimationExporter,
+    #[cfg(not(target_arch = "wasm32"))]
+    record_until: Option<Seconds>,
 }
 
 impl Application {
@@ -63,6 +66,8 @@ impl Application {
             machine: None,
             #[cfg(not(target_arch = "wasm32"))]
             animation_exporter: crate::export::AnimationExporter::new("animation_export"),
+            #[cfg(not(target_arch = "wasm32"))]
+            record_until: None,
         }
     }
 
@@ -193,7 +198,12 @@ impl ApplicationHandler<LabEvent> for Application {
                     RunStyle::Unknown => {
                         unreachable!()
                     }
-                    RunStyle::Fabric { fabric_name, .. } => {
+                    RunStyle::Fabric { fabric_name, record, .. } => {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        if let Some(duration) = record {
+                            self.record_until = Some(*duration);
+                            self.animation_exporter.start();
+                        }
                         let fabric_plan = fabric_library::get_fabric_plan(*fabric_name);
                         CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
                     }
@@ -536,7 +546,19 @@ impl ApplicationHandler<LabEvent> for Application {
             // Capture frame for animation export if enabled (works in all states)
             #[cfg(not(target_arch = "wasm32"))]
             if self.animation_exporter.is_enabled() {
-                self.animation_exporter.capture_frame(&self.crucible.fabric);
+                let dominated = self.record_until.is_some_and(|Seconds(limit)| {
+                    self.crucible.fabric.age.as_duration().as_secs_f32() >= limit
+                });
+                if dominated {
+                    let frame_count = self.animation_exporter.frame_count();
+                    match self.animation_exporter.stop() {
+                        Ok(_) => eprintln!("Recording complete: {} frames", frame_count),
+                        Err(e) => eprintln!("Error stopping animation export: {}", e),
+                    }
+                    self.record_until = None;
+                } else {
+                    self.animation_exporter.capture_frame(&self.crucible.fabric);
+                }
             }
         }
 

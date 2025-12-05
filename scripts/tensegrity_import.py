@@ -4,12 +4,14 @@
 bl_info = {
     "name": "Tensegrity Import",
     "author": "Tensegrity Lab",
-    "version": (1, 0),
+    "version": (1, 2),
     "blender": (3, 6, 0),
     "location": "View3D > Sidebar > Tensegrity",
     "description": "Import tensegrity structures from JSON using prototype objects",
     "category": "Import-Export",
 }
+
+SCRIPT_VERSION = "1.2 - 2024-12-05"
 
 import bpy
 import json
@@ -225,6 +227,13 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
         subtype='FILE_PATH',
     )
 
+    construction_mode: BoolProperty(
+        name="Construction Animation",
+        description="Handle objects appearing/disappearing during construction. "
+                    "Creates all objects upfront and animates visibility",
+        default=False,
+    )
+
     def execute(self, context):
         # Store JSON directory for prototype search
         json_dir = os.path.dirname(self.filepath)
@@ -242,6 +251,14 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
         if not frames:
             self.report({'ERROR'}, "No frames in JSON file")
             return {'CANCELLED'}
+
+        print(f"\n=== Tensegrity Import v{SCRIPT_VERSION} ===")
+        print(f"File: {self.filepath}")
+        print(f"Frames: {len(frames)}, Construction mode: {self.construction_mode}")
+
+        # Set up progress indicator
+        wm = context.window_manager
+        wm.progress_begin(0, 100)
 
         # Find or load prototypes
         prototypes = find_prototype_objects()
@@ -296,22 +313,163 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
         # Import all frames; animate if more than one frame
         frame_indices = range(len(frames))
         is_animation = len(frames) > 1
+        construction_mode = self.construction_mode and is_animation
 
-        # For animation, create objects on first frame then keyframe
         created_objects = {}
         fps = data.get('fps', 24.0)
 
+        # For construction mode: first pass to find all objects and their visibility ranges
+        # Maps name -> {'first': frame, 'last': frame, 'type': str, 'first_matrix': list}
+        object_visibility = {}
+
+        if construction_mode:
+            print(f"Construction mode: scanning {len(frames)} frames for object visibility...")
+            for frame_num, frame_idx in enumerate(frame_indices):
+                frame = frames[frame_idx]
+                blender_frame = frame_num + 1
+
+                for joint in frame.get('joints', []):
+                    name = joint['name']
+                    if name not in object_visibility:
+                        object_visibility[name] = {
+                            'first': blender_frame,
+                            'last': blender_frame,
+                            'type': 'Joint',
+                            'first_matrix': joint['matrix']
+                        }
+                    else:
+                        object_visibility[name]['last'] = blender_frame
+
+                for push in frame.get('intervals', {}).get('push', []):
+                    name = push['name']
+                    if name not in object_visibility:
+                        object_visibility[name] = {
+                            'first': blender_frame,
+                            'last': blender_frame,
+                            'type': 'Push',
+                            'first_matrix': push['matrix']
+                        }
+                    else:
+                        object_visibility[name]['last'] = blender_frame
+
+                for pull in frame.get('intervals', {}).get('pull', []):
+                    name = pull['name']
+                    if name not in object_visibility:
+                        object_visibility[name] = {
+                            'first': blender_frame,
+                            'last': blender_frame,
+                            'type': 'Pull',
+                            'first_matrix': pull['matrix']
+                        }
+                    else:
+                        object_visibility[name]['last'] = blender_frame
+
+                if frame_num % 100 == 0:
+                    print(f"  Scanned {frame_num + 1}/{len(frames)} frames...")
+                    wm.progress_update(int(10 * frame_num / len(frames)))
+
+            print(f"Found {len(object_visibility)} unique objects across {len(frames)} frames")
+            wm.progress_update(10)
+
+            def keyframe_visibility(obj, first_frame, last_frame, total_frames):
+                """Set visibility keyframes for an object with CONSTANT interpolation."""
+                # Hidden before appearance
+                if first_frame > 1:
+                    obj.hide_viewport = True
+                    obj.hide_render = True
+                    obj.keyframe_insert(data_path="hide_viewport", frame=1)
+                    obj.keyframe_insert(data_path="hide_render", frame=1)
+
+                # Visible when it appears
+                obj.hide_viewport = False
+                obj.hide_render = False
+                obj.keyframe_insert(data_path="hide_viewport", frame=first_frame)
+                obj.keyframe_insert(data_path="hide_render", frame=first_frame)
+
+                # Hidden after it disappears (if before end of animation)
+                if last_frame < total_frames:
+                    obj.hide_viewport = True
+                    obj.hide_render = True
+                    obj.keyframe_insert(data_path="hide_viewport", frame=last_frame + 1)
+                    obj.keyframe_insert(data_path="hide_render", frame=last_frame + 1)
+
+                # Set interpolation to CONSTANT for visibility keyframes
+                # This prevents any interpolation between hidden/visible states
+                if obj.animation_data and obj.animation_data.action:
+                    for fcurve in obj.animation_data.action.fcurves:
+                        if fcurve.data_path in ("hide_viewport", "hide_render"):
+                            for keyframe in fcurve.keyframe_points:
+                                keyframe.interpolation = 'CONSTANT'
+
+            # Create all objects upfront at their first-appearance position, initially hidden
+            print(f"Creating {len(object_visibility)} objects...")
+            obj_count = 0
+            total_objects = len(object_visibility)
+            for name, info in object_visibility.items():
+                obj_count += 1
+                if obj_count % 100 == 0:
+                    print(f"  Created {obj_count}/{total_objects} objects...")
+                    wm.progress_update(10 + int(20 * obj_count / total_objects))
+                obj_type = info['type']
+                first_matrix = matrix_from_list(info['first_matrix'])
+                loc, rot, scale = first_matrix.decompose()
+                first_frame = info['first']
+                last_frame = info['last']
+
+                if obj_type == 'Joint':
+                    new_obj = prototypes['Joint'].copy()
+                    new_obj.data = prototypes['Joint'].data
+                    new_obj.name = name
+                    joints_collection.objects.link(new_obj)
+                    keyframe_visibility(new_obj, first_frame, last_frame, len(frames))
+                elif obj_type == 'Push':
+                    proto = prototypes['Push']
+                    new_obj = proto.copy()
+                    if proto.data:
+                        new_obj.data = proto.data
+                    new_obj.name = name
+                    push_collection.objects.link(new_obj)
+                    keyframe_visibility(new_obj, first_frame, last_frame, len(frames))
+                    # Also keyframe visibility for children
+                    for child in proto.children:
+                        child_copy = child.copy()
+                        if child.data:
+                            child_copy.data = child.data
+                        child_copy.name = f"{name}_{child.name}"
+                        child_copy.parent = new_obj
+                        child_copy.matrix_parent_inverse = child.matrix_parent_inverse.copy()
+                        push_collection.objects.link(child_copy)
+                        keyframe_visibility(child_copy, first_frame, last_frame, len(frames))
+                else:  # Pull
+                    new_obj = prototypes['Pull'].copy()
+                    new_obj.data = prototypes['Pull'].data
+                    new_obj.name = name
+                    pull_collection.objects.link(new_obj)
+                    keyframe_visibility(new_obj, first_frame, last_frame, len(frames))
+
+                # Set initial position (where it will first appear)
+                new_obj.location = loc
+                new_obj.rotation_mode = 'QUATERNION'
+                new_obj.rotation_quaternion = rot
+                new_obj.scale = scale
+
+                created_objects[name] = new_obj
+
+        # Main loop: process each frame
+        print(f"Processing {len(frames)} frames...")
         for frame_num, frame_idx in enumerate(frame_indices):
             frame = frames[frame_idx]
-            blender_frame = frame_num + 1  # Blender frames start at 1
+            blender_frame = frame_num + 1
 
             # Import joints
             for joint in frame.get('joints', []):
                 name = joint['name']
                 matrix = matrix_from_list(joint['matrix'])
 
+                # In construction mode, objects are pre-created; otherwise create on demand
                 if name not in created_objects:
-                    # Create new object
+                    if construction_mode:
+                        continue  # Skip - should have been pre-created
                     new_obj = prototypes['Joint'].copy()
                     new_obj.data = prototypes['Joint'].data
                     new_obj.name = name
@@ -319,7 +477,6 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                     created_objects[name] = new_obj
 
                 obj = created_objects[name]
-                # Decompose matrix into location, rotation, scale for proper keyframing
                 loc, rot, scale = matrix.decompose()
                 obj.location = loc
                 obj.rotation_mode = 'QUATERNION'
@@ -331,13 +488,15 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                     obj.keyframe_insert(data_path="rotation_quaternion", frame=blender_frame)
                     obj.keyframe_insert(data_path="scale", frame=blender_frame)
 
-            # Import push intervals (single matrix per push, prototype is composite)
+            # Import push intervals
             for push in frame.get('intervals', {}).get('push', []):
                 name = push['name']
                 matrix = matrix_from_list(push['matrix'])
 
+                # In construction mode, objects are pre-created; otherwise create on demand
                 if name not in created_objects:
-                    # Create instance of Push prototype (which may be a composite with children)
+                    if construction_mode:
+                        continue  # Skip - should have been pre-created
                     proto = prototypes['Push']
                     new_obj = proto.copy()
                     if proto.data:
@@ -346,19 +505,16 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                     push_collection.objects.link(new_obj)
                     created_objects[name] = new_obj
 
-                    # Also duplicate children and maintain parent relationship
                     for child in proto.children:
                         child_copy = child.copy()
                         if child.data:
                             child_copy.data = child.data
                         child_copy.name = f"{name}_{child.name}"
                         child_copy.parent = new_obj
-                        # Preserve the relative transform
                         child_copy.matrix_parent_inverse = child.matrix_parent_inverse.copy()
                         push_collection.objects.link(child_copy)
 
                 obj = created_objects[name]
-                # Decompose matrix into location, rotation, scale for proper keyframing
                 loc, rot, scale = matrix.decompose()
                 obj.location = loc
                 obj.rotation_mode = 'QUATERNION'
@@ -375,7 +531,10 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                 name = pull['name']
                 matrix = matrix_from_list(pull['matrix'])
 
+                # In construction mode, objects are pre-created; otherwise create on demand
                 if name not in created_objects:
+                    if construction_mode:
+                        continue  # Skip - should have been pre-created
                     new_obj = prototypes['Pull'].copy()
                     new_obj.data = prototypes['Pull'].data
                     new_obj.name = name
@@ -383,7 +542,6 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                     created_objects[name] = new_obj
 
                 obj = created_objects[name]
-                # Decompose matrix into location, rotation, scale for proper keyframing
                 loc, rot, scale = matrix.decompose()
                 obj.location = loc
                 obj.rotation_mode = 'QUATERNION'
@@ -395,6 +553,11 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                     obj.keyframe_insert(data_path="rotation_quaternion", frame=blender_frame)
                     obj.keyframe_insert(data_path="scale", frame=blender_frame)
 
+            # Progress reporting
+            if frame_num % 50 == 0 or frame_num == len(frames) - 1:
+                print(f"Processing frame {frame_num + 1}/{len(frames)}...")
+                wm.progress_update(30 + int(70 * frame_num / len(frames)))
+
         # Set animation range
         if is_animation:
             context.scene.frame_start = 1
@@ -402,7 +565,6 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
             context.scene.render.fps = int(fps)
             context.scene.frame_set(1)
 
-            # Debug: Check that keyframes were actually created
             keyframe_count = 0
             for obj in created_objects.values():
                 if obj.animation_data and obj.animation_data.action:
@@ -410,12 +572,16 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                         keyframe_count += len(fcurve.keyframe_points)
             print(f"Total keyframes created: {keyframe_count}")
 
-        obj_count = len(created_objects)
-        if is_animation:
-            self.report({'INFO'}, f"Imported {obj_count} objects with {len(frames)} frames, {keyframe_count} keyframes")
-        else:
-            self.report({'INFO'}, f"Imported {obj_count} objects from frame {self.frame_index}")
+        wm.progress_end()
 
+        obj_count = len(created_objects)
+        mode_str = " (construction mode)" if construction_mode else ""
+        if is_animation:
+            self.report({'INFO'}, f"Imported {obj_count} objects with {len(frames)} frames{mode_str}")
+        else:
+            self.report({'INFO'}, f"Imported {obj_count} objects")
+
+        print(f"=== Import complete ===\n")
         return {'FINISHED'}
 
 

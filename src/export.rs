@@ -12,7 +12,7 @@ use std::time::Duration;
 use cgmath::{InnerSpace, Point3, Vector3};
 use serde::Serialize;
 
-use crate::fabric::interval::{Interval, Role};
+use crate::fabric::interval::Role;
 use crate::fabric::Fabric;
 
 const EXPORT_FPS: f64 = 30.0;
@@ -66,7 +66,8 @@ struct IntervalExport {
 
 struct FrameData {
     joint_positions: Vec<Point3<f32>>,
-    interval_endpoints: Vec<(usize, usize, Role)>,
+    /// (slot_index, alpha_joint, omega_joint, role)
+    interval_data: Vec<(usize, usize, usize, Role)>,
 }
 
 pub struct AnimationExporter {
@@ -169,21 +170,20 @@ impl AnimationExporter {
         let mut push_intervals = Vec::new();
         let mut pull_intervals = Vec::new();
 
-        for &(alpha, omega, role) in &frame.interval_endpoints {
+        for &(slot, alpha, omega, role) in &frame.interval_data {
             if role == Role::Support {
                 continue;
             }
             match role {
-                Role::Pushing => push_intervals.push((alpha, omega)),
-                _ if role.is_pull_like() => pull_intervals.push((alpha, omega)),
+                Role::Pushing => push_intervals.push((slot, alpha, omega)),
+                _ if role.is_pull_like() => pull_intervals.push((slot, alpha, omega)),
                 _ => {}
             }
         }
 
         let push: Vec<IntervalExport> = push_intervals
             .iter()
-            .enumerate()
-            .filter_map(|(idx, (alpha, omega))| {
+            .filter_map(|(slot, alpha, omega)| {
                 if *alpha >= frame.joint_positions.len() || *omega >= frame.joint_positions.len() {
                     return None;
                 }
@@ -204,12 +204,11 @@ impl AnimationExporter {
 
                 let (x_axis, y_axis, z_axis) = compute_cylinder_axes(delta, full_length);
 
-                // Single matrix for the whole Push prototype
-                // Prototype is unit cylinder (radius=1, height=2), transform scales radius and length
                 let matrix = create_cylinder_matrix(mid, x_axis, y_axis, z_axis, PUSH_RADIUS, full_length);
 
+                // Name by slot index for stable identity across frames
                 Some(IntervalExport {
-                    name: format!("Push_{:04}", idx),
+                    name: format!("Push_{:04}", slot),
                     matrix,
                 })
             })
@@ -217,8 +216,7 @@ impl AnimationExporter {
 
         let pull: Vec<IntervalExport> = pull_intervals
             .iter()
-            .enumerate()
-            .filter_map(|(idx, (alpha, omega))| {
+            .filter_map(|(slot, alpha, omega)| {
                 if *alpha >= frame.joint_positions.len() || *omega >= frame.joint_positions.len() {
                     return None;
                 }
@@ -239,12 +237,11 @@ impl AnimationExporter {
 
                 let (x_axis, y_axis, z_axis) = compute_cylinder_axes(delta, full_length);
 
-                // Single matrix for the whole Pull prototype
-                // Prototype is unit cylinder (radius=1, height=2), transform scales radius and length
                 let matrix = create_cylinder_matrix(mid, x_axis, y_axis, z_axis, PULL_RADIUS, full_length);
 
+                // Name by slot index for stable identity across frames
                 Some(IntervalExport {
-                    name: format!("Pull_{:04}", idx),
+                    name: format!("Pull_{:04}", slot),
                     matrix,
                 })
             })
@@ -276,14 +273,21 @@ impl AnimationExporter {
 
         let joint_positions: Vec<Point3<f32>> = fabric.joints.iter().map(|j| j.location).collect();
 
-        let interval_endpoints: Vec<(usize, usize, Role)> = fabric
-            .interval_values()
-            .map(|interval: &Interval| (interval.alpha_index, interval.omega_index, interval.role))
+        // Capture interval data with stable slot index for naming
+        let interval_data: Vec<(usize, usize, usize, Role)> = fabric
+            .intervals
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, opt)| {
+                opt.as_ref().map(|interval| {
+                    (slot, interval.alpha_index, interval.omega_index, interval.role)
+                })
+            })
             .collect();
 
         self.frames.push(FrameData {
             joint_positions,
-            interval_endpoints,
+            interval_data,
         });
 
         self.frame_count += 1;
@@ -318,14 +322,20 @@ impl AnimationExporter {
         self.frame_count = 0;
 
         let joint_positions: Vec<Point3<f32>> = fabric.joints.iter().map(|j| j.location).collect();
-        let interval_endpoints: Vec<(usize, usize, Role)> = fabric
-            .interval_values()
-            .map(|interval: &Interval| (interval.alpha_index, interval.omega_index, interval.role))
+        let interval_data: Vec<(usize, usize, usize, Role)> = fabric
+            .intervals
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, opt)| {
+                opt.as_ref().map(|interval| {
+                    (slot, interval.alpha_index, interval.omega_index, interval.role)
+                })
+            })
             .collect();
 
         self.frames.push(FrameData {
             joint_positions,
-            interval_endpoints,
+            interval_data,
         });
         self.frame_count = 1;
 
