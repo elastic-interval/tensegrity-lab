@@ -7,7 +7,6 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-use std::time::Duration;
 
 use cgmath::{InnerSpace, Point3, Vector3};
 use serde::Serialize;
@@ -15,7 +14,7 @@ use serde::Serialize;
 use crate::fabric::interval::Role;
 use crate::fabric::Fabric;
 
-const EXPORT_FPS: f64 = 30.0;
+const DEFAULT_EXPORT_FPS: f64 = 100.0;
 
 const JOINT_RADIUS: f32 = 0.015;
 const PUSH_RADIUS: f32 = 0.04;
@@ -76,23 +75,24 @@ pub struct AnimationExporter {
     enabled: bool,
     frames: Vec<FrameData>,
     scale: f32,
-    /// Fabric time when next frame should be captured
-    next_frame_time: Duration,
-    /// Duration between frames in fabric time
-    frame_interval: Duration,
+    iteration_count: usize,
+    iterations_per_frame: usize,
+    fps: f64,
 }
 
 impl AnimationExporter {
-    pub fn new<P: Into<PathBuf>>(output_dir: P) -> Self {
-        let frame_interval = Duration::from_secs_f64(1.0 / EXPORT_FPS);
+    pub fn new<P: Into<PathBuf>>(output_dir: P, fps: f64) -> Self {
+        let fps = if fps > 0.0 { fps } else { DEFAULT_EXPORT_FPS };
+        let iterations_per_frame = (1.0 / fps / 0.00005) as usize;
         Self {
             output_dir: output_dir.into(),
             frame_count: 0,
             enabled: false,
             frames: Vec::new(),
             scale: 1.0,
-            next_frame_time: Duration::ZERO,
-            frame_interval,
+            iteration_count: 0,
+            iterations_per_frame,
+            fps,
         }
     }
 
@@ -100,8 +100,8 @@ impl AnimationExporter {
         self.enabled = true;
         self.frame_count = 0;
         self.frames.clear();
-        self.next_frame_time = Duration::ZERO;
-        println!("Animation export started at {} FPS", EXPORT_FPS);
+        self.iteration_count = 0;
+        println!("Animation export started at {} FPS ({} iterations/frame)", self.fps, self.iterations_per_frame);
     }
 
     pub fn stop(&mut self) -> io::Result<()> {
@@ -142,7 +142,7 @@ impl AnimationExporter {
             .collect();
 
         ExportData {
-            fps: EXPORT_FPS,
+            fps: self.fps,
             prototypes: PrototypeDimensions {
                 joint_radius: JOINT_RADIUS,
                 push_radius: PUSH_RADIUS,
@@ -253,22 +253,21 @@ impl AnimationExporter {
         }
     }
 
-    pub fn capture_frame(&mut self, fabric: &Fabric) {
-        if !self.enabled {
+    pub fn tick(&mut self, fabric: &Fabric, iterations: usize) {
+        if !self.enabled || iterations == 0 {
             return;
         }
 
-        let fabric_time = fabric.age.as_duration();
+        let prev_frame = self.iteration_count / self.iterations_per_frame;
+        self.iteration_count += iterations;
+        let curr_frame = self.iteration_count / self.iterations_per_frame;
 
-        // Only capture if we've reached the next frame time
-        if fabric_time < self.next_frame_time {
+        if curr_frame == prev_frame {
             return;
         }
 
         if self.frames.is_empty() {
             self.scale = fabric.scale;
-            // Start from current fabric time
-            self.next_frame_time = fabric_time;
         }
 
         let joint_positions: Vec<Point3<f32>> = fabric.joints.iter().map(|j| j.location).collect();
@@ -289,10 +288,10 @@ impl AnimationExporter {
         });
 
         self.frame_count += 1;
-        self.next_frame_time += self.frame_interval;
 
-        if self.frame_count % 30 == 0 {
-            println!("Captured {} frames ({:.1}s of fabric time)", self.frame_count, fabric_time.as_secs_f64());
+        if self.frame_count % self.fps as usize == 0 {
+            let real_seconds = self.iteration_count as f64 * 0.00005;
+            println!("Captured {} frames ({:.1}s)", self.frame_count, real_seconds);
         }
     }
 
@@ -302,6 +301,12 @@ impl AnimationExporter {
 
     pub fn is_enabled(&self) -> bool {
         self.enabled
+    }
+
+    pub fn set_fps(&mut self, fps: f64) {
+        let fps = if fps > 0.0 { fps } else { DEFAULT_EXPORT_FPS };
+        self.fps = fps;
+        self.iterations_per_frame = (1.0 / fps / 0.00005) as usize;
     }
 
     pub fn toggle(&mut self) -> io::Result<bool> {

@@ -356,7 +356,7 @@ impl Fabric {
             );
             self.stats.accumulate_strain(interval.strain);
         }
-        let elapsed = self.age.tick_scaled(physics.time_scale());
+        let elapsed = self.age.tick();
 
         // Check for excessive speed and accumulate velocity/energy stats
         const MAX_SPEED_SQUARED: f32 = 1000.0 * 1000.0; // (mm per tick)²

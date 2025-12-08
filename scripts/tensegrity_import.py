@@ -11,7 +11,10 @@ bl_info = {
     "category": "Import-Export",
 }
 
-SCRIPT_VERSION = "1.3 - 2024-12-05"
+SCRIPT_VERSION = "1.5 - 2024-12-05"
+
+# Fixed playback FPS - capture FPS controls slow-motion factor
+PLAYBACK_FPS = 30
 
 import bpy
 import json
@@ -364,9 +367,11 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                     else:
                         object_visibility[name]['last'] = blender_frame
 
+                if frame_num % 10 == 0:
+                    wm.progress_update(int(10 * frame_num / len(frames)))
+                    bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
                 if frame_num % 100 == 0:
                     print(f"  Scanned {frame_num + 1}/{len(frames)} frames...")
-                    wm.progress_update(int(10 * frame_num / len(frames)))
 
             print(f"Found {len(object_visibility)} unique objects across {len(frames)} frames")
             wm.progress_update(10)
@@ -413,9 +418,11 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
             total_objects = len(object_visibility)
             for name, info in object_visibility.items():
                 obj_count += 1
+                if obj_count % 10 == 0:
+                    wm.progress_update(10 + int(20 * obj_count / total_objects))
+                    bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
                 if obj_count % 100 == 0:
                     print(f"  Created {obj_count}/{total_objects} objects...")
-                    wm.progress_update(10 + int(20 * obj_count / total_objects))
                 obj_type = info['type']
                 first_matrix = matrix_from_list(info['first_matrix'])
                 loc, rot, scale = first_matrix.decompose()
@@ -560,16 +567,24 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                     obj.keyframe_insert(data_path="scale", frame=blender_frame)
 
             # Progress reporting
+            if frame_num % 10 == 0:
+                wm.progress_update(30 + int(70 * frame_num / len(frames)))
+                bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
             if frame_num % 50 == 0 or frame_num == len(frames) - 1:
                 print(f"Processing frame {frame_num + 1}/{len(frames)}...")
-                wm.progress_update(30 + int(70 * frame_num / len(frames)))
 
         # Set animation range
         if is_animation:
             context.scene.frame_start = 1
             context.scene.frame_end = len(frames)
-            context.scene.render.fps = int(fps)
+            context.scene.render.fps = PLAYBACK_FPS
             context.scene.frame_set(1)
+
+            # Calculate slow-motion factor
+            capture_fps = data.get('fps', 30.0)
+            slowmo_factor = capture_fps / PLAYBACK_FPS
+            if slowmo_factor > 1.01:
+                print(f"Slow-motion: {slowmo_factor:.1f}x (captured at {capture_fps} FPS, playing at {PLAYBACK_FPS} FPS)")
 
             keyframe_count = 0
             for obj in created_objects.values():
