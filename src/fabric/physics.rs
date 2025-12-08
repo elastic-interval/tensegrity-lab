@@ -128,7 +128,6 @@ pub struct Physics {
     pub pretenst: Percent,
     pub drag: f32,
     pub viscosity: f32,
-    pub time_scale: f32,
     pub tweak: Tweak,
 }
 
@@ -137,7 +136,6 @@ pub struct Physics {
 pub struct Tweak {
     pub drag_multiplier: f32,
     pub viscosity_multiplier: f32,
-    pub time_scale_multiplier: f32,
     pub mass_multiplier: f32,
     pub rigidity_multiplier: f32,
 }
@@ -147,7 +145,6 @@ impl Default for Tweak {
         Self {
             drag_multiplier: 1.0,
             viscosity_multiplier: 1.0,
-            time_scale_multiplier: 1.0,
             mass_multiplier: 1.0,
             rigidity_multiplier: 1.0,
         }
@@ -188,7 +185,6 @@ impl Physics {
         let tweak_params = [
             MassScale.parameter(self.tweak.mass_multiplier),
             RigidityScale.parameter(self.tweak.rigidity_multiplier),
-            TimeScale.parameter(self.tweak.time_scale_multiplier),
         ];
         for p in tweak_params {
             StateChange::SetTweakParameter(p).send(radio);
@@ -202,7 +198,6 @@ impl Physics {
         match feature {
             MassScale => self.tweak.mass_multiplier = value,
             RigidityScale => self.tweak.rigidity_multiplier = value,
-            TimeScale => self.tweak.time_scale_multiplier = value,
         }
     }
 
@@ -212,10 +207,6 @@ impl Physics {
 
     pub fn rigidity_multiplier(&self) -> f32 {
         self.tweak.rigidity_multiplier
-    }
-
-    pub fn time_scale(&self) -> f32 {
-        self.time_scale * self.tweak.time_scale_multiplier
     }
 
     pub fn drag(&self) -> f32 {
@@ -241,7 +232,6 @@ pub mod presets {
     const NO_TWEAK: Tweak = Tweak {
         drag_multiplier: 1.0,
         viscosity_multiplier: 1.0,
-        time_scale_multiplier: 1.0,
         mass_multiplier: 1.0,
         rigidity_multiplier: 1.0,
     };
@@ -251,7 +241,6 @@ pub mod presets {
         pretenst: Percent(1.0),
         drag: 0.5,
         viscosity: 0.0,
-        time_scale: 1.0,
         tweak: NO_TWEAK,
     };
 
@@ -260,7 +249,6 @@ pub mod presets {
         pretenst: Percent(20.0),
         drag: 0.0125,
         viscosity: 40.0,
-        time_scale: 2.0,
         tweak: NO_TWEAK,
     };
 
@@ -269,7 +257,6 @@ pub mod presets {
         pretenst: Percent(1.0),
         drag: 25.0,
         viscosity: 4.0,
-        time_scale: 2.0,
         tweak: NO_TWEAK,
     };
 
@@ -278,7 +265,6 @@ pub mod presets {
         pretenst: Percent(5.0),
         drag: 500.0,
         viscosity: 1000.0,
-        time_scale: 1.0,
         tweak: NO_TWEAK,
     };
 
@@ -287,7 +273,6 @@ pub mod presets {
         pretenst: Percent(1.0),
         drag: 0.5,
         viscosity: 0.0,
-        time_scale: 1.0,
         tweak: NO_TWEAK,
     };
 
@@ -296,7 +281,6 @@ pub mod presets {
         pretenst: Percent(1.0),
         drag: 0.5,
         viscosity: 0.0,
-        time_scale: 1.0,
         tweak: NO_TWEAK,
     };
 
@@ -305,7 +289,6 @@ pub mod presets {
         pretenst: Percent(1.0),
         drag: 0.01,
         viscosity: 0.5,
-        time_scale: 5.0,
         tweak: NO_TWEAK,
     };
 }
@@ -317,13 +300,10 @@ mod tests {
     #[test]
     fn test_values_with_multipliers() {
         let mut physics = VIEWING.clone();
-        assert_eq!(physics.time_scale(), 1.0);
         assert_eq!(physics.drag(), 0.5);
         assert_eq!(physics.viscosity(), 0.0);
 
-        physics.tweak.time_scale_multiplier = 2.0;
         physics.tweak.drag_multiplier = 3.0;
-        assert_eq!(physics.time_scale(), 2.0);
         assert_eq!(physics.drag(), 1.5);
     }
 

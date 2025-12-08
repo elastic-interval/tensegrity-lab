@@ -32,6 +32,7 @@ pub struct Application {
     current_fps: f32,
     control_state: ControlState,
     pointer_handler: PointerHandler,
+    time_scale: f32,
     #[cfg(not(target_arch = "wasm32"))]
     machine: Option<crate::cord_machine::CordMachine>,
     #[cfg(not(target_arch = "wasm32"))]
@@ -46,7 +47,7 @@ impl Application {
     //==================================================
 
     /// Create a new Application instance
-    pub fn new(window_attributes: WindowAttributes, radio: Radio) -> Application {
+    pub fn new(window_attributes: WindowAttributes, radio: Radio, time_scale: f32) -> Application {
         Application {
             run_style: RunStyle::Unknown,
             mobile_device: false,
@@ -62,13 +63,19 @@ impl Application {
             fps_timer: Instant::now(),
             current_fps: 60.0,
             control_state: ControlState::Waiting,
+            time_scale,
             #[cfg(not(target_arch = "wasm32"))]
             machine: None,
             #[cfg(not(target_arch = "wasm32"))]
-            animation_exporter: crate::export::AnimationExporter::new("animation_export"),
+            animation_exporter: crate::export::AnimationExporter::new("animation_export", 100.0),
             #[cfg(not(target_arch = "wasm32"))]
             record_until: None,
         }
+    }
+
+    /// Adjust time scale by a factor
+    pub fn adjust_time_scale(&mut self, factor: f32) {
+        self.time_scale = (self.time_scale * factor).clamp(0.1, 100.0);
     }
 
     //==================================================
@@ -198,11 +205,14 @@ impl ApplicationHandler<LabEvent> for Application {
                     RunStyle::Unknown => {
                         unreachable!()
                     }
-                    RunStyle::Fabric { fabric_name, record, .. } => {
+                    RunStyle::Fabric { fabric_name, record, export_fps, .. } => {
                         #[cfg(not(target_arch = "wasm32"))]
-                        if let Some(duration) = record {
-                            self.record_until = Some(*duration);
-                            self.animation_exporter.start();
+                        {
+                            self.animation_exporter.set_fps(*export_fps);
+                            if let Some(duration) = record {
+                                self.record_until = Some(*duration);
+                                self.animation_exporter.start();
+                            }
                         }
                         let fabric_plan = fabric_library::get_fabric_plan(*fabric_name);
                         CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
@@ -222,34 +232,34 @@ impl ApplicationHandler<LabEvent> for Application {
                 StateChange::SetFabricStats(Some(fabric_stats)).send(&self.radio);
                 StateChange::SetControlState(self.crucible.viewing_state()).send(&self.radio);
                 StateChange::SetStageLabel("Viewing".to_string()).send(&self.radio);
-                if self.mobile_device {
+                // Handle test scenarios first
+                if let RunStyle::Fabric {
+                    scenario: Some(scenario),
+                    ..
+                } = &self.run_style
+                {
+                    match scenario {
+                        TestScenario::PhysicsTest => {
+                            CrucibleAction::ToPhysicsTesting(scenario.clone())
+                                .send(&self.radio);
+                        }
+                        TestScenario::MachineTest(ip_address) => {
+                            println!("Running machine test at {ip_address}");
+                            #[cfg(not(target_arch = "wasm32"))]
+                            match crate::cord_machine::CordMachine::new(ip_address) {
+                                Ok(machine) => self.machine = Some(machine),
+                                Err(error) => {
+                                    panic!("Machine [{ip_address}]: {error}");
+                                }
+                            }
+                            self.crucible.viewing_state().send(&self.radio);
+                        }
+                    }
+                } else if self.crucible.animation_available() {
+                    // Auto-start animation if animate phase is defined
                     CrucibleAction::ToAnimating.send(&self.radio);
                 } else {
-                    if let RunStyle::Fabric {
-                        scenario: Some(scenario),
-                        ..
-                    } = &self.run_style
-                    {
-                        match scenario {
-                            TestScenario::PhysicsTest => {
-                                CrucibleAction::ToPhysicsTesting(scenario.clone())
-                                    .send(&self.radio);
-                            }
-                            TestScenario::MachineTest(ip_address) => {
-                                println!("Running machine test at {ip_address}");
-                                #[cfg(not(target_arch = "wasm32"))]
-                                match crate::cord_machine::CordMachine::new(ip_address) {
-                                    Ok(machine) => self.machine = Some(machine),
-                                    Err(error) => {
-                                        panic!("Machine [{ip_address}]: {error}");
-                                    }
-                                }
-                                self.crucible.viewing_state().send(&self.radio);
-                            }
-                        }
-                    } else {
-                        self.crucible.viewing_state().send(&self.radio);
-                    }
+                    self.crucible.viewing_state().send(&self.radio);
                 }
             }
             Crucible(crucible_action) => {
@@ -295,6 +305,9 @@ impl ApplicationHandler<LabEvent> for Application {
                 if let Some(_) = &self.scene {
                     self.redraw();
                 }
+            }
+            AdjustTimeScale(factor) => {
+                self.adjust_time_scale(factor);
             }
             UpdateState(app_change) => {
                 match &app_change {
@@ -467,15 +480,14 @@ impl ApplicationHandler<LabEvent> for Application {
             // For display purposes, use the smoothed value
             let frames_per_second = self.current_fps;
 
-            // Get fabric age and target time scale
+            // Get fabric age and time scale
             let age = self.crucible.fabric.age;
-            let target_time_scale = self.crucible.target_time_scale();
 
             // Send the FPS update event
             StateChange::Time {
                 frames_per_second,
                 age,
-                target_time_scale,
+                time_scale: self.time_scale,
             }
             .send(&self.radio);
 
@@ -529,17 +541,16 @@ impl ApplicationHandler<LabEvent> for Application {
             self.accumulated_time -= update_interval;
             updates_this_frame += 1;
 
-            if animate {
-                // Calculate iterations needed to maintain target time scale
-                // iterations_per_second = 1.0 / ITERATION_DURATION.secs (e.g., 20000 for 50µs)
-                let iterations_per_second = 1.0 / ITERATION_DURATION.secs;
-                let target_scale = self.crucible.target_time_scale();
-                let iterations_per_frame = if self.current_fps > 0.0 {
-                    (target_scale * iterations_per_second / self.current_fps).round() as usize
-                } else {
-                    0
-                };
+            // Calculate iterations needed to maintain time scale
+            // iterations_per_second = 1.0 / ITERATION_DURATION.secs (e.g., 20000 for 50µs)
+            let iterations_per_second = 1.0 / ITERATION_DURATION.secs;
+            let iterations_per_frame = if self.current_fps > 0.0 && animate {
+                (self.time_scale * iterations_per_second / self.current_fps).round() as usize
+            } else {
+                0
+            };
 
+            if iterations_per_frame > 0 {
                 self.crucible.iterate(iterations_per_frame);
             }
 
@@ -557,7 +568,7 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                     self.record_until = None;
                 } else {
-                    self.animation_exporter.capture_frame(&self.crucible.fabric);
+                    self.animation_exporter.tick(&self.crucible.fabric, iterations_per_frame);
                 }
             }
         }

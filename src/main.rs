@@ -32,6 +32,14 @@ struct Args {
     /// Record animation for specified duration (seconds) from start of fabric construction
     #[arg(long)]
     record: Option<f32>,
+
+    /// FPS for animation export (default 100)
+    #[arg(long, default_value_t = 100.0)]
+    fps: f64,
+
+    /// Time scale multiplier (default 1.0, use higher values for faster simulation)
+    #[arg(long, default_value_t = 1.0)]
+    time_scale: f32,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -42,6 +50,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         test,
         machine,
         record,
+        fps,
+        time_scale,
     } = Args::parse();
     let record_duration = record.map(Seconds);
     let run_style = match (fabric, bake_bricks, seed, test, machine) {
@@ -49,11 +59,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             fabric_name,
             scenario: Some(TestScenario::MachineTest(ip_address)),
             record: record_duration,
+            export_fps: fps,
         },
         (Some(fabric_name), false, None, None, None) => RunStyle::Fabric {
             fabric_name,
             scenario: None,
             record: record_duration,
+            export_fps: fps,
         },
         (None, true, None, None, None) => RunStyle::BakeBricks,
         (None, false, Some(seed), None, None) => RunStyle::Seeded(seed),
@@ -64,15 +76,16 @@ fn main() -> Result<(), Box<dyn Error>> {
                 _ => panic!("unknown test: \"{test_name}\""),
             },
             record: record_duration,
+            export_fps: fps,
         },
         _ => {
             return Err("use --fabric <name> or --bake-bricks or --seed <seed>".into());
         }
     };
-    run_with(run_style)
+    run_with(run_style, time_scale)
 }
 
-fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
+fn run_with(run_style: RunStyle, time_scale: f32) -> Result<(), Box<dyn Error>> {
     let mut builder = EventLoop::<LabEvent>::with_user_event();
     let event_loop: EventLoop<LabEvent> = builder.build()?;
     let radio = event_loop.create_proxy();
@@ -81,7 +94,7 @@ fn run_with(run_style: RunStyle) -> Result<(), Box<dyn Error>> {
     let window_attributes = create_window_attributes();
     #[cfg(target_arch = "wasm32")]
     let window_attributes = create_window_attributes();
-    let mut application = Application::new(window_attributes, radio.clone());
+    let mut application = Application::new(window_attributes, radio.clone(), time_scale);
     LabEvent::Run(run_style).send(&radio);
     event_loop.run_app(&mut application)?;
     Ok(())
@@ -93,7 +106,8 @@ pub fn run() {
         fabric_name: FabricName::Triped,
         scenario: None,
         record: None,
-    })
+        export_fps: 100.0,
+    }, 1.0)
     .unwrap();
 }
 

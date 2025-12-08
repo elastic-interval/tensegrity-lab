@@ -37,6 +37,11 @@ enum KeyAction {
         radio: Radio,
         is_active_in: Box<dyn Fn(&ControlState) -> bool>,
     },
+    TimeScale {
+        up_code: SmolStr,
+        down_code: SmolStr,
+        radio: Radio,
+    },
 }
 
 pub struct Keyboard {
@@ -84,25 +89,14 @@ impl Keyboard {
             Crucible(ToViewing),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
-        self.key_lab_event(
-            KeyCode::KeyA,
-            "Stop animation",
-            Crucible(ToViewing),
-            Box::new(|state| matches!(state, Animating)),
-        );
-        self.key_lab_event(
-            KeyCode::KeyA,
-            "Start animation",
-            Crucible(ToAnimating),
-            Box::new(|state| matches!(state, Viewing { animation_available: true })),
-        );
         self.animation_period(
             "P",
             "p",
             Box::new(|state| matches!(state, Animating)),
         );
+        self.time_scale("T", "t");
         self.key_lab_event(
-            KeyCode::KeyT,
+            KeyCode::KeyX,
             "Physics testing",
             Crucible(ToPhysicsTesting(TestScenario::PhysicsTest)),
             Box::new(|state| matches!(state, Viewing { .. })),
@@ -293,6 +287,18 @@ impl Keyboard {
                                 }
                             }
                         }
+                        KeyAction::TimeScale {
+                            up_code,
+                            down_code,
+                            radio,
+                        } => {
+                            if text == *up_code {
+                                LabEvent::AdjustTimeScale(1.1).send(radio);
+                            }
+                            if text == *down_code {
+                                LabEvent::AdjustTimeScale(0.9).send(radio);
+                            }
+                        }
                     }
                 }
             }
@@ -350,6 +356,13 @@ impl Keyboard {
                     if is_active_in(control_state) {
                         legend.push(format!("{}/{}: Period", up_code, down_code));
                     }
+                }
+                KeyAction::TimeScale {
+                    up_code,
+                    down_code,
+                    ..
+                } => {
+                    legend.push(format!("{}/{}: Speed", up_code, down_code));
                 }
             }
         }
@@ -448,6 +461,14 @@ impl Keyboard {
             up_code: up_code.into(),
             down_code: down_code.into(),
             is_active_in,
+            radio: self.radio.clone(),
+        })
+    }
+
+    fn time_scale(&mut self, up_code: &str, down_code: &str) {
+        self.actions.push(KeyAction::TimeScale {
+            up_code: up_code.into(),
+            down_code: down_code.into(),
             radio: self.radio.clone(),
         })
     }

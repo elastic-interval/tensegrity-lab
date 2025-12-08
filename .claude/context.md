@@ -359,9 +359,13 @@ The dynamic time scaling system is now complete and should rarely need modificat
 
 ## Testing
 
+**IMPORTANT: Always run tests in release mode for speed:**
+```bash
+cargo test --release
+```
+
 **Unit Tests:**
 - Many modules have inline tests (see `#[cfg(test)]` blocks)
-- Run with `cargo test`
 
 **Integration Tests:**
 - `src/build/tenscript/plan_runner_test.rs` - Tests plan execution

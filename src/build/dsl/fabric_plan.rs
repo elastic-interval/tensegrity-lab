@@ -16,7 +16,7 @@ pub struct FabricPlan {
     pub shape_phase: ShapePhase,
     pub pretense_phase: PretensePhase,
     pub fall_phase: FallPhase,
-    pub settle_phase: SettlePhase,
+    pub settle_phase: Option<SettlePhase>,
     pub animate_phase: Option<AnimatePhase>,
     pub scale: f32,
     pub altitude: Millimeters,

@@ -34,14 +34,14 @@ pub fn triped() -> FabricPlan {
                 .build(),
         )
         .shape([
-            during(Sec(5.0), [space(End, 0.38)]),
+            during(Sec(3.0), [space(End, 0.38)]),
             during(Sec(1.0), [vulcanize()]),
         ])
         .pretense(
             pretense(Sec(1.0))
                 .surface(SurfaceCharacter::Frozen),
         )
-        .fall(Sec(8.0))
+        .fall(Sec(3.0))
         .settle(Sec(3.0))
         .animate(
             Sec(0.8266),

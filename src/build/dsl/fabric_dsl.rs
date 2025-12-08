@@ -25,7 +25,7 @@ pub fn fabric(name: impl Into<String>, altitude: Millimeters) -> FabricBuilder {
         shape: Vec::new(),
         pretense: PretensePhaseBuilder::default(),
         fall: Seconds(5.0),
-        settle: Seconds(10.0),
+        settle: None,
         animate: None,
         scale: Millimeters(1000.0),
     }
@@ -38,7 +38,7 @@ pub struct FabricBuilder {
     shape: Vec<ShapeOperation>,
     pretense: PretensePhaseBuilder,
     fall: Seconds,
-    settle: Seconds,
+    settle: Option<Seconds>,
     animate: Option<AnimatePhase>,
     scale: Millimeters,
 }
@@ -65,7 +65,7 @@ impl FabricBuilder {
     }
 
     pub fn settle(mut self, seconds: Seconds) -> Self {
-        self.settle = seconds;
+        self.settle = Some(seconds);
         self
     }
 
@@ -105,7 +105,7 @@ impl FabricBuilder {
             },
             pretense_phase: self.pretense.build(),
             fall_phase: FallPhase { seconds: self.fall },
-            settle_phase: SettlePhase { seconds: self.settle },
+            settle_phase: self.settle.map(|seconds| SettlePhase { seconds }),
             animate_phase: self.animate,
             scale: self.scale.0,
             altitude: self.altitude,

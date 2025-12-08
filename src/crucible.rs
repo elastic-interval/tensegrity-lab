@@ -43,11 +43,6 @@ impl Crucible {
         }
     }
 
-    /// Get the target time scale from physics settings
-    pub fn target_time_scale(&self) -> f32 {
-        self.physics.time_scale()
-    }
-
     /// Check if animation is available for the current fabric plan
     pub fn animation_available(&self) -> bool {
         self.fabric_plan

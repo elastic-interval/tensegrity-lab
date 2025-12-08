@@ -84,12 +84,6 @@ impl Age {
         ITERATION_DURATION.duration
     }
 
-    pub fn tick_scaled(&mut self, dt_scale: f32) -> Duration {
-        let scaled_duration = ITERATION_DURATION.duration.mul_f32(dt_scale);
-        self.0 += scaled_duration;
-        scaled_duration
-    }
-
     pub fn advanced(&self, ticks: usize) -> Self {
         Self(self.0 + ITERATION_DURATION.duration * ticks as u32)
     }
@@ -129,7 +123,6 @@ impl PhysicsFeature {
 pub enum TweakFeature {
     MassScale,
     RigidityScale,
-    TimeScale,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -161,6 +154,8 @@ pub enum RunStyle {
         scenario: Option<TestScenario>,
         /// Record animation for this duration from start
         record: Option<units::Seconds>,
+        /// FPS for animation export (default 100)
+        export_fps: f64,
     },
     BakeBricks,
     Seeded(u64),
@@ -526,7 +521,7 @@ pub enum StateChange {
     Time {
         frames_per_second: f32,
         age: Age,
-        target_time_scale: f32,
+        time_scale: f32,
     },
     /// Toggle between perspective and orthogonal projection
     ToggleProjection,
@@ -581,6 +576,8 @@ pub enum LabEvent {
     DumpCSV,
     RequestRedraw,
     PointerChanged(PointerChange),
+    /// Adjust time scale by a factor (e.g., 1.1 to speed up, 0.9 to slow down)
+    AdjustTimeScale(f32),
     #[cfg(not(target_arch = "wasm32"))]
     ToggleAnimationExport,
     #[cfg(not(target_arch = "wasm32"))]

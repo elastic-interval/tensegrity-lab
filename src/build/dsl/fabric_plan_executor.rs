@@ -224,7 +224,11 @@ impl FabricPlanExecutor {
             }
             ExecutorStage::Falling => {
                 if !self.fabric.progress.is_busy() {
-                    self.transition_to_settle();
+                    if self.plan.settle_phase.is_some() {
+                        self.transition_to_settle();
+                    } else {
+                        self.complete();
+                    }
                 }
             }
             ExecutorStage::Settling => {
@@ -374,7 +378,9 @@ impl FabricPlanExecutor {
             description: "SETTLING".to_string(),
         });
 
-        self.fabric.progress.start(self.plan.settle_phase.seconds);
+        if let Some(settle_phase) = &self.plan.settle_phase {
+            self.fabric.progress.start(settle_phase.seconds);
+        }
         self.stage = ExecutorStage::Settling;
     }
 
