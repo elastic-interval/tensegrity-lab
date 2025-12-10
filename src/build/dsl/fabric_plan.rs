@@ -74,35 +74,10 @@ impl AnimateBuilder {
         self
     }
 
-    /// Add an alpha actuator between two joints (contracts when oscillator is high)
-    pub fn alpha(mut self, joint_a: usize, joint_b: usize) -> Self {
-        self.phase.actuators.push(Actuator::alpha_between(joint_a, joint_b));
-        self
-    }
-
-    /// Add an omega actuator between two joints (contracts when oscillator is low)
-    pub fn omega(mut self, joint_a: usize, joint_b: usize) -> Self {
-        self.phase.actuators.push(Actuator::omega_between(joint_a, joint_b));
-        self
-    }
-
-    /// Add an alpha actuator from a joint to a surface point
-    pub fn alpha_to_surface(mut self, joint: usize, surface: (f32, f32)) -> Self {
-        self.phase.actuators.push(Actuator::alpha_to_surface(joint, surface));
-        self
-    }
-
-    /// Add an omega actuator from a joint to a surface point
-    pub fn omega_to_surface(mut self, joint: usize, surface: (f32, f32)) -> Self {
-        self.phase.actuators.push(Actuator::omega_to_surface(joint, surface));
-        self
-    }
-
-}
-
-impl From<AnimateBuilder> for FabricPlan {
-    fn from(mut builder: AnimateBuilder) -> FabricPlan {
-        builder.plan.animate_phase = Some(builder.phase);
-        builder.plan
+    /// Terminal method: add actuators and return the completed FabricPlan
+    pub fn actuators(mut self, actuators: &[Actuator]) -> FabricPlan {
+        self.phase.actuators = actuators.to_vec();
+        self.plan.animate_phase = Some(self.phase);
+        self.plan
     }
 }

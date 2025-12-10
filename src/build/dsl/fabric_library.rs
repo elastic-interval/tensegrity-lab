@@ -53,10 +53,11 @@ impl FabricName {
                 .amplitude(Pct(1.0))
                 .stiffness(Pct(10.0))
                 .pulse(Pct(10.0))
-                .alpha(151, 48)
-                .alpha(157, 36)
-                .alpha(145, 42)
-                .into(),
+                .actuators(&[
+                    alpha_phase_between(151, 48),
+                    alpha_phase_between(157, 36),
+                    alpha_phase_between(145, 42),
+                ]),
 
             HaloByCrane => self
                 .altitude(M(2.0))
