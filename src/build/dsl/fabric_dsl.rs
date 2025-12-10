@@ -54,9 +54,9 @@ impl FabricBuilder {
         self
     }
 
-    pub fn pretense(mut self, builder: PretensePhaseBuilder) -> Self {
-        self.pretense = builder;
-        self
+    pub fn pretense(mut self, seconds: Seconds) -> PretenseChain {
+        self.pretense.seconds = Some(seconds);
+        PretenseChain { fabric: self }
     }
 
     pub fn fall(mut self, seconds: Seconds) -> Self {
@@ -350,9 +350,66 @@ impl PretensePhaseBuilder {
     }
 }
 
-pub fn pretense(seconds: Seconds) -> PretensePhaseBuilder {
-    PretensePhaseBuilder {
-        seconds: Some(seconds),
-        ..Default::default()
+/// Chained pretense configuration that returns to FabricBuilder
+pub struct PretenseChain {
+    fabric: FabricBuilder,
+}
+
+impl PretenseChain {
+    pub fn surface(mut self, surface: SurfaceCharacter) -> Self {
+        self.fabric.pretense.surface = Some(surface);
+        self
+    }
+
+    pub fn altitude(mut self, altitude: Millimeters) -> Self {
+        self.fabric.pretense.altitude = Some(altitude);
+        self
+    }
+
+    pub fn pretenst(mut self, pretenst: Percent) -> Self {
+        self.fabric.pretense.pretenst = Some(pretenst);
+        self
+    }
+
+    pub fn rigidity(mut self, rigidity: Percent) -> Self {
+        self.fabric.pretense.rigidity = Some(rigidity);
+        self
+    }
+
+    pub fn fall(self, seconds: Seconds) -> FabricBuilder {
+        self.fabric.fall(seconds)
+    }
+
+    pub fn settle(self, seconds: Seconds) -> FabricBuilder {
+        self.fabric.settle(seconds)
+    }
+
+    pub fn animate_sine(
+        self,
+        period: Seconds,
+        amplitude: Amplitude,
+        stiffness: Percent,
+        actuators: Vec<Actuator>,
+    ) -> FabricBuilder {
+        self.fabric.animate_sine(period, amplitude, stiffness, actuators)
+    }
+
+    pub fn animate_pulse(
+        self,
+        period: Seconds,
+        amplitude: Amplitude,
+        duty_cycle: f32,
+        stiffness: Percent,
+        actuators: Vec<Actuator>,
+    ) -> FabricBuilder {
+        self.fabric.animate_pulse(period, amplitude, duty_cycle, stiffness, actuators)
+    }
+
+    pub fn scale(self, scale: Millimeters) -> FabricBuilder {
+        self.fabric.scale(scale)
+    }
+
+    pub fn build_plan(self) -> FabricPlan {
+        self.fabric.build_plan()
     }
 }

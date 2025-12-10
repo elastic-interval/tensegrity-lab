@@ -20,7 +20,8 @@ fabric("Triped", Mm(7500.0))
         during(Sec(3.0), [space(End, Pct(38.0))]),
         during(Sec(1.0), [vulcanize()]),
     ])
-    .pretense(pretense(Sec(1.0)).surface(SurfaceCharacter::Frozen))
+    .pretense(Sec(1.0))
+    .surface(SurfaceCharacter::Frozen)
     .fall(Sec(3.0))
     .settle(Sec(3.0))
     .animate_pulse(
@@ -116,13 +117,11 @@ Manipulate the structure while still in construction physics.
 Apply pretension to cables (no gravity). Removes construction faces, leaving only the tensegrity structure.
 
 ```rust
-.pretense(
-    pretense(Sec(duration))
-        .surface(SurfaceCharacter::Frozen)  // Surface interaction for later
-        .altitude(Mm(height))               // Optional altitude
-        .pretenst(Pct(1.0))                 // Optional pretension
-        .rigidity(Pct(100.0))               // Optional rigidity
-)
+.pretense(Sec(duration))
+    .surface(SurfaceCharacter::Frozen)  // Surface interaction for later
+    .altitude(Mm(height))               // Optional altitude
+    .pretenst(Pct(1.0))                 // Optional pretension
+    .rigidity(Pct(100.0))               // Optional rigidity
 ```
 
 **Surface Characters:**
