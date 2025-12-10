@@ -15,12 +15,12 @@ pub enum Chirality {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct GrowStyle {
+pub struct ColumnStyle {
     pub count: usize,
     pub chirality: Chirality,
 }
 
-impl GrowStyle {
+impl ColumnStyle {
     pub fn new(count: usize, chirality: Chirality) -> Self {
         Self { count, chirality }
     }
@@ -43,9 +43,9 @@ impl GrowStyle {
         self.chirality == Chirality::Alternating
     }
 
-    pub fn decrement(&self) -> Option<GrowStyle> {
+    pub fn decrement(&self) -> Option<ColumnStyle> {
         if self.count > 1 {
-            Some(GrowStyle {
+            Some(ColumnStyle {
                 count: self.count - 1,
                 chirality: self.chirality,
             })
@@ -58,7 +58,7 @@ impl GrowStyle {
 #[derive(Debug, Default, Clone)]
 pub struct Bud {
     face_id: UniqueId,
-    grow_style: Option<GrowStyle>,
+    column_style: Option<ColumnStyle>,
     scale_factor: f32,
     nodes: Vec<BuildNode>,
 }
@@ -69,15 +69,15 @@ pub enum BuildNode {
         alias: FaceAlias,
         node: Box<BuildNode>,
     },
-    Grow {
-        style: GrowStyle,
+    Column {
+        style: ColumnStyle,
         scale_factor: f32,
-        post_growth_nodes: Vec<BuildNode>,
+        post_column_nodes: Vec<BuildNode>,
     },
     Mark {
         mark_name: MarkName,
     },
-    Branch {
+    Hub {
         brick_name: BrickName,
         brick_role: BrickRole,
         rotation: usize,
@@ -95,14 +95,14 @@ impl BuildNode {
             Face { node, .. } => {
                 node.traverse(f);
             }
-            Grow {
-                post_growth_nodes, ..
+            Column {
+                post_column_nodes, ..
             } => {
-                for node in post_growth_nodes {
+                for node in post_column_nodes {
                     node.traverse(f);
                 }
             }
-            Branch { face_nodes, .. } => {
+            Hub { face_nodes, .. } => {
                 for node in face_nodes {
                     node.traverse(f);
                 }
@@ -144,11 +144,11 @@ impl BuildPhase {
         self.marks = marks;
     }
 
-    pub fn is_growing(&self) -> bool {
+    pub fn is_building(&self) -> bool {
         !self.buds.is_empty()
     }
 
-    pub fn growth_step(&mut self, fabric: &mut Fabric) {
+    pub fn build_step(&mut self, fabric: &mut Fabric) {
         let buds = self.buds.clone();
         self.buds.clear();
         for bud in buds {
@@ -163,13 +163,13 @@ impl BuildPhase {
         fabric: &mut Fabric,
         Bud {
             face_id,
-            grow_style,
+            column_style,
             scale_factor,
             nodes,
         }: Bud,
     ) -> (Vec<Bud>, Vec<FaceMark>) {
         let (mut buds, mut marks) = (vec![], vec![]);
-        if let Some(style) = grow_style {
+        if let Some(style) = column_style {
             let face = fabric.expect_face(face_id);
             let spin = if style.is_alternating() {
                 face.spin.opposite()
@@ -203,7 +203,7 @@ impl BuildPhase {
                 .expect(format!("Brick {}: next face not found", brick_name).as_str());
             buds.push(Bud {
                 face_id: next_face_id,
-                grow_style: style.decrement(),
+                column_style: style.decrement(),
                 scale_factor,
                 nodes,
             });
@@ -232,22 +232,22 @@ impl BuildPhase {
                 let build_node = node.as_ref();
                 return Self::execute_node(fabric, NamedFace(alias.clone()), build_node, faces, seed_altitude);
             }
-            Grow {
+            Column {
                 style,
                 scale_factor,
-                post_growth_nodes,
+                post_column_nodes,
                 ..
             } => {
                 let face_id =
                     Self::find_launch_face(&launch, &faces, fabric).expect("No launch face");
                 buds.push(Bud {
                     face_id,
-                    grow_style: Some(*style),
+                    column_style: Some(*style),
                     scale_factor: *scale_factor,
-                    nodes: post_growth_nodes.clone(),
+                    nodes: post_column_nodes.clone(),
                 })
             }
-            Branch {
+            Hub {
                 brick_name,
                 brick_role,
                 face_nodes,
@@ -277,11 +277,11 @@ impl BuildPhase {
                 } else {
                     brick_faces.clone()
                 };
-                for (branch_face_alias, branch_node) in Self::branch_pairs(face_nodes) {
+                for (hub_face_alias, hub_node) in Self::hub_pairs(face_nodes) {
                     let (new_buds, new_marks) = Self::execute_node(
                         fabric,
-                        NamedFace(branch_face_alias),
-                        branch_node,
+                        NamedFace(hub_face_alias),
+                        hub_node,
                         available_faces.clone(),
                         seed_altitude,
                     );
@@ -317,12 +317,12 @@ impl BuildPhase {
         }
     }
 
-    fn branch_pairs(nodes: &[BuildNode]) -> Vec<(FaceAlias, &BuildNode)> {
+    fn hub_pairs(nodes: &[BuildNode]) -> Vec<(FaceAlias, &BuildNode)> {
         nodes
             .iter()
             .map(|face_node| {
                 let Face { alias, node } = face_node else {
-                    unreachable!("Branch can only contain Face nodes");
+                    unreachable!("Hub can only contain Face nodes");
                 };
                 (alias.clone(), node.as_ref())
             })

@@ -14,9 +14,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 #[derive(Clone, Debug, Copy, PartialEq)]
 pub enum Stage {
     Initialize,
-    GrowStep,
-    GrowApproach,
-    GrowCalm,
+    BuildStep,
+    BuildApproach,
+    BuildCalm,
     Shaping,
     Completed,
 }
@@ -63,22 +63,22 @@ impl PlanRunner {
                 Initialize => {
                     self.build_phase.init(context.fabric);
                     context.fabric.scale = self.get_scale();
-                    (GrowApproach, MOMENT)
+                    (BuildApproach, MOMENT)
                 }
-                GrowStep => {
-                    if self.build_phase.is_growing() {
-                        self.build_phase.growth_step(context.fabric);
-                        (GrowApproach, MOMENT)
+                BuildStep => {
+                    if self.build_phase.is_building() {
+                        self.build_phase.build_step(context.fabric);
+                        (BuildApproach, MOMENT)
                     } else if self.shape_phase.needs_shaping() {
                         self.shape_phase.marks = self.build_phase.marks.split_off(0);
                         (Shaping, IMMEDIATE)
                     } else {
-                        // Growth complete - transition immediately so executor can start PRETENSE phase
+                        // Build complete - transition immediately so executor can start PRETENSE phase
                         (Completed, IMMEDIATE)
                     }
                 }
-                GrowApproach => (GrowCalm, MOMENT),
-                GrowCalm => (GrowStep, IMMEDIATE),
+                BuildApproach => (BuildCalm, MOMENT),
+                BuildCalm => (BuildStep, IMMEDIATE),
                 Shaping => match self.shape_phase.shaping_step(context.fabric) {
                     ShapeCommand::Noop => (Shaping, IMMEDIATE),
                     ShapeCommand::StartProgress(seconds) => (Shaping, seconds),
@@ -106,12 +106,12 @@ impl PlanRunner {
                 Initialize => {
                     self.build_phase.init(context.fabric);
                     context.fabric.scale = self.get_scale();
-                    (GrowApproach, MOMENT)
+                    (BuildApproach, MOMENT)
                 }
-                GrowStep => {
-                    if self.build_phase.is_growing() {
-                        self.build_phase.growth_step(context.fabric);
-                        (GrowApproach, MOMENT)
+                BuildStep => {
+                    if self.build_phase.is_building() {
+                        self.build_phase.build_step(context.fabric);
+                        (BuildApproach, MOMENT)
                     } else if self.shape_phase.needs_shaping() {
                         self.shape_phase.marks = self.build_phase.marks.split_off(0);
                         context.send_event(LabEvent::UpdateState(StateChange::SetStageLabel(
@@ -122,8 +122,8 @@ impl PlanRunner {
                         (Completed, IMMEDIATE)
                     }
                 }
-                GrowApproach => (GrowCalm, MOMENT),
-                GrowCalm => (GrowStep, IMMEDIATE),
+                BuildApproach => (BuildCalm, MOMENT),
+                BuildCalm => (BuildStep, IMMEDIATE),
                 Shaping => match self.shape_phase.shaping_step(context.fabric) {
                     ShapeCommand::Noop => (Shaping, IMMEDIATE),
                     ShapeCommand::StartProgress(seconds) => (Shaping, seconds),

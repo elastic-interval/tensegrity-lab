@@ -26,11 +26,11 @@ pub enum FabricName {
 pub fn triped() -> FabricPlan {
     fabric("Triped", Mm(7500.0))
         .build(
-            branching(OmniSymmetrical, Seed(1))
-                .on_face(OmniBotX, growing(8).scale(0.9).mark(End).prism().build())
-                .on_face(OmniBotY, growing(8).scale(0.9).mark(End).prism().build())
-                .on_face(OmniBotZ, growing(8).scale(0.9).mark(End).prism().build())
-                .on_face(OmniTop, growing(1).build())
+            seed(OmniSymmetrical, Seed(1))
+                .on_face(OmniBotX, column(8).scale(0.9).mark(End).prism().build())
+                .on_face(OmniBotY, column(8).scale(0.9).mark(End).prism().build())
+                .on_face(OmniBotZ, column(8).scale(0.9).mark(End).prism().build())
+                .on_face(OmniTop, column(1).build())
                 .build(),
         )
         .shape([
@@ -43,7 +43,7 @@ pub fn triped() -> FabricPlan {
         )
         .fall(Sec(3.0))
         .settle(Sec(3.0))
-        .animate(
+        .animate_sine(
             Sec(0.8266),
             Amplitude::new(0.01),
             vec![
@@ -59,15 +59,15 @@ pub fn triped() -> FabricPlan {
 pub fn halo_by_crane() -> FabricPlan {
     fabric("Halo by Crane", Mm(2000.0))
         .build(
-            branching(SingleTwistLeft, Seed(1))
+            seed(SingleTwistLeft, Seed(1))
                 .on_face(
                     SingleTop,
-                    growing(4)
+                    column(4)
                         .scale(0.92)
                         .build_node(
-                            branching(OmniSymmetrical, OnSpinLeft)
-                                .on_face(OmniTopX, growing(12).scale(0.92).mark(HaloEnd).build())
-                                .on_face(OmniTopY, growing(11).scale(0.92).mark(HaloEnd).build())
+                            hub(OmniSymmetrical, OnSpinLeft)
+                                .on_face(OmniTopX, column(12).scale(0.92).mark(HaloEnd).build())
+                                .on_face(OmniTopY, column(11).scale(0.92).mark(HaloEnd).build())
                                 .build(),
                         )
                         .build(),
@@ -85,8 +85,8 @@ pub fn halo_by_crane() -> FabricPlan {
 pub fn vertebra() -> FabricPlan {
     fabric("Vertebra", Mm(500.0))
         .build(
-            branching(SingleTwistLeft, Seed(1))
-                .on_face(SingleTop, growing(1).build())
+            seed(SingleTwistLeft, Seed(1))
+                .on_face(SingleTop, column(1).build())
                 .build(),
         )
         .shape([centralize_at(1.0)])
@@ -98,8 +98,8 @@ pub fn vertebra() -> FabricPlan {
 pub fn flagellum() -> FabricPlan {
     fabric("Flagellum", Mm(2000.0))
         .build(
-            branching(SingleTwistLeft, Seed(1))
-                .on_face(SingleTop, growing(20).scale(0.95).build())
+            seed(SingleTwistLeft, Seed(1))
+                .on_face(SingleTop, column(20).scale(0.95).build())
                 .build(),
         )
         .shape([vulcanize()])
@@ -110,9 +110,9 @@ pub fn flagellum() -> FabricPlan {
 pub fn cigar() -> FabricPlan {
     fabric("Cigar", Mm(500.0))
         .build(
-            branching(SingleTwistLeft, Seed(1))
-                .on_face(SingleTop, growing(1).scale(0.85).build())
-                .on_face(SingleBot, growing(1).scale(0.85).build())
+            seed(SingleTwistLeft, Seed(1))
+                .on_face(SingleTop, column(1).scale(0.85).build())
+                .on_face(SingleBot, column(1).scale(0.85).build())
                 .build(),
         )
         .shape([centralize_at(1.0), during(Sec(40000.0), [vulcanize()])])
@@ -124,47 +124,47 @@ pub fn cigar() -> FabricPlan {
 pub fn headless_hug() -> FabricPlan {
     fabric("Headless Hug", Mm(2000.0))
         .build(
-            branching(OmniSymmetrical, Seed(4))
+            seed(OmniSymmetrical, Seed(4))
                 .on_face(
                     LeftBackBottom,
-                    growing(4)
+                    column(4)
                         .chiral()
                         .scale(0.92)
                         .build_node(
-                            growing(1)
-                                .build_node(growing(2).chiral().mark(Legs).build())
+                            column(1)
+                                .build_node(column(2).chiral().mark(Legs).build())
                                 .build(),
                         )
                         .build(),
                 )
                 .on_face(
                     RightBackBottom,
-                    growing(4)
+                    column(4)
                         .chiral()
                         .scale(0.92)
                         .build_node(
-                            growing(1)
-                                .build_node(growing(2).chiral().mark(Legs).build())
+                            column(1)
+                                .build_node(column(2).chiral().mark(Legs).build())
                                 .build(),
                         )
                         .build(),
                 )
                 .on_face(
                     LeftFrontTop,
-                    growing(2)
+                    column(2)
                         .scale(0.9)
                         .build_node(
-                            branching(OmniSymmetrical, OnSpinRight)
-                                .on_face(OmniTopZ, grow_mark(Chest1))
-                                .on_face(OmniBotX, grow_mark(Chest2))
+                            hub(OmniSymmetrical, OnSpinRight)
+                                .on_face(OmniTopZ, mark(Chest1))
+                                .on_face(OmniBotX, mark(Chest2))
                                 .on_face(
                                     OmniBotY,
-                                    growing(3)
+                                    column(3)
                                         .chiral()
                                         .scale(0.9)
                                         .build_node(
-                                            growing(1)
-                                                .build_node(growing(2).chiral().mark(Hands).build())
+                                            column(1)
+                                                .build_node(column(2).chiral().mark(Hands).build())
                                                 .build(),
                                         )
                                         .build(),
@@ -175,20 +175,20 @@ pub fn headless_hug() -> FabricPlan {
                 )
                 .on_face(
                     RightFrontTop,
-                    growing(2)
+                    column(2)
                         .scale(0.9)
                         .build_node(
-                            branching(OmniSymmetrical, OnSpinLeft)
-                                .on_face(OmniTopY, grow_mark(Chest1))
-                                .on_face(OmniBotZ, grow_mark(Chest2))
+                            hub(OmniSymmetrical, OnSpinLeft)
+                                .on_face(OmniTopY, mark(Chest1))
+                                .on_face(OmniBotZ, mark(Chest2))
                                 .on_face(
                                     OmniBotX,
-                                    growing(3)
+                                    column(3)
                                         .chiral()
                                         .scale(0.9)
                                         .build_node(
-                                            growing(1)
-                                                .build_node(growing(2).chiral().mark(Hands).build())
+                                            column(1)
+                                                .build_node(column(2).chiral().mark(Hands).build())
                                                 .build(),
                                         )
                                         .build(),

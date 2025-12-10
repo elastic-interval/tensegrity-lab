@@ -2,6 +2,195 @@
 
 The Tensegrity DSL is a Rust-embedded domain-specific language for defining tensegrity bricks and fabrics. It replaces the older S-expression-based Tenscript language.
 
+## Fabric Definitions
+
+Fabrics are defined in `src/build/dsl/fabric_library.rs` using a fluent builder API:
+
+```rust
+fabric("Triped", Mm(7500.0))
+    .build(
+        seed(OmniSymmetrical, Seed(1))
+            .on_face(OmniBotX, column(8).scale(0.9).mark(End).prism().build())
+            .on_face(OmniBotY, column(8).scale(0.9).mark(End).prism().build())
+            .on_face(OmniBotZ, column(8).scale(0.9).mark(End).prism().build())
+            .on_face(OmniTop, column(1).build())
+            .build(),
+    )
+    .shape([
+        during(Sec(3.0), [space(End, 0.38)]),
+        during(Sec(1.0), [vulcanize()]),
+    ])
+    .pretense(pretense(Sec(1.0)).surface(SurfaceCharacter::Frozen))
+    .fall(Sec(3.0))
+    .settle(Sec(3.0))
+    .animate_sine(
+        Sec(0.8266),
+        Amplitude::new(0.01),
+        vec![
+            ActuatorSpec::Alpha.between(151, 48),
+            ActuatorSpec::Alpha.between(157, 36),
+            ActuatorSpec::Alpha.between(145, 42),
+        ],
+    )
+    .scale(Mm(1030.0))
+    .build_plan()
+```
+
+## Execution Phases
+
+A fabric plan consists of sequential phases:
+
+### 1. BUILD Phase
+
+Construct the structure using hubs and columns (no gravity).
+
+**Starting a fabric:**
+```rust
+fabric("Name", Mm(altitude))  // Name and initial altitude in millimeters
+```
+
+**Seed (starting hub at root):**
+```rust
+seed(BrickName, BrickRole)   // Alias for hub(), used at root for clarity
+    .scale(0.9)              // Optional: scale factor
+    .rotate()                // Optional: rotate orientation
+    .on_face(FaceName, node) // Specify what builds from each face
+    .build()
+```
+
+**Hub (placing a multi-face brick):**
+```rust
+hub(BrickName, BrickRole)    // Place a brick with multiple output faces
+    .scale(0.9)              // Optional: scale factor
+    .rotate()                // Optional: rotate orientation
+    .on_face(FaceName, node) // Specify what builds from each face
+    .build()
+```
+
+**Column (extending a column of bricks):**
+```rust
+column(count)                // Build n bricks in a column
+    .scale(0.9)              // Scale each successive brick
+    .chiral()                // Same chirality (vs alternating default)
+    .mark(MarkName)          // Tag the end face for later operations
+    .prism()                 // Add prism reinforcement
+    .build_node(node)        // Add nested build operations
+    .build()
+```
+
+**Marking without building:**
+```rust
+mark(MarkName)               // Just mark a location, no column
+```
+
+### 2. SHAPE Phase
+
+Manipulate the structure while still in construction physics.
+
+```rust
+.shape([
+    during(Sec(10.0), [op1, op2, ...]),  // Timed operations
+    op3,                                  // Immediate operations
+])
+```
+
+**Shape Operations:**
+
+| Operation | Description |
+|-----------|-------------|
+| `space(mark, factor)` | Adjust spacing at marked faces (factor < 1.0 contracts) |
+| `join(mark)` | Connect faces with the same mark together |
+| `vulcanize()` | Add reinforcing intervals to strengthen the structure |
+| `down(mark)` | Point marked faces downward |
+| `centralize()` | Center the structure horizontally |
+| `centralize_at(altitude)` | Center at specific altitude |
+| `anchor(joint, (x, z))` | Anchor a joint to a surface point |
+| `guy_line(joint, len, (x,z))` | Add a guy line from joint to surface |
+| `omit(alpha, omega)` | Remove an interval |
+| `add(alpha, omega, factor)` | Add an interval between joints |
+
+### 3. PRETENSE Phase
+
+Apply pretension to cables (no gravity). Removes construction faces, leaving only the tensegrity structure.
+
+```rust
+.pretense(
+    pretense(Sec(duration))
+        .surface(SurfaceCharacter::Frozen)  // Surface interaction for later
+        .altitude(Mm(height))               // Optional: set altitude
+        .pretenst(1.0)                      // Optional: pretension percentage
+        .rigidity(1.0)                      // Optional: rigidity multiplier
+)
+```
+
+**Surface Characters:**
+- `SurfaceCharacter::Frozen` - Joints touching surface lock in place
+- `SurfaceCharacter::Bouncy` - Joints bounce off surface
+
+### 4. FALL Phase
+
+Drop the structure with gravity enabled (minimal damping).
+
+```rust
+.fall(Sec(duration))         // Duration for free fall
+```
+
+### 5. SETTLE Phase (Optional)
+
+Calm the structure with progressive damping until stable.
+
+```rust
+.settle(Sec(duration))       // Duration for settling
+```
+
+### 6. ANIMATE Phase (Optional)
+
+Add actuators that rhythmically contract to animate the structure.
+
+**Sine wave animation (smooth oscillation):**
+```rust
+.animate_sine(
+    Sec(period),             // Cycle period in seconds
+    Amplitude::new(0.01),    // Contraction amplitude (0.0 to 1.0)
+    vec![actuators...],      // List of actuators
+)
+```
+
+**Pulse animation (solenoid-like snap):**
+```rust
+.animate_pulse(
+    Sec(period),             // Cycle period in seconds
+    Amplitude::new(0.01),    // Contraction amplitude
+    0.3,                     // Duty cycle (0.0 to 1.0, proportion "on")
+    vec![actuators...],
+)
+```
+
+**Actuator Specifications:**
+
+```rust
+// Connect two existing joints
+ActuatorSpec::Alpha.between(joint_a, joint_b)
+ActuatorSpec::Omega.between(joint_a, joint_b)
+
+// Connect joint to a point on the surface
+ActuatorSpec::Alpha.to_surface(joint, (x, z))
+```
+
+- `Alpha` actuators contract when the oscillator is high
+- `Omega` actuators contract when the oscillator is low (opposite phase)
+
+**Waveforms:**
+- `Sine` - Smooth sinusoidal contraction (default)
+- `Pulse { duty_cycle }` - Square wave, instantly on/off
+
+### Final Configuration
+
+```rust
+.scale(Mm(1030.0))           // Real-world scale in millimeters
+.build_plan()                // Finalize the plan
+```
+
 ## Brick Definitions
 
 Bricks are defined using a fluent builder API in `src/build/dsl/brick_library.rs`:
@@ -27,7 +216,7 @@ proto(SingleRightBrick, [Seed, OnSpinRight])
     .build()
 ```
 
-### Key Concepts
+### Brick Building Phases
 
 **Prototype Phase:**
 - `.proto(name, roles)` - Define brick name and roles it can be used in
@@ -55,63 +244,6 @@ Seed.calls_it(SingleBot),                    // Bottom face when seed
 Seed.calls_it(Downwards),                    // Orientation marker
 ```
 
-## Fabric Definitions
-
-Fabrics are defined in `src/build/dsl/fabric_library.rs`:
-
-```rust
-fabric("Triped", Mm(11000.0))
-    .build(
-        branching(OmniSymmetrical, Seed(1))
-            .on_face(OmniBotX, growing(8).scale(0.9).mark(End).prism().build())
-            .on_face(OmniBotY, growing(8).scale(0.9).mark(End).prism().build())
-            .on_face(OmniBotZ, growing(8).scale(0.9).mark(End).prism().build())
-            .on_face(OmniTop, growing(1).build())
-            .build(),
-    )
-    .shape([
-        during(Sec(25.0), [space(End, 0.38)]),
-        during(Sec(15.0), [vulcanize()]),
-    ])
-    .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Frozen))
-    .fall(Sec(2.0))
-    .settle(Sec(10.0))
-    .scale(Mm(1030.0))
-    .build_plan()
-```
-
-### Execution Phases
-
-1. **BUILD** - Construct the structure by growing/branching bricks (no gravity)
-   - `branching(brick, role)` - Place a seed brick at the specified altitude
-   - `growing(n)` - Grow a column of n bricks
-   - `.on_face(alias, ...)` - Specify growth from specific faces
-   - `.scale(factor)` - Scale each successive brick
-   - `.mark(name)` - Tag faces for later operations
-   - `.chiral()` - Alternate left/right chirality
-   - `.prism()` - Add prism reinforcement
-
-2. **SHAPE** - Manipulate the structure while still in construction physics
-   - `space(mark, factor)` - Adjust spacing at marked faces
-   - `join(mark)` - Connect faces with the same mark
-   - `vulcanize()` - Add reinforcing intervals
-
-3. **PRETENSE** - Apply pretension to cables (no gravity)
-   - Removes construction faces, leaving only the tensegrity structure
-   - Applies pretension percentage to all cable intervals
-   - `.surface(character)` - Surface interaction for later phases
-   - Duration controls how gradually pretension is applied
-
-4. **FALL** - Drop the structure with gravity (minimal damping)
-   - Gravity is enabled based on surface_character
-   - Structure falls freely and bounces/wobbles
-   - Duration should be enough for the structure to hit ground (~2s from 10m)
-
-5. **SETTLE** - Calm the structure down (progressive damping)
-   - Gradually increases damping over time
-   - Structure wobbles less and less until stable
-   - Joints that touch Frozen surface lock in place
-
 ## Baking Process
 
 The "baking" process converts a logical `Prototype` into a physical `BakedBrick`:
@@ -129,10 +261,18 @@ The DSL is fully type-checked by Rust:
 - `BrickName` enum - All brick types
 - `BrickRole` enum - All usage contexts
 - `FaceName` enum - All face aliases
+- `MarkName` enum - All mark identifiers
 - `JointName` enum - All joint identifiers
 - `Spin` enum - Left/Right chirality
 
 This catches errors at compile time that would be runtime errors in Tenscript.
+
+## Unit Types
+
+The DSL uses type-safe units:
+- `Mm(value)` / `Millimeters(value)` - Length in millimeters
+- `Sec(value)` / `Seconds(value)` - Time in seconds
+- `Amplitude::new(value)` - Contraction amplitude (0.0 to 1.0)
 
 ---
 

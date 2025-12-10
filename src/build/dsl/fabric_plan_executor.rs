@@ -176,15 +176,15 @@ impl FabricPlanExecutor {
                     let mut context = PlanContext::new(&mut self.fabric, &mut self.physics);
 
                     let prev_stage = plan_runner.stage;
-                    let was_growing = plan_runner.build_phase.is_growing();
+                    let was_building = plan_runner.build_phase.is_building();
 
                     // Always check and advance stage - plan_runner handles progress checking internally
                     plan_runner.check_and_advance_stage_simple(&mut context);
 
-                    // Check if we should log growth steps
+                    // Check if we should log build steps
                     let new_stage = plan_runner.stage;
                     if prev_stage != new_stage {
-                        if was_growing && prev_stage == crate::build::dsl::plan_runner::Stage::GrowStep {
+                        if was_building && prev_stage == crate::build::dsl::plan_runner::Stage::BuildStep {
                             events_to_log.push(ExecutionEvent::GrowthStep {
                                 iteration: self.current_iteration,
                                 joint_count: self.fabric.joints.len(),
