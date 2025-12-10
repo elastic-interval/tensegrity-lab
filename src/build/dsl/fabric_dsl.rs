@@ -8,7 +8,7 @@ use crate::build::dsl::shape_phase::{ShapeAction, ShapeStep};
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Meters, Percent, Seconds};
 
-pub use crate::build::dsl::animate_phase::{Actuator, ActuatorSpec, Waveform};
+pub use crate::build::dsl::animate_phase::{Actuator, ActuatorSpec, Waveform, alpha_phase_between, omega_phase_between, alpha_phase_surface, omega_phase_surface};
 pub use crate::build::dsl::brick_dsl::{BrickName, BrickOrientation, BrickRole, FaceName, MarkName};
 pub use crate::units::Percent as Pct;
 pub use crate::build::dsl::build_phase::BuildNode as Node;

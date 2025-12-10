@@ -99,3 +99,23 @@ impl AnimatePhase {
         }
     }
 }
+
+/// Create an alpha-phase actuator between two joints (contracts when oscillator is high)
+pub fn alpha_phase_between(joint_a: usize, joint_b: usize) -> Actuator {
+    Actuator::alpha_between(joint_a, joint_b)
+}
+
+/// Create an omega-phase actuator between two joints (contracts when oscillator is low)
+pub fn omega_phase_between(joint_a: usize, joint_b: usize) -> Actuator {
+    Actuator::omega_between(joint_a, joint_b)
+}
+
+/// Create an alpha-phase actuator from a joint to a surface point
+pub fn alpha_phase_surface(joint: usize, surface: (f32, f32)) -> Actuator {
+    Actuator::alpha_to_surface(joint, surface)
+}
+
+/// Create an omega-phase actuator from a joint to a surface point
+pub fn omega_phase_surface(joint: usize, surface: (f32, f32)) -> Actuator {
+    Actuator::omega_to_surface(joint, surface)
+}
