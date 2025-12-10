@@ -686,8 +686,8 @@ impl Interval {
                 if finished {
                     target_length
                 } else {
-                    let progress_nuance = progress.nuance();
-                    start_length * (1.0 - progress_nuance) + target_length * progress_nuance
+                    let completion = progress.completion();
+                    start_length * (1.0 - completion) + target_length * completion
                 }
             }
             Approaching {
@@ -695,8 +695,8 @@ impl Interval {
                 target_length,
                 ..
             } => {
-                let progress_nuance = progress.nuance();
-                start_length * (1.0 - progress_nuance) + target_length * progress_nuance
+                let completion = progress.completion();
+                start_length * (1.0 - completion) + target_length * completion
             }
         };
         let real_length = self.fast_length(joints);

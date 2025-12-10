@@ -56,7 +56,7 @@ pub struct Seconds(pub f32);
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Percent(pub f32);
 
-/// Muscle contraction amplitude (0.0 to 1.0)
+/// Actuator contraction amplitude (0.0 to 1.0)
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Amplitude(f32);
 
