@@ -37,10 +37,8 @@ pub fn triped() -> FabricPlan {
             during(Sec(3.0), [space(End, Pct(38.0))]),
             during(Sec(1.0), [vulcanize()]),
         ])
-        .pretense(
-            pretense(Sec(1.0))
-                .surface(SurfaceCharacter::Frozen),
-        )
+        .pretense(Sec(1.0))
+        .surface(SurfaceCharacter::Frozen)
         .fall(Sec(3.0))
         .settle(Sec(3.0))
         .animate_pulse(
@@ -80,7 +78,8 @@ pub fn halo_by_crane() -> FabricPlan {
             during(Sec(10.0), [join(HaloEnd)]),
             during(Sec(5.0), [vulcanize()]),
         ])
-        .pretense(pretense(Sec(10.0)).surface(SurfaceCharacter::Frozen))
+        .pretense(Sec(10.0))
+        .surface(SurfaceCharacter::Frozen)
         .build_plan()
 }
 
@@ -92,7 +91,7 @@ pub fn vertebra() -> FabricPlan {
                 .build(),
         )
         .shape([centralize_at(1.0)])
-        .pretense(pretense(Sec(10.0)))
+        .pretense(Sec(10.0))
         .scale(Mm(74.6))
         .build_plan()
 }
@@ -105,7 +104,8 @@ pub fn flagellum() -> FabricPlan {
                 .build(),
         )
         .shape([vulcanize()])
-        .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Frozen))
+        .pretense(Sec(15.0))
+        .surface(SurfaceCharacter::Frozen)
         .build_plan()
 }
 
@@ -118,7 +118,7 @@ pub fn cigar() -> FabricPlan {
                 .build(),
         )
         .shape([centralize_at(1.0), during(Sec(40000.0), [vulcanize()])])
-        .pretense(pretense(Sec(15.0)))
+        .pretense(Sec(15.0))
         .scale(Mm(74.6))
         .build_plan()
 }
@@ -209,7 +209,8 @@ pub fn headless_hug() -> FabricPlan {
             during(Sec(6.0), [vulcanize()]),
             centralize_at(1.0),
         ])
-        .pretense(pretense(Sec(15.0)).surface(SurfaceCharacter::Frozen))
+        .pretense(Sec(15.0))
+        .surface(SurfaceCharacter::Frozen)
         .build_plan()
 }
 
