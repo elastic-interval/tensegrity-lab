@@ -7,19 +7,16 @@ The Tensegrity DSL is a Rust-embedded domain-specific language for defining tens
 Fabrics are defined in `src/build/dsl/fabric_library.rs` using a fluent builder API:
 
 ```rust
-fabric("Triped", Mm(7500.0))
-    .build(
-        seed(OmniSymmetrical, Seed(1))
-            .on_face(OmniBotX, column(8).scale(Pct(90.0)).mark(End).prism().build())
-            .on_face(OmniBotY, column(8).scale(Pct(90.0)).mark(End).prism().build())
-            .on_face(OmniBotZ, column(8).scale(Pct(90.0)).mark(End).prism().build())
-            .on_face(OmniTop, column(1).build())
-            .build(),
-    )
-    .shape([
-        during(Sec(3.0), [space(End, Pct(38.0))]),
-        during(Sec(1.0), [vulcanize()]),
-    ])
+fabric("Triped")
+    .altitude(M(7.5))
+    .scale(M(1.03))
+    .seed(OmniSymmetrical, Seed(1))
+    .on_face(OmniBotX, column(8).scale(Pct(90.0)).mark(End).prism().build())
+    .on_face(OmniBotY, column(8).scale(Pct(90.0)).mark(End).prism().build())
+    .on_face(OmniBotZ, column(8).scale(Pct(90.0)).mark(End).prism().build())
+    .on_face(OmniTop, column(1).build())
+    .space(Sec(3.0), End, Pct(38.0))
+    .vulcanize(Sec(1.0))
     .pretense(Sec(1.0))
     .surface(SurfaceCharacter::Frozen)
     .fall(Sec(3.0))
@@ -35,7 +32,6 @@ fabric("Triped", Mm(7500.0))
             ActuatorSpec::Alpha.between(145, 42),
         ],
     )
-    .scale(Mm(1030.0))
     .build_plan()
 ```
 
@@ -49,16 +45,20 @@ Construct the structure using hubs and columns (no gravity).
 
 **Starting a fabric:**
 ```rust
-fabric("Name", Mm(altitude))  // Name and initial altitude in millimeters
+fabric("Name")
+    .altitude(M(7.5))    // Initial altitude in meters
+    .scale(M(1.03))      // Real-world scale in meters
+    .seed(BrickName, BrickRole)
 ```
+
+The typestate pattern enforces that `altitude()` and `scale()` must be called before `seed()`.
 
 **Seed (starting hub at root):**
 ```rust
-seed(BrickName, BrickRole)   // Alias for hub(), used at root for clarity
+.seed(BrickName, BrickRole)
     .scale(Pct(90.0))        // Optional scale
     .rotate()                // Optional rotation
     .on_face(FaceName, node) // Specify what builds from each face
-    .build()
 ```
 
 **Hub (placing a multi-face brick):**
@@ -88,29 +88,25 @@ mark(MarkName)               // Just mark a location, no column
 
 ### 2. SHAPE Phase
 
-Manipulate the structure while still in construction physics.
+Manipulate the structure while still in construction physics. Each shape operation includes its duration as the first argument:
 
 ```rust
-.shape([
-    during(Sec(10.0), [op1, op2, ...]),  // Timed operations
-    op3,                                  // Immediate operations
-])
+.space(Sec(3.0), End, Pct(38.0))
+.vulcanize(Sec(1.0))
+.join(Sec(10.0), HaloEnd)
+.centralize_at(Sec(1.0), M(0.075))
 ```
 
 **Shape Operations:**
 
 | Operation | Description |
 |-----------|-------------|
-| `space(mark, Pct(38.0))` | Adjust spacing at marked faces |
-| `join(mark)` | Connect faces with the same mark together |
-| `vulcanize()` | Add reinforcing intervals to strengthen the structure |
-| `down(mark)` | Point marked faces downward |
-| `centralize()` | Center the structure horizontally |
-| `centralize_at(altitude)` | Center at specific altitude |
-| `anchor(joint, (x, z))` | Anchor a joint to a surface point |
-| `guy_line(joint, len, (x,z))` | Add a guy line from joint to surface |
-| `omit(alpha, omega)` | Remove an interval |
-| `add(alpha, omega, factor)` | Add an interval between joints |
+| `.space(Sec, mark, Pct)` | Adjust spacing at marked faces |
+| `.join(Sec, mark)` | Connect faces with the same mark together |
+| `.vulcanize(Sec)` | Add reinforcing intervals to strengthen the structure |
+| `.down(Sec, mark)` | Point marked faces downward |
+| `.centralize(Sec)` | Center the structure horizontally |
+| `.centralize_at(Sec, M)` | Center at specific altitude in meters |
 
 ### 3. PRETENSE Phase
 
@@ -119,7 +115,7 @@ Apply pretension to cables (no gravity). Removes construction faces, leaving onl
 ```rust
 .pretense(Sec(duration))
     .surface(SurfaceCharacter::Frozen)  // Surface interaction for later
-    .altitude(Mm(height))               // Optional altitude
+    .altitude(M(height))                // Optional altitude in meters
     .pretenst(Pct(1.0))                 // Optional pretension
     .rigidity(Pct(100.0))               // Optional rigidity
 ```
@@ -153,7 +149,7 @@ Add actuators that rhythmically contract to animate the structure.
 .animate_sine(
     Sec(period),             // Cycle period
     Pct(1.0),                // Contraction amplitude
-    Pct(10.0),               // Stiffness (lower = softer)
+    Pct(10.0),               // Stiffness
     vec![actuators...],
 )
 ```
@@ -164,7 +160,7 @@ Add actuators that rhythmically contract to animate the structure.
     Sec(period),             // Cycle period
     Pct(1.0),                // Contraction amplitude
     0.3,                     // Duty cycle (proportion "on")
-    Pct(10.0),               // Stiffness (lower = softer)
+    Pct(10.0),               // Stiffness
     vec![actuators...],
 )
 ```
@@ -187,10 +183,9 @@ ActuatorSpec::Alpha.to_surface(joint, (x, z))
 - `Sine` - Smooth sinusoidal contraction (default)
 - `Pulse { duty_cycle }` - Square wave, instantly on/off
 
-### Final Configuration
+### Final Step
 
 ```rust
-.scale(Mm(1030.0))           // Real-world scale in millimeters
 .build_plan()                // Finalize the plan
 ```
 
@@ -251,9 +246,9 @@ Seed.calls_it(Downwards),                    // Orientation marker
 
 The "baking" process converts a logical `Prototype` into a physical `BakedBrick`:
 
-1. **Prototype → Fabric** - Create a physics simulation with joints at origin
+1. **Prototype -> Fabric** - Create a physics simulation with joints at origin
 2. **Physics Iteration** - Let forces settle the structure into equilibrium
-3. **Fabric → BakedBrick** - Extract final geometry and strains
+3. **Fabric -> BakedBrick** - Extract final geometry and strains
 4. **Validation** - Check face intervals have proper strain (~0.1)
 
 The `Oven` (in `src/build/oven.rs`) manages this process, running physics until `max_velocity < 3e-6`.
@@ -273,7 +268,7 @@ This catches errors at compile time that would be runtime errors in Tenscript.
 ## Unit Types
 
 The DSL uses type-safe units:
-- `Mm(value)` - Length in millimeters
+- `M(value)` - Length in meters
 - `Sec(value)` - Time in seconds
 - `Pct(value)` - Percentage (scale, spacing, amplitude, stiffness, etc.)
 
