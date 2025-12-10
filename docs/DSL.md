@@ -18,7 +18,7 @@ fabric("Triped")
     .space(Sec(3.0), End, Pct(38.0))
     .vulcanize(Sec(1.0))
     .pretense(Sec(1.0))
-    .surface(SurfaceCharacter::Frozen)
+    .surface_frozen()
     .fall(Sec(3.0))
     .settle(Sec(3.0))
     .animate_pulse(
@@ -32,7 +32,6 @@ fabric("Triped")
             ActuatorSpec::Alpha.between(145, 42),
         ],
     )
-    .build_plan()
 ```
 
 ## Execution Phases
@@ -56,7 +55,8 @@ The typestate pattern enforces that `altitude()` and `scale()` must be called be
 **Seed (starting hub at root):**
 ```rust
 .seed(BrickName, BrickRole)
-    .scale(Pct(90.0))        // Optional scale
+    .shrink_by(Pct(10.0))    // Optional: shrink by 10% (90% scale)
+    .grow_by(Pct(10.0))      // Optional: grow by 10% (110% scale)
     .rotate()                // Optional rotation
     .on_face(FaceName, node) // Specify what builds from each face
 ```
@@ -64,7 +64,8 @@ The typestate pattern enforces that `altitude()` and `scale()` must be called be
 **Hub (placing a multi-face brick):**
 ```rust
 hub(BrickName, BrickRole)    // Place a brick with multiple output faces
-    .scale(Pct(90.0))        // Optional scale
+    .shrink_by(Pct(10.0))    // Optional: shrink by 10% (90% scale)
+    .grow_by(Pct(10.0))      // Optional: grow by 10% (110% scale)
     .rotate()                // Optional rotation
     .on_face(FaceName, node) // Specify what builds from each face
     .build()
@@ -73,7 +74,8 @@ hub(BrickName, BrickRole)    // Place a brick with multiple output faces
 **Column (extending a column of bricks):**
 ```rust
 column(count)                // Build n bricks in a column
-    .scale(Pct(90.0))        // Scale each successive brick
+    .shrink_by(Pct(10.0))    // Shrink each successive brick by 10% (90% scale per brick)
+    .grow_by(Pct(10.0))      // Grow each successive brick by 10% (110% scale per brick)
     .chiral()                // Same chirality (vs alternating default)
     .mark(MarkName)          // Tag the end face for later operations
     .prism()                 // Add prism reinforcement
@@ -114,15 +116,16 @@ Apply pretension to cables (no gravity). Removes construction faces, leaving onl
 
 ```rust
 .pretense(Sec(duration))
-    .surface(SurfaceCharacter::Frozen)  // Surface interaction for later
     .altitude(M(height))                // Optional altitude in meters
     .pretenst(Pct(1.0))                 // Optional pretension
     .rigidity(Pct(100.0))               // Optional rigidity
+    .surface_frozen()                   // Required: specify surface interaction
 ```
 
-**Surface Characters:**
-- `SurfaceCharacter::Frozen` - Joints touching surface lock in place
-- `SurfaceCharacter::Bouncy` - Joints bounce off surface
+**Surface choices (required - one must be called to complete the plan):**
+- `.surface_frozen()` - Joints touching surface lock in place
+- `.surface_bouncy()` - Joints bounce off surface
+- `.floating()` - No surface interaction, fabric floats in space
 
 ### 4. FALL Phase
 
@@ -183,11 +186,9 @@ ActuatorSpec::Alpha.to_surface(joint, (x, z))
 - `Sine` - Smooth sinusoidal contraction (default)
 - `Pulse { duty_cycle }` - Square wave, instantly on/off
 
-### Final Step
+### Completing the Plan
 
-```rust
-.build_plan()                // Finalize the plan
-```
+The fabric plan is automatically completed when you call a surface method (`.surface_frozen()`, `.surface_bouncy()`, or `.floating()`). After that, optional `.fall()`, `.settle()`, and `.animate_*()` methods can be chained to configure those phases.
 
 ## Brick Definitions
 

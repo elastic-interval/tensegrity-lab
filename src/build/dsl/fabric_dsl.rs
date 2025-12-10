@@ -1,8 +1,6 @@
 /// Type-safe DSL for defining fabric plans with a fluent API.
-use crate::build::dsl::animate_phase::AnimatePhase;
 use crate::build::dsl::build_phase::{BuildNode, BuildPhase, Chirality, ColumnStyle};
 use crate::build::dsl::fall_phase::FallPhase;
-use crate::build::dsl::settle_phase::SettlePhase;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::shape_phase::{ShapeAction, ShapeStep};
@@ -48,9 +46,6 @@ impl FabricStage2 {
             build: None,
             shape: Vec::new(),
             pretense: PretensePhaseBuilder::default(),
-            fall: Seconds(5.0),
-            settle: None,
-            animate: None,
             scale,
         }
     }
@@ -62,9 +57,6 @@ pub struct FabricBuilder {
     build: Option<BuildNode>,
     shape: Vec<ShapeStep>,
     pretense: PretensePhaseBuilder,
-    fall: Seconds,
-    settle: Option<Seconds>,
-    animate: Option<AnimatePhase>,
     scale: Meters,
 }
 
@@ -118,52 +110,7 @@ impl FabricBuilder {
         PretenseChain { fabric: self }
     }
 
-    pub fn fall(mut self, seconds: Seconds) -> Self {
-        self.fall = seconds;
-        self
-    }
-
-    pub fn settle(mut self, seconds: Seconds) -> Self {
-        self.settle = Some(seconds);
-        self
-    }
-
-    pub fn animate_sine(
-        mut self,
-        period: Seconds,
-        amplitude: Percent,
-        stiffness: Percent,
-        actuators: Vec<Actuator>,
-    ) -> Self {
-        self.animate = Some(AnimatePhase {
-            period,
-            amplitude,
-            waveform: Waveform::Sine,
-            stiffness,
-            actuators,
-        });
-        self
-    }
-
-    pub fn animate_pulse(
-        mut self,
-        period: Seconds,
-        amplitude: Percent,
-        duty_cycle: f32,
-        stiffness: Percent,
-        actuators: Vec<Actuator>,
-    ) -> Self {
-        self.animate = Some(AnimatePhase {
-            period,
-            amplitude,
-            waveform: Waveform::Pulse { duty_cycle },
-            stiffness,
-            actuators,
-        });
-        self
-    }
-
-    pub fn build_plan(self) -> FabricPlan {
+    pub(crate) fn build_plan(self) -> FabricPlan {
         let scale_mm = self.scale.to_millimeters();
         FabricPlan {
             name: self.name,
@@ -181,9 +128,9 @@ impl FabricBuilder {
                 scale: scale_mm,
             },
             pretense_phase: self.pretense.build(),
-            fall_phase: FallPhase { seconds: self.fall },
-            settle_phase: self.settle.map(|seconds| SettlePhase { seconds }),
-            animate_phase: self.animate,
+            fall_phase: FallPhase { seconds: Seconds(5.0) },
+            settle_phase: None,
+            animate_phase: None,
             scale: scale_mm.0,
             altitude: self.altitude.to_millimeters(),
         }
@@ -210,8 +157,15 @@ pub struct HubBuilder {
 }
 
 impl HubBuilder {
-    pub fn scale(mut self, scale: Percent) -> Self {
-        self.scale = scale;
+    /// Shrink this brick by the given percentage (e.g., Pct(10.0) means 90% scale)
+    pub fn shrink_by(mut self, percent: Percent) -> Self {
+        self.scale = Percent(100.0 - percent.0);
+        self
+    }
+
+    /// Grow this brick by the given percentage (e.g., Pct(10.0) means 110% scale)
+    pub fn grow_by(mut self, percent: Percent) -> Self {
+        self.scale = Percent(100.0 + percent.0);
         self
     }
 
@@ -246,8 +200,13 @@ pub struct SeedChain {
 }
 
 impl SeedChain {
-    pub fn scale(mut self, scale: Percent) -> Self {
-        self.hub = self.hub.scale(scale);
+    pub fn shrink_by(mut self, percent: Percent) -> Self {
+        self.hub = self.hub.shrink_by(percent);
+        self
+    }
+
+    pub fn grow_by(mut self, percent: Percent) -> Self {
+        self.hub = self.hub.grow_by(percent);
         self
     }
 
@@ -291,17 +250,9 @@ impl SeedChain {
         self.finalize_build().centralize_at(seconds, altitude)
     }
 
-    // Terminal operations (no shape phase)
+    // Terminal operation (no shape phase)
     pub fn pretense(self, seconds: Seconds) -> PretenseChain {
         self.finalize_build().pretense(seconds)
-    }
-
-    pub fn fall(self, seconds: Seconds) -> FabricBuilder {
-        self.finalize_build().fall(seconds)
-    }
-
-    pub fn build_plan(self) -> FabricPlan {
-        self.finalize_build().build_plan()
     }
 }
 
@@ -331,8 +282,15 @@ impl ColumnBuilder {
         self
     }
 
-    pub fn scale(mut self, scale: Percent) -> Self {
-        self.scale = scale;
+    /// Shrink each successive brick by the given percentage (e.g., Pct(10.0) means 90% scale per brick)
+    pub fn shrink_by(mut self, percent: Percent) -> Self {
+        self.scale = Percent(100.0 - percent.0);
+        self
+    }
+
+    /// Grow each successive brick by the given percentage (e.g., Pct(10.0) means 110% scale per brick)
+    pub fn grow_by(mut self, percent: Percent) -> Self {
+        self.scale = Percent(100.0 + percent.0);
         self
     }
 
@@ -403,17 +361,12 @@ impl PretensePhaseBuilder {
     }
 }
 
-/// Chained pretense configuration that returns to FabricBuilder
+/// Chained pretense configuration - must specify surface to complete the plan
 pub struct PretenseChain {
     fabric: FabricBuilder,
 }
 
 impl PretenseChain {
-    pub fn surface(mut self, surface: SurfaceCharacter) -> Self {
-        self.fabric.pretense.surface = Some(surface);
-        self
-    }
-
     pub fn altitude(mut self, altitude: Meters) -> Self {
         self.fabric.pretense.altitude = Some(altitude);
         self
@@ -429,36 +382,18 @@ impl PretenseChain {
         self
     }
 
-    pub fn fall(self, seconds: Seconds) -> FabricBuilder {
-        self.fabric.fall(seconds)
+    pub fn surface_frozen(mut self) -> FabricPlan {
+        self.fabric.pretense.surface = Some(SurfaceCharacter::Frozen);
+        self.fabric.build_plan()
     }
 
-    pub fn settle(self, seconds: Seconds) -> FabricBuilder {
-        self.fabric.settle(seconds)
+    pub fn surface_bouncy(mut self) -> FabricPlan {
+        self.fabric.pretense.surface = Some(SurfaceCharacter::Bouncy);
+        self.fabric.build_plan()
     }
 
-    pub fn animate_sine(
-        self,
-        period: Seconds,
-        amplitude: Percent,
-        stiffness: Percent,
-        actuators: Vec<Actuator>,
-    ) -> FabricBuilder {
-        self.fabric.animate_sine(period, amplitude, stiffness, actuators)
-    }
-
-    pub fn animate_pulse(
-        self,
-        period: Seconds,
-        amplitude: Percent,
-        duty_cycle: f32,
-        stiffness: Percent,
-        actuators: Vec<Actuator>,
-    ) -> FabricBuilder {
-        self.fabric.animate_pulse(period, amplitude, duty_cycle, stiffness, actuators)
-    }
-
-    pub fn build_plan(self) -> FabricPlan {
+    pub fn floating(self) -> FabricPlan {
+        // No surface interaction - fabric floats in space
         self.fabric.build_plan()
     }
 }

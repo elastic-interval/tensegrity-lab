@@ -1,7 +1,6 @@
 use crate::build::dsl::brick_dsl::{BrickName::*, BrickRole::*, FaceName::*, MarkName::*};
 use crate::build::dsl::fabric_dsl::*;
 use crate::build::dsl::fabric_plan::FabricPlan;
-use crate::fabric::physics::SurfaceCharacter;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
@@ -27,14 +26,14 @@ pub fn triped() -> FabricPlan {
         .altitude(M(7.5))
         .scale(M(1.03))
         .seed(OmniSymmetrical, Seed(1))
-        .on_face(OmniBotX, column(8).scale(Pct(90.0)).mark(End).prism().build())
-        .on_face(OmniBotY, column(8).scale(Pct(90.0)).mark(End).prism().build())
-        .on_face(OmniBotZ, column(8).scale(Pct(90.0)).mark(End).prism().build())
+        .on_face(OmniBotX, column(8).shrink_by(Pct(10.0)).mark(End).prism().build())
+        .on_face(OmniBotY, column(8).shrink_by(Pct(10.0)).mark(End).prism().build())
+        .on_face(OmniBotZ, column(8).shrink_by(Pct(10.0)).mark(End).prism().build())
         .on_face(OmniTop, column(1).build())
         .space(Sec(3.0), End, Pct(38.0))
         .vulcanize(Sec(1.0))
         .pretense(Sec(1.0))
-        .surface(SurfaceCharacter::Frozen)
+        .surface_frozen()
         .fall(Sec(3.0))
         .settle(Sec(3.0))
         .animate_pulse(
@@ -48,7 +47,6 @@ pub fn triped() -> FabricPlan {
                 ActuatorSpec::Alpha.between(145, 42),
             ],
         )
-        .build_plan()
 }
 
 pub fn halo_by_crane() -> FabricPlan {
@@ -59,11 +57,11 @@ pub fn halo_by_crane() -> FabricPlan {
         .on_face(
             SingleTop,
             column(4)
-                .scale(Pct(92.0))
+                .shrink_by(Pct(8.0))
                 .build_node(
                     hub(OmniSymmetrical, OnSpinLeft)
-                        .on_face(OmniTopX, column(12).scale(Pct(92.0)).mark(HaloEnd).build())
-                        .on_face(OmniTopY, column(11).scale(Pct(92.0)).mark(HaloEnd).build())
+                        .on_face(OmniTopX, column(12).shrink_by(Pct(8.0)).mark(HaloEnd).build())
+                        .on_face(OmniTopY, column(11).shrink_by(Pct(8.0)).mark(HaloEnd).build())
                         .build(),
                 )
                 .build(),
@@ -71,8 +69,7 @@ pub fn halo_by_crane() -> FabricPlan {
         .join(Sec(10.0), HaloEnd)
         .vulcanize(Sec(5.0))
         .pretense(Sec(10.0))
-        .surface(SurfaceCharacter::Frozen)
-        .build_plan()
+        .surface_frozen()
 }
 
 pub fn vertebra() -> FabricPlan {
@@ -83,7 +80,7 @@ pub fn vertebra() -> FabricPlan {
         .on_face(SingleTop, column(1).build())
         .centralize_at(Sec(1.0), M(0.075))
         .pretense(Sec(10.0))
-        .build_plan()
+        .floating()
 }
 
 pub fn flagellum() -> FabricPlan {
@@ -91,11 +88,10 @@ pub fn flagellum() -> FabricPlan {
         .altitude(M(2.0))
         .scale(M(1.0))
         .seed(SingleTwistLeft, Seed(1))
-        .on_face(SingleTop, column(20).scale(Pct(95.0)).build())
+        .on_face(SingleTop, column(20).shrink_by(Pct(5.0)).build())
         .vulcanize(Sec(1.0))
         .pretense(Sec(15.0))
-        .surface(SurfaceCharacter::Frozen)
-        .build_plan()
+        .surface_frozen()
 }
 
 pub fn cigar() -> FabricPlan {
@@ -103,12 +99,12 @@ pub fn cigar() -> FabricPlan {
         .altitude(M(0.5))
         .scale(M(0.0746))
         .seed(SingleTwistLeft, Seed(1))
-        .on_face(SingleTop, column(1).scale(Pct(85.0)).build())
-        .on_face(SingleBot, column(1).scale(Pct(85.0)).build())
+        .on_face(SingleTop, column(1).shrink_by(Pct(15.0)).build())
+        .on_face(SingleBot, column(1).shrink_by(Pct(15.0)).build())
         .centralize_at(Sec(1.0), M(0.075))
         .vulcanize(Sec(40000.0))
         .pretense(Sec(15.0))
-        .build_plan()
+        .floating()
 }
 
 pub fn headless_hug() -> FabricPlan {
@@ -120,7 +116,7 @@ pub fn headless_hug() -> FabricPlan {
             LeftBackBottom,
             column(4)
                 .chiral()
-                .scale(Pct(92.0))
+                .shrink_by(Pct(8.0))
                 .build_node(
                     column(1)
                         .build_node(column(2).chiral().mark(Legs).build())
@@ -132,7 +128,7 @@ pub fn headless_hug() -> FabricPlan {
             RightBackBottom,
             column(4)
                 .chiral()
-                .scale(Pct(92.0))
+                .shrink_by(Pct(8.0))
                 .build_node(
                     column(1)
                         .build_node(column(2).chiral().mark(Legs).build())
@@ -143,7 +139,7 @@ pub fn headless_hug() -> FabricPlan {
         .on_face(
             LeftFrontTop,
             column(2)
-                .scale(Pct(90.0))
+                .shrink_by(Pct(10.0))
                 .build_node(
                     hub(OmniSymmetrical, OnSpinRight)
                         .on_face(OmniTopZ, mark(Chest1))
@@ -152,7 +148,7 @@ pub fn headless_hug() -> FabricPlan {
                             OmniBotY,
                             column(3)
                                 .chiral()
-                                .scale(Pct(90.0))
+                                .shrink_by(Pct(10.0))
                                 .build_node(
                                     column(1)
                                         .build_node(column(2).chiral().mark(Hands).build())
@@ -167,7 +163,7 @@ pub fn headless_hug() -> FabricPlan {
         .on_face(
             RightFrontTop,
             column(2)
-                .scale(Pct(90.0))
+                .shrink_by(Pct(10.0))
                 .build_node(
                     hub(OmniSymmetrical, OnSpinLeft)
                         .on_face(OmniTopY, mark(Chest1))
@@ -176,7 +172,7 @@ pub fn headless_hug() -> FabricPlan {
                             OmniBotX,
                             column(3)
                                 .chiral()
-                                .scale(Pct(90.0))
+                                .shrink_by(Pct(10.0))
                                 .build_node(
                                     column(1)
                                         .build_node(column(2).chiral().mark(Hands).build())
@@ -194,8 +190,7 @@ pub fn headless_hug() -> FabricPlan {
         .vulcanize(Sec(6.0))
         .centralize_at(Sec(1.0), M(1.0))
         .pretense(Sec(15.0))
-        .surface(SurfaceCharacter::Frozen)
-        .build_plan()
+        .surface_frozen()
 }
 
 pub fn get_fabric_plan(fabric_name: FabricName) -> FabricPlan {
