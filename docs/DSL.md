@@ -68,7 +68,6 @@ hub(BrickName, BrickRole)    // Place a brick with multiple output faces
     .grow_by(Pct(10.0))      // Optional: grow by 10% (110% scale)
     .rotate()                // Optional rotation
     .on_face(FaceName, node) // Specify what builds from each face
-    .build()
 ```
 
 **Column (extending a column of bricks):**
@@ -80,8 +79,9 @@ column(count)                // Build n bricks in a column
     .mark(MarkName)          // Tag the end face for later operations
     .prism()                 // Add prism reinforcement
     .build_node(node)        // Add nested build operations
-    .build()
 ```
+
+Both `hub()` and `column()` implement `Into<BuildNode>`, so no `.build()` call is needed.
 
 **Marking without building:**
 ```rust
@@ -147,48 +147,31 @@ Calm the structure with progressive damping until stable.
 
 Add actuators that rhythmically contract to animate the structure.
 
-**Sine wave animation (smooth oscillation):**
 ```rust
-.animate_sine(
-    Sec(period),             // Cycle period
-    Pct(1.0),                // Contraction amplitude
-    Pct(10.0),               // Stiffness
-    vec![actuators...],
-)
+.animate()
+    .period(Sec(0.8266))     // Cycle period
+    .amplitude(Pct(1.0))     // Contraction amplitude
+    .stiffness(Pct(10.0))    // Actuator stiffness
+    .pulse(Pct(10.0))        // Square wave with 10% duty cycle (or .sine())
+    .alpha(151, 48)          // Alpha actuator between joints
+    .alpha(157, 36)
+    .omega(145, 42)          // Omega actuator (opposite phase)
+    .into()                  // Convert to FabricPlan
 ```
 
-**Pulse animation (solenoid-like snap):**
-```rust
-.animate_pulse(
-    Sec(period),             // Cycle period
-    Pct(1.0),                // Contraction amplitude
-    0.3,                     // Duty cycle (proportion "on")
-    Pct(10.0),               // Stiffness
-    vec![actuators...],
-)
-```
-
-**Actuator Specifications:**
-
-```rust
-// Connect two existing joints
-ActuatorSpec::Alpha.between(joint_a, joint_b)
-ActuatorSpec::Omega.between(joint_a, joint_b)
-
-// Connect joint to a point on the surface
-ActuatorSpec::Alpha.to_surface(joint, (x, z))
-```
-
-- `Alpha` actuators contract when the oscillator is high
-- `Omega` actuators contract when the oscillator is low (opposite phase)
+**Actuator Types:**
+- `.alpha(joint_a, joint_b)` - Contracts when oscillator is high
+- `.omega(joint_a, joint_b)` - Contracts when oscillator is low (opposite phase)
+- `.alpha_to_surface(joint, (x, z))` - Alpha actuator anchored to surface point
+- `.omega_to_surface(joint, (x, z))` - Omega actuator anchored to surface point
 
 **Waveforms:**
-- `Sine` - Smooth sinusoidal contraction (default)
-- `Pulse { duty_cycle }` - Square wave, instantly on/off
+- `.sine()` - Smooth sinusoidal contraction (default)
+- `.pulse(Pct(duty))` - Square wave, instantly on/off
 
 ### Completing the Plan
 
-The fabric plan is automatically completed when you call a surface method (`.surface_frozen()`, `.surface_bouncy()`, or `.floating()`). After that, optional `.fall()`, `.settle()`, and `.animate_*()` methods can be chained to configure those phases.
+The fabric plan is automatically completed when you call a surface method (`.surface_frozen()`, `.surface_bouncy()`, or `.floating()`). After that, optional `.fall()`, `.settle()`, and `.animate()` can be chained to configure those phases.
 
 ## Brick Definitions
 

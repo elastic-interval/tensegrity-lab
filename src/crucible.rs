@@ -255,7 +255,7 @@ impl Crucible {
             // Set fabric name immediately so title appears right away
             let _ = self
                 .radio
-                .send_event(LabEvent::UpdateState(SetFabricName(name.clone())));
+                .send_event(LabEvent::UpdateState(SetFabricName(name.to_string())));
             let _ = self
                 .radio
                 .send_event(LabEvent::UpdateState(SetStageLabel("Building".to_string())));

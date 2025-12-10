@@ -2,6 +2,7 @@
 
 use crate::build::dsl::animate_phase::{AnimatePhase, Waveform, Actuator};
 use crate::build::dsl::build_phase::BuildPhase;
+use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::fall_phase::FallPhase;
 use crate::build::dsl::settle_phase::SettlePhase;
 use crate::build::dsl::pretense_phase::PretensePhase;
@@ -11,7 +12,7 @@ use crate::units::{Millimeters, Percent, Seconds};
 
 #[derive(Debug, Clone)]
 pub struct FabricPlan {
-    pub name: String,
+    pub name: FabricName,
     pub build_phase: BuildPhase,
     pub shape_phase: ShapePhase,
     pub pretense_phase: PretensePhase,
@@ -33,38 +34,75 @@ impl FabricPlan {
         self
     }
 
-    pub fn animate_sine(
-        mut self,
-        period: Seconds,
-        amplitude: Percent,
-        stiffness: Percent,
-        actuators: Vec<Actuator>,
-    ) -> Self {
-        self.animate_phase = Some(AnimatePhase {
-            period,
-            amplitude,
-            waveform: Waveform::Sine,
-            stiffness,
-            actuators,
-        });
+    pub fn animate(self) -> AnimateBuilder {
+        AnimateBuilder {
+            plan: self,
+            phase: AnimatePhase::new(),
+        }
+    }
+}
+
+/// Builder for configuring animation with chained methods
+pub struct AnimateBuilder {
+    plan: FabricPlan,
+    phase: AnimatePhase,
+}
+
+impl AnimateBuilder {
+    pub fn period(mut self, period: Seconds) -> Self {
+        self.phase.period = period;
         self
     }
 
-    pub fn animate_pulse(
-        mut self,
-        period: Seconds,
-        amplitude: Percent,
-        duty_cycle: f32,
-        stiffness: Percent,
-        actuators: Vec<Actuator>,
-    ) -> Self {
-        self.animate_phase = Some(AnimatePhase {
-            period,
-            amplitude,
-            waveform: Waveform::Pulse { duty_cycle },
-            stiffness,
-            actuators,
-        });
+    pub fn amplitude(mut self, amplitude: Percent) -> Self {
+        self.phase.amplitude = amplitude;
         self
+    }
+
+    pub fn stiffness(mut self, stiffness: Percent) -> Self {
+        self.phase.stiffness = stiffness;
+        self
+    }
+
+    pub fn sine(mut self) -> Self {
+        self.phase.waveform = Waveform::Sine;
+        self
+    }
+
+    pub fn pulse(mut self, duty_cycle: Percent) -> Self {
+        self.phase.waveform = Waveform::Pulse { duty_cycle };
+        self
+    }
+
+    /// Add an alpha actuator between two joints (contracts when oscillator is high)
+    pub fn alpha(mut self, joint_a: usize, joint_b: usize) -> Self {
+        self.phase.actuators.push(Actuator::alpha_between(joint_a, joint_b));
+        self
+    }
+
+    /// Add an omega actuator between two joints (contracts when oscillator is low)
+    pub fn omega(mut self, joint_a: usize, joint_b: usize) -> Self {
+        self.phase.actuators.push(Actuator::omega_between(joint_a, joint_b));
+        self
+    }
+
+    /// Add an alpha actuator from a joint to a surface point
+    pub fn alpha_to_surface(mut self, joint: usize, surface: (f32, f32)) -> Self {
+        self.phase.actuators.push(Actuator::alpha_to_surface(joint, surface));
+        self
+    }
+
+    /// Add an omega actuator from a joint to a surface point
+    pub fn omega_to_surface(mut self, joint: usize, surface: (f32, f32)) -> Self {
+        self.phase.actuators.push(Actuator::omega_to_surface(joint, surface));
+        self
+    }
+
+}
+
+impl From<AnimateBuilder> for FabricPlan {
+    fn from(mut builder: AnimateBuilder) -> FabricPlan {
+        builder.plan.animate_phase = Some(builder.phase);
+        builder.plan
     }
 }

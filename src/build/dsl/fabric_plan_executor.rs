@@ -103,7 +103,7 @@ pub struct FabricPlanExecutor {
 
 impl FabricPlanExecutor {
     pub fn new(plan: FabricPlan) -> Self {
-        let fabric = Fabric::new(plan.name.clone());
+        let fabric = Fabric::new(plan.name.to_string());
         let plan_runner = PlanRunner::new(plan.clone());
         let physics = CONSTRUCTION;
 
