@@ -56,25 +56,6 @@ pub struct Seconds(pub f32);
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
 pub struct Percent(pub f32);
 
-/// Actuator contraction amplitude (0.0 to 1.0)
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct Amplitude(f32);
-
-impl Amplitude {
-    pub fn new(value: f32) -> Self {
-        assert!(
-            (0.0..=1.0).contains(&value),
-            "Amplitude must be between 0.0 and 1.0, got {}",
-            value
-        );
-        Self(value)
-    }
-
-    #[inline]
-    pub fn contraction_factor(&self) -> f32 {
-        1.0 - self.0
-    }
-}
 
 // Common time constants
 pub const IMMEDIATE: Seconds = Seconds(0.0);

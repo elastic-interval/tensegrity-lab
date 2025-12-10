@@ -1,4 +1,4 @@
-use crate::units::{Amplitude, Percent, Seconds};
+use crate::units::{Percent, Seconds};
 
 /// Waveform shape for actuator control signal
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -52,7 +52,7 @@ pub struct Actuator {
 #[derive(Debug, Clone)]
 pub struct AnimatePhase {
     pub period: Seconds,
-    pub amplitude: Amplitude,
+    pub amplitude: Percent,
     pub waveform: Waveform,
     pub stiffness: Percent,
     pub actuators: Vec<Actuator>,

@@ -26,7 +26,7 @@ fabric("Triped", Mm(7500.0))
     .settle(Sec(3.0))
     .animate_pulse(
         Sec(0.8266),
-        Amplitude::new(0.01),
+        Pct(1.0),
         0.1,
         Pct(10.0),
         vec![
@@ -152,8 +152,8 @@ Add actuators that rhythmically contract to animate the structure.
 ```rust
 .animate_sine(
     Sec(period),             // Cycle period
-    Amplitude::new(0.01),    // Contraction amplitude (0.0 to 1.0)
-    Pct(10.0),               // Stiffness (lower = softer actuators)
+    Pct(1.0),                // Contraction amplitude
+    Pct(10.0),               // Stiffness (lower = softer)
     vec![actuators...],
 )
 ```
@@ -162,9 +162,9 @@ Add actuators that rhythmically contract to animate the structure.
 ```rust
 .animate_pulse(
     Sec(period),             // Cycle period
-    Amplitude::new(0.01),    // Contraction amplitude
+    Pct(1.0),                // Contraction amplitude
     0.3,                     // Duty cycle (proportion "on")
-    Pct(10.0),               // Stiffness (lower = softer actuators)
+    Pct(10.0),               // Stiffness (lower = softer)
     vec![actuators...],
 )
 ```
@@ -275,8 +275,7 @@ This catches errors at compile time that would be runtime errors in Tenscript.
 The DSL uses type-safe units:
 - `Mm(value)` - Length in millimeters
 - `Sec(value)` - Time in seconds
-- `Pct(value)` - Percentage (scale, spacing, stiffness, etc.)
-- `Amplitude::new(value)` - Contraction amplitude (0.0 to 1.0)
+- `Pct(value)` - Percentage (scale, spacing, amplitude, stiffness, etc.)
 
 ---
 
