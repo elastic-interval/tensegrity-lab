@@ -9,7 +9,7 @@ use crate::build::dsl::shape_phase::ShapeOperation;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Millimeters, Seconds};
 
-pub use crate::build::dsl::animate_phase::{Muscle, MuscleSpec};
+pub use crate::build::dsl::animate_phase::{Actuator, ActuatorSpec, Waveform};
 pub use crate::build::dsl::brick_dsl::{BrickName, BrickOrientation, MarkName};
 pub use crate::units::Amplitude;
 use crate::build::dsl::brick_dsl::{BrickRole, FaceName};
@@ -73,12 +73,29 @@ impl FabricBuilder {
         mut self,
         period: Seconds,
         amplitude: Amplitude,
-        muscles: Vec<Muscle>,
+        actuators: Vec<Actuator>,
     ) -> Self {
         self.animate = Some(AnimatePhase {
             period,
             amplitude,
-            muscles,
+            waveform: Waveform::Sine,
+            actuators,
+        });
+        self
+    }
+
+    pub fn animate_pulse(
+        mut self,
+        period: Seconds,
+        amplitude: Amplitude,
+        duty_cycle: f32,
+        actuators: Vec<Actuator>,
+    ) -> Self {
+        self.animate = Some(AnimatePhase {
+            period,
+            amplitude,
+            waveform: Waveform::Pulse { duty_cycle },
+            actuators,
         });
         self
     }

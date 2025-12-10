@@ -334,7 +334,7 @@ impl Crucible {
                     )));
                 }
                 Animating(animator) => {
-                    animator.remove_muscles(&mut context);
+                    animator.remove_actuators(&mut context);
                     self.stage = Viewing;
 
                     context.send_event(LabEvent::UpdateState(SetControlState(

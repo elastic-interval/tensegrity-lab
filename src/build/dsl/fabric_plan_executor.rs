@@ -232,7 +232,7 @@ impl FabricPlanExecutor {
                 }
             }
             ExecutorStage::Settling => {
-                let progress = self.fabric.progress.nuance();
+                let progress = self.fabric.progress.completion();
                 self.physics.update_settling_multipliers(progress);
                 if !self.fabric.progress.is_busy() {
                     self.complete();

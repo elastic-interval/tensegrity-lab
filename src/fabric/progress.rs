@@ -28,8 +28,9 @@ impl Progress {
         self.current < self.limit
     }
 
-    pub fn nuance(&self) -> f32 {
-        if self.limit.is_zero() { // immediate so nuance is already complete
+    /// Returns completion fraction from 0.0 to 1.0
+    pub fn completion(&self) -> f32 {
+        if self.limit.is_zero() {
             1.0
         } else {
             self.current.as_secs_f32() / self.limit.as_secs_f32()
@@ -38,6 +39,6 @@ impl Progress {
 
     /// Returns a countdown from 10 to 0 based on progress
     pub fn countdown(&self) -> i32 {
-        ((1.0 - self.nuance()) * 10.0).ceil().max(0.0) as i32
+        ((1.0 - self.completion()) * 10.0).ceil().max(0.0) as i32
     }
 }

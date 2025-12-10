@@ -47,9 +47,9 @@ pub fn triped() -> FabricPlan {
             Sec(0.8266),
             Amplitude::new(0.01),
             vec![
-                MuscleSpec::Alpha.between(151, 48),
-                MuscleSpec::Alpha.between(157, 36),
-                MuscleSpec::Alpha.between(145, 42),
+                ActuatorSpec::Alpha.between(151, 48),
+                ActuatorSpec::Alpha.between(157, 36),
+                ActuatorSpec::Alpha.between(145, 42),
             ],
         )
         .scale(Mm(1030.0))
