@@ -11,7 +11,7 @@ use crate::units::{Millimeters, Percent, Seconds};
 
 pub use crate::build::dsl::animate_phase::{Actuator, ActuatorSpec, Waveform};
 pub use crate::build::dsl::brick_dsl::{BrickName, BrickOrientation, MarkName};
-pub use crate::units::{Amplitude, Percent as Pct};
+pub use crate::units::Percent as Pct;
 use crate::build::dsl::brick_dsl::{BrickRole, FaceName};
 pub use crate::build::dsl::build_phase::BuildNode as Node;
 pub use crate::units::{Millimeters as Mm, Seconds as Sec};
@@ -72,7 +72,7 @@ impl FabricBuilder {
     pub fn animate_sine(
         mut self,
         period: Seconds,
-        amplitude: Amplitude,
+        amplitude: Percent,
         stiffness: Percent,
         actuators: Vec<Actuator>,
     ) -> Self {
@@ -89,7 +89,7 @@ impl FabricBuilder {
     pub fn animate_pulse(
         mut self,
         period: Seconds,
-        amplitude: Amplitude,
+        amplitude: Percent,
         duty_cycle: f32,
         stiffness: Percent,
         actuators: Vec<Actuator>,
@@ -387,7 +387,7 @@ impl PretenseChain {
     pub fn animate_sine(
         self,
         period: Seconds,
-        amplitude: Amplitude,
+        amplitude: Percent,
         stiffness: Percent,
         actuators: Vec<Actuator>,
     ) -> FabricBuilder {
@@ -397,7 +397,7 @@ impl PretenseChain {
     pub fn animate_pulse(
         self,
         period: Seconds,
-        amplitude: Amplitude,
+        amplitude: Percent,
         duty_cycle: f32,
         stiffness: Percent,
         actuators: Vec<Actuator>,

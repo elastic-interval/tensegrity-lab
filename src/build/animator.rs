@@ -66,7 +66,7 @@ pub struct Animator {
 
 impl Animator {
     pub fn new(animate_phase: AnimatePhase, context: &mut CrucibleContext) -> Self {
-        let contraction_factor = animate_phase.amplitude.contraction_factor();
+        let contraction_factor = 1.0 - animate_phase.amplitude.as_factor();
         let period_secs = animate_phase.period.0;
         let stiffness = animate_phase.stiffness;
         let actuators = Self::create_actuators(context, &animate_phase.actuators, contraction_factor, stiffness);

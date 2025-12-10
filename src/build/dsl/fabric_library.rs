@@ -2,7 +2,6 @@ use crate::build::dsl::brick_dsl::{BrickName::*, BrickRole::*, FaceName::*, Mark
 use crate::build::dsl::fabric_dsl::*;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::fabric::physics::SurfaceCharacter;
-use crate::units::Amplitude;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
@@ -43,7 +42,7 @@ pub fn triped() -> FabricPlan {
         .settle(Sec(3.0))
         .animate_pulse(
             Sec(0.8266),
-            Amplitude::new(0.01),
+            Pct(1.0),
             0.1,
             Pct(10.0),
             vec![
