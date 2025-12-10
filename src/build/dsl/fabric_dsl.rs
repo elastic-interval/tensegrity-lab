@@ -8,7 +8,7 @@ use crate::build::dsl::shape_phase::{ShapeAction, ShapeStep};
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Meters, Percent, Seconds};
 
-pub use crate::build::dsl::animate_phase::{Actuator, ActuatorSpec, Waveform, alpha_phase_between, omega_phase_between, alpha_phase_surface, omega_phase_surface};
+pub use crate::build::dsl::animate_phase::{Actuator, Waveform, phase};
 pub use crate::build::dsl::brick_dsl::{BrickName, BrickOrientation, BrickRole, FaceName, MarkName};
 pub use crate::units::Percent as Pct;
 pub use crate::build::dsl::build_phase::BuildNode as Node;
@@ -170,14 +170,98 @@ impl HubBuilder {
         self
     }
 
-    pub fn on_face(mut self, face_name: FaceName, node: impl Into<BuildNode>) -> Self {
-        self.face_nodes.push(BuildNode::Face {
-            alias: self.brick_role.calls_it(face_name),
-            node: Box::new(node.into()),
-        });
+    /// Add faces to this hub
+    pub fn faces<const N: usize>(mut self, faces: [impl Into<Face>; N]) -> Self {
+        for face in faces {
+            let face = face.into();
+            self.face_nodes.push(BuildNode::Face {
+                alias: self.brick_role.calls_it(face.face_name),
+                node: Box::new(face.node),
+            });
+        }
+        self
+    }
+}
+
+/// A face definition for use in .faces([...])
+pub struct Face {
+    face_name: FaceName,
+    node: BuildNode,
+}
+
+/// Start defining a face (for use in .faces([...]))
+pub fn on(face_name: FaceName) -> FaceBuilder {
+    FaceBuilder { face_name }
+}
+
+/// Builder for face content
+pub struct FaceBuilder {
+    face_name: FaceName,
+}
+
+impl FaceBuilder {
+    /// Start with a column on this face
+    pub fn column(self, count: usize) -> FaceColumnBuilder {
+        FaceColumnBuilder {
+            face_name: self.face_name,
+            column: column(count),
+        }
+    }
+
+    /// Just mark this face
+    pub fn mark(self, mark_name: MarkName) -> Face {
+        Face {
+            face_name: self.face_name,
+            node: mark(mark_name),
+        }
+    }
+}
+
+/// Builder for column content on a face
+pub struct FaceColumnBuilder {
+    face_name: FaceName,
+    column: ColumnBuilder,
+}
+
+impl FaceColumnBuilder {
+    pub fn chiral(mut self) -> Self {
+        self.column = self.column.chiral();
         self
     }
 
+    pub fn shrink_by(mut self, percent: Percent) -> Self {
+        self.column = self.column.shrink_by(percent);
+        self
+    }
+
+    pub fn grow_by(mut self, percent: Percent) -> Self {
+        self.column = self.column.grow_by(percent);
+        self
+    }
+
+    pub fn mark(mut self, mark_name: MarkName) -> Self {
+        self.column = self.column.mark(mark_name);
+        self
+    }
+
+    pub fn prism(mut self) -> Self {
+        self.column = self.column.prism();
+        self
+    }
+
+    pub fn then(mut self, node: impl Into<BuildNode>) -> Self {
+        self.column = self.column.then(node);
+        self
+    }
+}
+
+impl From<FaceColumnBuilder> for Face {
+    fn from(builder: FaceColumnBuilder) -> Face {
+        Face {
+            face_name: builder.face_name,
+            node: builder.column.into(),
+        }
+    }
 }
 
 impl From<HubBuilder> for BuildNode {
@@ -214,8 +298,15 @@ impl SeedChain {
         self
     }
 
-    pub fn on_face(mut self, face_name: FaceName, node: impl Into<BuildNode>) -> Self {
-        self.hub = self.hub.on_face(face_name, node);
+    /// Add faces to the seed brick
+    pub fn faces<const N: usize>(mut self, faces: [impl Into<Face>; N]) -> Self {
+        for face in faces {
+            let face = face.into();
+            self.hub.face_nodes.push(BuildNode::Face {
+                alias: self.hub.brick_role.calls_it(face.face_name),
+                node: Box::new(face.node),
+            });
+        }
         self
     }
 
@@ -308,6 +399,11 @@ impl ColumnBuilder {
         self
     }
 
+    /// Continue with a nested structure at the end of this column
+    pub fn then(mut self, node: impl Into<BuildNode>) -> Self {
+        self.post_column_nodes.push(node.into());
+        self
+    }
 }
 
 impl From<ColumnBuilder> for BuildNode {

@@ -15,68 +15,44 @@ impl Default for Waveform {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ActuatorSpec {
-    Alpha,
-    Omega,
+/// Builder for creating actuators at a specific phase offset
+pub struct PhaseBuilder {
+    phase_offset: Percent,
 }
 
-impl ActuatorSpec {
-    pub fn to_surface(self, joint: usize, surface: (f32, f32)) -> Actuator {
+impl PhaseBuilder {
+    /// Create an actuator between two joints
+    pub fn between(self, joint_a: usize, joint_b: usize) -> Actuator {
         Actuator {
-            direction: self,
-            attachment: ActuatorAttachment::ToSurface { joint, surface },
+            phase_offset: self.phase_offset,
+            attachment: ActuatorAttachment::Between { joint_a, joint_b },
         }
     }
 
-    pub fn between(self, alpha: usize, omega: usize) -> Actuator {
+    /// Create an actuator from a joint to a surface point
+    pub fn surface(self, joint: usize, point: (f32, f32)) -> Actuator {
         Actuator {
-            direction: self,
-            attachment: ActuatorAttachment::Between { alpha, omega },
+            phase_offset: self.phase_offset,
+            attachment: ActuatorAttachment::ToSurface { joint, point },
         }
     }
+}
+
+/// Create an actuator at the specified phase offset (0% = start of cycle, 50% = half cycle)
+pub fn phase(offset: Percent) -> PhaseBuilder {
+    PhaseBuilder { phase_offset: offset }
 }
 
 #[derive(Debug, Clone)]
 pub enum ActuatorAttachment {
-    ToSurface { joint: usize, surface: (f32, f32) },
-    Between { alpha: usize, omega: usize },
+    ToSurface { joint: usize, point: (f32, f32) },
+    Between { joint_a: usize, joint_b: usize },
 }
 
 #[derive(Debug, Clone)]
 pub struct Actuator {
-    pub direction: ActuatorSpec,
+    pub phase_offset: Percent,
     pub attachment: ActuatorAttachment,
-}
-
-impl Actuator {
-    pub fn alpha_between(joint_a: usize, joint_b: usize) -> Self {
-        Actuator {
-            direction: ActuatorSpec::Alpha,
-            attachment: ActuatorAttachment::Between { alpha: joint_a, omega: joint_b },
-        }
-    }
-
-    pub fn omega_between(joint_a: usize, joint_b: usize) -> Self {
-        Actuator {
-            direction: ActuatorSpec::Omega,
-            attachment: ActuatorAttachment::Between { alpha: joint_a, omega: joint_b },
-        }
-    }
-
-    pub fn alpha_to_surface(joint: usize, surface: (f32, f32)) -> Self {
-        Actuator {
-            direction: ActuatorSpec::Alpha,
-            attachment: ActuatorAttachment::ToSurface { joint, surface },
-        }
-    }
-
-    pub fn omega_to_surface(joint: usize, surface: (f32, f32)) -> Self {
-        Actuator {
-            direction: ActuatorSpec::Omega,
-            attachment: ActuatorAttachment::ToSurface { joint, surface },
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -100,22 +76,3 @@ impl AnimatePhase {
     }
 }
 
-/// Create an alpha-phase actuator between two joints (contracts when oscillator is high)
-pub fn alpha_phase_between(joint_a: usize, joint_b: usize) -> Actuator {
-    Actuator::alpha_between(joint_a, joint_b)
-}
-
-/// Create an omega-phase actuator between two joints (contracts when oscillator is low)
-pub fn omega_phase_between(joint_a: usize, joint_b: usize) -> Actuator {
-    Actuator::omega_between(joint_a, joint_b)
-}
-
-/// Create an alpha-phase actuator from a joint to a surface point
-pub fn alpha_phase_surface(joint: usize, surface: (f32, f32)) -> Actuator {
-    Actuator::alpha_to_surface(joint, surface)
-}
-
-/// Create an omega-phase actuator from a joint to a surface point
-pub fn omega_phase_surface(joint: usize, surface: (f32, f32)) -> Actuator {
-    Actuator::omega_to_surface(joint, surface)
-}
