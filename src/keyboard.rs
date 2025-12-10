@@ -89,6 +89,12 @@ impl Keyboard {
             Crucible(ToViewing),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
+        self.key_lab_event(
+            KeyCode::Escape,
+            "Stop animation",
+            Crucible(ToViewing),
+            Box::new(|state| matches!(state, Animating)),
+        );
         self.animation_period(
             "P",
             "p",
