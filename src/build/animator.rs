@@ -2,6 +2,7 @@ use crate::build::dsl::animate_phase::{AnimatePhase, Actuator, ActuatorAttachmen
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::interval::{Role, Span};
 use crate::fabric::UniqueId;
+use crate::units::Percent;
 use crate::ITERATION_DURATION;
 use cgmath::Point3;
 use std::f32::consts::PI;
@@ -67,7 +68,8 @@ impl Animator {
     pub fn new(animate_phase: AnimatePhase, context: &mut CrucibleContext) -> Self {
         let contraction_factor = animate_phase.amplitude.contraction_factor();
         let period_secs = animate_phase.period.0;
-        let actuators = Self::create_actuators(context, &animate_phase.actuators, contraction_factor);
+        let stiffness = animate_phase.stiffness;
+        let actuators = Self::create_actuators(context, &animate_phase.actuators, contraction_factor, stiffness);
 
         Self {
             oscillator: Oscillator::new(period_secs),
@@ -90,6 +92,7 @@ impl Animator {
         context: &mut CrucibleContext,
         actuators: &[Actuator],
         contraction_factor: f32,
+        stiffness: Percent,
     ) -> Vec<ActuatorInterval> {
         let mut result = Vec::new();
 
@@ -104,8 +107,10 @@ impl Animator {
                         Role::Pulling,
                     );
                     // Start slack: set span to Fixed at current distance
+                    // Set stiffness to reduce jiggling with rapid waveforms
                     if let Some(interval) = &mut context.fabric.intervals[id.0] {
                         interval.span = Span::Fixed { length: rest_length };
+                        interval.stiffness = stiffness;
                     }
                     result.push(ActuatorInterval {
                         id,
@@ -130,8 +135,10 @@ impl Animator {
                     );
 
                     // Start slack: set span to Fixed at current distance
+                    // Set stiffness to reduce jiggling with rapid waveforms
                     if let Some(interval) = &mut context.fabric.intervals[id.0] {
                         interval.span = Span::Fixed { length: rest_length };
+                        interval.stiffness = stiffness;
                     }
 
                     result.push(ActuatorInterval {
