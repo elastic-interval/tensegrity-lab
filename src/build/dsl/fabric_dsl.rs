@@ -1,6 +1,6 @@
 /// Type-safe DSL for defining fabric plans with a fluent API.
 use crate::build::dsl::animate_phase::AnimatePhase;
-use crate::build::dsl::build_phase::{BuildNode, BuildPhase, Chirality, GrowStyle};
+use crate::build::dsl::build_phase::{BuildNode, BuildPhase, Chirality, ColumnStyle};
 use crate::build::dsl::fall_phase::FallPhase;
 use crate::build::dsl::settle_phase::SettlePhase;
 use crate::build::dsl::fabric_plan::FabricPlan;
@@ -69,7 +69,7 @@ impl FabricBuilder {
         self
     }
 
-    pub fn animate(
+    pub fn animate_sine(
         mut self,
         period: Seconds,
         amplitude: Amplitude,
@@ -130,9 +130,14 @@ impl FabricBuilder {
     }
 }
 
-/// Create a branch node
-pub fn branching(brick_name: BrickName, brick_role: BrickRole) -> BranchBuilder {
-    BranchBuilder {
+/// Create a seed hub node (alias for hub, used at the root for clarity)
+pub fn seed(brick_name: BrickName, brick_role: BrickRole) -> HubBuilder {
+    hub(brick_name, brick_role)
+}
+
+/// Create a hub node (places a brick with multiple faces)
+pub fn hub(brick_name: BrickName, brick_role: BrickRole) -> HubBuilder {
+    HubBuilder {
         brick_name,
         brick_role,
         rotation: 0,
@@ -141,7 +146,7 @@ pub fn branching(brick_name: BrickName, brick_role: BrickRole) -> BranchBuilder 
     }
 }
 
-pub struct BranchBuilder {
+pub struct HubBuilder {
     brick_name: BrickName,
     brick_role: BrickRole,
     rotation: usize,
@@ -149,7 +154,7 @@ pub struct BranchBuilder {
     face_nodes: Vec<BuildNode>,
 }
 
-impl BranchBuilder {
+impl HubBuilder {
     pub fn scale(mut self, scale: f32) -> Self {
         self.scale_factor = scale;
         self
@@ -169,7 +174,7 @@ impl BranchBuilder {
     }
 
     pub fn build(self) -> BuildNode {
-        BuildNode::Branch {
+        BuildNode::Hub {
             brick_name: self.brick_name,
             brick_role: self.brick_role,
             rotation: self.rotation,
@@ -179,27 +184,27 @@ impl BranchBuilder {
     }
 }
 
-/// Create a grow node (defaults to alternating chirality)
-pub fn growing(count: usize) -> GrowBuilder {
-    GrowBuilder {
-        style: GrowStyle::alternating(count),
+/// Create a column node (extends a column of bricks, defaults to alternating chirality)
+pub fn column(count: usize) -> ColumnBuilder {
+    ColumnBuilder {
+        style: ColumnStyle::alternating(count),
         scale_factor: 1.0,
-        post_growth_nodes: Vec::new(),
+        post_column_nodes: Vec::new(),
     }
 }
 
-/// Create a BuildNode that just marks a location (no grow)
-pub fn grow_mark(mark_name: MarkName) -> BuildNode {
+/// Create a BuildNode that just marks a location (no column)
+pub fn mark(mark_name: MarkName) -> BuildNode {
     BuildNode::Mark { mark_name }
 }
 
-pub struct GrowBuilder {
-    style: GrowStyle,
+pub struct ColumnBuilder {
+    style: ColumnStyle,
     scale_factor: f32,
-    post_growth_nodes: Vec<BuildNode>,
+    post_column_nodes: Vec<BuildNode>,
 }
 
-impl GrowBuilder {
+impl ColumnBuilder {
     pub fn chiral(mut self) -> Self {
         self.style.chirality = Chirality::Chiral;
         self
@@ -211,25 +216,25 @@ impl GrowBuilder {
     }
 
     pub fn mark(mut self, mark_name: MarkName) -> Self {
-        self.post_growth_nodes.push(BuildNode::Mark { mark_name });
+        self.post_column_nodes.push(BuildNode::Mark { mark_name });
         self
     }
 
     pub fn prism(mut self) -> Self {
-        self.post_growth_nodes.push(BuildNode::Prism);
+        self.post_column_nodes.push(BuildNode::Prism);
         self
     }
 
     pub fn build_node(mut self, node: BuildNode) -> Self {
-        self.post_growth_nodes.push(node);
+        self.post_column_nodes.push(node);
         self
     }
 
     pub fn build(self) -> BuildNode {
-        BuildNode::Grow {
+        BuildNode::Column {
             style: self.style,
             scale_factor: self.scale_factor,
-            post_growth_nodes: self.post_growth_nodes,
+            post_column_nodes: self.post_column_nodes,
         }
     }
 }

@@ -4,6 +4,11 @@ mod tests {
     use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
     use crate::fabric::Fabric;
 
+    /// Set to true to capture new benchmark values without asserting.
+    /// Run: cargo test test_all_build_benchmarks -- --nocapture
+    /// Then copy the printed Benchmark lines into ui_benchmarks().
+    const RECAPTURE_BENCHMARKS: bool = false;
+
     /// Benchmark data point from UI reference run
     #[derive(Debug)]
     struct Benchmark {
@@ -15,27 +20,28 @@ mod tests {
     }
 
     /// Executor benchmarks - age is fabric.age (scaled by physics.time_scale)
-    /// Updated for faster Triped construction (5s space, 1s vulcanize, 1s pretense)
+    /// Updated for faster Triped construction (3s space, 1s vulcanize, 1s pretense)
     fn ui_benchmarks() -> Vec<Benchmark> {
         vec![
             Benchmark { age: 0.0, joints: 0, height_mm: 0.0, radius: 0.000, ground: 0 },
-            // BUILD phase (fabric age 0-8s)
-            Benchmark { age: 2.0, joints: 176, height_mm: 7608.0, radius: 12.232, ground: 0 },
-            Benchmark { age: 4.0, joints: 176, height_mm: 10671.3, radius: 10.215, ground: 0 },
-            Benchmark { age: 6.0, joints: 176, height_mm: 12251.1, radius: 8.152, ground: 0 },
-            Benchmark { age: 8.0, joints: 176, height_mm: 9724.6, radius: 6.256, ground: 0 },
-            // PRETENSE phase (fabric age ~8-9s)
-            // FALL phase (fabric age ~9-17s)
-            Benchmark { age: 10.0, joints: 168, height_mm: 9709.8, radius: 6.644, ground: 3 },
-            Benchmark { age: 12.0, joints: 168, height_mm: 9654.7, radius: 6.699, ground: 3 },
-            Benchmark { age: 14.0, joints: 168, height_mm: 9659.8, radius: 6.686, ground: 3 },
-            Benchmark { age: 16.0, joints: 168, height_mm: 9625.0, radius: 6.664, ground: 3 },
-            // SETTLE phase (fabric age ~17-20s)
-            Benchmark { age: 19.0, joints: 168, height_mm: 9589.7, radius: 6.663, ground: 3 },
+            // BUILD phase (fabric age 0-6s)
+            Benchmark { age: 2.0, joints: 176, height_mm: 7621.8, radius: 12.234, ground: 0 },
+            Benchmark { age: 4.0, joints: 176, height_mm: 12080.6, radius: 8.830, ground: 0 },
+            Benchmark { age: 6.0, joints: 176, height_mm: 9691.0, radius: 6.250, ground: 0 },
+            // PRETENSE phase (fabric age ~6-7s) - joints drop from 176 to 168
+            Benchmark { age: 8.0, joints: 168, height_mm: 9373.7, radius: 6.675, ground: 3 },
+            // FALL phase (fabric age ~7-10s)
+            Benchmark { age: 10.0, joints: 168, height_mm: 9532.2, radius: 6.675, ground: 3 },
+            Benchmark { age: 12.0, joints: 168, height_mm: 9569.2, radius: 6.661, ground: 3 },
+            Benchmark { age: 14.0, joints: 168, height_mm: 9581.9, radius: 6.661, ground: 3 },
+            Benchmark { age: 16.0, joints: 168, height_mm: 9587.7, radius: 6.662, ground: 3 },
+            // SETTLE phase (fabric age ~13-16s)
+            Benchmark { age: 19.0, joints: 168, height_mm: 9583.9, radius: 6.662, ground: 3 },
         ]
     }
 
-    /// Check if fabric state matches benchmark (with tolerance)
+    /// Check if fabric state matches benchmark (with tolerance).
+    /// If RECAPTURE_BENCHMARKS is true, only prints values without asserting.
     fn check_benchmark(fabric: &Fabric, benchmark: &Benchmark, tolerance_pct: f32) {
         let fabric_age = fabric.age.as_duration().as_secs_f32();
         let bounding_radius = fabric.bounding_radius();
@@ -57,6 +63,11 @@ mod tests {
             bounding_radius,
             ground_count
         );
+
+        // Skip assertions when recapturing
+        if RECAPTURE_BENCHMARKS {
+            return;
+        }
 
         // Check joints (exact)
         assert_eq!(

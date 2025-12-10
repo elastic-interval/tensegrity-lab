@@ -185,8 +185,8 @@ Intervals have distinct roles (src/fabric/material.rs):
 
 Reusable structural components stored in `BrickLibrary`:
 - Bricks are pre-baked, stable configurations
-- Created by growing prototypes in Oven
-- Used by PlanRunner during growth phase
+- Created by baking prototypes in Oven
+- Used by PlanRunner during build phase
 - Enables modular tensegrity design
 
 ### State Management
