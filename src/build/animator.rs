@@ -1,4 +1,4 @@
-use crate::build::dsl::animate_phase::{AnimatePhase, Actuator, ActuatorAttachment, ActuatorSpec, Waveform};
+use crate::build::dsl::animate_phase::{AnimatePhase, Actuator, ActuatorAttachment, Waveform};
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::interval::{Role, Span};
 use crate::fabric::UniqueId;
@@ -34,16 +34,16 @@ impl Oscillator {
         }
     }
 
-    /// Returns contraction value in range [0, 1] based on waveform
-    fn value(&self, waveform: Waveform) -> f32 {
+    /// Returns contraction value in range [0, 1] based on waveform at a specific phase
+    fn value_at_phase(&self, phase: f32, waveform: Waveform) -> f32 {
         match waveform {
             Waveform::Sine => {
                 // Sine wave: 0 at phase=0, 1 at phase=0.5, 0 at phase=1
-                (1.0 - (self.phase * 2.0 * PI).cos()) / 2.0
+                (1.0 - (phase * 2.0 * PI).cos()) / 2.0
             }
             Waveform::Pulse { duty_cycle } => {
                 // Square wave: 1 during "on" portion, 0 during "off"
-                if self.phase < duty_cycle.as_factor() { 1.0 } else { 0.0 }
+                if phase < duty_cycle.as_factor() { 1.0 } else { 0.0 }
             }
         }
     }
@@ -53,7 +53,7 @@ struct ActuatorInterval {
     id: UniqueId,
     rest_length: f32,
     contracted_length: f32,
-    direction: ActuatorSpec,
+    phase_offset: f32,
     anchor_joint: Option<usize>,
 }
 
@@ -97,12 +97,13 @@ impl Animator {
         let mut result = Vec::new();
 
         for actuator in actuators {
+            let phase_offset = actuator.phase_offset.as_factor();
             match &actuator.attachment {
-                ActuatorAttachment::Between { alpha, omega } => {
-                    let rest_length = context.fabric.distance(*alpha, *omega);
+                ActuatorAttachment::Between { joint_a, joint_b } => {
+                    let rest_length = context.fabric.distance(*joint_a, *joint_b);
                     let id = context.fabric.create_interval(
-                        *alpha,
-                        *omega,
+                        *joint_a,
+                        *joint_b,
                         rest_length,
                         Role::Pulling,
                     );
@@ -116,13 +117,13 @@ impl Animator {
                         id,
                         rest_length,
                         contracted_length: rest_length * contraction_factor,
-                        direction: actuator.direction,
+                        phase_offset,
                         anchor_joint: None,
                     });
                 }
-                ActuatorAttachment::ToSurface { joint, surface } => {
+                ActuatorAttachment::ToSurface { joint, point } => {
                     // Create anchor joint at surface position (x, 0, z)
-                    let anchor_point = Point3::new(surface.0, 0.0, surface.1);
+                    let anchor_point = Point3::new(point.0, 0.0, point.1);
                     let anchor_index = context.fabric.create_joint(anchor_point);
 
                     // Create actuator interval from fabric joint to anchor
@@ -145,7 +146,7 @@ impl Animator {
                         id,
                         rest_length,
                         contracted_length: rest_length * contraction_factor,
-                        direction: actuator.direction,
+                        phase_offset,
                         anchor_joint: Some(anchor_index),
                     });
                 }
@@ -172,14 +173,11 @@ impl Animator {
     }
 
     fn update_actuator_lengths(&self, context: &mut CrucibleContext) {
-        let oscillator_value = self.oscillator.value(self.waveform);
         for actuator in &self.actuators {
             if let Some(interval) = &mut context.fabric.intervals[actuator.id.0] {
-                // Alpha actuators contract when oscillator is high, Omega when low
-                let contraction = match actuator.direction {
-                    ActuatorSpec::Alpha => oscillator_value,
-                    ActuatorSpec::Omega => 1.0 - oscillator_value,
-                };
+                // Apply phase offset to get actuator-specific phase
+                let phase_with_offset = (self.oscillator.phase + actuator.phase_offset) % 1.0;
+                let contraction = self.oscillator.value_at_phase(phase_with_offset, self.waveform);
                 let length = actuator.rest_length * (1.0 - contraction)
                     + actuator.contracted_length * contraction;
                 interval.span = Span::Fixed { length };

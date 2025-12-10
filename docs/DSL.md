@@ -7,31 +7,32 @@ The Tensegrity DSL is a Rust-embedded domain-specific language for defining tens
 Fabrics are defined in `src/build/dsl/fabric_library.rs` using a fluent builder API:
 
 ```rust
-fabric("Triped")
+Triped
     .altitude(M(7.5))
     .scale(M(1.03))
     .seed(OmniSymmetrical, Seed(1))
-    .on_face(OmniBotX, column(8).scale(Pct(90.0)).mark(End).prism().build())
-    .on_face(OmniBotY, column(8).scale(Pct(90.0)).mark(End).prism().build())
-    .on_face(OmniBotZ, column(8).scale(Pct(90.0)).mark(End).prism().build())
-    .on_face(OmniTop, column(1).build())
+    .faces([
+        on(OmniBotX).column(8).shrink_by(Pct(10.0)).mark(End).prism(),
+        on(OmniBotY).column(8).shrink_by(Pct(10.0)).mark(End).prism(),
+        on(OmniBotZ).column(8).shrink_by(Pct(10.0)).mark(End).prism(),
+        on(OmniTop).column(1),
+    ])
     .space(Sec(3.0), End, Pct(38.0))
     .vulcanize(Sec(1.0))
     .pretense(Sec(1.0))
     .surface_frozen()
     .fall(Sec(3.0))
     .settle(Sec(3.0))
-    .animate_pulse(
-        Sec(0.8266),
-        Pct(1.0),
-        0.1,
-        Pct(10.0),
-        vec![
-            ActuatorSpec::Alpha.between(151, 48),
-            ActuatorSpec::Alpha.between(157, 36),
-            ActuatorSpec::Alpha.between(145, 42),
-        ],
-    )
+    .animate()
+    .period(Sec(0.8266))
+    .amplitude(Pct(1.0))
+    .stiffness(Pct(10.0))
+    .pulse(Pct(10.0))
+    .actuators(&[
+        phase(Pct(0.0)).between(151, 48),
+        phase(Pct(0.0)).between(157, 36),
+        phase(Pct(0.0)).between(145, 42),
+    ])
 ```
 
 ## Execution Phases
@@ -44,7 +45,7 @@ Construct the structure using hubs and columns (no gravity).
 
 **Starting a fabric:**
 ```rust
-fabric("Name")
+FabricName
     .altitude(M(7.5))    // Initial altitude in meters
     .scale(M(1.03))      // Real-world scale in meters
     .seed(BrickName, BrickRole)
@@ -58,8 +59,21 @@ The typestate pattern enforces that `altitude()` and `scale()` must be called be
     .shrink_by(Pct(10.0))    // Optional: shrink by 10% (90% scale)
     .grow_by(Pct(10.0))      // Optional: grow by 10% (110% scale)
     .rotate()                // Optional rotation
-    .on_face(FaceName, node) // Specify what builds from each face
+    .faces([...])            // Define content for faces
 ```
+
+**Face array syntax:**
+```rust
+.seed(OmniSymmetrical, Seed(1))
+.faces([
+    on(OmniBotX).column(8).shrink_by(Pct(10.0)).mark(End).prism(),
+    on(OmniBotY).column(8).shrink_by(Pct(10.0)).mark(End).prism(),
+    on(OmniTop).column(1),
+])
+.space(Sec(3.0), End, Pct(38.0))
+```
+
+The `.faces([...])` method takes an array of face definitions created with `on(FaceName)`. This makes the parallel nature of face construction explicit.
 
 **Hub (placing a multi-face brick):**
 ```rust
@@ -67,7 +81,10 @@ hub(BrickName, BrickRole)    // Place a brick with multiple output faces
     .shrink_by(Pct(10.0))    // Optional: shrink by 10% (90% scale)
     .grow_by(Pct(10.0))      // Optional: grow by 10% (110% scale)
     .rotate()                // Optional rotation
-    .on_face(FaceName, node) // Specify what builds from each face
+    .faces([
+        on(FaceName).column(n),
+        on(FaceName).mark(Name),
+    ])
 ```
 
 **Column (extending a column of bricks):**
@@ -78,7 +95,14 @@ column(count)                // Build n bricks in a column
     .chiral()                // Same chirality (vs alternating default)
     .mark(MarkName)          // Tag the end face for later operations
     .prism()                 // Add prism reinforcement
-    .build_node(node)        // Add nested build operations
+    .then(node)              // Continue with nested structure at the end
+```
+
+**Chaining columns:**
+```rust
+column(4).chiral().shrink_by(Pct(8.0)).then(
+    column(1).then(column(2).chiral().mark(Legs))
+)
 ```
 
 Both `hub()` and `column()` implement `Into<BuildNode>`, so no `.build()` call is needed.
@@ -153,17 +177,23 @@ Add actuators that rhythmically contract to animate the structure.
     .amplitude(Pct(1.0))     // Contraction amplitude
     .stiffness(Pct(10.0))    // Actuator stiffness
     .pulse(Pct(10.0))        // Square wave with 10% duty cycle (or .sine())
-    .alpha(151, 48)          // Alpha actuator between joints
-    .alpha(157, 36)
-    .omega(145, 42)          // Omega actuator (opposite phase)
-    .into()                  // Convert to FabricPlan
+    .actuators(&[
+        phase(Pct(0.0)).between(151, 48),
+        phase(Pct(0.0)).between(157, 36),
+        phase(Pct(50.0)).between(145, 42),
+    ])
 ```
 
-**Actuator Types:**
-- `.alpha(joint_a, joint_b)` - Contracts when oscillator is high
-- `.omega(joint_a, joint_b)` - Contracts when oscillator is low (opposite phase)
-- `.alpha_to_surface(joint, (x, z))` - Alpha actuator anchored to surface point
-- `.omega_to_surface(joint, (x, z))` - Omega actuator anchored to surface point
+**Actuator Phase:**
+
+Actuators are created with `phase(Pct(offset))` where offset is a percentage of the cycle:
+- `Pct(0.0)` - Contracts at start of cycle
+- `Pct(50.0)` - Contracts at half cycle (opposite phase)
+- `Pct(33.3)` - Contracts at one-third of cycle
+
+**Actuator Attachments:**
+- `.between(joint_a, joint_b)` - Actuator between two joints in the fabric
+- `.surface(joint, (x, z))` - Actuator anchored to a surface point
 
 **Waveforms:**
 - `.sine()` - Smooth sinusoidal contraction (default)
@@ -171,7 +201,7 @@ Add actuators that rhythmically contract to animate the structure.
 
 ### Completing the Plan
 
-The fabric plan is automatically completed when you call a surface method (`.surface_frozen()`, `.surface_bouncy()`, or `.floating()`). After that, optional `.fall()`, `.settle()`, and `.animate()` can be chained to configure those phases.
+The fabric plan is automatically completed when you call a surface method (`.surface_frozen()`, `.surface_bouncy()`, or `.floating()`). After that, optional `.fall()`, `.settle()`, and `.animate()` can be chained to configure those phases. If using `.animate()`, the terminal `.actuators(&[...])` method completes the plan.
 
 ## Brick Definitions
 
@@ -240,6 +270,7 @@ The `Oven` (in `src/build/oven.rs`) manages this process, running physics until 
 ## Type Safety
 
 The DSL is fully type-checked by Rust:
+- `FabricName` enum - All fabric types (entry point for fabric definitions)
 - `BrickName` enum - All brick types
 - `BrickRole` enum - All usage contexts
 - `FaceName` enum - All face aliases
