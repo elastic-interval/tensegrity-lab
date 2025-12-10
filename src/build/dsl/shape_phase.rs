@@ -7,12 +7,10 @@ use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, UniqueId};
-use crate::units::{Percent, Seconds};
+use crate::units::{Meters, Millimeters, Percent, Seconds};
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};
 use std::cmp::Ordering;
 
-const DEFAULT_ADD_SHAPER_COUNTDOWN: Seconds = Seconds(25.0);
-const DEFAULT_VULCANIZE_COUNTDOWN: Seconds = Seconds(5.0);
 const DEFAULT_JOINER_COUNTDOWN: Seconds = Seconds(3.0);
 
 #[derive(Debug)]
@@ -24,52 +22,23 @@ pub enum ShapeCommand {
 }
 
 #[derive(Debug, Clone)]
-pub enum ShapeOperation {
-    During {
-        seconds: Seconds,
-        operations: Vec<ShapeOperation>,
-    },
-    Joiner {
-        mark_name: MarkName,
-    },
-    PointDownwards {
-        mark_name: MarkName,
-    },
-    Centralize {
-        altitude: Option<f32>,
-    },
-    Spacer {
-        mark_name: MarkName,
-        distance: Percent,
-    },
-    Anchor {
-        joint_index: usize,
-        surface: (f32, f32),
-    },
-    GuyLine {
-        joint_index: usize,
-        length: f32,
-        surface: (f32, f32),
-    },
-    Vulcanize,
-    SetRigidity(f32),
-    Omit((usize, usize)),
-    Add {
-        alpha_index: usize,
-        omega_index: usize,
-        length_factor: f32,
-    },
+pub struct ShapeStep {
+    pub seconds: Seconds,
+    pub action: ShapeAction,
 }
 
-impl ShapeOperation {
-    pub fn traverse(&self, f: &mut impl FnMut(&Self)) {
-        f(self);
-        if let ShapeOperation::During { operations, .. } = self {
-            for operation in operations {
-                operation.traverse(f);
-            }
-        }
-    }
+#[derive(Debug, Clone)]
+pub enum ShapeAction {
+    Joiner { mark_name: MarkName },
+    PointDownwards { mark_name: MarkName },
+    Centralize,
+    CentralizeAt { altitude: Meters },
+    Spacer { mark_name: MarkName, distance: Percent },
+    Anchor { joint_index: usize, surface: (f32, f32) },
+    GuyLine { joint_index: usize, length: f32, surface: (f32, f32) },
+    Vulcanize,
+    Omit { pair: (usize, usize) },
+    Add { alpha_index: usize, omega_index: usize, length_factor: f32 },
 }
 
 #[derive(Debug, Clone)]
@@ -81,38 +50,40 @@ pub struct Joiner {
 
 #[derive(Debug, Clone)]
 pub struct ShapePhase {
-    pub operations: Vec<ShapeOperation>,
+    pub steps: Vec<ShapeStep>,
     pub marks: Vec<FaceMark>,
     pub spacers: Vec<UniqueId>,
     pub joiners: Vec<Joiner>,
     pub anchors: Vec<UniqueId>,
-    pub(crate) shape_operation_index: usize,
+    pub(crate) step_index: usize,
+    pub(crate) scale: Millimeters,
 }
 
 impl ShapePhase {
     pub fn needs_shaping(&self) -> bool {
-        !self.operations.is_empty()
+        !self.steps.is_empty()
     }
 
     pub fn shaping_step(&mut self, fabric: &mut Fabric) -> ShapeCommand {
         if let Some(countdown) = self.complete_joiners(fabric) {
             return countdown;
         }
-        let Some(operation) = self.operations.get(self.shape_operation_index) else {
+        let Some(step) = self.steps.get(self.step_index) else {
             self.cleanup(fabric);
             return Terminate;
         };
-        self.shape_operation_index += 1;
-        self.execute_shape_operation(fabric, operation.clone())
+        self.step_index += 1;
+        self.execute_step(fabric, step.clone())
     }
 
-    fn execute_shape_operation(
+    fn execute_step(
         &mut self,
         fabric: &mut Fabric,
-        operation: ShapeOperation,
+        step: ShapeStep,
     ) -> ShapeCommand {
-        match operation {
-            ShapeOperation::Joiner { mark_name } => {
+        let seconds = step.seconds;
+        match step.action {
+            ShapeAction::Joiner { mark_name } => {
                 let face_ids = self.marked_faces(&mark_name);
                 let joints = self.marked_middle_joints(fabric, &face_ids);
                 match face_ids.len() {
@@ -218,9 +189,9 @@ impl ShapePhase {
                     }
                     _ => unimplemented!("Join can only be 2 or three faces"),
                 }
-                StartProgress(DEFAULT_ADD_SHAPER_COUNTDOWN)
+                StartProgress(seconds)
             }
-            ShapeOperation::PointDownwards { mark_name } => {
+            ShapeAction::PointDownwards { mark_name } => {
                 let faces: Vec<_> = self
                     .marked_faces(&mark_name)
                     .into_iter()
@@ -233,12 +204,9 @@ impl ShapePhase {
                     .normalize();
                 let quaternion = Quaternion::from_arc(down, -Vector3::unit_y(), None);
                 fabric.apply_matrix4(Matrix4::from(quaternion));
-                Noop
+                StartProgress(seconds)
             }
-            ShapeOperation::Spacer {
-                mark_name,
-                distance,
-            } => {
+            ShapeAction::Spacer { mark_name, distance } => {
                 let faces = self.marked_faces(&mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
                 for alpha in 0..faces.len() - 1 {
@@ -253,60 +221,44 @@ impl ShapePhase {
                         self.spacers.push(interval);
                     }
                 }
-                StartProgress(DEFAULT_ADD_SHAPER_COUNTDOWN)
-            }
-            ShapeOperation::During {
-                seconds,
-                operations,
-            } => {
-                for operation in operations {
-                    // ignores the countdown returned from each sub-operation
-                    let _ = self.execute_shape_operation(fabric, operation);
-                }
                 StartProgress(seconds)
             }
-            ShapeOperation::Vulcanize => {
+            ShapeAction::Vulcanize => {
                 fabric.install_bow_ties();
-                StartProgress(DEFAULT_VULCANIZE_COUNTDOWN)
+                StartProgress(seconds)
             }
-            ShapeOperation::SetRigidity(percent) => Rigidity(percent),
-            ShapeOperation::Omit(pair) => {
+            ShapeAction::Omit { pair } => {
                 fabric.joining(pair).map(|id| fabric.remove_interval(id));
-                Noop
+                StartProgress(seconds)
             }
-            ShapeOperation::Add {
-                alpha_index,
-                omega_index,
-                length_factor,
-            } => {
+            ShapeAction::Add { alpha_index, omega_index, length_factor } => {
                 let ideal = fabric.distance(alpha_index, omega_index) * length_factor;
                 fabric.create_interval(alpha_index, omega_index, ideal, Role::Pulling);
-                Noop
+                StartProgress(seconds)
             }
-            ShapeOperation::Anchor {
-                joint_index,
-                surface,
-            } => {
+            ShapeAction::Anchor { joint_index, surface } => {
                 let (x, z) = surface;
                 let base = fabric.create_joint(Point3::new(x, 0.0, z));
                 let interval_id = fabric.create_interval(joint_index, base, 0.01, Role::Support);
                 self.anchors.push(interval_id);
-                StartProgress(DEFAULT_ADD_SHAPER_COUNTDOWN)
+                StartProgress(seconds)
             }
-            ShapeOperation::GuyLine {
-                joint_index,
-                length,
-                surface,
-            } => {
+            ShapeAction::GuyLine { joint_index, length, surface } => {
                 let (x, z) = surface;
                 let base = fabric.create_joint(Point3::new(x, 0.0, z));
                 fabric.create_interval(joint_index, base, length, Role::Support);
-                StartProgress(DEFAULT_ADD_SHAPER_COUNTDOWN)
+                StartProgress(seconds)
             }
-            ShapeOperation::Centralize { altitude } => {
-                let translation = fabric.centralize_translation(altitude);
+            ShapeAction::Centralize => {
+                let translation = fabric.centralize_translation(None);
                 fabric.apply_translation(translation);
-                Noop
+                StartProgress(seconds)
+            }
+            ShapeAction::CentralizeAt { altitude } => {
+                let internal_altitude = altitude.to_millimeters().0 / self.scale.0;
+                let translation = fabric.centralize_translation(Some(internal_altitude));
+                fabric.apply_translation(translation);
+                StartProgress(seconds)
             }
         }
     }

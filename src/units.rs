@@ -18,6 +18,10 @@ pub struct Grams(pub f32);
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Millimeters(pub f32);
 
+/// Length in meters
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct Meters(pub f32);
+
 /// Force in Newtons
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Newtons(pub f32);
@@ -84,6 +88,13 @@ impl Deref for Grams {
 }
 
 impl Deref for Millimeters {
+    type Target = f32;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Deref for Meters {
     type Target = f32;
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -169,13 +180,25 @@ impl Grams {
 
 impl Millimeters {
     /// Convert millimeters to meters
-    pub fn to_meters(self) -> f32 {
-        self.0 / 1000.0
+    pub fn to_meters(self) -> Meters {
+        Meters(self.0 / 1000.0)
     }
 
     /// Create from meters
     pub fn from_meters(m: f32) -> Self {
         Self(m * 1000.0)
+    }
+}
+
+impl Meters {
+    /// Convert meters to millimeters
+    pub fn to_millimeters(self) -> Millimeters {
+        Millimeters(self.0 * 1000.0)
+    }
+
+    /// Create from millimeters
+    pub fn from_millimeters(mm: f32) -> Self {
+        Self(mm / 1000.0)
     }
 }
 
@@ -402,6 +425,12 @@ impl std::fmt::Display for Millimeters {
     }
 }
 
+impl std::fmt::Display for Meters {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:.3}m", self.0)
+    }
+}
+
 impl std::fmt::Display for Newtons {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:.3}N", self.0)
@@ -460,7 +489,7 @@ mod tests {
     #[test]
     fn test_length_conversions() {
         let length = Millimeters(1000.0);
-        assert_eq!(length.to_meters(), 1.0);
+        assert_eq!(*length.to_meters(), 1.0);
         
         let length2 = Millimeters::from_meters(0.5);
         assert_eq!(length2.0, 500.0);
