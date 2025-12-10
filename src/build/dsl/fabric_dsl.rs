@@ -1,6 +1,7 @@
 /// Type-safe DSL for defining fabric plans with a fluent API.
 use crate::build::dsl::build_phase::{BuildNode, BuildPhase, Chirality, ColumnStyle};
 use crate::build::dsl::fall_phase::FallPhase;
+use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::shape_phase::{ShapeAction, ShapeStep};
@@ -13,14 +14,9 @@ pub use crate::units::Percent as Pct;
 pub use crate::build::dsl::build_phase::BuildNode as Node;
 pub use crate::units::{Meters as M, Seconds as Sec};
 
-/// Start building a fabric plan
-pub fn fabric(name: impl Into<String>) -> FabricStage1 {
-    FabricStage1 { name: name.into() }
-}
-
 /// Stage 1: Need altitude
 pub struct FabricStage1 {
-    name: String,
+    pub(crate) name: FabricName,
 }
 
 impl FabricStage1 {
@@ -34,7 +30,7 @@ impl FabricStage1 {
 
 /// Stage 2: Need scale
 pub struct FabricStage2 {
-    name: String,
+    name: FabricName,
     altitude: Meters,
 }
 
@@ -52,7 +48,7 @@ impl FabricStage2 {
 }
 
 pub struct FabricBuilder {
-    name: String,
+    name: FabricName,
     altitude: Meters,
     build: Option<BuildNode>,
     shape: Vec<ShapeStep>,
@@ -174,21 +170,24 @@ impl HubBuilder {
         self
     }
 
-    pub fn on_face(mut self, face_name: FaceName, node: BuildNode) -> Self {
+    pub fn on_face(mut self, face_name: FaceName, node: impl Into<BuildNode>) -> Self {
         self.face_nodes.push(BuildNode::Face {
             alias: self.brick_role.calls_it(face_name),
-            node: Box::new(node),
+            node: Box::new(node.into()),
         });
         self
     }
 
-    pub fn build(self) -> BuildNode {
+}
+
+impl From<HubBuilder> for BuildNode {
+    fn from(builder: HubBuilder) -> BuildNode {
         BuildNode::Hub {
-            brick_name: self.brick_name,
-            brick_role: self.brick_role,
-            rotation: self.rotation,
-            scale: self.scale,
-            face_nodes: self.face_nodes,
+            brick_name: builder.brick_name,
+            brick_role: builder.brick_role,
+            rotation: builder.rotation,
+            scale: builder.scale,
+            face_nodes: builder.face_nodes,
         }
     }
 }
@@ -215,13 +214,13 @@ impl SeedChain {
         self
     }
 
-    pub fn on_face(mut self, face_name: FaceName, node: BuildNode) -> Self {
+    pub fn on_face(mut self, face_name: FaceName, node: impl Into<BuildNode>) -> Self {
         self.hub = self.hub.on_face(face_name, node);
         self
     }
 
     fn finalize_build(mut self) -> FabricBuilder {
-        self.fabric.build = Some(self.hub.build());
+        self.fabric.build = Some(self.hub.into());
         self.fabric
     }
 
@@ -304,16 +303,19 @@ impl ColumnBuilder {
         self
     }
 
-    pub fn build_node(mut self, node: BuildNode) -> Self {
-        self.post_column_nodes.push(node);
+    pub fn build_node(mut self, node: impl Into<BuildNode>) -> Self {
+        self.post_column_nodes.push(node.into());
         self
     }
 
-    pub fn build(self) -> BuildNode {
+}
+
+impl From<ColumnBuilder> for BuildNode {
+    fn from(builder: ColumnBuilder) -> BuildNode {
         BuildNode::Column {
-            style: self.style,
-            scale: self.scale,
-            post_column_nodes: self.post_column_nodes,
+            style: builder.style,
+            scale: builder.scale,
+            post_column_nodes: builder.post_column_nodes,
         }
     }
 }

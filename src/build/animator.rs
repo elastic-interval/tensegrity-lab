@@ -43,7 +43,7 @@ impl Oscillator {
             }
             Waveform::Pulse { duty_cycle } => {
                 // Square wave: 1 during "on" portion, 0 during "off"
-                if self.phase < duty_cycle { 1.0 } else { 0.0 }
+                if self.phase < duty_cycle.as_factor() { 1.0 } else { 0.0 }
             }
         }
     }
