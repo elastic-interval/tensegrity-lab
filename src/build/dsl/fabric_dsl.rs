@@ -7,11 +7,11 @@ use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::shape_phase::ShapeOperation;
 use crate::fabric::physics::SurfaceCharacter;
-use crate::units::{Millimeters, Seconds};
+use crate::units::{Millimeters, Percent, Seconds};
 
 pub use crate::build::dsl::animate_phase::{Actuator, ActuatorSpec, Waveform};
 pub use crate::build::dsl::brick_dsl::{BrickName, BrickOrientation, MarkName};
-pub use crate::units::Amplitude;
+pub use crate::units::{Amplitude, Percent as Pct};
 use crate::build::dsl::brick_dsl::{BrickRole, FaceName};
 pub use crate::build::dsl::build_phase::BuildNode as Node;
 pub use crate::units::{Millimeters as Mm, Seconds as Sec};
@@ -73,12 +73,14 @@ impl FabricBuilder {
         mut self,
         period: Seconds,
         amplitude: Amplitude,
+        stiffness: Percent,
         actuators: Vec<Actuator>,
     ) -> Self {
         self.animate = Some(AnimatePhase {
             period,
             amplitude,
             waveform: Waveform::Sine,
+            stiffness,
             actuators,
         });
         self
@@ -89,12 +91,14 @@ impl FabricBuilder {
         period: Seconds,
         amplitude: Amplitude,
         duty_cycle: f32,
+        stiffness: Percent,
         actuators: Vec<Actuator>,
     ) -> Self {
         self.animate = Some(AnimatePhase {
             period,
             amplitude,
             waveform: Waveform::Pulse { duty_cycle },
+            stiffness,
             actuators,
         });
         self
@@ -141,7 +145,7 @@ pub fn hub(brick_name: BrickName, brick_role: BrickRole) -> HubBuilder {
         brick_name,
         brick_role,
         rotation: 0,
-        scale_factor: 1.0,
+        scale: Percent(100.0),
         face_nodes: Vec::new(),
     }
 }
@@ -150,13 +154,13 @@ pub struct HubBuilder {
     brick_name: BrickName,
     brick_role: BrickRole,
     rotation: usize,
-    scale_factor: f32,
+    scale: Percent,
     face_nodes: Vec<BuildNode>,
 }
 
 impl HubBuilder {
-    pub fn scale(mut self, scale: f32) -> Self {
-        self.scale_factor = scale;
+    pub fn scale(mut self, scale: Percent) -> Self {
+        self.scale = scale;
         self
     }
 
@@ -178,7 +182,7 @@ impl HubBuilder {
             brick_name: self.brick_name,
             brick_role: self.brick_role,
             rotation: self.rotation,
-            scale_factor: self.scale_factor,
+            scale: self.scale,
             face_nodes: self.face_nodes,
         }
     }
@@ -188,7 +192,7 @@ impl HubBuilder {
 pub fn column(count: usize) -> ColumnBuilder {
     ColumnBuilder {
         style: ColumnStyle::alternating(count),
-        scale_factor: 1.0,
+        scale: Percent(100.0),
         post_column_nodes: Vec::new(),
     }
 }
@@ -200,7 +204,7 @@ pub fn mark(mark_name: MarkName) -> BuildNode {
 
 pub struct ColumnBuilder {
     style: ColumnStyle,
-    scale_factor: f32,
+    scale: Percent,
     post_column_nodes: Vec<BuildNode>,
 }
 
@@ -210,8 +214,8 @@ impl ColumnBuilder {
         self
     }
 
-    pub fn scale(mut self, scale: f32) -> Self {
-        self.scale_factor = scale;
+    pub fn scale(mut self, scale: Percent) -> Self {
+        self.scale = scale;
         self
     }
 
@@ -233,7 +237,7 @@ impl ColumnBuilder {
     pub fn build(self) -> BuildNode {
         BuildNode::Column {
             style: self.style,
-            scale_factor: self.scale_factor,
+            scale: self.scale,
             post_column_nodes: self.post_column_nodes,
         }
     }
@@ -248,10 +252,10 @@ pub fn during<const N: usize>(seconds: Seconds, ops: [ShapeOperation; N]) -> Sha
     }
 }
 
-pub fn space(mark_name: MarkName, distance_factor: f32) -> ShapeOperation {
+pub fn space(mark_name: MarkName, distance: Percent) -> ShapeOperation {
     ShapeOperation::Spacer {
         mark_name,
-        distance_factor,
+        distance,
     }
 }
 
@@ -309,8 +313,8 @@ pub fn add(alpha_index: usize, omega_index: usize, length_factor: f32) -> ShapeO
 pub struct PretensePhaseBuilder {
     surface: Option<SurfaceCharacter>,
     altitude: Option<Millimeters>,
-    pretenst: Option<f32>,
-    rigidity: Option<f32>,
+    pretenst: Option<Percent>,
+    rigidity: Option<Percent>,
     seconds: Option<Seconds>,
 }
 
@@ -325,12 +329,12 @@ impl PretensePhaseBuilder {
         self
     }
 
-    pub fn pretenst(mut self, pretenst: f32) -> Self {
+    pub fn pretenst(mut self, pretenst: Percent) -> Self {
         self.pretenst = Some(pretenst);
         self
     }
 
-    pub fn rigidity(mut self, rigidity: f32) -> Self {
+    pub fn rigidity(mut self, rigidity: Percent) -> Self {
         self.rigidity = Some(rigidity);
         self
     }

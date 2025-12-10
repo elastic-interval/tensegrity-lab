@@ -6,7 +6,6 @@ use crate::fabric::physics::presets::{CONSTRUCTION, PRETENSING};
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::fabric::Fabric;
-use crate::units::Percent;
 
 #[derive(Debug, PartialEq)]
 pub enum IterateResult {
@@ -294,7 +293,6 @@ impl FabricPlanExecutor {
         self.fabric.slacken();
 
         let pretenst_percent = self.plan.pretense_phase.pretenst
-            .map(|p| Percent(p))
             .unwrap_or(PRETENSING.pretenst);
         let pretense_duration = self.plan.pretense_phase.seconds
             .unwrap_or(crate::units::Seconds(15.0));

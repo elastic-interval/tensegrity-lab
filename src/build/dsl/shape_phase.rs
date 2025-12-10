@@ -7,7 +7,7 @@ use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, UniqueId};
-use crate::units::Seconds;
+use crate::units::{Percent, Seconds};
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};
 use std::cmp::Ordering;
 
@@ -40,7 +40,7 @@ pub enum ShapeOperation {
     },
     Spacer {
         mark_name: MarkName,
-        distance_factor: f32,
+        distance: Percent,
     },
     Anchor {
         joint_index: usize,
@@ -237,7 +237,7 @@ impl ShapePhase {
             }
             ShapeOperation::Spacer {
                 mark_name,
-                distance_factor,
+                distance,
             } => {
                 let faces = self.marked_faces(&mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
@@ -247,7 +247,7 @@ impl ShapePhase {
                         let omega_index = joints[omega];
                         let alpha_pt = fabric.joints[alpha_index].location;
                         let omega_pt = fabric.joints[omega_index].location;
-                        let length = alpha_pt.distance(omega_pt) * distance_factor;
+                        let length = alpha_pt.distance(omega_pt) * distance.as_factor();
                         let interval =
                             fabric.create_interval(alpha_index, omega_index, length, Role::Pulling);
                         self.spacers.push(interval);

@@ -53,7 +53,7 @@ pub struct Seconds(pub f32);
 
 /// Percentage value (0-100)
 /// Provides type-safe conversion to factors (0.0-1.0)
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
 pub struct Percent(pub f32);
 
 /// Actuator contraction amplitude (0.0 to 1.0)

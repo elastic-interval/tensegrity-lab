@@ -14,7 +14,7 @@ use crate::fabric::joint::Joint;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
 use crate::fabric::{Fabric, IntervalEnd, Progress, UniqueId};
-use crate::units::Millimeters;
+use crate::units::{Millimeters, NewtonsPerMillimeter, Percent};
 use crate::Appearance;
 use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
@@ -401,6 +401,7 @@ pub struct Interval {
     pub span: Span,
     pub unit: Vector3<f32>,
     pub strain: f32,
+    pub stiffness: Percent,
     pub connections: Option<Box<PullConnections>>,
 }
 
@@ -423,6 +424,7 @@ impl Interval {
             span,
             unit: zero(),
             strain: 0.0,
+            stiffness: Percent(100.0),
             connections,
         }
     }
@@ -714,10 +716,12 @@ impl Interval {
 
         // Force: F = k × ΔL where ΔL = strain × L₀
         // Spring constant scales with 1/L for proper physics
+        // Stiffness percentage allows softer intervals (e.g., actuators at 10%)
         let ideal_length_mm = ideal * scale;
         let k = self.material.spring_constant(ideal_length_mm, physics);
+        let k_adjusted = NewtonsPerMillimeter(*k * self.stiffness.as_factor());
         let extension_mm = Millimeters(self.strain * ideal_length_mm); // Absolute extension in mm
-        let force = k * extension_mm; // (N/mm) × mm = N
+        let force = k_adjusted * extension_mm; // (N/mm) × mm = N
         let force_vector: Vector3<f32> = self.unit * *force / 2.0;
 
         // Apply forces to both ends

@@ -6,6 +6,7 @@ use crate::build::dsl::{brick_library, FaceAlias, FaceMark, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::FaceRotation;
 use crate::fabric::{Fabric, UniqueId};
+use crate::units::Percent;
 use std::convert::Into;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,7 +60,7 @@ impl ColumnStyle {
 pub struct Bud {
     face_id: UniqueId,
     column_style: Option<ColumnStyle>,
-    scale_factor: f32,
+    scale: Percent,
     nodes: Vec<BuildNode>,
 }
 
@@ -71,7 +72,7 @@ pub enum BuildNode {
     },
     Column {
         style: ColumnStyle,
-        scale_factor: f32,
+        scale: Percent,
         post_column_nodes: Vec<BuildNode>,
     },
     Mark {
@@ -81,7 +82,7 @@ pub enum BuildNode {
         brick_name: BrickName,
         brick_role: BrickRole,
         rotation: usize,
-        scale_factor: f32,
+        scale: Percent,
         face_nodes: Vec<BuildNode>,
     },
     Prism,
@@ -164,7 +165,7 @@ impl BuildPhase {
         Bud {
             face_id,
             column_style,
-            scale_factor,
+            scale,
             nodes,
         }: Bud,
     ) -> (Vec<Bud>, Vec<FaceMark>) {
@@ -185,7 +186,7 @@ impl BuildPhase {
                 &brick,
                 brick_role,
                 FaceRotation::Zero,
-                scale_factor,
+                scale.as_factor(),
                 BaseFace::ExistingFace(face_id),
             );
             fabric.join_faces(base_face, face_id);
@@ -204,7 +205,7 @@ impl BuildPhase {
             buds.push(Bud {
                 face_id: next_face_id,
                 column_style: style.decrement(),
-                scale_factor,
+                scale,
                 nodes,
             });
         } else if !nodes.is_empty() {
@@ -234,7 +235,7 @@ impl BuildPhase {
             }
             Column {
                 style,
-                scale_factor,
+                scale,
                 post_column_nodes,
                 ..
             } => {
@@ -243,7 +244,7 @@ impl BuildPhase {
                 buds.push(Bud {
                     face_id,
                     column_style: Some(*style),
-                    scale_factor: *scale_factor,
+                    scale: *scale,
                     nodes: post_column_nodes.clone(),
                 })
             }
@@ -252,7 +253,7 @@ impl BuildPhase {
                 brick_role,
                 face_nodes,
                 rotation,
-                scale_factor,
+                scale,
             } => {
                 let brick = brick_library::get_brick(*brick_name, *brick_role);
                 let launch_face = Self::find_launch_face(&launch, &faces, fabric);
@@ -263,7 +264,7 @@ impl BuildPhase {
                     &brick,
                     *brick_role,
                     rotation.into(),
-                    *scale_factor,
+                    scale.as_factor(),
                     base_face,
                 );
                 // Filter out base_face_id only if it was deleted by join_faces

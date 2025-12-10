@@ -10,22 +10,24 @@ Fabrics are defined in `src/build/dsl/fabric_library.rs` using a fluent builder 
 fabric("Triped", Mm(7500.0))
     .build(
         seed(OmniSymmetrical, Seed(1))
-            .on_face(OmniBotX, column(8).scale(0.9).mark(End).prism().build())
-            .on_face(OmniBotY, column(8).scale(0.9).mark(End).prism().build())
-            .on_face(OmniBotZ, column(8).scale(0.9).mark(End).prism().build())
+            .on_face(OmniBotX, column(8).scale(Pct(90.0)).mark(End).prism().build())
+            .on_face(OmniBotY, column(8).scale(Pct(90.0)).mark(End).prism().build())
+            .on_face(OmniBotZ, column(8).scale(Pct(90.0)).mark(End).prism().build())
             .on_face(OmniTop, column(1).build())
             .build(),
     )
     .shape([
-        during(Sec(3.0), [space(End, 0.38)]),
+        during(Sec(3.0), [space(End, Pct(38.0))]),
         during(Sec(1.0), [vulcanize()]),
     ])
     .pretense(pretense(Sec(1.0)).surface(SurfaceCharacter::Frozen))
     .fall(Sec(3.0))
     .settle(Sec(3.0))
-    .animate_sine(
+    .animate_pulse(
         Sec(0.8266),
         Amplitude::new(0.01),
+        0.1,
+        Pct(10.0),
         vec![
             ActuatorSpec::Alpha.between(151, 48),
             ActuatorSpec::Alpha.between(157, 36),
@@ -52,8 +54,8 @@ fabric("Name", Mm(altitude))  // Name and initial altitude in millimeters
 **Seed (starting hub at root):**
 ```rust
 seed(BrickName, BrickRole)   // Alias for hub(), used at root for clarity
-    .scale(0.9)              // Optional: scale factor
-    .rotate()                // Optional: rotate orientation
+    .scale(Pct(90.0))        // Optional scale
+    .rotate()                // Optional rotation
     .on_face(FaceName, node) // Specify what builds from each face
     .build()
 ```
@@ -61,8 +63,8 @@ seed(BrickName, BrickRole)   // Alias for hub(), used at root for clarity
 **Hub (placing a multi-face brick):**
 ```rust
 hub(BrickName, BrickRole)    // Place a brick with multiple output faces
-    .scale(0.9)              // Optional: scale factor
-    .rotate()                // Optional: rotate orientation
+    .scale(Pct(90.0))        // Optional scale
+    .rotate()                // Optional rotation
     .on_face(FaceName, node) // Specify what builds from each face
     .build()
 ```
@@ -70,7 +72,7 @@ hub(BrickName, BrickRole)    // Place a brick with multiple output faces
 **Column (extending a column of bricks):**
 ```rust
 column(count)                // Build n bricks in a column
-    .scale(0.9)              // Scale each successive brick
+    .scale(Pct(90.0))        // Scale each successive brick
     .chiral()                // Same chirality (vs alternating default)
     .mark(MarkName)          // Tag the end face for later operations
     .prism()                 // Add prism reinforcement
@@ -98,7 +100,7 @@ Manipulate the structure while still in construction physics.
 
 | Operation | Description |
 |-----------|-------------|
-| `space(mark, factor)` | Adjust spacing at marked faces (factor < 1.0 contracts) |
+| `space(mark, Pct(38.0))` | Adjust spacing at marked faces |
 | `join(mark)` | Connect faces with the same mark together |
 | `vulcanize()` | Add reinforcing intervals to strengthen the structure |
 | `down(mark)` | Point marked faces downward |
@@ -117,9 +119,9 @@ Apply pretension to cables (no gravity). Removes construction faces, leaving onl
 .pretense(
     pretense(Sec(duration))
         .surface(SurfaceCharacter::Frozen)  // Surface interaction for later
-        .altitude(Mm(height))               // Optional: set altitude
-        .pretenst(1.0)                      // Optional: pretension percentage
-        .rigidity(1.0)                      // Optional: rigidity multiplier
+        .altitude(Mm(height))               // Optional altitude
+        .pretenst(Pct(1.0))                 // Optional pretension
+        .rigidity(Pct(100.0))               // Optional rigidity
 )
 ```
 
@@ -150,18 +152,20 @@ Add actuators that rhythmically contract to animate the structure.
 **Sine wave animation (smooth oscillation):**
 ```rust
 .animate_sine(
-    Sec(period),             // Cycle period in seconds
+    Sec(period),             // Cycle period
     Amplitude::new(0.01),    // Contraction amplitude (0.0 to 1.0)
-    vec![actuators...],      // List of actuators
+    Pct(10.0),               // Stiffness (lower = softer actuators)
+    vec![actuators...],
 )
 ```
 
 **Pulse animation (solenoid-like snap):**
 ```rust
 .animate_pulse(
-    Sec(period),             // Cycle period in seconds
+    Sec(period),             // Cycle period
     Amplitude::new(0.01),    // Contraction amplitude
-    0.3,                     // Duty cycle (0.0 to 1.0, proportion "on")
+    0.3,                     // Duty cycle (proportion "on")
+    Pct(10.0),               // Stiffness (lower = softer actuators)
     vec![actuators...],
 )
 ```
@@ -270,8 +274,9 @@ This catches errors at compile time that would be runtime errors in Tenscript.
 ## Unit Types
 
 The DSL uses type-safe units:
-- `Mm(value)` / `Millimeters(value)` - Length in millimeters
-- `Sec(value)` / `Seconds(value)` - Time in seconds
+- `Mm(value)` - Length in millimeters
+- `Sec(value)` - Time in seconds
+- `Pct(value)` - Percentage (scale, spacing, stiffness, etc.)
 - `Amplitude::new(value)` - Contraction amplitude (0.0 to 1.0)
 
 ---

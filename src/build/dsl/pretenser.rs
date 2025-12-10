@@ -4,7 +4,7 @@ use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::PRETENSING;
 use crate::fabric::physics::Physics;
 use crate::LabEvent::DumpCSV;
-use crate::units::{Percent, Seconds};
+use crate::units::Seconds;
 use crate::Radio;
 
 #[derive(Clone, Debug, PartialEq, Copy)]
@@ -57,7 +57,6 @@ impl Pretenser {
                 let pretenst_percent = self
                     .pretense_phase
                     .pretenst
-                    .map(|p| Percent(p))
                     .unwrap_or(PRETENSING.pretenst);
                 context.fabric.set_pretenst(pretenst_percent, self.seconds_to_pretense);
                 DumpCSV.send(&self.radio);
