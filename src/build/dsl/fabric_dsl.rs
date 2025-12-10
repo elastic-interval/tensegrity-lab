@@ -5,52 +5,111 @@ use crate::build::dsl::fall_phase::FallPhase;
 use crate::build::dsl::settle_phase::SettlePhase;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::pretense_phase::PretensePhase;
-use crate::build::dsl::shape_phase::ShapeOperation;
+use crate::build::dsl::shape_phase::{ShapeAction, ShapeStep};
 use crate::fabric::physics::SurfaceCharacter;
-use crate::units::{Millimeters, Percent, Seconds};
+use crate::units::{Meters, Percent, Seconds};
 
 pub use crate::build::dsl::animate_phase::{Actuator, ActuatorSpec, Waveform};
-pub use crate::build::dsl::brick_dsl::{BrickName, BrickOrientation, MarkName};
+pub use crate::build::dsl::brick_dsl::{BrickName, BrickOrientation, BrickRole, FaceName, MarkName};
 pub use crate::units::Percent as Pct;
-use crate::build::dsl::brick_dsl::{BrickRole, FaceName};
 pub use crate::build::dsl::build_phase::BuildNode as Node;
-pub use crate::units::{Millimeters as Mm, Seconds as Sec};
+pub use crate::units::{Meters as M, Seconds as Sec};
 
-/// Start building a fabric plan with initial altitude
-pub fn fabric(name: impl Into<String>, altitude: Millimeters) -> FabricBuilder {
-    FabricBuilder {
-        name: name.into(),
-        altitude,
-        build: None,
-        shape: Vec::new(),
-        pretense: PretensePhaseBuilder::default(),
-        fall: Seconds(5.0),
-        settle: None,
-        animate: None,
-        scale: Millimeters(1000.0),
+/// Start building a fabric plan
+pub fn fabric(name: impl Into<String>) -> FabricStage1 {
+    FabricStage1 { name: name.into() }
+}
+
+/// Stage 1: Need altitude
+pub struct FabricStage1 {
+    name: String,
+}
+
+impl FabricStage1 {
+    pub fn altitude(self, altitude: Meters) -> FabricStage2 {
+        FabricStage2 {
+            name: self.name,
+            altitude,
+        }
+    }
+}
+
+/// Stage 2: Need scale
+pub struct FabricStage2 {
+    name: String,
+    altitude: Meters,
+}
+
+impl FabricStage2 {
+    pub fn scale(self, scale: Meters) -> FabricBuilder {
+        FabricBuilder {
+            name: self.name,
+            altitude: self.altitude,
+            build: None,
+            shape: Vec::new(),
+            pretense: PretensePhaseBuilder::default(),
+            fall: Seconds(5.0),
+            settle: None,
+            animate: None,
+            scale,
+        }
     }
 }
 
 pub struct FabricBuilder {
     name: String,
-    altitude: Millimeters,
+    altitude: Meters,
     build: Option<BuildNode>,
-    shape: Vec<ShapeOperation>,
+    shape: Vec<ShapeStep>,
     pretense: PretensePhaseBuilder,
     fall: Seconds,
     settle: Option<Seconds>,
     animate: Option<AnimatePhase>,
-    scale: Millimeters,
+    scale: Meters,
 }
 
 impl FabricBuilder {
-    pub fn build(mut self, node: BuildNode) -> Self {
-        self.build = Some(node);
+    pub fn seed(self, brick_name: BrickName, brick_role: BrickRole) -> SeedChain {
+        SeedChain {
+            fabric: self,
+            hub: HubBuilder {
+                brick_name,
+                brick_role,
+                rotation: 0,
+                scale: Percent(100.0),
+                face_nodes: Vec::new(),
+            },
+        }
+    }
+
+    // Shape operations - each starts or continues the shape chain
+    pub fn space(mut self, seconds: Seconds, mark_name: MarkName, distance: Percent) -> Self {
+        self.shape.push(ShapeStep { seconds, action: ShapeAction::Spacer { mark_name, distance } });
         self
     }
 
-    pub fn shape<const N: usize>(mut self, ops: [ShapeOperation; N]) -> Self {
-        self.shape = ops.into();
+    pub fn join(mut self, seconds: Seconds, mark_name: MarkName) -> Self {
+        self.shape.push(ShapeStep { seconds, action: ShapeAction::Joiner { mark_name } });
+        self
+    }
+
+    pub fn vulcanize(mut self, seconds: Seconds) -> Self {
+        self.shape.push(ShapeStep { seconds, action: ShapeAction::Vulcanize });
+        self
+    }
+
+    pub fn down(mut self, seconds: Seconds, mark_name: MarkName) -> Self {
+        self.shape.push(ShapeStep { seconds, action: ShapeAction::PointDownwards { mark_name } });
+        self
+    }
+
+    pub fn centralize(mut self, seconds: Seconds) -> Self {
+        self.shape.push(ShapeStep { seconds, action: ShapeAction::Centralize });
+        self
+    }
+
+    pub fn centralize_at(mut self, seconds: Seconds, altitude: Meters) -> Self {
+        self.shape.push(ShapeStep { seconds, action: ShapeAction::CentralizeAt { altitude } });
         self
     }
 
@@ -104,12 +163,8 @@ impl FabricBuilder {
         self
     }
 
-    pub fn scale(mut self, scale: Millimeters) -> Self {
-        self.scale = scale;
-        self
-    }
-
     pub fn build_plan(self) -> FabricPlan {
+        let scale_mm = self.scale.to_millimeters();
         FabricPlan {
             name: self.name,
             build_phase: BuildPhase::new(
@@ -117,26 +172,22 @@ impl FabricBuilder {
                 self.altitude.0 / self.scale.0,
             ),
             shape_phase: crate::build::dsl::shape_phase::ShapePhase {
-                operations: self.shape,
+                steps: self.shape,
                 marks: Vec::new(),
                 spacers: Vec::new(),
                 joiners: Vec::new(),
                 anchors: Vec::new(),
-                shape_operation_index: 0,
+                step_index: 0,
+                scale: scale_mm,
             },
             pretense_phase: self.pretense.build(),
             fall_phase: FallPhase { seconds: self.fall },
             settle_phase: self.settle.map(|seconds| SettlePhase { seconds }),
             animate_phase: self.animate,
-            scale: self.scale.0,
-            altitude: self.altitude,
+            scale: scale_mm.0,
+            altitude: self.altitude.to_millimeters(),
         }
     }
-}
-
-/// Create a seed hub node (alias for hub, used at the root for clarity)
-pub fn seed(brick_name: BrickName, brick_role: BrickRole) -> HubBuilder {
-    hub(brick_name, brick_role)
 }
 
 /// Create a hub node (places a brick with multiple faces)
@@ -185,6 +236,72 @@ impl HubBuilder {
             scale: self.scale,
             face_nodes: self.face_nodes,
         }
+    }
+}
+
+/// Chain for seed configuration that transitions to FabricBuilder
+pub struct SeedChain {
+    fabric: FabricBuilder,
+    hub: HubBuilder,
+}
+
+impl SeedChain {
+    pub fn scale(mut self, scale: Percent) -> Self {
+        self.hub = self.hub.scale(scale);
+        self
+    }
+
+    pub fn rotate(mut self) -> Self {
+        self.hub = self.hub.rotate();
+        self
+    }
+
+    pub fn on_face(mut self, face_name: FaceName, node: BuildNode) -> Self {
+        self.hub = self.hub.on_face(face_name, node);
+        self
+    }
+
+    fn finalize_build(mut self) -> FabricBuilder {
+        self.fabric.build = Some(self.hub.build());
+        self.fabric
+    }
+
+    // Shape operations
+    pub fn space(self, seconds: Seconds, mark_name: MarkName, distance: Percent) -> FabricBuilder {
+        self.finalize_build().space(seconds, mark_name, distance)
+    }
+
+    pub fn join(self, seconds: Seconds, mark_name: MarkName) -> FabricBuilder {
+        self.finalize_build().join(seconds, mark_name)
+    }
+
+    pub fn vulcanize(self, seconds: Seconds) -> FabricBuilder {
+        self.finalize_build().vulcanize(seconds)
+    }
+
+    pub fn down(self, seconds: Seconds, mark_name: MarkName) -> FabricBuilder {
+        self.finalize_build().down(seconds, mark_name)
+    }
+
+    pub fn centralize(self, seconds: Seconds) -> FabricBuilder {
+        self.finalize_build().centralize(seconds)
+    }
+
+    pub fn centralize_at(self, seconds: Seconds, altitude: Meters) -> FabricBuilder {
+        self.finalize_build().centralize_at(seconds, altitude)
+    }
+
+    // Terminal operations (no shape phase)
+    pub fn pretense(self, seconds: Seconds) -> PretenseChain {
+        self.finalize_build().pretense(seconds)
+    }
+
+    pub fn fall(self, seconds: Seconds) -> FabricBuilder {
+        self.finalize_build().fall(seconds)
+    }
+
+    pub fn build_plan(self) -> FabricPlan {
+        self.finalize_build().build_plan()
     }
 }
 
@@ -243,76 +360,12 @@ impl ColumnBuilder {
     }
 }
 
-// Shape Operations
-
-pub fn during<const N: usize>(seconds: Seconds, ops: [ShapeOperation; N]) -> ShapeOperation {
-    ShapeOperation::During {
-        seconds,
-        operations: ops.into(),
-    }
-}
-
-pub fn space(mark_name: MarkName, distance: Percent) -> ShapeOperation {
-    ShapeOperation::Spacer {
-        mark_name,
-        distance,
-    }
-}
-
-pub fn vulcanize() -> ShapeOperation {
-    ShapeOperation::Vulcanize
-}
-
-pub fn join(mark_name: MarkName) -> ShapeOperation {
-    ShapeOperation::Joiner { mark_name }
-}
-pub fn down(mark_name: MarkName) -> ShapeOperation {
-    ShapeOperation::PointDownwards { mark_name }
-}
-
-pub fn centralize() -> ShapeOperation {
-    ShapeOperation::Centralize { altitude: None }
-}
-
-pub fn centralize_at(altitude: f32) -> ShapeOperation {
-    ShapeOperation::Centralize {
-        altitude: Some(altitude),
-    }
-}
-
-pub fn anchor(joint_index: usize, surface: (f32, f32)) -> ShapeOperation {
-    ShapeOperation::Anchor {
-        joint_index,
-        surface,
-    }
-}
-
-pub fn guy_line(joint_index: usize, length: f32, surface: (f32, f32)) -> ShapeOperation {
-    ShapeOperation::GuyLine {
-        joint_index,
-        length,
-        surface,
-    }
-}
-
-pub fn omit(alpha_index: usize, omega_index: usize) -> ShapeOperation {
-    ShapeOperation::Omit((alpha_index, omega_index))
-}
-
-pub fn add(alpha_index: usize, omega_index: usize, length_factor: f32) -> ShapeOperation {
-    ShapeOperation::Add {
-        alpha_index,
-        omega_index,
-        length_factor,
-    }
-}
-
 // Pretense Phase
 
 #[derive(Default)]
 pub struct PretensePhaseBuilder {
     surface: Option<SurfaceCharacter>,
-    altitude: Option<Millimeters>,
+    altitude: Option<Meters>,
     pretenst: Option<Percent>,
     rigidity: Option<Percent>,
     seconds: Option<Seconds>,
@@ -324,7 +377,7 @@ impl PretensePhaseBuilder {
         self
     }
 
-    pub fn altitude(mut self, altitude: Millimeters) -> Self {
+    pub fn altitude(mut self, altitude: Meters) -> Self {
         self.altitude = Some(altitude);
         self
     }
@@ -345,7 +398,7 @@ impl PretensePhaseBuilder {
             pretenst: self.pretenst,
             seconds: self.seconds,
             rigidity: self.rigidity,
-            altitude: self.altitude.map(|mm| mm.0),
+            altitude: self.altitude.map(|m| m.to_millimeters().0),
         }
     }
 }
@@ -361,7 +414,7 @@ impl PretenseChain {
         self
     }
 
-    pub fn altitude(mut self, altitude: Millimeters) -> Self {
+    pub fn altitude(mut self, altitude: Meters) -> Self {
         self.fabric.pretense.altitude = Some(altitude);
         self
     }
@@ -403,10 +456,6 @@ impl PretenseChain {
         actuators: Vec<Actuator>,
     ) -> FabricBuilder {
         self.fabric.animate_pulse(period, amplitude, duty_cycle, stiffness, actuators)
-    }
-
-    pub fn scale(self, scale: Millimeters) -> FabricBuilder {
-        self.fabric.scale(scale)
     }
 
     pub fn build_plan(self) -> FabricPlan {

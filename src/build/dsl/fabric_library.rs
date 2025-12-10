@@ -23,19 +23,16 @@ pub enum FabricName {
 }
 
 pub fn triped() -> FabricPlan {
-    fabric("Triped", Mm(7500.0))
-        .build(
-            seed(OmniSymmetrical, Seed(1))
-                .on_face(OmniBotX, column(8).scale(Pct(90.0)).mark(End).prism().build())
-                .on_face(OmniBotY, column(8).scale(Pct(90.0)).mark(End).prism().build())
-                .on_face(OmniBotZ, column(8).scale(Pct(90.0)).mark(End).prism().build())
-                .on_face(OmniTop, column(1).build())
-                .build(),
-        )
-        .shape([
-            during(Sec(3.0), [space(End, Pct(38.0))]),
-            during(Sec(1.0), [vulcanize()]),
-        ])
+    fabric("Triped")
+        .altitude(M(7.5))
+        .scale(M(1.03))
+        .seed(OmniSymmetrical, Seed(1))
+        .on_face(OmniBotX, column(8).scale(Pct(90.0)).mark(End).prism().build())
+        .on_face(OmniBotY, column(8).scale(Pct(90.0)).mark(End).prism().build())
+        .on_face(OmniBotZ, column(8).scale(Pct(90.0)).mark(End).prism().build())
+        .on_face(OmniTop, column(1).build())
+        .space(Sec(3.0), End, Pct(38.0))
+        .vulcanize(Sec(1.0))
         .pretense(Sec(1.0))
         .surface(SurfaceCharacter::Frozen)
         .fall(Sec(3.0))
@@ -51,147 +48,114 @@ pub fn triped() -> FabricPlan {
                 ActuatorSpec::Alpha.between(145, 42),
             ],
         )
-        .scale(Mm(1030.0))
         .build_plan()
 }
 
 pub fn halo_by_crane() -> FabricPlan {
-    fabric("Halo by Crane", Mm(2000.0))
-        .build(
-            seed(SingleTwistLeft, Seed(1))
-                .on_face(
-                    SingleTop,
-                    column(4)
-                        .scale(Pct(92.0))
-                        .build_node(
-                            hub(OmniSymmetrical, OnSpinLeft)
-                                .on_face(OmniTopX, column(12).scale(Pct(92.0)).mark(HaloEnd).build())
-                                .on_face(OmniTopY, column(11).scale(Pct(92.0)).mark(HaloEnd).build())
-                                .build(),
-                        )
+    fabric("Halo by Crane")
+        .altitude(M(2.0))
+        .scale(M(1.0))
+        .seed(SingleTwistLeft, Seed(1))
+        .on_face(
+            SingleTop,
+            column(4)
+                .scale(Pct(92.0))
+                .build_node(
+                    hub(OmniSymmetrical, OnSpinLeft)
+                        .on_face(OmniTopX, column(12).scale(Pct(92.0)).mark(HaloEnd).build())
+                        .on_face(OmniTopY, column(11).scale(Pct(92.0)).mark(HaloEnd).build())
                         .build(),
                 )
                 .build(),
         )
-        .shape([
-            during(Sec(10.0), [join(HaloEnd)]),
-            during(Sec(5.0), [vulcanize()]),
-        ])
+        .join(Sec(10.0), HaloEnd)
+        .vulcanize(Sec(5.0))
         .pretense(Sec(10.0))
         .surface(SurfaceCharacter::Frozen)
         .build_plan()
 }
 
 pub fn vertebra() -> FabricPlan {
-    fabric("Vertebra", Mm(500.0))
-        .build(
-            seed(SingleTwistLeft, Seed(1))
-                .on_face(SingleTop, column(1).build())
-                .build(),
-        )
-        .shape([centralize_at(1.0)])
+    fabric("Vertebra")
+        .altitude(M(0.5))
+        .scale(M(0.0746))
+        .seed(SingleTwistLeft, Seed(1))
+        .on_face(SingleTop, column(1).build())
+        .centralize_at(Sec(1.0), M(0.075))
         .pretense(Sec(10.0))
-        .scale(Mm(74.6))
         .build_plan()
 }
 
 pub fn flagellum() -> FabricPlan {
-    fabric("Flagellum", Mm(2000.0))
-        .build(
-            seed(SingleTwistLeft, Seed(1))
-                .on_face(SingleTop, column(20).scale(Pct(95.0)).build())
-                .build(),
-        )
-        .shape([vulcanize()])
+    fabric("Flagellum")
+        .altitude(M(2.0))
+        .scale(M(1.0))
+        .seed(SingleTwistLeft, Seed(1))
+        .on_face(SingleTop, column(20).scale(Pct(95.0)).build())
+        .vulcanize(Sec(1.0))
         .pretense(Sec(15.0))
         .surface(SurfaceCharacter::Frozen)
         .build_plan()
 }
 
 pub fn cigar() -> FabricPlan {
-    fabric("Cigar", Mm(500.0))
-        .build(
-            seed(SingleTwistLeft, Seed(1))
-                .on_face(SingleTop, column(1).scale(Pct(85.0)).build())
-                .on_face(SingleBot, column(1).scale(Pct(85.0)).build())
-                .build(),
-        )
-        .shape([centralize_at(1.0), during(Sec(40000.0), [vulcanize()])])
+    fabric("Cigar")
+        .altitude(M(0.5))
+        .scale(M(0.0746))
+        .seed(SingleTwistLeft, Seed(1))
+        .on_face(SingleTop, column(1).scale(Pct(85.0)).build())
+        .on_face(SingleBot, column(1).scale(Pct(85.0)).build())
+        .centralize_at(Sec(1.0), M(0.075))
+        .vulcanize(Sec(40000.0))
         .pretense(Sec(15.0))
-        .scale(Mm(74.6))
         .build_plan()
 }
 
 pub fn headless_hug() -> FabricPlan {
-    fabric("Headless Hug", Mm(2000.0))
-        .build(
-            seed(OmniSymmetrical, Seed(4))
-                .on_face(
-                    LeftBackBottom,
-                    column(4)
-                        .chiral()
-                        .scale(Pct(92.0))
-                        .build_node(
-                            column(1)
-                                .build_node(column(2).chiral().mark(Legs).build())
-                                .build(),
-                        )
+    fabric("Headless Hug")
+        .altitude(M(2.0))
+        .scale(M(1.0))
+        .seed(OmniSymmetrical, Seed(4))
+        .on_face(
+            LeftBackBottom,
+            column(4)
+                .chiral()
+                .scale(Pct(92.0))
+                .build_node(
+                    column(1)
+                        .build_node(column(2).chiral().mark(Legs).build())
                         .build(),
                 )
-                .on_face(
-                    RightBackBottom,
-                    column(4)
-                        .chiral()
-                        .scale(Pct(92.0))
-                        .build_node(
-                            column(1)
-                                .build_node(column(2).chiral().mark(Legs).build())
-                                .build(),
-                        )
+                .build(),
+        )
+        .on_face(
+            RightBackBottom,
+            column(4)
+                .chiral()
+                .scale(Pct(92.0))
+                .build_node(
+                    column(1)
+                        .build_node(column(2).chiral().mark(Legs).build())
                         .build(),
                 )
-                .on_face(
-                    LeftFrontTop,
-                    column(2)
-                        .scale(Pct(90.0))
-                        .build_node(
-                            hub(OmniSymmetrical, OnSpinRight)
-                                .on_face(OmniTopZ, mark(Chest1))
-                                .on_face(OmniBotX, mark(Chest2))
-                                .on_face(
-                                    OmniBotY,
-                                    column(3)
-                                        .chiral()
-                                        .scale(Pct(90.0))
-                                        .build_node(
-                                            column(1)
-                                                .build_node(column(2).chiral().mark(Hands).build())
-                                                .build(),
-                                        )
-                                        .build(),
-                                )
-                                .build(),
-                        )
-                        .build(),
-                )
-                .on_face(
-                    RightFrontTop,
-                    column(2)
-                        .scale(Pct(90.0))
-                        .build_node(
-                            hub(OmniSymmetrical, OnSpinLeft)
-                                .on_face(OmniTopY, mark(Chest1))
-                                .on_face(OmniBotZ, mark(Chest2))
-                                .on_face(
-                                    OmniBotX,
-                                    column(3)
-                                        .chiral()
-                                        .scale(Pct(90.0))
-                                        .build_node(
-                                            column(1)
-                                                .build_node(column(2).chiral().mark(Hands).build())
-                                                .build(),
-                                        )
+                .build(),
+        )
+        .on_face(
+            LeftFrontTop,
+            column(2)
+                .scale(Pct(90.0))
+                .build_node(
+                    hub(OmniSymmetrical, OnSpinRight)
+                        .on_face(OmniTopZ, mark(Chest1))
+                        .on_face(OmniBotX, mark(Chest2))
+                        .on_face(
+                            OmniBotY,
+                            column(3)
+                                .chiral()
+                                .scale(Pct(90.0))
+                                .build_node(
+                                    column(1)
+                                        .build_node(column(2).chiral().mark(Hands).build())
                                         .build(),
                                 )
                                 .build(),
@@ -200,14 +164,35 @@ pub fn headless_hug() -> FabricPlan {
                 )
                 .build(),
         )
-        .shape([
-            during(
-                Sec(6.0),
-                [space(Legs, Pct(40.0)), space(Hands, Pct(20.0)), space(Chest2, Pct(40.0))],
-            ),
-            during(Sec(6.0), [vulcanize()]),
-            centralize_at(1.0),
-        ])
+        .on_face(
+            RightFrontTop,
+            column(2)
+                .scale(Pct(90.0))
+                .build_node(
+                    hub(OmniSymmetrical, OnSpinLeft)
+                        .on_face(OmniTopY, mark(Chest1))
+                        .on_face(OmniBotZ, mark(Chest2))
+                        .on_face(
+                            OmniBotX,
+                            column(3)
+                                .chiral()
+                                .scale(Pct(90.0))
+                                .build_node(
+                                    column(1)
+                                        .build_node(column(2).chiral().mark(Hands).build())
+                                        .build(),
+                                )
+                                .build(),
+                        )
+                        .build(),
+                )
+                .build(),
+        )
+        .space(Sec(2.0), Legs, Pct(40.0))
+        .space(Sec(2.0), Hands, Pct(20.0))
+        .space(Sec(2.0), Chest2, Pct(40.0))
+        .vulcanize(Sec(6.0))
+        .centralize_at(Sec(1.0), M(1.0))
         .pretense(Sec(15.0))
         .surface(SurfaceCharacter::Frozen)
         .build_plan()
