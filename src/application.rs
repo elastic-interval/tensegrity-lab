@@ -6,6 +6,7 @@ use crate::keyboard::Keyboard;
 use crate::pointer::PointerHandler;
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::units::Seconds;
 use crate::{
     ControlState, CrucibleAction, LabEvent, Radio, RunStyle, StateChange, TestScenario,
@@ -207,9 +208,9 @@ impl ApplicationHandler<LabEvent> for Application {
                     RunStyle::Unknown => {
                         unreachable!()
                     }
-                    RunStyle::Fabric { fabric_name, record, export_fps, .. } => {
+                    RunStyle::Fabric { fabric_name, .. } => {
                         #[cfg(not(target_arch = "wasm32"))]
-                        {
+                        if let RunStyle::Fabric { record, export_fps, .. } = &self.run_style {
                             self.animation_exporter.set_fps(*export_fps);
                             if let Some(duration) = record {
                                 self.record_until = Some(*duration);
