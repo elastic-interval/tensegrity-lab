@@ -29,6 +29,14 @@ struct Args {
     #[arg(long)]
     machine: Option<String>,
 
+    /// Generate an algorithmic tensegrity sphere with given frequency (1, 2, or 3+)
+    #[arg(long)]
+    sphere: Option<usize>,
+
+    /// Radius of the sphere in internal units
+    #[arg(long, default_value_t = 10.0)]
+    radius: f32,
+
     /// Record animation for specified duration (seconds) from start of fabric construction
     #[arg(long)]
     record: Option<f32>,
@@ -49,27 +57,29 @@ fn main() -> Result<(), Box<dyn Error>> {
         seed,
         test,
         machine,
+        sphere,
+        radius,
         record,
         fps,
         time_scale,
     } = Args::parse();
     let record_duration = record.map(Seconds);
-    let run_style = match (fabric, bake_bricks, seed, test, machine) {
-        (Some(fabric_name), false, None, None, Some(ip_address)) => RunStyle::Fabric {
+    let run_style = match (fabric, bake_bricks, seed, test, machine, sphere) {
+        (Some(fabric_name), false, None, None, Some(ip_address), None) => RunStyle::Fabric {
             fabric_name,
             scenario: Some(TestScenario::MachineTest(ip_address)),
             record: record_duration,
             export_fps: fps,
         },
-        (Some(fabric_name), false, None, None, None) => RunStyle::Fabric {
+        (Some(fabric_name), false, None, None, None, None) => RunStyle::Fabric {
             fabric_name,
             scenario: None,
             record: record_duration,
             export_fps: fps,
         },
-        (None, true, None, None, None) => RunStyle::BakeBricks,
-        (None, false, Some(seed), None, None) => RunStyle::Seeded(seed),
-        (Some(fabric_name), false, None, Some(test_name), None) => RunStyle::Fabric {
+        (None, true, None, None, None, None) => RunStyle::BakeBricks,
+        (None, false, Some(seed), None, None, None) => RunStyle::Seeded(seed),
+        (Some(fabric_name), false, None, Some(test_name), None, None) => RunStyle::Fabric {
             fabric_name,
             scenario: match test_name.as_ref() {
                 "physics" => Some(TestScenario::PhysicsTest),
@@ -78,8 +88,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             record: record_duration,
             export_fps: fps,
         },
+        (None, false, None, None, None, Some(frequency)) => RunStyle::Sphere { frequency, radius },
         _ => {
-            return Err("use --fabric <name> or --bake-bricks or --seed <seed>".into());
+            return Err("use --fabric <name> or --bake-bricks or --seed <seed> or --sphere <frequency>".into());
         }
     };
     run_with(run_style, time_scale)

@@ -265,6 +265,27 @@ impl Crucible {
             return;
         }
 
+        // Handle LoadAlgoFabric - loads a pre-built algorithmic fabric directly
+        if let LoadAlgoFabric(algo_fabric) = crucible_action {
+            let name = algo_fabric.name.clone();
+            self.fabric = algo_fabric;
+            self.fabric_plan = None; // No DSL plan for algorithmic fabrics
+            self.physics = VIEWING;
+            self.stage = Viewing;
+
+            // Set fabric name and transition to viewing
+            let _ = self
+                .radio
+                .send_event(LabEvent::UpdateState(SetFabricName(name)));
+            let _ = self
+                .radio
+                .send_event(LabEvent::UpdateState(SetStageLabel("Viewing".to_string())));
+            let _ = self
+                .radio
+                .send_event(LabEvent::FabricBuilt(self.fabric.fabric_stats()));
+            return;
+        }
+
         // Clone physics for passing to tester (avoids borrow checker issues)
         let tester_physics = self.physics.clone();
         let viewing_state = self.viewing_state();
@@ -293,7 +314,7 @@ impl Crucible {
                     context.replace_fabric(fresh_fabric);
                 }
             }
-            BuildFabric(_) => {
+            BuildFabric(_) | LoadAlgoFabric(_) => {
                 // Already handled above
                 unreachable!()
             }
