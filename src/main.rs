@@ -37,6 +37,10 @@ struct Args {
     #[arg(long, default_value_t = 10.0)]
     radius: f32,
 
+    /// Generate an algorithmic Möbius strip with given number of segments
+    #[arg(long)]
+    mobius: Option<usize>,
+
     /// Record animation for specified duration (seconds) from start of fabric construction
     #[arg(long)]
     record: Option<f32>,
@@ -51,49 +55,36 @@ struct Args {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let Args {
-        fabric,
-        bake_bricks,
-        seed,
-        test,
-        machine,
-        sphere,
-        radius,
-        record,
-        fps,
-        time_scale,
-    } = Args::parse();
-    let record_duration = record.map(Seconds);
-    let run_style = match (fabric, bake_bricks, seed, test, machine, sphere) {
-        (Some(fabric_name), false, None, None, Some(ip_address), None) => RunStyle::Fabric {
+    let args = Args::parse();
+    let record_duration = args.record.map(Seconds);
+
+    let run_style = if let Some(frequency) = args.sphere {
+        RunStyle::Sphere { frequency, radius: args.radius }
+    } else if let Some(segments) = args.mobius {
+        RunStyle::Mobius { segments }
+    } else if args.bake_bricks {
+        RunStyle::BakeBricks
+    } else if let Some(seed) = args.seed {
+        RunStyle::Seeded(seed)
+    } else if let Some(fabric_name) = args.fabric {
+        let scenario = match (args.test.as_deref(), args.machine) {
+            (Some("physics"), None) => Some(TestScenario::PhysicsTest),
+            (Some(test), None) => panic!("unknown test: \"{test}\""),
+            (None, Some(ip)) => Some(TestScenario::MachineTest(ip)),
+            (None, None) => None,
+            _ => return Err("cannot combine --test and --machine".into()),
+        };
+        RunStyle::Fabric {
             fabric_name,
-            scenario: Some(TestScenario::MachineTest(ip_address)),
+            scenario,
             record: record_duration,
-            export_fps: fps,
-        },
-        (Some(fabric_name), false, None, None, None, None) => RunStyle::Fabric {
-            fabric_name,
-            scenario: None,
-            record: record_duration,
-            export_fps: fps,
-        },
-        (None, true, None, None, None, None) => RunStyle::BakeBricks,
-        (None, false, Some(seed), None, None, None) => RunStyle::Seeded(seed),
-        (Some(fabric_name), false, None, Some(test_name), None, None) => RunStyle::Fabric {
-            fabric_name,
-            scenario: match test_name.as_ref() {
-                "physics" => Some(TestScenario::PhysicsTest),
-                _ => panic!("unknown test: \"{test_name}\""),
-            },
-            record: record_duration,
-            export_fps: fps,
-        },
-        (None, false, None, None, None, Some(frequency)) => RunStyle::Sphere { frequency, radius },
-        _ => {
-            return Err("use --fabric <name> or --bake-bricks or --seed <seed> or --sphere <frequency>".into());
+            export_fps: args.fps,
         }
+    } else {
+        return Err("use --fabric <name> or --bake-bricks or --seed <seed> or --sphere <freq> or --mobius <segments>".into());
     };
-    run_with(run_style, time_scale)
+
+    run_with(run_style, args.time_scale)
 }
 
 fn run_with(run_style: RunStyle, time_scale: f32) -> Result<(), Box<dyn Error>> {

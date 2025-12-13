@@ -8,7 +8,6 @@ pub struct PretensePhase {
     pub pretenst: Option<Percent>,
     pub seconds: Option<Seconds>,
     pub rigidity: Option<Percent>,
-    pub altitude: Option<f32>,
 }
 
 impl PretensePhase {

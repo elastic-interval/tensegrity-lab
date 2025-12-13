@@ -46,8 +46,9 @@ mod tests {
         let fabric_age = fabric.age.as_duration().as_secs_f32();
         let bounding_radius = fabric.bounding_radius();
         let (min_y, max_y) = fabric.altitude_range();
-        let height_mm = (max_y - min_y) * fabric.scale;
-        let ground_tolerance = 10.0 / fabric.scale;
+        let scale_mm = fabric.scale.to_mm();
+        let height_mm = (max_y - min_y) * scale_mm;
+        let ground_tolerance = 10.0 / scale_mm;
         let ground_count = fabric
             .joints
             .iter()
@@ -137,13 +138,14 @@ mod tests {
             // Log periodic state
             if iteration % 20000 == 0 {
                 let (min_y, max_y) = executor.fabric.altitude_range();
-                let height_mm = if executor.fabric.scale > 0.0 {
-                    (max_y - min_y) * executor.fabric.scale
+                let scale_mm = executor.fabric.scale.to_mm();
+                let height_mm = if scale_mm > 0.0 {
+                    (max_y - min_y) * scale_mm
                 } else {
                     0.0
                 };
                 let radius = executor.fabric.bounding_radius();
-                let ground_tolerance = 10.0 / executor.fabric.scale.max(1.0);
+                let ground_tolerance = 10.0 / scale_mm.max(1.0);
                 let ground_count = executor.fabric.joints.iter()
                     .filter(|j| j.location.y.abs() < ground_tolerance)
                     .count();
@@ -323,9 +325,10 @@ mod tests {
 
         // Check final state
         let (min_y, max_y) = executor.fabric.altitude_range();
-        let height_mm = (max_y - min_y) * executor.fabric.scale;
+        let scale_mm = executor.fabric.scale.to_mm();
+        let height_mm = (max_y - min_y) * scale_mm;
         let radius = executor.fabric.bounding_radius();
-        let ground_tolerance = 10.0 / executor.fabric.scale;
+        let ground_tolerance = 10.0 / scale_mm;
         let ground_count = executor
             .fabric
             .joints

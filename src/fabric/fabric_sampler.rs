@@ -198,7 +198,7 @@ impl FabricSampler {
 
         // Analyze each joint
         for joint_idx in 0..self.joint_count {
-            let analysis = self.analyze_joint(joint_idx, scale);
+            let analysis = self.analyze_joint(joint_idx, scale.to_mm());
 
             match analysis.movement_type {
                 MovementType::Frozen => frozen_count += 1,

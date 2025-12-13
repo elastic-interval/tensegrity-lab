@@ -19,25 +19,25 @@ impl Fabric {
 
         // Create info file
         zip.start_file("info.txt".to_string(), options)?;
-        let height = self
+        let scale_mm = self.scale.to_mm();
+        let height_mm = self
             .joints
             .iter()
             .fold(0.0f32, |h, joint| h.max(joint.location.y))
-            * self.scale;
-        let scale = self.scale;
+            * scale_mm;
         let now = chrono::Local::now()
             .format("%Y-%m-%d %H-%M")
             .to_string();
         writeln!(zip, "Name: {}", self.name)?;
         writeln!(zip, "Created: {now}")?;
-        writeln!(zip, "Height: {height:.1}")?;
-        writeln!(zip, "Scale: {scale:.1}")?;
+        writeln!(zip, "Height: {height_mm:.1} mm")?;
+        writeln!(zip, "Scale: {scale_mm:.1} mm/unit")?;
 
         // Create joints CSV
         zip.start_file("joints.csv".to_string(), options)?;
         writeln!(zip, "Index;X;Y;Z")?;
         for (index, Joint { location, .. }) in self.joints.iter().enumerate() {
-            let Point3 { x, y, z } = location * self.scale;
+            let Point3 { x, y, z } = location * scale_mm;
             writeln!(zip, "{};{x:.2};{z:.2};{y:.2}", index + 1)?;
         }
 
@@ -82,8 +82,8 @@ impl Fabric {
         output.push_str("    upAxis = \"Y\"\n");
         output.push_str(")\n\n");
 
-        // Convert scale from millimeters to meters
-        let export_scale = self.scale / 1000.0;
+        // Scale is now in Meters, use directly
+        let export_scale = *self.scale;
 
         // Export camera if provided
         if let (Some(pos), Some(target)) = (camera_pos, camera_target) {

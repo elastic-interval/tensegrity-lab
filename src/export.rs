@@ -13,6 +13,7 @@ use serde::Serialize;
 
 use crate::fabric::interval::Role;
 use crate::fabric::Fabric;
+use crate::units::Meters;
 
 const DEFAULT_EXPORT_FPS: f64 = 100.0;
 
@@ -74,7 +75,7 @@ pub struct AnimationExporter {
     frame_count: usize,
     enabled: bool,
     frames: Vec<FrameData>,
-    scale: f32,
+    scale: Meters,
     iteration_count: usize,
     iterations_per_frame: usize,
     fps: f64,
@@ -89,7 +90,7 @@ impl AnimationExporter {
             frame_count: 0,
             enabled: false,
             frames: Vec::new(),
-            scale: 1.0,
+            scale: Meters(1.0),
             iteration_count: 0,
             iterations_per_frame,
             fps,
@@ -133,7 +134,7 @@ impl AnimationExporter {
     }
 
     fn create_export_data(&self) -> ExportData {
-        let export_scale = self.scale / 1000.0;
+        let export_scale = *self.scale;
 
         let frames: Vec<FrameExport> = self
             .frames

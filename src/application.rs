@@ -1,3 +1,4 @@
+use crate::build::algo::mobius::generate_mobius;
 use crate::build::algo::tensegrity_sphere::generate_sphere;
 use crate::build::dsl::fabric_library;
 use crate::crucible::Crucible;
@@ -228,6 +229,10 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                     RunStyle::Sphere { frequency, radius } => {
                         let fabric = generate_sphere(*frequency, *radius);
+                        self.crucible.action(CrucibleAction::LoadAlgoFabric(fabric));
+                    }
+                    RunStyle::Mobius { segments } => {
+                        let fabric = generate_mobius(*segments);
                         self.crucible.action(CrucibleAction::LoadAlgoFabric(fabric));
                     }
                 };

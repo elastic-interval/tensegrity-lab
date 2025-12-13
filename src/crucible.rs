@@ -266,11 +266,16 @@ impl Crucible {
         }
 
         // Handle LoadAlgoFabric - loads a pre-built algorithmic fabric directly
-        if let LoadAlgoFabric(algo_fabric) = crucible_action {
+        if let LoadAlgoFabric(mut algo_fabric) = crucible_action {
+            use crate::fabric::physics::presets::PRETENSING;
+            use crate::units::Percent;
+            use crate::units::Seconds;
             let name = algo_fabric.name.clone();
+            // Set up pretensing: push intervals will gradually extend by 1%
+            algo_fabric.set_pretenst(Percent(1.0), Seconds(10.0));
             self.fabric = algo_fabric;
             self.fabric_plan = None; // No DSL plan for algorithmic fabrics
-            self.physics = VIEWING;
+            self.physics = PRETENSING;
             self.stage = Viewing;
 
             // Set fabric name and transition to viewing
@@ -318,14 +323,9 @@ impl Crucible {
                 // Already handled above
                 unreachable!()
             }
-            DropFromHeight => {
-                use crate::units::Millimeters;
-                // Centralize fabric at 1m altitude - this handles everything
-                CentralizeFabric(Some(Millimeters(1000.0))).send(&self.radio);
-            }
             CentralizeFabric(altitude) => {
-                // Convert altitude from mm to internal coordinate system
-                let altitude_internal = altitude.map(|mm| *mm / context.fabric.scale);
+                // Convert altitude from meters to internal coordinate system
+                let altitude_internal = altitude.map(|m| *m / *context.fabric.scale);
                 let translation = context.fabric.centralize_translation(altitude_internal);
                 context.fabric.apply_translation(translation);
                 context.fabric.zero_velocities();

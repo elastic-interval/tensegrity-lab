@@ -5,7 +5,7 @@
 
 use crate::fabric::physics::{Physics, SurfaceInteraction};
 use crate::fabric::{Fabric, Force, Location, UniqueId, Velocity};
-use crate::units::Grams;
+use crate::units::{Grams, Meters};
 use crate::ITERATION_DURATION;
 use cgmath::num_traits::zero;
 use cgmath::{InnerSpace, MetricSpace, Point3};
@@ -82,13 +82,13 @@ impl Joint {
         self.accumulated_mass = AMBIENT_MASS;
     }
 
-    pub fn iterate(&mut self, physics: &Physics, scale: f32) {
+    pub fn iterate(&mut self, physics: &Physics, scale: Meters) {
         let drag = physics.drag();
         let viscosity = physics.viscosity();
         let mass = *self.accumulated_mass;
         let dt = ITERATION_DURATION.secs;
 
-        let force_velocity = (self.force / mass / scale) * dt;
+        let force_velocity = (self.force / mass / *scale) * dt;
 
         match physics.surface {
             None => {

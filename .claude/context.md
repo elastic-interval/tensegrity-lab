@@ -23,7 +23,7 @@ The `Fabric` (src/fabric/mod.rs) is the central data structure representing a te
 - **Intervals**: Connections between joints with role (push/pull), stiffness, and strain
 - **Faces**: Triangular surfaces for visual representation
 - **Age**: Tracks simulation time (each iteration = 50 microseconds of fabric time)
-- **Scale**: Converts fabric units to millimeters for real-world construction
+- **Scale**: Meters per fabric unit (e.g., Scale=1.0 means 1 fabric unit = 1 meter)
 
 ### Physics System
 
@@ -271,7 +271,7 @@ src/
 
 **Previous Session Work:**
 - Implemented 9.8 m/s² gravity in real time
-- Added 'J' key to drop structures (tests gravity)
+- 'J' key centralizes fabric at 1m altitude (tests gravity drop)
 - Physics testing achieves true 1:1 real time
 - Average speed tracking over 100 iterations
 
@@ -392,13 +392,13 @@ cargo test --release
 
 7. **Real Time Means 1:1** - Physics testing should match real-world time. Each iteration = 50µs. Gravity = 9.8 m/s².
 
-8. **Scale for Construction** - Fabric units are arbitrary. Scale factor converts to millimeters for building physical structures.
+8. **Scale for Construction** - Fabric units are arbitrary. Scale is in Meters (use `.to_mm()` for display).
 
 ## Common Gotchas
 
 1. **Don't add iteration constants** - Use dynamic calculation instead
 2. **Check convergence state** - Disable it when transitioning from build to viewing
-3. **Remember the scale** - Fabric coordinates != millimeters without scale factor
+3. **Remember the scale** - Fabric coordinates × scale = meters (use `.to_mm()` for display)
 4. **Physics presets matter** - Construction physics != testing physics != viewing physics
 5. **Progress must complete** - Stage transitions only happen when `progress.is_busy() == false`
 6. **Clone when necessary** - Some contexts require cloning to avoid borrow checker issues (see `tester_physics`)

@@ -14,10 +14,6 @@ use std::ops::{Add, AddAssign, Deref, Div, Mul};
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Grams(pub f32);
 
-/// Length in millimeters
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct Millimeters(pub f32);
-
 /// Length in meters
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Meters(pub f32);
@@ -30,26 +26,12 @@ pub struct Newtons(pub f32);
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct MetersPerSecondSquared(pub f32);
 
-/// Acceleration in millimeters per second squared
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct MillimetersPerSecondSquared(pub f32);
-
-impl Deref for MillimetersPerSecondSquared {
+impl Deref for MetersPerSecondSquared {
     type Target = f32;
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
-
-/// Acceleration in millimeters per microsecond squared (simulation units)
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct MillimetersPerMicrosecondSquared(pub f32);
-
-/// Force in nanoNewtons (nN)
-/// In the simulation's unit system: 1 nN = 1 g⋅mm/µs²
-/// Conversion: 1 Newton = 10^9 nanoNewtons
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct NanoNewtons(pub f32);
 
 /// Time in seconds
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
@@ -65,13 +47,9 @@ pub struct Percent(pub f32);
 pub const IMMEDIATE: Seconds = Seconds(0.0);
 pub const MOMENT: Seconds = Seconds(0.1);
 
-/// Linear density (mass per unit length) in grams per millimeter
+/// Linear density (mass per unit length) in grams per meter
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct GramsPerMillimeter(pub f32);
-
-/// Rigidity in Newtons per millimeter (force per unit extension)
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct NewtonsPerMillimeter(pub f32);
+pub struct GramsPerMeter(pub f32);
 
 /// Spring constant in Newtons per meter (N/m)
 /// Standard SI unit for spring stiffness: k in F = kx
@@ -81,13 +59,6 @@ pub struct NewtonsPerMeter(pub f32);
 // Deref implementations for ergonomic access to inner values
 
 impl Deref for Grams {
-    type Target = f32;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Deref for Millimeters {
     type Target = f32;
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -108,20 +79,6 @@ impl Deref for Newtons {
     }
 }
 
-impl Deref for GramsPerMillimeter {
-    type Target = f32;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Deref for NewtonsPerMillimeter {
-    type Target = f32;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 impl Deref for NewtonsPerMeter {
     type Target = f32;
     fn deref(&self) -> &Self::Target {
@@ -129,14 +86,7 @@ impl Deref for NewtonsPerMeter {
     }
 }
 
-impl Deref for MillimetersPerMicrosecondSquared {
-    type Target = f32;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Deref for NanoNewtons {
+impl Deref for GramsPerMeter {
     type Target = f32;
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -153,16 +103,7 @@ impl Deref for Percent {
 // Physical constants
 
 /// Standard Earth gravity: 9.81 m/s²
-pub const EARTH_GRAVITY_M_S2: MetersPerSecondSquared = MetersPerSecondSquared(9.81);
-
-/// Standard Earth gravity: 9810 mm/s²
-pub const EARTH_GRAVITY_MM_S2: MillimetersPerSecondSquared = MillimetersPerSecondSquared(9810.0);
-
-/// Standard Earth gravity in simulation units: 9.81e-9 mm/µs²
-/// This is the value to use in physics calculations since the simulation
-/// uses microseconds for time and millimeters for length.
-/// Derivation: 9.81 m/s² = 9810 mm/s² = 9810 mm / (10^6 µs)² = 9.81e-9 mm/µs²
-pub const EARTH_GRAVITY: MillimetersPerMicrosecondSquared = MillimetersPerMicrosecondSquared(9.81e-9);
+pub const EARTH_GRAVITY: MetersPerSecondSquared = MetersPerSecondSquared(9.81);
 
 // Conversion implementations
 
@@ -178,72 +119,10 @@ impl Grams {
     }
 }
 
-impl Millimeters {
-    /// Convert millimeters to meters
-    pub fn to_meters(self) -> Meters {
-        Meters(self.0 / 1000.0)
-    }
-
-    /// Create from meters
-    pub fn from_meters(m: f32) -> Self {
-        Self(m * 1000.0)
-    }
-}
-
 impl Meters {
-    /// Convert meters to millimeters
-    pub fn to_millimeters(self) -> Millimeters {
-        Millimeters(self.0 * 1000.0)
-    }
-
-    /// Create from millimeters
-    pub fn from_millimeters(mm: f32) -> Self {
-        Self(mm / 1000.0)
-    }
-}
-
-impl MetersPerSecondSquared {
-    /// Convert to millimeters per second squared
-    pub fn to_mm_s2(self) -> MillimetersPerSecondSquared {
-        MillimetersPerSecondSquared(self.0 * 1000.0)
-    }
-}
-
-impl MillimetersPerSecondSquared {
-    /// Convert to meters per second squared
-    pub fn to_m_s2(self) -> MetersPerSecondSquared {
-        MetersPerSecondSquared(self.0 / 1000.0)
-    }
-    
-    /// Convert to millimeters per microsecond squared (simulation units)
-    pub fn to_mm_us2(self) -> MillimetersPerMicrosecondSquared {
-        // 1 s = 10^6 µs, so 1 s² = 10^12 µs²
-        // mm/s² → mm/µs² means dividing by 10^12
-        MillimetersPerMicrosecondSquared(self.0 / 1e12)
-    }
-}
-
-impl MillimetersPerMicrosecondSquared {
-    /// Convert to millimeters per second squared
-    pub fn to_mm_s2(self) -> MillimetersPerSecondSquared {
-        // mm/µs² → mm/s² means multiplying by 10^12
-        MillimetersPerSecondSquared(self.0 * 1e12)
-    }
-}
-
-impl Newtons {
-    /// Convert to nanoNewtons (simulation units)
-    pub fn to_nano_newtons(self) -> NanoNewtons {
-        // 1 N = 10^9 nN
-        NanoNewtons(self.0 * 1e9)
-    }
-}
-
-impl NanoNewtons {
-    /// Convert to Newtons
-    pub fn to_newtons(self) -> Newtons {
-        // 1 nN = 10^-9 N
-        Newtons(self.0 / 1e9)
+    /// Convert meters to millimeters (for display purposes)
+    pub fn to_mm(self) -> f32 {
+        self.0 * 1000.0
     }
 }
 
@@ -273,60 +152,7 @@ impl Percent {
     }
 }
 
-impl NewtonsPerMeter {
-    /// Convert to Newtons per millimeter
-    /// N/m → N/mm: divide by 1000 (1 meter = 1000 mm)
-    pub fn to_n_per_mm(self) -> NewtonsPerMillimeter {
-        NewtonsPerMillimeter(self.0 / 1000.0)
-    }
-}
-
-impl NewtonsPerMillimeter {
-    /// Convert to Newtons per meter
-    /// N/mm → N/m: multiply by 1000 (1 meter = 1000 mm)
-    pub fn to_n_per_m(self) -> NewtonsPerMeter {
-        NewtonsPerMeter(self.0 * 1000.0)
-    }
-}
-
 // Arithmetic operations for dimensional analysis
-
-impl Mul<Millimeters> for GramsPerMillimeter {
-    type Output = Grams;
-    
-    fn mul(self, length: Millimeters) -> Grams {
-        Grams(*self * *length)
-    }
-}
-
-impl Mul<Seconds> for MillimetersPerSecondSquared {
-    type Output = f32; // mm/s (velocity)
-    
-    fn mul(self, time: Seconds) -> f32 {
-        self.0 * time.0
-    }
-}
-
-// F = ma: Multiply mass by acceleration to get force
-// In simulation units: grams × (mm/µs²) → nanoNewtons
-impl Mul<MillimetersPerMicrosecondSquared> for Grams {
-    type Output = NanoNewtons;
-    
-    fn mul(self, acceleration: MillimetersPerMicrosecondSquared) -> NanoNewtons {
-        // F = ma
-        NanoNewtons(self.0 * acceleration.0)
-    }
-}
-
-// Allow multiplication in either order
-impl Mul<Grams> for MillimetersPerMicrosecondSquared {
-    type Output = NanoNewtons;
-    
-    fn mul(self, mass: Grams) -> NanoNewtons {
-        // F = ma
-        NanoNewtons(mass.0 * self.0)
-    }
-}
 
 impl Div<Grams> for Newtons {
     type Output = f32; // m/s² (acceleration)
@@ -338,44 +164,11 @@ impl Div<Grams> for Newtons {
     }
 }
 
-impl Mul<f32> for NewtonsPerMillimeter {
-    type Output = Newtons;
-    
-    fn mul(self, extension: f32) -> Newtons {
-        Newtons(*self * extension)
-    }
-}
-
-impl Mul<Millimeters> for NewtonsPerMillimeter {
-    type Output = Newtons;
-    
-    fn mul(self, extension: Millimeters) -> Newtons {
-        Newtons(*self * *extension)
-    }
-}
-
-// Scalar multiplication for units
-impl Mul<f32> for Millimeters {
-    type Output = Millimeters;
-    
-    fn mul(self, scalar: f32) -> Millimeters {
-        Millimeters(*self * scalar)
-    }
-}
-
 impl Mul<f32> for Grams {
     type Output = Grams;
     
     fn mul(self, scalar: f32) -> Grams {
         Grams(*self * scalar)
-    }
-}
-
-impl Mul<f32> for NanoNewtons {
-    type Output = NanoNewtons;
-    
-    fn mul(self, scalar: f32) -> NanoNewtons {
-        NanoNewtons(*self * scalar)
     }
 }
 
@@ -411,17 +204,39 @@ impl AddAssign for Grams {
     }
 }
 
+// Meters arithmetic: scale * length_in_internal_units = Meters
+impl Mul<f32> for Meters {
+    type Output = Meters;
+
+    fn mul(self, scalar: f32) -> Meters {
+        Meters(*self * scalar)
+    }
+}
+
+// NewtonsPerMeter * Meters = Newtons (F = k * x)
+impl Mul<Meters> for NewtonsPerMeter {
+    type Output = Newtons;
+
+    fn mul(self, extension: Meters) -> Newtons {
+        Newtons(*self * *extension)
+    }
+}
+
+// GramsPerMeter * Meters = Grams (mass = density * length)
+impl Mul<Meters> for GramsPerMeter {
+    type Output = Grams;
+
+    fn mul(self, length: Meters) -> Grams {
+        // g/m * m = g
+        Grams(self.0 * *length)
+    }
+}
+
 // Display implementations
 
 impl std::fmt::Display for Grams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:.2}g", self.0)
-    }
-}
-
-impl std::fmt::Display for Millimeters {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:.2}mm", self.0)
     }
 }
 
@@ -437,18 +252,6 @@ impl std::fmt::Display for Newtons {
     }
 }
 
-impl std::fmt::Display for GramsPerMillimeter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:.4}g/mm", self.0)
-    }
-}
-
-impl std::fmt::Display for NewtonsPerMillimeter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:.2}N/mm", self.0)
-    }
-}
-
 impl std::fmt::Display for NewtonsPerMeter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:.2e}N/m", self.0)
@@ -458,12 +261,6 @@ impl std::fmt::Display for NewtonsPerMeter {
 impl std::fmt::Display for Seconds {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:.1}s", self.0)
-    }
-}
-
-impl std::fmt::Display for NanoNewtons {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:.3e}nN", self.0)
     }
 }
 
@@ -487,35 +284,18 @@ mod tests {
     }
 
     #[test]
-    fn test_length_conversions() {
-        let length = Millimeters(1000.0);
-        assert_eq!(*length.to_meters(), 1.0);
-        
-        let length2 = Millimeters::from_meters(0.5);
-        assert_eq!(length2.0, 500.0);
-    }
-
-    #[test]
-    fn test_gravity_conversion() {
-        let g = EARTH_GRAVITY_M_S2.to_mm_s2();
-        assert_eq!(g.0, 9810.0);
-        
-        // Test simulation units conversion (use relative error for very small numbers)
-        let g_sim = EARTH_GRAVITY_MM_S2.to_mm_us2();
-        let relative_error = (g_sim.0 - 9.81e-9).abs() / 9.81e-9;
-        assert!(relative_error < 1e-10, "relative error: {}", relative_error);
-        
-        // Test round-trip
-        let g_back = EARTH_GRAVITY.to_mm_s2();
-        assert!((g_back.0 - 9810.0).abs() < 1e-6);
+    fn test_gravity_constant() {
+        // Standard Earth gravity: 9.81 m/s²
+        assert_eq!(*EARTH_GRAVITY, 9.81);
     }
 
     #[test]
     fn test_linear_density() {
-        let density = GramsPerMillimeter(0.01); // 10 mg/mm
-        let length = Millimeters(100.0); // 100 mm
+        // Test GramsPerMeter * Meters = Grams
+        let density = GramsPerMeter(10.0); // 10 g/m
+        let length = Meters(0.1); // 100 mm
         let mass = density * length;
-        assert_eq!(mass.0, 1.0); // 1 gram
+        assert_eq!(mass.0, 1.0); // 1 gram (10 g/m * 0.1 m)
     }
 
     #[test]
@@ -526,38 +306,20 @@ mod tests {
     }
 
     #[test]
-    fn test_gravity_force() {
-        // Test F = ma with Earth's gravity
-        let mass = Grams(100.0); // 100 grams
-        let gravity_force = mass * EARTH_GRAVITY;
-        
-        // Expected: 100 g × 9.81e-9 mm/µs² = 9.81e-7 g⋅mm/µs²
-        assert!((*gravity_force - 9.81e-7).abs() < 1e-15);
-        
-        // Test multiplication in reverse order
-        let gravity_force2 = EARTH_GRAVITY * mass;
-        assert_eq!(gravity_force, gravity_force2);
-        
-        // Test scalar multiplication
-        let doubled = gravity_force * 2.0;
-        assert!((*doubled - 1.962e-6).abs() < 1e-15);
+    fn test_spring_force() {
+        // Test F = kx with NewtonsPerMeter
+        let spring_constant = NewtonsPerMeter(100.0); // 100 N/m
+        let extension = Meters(0.1); // 10 cm
+        let force = spring_constant * extension;
+        assert_eq!(*force, 10.0); // 10 Newtons
     }
 
     #[test]
-    fn test_newton_conversions() {
-        // Test Newton to NanoNewton conversion
-        let force = Newtons(1.0);
-        let nano_force = force.to_nano_newtons();
-        assert_eq!(*nano_force, 1e9);
-        
-        // Test NanoNewton to Newton conversion
-        let nano = NanoNewtons(1e9);
-        let newtons = nano.to_newtons();
-        assert_eq!(*newtons, 1.0);
-        
-        // Test round-trip
-        let original = Newtons(5.5);
-        let round_trip = original.to_nano_newtons().to_newtons();
-        assert!((round_trip.0 - original.0).abs() < 1e-6);
+    fn test_force_division() {
+        // Test F / m = a (returns m/s²)
+        let force = Newtons(9.81);
+        let mass = Grams(1000.0); // 1 kg
+        let acceleration = force / mass;
+        assert!((acceleration - 9.81).abs() < 1e-6); // 9.81 m/s²
     }
 }

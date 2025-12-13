@@ -7,7 +7,7 @@ use crate::build::dsl::FabricPlan;
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::CONSTRUCTION;
 use crate::fabric::physics::Physics;
-use crate::units::{IMMEDIATE, MOMENT};
+use crate::units::{Meters, IMMEDIATE, MOMENT};
 use crate::{LabEvent, StateChange};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -28,7 +28,7 @@ pub struct PlanRunner {
     shape_phase: ShapePhase,
     pretense_phase: PretensePhase,
     disabled: Option<String>,
-    scale: f32,
+    scale: Meters,
 }
 
 impl PlanRunner {
@@ -153,8 +153,8 @@ impl PlanRunner {
             let should_log = iter_count <= 100 || (iter_count >= 11900 && iter_count <= 12100);
             if should_log {
                 let (min_y, max_y) = context.fabric.altitude_range();
-                let height_mm = if context.fabric.scale > 0.0 {
-                    (max_y - min_y) * context.fabric.scale
+                let height_mm = if *context.fabric.scale > 0.0 {
+                    (max_y - min_y) * context.fabric.scale.to_mm()
                 } else {
                     0.0
                 };
@@ -187,7 +187,7 @@ impl PlanRunner {
         self.stage == Completed
     }
 
-    pub fn get_scale(&self) -> f32 {
+    pub fn get_scale(&self) -> Meters {
         self.scale
     }
 

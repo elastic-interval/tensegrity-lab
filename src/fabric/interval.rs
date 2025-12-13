@@ -14,7 +14,7 @@ use crate::fabric::joint::Joint;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
 use crate::fabric::{Fabric, IntervalEnd, Progress, UniqueId};
-use crate::units::{Millimeters, NewtonsPerMillimeter, Percent};
+use crate::units::{Meters, NewtonsPerMeter, Percent};
 use crate::Appearance;
 use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
@@ -124,6 +124,31 @@ impl Fabric {
         ideal: f32,
         role: Role,
     ) -> UniqueId {
+        self.create_interval_with_span(alpha_index, omega_index, role, Approaching {
+            start_length: self.distance(alpha_index, omega_index),
+            target_length: ideal,
+        })
+    }
+
+    /// Create an interval at its current slack length (Fixed span)
+    /// Use this for algorithmic fabrics that will be pretensed
+    pub fn create_interval_fixed(
+        &mut self,
+        alpha_index: usize,
+        omega_index: usize,
+        role: Role,
+    ) -> UniqueId {
+        let length = self.distance(alpha_index, omega_index);
+        self.create_interval_with_span(alpha_index, omega_index, role, Fixed { length })
+    }
+
+    fn create_interval_with_span(
+        &mut self,
+        alpha_index: usize,
+        omega_index: usize,
+        role: Role,
+        span: Span,
+    ) -> UniqueId {
         let slot = self.create_id();
         let unique_id = self.next_interval_id;
         self.next_interval_id += 1;
@@ -133,10 +158,7 @@ impl Fabric {
             alpha_index,
             omega_index,
             role,
-            Approaching {
-                start_length: self.distance(alpha_index, omega_index),
-                target_length: ideal,
-            },
+            span,
         );
 
         if slot.0 >= self.intervals.len() {
@@ -674,7 +696,7 @@ impl Interval {
         &mut self,
         joints: &mut [Joint],
         progress: &Progress,
-        scale: f32,
+        scale: Meters,
         physics: &Physics,
     ) {
         let ideal = match self.span {
@@ -714,14 +736,17 @@ impl Interval {
             (real_length - ideal) / ideal
         };
 
+        // Convert to meters for physics calculations
+        let ideal_length = scale * ideal;
+        let actual_length = scale * real_length;
+
         // Force: F = k × ΔL where ΔL = strain × L₀
         // Spring constant scales with 1/L for proper physics
         // Stiffness percentage allows softer intervals (e.g., actuators at 10%)
-        let ideal_length_mm = ideal * scale;
-        let k = self.material.spring_constant(ideal_length_mm, physics);
-        let k_adjusted = NewtonsPerMillimeter(*k * self.stiffness.as_factor());
-        let extension_mm = Millimeters(self.strain * ideal_length_mm); // Absolute extension in mm
-        let force = k_adjusted * extension_mm; // (N/mm) × mm = N
+        let k = self.material.spring_constant(ideal_length, physics);
+        let k_adjusted = NewtonsPerMeter(*k * self.stiffness.as_factor());
+        let extension = scale * (self.strain * ideal);
+        let force = k_adjusted * extension; // (N/m) × m = N
         let force_vector: Vector3<f32> = self.unit * *force / 2.0;
 
         // Apply forces to both ends
@@ -731,7 +756,7 @@ impl Interval {
         joints[omega_idx].force -= force_vector;
 
         // Mass from linear density × length
-        let interval_mass = self.material.linear_density(physics) * Millimeters(real_length * scale);
+        let interval_mass = self.material.linear_density(physics) * actual_length;
         let half_mass = interval_mass / 2.0;
         joints[alpha_idx].accumulated_mass += half_mass;
         joints[omega_idx].accumulated_mass += half_mass;

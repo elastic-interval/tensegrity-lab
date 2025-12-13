@@ -10,7 +10,7 @@ use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::{Joint, AMBIENT_MASS};
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
-use crate::units::{Grams, Millimeters, Percent, Seconds};
+use crate::units::{Grams, Meters, Percent, Seconds};
 use crate::Age;
 use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Rotation, Transform, Vector3};
@@ -127,7 +127,7 @@ impl IntervalEnd {
 pub struct FabricStats {
     pub name: String,
     pub age: Age,
-    pub scale: f32,
+    pub scale: Meters,
     pub joint_count: usize,
     pub push_count: usize,
     pub push_range: (f32, f32),
@@ -147,7 +147,7 @@ pub struct Fabric {
     pub interval_count: usize,
     pub next_interval_id: usize,
     pub faces: HashMap<UniqueId, Face>,
-    pub scale: f32,
+    pub scale: Meters,
     pub frozen: bool,
     pub stats: IterationStats,
 }
@@ -163,7 +163,7 @@ impl Fabric {
             interval_count: 0,
             next_interval_id: 0,
             faces: HashMap::new(),
-            scale: 1.0,
+            scale: Meters(1.0),
             frozen: false,
             stats: IterationStats::default(),
         }
@@ -538,7 +538,7 @@ impl Fabric {
                 let omega = &self.joints[interval.omega_index];
                 let real_length = (&omega.location - &alpha.location).magnitude();
                 let interval_mass = interval.material.linear_density(physics)
-                    * Millimeters(real_length * self.scale);
+                    * (self.scale * real_length);
                 total_mass += interval_mass;
             }
         }
