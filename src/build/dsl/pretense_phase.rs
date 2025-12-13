@@ -8,6 +8,7 @@ pub struct PretensePhase {
     pub pretenst: Option<Percent>,
     pub seconds: Option<Seconds>,
     pub rigidity: Option<Percent>,
+    pub omit_pairs: Vec<(usize, usize)>,
 }
 
 impl PretensePhase {

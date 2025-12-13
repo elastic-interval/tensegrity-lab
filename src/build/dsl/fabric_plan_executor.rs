@@ -289,6 +289,15 @@ impl FabricPlanExecutor {
             self.fabric.remove_face(face_id);
         }
 
+        // Omit triangle intervals after faces are converted
+        for pair in &self.plan.pretense_phase.omit_pairs {
+            if let Some(id) = self.fabric.joining(*pair) {
+                self.fabric.remove_interval(id);
+            } else {
+                eprintln!("WARNING: No interval found between joints {:?}", pair);
+            }
+        }
+
         self.log_event(ExecutionEvent::FacesRemoved {
             iteration: self.current_iteration,
             removed_count: face_count_before,
