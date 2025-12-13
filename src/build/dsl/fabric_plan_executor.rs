@@ -273,12 +273,18 @@ impl FabricPlanExecutor {
         }
 
         // Remove faces
+        use crate::fabric::face::FaceEnding;
         let face_count_before = self.fabric.faces.len();
         let face_ids: Vec<_> = self.fabric.faces.keys().copied().collect();
         for face_id in face_ids {
             let face = self.fabric.face(face_id);
-            if !face.has_prism {
-                self.fabric.add_face_triangle(face_id);
+            match face.ending {
+                FaceEnding::Triangle => {
+                    self.fabric.add_face_triangle(face_id);
+                }
+                FaceEnding::Prism | FaceEnding::Radial => {
+                    // Prism already added during build; Radial keeps radials as-is
+                }
             }
             self.fabric.remove_face(face_id);
         }

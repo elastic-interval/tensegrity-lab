@@ -86,13 +86,15 @@ pub enum BuildNode {
         face_nodes: Vec<BuildNode>,
     },
     Prism,
+    /// Mark face as radial (radials only, no triangle)
+    Radial,
 }
 
 impl BuildNode {
     pub fn traverse(&self, f: &mut impl FnMut(&Self)) {
         f(self);
         match self {
-            Mark { .. } | Prism { .. } => {}
+            Mark { .. } | Prism { .. } | Radial { .. } => {}
             Face { node, .. } => {
                 node.traverse(f);
             }
@@ -170,7 +172,7 @@ impl BuildPhase {
         }: Bud,
     ) -> (Vec<Bud>, Vec<FaceMark>) {
         let (mut buds, mut marks) = (vec![], vec![]);
-        if let Some(style) = column_style {
+        if let Some(style) = column_style.filter(|s| s.count > 0) {
             let face = fabric.expect_face(face_id);
             let spin = if style.is_alternating() {
                 face.spin.opposite()
@@ -302,6 +304,11 @@ impl BuildPhase {
                 let face_id = Self::find_launch_face(&launch, &faces, fabric)
                     .expect("Unable to find face for prism");
                 fabric.add_face_prism(face_id);
+            }
+            Radial => {
+                let face_id = Self::find_launch_face(&launch, &faces, fabric)
+                    .expect("Unable to find face for radial");
+                fabric.set_face_radial(face_id);
             }
         };
         (buds, marks)

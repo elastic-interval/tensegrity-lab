@@ -55,6 +55,10 @@ impl FabricName {
                         .mark(End)
                         .prism(),
                     on(OmniTop).column(1),
+                    on(OmniBot).radial(),
+                    on(OmniTopX).radial(),
+                    on(OmniTopY).radial(),
+                    on(OmniTopZ).radial(),
                 ])
                 .space(Sec(3.0), End, Pct(38.0))
                 .vulcanize(Sec(1.0))
@@ -63,14 +67,14 @@ impl FabricName {
                 .fall(Sec(3.0))
                 .settle(Sec(3.0))
                 .animate()
-                .period(Sec(0.8266))
-                .amplitude(Pct(1.0))
-                .stiffness(Pct(10.0))
-                .pulse(Pct(10.0))
+                .period(Sec(1.28))
+                .amplitude(Pct(2.0))
+                .stiffness(Pct(50.0))
+                .sine()
                 .actuators(&[
-                    phase(Pct(0.0)).between(151, 48),
-                    phase(Pct(0.0)).between(157, 36),
-                    phase(Pct(0.0)).between(145, 42),
+                    phase(Pct(0.0)).between(167, 23),
+                    phase(Pct(0.0)).between(169, 29),
+                    phase(Pct(0.0)).between(171, 17),
                 ]),
 
             HaloByCrane => self

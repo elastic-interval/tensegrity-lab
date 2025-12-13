@@ -214,6 +214,18 @@ impl FaceBuilder {
             node: mark(mark_name),
         }
     }
+
+    /// Mark this face as radial (keep radials only, no triangle)
+    pub fn radial(self) -> FaceColumnBuilder {
+        FaceColumnBuilder {
+            face_name: self.face_name,
+            column: ColumnBuilder {
+                style: ColumnStyle::alternating(0),
+                scale: Percent(100.0),
+                post_column_nodes: vec![BuildNode::Radial],
+            },
+        }
+    }
 }
 
 /// Builder for column content on a face
@@ -245,6 +257,11 @@ impl FaceColumnBuilder {
 
     pub fn prism(mut self) -> Self {
         self.column = self.column.prism();
+        self
+    }
+
+    pub fn radial(mut self) -> Self {
+        self.column = self.column.radial();
         self
     }
 
@@ -390,6 +407,11 @@ impl ColumnBuilder {
 
     pub fn prism(mut self) -> Self {
         self.post_column_nodes.push(BuildNode::Prism);
+        self
+    }
+
+    pub fn radial(mut self) -> Self {
+        self.post_column_nodes.push(BuildNode::Radial);
         self
     }
 
