@@ -20,23 +20,23 @@ mod tests {
     }
 
     /// Executor benchmarks - age is fabric.age (scaled by physics.time_scale)
-    /// Updated for faster Triped construction (3s space, 1s vulcanize, 1s pretense)
+    /// Updated for Triped with OmniTop/OmniBot prisms, omit intervals, and sine animation
     fn ui_benchmarks() -> Vec<Benchmark> {
         vec![
             Benchmark { age: 0.0, joints: 0, height_mm: 0.0, radius: 0.000, ground: 0 },
             // BUILD phase (fabric age 0-6s)
-            Benchmark { age: 2.0, joints: 176, height_mm: 7621.7, radius: 12.234, ground: 0 },
-            Benchmark { age: 4.0, joints: 176, height_mm: 12080.5, radius: 8.830, ground: 0 },
-            Benchmark { age: 6.0, joints: 176, height_mm: 9690.9, radius: 6.250, ground: 0 },
-            // PRETENSE phase (fabric age ~6-7s) - joints drop from 176 to 172 (4 radial faces keep midpoints)
-            Benchmark { age: 8.0, joints: 172, height_mm: 9375.3, radius: 6.674, ground: 3 },
-            // FALL phase (fabric age ~7-10s)
-            Benchmark { age: 10.0, joints: 172, height_mm: 9514.1, radius: 6.676, ground: 3 },
-            Benchmark { age: 12.0, joints: 172, height_mm: 9570.6, radius: 6.660, ground: 3 },
-            Benchmark { age: 14.0, joints: 172, height_mm: 9584.6, radius: 6.661, ground: 3 },
-            Benchmark { age: 16.0, joints: 172, height_mm: 9589.0, radius: 6.662, ground: 3 },
-            // SETTLE phase (fabric age ~13-16s)
-            Benchmark { age: 19.0, joints: 172, height_mm: 9585.2, radius: 6.661, ground: 3 },
+            Benchmark { age: 2.0, joints: 174, height_mm: 6728.9, radius: 12.194, ground: 0 },
+            Benchmark { age: 4.0, joints: 174, height_mm: 11156.0, radius: 8.745, ground: 0 },
+            Benchmark { age: 6.0, joints: 174, height_mm: 10582.7, radius: 6.605, ground: 0 },
+            // PRETENSE phase (fabric age ~6-8s) - joints drop from 174 to 166
+            Benchmark { age: 8.0, joints: 166, height_mm: 9410.7, radius: 6.339, ground: 0 },
+            // FALL phase (fabric age ~8-12s)
+            Benchmark { age: 10.0, joints: 166, height_mm: 9164.5, radius: 6.590, ground: 3 },
+            Benchmark { age: 12.0, joints: 166, height_mm: 9366.5, radius: 6.566, ground: 3 },
+            Benchmark { age: 14.0, joints: 166, height_mm: 9327.2, radius: 6.546, ground: 3 },
+            Benchmark { age: 16.0, joints: 166, height_mm: 9319.7, radius: 6.549, ground: 3 },
+            // SETTLE phase (fabric age ~16-19s)
+            Benchmark { age: 19.0, joints: 166, height_mm: 9318.2, radius: 6.550, ground: 3 },
         ]
     }
 

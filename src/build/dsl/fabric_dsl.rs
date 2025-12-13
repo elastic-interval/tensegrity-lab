@@ -101,6 +101,12 @@ impl FabricBuilder {
         self
     }
 
+    /// Remove intervals by joint pairs (executed after triangles are created in pretense phase)
+    pub fn omit<const N: usize>(mut self, pairs: [(usize, usize); N]) -> Self {
+        self.pretense.omit_pairs.extend(pairs);
+        self
+    }
+
     pub fn pretense(mut self, seconds: Seconds) -> PretenseChain {
         self.pretense.seconds = Some(seconds);
         PretenseChain { fabric: self }
@@ -223,6 +229,18 @@ impl FaceBuilder {
                 style: ColumnStyle::alternating(0),
                 scale: Percent(100.0),
                 post_column_nodes: vec![BuildNode::Radial],
+            },
+        }
+    }
+
+    /// Add a prism to this face (no column)
+    pub fn prism(self) -> FaceColumnBuilder {
+        FaceColumnBuilder {
+            face_name: self.face_name,
+            column: ColumnBuilder {
+                style: ColumnStyle::alternating(0),
+                scale: Percent(100.0),
+                post_column_nodes: vec![BuildNode::Prism],
             },
         }
     }
@@ -356,6 +374,11 @@ impl SeedChain {
         self.finalize_build().centralize_at(seconds, altitude)
     }
 
+    /// Remove intervals by joint pairs (executed after triangles are created in pretense phase)
+    pub fn omit<const N: usize>(self, pairs: [(usize, usize); N]) -> FabricBuilder {
+        self.finalize_build().omit(pairs)
+    }
+
     // Terminal operation (no shape phase)
     pub fn pretense(self, seconds: Seconds) -> PretenseChain {
         self.finalize_build().pretense(seconds)
@@ -445,6 +468,7 @@ pub struct PretensePhaseBuilder {
     pretenst: Option<Percent>,
     rigidity: Option<Percent>,
     seconds: Option<Seconds>,
+    omit_pairs: Vec<(usize, usize)>,
 }
 
 impl PretensePhaseBuilder {
@@ -469,6 +493,7 @@ impl PretensePhaseBuilder {
             pretenst: self.pretenst,
             seconds: self.seconds,
             rigidity: self.rigidity,
+            omit_pairs: self.omit_pairs,
         }
     }
 }

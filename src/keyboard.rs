@@ -105,7 +105,7 @@ impl Keyboard {
         self.animation_period(
             "P",
             "p",
-            Box::new(|state| matches!(state, Animating)),
+            Box::new(|state| matches!(state, Animating | ShowingJoint(_))),
         );
         self.time_scale("T", "t");
         self.key_lab_event(

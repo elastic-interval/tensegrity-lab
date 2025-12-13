@@ -54,27 +54,25 @@ impl FabricName {
                         .shrink_by(Pct(10.0))
                         .mark(End)
                         .prism(),
-                    on(OmniTop).column(1),
-                    on(OmniBot).radial(),
-                    on(OmniTopX).radial(),
-                    on(OmniTopY).radial(),
-                    on(OmniTopZ).radial(),
+                    on(OmniTop).prism(),
+                    on(OmniBot).prism(),
                 ])
+                .omit([(6,9),(6,3), (1,10), (10,7), (2,11), (2,5)])
                 .space(Sec(3.0), End, Pct(38.0))
-                .vulcanize(Sec(1.0))
-                .pretense(Sec(1.0))
+                .vulcanize(Sec(2.0))
+                .pretense(Sec(2.0))
                 .surface_frozen()
                 .fall(Sec(3.0))
                 .settle(Sec(3.0))
                 .animate()
-                .period(Sec(1.28))
-                .amplitude(Pct(2.0))
-                .stiffness(Pct(50.0))
+                .period(Sec(0.847))
+                .amplitude(Pct(1.0))
+                .stiffness(Pct(20.0))
                 .sine()
                 .actuators(&[
-                    phase(Pct(0.0)).between(167, 23),
-                    phase(Pct(0.0)).between(169, 29),
-                    phase(Pct(0.0)).between(171, 17),
+                    phase(Pct(0.0)).between(161, 40),
+                    phase(Pct(0.0)).between(163, 46),
+                    phase(Pct(0.0)).between(165, 34),
                 ]),
 
             HaloByCrane => self
