@@ -55,7 +55,7 @@ impl FabricName {
                         .mark(End)
                         .prism(),
                     on(OmniTop).prism(),
-                    on(OmniBot).prism(),
+                    on(OmniBot).radial(),
                 ])
                 .omit([(6,9),(6,3), (1,10), (10,7), (2,11), (2,5)])
                 .space(Sec(3.0), End, Pct(38.0))
@@ -70,9 +70,9 @@ impl FabricName {
                 .stiffness(Pct(20.0))
                 .sine()
                 .actuators(&[
-                    phase(Pct(0.0)).between(161, 40),
-                    phase(Pct(0.0)).between(163, 46),
-                    phase(Pct(0.0)).between(165, 34),
+                    phase(Pct(0.0)).between(160, 39),
+                    phase(Pct(0.0)).between(162, 45),
+                    phase(Pct(0.0)).between(164, 33),
                 ]),
 
             HaloByCrane => self
