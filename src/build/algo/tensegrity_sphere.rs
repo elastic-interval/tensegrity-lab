@@ -3,6 +3,7 @@ use cgmath::{EuclideanSpace, InnerSpace, Point3, Quaternion, Rad, Rotation3, Vec
 use crate::build::algo::sphere::{SphereScaffold, Vertex};
 use crate::fabric::interval::Role;
 use crate::fabric::Fabric;
+use crate::units::Meters;
 
 const TWIST_ANGLE: f32 = 0.52;
 
@@ -16,9 +17,12 @@ impl TensegritySphere {
         let mut scaffold = SphereScaffold::new(frequency);
         scaffold.generate();
         scaffold.set_radius(radius);
+        let mut fabric = Fabric::new(format!("Sphere {frequency}"));
+        // Set scale: 1 internal unit = 1 meter
+        fabric.scale = Meters(1.0);
         TensegritySphere {
             scaffold,
-            fabric: Fabric::new("Sphere".to_string()),
+            fabric,
         }
     }
 }

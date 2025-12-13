@@ -1,4 +1,5 @@
 use crate::fabric::physics::presets::VIEWING;
+use crate::units::Meters;
 use crate::{
     ControlState, CrucibleAction, LabEvent, PhysicsFeature, PhysicsParameter, Radio, StateChange,
     TestScenario, TesterAction, TweakFeature, TweakParameter,
@@ -152,7 +153,7 @@ impl Keyboard {
         self.key_lab_event(
             KeyCode::KeyJ,
             "Jump",
-            Crucible(CrucibleAction::DropFromHeight),
+            Crucible(CrucibleAction::CentralizeFabric(Some(Meters(1.0)))),
             Box::new(|state| matches!(state, PhysicsTesting(_) | Viewing { .. })),
         );
         self.key_lab_event(

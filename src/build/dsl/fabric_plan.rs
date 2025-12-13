@@ -8,7 +8,7 @@ use crate::build::dsl::settle_phase::SettlePhase;
 use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::shape_phase::ShapePhase;
 
-use crate::units::{Millimeters, Percent, Seconds};
+use crate::units::{Meters, Percent, Seconds};
 
 #[derive(Debug, Clone)]
 pub struct FabricPlan {
@@ -19,8 +19,8 @@ pub struct FabricPlan {
     pub fall_phase: FallPhase,
     pub settle_phase: Option<SettlePhase>,
     pub animate_phase: Option<AnimatePhase>,
-    pub scale: f32,
-    pub altitude: Millimeters,
+    pub scale: Meters,
+    pub altitude: Meters,
 }
 
 impl FabricPlan {

@@ -7,7 +7,7 @@ use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, UniqueId};
-use crate::units::{Meters, Millimeters, Percent, Seconds};
+use crate::units::{Meters, Percent, Seconds};
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};
 use std::cmp::Ordering;
 
@@ -56,7 +56,7 @@ pub struct ShapePhase {
     pub joiners: Vec<Joiner>,
     pub anchors: Vec<UniqueId>,
     pub(crate) step_index: usize,
-    pub(crate) scale: Millimeters,
+    pub(crate) scale: Meters,
 }
 
 impl ShapePhase {
@@ -255,7 +255,8 @@ impl ShapePhase {
                 StartProgress(seconds)
             }
             ShapeAction::CentralizeAt { altitude } => {
-                let internal_altitude = altitude.to_millimeters().0 / self.scale.0;
+                // Convert altitude to internal units: altitude / scale (both in meters)
+                let internal_altitude = *altitude / *self.scale;
                 let translation = fabric.centralize_translation(Some(internal_altitude));
                 fabric.apply_translation(translation);
                 StartProgress(seconds)

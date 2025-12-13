@@ -15,7 +15,7 @@ pub enum SurfaceCharacter {
 }
 
 use crate::fabric::Velocity;
-use crate::units::EARTH_GRAVITY_MM_S2;
+use crate::units::{Meters, EARTH_GRAVITY};
 use cgmath::num_traits::zero;
 
 /// Parameters for surface interaction calculation
@@ -26,7 +26,7 @@ pub struct SurfaceInteraction {
     pub drag: f32,
     pub viscosity: f32,
     pub mass: f32,
-    pub scale: f32,
+    pub scale: Meters,
     pub dt: f32,
 }
 
@@ -42,13 +42,14 @@ const STICKY_DOWN_DRAG_FACTOR: f32 = 0.8;
 impl SurfaceCharacter {
     /// Apply surface physics and return the resulting velocity and optional y-position clamp
     pub fn interact(&self, s: SurfaceInteraction) -> SurfaceResult {
-        let gravity = *EARTH_GRAVITY_MM_S2;
+        let gravity = *EARTH_GRAVITY;
+        let scale = *s.scale;
         let mut velocity = s.velocity;
         let mut clamp_y = None;
 
         if s.altitude > SURFACE_TOLERANCE {
             // Above surface - apply gravity and standard physics
-            velocity.y -= gravity * s.dt / s.scale;
+            velocity.y -= gravity * s.dt / scale;
             let speed_squared = velocity.magnitude2();
             velocity += s.force_velocity - velocity * speed_squared * s.viscosity * s.dt;
             velocity *= 1.0 - s.drag * s.dt;
@@ -74,7 +75,7 @@ impl SurfaceCharacter {
                     velocity.z *= friction;
 
                     let antigravity = gravity * s.mass * degree_submerged * 50.0;
-                    velocity.y += (antigravity / s.scale) * s.dt;
+                    velocity.y += (antigravity / scale) * s.dt;
 
                     if velocity.y < 0.0 {
                         velocity.y *= 0.5;
@@ -94,7 +95,7 @@ impl SurfaceCharacter {
                     velocity.z *= 0.6;
 
                     let antigravity = gravity * s.mass * degree_submerged * 5.0;
-                    velocity.y += (antigravity / s.scale) * s.dt;
+                    velocity.y += (antigravity / scale) * s.dt;
                 }
                 SurfaceCharacter::Slippery => {
                     clamp_y = Some(0.0);

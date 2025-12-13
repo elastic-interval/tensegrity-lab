@@ -219,6 +219,7 @@ impl TextState {
                         ..
                     } = fabric_stats;
                     
+                    let scale_mm = scale.to_mm();
                     let text = format!(
                         "Stats at {age}:\n\
                          Joints: {:?}\n\
@@ -230,13 +231,13 @@ impl TextState {
                          → total {:.1}m",
                         joint_count,
                         push_count,
-                        push_range.0 * scale,
-                        push_range.1 * scale,
-                        push_total * scale / 1000.0,
+                        push_range.0 * scale_mm,
+                        push_range.1 * scale_mm,
+                        push_total * scale_mm / 1000.0,
                         pull_count,
-                        pull_range.0 * scale,
-                        pull_range.1 * scale,
-                        pull_total * scale / 1000.0,
+                        pull_range.0 * scale_mm,
+                        pull_range.1 * scale_mm,
+                        pull_total * scale_mm / 1000.0,
                     );
                     Normal(text)
                 }

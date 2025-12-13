@@ -107,7 +107,6 @@ impl FabricBuilder {
     }
 
     pub(crate) fn build_plan(self) -> FabricPlan {
-        let scale_mm = self.scale.to_millimeters();
         FabricPlan {
             name: self.name,
             build_phase: BuildPhase::new(
@@ -121,14 +120,14 @@ impl FabricBuilder {
                 joiners: Vec::new(),
                 anchors: Vec::new(),
                 step_index: 0,
-                scale: scale_mm,
+                scale: self.scale,
             },
             pretense_phase: self.pretense.build(),
             fall_phase: FallPhase { seconds: Seconds(5.0) },
             settle_phase: None,
             animate_phase: None,
-            scale: scale_mm.0,
-            altitude: self.altitude.to_millimeters(),
+            scale: self.scale,
+            altitude: self.altitude,
         }
     }
 }
@@ -421,7 +420,6 @@ impl From<ColumnBuilder> for BuildNode {
 #[derive(Default)]
 pub struct PretensePhaseBuilder {
     surface: Option<SurfaceCharacter>,
-    altitude: Option<Meters>,
     pretenst: Option<Percent>,
     rigidity: Option<Percent>,
     seconds: Option<Seconds>,
@@ -430,11 +428,6 @@ pub struct PretensePhaseBuilder {
 impl PretensePhaseBuilder {
     pub fn surface(mut self, surface: SurfaceCharacter) -> Self {
         self.surface = Some(surface);
-        self
-    }
-
-    pub fn altitude(mut self, altitude: Meters) -> Self {
-        self.altitude = Some(altitude);
         self
     }
 
@@ -454,7 +447,6 @@ impl PretensePhaseBuilder {
             pretenst: self.pretenst,
             seconds: self.seconds,
             rigidity: self.rigidity,
-            altitude: self.altitude.map(|m| m.to_millimeters().0),
         }
     }
 }
@@ -465,11 +457,6 @@ pub struct PretenseChain {
 }
 
 impl PretenseChain {
-    pub fn altitude(mut self, altitude: Meters) -> Self {
-        self.fabric.pretense.altitude = Some(altitude);
-        self
-    }
-
     pub fn pretenst(mut self, pretenst: Percent) -> Self {
         self.fabric.pretense.pretenst = Some(pretenst);
         self

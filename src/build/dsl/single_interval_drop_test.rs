@@ -4,6 +4,7 @@ mod tests {
     use crate::fabric::Fabric;
     use crate::fabric::physics::presets::VIEWING;
     use crate::fabric::material::Material;
+    use crate::units::Meters;
     use cgmath::Point3;
 
     #[test]
@@ -12,11 +13,12 @@ mod tests {
 
         // Create fabric with 2 joints and 1 push interval
         let mut fabric = Fabric::new("test_drop".to_string());
-        fabric.scale = 1000.0; // scale = 1000 mm per internal unit
+        fabric.scale = Meters(1.0); // scale = 1 meter per internal unit
 
         // Create two joints at 5 meters altitude, 1 meter apart horizontally
         let altitude_mm = 5000.0; // 5 meters
-        let altitude_internal = altitude_mm / fabric.scale;
+        let scale_mm = fabric.scale.to_mm();
+        let altitude_internal = altitude_mm / scale_mm;
 
         let joint1_index = fabric.create_joint(Point3::new(0.0, altitude_internal, 0.0));
         let joint2_index = fabric.create_joint(Point3::new(1.0, altitude_internal, 0.0));
@@ -25,7 +27,7 @@ mod tests {
         fabric.create_interval(joint1_index, joint2_index, 1.0, Material::Push.default_role());
 
         eprintln!("Initial setup:");
-        eprintln!("  Scale: {} mm per internal unit", fabric.scale);
+        eprintln!("  Scale: {} mm per internal unit", scale_mm);
         eprintln!("  Altitude: {:.2}m ({:.3} internal units)", altitude_mm / 1000.0, altitude_internal);
         eprintln!("  Surface: Frozen (locks on contact)");
         eprintln!("  Interval: Push, 1 meter length");
@@ -53,10 +55,10 @@ mod tests {
 
             // Calculate average altitude and velocity of the two joints
             let avg_y = (fabric.joints[0].location.y + fabric.joints[1].location.y) / 2.0;
-            let avg_altitude_mm = avg_y * fabric.scale;
+            let avg_altitude_mm = avg_y * scale_mm;
 
             let avg_vel_y = (fabric.joints[0].velocity.y + fabric.joints[1].velocity.y) / 2.0;
-            let velocity_m_s = avg_vel_y * fabric.scale / 1000.0;
+            let velocity_m_s = avg_vel_y * scale_mm / 1000.0;
 
             // Calculate acceleration from velocity change
             let delta_v = velocity_m_s - last_velocity;

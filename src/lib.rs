@@ -2,6 +2,7 @@ use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::FabricPlan;
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::{FabricStats, UniqueId};
+use crate::units::Meters;
 use crate::wgpu::Wgpu;
 use cgmath::Point3;
 use std::cell::RefCell;
@@ -162,6 +163,10 @@ pub enum RunStyle {
         frequency: usize,
         radius: f32,
     },
+    /// Algorithmic Möbius strip
+    Mobius {
+        segments: usize,
+    },
     BakeBricks,
     Seeded(u64),
 }
@@ -252,7 +257,7 @@ pub struct IntervalDetails {
     pub strain: f32,
     pub distance: f32,
     pub role: Role,
-    pub scale: f32,
+    pub scale: Meters,
     pub selected_push: Option<UniqueId>,
 }
 
@@ -288,7 +293,7 @@ impl Display for IntervalDetails {
 
 impl IntervalDetails {
     pub fn length_mm(&self) -> f32 {
-        self.length * self.scale
+        self.length * self.scale.to_mm()
     }
 
     pub fn strain_percent(&self) -> f32 {
@@ -296,7 +301,7 @@ impl IntervalDetails {
     }
 
     pub fn distance_mm(&self) -> f32 {
-        self.distance * self.scale
+        self.distance * self.scale.to_mm()
     }
 
     /// Format a joint index as a string, optionally with a slot number
@@ -335,7 +340,7 @@ impl IntervalDetails {
 pub struct JointDetails {
     pub index: usize,
     pub location: Point3<f32>,
-    pub scale: f32,
+    pub scale: Meters,
     pub selected_push: Option<UniqueId>,
 }
 
@@ -361,12 +366,13 @@ impl Display for JointDetails {
 
 impl JointDetails {
     pub fn location_mm(&self) -> Point3<f32> {
-        self.location.mul(self.scale)
+        self.location.mul(self.scale.to_mm())
     }
 
     pub fn surface_location_mm(&self) -> Option<(f32, f32)> {
         let Point3 { x, y, z } = self.location;
-        (y <= 0.0).then(|| (x * self.scale, z * self.scale))
+        let scale_mm = self.scale.to_mm();
+        (y <= 0.0).then(|| (x * scale_mm, z * scale_mm))
     }
 
     /// Format this joint as a string (e.g., "J1" or "J1:2" with attachment points)
@@ -409,8 +415,7 @@ pub enum CrucibleAction {
     BuildFabric(FabricPlan),
     /// Load a pre-built algorithmic fabric directly (e.g., tensegrity ball)
     LoadAlgoFabric(fabric::Fabric),
-    DropFromHeight,
-    CentralizeFabric(Option<units::Millimeters>),
+    CentralizeFabric(Option<Meters>),
     ClearSelection,
     AdjustAnimationPeriod(f32),
     ToViewing,
