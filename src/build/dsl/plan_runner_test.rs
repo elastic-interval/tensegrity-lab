@@ -25,18 +25,18 @@ mod tests {
         vec![
             Benchmark { age: 0.0, joints: 0, height_mm: 0.0, radius: 0.000, ground: 0 },
             // BUILD phase (fabric age 0-6s)
-            Benchmark { age: 2.0, joints: 176, height_mm: 7621.8, radius: 12.234, ground: 0 },
-            Benchmark { age: 4.0, joints: 176, height_mm: 12080.6, radius: 8.830, ground: 0 },
-            Benchmark { age: 6.0, joints: 176, height_mm: 9691.0, radius: 6.250, ground: 0 },
-            // PRETENSE phase (fabric age ~6-7s) - joints drop from 176 to 168
-            Benchmark { age: 8.0, joints: 168, height_mm: 9373.7, radius: 6.675, ground: 3 },
+            Benchmark { age: 2.0, joints: 176, height_mm: 7621.7, radius: 12.234, ground: 0 },
+            Benchmark { age: 4.0, joints: 176, height_mm: 12080.5, radius: 8.830, ground: 0 },
+            Benchmark { age: 6.0, joints: 176, height_mm: 9690.9, radius: 6.250, ground: 0 },
+            // PRETENSE phase (fabric age ~6-7s) - joints drop from 176 to 172 (4 radial faces keep midpoints)
+            Benchmark { age: 8.0, joints: 172, height_mm: 9375.3, radius: 6.674, ground: 3 },
             // FALL phase (fabric age ~7-10s)
-            Benchmark { age: 10.0, joints: 168, height_mm: 9532.2, radius: 6.675, ground: 3 },
-            Benchmark { age: 12.0, joints: 168, height_mm: 9569.2, radius: 6.661, ground: 3 },
-            Benchmark { age: 14.0, joints: 168, height_mm: 9581.9, radius: 6.661, ground: 3 },
-            Benchmark { age: 16.0, joints: 168, height_mm: 9587.7, radius: 6.662, ground: 3 },
+            Benchmark { age: 10.0, joints: 172, height_mm: 9514.1, radius: 6.676, ground: 3 },
+            Benchmark { age: 12.0, joints: 172, height_mm: 9570.6, radius: 6.660, ground: 3 },
+            Benchmark { age: 14.0, joints: 172, height_mm: 9584.6, radius: 6.661, ground: 3 },
+            Benchmark { age: 16.0, joints: 172, height_mm: 9589.0, radius: 6.662, ground: 3 },
             // SETTLE phase (fabric age ~13-16s)
-            Benchmark { age: 19.0, joints: 168, height_mm: 9583.9, radius: 6.662, ground: 3 },
+            Benchmark { age: 19.0, joints: 172, height_mm: 9585.2, radius: 6.661, ground: 3 },
         ]
     }
 

@@ -27,7 +27,7 @@ impl Fabric {
                 scale,
                 spin,
                 radial_intervals,
-                has_prism: false,
+                ending: FaceEnding::default(),
             },
         );
         id
@@ -42,10 +42,23 @@ impl Fabric {
     pub fn remove_face(&mut self, id: UniqueId) {
         let face = self.face(id);
         let middle_joint = face.middle_joint(self);
-        for interval_id in face.radial_intervals {
-            self.remove_interval(interval_id);
+        let is_radial = face.ending == FaceEnding::Radial;
+        let radial_intervals = face.radial_intervals;
+
+        if is_radial {
+            // For radial faces, convert radials to Pulling instead of removing
+            for interval_id in radial_intervals {
+                if let Some(interval) = self.intervals[interval_id.0].as_mut() {
+                    interval.role = Role::Pulling;
+                }
+            }
+        } else {
+            // Normal face removal: delete radials
+            for interval_id in radial_intervals {
+                self.remove_interval(interval_id);
+            }
+            self.remove_joint(middle_joint);
         }
-        self.remove_joint(middle_joint);
         self.faces.remove(&id);
     }
 
@@ -121,7 +134,15 @@ impl Fabric {
         }
         // Mark the face as having a prism
         if let Some(face) = self.faces.get_mut(&face_id) {
-            face.has_prism = true;
+            face.ending = FaceEnding::Prism;
+        }
+    }
+
+    /// Mark a face as radial (radials only, no triangle or prism)
+    /// The radial intervals will be converted from FaceRadial to Pulling when removed
+    pub fn set_face_radial(&mut self, face_id: UniqueId) {
+        if let Some(face) = self.faces.get_mut(&face_id) {
+            face.ending = FaceEnding::Radial;
         }
     }
 }
@@ -144,13 +165,25 @@ impl From<&usize> for FaceRotation {
     }
 }
 
+/// How a face should be treated when transitioning from build to pretensing phase
+#[derive(Clone, Debug, Default, PartialEq)]
+pub enum FaceEnding {
+    /// Default: add triangle cables between the radial joints
+    #[default]
+    Triangle,
+    /// Add a prism (push strut with cables to radials)
+    Prism,
+    /// Keep only the radials (converted to Pulling), no triangle or prism
+    Radial,
+}
+
 #[derive(Clone, Debug)]
 pub struct Face {
     pub aliases: Vec<FaceAlias>,
     pub scale: f32,
     pub spin: Spin,
     pub radial_intervals: [UniqueId; 3],
-    pub has_prism: bool,
+    pub ending: FaceEnding,
 }
 
 impl Face {
