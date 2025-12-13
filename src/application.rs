@@ -538,9 +538,9 @@ impl ApplicationHandler<LabEvent> for Application {
             .as_mut()
             .map(|scene| scene.animate(&self.crucible.fabric))
             .unwrap_or(false);
-        let animate = matches!(
+        let animate = !matches!(
             self.control_state,
-            ControlState::Viewing { .. } | ControlState::PhysicsTesting(_)
+            ControlState::Waiting | ControlState::Baking
         ) || camera_animating;
 
         // Limit updates per frame

@@ -94,7 +94,7 @@ impl Keyboard {
             KeyCode::KeyA,
             "Stop animation",
             Crucible(ToViewing),
-            Box::new(|state| matches!(state, Animating)),
+            Box::new(|state| matches!(state, Animating | ShowingJoint(_) | ShowingInterval(_))),
         );
         self.key_lab_event(
             KeyCode::KeyA,
