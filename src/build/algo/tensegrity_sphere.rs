@@ -46,7 +46,7 @@ struct Spoke {
     length: f32,
 }
 
-pub fn generate_ball(frequency: usize, radius: f32) -> Fabric {
+pub fn generate_sphere(frequency: usize, radius: f32) -> Fabric {
     use Cell::*;
     let mut ts = TensegritySphere::new(frequency, radius);
     let locations = ts.scaffold.locations();
@@ -170,4 +170,73 @@ pub fn generate_ball(frequency: usize, radius: f32) -> Fabric {
         }
     }
     ts.fabric
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fabric::interval::Role;
+
+    #[test]
+    fn test_generate_sphere_frequency_1() {
+        let fabric = generate_sphere(1, 10.0);
+
+        // Frequency 1 icosahedron: 12 vertices, 30 edges
+        // Each edge becomes a strut with 2 joints
+        assert!(!fabric.joints.is_empty(), "Should have joints");
+        assert!(fabric.interval_count > 0, "Should have intervals");
+
+        let push_count = fabric.intervals.iter()
+            .filter_map(|i| i.as_ref())
+            .filter(|i| i.role == Role::Pushing)
+            .count();
+        let pull_count = fabric.intervals.iter()
+            .filter_map(|i| i.as_ref())
+            .filter(|i| i.role == Role::Pulling)
+            .count();
+
+        assert_eq!(push_count, 30, "Frequency 1 should have 30 struts (icosahedron edges)");
+        assert!(pull_count > 0, "Should have pulling cables");
+
+        println!("Frequency 1 sphere: {} joints, {} struts, {} cables",
+            fabric.joints.len(), push_count, pull_count);
+    }
+
+    #[test]
+    fn test_generate_sphere_frequency_2() {
+        let fabric = generate_sphere(2, 10.0);
+
+        assert!(!fabric.joints.is_empty(), "Should have joints");
+        assert!(fabric.interval_count > 0, "Should have intervals");
+
+        let push_count = fabric.intervals.iter()
+            .filter_map(|i| i.as_ref())
+            .filter(|i| i.role == Role::Pushing)
+            .count();
+        let pull_count = fabric.intervals.iter()
+            .filter_map(|i| i.as_ref())
+            .filter(|i| i.role == Role::Pulling)
+            .count();
+
+        println!("Frequency 2 sphere: {} joints, {} struts, {} cables",
+            fabric.joints.len(), push_count, pull_count);
+
+        // Frequency 2 should have more elements than frequency 1
+        assert!(push_count > 30, "Frequency 2 should have more struts than frequency 1");
+    }
+
+    #[test]
+    fn test_generate_sphere_creates_valid_intervals() {
+        let fabric = generate_sphere(1, 10.0);
+
+        // All intervals should reference valid joints
+        let joint_count = fabric.joints.len();
+        for interval in fabric.intervals.iter().filter_map(|i| i.as_ref()) {
+            assert!(interval.alpha_index < joint_count,
+                "Alpha joint {} should be < {}", interval.alpha_index, joint_count);
+            assert!(interval.omega_index < joint_count,
+                "Omega joint {} should be < {}", interval.omega_index, joint_count);
+            assert!(interval.ideal() > 0.0, "Interval should have positive ideal length");
+        }
+    }
 }

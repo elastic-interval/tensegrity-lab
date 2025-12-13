@@ -157,6 +157,11 @@ pub enum RunStyle {
         /// FPS for animation export (default 100)
         export_fps: f64,
     },
+    /// Algorithmic tensegrity sphere (geodesic)
+    Sphere {
+        frequency: usize,
+        radius: f32,
+    },
     BakeBricks,
     Seeded(u64),
 }
@@ -402,6 +407,8 @@ pub enum CrucibleAction {
     StartBaking,
     CycleBrick,
     BuildFabric(FabricPlan),
+    /// Load a pre-built algorithmic fabric directly (e.g., tensegrity ball)
+    LoadAlgoFabric(fabric::Fabric),
     DropFromHeight,
     CentralizeFabric(Option<units::Millimeters>),
     ClearSelection,

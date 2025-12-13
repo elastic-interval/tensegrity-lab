@@ -1,3 +1,4 @@
+use crate::build::algo::tensegrity_sphere::generate_sphere;
 use crate::build::dsl::fabric_library;
 use crate::crucible::Crucible;
 use crate::keyboard::Keyboard;
@@ -224,6 +225,10 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                     RunStyle::Seeded(seed) => {
                         self.crucible.action(CrucibleAction::ToEvolving(*seed));
+                    }
+                    RunStyle::Sphere { frequency, radius } => {
+                        let fabric = generate_sphere(*frequency, *radius);
+                        self.crucible.action(CrucibleAction::LoadAlgoFabric(fabric));
                     }
                 };
             }
