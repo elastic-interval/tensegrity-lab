@@ -18,8 +18,10 @@ static TORQUE_PROTO: OnceLock<BrickPrototype> = OnceLock::new();
 
 pub fn get_prototype(brick_name: BrickName) -> BrickPrototype {
     match brick_name {
-        // SingleTwistRight uses the same prototype - baked brick is derived via mirror()
-        BrickName::SingleTwistLeft | BrickName::SingleTwistRight => SINGLE_LEFT_PROTO
+        BrickName::SingleTwistRight => {
+            panic!("SingleTwistRight is derived via mirror() - use SingleTwistLeft prototype")
+        }
+        BrickName::SingleTwistLeft => SINGLE_LEFT_PROTO
             .get_or_init(|| single_left(&SingleParams {
                 push_lengths: Vector3::new(3.204, 3.204, 3.204),
                 pull_length: 2.0,

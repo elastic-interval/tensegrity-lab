@@ -65,6 +65,12 @@ impl BrickName {
             BrickName::OmniSymmetrical | BrickName::OmniTetrahedral | BrickName::TorqueSymmetrical
         )
     }
+
+    /// Returns true if this brick is derived from another via mirror().
+    /// These bricks don't have their own prototype - use the canonical variant instead.
+    pub fn is_mirror_derived(&self) -> bool {
+        matches!(self, BrickName::SingleTwistRight)
+    }
 }
 
 /// Context in which a brick face is being used
