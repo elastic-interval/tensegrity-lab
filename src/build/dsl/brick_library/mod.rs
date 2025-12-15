@@ -44,7 +44,15 @@ pub fn get_scale(brick_name: BrickName) -> f32 {
 }
 
 pub fn get_brick(brick_name: BrickName, brick_role: BrickRole) -> BakedBrick {
-    let mut baked = baked_bricks::get_baked_brick(brick_name);
+    // For OnSpinRight on role-mirrored bricks, mirror the OnSpinLeft version.
+    // Single bricks handle chirality via separate Left/Right name variants.
+    let needs_mirror =
+        brick_role == BrickRole::OnSpinRight && brick_name.mirrors_for_role();
+    let mut baked = if needs_mirror {
+        baked_bricks::get_baked_brick(brick_name).mirror()
+    } else {
+        baked_bricks::get_baked_brick(brick_name)
+    };
     for face in &mut baked.faces {
         face.aliases.retain(|alias| alias.brick_role == brick_role);
     }

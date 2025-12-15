@@ -2,7 +2,8 @@ use crate::build::dsl::brick::BrickPrototype;
 use crate::build::dsl::brick_dsl::*;
 use crate::build::dsl::{ScaleMode, Spin};
 
-/// Build the Omni brick prototype
+/// Build the Omni brick prototype (left-handed).
+/// The right-handed baked brick is derived via BakedBrick::mirror().
 pub fn omni(params: &OmniParams) -> BrickPrototype {
     use BrickName::*;
     use BrickRole::*;
@@ -12,7 +13,7 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
 
     proto_scaled(
         OmniSymmetrical,
-        [OnSpinLeft, OnSpinRight, Seed(4), Seed(1)],
+        [OnSpinLeft, Seed(4), Seed(1)],
         [Tetrahedral],
     )
     .pushes_x(
@@ -32,7 +33,6 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         [TopOmegaX, TopOmegaY, TopOmegaZ],
         [
             OnSpinLeft.calls_it(Attach(Spin::Right)),
-            OnSpinRight.calls_it(OmniTop),
             Seed(4).calls_it(RightFrontTop),
             Seed(1).calls_it(OmniTop),
         ],
@@ -43,7 +43,6 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         [TopOmegaX, TopAlphaY, BotOmegaZ],
         [
             OnSpinLeft.calls_it(OmniBotX),
-            OnSpinRight.calls_it(OmniBotX),
             Seed(4).calls_it(RightFrontBottom),
             Seed(4).downwards(),
             Seed(1).calls_it(OmniTopX),
@@ -55,7 +54,6 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         [TopOmegaY, TopAlphaZ, BotOmegaX],
         [
             OnSpinLeft.calls_it(OmniBotY),
-            OnSpinRight.calls_it(OmniBotY),
             Seed(4).calls_it(RightBackTop),
             Seed(1).calls_it(OmniTopY),
         ],
@@ -66,7 +64,6 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         [TopOmegaZ, TopAlphaX, BotOmegaY],
         [
             OnSpinLeft.calls_it(OmniBotZ),
-            OnSpinRight.calls_it(OmniBotZ),
             Seed(4).calls_it(LeftFrontTop),
             Seed(1).calls_it(OmniTopZ),
         ],
@@ -77,7 +74,6 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         [BotAlphaZ, BotOmegaX, TopAlphaY],
         [
             OnSpinLeft.calls_it(OmniTopZ),
-            OnSpinRight.calls_it(OmniTopZ),
             Seed(4).calls_it(RightBackBottom),
             Seed(4).downwards(),
             Seed(1).calls_it(OmniBotZ),
@@ -89,7 +85,6 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         [BotAlphaY, BotOmegaZ, TopAlphaX],
         [
             OnSpinLeft.calls_it(OmniTopY),
-            OnSpinRight.calls_it(OmniTopY),
             Seed(4).calls_it(LeftFrontBottom),
             Seed(4).downwards(),
             Seed(1).calls_it(OmniBotY),
@@ -101,7 +96,6 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         [BotAlphaX, BotOmegaY, TopAlphaZ],
         [
             OnSpinLeft.calls_it(OmniTopX),
-            OnSpinRight.calls_it(OmniTopX),
             Seed(4).calls_it(LeftBackTop),
             Seed(1).calls_it(OmniBotX),
         ],
@@ -112,7 +106,6 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         [BotAlphaX, BotAlphaY, BotAlphaZ],
         [
             OnSpinLeft.calls_it(OmniBot),
-            OnSpinRight.calls_it(Attach(Spin::Left)),
             Seed(4).calls_it(LeftBackBottom),
             Seed(4).downwards(),
             Seed(1).calls_it(OmniBot),
