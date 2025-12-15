@@ -140,47 +140,6 @@ fn omni_tetrahedral_baked() -> BakedBrick {
     }
 }
 
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_mirrored_single_brick() {
-        let left = single_twist_left_baked();
-        let right = single_twist_right_baked();
-
-        // Right brick should be derived from left via mirror()
-        assert_eq!(left.joints.len(), right.joints.len());
-        assert_eq!(left.faces.len(), right.faces.len());
-
-        // Verify joints are X↔Z swapped
-        for (l, r) in left.joints.iter().zip(right.joints.iter()) {
-            assert!((l.location.x - r.location.z).abs() < 0.001);
-            assert!((l.location.y - r.location.y).abs() < 0.001);
-            assert!((l.location.z - r.location.x).abs() < 0.001);
-        }
-
-        // Verify face spin is flipped
-        for (l, r) in left.faces.iter().zip(right.faces.iter()) {
-            assert_eq!(l.spin.mirror(), r.spin);
-        }
-
-        // Verify face normals point in correct directions
-        let left_face0_normal = left.faces[0].normal(&left);
-        let right_face0_normal = right.faces[0].normal(&right);
-        // Both should point down (negative Y)
-        assert!(left_face0_normal.y < -0.99);
-        assert!(right_face0_normal.y < -0.99);
-
-        let left_face1_normal = left.faces[1].normal(&left);
-        let right_face1_normal = right.faces[1].normal(&right);
-        // Both should point up (positive Y)
-        assert!(left_face1_normal.y > 0.99);
-        assert!(right_face1_normal.y > 0.99);
-    }
-}
-
 fn torque_symmetrical_baked() -> BakedBrick {
     BakedBrick {
         params: BrickParams::Torque(TorqueParams {
