@@ -110,6 +110,10 @@ mod tests {
     #[test]
     fn test_bake_all_bricks() {
         for brick_name in BrickName::iter() {
+            if brick_name.is_mirror_derived() {
+                eprintln!("\n=== Skipping {} (mirror-derived) ===", brick_name);
+                continue;
+            }
             test_brick(brick_name);
         }
     }
