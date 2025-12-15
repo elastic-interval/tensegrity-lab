@@ -65,6 +65,16 @@ pub struct FaceAlias {
     pub face_name: FaceName,
 }
 
+impl FaceAlias {
+    /// Mirror this alias (swap OnSpinLeft↔OnSpinRight and spin in Attach)
+    pub fn mirror(&self) -> FaceAlias {
+        FaceAlias {
+            brick_role: self.brick_role.mirror(),
+            face_name: self.face_name.mirror(),
+        }
+    }
+}
+
 impl Display for FaceAlias {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:{}", self.brick_role, self.face_name)
@@ -79,7 +89,7 @@ pub enum Spin {
 }
 
 impl Spin {
-    pub fn opposite(self) -> Spin {
+    pub fn mirror(self) -> Spin {
         match self {
             Spin::Left => Spin::Right,
             Spin::Right => Spin::Left,

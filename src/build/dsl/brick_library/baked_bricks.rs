@@ -72,30 +72,7 @@ fn single_twist_left_baked() -> BakedBrick {
 }
 
 fn single_twist_right_baked() -> BakedBrick {
-    BakedBrick {
-        params: BrickParams::SingleRight(SingleParams {
-            push_lengths: Vector3::new(3.204, 3.204, 3.204),
-            pull_length: 2.0,
-        }),
-        scale: 0.91040,
-        joints: vec![
-            joint(-0.95706, 0.00000, 0.54951),
-            joint(1.10204, 1.93226, 0.00221),
-            joint(0.95248, 0.00002, 0.55669),
-            joint(-0.54939, 1.93259, -0.95708),
-            joint(0.00236, 0.00025, -1.10145),
-            joint(-0.55261, 1.93285, 0.95255),
-        ],
-        intervals: vec![
-            push(0, 1, -0.01693),
-            push(2, 3, -0.01640),
-            push(4, 5, -0.01760),
-            pull(0, 5, 0.10461),
-            pull(2, 1, 0.10448),
-            pull(4, 3, 0.10395),
-        ],
-        faces: baked_faces(BrickName::SingleTwistRight),
-    }
+    single_twist_left_baked().mirror()
 }
 
 fn omni_symmetrical_baked() -> BakedBrick {
@@ -160,6 +137,47 @@ fn omni_tetrahedral_baked() -> BakedBrick {
             push(10, 11, -0.01406),
         ],
         faces: baked_faces(BrickName::OmniTetrahedral),
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mirrored_single_brick() {
+        let left = single_twist_left_baked();
+        let right = single_twist_right_baked();
+
+        // Right brick should be derived from left via mirror()
+        assert_eq!(left.joints.len(), right.joints.len());
+        assert_eq!(left.faces.len(), right.faces.len());
+
+        // Verify joints are X↔Z swapped
+        for (l, r) in left.joints.iter().zip(right.joints.iter()) {
+            assert!((l.location.x - r.location.z).abs() < 0.001);
+            assert!((l.location.y - r.location.y).abs() < 0.001);
+            assert!((l.location.z - r.location.x).abs() < 0.001);
+        }
+
+        // Verify face spin is flipped
+        for (l, r) in left.faces.iter().zip(right.faces.iter()) {
+            assert_eq!(l.spin.mirror(), r.spin);
+        }
+
+        // Verify face normals point in correct directions
+        let left_face0_normal = left.faces[0].normal(&left);
+        let right_face0_normal = right.faces[0].normal(&right);
+        // Both should point down (negative Y)
+        assert!(left_face0_normal.y < -0.99);
+        assert!(right_face0_normal.y < -0.99);
+
+        let left_face1_normal = left.faces[1].normal(&left);
+        let right_face1_normal = right.faces[1].normal(&right);
+        // Both should point up (positive Y)
+        assert!(left_face1_normal.y > 0.99);
+        assert!(right_face1_normal.y > 0.99);
     }
 }
 

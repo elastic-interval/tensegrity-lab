@@ -175,7 +175,7 @@ impl BuildPhase {
         if let Some(style) = column_style.filter(|s| s.count > 0) {
             let face = fabric.expect_face(face_id);
             let spin = if style.is_alternating() {
-                face.spin.opposite()
+                face.spin.mirror()
             } else {
                 face.spin
             };
