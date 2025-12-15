@@ -55,6 +55,16 @@ impl BrickName {
             _ => ScaleMode::None,
         }
     }
+
+    /// Returns true if chirality is determined by BrickRole (OnSpinLeft/OnSpinRight).
+    /// These bricks are defined once (left-handed) and mirrored at runtime for OnSpinRight.
+    /// Returns false if chirality is encoded in the BrickName itself (e.g., SingleTwistLeft/Right).
+    pub fn mirrors_for_role(&self) -> bool {
+        matches!(
+            self,
+            BrickName::OmniSymmetrical | BrickName::OmniTetrahedral | BrickName::TorqueSymmetrical
+        )
+    }
 }
 
 /// Context in which a brick face is being used

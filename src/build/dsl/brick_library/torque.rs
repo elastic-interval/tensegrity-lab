@@ -2,14 +2,15 @@ use crate::build::dsl::brick::BrickPrototype;
 use crate::build::dsl::brick_dsl::*;
 use crate::build::dsl::Spin;
 
-/// Build the Torque brick prototype
+/// Build the Torque brick prototype (left-handed).
+/// The right-handed baked brick is derived via BakedBrick::mirror().
 pub fn torque(params: &TorqueParams) -> BrickPrototype {
     use BrickName::*;
     use BrickRole::*;
     use FaceName::*;
     use JointName::*;
 
-    proto(TorqueSymmetrical, [OnSpinLeft, OnSpinRight, Seed(4)])
+    proto(TorqueSymmetrical, [OnSpinLeft, Seed(4)])
         .pushes_x(
             params.push_lengths.x,
             [
@@ -46,7 +47,6 @@ pub fn torque(params: &TorqueParams) -> BrickPrototype {
             [BottomLeft, LeftFront, FrontLeftBottom],
             [
                 OnSpinLeft.calls_it(Far),
-                OnSpinRight.calls_it(Attach(Spin::Left)),
                 Seed(4).calls_it(LeftFrontBottom),
                 Seed(4).downwards(),
             ],
@@ -57,7 +57,6 @@ pub fn torque(params: &TorqueParams) -> BrickPrototype {
             [BottomLeft, LeftBack, BackLeftBottom],
             [
                 OnSpinLeft.calls_it(FarC),
-                OnSpinRight.calls_it(NearC),
                 Seed(4).calls_it(LeftBackBottom),
                 Seed(4).downwards(),
             ],
@@ -68,7 +67,6 @@ pub fn torque(params: &TorqueParams) -> BrickPrototype {
             [BottomRight, RightBack, BackRightBottom],
             [
                 OnSpinLeft.calls_it(NearC),
-                OnSpinRight.calls_it(FarC),
                 Seed(4).calls_it(RightBackBottom),
                 Seed(4).downwards(),
             ],
@@ -78,7 +76,7 @@ pub fn torque(params: &TorqueParams) -> BrickPrototype {
             Spin::Right,
             [BottomRight, RightFront, FrontRightBottom],
             [
-                OnSpinRight.calls_it(FarA),
+                OnSpinLeft.calls_it(FarA),
                 Seed(4).calls_it(RightFrontBottom),
                 Seed(4).downwards(),
             ],
@@ -89,7 +87,6 @@ pub fn torque(params: &TorqueParams) -> BrickPrototype {
             [TopLeft, LeftBack, BackLeftTop],
             [
                 OnSpinLeft.calls_it(NearA),
-                OnSpinRight.calls_it(FarA),
                 Seed(4).calls_it(LeftBackTop),
             ],
             [],
@@ -99,7 +96,6 @@ pub fn torque(params: &TorqueParams) -> BrickPrototype {
             [TopLeft, LeftFront, FrontLeftTop],
             [
                 OnSpinLeft.calls_it(NearB),
-                OnSpinRight.calls_it(FarB),
                 Seed(4).calls_it(LeftFrontTop),
             ],
             [],
@@ -108,8 +104,7 @@ pub fn torque(params: &TorqueParams) -> BrickPrototype {
             Spin::Left,
             [TopRight, RightFront, FrontRightTop],
             [
-                OnSpinLeft.calls_it(FarC),
-                OnSpinRight.calls_it(NearC),
+                OnSpinLeft.calls_it(FarB),
                 Seed(4).calls_it(RightFrontTop),
             ],
             [],
@@ -119,7 +114,6 @@ pub fn torque(params: &TorqueParams) -> BrickPrototype {
             [TopRight, RightBack, BackRightTop],
             [
                 OnSpinLeft.calls_it(Attach(Spin::Right)),
-                OnSpinRight.calls_it(Far),
                 Seed(4).calls_it(RightBackTop),
             ],
             [],
