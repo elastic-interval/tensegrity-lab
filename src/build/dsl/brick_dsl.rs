@@ -83,6 +83,15 @@ impl BrickRole {
             face_name: Downwards(downwards_count),
         }
     }
+
+    /// Mirror this role (swap OnSpinLeft ↔ OnSpinRight, Seed stays same)
+    pub fn mirror(self) -> BrickRole {
+        match self {
+            BrickRole::OnSpinLeft => BrickRole::OnSpinRight,
+            BrickRole::OnSpinRight => BrickRole::OnSpinLeft,
+            BrickRole::Seed(n) => BrickRole::Seed(n),
+        }
+    }
 }
 
 /// Mark names used in fabric definitions
@@ -201,6 +210,16 @@ pub enum FaceName {
     FarB,
     FarC,
     Far,
+}
+
+impl FaceName {
+    /// Mirror this face name (swap Spin in Attach, others stay same)
+    pub fn mirror(self) -> FaceName {
+        match self {
+            FaceName::Attach(spin) => FaceName::Attach(spin.mirror()),
+            _ => self,
+        }
+    }
 }
 
 pub struct ProtoBuilder {

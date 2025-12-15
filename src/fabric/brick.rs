@@ -30,7 +30,7 @@ impl Fabric {
             BaseFace::ExistingFace(id) => {
                 let face = self.face(id);
                 let matrix = face.vector_space(self, rotation);
-                let spin = Some(face.spin.opposite());
+                let spin = Some(face.spin.mirror());
                 (face.scale * scale_factor, spin, matrix)
             }
             BaseFace::Situated { spin, vector_space } => (scale_factor, Some(spin), vector_space),

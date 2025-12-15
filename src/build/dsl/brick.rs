@@ -270,6 +270,33 @@ pub struct BakedBrick {
 }
 
 impl BakedBrick {
+    /// Create a mirrored version of this brick by swapping X↔Z coordinates,
+    /// flipping the spin of all faces, and mirroring face aliases.
+    /// This produces a brick with opposite chirality.
+    pub fn mirror(&self) -> BakedBrick {
+        BakedBrick {
+            params: self.params.clone(),
+            scale: self.scale,
+            joints: self
+                .joints
+                .iter()
+                .map(|j| BakedJoint {
+                    location: Point3::new(j.location.z, j.location.y, j.location.x),
+                })
+                .collect(),
+            intervals: self.intervals.clone(),
+            faces: self
+                .faces
+                .iter()
+                .map(|f| BrickFace {
+                    spin: f.spin.mirror(),
+                    aliases: f.aliases.iter().map(|a| a.mirror()).collect(),
+                    ..f.clone()
+                })
+                .collect(),
+        }
+    }
+
     pub fn apply_matrix(&mut self, matrix: Matrix4<f32>) {
         for joint in &mut self.joints {
             joint.location = matrix.transform_point(joint.location)
