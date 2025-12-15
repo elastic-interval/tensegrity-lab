@@ -2,7 +2,8 @@ use crate::build::dsl::brick::BrickPrototype;
 use crate::build::dsl::brick_dsl::*;
 use crate::build::dsl::Spin;
 
-/// Build the Single-left brick prototype
+/// Build the Single brick prototype (left-handed).
+/// The right-handed baked brick is derived via BakedBrick::mirror().
 pub fn single_left(params: &SingleParams) -> BrickPrototype {
     use BrickName::*;
     use BrickRole::*;
