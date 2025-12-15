@@ -1,11 +1,9 @@
-mod single_right;
-mod single_left;
+mod single;
 mod omni;
 mod torque;
 pub mod baked_bricks;
 
-pub use single_right::single_right;
-pub use single_left::single_left;
+pub use single::single_left;
 pub use omni::omni;
 pub use torque::torque;
 
@@ -14,21 +12,15 @@ use crate::build::dsl::brick_dsl::*;
 use cgmath::{SquareMatrix, Vector3};
 use std::sync::OnceLock;
 
-static SINGLE_RIGHT_PROTO: OnceLock<BrickPrototype> = OnceLock::new();
 static SINGLE_LEFT_PROTO: OnceLock<BrickPrototype> = OnceLock::new();
 static OMNI_PROTO: OnceLock<BrickPrototype> = OnceLock::new();
 static TORQUE_PROTO: OnceLock<BrickPrototype> = OnceLock::new();
 
 pub fn get_prototype(brick_name: BrickName) -> BrickPrototype {
     match brick_name {
-        BrickName::SingleTwistLeft => SINGLE_LEFT_PROTO
+        // SingleTwistRight uses the same prototype - baked brick is derived via mirror()
+        BrickName::SingleTwistLeft | BrickName::SingleTwistRight => SINGLE_LEFT_PROTO
             .get_or_init(|| single_left(&SingleParams {
-                push_lengths: Vector3::new(3.204, 3.204, 3.204),
-                pull_length: 2.0,
-            }))
-            .clone(),
-        BrickName::SingleTwistRight => SINGLE_RIGHT_PROTO
-            .get_or_init(|| single_right(&SingleParams {
                 push_lengths: Vector3::new(3.204, 3.204, 3.204),
                 pull_length: 2.0,
             }))
