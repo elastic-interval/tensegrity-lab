@@ -70,9 +70,9 @@ impl FabricName {
                 .stiffness(Pct(20.0))
                 .sine()
                 .actuators(&[
-                    phase(Pct(0.0)).between(160, 39),
-                    phase(Pct(0.0)).between(162, 45),
-                    phase(Pct(0.0)).between(164, 33),
+                    phase(Pct(0.0)).between(160, 43),
+                    phase(Pct(0.0)).between(162, 49),
+                    phase(Pct(0.0)).between(164, 37),
                 ]),
 
             HaloByCrane => self
