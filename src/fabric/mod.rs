@@ -177,8 +177,8 @@ impl Fabric {
     }
 
     pub fn ambient_mass(&self) -> Grams {
-        // Mass scales with scale⁴: volume (scale³) + material compensation for gravity
-        Grams(*AMBIENT_MASS * self.scale.powi(4))
+        // Mass scales with scale^3.5: volume (scale³) plus slight reduction for small structures
+        Grams(*AMBIENT_MASS * self.scale.powf(3.5))
     }
 
     pub fn apply_matrix4(&mut self, matrix: Matrix4<f32>) {
@@ -232,7 +232,7 @@ impl Fabric {
     pub fn apply_scale(&mut self, scale: Meters) {
         let s = *scale;
         self.scale = s;
-        let mass_scale = s.powi(4); // scale⁴: volume + material compensation
+        let mass_scale = s.powf(3.5); // scale^3.5: volume plus slight reduction for small structures
         // Scale all joint positions, velocities, and mass
         for joint in self.joints.iter_mut() {
             joint.location.x *= s;
