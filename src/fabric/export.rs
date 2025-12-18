@@ -6,6 +6,7 @@ use zip::{write::FileOptions, CompressionMethod, ZipWriter};
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::Joint;
 use crate::fabric::Fabric;
+use crate::units::MM_PER_METER;
 
 impl Fabric {
     /// Generate a ZIP file containing three CSV files with fabric data
@@ -19,25 +20,23 @@ impl Fabric {
 
         // Create info file
         zip.start_file("info.txt".to_string(), options)?;
-        let scale_mm = self.scale.to_mm();
         let height_mm = self
             .joints
             .iter()
             .fold(0.0f32, |h, joint| h.max(joint.location.y))
-            * scale_mm;
+            * MM_PER_METER;
         let now = chrono::Local::now()
             .format("%Y-%m-%d %H-%M")
             .to_string();
         writeln!(zip, "Name: {}", self.name)?;
         writeln!(zip, "Created: {now}")?;
         writeln!(zip, "Height: {height_mm:.1} mm")?;
-        writeln!(zip, "Scale: {scale_mm:.1} mm/unit")?;
 
         // Create joints CSV
         zip.start_file("joints.csv".to_string(), options)?;
         writeln!(zip, "Index;X;Y;Z")?;
         for (index, Joint { location, .. }) in self.joints.iter().enumerate() {
-            let Point3 { x, y, z } = location * scale_mm;
+            let Point3 { x, y, z } = location * MM_PER_METER;
             writeln!(zip, "{};{x:.2};{z:.2};{y:.2}", index + 1)?;
         }
 
@@ -82,8 +81,8 @@ impl Fabric {
         output.push_str("    upAxis = \"Y\"\n");
         output.push_str(")\n\n");
 
-        // Scale is now in Meters, use directly
-        let export_scale = *self.scale;
+        // Coordinates are already in meters
+        let export_scale = 1.0;
 
         // Export camera if provided
         if let (Some(pos), Some(target)) = (camera_pos, camera_target) {

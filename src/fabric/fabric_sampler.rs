@@ -12,6 +12,7 @@
 
 use cgmath::{MetricSpace, Point3};
 use crate::fabric::Fabric;
+use crate::units::MM_PER_METER;
 use crate::Age;
 
 /// Number of samples to collect before analysis
@@ -181,7 +182,6 @@ impl FabricSampler {
             return None;
         }
 
-        let scale = fabric.scale;
         let mut joint_analyses = Vec::with_capacity(self.joint_count);
         let mut frozen_count = 0;
         let mut stable_count = 0;
@@ -196,9 +196,9 @@ impl FabricSampler {
         // Calculate total mass (convert from grams to kg)
         let total_mass_kg = fabric.calculate_total_mass(physics).0 / 1000.0;
 
-        // Analyze each joint
+        // Analyze each joint (coordinates are in meters)
         for joint_idx in 0..self.joint_count {
-            let analysis = self.analyze_joint(joint_idx, scale.to_mm());
+            let analysis = self.analyze_joint(joint_idx, MM_PER_METER);
 
             match analysis.movement_type {
                 MovementType::Frozen => frozen_count += 1,

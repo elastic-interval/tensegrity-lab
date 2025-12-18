@@ -62,7 +62,6 @@ impl PlanRunner {
             let (next_stage, seconds) = match self.stage {
                 Initialize => {
                     self.build_phase.init(context.fabric);
-                    context.fabric.scale = self.get_scale();
                     (BuildApproach, MOMENT)
                 }
                 BuildStep => {
@@ -105,7 +104,6 @@ impl PlanRunner {
             let (next_stage, seconds) = match self.stage {
                 Initialize => {
                     self.build_phase.init(context.fabric);
-                    context.fabric.scale = self.get_scale();
                     (BuildApproach, MOMENT)
                 }
                 BuildStep => {
@@ -153,19 +151,15 @@ impl PlanRunner {
             let should_log = iter_count <= 100 || (iter_count >= 11900 && iter_count <= 12100);
             if should_log {
                 let (min_y, max_y) = context.fabric.altitude_range();
-                let height_mm = if *context.fabric.scale > 0.0 {
-                    (max_y - min_y) * context.fabric.scale.to_mm()
-                } else {
-                    0.0
-                };
+                let height = max_y - min_y;
                 let radius = context.fabric.bounding_radius();
                 let progress_busy = context.fabric.progress.is_busy();
 
                 eprintln!(
-                    "[UI-{:05}] joints:{:3} height:{:8.3}mm radius:{:8.5}m busy:{} stage:{:?}",
+                    "[UI-{:05}] joints:{:3} height:{:8.3} radius:{:8.5} busy:{} stage:{:?}",
                     iter_count,
                     context.fabric.joints.len(),
-                    height_mm,
+                    height,
                     radius,
                     progress_busy,
                     self.stage

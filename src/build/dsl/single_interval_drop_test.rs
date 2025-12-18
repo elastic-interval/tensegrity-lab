@@ -4,7 +4,6 @@ mod tests {
     use crate::fabric::Fabric;
     use crate::fabric::physics::presets::VIEWING;
     use crate::fabric::material::Material;
-    use crate::units::Meters;
     use cgmath::Point3;
 
     #[test]
@@ -13,22 +12,19 @@ mod tests {
 
         // Create fabric with 2 joints and 1 push interval
         let mut fabric = Fabric::new("test_drop".to_string());
-        fabric.scale = Meters(1.0); // scale = 1 meter per internal unit
 
         // Create two joints at 5 meters altitude, 1 meter apart horizontally
-        let altitude_mm = 5000.0; // 5 meters
-        let scale_mm = fabric.scale.to_mm();
-        let altitude_internal = altitude_mm / scale_mm;
+        // Coordinates are in meters directly
+        let altitude_m = 5.0;
 
-        let joint1_index = fabric.create_joint(Point3::new(0.0, altitude_internal, 0.0));
-        let joint2_index = fabric.create_joint(Point3::new(1.0, altitude_internal, 0.0));
+        let joint1_index = fabric.create_joint(Point3::new(0.0, altitude_m, 0.0));
+        let joint2_index = fabric.create_joint(Point3::new(1.0, altitude_m, 0.0));
 
-        // Create push interval between them (1.0 internal unit = 1000mm ideal length)
+        // Create push interval between them (1.0 meter ideal length)
         fabric.create_interval(joint1_index, joint2_index, 1.0, Material::Push.default_role());
 
         eprintln!("Initial setup:");
-        eprintln!("  Scale: {} mm per internal unit", scale_mm);
-        eprintln!("  Altitude: {:.2}m ({:.3} internal units)", altitude_mm / 1000.0, altitude_internal);
+        eprintln!("  Altitude: {:.2}m", altitude_m);
         eprintln!("  Surface: Frozen (locks on contact)");
         eprintln!("  Interval: Push, 1 meter length");
         eprintln!();
@@ -54,11 +50,8 @@ mod tests {
             let time_ms = frame * 50;
 
             // Calculate average altitude and velocity of the two joints
-            let avg_y = (fabric.joints[0].location.y + fabric.joints[1].location.y) / 2.0;
-            let avg_altitude_mm = avg_y * scale_mm;
-
-            let avg_vel_y = (fabric.joints[0].velocity.y + fabric.joints[1].velocity.y) / 2.0;
-            let velocity_m_s = avg_vel_y * scale_mm / 1000.0;
+            let avg_altitude_m = (fabric.joints[0].location.y + fabric.joints[1].location.y) / 2.0;
+            let velocity_m_s = (fabric.joints[0].velocity.y + fabric.joints[1].velocity.y) / 2.0;
 
             // Calculate acceleration from velocity change
             let delta_v = velocity_m_s - last_velocity;
@@ -67,7 +60,7 @@ mod tests {
 
             eprintln!("{:8}  {:11.3}  {:13.3}  {:11.2}",
                 time_ms,
-                avg_altitude_mm / 1000.0,
+                avg_altitude_m,
                 velocity_m_s,
                 acceleration
             );
@@ -75,17 +68,17 @@ mod tests {
             last_velocity = velocity_m_s;
 
             // Check if hit surface (altitude <= 0)
-            if avg_y <= 0.0 {
+            if avg_altitude_m <= 0.0 {
                 hit_surface = true;
                 eprintln!("\n✓ Hit surface at t={}ms", time_ms);
-                eprintln!("  Final altitude: {:.3}m", avg_altitude_mm / 1000.0);
+                eprintln!("  Final altitude: {:.3}m", avg_altitude_m);
                 break;
             }
 
             // Stop after 2 seconds to avoid infinite loop
             if time_ms >= 2000 {
                 eprintln!("\n⚠ Did not hit surface after 2 seconds");
-                eprintln!("  Final altitude: {:.3}m", avg_altitude_mm / 1000.0);
+                eprintln!("  Final altitude: {:.3}m", avg_altitude_m);
                 break;
             }
         }

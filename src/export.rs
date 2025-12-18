@@ -13,7 +13,6 @@ use serde::Serialize;
 
 use crate::fabric::interval::Role;
 use crate::fabric::Fabric;
-use crate::units::Meters;
 
 const DEFAULT_EXPORT_FPS: f64 = 100.0;
 
@@ -75,7 +74,6 @@ pub struct AnimationExporter {
     frame_count: usize,
     enabled: bool,
     frames: Vec<FrameData>,
-    scale: Meters,
     iteration_count: usize,
     iterations_per_frame: usize,
     fps: f64,
@@ -90,7 +88,6 @@ impl AnimationExporter {
             frame_count: 0,
             enabled: false,
             frames: Vec::new(),
-            scale: Meters(1.0),
             iteration_count: 0,
             iterations_per_frame,
             fps,
@@ -134,12 +131,11 @@ impl AnimationExporter {
     }
 
     fn create_export_data(&self) -> ExportData {
-        let export_scale = *self.scale;
-
+        // Coordinates are already in meters
         let frames: Vec<FrameExport> = self
             .frames
             .iter()
-            .map(|frame| self.export_frame(frame, export_scale))
+            .map(|frame| self.export_frame(frame))
             .collect();
 
         ExportData {
@@ -154,16 +150,15 @@ impl AnimationExporter {
         }
     }
 
-    fn export_frame(&self, frame: &FrameData, export_scale: f32) -> FrameExport {
+    fn export_frame(&self, frame: &FrameData) -> FrameExport {
         let joints: Vec<JointExport> = frame
             .joint_positions
             .iter()
             .enumerate()
             .map(|(idx, pos)| {
-                let scaled = *pos * export_scale;
                 JointExport {
                     name: format!("Joint_{:04}", idx),
-                    matrix: create_sphere_matrix(scaled, JOINT_RADIUS),
+                    matrix: create_sphere_matrix(*pos, JOINT_RADIUS),
                 }
             })
             .collect();
@@ -188,8 +183,8 @@ impl AnimationExporter {
                 if *alpha >= frame.joint_positions.len() || *omega >= frame.joint_positions.len() {
                     return None;
                 }
-                let alpha_pos = frame.joint_positions[*alpha] * export_scale;
-                let omega_pos = frame.joint_positions[*omega] * export_scale;
+                let alpha_pos = frame.joint_positions[*alpha];
+                let omega_pos = frame.joint_positions[*omega];
 
                 let delta = omega_pos - alpha_pos;
                 let full_length = delta.magnitude();
@@ -221,8 +216,8 @@ impl AnimationExporter {
                 if *alpha >= frame.joint_positions.len() || *omega >= frame.joint_positions.len() {
                     return None;
                 }
-                let alpha_pos = frame.joint_positions[*alpha] * export_scale;
-                let omega_pos = frame.joint_positions[*omega] * export_scale;
+                let alpha_pos = frame.joint_positions[*alpha];
+                let omega_pos = frame.joint_positions[*omega];
 
                 let delta = omega_pos - alpha_pos;
                 let full_length = delta.magnitude();
@@ -265,10 +260,6 @@ impl AnimationExporter {
 
         if curr_frame == prev_frame {
             return;
-        }
-
-        if self.frames.is_empty() {
-            self.scale = fabric.scale;
         }
 
         let joint_positions: Vec<Point3<f32>> = fabric.joints.iter().map(|j| j.location).collect();
@@ -321,7 +312,6 @@ impl AnimationExporter {
     }
 
     pub fn snapshot(&mut self, fabric: &Fabric) -> io::Result<PathBuf> {
-        self.scale = fabric.scale;
         self.frames.clear();
         self.frame_count = 0;
 

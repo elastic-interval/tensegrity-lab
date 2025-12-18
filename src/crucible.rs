@@ -324,9 +324,9 @@ impl Crucible {
                 unreachable!()
             }
             CentralizeFabric(altitude) => {
-                // Convert altitude from meters to internal coordinate system
-                let altitude_internal = altitude.map(|m| *m / *context.fabric.scale);
-                let translation = context.fabric.centralize_translation(altitude_internal);
+                // Altitude is in meters, coordinates are in meters
+                let altitude_f32 = altitude.map(|m| *m);
+                let translation = context.fabric.centralize_translation(altitude_f32);
                 context.fabric.apply_translation(translation);
                 context.fabric.zero_velocities();
             }
