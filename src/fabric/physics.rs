@@ -14,6 +14,19 @@ pub enum SurfaceCharacter {
     Slippery,
 }
 
+/// Surface with character and scale for proper small-scale physics
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Surface {
+    pub character: SurfaceCharacter,
+    pub scale: f32,
+}
+
+impl Surface {
+    pub fn new(character: SurfaceCharacter, scale: f32) -> Self {
+        Self { character, scale }
+    }
+}
+
 use crate::fabric::Velocity;
 use crate::units::EARTH_GRAVITY;
 use cgmath::num_traits::zero;
@@ -35,18 +48,24 @@ pub struct SurfaceResult {
     pub clamp_y: Option<f32>,
 }
 
-const SURFACE_TOLERANCE: f32 = 0.01;
+/// Base tolerance at scale 1.0 (1cm)
+const BASE_SURFACE_TOLERANCE: f32 = 0.01;
 const STICKY_DOWN_DRAG_FACTOR: f32 = 0.8;
 
-impl SurfaceCharacter {
+impl Surface {
     /// Apply surface physics and return the resulting velocity and optional y-position clamp
-    /// All coordinates are now in meters directly
+    /// All coordinates are now in meters directly. Tolerances scale with fabric scale.
     pub fn interact(&self, s: SurfaceInteraction) -> SurfaceResult {
         let gravity = *EARTH_GRAVITY;
         let mut velocity = s.velocity;
         let mut clamp_y = None;
 
-        if s.altitude > SURFACE_TOLERANCE {
+        // Scale tolerances with fabric scale
+        let surface_tolerance = BASE_SURFACE_TOLERANCE * self.scale;
+        let max_depth = 0.1 * self.scale;
+        let submersion_reference = self.scale; // 1m at scale 1.0
+
+        if s.altitude > surface_tolerance {
             // Above surface - apply gravity and standard physics
             // gravity is m/s², dt is seconds, result is m/s velocity change
             velocity.y -= gravity * s.dt;
@@ -56,11 +75,11 @@ impl SurfaceCharacter {
         } else {
             // On or below surface
             let depth = -s.altitude;
-            let degree_submerged: f32 = depth.min(1.0);
+            let degree_submerged: f32 = (depth / submersion_reference).min(1.0);
 
             velocity += s.force_velocity;
 
-            match self {
+            match self.character {
                 SurfaceCharacter::Frozen => {
                     velocity = zero();
                     clamp_y = Some(0.0);
@@ -81,8 +100,8 @@ impl SurfaceCharacter {
                         velocity.y *= 0.5;
                     }
 
-                    if depth > 0.1 {
-                        clamp_y = Some(-0.1);
+                    if depth > max_depth {
+                        clamp_y = Some(-max_depth);
                         velocity.y = 0.0;
                     }
                 }
@@ -125,7 +144,7 @@ use cgmath::InnerSpace;
 /// Core physics environment with base values
 #[derive(Debug, Clone)]
 pub struct Physics {
-    pub surface: Option<SurfaceCharacter>,
+    pub surface: Option<Surface>,
     pub pretenst: Percent,
     pub drag: f32,
     pub viscosity: f32,

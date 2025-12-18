@@ -97,7 +97,7 @@ impl Joint {
         // a = F/m gives m/s², multiply by dt gives velocity change in m/s
         let force_velocity = (self.force / mass) * dt;
 
-        match physics.surface {
+        match &physics.surface {
             None => {
                 // No surface, no gravity - free floating
                 let speed_squared = self.velocity.magnitude2();

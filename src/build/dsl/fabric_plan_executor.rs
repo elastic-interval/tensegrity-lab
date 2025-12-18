@@ -98,7 +98,8 @@ pub struct FabricPlanExecutor {
     plan: FabricPlan,
     current_iteration: usize,
     execution_log: Vec<ExecutionEvent>,
-    stored_surface: Option<SurfaceCharacter>,
+    stored_surface_character: Option<SurfaceCharacter>,
+    stored_scale: f32,
 }
 
 impl FabricPlanExecutor {
@@ -117,7 +118,8 @@ impl FabricPlanExecutor {
             plan,
             current_iteration: 0,
             execution_log: Vec::new(),
-            stored_surface: None,
+            stored_surface_character: None,
+            stored_scale: 1.0,
         };
 
         executor.log_event(ExecutionEvent::Started { iteration: 0 });
@@ -276,6 +278,7 @@ impl FabricPlanExecutor {
         // After this, all coordinates and lengths are in meters directly
         if let Some(plan_runner) = &self.plan_runner {
             let scale = plan_runner.get_scale();
+            self.stored_scale = *scale;
             self.fabric.apply_scale(scale);
 
             // Scale rigidity linearly with scale
@@ -338,7 +341,7 @@ impl FabricPlanExecutor {
         // Switch to PRETENSING physics
         self.physics = PRETENSING;
 
-        self.stored_surface = self.plan.pretense_phase.surface;
+        self.stored_surface_character = self.plan.pretense_phase.surface;
 
         self.log_event(ExecutionEvent::PhysicsChanged {
             iteration: self.current_iteration,
@@ -372,9 +375,11 @@ impl FabricPlanExecutor {
         let rigidity_multiplier = self.physics.rigidity_multiplier();
 
         use crate::fabric::physics::presets::FALLING;
+        use crate::fabric::physics::Surface;
         self.physics = FALLING;
 
-        self.physics.surface = self.stored_surface;
+        self.physics.surface = self.stored_surface_character
+            .map(|character| Surface::new(character, self.stored_scale));
 
         use crate::TweakFeature::*;
         self.physics.accept_tweak(MassScale.parameter(mass_multiplier));
