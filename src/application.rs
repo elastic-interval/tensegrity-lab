@@ -266,8 +266,8 @@ impl ApplicationHandler<LabEvent> for Application {
                             self.crucible.viewing_state().send(&self.radio);
                         }
                     }
-                } else if self.crucible.animation_available() {
-                    // Auto-start animation if animate phase is defined
+                } else if self.mobile_device && self.crucible.animation_available() {
+                    // Auto-start animation on mobile devices with actuators
                     CrucibleAction::ToAnimating.send(&self.radio);
                 } else {
                     self.crucible.viewing_state().send(&self.radio);
