@@ -208,6 +208,7 @@ impl TextState {
                 Some(fabric_stats) => {
                     let FabricStats {
                         joint_count,
+                        height,
                         push_count,
                         push_total,
                         push_range,
@@ -218,10 +219,11 @@ impl TextState {
                         scale,
                         ..
                     } = fabric_stats;
-                    
+
                     let scale_mm = scale.to_mm();
                     let text = format!(
                         "Stats at {age}:\n\
+                         Height: {:.3}m\n\
                          Joints: {:?}\n\
                          Bars: {:?}\n\
                          → {:.1}-{:.1}mm\n\
@@ -229,6 +231,7 @@ impl TextState {
                          Cables: {:?}\n\
                          → {:.1}-{:.1}mm\n\
                          → total {:.1}m",
+                        height.0,
                         joint_count,
                         push_count,
                         push_range.0 * scale_mm,

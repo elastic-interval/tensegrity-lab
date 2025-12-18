@@ -129,6 +129,7 @@ pub struct FabricStats {
     pub age: Age,
     pub scale: Meters,
     pub joint_count: usize,
+    pub height: Meters,
     pub push_count: usize,
     pub push_range: (f32, f32),
     pub push_total: f32,
@@ -509,11 +510,13 @@ impl Fabric {
                 // Springy and other roles are ignored in stats
             }
         }
+        let (_, max_y) = self.altitude_range();
         FabricStats {
             name: self.name.clone(),
             age: self.age,
             scale: self.scale,
             joint_count: self.joints.len(),
+            height: self.scale * max_y,
             push_count,
             push_range,
             push_total,
