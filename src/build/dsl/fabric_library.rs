@@ -35,8 +35,10 @@ impl FabricName {
         use FabricName::*;
         match self {
             Triped => self
-                .altitude(M(7.5))
+                .altitude(M(0.75))
                 .scale(M(0.1))
+                // .altitude(M(7.5))
+                // .scale(M(1.03))
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([
                     on(OmniBotX)

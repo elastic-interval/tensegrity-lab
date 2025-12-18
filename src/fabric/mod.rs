@@ -149,6 +149,8 @@ pub struct Fabric {
     pub faces: HashMap<UniqueId, Face>,
     pub frozen: bool,
     pub stats: IterationStats,
+    /// Cached bounding radius, updated periodically during construction
+    cached_bounding_radius: f32,
 }
 
 impl Fabric {
@@ -164,6 +166,7 @@ impl Fabric {
             faces: HashMap::new(),
             frozen: false,
             stats: IterationStats::default(),
+            cached_bounding_radius: 0.0,
         }
     }
 
@@ -213,11 +216,16 @@ impl Fabric {
     /// After this, all coordinates are in meters directly.
     pub fn apply_scale(&mut self, scale: Meters) {
         let s = *scale;
-        // Scale all joint positions
+        // Scale all joint positions and velocities
         for joint in self.joints.iter_mut() {
             joint.location.x *= s;
             joint.location.y *= s;
             joint.location.z *= s;
+            joint.velocity.x *= s;
+            joint.velocity.y *= s;
+            joint.velocity.z *= s;
+            // Forces will be recalculated on next iteration
+            joint.force = cgmath::num_traits::zero();
         }
         // Scale all interval ideal lengths
         for interval_opt in self.intervals.iter_mut() {
@@ -229,6 +237,8 @@ impl Fabric {
         for face in self.faces.values_mut() {
             face.scale *= s;
         }
+        // Scale cached bounding radius
+        self.cached_bounding_radius *= s;
     }
 
     /// Get the rotation matrix to orient the fabric so faces with Downwards(n) point down
@@ -448,7 +458,16 @@ impl Fabric {
         midpoint / denominator
     }
 
+    /// Returns the cached bounding radius (updated periodically during construction)
     pub fn bounding_radius(&self) -> f32 {
+        self.cached_bounding_radius
+    }
+
+    /// Calculate the actual bounding radius from joint positions
+    fn calculate_bounding_radius(&self) -> f32 {
+        if self.joints.is_empty() {
+            return 0.0;
+        }
         let midpoint = self.midpoint();
 
         let max_distance_squared = self
@@ -460,6 +479,11 @@ impl Fabric {
         // Add a small margin to ensure everything is visible
         // Only one sqrt call at the end
         max_distance_squared.sqrt() * 1.1
+    }
+
+    /// Update the cached bounding radius
+    pub fn update_bounding_radius(&mut self) {
+        self.cached_bounding_radius = self.calculate_bounding_radius();
     }
 
     /// Returns (min_y, max_y)

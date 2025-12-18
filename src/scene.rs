@@ -214,6 +214,10 @@ impl Scene {
             &self.camera.current_pick(),
             &mut self.render_style,
         );
+        // Update surface size based on fabric bounding radius
+        if surface.is_some() {
+            self.surface_renderer.update_radius(&self.wgpu.queue, fabric.bounding_radius());
+        }
         self.render(surface.is_some())?;
         Ok(())
     }
