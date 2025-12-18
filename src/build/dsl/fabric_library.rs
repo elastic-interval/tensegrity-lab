@@ -36,7 +36,7 @@ impl FabricName {
         match self {
             Triped => self
                 .altitude(M(0.5))
-                .scale(M(0.06))
+                .scale(M(0.056))
                 // .altitude(M(7.5))
                 // .scale(M(1.03))
                 .seed(OmniSymmetrical, Seed(1))
@@ -65,7 +65,7 @@ impl FabricName {
                 .pretense(Sec(2.0))
                 .surface_frozen()
                 .fall(Sec(3.0))
-                .settle(Sec(3.0))
+                .settle(Sec(4.0))
                 .animate()
                 .period(Sec(0.847))
                 .amplitude(Pct(1.0))

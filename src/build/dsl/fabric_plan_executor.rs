@@ -281,12 +281,10 @@ impl FabricPlanExecutor {
             self.stored_scale = *scale;
             self.fabric.apply_scale(scale);
 
-            // Scale rigidity linearly with scale
-            // Physical basis: stiffness = E × A / L, where A ∝ L² and L ∝ scale
-            // So stiffness ∝ L²/L = L (linear with scale)
-            // Thinner intervals at small scale are proportionally less rigid
+            // Scale rigidity to maintain similar dynamics at different scales
+            // Empirically tuned: scale^1.5 balances stability and structural integrity
             let scale_factor = *scale;
-            rigidity_multiplier *= scale_factor;
+            rigidity_multiplier *= scale_factor.powf(1.5);
         }
 
         // Update bounding radius after scale is applied
