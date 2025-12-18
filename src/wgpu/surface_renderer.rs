@@ -9,6 +9,7 @@ pub struct SurfaceRenderer {
     pub vertices: Vec<SurfaceVertex>,
     pub pipeline: wgpu::RenderPipeline,
     pub buffer: wgpu::Buffer,
+    current_radius: f32,
 }
 
 impl SurfaceRenderer {
@@ -52,6 +53,22 @@ impl SurfaceRenderer {
             vertices: surface_vertices,
             pipeline: surface_pipeline,
             buffer: surface_buffer,
+            current_radius: 10.0,
+        }
+    }
+
+    /// Update the surface radius based on fabric bounding radius.
+    /// Surface should be about 2x the fabric size for good visualization.
+    pub fn update_radius(&mut self, queue: &wgpu::Queue, fabric_bounding_radius: f32) {
+        // Surface radius = 2x fabric bounding radius, with a minimum of 0.5m
+        let new_radius = (fabric_bounding_radius * 2.0).max(0.5);
+
+        // Only update if radius changed significantly (>5% change)
+        let radius_change = (new_radius - self.current_radius).abs() / self.current_radius;
+        if radius_change > 0.05 {
+            self.current_radius = new_radius;
+            self.vertices = SurfaceVertex::for_radius(new_radius).to_vec();
+            queue.write_buffer(&self.buffer, 0, cast_slice(&self.vertices));
         }
     }
 

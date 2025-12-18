@@ -515,6 +515,7 @@ pub enum StateChange {
     SetStageLabel(String),
     ResetView,
     RestartApproach,
+    JumpToFabric,
     ToggleColorByRole,
     SetAppearanceFunction(AppearanceFunction),
     SetIntervalColor {
@@ -553,6 +554,7 @@ impl Debug for StateChange {
             StateChange::SetIntervalColor { .. } => "SetIntervalColor()",
             StateChange::ResetView => "ResetView()",
             StateChange::RestartApproach => "RestartApproach()",
+            StateChange::JumpToFabric => "JumpToFabric()",
             StateChange::SetAnimating(_) => "SetAnimating()",
             StateChange::SetExperimentTitle { .. } => "SetExperimentTitle()",
             StateChange::SetKeyboardLegend(_) => "SetKeyboardLegend()",

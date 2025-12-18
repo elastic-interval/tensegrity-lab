@@ -362,7 +362,11 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                     _ => {}
                 }
-                if let StateChange::ToggleAttachmentPoints = &app_change {
+                if let StateChange::JumpToFabric = &app_change {
+                    if let Some(scene) = &mut self.scene {
+                        scene.jump_to_fabric(&self.crucible.fabric);
+                    }
+                } else if let StateChange::ToggleAttachmentPoints = &app_change {
                     // First toggle the state
                     self.with_scene(|scene| {
                         scene.update_state(app_change.clone());

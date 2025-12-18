@@ -164,6 +164,11 @@ impl FabricPlanExecutor {
         // Run one physics iteration
         self.fabric.iterate(&self.physics);
 
+        // Update bounding radius periodically during Building phase (every 0.1s = 2000 iterations)
+        if self.stage == ExecutorStage::Building && self.current_iteration % 2000 == 0 {
+            self.fabric.update_bounding_radius();
+        }
+
         // Check for stage transitions
         match self.stage {
             ExecutorStage::Building => {
@@ -265,13 +270,25 @@ impl FabricPlanExecutor {
 
         // Preserve user's scaling tweaks
         let mass_multiplier = self.physics.mass_multiplier();
-        let rigidity_multiplier = self.physics.rigidity_multiplier();
+        let mut rigidity_multiplier = self.physics.rigidity_multiplier();
 
         // Apply scale to convert from internal units to meters
         // After this, all coordinates and lengths are in meters directly
         if let Some(plan_runner) = &self.plan_runner {
-            self.fabric.apply_scale(plan_runner.get_scale());
+            let scale = plan_runner.get_scale();
+            self.fabric.apply_scale(scale);
+
+            // Adjust rigidity to maintain similar dynamics at different scales
+            // With shorter intervals, spring constants are higher (k = k_1m / L),
+            // but masses are proportionally lower. To keep acceleration similar,
+            // we scale rigidity by scale² (since a = F/m and both scale linearly with L)
+            let scale_factor = *scale;
+            let rigidity_scale = scale_factor * scale_factor;
+            rigidity_multiplier *= rigidity_scale;
         }
+
+        // Update bounding radius after scale is applied
+        self.fabric.update_bounding_radius();
 
         // Remove faces
         use crate::fabric::face::FaceEnding;
@@ -344,6 +361,13 @@ impl FabricPlanExecutor {
             from: "PRETENSE".to_string(),
             to: "FALL".to_string(),
         });
+
+        // Centralize fabric before surface appears (FALL is when surface first matters visually)
+        let translation = self.fabric.centralize_translation(None);
+        self.fabric.apply_translation(translation);
+
+        // Update bounding radius after centralization
+        self.fabric.update_bounding_radius();
 
         let mass_multiplier = self.physics.mass_multiplier();
         let rigidity_multiplier = self.physics.rigidity_multiplier();

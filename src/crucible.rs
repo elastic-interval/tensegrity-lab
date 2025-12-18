@@ -1,5 +1,5 @@
 use crate::build::animator::Animator;
-use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
+use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
 use crate::build::dsl::FabricPlan;
 use crate::build::evo::evolution::Evolution;
 use crate::build::oven::Oven;
@@ -29,6 +29,7 @@ pub struct Crucible {
     pub physics: Physics,
     fabric_plan: Option<FabricPlan>,
     last_stage_label: Option<String>,
+    last_executor_stage: Option<ExecutorStage>,
 }
 
 impl Crucible {
@@ -40,6 +41,7 @@ impl Crucible {
             physics: VIEWING,
             fabric_plan: None,
             last_stage_label: None,
+            last_executor_stage: None,
         }
     }
 
@@ -112,7 +114,6 @@ impl Crucible {
             self.physics = executor.physics.clone();
 
             // Check if BUILD phase is done and we should start PRETENSE
-            use crate::build::dsl::fabric_plan_executor::ExecutorStage;
             if matches!(executor.stage(), ExecutorStage::Building) {
                 if let Some(plan_runner) = executor.plan_runner() {
                     if plan_runner.is_done() {
@@ -120,6 +121,18 @@ impl Crucible {
                         executor.start_pretension();
                     }
                 }
+            }
+
+            // Detect executor stage transitions and trigger camera repositioning
+            let current_executor_stage = executor.stage().clone();
+            let stage_changed = self.last_executor_stage.as_ref() != Some(&current_executor_stage);
+            if stage_changed {
+                // When transitioning to Pretensing (scale applied) or Falling (centralized),
+                // instantly jump camera to keep fabric in view
+                if matches!(current_executor_stage, ExecutorStage::Pretensing | ExecutorStage::Falling) {
+                    JumpToFabric.send(&self.radio);
+                }
+                self.last_executor_stage = Some(current_executor_stage.clone());
             }
 
             // Send stage label updates based on executor stage
