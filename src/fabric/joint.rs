@@ -82,6 +82,11 @@ impl Joint {
         self.accumulated_mass = AMBIENT_MASS;
     }
 
+    pub fn reset_with_mass(&mut self, ambient_mass: Grams) {
+        self.force = zero();
+        self.accumulated_mass = ambient_mass;
+    }
+
     pub fn iterate(&mut self, physics: &Physics) {
         let drag = physics.drag();
         let viscosity = physics.viscosity();

@@ -278,13 +278,12 @@ impl FabricPlanExecutor {
             let scale = plan_runner.get_scale();
             self.fabric.apply_scale(scale);
 
-            // Adjust rigidity to maintain similar dynamics at different scales
-            // With shorter intervals, spring constants are higher (k = k_1m / L),
-            // but masses are proportionally lower. To keep acceleration similar,
-            // we scale rigidity by scale² (since a = F/m and both scale linearly with L)
+            // Scale rigidity linearly with scale
+            // Physical basis: stiffness = E × A / L, where A ∝ L² and L ∝ scale
+            // So stiffness ∝ L²/L = L (linear with scale)
+            // Thinner intervals at small scale are proportionally less rigid
             let scale_factor = *scale;
-            let rigidity_scale = scale_factor * scale_factor;
-            rigidity_multiplier *= rigidity_scale;
+            rigidity_multiplier *= scale_factor;
         }
 
         // Update bounding radius after scale is applied
