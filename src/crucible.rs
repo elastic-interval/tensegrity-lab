@@ -77,17 +77,15 @@ impl Crucible {
     }
 
     fn plan_physics(&self, base: Physics) -> Physics {
-        // Preserve current mass and rigidity multipliers (important for scaled fabrics)
+        // Preserve current surface (with scale), mass and rigidity multipliers
+        let surface = self.physics.surface;
         let mass_multiplier = self.physics.mass_multiplier();
         let rigidity_multiplier = self.physics.rigidity_multiplier();
 
-        let mut physics = self.fabric_plan
-            .as_ref()
-            .map(|plan| Physics {
-                surface: plan.pretense_phase.surface,
-                ..base.clone()
-            })
-            .unwrap_or(base);
+        let mut physics = Physics {
+            surface,
+            ..base.clone()
+        };
 
         // Restore the scaled multipliers
         use crate::TweakFeature::*;

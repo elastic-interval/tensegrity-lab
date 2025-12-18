@@ -150,7 +150,7 @@ pub struct Fabric {
     pub frozen: bool,
     pub stats: IterationStats,
     cached_bounding_radius: f32,
-    mass_scale: f32,
+    scale: f32,
 }
 
 impl Fabric {
@@ -167,12 +167,18 @@ impl Fabric {
             frozen: false,
             stats: IterationStats::default(),
             cached_bounding_radius: 0.0,
-            mass_scale: 1.0,
+            scale: 1.0,
         }
     }
 
+    /// Returns the fabric's scale factor (set during construction)
+    pub fn scale(&self) -> f32 {
+        self.scale
+    }
+
     pub fn ambient_mass(&self) -> Grams {
-        Grams(*AMBIENT_MASS * self.mass_scale)
+        // Mass scales with scale⁴: volume (scale³) + material compensation for gravity
+        Grams(*AMBIENT_MASS * self.scale.powi(4))
     }
 
     pub fn apply_matrix4(&mut self, matrix: Matrix4<f32>) {
@@ -219,11 +225,14 @@ impl Fabric {
     /// Scale all coordinates and interval lengths by the given factor.
     /// This converts from internal units to meters when called with the plan's scale.
     /// After this, all coordinates are in meters directly.
-    /// Mass scales with volume (scale³) since smaller structures have thinner intervals.
+    /// Mass scales with scale⁴ to compensate for gravity not scaling:
+    /// - Volume scaling gives scale³
+    /// - Additional scale factor represents using lighter materials at small scales
+    ///   to maintain structural integrity against (relatively stronger) gravity
     pub fn apply_scale(&mut self, scale: Meters) {
         let s = *scale;
-        let mass_scale = s * s * s; // Volume scaling for mass
-        self.mass_scale = mass_scale;
+        self.scale = s;
+        let mass_scale = s.powi(4); // scale⁴: volume + material compensation
         // Scale all joint positions, velocities, and mass
         for joint in self.joints.iter_mut() {
             joint.location.x *= s;

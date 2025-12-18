@@ -23,7 +23,6 @@ pub enum Pick {
 const TARGET_HIT: f32 = 0.001;
 // Time-based camera movement constants
 const CAMERA_MOVE_SPEED: f32 = 0.6; // Units per second
-const IDEAL_VIEW_DISTANCE: f32 = 3.0; // Target distance for viewing objects
 const ZOOM_SPEED: f32 = 1.5; // Speed of zoom adjustment
 const ZOOM_DURATION: f32 = 3.0; // Duration in seconds to apply automatic zooming
 
@@ -250,10 +249,10 @@ impl Camera {
 
         // Calculate ideal position based on fabric
         let midpoint = fabric.midpoint();
-        let ideal_distance = self.target.ideal_distance(fabric).unwrap_or(IDEAL_VIEW_DISTANCE);
+        let ideal_distance = self.target.ideal_distance(fabric);
 
-        // Position camera at 45-degree angle from above, looking at midpoint
-        let offset = Vector3::new(1.0, 0.5, 1.0).normalize() * ideal_distance;
+        // Position camera at same altitude as midpoint, looking at it from the side
+        let offset = Vector3::new(1.0, 0.0, 1.0).normalize() * ideal_distance;
         self.position = midpoint + offset;
         self.look_at = midpoint;
         self.last_ray_origin = self.position;
@@ -404,23 +403,16 @@ impl Camera {
                     *init_dist.borrow_mut() = position_distance;
                 });
 
-                // Reset approach state if target has an ideal distance
-                // Note: We don't cache ideal_distance here because the fabric may still be growing
-                // during pretensing. We'll recalculate it each frame while approaching.
-                if self.target.ideal_distance(fabric).is_some() {
-                    CAMERA_APPROACHING.with(|state| {
-                        *state.borrow_mut() = true;
-                    });
+                // Reset approach state - camera will zoom to ideal distance for target
+                // Note: We recalculate ideal_distance each frame while approaching
+                // because fabric may still be growing during pretensing.
+                CAMERA_APPROACHING.with(|state| {
+                    *state.borrow_mut() = true;
+                });
 
-                    CAMERA_APPROACH_ELAPSED.with(|elapsed| {
-                        *elapsed.borrow_mut() = 0.0;
-                    });
-                } else {
-                    // For targets without ideal distance (e.g., intervals), don't do automatic zooming
-                    CAMERA_APPROACHING.with(|state| {
-                        *state.borrow_mut() = false;
-                    });
-                }
+                CAMERA_APPROACH_ELAPSED.with(|elapsed| {
+                    *elapsed.borrow_mut() = 0.0;
+                });
             }
         });
 
@@ -482,42 +474,45 @@ impl Camera {
         // Handle zoom approach if we're still in approaching mode
         if approaching {
             // Recalculate ideal distance each frame to handle growing fabric during pretensing
-            if let Some(ideal_distance) = self.target.ideal_distance(fabric) {
-                // Calculate current view vector and distance
-                let view_vector = self.look_at - self.position;
-                let current_distance = view_vector.magnitude();
+            let ideal_distance = self.target.ideal_distance(fabric);
 
-                // For fabric midpoint, also adjust altitude to mid-height
-                if matches!(self.target, Target::FabricMidpoint) {
-                    let (min_y, max_y) = fabric.altitude_range();
-                    let mid_altitude = (min_y + max_y) / 2.0;
-                    let altitude_diff = self.position.y - mid_altitude;
+            // Calculate current view vector and distance
+            let view_vector = self.look_at - self.position;
+            let current_distance = view_vector.magnitude();
 
-                    // Adjust altitude if not at mid-height
-                    if altitude_diff.abs() > 0.1 {
-                        let altitude_adjustment = altitude_diff * ZOOM_SPEED * capped_delta_time;
-                        self.position.y -= altitude_adjustment;
-                        working = true;
-                    }
-                }
+            // For fabric midpoint, also adjust altitude to mid-height
+            if matches!(self.target, Target::FabricMidpoint) {
+                let (min_y, max_y) = fabric.altitude_range();
+                let mid_altitude = (min_y + max_y) / 2.0;
+                let altitude_diff = self.position.y - mid_altitude;
 
-                // Calculate the difference from ideal distance
-                let distance_diff = current_distance - ideal_distance;
-
-                // Only adjust if we're not already at the ideal distance
-                if distance_diff.abs() > 0.1 {
-                    // Calculate zoom adjustment for this frame
-                    let zoom_amount = distance_diff * ZOOM_SPEED * capped_delta_time;
-
-                    // Apply zoom by moving camera position along view vector
-                    if current_distance - zoom_amount > 1.0 {
-                        // Prevent getting too close
-                        self.position += view_vector.normalize() * zoom_amount;
-                    }
-
-                    // We're still working if we need to adjust zoom
+                // Adjust altitude if not at mid-height (scaled threshold)
+                let altitude_threshold = ideal_distance * 0.03;
+                if altitude_diff.abs() > altitude_threshold {
+                    let altitude_adjustment = altitude_diff * ZOOM_SPEED * capped_delta_time;
+                    self.position.y -= altitude_adjustment;
                     working = true;
                 }
+            }
+
+            // Calculate the difference from ideal distance
+            let distance_diff = current_distance - ideal_distance;
+
+            // Only adjust if we're not already at the ideal distance (scaled threshold)
+            let distance_threshold = ideal_distance * 0.03;
+            if distance_diff.abs() > distance_threshold {
+                // Calculate zoom adjustment for this frame
+                let zoom_amount = distance_diff * ZOOM_SPEED * capped_delta_time;
+
+                // Apply zoom by moving camera position along view vector
+                // Minimum distance is a fraction of ideal to prevent clipping
+                let min_distance = ideal_distance * 0.1;
+                if current_distance - zoom_amount > min_distance {
+                    self.position += view_vector.normalize() * zoom_amount;
+                }
+
+                // We're still working if we need to adjust zoom
+                working = true;
             }
         }
 
@@ -765,20 +760,25 @@ impl Target {
         }
     }
 
-    /// Get the ideal viewing distance for this target
-    /// Returns None if no specific distance is required (use current distance)
-    pub fn ideal_distance(&self, fabric: &Fabric) -> Option<f32> {
+    /// Get the ideal viewing distance for this target, scaled to fabric size
+    pub fn ideal_distance(&self, fabric: &Fabric) -> f32 {
+        // Use bounding radius, but fall back to scale for empty fabrics
+        let radius = fabric.bounding_radius().max(fabric.scale());
         match self {
             Target::FabricMidpoint => {
                 // For fabric overview, calculate distance based on bounding sphere
-                // Use a field of view factor to ensure everything fits in view
-                let radius = fabric.bounding_radius();
                 // Assuming 45-degree FOV, distance = radius / tan(22.5°) ≈ radius * 2.4
-                // Add extra margin for comfortable viewing, with minimum distance
-                Some((radius * 3.0).max(IDEAL_VIEW_DISTANCE))
+                // Add extra margin for comfortable viewing
+                radius * 3.0
             }
-            Target::AroundJoint(_) => Some(IDEAL_VIEW_DISTANCE),
-            Target::AroundInterval(_) => None, // Keep current distance for intervals
+            Target::AroundJoint(_) => {
+                // Zoom in closer for joint details
+                radius * 0.5
+            }
+            Target::AroundInterval(_) => {
+                // Medium distance for interval details
+                radius * 1.0
+            }
         }
     }
 }

@@ -34,8 +34,8 @@ fn build_cylinder_matrix(start: vec3<f32>, end: vec3<f32>, radius_factor: f32) -
     let direction = end - start;
     let length = length(direction);
 
-    // Base radius - radius_factor is pre-scaled by fabric dimensions
-    let base_radius = 0.005;
+    // Base radius - radius_factor is fabric scale
+    let base_radius = 0.04;
     let radius = base_radius * radius_factor;
 
     // If length is too small, return identity matrix at the midpoint

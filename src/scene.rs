@@ -1,6 +1,5 @@
 use crate::camera::{Camera, Pick};
 use crate::fabric::Fabric;
-use crate::fabric::physics::SurfaceCharacter;
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
@@ -206,7 +205,7 @@ impl Scene {
         Ok(())
     }
 
-    pub fn redraw(&mut self, fabric: &Fabric, surface: Option<SurfaceCharacter>) -> Result<(), wgpu::SurfaceError> {
+    pub fn redraw(&mut self, fabric: &Fabric, has_surface: bool) -> Result<(), wgpu::SurfaceError> {
         self.wgpu.update_mvp_matrix(self.camera.mvp_matrix());
         self.fabric_renderer.update(
             &mut self.wgpu,
@@ -215,10 +214,10 @@ impl Scene {
             &mut self.render_style,
         );
         // Update surface size based on fabric bounding radius
-        if surface.is_some() {
+        if has_surface {
             self.surface_renderer.update_radius(&self.wgpu.queue, fabric.bounding_radius());
         }
-        self.render(surface.is_some())?;
+        self.render(has_surface)?;
         Ok(())
     }
 
