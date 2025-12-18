@@ -292,6 +292,34 @@ pub enum Span {
     },
 }
 
+impl Span {
+    /// Scale all lengths by the given factor
+    pub fn scale(&mut self, factor: f32) {
+        match self {
+            Span::Fixed { length } => {
+                *length *= factor;
+            }
+            Span::Pretensing {
+                target_length,
+                start_length,
+                rest_length,
+                ..
+            } => {
+                *target_length *= factor;
+                *start_length *= factor;
+                *rest_length *= factor;
+            }
+            Span::Approaching {
+                target_length,
+                start_length,
+            } => {
+                *target_length *= factor;
+                *start_length *= factor;
+            }
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Role {
     Pushing = 0,
@@ -458,6 +486,12 @@ impl Interval {
 
     pub fn is_pull_interval(&self) -> bool {
         self.role.is_pull_like()
+    }
+
+    /// Scale all length values by the given factor
+    /// Used when converting from internal units to meters
+    pub fn scale_lengths(&mut self, factor: f32) {
+        self.span.scale(factor);
     }
 
     /// Get connections for a specific end if this is a push interval
@@ -692,11 +726,12 @@ impl Interval {
         }
     }
 
+    /// Iterate physics for this interval.
+    /// All lengths (ideal, real_length) are now in meters directly.
     pub fn iterate(
         &mut self,
         joints: &mut [Joint],
         progress: &Progress,
-        scale: Meters,
         physics: &Physics,
     ) {
         let ideal = match self.span {
@@ -736,16 +771,16 @@ impl Interval {
             (real_length - ideal) / ideal
         };
 
-        // Convert to meters for physics calculations
-        let ideal_length = scale * ideal;
-        let actual_length = scale * real_length;
+        // ideal and real_length are already in meters
+        let ideal_length = Meters(ideal);
+        let actual_length = Meters(real_length);
 
         // Force: F = k × ΔL where ΔL = strain × L₀
         // Spring constant scales with 1/L for proper physics
         // Stiffness percentage allows softer intervals (e.g., actuators at 10%)
         let k = self.material.spring_constant(ideal_length, physics);
         let k_adjusted = NewtonsPerMeter(*k * self.stiffness.as_factor());
-        let extension = scale * (self.strain * ideal);
+        let extension = Meters(self.strain * ideal);
         let force = k_adjusted * extension; // (N/m) × m = N
         let force_vector: Vector3<f32> = self.unit * *force / 2.0;
 

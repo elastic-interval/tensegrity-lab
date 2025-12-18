@@ -10,6 +10,7 @@ use crate::fabric::joint_incident::JointIncident;
 use crate::fabric::Fabric;
 use crate::fabric::IntervalEnd;
 use crate::fabric::UniqueId;
+use crate::units::Meters;
 use crate::{ControlState, IntervalDetails, JointDetails, PickIntent, PointerChange, Radio, Role};
 
 #[derive(Debug, Clone)]
@@ -185,7 +186,6 @@ impl Camera {
                 Pick::Nothing => Pick::Joint(JointDetails {
                     index: best_incident.index,
                     location: fabric.location(best_incident.index),
-                    scale: fabric.scale,
                     selected_push: best_incident.push().map(|(unique_id, _)| unique_id),
                 }),
                 Pick::Joint(details) => {
@@ -608,11 +608,10 @@ impl Camera {
             id,
             near_joint,
             far_joint,
-            length: interval.ideal(),
+            length: Meters(interval.ideal()),
             strain: interval.strain,
-            distance: fabric.distance(near_joint, far_joint),
+            distance: Meters(fabric.distance(near_joint, far_joint)),
             role: interval.role,
-            scale: fabric.scale,
             selected_push,
             near_slot,
             far_slot,

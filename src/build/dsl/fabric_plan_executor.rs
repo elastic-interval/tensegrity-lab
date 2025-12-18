@@ -267,9 +267,10 @@ impl FabricPlanExecutor {
         let mass_multiplier = self.physics.mass_multiplier();
         let rigidity_multiplier = self.physics.rigidity_multiplier();
 
-        // Set fabric scale from plan
+        // Apply scale to convert from internal units to meters
+        // After this, all coordinates and lengths are in meters directly
         if let Some(plan_runner) = &self.plan_runner {
-            self.fabric.scale = plan_runner.get_scale();
+            self.fabric.apply_scale(plan_runner.get_scale());
         }
 
         // Remove faces

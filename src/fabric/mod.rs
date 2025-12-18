@@ -127,15 +127,14 @@ impl IntervalEnd {
 pub struct FabricStats {
     pub name: String,
     pub age: Age,
-    pub scale: Meters,
     pub joint_count: usize,
     pub height: Meters,
     pub push_count: usize,
-    pub push_range: (f32, f32),
-    pub push_total: f32,
+    pub push_range: (Meters, Meters),
+    pub push_total: Meters,
     pub pull_count: usize,
-    pub pull_range: (f32, f32),
-    pub pull_total: f32,
+    pub pull_range: (Meters, Meters),
+    pub pull_total: Meters,
 }
 
 #[derive(Clone, Debug)]
@@ -148,7 +147,6 @@ pub struct Fabric {
     pub interval_count: usize,
     pub next_interval_id: usize,
     pub faces: HashMap<UniqueId, Face>,
-    pub scale: Meters,
     pub frozen: bool,
     pub stats: IterationStats,
 }
@@ -164,7 +162,6 @@ impl Fabric {
             interval_count: 0,
             next_interval_id: 0,
             faces: HashMap::new(),
-            scale: Meters(1.0),
             frozen: false,
             stats: IterationStats::default(),
         }
@@ -208,6 +205,29 @@ impl Fabric {
     pub fn apply_translation(&mut self, translation: Vector3<f32>) {
         for joint in self.joints.iter_mut() {
             joint.location += translation;
+        }
+    }
+
+    /// Scale all coordinates and interval lengths by the given factor.
+    /// This converts from internal units to meters when called with the plan's scale.
+    /// After this, all coordinates are in meters directly.
+    pub fn apply_scale(&mut self, scale: Meters) {
+        let s = *scale;
+        // Scale all joint positions
+        for joint in self.joints.iter_mut() {
+            joint.location.x *= s;
+            joint.location.y *= s;
+            joint.location.z *= s;
+        }
+        // Scale all interval ideal lengths
+        for interval_opt in self.intervals.iter_mut() {
+            if let Some(interval) = interval_opt {
+                interval.scale_lengths(s);
+            }
+        }
+        // Scale face scales
+        for face in self.faces.values_mut() {
+            face.scale *= s;
         }
     }
 
@@ -352,7 +372,6 @@ impl Fabric {
             interval.iterate(
                 &mut self.joints,
                 &self.progress,
-                self.scale,
                 physics,
             );
             self.stats.accumulate_strain(interval.strain);
@@ -360,11 +379,12 @@ impl Fabric {
         let elapsed = self.age.tick();
 
         // Check for excessive speed and accumulate velocity/energy stats
-        const MAX_SPEED_SQUARED: f32 = 1000.0 * 1000.0; // (mm per tick)²
+        // Now in meters: 1000 m/s max speed (still very high, for safety)
+        const MAX_SPEED_SQUARED: f32 = 1000.0 * 1000.0; // (m per tick)²
         let mut max_speed_squared = 0.0;
 
         for joint in self.joints.iter_mut() {
-            joint.iterate(physics, self.scale);
+            joint.iterate(physics);
             let speed_squared = joint.velocity.magnitude2();
             let mass = *joint.accumulated_mass;
             self.stats.accumulate_joint(mass, speed_squared);
@@ -477,33 +497,33 @@ impl Fabric {
     }
 
     pub fn fabric_stats(&self) -> FabricStats {
-        let mut push_range = (1000.0, 0.0);
-        let mut pull_range = (1000.0, 0.0);
+        let mut push_range = (Meters(1000.0), Meters(0.0));
+        let mut pull_range = (Meters(1000.0), Meters(0.0));
         let mut push_count = 0;
-        let mut push_total = 0.0;
+        let mut push_total = Meters(0.0);
         let mut pull_count = 0;
-        let mut pull_total = 0.0;
+        let mut pull_total = Meters(0.0);
         for interval_opt in self.intervals.iter().filter(|i| i.is_some()) {
             let interval = interval_opt.as_ref().unwrap();
-            let length = interval.length(&self.joints);
+            let length = Meters(interval.length(&self.joints));
             if !interval.has_role(Role::Support) {
                 // Categorize by push-like vs pull-like behavior
                 if interval.role == Role::Pushing {
                     push_count += 1;
-                    push_total += length;
-                    if length < push_range.0 {
+                    push_total = push_total + length;
+                    if *length < *push_range.0 {
                         push_range.0 = length;
                     }
-                    if length > push_range.1 {
+                    if *length > *push_range.1 {
                         push_range.1 = length;
                     }
                 } else if interval.role.is_pull_like() {
                     pull_count += 1;
-                    pull_total += length;
-                    if length < pull_range.0 {
+                    pull_total = pull_total + length;
+                    if *length < *pull_range.0 {
                         pull_range.0 = length;
                     }
-                    if length > pull_range.1 {
+                    if *length > *pull_range.1 {
                         pull_range.1 = length;
                     }
                 }
@@ -514,9 +534,8 @@ impl Fabric {
         FabricStats {
             name: self.name.clone(),
             age: self.age,
-            scale: self.scale,
             joint_count: self.joints.len(),
-            height: self.scale * max_y,
+            height: Meters(max_y),
             push_count,
             push_range,
             push_total,
@@ -539,9 +558,8 @@ impl Fabric {
             if let Some(interval) = interval_opt {
                 let alpha = &self.joints[interval.alpha_index];
                 let omega = &self.joints[interval.omega_index];
-                let real_length = (&omega.location - &alpha.location).magnitude();
-                let interval_mass = interval.material.linear_density(physics)
-                    * (self.scale * real_length);
+                let real_length = Meters((&omega.location - &alpha.location).magnitude());
+                let interval_mass = interval.material.linear_density(physics) * real_length;
                 total_mass += interval_mass;
             }
         }

@@ -4,7 +4,6 @@ use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 
 use crate::fabric::interval::Role;
 use crate::fabric::Fabric;
-use crate::units::Meters;
 
 /// Generate a tensegrity Möbius band.
 ///
@@ -18,8 +17,6 @@ use crate::units::Meters;
 pub fn generate_mobius(segments: usize) -> Fabric {
     let mut fabric = Fabric::new("Mobius".to_string());
 
-    // Set scale: 1 internal unit = 1 meter
-    fabric.scale = Meters(1.0);
 
     // Joint count must be odd to complete the Möbius twist
     let joint_count = segments * 2 + 1;

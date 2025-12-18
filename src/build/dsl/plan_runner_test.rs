@@ -3,6 +3,7 @@ mod tests {
     use crate::build::dsl::fabric_library::{self, FabricName};
     use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
     use crate::fabric::Fabric;
+    use crate::units::MM_PER_METER;
 
     /// Set to true to capture new benchmark values without asserting.
     /// Run: cargo test test_all_build_benchmarks -- --nocapture
@@ -46,9 +47,8 @@ mod tests {
         let fabric_age = fabric.age.as_duration().as_secs_f32();
         let bounding_radius = fabric.bounding_radius();
         let (min_y, max_y) = fabric.altitude_range();
-        let scale_mm = fabric.scale.to_mm();
-        let height_mm = (max_y - min_y) * scale_mm;
-        let ground_tolerance = 10.0 / scale_mm;
+        let height_mm = (max_y - min_y) * MM_PER_METER;
+        let ground_tolerance = 10.0 / MM_PER_METER;
         let ground_count = fabric
             .joints
             .iter()
@@ -138,14 +138,9 @@ mod tests {
             // Log periodic state
             if iteration % 20000 == 0 {
                 let (min_y, max_y) = executor.fabric.altitude_range();
-                let scale_mm = executor.fabric.scale.to_mm();
-                let height_mm = if scale_mm > 0.0 {
-                    (max_y - min_y) * scale_mm
-                } else {
-                    0.0
-                };
+                let height_mm = (max_y - min_y) * MM_PER_METER;
                 let radius = executor.fabric.bounding_radius();
-                let ground_tolerance = 10.0 / scale_mm.max(1.0);
+                let ground_tolerance = 10.0 / MM_PER_METER;
                 let ground_count = executor.fabric.joints.iter()
                     .filter(|j| j.location.y.abs() < ground_tolerance)
                     .count();
@@ -325,10 +320,9 @@ mod tests {
 
         // Check final state
         let (min_y, max_y) = executor.fabric.altitude_range();
-        let scale_mm = executor.fabric.scale.to_mm();
-        let height_mm = (max_y - min_y) * scale_mm;
+        let height_mm = (max_y - min_y) * MM_PER_METER;
         let radius = executor.fabric.bounding_radius();
-        let ground_tolerance = 10.0 / scale_mm;
+        let ground_tolerance = 10.0 / MM_PER_METER;
         let ground_count = executor
             .fabric
             .joints

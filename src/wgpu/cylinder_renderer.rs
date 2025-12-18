@@ -165,6 +165,10 @@ impl CylinderRenderer {
     ) -> Vec<CylinderInstance> {
         use RenderStyle::*;
         let mut instances = Vec::with_capacity(fabric.intervals.len());
+
+        // Scale interval thickness based on fabric size (bounding radius)
+        // This ensures intervals look proportional regardless of fabric scale
+        let radius_scale = fabric.bounding_radius().max(0.1);
         for (index, interval_opt) in fabric.intervals.iter().enumerate() {
             if let Some(interval) = interval_opt {
                 let interval_id = UniqueId(index);
@@ -360,7 +364,7 @@ impl CylinderRenderer {
 
                 instances.push(CylinderInstance {
                     start: [modified_start.x, modified_start.y, modified_start.z],
-                    radius_factor: appearance.radius,
+                    radius_factor: appearance.radius * radius_scale,
                     end: [modified_end.x, modified_end.y, modified_end.z],
                     material_type: interval.role as u32,
                     color: appearance.color,

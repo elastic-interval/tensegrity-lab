@@ -105,6 +105,9 @@ impl Deref for Percent {
 /// Standard Earth gravity: 9.81 m/s²
 pub const EARTH_GRAVITY: MetersPerSecondSquared = MetersPerSecondSquared(9.81);
 
+/// Millimeters per meter - for converting meter coordinates to millimeters
+pub const MM_PER_METER: f32 = 1000.0;
+
 // Conversion implementations
 
 impl Grams {
@@ -204,7 +207,15 @@ impl AddAssign for Grams {
     }
 }
 
-// Meters arithmetic: scale * length_in_internal_units = Meters
+// Meters arithmetic
+impl Add for Meters {
+    type Output = Meters;
+
+    fn add(self, other: Meters) -> Meters {
+        Meters(*self + *other)
+    }
+}
+
 impl Mul<f32> for Meters {
     type Output = Meters;
 

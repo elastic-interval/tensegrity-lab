@@ -253,11 +253,10 @@ pub struct IntervalDetails {
     pub near_slot: Option<usize>,
     pub far_slot: Option<usize>,
     pub far_joint: usize,
-    pub length: f32,
+    pub length: Meters,
     pub strain: f32,
-    pub distance: f32,
+    pub distance: Meters,
     pub role: Role,
-    pub scale: Meters,
     pub selected_push: Option<UniqueId>,
 }
 
@@ -293,7 +292,7 @@ impl Display for IntervalDetails {
 
 impl IntervalDetails {
     pub fn length_mm(&self) -> f32 {
-        self.length * self.scale.to_mm()
+        self.length.to_mm()
     }
 
     pub fn strain_percent(&self) -> f32 {
@@ -301,7 +300,7 @@ impl IntervalDetails {
     }
 
     pub fn distance_mm(&self) -> f32 {
-        self.distance * self.scale.to_mm()
+        self.distance.to_mm()
     }
 
     /// Format a joint index as a string, optionally with a slot number
@@ -340,7 +339,6 @@ impl IntervalDetails {
 pub struct JointDetails {
     pub index: usize,
     pub location: Point3<f32>,
-    pub scale: Meters,
     pub selected_push: Option<UniqueId>,
 }
 
@@ -366,13 +364,14 @@ impl Display for JointDetails {
 
 impl JointDetails {
     pub fn location_mm(&self) -> Point3<f32> {
-        self.location.mul(self.scale.to_mm())
+        // Coordinates are in meters, convert to mm
+        self.location.mul(1000.0)
     }
 
     pub fn surface_location_mm(&self) -> Option<(f32, f32)> {
         let Point3 { x, y, z } = self.location;
-        let scale_mm = self.scale.to_mm();
-        (y <= 0.0).then(|| (x * scale_mm, z * scale_mm))
+        // Coordinates are in meters, convert to mm
+        (y <= 0.0).then(|| (x * 1000.0, z * 1000.0))
     }
 
     /// Format this joint as a string (e.g., "J1" or "J1:2" with attachment points)
@@ -584,7 +583,7 @@ pub enum LabEvent {
     UpdateState(StateChange),
     RebuildFabric,
     NextBrick,
-    PrintCord(f32),
+    PrintCord(Meters),
     DumpCSV,
     RequestRedraw,
     PointerChanged(PointerChange),
