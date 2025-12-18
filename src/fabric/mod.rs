@@ -149,8 +149,8 @@ pub struct Fabric {
     pub faces: HashMap<UniqueId, Face>,
     pub frozen: bool,
     pub stats: IterationStats,
-    /// Cached bounding radius, updated periodically during construction
     cached_bounding_radius: f32,
+    mass_scale: f32,
 }
 
 impl Fabric {
@@ -167,7 +167,12 @@ impl Fabric {
             frozen: false,
             stats: IterationStats::default(),
             cached_bounding_radius: 0.0,
+            mass_scale: 1.0,
         }
+    }
+
+    pub fn ambient_mass(&self) -> Grams {
+        Grams(*AMBIENT_MASS * self.mass_scale)
     }
 
     pub fn apply_matrix4(&mut self, matrix: Matrix4<f32>) {
@@ -214,9 +219,12 @@ impl Fabric {
     /// Scale all coordinates and interval lengths by the given factor.
     /// This converts from internal units to meters when called with the plan's scale.
     /// After this, all coordinates are in meters directly.
+    /// Mass scales with volume (scale³) since smaller structures have thinner intervals.
     pub fn apply_scale(&mut self, scale: Meters) {
         let s = *scale;
-        // Scale all joint positions and velocities
+        let mass_scale = s * s * s; // Volume scaling for mass
+        self.mass_scale = mass_scale;
+        // Scale all joint positions, velocities, and mass
         for joint in self.joints.iter_mut() {
             joint.location.x *= s;
             joint.location.y *= s;
@@ -226,6 +234,8 @@ impl Fabric {
             joint.velocity.z *= s;
             // Forces will be recalculated on next iteration
             joint.force = cgmath::num_traits::zero();
+            // Scale mass with volume (thinner intervals at small scale)
+            joint.accumulated_mass = Grams(*joint.accumulated_mass * mass_scale);
         }
         // Scale all interval ideal lengths
         for interval_opt in self.intervals.iter_mut() {
@@ -374,8 +384,9 @@ impl Fabric {
             return 0.0;
         }
         self.stats.reset();
+        let ambient_mass = self.ambient_mass();
         for joint in &mut self.joints {
-            joint.reset();
+            joint.reset_with_mass(ambient_mass);
         }
         for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
             let interval = interval_opt.as_mut().unwrap();
