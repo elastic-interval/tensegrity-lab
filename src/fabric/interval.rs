@@ -404,11 +404,11 @@ impl Role {
     pub fn radius(&self) -> f32 {
         match self {
             Pushing => 1.2,
-            Pulling | BowTie | Support | GuyLine => 0.2,
+            Pulling | BowTie | Support | GuyLine => 0.14, // 30% thinner than push intervals
             Springy => 0.7,
-            Circumference => 0.25,
-            FaceRadial => 0.15,
-            PrismPull => 0.2,
+            Circumference => 0.18, // Also reduced proportionally
+            FaceRadial => 0.1,     // Also reduced proportionally
+            PrismPull => 0.14,     // Match pulling radius
         }
     }
 

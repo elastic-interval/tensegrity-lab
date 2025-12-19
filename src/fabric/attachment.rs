@@ -25,11 +25,10 @@ impl ConnectorSpec {
     /// Create a connector spec scaled appropriately for the fabric
     /// Base dimensions are for scale 1.0 (1 meter structures)
     /// Push interval radius is 0.04 * 1.2 * scale = 0.048 * scale
-    /// Hinge offset must be >= push radius to be outside the cylinder
     pub fn for_scale(scale: f32) -> Self {
         Self {
             ring_thickness: 0.016 * scale, // 16mm at scale 1.0 (doubled from 8mm)
-            hinge_offset: 0.06 * scale,    // 60mm at scale 1.0 (just outside push radius of 48mm)
+            hinge_offset: 0.04 * 1.2 * scale, // Match disc radius exactly (48mm at scale 1.0)
         }
     }
 }
