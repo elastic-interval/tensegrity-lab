@@ -239,6 +239,8 @@ impl ApplicationHandler<LabEvent> for Application {
                 };
             }
             FabricBuilt(fabric_stats) => {
+                // Reset time scale to normal when construction completes
+                self.time_scale = 1.0;
                 StateChange::SetFabricName(fabric_stats.name.clone()).send(&self.radio);
                 StateChange::SetFabricStats(Some(fabric_stats)).send(&self.radio);
                 StateChange::SetControlState(self.crucible.viewing_state()).send(&self.radio);
@@ -319,6 +321,9 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             AdjustTimeScale(factor) => {
                 self.adjust_time_scale(factor);
+            }
+            SetTimeScale(scale) => {
+                self.time_scale = scale.clamp(0.1, 100.0);
             }
             UpdateState(app_change) => {
                 match &app_change {

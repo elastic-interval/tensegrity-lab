@@ -275,15 +275,10 @@ impl Crucible {
             self.stage = RunningPlan(executor);
 
             // Set fabric name immediately so title appears right away
-            let _ = self
-                .radio
-                .send_event(LabEvent::UpdateState(SetFabricName(name.to_string())));
-            let _ = self
-                .radio
-                .send_event(LabEvent::UpdateState(SetStageLabel("Building".to_string())));
-            let _ = self
-                .radio
-                .send_event(LabEvent::UpdateState(SetFabricStats(None)));
+            SetFabricName(name.to_string()).send(&self.radio);
+            SetStageLabel("Building".to_string()).send(&self.radio);
+            SetFabricStats(None).send(&self.radio);
+            crate::ControlState::Building.send(&self.radio);
             return;
         }
 

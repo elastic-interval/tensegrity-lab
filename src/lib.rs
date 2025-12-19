@@ -406,6 +406,7 @@ impl JointDetails {
 #[derive(Debug, Clone)]
 pub enum ControlState {
     Waiting,
+    Building,
     Viewing { animation_available: bool },
     Animating,
     ShowingJoint(JointDetails),
@@ -610,8 +611,8 @@ pub enum LabEvent {
     DumpCSV,
     RequestRedraw,
     PointerChanged(PointerChange),
-    /// Adjust time scale by a factor (e.g., 1.1 to speed up, 0.9 to slow down)
     AdjustTimeScale(f32),
+    SetTimeScale(f32),
     #[cfg(not(target_arch = "wasm32"))]
     ToggleAnimationExport,
     #[cfg(not(target_arch = "wasm32"))]
