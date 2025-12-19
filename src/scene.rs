@@ -63,7 +63,7 @@ impl Scene {
                 self.render_style.toggle_attachment_points();
             }
             SetControlState(control_state) => match control_state {
-                Waiting => self.reset(),
+                Waiting | Building => self.reset(),
                 Animating => {
                     self.reset();
                     self.pick_allowed = true;

@@ -94,7 +94,7 @@ impl Keyboard {
             KeyCode::KeyA,
             "Stop animation",
             Crucible(ToViewing),
-            Box::new(|state| matches!(state, Animating | ShowingJoint(_) | ShowingInterval(_))),
+            Box::new(|state| matches!(state, Animating)),
         );
         self.key_lab_event(
             KeyCode::KeyA,
@@ -166,7 +166,7 @@ impl Keyboard {
             KeyCode::KeyK,
             "Knots",
             UpdateState(StateChange::ToggleAttachmentPoints),
-            Box::new(|state| matches!(state, Viewing { .. })),
+            Box::new(|state| matches!(state, Viewing { .. } | ShowingJoint(_) | ShowingInterval(_))),
         );
         self.key_lab_event(
             KeyCode::Space,
@@ -176,9 +176,15 @@ impl Keyboard {
         );
         self.key_lab_event(
             KeyCode::Enter,
+            "Fast-forward",
+            LabEvent::SetTimeScale(20.0),
+            Box::new(|state| matches!(state, Building)),
+        );
+        self.key_lab_event(
+            KeyCode::Enter,
             "Reload fabric",
             RebuildFabric,
-            Box::new(|state| !matches!(state, Baking)),
+            Box::new(|state| !matches!(state, Baking | Building)),
         );
         #[cfg(not(target_arch = "wasm32"))]
         self.key_lab_event(
