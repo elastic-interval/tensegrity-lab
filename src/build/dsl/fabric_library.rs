@@ -17,6 +17,8 @@ static PLANS: [OnceLock<FabricPlan>; 6] = [
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, EnumIter)]
 pub enum FabricName {
     Triped,
+    #[strum(serialize = "Triped Model")]
+    TripedModel,
     Vertebra,
     Flagellum,
     Cigar,
@@ -34,11 +36,9 @@ impl FabricName {
     pub fn fabric_plan(self) -> FabricPlan {
         use FabricName::*;
         match self {
-            Triped => self
-                .altitude(M(0.5))
-                .scale(M(0.056))
-                // .altitude(M(7.5))
-                // .scale(M(1.03))
+            Triped | TripedModel => self
+                .altitude(if self == Triped { M(7.5) } else { M(0.5) })
+                .scale(if self == Triped { M(1.03) } else { M(0.056) })
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([
                     on(OmniBotX)
@@ -59,7 +59,7 @@ impl FabricName {
                     on(OmniTop).prism(),
                     on(OmniBot).radial(),
                 ])
-                .omit([(6,9),(6,3), (1,10), (10,7), (2,11), (2,5)])
+                .omit([(6, 9), (6, 3), (1, 10), (10, 7), (2, 11), (2, 5)])
                 .space(Sec(3.0), End, Pct(38.0))
                 .vulcanize(Sec(2.0))
                 .pretense(Sec(2.0))
