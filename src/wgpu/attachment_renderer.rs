@@ -22,11 +22,13 @@ const GRAY: [f32; 4] = [0.3, 0.3, 0.3, 0.5];
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct RingInstance {
-    position: [f32; 3], // Center position of the ring
-    radius: f32,        // Radius of the ring (matches push interval)
-    normal: [f32; 3],   // Normal direction (push axis, for orientation)
-    thickness: f32,     // Thickness of the ring (axial extent)
-    color: [f32; 4],    // RGBA color
+    position: [f32; 3],           // Center position of the ring
+    radius: f32,                  // Radius of the ring (matches push interval)
+    normal: [f32; 3],             // Normal direction (push axis, for orientation)
+    thickness: f32,               // Thickness of the ring (axial extent)
+    color: [f32; 4],              // RGBA color
+    extension_direction: [f32; 3], // Direction to extend toward pull connection (zero if none)
+    extension_length: f32,        // How far to extend (hinge_offset, zero if none)
 }
 
 pub struct AttachmentRenderer {
@@ -120,6 +122,18 @@ impl AttachmentRenderer {
                     offset: size_of::<[f32; 8]>() as wgpu::BufferAddress,
                     shader_location: 7,
                     format: wgpu::VertexFormat::Float32x4,
+                },
+                // extension_direction
+                wgpu::VertexAttribute {
+                    offset: size_of::<[f32; 12]>() as wgpu::BufferAddress,
+                    shader_location: 8,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                // extension_length
+                wgpu::VertexAttribute {
+                    offset: size_of::<[f32; 15]>() as wgpu::BufferAddress,
+                    shader_location: 9,
+                    format: wgpu::VertexFormat::Float32,
                 },
             ],
         };
@@ -473,6 +487,8 @@ impl AttachmentRenderer {
 
                                     // Add the ring instances
                                     for point in points_to_show.iter() {
+                                        // These are unoccupied slots shown when a pull interval is selected,
+                                        // so no extension is needed
                                         instances.push(RingInstance {
                                             position: [
                                                 point.position.x,
@@ -483,6 +499,8 @@ impl AttachmentRenderer {
                                             normal: [normal.x, normal.y, normal.z],
                                             thickness: ring_thickness,
                                             color: ORANGE,
+                                            extension_direction: [0.0, 0.0, 0.0],
+                                            extension_length: 0.0,
                                         });
                                     }
                                 }
@@ -570,6 +588,8 @@ impl AttachmentRenderer {
                 normal: [normal.x, normal.y, normal.z],
                 thickness: ring_thickness,
                 color,
+                extension_direction: [0.0, 0.0, 0.0],
+                extension_length: 0.0,
             });
         }
     }

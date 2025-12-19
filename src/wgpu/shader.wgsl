@@ -258,6 +258,8 @@ struct RingVertexInput {
     @location(5) inst_normal: vec3<f32>,    // Ring orientation (push axis)
     @location(6) inst_thickness: f32,       // Ring thickness (height)
     @location(7) inst_color: vec4<f32>,     // Ring color
+    @location(8) inst_extension_dir: vec3<f32>,  // Direction to extend toward pull (world space)
+    @location(9) inst_extension_len: f32,        // How far to extend (0 = no extension)
 };
 
 struct RingVertexOutput {
@@ -296,7 +298,7 @@ fn ring_vertex(in: RingVertexInput) -> RingVertexOutput {
     let rotation = build_ring_rotation_matrix(in.inst_normal);
 
     // Rotate the scaled position
-    let rotated_pos = rotation * scaled_pos;
+    var rotated_pos = rotation * scaled_pos;
 
     // Translate to instance position
     let world_position = rotated_pos + in.inst_position;
