@@ -133,9 +133,9 @@ impl PointerHandler {
     /// Handle mouse wheel events
     fn handle_mouse_wheel(&mut self, delta: MouseScrollDelta) {
         let change = match delta {
-            MouseScrollDelta::LineDelta(_, y) => PointerChange::Zoomed(y * 0.5),
+            MouseScrollDelta::LineDelta(_, y) => PointerChange::Zoomed(y * 0.05),
             MouseScrollDelta::PixelDelta(position) => {
-                PointerChange::Zoomed(position.y as f32 * 0.05)
+                PointerChange::Zoomed(position.y as f32 * 0.005)
             }
         };
         
