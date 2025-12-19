@@ -42,6 +42,10 @@ pub struct Seconds(pub f32);
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
 pub struct Percent(pub f32);
 
+/// Angle in degrees
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
+pub struct Degrees(pub f32);
+
 
 // Common time constants
 pub const IMMEDIATE: Seconds = Seconds(0.0);
@@ -94,6 +98,13 @@ impl Deref for GramsPerMeter {
 }
 
 impl Deref for Percent {
+    type Target = f32;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Deref for Degrees {
     type Target = f32;
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -278,6 +289,12 @@ impl std::fmt::Display for Seconds {
 impl std::fmt::Display for Percent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:.1}%", self.0)
+    }
+}
+
+impl std::fmt::Display for Degrees {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:.1}°", self.0)
     }
 }
 

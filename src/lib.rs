@@ -2,7 +2,7 @@ use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::FabricPlan;
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::{FabricStats, UniqueId};
-use crate::units::Meters;
+use crate::units::{Degrees, Meters};
 use crate::wgpu::Wgpu;
 use cgmath::Point3;
 use std::cell::RefCell;
@@ -253,6 +253,8 @@ pub struct IntervalDetails {
     pub near_slot: Option<usize>,
     pub far_slot: Option<usize>,
     pub far_joint: usize,
+    pub alpha_hinge_angle: Option<Degrees>,
+    pub omega_hinge_angle: Option<Degrees>,
     pub length: Meters,
     pub strain: f32,
     pub distance: Meters,
@@ -277,15 +279,34 @@ impl Display for IntervalDetails {
         // Get the current attachment point visibility from thread-local storage
         let show_attachment_points = SHOW_ATTACHMENT_POINTS.with(|cell| *cell.borrow());
 
+        // Build hinge angle info if attachments are visible and we have angles
+        let hinge_info = if show_attachment_points {
+            let alpha_hinge = self.alpha_hinge_angle
+                .map(|a| format!("α: {}", a))
+                .unwrap_or_default();
+            let omega_hinge = self.omega_hinge_angle
+                .map(|a| format!("ω: {}", a))
+                .unwrap_or_default();
+            if !alpha_hinge.is_empty() || !omega_hinge.is_empty() {
+                let separator = if !alpha_hinge.is_empty() && !omega_hinge.is_empty() { ", " } else { "" };
+                format!("\nHinge: {}{}{}", alpha_hinge, separator, omega_hinge)
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
         write!(
             f,
-            "{} {}-{}\nLength: {:.1} mm\nStrain: {:.6}%\nDistance: {:.1} mm\nRight-click to jump",
+            "{} {}-{}\nLength: {:.1} mm\nStrain: {:.6}%\nDistance: {:.1} mm{}\nRight-click to jump",
             role_text,
             self.near_joint_text(show_attachment_points),
             self.far_joint_text(show_attachment_points),
             self.length_mm(),
             self.strain_percent(),
-            self.distance_mm()
+            self.distance_mm(),
+            hinge_info
         )
     }
 }

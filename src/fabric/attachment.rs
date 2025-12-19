@@ -4,10 +4,108 @@
  */
 
 use crate::fabric::{IntervalEnd, UniqueId};
+use crate::units::Degrees;
 use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
 
 /// Number of attachment points at each end of a push interval
 pub const ATTACHMENT_POINTS: usize = 10;
+
+/// Connector geometry specification for ring connectors
+/// Each pull interval connects via a ring stacked on a bolt extending from the push interval end.
+/// The hinge (connection point) is at the edge of the ring, offset radially from the bolt axis.
+/// All dimensions scale proportionally with the fabric scale.
+pub struct ConnectorSpec {
+    /// Distance between ring centers along the bolt (thickness of each ring)
+    pub ring_thickness: f32,
+    /// Radial distance from bolt axis to hinge point (just outside interval radius)
+    pub hinge_offset: f32,
+}
+
+impl ConnectorSpec {
+    /// Create a connector spec scaled appropriately for the fabric
+    /// Base dimensions are for scale 1.0 (1 meter structures)
+    /// Push interval radius is 0.04 * 1.2 * scale = 0.048 * scale
+    /// Hinge offset must be >= push radius to be outside the cylinder
+    pub fn for_scale(scale: f32) -> Self {
+        Self {
+            ring_thickness: 0.016 * scale, // 16mm at scale 1.0 (doubled from 8mm)
+            hinge_offset: 0.06 * scale,    // 60mm at scale 1.0 (just outside push radius of 48mm)
+        }
+    }
+}
+
+impl Default for ConnectorSpec {
+    fn default() -> Self {
+        Self::for_scale(1.0)
+    }
+}
+
+impl ConnectorSpec {
+    /// Calculate the hinge position for a pull interval connection
+    ///
+    /// # Parameters
+    /// * `push_end` - Position of the push interval end (where the bolt starts)
+    /// * `push_axis` - Outward unit vector along the bolt (away from push interval)
+    /// * `slot` - Which ring slot (0 = closest to push end)
+    /// * `pull_other_end` - Position of the other end of the pull interval
+    ///
+    /// # Returns
+    /// The 3D position of the hinge point
+    pub fn hinge_position(
+        &self,
+        push_end: Point3<f32>,
+        push_axis: Vector3<f32>,
+        slot: usize,
+        pull_other_end: Point3<f32>,
+    ) -> Point3<f32> {
+        // Ring center position on the bolt
+        let axial_offset = self.ring_thickness * (slot as f32 + 0.5);
+        let ring_center = push_end + push_axis * axial_offset;
+
+        // Direction from ring center toward the pull's other end, projected onto ring plane
+        let to_pull = pull_other_end - ring_center;
+        // Remove the axial component to get the radial direction
+        let axial_component = push_axis * to_pull.dot(push_axis);
+        let radial_direction = to_pull - axial_component;
+
+        // If the radial direction is zero (pull is exactly along axis), pick an arbitrary direction
+        let radial_unit = if radial_direction.magnitude2() < 1e-10 {
+            // Find any vector perpendicular to push_axis
+            let arbitrary = if push_axis.x.abs() < 0.9 {
+                Vector3::new(1.0, 0.0, 0.0)
+            } else {
+                Vector3::new(0.0, 1.0, 0.0)
+            };
+            push_axis.cross(arbitrary).normalize()
+        } else {
+            radial_direction.normalize()
+        };
+
+        // Hinge point is at radial offset from the ring center
+        ring_center + radial_unit * self.hinge_offset
+    }
+
+    /// Calculate the hinge angle for a pull interval at its connection point
+    ///
+    /// The hinge angle is the angle between the pull direction and the ring plane.
+    /// - 0° means pulling in the ring plane (perpendicular to bolt)
+    /// - +90° means pulling straight outward along the bolt
+    /// - -90° means pulling straight inward toward the push interval
+    ///
+    /// # Parameters
+    /// * `push_axis` - Outward unit vector along the bolt
+    /// * `pull_direction` - Unit vector of pull direction (toward the other end of pull interval)
+    ///
+    /// # Returns
+    /// Hinge angle as Degrees
+    pub fn hinge_angle(push_axis: Vector3<f32>, pull_direction: Vector3<f32>) -> Degrees {
+        // The hinge angle is the angle between pull direction and the ring plane.
+        // The ring plane is perpendicular to push_axis.
+        // sin(hinge_angle) = dot(pull_direction, push_axis)
+        let sin_angle = pull_direction.dot(push_axis);
+        Degrees(sin_angle.asin().to_degrees())
+    }
+}
 
 /// Represents an attachment point on a push interval
 #[derive(Clone, Copy, Debug)]
@@ -86,21 +184,30 @@ impl PullConnections {
             .copied()
             .collect();
 
+        // Calculate push axis: direction from alpha to omega
+        let alpha_pos = joint_positions[push_alpha_index];
+        let omega_pos = joint_positions[push_omega_index];
+        let push_direction = (omega_pos - alpha_pos).normalize();
+
         // Step 4: Find optimal assignment for each end using moment minimization
+        // Alpha end: push axis points outward (opposite to push direction)
         let optimized_alpha = find_optimal_assignment(
             &alpha_connections,
             alpha_attachment_points,
             pull_data,
             joint_positions,
             push_alpha_index,
+            -push_direction, // Outward from alpha end
         );
 
+        // Omega end: push axis points outward (same as push direction)
         let optimized_omega = find_optimal_assignment(
             &omega_connections,
             omega_attachment_points,
             pull_data,
             joint_positions,
             push_omega_index,
+            push_direction, // Outward from omega end
         );
 
         // Step 5: Assign connections using optimized order
@@ -321,40 +428,94 @@ fn calculate_rotational_moment(
     total_moment.magnitude()
 }
 
+/// Checks if a pull interval is "outward-pulling" (positive dot product with push axis)
+/// These must be assigned to the lowest slot (slot 0)
+fn is_outward_pulling(
+    pull: &PullIntervalData,
+    push_joint_index: usize,
+    push_axis: Vector3<f32>,
+    joint_positions: &[Point3<f32>],
+) -> bool {
+    // Determine which end of the pull connects to this push joint
+    let other_joint = if pull.alpha_joint == push_joint_index {
+        pull.omega_joint
+    } else {
+        pull.alpha_joint
+    };
+
+    // Pull direction: from push joint toward the other end
+    let push_pos = joint_positions[push_joint_index];
+    let other_pos = joint_positions[other_joint];
+    let pull_direction = (other_pos - push_pos).normalize();
+
+    // Positive dot product means pulling outward along the push axis
+    pull_direction.dot(push_axis) > 0.0
+}
+
 /// Finds the optimal assignment of pull intervals to attachment points
-/// that minimizes rotational moment
+/// that minimizes rotational moment.
+/// Outward-pulling intervals (positive dot with push axis) are forced to slot 0.
 fn find_optimal_assignment(
     pulls: &[(IntervalEnd, UniqueId, usize)], // (end, pull_id, joint_index)
     attachment_points: &[AttachmentPoint],
     pull_data: &[PullIntervalData],
     joint_positions: &[Point3<f32>],
     push_joint_index: usize,
+    push_axis: Vector3<f32>,
 ) -> Vec<(IntervalEnd, UniqueId, usize)> {
     if pulls.is_empty() {
         return Vec::new();
     }
 
-    let n = pulls.len();
-    
-    // If there's only one pull, no optimization needed
-    if n == 1 {
-        return pulls.to_vec();
+    // Separate outward-pulling intervals from inward-pulling ones
+    let mut outward_pulls = Vec::new();
+    let mut inward_pulls = Vec::new();
+
+    for pull in pulls {
+        if let Some(data) = pull_data.iter().find(|d| d.id == pull.1) {
+            if is_outward_pulling(data, push_joint_index, push_axis, joint_positions) {
+                outward_pulls.push(*pull);
+            } else {
+                inward_pulls.push(*pull);
+            }
+        } else {
+            inward_pulls.push(*pull);
+        }
     }
 
-    // For small numbers (≤ 6), evaluate all permutations
-    // Generate all permutations and find the one with minimum moment
-    let mut best_moment = f32::MAX;
+    // Build result: outward pulls get lowest slots, then inward pulls
+    let mut result = Vec::with_capacity(pulls.len());
 
-    // Use Heap's algorithm to generate permutations
+    // Add outward-pulling intervals first (they get the lowest slots)
+    for pull in &outward_pulls {
+        result.push(*pull);
+    }
+
+    // If there are no inward pulls to optimize, we're done
+    if inward_pulls.is_empty() {
+        return result;
+    }
+
+    // If there's only one inward pull, no optimization needed
+    if inward_pulls.len() == 1 {
+        result.push(inward_pulls[0]);
+        return result;
+    }
+
+    // Optimize the inward pulls using moment minimization
+    let n = inward_pulls.len();
+    let start_slot = outward_pulls.len(); // Inward pulls start after outward slots
+
+    let mut best_moment = f32::MAX;
     let mut indices: Vec<usize> = (0..n).collect();
-    let mut result = pulls.to_vec();
+    let mut best_order = inward_pulls.clone();
 
     // Helper to evaluate current permutation
     let evaluate = |perm: &[usize]| -> f32 {
         let assignment: Vec<(UniqueId, usize)> = perm
             .iter()
             .enumerate()
-            .map(|(attach_idx, &pull_idx)| (pulls[pull_idx].1, attach_idx))
+            .map(|(i, &pull_idx)| (inward_pulls[pull_idx].1, start_slot + i))
             .collect();
         calculate_rotational_moment(
             &assignment,
@@ -389,12 +550,14 @@ fn find_optimal_assignment(
         let moment = evaluate(perm);
         if moment < best_moment {
             best_moment = moment;
-            // Store this permutation
             for (i, &pull_idx) in perm.iter().enumerate() {
-                result[i] = pulls[pull_idx];
+                best_order[i] = inward_pulls[pull_idx];
             }
         }
     });
+
+    // Add the optimized inward pulls
+    result.extend(best_order);
 
     result
 }
@@ -404,21 +567,14 @@ fn find_optimal_assignment(
 /// # Parameters
 /// * `end_position` - The position of the end of the push interval
 /// * `direction` - The direction vector of the push interval (points outward from interval)
-/// * `radius` - The radius of the push interval (used as base spacing)
+/// * `connector` - The connector spec with scaled dimensions
 pub fn generate_attachment_points(
     end_position: Point3<f32>,
     direction: Vector3<f32>,
-    radius: f32,
+    connector: &ConnectorSpec,
 ) -> [AttachmentPoint; ATTACHMENT_POINTS] {
     // Normalize the direction vector to get the axis
     let axis = direction.normalize();
-
-    // Calculate spacing between attachment points
-    // Spacing equals the diameter of the rendered spheres so they are tangent (touching)
-    // Sphere radius in renderer is Role::Pulling.appearance().radius * 0.12
-    // Adjusted slightly larger to prevent overlap
-    let sphere_diameter = radius * 0.015; // Diameter of each sphere
-    let sphere_radius = sphere_diameter * 0.5; // Radius of each sphere
 
     // Create array to hold all attachment points
     let mut points = [AttachmentPoint {
@@ -427,12 +583,11 @@ pub fn generate_attachment_points(
     }; ATTACHMENT_POINTS];
 
     // Generate attachment points extending outwards along the axis
+    // Each point represents the center of a ring at that slot
     for i in 0..ATTACHMENT_POINTS {
-        // Calculate distance from the end position
-        // First sphere starts at sphere_radius so it's tangent with the cylinder cap
-        // Subsequent spheres are spaced by sphere_diameter to be tangent with each other
-        let distance = sphere_radius + sphere_diameter * (i as f32);
-        
+        // Ring center is at slot index * ring_thickness + half ring thickness
+        let distance = connector.ring_thickness * (i as f32 + 0.5);
+
         // Calculate offset vector
         let offset = axis * distance;
 
@@ -454,7 +609,7 @@ pub fn generate_attachment_points(
 pub fn calculate_interval_attachment_points(
     start: Point3<f32>,
     end: Point3<f32>,
-    radius: f32,
+    connector: &ConnectorSpec,
 ) -> (
     [AttachmentPoint; ATTACHMENT_POINTS],
     [AttachmentPoint; ATTACHMENT_POINTS],
@@ -466,7 +621,7 @@ pub fn calculate_interval_attachment_points(
     // Alpha end: points extend outward from start (opposite to interval direction)
     // Omega end: points extend outward from end (in interval direction)
     (
-        generate_attachment_points(start, -direction, radius),
-        generate_attachment_points(end, direction, radius),
+        generate_attachment_points(start, -direction, connector),
+        generate_attachment_points(end, direction, connector),
     )
 }

@@ -4,24 +4,28 @@
  */
 
 use crate::camera::Pick;
-use crate::fabric::attachment::AttachmentPoint;
+use crate::fabric::attachment::{AttachmentPoint, ConnectorSpec};
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::{Fabric, IntervalEnd};
-use crate::wgpu::create_sphere;
-use crate::wgpu::{vertex_layout_f32x8, Wgpu, DEFAULT_PRIMITIVE_STATE};
+use crate::wgpu::{Wgpu, DEFAULT_PRIMITIVE_STATE};
 use crate::IntervalDetails;
+use cgmath::{InnerSpace, Vector3};
+use std::f32::consts::PI;
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
 use wgpu::PipelineCompilationOptions;
 
 const ORANGE: [f32; 4] = [1.0, 0.1, 0.0, 1.0];
-const GRAY: [f32; 4] = [0.3, 0.3, 0.3, 0.2];
+const GRAY: [f32; 4] = [0.3, 0.3, 0.3, 0.5];
 
+/// Instance data for a ring/disc - oriented perpendicular to the push axis
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct AttachmentPointInstance {
-    position: [f32; 3], // Position of the attachment point
-    scale: f32,         // Size of the marker
+pub struct RingInstance {
+    position: [f32; 3], // Center position of the ring
+    radius: f32,        // Radius of the ring (matches push interval)
+    normal: [f32; 3],   // Normal direction (push axis, for orientation)
+    thickness: f32,     // Thickness of the ring (axial extent)
     color: [f32; 4],    // RGBA color
 }
 
@@ -36,15 +40,14 @@ pub struct AttachmentRenderer {
 
 impl AttachmentRenderer {
     pub fn new(wgpu: &Wgpu) -> Self {
-        // Create a simple sphere for attachment point visualization
-        // Reusing the same sphere creation function as JointRenderer
-        let (vertex_buffer, index_buffer, num_indices) = create_sphere(wgpu);
+        // Create a unit disc geometry (flat cylinder)
+        let (vertex_buffer, index_buffer, num_indices) = create_disc(wgpu);
 
-        // Use the same shader as the joint renderer
+        // Create shader module (uses ring_vertex and ring_fragment from shared shader file)
         let shader = wgpu
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("Attachment Point Shader"),
+                label: Some("Ring Shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
             });
 
@@ -52,17 +55,40 @@ impl AttachmentRenderer {
         let pipeline_layout = wgpu
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Attachment Point Pipeline Layout"),
+                label: Some("Ring Pipeline Layout"),
                 bind_group_layouts: &[&wgpu.uniform_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
-        // Define the vertex buffer layout
-        let vertex_layout = vertex_layout_f32x8();
+        // Define the vertex buffer layout for disc geometry
+        let vertex_layout = wgpu::VertexBufferLayout {
+            array_stride: size_of::<[f32; 8]>() as wgpu::BufferAddress, // position[3] + normal[3] + uv[2]
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                // position
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                // normal
+                wgpu::VertexAttribute {
+                    offset: size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                // uv
+                wgpu::VertexAttribute {
+                    offset: size_of::<[f32; 6]>() as wgpu::BufferAddress,
+                    shader_location: 2,
+                    format: wgpu::VertexFormat::Float32x2,
+                },
+            ],
+        };
 
-        // Define the instance buffer layout
+        // Define the instance buffer layout for rings
         let instance_layout = wgpu::VertexBufferLayout {
-            array_stride: size_of::<AttachmentPointInstance>() as wgpu::BufferAddress,
+            array_stride: size_of::<RingInstance>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &[
                 // position
@@ -71,16 +97,28 @@ impl AttachmentRenderer {
                     shader_location: 3,
                     format: wgpu::VertexFormat::Float32x3,
                 },
-                // scale
+                // radius
                 wgpu::VertexAttribute {
                     offset: size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     shader_location: 4,
                     format: wgpu::VertexFormat::Float32,
                 },
-                // color
+                // normal (push axis direction)
                 wgpu::VertexAttribute {
                     offset: size_of::<[f32; 4]>() as wgpu::BufferAddress,
                     shader_location: 5,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                // thickness
+                wgpu::VertexAttribute {
+                    offset: size_of::<[f32; 7]>() as wgpu::BufferAddress,
+                    shader_location: 6,
+                    format: wgpu::VertexFormat::Float32,
+                },
+                // color
+                wgpu::VertexAttribute {
+                    offset: size_of::<[f32; 8]>() as wgpu::BufferAddress,
+                    shader_location: 7,
                     format: wgpu::VertexFormat::Float32x4,
                 },
             ],
@@ -91,18 +129,18 @@ impl AttachmentRenderer {
             .device
             .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 cache: None,
-                label: Some("Attachment Point Pipeline"),
+                label: Some("Ring Pipeline"),
                 layout: Some(&pipeline_layout),
                 vertex: wgpu::VertexState {
                     compilation_options: PipelineCompilationOptions::default(),
                     module: &shader,
-                    entry_point: Some("joint_vertex"), // Reuse the joint vertex shader
+                    entry_point: Some("ring_vertex"),
                     buffers: &[vertex_layout, instance_layout],
                 },
                 fragment: Some(wgpu::FragmentState {
                     compilation_options: PipelineCompilationOptions::default(),
                     module: &shader,
-                    entry_point: Some("joint_fragment"), // Reuse the joint fragment shader
+                    entry_point: Some("ring_fragment"),
                     targets: &[Some(wgpu::ColorTargetState {
                         format: wgpu.surface_configuration.format,
                         blend: Some(wgpu::BlendState::REPLACE),
@@ -130,7 +168,7 @@ impl AttachmentRenderer {
     }
 
     pub fn update(&mut self, wgpu: &Wgpu, fabric: &Fabric, pick: &Pick) {
-        // Create instances for attachment points
+        // Create instances for attachment points (now as rings)
         let instances = self.create_instances(fabric, pick);
         self.num_instances = instances.len() as u32;
 
@@ -138,7 +176,7 @@ impl AttachmentRenderer {
         if self.num_instances > 0 {
             self.instance_buffer = Some(wgpu.device.create_buffer_init(
                 &wgpu::util::BufferInitDescriptor {
-                    label: Some("Attachment Point Instance Buffer"),
+                    label: Some("Ring Instance Buffer"),
                     contents: bytemuck::cast_slice(&instances),
                     usage: wgpu::BufferUsages::VERTEX,
                 },
@@ -146,7 +184,7 @@ impl AttachmentRenderer {
         }
     }
 
-    fn create_instances(&self, fabric: &Fabric, pick: &Pick) -> Vec<AttachmentPointInstance> {
+    fn create_instances(&self, fabric: &Fabric, pick: &Pick) -> Vec<RingInstance> {
         let mut instances = Vec::new();
 
         // Track which push intervals are selected/highlighted to avoid duplicate points
@@ -170,35 +208,50 @@ impl AttachmentRenderer {
             _ => (None, None, None),
         };
 
-        // Calculate point radius once - use a consistent size for all attachment points
-        let point_radius = Role::Pulling.appearance().radius * 0.06;
+        let connector = ConnectorSpec::for_scale(fabric.scale());
+        // Ring radius should match push interval radius: base_radius * radius_factor * scale
+        // base_radius = 0.04, push radius_factor = 1.2
+        let ring_radius = 0.04 * 1.2 * fabric.scale();
+        // Ring thickness with small gap between rings
+        let ring_thickness = connector.ring_thickness * 0.8; // 80% of slot width leaves 20% gap
 
         // Add all push interval attachment points with appropriate coloring
-        self.add_push_interval_attachment_points(
+        self.add_push_interval_rings(
             &mut instances,
             fabric,
             selected_push_interval,
             selected_joint,
-            original_push_interval, // Pass the original push interval ID
-            point_radius,
+            original_push_interval,
+            ring_radius,
+            ring_thickness,
+            &connector,
             pick,
         );
 
         // Handle the case of a selected pull interval
-        self.add_pull_interval_attachment_points(&mut instances, fabric, pick, point_radius);
+        self.add_pull_interval_rings(
+            &mut instances,
+            fabric,
+            pick,
+            ring_radius,
+            ring_thickness,
+            &connector,
+        );
 
         instances
     }
 
-    /// Adds attachment points for push intervals
-    fn add_push_interval_attachment_points(
+    /// Adds ring instances for push intervals
+    fn add_push_interval_rings(
         &self,
-        instances: &mut Vec<AttachmentPointInstance>,
+        instances: &mut Vec<RingInstance>,
         fabric: &Fabric,
         selected_push_interval: Option<usize>,
         selected_joint: Option<usize>,
         original_push_interval: Option<usize>,
-        point_radius: f32,
+        ring_radius: f32,
+        ring_thickness: f32,
+        connector: &ConnectorSpec,
         pick: &Pick,
     ) {
         for (idx, interval_opt) in fabric.intervals.iter().enumerate() {
@@ -215,8 +268,18 @@ impl AttachmentRenderer {
 
                     // Get attachment points for this interval
                     if let Ok((alpha_points, omega_points)) =
-                        interval.attachment_points(&fabric.joints)
+                        interval.attachment_points(&fabric.joints, connector)
                     {
+                        // Calculate push axis direction
+                        let alpha_pos = fabric.joints[interval.alpha_index].location;
+                        let omega_pos = fabric.joints[interval.omega_index].location;
+                        let push_dir = (omega_pos - alpha_pos).normalize();
+
+                        // Alpha end normal points outward (opposite to push direction)
+                        let alpha_normal = -push_dir;
+                        // Omega end normal points outward (same as push direction)
+                        let omega_normal = push_dir;
+
                         if is_selected {
                             // Create a set of occupied attachment indices for alpha and omega ends
                             let alpha_occupied = self.get_occupied_indices(
@@ -230,22 +293,26 @@ impl AttachmentRenderer {
                                 omega_points.len(),
                             );
 
-                            // Add all attachment points with appropriate color
-                            self.add_attachment_point_instances(
+                            // Add all ring instances with appropriate color
+                            self.add_ring_instances(
                                 instances,
                                 &alpha_points,
                                 &alpha_occupied,
-                                point_radius,
+                                ring_radius,
+                                ring_thickness,
+                                alpha_normal,
                                 interval,
                                 IntervalEnd::Alpha,
                                 pick,
                             );
 
-                            self.add_attachment_point_instances(
+                            self.add_ring_instances(
                                 instances,
                                 &omega_points,
                                 &omega_occupied,
-                                point_radius,
+                                ring_radius,
+                                ring_thickness,
+                                omega_normal,
                                 interval,
                                 IntervalEnd::Omega,
                                 pick,
@@ -263,22 +330,26 @@ impl AttachmentRenderer {
                                 omega_points.len(),
                             );
 
-                            // Add only occupied attachment points
-                            self.add_attachment_point_instances(
+                            // Add only occupied ring instances
+                            self.add_ring_instances(
                                 instances,
                                 &alpha_points,
                                 &alpha_occupied,
-                                point_radius,
+                                ring_radius,
+                                ring_thickness,
+                                alpha_normal,
                                 interval,
                                 IntervalEnd::Alpha,
                                 pick,
                             );
 
-                            self.add_attachment_point_instances(
+                            self.add_ring_instances(
                                 instances,
                                 &omega_points,
                                 &omega_occupied,
-                                point_radius,
+                                ring_radius,
+                                ring_thickness,
+                                omega_normal,
                                 interval,
                                 IntervalEnd::Omega,
                                 pick,
@@ -290,13 +361,15 @@ impl AttachmentRenderer {
         }
     }
 
-    /// Adds attachment points for a selected pull interval
-    fn add_pull_interval_attachment_points(
+    /// Adds ring instances for a selected pull interval
+    fn add_pull_interval_rings(
         &self,
-        instances: &mut Vec<AttachmentPointInstance>,
+        instances: &mut Vec<RingInstance>,
         fabric: &Fabric,
         pick: &Pick,
-        point_radius: f32,
+        ring_radius: f32,
+        ring_thickness: f32,
+        connector: &ConnectorSpec,
     ) {
         if let Pick::Interval(IntervalDetails {
             id: _,
@@ -313,8 +386,15 @@ impl AttachmentRenderer {
                         if orig_interval.has_role(Role::Pushing) {
                             // Get attachment points for the original push interval
                             if let Ok((alpha_points, omega_points)) =
-                                orig_interval.attachment_points(&fabric.joints)
+                                orig_interval.attachment_points(&fabric.joints, connector)
                             {
+                                // Calculate push axis direction
+                                let alpha_pos = fabric.joints[orig_interval.alpha_index].location;
+                                let omega_pos = fabric.joints[orig_interval.omega_index].location;
+                                let push_dir = (omega_pos - alpha_pos).normalize();
+                                let alpha_normal = -push_dir;
+                                let omega_normal = push_dir;
+
                                 // Create a set of occupied attachment indices for alpha and omega ends
                                 let alpha_occupied = self.get_occupied_indices(
                                     orig_interval,
@@ -327,22 +407,26 @@ impl AttachmentRenderer {
                                     omega_points.len(),
                                 );
 
-                                // Add all attachment points with appropriate color
-                                self.add_attachment_point_instances(
+                                // Add all ring instances with appropriate color
+                                self.add_ring_instances(
                                     instances,
                                     &alpha_points,
                                     &alpha_occupied,
-                                    point_radius,
+                                    ring_radius,
+                                    ring_thickness,
+                                    alpha_normal,
                                     orig_interval,
                                     IntervalEnd::Alpha,
                                     pick,
                                 );
 
-                                self.add_attachment_point_instances(
+                                self.add_ring_instances(
                                     instances,
                                     &omega_points,
                                     &omega_occupied,
-                                    point_radius,
+                                    ring_radius,
+                                    ring_thickness,
+                                    omega_normal,
                                     orig_interval,
                                     IntervalEnd::Omega,
                                     pick,
@@ -362,7 +446,6 @@ impl AttachmentRenderer {
                             // Skip the original interval if it's one of the connected push intervals
                             // to avoid duplicate attachment points
                             if let Some(orig_id) = original_interval_id {
-                                // Compare the index in the intervals array instead of the ID field
                                 if _idx == orig_id.0 {
                                     continue;
                                 }
@@ -373,22 +456,34 @@ impl AttachmentRenderer {
                             {
                                 // Get attachment points for this push interval
                                 if let Ok((alpha_points, omega_points)) =
-                                    interval.attachment_points(&fabric.joints)
+                                    interval.attachment_points(&fabric.joints, connector)
                                 {
-                                    // Only show attachment points for the end connected to the joint
-                                    let points_to_show = if interval.alpha_index == joint_index {
-                                        &alpha_points
-                                    } else {
-                                        &omega_points
-                                    };
+                                    // Calculate push axis direction
+                                    let alpha_pos = fabric.joints[interval.alpha_index].location;
+                                    let omega_pos = fabric.joints[interval.omega_index].location;
+                                    let push_dir = (omega_pos - alpha_pos).normalize();
 
-                                    // Add the attachment points to the instances
+                                    // Only show attachment points for the end connected to the joint
+                                    let (points_to_show, normal) =
+                                        if interval.alpha_index == joint_index {
+                                            (&alpha_points, -push_dir)
+                                        } else {
+                                            (&omega_points, push_dir)
+                                        };
+
+                                    // Add the ring instances
                                     for point in points_to_show.iter() {
-                                        instances.push(self.create_attachment_point_instance(
-                                            point,
-                                            point_radius,
-                                            ORANGE,
-                                        ));
+                                        instances.push(RingInstance {
+                                            position: [
+                                                point.position.x,
+                                                point.position.y,
+                                                point.position.z,
+                                            ],
+                                            radius: ring_radius,
+                                            normal: [normal.x, normal.y, normal.z],
+                                            thickness: ring_thickness,
+                                            color: ORANGE,
+                                        });
                                     }
                                 }
                             }
@@ -419,13 +514,15 @@ impl AttachmentRenderer {
         occupied
     }
 
-    /// Adds attachment point instances for a set of points
-    fn add_attachment_point_instances(
+    /// Adds ring instances for a set of attachment points
+    fn add_ring_instances(
         &self,
-        instances: &mut Vec<AttachmentPointInstance>,
+        instances: &mut Vec<RingInstance>,
         points: &[AttachmentPoint],
         occupied: &[bool],
-        point_radius: f32,
+        ring_radius: f32,
+        ring_thickness: f32,
+        normal: Vector3<f32>,
         interval: &Interval,
         end: IntervalEnd,
         pick: &Pick,
@@ -437,7 +534,7 @@ impl AttachmentRenderer {
             if !is_occupied {
                 continue;
             }
-            
+
             // Determine color: ORANGE if connected to selected pull interval, otherwise GRAY
             let color = if let Pick::Interval(IntervalDetails {
                 id: selected_id,
@@ -466,22 +563,14 @@ impl AttachmentRenderer {
             } else {
                 GRAY
             };
-            
-            instances.push(self.create_attachment_point_instance(point, point_radius, color));
-        }
-    }
 
-    /// Creates an attachment point instance with the given parameters
-    fn create_attachment_point_instance(
-        &self,
-        point: &AttachmentPoint,
-        scale: f32,
-        color: [f32; 4],
-    ) -> AttachmentPointInstance {
-        AttachmentPointInstance {
-            position: [point.position.x, point.position.y, point.position.z],
-            scale,
-            color,
+            instances.push(RingInstance {
+                position: [point.position.x, point.position.y, point.position.z],
+                radius: ring_radius,
+                normal: [normal.x, normal.y, normal.z],
+                thickness: ring_thickness,
+                color,
+            });
         }
     }
 
@@ -499,4 +588,141 @@ impl AttachmentRenderer {
             render_pass.draw_indexed(0..self.num_indices, 0, 0..self.num_instances);
         }
     }
+}
+
+/// Creates a unit disc (flat cylinder) geometry centered at origin
+/// The disc lies in the XZ plane with Y as the normal (up)
+/// Radius is 1.0, thickness (height) is 1.0 (from -0.5 to 0.5 in Y)
+fn create_disc(wgpu: &Wgpu) -> (wgpu::Buffer, wgpu::Buffer, u32) {
+    use bytemuck::cast_slice;
+
+    #[repr(C)]
+    #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+    struct DiscVertex {
+        position: [f32; 3],
+        normal: [f32; 3],
+        uv: [f32; 2],
+    }
+
+    const SEGMENTS: u32 = 16;
+    const HALF_HEIGHT: f32 = 0.5;
+
+    let mut vertices = Vec::new();
+    let mut indices: Vec<u32> = Vec::new();
+
+    // Pre-calculate ring positions
+    let mut ring_positions = Vec::with_capacity(SEGMENTS as usize);
+    for i in 0..SEGMENTS {
+        let angle = (i as f32) / (SEGMENTS as f32) * 2.0 * PI;
+        let x = angle.cos();
+        let z = angle.sin();
+        ring_positions.push((x, z));
+    }
+
+    // Top face (Y = +HALF_HEIGHT, normal pointing up)
+    let top_center_idx = vertices.len() as u32;
+    vertices.push(DiscVertex {
+        position: [0.0, HALF_HEIGHT, 0.0],
+        normal: [0.0, 1.0, 0.0],
+        uv: [0.5, 0.5],
+    });
+
+    let top_ring_start = vertices.len() as u32;
+    for (x, z) in &ring_positions {
+        vertices.push(DiscVertex {
+            position: [*x, HALF_HEIGHT, *z],
+            normal: [0.0, 1.0, 0.0],
+            uv: [0.5 + 0.5 * x, 0.5 + 0.5 * z],
+        });
+    }
+
+    // Top face triangles (counter-clockwise when viewed from above)
+    for i in 0..SEGMENTS {
+        let current = top_ring_start + i;
+        let next = top_ring_start + ((i + 1) % SEGMENTS);
+        indices.push(top_center_idx);
+        indices.push(next);
+        indices.push(current);
+    }
+
+    // Bottom face (Y = -HALF_HEIGHT, normal pointing down)
+    let bottom_center_idx = vertices.len() as u32;
+    vertices.push(DiscVertex {
+        position: [0.0, -HALF_HEIGHT, 0.0],
+        normal: [0.0, -1.0, 0.0],
+        uv: [0.5, 0.5],
+    });
+
+    let bottom_ring_start = vertices.len() as u32;
+    for (x, z) in &ring_positions {
+        vertices.push(DiscVertex {
+            position: [*x, -HALF_HEIGHT, *z],
+            normal: [0.0, -1.0, 0.0],
+            uv: [0.5 + 0.5 * x, 0.5 + 0.5 * z],
+        });
+    }
+
+    // Bottom face triangles (counter-clockwise when viewed from below)
+    for i in 0..SEGMENTS {
+        let current = bottom_ring_start + i;
+        let next = bottom_ring_start + ((i + 1) % SEGMENTS);
+        indices.push(bottom_center_idx);
+        indices.push(current);
+        indices.push(next);
+    }
+
+    // Side faces (cylinder wall)
+    let side_top_start = vertices.len() as u32;
+    for (x, z) in &ring_positions {
+        vertices.push(DiscVertex {
+            position: [*x, HALF_HEIGHT, *z],
+            normal: [*x, 0.0, *z], // Normal points outward radially
+            uv: [0.0, 0.0],
+        });
+    }
+
+    let side_bottom_start = vertices.len() as u32;
+    for (x, z) in &ring_positions {
+        vertices.push(DiscVertex {
+            position: [*x, -HALF_HEIGHT, *z],
+            normal: [*x, 0.0, *z], // Normal points outward radially
+            uv: [0.0, 1.0],
+        });
+    }
+
+    // Side triangles
+    for i in 0..SEGMENTS {
+        let top_current = side_top_start + i;
+        let top_next = side_top_start + ((i + 1) % SEGMENTS);
+        let bottom_current = side_bottom_start + i;
+        let bottom_next = side_bottom_start + ((i + 1) % SEGMENTS);
+
+        // First triangle
+        indices.push(top_current);
+        indices.push(top_next);
+        indices.push(bottom_current);
+
+        // Second triangle
+        indices.push(bottom_current);
+        indices.push(top_next);
+        indices.push(bottom_next);
+    }
+
+    let vertex_buffer = wgpu
+        .device
+        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Disc Vertex Buffer"),
+            contents: cast_slice(&vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+    let index_buffer = wgpu
+        .device
+        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Disc Index Buffer"),
+            contents: cast_slice(&indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
+    (vertex_buffer, index_buffer, indices.len() as u32)
 }

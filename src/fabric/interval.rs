@@ -5,7 +5,7 @@
 
 use crate::fabric::attachment::{
     calculate_interval_attachment_points, find_nearest_attachment_point, AttachmentPoint,
-    PullConnection, PullConnections, PullIntervalData, ATTACHMENT_POINTS,
+    ConnectorSpec, PullConnection, PullConnections, PullIntervalData, ATTACHMENT_POINTS,
 };
 use crate::fabric::error::FabricError;
 use crate::fabric::interval::Role::*;
@@ -75,7 +75,8 @@ impl Fabric {
         // Now update the attachment connections if we have a valid push interval
         if let Some(push_interval) = self.intervals[push_interval_id.0].as_mut() {
             // Use the new reorder_connections method to optimize attachment points
-            let _ = push_interval.reorder_connections(&self.joints, &connected_pulls, &pull_data);
+            let connector = ConnectorSpec::for_scale(self.scale);
+            let _ = push_interval.reorder_connections(&self.joints, &connected_pulls, &pull_data, &connector);
         }
     }
 
@@ -509,6 +510,7 @@ impl Interval {
         joints: &[Joint],
         pull_intervals: &[(UniqueId, usize, usize)],
         pull_data: &[PullIntervalData],
+        connector: &ConnectorSpec,
     ) -> Result<(), FabricError> {
         // Only push intervals have connections to reorder
         if self.role != Pushing {
@@ -516,7 +518,7 @@ impl Interval {
         }
 
         // Get attachment points
-        let attachment_points = self.attachment_points(joints)?;
+        let attachment_points = self.attachment_points(joints, connector)?;
 
         // Create a vector of joint positions
         let joint_positions: Vec<Point3<f32>> = joints.iter().map(|joint| joint.location).collect();
@@ -543,6 +545,7 @@ impl Interval {
     pub fn attachment_points(
         &self,
         joints: &[Joint],
+        connector: &ConnectorSpec,
     ) -> Result<
         (
             [AttachmentPoint; ATTACHMENT_POINTS],
@@ -557,14 +560,11 @@ impl Interval {
 
         let (alpha_location, omega_location) = self.locations(joints);
 
-        // Calculate the radius based on the role
-        let radius = self.role.appearance().radius;
-
         // Calculate attachment points at both ends of the interval
         Ok(calculate_interval_attachment_points(
             alpha_location,
             omega_location,
-            radius,
+            connector,
         ))
     }
 
@@ -575,12 +575,13 @@ impl Interval {
         joints: &[Joint],
         end: IntervalEnd,
         index: usize,
+        connector: &ConnectorSpec,
     ) -> Result<AttachmentPoint, FabricError> {
         if index >= ATTACHMENT_POINTS {
             return Err(FabricError::InvalidAttachmentIndex);
         }
 
-        self.attachment_points(joints)
+        self.attachment_points(joints, connector)
             .map(|points| self.get_point_from_end(points, end, index))
     }
 
@@ -607,8 +608,9 @@ impl Interval {
         &self,
         joints: &[Joint],
         position: Point3<f32>,
+        connector: &ConnectorSpec,
     ) -> Result<(IntervalEnd, AttachmentPoint), FabricError> {
-        let (alpha_points, omega_points) = self.attachment_points(joints)?;
+        let (alpha_points, omega_points) = self.attachment_points(joints, connector)?;
 
         // Find the nearest point from each end using the standalone function
         let (alpha_nearest_idx, alpha_nearest_dist) =
@@ -631,12 +633,13 @@ impl Interval {
         joints: &[Joint],
         end: IntervalEnd,
         index: usize,
+        connector: &ConnectorSpec,
     ) -> Result<AttachmentPoint, FabricError> {
         if index >= ATTACHMENT_POINTS {
             return Err(FabricError::InvalidAttachmentIndex);
         }
 
-        let points = self.attachment_points(joints)?;
+        let points = self.attachment_points(joints, connector)?;
 
         // Use the opposite() method from IntervalEnd
         let opposite_end = end.opposite();

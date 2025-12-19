@@ -1,10 +1,12 @@
 use crate::camera::Pick;
+use crate::fabric::attachment::ConnectorSpec;
 use crate::fabric::interval::Role;
 use crate::fabric::material::Material;
 use crate::fabric::{Fabric, IntervalEnd, UniqueId};
 use crate::wgpu::{Wgpu, DEFAULT_PRIMITIVE_STATE};
 use crate::{Appearance, AppearanceMode, IntervalDetails, JointDetails, RenderStyle};
 use bytemuck::{Pod, Zeroable};
+use cgmath::InnerSpace;
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
 use wgpu::PipelineCompilationOptions;
@@ -274,18 +276,22 @@ impl CylinderRenderer {
                 let mut modified_start = start;
                 let mut modified_end = end;
 
-                // For pull-like intervals, connect them to attachment points on push intervals
+                // For pull-like intervals, connect them to hinge positions on push intervals
                 // only when attachment points are visible (knots mode)
                 if interval.role.is_pull_like() && render_style.show_attachment_points() {
                     // Use the current index as the pull interval ID
                     let pull_id = interval_id;
+                    let connector = ConnectorSpec::for_scale(fabric.scale());
 
                     // Process both ends of the pull interval
                     let joint_indices = [interval.alpha_index, interval.omega_index];
+                    let other_joint_indices = [interval.omega_index, interval.alpha_index];
                     let modified_points = [&mut modified_start, &mut modified_end];
 
                     // For each end of the pull interval
                     for (i, joint_index) in joint_indices.iter().enumerate() {
+                        let other_joint_pos = fabric.joints[other_joint_indices[i]].location;
+
                         // Find all push intervals connected to this joint
                         for push_opt in fabric.intervals.iter() {
                             if let Some(push_interval) = push_opt {
@@ -293,51 +299,56 @@ impl CylinderRenderer {
                                 if push_interval.has_role(Role::Pushing) {
                                     // Check if this push interval is connected to the current joint
                                     if push_interval.touches(*joint_index) {
-                                        // Get attachment points for this push interval
-                                        if let Ok((alpha_points, omega_points)) =
-                                            push_interval.attachment_points(&fabric.joints)
+                                        // Determine which end of the push interval is connected to the joint
+                                        let push_end = if push_interval.alpha_index == *joint_index {
+                                            IntervalEnd::Alpha
+                                        } else {
+                                            IntervalEnd::Omega
+                                        };
+
+                                        // Get the connection data for this end
+                                        if let Some(connections) =
+                                            push_interval.connections(push_end)
                                         {
-                                            // Determine which end of the push interval is connected to the joint
-                                            let end = if push_interval.alpha_index == *joint_index {
-                                                IntervalEnd::Alpha
-                                            } else {
-                                                IntervalEnd::Omega
-                                            };
+                                            // Look for a connection to this pull interval
+                                            for conn in connections.iter() {
+                                                if let Some(pull_conn) = conn {
+                                                    if pull_conn.pull_interval_id == pull_id {
+                                                        // Found the connection - calculate carabiner position
+                                                        let push_alpha_pos = fabric.joints[push_interval.alpha_index].location;
+                                                        let push_omega_pos = fabric.joints[push_interval.omega_index].location;
 
-                                            // Get the connection data for this end
-                                            if let Some(connections) =
-                                                push_interval.connections(end)
-                                            {
-                                                // Look for a connection to this pull interval
-                                                for conn in connections.iter() {
-                                                    if let Some(pull_conn) = conn {
-                                                        if pull_conn.pull_interval_id == pull_id {
-                                                            // Found the connection - use the actual attachment point
-                                                            let points =
-                                                                if end == IntervalEnd::Alpha {
-                                                                    &alpha_points
-                                                                } else {
-                                                                    &omega_points
-                                                                };
-
-                                                            // Use the attachment index from the connection data
-                                                            let attachment_idx =
-                                                                pull_conn.attachment_index;
-                                                            if attachment_idx < points.len() {
-                                                                *modified_points[i] =
-                                                                    points[attachment_idx].position;
+                                                        // Push end position and outward axis
+                                                        let (push_end_pos, push_axis) = match push_end {
+                                                            IntervalEnd::Alpha => {
+                                                                let dir = (push_omega_pos - push_alpha_pos).normalize();
+                                                                (push_alpha_pos, -dir) // Outward from alpha
                                                             }
+                                                            IntervalEnd::Omega => {
+                                                                let dir = (push_omega_pos - push_alpha_pos).normalize();
+                                                                (push_omega_pos, dir) // Outward from omega
+                                                            }
+                                                        };
 
-                                                            // We found the connection, no need to check others
-                                                            break;
-                                                        }
+                                                        // Calculate hinge position
+                                                        let hinge_pos = connector.hinge_position(
+                                                            push_end_pos,
+                                                            push_axis,
+                                                            pull_conn.attachment_index,
+                                                            other_joint_pos,
+                                                        );
+
+                                                        *modified_points[i] = hinge_pos;
+
+                                                        // We found the connection, no need to check others
+                                                        break;
                                                     }
                                                 }
                                             }
-
-                                            // We found a push interval for this joint, no need to check others
-                                            break;
                                         }
+
+                                        // We found a push interval for this joint, no need to check others
+                                        break;
                                     }
                                 }
                             }
