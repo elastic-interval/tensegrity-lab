@@ -230,16 +230,103 @@ fn joint_fragment(in: JointVertexOutput) -> @location(0) vec4<f32> {
     // Simple lighting calculation
     let light_direction = normalize(vec3<f32>(1.0, 1.0, 1.0));
     let normal = normalize(in.normal);
-    
+
     // Calculate diffuse lighting
     let diffuse = max(dot(normal, light_direction), 0.0);
-    
+
     // Add ambient light
     let ambient = 0.3;
     let lighting = ambient + diffuse * 0.7;
-    
+
     // Apply lighting to the color
     let final_color = in.color * lighting;
-    
+
     return final_color;
+}
+
+// Ring/Disc shader for attachment point visualization
+// Renders flat cylindrical rings oriented perpendicular to push intervals
+
+struct RingVertexInput {
+    @location(0) position: vec3<f32>,  // Unit disc position (radius 1, height 1)
+    @location(1) normal: vec3<f32>,    // Vertex normal
+    @location(2) uv: vec2<f32>,        // Texture coordinates
+
+    // Instance attributes
+    @location(3) inst_position: vec3<f32>,  // Ring center position
+    @location(4) inst_radius: f32,          // Ring radius
+    @location(5) inst_normal: vec3<f32>,    // Ring orientation (push axis)
+    @location(6) inst_thickness: f32,       // Ring thickness (height)
+    @location(7) inst_color: vec4<f32>,     // Ring color
+};
+
+struct RingVertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) world_normal: vec3<f32>,
+    @location(1) color: vec4<f32>,
+};
+
+// Build a rotation matrix that transforms Y-up to the given normal direction
+fn build_ring_rotation_matrix(target_normal: vec3<f32>) -> mat3x3<f32> {
+    let y_axis = normalize(target_normal);
+
+    // Find a perpendicular vector for X axis
+    var x_axis: vec3<f32>;
+    if (abs(y_axis.y) < 0.999) {
+        x_axis = normalize(cross(vec3<f32>(0.0, 1.0, 0.0), y_axis));
+    } else {
+        x_axis = normalize(cross(vec3<f32>(1.0, 0.0, 0.0), y_axis));
+    }
+
+    // Z axis completes the basis
+    let z_axis = cross(x_axis, y_axis);
+
+    return mat3x3<f32>(x_axis, y_axis, z_axis);
+}
+
+@vertex
+fn ring_vertex(in: RingVertexInput) -> RingVertexOutput {
+    // Scale the unit disc: radius in XZ, thickness in Y
+    var scaled_pos = in.position;
+    scaled_pos.x *= in.inst_radius;
+    scaled_pos.z *= in.inst_radius;
+    scaled_pos.y *= in.inst_thickness;
+
+    // Build rotation matrix to orient disc perpendicular to push axis
+    let rotation = build_ring_rotation_matrix(in.inst_normal);
+
+    // Rotate the scaled position
+    let rotated_pos = rotation * scaled_pos;
+
+    // Translate to instance position
+    let world_position = rotated_pos + in.inst_position;
+
+    // Transform normal
+    let world_normal = normalize(rotation * in.normal);
+
+    var out: RingVertexOutput;
+    out.clip_position = uniforms.mvp_matrix * vec4<f32>(world_position, 1.0);
+    out.world_normal = world_normal;
+    out.color = in.inst_color;
+
+    return out;
+}
+
+@fragment
+fn ring_fragment(in: RingVertexOutput) -> @location(0) vec4<f32> {
+    // Simple lighting calculation
+    let light_direction = normalize(vec3<f32>(0.0, 1.0, 0.0));
+    let normal = normalize(in.world_normal);
+
+    // Calculate diffuse lighting (use absolute value for two-sided lighting)
+    let diffuse = abs(dot(normal, light_direction));
+
+    // Add ambient light
+    let ambient = 0.3;
+    let lighting = ambient + diffuse * 0.7;
+
+    // Apply lighting to the color
+    let final_color = vec3<f32>(in.color.rgb) * lighting;
+
+    return vec4<f32>(final_color, in.color.a);
 }

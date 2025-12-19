@@ -10,7 +10,8 @@ use crate::fabric::joint_incident::JointIncident;
 use crate::fabric::Fabric;
 use crate::fabric::IntervalEnd;
 use crate::fabric::UniqueId;
-use crate::units::Meters;
+use crate::fabric::attachment::ConnectorSpec;
+use crate::units::{Degrees, Meters};
 use crate::{ControlState, IntervalDetails, JointDetails, PickIntent, PointerChange, Radio, Role};
 
 #[derive(Debug, Clone)]
@@ -552,16 +553,17 @@ impl Camera {
     ) -> IntervalDetails {
         let far_joint = interval.other_joint(near_joint);
 
-        // Calculate slot indices for pull intervals
-        let (near_slot, far_slot) = if interval.has_role(Role::Pulling) {
+        // Calculate slot indices and hinge angles for pull intervals
+        // Note: near/far slots depend on click position, but hinge angles use alpha/omega (structural)
+        let (near_slot, far_slot, alpha_hinge_angle, omega_hinge_angle) = if interval.has_role(Role::Pulling) {
             // Helper function to find slot index for a joint
-            let find_slot_for_joint = |joint_index: usize| -> Option<usize> {
+            let find_slot = |joint_index: usize| -> Option<usize> {
                 fabric
                     .intervals
                     .iter()
                     .filter_map(|interval_opt| interval_opt.as_ref())
-                    .filter(|interval| {
-                        interval.has_role(Role::Pushing) && interval.touches(joint_index)
+                    .filter(|int| {
+                        int.has_role(Role::Pushing) && int.touches(joint_index)
                     })
                     .find_map(|push_interval| {
                         // Determine which end of the push interval is connected to this joint
@@ -590,27 +592,109 @@ impl Camera {
                     })
             };
 
-            // Find slots for both joints
-            let near_slot = find_slot_for_joint(near_joint);
-            let far_slot = find_slot_for_joint(far_joint);
+            // Find slots for near/far joints (depends on click position)
+            let near_slot = find_slot(near_joint);
+            let far_slot = find_slot(far_joint);
 
-            (near_slot, far_slot)
+            // Calculate hinge angles for alpha/omega ends (structural, not click-dependent)
+            let alpha_hinge = self.calculate_hinge_angle_for_joint(
+                interval.alpha_index,
+                interval.omega_index,
+                id,
+                fabric,
+            );
+            let omega_hinge = self.calculate_hinge_angle_for_joint(
+                interval.omega_index,
+                interval.alpha_index,
+                id,
+                fabric,
+            );
+
+            (near_slot, far_slot, alpha_hinge, omega_hinge)
         } else {
-            (None, None)
+            (None, None, None, None)
         };
 
         IntervalDetails {
             id,
             near_joint,
+            near_slot,
+            far_slot,
             far_joint,
+            alpha_hinge_angle,
+            omega_hinge_angle,
             length: Meters(interval.ideal()),
             strain: interval.strain,
             distance: Meters(fabric.distance(near_joint, far_joint)),
             role: interval.role,
             selected_push,
-            near_slot,
-            far_slot,
         }
+    }
+
+    /// Calculate the hinge angle for a pull interval at a specific joint
+    fn calculate_hinge_angle_for_joint(
+        &self,
+        joint_index: usize,
+        other_joint_index: usize,
+        pull_id: UniqueId,
+        fabric: &Fabric,
+    ) -> Option<Degrees> {
+        // Find the push interval connected to this joint
+        fabric
+            .intervals
+            .iter()
+            .filter_map(|interval_opt| interval_opt.as_ref())
+            .filter(|int| int.has_role(Role::Pushing) && int.touches(joint_index))
+            .find_map(|push_interval| {
+                // Determine which end of the push interval is connected to this joint
+                let end = if push_interval.alpha_index == joint_index {
+                    IntervalEnd::Alpha
+                } else {
+                    IntervalEnd::Omega
+                };
+
+                // Check if this pull interval is connected here
+                let connections_array = push_interval.connections.as_ref()?.connections(end);
+                let is_connected = connections_array.iter().any(|conn_opt| {
+                    conn_opt.as_ref().map_or(false, |c| c.pull_interval_id == pull_id)
+                });
+
+                if is_connected {
+                    self.calculate_hinge_angle(push_interval, end, joint_index, other_joint_index, fabric)
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Calculate the hinge angle for a pull interval at a push interval connection
+    fn calculate_hinge_angle(
+        &self,
+        push_interval: &Interval,
+        end: IntervalEnd,
+        joint_index: usize,
+        other_joint_index: usize,
+        fabric: &Fabric,
+    ) -> Option<Degrees> {
+        // Get positions of push interval ends
+        let push_alpha_pos = fabric.joints[push_interval.alpha_index].location;
+        let push_omega_pos = fabric.joints[push_interval.omega_index].location;
+
+        // Calculate push axis (outward direction at this end)
+        let push_direction = (push_omega_pos - push_alpha_pos).normalize();
+        let push_axis = match end {
+            IntervalEnd::Alpha => -push_direction, // Points outward from alpha end
+            IntervalEnd::Omega => push_direction,  // Points outward from omega end
+        };
+
+        // Get positions for pull direction calculation
+        let this_joint_pos = fabric.joints[joint_index].location;
+        let other_joint_pos = fabric.joints[other_joint_index].location;
+
+        // Pull direction: from this joint toward the other end of the pull interval
+        let pull_direction = (other_joint_pos - this_joint_pos).normalize();
+
+        Some(ConnectorSpec::hinge_angle(push_axis, pull_direction))
     }
 
     fn view_matrix(&self) -> Matrix4<f32> {
