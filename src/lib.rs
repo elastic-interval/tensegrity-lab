@@ -467,13 +467,13 @@ pub enum SnapshotMoment {
 }
 
 impl SnapshotMoment {
-    /// Get the filename for this snapshot moment
-    pub fn filename(&self) -> &'static str {
+    /// Get the suffix for this snapshot moment (e.g., "slack", "pretenst", "settled")
+    pub fn suffix(&self) -> &'static str {
         match self {
-            SnapshotMoment::Slack => "slack.csv",
-            SnapshotMoment::Pretenst => "pretenst.csv",
-            SnapshotMoment::Settled => "settled.csv",
-            SnapshotMoment::All => unreachable!("All should be expanded before calling filename"),
+            SnapshotMoment::Slack => "slack",
+            SnapshotMoment::Pretenst => "pretenst",
+            SnapshotMoment::Settled => "settled",
+            SnapshotMoment::All => unreachable!("All should be expanded before calling suffix"),
         }
     }
 
