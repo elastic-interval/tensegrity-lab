@@ -14,8 +14,7 @@ use std::rc::Rc;
 use winit::dpi::PhysicalPosition;
 
 pub mod application;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod export;
+pub mod animation_export;
 pub mod build;
 pub mod camera;
 #[cfg(not(target_arch = "wasm32"))]
@@ -157,6 +156,8 @@ pub enum RunStyle {
         record: Option<units::Seconds>,
         /// FPS for animation export (default 100)
         export_fps: f64,
+        /// Export CSV snapshot at specified moment (or all)
+        snapshot: Option<SnapshotMoment>,
     },
     /// Algorithmic tensegrity sphere (geodesic)
     Sphere {
@@ -452,6 +453,55 @@ impl CrucibleAction {
     }
 }
 
+/// When to take a CSV snapshot during fabric construction
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SnapshotMoment {
+    /// After slackening, before pretensing begins
+    Slack,
+    /// After pretensing completes
+    Pretenst,
+    /// After settling on surface
+    Settled,
+    /// Export at all moments
+    All,
+}
+
+impl SnapshotMoment {
+    /// Get the filename for this snapshot moment
+    pub fn filename(&self) -> &'static str {
+        match self {
+            SnapshotMoment::Slack => "slack.csv",
+            SnapshotMoment::Pretenst => "pretenst.csv",
+            SnapshotMoment::Settled => "settled.csv",
+            SnapshotMoment::All => unreachable!("All should be expanded before calling filename"),
+        }
+    }
+
+    /// Check if this moment matches the given moment (handles All)
+    pub fn matches(&self, moment: SnapshotMoment) -> bool {
+        *self == SnapshotMoment::All || *self == moment
+    }
+
+    /// Send this snapshot moment as a LabEvent
+    pub fn send(self, radio: &Radio) {
+        LabEvent::SnapshotReached(self).send(radio);
+    }
+}
+
+impl std::str::FromStr for SnapshotMoment {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "slack" | "slackened" => Ok(SnapshotMoment::Slack),
+            "pretenst" | "pretensed" => Ok(SnapshotMoment::Pretenst),
+            "settled" | "settle" => Ok(SnapshotMoment::Settled),
+            "all" => Ok(SnapshotMoment::All),
+            _ => Err(format!("Unknown snapshot moment: '{}'. Use: slack, pretenst, settled, or all", s)),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum AppearanceMode {
     Faded,
@@ -617,6 +667,8 @@ pub enum LabEvent {
     ToggleAnimationExport,
     #[cfg(not(target_arch = "wasm32"))]
     ExportSnapshot,
+    /// A snapshot moment has been reached during fabric construction
+    SnapshotReached(SnapshotMoment),
 }
 
 pub type Radio = winit::event_loop::EventLoopProxy<LabEvent>;

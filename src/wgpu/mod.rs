@@ -21,7 +21,7 @@ pub mod attachment_renderer;
 pub mod cylinder;
 pub mod cylinder_renderer;
 pub mod fabric_renderer;
-pub mod knot_renderer;
+pub mod hinge_renderer;
 pub mod surface_renderer;
 pub mod surface_vertex;
 pub mod text_renderer;

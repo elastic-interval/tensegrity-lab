@@ -7,6 +7,7 @@ use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
+use tensegrity_lab::SnapshotMoment;
 use tensegrity_lab::units::Seconds;
 use tensegrity_lab::{LabEvent, RunStyle, TestScenario};
 use tensegrity_lab::build::dsl::fabric_library::FabricName;
@@ -52,6 +53,10 @@ struct Args {
     /// Time scale multiplier (default 1.0, use higher values for faster simulation)
     #[arg(long, default_value_t = 1.0)]
     time_scale: f32,
+
+    /// Export CSV snapshot at specified moment (slack, pretenst, settled, or all)
+    #[arg(long)]
+    snapshot: Option<SnapshotMoment>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -79,6 +84,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             scenario,
             record: record_duration,
             export_fps: args.fps,
+            snapshot: args.snapshot,
         }
     } else {
         return Err("use --fabric <name> or --bake-bricks or --seed <seed> or --sphere <freq> or --mobius <segments>".into());
@@ -109,6 +115,7 @@ pub fn run() {
         scenario: None,
         record: None,
         export_fps: 100.0,
+        snapshot: None,
     }, 1.0)
     .unwrap();
 }

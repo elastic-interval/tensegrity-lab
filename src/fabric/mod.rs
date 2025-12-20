@@ -30,8 +30,7 @@ pub mod physics;
 pub mod progress;
 pub mod vulcanize;
 
-#[cfg(not(target_arch = "wasm32"))]
-pub mod export;
+pub mod csv_export;
 pub mod physics_test;
 
 // Type aliases for physics quantities - improves readability and provides
@@ -97,7 +96,7 @@ impl IterationStats {
 
 /// Represents which end of an interval (alpha or omega)
 /// This is used throughout the fabric module for consistent handling of interval ends
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum IntervalEnd {
     /// The alpha (start) end of an interval
     Alpha,
