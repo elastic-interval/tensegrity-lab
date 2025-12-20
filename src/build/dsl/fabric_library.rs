@@ -19,9 +19,9 @@ pub enum FabricName {
     Triped,
     #[strum(serialize = "Triped Model")]
     TripedModel,
+    Mockup,
     Vertebra,
     Flagellum,
-    Cigar,
     #[strum(serialize = "Halo by Crane")]
     HaloByCrane,
     #[strum(serialize = "Headless Hug")]
@@ -77,6 +77,20 @@ impl FabricName {
                     phase(Pct(0.0)).between(164, 37),
                 ]),
 
+            Mockup => self
+                .altitude(M(2.0))
+                .scale(M(1.0))
+                .seed(SingleTwistLeft, Seed(1))
+                .faces([
+                    on(SingleTop).column(1),
+                    on(SingleBot).column(1),
+                ])
+                .vulcanize(Sec(2.0))
+                .pretense(Sec(2.0))
+                .surface_frozen()
+                .fall(Sec(3.0))
+                .settle(Sec(4.0)),
+
             HaloByCrane => self
                 .altitude(M(2.0))
                 .scale(M(1.0))
@@ -109,19 +123,6 @@ impl FabricName {
                 .vulcanize(Sec(1.0))
                 .pretense(Sec(15.0))
                 .surface_frozen(),
-
-            Cigar => self
-                .altitude(M(0.5))
-                .scale(M(0.0746))
-                .seed(SingleTwistLeft, Seed(1))
-                .faces([
-                    on(SingleTop).column(1).shrink_by(Pct(15.0)),
-                    on(SingleBot).column(1).shrink_by(Pct(15.0)),
-                ])
-                .centralize_at(Sec(1.0), M(0.075))
-                .vulcanize(Sec(40000.0))
-                .pretense(Sec(15.0))
-                .floating(),
 
             HeadlessHug => self
                 .altitude(M(2.0))

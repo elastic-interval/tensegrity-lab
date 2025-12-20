@@ -443,8 +443,8 @@ impl ApplicationHandler<LabEvent> for Application {
                     if target.matches(moment) {
                         #[cfg(not(target_arch = "wasm32"))]
                         {
-                            let filename = moment.filename();
-                            if let Err(e) = self.crucible.fabric.snapshot_csv(filename) {
+                            let filename = format!("{}-{}.csv", self.crucible.fabric.name, moment.suffix());
+                            if let Err(e) = self.crucible.fabric.snapshot_csv(&filename) {
                                 eprintln!("Failed to export snapshot {}: {}", filename, e);
                             }
                         }
