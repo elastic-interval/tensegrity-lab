@@ -14,18 +14,18 @@ use std::f32::consts::PI;
 use wgpu::util::DeviceExt;
 use wgpu::PipelineCompilationOptions;
 
-const KNOT_COLOR: [f32; 4] = [0.25, 0.25, 0.25, 1.0];
+const HINGE_COLOR: [f32; 4] = [0.25, 0.25, 0.25, 1.0];
 
-/// Instance data for a sphere "knot" at the end of a pull interval
+/// Instance data for a sphere at a hinge point (where pull interval connects to push interval)
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
-pub struct KnotInstance {
-    position: [f32; 3], // Position of the knot (at disc edge)
+pub struct HingeInstance {
+    position: [f32; 3], // Position of the hinge (at disc edge)
     scale: f32,         // Radius of the sphere
     color: [f32; 4],    // RGBA color
 }
 
-pub struct KnotRenderer {
+pub struct HingeRenderer {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     instance_buffer: Option<wgpu::Buffer>,
@@ -34,24 +34,21 @@ pub struct KnotRenderer {
     num_instances: u32,
 }
 
-impl KnotRenderer {
+impl HingeRenderer {
     pub fn new(wgpu: &Wgpu) -> Self {
-        // Use the existing sphere geometry from joint_renderer
         let (vertex_buffer, index_buffer, num_indices) = create_sphere(wgpu);
 
-        // Use the consolidated shader module with joint_vertex/joint_fragment
         let shader = wgpu
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("Knot Shader"),
+                label: Some("Hinge Shader"),
                 source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
             });
 
-        // Create the pipeline layout
         let pipeline_layout = wgpu
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Knot Pipeline Layout"),
+                label: Some("Hinge Pipeline Layout"),
                 bind_group_layouts: &[&wgpu.uniform_bind_group_layout],
                 push_constant_ranges: &[],
             });
@@ -59,9 +56,8 @@ impl KnotRenderer {
         // Define the vertex buffer layout
         let vertex_layout = vertex_layout_f32x8();
 
-        // Define the instance buffer layout (same as JointMarkerInstance)
         let instance_layout = wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<KnotInstance>() as wgpu::BufferAddress,
+            array_stride: std::mem::size_of::<HingeInstance>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &[
                 // position
@@ -85,12 +81,11 @@ impl KnotRenderer {
             ],
         };
 
-        // Create the render pipeline
         let render_pipeline = wgpu
             .device
             .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 cache: None,
-                label: Some("Knot Pipeline"),
+                label: Some("Hinge Pipeline"),
                 layout: Some(&pipeline_layout),
                 vertex: wgpu::VertexState {
                     compilation_options: PipelineCompilationOptions::default(),
@@ -118,7 +113,7 @@ impl KnotRenderer {
                 multiview: None,
             });
 
-        KnotRenderer {
+        HingeRenderer {
             vertex_buffer,
             index_buffer,
             instance_buffer: None,
@@ -135,7 +130,7 @@ impl KnotRenderer {
         if self.num_instances > 0 {
             self.instance_buffer = Some(wgpu.device.create_buffer_init(
                 &wgpu::util::BufferInitDescriptor {
-                    label: Some("Knot Instance Buffer"),
+                    label: Some("Hinge Instance Buffer"),
                     contents: bytemuck::cast_slice(&instances),
                     usage: wgpu::BufferUsages::VERTEX,
                 },
@@ -143,11 +138,11 @@ impl KnotRenderer {
         }
     }
 
-    fn create_instances(&self, fabric: &Fabric) -> Vec<KnotInstance> {
+    fn create_instances(&self, fabric: &Fabric) -> Vec<HingeInstance> {
         let mut instances = Vec::new();
 
-        // Knot radius matches pull interval radius
-        let knot_radius = 0.008 * fabric.scale();
+        // Hinge radius matches pull interval radius
+        let hinge_radius = 0.008 * fabric.scale();
         let connector = ConnectorSpec::for_scale(fabric.scale());
 
         // Iterate through all push intervals to find their connections
@@ -159,15 +154,13 @@ impl KnotRenderer {
                     let omega_pos = fabric.joints[interval.omega_index].location;
                     let push_dir = (omega_pos - alpha_pos).normalize();
 
-                    // Process alpha end connections - knots at hinge positions
+                    // Process alpha end connections
                     if let Some(connections) = interval.connections(IntervalEnd::Alpha) {
                         for (slot_idx, conn_opt) in connections.iter().enumerate() {
                             if let Some(connection) = conn_opt {
-                                // Find the pull interval to get its other end position
                                 if let Some(Some(pull_interval)) =
                                     fabric.intervals.get(connection.pull_interval_id.0)
                                 {
-                                    // Determine which end of the pull connects here
                                     let pull_other_end =
                                         if pull_interval.alpha_index == interval.alpha_index {
                                             fabric.joints[pull_interval.omega_index].location
@@ -175,33 +168,30 @@ impl KnotRenderer {
                                             fabric.joints[pull_interval.alpha_index].location
                                         };
 
-                                    // Calculate hinge position (alpha end points outward, opposite to push_dir)
                                     let hinge_pos = connector.hinge_position(
                                         alpha_pos,
-                                        -push_dir, // Outward from alpha end
+                                        -push_dir,
                                         slot_idx,
                                         pull_other_end,
                                     );
 
-                                    instances.push(KnotInstance {
+                                    instances.push(HingeInstance {
                                         position: [hinge_pos.x, hinge_pos.y, hinge_pos.z],
-                                        scale: knot_radius,
-                                        color: KNOT_COLOR,
+                                        scale: hinge_radius,
+                                        color: HINGE_COLOR,
                                     });
                                 }
                             }
                         }
                     }
 
-                    // Process omega end connections - knots at hinge positions
+                    // Process omega end connections
                     if let Some(connections) = interval.connections(IntervalEnd::Omega) {
                         for (slot_idx, conn_opt) in connections.iter().enumerate() {
                             if let Some(connection) = conn_opt {
-                                // Find the pull interval to get its other end position
                                 if let Some(Some(pull_interval)) =
                                     fabric.intervals.get(connection.pull_interval_id.0)
                                 {
-                                    // Determine which end of the pull connects here
                                     let pull_other_end =
                                         if pull_interval.alpha_index == interval.omega_index {
                                             fabric.joints[pull_interval.omega_index].location
@@ -209,18 +199,17 @@ impl KnotRenderer {
                                             fabric.joints[pull_interval.alpha_index].location
                                         };
 
-                                    // Calculate hinge position (omega end points outward, same as push_dir)
                                     let hinge_pos = connector.hinge_position(
                                         omega_pos,
-                                        push_dir, // Outward from omega end
+                                        push_dir,
                                         slot_idx,
                                         pull_other_end,
                                     );
 
-                                    instances.push(KnotInstance {
+                                    instances.push(HingeInstance {
                                         position: [hinge_pos.x, hinge_pos.y, hinge_pos.z],
-                                        scale: knot_radius,
-                                        color: KNOT_COLOR,
+                                        scale: hinge_radius,
+                                        color: HINGE_COLOR,
                                     });
                                 }
                             }
@@ -249,7 +238,7 @@ impl KnotRenderer {
     }
 }
 
-/// Creates a sphere geometry for knot visualization
+/// Creates a sphere geometry for hinge visualization
 fn create_sphere(wgpu: &Wgpu) -> (wgpu::Buffer, wgpu::Buffer, u32) {
     let radius = 1.0;
     let sectors = 12;
@@ -314,7 +303,7 @@ fn create_sphere(wgpu: &Wgpu) -> (wgpu::Buffer, wgpu::Buffer, u32) {
     let vertex_buffer = wgpu
         .device
         .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Knot Sphere Vertex Buffer"),
+            label: Some("Hinge Sphere Vertex Buffer"),
             contents: bytemuck::cast_slice(&vertices),
             usage: wgpu::BufferUsages::VERTEX,
         });
@@ -322,7 +311,7 @@ fn create_sphere(wgpu: &Wgpu) -> (wgpu::Buffer, wgpu::Buffer, u32) {
     let index_buffer = wgpu
         .device
         .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Knot Sphere Index Buffer"),
+            label: Some("Hinge Sphere Index Buffer"),
             contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
         });

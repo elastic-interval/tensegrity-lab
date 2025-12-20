@@ -6,6 +6,8 @@ use crate::fabric::physics::presets::{CONSTRUCTION, PRETENSING};
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::fabric::Fabric;
+use crate::SnapshotMoment;
+use crate::Radio;
 
 #[derive(Debug, PartialEq)]
 pub enum IterateResult {
@@ -100,10 +102,11 @@ pub struct FabricPlanExecutor {
     execution_log: Vec<ExecutionEvent>,
     stored_surface_character: Option<SurfaceCharacter>,
     stored_scale: f32,
+    radio: Radio,
 }
 
 impl FabricPlanExecutor {
-    pub fn new(plan: FabricPlan) -> Self {
+    pub fn new(plan: FabricPlan, radio: Radio) -> Self {
         let fabric = Fabric::new(plan.name.to_string());
         let plan_runner = PlanRunner::new(plan.clone());
         let physics = CONSTRUCTION;
@@ -120,6 +123,7 @@ impl FabricPlanExecutor {
             execution_log: Vec::new(),
             stored_surface_character: None,
             stored_scale: 1.0,
+            radio,
         };
 
         executor.log_event(ExecutionEvent::Started { iteration: 0 });
@@ -325,6 +329,9 @@ impl FabricPlanExecutor {
         // Apply pretension
         self.fabric.slacken();
 
+        // Broadcast slackened moment before pretensing begins
+        SnapshotMoment::Slack.send(&self.radio);
+
         let pretenst_percent = self.plan.pretense_phase.pretenst
             .unwrap_or(PRETENSING.pretenst);
         let pretense_duration = self.plan.pretense_phase.seconds
@@ -356,6 +363,9 @@ impl FabricPlanExecutor {
     }
 
     fn transition_to_fall(&mut self) {
+        // Broadcast pretenst moment before transitioning to fall
+        SnapshotMoment::Pretenst.send(&self.radio);
+
         self.log_event(ExecutionEvent::StageTransition {
             iteration: self.current_iteration,
             from: "PRETENSE".to_string(),
@@ -425,6 +435,9 @@ impl FabricPlanExecutor {
     }
 
     fn complete(&mut self) {
+        // Broadcast settled moment before completing
+        SnapshotMoment::Settled.send(&self.radio);
+
         self.log_event(ExecutionEvent::Completed {
             iteration: self.current_iteration,
         });

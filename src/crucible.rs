@@ -253,7 +253,7 @@ impl Crucible {
             let rigidity_multiplier = self.physics.rigidity_multiplier();
 
             let name = fabric_plan.name.clone();
-            let mut executor = FabricPlanExecutor::new(fabric_plan.clone());
+            let mut executor = FabricPlanExecutor::new(fabric_plan.clone(), self.radio.clone());
 
             // Store the fabric_plan for later use (animate, settle, etc.)
             self.fabric_plan = Some(fabric_plan);

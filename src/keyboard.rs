@@ -163,8 +163,8 @@ impl Keyboard {
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
         self.key_lab_event(
-            KeyCode::KeyK,
-            "Knots",
+            KeyCode::KeyH,
+            "Hinges",
             UpdateState(StateChange::ToggleAttachmentPoints),
             Box::new(|state| matches!(state, Viewing { .. } | ShowingJoint(_) | ShowingInterval(_))),
         );

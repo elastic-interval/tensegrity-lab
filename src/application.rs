@@ -1,20 +1,20 @@
+use crate::animation_export::AnimationExporter;
 use crate::build::algo::mobius::generate_mobius;
 use crate::build::algo::tensegrity_sphere::generate_sphere;
 use crate::build::dsl::fabric_library;
 use crate::crucible::Crucible;
+use crate::SnapshotMoment;
 use crate::keyboard::Keyboard;
 use crate::pointer::PointerHandler;
 use crate::scene::Scene;
-use crate::wgpu::Wgpu;
-#[cfg(not(target_arch = "wasm32"))]
 use crate::units::Seconds;
+use crate::wgpu::Wgpu;
 use crate::{
     ControlState, CrucibleAction, LabEvent, Radio, RunStyle, StateChange, TestScenario,
     TesterAction, ITERATION_DURATION,
 };
 use instant::{Duration, Instant};
 use std::sync::Arc;
-
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
@@ -38,10 +38,9 @@ pub struct Application {
     time_scale: f32,
     #[cfg(not(target_arch = "wasm32"))]
     machine: Option<crate::cord_machine::CordMachine>,
-    #[cfg(not(target_arch = "wasm32"))]
-    animation_exporter: crate::export::AnimationExporter,
-    #[cfg(not(target_arch = "wasm32"))]
+    animation_exporter: Option<AnimationExporter>,
     record_until: Option<Seconds>,
+    snapshot_moment: Option<SnapshotMoment>,
 }
 
 impl Application {
@@ -69,10 +68,9 @@ impl Application {
             time_scale,
             #[cfg(not(target_arch = "wasm32"))]
             machine: None,
-            #[cfg(not(target_arch = "wasm32"))]
-            animation_exporter: crate::export::AnimationExporter::new("animation_export", 100.0),
-            #[cfg(not(target_arch = "wasm32"))]
+            animation_exporter: None,
             record_until: None,
+            snapshot_moment: None,
         }
     }
 
@@ -208,15 +206,14 @@ impl ApplicationHandler<LabEvent> for Application {
                     RunStyle::Unknown => {
                         unreachable!()
                     }
-                    RunStyle::Fabric { fabric_name, .. } => {
-                        #[cfg(not(target_arch = "wasm32"))]
-                        if let RunStyle::Fabric { record, export_fps, .. } = &self.run_style {
-                            self.animation_exporter.set_fps(*export_fps);
-                            if let Some(duration) = record {
-                                self.record_until = Some(*duration);
-                                self.animation_exporter.start();
-                            }
+                    RunStyle::Fabric { fabric_name, record, export_fps, snapshot, .. } => {
+                        if let Some(duration) = record {
+                            self.record_until = Some(*duration);
+                            let mut exporter = AnimationExporter::new("animation_export", *export_fps);
+                            exporter.start();
+                            self.animation_exporter = Some(exporter);
                         }
+                        self.snapshot_moment = *snapshot;
                         let fabric_plan = fabric_library::get_fabric_plan(*fabric_name);
                         CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
                     }
@@ -293,8 +290,10 @@ impl ApplicationHandler<LabEvent> for Application {
             DumpCSV => {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    let name = format!("{}.zip", self.crucible.fabric.name);
-                    std::fs::write(name, self.crucible.fabric.to_zip().unwrap()).unwrap();
+                    let name = format!("{}.csv", self.crucible.fabric.name);
+                    if let Err(e) = self.crucible.fabric.snapshot_csv(&name) {
+                        eprintln!("Failed to export CSV: {}", e);
+                    }
                 }
             }
             PrintCord(length) => {
@@ -400,24 +399,34 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             #[cfg(not(target_arch = "wasm32"))]
             ToggleAnimationExport => {
-                match self.animation_exporter.toggle() {
-                    Ok(is_enabled) => {
-                        let label = if is_enabled {
-                            "Recording...".to_string()
-                        } else {
-                            format!("Saved {} frames", self.animation_exporter.frame_count())
-                        };
-                        StateChange::SetStageLabel(label).send(&self.radio);
+                if let Some(exporter) = &mut self.animation_exporter {
+                    // Stop recording
+                    let frame_count = exporter.frame_count();
+                    match exporter.stop() {
+                        Ok(_) => {
+                            let label = format!("Saved {} frames", frame_count);
+                            StateChange::SetStageLabel(label).send(&self.radio);
+                        }
+                        Err(e) => {
+                            eprintln!("Animation export error: {}", e);
+                            StateChange::SetStageLabel("Export error".to_string()).send(&self.radio);
+                        }
                     }
-                    Err(e) => {
-                        eprintln!("Animation export error: {}", e);
-                        StateChange::SetStageLabel("Export error".to_string()).send(&self.radio);
-                    }
+                    self.animation_exporter = None;
+                } else {
+                    // Start recording
+                    let mut exporter = AnimationExporter::new("animation_export", 100.0);
+                    exporter.start();
+                    StateChange::SetStageLabel("Recording...".to_string()).send(&self.radio);
+                    self.animation_exporter = Some(exporter);
                 }
             }
             #[cfg(not(target_arch = "wasm32"))]
             ExportSnapshot => {
-                match self.animation_exporter.snapshot(&self.crucible.fabric) {
+                let exporter = self.animation_exporter.get_or_insert_with(|| {
+                    AnimationExporter::new("animation_export", 100.0)
+                });
+                match exporter.snapshot(&self.crucible.fabric) {
                     Ok(path) => {
                         let label = format!("Snapshot: {}", path.file_name().unwrap_or_default().to_string_lossy());
                         StateChange::SetStageLabel(label).send(&self.radio);
@@ -425,6 +434,24 @@ impl ApplicationHandler<LabEvent> for Application {
                     Err(e) => {
                         eprintln!("Snapshot error: {}", e);
                         StateChange::SetStageLabel("Snapshot error".to_string()).send(&self.radio);
+                    }
+                }
+            }
+            SnapshotReached(moment) => {
+                // Check if this moment matches our snapshot setting (handles All)
+                if let Some(target) = self.snapshot_moment {
+                    if target.matches(moment) {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            let filename = moment.filename();
+                            if let Err(e) = self.crucible.fabric.snapshot_csv(filename) {
+                                eprintln!("Failed to export snapshot {}: {}", filename, e);
+                            }
+                        }
+                        // Clear if not All (All continues to match future moments)
+                        if target != SnapshotMoment::All {
+                            self.snapshot_moment = None;
+                        }
                     }
                 }
             }
@@ -575,20 +602,20 @@ impl ApplicationHandler<LabEvent> for Application {
             }
 
             // Capture frame for animation export if enabled (works in all states)
-            #[cfg(not(target_arch = "wasm32"))]
-            if self.animation_exporter.is_enabled() {
+            if let Some(exporter) = &mut self.animation_exporter {
                 let dominated = self.record_until.is_some_and(|Seconds(limit)| {
                     self.crucible.fabric.age.as_duration().as_secs_f32() >= limit
                 });
                 if dominated {
-                    let frame_count = self.animation_exporter.frame_count();
-                    match self.animation_exporter.stop() {
+                    let frame_count = exporter.frame_count();
+                    match exporter.stop() {
                         Ok(_) => eprintln!("Recording complete: {} frames", frame_count),
                         Err(e) => eprintln!("Error stopping animation export: {}", e),
                     }
                     self.record_until = None;
+                    self.animation_exporter = None;
                 } else {
-                    self.animation_exporter.tick(&self.crucible.fabric, iterations_per_frame);
+                    exporter.tick(&self.crucible.fabric, iterations_per_frame);
                 }
             }
         }

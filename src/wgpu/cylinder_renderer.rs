@@ -277,7 +277,7 @@ impl CylinderRenderer {
                 let mut modified_end = end;
 
                 // For pull-like intervals, connect them to hinge positions on push intervals
-                // only when attachment points are visible (knots mode)
+                // only when attachment points are visible (hinges mode)
                 if interval.role.is_pull_like() && render_style.show_attachment_points() {
                     // Use the current index as the pull interval ID
                     let pull_id = interval_id;
