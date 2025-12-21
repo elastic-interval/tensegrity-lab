@@ -59,7 +59,7 @@ impl FabricName {
                     on(OmniTop).prism(),
                     on(OmniBot).radial(),
                 ])
-                .omit([(6, 9), (6, 3), (1, 10), (10, 7), (2, 11), (2, 5)])
+                .omit([(6, 9), (6, 3), (2, 11), (2, 5), (1, 10), (10, 7)])
                 .space(Sec(3.0), End, Pct(38.0))
                 .vulcanize(Sec(2.0))
                 .pretense(Sec(2.0))
@@ -73,19 +73,16 @@ impl FabricName {
                 .sine()
                 .actuators(&[
                     // TODO: Find the correct JointId numbers for actuators after SlotMap refactor
-                    // phase(Pct(0.0)).between(160, 43),
-                    // phase(Pct(0.0)).between(162, 49),
-                    // phase(Pct(0.0)).between(164, 37),
+                    phase(Pct(0.0)).between(217, 66),
+                    phase(Pct(0.0)).between(219, 50),
+                    phase(Pct(0.0)).between(215, 58),
                 ]),
 
             Mockup => self
                 .altitude(M(2.0))
                 .scale(M(1.0))
                 .seed(SingleTwistLeft, Seed(1))
-                .faces([
-                    on(SingleTop).column(1),
-                    on(SingleBot).column(1),
-                ])
+                .faces([on(SingleTop).column(1), on(SingleBot).column(1)])
                 .vulcanize(Sec(2.0))
                 .pretense(Sec(2.0))
                 .surface_frozen()
