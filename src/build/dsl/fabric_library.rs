@@ -71,7 +71,7 @@ impl FabricName {
                 .amplitude(Pct(1.0))
                 .stiffness(Pct(20.0))
                 .sine()
-                .actuators(&[
+                .actuators([
                     phase(Pct(0.0)).between(217, 66),
                     phase(Pct(0.0)).between(219, 50),
                     phase(Pct(0.0)).between(215, 58),
