@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::fabric::attachment::ConnectorSpec;
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, IntervalEnd};
+use crate::fabric::{Fabric, IntervalEnd, IntervalKey};
 use crate::units::{Degrees, MM_PER_METER};
 
 impl Fabric {
@@ -38,89 +38,87 @@ impl Fabric {
         let connector = ConnectorSpec::for_scale(self.scale);
 
         // Build a map of pull interval connections for each push interval
-        // Key: (pull_interval_id, end, slot) -> (hinge_pos, joint_index, slot, angle)
-        let mut pull_hinge_info: std::collections::HashMap<(usize, IntervalEnd, usize), (Point3<f32>, usize, usize, Degrees)> =
+        // Key: (pull_interval_key, end, slot) -> (hinge_pos, joint_index, slot, angle)
+        let mut pull_hinge_info: std::collections::HashMap<(IntervalKey, IntervalEnd, usize), (Point3<f32>, usize, usize, Degrees)> =
             std::collections::HashMap::new();
 
         // First pass: collect hinge info from push intervals
-        for interval_opt in self.intervals.iter() {
-            if let Some(push_interval) = interval_opt {
-                if !push_interval.has_role(Role::Pushing) {
-                    continue;
-                }
+        for (_key, push_interval) in self.intervals.iter() {
+            if !push_interval.has_role(Role::Pushing) {
+                continue;
+            }
 
-                let alpha_pos = self.joints[push_interval.alpha_index].location;
-                let omega_pos = self.joints[push_interval.omega_index].location;
-                let push_dir = (omega_pos - alpha_pos).normalize();
+            let alpha_pos = self.joints[push_interval.alpha_index].location;
+            let omega_pos = self.joints[push_interval.omega_index].location;
+            let push_dir = (omega_pos - alpha_pos).normalize();
 
-                // Process alpha end
-                if let Some(connections) = push_interval.connections(IntervalEnd::Alpha) {
-                    for (slot_idx, conn_opt) in connections.iter().enumerate() {
-                        if let Some(connection) = conn_opt {
-                            if let Some(Some(pull_interval)) = self.intervals.get(connection.pull_interval_id.0) {
-                                let pull_other_end = if pull_interval.alpha_index == push_interval.alpha_index {
-                                    self.joints[pull_interval.omega_index].location
-                                } else {
-                                    self.joints[pull_interval.alpha_index].location
-                                };
+            // Process alpha end
+            if let Some(connections) = push_interval.connections(IntervalEnd::Alpha) {
+                for (slot_idx, conn_opt) in connections.iter().enumerate() {
+                    if let Some(connection) = conn_opt {
+                        if let Some(pull_interval) = self.intervals.get(connection.pull_interval_key) {
+                            let pull_other_end = if pull_interval.alpha_index == push_interval.alpha_index {
+                                self.joints[pull_interval.omega_index].location
+                            } else {
+                                self.joints[pull_interval.alpha_index].location
+                            };
 
-                                let hinge_pos = connector.hinge_position(
-                                    alpha_pos,
-                                    -push_dir,
-                                    slot_idx,
-                                    pull_other_end,
-                                );
+                            let hinge_pos = connector.hinge_position(
+                                alpha_pos,
+                                -push_dir,
+                                slot_idx,
+                                pull_other_end,
+                            );
 
-                                // Calculate angle: direction from hinge to other end vs inward push axis
-                                let pull_direction = (pull_other_end - hinge_pos).normalize();
-                                let angle = ConnectorSpec::hinge_angle(-push_dir, pull_direction);
+                            // Calculate angle: direction from hinge to other end vs inward push axis
+                            let pull_direction = (pull_other_end - hinge_pos).normalize();
+                            let angle = ConnectorSpec::hinge_angle(-push_dir, pull_direction);
 
-                                // Store for the pull interval's alpha or omega end
-                                let pull_end = if pull_interval.alpha_index == push_interval.alpha_index {
-                                    IntervalEnd::Alpha
-                                } else {
-                                    IntervalEnd::Omega
-                                };
-                                pull_hinge_info.insert(
-                                    (connection.pull_interval_id.0, pull_end, slot_idx + 1),
-                                    (hinge_pos, push_interval.alpha_index, slot_idx + 1, angle),
-                                );
-                            }
+                            // Store for the pull interval's alpha or omega end
+                            let pull_end = if pull_interval.alpha_index == push_interval.alpha_index {
+                                IntervalEnd::Alpha
+                            } else {
+                                IntervalEnd::Omega
+                            };
+                            pull_hinge_info.insert(
+                                (connection.pull_interval_key, pull_end, slot_idx + 1),
+                                (hinge_pos, push_interval.alpha_index, slot_idx + 1, angle),
+                            );
                         }
                     }
                 }
+            }
 
-                // Process omega end
-                if let Some(connections) = push_interval.connections(IntervalEnd::Omega) {
-                    for (slot_idx, conn_opt) in connections.iter().enumerate() {
-                        if let Some(connection) = conn_opt {
-                            if let Some(Some(pull_interval)) = self.intervals.get(connection.pull_interval_id.0) {
-                                let pull_other_end = if pull_interval.alpha_index == push_interval.omega_index {
-                                    self.joints[pull_interval.omega_index].location
-                                } else {
-                                    self.joints[pull_interval.alpha_index].location
-                                };
+            // Process omega end
+            if let Some(connections) = push_interval.connections(IntervalEnd::Omega) {
+                for (slot_idx, conn_opt) in connections.iter().enumerate() {
+                    if let Some(connection) = conn_opt {
+                        if let Some(pull_interval) = self.intervals.get(connection.pull_interval_key) {
+                            let pull_other_end = if pull_interval.alpha_index == push_interval.omega_index {
+                                self.joints[pull_interval.omega_index].location
+                            } else {
+                                self.joints[pull_interval.alpha_index].location
+                            };
 
-                                let hinge_pos = connector.hinge_position(
-                                    omega_pos,
-                                    push_dir,
-                                    slot_idx,
-                                    pull_other_end,
-                                );
+                            let hinge_pos = connector.hinge_position(
+                                omega_pos,
+                                push_dir,
+                                slot_idx,
+                                pull_other_end,
+                            );
 
-                                let pull_direction = (pull_other_end - hinge_pos).normalize();
-                                let angle = ConnectorSpec::hinge_angle(push_dir, pull_direction);
+                            let pull_direction = (pull_other_end - hinge_pos).normalize();
+                            let angle = ConnectorSpec::hinge_angle(push_dir, pull_direction);
 
-                                let pull_end = if pull_interval.alpha_index == push_interval.omega_index {
-                                    IntervalEnd::Alpha
-                                } else {
-                                    IntervalEnd::Omega
-                                };
-                                pull_hinge_info.insert(
-                                    (connection.pull_interval_id.0, pull_end, slot_idx + 1),
-                                    (hinge_pos, push_interval.omega_index, slot_idx + 1, angle),
-                                );
-                            }
+                            let pull_end = if pull_interval.alpha_index == push_interval.omega_index {
+                                IntervalEnd::Alpha
+                            } else {
+                                IntervalEnd::Omega
+                            };
+                            pull_hinge_info.insert(
+                                (connection.pull_interval_key, pull_end, slot_idx + 1),
+                                (hinge_pos, push_interval.omega_index, slot_idx + 1, angle),
+                            );
                         }
                     }
                 }
@@ -129,28 +127,25 @@ impl Fabric {
 
         // Collect intervals with their lengths for sorting
         struct IntervalInfo {
-            idx: usize,
+            key: IntervalKey,
             is_push: bool,
             length: f32,
             strain: f32,
         }
 
         let mut interval_infos: Vec<IntervalInfo> = self.intervals.iter()
-            .enumerate()
-            .filter_map(|(idx, interval_opt)| {
-                interval_opt.as_ref().and_then(|interval| {
-                    if interval.has_role(Role::Support) {
-                        return None;
-                    }
-                    let alpha = self.joints[interval.alpha_index].location;
-                    let omega = self.joints[interval.omega_index].location;
-                    let length = (omega - alpha).magnitude();
-                    Some(IntervalInfo {
-                        idx,
-                        is_push: interval.has_role(Role::Pushing),
-                        length,
-                        strain: interval.strain,
-                    })
+            .filter_map(|(key, interval)| {
+                if interval.has_role(Role::Support) {
+                    return None;
+                }
+                let alpha = self.joints[interval.alpha_index].location;
+                let omega = self.joints[interval.omega_index].location;
+                let length = (omega - alpha).magnitude();
+                Some(IntervalInfo {
+                    key,
+                    is_push: interval.has_role(Role::Pushing),
+                    length,
+                    strain: interval.strain,
                 })
             })
             .collect();
@@ -166,7 +161,7 @@ impl Fabric {
 
         // Write sorted intervals
         for (index, info) in interval_infos.iter().enumerate() {
-            let interval = self.intervals[info.idx].as_ref().unwrap();
+            let interval = self.intervals.get(info.key).unwrap();
             let role_str = if info.is_push { "push" } else { "pull" };
 
             if info.is_push {
@@ -184,10 +179,10 @@ impl Fabric {
                 )?;
             } else {
                 let alpha_info = pull_hinge_info.iter()
-                    .find(|((pull_id, end, _), _)| *pull_id == info.idx && *end == IntervalEnd::Alpha)
+                    .find(|((pull_id, end, _), _)| *pull_id == info.key && *end == IntervalEnd::Alpha)
                     .map(|(_, data)| data);
                 let omega_info = pull_hinge_info.iter()
-                    .find(|((pull_id, end, _), _)| *pull_id == info.idx && *end == IntervalEnd::Omega)
+                    .find(|((pull_id, end, _), _)| *pull_id == info.key && *end == IntervalEnd::Omega)
                     .map(|(_, data)| data);
 
                 let (alpha_pos, alpha_joint, alpha_slot, alpha_angle) = if let Some((pos, joint, slot, angle)) = alpha_info {

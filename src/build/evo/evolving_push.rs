@@ -1,12 +1,12 @@
 use crate::fabric::interval::{IntervalSnapshot, Role};
 use crate::fabric::IntervalEnd;
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::{Fabric, IntervalKey};
 use cgmath::{Point3, Vector3};
 
 pub struct EvolvingPush {
-    pub interval_id: UniqueId,
-    alpha_pulls: Vec<UniqueId>,
-    omega_pulls: Vec<UniqueId>,
+    pub interval_key: IntervalKey,
+    alpha_pulls: Vec<IntervalKey>,
+    omega_pulls: Vec<IntervalKey>,
 }
 
 impl EvolvingPush {}
@@ -15,8 +15,8 @@ impl EvolvingPush {
     pub fn first_push(fabric: &mut Fabric) -> Self {
         let alpha = fabric.create_joint(Point3::new(0.5, 0.0, 0.0));
         let omega = fabric.create_joint(Point3::new(-0.5, 0.0, 0.0));
-        let interval_id = fabric.create_interval(alpha, omega, 1.0, Role::Pushing);
-        Self::new(interval_id)
+        let interval_key = fabric.create_interval(alpha, omega, 1.0, Role::Pushing);
+        Self::new(interval_key)
     }
 
     pub fn end_push(
@@ -37,25 +37,25 @@ impl EvolvingPush {
         };
         let alpha = fabric.create_joint(&here - project / 2.0);
         let omega = fabric.create_joint(&here + project / 2.0);
-        let interval_id = fabric.create_interval(alpha, omega, 1.0, Role::Pushing);
+        let interval_key = fabric.create_interval(alpha, omega, 1.0, Role::Pushing);
         let alpha_pull = fabric.create_interval(here_id, alpha, 0.5, Role::Pulling);
         let omega_pull = fabric.create_interval(here_id, omega, 0.5, Role::Pulling);
         pulls.push(alpha_pull);
         pulls.push(omega_pull);
         Self {
-            interval_id,
+            interval_key,
             alpha_pulls: vec![alpha_pull],
             omega_pulls: vec![omega_pull],
         }
     }
 
-    pub fn add_pull(&mut self, end: &IntervalEnd, pull_id: UniqueId) {
+    pub fn add_pull(&mut self, end: &IntervalEnd, pull_key: IntervalKey) {
         match end {
             IntervalEnd::Alpha => {
-                self.alpha_pulls.push(pull_id);
+                self.alpha_pulls.push(pull_key);
             }
             IntervalEnd::Omega => {
-                self.omega_pulls.push(pull_id);
+                self.omega_pulls.push(pull_key);
             }
         }
     }
@@ -81,9 +81,9 @@ impl EvolvingPush {
         }
     }
 
-    fn new(interval_id: UniqueId) -> Self {
+    fn new(interval_key: IntervalKey) -> Self {
         Self {
-            interval_id,
+            interval_key,
             alpha_pulls: vec![],
             omega_pulls: vec![],
         }

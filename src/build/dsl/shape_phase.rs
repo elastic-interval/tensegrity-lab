@@ -6,7 +6,7 @@ use crate::build::dsl::{brick_library, FaceMark, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::{Fabric, FaceKey, IntervalKey};
 use crate::units::{Meters, Percent, Seconds};
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};
 use std::cmp::Ordering;
@@ -43,18 +43,18 @@ pub enum ShapeAction {
 
 #[derive(Debug, Clone)]
 pub struct Joiner {
-    interval: UniqueId,
-    alpha_face: UniqueId,
-    omega_face: UniqueId,
+    interval: IntervalKey,
+    alpha_face: FaceKey,
+    omega_face: FaceKey,
 }
 
 #[derive(Debug, Clone)]
 pub struct ShapePhase {
     pub steps: Vec<ShapeStep>,
     pub marks: Vec<FaceMark>,
-    pub spacers: Vec<UniqueId>,
+    pub spacers: Vec<IntervalKey>,
     pub joiners: Vec<Joiner>,
-    pub anchors: Vec<UniqueId>,
+    pub anchors: Vec<IntervalKey>,
     pub(crate) step_index: usize,
     pub(crate) scale: Meters,
 }
@@ -84,21 +84,21 @@ impl ShapePhase {
         let seconds = step.seconds;
         match step.action {
             ShapeAction::Joiner { mark_name } => {
-                let face_ids = self.marked_faces(&mark_name);
-                let joints = self.marked_middle_joints(fabric, &face_ids);
-                match face_ids.len() {
+                let face_keys = self.marked_faces(&mark_name);
+                let joints = self.marked_middle_joints(fabric, &face_keys);
+                match face_keys.len() {
                     2 => {
                         let interval =
                             fabric.create_interval(joints[0], joints[1], 0.01, Role::Pulling);
                         self.joiners.push(Joiner {
                             interval,
-                            alpha_face: face_ids[0],
-                            omega_face: face_ids[1],
+                            alpha_face: face_keys[0],
+                            omega_face: face_keys[1],
                         });
                     }
                     3 => {
-                        let face_ids = [face_ids[0], face_ids[1], face_ids[2]];
-                        let faces = face_ids.map(|id| fabric.face(id));
+                        let face_keys = [face_keys[0], face_keys[1], face_keys[2]];
+                        let faces = face_keys.map(|key| fabric.face(key));
                         let spin = faces[0].spin;
                         if faces[1].spin != spin || faces[2].spin != spin {
                             panic!("Faces must have the same spin");
@@ -138,25 +138,25 @@ impl ShapePhase {
                             base_face,
                         );
                         let mut brick_face_midpoints = Vec::new();
-                        for brick_face_id in brick_faces {
-                            let face = fabric.face(brick_face_id);
+                        for brick_face_key in brick_faces {
+                            let face = fabric.face(brick_face_key);
                             brick_face_midpoints.push((
-                                brick_face_id,
+                                brick_face_key,
                                 face.midpoint(fabric),
                                 face.middle_joint(fabric),
                             ));
                         }
                         let mut far_face_midpoints = Vec::new();
-                        for face_id in face_ids {
-                            let face = fabric.face(face_id);
+                        for face_key in face_keys {
+                            let face = fabric.face(face_key);
                             far_face_midpoints.push((
-                                face_id,
+                                face_key,
                                 face.midpoint(fabric),
                                 face.middle_joint(fabric),
                             ));
                         }
                         let shapers = far_face_midpoints.into_iter().map(
-                            |(far_face_id, far_face_midpoint, far_joint)| {
+                            |(far_face_key, far_face_midpoint, far_joint)| {
                                 let brick_face = brick_face_midpoints.iter().min_by(
                                     |(_, location_a, _), (_, location_b, _)| {
                                         let (dx, dy) = (
@@ -172,18 +172,18 @@ impl ShapePhase {
                                         }
                                     },
                                 );
-                                let (near_face_id, _, near_joint) =
+                                let (near_face_key, _, near_joint) =
                                     *brick_face.expect("Expected a closest face");
-                                (near_face_id, near_joint, far_face_id, far_joint)
+                                (near_face_key, near_joint, far_face_key, far_joint)
                             },
                         );
-                        for (near_face_id, near_joint, far_face_id, far_joint) in shapers {
+                        for (near_face_key, near_joint, far_face_key, far_joint) in shapers {
                             let interval =
                                 fabric.create_interval(near_joint, far_joint, 0.01, Role::Pulling);
                             self.joiners.push(Joiner {
                                 interval,
-                                alpha_face: near_face_id,
-                                omega_face: far_face_id,
+                                alpha_face: near_face_key,
+                                omega_face: far_face_key,
                             })
                         }
                     }
@@ -239,8 +239,8 @@ impl ShapePhase {
             ShapeAction::Anchor { joint_index, surface } => {
                 let (x, z) = surface;
                 let base = fabric.create_joint(Point3::new(x, 0.0, z));
-                let interval_id = fabric.create_interval(joint_index, base, 0.01, Role::Support);
-                self.anchors.push(interval_id);
+                let interval_key = fabric.create_interval(joint_index, base, 0.01, Role::Support);
+                self.anchors.push(interval_key);
                 StartProgress(seconds)
             }
             ShapeAction::GuyLine { joint_index, length, surface } => {
@@ -264,18 +264,18 @@ impl ShapePhase {
         }
     }
 
-    fn marked_faces(&self, mark_name: &MarkName) -> Vec<UniqueId> {
+    fn marked_faces(&self, mark_name: &MarkName) -> Vec<FaceKey> {
         self.marks
             .iter()
             .filter(|post_mark| *mark_name == post_mark.mark_name)
-            .map(|FaceMark { face_id, .. }| *face_id)
+            .map(|FaceMark { face_key, .. }| *face_key)
             .collect()
     }
 
-    fn marked_middle_joints(&self, fabric: &Fabric, face_ids: &[UniqueId]) -> Vec<usize> {
-        face_ids
+    fn marked_middle_joints(&self, fabric: &Fabric, face_keys: &[FaceKey]) -> Vec<usize> {
+        face_keys
             .iter()
-            .map(|face_id| fabric.face(*face_id).middle_joint(fabric))
+            .map(|face_key| fabric.face(*face_key).middle_joint(fabric))
             .collect()
     }
     pub fn complete_joiners(&mut self, fabric: &mut Fabric) -> Option<ShapeCommand> {

@@ -267,10 +267,9 @@ impl AnimationExporter {
         let interval_data: Vec<(usize, usize, usize, Role)> = fabric
             .intervals
             .iter()
-            .filter_map(|opt| {
-                opt.as_ref().map(|interval| {
-                    (interval.unique_id, interval.alpha_index, interval.omega_index, interval.role)
-                })
+            .enumerate()
+            .map(|(index, (_key, interval))| {
+                (index, interval.alpha_index, interval.omega_index, interval.role)
             })
             .collect();
 
@@ -319,10 +318,9 @@ impl AnimationExporter {
         let interval_data: Vec<(usize, usize, usize, Role)> = fabric
             .intervals
             .iter()
-            .filter_map(|opt| {
-                opt.as_ref().map(|interval| {
-                    (interval.unique_id, interval.alpha_index, interval.omega_index, interval.role)
-                })
+            .enumerate()
+            .map(|(index, (_key, interval))| {
+                (index, interval.alpha_index, interval.omega_index, interval.role)
             })
             .collect();
 
