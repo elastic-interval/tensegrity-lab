@@ -262,14 +262,25 @@ impl AnimationExporter {
             return;
         }
 
-        let joint_positions: Vec<Point3<f32>> = fabric.joints.iter().map(|j| j.location).collect();
+        // Build sorted joint positions by id
+        let mut joint_list: Vec<_> = fabric.joints.values().collect();
+        joint_list.sort_by_key(|j| *j.id);
+        let joint_positions: Vec<Point3<f32>> = joint_list.iter().map(|j| j.location).collect();
+
+        // Build key-to-index mapping for intervals
+        let key_to_index: std::collections::HashMap<_, _> = fabric.joints
+            .iter()
+            .map(|(key, joint)| (key, *joint.id))
+            .collect();
 
         let interval_data: Vec<(usize, usize, usize, Role)> = fabric
             .intervals
             .iter()
             .enumerate()
-            .map(|(index, (_key, interval))| {
-                (index, interval.alpha_index, interval.omega_index, interval.role)
+            .filter_map(|(index, (_key, interval))| {
+                let alpha = *key_to_index.get(&interval.alpha_key)?;
+                let omega = *key_to_index.get(&interval.omega_key)?;
+                Some((index, alpha, omega, interval.role))
             })
             .collect();
 
@@ -314,13 +325,25 @@ impl AnimationExporter {
         self.frames.clear();
         self.frame_count = 0;
 
-        let joint_positions: Vec<Point3<f32>> = fabric.joints.iter().map(|j| j.location).collect();
+        // Build sorted joint positions by id
+        let mut joint_list: Vec<_> = fabric.joints.values().collect();
+        joint_list.sort_by_key(|j| *j.id);
+        let joint_positions: Vec<Point3<f32>> = joint_list.iter().map(|j| j.location).collect();
+
+        // Build key-to-index mapping for intervals
+        let key_to_index: std::collections::HashMap<_, _> = fabric.joints
+            .iter()
+            .map(|(key, joint)| (key, *joint.id))
+            .collect();
+
         let interval_data: Vec<(usize, usize, usize, Role)> = fabric
             .intervals
             .iter()
             .enumerate()
-            .map(|(index, (_key, interval))| {
-                (index, interval.alpha_index, interval.omega_index, interval.role)
+            .filter_map(|(index, (_key, interval))| {
+                let alpha = *key_to_index.get(&interval.alpha_key)?;
+                let omega = *key_to_index.get(&interval.omega_key)?;
+                Some((index, alpha, omega, interval.role))
             })
             .collect();
 

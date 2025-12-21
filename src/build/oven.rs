@@ -5,7 +5,7 @@ use crate::build::dsl::brick_library;
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::interval::Role;
 use crate::fabric::physics::presets::BAKING;
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, JointKey};
 use crate::{Radio, StateChange};
 use std::collections::HashMap;
 use std::time::Duration;
@@ -257,19 +257,19 @@ impl Oven {
         oriented.apply_translation(translation);
 
         // Get face center joints to exclude them
-        let face_joints: Vec<usize> = oriented
+        let face_joints: Vec<JointKey> = oriented
             .faces
             .values()
             .map(|face| face.middle_joint(&oriented))
             .collect();
 
-        // Build mapping from fabric joint index to baked joint index
-        let mut fabric_to_baked: HashMap<usize, usize> = HashMap::new();
+        // Build mapping from fabric joint key to baked joint index
+        let mut fabric_to_baked: HashMap<JointKey, usize> = HashMap::new();
         let mut baked_index = 0;
         let joint_incidents = oriented.joint_incidents();
-        for incident in &joint_incidents {
-            if !face_joints.contains(&incident.index) {
-                fabric_to_baked.insert(incident.index, baked_index);
+        for (key, _incident) in &joint_incidents {
+            if !face_joints.contains(key) {
+                fabric_to_baked.insert(*key, baked_index);
                 baked_index += 1;
             }
         }
@@ -277,8 +277,8 @@ impl Oven {
         // Build joints using helper function format
         let joints_str: Vec<String> = joint_incidents
             .iter()
-            .filter(|inc| !face_joints.contains(&inc.index))
-            .map(|inc| {
+            .filter(|(key, _)| !face_joints.contains(key))
+            .map(|(_, inc)| {
                 let loc = inc.location;
                 format!(
                     "            joint({:.5}, {:.5}, {:.5}),",
@@ -295,8 +295,8 @@ impl Oven {
             if interval.role == Role::FaceRadial {
                 continue;
             }
-            let alpha = fabric_to_baked.get(&interval.alpha_index);
-            let omega = fabric_to_baked.get(&interval.omega_index);
+            let alpha = fabric_to_baked.get(&interval.alpha_key);
+            let omega = fabric_to_baked.get(&interval.omega_key);
             if let (Some(&a), Some(&o)) = (alpha, omega) {
                 if interval.role == Role::Pushing {
                     pushes.push(format!(

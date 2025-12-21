@@ -6,7 +6,7 @@ use crate::build::dsl::{brick_library, FaceMark, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, FaceKey, IntervalKey};
+use crate::fabric::{Fabric, FaceKey, IntervalKey, JointId, JointKey};
 use crate::units::{Meters, Percent, Seconds};
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};
 use std::cmp::Ordering;
@@ -211,13 +211,13 @@ impl ShapePhase {
                 let joints = self.marked_middle_joints(fabric, &faces);
                 for alpha in 0..faces.len() - 1 {
                     for omega in (alpha + 1)..faces.len() {
-                        let alpha_index = joints[alpha];
-                        let omega_index = joints[omega];
-                        let alpha_pt = fabric.joints[alpha_index].location;
-                        let omega_pt = fabric.joints[omega_index].location;
+                        let alpha_key = joints[alpha];
+                        let omega_key = joints[omega];
+                        let alpha_pt = fabric.joints[alpha_key].location;
+                        let omega_pt = fabric.joints[omega_key].location;
                         let length = alpha_pt.distance(omega_pt) * distance.as_factor();
                         let interval =
-                            fabric.create_interval(alpha_index, omega_index, length, Role::Pulling);
+                            fabric.create_interval(alpha_key, omega_key, length, Role::Pulling);
                         self.spacers.push(interval);
                     }
                 }
@@ -228,25 +228,29 @@ impl ShapePhase {
                 StartProgress(seconds)
             }
             ShapeAction::Omit { pair } => {
-                fabric.joining(pair).map(|id| fabric.remove_interval(id));
+                let alpha_key = fabric.joint_by_id[pair.0];
+                let omega_key = fabric.joint_by_id[pair.1];
+                fabric.joining((alpha_key, omega_key)).map(|id| fabric.remove_interval(id));
                 StartProgress(seconds)
             }
             ShapeAction::Add { alpha_index, omega_index, length_factor } => {
-                let ideal = fabric.distance(alpha_index, omega_index) * length_factor;
-                fabric.create_interval(alpha_index, omega_index, ideal, Role::Pulling);
+                let ideal = fabric.distance_by_id(JointId(alpha_index), JointId(omega_index)) * length_factor;
+                fabric.create_interval_by_id(JointId(alpha_index), JointId(omega_index), ideal, Role::Pulling);
                 StartProgress(seconds)
             }
             ShapeAction::Anchor { joint_index, surface } => {
+                let joint_key = fabric.joint_by_id[joint_index];
                 let (x, z) = surface;
                 let base = fabric.create_joint(Point3::new(x, 0.0, z));
-                let interval_key = fabric.create_interval(joint_index, base, 0.01, Role::Support);
+                let interval_key = fabric.create_interval(joint_key, base, 0.01, Role::Support);
                 self.anchors.push(interval_key);
                 StartProgress(seconds)
             }
             ShapeAction::GuyLine { joint_index, length, surface } => {
+                let joint_key = fabric.joint_by_id[joint_index];
                 let (x, z) = surface;
                 let base = fabric.create_joint(Point3::new(x, 0.0, z));
-                fabric.create_interval(joint_index, base, length, Role::Support);
+                fabric.create_interval(joint_key, base, length, Role::Support);
                 StartProgress(seconds)
             }
             ShapeAction::Centralize => {
@@ -272,7 +276,7 @@ impl ShapePhase {
             .collect()
     }
 
-    fn marked_middle_joints(&self, fabric: &Fabric, face_keys: &[FaceKey]) -> Vec<usize> {
+    fn marked_middle_joints(&self, fabric: &Fabric, face_keys: &[FaceKey]) -> Vec<JointKey> {
         face_keys
             .iter()
             .map(|face_key| fabric.face(*face_key).middle_joint(fabric))

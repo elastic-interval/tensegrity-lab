@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::fabric::attachment::ConnectorSpec;
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, IntervalEnd, IntervalKey};
+use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointKey};
 use crate::units::{Degrees, MM_PER_METER};
 
 impl Fabric {
@@ -28,7 +28,7 @@ impl Fabric {
         // Write header with comment showing fabric info
         let height_mm = self
             .joints
-            .iter()
+            .values()
             .fold(0.0f32, |h, joint| h.max(joint.location.y))
             * MM_PER_METER;
         let now = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
@@ -38,8 +38,8 @@ impl Fabric {
         let connector = ConnectorSpec::for_scale(self.scale);
 
         // Build a map of pull interval connections for each push interval
-        // Key: (pull_interval_key, end, slot) -> (hinge_pos, joint_index, slot, angle)
-        let mut pull_hinge_info: std::collections::HashMap<(IntervalKey, IntervalEnd, usize), (Point3<f32>, usize, usize, Degrees)> =
+        // Key: (pull_interval_key, end, slot) -> (hinge_pos, joint_key, slot, angle)
+        let mut pull_hinge_info: std::collections::HashMap<(IntervalKey, IntervalEnd, usize), (Point3<f32>, JointKey, usize, Degrees)> =
             std::collections::HashMap::new();
 
         // First pass: collect hinge info from push intervals
@@ -48,8 +48,8 @@ impl Fabric {
                 continue;
             }
 
-            let alpha_pos = self.joints[push_interval.alpha_index].location;
-            let omega_pos = self.joints[push_interval.omega_index].location;
+            let alpha_pos = self.joints[push_interval.alpha_key].location;
+            let omega_pos = self.joints[push_interval.omega_key].location;
             let push_dir = (omega_pos - alpha_pos).normalize();
 
             // Process alpha end
@@ -57,10 +57,10 @@ impl Fabric {
                 for (slot_idx, conn_opt) in connections.iter().enumerate() {
                     if let Some(connection) = conn_opt {
                         if let Some(pull_interval) = self.intervals.get(connection.pull_interval_key) {
-                            let pull_other_end = if pull_interval.alpha_index == push_interval.alpha_index {
-                                self.joints[pull_interval.omega_index].location
+                            let pull_other_end = if pull_interval.alpha_key == push_interval.alpha_key {
+                                self.joints[pull_interval.omega_key].location
                             } else {
-                                self.joints[pull_interval.alpha_index].location
+                                self.joints[pull_interval.alpha_key].location
                             };
 
                             let hinge_pos = connector.hinge_position(
@@ -75,14 +75,14 @@ impl Fabric {
                             let angle = ConnectorSpec::hinge_angle(-push_dir, pull_direction);
 
                             // Store for the pull interval's alpha or omega end
-                            let pull_end = if pull_interval.alpha_index == push_interval.alpha_index {
+                            let pull_end = if pull_interval.alpha_key == push_interval.alpha_key {
                                 IntervalEnd::Alpha
                             } else {
                                 IntervalEnd::Omega
                             };
                             pull_hinge_info.insert(
                                 (connection.pull_interval_key, pull_end, slot_idx + 1),
-                                (hinge_pos, push_interval.alpha_index, slot_idx + 1, angle),
+                                (hinge_pos, push_interval.alpha_key, slot_idx + 1, angle),
                             );
                         }
                     }
@@ -94,10 +94,10 @@ impl Fabric {
                 for (slot_idx, conn_opt) in connections.iter().enumerate() {
                     if let Some(connection) = conn_opt {
                         if let Some(pull_interval) = self.intervals.get(connection.pull_interval_key) {
-                            let pull_other_end = if pull_interval.alpha_index == push_interval.omega_index {
-                                self.joints[pull_interval.omega_index].location
+                            let pull_other_end = if pull_interval.alpha_key == push_interval.omega_key {
+                                self.joints[pull_interval.omega_key].location
                             } else {
-                                self.joints[pull_interval.alpha_index].location
+                                self.joints[pull_interval.alpha_key].location
                             };
 
                             let hinge_pos = connector.hinge_position(
@@ -110,14 +110,14 @@ impl Fabric {
                             let pull_direction = (pull_other_end - hinge_pos).normalize();
                             let angle = ConnectorSpec::hinge_angle(push_dir, pull_direction);
 
-                            let pull_end = if pull_interval.alpha_index == push_interval.omega_index {
+                            let pull_end = if pull_interval.alpha_key == push_interval.omega_key {
                                 IntervalEnd::Alpha
                             } else {
                                 IntervalEnd::Omega
                             };
                             pull_hinge_info.insert(
                                 (connection.pull_interval_key, pull_end, slot_idx + 1),
-                                (hinge_pos, push_interval.omega_index, slot_idx + 1, angle),
+                                (hinge_pos, push_interval.omega_key, slot_idx + 1, angle),
                             );
                         }
                     }
@@ -138,8 +138,8 @@ impl Fabric {
                 if interval.has_role(Role::Support) {
                     return None;
                 }
-                let alpha = self.joints[interval.alpha_index].location;
-                let omega = self.joints[interval.omega_index].location;
+                let alpha = self.joints[interval.alpha_key].location;
+                let omega = self.joints[interval.omega_key].location;
                 let length = (omega - alpha).magnitude();
                 Some(IntervalInfo {
                     key,
@@ -165,8 +165,10 @@ impl Fabric {
             let role_str = if info.is_push { "push" } else { "pull" };
 
             if info.is_push {
-                let alpha = self.joints[interval.alpha_index].location * MM_PER_METER;
-                let omega = self.joints[interval.omega_index].location * MM_PER_METER;
+                let alpha_joint = &self.joints[interval.alpha_key];
+                let omega_joint = &self.joints[interval.omega_key];
+                let alpha = alpha_joint.location * MM_PER_METER;
+                let omega = omega_joint.location * MM_PER_METER;
                 writeln!(
                     file,
                     "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},{},0,90.000,{:.3},{:.3},{:.3},{},0,90.000",
@@ -174,8 +176,8 @@ impl Fabric {
                     role_str,
                     info.length,
                     info.strain,
-                    alpha.x, alpha.y, alpha.z, interval.alpha_index,
-                    omega.x, omega.y, omega.z, interval.omega_index,
+                    alpha.x, alpha.y, alpha.z, alpha_joint.id,
+                    omega.x, omega.y, omega.z, omega_joint.id,
                 )?;
             } else {
                 let alpha_info = pull_hinge_info.iter()
@@ -185,18 +187,18 @@ impl Fabric {
                     .find(|((pull_id, end, _), _)| *pull_id == info.key && *end == IntervalEnd::Omega)
                     .map(|(_, data)| data);
 
-                let (alpha_pos, alpha_joint, alpha_slot, alpha_angle) = if let Some((pos, joint, slot, angle)) = alpha_info {
-                    (Point3::new(pos.x, pos.y, pos.z) * MM_PER_METER, *joint, *slot, *angle)
+                let (alpha_pos, alpha_joint_idx, alpha_slot, alpha_angle) = if let Some((pos, joint_key, slot, angle)) = alpha_info {
+                    (Point3::new(pos.x, pos.y, pos.z) * MM_PER_METER, self.joints[*joint_key].id, *slot, *angle)
                 } else {
-                    let loc = self.joints[interval.alpha_index].location * MM_PER_METER;
-                    (loc, interval.alpha_index, 0, Degrees(0.0))
+                    let joint = &self.joints[interval.alpha_key];
+                    (joint.location * MM_PER_METER, joint.id, 0, Degrees(0.0))
                 };
 
-                let (omega_pos, omega_joint, omega_slot, omega_angle) = if let Some((pos, joint, slot, angle)) = omega_info {
-                    (Point3::new(pos.x, pos.y, pos.z) * MM_PER_METER, *joint, *slot, *angle)
+                let (omega_pos, omega_joint_idx, omega_slot, omega_angle) = if let Some((pos, joint_key, slot, angle)) = omega_info {
+                    (Point3::new(pos.x, pos.y, pos.z) * MM_PER_METER, self.joints[*joint_key].id, *slot, *angle)
                 } else {
-                    let loc = self.joints[interval.omega_index].location * MM_PER_METER;
-                    (loc, interval.omega_index, 0, Degrees(0.0))
+                    let joint = &self.joints[interval.omega_key];
+                    (joint.location * MM_PER_METER, joint.id, 0, Degrees(0.0))
                 };
 
                 writeln!(
@@ -206,8 +208,8 @@ impl Fabric {
                     role_str,
                     info.length,
                     info.strain,
-                    alpha_pos.x, alpha_pos.y, alpha_pos.z, alpha_joint, alpha_slot, *alpha_angle,
-                    omega_pos.x, omega_pos.y, omega_pos.z, omega_joint, omega_slot, *omega_angle,
+                    alpha_pos.x, alpha_pos.y, alpha_pos.z, alpha_joint_idx, alpha_slot, *alpha_angle,
+                    omega_pos.x, omega_pos.y, omega_pos.z, omega_joint_idx, omega_slot, *omega_angle,
                 )?;
             }
         }

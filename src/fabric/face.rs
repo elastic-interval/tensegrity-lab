@@ -5,9 +5,8 @@
 use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, MetricSpace, Point3, Vector3};
 
 use crate::build::dsl::{FaceAlias, Spin};
-use crate::fabric::interval::{Interval, Role};
-use crate::fabric::joint::Joint;
-use crate::fabric::{Fabric, FaceKey, IntervalKey};
+use crate::fabric::interval::Role;
+use crate::fabric::{Fabric, FaceKey, IntervalKey, JointKey};
 
 const ROOT3: f32 = 1.732_050_8;
 
@@ -122,8 +121,7 @@ impl Fabric {
         self.create_interval(alpha, omega, push_length, Role::Pushing);
 
         // Connect prism push joints to radials
-        for joint in 0..3 {
-            let radial = radial_joints[joint];
+        for radial in radial_joints {
             self.create_interval(alpha, radial, pull_length, Role::PrismPull);
             self.create_interval(omega, radial, pull_length, Role::PrismPull);
         }
@@ -216,18 +214,17 @@ impl Face {
 
     pub fn radial_joint_locations(&self, fabric: &Fabric) -> [Point3<f32>; 3] {
         self.radial_joints(fabric)
-            .map(|joint_index| &fabric.joints[joint_index])
-            .map(|Joint { location, .. }| *location)
+            .map(|joint_key| fabric.joints[joint_key].location)
     }
 
-    pub fn middle_joint(&self, fabric: &Fabric) -> usize {
-        fabric.interval(self.radial_intervals[0]).alpha_index
+    pub fn middle_joint(&self, fabric: &Fabric) -> JointKey {
+        fabric.interval(self.radial_intervals[0]).alpha_key
     }
 
-    pub fn radial_joints(&self, fabric: &Fabric) -> [usize; 3] {
+    pub fn radial_joints(&self, fabric: &Fabric) -> [JointKey; 3] {
         self.radial_intervals
-            .map(|id| fabric.interval(id))
-            .map(|Interval { omega_index, .. }| *omega_index)
+            .map(|key| fabric.interval(key))
+            .map(|interval| interval.omega_key)
     }
 
     pub fn strain(&self, fabric: &Fabric) -> f32 {

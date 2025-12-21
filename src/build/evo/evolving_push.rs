@@ -31,15 +31,15 @@ impl EvolvingPush {
             alpha,
             omega,
         } = snapshot;
-        let (here_id, here, pulls) = match end {
-            IntervalEnd::Alpha => (interval.alpha_index, alpha.location, &mut self.alpha_pulls),
-            IntervalEnd::Omega => (interval.omega_index, omega.location, &mut self.omega_pulls),
+        let (here_key, here, pulls) = match end {
+            IntervalEnd::Alpha => (interval.alpha_key, alpha.location, &mut self.alpha_pulls),
+            IntervalEnd::Omega => (interval.omega_key, omega.location, &mut self.omega_pulls),
         };
-        let alpha = fabric.create_joint(&here - project / 2.0);
-        let omega = fabric.create_joint(&here + project / 2.0);
-        let interval_key = fabric.create_interval(alpha, omega, 1.0, Role::Pushing);
-        let alpha_pull = fabric.create_interval(here_id, alpha, 0.5, Role::Pulling);
-        let omega_pull = fabric.create_interval(here_id, omega, 0.5, Role::Pulling);
+        let alpha_key = fabric.create_joint(&here - project / 2.0);
+        let omega_key = fabric.create_joint(&here + project / 2.0);
+        let interval_key = fabric.create_interval(alpha_key, omega_key, 1.0, Role::Pushing);
+        let alpha_pull = fabric.create_interval(here_key, alpha_key, 0.5, Role::Pulling);
+        let omega_pull = fabric.create_interval(here_key, omega_key, 0.5, Role::Pulling);
         pulls.push(alpha_pull);
         pulls.push(omega_pull);
         Self {
@@ -73,9 +73,9 @@ impl EvolvingPush {
             (IntervalEnd::Omega, IntervalEnd::Omega),
         ];
         for (end_a, end_b) in ends {
-            let index_a = snapshot_a.1.end_index(&end_a);
-            let index_b = snapshot_b.1.end_index(&end_b);
-            let pull = fabric.create_interval(index_a, index_b, 0.5, Role::Pulling);
+            let key_a = snapshot_a.1.end_key(&end_a);
+            let key_b = snapshot_b.1.end_key(&end_b);
+            let pull = fabric.create_interval(key_a, key_b, 0.5, Role::Pulling);
             evolving_pushes[snapshot_a.0].add_pull(&end_a, pull);
             evolving_pushes[snapshot_b.0].add_pull(&end_b, pull);
         }

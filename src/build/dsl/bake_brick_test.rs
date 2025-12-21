@@ -43,14 +43,14 @@ mod tests {
         // Print initial intervals
         eprintln!("\nInitial intervals:");
         for (i, (_key, int)) in fabric.intervals.iter().enumerate() {
-            let alpha = fabric.joints[int.alpha_index].location;
-            let omega = fabric.joints[int.omega_index].location;
-            let actual = alpha.distance(omega);
+            let alpha_joint = &fabric.joints[int.alpha_key];
+            let omega_joint = &fabric.joints[int.omega_key];
+            let actual = alpha_joint.location.distance(omega_joint.location);
             eprintln!(
                 "  [{i}] {:?} ({}->{}) ideal={:.4} actual={:.4}",
                 int.role,
-                int.alpha_index,
-                int.omega_index,
+                alpha_joint.id,
+                omega_joint.id,
                 int.ideal(),
                 actual
             );
@@ -87,8 +87,8 @@ mod tests {
         // Print final state
         eprintln!("\nFinal intervals:");
         for (i, (_key, int)) in fabric.intervals.iter().enumerate() {
-            let alpha = fabric.joints[int.alpha_index].location;
-            let omega = fabric.joints[int.omega_index].location;
+            let alpha = fabric.joints[int.alpha_key].location;
+            let omega = fabric.joints[int.omega_key].location;
             let actual = alpha.distance(omega);
             let diff_pct = ((actual - int.ideal()) / int.ideal() * 100.0).abs();
             eprintln!(

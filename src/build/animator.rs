@@ -1,7 +1,7 @@
 use crate::build::dsl::animate_phase::{AnimatePhase, Actuator, ActuatorAttachment, Waveform};
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::interval::{Role, Span};
-use crate::fabric::IntervalKey;
+use crate::fabric::{IntervalKey, JointKey};
 use crate::units::Percent;
 use crate::ITERATION_DURATION;
 use cgmath::Point3;
@@ -54,7 +54,7 @@ struct ActuatorInterval {
     rest_length: f32,
     contracted_length: f32,
     phase_offset: f32,
-    anchor_joint: Option<usize>,
+    anchor_joint: Option<JointKey>,
 }
 
 pub struct Animator {
@@ -100,10 +100,13 @@ impl Animator {
             let phase_offset = actuator.phase_offset.as_factor();
             match &actuator.attachment {
                 ActuatorAttachment::Between { joint_a, joint_b } => {
-                    let rest_length = context.fabric.distance(*joint_a, *joint_b);
+                    // Resolve DSL joint indices to JointKeys
+                    let alpha_key = context.fabric.joint_by_id[*joint_a];
+                    let omega_key = context.fabric.joint_by_id[*joint_b];
+                    let rest_length = context.fabric.distance(alpha_key, omega_key);
                     let id = context.fabric.create_interval(
-                        *joint_a,
-                        *joint_b,
+                        alpha_key,
+                        omega_key,
                         rest_length,
                         Role::Pulling,
                     );
@@ -122,15 +125,17 @@ impl Animator {
                     });
                 }
                 ActuatorAttachment::ToSurface { joint, point } => {
+                    // Resolve DSL joint index to JointKey
+                    let joint_key = context.fabric.joint_by_id[*joint];
                     // Create anchor joint at surface position (x, 0, z)
                     let anchor_point = Point3::new(point.0, 0.0, point.1);
-                    let anchor_index = context.fabric.create_joint(anchor_point);
+                    let anchor_key = context.fabric.create_joint(anchor_point);
 
                     // Create actuator interval from fabric joint to anchor
-                    let rest_length = context.fabric.distance(*joint, anchor_index);
+                    let rest_length = context.fabric.distance(joint_key, anchor_key);
                     let id = context.fabric.create_interval(
-                        *joint,
-                        anchor_index,
+                        joint_key,
+                        anchor_key,
                         rest_length,
                         Role::Pulling,
                     );
@@ -147,7 +152,7 @@ impl Animator {
                         rest_length,
                         contracted_length: rest_length * contraction_factor,
                         phase_offset,
-                        anchor_joint: Some(anchor_index),
+                        anchor_joint: Some(anchor_key),
                     });
                 }
             }
@@ -157,18 +162,13 @@ impl Animator {
     }
 
     pub fn remove_actuators(&self, context: &mut CrucibleContext) {
-        // First remove intervals, then anchor joints (in reverse order to avoid index shifts)
+        // First remove intervals, then anchor joints
         for actuator in &self.actuators {
             context.fabric.remove_interval(actuator.id);
         }
-        // Collect anchor joints and sort descending to remove from highest index first
-        let mut anchors: Vec<usize> = self.actuators
-            .iter()
-            .filter_map(|a| a.anchor_joint)
-            .collect();
-        anchors.sort_by(|a, b| b.cmp(a));
-        for anchor in anchors {
-            context.fabric.remove_joint(anchor);
+        // Remove anchor joints (with SlotMap, order doesn't matter)
+        for anchor_key in self.actuators.iter().filter_map(|a| a.anchor_joint) {
+            context.fabric.remove_joint(anchor_key);
         }
     }
 

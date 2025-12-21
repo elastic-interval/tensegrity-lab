@@ -6,10 +6,9 @@ use itertools::Itertools;
 use crate::fabric::interval::Role::{BowTie, Pushing};
 use crate::fabric::interval::Span::Approaching;
 use crate::fabric::interval::{Interval, Span};
-use crate::fabric::joint::Joint;
 use crate::fabric::joint_incident::{JointIncident, Path};
 use crate::fabric::material::Material;
-use crate::fabric::{Fabric, IntervalKey};
+use crate::fabric::{Fabric, IntervalKey, JointKey, Joints};
 use crate::units::Seconds;
 
 const BOW_TIE_SHORTEN: f32 = 0.5;
@@ -17,12 +16,12 @@ const BOW_TIE_SHORTEN: f32 = 0.5;
 impl Fabric {
     pub fn install_bow_ties(&mut self) {
         for Pair {
-            alpha_index,
-            omega_index,
+            alpha_key,
+            omega_key,
             length,
         } in self.pair_generator().bow_tie_pulls(&self.joints)
         {
-            self.create_interval(alpha_index, omega_index, length, BowTie);
+            self.create_interval(alpha_key, omega_key, length, BowTie);
         }
     }
 
@@ -76,7 +75,7 @@ impl Fabric {
         PairGenerator::new(self.joint_incidents(), self.interval_map())
     }
 
-    fn interval_map(&self) -> HashMap<(usize, usize), Interval> {
+    fn interval_map(&self) -> HashMap<(JointKey, JointKey), Interval> {
         self.interval_values()
             .map(|interval| (interval.key(), interval.clone()))
             .collect()
@@ -85,17 +84,17 @@ impl Fabric {
     pub fn _correct_folded_pulls(&mut self, minimum_dot_product: f32) {
         let folded: Vec<_> = self
             .joint_incidents()
-            .into_iter()
+            .into_values()
             .filter(|joint| joint.push().is_some())
             .flat_map(|joint| {
-                let index = joint.index;
+                let key = joint.key;
                 let pulls = joint.pulls();
                 pulls
                     .into_iter()
                     .tuple_windows()
                     .map(|(a, b)| {
-                        let ray_a = a.1.ray_from(index);
-                        let ray_b = b.1.ray_from(index);
+                        let ray_a = a.1.ray_from(key);
+                        let ray_b = b.1.ray_from(key);
                         let (short_pull, long_pull) = if a.1.ideal() < b.1.ideal() {
                             (a, b)
                         } else {
@@ -103,7 +102,7 @@ impl Fabric {
                         };
                         let dot_product = ray_a.dot(ray_b);
                         FoldedPull {
-                            joint_index: index,
+                            joint_key: key,
                             short_pull,
                             long_pull,
                             dot_product,
@@ -122,17 +121,17 @@ impl Fabric {
         //     self.remove_interval(to_remove);
         // }
         for FoldedPull {
-            joint_index,
+            joint_key,
             short_pull: (_, short_interval),
             long_pull: (_, long_interval),
             dot_product,
         } in folded
         {
-            let middle_joint = joint_index;
+            let middle_joint = joint_key;
             let far_joint = long_interval.other_joint(middle_joint);
             let missing_length = long_interval.ideal() - short_interval.ideal();
-            println!("Folded pull at joint {}: short {:?} (ideal {:.3}), long {:?} (ideal {:.3}), dot {:.3}",
-                     joint_index,
+            println!("Folded pull at joint {:?}: short {:?} (ideal {:.3}), long {:?} (ideal {:.3}), dot {:.3}",
+                     joint_key,
                      short_interval.role,
                      short_interval.ideal(),
                      long_interval.role,
@@ -151,7 +150,7 @@ impl Fabric {
 
 #[derive(Debug, Clone)]
 struct FoldedPull {
-    joint_index: usize,
+    joint_key: JointKey,
     short_pull: (IntervalKey, Interval),
     long_pull: (IntervalKey, Interval),
     dot_product: f32,
@@ -159,29 +158,29 @@ struct FoldedPull {
 
 #[derive(Debug)]
 struct Pair {
-    alpha_index: usize,
-    omega_index: usize,
+    alpha_key: JointKey,
+    omega_key: JointKey,
     length: f32,
 }
 
 impl Pair {
-    fn key(&self) -> (usize, usize) {
-        if self.alpha_index < self.omega_index {
-            (self.alpha_index, self.omega_index)
+    fn key(&self) -> (JointKey, JointKey) {
+        if self.alpha_key < self.omega_key {
+            (self.alpha_key, self.omega_key)
         } else {
-            (self.omega_index, self.alpha_index)
+            (self.omega_key, self.alpha_key)
         }
     }
 }
 
 struct PairGenerator {
-    joints: Vec<JointIncident>,
-    intervals: HashMap<(usize, usize), Interval>,
-    pairs: HashMap<(usize, usize), Pair>,
+    joints: HashMap<JointKey, JointIncident>,
+    intervals: HashMap<(JointKey, JointKey), Interval>,
+    pairs: HashMap<(JointKey, JointKey), Pair>,
 }
 
 impl PairGenerator {
-    fn new(joints: Vec<JointIncident>, intervals: HashMap<(usize, usize), Interval>) -> Self {
+    fn new(joints: HashMap<JointKey, JointIncident>, intervals: HashMap<(JointKey, JointKey), Interval>) -> Self {
         Self {
             joints,
             intervals,
@@ -189,7 +188,7 @@ impl PairGenerator {
         }
     }
 
-    fn bow_tie_pulls(mut self, joints: &[Joint]) -> impl Iterator<Item = Pair> {
+    fn bow_tie_pulls(mut self, joints: &Joints) -> impl Iterator<Item = Pair> {
         let push_intervals: Vec<_> = self
             .intervals
             .values()
@@ -215,8 +214,8 @@ impl PairGenerator {
 
     fn find_meeting_pairs(&self, interval: &Interval) -> Vec<(usize, Path, Path)> {
         let mut meeting_pairs = vec![];
-        for alpha_path in self.paths_for(interval.alpha_index, 2) {
-            for omega_path in self.paths_for(interval.omega_index, 2) {
+        for alpha_path in self.paths_for(interval.alpha_key, 2) {
+            for omega_path in self.paths_for(interval.omega_key, 2) {
                 if alpha_path.last_interval().key() == omega_path.last_interval().key() {
                     // second interval is the bridge
                     meeting_pairs.push((6, alpha_path.clone(), omega_path.clone()));
@@ -235,7 +234,7 @@ impl PairGenerator {
         omega1: &Path,
         alpha2: &Path,
         omega2: &Path,
-        joints: &[Joint],
+        joints: &Joints,
     ) {
         let diagonals = [
             (alpha1.last_joint(), omega2.last_joint()),
@@ -245,20 +244,20 @@ impl PairGenerator {
             .iter()
             .filter_map(|&(a, b)| {
                 if self
-                    .interval_exists(self.joints[a].across_push()?, self.joints[b].across_push()?)
+                    .interval_exists(self.joints[&a].across_push()?, self.joints[&b].across_push()?)
                 {
                     return None;
                 }
                 Some((a, b))
             })
             .collect();
-        if let &[(alpha_index, omega_index)] = cross_twist_diagonals.as_slice() {
-            let alpha_pt = joints[alpha_index].location;
-            let omega_pt = joints[omega_index].location;
+        if let &[(alpha_key, omega_key)] = cross_twist_diagonals.as_slice() {
+            let alpha_pt = joints[alpha_key].location;
+            let omega_pt = joints[omega_key].location;
             let distance = alpha_pt.distance(omega_pt);
             let pair = Pair {
-                alpha_index,
-                omega_index,
+                alpha_key,
+                omega_key,
                 length: distance * BOW_TIE_SHORTEN,
             };
             self.pairs.insert(pair.key(), pair);
@@ -272,19 +271,19 @@ impl PairGenerator {
             let triangle_completions: Vec<_> = candidate_completions
                 .iter()
                 .filter_map(|&(path, other_path)| {
-                    if self.joints[other_path.joint_indices[1]].push().is_some() {
+                    if self.joints[&other_path.joint_keys[1]].push().is_some() {
                         return None;
                     }
-                    Some((path.joint_indices[0], path.last_joint()))
+                    Some((path.joint_keys[0], path.last_joint()))
                 })
                 .collect();
-            if let &[(alpha_index, omega_index)] = triangle_completions.as_slice() {
-                let alpha_pt = joints[alpha_index].location;
-                let omega_pt = joints[omega_index].location;
+            if let &[(alpha_key, omega_key)] = triangle_completions.as_slice() {
+                let alpha_pt = joints[alpha_key].location;
+                let omega_pt = joints[omega_key].location;
                 let distance = alpha_pt.distance(omega_pt);
                 let pair = Pair {
-                    alpha_index,
-                    omega_index,
+                    alpha_key,
+                    omega_key,
                     length: distance * BOW_TIE_SHORTEN,
                 };
                 self.pairs.insert(pair.key(), pair);
@@ -305,32 +304,32 @@ impl PairGenerator {
             (omega1, omega2.last_joint()),
             (omega2, omega1.last_joint()),
         ];
-        for (path, omega_index) in candidates {
-            let alpha_index = path.joint_indices[1];
-            if self.joints[alpha_index].push().is_none() {
+        for (path, omega_key) in candidates {
+            let alpha_key = path.joint_keys[1];
+            if self.joints[&alpha_key].push().is_none() {
                 continue;
             }
             let pair = Pair {
-                alpha_index,
-                omega_index,
+                alpha_key,
+                omega_key,
                 length: interval.ideal() / 4.0,
             };
             self.pairs.insert(pair.key(), pair);
         }
     }
 
-    fn interval_exists(&self, a: usize, b: usize) -> bool {
+    fn interval_exists(&self, a: JointKey, b: JointKey) -> bool {
         if a < b {
             self.intervals.contains_key(&(a, b))
         } else {
             self.intervals.contains_key(&(b, a))
         }
     }
-    fn paths_for(&self, joint_index: usize, max_size: usize) -> Vec<Path> {
-        let paths: Vec<_> = self.joints[joint_index]
+    fn paths_for(&self, joint_key: JointKey, max_size: usize) -> Vec<Path> {
+        let paths: Vec<_> = self.joints[&joint_key]
             .pulls()
             .iter()
-            .map(|(_, pull)| Path::new(joint_index, pull.clone()))
+            .map(|(_, pull)| Path::new(joint_key, pull.clone()))
             .collect();
         self.paths_via_pulls(&paths, 1, max_size)
     }
@@ -341,7 +340,7 @@ impl PairGenerator {
         } else {
             let bigger: Vec<_> = paths
                 .iter()
-                .flat_map(|path| self.joints[path.last_joint()].extended_paths(path))
+                .flat_map(|path| self.joints[&path.last_joint()].extended_paths(path))
                 .collect();
             self.paths_via_pulls(&bigger, size + 1, max_size)
         }

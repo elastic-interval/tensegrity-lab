@@ -322,11 +322,13 @@ impl FabricPlanExecutor {
         }
 
         // Omit triangle intervals after faces are converted
-        for pair in &self.plan.pretense_phase.omit_pairs {
-            if let Some(key) = self.fabric.joining(*pair) {
+        for (alpha_id, omega_id) in &self.plan.pretense_phase.omit_pairs {
+            let alpha_key = self.fabric.joint_by_id[*alpha_id];
+            let omega_key = self.fabric.joint_by_id[*omega_id];
+            if let Some(key) = self.fabric.joining((alpha_key, omega_key)) {
                 self.fabric.remove_interval(key);
             } else {
-                eprintln!("WARNING: No interval found between joints {:?}", pair);
+                eprintln!("WARNING: No interval found between joints ({}, {})", alpha_id, omega_id);
             }
         }
 

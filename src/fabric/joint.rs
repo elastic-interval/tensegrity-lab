@@ -4,50 +4,63 @@
  */
 
 use crate::fabric::physics::{Physics, SurfaceInteraction};
-use crate::fabric::{Fabric, Force, Location, Velocity};
+use crate::fabric::{Fabric, Force, JointId, JointKey, Location, Velocity};
 use crate::units::Grams;
 use crate::ITERATION_DURATION;
 use cgmath::num_traits::zero;
 use cgmath::{InnerSpace, MetricSpace, Point3};
 
 impl Fabric {
-    pub fn create_joint(&mut self, point: Point3<f32>) -> usize {
-        let index = self.joints.len();
-        self.joints.push(Joint::new(point));
-        index
-    }
-    pub fn location(&self, index: usize) -> Point3<f32> {
-        self.joints[index].location
+    pub fn create_joint(&mut self, point: Point3<f32>) -> JointKey {
+        let id = JointId(self.joint_by_id.len());
+        let key = self.joints.insert(Joint::new(point, id));
+        self.joint_by_id.push(key);
+        key
     }
 
-    pub fn remove_joint(&mut self, index: usize) {
-        self.joints.remove(index);
+    pub fn location(&self, key: JointKey) -> Point3<f32> {
+        self.joints[key].location
+    }
+
+    pub fn remove_joint(&mut self, key: JointKey) {
+        // Remove all intervals that touch this joint
         let to_remove: Vec<_> = self.intervals
             .iter()
-            .filter_map(|(key, interval)| {
-                if interval.touches(index) {
-                    Some(key)
+            .filter_map(|(interval_key, interval)| {
+                if interval.alpha_key == key || interval.omega_key == key {
+                    Some(interval_key)
                 } else {
                     None
                 }
             })
             .collect();
-        for key in to_remove {
-            self.remove_interval(key);
+        for interval_key in to_remove {
+            self.remove_interval(interval_key);
         }
-        for interval in self.intervals.values_mut() {
-            interval.joint_removed(index);
-        }
+        // Simply remove the joint - no index adjustment needed with SlotMap!
+        self.joints.remove(key);
     }
 
-    pub fn distance(&self, alpha_index: usize, omega_index: usize) -> f32 {
-        self.location(alpha_index)
-            .distance(self.location(omega_index))
+    pub fn distance(&self, alpha_key: JointKey, omega_key: JointKey) -> f32 {
+        self.location(alpha_key)
+            .distance(self.location(omega_key))
     }
 
-    pub fn ideal(&self, alpha_index: usize, omega_index: usize, strain: f32) -> f32 {
-        let distance = self.distance(alpha_index, omega_index);
+    /// Distance between joints by their JointId (creation order)
+    pub fn distance_by_id(&self, alpha_id: JointId, omega_id: JointId) -> f32 {
+        let alpha_key = self.joint_by_id[*alpha_id];
+        let omega_key = self.joint_by_id[*omega_id];
+        self.distance(alpha_key, omega_key)
+    }
+
+    pub fn ideal(&self, alpha_key: JointKey, omega_key: JointKey, strain: f32) -> f32 {
+        let distance = self.distance(alpha_key, omega_key);
         distance / (1.0 + strain * distance)
+    }
+
+    /// Resolve a JointId to a JointKey
+    pub fn joint_key_by_id(&self, id: JointId) -> Option<JointKey> {
+        self.joint_by_id.get(id.0).copied()
     }
 }
 
@@ -55,6 +68,7 @@ pub const AMBIENT_MASS: Grams = Grams(100.0);
 
 #[derive(Clone, Debug)]
 pub struct Joint {
+    pub id: JointId,
     pub location: Location,
     pub force: Force,
     pub velocity: Velocity,
@@ -62,8 +76,9 @@ pub struct Joint {
 }
 
 impl Joint {
-    pub fn new(location: Point3<f32>) -> Joint {
+    pub fn new(location: Point3<f32>, id: JointId) -> Joint {
         Joint {
+            id,
             location,
             force: zero(),
             velocity: zero(),

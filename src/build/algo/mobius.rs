@@ -54,8 +54,10 @@ pub fn generate_mobius(segments: usize) -> Fabric {
 
     // Create intervals with overlapping pattern (matching original TS pattern)
     // joint(offset) = (jointIndex * 2 + offset) % joint_count
+    // Copy joint keys to avoid borrow checker issues with fabric.create_interval
+    let joint_keys: Vec<_> = fabric.joint_by_id.clone();
     for joint_index in 0..joint_count {
-        let j = |offset: usize| (joint_index * 2 + offset) % joint_count;
+        let j = |offset: usize| joint_keys[(joint_index * 2 + offset) % joint_count];
 
         // Pull along edge (offset 0 to 2)
         fabric.create_interval(j(0), j(2), pull_edge, Role::Pulling);
@@ -105,8 +107,8 @@ mod tests {
         println!("\n=== Initial state ===");
         // Check actual vs ideal lengths for intervals
         for (i, (_key, interval)) in fabric.intervals.iter().take(6).enumerate() {
-            let alpha = &fabric.joints[interval.alpha_index];
-            let omega = &fabric.joints[interval.omega_index];
+            let alpha = &fabric.joints[interval.alpha_key];
+            let omega = &fabric.joints[interval.omega_key];
             let actual = ((omega.location.x - alpha.location.x).powi(2)
                 + (omega.location.y - alpha.location.y).powi(2)
                 + (omega.location.z - alpha.location.z).powi(2)).sqrt();
@@ -136,12 +138,12 @@ mod tests {
     fn test_generate_mobius_creates_valid_intervals() {
         let fabric = generate_mobius(30);
 
-        let joint_count = fabric.joints.len();
         for interval in fabric.intervals.values() {
-            assert!(interval.alpha_index < joint_count,
-                "Alpha joint {} should be < {}", interval.alpha_index, joint_count);
-            assert!(interval.omega_index < joint_count,
-                "Omega joint {} should be < {}", interval.omega_index, joint_count);
+            // With SlotMap, we just verify the keys point to valid joints
+            assert!(fabric.joints.get(interval.alpha_key).is_some(),
+                "Alpha joint key should be valid");
+            assert!(fabric.joints.get(interval.omega_key).is_some(),
+                "Omega joint key should be valid");
             assert!(interval.ideal() > 0.0, "Interval should have positive ideal length");
         }
     }
