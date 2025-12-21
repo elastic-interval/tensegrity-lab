@@ -2,7 +2,7 @@ use crate::camera::Pick;
 use crate::fabric::attachment::ConnectorSpec;
 use crate::fabric::interval::Role;
 use crate::fabric::material::Material;
-use crate::fabric::{Fabric, IntervalEnd, UniqueId};
+use crate::fabric::{Fabric, IntervalEnd};
 use crate::wgpu::{Wgpu, DEFAULT_PRIMITIVE_STATE};
 use crate::{Appearance, AppearanceMode, IntervalDetails, JointDetails, RenderStyle};
 use bytemuck::{Pod, Zeroable};
@@ -171,216 +171,211 @@ impl CylinderRenderer {
         // Scale interval thickness based on fabric scale
         // This ensures intervals look proportional regardless of fabric scale
         let radius_scale = fabric.scale();
-        for (index, interval_opt) in fabric.intervals.iter().enumerate() {
-            if let Some(interval) = interval_opt {
-                let interval_id = UniqueId(index);
-                let push = interval.material == Material::Push;
-                match render_style {
-                    WithPullMap { .. } if push => continue,
-                    WithPushMap { .. } if !push => continue,
-                    _ => {}
-                }
-                let (alpha, omega) = (interval.alpha_index, interval.omega_index);
-                let start = fabric.joints[alpha].location;
-                let end = fabric.joints[omega].location;
-                let appearance = interval.role.appearance();
-                let appearance = match pick {
-                    Pick::Nothing => match render_style {
-                        Normal { .. } => appearance,
-                        ColorByRole { .. } => Appearance {
-                            color: interval.role.color(),
-                            radius: appearance.radius,
-                        },
-                        WithAppearanceFunction { function, .. } => {
-                            function(interval).unwrap_or(appearance)
-                        }
-                        WithPullMap { map, .. } => {
-                            let key = interval.key();
-                            match map.get(&key) {
-                                None => appearance.apply_mode(AppearanceMode::Faded),
-                                Some(color) => Appearance {
-                                    color: *color,
-                                    radius: appearance.radius * 2.0, // Double thickness for colored intervals
-                                },
-                            }
-                        }
-                        WithPushMap { map, .. } => {
-                            let key = interval.key();
-                            match map.get(&key) {
-                                None => appearance.apply_mode(AppearanceMode::Faded),
-                                Some(color) => Appearance {
-                                    color: *color,
-                                    radius: appearance.radius * 2.0, // Double thickness for colored intervals
-                                },
-                            }
-                        }
+        for (interval_key, interval) in fabric.intervals.iter() {
+            let push = interval.material == Material::Push;
+            match render_style {
+                WithPullMap { .. } if push => continue,
+                WithPushMap { .. } if !push => continue,
+                _ => {}
+            }
+            let (alpha, omega) = (interval.alpha_index, interval.omega_index);
+            let start = fabric.joints[alpha].location;
+            let end = fabric.joints[omega].location;
+            let appearance = interval.role.appearance();
+            let appearance = match pick {
+                Pick::Nothing => match render_style {
+                    Normal { .. } => appearance,
+                    ColorByRole { .. } => Appearance {
+                        color: interval.role.color(),
+                        radius: appearance.radius,
                     },
-                    Pick::Joint(JointDetails { index, .. }) => {
-                        if interval.touches(*index) {
-                            appearance.highlighted_for_role(interval.role)
-                        } else {
-                            appearance.apply_mode(AppearanceMode::Faded)
+                    WithAppearanceFunction { function, .. } => {
+                        function(interval).unwrap_or(appearance)
+                    }
+                    WithPullMap { map, .. } => {
+                        let key = interval.key();
+                        match map.get(&key) {
+                            None => appearance.apply_mode(AppearanceMode::Faded),
+                            Some(color) => Appearance {
+                                color: *color,
+                                radius: appearance.radius * 2.0, // Double thickness for colored intervals
+                            },
                         }
                     }
-                    Pick::Interval(IntervalDetails {
-                        near_joint,
-                        far_joint,
-                        id,
-                        role,
-                        selected_push: original_interval_id,
-                        ..
-                    }) => {
-                        // If this is the currently selected interval, highlight it based on its type
-                        if *id == interval_id {
-                            // Use the appropriate selected mode based on interval role
-                            appearance.selected_for_role(interval.role)
-                        } else if let Some(orig_id) = original_interval_id {
-                            // Only highlight the interval if it's currently selected
-                            if *orig_id == interval_id
-                                && *id == interval_id
-                                && interval.has_role(Role::Pushing)
-                            {
-                                appearance.apply_mode(AppearanceMode::SelectedPush)
-                            } else {
-                                if interval.touches(*near_joint) {
-                                    // Use the appropriate highlighted mode based on interval role
-                                    appearance
-                                        .highlighted_for_role(interval.role)
-                                } else {
-                                    // Use the Faded mode for non-adjacent intervals
-                                    appearance.apply_mode(AppearanceMode::Faded)
-                                }
-                            }
+                    WithPushMap { map, .. } => {
+                        let key = interval.key();
+                        match map.get(&key) {
+                            None => appearance.apply_mode(AppearanceMode::Faded),
+                            Some(color) => Appearance {
+                                color: *color,
+                                radius: appearance.radius * 2.0, // Double thickness for colored intervals
+                            },
+                        }
+                    }
+                },
+                Pick::Joint(JointDetails { index, .. }) => {
+                    if interval.touches(*index) {
+                        appearance.highlighted_for_role(interval.role)
+                    } else {
+                        appearance.apply_mode(AppearanceMode::Faded)
+                    }
+                }
+                Pick::Interval(IntervalDetails {
+                    near_joint,
+                    far_joint,
+                    key,
+                    role,
+                    selected_push: original_interval_key,
+                    ..
+                }) => {
+                    // If this is the currently selected interval, highlight it based on its type
+                    if *key == interval_key {
+                        // Use the appropriate selected mode based on interval role
+                        appearance.selected_for_role(interval.role)
+                    } else if let Some(orig_key) = original_interval_key {
+                        // Only highlight the interval if it's currently selected
+                        if *orig_key == interval_key
+                            && *key == interval_key
+                            && interval.has_role(Role::Pushing)
+                        {
+                            appearance.apply_mode(AppearanceMode::SelectedPush)
                         } else {
-                            // For intervals without an original_interval_id
-                            // This case is less common but we should maintain consistent behavior
-                            let active = match role {
-                                Role::Pushing => {
-                                    // For push intervals, consider intervals adjacent to both near and far joints
-                                    interval.touches(*near_joint) || interval.touches(*far_joint)
-                                }
-                                Role::Springy => false,
-                                _ => interval.touches(*near_joint),
-                            };
-                            if active {
+                            if interval.touches(*near_joint) {
                                 // Use the appropriate highlighted mode based on interval role
-                                appearance.highlighted_for_role(interval.role)
+                                appearance
+                                    .highlighted_for_role(interval.role)
                             } else {
                                 // Use the Faded mode for non-adjacent intervals
                                 appearance.apply_mode(AppearanceMode::Faded)
                             }
                         }
+                    } else {
+                        // For intervals without an original_interval_id
+                        // This case is less common but we should maintain consistent behavior
+                        let active = match role {
+                            Role::Pushing => {
+                                // For push intervals, consider intervals adjacent to both near and far joints
+                                interval.touches(*near_joint) || interval.touches(*far_joint)
+                            }
+                            Role::Springy => false,
+                            _ => interval.touches(*near_joint),
+                        };
+                        if active {
+                            // Use the appropriate highlighted mode based on interval role
+                            appearance.highlighted_for_role(interval.role)
+                        } else {
+                            // Use the Faded mode for non-adjacent intervals
+                            appearance.apply_mode(AppearanceMode::Faded)
+                        }
                     }
-                };
-                // Check if this is a pull interval connected to a selected push interval or joint
-                let mut modified_start = start;
-                let mut modified_end = end;
+                }
+            };
+            // Check if this is a pull interval connected to a selected push interval or joint
+            let mut modified_start = start;
+            let mut modified_end = end;
 
-                // For pull-like intervals, connect them to hinge positions on push intervals
-                // only when attachment points are visible (hinges mode)
-                if interval.role.is_pull_like() && render_style.show_attachment_points() {
-                    // Use the current index as the pull interval ID
-                    let pull_id = interval_id;
-                    let connector = ConnectorSpec::for_scale(fabric.scale());
+            // For pull-like intervals, connect them to hinge positions on push intervals
+            // only when attachment points are visible (hinges mode)
+            if interval.role.is_pull_like() && render_style.show_attachment_points() {
+                // Use the current index as the pull interval ID
+                let pull_key = interval_key;
+                let connector = ConnectorSpec::for_scale(fabric.scale());
 
-                    // Process both ends of the pull interval
-                    let joint_indices = [interval.alpha_index, interval.omega_index];
-                    let other_joint_indices = [interval.omega_index, interval.alpha_index];
-                    let modified_points = [&mut modified_start, &mut modified_end];
+                // Process both ends of the pull interval
+                let joint_indices = [interval.alpha_index, interval.omega_index];
+                let other_joint_indices = [interval.omega_index, interval.alpha_index];
+                let modified_points = [&mut modified_start, &mut modified_end];
 
-                    // For each end of the pull interval
-                    for (i, joint_index) in joint_indices.iter().enumerate() {
-                        let other_joint_pos = fabric.joints[other_joint_indices[i]].location;
+                // For each end of the pull interval
+                for (i, joint_index) in joint_indices.iter().enumerate() {
+                    let other_joint_pos = fabric.joints[other_joint_indices[i]].location;
 
-                        // Find all push intervals connected to this joint
-                        for push_opt in fabric.intervals.iter() {
-                            if let Some(push_interval) = push_opt {
-                                // Only consider push intervals
-                                if push_interval.has_role(Role::Pushing) {
-                                    // Check if this push interval is connected to the current joint
-                                    if push_interval.touches(*joint_index) {
-                                        // Determine which end of the push interval is connected to the joint
-                                        let push_end = if push_interval.alpha_index == *joint_index {
-                                            IntervalEnd::Alpha
-                                        } else {
-                                            IntervalEnd::Omega
-                                        };
+                    // Find all push intervals connected to this joint
+                    for (_push_key, push_interval) in fabric.intervals.iter() {
+                        // Only consider push intervals
+                        if push_interval.has_role(Role::Pushing) {
+                            // Check if this push interval is connected to the current joint
+                            if push_interval.touches(*joint_index) {
+                                // Determine which end of the push interval is connected to the joint
+                                let push_end = if push_interval.alpha_index == *joint_index {
+                                    IntervalEnd::Alpha
+                                } else {
+                                    IntervalEnd::Omega
+                                };
 
-                                        // Get the connection data for this end
-                                        if let Some(connections) =
-                                            push_interval.connections(push_end)
-                                        {
-                                            // Look for a connection to this pull interval
-                                            for conn in connections.iter() {
-                                                if let Some(pull_conn) = conn {
-                                                    if pull_conn.pull_interval_id == pull_id {
-                                                        // Found the connection - calculate carabiner position
-                                                        let push_alpha_pos = fabric.joints[push_interval.alpha_index].location;
-                                                        let push_omega_pos = fabric.joints[push_interval.omega_index].location;
+                                // Get the connection data for this end
+                                if let Some(connections) =
+                                    push_interval.connections(push_end)
+                                {
+                                    // Look for a connection to this pull interval
+                                    for conn in connections.iter() {
+                                        if let Some(pull_conn) = conn {
+                                            if pull_conn.pull_interval_key == pull_key {
+                                                // Found the connection - calculate carabiner position
+                                                let push_alpha_pos = fabric.joints[push_interval.alpha_index].location;
+                                                let push_omega_pos = fabric.joints[push_interval.omega_index].location;
 
-                                                        // Push end position and outward axis
-                                                        let (push_end_pos, push_axis) = match push_end {
-                                                            IntervalEnd::Alpha => {
-                                                                let dir = (push_omega_pos - push_alpha_pos).normalize();
-                                                                (push_alpha_pos, -dir) // Outward from alpha
-                                                            }
-                                                            IntervalEnd::Omega => {
-                                                                let dir = (push_omega_pos - push_alpha_pos).normalize();
-                                                                (push_omega_pos, dir) // Outward from omega
-                                                            }
-                                                        };
-
-                                                        // Calculate hinge position
-                                                        let hinge_pos = connector.hinge_position(
-                                                            push_end_pos,
-                                                            push_axis,
-                                                            pull_conn.attachment_index,
-                                                            other_joint_pos,
-                                                        );
-
-                                                        *modified_points[i] = hinge_pos;
-
-                                                        // We found the connection, no need to check others
-                                                        break;
+                                                // Push end position and outward axis
+                                                let (push_end_pos, push_axis) = match push_end {
+                                                    IntervalEnd::Alpha => {
+                                                        let dir = (push_omega_pos - push_alpha_pos).normalize();
+                                                        (push_alpha_pos, -dir) // Outward from alpha
                                                     }
-                                                }
+                                                    IntervalEnd::Omega => {
+                                                        let dir = (push_omega_pos - push_alpha_pos).normalize();
+                                                        (push_omega_pos, dir) // Outward from omega
+                                                    }
+                                                };
+
+                                                // Calculate hinge position
+                                                let hinge_pos = connector.hinge_position(
+                                                    push_end_pos,
+                                                    push_axis,
+                                                    pull_conn.attachment_index,
+                                                    other_joint_pos,
+                                                );
+
+                                                *modified_points[i] = hinge_pos;
+
+                                                // We found the connection, no need to check others
+                                                break;
                                             }
                                         }
-
-                                        // We found a push interval for this joint, no need to check others
-                                        break;
                                     }
                                 }
-                            }
-                        }
-                    }
 
-                    // Additional processing for selected elements
-                    match pick {
-                        // If a push interval is selected, we want to ensure that pull intervals
-                        // connected to it are properly visualized
-                        Pick::Interval(IntervalDetails { id, .. }) => {
-                            if let Some(push_interval) = fabric.intervals[id.0].as_ref() {
-                                if push_interval.has_role(Role::Pushing) {
-                                    // We've already handled the basic case above, but we might need
-                                    // additional logic for selected push intervals if needed
-                                }
+                                // We found a push interval for this joint, no need to check others
+                                break;
                             }
                         }
-                        // If a joint is selected, we've already handled it in the general case above
-                        Pick::Joint(_) => {}
-                        _ => {}
                     }
                 }
 
-                instances.push(CylinderInstance {
-                    start: [modified_start.x, modified_start.y, modified_start.z],
-                    radius_factor: appearance.radius * radius_scale,
-                    end: [modified_end.x, modified_end.y, modified_end.z],
-                    material_type: interval.role as u32,
-                    color: appearance.color,
-                });
+                // Additional processing for selected elements
+                match pick {
+                    // If a push interval is selected, we want to ensure that pull intervals
+                    // connected to it are properly visualized
+                    Pick::Interval(IntervalDetails { key: picked_key, .. }) => {
+                        if let Some(push_interval) = fabric.intervals.get(*picked_key) {
+                            if push_interval.has_role(Role::Pushing) {
+                                // We've already handled the basic case above, but we might need
+                                // additional logic for selected push intervals if needed
+                            }
+                        }
+                    }
+                    // If a joint is selected, we've already handled it in the general case above
+                    Pick::Joint(_) => {}
+                    _ => {}
+                }
             }
+
+            instances.push(CylinderInstance {
+                start: [modified_start.x, modified_start.y, modified_start.z],
+                radius_factor: appearance.radius * radius_scale,
+                end: [modified_end.x, modified_end.y, modified_end.z],
+                material_type: interval.role as u32,
+                color: appearance.color,
+            });
         }
 
         instances

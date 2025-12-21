@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use cgmath::Point3;
 
 use crate::fabric::interval::{Interval, Role};
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::{Fabric, IntervalKey};
 
 impl Fabric {
     pub fn joint_incidents(&self) -> Vec<JointIncident> {
@@ -13,12 +13,9 @@ impl Fabric {
             .enumerate()
             .map(|(index, joint)| JointIncident::new(index, joint.location))
             .collect();
-        for (index, interval_opt) in self.intervals.iter().enumerate() {
-            if let Some(interval) = interval_opt {
-                let id = UniqueId(index);
-                incidents[interval.alpha_index].add_interval(id, interval);
-                incidents[interval.omega_index].add_interval(id, interval);
-            }
+        for (key, interval) in self.intervals.iter() {
+            incidents[interval.alpha_index].add_interval(key, interval);
+            incidents[interval.omega_index].add_interval(key, interval);
         }
         incidents
     }
@@ -28,7 +25,7 @@ impl Fabric {
 pub struct JointIncident {
     pub index: usize,
     pub location: Point3<f32>,
-    intervals: Vec<(UniqueId, Interval)>,
+    intervals: Vec<(IntervalKey, Interval)>,
 }
 
 impl JointIncident {
@@ -40,22 +37,22 @@ impl JointIncident {
         }
     }
 
-    pub fn add_interval(&mut self, id: UniqueId, interval: &Interval) {
+    pub fn add_interval(&mut self, id: IntervalKey, interval: &Interval) {
         self.intervals.push((id, interval.clone()));
     }
 
-    pub fn intervals(&self) -> &[(UniqueId, Interval)] {
+    pub fn intervals(&self) -> &[(IntervalKey, Interval)] {
         &self.intervals
     }
 
-    pub fn push(&self) -> Option<(UniqueId, Interval)> {
+    pub fn push(&self) -> Option<(IntervalKey, Interval)> {
         self.intervals
             .iter()
             .find(|(_, interval)| interval.has_role(Role::Pushing))
             .map(|(id, interval)| (*id, interval.clone()))
     }
 
-    pub fn pulls(&self) -> Vec<(UniqueId, Interval)> {
+    pub fn pulls(&self) -> Vec<(IntervalKey, Interval)> {
         self.intervals
             .iter()
             .filter(|(_, interval)| {
@@ -81,7 +78,7 @@ impl JointIncident {
             .collect()
     }
 
-    pub fn interval_to(&self, joint_index: usize) -> Option<(UniqueId, Interval)> {
+    pub fn interval_to(&self, joint_index: usize) -> Option<(IntervalKey, Interval)> {
         self.intervals
             .iter()
             .find(|(_, interval)| interval.other_joint(self.index) == joint_index)

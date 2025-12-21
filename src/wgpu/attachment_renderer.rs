@@ -6,7 +6,7 @@
 use crate::camera::Pick;
 use crate::fabric::attachment::{AttachmentPoint, ConnectorSpec};
 use crate::fabric::interval::{Interval, Role};
-use crate::fabric::{Fabric, IntervalEnd};
+use crate::fabric::{Fabric, IntervalEnd, IntervalKey};
 use crate::wgpu::{Wgpu, DEFAULT_PRIMITIVE_STATE};
 use crate::IntervalDetails;
 use cgmath::{InnerSpace, Vector3};
@@ -204,16 +204,16 @@ impl AttachmentRenderer {
         // Track which push intervals are selected/highlighted to avoid duplicate points
         let (selected_push_interval, selected_joint, original_push_interval) = match pick {
             Pick::Interval(IntervalDetails {
-                id,
+                key,
                 role,
-                selected_push: original_interval_id,
+                selected_push: original_interval_key,
                 ..
             }) => {
                 if role.is(Role::Pushing) {
-                    (Some(id.0), None, None)
+                    (Some(*key), None, None)
                 } else if role.is(Role::Pulling) {
                     // For pull intervals, check if there's an original push interval to highlight
-                    (None, None, original_interval_id.map(|id| id.0))
+                    (None, None, *original_interval_key)
                 } else {
                     (None, None, None)
                 }
@@ -260,115 +260,113 @@ impl AttachmentRenderer {
         &self,
         instances: &mut Vec<RingInstance>,
         fabric: &Fabric,
-        selected_push_interval: Option<usize>,
+        selected_push_interval: Option<IntervalKey>,
         selected_joint: Option<usize>,
-        original_push_interval: Option<usize>,
+        original_push_interval: Option<IntervalKey>,
         ring_radius: f32,
         ring_thickness: f32,
         connector: &ConnectorSpec,
         pick: &Pick,
     ) {
-        for (idx, interval_opt) in fabric.intervals.iter().enumerate() {
-            if let Some(interval) = interval_opt {
-                if interval.has_role(Role::Pushing) {
-                    // Determine if this push interval is selected, connected to a selected joint,
-                    // or is the original interval of a selected pull interval
-                    let is_selected = selected_push_interval
-                        .map_or(false, |selected_idx| selected_idx == idx)
-                        || selected_joint.map_or(false, |joint_idx| {
-                            interval.alpha_index == joint_idx || interval.omega_index == joint_idx
-                        })
-                        || original_push_interval.map_or(false, |orig_idx| orig_idx == idx);
+        for (key, interval) in fabric.intervals.iter() {
+            if interval.has_role(Role::Pushing) {
+                // Determine if this push interval is selected, connected to a selected joint,
+                // or is the original interval of a selected pull interval
+                let is_selected = selected_push_interval
+                    .map_or(false, |selected_key| selected_key == key)
+                    || selected_joint.map_or(false, |joint_idx| {
+                        interval.alpha_index == joint_idx || interval.omega_index == joint_idx
+                    })
+                    || original_push_interval.map_or(false, |orig_key| orig_key == key);
 
-                    // Get attachment points for this interval
-                    if let Ok((alpha_points, omega_points)) =
-                        interval.attachment_points(&fabric.joints, connector)
-                    {
-                        // Calculate push axis direction
-                        let alpha_pos = fabric.joints[interval.alpha_index].location;
-                        let omega_pos = fabric.joints[interval.omega_index].location;
-                        let push_dir = (omega_pos - alpha_pos).normalize();
+                // Get attachment points for this interval
+                if let Ok((alpha_points, omega_points)) =
+                    interval.attachment_points(&fabric.joints, connector)
+                {
+                    // Calculate push axis direction
+                    let alpha_pos = fabric.joints[interval.alpha_index].location;
+                    let omega_pos = fabric.joints[interval.omega_index].location;
+                    let push_dir = (omega_pos - alpha_pos).normalize();
 
-                        // Alpha end normal points outward (opposite to push direction)
-                        let alpha_normal = -push_dir;
-                        // Omega end normal points outward (same as push direction)
-                        let omega_normal = push_dir;
+                    // Alpha end normal points outward (opposite to push direction)
+                    let alpha_normal = -push_dir;
+                    // Omega end normal points outward (same as push direction)
+                    let omega_normal = push_dir;
 
-                        if is_selected {
-                            // Create a set of occupied attachment indices for alpha and omega ends
-                            let alpha_occupied = self.get_occupied_indices(
-                                interval,
-                                IntervalEnd::Alpha,
-                                alpha_points.len(),
-                            );
-                            let omega_occupied = self.get_occupied_indices(
-                                interval,
-                                IntervalEnd::Omega,
-                                omega_points.len(),
-                            );
+                    if is_selected {
+                        // Create a set of occupied attachment indices for alpha and omega ends
+                        let alpha_occupied = self.get_occupied_indices(
+                            interval,
+                            IntervalEnd::Alpha,
+                            alpha_points.len(),
+                        );
+                        let omega_occupied = self.get_occupied_indices(
+                            interval,
+                            IntervalEnd::Omega,
+                            omega_points.len(),
+                        );
 
-                            // Add all ring instances with appropriate color
-                            self.add_ring_instances(
-                                instances,
-                                &alpha_points,
-                                &alpha_occupied,
-                                ring_radius,
-                                ring_thickness,
-                                alpha_normal,
-                                interval,
-                                IntervalEnd::Alpha,
-                                pick,
-                            );
+                        // Add all ring instances with appropriate color
+                        self.add_ring_instances(
+                            instances,
+                            &alpha_points,
+                            &alpha_occupied,
+                            ring_radius,
+                            ring_thickness,
+                            alpha_normal,
+                            interval,
+                            IntervalEnd::Alpha,
+                            pick,
+                        );
 
-                            self.add_ring_instances(
-                                instances,
-                                &omega_points,
-                                &omega_occupied,
-                                ring_radius,
-                                ring_thickness,
-                                omega_normal,
-                                interval,
-                                IntervalEnd::Omega,
-                                pick,
-                            );
-                        } else {
-                            // For non-selected intervals, only show occupied attachment points
-                            let alpha_occupied = self.get_occupied_indices(
-                                interval,
-                                IntervalEnd::Alpha,
-                                alpha_points.len(),
-                            );
-                            let omega_occupied = self.get_occupied_indices(
-                                interval,
-                                IntervalEnd::Omega,
-                                omega_points.len(),
-                            );
+                        self.add_ring_instances(
+                            instances,
+                            &omega_points,
+                            &omega_occupied,
+                            ring_radius,
+                            ring_thickness,
+                            omega_normal,
+                            interval,
+                            IntervalEnd::Omega,
+                            pick,
+                        );
+                    } else {
+                        // For non-selected intervals, only show occupied attachment points
+                        let alpha_occupied = self.get_occupied_indices(
+                            interval,
+                            IntervalEnd::Alpha,
+                            alpha_points.len(),
+                        );
+                        let omega_occupied = self.get_occupied_indices(
+                            interval,
+                            IntervalEnd::Omega,
+                            omega_points.len(),
+                        );
 
-                            // Add only occupied ring instances
-                            self.add_ring_instances(
-                                instances,
-                                &alpha_points,
-                                &alpha_occupied,
-                                ring_radius,
-                                ring_thickness,
-                                alpha_normal,
-                                interval,
-                                IntervalEnd::Alpha,
-                                pick,
-                            );
+                        // Add only occupied ring instances
+                        self.add_ring_instances(
+                            instances,
+                            &alpha_points,
+                            &alpha_occupied,
+                            ring_radius,
+                            ring_thickness,
+                            alpha_normal,
+                            interval,
+                            IntervalEnd::Alpha,
+                            pick,
+                        );
 
-                            self.add_ring_instances(
-                                instances,
-                                &omega_points,
-                                &omega_occupied,
-                                ring_radius,
-                                ring_thickness,
-                                omega_normal,
-                                interval,
-                                IntervalEnd::Omega,
-                                pick,
-                            );
-                        }
+                        self.add_ring_instances(
+                            instances,
+                            &omega_points,
+                            &omega_occupied,
+                            ring_radius,
+                            ring_thickness,
+                            omega_normal,
+                            interval,
+                            IntervalEnd::Omega,
+                            pick,
+                        );
                     }
                 }
             }
@@ -386,17 +384,17 @@ impl AttachmentRenderer {
         connector: &ConnectorSpec,
     ) {
         if let Pick::Interval(IntervalDetails {
-            id: _,
+            key: _,
             role,
             near_joint,
-            selected_push: original_interval_id,
+            selected_push: original_interval_key,
             ..
         }) = pick
         {
             if role.is(Role::Pulling) {
                 // First, handle the original push interval if present
-                if let Some(orig_id) = original_interval_id {
-                    if let Some(orig_interval) = fabric.intervals[orig_id.0].as_ref() {
+                if let Some(orig_key) = original_interval_key {
+                    if let Some(orig_interval) = fabric.intervals.get(*orig_key) {
                         if orig_interval.has_role(Role::Pushing) {
                             // Get attachment points for the original push interval
                             if let Ok((alpha_points, omega_points)) =
@@ -454,55 +452,53 @@ impl AttachmentRenderer {
                 let joint_index = *near_joint;
 
                 // Find all push intervals connected to this joint
-                for (_idx, interval_opt) in fabric.intervals.iter().enumerate() {
-                    if let Some(interval) = interval_opt {
-                        if interval.has_role(Role::Pushing) {
-                            // Skip the original interval if it's one of the connected push intervals
-                            // to avoid duplicate attachment points
-                            if let Some(orig_id) = original_interval_id {
-                                if _idx == orig_id.0 {
-                                    continue;
-                                }
+                for (key, interval) in fabric.intervals.iter() {
+                    if interval.has_role(Role::Pushing) {
+                        // Skip the original interval if it's one of the connected push intervals
+                        // to avoid duplicate attachment points
+                        if let Some(orig_key) = original_interval_key {
+                            if key == *orig_key {
+                                continue;
                             }
+                        }
 
-                            if interval.alpha_index == joint_index
-                                || interval.omega_index == joint_index
+                        if interval.alpha_index == joint_index
+                            || interval.omega_index == joint_index
+                        {
+                            // Get attachment points for this push interval
+                            if let Ok((alpha_points, omega_points)) =
+                                interval.attachment_points(&fabric.joints, connector)
                             {
-                                // Get attachment points for this push interval
-                                if let Ok((alpha_points, omega_points)) =
-                                    interval.attachment_points(&fabric.joints, connector)
-                                {
-                                    // Calculate push axis direction
-                                    let alpha_pos = fabric.joints[interval.alpha_index].location;
-                                    let omega_pos = fabric.joints[interval.omega_index].location;
-                                    let push_dir = (omega_pos - alpha_pos).normalize();
+                                // Calculate push axis direction
+                                let alpha_pos = fabric.joints[interval.alpha_index].location;
+                                let omega_pos = fabric.joints[interval.omega_index].location;
+                                let push_dir = (omega_pos - alpha_pos).normalize();
 
-                                    // Only show attachment points for the end connected to the joint
-                                    let (points_to_show, normal) =
-                                        if interval.alpha_index == joint_index {
-                                            (&alpha_points, -push_dir)
-                                        } else {
-                                            (&omega_points, push_dir)
-                                        };
+                                // Only show attachment points for the end connected to the joint
+                                let (points_to_show, normal) =
+                                    if interval.alpha_index == joint_index {
+                                        (&alpha_points, -push_dir)
+                                    } else {
+                                        (&omega_points, push_dir)
+                                    };
 
-                                    // Add the ring instances
-                                    for point in points_to_show.iter() {
-                                        // These are unoccupied slots shown when a pull interval is selected,
-                                        // so no extension is needed
-                                        instances.push(RingInstance {
-                                            position: [
-                                                point.position.x,
-                                                point.position.y,
-                                                point.position.z,
-                                            ],
-                                            radius: ring_radius,
-                                            normal: [normal.x, normal.y, normal.z],
-                                            thickness: ring_thickness,
-                                            color: ORANGE,
-                                            extension_direction: [0.0, 0.0, 0.0],
-                                            extension_length: 0.0,
-                                        });
-                                    }
+                                // Add the ring instances
+                                for point in points_to_show.iter() {
+                                    // These are unoccupied slots shown when a pull interval is selected,
+                                    // so no extension is needed
+                                    instances.push(RingInstance {
+                                        position: [
+                                            point.position.x,
+                                            point.position.y,
+                                            point.position.z,
+                                        ],
+                                        radius: ring_radius,
+                                        normal: [normal.x, normal.y, normal.z],
+                                        thickness: ring_thickness,
+                                        color: ORANGE,
+                                        extension_direction: [0.0, 0.0, 0.0],
+                                        extension_length: 0.0,
+                                    });
                                 }
                             }
                         }
@@ -555,7 +551,7 @@ impl AttachmentRenderer {
 
             // Determine color: ORANGE if connected to selected pull interval, otherwise GRAY
             let color = if let Pick::Interval(IntervalDetails {
-                id: selected_id,
+                key: selected_key,
                 role,
                 ..
             }) = pick
@@ -564,7 +560,7 @@ impl AttachmentRenderer {
                     // Check if this specific attachment point is connected to the selected pull interval
                     if let Some(connections) = interval.connections(end) {
                         if let Some(Some(connection)) = connections.get(i) {
-                            if connection.pull_interval_id == *selected_id {
+                            if connection.pull_interval_key == *selected_key {
                                 ORANGE
                             } else {
                                 GRAY

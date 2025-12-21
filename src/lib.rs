@@ -1,7 +1,7 @@
 use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::FabricPlan;
 use crate::fabric::interval::{Interval, Role};
-use crate::fabric::{FabricStats, UniqueId};
+use crate::fabric::{FabricStats, IntervalKey};
 use crate::units::{Degrees, Meters};
 use crate::wgpu::Wgpu;
 use cgmath::Point3;
@@ -249,7 +249,7 @@ impl RenderStyle {
 
 #[derive(Clone, Debug, Copy)]
 pub struct IntervalDetails {
-    pub id: UniqueId,
+    pub key: IntervalKey,
     pub near_joint: usize,
     pub near_slot: Option<usize>,
     pub far_slot: Option<usize>,
@@ -260,7 +260,7 @@ pub struct IntervalDetails {
     pub strain: f32,
     pub distance: Meters,
     pub role: Role,
-    pub selected_push: Option<UniqueId>,
+    pub selected_push: Option<IntervalKey>,
 }
 
 impl Display for IntervalDetails {
@@ -361,7 +361,7 @@ impl IntervalDetails {
 pub struct JointDetails {
     pub index: usize,
     pub location: Point3<f32>,
-    pub selected_push: Option<UniqueId>,
+    pub selected_push: Option<IntervalKey>,
 }
 
 impl Display for JointDetails {

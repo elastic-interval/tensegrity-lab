@@ -5,7 +5,7 @@ use crate::build::dsl::build_phase::Launch::*;
 use crate::build::dsl::{brick_library, FaceAlias, FaceMark, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::FaceRotation;
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::{Fabric, FaceKey};
 use crate::units::Percent;
 use std::convert::Into;
 
@@ -58,7 +58,7 @@ impl ColumnStyle {
 
 #[derive(Debug, Default, Clone)]
 pub struct Bud {
-    face_id: UniqueId,
+    face_key: FaceKey,
     column_style: Option<ColumnStyle>,
     scale: Percent,
     nodes: Vec<BuildNode>,
@@ -118,7 +118,7 @@ impl BuildNode {
 enum Launch {
     Scratch,
     NamedFace(FaceAlias),
-    IdentifiedFace(UniqueId),
+    IdentifiedFace(FaceKey),
 }
 
 #[derive(Debug, Clone)]
@@ -165,7 +165,7 @@ impl BuildPhase {
         &self,
         fabric: &mut Fabric,
         Bud {
-            face_id,
+            face_key,
             column_style,
             scale,
             nodes,
@@ -173,7 +173,7 @@ impl BuildPhase {
     ) -> (Vec<Bud>, Vec<FaceMark>) {
         let (mut buds, mut marks) = (vec![], vec![]);
         if let Some(style) = column_style.filter(|s| s.count > 0) {
-            let face = fabric.expect_face(face_id);
+            let face = fabric.expect_face(face_key);
             let spin = if style.is_alternating() {
                 face.spin.mirror()
             } else {
@@ -189,11 +189,11 @@ impl BuildPhase {
                 brick_role,
                 FaceRotation::Zero,
                 scale.as_factor(),
-                BaseFace::ExistingFace(face_id),
+                BaseFace::ExistingFace(face_key),
             );
-            fabric.join_faces(base_face, face_id);
+            fabric.join_faces(base_face, face_key);
             // Filter out base_face since it was deleted by join_faces
-            let next_face_id: UniqueId = brick_faces
+            let next_face_key: FaceKey = brick_faces
                 .into_iter()
                 .filter(|brick_face| *brick_face != base_face)
                 .find(|brick_face| {
@@ -205,7 +205,7 @@ impl BuildPhase {
                 })
                 .expect(format!("Brick {}: next face not found", brick_name).as_str());
             buds.push(Bud {
-                face_id: next_face_id,
+                face_key: next_face_key,
                 column_style: style.decrement(),
                 scale,
                 nodes,
@@ -213,7 +213,7 @@ impl BuildPhase {
         } else if !nodes.is_empty() {
             for child_node in &nodes {
                 let (node_buds, node_marks) =
-                    Self::execute_node(fabric, IdentifiedFace(face_id), child_node, vec![], self.seed_altitude);
+                    Self::execute_node(fabric, IdentifiedFace(face_key), child_node, vec![], self.seed_altitude);
                 buds.extend(node_buds);
                 marks.extend(node_marks);
             }
@@ -225,7 +225,7 @@ impl BuildPhase {
         fabric: &mut Fabric,
         launch: Launch,
         node: &BuildNode,
-        faces: Vec<UniqueId>,
+        faces: Vec<FaceKey>,
         seed_altitude: f32,
     ) -> (Vec<Bud>, Vec<FaceMark>) {
         let mut buds: Vec<Bud> = vec![];
@@ -241,10 +241,10 @@ impl BuildPhase {
                 post_column_nodes,
                 ..
             } => {
-                let face_id =
+                let face_key =
                     Self::find_launch_face(&launch, &faces, fabric).expect("No launch face");
                 buds.push(Bud {
-                    face_id,
+                    face_key,
                     column_style: Some(*style),
                     scale: *scale,
                     nodes: post_column_nodes.clone(),
@@ -262,20 +262,20 @@ impl BuildPhase {
                 let base_face = launch_face
                     .map(BaseFace::ExistingFace)
                     .unwrap_or(BaseFace::Seeded { altitude: seed_altitude });
-                let (base_face_id, brick_faces) = fabric.attach_brick(
+                let (base_face_key, brick_faces) = fabric.attach_brick(
                     &brick,
                     *brick_role,
                     rotation.into(),
                     scale.as_factor(),
                     base_face,
                 );
-                // Filter out base_face_id only if it was deleted by join_faces
-                let available_faces: Vec<_> = if let Some(face_id) = launch_face {
-                    fabric.join_faces(base_face_id, face_id);
+                // Filter out base_face_key only if it was deleted by join_faces
+                let available_faces: Vec<_> = if let Some(face_key) = launch_face {
+                    fabric.join_faces(base_face_key, face_key);
                     brick_faces
                         .iter()
                         .copied()
-                        .filter(|&f| f != base_face_id)
+                        .filter(|&f| f != base_face_key)
                         .collect()
                 } else {
                     brick_faces.clone()
@@ -293,35 +293,35 @@ impl BuildPhase {
                 }
             }
             Mark { mark_name } => {
-                let face_id = Self::find_launch_face(&launch, &faces, fabric)
+                let face_key = Self::find_launch_face(&launch, &faces, fabric)
                     .expect(&format!("Unable to find face for mark: {}", mark_name));
                 marks.push(FaceMark {
-                    face_id,
+                    face_key,
                     mark_name: *mark_name,
                 });
             }
             Prism => {
-                let face_id = Self::find_launch_face(&launch, &faces, fabric)
+                let face_key = Self::find_launch_face(&launch, &faces, fabric)
                     .expect("Unable to find face for prism");
-                fabric.add_face_prism(face_id);
+                fabric.add_face_prism(face_key);
             }
             Radial => {
-                let face_id = Self::find_launch_face(&launch, &faces, fabric)
+                let face_key = Self::find_launch_face(&launch, &faces, fabric)
                     .expect("Unable to find face for radial");
-                fabric.set_face_radial(face_id);
+                fabric.set_face_radial(face_key);
             }
         };
         (buds, marks)
     }
 
-    fn find_launch_face(launch: &Launch, faces: &[UniqueId], fabric: &Fabric) -> Option<UniqueId> {
+    fn find_launch_face(launch: &Launch, faces: &[FaceKey], fabric: &Fabric) -> Option<FaceKey> {
         match launch {
             Scratch => None,
             NamedFace(face_alias) => faces
                 .iter()
                 .copied()
-                .find(|id| fabric.expect_face(*id).aliases.contains(face_alias)),
-            IdentifiedFace(face_id) => Some(*face_id),
+                .find(|key| fabric.expect_face(*key).aliases.contains(face_alias)),
+            IdentifiedFace(face_key) => Some(*face_key),
         }
     }
 

@@ -140,7 +140,7 @@ mod tests {
         let plan = fabric_library::get_fabric_plan(FabricName::Triped);
 
         // Create executor
-        let mut executor = FabricPlanExecutor::new(plan);
+        let mut executor = FabricPlanExecutor::new_for_test(plan);
         let mut current_stage = ExecutorStage::Building;
 
         // Run until completion
@@ -199,7 +199,7 @@ mod tests {
 
         let plan = fabric_library::get_fabric_plan(FabricName::Triped);
 
-        let mut executor = FabricPlanExecutor::new(plan);
+        let mut executor = FabricPlanExecutor::new_for_test(plan);
 
         let benchmarks = ui_benchmarks();
         let mut benchmark_idx = 0;
@@ -268,7 +268,7 @@ mod tests {
 
         let plan = fabric_library::get_fabric_plan(FabricName::Triped);
 
-        let mut executor = FabricPlanExecutor::new(plan);
+        let mut executor = FabricPlanExecutor::new_for_test(plan);
         let mut current_stage = ExecutorStage::Building;
         let mut stage_entry_times: Vec<(ExecutorStage, usize)> = vec![(ExecutorStage::Building, 0)];
 
@@ -336,7 +336,7 @@ mod tests {
 
         let plan = fabric_library::get_fabric_plan(FabricName::Triped);
 
-        let mut executor = FabricPlanExecutor::new(plan);
+        let mut executor = FabricPlanExecutor::new_for_test(plan);
 
         // Run until completion
         let mut iteration = 0;

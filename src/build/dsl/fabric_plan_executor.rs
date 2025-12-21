@@ -102,11 +102,21 @@ pub struct FabricPlanExecutor {
     execution_log: Vec<ExecutionEvent>,
     stored_surface_character: Option<SurfaceCharacter>,
     stored_scale: f32,
-    radio: Radio,
+    radio: Option<Radio>,
 }
 
 impl FabricPlanExecutor {
     pub fn new(plan: FabricPlan, radio: Radio) -> Self {
+        Self::new_internal(plan, Some(radio))
+    }
+
+    /// Creates an executor without a radio - for tests only
+    #[cfg(test)]
+    pub fn new_for_test(plan: FabricPlan) -> Self {
+        Self::new_internal(plan, None)
+    }
+
+    fn new_internal(plan: FabricPlan, radio: Option<Radio>) -> Self {
         let fabric = Fabric::new(plan.name.to_string());
         let plan_runner = PlanRunner::new(plan.clone());
         let physics = CONSTRUCTION;
@@ -297,24 +307,24 @@ impl FabricPlanExecutor {
         // Remove faces
         use crate::fabric::face::FaceEnding;
         let face_count_before = self.fabric.faces.len();
-        let face_ids: Vec<_> = self.fabric.faces.keys().copied().collect();
-        for face_id in face_ids {
-            let face = self.fabric.face(face_id);
+        let face_keys: Vec<_> = self.fabric.faces.keys().collect();
+        for face_key in face_keys {
+            let face = self.fabric.face(face_key);
             match face.ending {
                 FaceEnding::Triangle => {
-                    self.fabric.add_face_triangle(face_id);
+                    self.fabric.add_face_triangle(face_key);
                 }
                 FaceEnding::Prism | FaceEnding::Radial => {
                     // Prism already added during build; Radial keeps radials as-is
                 }
             }
-            self.fabric.remove_face(face_id);
+            self.fabric.remove_face(face_key);
         }
 
         // Omit triangle intervals after faces are converted
         for pair in &self.plan.pretense_phase.omit_pairs {
-            if let Some(id) = self.fabric.joining(*pair) {
-                self.fabric.remove_interval(id);
+            if let Some(key) = self.fabric.joining(*pair) {
+                self.fabric.remove_interval(key);
             } else {
                 eprintln!("WARNING: No interval found between joints {:?}", pair);
             }
@@ -330,7 +340,9 @@ impl FabricPlanExecutor {
         self.fabric.slacken();
 
         // Broadcast slackened moment before pretensing begins
-        SnapshotMoment::Slack.send(&self.radio);
+        if let Some(radio) = &self.radio {
+            SnapshotMoment::Slack.send(radio);
+        }
 
         let pretenst_percent = self.plan.pretense_phase.pretenst
             .unwrap_or(PRETENSING.pretenst);
@@ -364,7 +376,9 @@ impl FabricPlanExecutor {
 
     fn transition_to_fall(&mut self) {
         // Broadcast pretenst moment before transitioning to fall
-        SnapshotMoment::Pretenst.send(&self.radio);
+        if let Some(radio) = &self.radio {
+            SnapshotMoment::Pretenst.send(radio);
+        }
 
         self.log_event(ExecutionEvent::StageTransition {
             iteration: self.current_iteration,
@@ -436,7 +450,9 @@ impl FabricPlanExecutor {
 
     fn complete(&mut self) {
         // Broadcast settled moment before completing
-        SnapshotMoment::Settled.send(&self.radio);
+        if let Some(radio) = &self.radio {
+            SnapshotMoment::Settled.send(radio);
+        }
 
         self.log_event(ExecutionEvent::Completed {
             iteration: self.current_iteration,

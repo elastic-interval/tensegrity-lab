@@ -9,7 +9,7 @@ use crate::fabric::interval::{Interval, Span};
 use crate::fabric::joint::Joint;
 use crate::fabric::joint_incident::{JointIncident, Path};
 use crate::fabric::material::Material;
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::{Fabric, IntervalKey};
 use crate::units::Seconds;
 
 const BOW_TIE_SHORTEN: f32 = 0.5;
@@ -47,29 +47,20 @@ impl Fabric {
     pub fn _equalize_strain(&mut self, target_material: Material) {
         let mut total_strain = 0.0;
         let mut count = 0;
-        for interval_opt in self.intervals.iter().filter(|i| i.is_some()) {
-            let Interval {
-                material, strain, ..
-            } = interval_opt.as_ref().unwrap();
-            if *material == target_material {
-                total_strain += strain;
+        for (_key, interval) in self.intervals.iter() {
+            if interval.material == target_material {
+                total_strain += interval.strain;
                 count += 1;
             }
         }
         let average_strain = total_strain / (count as f32);
-        for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
-            let Interval {
-                material,
-                span,
-                strain,
-                ..
-            } = interval_opt.as_mut().unwrap();
-            if *material == target_material {
-                match *span {
+        for (_key, interval) in self.intervals.iter_mut() {
+            if interval.material == target_material {
+                match interval.span {
                     Span::Fixed { length: start_length } => {
-                        let slack_length = start_length * (1.0 - *strain);
+                        let slack_length = start_length * (1.0 - interval.strain);
                         let target_length = slack_length * (1.0 + average_strain);
-                        *span = Approaching {
+                        interval.span = Approaching {
                             target_length,
                             start_length,
                         }
@@ -161,8 +152,8 @@ impl Fabric {
 #[derive(Debug, Clone)]
 struct FoldedPull {
     joint_index: usize,
-    short_pull: (UniqueId, Interval),
-    long_pull: (UniqueId, Interval),
+    short_pull: (IntervalKey, Interval),
+    long_pull: (IntervalKey, Interval),
     dot_product: f32,
 }
 

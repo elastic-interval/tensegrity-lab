@@ -9,7 +9,7 @@ use crate::fabric::interval::Interval;
 use crate::fabric::joint_incident::JointIncident;
 use crate::fabric::Fabric;
 use crate::fabric::IntervalEnd;
-use crate::fabric::UniqueId;
+use crate::fabric::IntervalKey;
 use crate::fabric::attachment::ConnectorSpec;
 use crate::units::{Degrees, Meters};
 use crate::{ControlState, IntervalDetails, JointDetails, PickIntent, PointerChange, Radio, Role};
@@ -186,12 +186,12 @@ impl Camera {
                 Pick::Nothing => Pick::Joint(JointDetails {
                     index: best_incident.index,
                     location: fabric.location(best_incident.index),
-                    selected_push: best_incident.push().map(|(unique_id, _)| unique_id),
+                    selected_push: best_incident.push().map(|(key, _)| key),
                 }),
                 Pick::Joint(details) => {
-                    let (id, interval) = best_incident.interval_to(details.index).unwrap();
+                    let (key, interval) = best_incident.interval_to(details.index).unwrap();
                     Pick::Interval(self.create_interval_details(
-                        id,
+                        key,
                         interval,
                         details.index,
                         fabric,
@@ -199,9 +199,9 @@ impl Camera {
                     ))
                 }
                 Pick::Interval(details) => {
-                    let (id, interval) = best_incident.interval_to(details.near_joint).unwrap();
+                    let (key, interval) = best_incident.interval_to(details.near_joint).unwrap();
                     Pick::Interval(self.create_interval_details(
-                        id,
+                        key,
                         interval,
                         details.near_joint,
                         fabric,
@@ -321,7 +321,7 @@ impl Camera {
                             ControlState::ShowingJoint(details).send(&self.radio);
                         }
                         Pick::Interval(details) => {
-                            self.set_target(Target::AroundInterval(details.id));
+                            self.set_target(Target::AroundInterval(details.key));
                             ControlState::ShowingInterval(details).send(&self.radio);
                         }
                     }
@@ -354,7 +354,7 @@ impl Camera {
                             ControlState::ShowingJoint(details).send(&self.radio);
                         }
                         Pick::Interval(details) => {
-                            self.set_target(Target::AroundInterval(details.id));
+                            self.set_target(Target::AroundInterval(details.key));
                             ControlState::ShowingInterval(details).send(&self.radio);
                         }
                     }
@@ -545,11 +545,11 @@ impl Camera {
 
     fn create_interval_details(
         &self,
-        id: UniqueId,
+        key: IntervalKey,
         interval: Interval,
         near_joint: usize,
         fabric: &Fabric,
-        selected_push: Option<UniqueId>,
+        selected_push: Option<IntervalKey>,
     ) -> IntervalDetails {
         let far_joint = interval.other_joint(near_joint);
 
@@ -560,8 +560,7 @@ impl Camera {
             let find_slot = |joint_index: usize| -> Option<usize> {
                 fabric
                     .intervals
-                    .iter()
-                    .filter_map(|interval_opt| interval_opt.as_ref())
+                    .values()
                     .filter(|int| {
                         int.has_role(Role::Pushing) && int.touches(joint_index)
                     })
@@ -582,7 +581,7 @@ impl Camera {
                         // Look for a connection to this pull interval
                         for (idx, conn_opt) in connections_array.iter().enumerate() {
                             if let Some(conn) = conn_opt {
-                                if conn.pull_interval_id == id {
+                                if conn.pull_interval_key == key {
                                     return Some(idx);
                                 }
                             }
@@ -600,13 +599,13 @@ impl Camera {
             let alpha_hinge = self.calculate_hinge_angle_for_joint(
                 interval.alpha_index,
                 interval.omega_index,
-                id,
+                key,
                 fabric,
             );
             let omega_hinge = self.calculate_hinge_angle_for_joint(
                 interval.omega_index,
                 interval.alpha_index,
-                id,
+                key,
                 fabric,
             );
 
@@ -616,7 +615,7 @@ impl Camera {
         };
 
         IntervalDetails {
-            id,
+            key,
             near_joint,
             near_slot,
             far_slot,
@@ -636,14 +635,13 @@ impl Camera {
         &self,
         joint_index: usize,
         other_joint_index: usize,
-        pull_id: UniqueId,
+        pull_key: IntervalKey,
         fabric: &Fabric,
     ) -> Option<Degrees> {
         // Find the push interval connected to this joint
         fabric
             .intervals
-            .iter()
-            .filter_map(|interval_opt| interval_opt.as_ref())
+            .values()
             .filter(|int| int.has_role(Role::Pushing) && int.touches(joint_index))
             .find_map(|push_interval| {
                 // Determine which end of the push interval is connected to this joint
@@ -656,7 +654,7 @@ impl Camera {
                 // Check if this pull interval is connected here
                 let connections_array = push_interval.connections.as_ref()?.connections(end);
                 let is_connected = connections_array.iter().any(|conn_opt| {
-                    conn_opt.as_ref().map_or(false, |c| c.pull_interval_id == pull_id)
+                    conn_opt.as_ref().map_or(false, |c| c.pull_interval_key == pull_key)
                 });
 
                 if is_connected {
@@ -826,7 +824,7 @@ const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
 pub enum Target {
     FabricMidpoint,
     AroundJoint(usize),
-    AroundInterval(UniqueId),
+    AroundInterval(IntervalKey),
 }
 
 impl Default for Target {

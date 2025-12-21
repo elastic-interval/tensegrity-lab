@@ -14,8 +14,18 @@ use crate::units::{Grams, Meters, Percent, Seconds};
 use crate::Age;
 use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Rotation, Transform, Vector3};
-use std::collections::HashMap;
+use slotmap::{new_key_type, SlotMap};
 use std::fmt::Debug;
+
+new_key_type! {
+    /// Key for intervals in the fabric's SlotMap
+    pub struct IntervalKey;
+}
+
+new_key_type! {
+    /// Key for faces in the fabric's SlotMap
+    pub struct FaceKey;
+}
 
 pub mod attachment;
 pub mod brick;
@@ -142,10 +152,8 @@ pub struct Fabric {
     pub age: Age,
     pub progress: Progress,
     pub joints: Vec<Joint>,
-    pub intervals: Vec<Option<Interval>>,
-    pub interval_count: usize,
-    pub next_interval_id: usize,
-    pub faces: HashMap<UniqueId, Face>,
+    pub intervals: SlotMap<IntervalKey, Interval>,
+    pub faces: SlotMap<FaceKey, Face>,
     pub frozen: bool,
     pub stats: IterationStats,
     cached_bounding_radius: f32,
@@ -159,10 +167,8 @@ impl Fabric {
             age: Age::default(),
             progress: Progress::default(),
             joints: Vec::new(),
-            intervals: Vec::new(),
-            interval_count: 0,
-            next_interval_id: 0,
-            faces: HashMap::new(),
+            intervals: SlotMap::with_key(),
+            faces: SlotMap::with_key(),
             frozen: false,
             stats: IterationStats::default(),
             cached_bounding_radius: 0.0,
@@ -246,10 +252,8 @@ impl Fabric {
             joint.accumulated_mass = Grams(*joint.accumulated_mass * mass_scale);
         }
         // Scale all interval ideal lengths
-        for interval_opt in self.intervals.iter_mut() {
-            if let Some(interval) = interval_opt {
-                interval.scale_lengths(s);
-            }
+        for interval in self.intervals.values_mut() {
+            interval.scale_lengths(s);
         }
         // Scale face scales
         for face in self.faces.values_mut() {
@@ -296,8 +300,7 @@ impl Fabric {
     }
 
     pub fn slacken(&mut self) {
-        for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
-            let interval = interval_opt.as_mut().unwrap();
+        for interval in self.intervals.values_mut() {
             if !interval.has_role(Role::Support) {
                 interval.span = Fixed {
                     length: interval.fast_length(&self.joints),
@@ -321,8 +324,7 @@ impl Fabric {
     pub fn set_pretenst(&mut self, pretenst: Percent, seconds: Seconds) {
         let factor = pretenst.as_factor();
 
-        for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
-            let interval = interval_opt.as_mut().unwrap();
+        for interval in self.intervals.values_mut() {
             if !interval.has_role(Role::Support) {
                 let is_pushing = interval.has_role(Role::Pushing);
                 match interval.span {
@@ -371,18 +373,15 @@ impl Fabric {
         }
     }
 
-    pub fn failed_intervals(&self, strain_limit: f32) -> Vec<UniqueId> {
+    pub fn failed_intervals(&self, strain_limit: f32) -> Vec<IntervalKey> {
         self.intervals
             .iter()
-            .enumerate()
-            .filter_map(|(index, interval_opt)| {
-                interval_opt.as_ref().and_then(|interval| {
-                    if interval.strain > strain_limit {
-                        Some(UniqueId(index))
-                    } else {
-                        None
-                    }
-                })
+            .filter_map(|(key, interval)| {
+                if interval.strain > strain_limit {
+                    Some(key)
+                } else {
+                    None
+                }
             })
             .collect()
     }
@@ -396,8 +395,7 @@ impl Fabric {
         for joint in &mut self.joints {
             joint.reset_with_mass(ambient_mass);
         }
-        for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
-            let interval = interval_opt.as_mut().unwrap();
+        for interval in self.intervals.values_mut() {
             interval.iterate(
                 &mut self.joints,
                 &self.progress,
@@ -434,8 +432,7 @@ impl Fabric {
         }
         if self.progress.step(elapsed) {
             // final step
-            for interval_opt in self.intervals.iter_mut().filter(|i| i.is_some()) {
-                let interval = interval_opt.as_mut().unwrap();
+            for interval in self.intervals.values_mut() {
                 match &mut interval.span {
                     Fixed { .. } => {}
                     Pretensing { finished, .. } => {
@@ -515,19 +512,6 @@ impl Fabric {
             })
     }
 
-    fn create_id(&mut self) -> UniqueId {
-        // Find an empty slot or create a new one
-        for (index, interval_opt) in self.intervals.iter().enumerate() {
-            if interval_opt.is_none() {
-                return UniqueId(index);
-            }
-        }
-        // No empty slots found, add a new one
-        let id = UniqueId(self.intervals.len());
-        self.intervals.push(None);
-        id
-    }
-
     pub fn check_orphan_joints(&self) {
         for joint in 0..self.joints.len() {
             let touching = self
@@ -546,8 +530,7 @@ impl Fabric {
         let mut push_total = Meters(0.0);
         let mut pull_count = 0;
         let mut pull_total = Meters(0.0);
-        for interval_opt in self.intervals.iter().filter(|i| i.is_some()) {
-            let interval = interval_opt.as_ref().unwrap();
+        for interval in self.intervals.values() {
             let length = Meters(interval.length(&self.joints));
             if !interval.has_role(Role::Support) {
                 // Categorize by push-like vs pull-like behavior
@@ -597,19 +580,14 @@ impl Fabric {
         total_mass += AMBIENT_MASS * self.joints.len() as f32;
 
         // Add mass from each interval
-        for interval_opt in &self.intervals {
-            if let Some(interval) = interval_opt {
-                let alpha = &self.joints[interval.alpha_index];
-                let omega = &self.joints[interval.omega_index];
-                let real_length = Meters((&omega.location - &alpha.location).magnitude());
-                let interval_mass = interval.material.linear_density(physics) * real_length;
-                total_mass += interval_mass;
-            }
+        for interval in self.intervals.values() {
+            let alpha = &self.joints[interval.alpha_index];
+            let omega = &self.joints[interval.omega_index];
+            let real_length = Meters((&omega.location - &alpha.location).magnitude());
+            let interval_mass = interval.material.linear_density(physics) * real_length;
+            total_mass += interval_mass;
         }
 
         total_mass
     }
 }
-
-#[derive(Clone, Debug, Copy, PartialEq, Default, Hash, Eq, Ord, PartialOrd)]
-pub struct UniqueId(pub usize);

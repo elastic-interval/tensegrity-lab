@@ -2,7 +2,7 @@ use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 use rand::prelude::*;
 
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::{Fabric, IntervalKey};
 
 struct KleinFabric {
     fabric: Fabric,
@@ -27,12 +27,12 @@ impl KleinFabric {
         self.fabric.create_joint(Point3::from_vec(v));
     }
 
-    fn push(&mut self, alpha: isize, omega: isize) -> UniqueId {
+    fn push(&mut self, alpha: isize, omega: isize) -> IntervalKey {
         self.fabric
             .create_interval(alpha as usize, omega as usize, 8.0, Role::Pushing)
     }
 
-    fn pull(&mut self, alpha: isize, omega: isize) -> UniqueId {
+    fn pull(&mut self, alpha: isize, omega: isize) -> IntervalKey {
         self.fabric
             .create_interval(alpha as usize, omega as usize, 1.0, Role::Pulling)
     }

@@ -19,18 +19,18 @@ mod tests {
         // Count intervals by role
         let push_count = fabric
             .intervals
-            .iter()
-            .filter(|i| matches!(i, Some(int) if int.role == Role::Pushing))
+            .values()
+            .filter(|int| int.role == Role::Pushing)
             .count();
         let pull_count = fabric
             .intervals
-            .iter()
-            .filter(|i| matches!(i, Some(int) if int.role == Role::Pulling))
+            .values()
+            .filter(|int| int.role == Role::Pulling)
             .count();
         let radial_count = fabric
             .intervals
-            .iter()
-            .filter(|i| matches!(i, Some(int) if int.role == Role::FaceRadial))
+            .values()
+            .filter(|int| int.role == Role::FaceRadial)
             .count();
 
         eprintln!("Structure:");
@@ -42,20 +42,18 @@ mod tests {
 
         // Print initial intervals
         eprintln!("\nInitial intervals:");
-        for (i, interval) in fabric.intervals.iter().enumerate() {
-            if let Some(int) = interval {
-                let alpha = fabric.joints[int.alpha_index].location;
-                let omega = fabric.joints[int.omega_index].location;
-                let actual = alpha.distance(omega);
-                eprintln!(
-                    "  [{i}] {:?} ({}->{}) ideal={:.4} actual={:.4}",
-                    int.role,
-                    int.alpha_index,
-                    int.omega_index,
-                    int.ideal(),
-                    actual
-                );
-            }
+        for (i, (_key, int)) in fabric.intervals.iter().enumerate() {
+            let alpha = fabric.joints[int.alpha_index].location;
+            let omega = fabric.joints[int.omega_index].location;
+            let actual = alpha.distance(omega);
+            eprintln!(
+                "  [{i}] {:?} ({}->{}) ideal={:.4} actual={:.4}",
+                int.role,
+                int.alpha_index,
+                int.omega_index,
+                int.ideal(),
+                actual
+            );
         }
 
         // Run physics
@@ -88,20 +86,18 @@ mod tests {
 
         // Print final state
         eprintln!("\nFinal intervals:");
-        for (i, interval) in fabric.intervals.iter().enumerate() {
-            if let Some(int) = interval {
-                let alpha = fabric.joints[int.alpha_index].location;
-                let omega = fabric.joints[int.omega_index].location;
-                let actual = alpha.distance(omega);
-                let diff_pct = ((actual - int.ideal()) / int.ideal() * 100.0).abs();
-                eprintln!(
-                    "  [{i}] {:?} ideal={:.4} actual={:.4} diff={:.1}%",
-                    int.role,
-                    int.ideal(),
-                    actual,
-                    diff_pct
-                );
-            }
+        for (i, (_key, int)) in fabric.intervals.iter().enumerate() {
+            let alpha = fabric.joints[int.alpha_index].location;
+            let omega = fabric.joints[int.omega_index].location;
+            let actual = alpha.distance(omega);
+            let diff_pct = ((actual - int.ideal()) / int.ideal() * 100.0).abs();
+            eprintln!(
+                "  [{i}] {:?} ideal={:.4} actual={:.4} diff={:.1}%",
+                int.role,
+                int.ideal(),
+                actual,
+                diff_pct
+            );
         }
 
         eprintln!("\n✓ {} complete!", brick_name);

@@ -71,7 +71,7 @@ impl Evolution {
         let choice = self.random_push();
         let project = self.random_unit();
         let evolving_push = self.evolving_pushes.get_mut(choice).unwrap();
-        let snapshot = self.fabric.interval_snapshot(evolving_push.interval_id);
+        let snapshot = self.fabric.interval_snapshot(evolving_push.interval_key);
         let next = evolving_push.end_push(&mut self.fabric, snapshot, end, project);
         self.evolving_pushes.push(next);
     }
@@ -85,12 +85,12 @@ impl Evolution {
         let push_a = (
             index_a,
             self.fabric
-                .interval_snapshot(self.evolving_pushes[index_a].interval_id),
+                .interval_snapshot(self.evolving_pushes[index_a].interval_key),
         );
         let push_b = (
             index_b,
             self.fabric
-                .interval_snapshot(self.evolving_pushes[index_b].interval_id),
+                .interval_snapshot(self.evolving_pushes[index_b].interval_key),
         );
         EvolvingPush::join_pushes(&mut self.fabric, &mut self.evolving_pushes, push_a, push_b);
     }

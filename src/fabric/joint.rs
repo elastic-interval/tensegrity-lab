@@ -4,12 +4,11 @@
  */
 
 use crate::fabric::physics::{Physics, SurfaceInteraction};
-use crate::fabric::{Fabric, Force, Location, UniqueId, Velocity};
+use crate::fabric::{Fabric, Force, Location, Velocity};
 use crate::units::Grams;
 use crate::ITERATION_DURATION;
 use cgmath::num_traits::zero;
 use cgmath::{InnerSpace, MetricSpace, Point3};
-use itertools::Itertools;
 
 impl Fabric {
     pub fn create_joint(&mut self, point: Point3<f32>) -> usize {
@@ -23,27 +22,22 @@ impl Fabric {
 
     pub fn remove_joint(&mut self, index: usize) {
         self.joints.remove(index);
-        self.intervals
+        let to_remove: Vec<_> = self.intervals
             .iter()
-            .enumerate()
-            .filter_map(|(idx, interval_opt)| {
-                interval_opt.as_ref().and_then(|interval| {
-                    if interval.touches(index) {
-                        Some(UniqueId(idx))
-                    } else {
-                        None
-                    }
-                })
+            .filter_map(|(key, interval)| {
+                if interval.touches(index) {
+                    Some(key)
+                } else {
+                    None
+                }
             })
-            .collect_vec()
-            .into_iter()
-            .for_each(|id| {
-                self.remove_interval(id);
-            });
-        self.intervals
-            .iter_mut()
-            .filter_map(|interval_opt| interval_opt.as_mut())
-            .for_each(|interval| interval.joint_removed(index));
+            .collect();
+        for key in to_remove {
+            self.remove_interval(key);
+        }
+        for interval in self.intervals.values_mut() {
+            interval.joint_removed(index);
+        }
     }
 
     pub fn distance(&self, alpha_index: usize, omega_index: usize) -> f32 {

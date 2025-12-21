@@ -185,14 +185,12 @@ mod tests {
         // Frequency 1 icosahedron: 12 vertices, 30 edges
         // Each edge becomes a strut with 2 joints
         assert!(!fabric.joints.is_empty(), "Should have joints");
-        assert!(fabric.interval_count > 0, "Should have intervals");
+        assert!(!fabric.intervals.is_empty(), "Should have intervals");
 
-        let push_count = fabric.intervals.iter()
-            .filter_map(|i| i.as_ref())
+        let push_count = fabric.intervals.values()
             .filter(|i| i.role == Role::Pushing)
             .count();
-        let pull_count = fabric.intervals.iter()
-            .filter_map(|i| i.as_ref())
+        let pull_count = fabric.intervals.values()
             .filter(|i| i.role == Role::Pulling)
             .count();
 
@@ -208,14 +206,12 @@ mod tests {
         let fabric = generate_sphere(2, 10.0);
 
         assert!(!fabric.joints.is_empty(), "Should have joints");
-        assert!(fabric.interval_count > 0, "Should have intervals");
+        assert!(!fabric.intervals.is_empty(), "Should have intervals");
 
-        let push_count = fabric.intervals.iter()
-            .filter_map(|i| i.as_ref())
+        let push_count = fabric.intervals.values()
             .filter(|i| i.role == Role::Pushing)
             .count();
-        let pull_count = fabric.intervals.iter()
-            .filter_map(|i| i.as_ref())
+        let pull_count = fabric.intervals.values()
             .filter(|i| i.role == Role::Pulling)
             .count();
 
@@ -232,7 +228,7 @@ mod tests {
 
         // All intervals should reference valid joints
         let joint_count = fabric.joints.len();
-        for interval in fabric.intervals.iter().filter_map(|i| i.as_ref()) {
+        for interval in fabric.intervals.values() {
             assert!(interval.alpha_index < joint_count,
                 "Alpha joint {} should be < {}", interval.alpha_index, joint_count);
             assert!(interval.omega_index < joint_count,

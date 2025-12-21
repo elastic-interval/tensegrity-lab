@@ -6,10 +6,10 @@ use crate::build::dsl::brick_dsl::FaceName::Attach;
 use crate::build::dsl::{FaceAlias, Spin};
 use crate::fabric::face::FaceRotation;
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::{Fabric, FaceKey};
 
 pub enum BaseFace {
-    ExistingFace(UniqueId),
+    ExistingFace(FaceKey),
     Situated {
         spin: Spin,
         vector_space: Matrix4<f32>,
@@ -25,7 +25,7 @@ impl Fabric {
         rotation: FaceRotation,
         scale_factor: f32,
         base_face: BaseFace,
-    ) -> (UniqueId, Vec<UniqueId>) {
+    ) -> (FaceKey, Vec<FaceKey>) {
         let (base_scale, spin, matrix) = match base_face {
             BaseFace::ExistingFace(id) => {
                 let face = self.face(id);
@@ -106,8 +106,8 @@ impl Fabric {
             // For attached bricks, find the Attach face with matching spin
             brick_faces
                 .iter()
-                .find(|&&face_id| {
-                    self.face(face_id)
+                .find(|&&face_key| {
+                    self.face(face_key)
                         .aliases
                         .iter()
                         .any(|FaceAlias { face_name, .. }| *face_name == Attach(spin.unwrap()))

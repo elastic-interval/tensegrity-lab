@@ -7,7 +7,7 @@ use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, MetricSpace, Point3, 
 use crate::build::dsl::{FaceAlias, Spin};
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::Joint;
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::{Fabric, FaceKey, IntervalKey};
 
 const ROOT3: f32 = 1.732_050_8;
 
@@ -17,29 +17,24 @@ impl Fabric {
         aliases: Vec<FaceAlias>,
         scale: f32,
         spin: Spin,
-        radial_intervals: [UniqueId; 3],
-    ) -> UniqueId {
-        let id = self.create_id();
-        self.faces.insert(
-            id,
-            Face {
-                aliases,
-                scale,
-                spin,
-                radial_intervals,
-                ending: FaceEnding::default(),
-            },
-        );
-        id
+        radial_intervals: [IntervalKey; 3],
+    ) -> FaceKey {
+        self.faces.insert(Face {
+            aliases,
+            scale,
+            spin,
+            radial_intervals,
+            ending: FaceEnding::default(),
+        })
     }
 
-    pub fn face(&self, id: UniqueId) -> &Face {
+    pub fn face(&self, id: FaceKey) -> &Face {
         self.faces
-            .get(&id)
+            .get(id)
             .unwrap_or_else(|| panic!("face not found {id:?}"))
     }
 
-    pub fn remove_face(&mut self, id: UniqueId) {
+    pub fn remove_face(&mut self, id: FaceKey) {
         let face = self.face(id);
         let middle_joint = face.middle_joint(self);
         let is_radial = face.ending == FaceEnding::Radial;
@@ -47,30 +42,30 @@ impl Fabric {
 
         if is_radial {
             // For radial faces, convert radials to Pulling instead of removing
-            for interval_id in radial_intervals {
-                if let Some(interval) = self.intervals[interval_id.0].as_mut() {
+            for interval_key in radial_intervals {
+                if let Some(interval) = self.intervals.get_mut(interval_key) {
                     interval.role = Role::Pulling;
                 }
             }
         } else {
             // Normal face removal: delete radials
-            for interval_id in radial_intervals {
-                self.remove_interval(interval_id);
+            for interval_key in radial_intervals {
+                self.remove_interval(interval_key);
             }
             self.remove_joint(middle_joint);
         }
-        self.faces.remove(&id);
+        self.faces.remove(id);
     }
 
-    pub fn join_faces(&mut self, alpha_id: UniqueId, omega_id: UniqueId) {
-        let (alpha, omega) = (self.face(alpha_id), self.face(omega_id));
+    pub fn join_faces(&mut self, alpha_key: FaceKey, omega_key: FaceKey) {
+        let (alpha, omega) = (self.face(alpha_key), self.face(omega_key));
         let (mut alpha_ends, omega_ends) = (alpha.radial_joints(self), omega.radial_joints(self));
         if alpha.spin == omega.spin {
             alpha_ends.reverse();
         }
         let (mut alpha_points, omega_points) = (
-            alpha_ends.map(|id| self.location(id)),
-            omega_ends.map(|id| self.location(id)),
+            alpha_ends.map(|idx| self.location(idx)),
+            omega_ends.map(|idx| self.location(idx)),
         );
         let links = [(0, 0), (0, 1), (1, 1), (1, 2), (2, 2), (2, 0)];
         let (_, alpha_rotated) = (0..3)
@@ -90,12 +85,12 @@ impl Fabric {
         for (a, b) in links {
             self.create_interval(alpha_rotated[a], omega_ends[b], ideal, Role::Circumference);
         }
-        self.remove_face(alpha_id);
-        self.remove_face(omega_id);
+        self.remove_face(alpha_key);
+        self.remove_face(omega_key);
     }
 
-    pub fn add_face_triangle(&mut self, face_id: UniqueId) {
-        let face = self.face(face_id);
+    pub fn add_face_triangle(&mut self, face_key: FaceKey) {
+        let face = self.face(face_key);
         let side_length = face.scale * ROOT3;
         let radial_joints = face.radial_joints(self);
         for (alpha, omega) in [(0, 1), (1, 2), (2, 0)] {
@@ -108,8 +103,8 @@ impl Fabric {
         }
     }
 
-    pub fn add_face_prism(&mut self, face_id: UniqueId) {
-        let face = self.face(face_id);
+    pub fn add_face_prism(&mut self, face_key: FaceKey) {
+        let face = self.face(face_key);
         let push_length = face.scale * 1.5;
         let radial_joints = face.radial_joints(self);
         let normal = face.normal(&self);
@@ -120,12 +115,12 @@ impl Fabric {
         // By Pythagorean theorem: pull_length² = radial_distance² + (push_length/2)²
         let pull_length =
             (radial_distance * radial_distance + (push_length / 2.0) * (push_length / 2.0)).sqrt();
-        
+
         let alpha = self.create_joint(Point3::from_vec(midpoint - normal * push_length / 2.0));
         let omega = self.create_joint(Point3::from_vec(midpoint + normal * push_length / 2.0));
-        
+
         self.create_interval(alpha, omega, push_length, Role::Pushing);
-        
+
         // Connect prism push joints to radials
         for joint in 0..3 {
             let radial = radial_joints[joint];
@@ -133,15 +128,15 @@ impl Fabric {
             self.create_interval(omega, radial, pull_length, Role::PrismPull);
         }
         // Mark the face as having a prism
-        if let Some(face) = self.faces.get_mut(&face_id) {
+        if let Some(face) = self.faces.get_mut(face_key) {
             face.ending = FaceEnding::Prism;
         }
     }
 
     /// Mark a face as radial (radials only, no triangle or prism)
     /// The radial intervals will be converted from FaceRadial to Pulling when removed
-    pub fn set_face_radial(&mut self, face_id: UniqueId) {
-        if let Some(face) = self.faces.get_mut(&face_id) {
+    pub fn set_face_radial(&mut self, face_key: FaceKey) {
+        if let Some(face) = self.faces.get_mut(face_key) {
             face.ending = FaceEnding::Radial;
         }
     }
@@ -182,7 +177,7 @@ pub struct Face {
     pub aliases: Vec<FaceAlias>,
     pub scale: f32,
     pub spin: Spin,
-    pub radial_intervals: [UniqueId; 3],
+    pub radial_intervals: [IntervalKey; 3],
     pub ending: FaceEnding,
 }
 

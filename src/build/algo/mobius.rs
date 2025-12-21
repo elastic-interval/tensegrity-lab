@@ -79,14 +79,12 @@ mod tests {
         let fabric = generate_mobius(50);
 
         assert!(!fabric.joints.is_empty(), "Should have joints");
-        assert!(fabric.interval_count > 0, "Should have intervals");
+        assert!(!fabric.intervals.is_empty(), "Should have intervals");
 
-        let push_count = fabric.intervals.iter()
-            .filter_map(|i| i.as_ref())
+        let push_count = fabric.intervals.values()
             .filter(|i| i.role == Role::Pushing)
             .count();
-        let pull_count = fabric.intervals.iter()
-            .filter_map(|i| i.as_ref())
+        let pull_count = fabric.intervals.values()
             .filter(|i| i.role == Role::Pulling)
             .count();
 
@@ -106,7 +104,7 @@ mod tests {
 
         println!("\n=== Initial state ===");
         // Check actual vs ideal lengths for intervals
-        for (i, interval) in fabric.intervals.iter().filter_map(|i| i.as_ref()).take(6).enumerate() {
+        for (i, (_key, interval)) in fabric.intervals.iter().take(6).enumerate() {
             let alpha = &fabric.joints[interval.alpha_index];
             let omega = &fabric.joints[interval.omega_index];
             let actual = ((omega.location.x - alpha.location.x).powi(2)
@@ -139,7 +137,7 @@ mod tests {
         let fabric = generate_mobius(30);
 
         let joint_count = fabric.joints.len();
-        for interval in fabric.intervals.iter().filter_map(|i| i.as_ref()) {
+        for interval in fabric.intervals.values() {
             assert!(interval.alpha_index < joint_count,
                 "Alpha joint {} should be < {}", interval.alpha_index, joint_count);
             assert!(interval.omega_index < joint_count,

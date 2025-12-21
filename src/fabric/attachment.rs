@@ -3,7 +3,7 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use crate::fabric::{IntervalEnd, UniqueId};
+use crate::fabric::{IntervalEnd, IntervalKey};
 use crate::units::Degrees;
 use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
 
@@ -119,8 +119,8 @@ pub struct AttachmentPoint {
 /// Represents a connection between a pull interval and an attachment point
 #[derive(Clone, Copy, Debug)]
 pub struct PullConnection {
-    /// The ID of the pull interval that is attached
-    pub pull_interval_id: UniqueId,
+    /// The key of the pull interval that is attached
+    pub pull_interval_key: IntervalKey,
 
     /// The attachment point index where the pull interval is connected
     pub attachment_index: usize,
@@ -157,7 +157,7 @@ impl PullConnections {
         alpha_attachment_points: &[AttachmentPoint],
         omega_attachment_points: &[AttachmentPoint],
         joint_positions: &[Point3<f32>],
-        pull_intervals: &[(UniqueId, usize, usize)], // (pull_id, alpha_index, omega_index)
+        pull_intervals: &[(IntervalKey, usize, usize)], // (pull_id, alpha_index, omega_index)
         pull_data: &[PullIntervalData],
         push_alpha_index: usize,
         push_omega_index: usize,
@@ -213,7 +213,7 @@ impl PullConnections {
         for (attach_idx, (end, pull_id, _joint_index)) in optimized_alpha.iter().enumerate() {
             if attach_idx < ATTACHMENT_POINTS {
                 let connection = PullConnection {
-                    pull_interval_id: *pull_id,
+                    pull_interval_key: *pull_id,
                     attachment_index: attach_idx,
                 };
                 match end {
@@ -226,7 +226,7 @@ impl PullConnections {
         for (attach_idx, (end, pull_id, _joint_index)) in optimized_omega.iter().enumerate() {
             if attach_idx < ATTACHMENT_POINTS {
                 let connection = PullConnection {
-                    pull_interval_id: *pull_id,
+                    pull_interval_key: *pull_id,
                     attachment_index: attach_idx,
                 };
                 match end {
@@ -240,10 +240,10 @@ impl PullConnections {
     /// Collects all connections that need to be made for a push interval
     fn collect_connections_to_make(
         &self,
-        pull_intervals: &[(UniqueId, usize, usize)],
+        pull_intervals: &[(IntervalKey, usize, usize)],
         push_alpha_index: usize,
         push_omega_index: usize,
-    ) -> Vec<(IntervalEnd, UniqueId, usize)> {
+    ) -> Vec<(IntervalEnd, IntervalKey, usize)> {
         let mut connections_to_make = Vec::new();
 
         for (pull_id, alpha_index, omega_index) in pull_intervals {
@@ -327,7 +327,7 @@ impl PullConnections {
 /// Data about a pull interval needed for moment calculation
 #[derive(Clone, Copy, Debug)]
 pub struct PullIntervalData {
-    pub id: UniqueId,
+    pub key: IntervalKey,
     pub alpha_joint: usize,
     pub omega_joint: usize,
     pub strain: f32,
@@ -363,7 +363,7 @@ pub fn find_nearest_attachment_point(
 /// The first attachment point acts as a pivot (ball joint)
 /// Returns the magnitude of the total moment vector
 fn calculate_rotational_moment(
-    assignment: &[(UniqueId, usize)], // (pull_id, attachment_point_index)
+    assignment: &[(IntervalKey, usize)], // (pull_id, attachment_point_index)
     attachment_points: &[AttachmentPoint],
     pull_data: &[PullIntervalData],
     joint_positions: &[Point3<f32>],
@@ -379,9 +379,9 @@ fn calculate_rotational_moment(
     // Accumulate moment vector
     let mut total_moment = Vector3::new(0.0, 0.0, 0.0);
 
-    for (pull_id, attach_idx) in assignment {
+    for (pull_key, attach_idx) in assignment {
         // Find the pull interval data
-        if let Some(pull) = pull_data.iter().find(|p| p.id == *pull_id) {
+        if let Some(pull) = pull_data.iter().find(|p| p.key == *pull_key) {
             // Get attachment point position
             let attach_pos = attachment_points[*attach_idx].position;
 
@@ -455,13 +455,13 @@ fn is_outward_pulling(
 /// that minimizes rotational moment.
 /// Outward-pulling intervals (positive dot with push axis) are forced to slot 0.
 fn find_optimal_assignment(
-    pulls: &[(IntervalEnd, UniqueId, usize)], // (end, pull_id, joint_index)
+    pulls: &[(IntervalEnd, IntervalKey, usize)], // (end, pull_id, joint_index)
     attachment_points: &[AttachmentPoint],
     pull_data: &[PullIntervalData],
     joint_positions: &[Point3<f32>],
     push_joint_index: usize,
     push_axis: Vector3<f32>,
-) -> Vec<(IntervalEnd, UniqueId, usize)> {
+) -> Vec<(IntervalEnd, IntervalKey, usize)> {
     if pulls.is_empty() {
         return Vec::new();
     }
@@ -471,7 +471,7 @@ fn find_optimal_assignment(
     let mut inward_pulls = Vec::new();
 
     for pull in pulls {
-        if let Some(data) = pull_data.iter().find(|d| d.id == pull.1) {
+        if let Some(data) = pull_data.iter().find(|d| d.key == pull.1) {
             if is_outward_pulling(data, push_joint_index, push_axis, joint_positions) {
                 outward_pulls.push(*pull);
             } else {
@@ -511,7 +511,7 @@ fn find_optimal_assignment(
 
     // Helper to evaluate current permutation
     let evaluate = |perm: &[usize]| -> f32 {
-        let assignment: Vec<(UniqueId, usize)> = perm
+        let assignment: Vec<(IntervalKey, usize)> = perm
             .iter()
             .enumerate()
             .map(|(i, &pull_idx)| (inward_pulls[pull_idx].1, start_slot + i))

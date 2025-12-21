@@ -1,7 +1,7 @@
 use crate::build::dsl::animate_phase::{AnimatePhase, Actuator, ActuatorAttachment, Waveform};
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::interval::{Role, Span};
-use crate::fabric::UniqueId;
+use crate::fabric::IntervalKey;
 use crate::units::Percent;
 use crate::ITERATION_DURATION;
 use cgmath::Point3;
@@ -50,7 +50,7 @@ impl Oscillator {
 }
 
 struct ActuatorInterval {
-    id: UniqueId,
+    id: IntervalKey,
     rest_length: f32,
     contracted_length: f32,
     phase_offset: f32,
@@ -109,7 +109,7 @@ impl Animator {
                     );
                     // Start slack: set span to Fixed at current distance
                     // Set stiffness to reduce jiggling with rapid waveforms
-                    if let Some(interval) = &mut context.fabric.intervals[id.0] {
+                    if let Some(interval) = context.fabric.intervals.get_mut(id) {
                         interval.span = Span::Fixed { length: rest_length };
                         interval.stiffness = stiffness;
                     }
@@ -137,7 +137,7 @@ impl Animator {
 
                     // Start slack: set span to Fixed at current distance
                     // Set stiffness to reduce jiggling with rapid waveforms
-                    if let Some(interval) = &mut context.fabric.intervals[id.0] {
+                    if let Some(interval) = context.fabric.intervals.get_mut(id) {
                         interval.span = Span::Fixed { length: rest_length };
                         interval.stiffness = stiffness;
                     }
@@ -174,7 +174,7 @@ impl Animator {
 
     fn update_actuator_lengths(&self, context: &mut CrucibleContext) {
         for actuator in &self.actuators {
-            if let Some(interval) = &mut context.fabric.intervals[actuator.id.0] {
+            if let Some(interval) = context.fabric.intervals.get_mut(actuator.id) {
                 // Apply phase offset to get actuator-specific phase
                 let phase_with_offset = (self.oscillator.phase + actuator.phase_offset) % 1.0;
                 let contraction = self.oscillator.value_at_phase(phase_with_offset, self.waveform);

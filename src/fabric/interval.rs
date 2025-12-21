@@ -13,7 +13,7 @@ use crate::fabric::interval::Span::*;
 use crate::fabric::joint::Joint;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
-use crate::fabric::{Fabric, IntervalEnd, Progress, UniqueId};
+use crate::fabric::{Fabric, IntervalEnd, IntervalKey, Progress};
 use crate::units::{Meters, NewtonsPerMeter, Percent};
 use crate::Appearance;
 use cgmath::num_traits::zero;
@@ -25,13 +25,13 @@ impl Fabric {
     /// Update the attachment connections for a specific push interval
     /// This finds all pull intervals connected to the push interval and assigns them
     /// to their nearest attachment points
-    pub fn update_interval_attachment_connections(&mut self, push_interval_id: UniqueId) {
+    pub fn update_interval_attachment_connections(&mut self, push_interval_key: IntervalKey) {
         // First collect information about the push interval and connected pull intervals
         let mut connected_pulls = Vec::new();
         let mut pull_data = Vec::new();
 
         // Get the push interval and check if it's a push interval
-        if let Some(push_interval) = self.intervals[push_interval_id.0].as_ref() {
+        if let Some(push_interval) = self.intervals.get(push_interval_key) {
             if !push_interval.has_role(Pushing) {
                 return; // Not a push interval, nothing to do
             }
@@ -40,40 +40,38 @@ impl Fabric {
             let push_omega = push_interval.omega_index;
 
             // Find all pull intervals connected to this push interval
-            for (idx, interval_opt) in self.intervals.iter().enumerate() {
-                if let Some(interval) = interval_opt {
-                    // Only consider pull-like intervals (all tension-only types)
-                    if !interval.role.is_pull_like() {
-                        continue;
-                    }
+            for (key, interval) in self.intervals.iter() {
+                // Only consider pull-like intervals (all tension-only types)
+                if !interval.role.is_pull_like() {
+                    continue;
+                }
 
-                    // Check if this pull interval is connected to the push interval
-                    if interval.alpha_index == push_alpha
-                        || interval.alpha_index == push_omega
-                        || interval.omega_index == push_alpha
-                        || interval.omega_index == push_omega
-                    {
-                        connected_pulls.push((
-                            UniqueId(idx),
-                            interval.alpha_index,
-                            interval.omega_index,
-                        ));
+                // Check if this pull interval is connected to the push interval
+                if interval.alpha_index == push_alpha
+                    || interval.alpha_index == push_omega
+                    || interval.omega_index == push_alpha
+                    || interval.omega_index == push_omega
+                {
+                    connected_pulls.push((
+                        key,
+                        interval.alpha_index,
+                        interval.omega_index,
+                    ));
 
-                        // Collect pull interval data for moment calculation
-                        pull_data.push(PullIntervalData {
-                            id: UniqueId(idx),
-                            alpha_joint: interval.alpha_index,
-                            omega_joint: interval.omega_index,
-                            strain: interval.strain,
-                            unit: interval.unit,
-                        });
-                    }
+                    // Collect pull interval data for moment calculation
+                    pull_data.push(PullIntervalData {
+                        key,
+                        alpha_joint: interval.alpha_index,
+                        omega_joint: interval.omega_index,
+                        strain: interval.strain,
+                        unit: interval.unit,
+                    });
                 }
             }
         }
 
         // Now update the attachment connections if we have a valid push interval
-        if let Some(push_interval) = self.intervals[push_interval_id.0].as_mut() {
+        if let Some(push_interval) = self.intervals.get_mut(push_interval_key) {
             // Use the new reorder_connections method to optimize attachment points
             let connector = ConnectorSpec::for_scale(self.scale);
             let _ = push_interval.reorder_connections(&self.joints, &connected_pulls, &pull_data, &connector);
@@ -88,32 +86,22 @@ impl Fabric {
             return;
         }
 
-        // Find all push interval IDs
-        let push_interval_ids: Vec<UniqueId> = self
+        // Find all push interval keys
+        let push_interval_keys: Vec<IntervalKey> = self
             .intervals
             .iter()
-            .enumerate()
-            .filter_map(|(idx, interval_opt)| {
-                if idx >= self.intervals.len() {
-                    return None; // Safety check
+            .filter_map(|(key, interval)| {
+                if interval.has_role(Pushing) {
+                    Some(key)
+                } else {
+                    None
                 }
-
-                interval_opt.as_ref().and_then(|interval| {
-                    if interval.has_role(Pushing) {
-                        Some(UniqueId(idx))
-                    } else {
-                        None
-                    }
-                })
             })
             .collect();
 
         // Update connections for each push interval
-        for push_id in push_interval_ids {
-            // Make sure the interval ID is valid
-            if push_id.0 < self.intervals.len() {
-                self.update_interval_attachment_connections(push_id);
-            }
+        for push_key in push_interval_keys {
+            self.update_interval_attachment_connections(push_key);
         }
     }
 
@@ -124,7 +112,7 @@ impl Fabric {
         omega_index: usize,
         ideal: f32,
         role: Role,
-    ) -> UniqueId {
+    ) -> IntervalKey {
         self.create_interval_with_span(alpha_index, omega_index, role, Approaching {
             start_length: self.distance(alpha_index, omega_index),
             target_length: ideal,
@@ -138,7 +126,7 @@ impl Fabric {
         alpha_index: usize,
         omega_index: usize,
         role: Role,
-    ) -> UniqueId {
+    ) -> IntervalKey {
         let length = self.distance(alpha_index, omega_index);
         self.create_interval_with_span(alpha_index, omega_index, role, Fixed { length })
     }
@@ -149,67 +137,57 @@ impl Fabric {
         omega_index: usize,
         role: Role,
         span: Span,
-    ) -> UniqueId {
-        let slot = self.create_id();
-        let unique_id = self.next_interval_id;
-        self.next_interval_id += 1;
-
+    ) -> IntervalKey {
         let interval = Interval::new(
-            unique_id,
             alpha_index,
             omega_index,
             role,
             span,
         );
 
-        if slot.0 >= self.intervals.len() {
-            self.intervals.resize_with(slot.0 + 1, || None);
-        }
-
-        self.intervals[slot.0] = Some(interval);
-        self.interval_count += 1;
+        let key = self.intervals.insert(interval);
 
         // If we added a pull-like interval, update connections for any push intervals it might connect to
         if role != Pushing && role != Springy {
             // Find all push intervals connected to this pull interval
-            let mut push_intervals = Vec::new();
-            for (idx, interval_opt) in self.intervals.iter().enumerate() {
-                if let Some(interval) = interval_opt {
-                    if interval.has_role(Pushing) {
-                        if interval.touches(alpha_index) || interval.touches(omega_index) {
-                            push_intervals.push(UniqueId(idx));
-                        }
+            let push_intervals: Vec<IntervalKey> = self
+                .intervals
+                .iter()
+                .filter_map(|(k, interval)| {
+                    if interval.has_role(Pushing)
+                        && (interval.touches(alpha_index) || interval.touches(omega_index))
+                    {
+                        Some(k)
+                    } else {
+                        None
                     }
-                }
-            }
+                })
+                .collect();
 
             // Update connections for each connected push interval
-            for push_id in push_intervals {
-                self.update_interval_attachment_connections(push_id);
+            for push_key in push_intervals {
+                self.update_interval_attachment_connections(push_key);
             }
         }
 
-        slot
+        key
     }
 
-    /// Get an interval by its ID, returning a Result
-    pub fn interval_result(&self, id: UniqueId) -> Result<&Interval, FabricError> {
-        if id.0 >= self.intervals.len() {
-            return Err(FabricError::IntervalNotFound);
-        }
-        self.intervals[id.0]
-            .as_ref()
+    /// Get an interval by its key, returning a Result
+    pub fn interval_result(&self, key: IntervalKey) -> Result<&Interval, FabricError> {
+        self.intervals
+            .get(key)
             .ok_or(FabricError::IntervalNotFound)
     }
 
-    /// Get an interval by its ID
-    pub fn interval(&self, id: UniqueId) -> &Interval {
-        self.interval_result(id).expect("Interval not found")
+    /// Get an interval by its key
+    pub fn interval(&self, key: IntervalKey) -> &Interval {
+        self.interval_result(key).expect("Interval not found")
     }
 
-    /// Get an interval snapshot by its ID, returning a Result
-    pub fn interval_snapshot_result(&self, id: UniqueId) -> Result<IntervalSnapshot, FabricError> {
-        let interval = self.interval_result(id)?;
+    /// Get an interval snapshot by its key, returning a Result
+    pub fn interval_snapshot_result(&self, key: IntervalKey) -> Result<IntervalSnapshot, FabricError> {
+        let interval = self.interval_result(key)?;
 
         // Make sure joint indices are valid
         if interval.alpha_index >= self.joints.len() || interval.omega_index >= self.joints.len() {
@@ -226,53 +204,40 @@ impl Fabric {
         })
     }
 
-    /// Get an interval snapshot by its ID
-    pub fn interval_snapshot(&self, id: UniqueId) -> IntervalSnapshot {
-        self.interval_snapshot_result(id)
+    /// Get an interval snapshot by its key
+    pub fn interval_snapshot(&self, key: IntervalKey) -> IntervalSnapshot {
+        self.interval_snapshot_result(key)
             .expect("Failed to get interval snapshot")
     }
 
-    pub fn remove_interval(&mut self, id: UniqueId) -> Interval {
-        match self.intervals[id.0].take() {
-            None => panic!("Removing nonexistent interval {:?}", id),
-            Some(removed) => {
-                self.interval_count -= 1;
-                removed
-            }
-        }
+    pub fn remove_interval(&mut self, key: IntervalKey) -> Interval {
+        self.intervals
+            .remove(key)
+            .expect("Removing nonexistent interval")
     }
 
-    pub fn find_push_at(&self, index: usize) -> Option<UniqueId> {
+    pub fn find_push_at(&self, index: usize) -> Option<IntervalKey> {
         self.intervals
             .iter()
-            .enumerate()
-            .find_map(|(id, interval_opt)| {
-                interval_opt.as_ref().and_then(|interval| {
-                    (interval.is_push_interval() && interval.touches(index)).then_some(UniqueId(id))
-                })
+            .find_map(|(key, interval)| {
+                (interval.is_push_interval() && interval.touches(index)).then_some(key)
             })
     }
 
-    pub fn joining(&self, pair: (usize, usize)) -> Option<UniqueId> {
+    pub fn joining(&self, pair: (usize, usize)) -> Option<IntervalKey> {
         self.intervals
             .iter()
-            .enumerate()
-            .filter_map(|(index, interval_opt)| {
-                interval_opt.as_ref().and_then(|interval| {
-                    if interval.touches(pair.0) && interval.touches(pair.1) {
-                        Some(UniqueId(index))
-                    } else {
-                        None
-                    }
-                })
+            .find_map(|(key, interval)| {
+                if interval.touches(pair.0) && interval.touches(pair.1) {
+                    Some(key)
+                } else {
+                    None
+                }
             })
-            .next()
     }
 
     pub fn interval_values(&self) -> impl Iterator<Item = &Interval> {
-        self.intervals
-            .iter()
-            .filter_map(|interval_opt| interval_opt.as_ref())
+        self.intervals.values()
     }
 }
 
@@ -444,7 +409,6 @@ impl Role {
 
 #[derive(Clone, Debug)]
 pub struct Interval {
-    pub unique_id: usize,
     pub alpha_index: usize,
     pub omega_index: usize,
     pub role: Role,
@@ -462,12 +426,11 @@ impl Interval {
         self.role.is(role)
     }
 
-    pub fn new(unique_id: usize, alpha_index: usize, omega_index: usize, role: Role, span: Span) -> Interval {
+    pub fn new(alpha_index: usize, omega_index: usize, role: Role, span: Span) -> Interval {
         let is_push = role == Pushing;
         let connections = is_push.then_some(Box::new(PullConnections::new()));
 
         Interval {
-            unique_id,
             alpha_index,
             omega_index,
             role,
@@ -508,7 +471,7 @@ impl Interval {
     pub fn reorder_connections(
         &mut self,
         joints: &[Joint],
-        pull_intervals: &[(UniqueId, usize, usize)],
+        pull_intervals: &[(IntervalKey, usize, usize)],
         pull_data: &[PullIntervalData],
         connector: &ConnectorSpec,
     ) -> Result<(), FabricError> {

@@ -146,72 +146,70 @@ impl HingeRenderer {
         let connector = ConnectorSpec::for_scale(fabric.scale());
 
         // Iterate through all push intervals to find their connections
-        for interval_opt in fabric.intervals.iter() {
-            if let Some(interval) = interval_opt {
-                if interval.has_role(Role::Pushing) {
-                    // Get joint positions
-                    let alpha_pos = fabric.joints[interval.alpha_index].location;
-                    let omega_pos = fabric.joints[interval.omega_index].location;
-                    let push_dir = (omega_pos - alpha_pos).normalize();
+        for (_key, interval) in fabric.intervals.iter() {
+            if interval.has_role(Role::Pushing) {
+                // Get joint positions
+                let alpha_pos = fabric.joints[interval.alpha_index].location;
+                let omega_pos = fabric.joints[interval.omega_index].location;
+                let push_dir = (omega_pos - alpha_pos).normalize();
 
-                    // Process alpha end connections
-                    if let Some(connections) = interval.connections(IntervalEnd::Alpha) {
-                        for (slot_idx, conn_opt) in connections.iter().enumerate() {
-                            if let Some(connection) = conn_opt {
-                                if let Some(Some(pull_interval)) =
-                                    fabric.intervals.get(connection.pull_interval_id.0)
-                                {
-                                    let pull_other_end =
-                                        if pull_interval.alpha_index == interval.alpha_index {
-                                            fabric.joints[pull_interval.omega_index].location
-                                        } else {
-                                            fabric.joints[pull_interval.alpha_index].location
-                                        };
+                // Process alpha end connections
+                if let Some(connections) = interval.connections(IntervalEnd::Alpha) {
+                    for (slot_idx, conn_opt) in connections.iter().enumerate() {
+                        if let Some(connection) = conn_opt {
+                            if let Some(pull_interval) =
+                                fabric.intervals.get(connection.pull_interval_key)
+                            {
+                                let pull_other_end =
+                                    if pull_interval.alpha_index == interval.alpha_index {
+                                        fabric.joints[pull_interval.omega_index].location
+                                    } else {
+                                        fabric.joints[pull_interval.alpha_index].location
+                                    };
 
-                                    let hinge_pos = connector.hinge_position(
-                                        alpha_pos,
-                                        -push_dir,
-                                        slot_idx,
-                                        pull_other_end,
-                                    );
+                                let hinge_pos = connector.hinge_position(
+                                    alpha_pos,
+                                    -push_dir,
+                                    slot_idx,
+                                    pull_other_end,
+                                );
 
-                                    instances.push(HingeInstance {
-                                        position: [hinge_pos.x, hinge_pos.y, hinge_pos.z],
-                                        scale: hinge_radius,
-                                        color: HINGE_COLOR,
-                                    });
-                                }
+                                instances.push(HingeInstance {
+                                    position: [hinge_pos.x, hinge_pos.y, hinge_pos.z],
+                                    scale: hinge_radius,
+                                    color: HINGE_COLOR,
+                                });
                             }
                         }
                     }
+                }
 
-                    // Process omega end connections
-                    if let Some(connections) = interval.connections(IntervalEnd::Omega) {
-                        for (slot_idx, conn_opt) in connections.iter().enumerate() {
-                            if let Some(connection) = conn_opt {
-                                if let Some(Some(pull_interval)) =
-                                    fabric.intervals.get(connection.pull_interval_id.0)
-                                {
-                                    let pull_other_end =
-                                        if pull_interval.alpha_index == interval.omega_index {
-                                            fabric.joints[pull_interval.omega_index].location
-                                        } else {
-                                            fabric.joints[pull_interval.alpha_index].location
-                                        };
+                // Process omega end connections
+                if let Some(connections) = interval.connections(IntervalEnd::Omega) {
+                    for (slot_idx, conn_opt) in connections.iter().enumerate() {
+                        if let Some(connection) = conn_opt {
+                            if let Some(pull_interval) =
+                                fabric.intervals.get(connection.pull_interval_key)
+                            {
+                                let pull_other_end =
+                                    if pull_interval.alpha_index == interval.omega_index {
+                                        fabric.joints[pull_interval.omega_index].location
+                                    } else {
+                                        fabric.joints[pull_interval.alpha_index].location
+                                    };
 
-                                    let hinge_pos = connector.hinge_position(
-                                        omega_pos,
-                                        push_dir,
-                                        slot_idx,
-                                        pull_other_end,
-                                    );
+                                let hinge_pos = connector.hinge_position(
+                                    omega_pos,
+                                    push_dir,
+                                    slot_idx,
+                                    pull_other_end,
+                                );
 
-                                    instances.push(HingeInstance {
-                                        position: [hinge_pos.x, hinge_pos.y, hinge_pos.z],
-                                        scale: hinge_radius,
-                                        color: HINGE_COLOR,
-                                    });
-                                }
+                                instances.push(HingeInstance {
+                                    position: [hinge_pos.x, hinge_pos.y, hinge_pos.z],
+                                    scale: hinge_radius,
+                                    color: HINGE_COLOR,
+                                });
                             }
                         }
                     }

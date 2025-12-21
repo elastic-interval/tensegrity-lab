@@ -5,7 +5,7 @@ use std::fmt::{Display, Formatter};
 use strum::Display;
 
 use crate::build::dsl::brick_dsl::{BrickRole, FaceName, MarkName};
-use crate::fabric::{Fabric, UniqueId};
+use crate::fabric::{Fabric, FaceKey};
 
 pub mod animate_phase;
 pub mod brick;
@@ -27,8 +27,8 @@ pub mod single_interval_drop_test;
 pub mod bake_brick_test;
 
 impl Fabric {
-    pub fn expect_face(&self, face_id: UniqueId) -> &crate::fabric::face::Face {
-        self.faces.get(&face_id).expect(&format!("Expected face {:?} in fabric with {} faces", &face_id, self.faces.len()))
+    pub fn expect_face(&self, face_key: FaceKey) -> &crate::fabric::face::Face {
+        self.faces.get(face_key).expect(&format!("Expected face {:?} in fabric with {} faces", &face_key, self.faces.len()))
     }
 }
 
@@ -99,7 +99,7 @@ impl Spin {
 
 #[derive(Debug, Clone)]
 pub struct FaceMark {
-    face_id: UniqueId,
+    face_key: FaceKey,
     mark_name: MarkName,
 }
 

@@ -43,18 +43,18 @@ impl Pretenser {
         self.stage = match self.stage {
             Start => {
                 use crate::fabric::face::FaceEnding;
-                let face_ids: Vec<_> = context.fabric.faces.keys().copied().collect();
-                for face_id in face_ids {
-                    let face = context.fabric.face(face_id);
+                let face_keys: Vec<_> = context.fabric.faces.keys().collect();
+                for face_key in face_keys {
+                    let face = context.fabric.face(face_key);
                     match face.ending {
                         FaceEnding::Triangle => {
-                            context.fabric.add_face_triangle(face_id);
+                            context.fabric.add_face_triangle(face_key);
                         }
                         FaceEnding::Prism | FaceEnding::Radial => {
                             // Prism already added during build; Radial keeps radials as-is
                         }
                     }
-                    context.fabric.remove_face(face_id);
+                    context.fabric.remove_face(face_key);
                 }
                 Slacken
             },
