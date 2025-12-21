@@ -75,7 +75,7 @@ impl AnimateBuilder {
     }
 
     /// Terminal method: add actuators and return the completed FabricPlan
-    pub fn actuators(mut self, actuators: &[Actuator]) -> FabricPlan {
+    pub fn actuators<const N: usize>(mut self, actuators: [Actuator; N]) -> FabricPlan {
         self.phase.actuators = actuators.to_vec();
         self.plan.animate_phase = Some(self.phase);
         self.plan
