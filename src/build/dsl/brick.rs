@@ -9,7 +9,7 @@ use crate::build::dsl::brick_dsl::{BrickName, BrickParams, BrickRole, JointName}
 use crate::build::dsl::Spin::{Left, Right};
 use crate::build::dsl::{FaceAlias, ScaleMode, Spin};
 use crate::fabric::interval::Role;
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, JointKey};
 
 #[derive(Copy, Clone, Debug)]
 pub enum Axis {
@@ -133,10 +133,10 @@ impl BrickPrototype {
     /// Convert prototype to fabric for baking, applying face scaling
     pub fn to_fabric(&self, face_scaling: ScaleMode) -> Fabric {
         let mut fabric = Fabric::new("prototype".to_string());
-        let mut joints_by_name: HashMap<JointName, usize> = HashMap::new();
+        let mut joints_by_name: HashMap<JointName, JointKey> = HashMap::new();
         for name in &self.joints {
-            let joint_index = fabric.create_joint(Point3::origin());
-            if joints_by_name.insert(*name, joint_index).is_some() {
+            let joint_key = fabric.create_joint(Point3::origin());
+            if joints_by_name.insert(*name, joint_key).is_some() {
                 panic!("joint with that name already exists")
             }
         }
@@ -151,36 +151,36 @@ impl BrickPrototype {
                 (push.alpha, -vector * ideal / 2.0),
                 (push.omega, vector * ideal / 2.0),
             ];
-            let [alpha_index, omega_index] = ends.map(|(name, loc)| {
-                let joint_index = fabric.create_joint(Point3::from_vec(loc));
-                if joints_by_name.insert(name, joint_index).is_some() {
+            let [alpha_key, omega_key] = ends.map(|(name, loc)| {
+                let joint_key = fabric.create_joint(Point3::from_vec(loc));
+                if joints_by_name.insert(name, joint_key).is_some() {
                     panic!("joint with that name already exists")
                 }
-                joint_index
+                joint_key
             });
-            fabric.create_interval(alpha_index, omega_index, ideal, Role::Pushing);
+            fabric.create_interval(alpha_key, omega_key, ideal, Role::Pushing);
         }
         for pull in &self.pulls {
-            let [alpha_index, omega_index] = [pull.alpha, pull.omega].map(|name| {
+            let [alpha_key, omega_key] = [pull.alpha, pull.omega].map(|name| {
                 *joints_by_name
                     .get(&name)
                     .expect(&format!("Joint {:?} not found", name))
             });
             let role = Role::from_label(&pull.material)
                 .expect(&format!("Unknown role label: {}", pull.material));
-            fabric.create_interval(alpha_index, omega_index, pull.ideal, role);
+            fabric.create_interval(alpha_key, omega_key, pull.ideal, role);
         }
         for face_def in &self.faces {
-            let joint_indices = face_def.joints.map(|name| {
+            let joint_keys = face_def.joints.map(|name| {
                 *joints_by_name
                     .get(&name)
                     .expect(&format!("Joint {:?} not found", name))
             });
             let face_scale = face_def.scale_for(face_scaling);
             // Start face center at origin - radial tensions will pull it into position
-            let alpha_index = fabric.create_joint(Point3::origin());
-            let radial_intervals = joint_indices.map(|omega_index| {
-                fabric.create_interval(alpha_index, omega_index, face_scale, Role::FaceRadial)
+            let alpha_key = fabric.create_joint(Point3::origin());
+            let radial_intervals = joint_keys.map(|omega_key| {
+                fabric.create_interval(alpha_key, omega_key, face_scale, Role::FaceRadial)
             });
             fabric.create_face(
                 face_def.aliases.clone(),

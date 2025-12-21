@@ -58,7 +58,7 @@ mod tests {
         let ground_tolerance = 10.0 / MM_PER_METER * fabric.scale().max(1.0);
         let ground_count = fabric
             .joints
-            .iter()
+            .values()
             .filter(|j| j.location.y.abs() < ground_tolerance)
             .count();
 
@@ -162,7 +162,7 @@ mod tests {
                 let height_mm = (max_y - min_y) * MM_PER_METER;
                 let radius = executor.fabric.bounding_radius();
                 let ground_tolerance = 10.0 / MM_PER_METER;
-                let ground_count = executor.fabric.joints.iter()
+                let ground_count = executor.fabric.joints.values()
                     .filter(|j| j.location.y.abs() < ground_tolerance)
                     .count();
                 eprintln!(
@@ -353,7 +353,7 @@ mod tests {
         let ground_count = executor
             .fabric
             .joints
-            .iter()
+            .values()
             .filter(|j| j.location.y.abs() < ground_tolerance)
             .count();
 

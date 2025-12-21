@@ -6,7 +6,7 @@
 use crate::camera::Pick;
 use crate::fabric::attachment::{AttachmentPoint, ConnectorSpec};
 use crate::fabric::interval::{Interval, Role};
-use crate::fabric::{Fabric, IntervalEnd, IntervalKey};
+use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointKey};
 use crate::wgpu::{Wgpu, DEFAULT_PRIMITIVE_STATE};
 use crate::IntervalDetails;
 use cgmath::{InnerSpace, Vector3};
@@ -218,7 +218,7 @@ impl AttachmentRenderer {
                     (None, None, None)
                 }
             }
-            Pick::Joint(joint_details) => (None, Some(joint_details.index), None),
+            Pick::Joint(joint_details) => (None, Some(joint_details.key), None),
             _ => (None, None, None),
         };
 
@@ -261,7 +261,7 @@ impl AttachmentRenderer {
         instances: &mut Vec<RingInstance>,
         fabric: &Fabric,
         selected_push_interval: Option<IntervalKey>,
-        selected_joint: Option<usize>,
+        selected_joint: Option<JointKey>,
         original_push_interval: Option<IntervalKey>,
         ring_radius: f32,
         ring_thickness: f32,
@@ -274,8 +274,8 @@ impl AttachmentRenderer {
                 // or is the original interval of a selected pull interval
                 let is_selected = selected_push_interval
                     .map_or(false, |selected_key| selected_key == key)
-                    || selected_joint.map_or(false, |joint_idx| {
-                        interval.alpha_index == joint_idx || interval.omega_index == joint_idx
+                    || selected_joint.map_or(false, |joint_key| {
+                        interval.alpha_key == joint_key || interval.omega_key == joint_key
                     })
                     || original_push_interval.map_or(false, |orig_key| orig_key == key);
 
@@ -284,8 +284,8 @@ impl AttachmentRenderer {
                     interval.attachment_points(&fabric.joints, connector)
                 {
                     // Calculate push axis direction
-                    let alpha_pos = fabric.joints[interval.alpha_index].location;
-                    let omega_pos = fabric.joints[interval.omega_index].location;
+                    let alpha_pos = fabric.joints[interval.alpha_key].location;
+                    let omega_pos = fabric.joints[interval.omega_key].location;
                     let push_dir = (omega_pos - alpha_pos).normalize();
 
                     // Alpha end normal points outward (opposite to push direction)
@@ -401,8 +401,8 @@ impl AttachmentRenderer {
                                 orig_interval.attachment_points(&fabric.joints, connector)
                             {
                                 // Calculate push axis direction
-                                let alpha_pos = fabric.joints[orig_interval.alpha_index].location;
-                                let omega_pos = fabric.joints[orig_interval.omega_index].location;
+                                let alpha_pos = fabric.joints[orig_interval.alpha_key].location;
+                                let omega_pos = fabric.joints[orig_interval.omega_key].location;
                                 let push_dir = (omega_pos - alpha_pos).normalize();
                                 let alpha_normal = -push_dir;
                                 let omega_normal = push_dir;
@@ -449,7 +449,7 @@ impl AttachmentRenderer {
                 }
 
                 // Then handle any push intervals connected to the near joint
-                let joint_index = *near_joint;
+                let joint_key = *near_joint;
 
                 // Find all push intervals connected to this joint
                 for (key, interval) in fabric.intervals.iter() {
@@ -462,21 +462,21 @@ impl AttachmentRenderer {
                             }
                         }
 
-                        if interval.alpha_index == joint_index
-                            || interval.omega_index == joint_index
+                        if interval.alpha_key == joint_key
+                            || interval.omega_key == joint_key
                         {
                             // Get attachment points for this push interval
                             if let Ok((alpha_points, omega_points)) =
                                 interval.attachment_points(&fabric.joints, connector)
                             {
                                 // Calculate push axis direction
-                                let alpha_pos = fabric.joints[interval.alpha_index].location;
-                                let omega_pos = fabric.joints[interval.omega_index].location;
+                                let alpha_pos = fabric.joints[interval.alpha_key].location;
+                                let omega_pos = fabric.joints[interval.omega_key].location;
                                 let push_dir = (omega_pos - alpha_pos).normalize();
 
                                 // Only show attachment points for the end connected to the joint
                                 let (points_to_show, normal) =
-                                    if interval.alpha_index == joint_index {
+                                    if interval.alpha_key == joint_key {
                                         (&alpha_points, -push_dir)
                                     } else {
                                         (&omega_points, push_dir)

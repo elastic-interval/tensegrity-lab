@@ -130,7 +130,7 @@ impl FabricSampler {
 
         // Time to sample?
         if self.frames_since_last_sample >= frame_interval {
-            let positions: Vec<Point3<f32>> = fabric.joints.iter()
+            let positions: Vec<Point3<f32>> = fabric.joints.values()
                 .map(|j| j.location)
                 .collect();
 

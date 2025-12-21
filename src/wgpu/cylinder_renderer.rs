@@ -178,7 +178,7 @@ impl CylinderRenderer {
                 WithPushMap { .. } if !push => continue,
                 _ => {}
             }
-            let (alpha, omega) = (interval.alpha_index, interval.omega_index);
+            let (alpha, omega) = (interval.alpha_key, interval.omega_key);
             let start = fabric.joints[alpha].location;
             let end = fabric.joints[omega].location;
             let appearance = interval.role.appearance();
@@ -213,8 +213,8 @@ impl CylinderRenderer {
                         }
                     }
                 },
-                Pick::Joint(JointDetails { index, .. }) => {
-                    if interval.touches(*index) {
+                Pick::Joint(JointDetails { key, .. }) => {
+                    if interval.touches(*key) {
                         appearance.highlighted_for_role(interval.role)
                     } else {
                         appearance.apply_mode(AppearanceMode::Faded)
@@ -282,22 +282,22 @@ impl CylinderRenderer {
                 let connector = ConnectorSpec::for_scale(fabric.scale());
 
                 // Process both ends of the pull interval
-                let joint_indices = [interval.alpha_index, interval.omega_index];
-                let other_joint_indices = [interval.omega_index, interval.alpha_index];
+                let joint_keys = [interval.alpha_key, interval.omega_key];
+                let other_joint_keys = [interval.omega_key, interval.alpha_key];
                 let modified_points = [&mut modified_start, &mut modified_end];
 
                 // For each end of the pull interval
-                for (i, joint_index) in joint_indices.iter().enumerate() {
-                    let other_joint_pos = fabric.joints[other_joint_indices[i]].location;
+                for (i, joint_key) in joint_keys.iter().enumerate() {
+                    let other_joint_pos = fabric.joints[other_joint_keys[i]].location;
 
                     // Find all push intervals connected to this joint
                     for (_push_key, push_interval) in fabric.intervals.iter() {
                         // Only consider push intervals
                         if push_interval.has_role(Role::Pushing) {
                             // Check if this push interval is connected to the current joint
-                            if push_interval.touches(*joint_index) {
+                            if push_interval.touches(*joint_key) {
                                 // Determine which end of the push interval is connected to the joint
-                                let push_end = if push_interval.alpha_index == *joint_index {
+                                let push_end = if push_interval.alpha_key == *joint_key {
                                     IntervalEnd::Alpha
                                 } else {
                                     IntervalEnd::Omega
@@ -312,8 +312,8 @@ impl CylinderRenderer {
                                         if let Some(pull_conn) = conn {
                                             if pull_conn.pull_interval_key == pull_key {
                                                 // Found the connection - calculate carabiner position
-                                                let push_alpha_pos = fabric.joints[push_interval.alpha_index].location;
-                                                let push_omega_pos = fabric.joints[push_interval.omega_index].location;
+                                                let push_alpha_pos = fabric.joints[push_interval.alpha_key].location;
+                                                let push_omega_pos = fabric.joints[push_interval.omega_key].location;
 
                                                 // Push end position and outward axis
                                                 let (push_end_pos, push_axis) = match push_end {

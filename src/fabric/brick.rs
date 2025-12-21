@@ -6,7 +6,7 @@ use crate::build::dsl::brick_dsl::FaceName::Attach;
 use crate::build::dsl::{FaceAlias, Spin};
 use crate::fabric::face::FaceRotation;
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, FaceKey};
+use crate::fabric::{Fabric, FaceKey, JointKey};
 
 pub enum BaseFace {
     ExistingFace(FaceKey),
@@ -41,7 +41,7 @@ impl Fabric {
             }
         };
         let brick = baked_brick.clone();
-        let joints: Vec<usize> = brick
+        let joint_keys: Vec<JointKey> = brick
             .joints
             .into_iter()
             .map(|BakedJoint { location, .. }| self.create_joint(matrix.transform_point(location)))
@@ -53,11 +53,11 @@ impl Fabric {
             strain,
         } in brick.intervals
         {
-            let (alpha_index, omega_index) = (joints[alpha_index], joints[omega_index]);
-            let ideal = self.ideal(alpha_index, omega_index, strain);
+            let (alpha_key, omega_key) = (joint_keys[alpha_index], joint_keys[omega_index]);
+            let ideal = self.ideal(alpha_key, omega_key, strain);
             let role =
                 Role::from_label(&material_name).expect(&format!("Material: {}", material_name));
-            self.create_interval(alpha_index, omega_index, ideal, role);
+            self.create_interval(alpha_key, omega_key, ideal, role);
         }
         let brick_faces = brick
             .faces
@@ -85,15 +85,15 @@ impl Fabric {
                     }
 
                     let midpoint = brick_joints
-                        .map(|index| self.joints[joints[index]].location.to_vec())
+                        .map(|index| self.joints[joint_keys[index]].location.to_vec())
                         .into_iter()
                         .sum::<Vector3<f32>>()
                         / 3.0;
-                    let alpha_index = self.create_joint(Point3::from_vec(midpoint));
+                    let alpha_key = self.create_joint(Point3::from_vec(midpoint));
                     let radial_intervals = brick_joints.map(|omega| {
-                        let omega_index = joints[omega];
-                        let ideal = self.ideal(alpha_index, omega_index, BakedBrick::TARGET_FACE_STRAIN);
-                        self.create_interval(alpha_index, omega_index, ideal, Role::FaceRadial)
+                        let omega_key = joint_keys[omega];
+                        let ideal = self.ideal(alpha_key, omega_key, BakedBrick::TARGET_FACE_STRAIN);
+                        self.create_interval(alpha_key, omega_key, ideal, Role::FaceRadial)
                     });
                     Some(self.create_face(aliases_for_role, base_scale * scale, spin, radial_intervals))
                 },

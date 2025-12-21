@@ -16,6 +16,12 @@ use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Rotation, Transform, Vector3};
 use slotmap::{new_key_type, SlotMap};
 use std::fmt::Debug;
+use std::ops::Deref;
+
+new_key_type! {
+    /// Key for joints in the fabric's SlotMap
+    pub struct JointKey;
+}
 
 new_key_type! {
     /// Key for intervals in the fabric's SlotMap
@@ -48,6 +54,28 @@ pub mod physics_test;
 pub type Location = Point3<f32>;
 pub type Velocity = Vector3<f32>;
 pub type Force = Vector3<f32>;
+
+// Type aliases for SlotMap containers
+pub type Joints = SlotMap<JointKey, Joint>;
+pub type Intervals = SlotMap<IntervalKey, Interval>;
+pub type Faces = SlotMap<FaceKey, Face>;
+
+/// A numerical identifier for joints, used for display (e.g., "J0", "J1")
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct JointId(pub usize);
+
+impl std::fmt::Display for JointId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "J{}", self.0)
+    }
+}
+
+impl Deref for JointId {
+    type Target = usize;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 /// Statistics accumulated during iteration with zero-cost pass-through
 #[derive(Clone, Debug, Default)]
@@ -151,7 +179,9 @@ pub struct Fabric {
     pub name: String,
     pub age: Age,
     pub progress: Progress,
-    pub joints: Vec<Joint>,
+    pub joints: SlotMap<JointKey, Joint>,
+    /// Maps JointId (numerical index) to JointKey for DSL resolution
+    pub joint_by_id: Vec<JointKey>,
     pub intervals: SlotMap<IntervalKey, Interval>,
     pub faces: SlotMap<FaceKey, Face>,
     pub frozen: bool,
@@ -166,7 +196,8 @@ impl Fabric {
             name,
             age: Age::default(),
             progress: Progress::default(),
-            joints: Vec::new(),
+            joints: SlotMap::with_key(),
+            joint_by_id: Vec::new(),
             intervals: SlotMap::with_key(),
             faces: SlotMap::with_key(),
             frozen: false,
@@ -187,7 +218,7 @@ impl Fabric {
     }
 
     pub fn apply_matrix4(&mut self, matrix: Matrix4<f32>) {
-        for joint in &mut self.joints {
+        for joint in self.joints.values_mut() {
             joint.location = matrix.transform_point(joint.location);
             joint.velocity = matrix.transform_vector(joint.velocity);
         }
@@ -196,7 +227,7 @@ impl Fabric {
     /// Calculate the translation needed to centralize the fabric
     pub fn centralize_translation(&self, altitude: Option<f32>) -> Vector3<f32> {
         let mut midpoint: Vector3<f32> = zero();
-        for joint in self.joints.iter() {
+        for joint in self.joints.values() {
             midpoint += joint.location.to_vec();
         }
         midpoint /= self.joints.len() as f32;
@@ -208,8 +239,8 @@ impl Fabric {
         if let Some(altitude) = altitude {
             let min_y = self
                 .joints
-                .iter()
-                .map(|Joint { location, .. }| location.y)
+                .values()
+                .map(|joint| joint.location.y)
                 .min_by(|a, b| a.partial_cmp(b).unwrap());
             if let Some(min_y) = min_y {
                 let altitude_adjustment = min_y - altitude;
@@ -222,7 +253,7 @@ impl Fabric {
 
     /// Apply a translation to all joints
     pub fn apply_translation(&mut self, translation: Vector3<f32>) {
-        for joint in self.joints.iter_mut() {
+        for joint in self.joints.values_mut() {
             joint.location += translation;
         }
     }
@@ -239,7 +270,7 @@ impl Fabric {
         self.scale = s;
         let mass_scale = s.powf(3.5); // scale^3.5: volume plus slight reduction for small structures
         // Scale all joint positions, velocities, and mass
-        for joint in self.joints.iter_mut() {
+        for joint in self.joints.values_mut() {
             joint.location.x *= s;
             joint.location.y *= s;
             joint.location.z *= s;
@@ -293,7 +324,7 @@ impl Fabric {
     /// Zero out all joint velocities and forces
     /// Useful when freezing the fabric to prevent accumulated velocity artifacts
     pub fn zero_velocities(&mut self) {
-        for joint in self.joints.iter_mut() {
+        for joint in self.joints.values_mut() {
             joint.velocity = zero();
             joint.force = zero();
         }
@@ -307,7 +338,7 @@ impl Fabric {
                 };
             }
         }
-        for joint in self.joints.iter_mut() {
+        for joint in self.joints.values_mut() {
             joint.force = zero();
             joint.velocity = zero();
         }
@@ -360,17 +391,12 @@ impl Fabric {
     }
 
     pub fn max_velocity(&self) -> f32 {
-        let index = self
-            .joints
-            .iter()
-            .enumerate()
-            .map(|(a, b)| (a, b.velocity.magnitude2()))
-            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
-            .map(|(index, _)| index);
-        match index {
-            None => 0.0,
-            Some(index) => self.joints[index].velocity.magnitude(),
-        }
+        self.joints
+            .values()
+            .map(|joint| joint.velocity.magnitude2())
+            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|speed_sq| speed_sq.sqrt())
+            .unwrap_or(0.0)
     }
 
     pub fn failed_intervals(&self, strain_limit: f32) -> Vec<IntervalKey> {
@@ -392,7 +418,7 @@ impl Fabric {
         }
         self.stats.reset();
         let ambient_mass = self.ambient_mass();
-        for joint in &mut self.joints {
+        for joint in self.joints.values_mut() {
             joint.reset_with_mass(ambient_mass);
         }
         for interval in self.intervals.values_mut() {
@@ -410,7 +436,7 @@ impl Fabric {
         const MAX_SPEED_SQUARED: f32 = 1000.0 * 1000.0; // (m per tick)²
         let mut max_speed_squared = 0.0;
 
-        for joint in self.joints.iter_mut() {
+        for joint in self.joints.values_mut() {
             joint.iterate(physics);
             let speed_squared = joint.velocity.magnitude2();
             let mass = *joint.accumulated_mass;
@@ -453,7 +479,7 @@ impl Fabric {
 
     pub fn kinetic_energy(&self) -> f32 {
         self.joints
-            .iter()
+            .values()
             .map(|joint| {
                 let speed_squared = joint.velocity.magnitude2();
                 0.5 * *joint.accumulated_mass * speed_squared
@@ -463,7 +489,7 @@ impl Fabric {
 
     pub fn midpoint(&self) -> Point3<f32> {
         let mut midpoint: Point3<f32> = Point3::origin();
-        for joint in &self.joints {
+        for joint in self.joints.values() {
             midpoint += joint.location.to_vec();
         }
         let denominator = if self.joints.is_empty() {
@@ -488,7 +514,7 @@ impl Fabric {
 
         let max_distance_squared = self
             .joints
-            .iter()
+            .values()
             .map(|joint| joint.location.distance2(midpoint))
             .fold(0.0_f32, |max, dist_sq| max.max(dist_sq));
 
@@ -505,7 +531,7 @@ impl Fabric {
     /// Returns (min_y, max_y)
     pub fn altitude_range(&self) -> (f32, f32) {
         self.joints
-            .iter()
+            .values()
             .map(|joint| joint.location.y)
             .fold((f32::INFINITY, f32::NEG_INFINITY), |(min, max), y| {
                 (min.min(y), max.max(y))
@@ -513,10 +539,10 @@ impl Fabric {
     }
 
     pub fn check_orphan_joints(&self) {
-        for joint in 0..self.joints.len() {
+        for (joint_key, _) in self.joints.iter() {
             let touching = self
                 .interval_values()
-                .any(|interval| interval.touches(joint));
+                .any(|interval| interval.touches(joint_key));
             if !touching {
                 panic!("Found an orphan joint!");
             }
@@ -581,8 +607,8 @@ impl Fabric {
 
         // Add mass from each interval
         for interval in self.intervals.values() {
-            let alpha = &self.joints[interval.alpha_index];
-            let omega = &self.joints[interval.omega_index];
+            let alpha = &self.joints[interval.alpha_key];
+            let omega = &self.joints[interval.omega_key];
             let real_length = Meters((&omega.location - &alpha.location).magnitude());
             let interval_mass = interval.material.linear_density(physics) * real_length;
             total_mass += interval_mass;

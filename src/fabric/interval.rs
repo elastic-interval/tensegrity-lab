@@ -13,7 +13,7 @@ use crate::fabric::interval::Span::*;
 use crate::fabric::joint::Joint;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
-use crate::fabric::{Fabric, IntervalEnd, IntervalKey, Progress};
+use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointId, JointKey, Joints, Progress};
 use crate::units::{Meters, NewtonsPerMeter, Percent};
 use crate::Appearance;
 use cgmath::num_traits::zero;
@@ -36,8 +36,8 @@ impl Fabric {
                 return; // Not a push interval, nothing to do
             }
 
-            let push_alpha = push_interval.alpha_index;
-            let push_omega = push_interval.omega_index;
+            let push_alpha = push_interval.alpha_key;
+            let push_omega = push_interval.omega_key;
 
             // Find all pull intervals connected to this push interval
             for (key, interval) in self.intervals.iter() {
@@ -47,22 +47,22 @@ impl Fabric {
                 }
 
                 // Check if this pull interval is connected to the push interval
-                if interval.alpha_index == push_alpha
-                    || interval.alpha_index == push_omega
-                    || interval.omega_index == push_alpha
-                    || interval.omega_index == push_omega
+                if interval.alpha_key == push_alpha
+                    || interval.alpha_key == push_omega
+                    || interval.omega_key == push_alpha
+                    || interval.omega_key == push_omega
                 {
                     connected_pulls.push((
                         key,
-                        interval.alpha_index,
-                        interval.omega_index,
+                        interval.alpha_key,
+                        interval.omega_key,
                     ));
 
                     // Collect pull interval data for moment calculation
                     pull_data.push(PullIntervalData {
                         key,
-                        alpha_joint: interval.alpha_index,
-                        omega_joint: interval.omega_index,
+                        alpha_key: interval.alpha_key,
+                        omega_key: interval.omega_key,
                         strain: interval.strain,
                         unit: interval.unit,
                     });
@@ -108,39 +108,52 @@ impl Fabric {
     /// Create an interval with a specified role
     pub fn create_interval(
         &mut self,
-        alpha_index: usize,
-        omega_index: usize,
+        alpha_key: JointKey,
+        omega_key: JointKey,
         ideal: f32,
         role: Role,
     ) -> IntervalKey {
-        self.create_interval_with_span(alpha_index, omega_index, role, Approaching {
-            start_length: self.distance(alpha_index, omega_index),
+        self.create_interval_with_span(alpha_key, omega_key, role, Approaching {
+            start_length: self.distance(alpha_key, omega_key),
             target_length: ideal,
         })
+    }
+
+    /// Create an interval by JointId (creation order indices)
+    pub fn create_interval_by_id(
+        &mut self,
+        alpha_id: JointId,
+        omega_id: JointId,
+        ideal: f32,
+        role: Role,
+    ) -> IntervalKey {
+        let alpha_key = self.joint_by_id[*alpha_id];
+        let omega_key = self.joint_by_id[*omega_id];
+        self.create_interval(alpha_key, omega_key, ideal, role)
     }
 
     /// Create an interval at its current slack length (Fixed span)
     /// Use this for algorithmic fabrics that will be pretensed
     pub fn create_interval_fixed(
         &mut self,
-        alpha_index: usize,
-        omega_index: usize,
+        alpha_key: JointKey,
+        omega_key: JointKey,
         role: Role,
     ) -> IntervalKey {
-        let length = self.distance(alpha_index, omega_index);
-        self.create_interval_with_span(alpha_index, omega_index, role, Fixed { length })
+        let length = self.distance(alpha_key, omega_key);
+        self.create_interval_with_span(alpha_key, omega_key, role, Fixed { length })
     }
 
     fn create_interval_with_span(
         &mut self,
-        alpha_index: usize,
-        omega_index: usize,
+        alpha_key: JointKey,
+        omega_key: JointKey,
         role: Role,
         span: Span,
     ) -> IntervalKey {
         let interval = Interval::new(
-            alpha_index,
-            omega_index,
+            alpha_key,
+            omega_key,
             role,
             span,
         );
@@ -155,7 +168,7 @@ impl Fabric {
                 .iter()
                 .filter_map(|(k, interval)| {
                     if interval.has_role(Pushing)
-                        && (interval.touches(alpha_index) || interval.touches(omega_index))
+                        && (interval.touches(alpha_key) || interval.touches(omega_key))
                     {
                         Some(k)
                     } else {
@@ -189,13 +202,13 @@ impl Fabric {
     pub fn interval_snapshot_result(&self, key: IntervalKey) -> Result<IntervalSnapshot, FabricError> {
         let interval = self.interval_result(key)?;
 
-        // Make sure joint indices are valid
-        if interval.alpha_index >= self.joints.len() || interval.omega_index >= self.joints.len() {
-            return Err(FabricError::InvalidJointIndices);
-        }
-
-        let alpha = self.joints[interval.alpha_index].clone();
-        let omega = self.joints[interval.omega_index].clone();
+        // Get joints by key - SlotMap returns None if key is invalid
+        let alpha = self.joints.get(interval.alpha_key)
+            .ok_or(FabricError::InvalidJointIndices)?
+            .clone();
+        let omega = self.joints.get(interval.omega_key)
+            .ok_or(FabricError::InvalidJointIndices)?
+            .clone();
 
         Ok(IntervalSnapshot {
             interval: interval.clone(),
@@ -216,15 +229,15 @@ impl Fabric {
             .expect("Removing nonexistent interval")
     }
 
-    pub fn find_push_at(&self, index: usize) -> Option<IntervalKey> {
+    pub fn find_push_at(&self, joint_key: JointKey) -> Option<IntervalKey> {
         self.intervals
             .iter()
             .find_map(|(key, interval)| {
-                (interval.is_push_interval() && interval.touches(index)).then_some(key)
+                (interval.is_push_interval() && interval.touches(joint_key)).then_some(key)
             })
     }
 
-    pub fn joining(&self, pair: (usize, usize)) -> Option<IntervalKey> {
+    pub fn joining(&self, pair: (JointKey, JointKey)) -> Option<IntervalKey> {
         self.intervals
             .iter()
             .find_map(|(key, interval)| {
@@ -409,8 +422,8 @@ impl Role {
 
 #[derive(Clone, Debug)]
 pub struct Interval {
-    pub alpha_index: usize,
-    pub omega_index: usize,
+    pub alpha_key: JointKey,
+    pub omega_key: JointKey,
     pub role: Role,
     pub material: Material,
     pub span: Span,
@@ -426,13 +439,13 @@ impl Interval {
         self.role.is(role)
     }
 
-    pub fn new(alpha_index: usize, omega_index: usize, role: Role, span: Span) -> Interval {
+    pub fn new(alpha_key: JointKey, omega_key: JointKey, role: Role, span: Span) -> Interval {
         let is_push = role == Pushing;
         let connections = is_push.then_some(Box::new(PullConnections::new()));
 
         Interval {
-            alpha_index,
-            omega_index,
+            alpha_key,
+            omega_key,
             role,
             material: role.material(),
             span,
@@ -470,8 +483,8 @@ impl Interval {
     /// This extracts existing connections and reassigns them to optimal attachment points
     pub fn reorder_connections(
         &mut self,
-        joints: &[Joint],
-        pull_intervals: &[(IntervalKey, usize, usize)],
+        joints: &Joints,
+        pull_intervals: &[(IntervalKey, JointKey, JointKey)],
         pull_data: &[PullIntervalData],
         connector: &ConnectorSpec,
     ) -> Result<(), FabricError> {
@@ -483,19 +496,16 @@ impl Interval {
         // Get attachment points
         let attachment_points = self.attachment_points(joints, connector)?;
 
-        // Create a vector of joint positions
-        let joint_positions: Vec<Point3<f32>> = joints.iter().map(|joint| joint.location).collect();
-
         // Reorder connections
         if let Some(conn) = &mut self.connections {
             conn.reorder_connections(
                 &attachment_points.0,
                 &attachment_points.1,
-                &joint_positions,
+                joints,
                 pull_intervals,
                 pull_data,
-                self.alpha_index,
-                self.omega_index,
+                self.alpha_key,
+                self.omega_key,
             );
         }
 
@@ -507,7 +517,7 @@ impl Interval {
     /// Returns an error if this is not a push interval
     pub fn attachment_points(
         &self,
-        joints: &[Joint],
+        joints: &Joints,
         connector: &ConnectorSpec,
     ) -> Result<
         (
@@ -535,7 +545,7 @@ impl Interval {
     /// Returns an error if this is not a push interval or if the index is out of bounds
     pub fn get_attachment_point(
         &self,
-        joints: &[Joint],
+        joints: &Joints,
         end: IntervalEnd,
         index: usize,
         connector: &ConnectorSpec,
@@ -569,7 +579,7 @@ impl Interval {
     /// Returns an error if this is not a push interval
     pub fn nearest_attachment_point(
         &self,
-        joints: &[Joint],
+        joints: &Joints,
         position: Point3<f32>,
         connector: &ConnectorSpec,
     ) -> Result<(IntervalEnd, AttachmentPoint), FabricError> {
@@ -593,7 +603,7 @@ impl Interval {
     /// This would be the point with the same index but at the opposite end
     pub fn opposite_attachment_point(
         &self,
-        joints: &[Joint],
+        joints: &Joints,
         end: IntervalEnd,
         index: usize,
         connector: &ConnectorSpec,
@@ -610,53 +620,40 @@ impl Interval {
         Ok(self.get_point_from_end(points, opposite_end, index))
     }
 
-    pub fn key(&self) -> (usize, usize) {
-        if self.alpha_index < self.omega_index {
-            (self.alpha_index, self.omega_index)
+    pub fn key(&self) -> (JointKey, JointKey) {
+        if self.alpha_key < self.omega_key {
+            (self.alpha_key, self.omega_key)
         } else {
-            (self.omega_index, self.alpha_index)
+            (self.omega_key, self.alpha_key)
         }
     }
 
-    pub fn joint_removed(&mut self, index: usize) {
-        // Helper function to update an index if needed
-        let update_index = |current: &mut usize| {
-            if *current > index {
-                *current -= 1;
-            }
-        };
-
-        // Update both alpha and omega indices
-        update_index(&mut self.alpha_index);
-        update_index(&mut self.omega_index);
-    }
-
-    /// Get the joint index for a specific end of the interval
-    pub fn end_index(&self, end: IntervalEnd) -> usize {
+    /// Get the joint key for a specific end of the interval
+    pub fn end_key(&self, end: IntervalEnd) -> JointKey {
         match end {
-            IntervalEnd::Alpha => self.alpha_index,
-            IntervalEnd::Omega => self.omega_index,
+            IntervalEnd::Alpha => self.alpha_key,
+            IntervalEnd::Omega => self.omega_key,
         }
     }
 
     /// Get the joint location for a specific end of the interval
-    pub fn end_location<'a>(&self, joints: &'a [Joint], end: IntervalEnd) -> Point3<f32> {
-        joints[self.end_index(end)].location
+    pub fn end_location(&self, joints: &Joints, end: IntervalEnd) -> Point3<f32> {
+        joints[self.end_key(end)].location
     }
 
-    pub fn locations<'a>(&self, joints: &'a [Joint]) -> (Point3<f32>, Point3<f32>) {
+    pub fn locations(&self, joints: &Joints) -> (Point3<f32>, Point3<f32>) {
         (
             self.end_location(joints, IntervalEnd::Alpha),
             self.end_location(joints, IntervalEnd::Omega),
         )
     }
 
-    pub fn midpoint(&self, joints: &[Joint]) -> Point3<f32> {
+    pub fn midpoint(&self, joints: &Joints) -> Point3<f32> {
         let (alpha, omega) = self.locations(joints);
         Point3::from_vec((alpha.to_vec() + omega.to_vec()) / 2f32)
     }
 
-    pub fn fast_length(&mut self, joints: &[Joint]) -> f32 {
+    pub fn fast_length(&mut self, joints: &Joints) -> f32 {
         let (alpha_location, omega_location) = self.locations(joints);
         self.unit = omega_location - alpha_location;
         let magnitude_squared = self.unit.magnitude2();
@@ -668,7 +665,7 @@ impl Interval {
         1.0 / inverse_square_root
     }
 
-    pub fn length(&self, joints: &[Joint]) -> f32 {
+    pub fn length(&self, joints: &Joints) -> f32 {
         let (alpha_location, omega_location) = self.locations(joints);
         let tween = omega_location - alpha_location;
         let magnitude_squared = tween.magnitude2();
@@ -696,7 +693,7 @@ impl Interval {
     /// All lengths (ideal, real_length) are now in meters directly.
     pub fn iterate(
         &mut self,
-        joints: &mut [Joint],
+        joints: &mut Joints,
         progress: &Progress,
         physics: &Physics,
     ) {
@@ -751,65 +748,65 @@ impl Interval {
         let force_vector: Vector3<f32> = self.unit * *force / 2.0;
 
         // Apply forces to both ends
-        let alpha_idx = self.end_index(IntervalEnd::Alpha);
-        let omega_idx = self.end_index(IntervalEnd::Omega);
-        joints[alpha_idx].force += force_vector;
-        joints[omega_idx].force -= force_vector;
+        let alpha_key = self.end_key(IntervalEnd::Alpha);
+        let omega_key = self.end_key(IntervalEnd::Omega);
+        joints[alpha_key].force += force_vector;
+        joints[omega_key].force -= force_vector;
 
         // Mass from linear density × length
         let interval_mass = self.material.linear_density(physics) * actual_length;
         let half_mass = interval_mass / 2.0;
-        joints[alpha_idx].accumulated_mass += half_mass;
-        joints[omega_idx].accumulated_mass += half_mass;
+        joints[alpha_key].accumulated_mass += half_mass;
+        joints[omega_key].accumulated_mass += half_mass;
     }
 
     /// Check if this interval touches a specific joint
-    pub fn touches(&self, joint: usize) -> bool {
-        self.end_index(IntervalEnd::Alpha) == joint || self.end_index(IntervalEnd::Omega) == joint
+    pub fn touches(&self, joint_key: JointKey) -> bool {
+        self.end_key(IntervalEnd::Alpha) == joint_key || self.end_key(IntervalEnd::Omega) == joint_key
     }
 
     /// Check if a specific end of this interval touches a joint
-    pub fn end_touches(&self, end: IntervalEnd, joint: usize) -> bool {
-        self.end_index(end) == joint
+    pub fn end_touches(&self, end: IntervalEnd, joint_key: JointKey) -> bool {
+        self.end_key(end) == joint_key
     }
 
-    /// Get the end of the interval that corresponds to a given joint index
-    pub fn joint_end(&self, joint_index: usize) -> IntervalEnd {
-        if self.end_index(IntervalEnd::Alpha) == joint_index {
+    /// Get the end of the interval that corresponds to a given joint key
+    pub fn joint_end(&self, joint_key: JointKey) -> IntervalEnd {
+        if self.end_key(IntervalEnd::Alpha) == joint_key {
             IntervalEnd::Alpha
-        } else if self.end_index(IntervalEnd::Omega) == joint_index {
+        } else if self.end_key(IntervalEnd::Omega) == joint_key {
             IntervalEnd::Omega
         } else {
-            panic!("Joint index {} is not part of this interval", joint_index)
+            panic!("Joint key {:?} is not part of this interval", joint_key)
         }
     }
 
     /// Get the ray direction from a joint
-    pub fn ray_from(&self, joint_index: usize) -> Vector3<f32> {
-        match self.joint_end(joint_index) {
+    pub fn ray_from(&self, joint_key: JointKey) -> Vector3<f32> {
+        match self.joint_end(joint_key) {
             IntervalEnd::Alpha => self.unit,
             IntervalEnd::Omega => self.unit.mul(-1.0),
         }
     }
 
-    /// Get the index of the joint at the opposite end
-    pub fn other_joint(&self, joint_index: usize) -> usize {
-        let end = self.joint_end(joint_index);
-        self.end_index(end.opposite())
+    /// Get the key of the joint at the opposite end
+    pub fn other_joint(&self, joint_key: JointKey) -> JointKey {
+        let end = self.joint_end(joint_key);
+        self.end_key(end.opposite())
     }
 
     pub fn joint_with(
         &self,
         Interval {
-            alpha_index,
-            omega_index,
+            alpha_key,
+            omega_key,
             ..
         }: &Interval,
-    ) -> Option<usize> {
-        if self.alpha_index == *alpha_index || self.alpha_index == *omega_index {
-            Some(self.alpha_index)
-        } else if self.omega_index == *alpha_index || self.omega_index == *omega_index {
-            Some(self.omega_index)
+    ) -> Option<JointKey> {
+        if self.alpha_key == *alpha_key || self.alpha_key == *omega_key {
+            Some(self.alpha_key)
+        } else if self.omega_key == *alpha_key || self.omega_key == *omega_key {
+            Some(self.omega_key)
         } else {
             None
         }
@@ -823,10 +820,10 @@ pub struct IntervalSnapshot {
 }
 
 impl IntervalSnapshot {
-    pub fn end_index(&self, end: &IntervalEnd) -> usize {
+    pub fn end_key(&self, end: &IntervalEnd) -> JointKey {
         match end {
-            IntervalEnd::Alpha => self.interval.alpha_index,
-            IntervalEnd::Omega => self.interval.omega_index,
+            IntervalEnd::Alpha => self.interval.alpha_key,
+            IntervalEnd::Omega => self.interval.omega_key,
         }
     }
 }

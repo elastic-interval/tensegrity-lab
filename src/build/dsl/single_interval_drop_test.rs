@@ -50,8 +50,10 @@ mod tests {
             let time_ms = frame * 50;
 
             // Calculate average altitude and velocity of the two joints
-            let avg_altitude_m = (fabric.joints[0].location.y + fabric.joints[1].location.y) / 2.0;
-            let velocity_m_s = (fabric.joints[0].velocity.y + fabric.joints[1].velocity.y) / 2.0;
+            let joint0 = &fabric.joints[fabric.joint_by_id[0]];
+            let joint1 = &fabric.joints[fabric.joint_by_id[1]];
+            let avg_altitude_m = (joint0.location.y + joint1.location.y) / 2.0;
+            let velocity_m_s = (joint0.velocity.y + joint1.velocity.y) / 2.0;
 
             // Calculate acceleration from velocity change
             let delta_v = velocity_m_s - last_velocity;

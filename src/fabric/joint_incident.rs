@@ -1,21 +1,24 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use cgmath::Point3;
 
 use crate::fabric::interval::{Interval, Role};
-use crate::fabric::{Fabric, IntervalKey};
+use crate::fabric::{Fabric, IntervalKey, JointKey};
 
 impl Fabric {
-    pub fn joint_incidents(&self) -> Vec<JointIncident> {
-        let mut incidents: Vec<_> = self
+    pub fn joint_incidents(&self) -> HashMap<JointKey, JointIncident> {
+        let mut incidents: HashMap<JointKey, JointIncident> = self
             .joints
             .iter()
-            .enumerate()
-            .map(|(index, joint)| JointIncident::new(index, joint.location))
+            .map(|(key, joint)| (key, JointIncident::new(key, joint.location)))
             .collect();
         for (key, interval) in self.intervals.iter() {
-            incidents[interval.alpha_index].add_interval(key, interval);
-            incidents[interval.omega_index].add_interval(key, interval);
+            if let Some(incident) = incidents.get_mut(&interval.alpha_key) {
+                incident.add_interval(key, interval);
+            }
+            if let Some(incident) = incidents.get_mut(&interval.omega_key) {
+                incident.add_interval(key, interval);
+            }
         }
         incidents
     }
@@ -23,15 +26,15 @@ impl Fabric {
 
 #[derive(Debug, Clone)]
 pub struct JointIncident {
-    pub index: usize,
+    pub key: JointKey,
     pub location: Point3<f32>,
     intervals: Vec<(IntervalKey, Interval)>,
 }
 
 impl JointIncident {
-    pub fn new(index: usize, location: Point3<f32>) -> Self {
+    pub fn new(key: JointKey, location: Point3<f32>) -> Self {
         Self {
-            index,
+            key,
             location,
             intervals: vec![],
         }
@@ -70,18 +73,18 @@ impl JointIncident {
             .collect()
     }
 
-    pub fn adjacent_joints(&self) -> HashSet<usize> {
+    pub fn adjacent_joints(&self) -> HashSet<JointKey> {
         self.intervals
             .iter()
             .filter(|(_, interval)| interval.role.is_pull_like())
-            .map(|(_, interval)| interval.other_joint(self.index))
+            .map(|(_, interval)| interval.other_joint(self.key))
             .collect()
     }
 
-    pub fn interval_to(&self, joint_index: usize) -> Option<(IntervalKey, Interval)> {
+    pub fn interval_to(&self, joint_key: JointKey) -> Option<(IntervalKey, Interval)> {
         self.intervals
             .iter()
-            .find(|(_, interval)| interval.other_joint(self.index) == joint_index)
+            .find(|(_, interval)| interval.other_joint(self.key) == joint_key)
             .map(|(id, interval)| (*id, interval.clone()))
     }
 
@@ -92,21 +95,21 @@ impl JointIncident {
             .collect()
     }
 
-    pub fn across_push(&self) -> Option<usize> {
-        self.push().map(|(_, push)| push.other_joint(self.index))
+    pub fn across_push(&self) -> Option<JointKey> {
+        self.push().map(|(_, push)| push.other_joint(self.key))
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Path {
-    pub(crate) joint_indices: Vec<usize>,
+    pub(crate) joint_keys: Vec<JointKey>,
     intervals: Vec<Interval>,
 }
 
 impl Path {
-    pub(crate) fn new(joint_index: usize, interval: Interval) -> Self {
+    pub(crate) fn new(joint_key: JointKey, interval: Interval) -> Self {
         Self {
-            joint_indices: vec![joint_index],
+            joint_keys: vec![joint_key],
             intervals: vec![interval],
         }
     }
@@ -117,7 +120,7 @@ impl Path {
         }
         let last_joint = self.last_interval().joint_with(&interval)?;
         let mut path = self.clone();
-        path.joint_indices.push(last_joint);
+        path.joint_keys.push(last_joint);
         path.intervals.push(interval);
         Some(path)
     }
@@ -134,20 +137,20 @@ impl Path {
         self.intervals.last().unwrap()
     }
 
-    fn first_joint(&self) -> usize {
-        self.joint_indices[0]
+    fn first_joint(&self) -> JointKey {
+        self.joint_keys[0]
     }
 
-    pub(crate) fn last_joint(&self) -> usize {
+    pub(crate) fn last_joint(&self) -> JointKey {
         self.last_interval()
-            .other_joint(self.joint_indices[self.joint_indices.len() - 1])
+            .other_joint(self.joint_keys[self.joint_keys.len() - 1])
     }
 
-    fn _hexagon_key(&self) -> Option<[usize; 6]> {
-        if self.joint_indices.len() != 6 || !self.is_cycle() {
+    fn _hexagon_key(&self) -> Option<[JointKey; 6]> {
+        if self.joint_keys.len() != 6 || !self.is_cycle() {
             return None;
         }
-        let mut key: [usize; 6] = self.joint_indices.clone().try_into().unwrap();
+        let mut key: [JointKey; 6] = self.joint_keys.clone().try_into().unwrap();
         key.sort();
         Some(key)
     }

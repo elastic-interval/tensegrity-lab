@@ -2,7 +2,7 @@ use cgmath::{EuclideanSpace, InnerSpace, Point3, Quaternion, Rad, Rotation3, Vec
 
 use crate::build::algo::sphere::{SphereScaffold, Vertex};
 use crate::fabric::interval::Role;
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, JointKey};
 
 const TWIST_ANGLE: f32 = 0.52;
 
@@ -32,18 +32,16 @@ enum Cell {
     PushInterval {
         alpha_vertex: usize,
         omega_vertex: usize,
-        alpha: usize,
-        omega: usize,
+        alpha: JointKey,
+        omega: JointKey,
         length: f32,
     },
 }
 
 #[derive(Debug)]
 struct Spoke {
-    _near_vertex: usize,
     far_vertex: usize,
-    near_joint: usize,
-    _far_joint: usize,
+    near_joint: JointKey,
     length: f32,
 }
 
@@ -111,19 +109,17 @@ pub fn generate_sphere(frequency: usize, radius: f32) -> Fabric {
                             if let PushInterval {
                                 alpha_vertex,
                                 omega_vertex,
-                                alpha,
                                 omega,
                                 length,
+                                ..
                             } = omega_vertex_adjacent
                             {
                                 if *sought_alpha == *alpha_vertex && *omega_vertex == *sought_omega
                                 {
                                     // found opposite
                                     return Spoke {
-                                        _near_vertex: *omega_vertex,
                                         far_vertex: *alpha_vertex,
                                         near_joint: *omega,
-                                        _far_joint: *alpha,
                                         length: *length,
                                     };
                                 }
@@ -132,16 +128,13 @@ pub fn generate_sphere(frequency: usize, radius: f32) -> Fabric {
                         panic!("Adjacent not found!");
                     }
                     PushInterval {
-                        alpha_vertex,
                         omega_vertex,
                         alpha,
-                        omega,
                         length,
+                        ..
                     } => Spoke {
-                        _near_vertex: *alpha_vertex,
                         far_vertex: *omega_vertex,
                         near_joint: *alpha,
-                        _far_joint: *omega,
                         length: *length,
                     },
                 })
@@ -227,12 +220,11 @@ mod tests {
         let fabric = generate_sphere(1, 10.0);
 
         // All intervals should reference valid joints
-        let joint_count = fabric.joints.len();
         for interval in fabric.intervals.values() {
-            assert!(interval.alpha_index < joint_count,
-                "Alpha joint {} should be < {}", interval.alpha_index, joint_count);
-            assert!(interval.omega_index < joint_count,
-                "Omega joint {} should be < {}", interval.omega_index, joint_count);
+            assert!(fabric.joints.get(interval.alpha_key).is_some(),
+                "Alpha joint key should be valid");
+            assert!(fabric.joints.get(interval.omega_key).is_some(),
+                "Omega joint key should be valid");
             assert!(interval.ideal() > 0.0, "Interval should have positive ideal length");
         }
     }

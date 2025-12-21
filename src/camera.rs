@@ -10,6 +10,7 @@ use crate::fabric::joint_incident::JointIncident;
 use crate::fabric::Fabric;
 use crate::fabric::IntervalEnd;
 use crate::fabric::IntervalKey;
+use crate::fabric::JointKey;
 use crate::fabric::attachment::ConnectorSpec;
 use crate::units::{Degrees, Meters};
 use crate::{ControlState, IntervalDetails, JointDetails, PickIntent, PointerChange, Radio, Role};
@@ -184,16 +185,17 @@ impl Camera {
         if let Some(best_incident) = self.best_joint(ray, fabric) {
             match self.current_pick {
                 Pick::Nothing => Pick::Joint(JointDetails {
-                    index: best_incident.index,
-                    location: fabric.location(best_incident.index),
+                    key: best_incident.key,
+                    id: fabric.joints[best_incident.key].id,
+                    location: fabric.location(best_incident.key),
                     selected_push: best_incident.push().map(|(key, _)| key),
                 }),
                 Pick::Joint(details) => {
-                    let (key, interval) = best_incident.interval_to(details.index).unwrap();
+                    let (key, interval) = best_incident.interval_to(details.key).unwrap();
                     Pick::Interval(self.create_interval_details(
                         key,
                         interval,
-                        details.index,
+                        details.key,
                         fabric,
                         details.selected_push,
                     ))
@@ -220,8 +222,10 @@ impl Camera {
             Pick::Interval(old) => {
                 let mut new = old.clone();
                 new.near_joint = old.far_joint;
+                new.near_joint_id = old.far_joint_id;
                 new.near_slot = old.far_slot;
                 new.far_joint = old.near_joint;
+                new.far_joint_id = old.near_joint_id;
                 new.far_slot = old.near_slot;
                 new.selected_push = fabric.find_push_at(old.far_joint);
                 Pick::Interval(new)
@@ -317,7 +321,7 @@ impl Camera {
                             self.set_target(Target::FabricMidpoint);
                         }
                         Pick::Joint(details) => {
-                            self.set_target(Target::AroundJoint(details.index));
+                            self.set_target(Target::AroundJoint(details.key));
                             ControlState::ShowingJoint(details).send(&self.radio);
                         }
                         Pick::Interval(details) => {
@@ -350,7 +354,7 @@ impl Camera {
                             self.set_target(Target::FabricMidpoint);
                         }
                         Pick::Joint(details) => {
-                            self.set_target(Target::AroundJoint(details.index));
+                            self.set_target(Target::AroundJoint(details.key));
                             ControlState::ShowingJoint(details).send(&self.radio);
                         }
                         Pick::Interval(details) => {
@@ -547,7 +551,7 @@ impl Camera {
         &self,
         key: IntervalKey,
         interval: Interval,
-        near_joint: usize,
+        near_joint: JointKey,
         fabric: &Fabric,
         selected_push: Option<IntervalKey>,
     ) -> IntervalDetails {
@@ -557,16 +561,16 @@ impl Camera {
         // Note: near/far slots depend on click position, but hinge angles use alpha/omega (structural)
         let (near_slot, far_slot, alpha_hinge_angle, omega_hinge_angle) = if interval.has_role(Role::Pulling) {
             // Helper function to find slot index for a joint
-            let find_slot = |joint_index: usize| -> Option<usize> {
+            let find_slot = |joint_key: JointKey| -> Option<usize> {
                 fabric
                     .intervals
                     .values()
                     .filter(|int| {
-                        int.has_role(Role::Pushing) && int.touches(joint_index)
+                        int.has_role(Role::Pushing) && int.touches(joint_key)
                     })
                     .find_map(|push_interval| {
                         // Determine which end of the push interval is connected to this joint
-                        let end = if push_interval.alpha_index == joint_index {
+                        let end = if push_interval.alpha_key == joint_key {
                             IntervalEnd::Alpha
                         } else {
                             IntervalEnd::Omega
@@ -597,14 +601,14 @@ impl Camera {
 
             // Calculate hinge angles for alpha/omega ends (structural, not click-dependent)
             let alpha_hinge = self.calculate_hinge_angle_for_joint(
-                interval.alpha_index,
-                interval.omega_index,
+                interval.alpha_key,
+                interval.omega_key,
                 key,
                 fabric,
             );
             let omega_hinge = self.calculate_hinge_angle_for_joint(
-                interval.omega_index,
-                interval.alpha_index,
+                interval.omega_key,
+                interval.alpha_key,
                 key,
                 fabric,
             );
@@ -617,9 +621,11 @@ impl Camera {
         IntervalDetails {
             key,
             near_joint,
+            near_joint_id: fabric.joints[near_joint].id,
             near_slot,
             far_slot,
             far_joint,
+            far_joint_id: fabric.joints[far_joint].id,
             alpha_hinge_angle,
             omega_hinge_angle,
             length: Meters(interval.ideal()),
@@ -633,8 +639,8 @@ impl Camera {
     /// Calculate the hinge angle for a pull interval at a specific joint
     fn calculate_hinge_angle_for_joint(
         &self,
-        joint_index: usize,
-        other_joint_index: usize,
+        joint_key: JointKey,
+        other_joint_key: JointKey,
         pull_key: IntervalKey,
         fabric: &Fabric,
     ) -> Option<Degrees> {
@@ -642,10 +648,10 @@ impl Camera {
         fabric
             .intervals
             .values()
-            .filter(|int| int.has_role(Role::Pushing) && int.touches(joint_index))
+            .filter(|int| int.has_role(Role::Pushing) && int.touches(joint_key))
             .find_map(|push_interval| {
                 // Determine which end of the push interval is connected to this joint
-                let end = if push_interval.alpha_index == joint_index {
+                let end = if push_interval.alpha_key == joint_key {
                     IntervalEnd::Alpha
                 } else {
                     IntervalEnd::Omega
@@ -658,7 +664,7 @@ impl Camera {
                 });
 
                 if is_connected {
-                    self.calculate_hinge_angle(push_interval, end, joint_index, other_joint_index, fabric)
+                    self.calculate_hinge_angle(push_interval, end, joint_key, other_joint_key, fabric)
                 } else {
                     None
                 }
@@ -670,13 +676,13 @@ impl Camera {
         &self,
         push_interval: &Interval,
         end: IntervalEnd,
-        joint_index: usize,
-        other_joint_index: usize,
+        joint_key: JointKey,
+        other_joint_key: JointKey,
         fabric: &Fabric,
     ) -> Option<Degrees> {
         // Get positions of push interval ends
-        let push_alpha_pos = fabric.joints[push_interval.alpha_index].location;
-        let push_omega_pos = fabric.joints[push_interval.omega_index].location;
+        let push_alpha_pos = fabric.joints[push_interval.alpha_key].location;
+        let push_omega_pos = fabric.joints[push_interval.omega_key].location;
 
         // Calculate push axis (outward direction at this end)
         let push_direction = (push_omega_pos - push_alpha_pos).normalize();
@@ -686,8 +692,8 @@ impl Camera {
         };
 
         // Get positions for pull direction calculation
-        let this_joint_pos = fabric.joints[joint_index].location;
-        let other_joint_pos = fabric.joints[other_joint_index].location;
+        let this_joint_pos = fabric.joints[joint_key].location;
+        let other_joint_pos = fabric.joints[other_joint_key].location;
 
         // Pull direction: from this joint toward the other end of the pull interval
         let pull_direction = (other_joint_pos - this_joint_pos).normalize();
@@ -761,7 +767,7 @@ impl Camera {
     fn best_joint(&self, ray: Vector3<f32>, fabric: &Fabric) -> Option<JointIncident> {
         let current_joint = match self.current_pick {
             Pick::Nothing => None,
-            Pick::Joint(JointDetails { index, .. }) => Some(index),
+            Pick::Joint(JointDetails { key, .. }) => Some(key),
             Pick::Interval(IntervalDetails { near_joint, .. }) => Some(near_joint),
         };
         self.find_best_by_dot(fabric, current_joint, ray)
@@ -770,14 +776,14 @@ impl Camera {
     fn find_best_by_dot(
         &self,
         fabric: &Fabric,
-        current_joint: Option<usize>,
+        current_joint: Option<JointKey>,
         ray: Vector3<f32>,
     ) -> Option<JointIncident> {
         // Use the ray origin that was calculated in pick_ray
         let ray_origin = self.last_ray_origin;
         fabric
             .joint_incidents()
-            .iter()
+            .into_values()
             .filter_map(|joint_incident| {
                 let position = if let Some(current) = current_joint {
                     let interval_opt = joint_incident.interval_to(current);
@@ -823,7 +829,7 @@ const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Target {
     FabricMidpoint,
-    AroundJoint(usize),
+    AroundJoint(JointKey),
     AroundInterval(IntervalKey),
 }
 
@@ -837,7 +843,7 @@ impl Target {
     pub fn look_at(&self, fabric: &Fabric) -> Point3<f32> {
         match self {
             Target::FabricMidpoint => fabric.midpoint(),
-            Target::AroundJoint(index) => fabric.location(*index),
+            Target::AroundJoint(key) => fabric.location(*key),
             Target::AroundInterval(id) => fabric.interval(*id).midpoint(&fabric.joints),
         }
     }

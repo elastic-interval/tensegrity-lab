@@ -149,8 +149,8 @@ impl HingeRenderer {
         for (_key, interval) in fabric.intervals.iter() {
             if interval.has_role(Role::Pushing) {
                 // Get joint positions
-                let alpha_pos = fabric.joints[interval.alpha_index].location;
-                let omega_pos = fabric.joints[interval.omega_index].location;
+                let alpha_pos = fabric.joints[interval.alpha_key].location;
+                let omega_pos = fabric.joints[interval.omega_key].location;
                 let push_dir = (omega_pos - alpha_pos).normalize();
 
                 // Process alpha end connections
@@ -161,10 +161,10 @@ impl HingeRenderer {
                                 fabric.intervals.get(connection.pull_interval_key)
                             {
                                 let pull_other_end =
-                                    if pull_interval.alpha_index == interval.alpha_index {
-                                        fabric.joints[pull_interval.omega_index].location
+                                    if pull_interval.alpha_key == interval.alpha_key {
+                                        fabric.joints[pull_interval.omega_key].location
                                     } else {
-                                        fabric.joints[pull_interval.alpha_index].location
+                                        fabric.joints[pull_interval.alpha_key].location
                                     };
 
                                 let hinge_pos = connector.hinge_position(
@@ -192,10 +192,10 @@ impl HingeRenderer {
                                 fabric.intervals.get(connection.pull_interval_key)
                             {
                                 let pull_other_end =
-                                    if pull_interval.alpha_index == interval.omega_index {
-                                        fabric.joints[pull_interval.omega_index].location
+                                    if pull_interval.alpha_key == interval.omega_key {
+                                        fabric.joints[pull_interval.omega_key].location
                                     } else {
-                                        fabric.joints[pull_interval.alpha_index].location
+                                        fabric.joints[pull_interval.alpha_key].location
                                     };
 
                                 let hinge_pos = connector.hinge_position(
