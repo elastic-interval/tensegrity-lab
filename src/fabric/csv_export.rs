@@ -33,13 +33,13 @@ impl Fabric {
             * MM_PER_METER;
         let now = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
         writeln!(file, "# {}, Height: {:.1}mm, Created: {}", self.name, height_mm, now)?;
-        writeln!(file, "Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaSlot,AlphaAngle,OmegaX,OmegaY,OmegaZ,OmegaSlot,OmegaAngle")?;
+        writeln!(file, "Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaJoint,AlphaSlot,AlphaAngle,OmegaX,OmegaY,OmegaZ,OmegaJoint,OmegaSlot,OmegaAngle")?;
 
         let connector = ConnectorSpec::for_scale(self.scale);
 
         // Build a map of pull interval connections for each push interval
-        // Key: (push_interval_index, end, slot) -> (pull_interval_id, hinge_pos, angle)
-        let mut pull_hinge_info: std::collections::HashMap<(usize, IntervalEnd, usize), (Point3<f32>, usize, Degrees)> =
+        // Key: (pull_interval_id, end, slot) -> (hinge_pos, joint_index, slot, angle)
+        let mut pull_hinge_info: std::collections::HashMap<(usize, IntervalEnd, usize), (Point3<f32>, usize, usize, Degrees)> =
             std::collections::HashMap::new();
 
         // First pass: collect hinge info from push intervals
@@ -83,7 +83,7 @@ impl Fabric {
                                 };
                                 pull_hinge_info.insert(
                                     (connection.pull_interval_id.0, pull_end, slot_idx + 1),
-                                    (hinge_pos, slot_idx + 1, angle),
+                                    (hinge_pos, push_interval.alpha_index, slot_idx + 1, angle),
                                 );
                             }
                         }
@@ -118,7 +118,7 @@ impl Fabric {
                                 };
                                 pull_hinge_info.insert(
                                     (connection.pull_interval_id.0, pull_end, slot_idx + 1),
-                                    (hinge_pos, slot_idx + 1, angle),
+                                    (hinge_pos, push_interval.omega_index, slot_idx + 1, angle),
                                 );
                             }
                         }
@@ -174,13 +174,13 @@ impl Fabric {
                 let omega = self.joints[interval.omega_index].location * MM_PER_METER;
                 writeln!(
                     file,
-                    "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},0,90.000,{:.3},{:.3},{:.3},0,90.000",
+                    "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},{},0,90.000,{:.3},{:.3},{:.3},{},0,90.000",
                     index + 1,
                     role_str,
                     info.length,
                     info.strain,
-                    alpha.x, alpha.y, alpha.z,
-                    omega.x, omega.y, omega.z,
+                    alpha.x, alpha.y, alpha.z, interval.alpha_index,
+                    omega.x, omega.y, omega.z, interval.omega_index,
                 )?;
             } else {
                 let alpha_info = pull_hinge_info.iter()
@@ -190,29 +190,29 @@ impl Fabric {
                     .find(|((pull_id, end, _), _)| *pull_id == info.idx && *end == IntervalEnd::Omega)
                     .map(|(_, data)| data);
 
-                let (alpha_pos, alpha_slot, alpha_angle) = if let Some((pos, slot, angle)) = alpha_info {
-                    (Point3::new(pos.x, pos.y, pos.z) * MM_PER_METER, *slot, *angle)
+                let (alpha_pos, alpha_joint, alpha_slot, alpha_angle) = if let Some((pos, joint, slot, angle)) = alpha_info {
+                    (Point3::new(pos.x, pos.y, pos.z) * MM_PER_METER, *joint, *slot, *angle)
                 } else {
                     let loc = self.joints[interval.alpha_index].location * MM_PER_METER;
-                    (loc, 0, Degrees(0.0))
+                    (loc, interval.alpha_index, 0, Degrees(0.0))
                 };
 
-                let (omega_pos, omega_slot, omega_angle) = if let Some((pos, slot, angle)) = omega_info {
-                    (Point3::new(pos.x, pos.y, pos.z) * MM_PER_METER, *slot, *angle)
+                let (omega_pos, omega_joint, omega_slot, omega_angle) = if let Some((pos, joint, slot, angle)) = omega_info {
+                    (Point3::new(pos.x, pos.y, pos.z) * MM_PER_METER, *joint, *slot, *angle)
                 } else {
                     let loc = self.joints[interval.omega_index].location * MM_PER_METER;
-                    (loc, 0, Degrees(0.0))
+                    (loc, interval.omega_index, 0, Degrees(0.0))
                 };
 
                 writeln!(
                     file,
-                    "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},{},{:.3},{:.3},{:.3},{:.3},{},{:.3}",
+                    "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},{},{},{:.3},{:.3},{:.3},{:.3},{},{},{:.3}",
                     index + 1,
                     role_str,
                     info.length,
                     info.strain,
-                    alpha_pos.x, alpha_pos.y, alpha_pos.z, alpha_slot, *alpha_angle,
-                    omega_pos.x, omega_pos.y, omega_pos.z, omega_slot, *omega_angle,
+                    alpha_pos.x, alpha_pos.y, alpha_pos.z, alpha_joint, alpha_slot, *alpha_angle,
+                    omega_pos.x, omega_pos.y, omega_pos.z, omega_joint, omega_slot, *omega_angle,
                 )?;
             }
         }
