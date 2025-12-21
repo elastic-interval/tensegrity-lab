@@ -72,7 +72,6 @@ impl FabricName {
                 .stiffness(Pct(20.0))
                 .sine()
                 .actuators(&[
-                    // TODO: Find the correct JointId numbers for actuators after SlotMap refactor
                     phase(Pct(0.0)).between(217, 66),
                     phase(Pct(0.0)).between(219, 50),
                     phase(Pct(0.0)).between(215, 58),
