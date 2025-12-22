@@ -335,7 +335,11 @@ impl CylinderRenderer {
                                                     other_joint_pos,
                                                 );
 
-                                                *modified_points[i] = hinge_pos;
+                                                // Pull interval ends at hinge + hinge_length along pull direction
+                                                let pull_direction = (other_joint_pos - hinge_pos).normalize();
+                                                let pull_end_pos = hinge_pos + pull_direction * *connector.hinge_length;
+
+                                                *modified_points[i] = pull_end_pos;
 
                                                 // We found the connection, no need to check others
                                                 break;

@@ -1,6 +1,5 @@
 use crate::camera::Pick;
 use crate::fabric::Fabric;
-use crate::wgpu::attachment_renderer::AttachmentRenderer;
 use crate::wgpu::cylinder_renderer::CylinderRenderer;
 use crate::wgpu::hinge_renderer::HingeRenderer;
 use crate::wgpu::Wgpu;
@@ -8,19 +7,16 @@ use crate::RenderStyle;
 
 pub struct FabricRenderer {
     cylinder_renderer: CylinderRenderer,
-    attachment_renderer: AttachmentRenderer,
     hinge_renderer: HingeRenderer,
 }
 
 impl FabricRenderer {
     pub fn new(wgpu: &Wgpu) -> Self {
         let cylinder_renderer = CylinderRenderer::new(wgpu);
-        let attachment_renderer = AttachmentRenderer::new(wgpu);
         let hinge_renderer = HingeRenderer::new(wgpu);
 
         Self {
             cylinder_renderer,
-            attachment_renderer,
             hinge_renderer,
         }
     }
@@ -36,7 +32,6 @@ impl FabricRenderer {
             .update(wgpu, fabric, pick, render_style);
 
         if render_style.show_attachment_points() {
-            self.attachment_renderer.update(wgpu, fabric, pick);
             self.hinge_renderer.update(wgpu, fabric, pick);
         }
     }
@@ -50,7 +45,6 @@ impl FabricRenderer {
         self.cylinder_renderer.render(render_pass, bind_group);
 
         if render_style.show_attachment_points() {
-            self.attachment_renderer.render(render_pass, bind_group);
             self.hinge_renderer.render(render_pass, bind_group);
         }
     }
