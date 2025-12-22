@@ -388,11 +388,6 @@ impl FabricPlanExecutor {
             to: "FALL".to_string(),
         });
 
-        // Centralize fabric before surface appears (FALL is when surface first matters visually)
-        let translation = self.fabric.centralize_translation(None);
-        self.fabric.apply_translation(translation);
-
-        // Update bounding radius after centralization
         self.fabric.update_bounding_radius();
 
         let mass_multiplier = self.physics.mass_multiplier();

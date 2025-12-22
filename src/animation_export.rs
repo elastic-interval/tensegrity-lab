@@ -64,9 +64,10 @@ struct IntervalExport {
 }
 
 struct FrameData {
-    joint_positions: Vec<Point3<f32>>,
-    /// (unique_id, alpha_joint, omega_joint, role)
-    interval_data: Vec<(usize, usize, usize, Role)>,
+    /// (joint_id, position)
+    joints: Vec<(usize, Point3<f32>)>,
+    /// (alpha_joint_id, omega_joint_id, role)
+    interval_data: Vec<(usize, usize, Role)>,
 }
 
 pub struct AnimationExporter {
@@ -151,14 +152,21 @@ impl AnimationExporter {
     }
 
     fn export_frame(&self, frame: &FrameData) -> FrameExport {
-        let joints: Vec<JointExport> = frame
-            .joint_positions
+        // Build id-to-position map for interval lookups
+        let id_to_pos: std::collections::HashMap<usize, Point3<f32>> = frame
+            .joints
             .iter()
-            .enumerate()
-            .map(|(idx, pos)| {
+            .map(|&(id, pos)| (id, pos))
+            .collect();
+
+        // Export joints with their actual ids
+        let joints: Vec<JointExport> = frame
+            .joints
+            .iter()
+            .map(|&(id, pos)| {
                 JointExport {
-                    name: format!("Joint_{:04}", idx),
-                    matrix: create_sphere_matrix(*pos, JOINT_RADIUS),
+                    name: format!("Joint_{:04}", id),
+                    matrix: create_sphere_matrix(pos, JOINT_RADIUS),
                 }
             })
             .collect();
@@ -166,25 +174,22 @@ impl AnimationExporter {
         let mut push_intervals = Vec::new();
         let mut pull_intervals = Vec::new();
 
-        for &(slot, alpha, omega, role) in &frame.interval_data {
+        for &(alpha, omega, role) in &frame.interval_data {
             if role == Role::Support {
                 continue;
             }
             match role {
-                Role::Pushing => push_intervals.push((slot, alpha, omega)),
-                _ if role.is_pull_like() => pull_intervals.push((slot, alpha, omega)),
+                Role::Pushing => push_intervals.push((alpha, omega)),
+                _ if role.is_pull_like() => pull_intervals.push((alpha, omega)),
                 _ => {}
             }
         }
 
         let push: Vec<IntervalExport> = push_intervals
             .iter()
-            .filter_map(|(slot, alpha, omega)| {
-                if *alpha >= frame.joint_positions.len() || *omega >= frame.joint_positions.len() {
-                    return None;
-                }
-                let alpha_pos = frame.joint_positions[*alpha];
-                let omega_pos = frame.joint_positions[*omega];
+            .filter_map(|(alpha, omega)| {
+                let alpha_pos = *id_to_pos.get(alpha)?;
+                let omega_pos = *id_to_pos.get(omega)?;
 
                 let delta = omega_pos - alpha_pos;
                 let full_length = delta.magnitude();
@@ -202,9 +207,9 @@ impl AnimationExporter {
 
                 let matrix = create_cylinder_matrix(mid, x_axis, y_axis, z_axis, PUSH_RADIUS, full_length);
 
-                // Name by slot index for stable identity across frames
+                // Name by endpoint joint ids for stable identity across frames
                 Some(IntervalExport {
-                    name: format!("Push_{:04}", slot),
+                    name: format!("Push_{:04}_{:04}", alpha, omega),
                     matrix,
                 })
             })
@@ -212,12 +217,9 @@ impl AnimationExporter {
 
         let pull: Vec<IntervalExport> = pull_intervals
             .iter()
-            .filter_map(|(slot, alpha, omega)| {
-                if *alpha >= frame.joint_positions.len() || *omega >= frame.joint_positions.len() {
-                    return None;
-                }
-                let alpha_pos = frame.joint_positions[*alpha];
-                let omega_pos = frame.joint_positions[*omega];
+            .filter_map(|(alpha, omega)| {
+                let alpha_pos = *id_to_pos.get(alpha)?;
+                let omega_pos = *id_to_pos.get(omega)?;
 
                 let delta = omega_pos - alpha_pos;
                 let full_length = delta.magnitude();
@@ -235,9 +237,9 @@ impl AnimationExporter {
 
                 let matrix = create_cylinder_matrix(mid, x_axis, y_axis, z_axis, PULL_RADIUS, full_length);
 
-                // Name by slot index for stable identity across frames
+                // Name by endpoint joint ids for stable identity across frames
                 Some(IntervalExport {
-                    name: format!("Pull_{:04}", slot),
+                    name: format!("Pull_{:04}_{:04}", alpha, omega),
                     matrix,
                 })
             })
@@ -262,30 +264,32 @@ impl AnimationExporter {
             return;
         }
 
-        // Build sorted joint positions by id
+        // Build sorted joints (id, position) by id
         let mut joint_list: Vec<_> = fabric.joints.values().collect();
         joint_list.sort_by_key(|j| *j.id);
-        let joint_positions: Vec<Point3<f32>> = joint_list.iter().map(|j| j.location).collect();
+        let joints: Vec<(usize, Point3<f32>)> = joint_list
+            .iter()
+            .map(|j| (*j.id, j.location))
+            .collect();
 
-        // Build key-to-index mapping for intervals
-        let key_to_index: std::collections::HashMap<_, _> = fabric.joints
+        // Build key-to-id mapping for intervals
+        let key_to_id: std::collections::HashMap<_, _> = fabric.joints
             .iter()
             .map(|(key, joint)| (key, *joint.id))
             .collect();
 
-        let interval_data: Vec<(usize, usize, usize, Role)> = fabric
+        let interval_data: Vec<(usize, usize, Role)> = fabric
             .intervals
-            .iter()
-            .enumerate()
-            .filter_map(|(index, (_key, interval))| {
-                let alpha = *key_to_index.get(&interval.alpha_key)?;
-                let omega = *key_to_index.get(&interval.omega_key)?;
-                Some((index, alpha, omega, interval.role))
+            .values()
+            .filter_map(|interval| {
+                let alpha = *key_to_id.get(&interval.alpha_key)?;
+                let omega = *key_to_id.get(&interval.omega_key)?;
+                Some((alpha, omega, interval.role))
             })
             .collect();
 
         self.frames.push(FrameData {
-            joint_positions,
+            joints,
             interval_data,
         });
 
@@ -325,30 +329,32 @@ impl AnimationExporter {
         self.frames.clear();
         self.frame_count = 0;
 
-        // Build sorted joint positions by id
+        // Build sorted joints (id, position) by id
         let mut joint_list: Vec<_> = fabric.joints.values().collect();
         joint_list.sort_by_key(|j| *j.id);
-        let joint_positions: Vec<Point3<f32>> = joint_list.iter().map(|j| j.location).collect();
+        let joints: Vec<(usize, Point3<f32>)> = joint_list
+            .iter()
+            .map(|j| (*j.id, j.location))
+            .collect();
 
-        // Build key-to-index mapping for intervals
-        let key_to_index: std::collections::HashMap<_, _> = fabric.joints
+        // Build key-to-id mapping for intervals
+        let key_to_id: std::collections::HashMap<_, _> = fabric.joints
             .iter()
             .map(|(key, joint)| (key, *joint.id))
             .collect();
 
-        let interval_data: Vec<(usize, usize, usize, Role)> = fabric
+        let interval_data: Vec<(usize, usize, Role)> = fabric
             .intervals
-            .iter()
-            .enumerate()
-            .filter_map(|(index, (_key, interval))| {
-                let alpha = *key_to_index.get(&interval.alpha_key)?;
-                let omega = *key_to_index.get(&interval.omega_key)?;
-                Some((index, alpha, omega, interval.role))
+            .values()
+            .filter_map(|interval| {
+                let alpha = *key_to_id.get(&interval.alpha_key)?;
+                let omega = *key_to_id.get(&interval.omega_key)?;
+                Some((alpha, omega, interval.role))
             })
             .collect();
 
         self.frames.push(FrameData {
-            joint_positions,
+            joints,
             interval_data,
         });
         self.frame_count = 1;
