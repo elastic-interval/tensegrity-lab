@@ -38,7 +38,7 @@ impl FabricName {
         match self {
             Triped | TripedModel => self
                 .altitude(if self == Triped { M(7.5) } else { M(0.5) })
-                .scale(if self == Triped { M(1.03) } else { M(0.056) })
+                .scale(if self == Triped { M(1.0) } else { M(0.056) })
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([
                     on(OmniBotX)
