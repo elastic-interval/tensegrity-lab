@@ -1,7 +1,6 @@
 use crate::build::dsl::brick_dsl::{BrickName::*, BrickRole::*, FaceName::*, MarkName::*};
 use crate::build::dsl::fabric_dsl::{on, *};
 use crate::build::dsl::fabric_plan::FabricPlan;
-use crate::units::Meters;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
@@ -29,16 +28,15 @@ pub enum FabricName {
 }
 
 impl FabricName {
-    pub fn altitude(self, altitude: Meters) -> FabricStage2 {
-        FabricStage1 { name: self }.altitude(altitude)
-    }
-
     pub fn fabric_plan(self) -> FabricPlan {
         use FabricName::*;
         match self {
             Triped | TripedModel => self
-                .altitude(if self == Triped { M(7.5) } else { M(0.5) })
-                .scale(if self == Triped { M(1.0) } else { M(0.056) })
+                .build(if self == Triped {
+                    FabricDimensions::full_size()
+                } else {
+                    FabricDimensions::model_size()
+                })
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([
                     on(OmniBotX)
@@ -78,8 +76,11 @@ impl FabricName {
                 ]),
 
             Mockup => self
-                .altitude(M(2.0))
-                .scale(M(1.0))
+                .build(
+                    FabricDimensions::full_size()
+                        .with_altitude(M(2.0))
+                        .with_scale(M(1.0)),
+                )
                 .seed(SingleTwistLeft, Seed(1))
                 .faces([on(SingleTop).column(1), on(SingleBot).column(1)])
                 .vulcanize(Sec(2.0))
@@ -89,8 +90,11 @@ impl FabricName {
                 .settle(Sec(4.0)),
 
             HaloByCrane => self
-                .altitude(M(2.0))
-                .scale(M(1.0))
+                .build(
+                    FabricDimensions::full_size()
+                        .with_altitude(M(2.0))
+                        .with_scale(M(1.0)),
+                )
                 .seed(SingleTwistLeft, Seed(1))
                 .faces([on(SingleTop).column(4).shrink_by(Pct(8.0)).then(
                     hub(OmniSymmetrical, OnSpinLeft).faces([
@@ -104,8 +108,11 @@ impl FabricName {
                 .surface_frozen(),
 
             Vertebra => self
-                .altitude(M(0.5))
-                .scale(M(0.0746))
+                .build(
+                    FabricDimensions::full_size()
+                        .with_altitude(M(0.5))
+                        .with_scale(M(0.0746)),
+                )
                 .seed(SingleTwistLeft, Seed(1))
                 .faces([on(SingleTop).column(1)])
                 .centralize_at(Sec(1.0), M(0.075))
@@ -113,8 +120,11 @@ impl FabricName {
                 .floating(),
 
             Flagellum => self
-                .altitude(M(2.0))
-                .scale(M(1.0))
+                .build(
+                    FabricDimensions::full_size()
+                        .with_altitude(M(2.0))
+                        .with_scale(M(1.0)),
+                )
                 .seed(SingleTwistLeft, Seed(1))
                 .faces([on(SingleTop).column(20).shrink_by(Pct(5.0))])
                 .vulcanize(Sec(1.0))
@@ -122,8 +132,11 @@ impl FabricName {
                 .surface_frozen(),
 
             HeadlessHug => self
-                .altitude(M(2.0))
-                .scale(M(1.0))
+                .build(
+                    FabricDimensions::full_size()
+                        .with_altitude(M(2.0))
+                        .with_scale(M(1.0)),
+                )
                 .seed(OmniSymmetrical, Seed(4))
                 .faces([
                     on(LeftBackBottom)
