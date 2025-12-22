@@ -327,17 +327,13 @@ impl CylinderRenderer {
                                                     }
                                                 };
 
-                                                // Calculate hinge position
-                                                let hinge_pos = connector.hinge_position(
+                                                // Use hinge_geometry to get snapped endpoint
+                                                let (_hinge_pos, _hinge_bend, pull_end_pos) = connector.hinge_geometry(
                                                     push_end_pos,
                                                     push_axis,
                                                     pull_conn.attachment_index,
                                                     other_joint_pos,
                                                 );
-
-                                                // Pull interval ends at hinge + hinge_length along pull direction
-                                                let pull_direction = (other_joint_pos - hinge_pos).normalize();
-                                                let pull_end_pos = hinge_pos + pull_direction * *connector.hinge_length;
 
                                                 *modified_points[i] = pull_end_pos;
 

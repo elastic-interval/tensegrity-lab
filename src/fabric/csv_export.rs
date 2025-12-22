@@ -3,10 +3,10 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::path::Path;
 
-use crate::fabric::attachment::{ConnectorSpec, IntervalDimensions};
+use crate::fabric::attachment::{ConnectorSpec, HingeBend, IntervalDimensions};
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointKey};
-use crate::units::{Degrees, MM_PER_METER};
+use crate::units::MM_PER_METER;
 
 impl Fabric {
     /// Export fabric intervals to CSV with hinge positions and angles.
@@ -36,13 +36,11 @@ impl Fabric {
         writeln!(file, "Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaJoint,AlphaSlot,AlphaAngle,OmegaX,OmegaY,OmegaZ,OmegaJoint,OmegaSlot,OmegaAngle")?;
 
         // Build a map of pull interval connections for each push interval
-        // Key: (pull_interval_key, end, slot) -> (pull_end_pos, hinge_pos, joint_key, slot, angle)
-        // pull_end_pos is where the pull interval terminates (hinge_pos - hinge_length along pull direction)
-        // hinge_pos is the actual hinge location
-        let mut pull_hinge_info: std::collections::HashMap<(IntervalKey, IntervalEnd, usize), (Point3<f32>, Point3<f32>, JointKey, usize, Degrees)> =
+        // Key: (pull_interval_key, end, slot) -> (pull_end_pos, hinge_pos, joint_key, slot, hinge_bend)
+        let mut pull_hinge_info: std::collections::HashMap<(IntervalKey, IntervalEnd, usize), (Point3<f32>, Point3<f32>, JointKey, usize, HingeBend)> =
             std::collections::HashMap::new();
 
-        // First pass: collect hinge info from push intervals
+        // First pass: collect hinge info from push intervals using hinge_geometry
         for (_key, push_interval) in self.intervals.iter() {
             if !push_interval.has_role(Role::Pushing) {
                 continue;
@@ -63,21 +61,13 @@ impl Fabric {
                                 self.joints[pull_interval.alpha_key].location
                             };
 
-                            let hinge_pos = connector.hinge_position(
+                            let (hinge_pos, hinge_bend, pull_end_pos) = connector.hinge_geometry(
                                 alpha_pos,
                                 -push_dir,
                                 slot_idx,
                                 pull_other_end,
                             );
 
-                            // Calculate angle: direction from hinge to other end vs inward push axis
-                            let pull_direction = (pull_other_end - hinge_pos).normalize();
-                            let angle = ConnectorSpec::hinge_angle(-push_dir, pull_direction);
-
-                            // Pull end position: pull back from hinge by hinge_length along pull direction
-                            let pull_end_pos = hinge_pos + pull_direction * *connector.hinge_length;
-
-                            // Store for the pull interval's alpha or omega end
                             let pull_end = if pull_interval.alpha_key == push_interval.alpha_key {
                                 IntervalEnd::Alpha
                             } else {
@@ -85,7 +75,7 @@ impl Fabric {
                             };
                             pull_hinge_info.insert(
                                 (connection.pull_interval_key, pull_end, slot_idx + 1),
-                                (pull_end_pos, hinge_pos, push_interval.alpha_key, slot_idx + 1, angle),
+                                (pull_end_pos, hinge_pos, push_interval.alpha_key, slot_idx + 1, hinge_bend),
                             );
                         }
                     }
@@ -103,18 +93,12 @@ impl Fabric {
                                 self.joints[pull_interval.alpha_key].location
                             };
 
-                            let hinge_pos = connector.hinge_position(
+                            let (hinge_pos, hinge_bend, pull_end_pos) = connector.hinge_geometry(
                                 omega_pos,
                                 push_dir,
                                 slot_idx,
                                 pull_other_end,
                             );
-
-                            let pull_direction = (pull_other_end - hinge_pos).normalize();
-                            let angle = ConnectorSpec::hinge_angle(push_dir, pull_direction);
-
-                            // Pull end position: pull back from hinge by hinge_length along pull direction
-                            let pull_end_pos = hinge_pos + pull_direction * *connector.hinge_length;
 
                             let pull_end = if pull_interval.alpha_key == push_interval.omega_key {
                                 IntervalEnd::Alpha
@@ -123,7 +107,7 @@ impl Fabric {
                             };
                             pull_hinge_info.insert(
                                 (connection.pull_interval_key, pull_end, slot_idx + 1),
-                                (pull_end_pos, hinge_pos, push_interval.omega_key, slot_idx + 1, angle),
+                                (pull_end_pos, hinge_pos, push_interval.omega_key, slot_idx + 1, hinge_bend),
                             );
                         }
                     }
@@ -195,32 +179,36 @@ impl Fabric {
                     .map(|(_, data)| data);
 
                 // Use pull_end_pos (first element) for the interval position
-                let (alpha_pos, alpha_joint_idx, alpha_slot, alpha_angle) = if let Some((pull_end_pos, _, joint_key, slot, angle)) = alpha_info {
-                    (Point3::new(pull_end_pos.x, pull_end_pos.y, pull_end_pos.z) * MM_PER_METER, self.joints[*joint_key].id, *slot, *angle)
+                let (alpha_pos, alpha_joint_idx, alpha_slot, alpha_bend) = if let Some((pull_end_pos, _, joint_key, slot, bend)) = alpha_info {
+                    (Point3::new(pull_end_pos.x, pull_end_pos.y, pull_end_pos.z) * MM_PER_METER, self.joints[*joint_key].id, *slot, Some(*bend))
                 } else {
                     let joint = &self.joints[interval.alpha_key];
-                    (joint.location * MM_PER_METER, joint.id, 0, Degrees(0.0))
+                    (joint.location * MM_PER_METER, joint.id, 0, None)
                 };
 
-                let (omega_pos, omega_joint_idx, omega_slot, omega_angle) = if let Some((pull_end_pos, _, joint_key, slot, angle)) = omega_info {
-                    (Point3::new(pull_end_pos.x, pull_end_pos.y, pull_end_pos.z) * MM_PER_METER, self.joints[*joint_key].id, *slot, *angle)
+                let (omega_pos, omega_joint_idx, omega_slot, omega_bend) = if let Some((pull_end_pos, _, joint_key, slot, bend)) = omega_info {
+                    (Point3::new(pull_end_pos.x, pull_end_pos.y, pull_end_pos.z) * MM_PER_METER, self.joints[*joint_key].id, *slot, Some(*bend))
                 } else {
                     let joint = &self.joints[interval.omega_key];
-                    (joint.location * MM_PER_METER, joint.id, 0, Degrees(0.0))
+                    (joint.location * MM_PER_METER, joint.id, 0, None)
                 };
 
                 // Calculate shortened length
                 let shortened_length = (omega_pos - alpha_pos).magnitude() / MM_PER_METER;
 
+                // Format hinge bend as string (empty if not attached)
+                let alpha_bend_str = alpha_bend.map_or(String::new(), |b| b.to_string());
+                let omega_bend_str = omega_bend.map_or(String::new(), |b| b.to_string());
+
                 writeln!(
                     file,
-                    "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},{},{},{:.3},{:.3},{:.3},{:.3},{},{},{:.3}",
+                    "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},{},{},{},{:.3},{:.3},{:.3},{},{},{}",
                     index + 1,
                     role_str,
                     shortened_length,
                     info.strain,
-                    alpha_pos.x, alpha_pos.y, alpha_pos.z, alpha_joint_idx, alpha_slot, *alpha_angle,
-                    omega_pos.x, omega_pos.y, omega_pos.z, omega_joint_idx, omega_slot, *omega_angle,
+                    alpha_pos.x, alpha_pos.y, alpha_pos.z, alpha_joint_idx, alpha_slot, alpha_bend_str,
+                    omega_pos.x, omega_pos.y, omega_pos.z, omega_joint_idx, omega_slot, omega_bend_str,
                 )?;
             }
         }

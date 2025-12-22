@@ -232,16 +232,13 @@ impl HingeRenderer {
                         fabric.joints[pull_interval.alpha_key].location
                     };
 
-                    let hinge_pos = connector.hinge_position(
+                    // Use hinge_geometry to get snapped positions
+                    let (hinge_pos, _hinge_bend, pull_end_pos) = connector.hinge_geometry(
                         joint_pos,
                         push_axis,
                         slot_idx,
                         pull_other_end,
                     );
-
-                    // Calculate pull_end position (hinge + hinge_length along pull direction)
-                    let pull_direction = (pull_other_end - hinge_pos).normalize();
-                    let pull_end_pos = hinge_pos + pull_direction * *connector.hinge_length;
 
                     slot_connections.push((slot_idx + 1, hinge_pos, pull_end_pos));
                 }
