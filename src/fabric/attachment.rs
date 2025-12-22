@@ -144,7 +144,7 @@ impl IntervalDimensions {
         ring_center + radial_unit * *self.hinge_offset
     }
 
-    /// Calculate the hinge angle for a pull interval at its connection point
+    /// Calculate the ideal hinge angle for a pull interval at its connection point
     ///
     /// The hinge angle is the angle between the pull direction and the ring plane.
     /// - 0° means pulling in the ring plane (perpendicular to bolt)
@@ -156,13 +156,125 @@ impl IntervalDimensions {
     /// * `pull_direction` - Unit vector of pull direction (toward the other end of pull interval)
     ///
     /// # Returns
-    /// Hinge angle as Degrees
+    /// Ideal hinge angle as Degrees (not snapped)
     pub fn hinge_angle(push_axis: Vector3<f32>, pull_direction: Vector3<f32>) -> Degrees {
         // The hinge angle is the angle between pull direction and the ring plane.
         // The ring plane is perpendicular to push_axis.
         // sin(hinge_angle) = dot(pull_direction, push_axis)
         let sin_angle = pull_direction.dot(push_axis);
         Degrees(sin_angle.asin().to_degrees())
+    }
+
+    /// Calculate hinge position, snapped angle, and endpoint for a pull interval connection
+    ///
+    /// # Returns
+    /// (hinge_pos, hinge_bend, pull_end_pos)
+    pub fn hinge_geometry(
+        &self,
+        push_end: Point3<f32>,
+        push_axis: Vector3<f32>,
+        slot: usize,
+        pull_other_end: Point3<f32>,
+    ) -> (Point3<f32>, HingeBend, Point3<f32>) {
+        // Ring center position on the bolt
+        let axial_offset = *self.ring_thickness * (slot as f32 + 1.0);
+        let ring_center = push_end + push_axis * axial_offset;
+
+        // Direction from ring center toward the pull's other end, projected onto ring plane
+        let to_pull = pull_other_end - ring_center;
+        let axial_component = push_axis * to_pull.dot(push_axis);
+        let radial_direction = to_pull - axial_component;
+
+        let radial_unit = if radial_direction.magnitude2() < 1e-10 {
+            let arbitrary = if push_axis.x.abs() < 0.9 {
+                Vector3::new(1.0, 0.0, 0.0)
+            } else {
+                Vector3::new(0.0, 1.0, 0.0)
+            };
+            push_axis.cross(arbitrary).normalize()
+        } else {
+            radial_direction.normalize()
+        };
+
+        let hinge_pos = ring_center + radial_unit * *self.hinge_offset;
+
+        // Calculate ideal angle and snap to nearest HingeBend
+        let pull_direction = (pull_other_end - hinge_pos).normalize();
+        let ideal_angle = Self::hinge_angle(push_axis, pull_direction);
+        let hinge_bend = HingeBend::from_angle(ideal_angle);
+
+        // Calculate endpoint using snapped angle
+        let pull_end_pos = hinge_bend.endpoint(
+            hinge_pos,
+            push_axis,
+            radial_unit,
+            *self.hinge_length,
+        );
+
+        (hinge_pos, hinge_bend, pull_end_pos)
+    }
+}
+
+/// The 5 allowed hinge bending angles
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::Display)]
+pub enum HingeBend {
+    #[strum(serialize = "-60")]
+    Neg60,
+    #[strum(serialize = "-30")]
+    Neg30,
+    #[strum(serialize = "0")]
+    Zero,
+    #[strum(serialize = "+30")]
+    Pos30,
+    #[strum(serialize = "+60")]
+    Pos60,
+}
+
+impl HingeBend {
+    /// Get the angle in degrees as f32
+    pub fn degrees(&self) -> f32 {
+        match self {
+            HingeBend::Neg60 => -60.0,
+            HingeBend::Neg30 => -30.0,
+            HingeBend::Zero => 0.0,
+            HingeBend::Pos30 => 30.0,
+            HingeBend::Pos60 => 60.0,
+        }
+    }
+
+    /// Snap an ideal angle to the nearest HingeBend
+    pub fn from_angle(angle: Degrees) -> Self {
+        let deg = angle.0;
+        if deg < -45.0 {
+            HingeBend::Neg60
+        } else if deg < -15.0 {
+            HingeBend::Neg30
+        } else if deg < 15.0 {
+            HingeBend::Zero
+        } else if deg < 45.0 {
+            HingeBend::Pos30
+        } else {
+            HingeBend::Pos60
+        }
+    }
+
+    /// Calculate the hinge endpoint position
+    pub fn endpoint(
+        &self,
+        hinge_pos: Point3<f32>,
+        push_axis: Vector3<f32>,
+        radial_direction: Vector3<f32>,
+        hinge_length: f32,
+    ) -> Point3<f32> {
+        // At 0°, hinge points along radial_direction (away from ring center)
+        // At +angle, it rotates toward push_axis (outward along bolt)
+        // At -angle, it rotates away from push_axis (inward toward push interval)
+        let angle_rad = self.degrees().to_radians();
+        let cos_a = angle_rad.cos();
+        let sin_a = angle_rad.sin();
+
+        let hinge_direction = radial_direction * cos_a + push_axis * sin_a;
+        hinge_pos + hinge_direction * hinge_length
     }
 }
 
