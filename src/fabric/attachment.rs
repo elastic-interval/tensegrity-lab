@@ -19,6 +19,7 @@ pub struct FabricDimensions {
     pub pull_radius: Meters,
     pub ring_thickness: Meters,
     pub hinge_offset: Meters,
+    pub hinge_length: Meters,
 }
 
 impl FabricDimensions {
@@ -31,6 +32,7 @@ impl FabricDimensions {
             pull_radius: Meters(0.007),     // 7mm
             ring_thickness: Meters(0.012),  // 12mm
             hinge_offset: Meters(0.063),    // 63mm
+            hinge_length: Meters(0.100),    // 100mm
         }
     }
 
@@ -43,6 +45,7 @@ impl FabricDimensions {
             pull_radius: Meters(0.0005),    // 0.5mm
             ring_thickness: Meters(0.001),  // 1mm
             hinge_offset: Meters(0.004),    // 4mm
+            hinge_length: Meters(0.006),    // 6mm
         }
     }
 
@@ -65,6 +68,7 @@ impl FabricDimensions {
             pull_radius: self.pull_radius,
             ring_thickness: self.ring_thickness,
             hinge_offset: self.hinge_offset,
+            hinge_length: self.hinge_length,
         }
     }
 }
@@ -76,6 +80,7 @@ pub struct IntervalDimensions {
     pub pull_radius: Meters,
     pub ring_thickness: Meters,
     pub hinge_offset: Meters,
+    pub hinge_length: Meters,
 }
 
 impl Default for IntervalDimensions {
@@ -95,6 +100,7 @@ impl IntervalDimensions {
             pull_radius: self.pull_radius * scale,
             ring_thickness: self.ring_thickness * scale,
             hinge_offset: self.hinge_offset * scale,
+            hinge_length: self.hinge_length * scale,
         }
     }
 

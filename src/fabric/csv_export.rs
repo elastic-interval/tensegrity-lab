@@ -36,8 +36,10 @@ impl Fabric {
         writeln!(file, "Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaJoint,AlphaSlot,AlphaAngle,OmegaX,OmegaY,OmegaZ,OmegaJoint,OmegaSlot,OmegaAngle")?;
 
         // Build a map of pull interval connections for each push interval
-        // Key: (pull_interval_key, end, slot) -> (hinge_pos, joint_key, slot, angle)
-        let mut pull_hinge_info: std::collections::HashMap<(IntervalKey, IntervalEnd, usize), (Point3<f32>, JointKey, usize, Degrees)> =
+        // Key: (pull_interval_key, end, slot) -> (pull_end_pos, hinge_pos, joint_key, slot, angle)
+        // pull_end_pos is where the pull interval terminates (hinge_pos - hinge_length along pull direction)
+        // hinge_pos is the actual hinge location
+        let mut pull_hinge_info: std::collections::HashMap<(IntervalKey, IntervalEnd, usize), (Point3<f32>, Point3<f32>, JointKey, usize, Degrees)> =
             std::collections::HashMap::new();
 
         // First pass: collect hinge info from push intervals
@@ -72,6 +74,9 @@ impl Fabric {
                             let pull_direction = (pull_other_end - hinge_pos).normalize();
                             let angle = ConnectorSpec::hinge_angle(-push_dir, pull_direction);
 
+                            // Pull end position: pull back from hinge by hinge_length along pull direction
+                            let pull_end_pos = hinge_pos + pull_direction * *connector.hinge_length;
+
                             // Store for the pull interval's alpha or omega end
                             let pull_end = if pull_interval.alpha_key == push_interval.alpha_key {
                                 IntervalEnd::Alpha
@@ -80,7 +85,7 @@ impl Fabric {
                             };
                             pull_hinge_info.insert(
                                 (connection.pull_interval_key, pull_end, slot_idx + 1),
-                                (hinge_pos, push_interval.alpha_key, slot_idx + 1, angle),
+                                (pull_end_pos, hinge_pos, push_interval.alpha_key, slot_idx + 1, angle),
                             );
                         }
                     }
@@ -108,6 +113,9 @@ impl Fabric {
                             let pull_direction = (pull_other_end - hinge_pos).normalize();
                             let angle = ConnectorSpec::hinge_angle(push_dir, pull_direction);
 
+                            // Pull end position: pull back from hinge by hinge_length along pull direction
+                            let pull_end_pos = hinge_pos + pull_direction * *connector.hinge_length;
+
                             let pull_end = if pull_interval.alpha_key == push_interval.omega_key {
                                 IntervalEnd::Alpha
                             } else {
@@ -115,7 +123,7 @@ impl Fabric {
                             };
                             pull_hinge_info.insert(
                                 (connection.pull_interval_key, pull_end, slot_idx + 1),
-                                (hinge_pos, push_interval.omega_key, slot_idx + 1, angle),
+                                (pull_end_pos, hinge_pos, push_interval.omega_key, slot_idx + 1, angle),
                             );
                         }
                     }
@@ -178,6 +186,7 @@ impl Fabric {
                     omega.x, omega.y, omega.z, omega_joint.id,
                 )?;
             } else {
+                // Find pull_end_pos (shortened by hinge_length) for each end
                 let alpha_info = pull_hinge_info.iter()
                     .find(|((pull_id, end, _), _)| *pull_id == info.key && *end == IntervalEnd::Alpha)
                     .map(|(_, data)| data);
@@ -185,26 +194,30 @@ impl Fabric {
                     .find(|((pull_id, end, _), _)| *pull_id == info.key && *end == IntervalEnd::Omega)
                     .map(|(_, data)| data);
 
-                let (alpha_pos, alpha_joint_idx, alpha_slot, alpha_angle) = if let Some((pos, joint_key, slot, angle)) = alpha_info {
-                    (Point3::new(pos.x, pos.y, pos.z) * MM_PER_METER, self.joints[*joint_key].id, *slot, *angle)
+                // Use pull_end_pos (first element) for the interval position
+                let (alpha_pos, alpha_joint_idx, alpha_slot, alpha_angle) = if let Some((pull_end_pos, _, joint_key, slot, angle)) = alpha_info {
+                    (Point3::new(pull_end_pos.x, pull_end_pos.y, pull_end_pos.z) * MM_PER_METER, self.joints[*joint_key].id, *slot, *angle)
                 } else {
                     let joint = &self.joints[interval.alpha_key];
                     (joint.location * MM_PER_METER, joint.id, 0, Degrees(0.0))
                 };
 
-                let (omega_pos, omega_joint_idx, omega_slot, omega_angle) = if let Some((pos, joint_key, slot, angle)) = omega_info {
-                    (Point3::new(pos.x, pos.y, pos.z) * MM_PER_METER, self.joints[*joint_key].id, *slot, *angle)
+                let (omega_pos, omega_joint_idx, omega_slot, omega_angle) = if let Some((pull_end_pos, _, joint_key, slot, angle)) = omega_info {
+                    (Point3::new(pull_end_pos.x, pull_end_pos.y, pull_end_pos.z) * MM_PER_METER, self.joints[*joint_key].id, *slot, *angle)
                 } else {
                     let joint = &self.joints[interval.omega_key];
                     (joint.location * MM_PER_METER, joint.id, 0, Degrees(0.0))
                 };
+
+                // Calculate shortened length
+                let shortened_length = (omega_pos - alpha_pos).magnitude() / MM_PER_METER;
 
                 writeln!(
                     file,
                     "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},{},{},{:.3},{:.3},{:.3},{:.3},{},{},{:.3}",
                     index + 1,
                     role_str,
-                    info.length,
+                    shortened_length,
                     info.strain,
                     alpha_pos.x, alpha_pos.y, alpha_pos.z, alpha_joint_idx, alpha_slot, *alpha_angle,
                     omega_pos.x, omega_pos.y, omega_pos.z, omega_joint_idx, omega_slot, *omega_angle,
@@ -214,20 +227,21 @@ impl Fabric {
 
         // Build link structure for each push interval end
         // Group connections by push joint to build the axial chain
-        let mut push_end_connections: std::collections::HashMap<JointKey, Vec<(usize, Point3<f32>)>> =
+        // Each entry stores: (slot, pull_end_pos, hinge_pos)
+        let mut push_end_connections: std::collections::HashMap<JointKey, Vec<(usize, Point3<f32>, Point3<f32>)>> =
             std::collections::HashMap::new();
 
-        for (_, (hinge_pos, joint_key, slot, _)) in &pull_hinge_info {
+        for (_, (pull_end_pos, hinge_pos, joint_key, slot, _)) in &pull_hinge_info {
             push_end_connections
                 .entry(*joint_key)
                 .or_default()
-                .push((*slot, *hinge_pos));
+                .push((*slot, *pull_end_pos, *hinge_pos));
         }
 
         let mut link_index = interval_infos.len();
 
         for (joint_key, mut connections) in push_end_connections {
-            connections.sort_by_key(|(slot, _)| *slot);
+            connections.sort_by_key(|(slot, _, _)| *slot);
 
             let joint = &self.joints[joint_key];
             let joint_pos = joint.location;
@@ -246,7 +260,7 @@ impl Fabric {
             let mut prev_pos = joint_pos;
             let mut prev_slot = 0usize;
 
-            for (slot, hinge_pos) in &connections {
+            for (slot, pull_end_pos, hinge_pos) in &connections {
                 // Ring center at this slot
                 let ring_center = joint_pos + push_axis * *connector.ring_thickness * (*slot as f32 - 0.5);
 
@@ -275,6 +289,18 @@ impl Fabric {
                     hinge_mm.x, hinge_mm.y, hinge_mm.z, joint.id, slot,
                 )?;
 
+                // Hinge link: hinge → pull_end (along pull direction)
+                link_index += 1;
+                let pull_end_mm = *pull_end_pos * MM_PER_METER;
+                let hinge_link_length = (*pull_end_pos - *hinge_pos).magnitude();
+                writeln!(
+                    file,
+                    "{},hinge,{:.3},0.000e0,{:.3},{:.3},{:.3},{},{},0.000,{:.3},{:.3},{:.3},{},{},0.000",
+                    link_index, hinge_link_length,
+                    hinge_mm.x, hinge_mm.y, hinge_mm.z, joint.id, slot,
+                    pull_end_mm.x, pull_end_mm.y, pull_end_mm.z, joint.id, slot,
+                )?;
+
                 prev_pos = ring_center;
                 prev_slot = *slot;
             }
@@ -290,5 +316,6 @@ fn write_dimensions_comments(file: &mut File, dims: &IntervalDimensions) -> io::
     writeln!(file, "# pull_radius: {:.3}m ({:.1}mm)", *dims.pull_radius, dims.pull_radius.to_mm())?;
     writeln!(file, "# ring_thickness: {:.3}m ({:.1}mm)", *dims.ring_thickness, dims.ring_thickness.to_mm())?;
     writeln!(file, "# hinge_offset: {:.3}m ({:.1}mm)", *dims.hinge_offset, dims.hinge_offset.to_mm())?;
+    writeln!(file, "# hinge_length: {:.3}m ({:.1}mm)", *dims.hinge_length, dims.hinge_length.to_mm())?;
     Ok(())
 }
