@@ -37,7 +37,7 @@ impl PlanRunner {
             shape_phase,
             build_phase,
             pretense_phase,
-            scale,
+            dimensions,
             ..
         }: FabricPlan,
     ) -> Self {
@@ -46,7 +46,7 @@ impl PlanRunner {
             shape_phase,
             build_phase,
             pretense_phase,
-            scale,
+            scale: dimensions.scale,
             stage: Initialize,
             disabled: None,
         }

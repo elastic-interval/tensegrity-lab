@@ -227,7 +227,7 @@ impl AttachmentRenderer {
         // base_radius = 0.04, push radius_factor = 1.2
         let ring_radius = 0.04 * 1.2 * fabric.scale();
         // Ring thickness with small gap between rings
-        let ring_thickness = connector.ring_thickness * 0.8; // 80% of slot width leaves 20% gap
+        let ring_thickness = *connector.ring_thickness * 0.8; // 80% of slot width leaves 20% gap
 
         // Add all push interval attachment points with appropriate coloring
         self.add_push_interval_rings(

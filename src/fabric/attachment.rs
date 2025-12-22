@@ -4,42 +4,100 @@
  */
 
 use crate::fabric::{IntervalEnd, IntervalKey, JointKey, Joints};
-use crate::units::Degrees;
+use crate::units::{Degrees, Meters};
 use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
 
 /// Number of attachment points at each end of a push interval
 pub const ATTACHMENT_POINTS: usize = 10;
 
-/// Connector geometry specification for ring connectors
-/// Each pull interval connects via a ring stacked on a bolt extending from the push interval end.
-/// The hinge (connection point) is at the edge of the ring, offset radially from the bolt axis.
-/// All dimensions scale proportionally with the fabric scale.
-pub struct ConnectorSpec {
-    /// Distance between ring centers along the bolt (thickness of each ring)
-    pub ring_thickness: f32,
-    /// Radial distance from bolt axis to hinge point (just outside interval radius)
-    pub hinge_offset: f32,
+/// All physical dimensions for a fabric: structure size and interval geometry.
+#[derive(Clone, Copy, Debug)]
+pub struct FabricDimensions {
+    pub altitude: Meters,
+    pub scale: Meters,
+    pub push_radius: Meters,
+    pub pull_radius: Meters,
+    pub ring_thickness: Meters,
+    pub hinge_offset: Meters,
 }
 
-impl ConnectorSpec {
-    /// Create a connector spec scaled appropriately for the fabric
-    /// Base dimensions are for scale 1.0 (1 meter structures)
-    /// Push interval radius is 0.04 * 1.2 * scale = 0.048 * scale
-    pub fn for_scale(scale: f32) -> Self {
+impl FabricDimensions {
+    /// Full-size dimensions for real structures (scale 1.0m, altitude 7.5m)
+    pub fn full_size() -> Self {
         Self {
-            ring_thickness: 0.016 * scale, // 16mm at scale 1.0 (doubled from 8mm)
-            hinge_offset: 0.04 * 1.2 * scale, // Match disc radius exactly (48mm at scale 1.0)
+            altitude: Meters(7.5),
+            scale: Meters(1.0),
+            push_radius: Meters(0.060),     // 60mm
+            pull_radius: Meters(0.007),     // 7mm
+            ring_thickness: Meters(0.012),  // 12mm
+            hinge_offset: Meters(0.063),    // 63mm
+        }
+    }
+
+    /// Model-size dimensions for small physical models (scale 0.056m, altitude 0.5m)
+    pub fn model_size() -> Self {
+        Self {
+            altitude: Meters(0.5),
+            scale: Meters(0.056),
+            push_radius: Meters(0.003),     // 3mm
+            pull_radius: Meters(0.0005),    // 0.5mm
+            ring_thickness: Meters(0.001),  // 1mm
+            hinge_offset: Meters(0.004),    // 4mm
+        }
+    }
+
+    /// Set custom altitude
+    pub fn with_altitude(mut self, altitude: Meters) -> Self {
+        self.altitude = altitude;
+        self
+    }
+
+    /// Set custom scale
+    pub fn with_scale(mut self, scale: Meters) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    /// Interval dimensions only (for backward compatibility)
+    pub fn interval_dimensions(&self) -> IntervalDimensions {
+        IntervalDimensions {
+            push_radius: self.push_radius,
+            pull_radius: self.pull_radius,
+            ring_thickness: self.ring_thickness,
+            hinge_offset: self.hinge_offset,
         }
     }
 }
 
-impl Default for ConnectorSpec {
+/// Interval geometry dimensions (subset of FabricDimensions for rendering/export)
+#[derive(Clone, Copy, Debug)]
+pub struct IntervalDimensions {
+    pub push_radius: Meters,
+    pub pull_radius: Meters,
+    pub ring_thickness: Meters,
+    pub hinge_offset: Meters,
+}
+
+impl Default for IntervalDimensions {
     fn default() -> Self {
-        Self::for_scale(1.0)
+        FabricDimensions::full_size().interval_dimensions()
     }
 }
 
-impl ConnectorSpec {
+impl IntervalDimensions {
+    pub fn for_scale(scale: f32) -> Self {
+        Self::default().scaled(scale)
+    }
+
+    pub fn scaled(&self, scale: f32) -> Self {
+        Self {
+            push_radius: self.push_radius * scale,
+            pull_radius: self.pull_radius * scale,
+            ring_thickness: self.ring_thickness * scale,
+            hinge_offset: self.hinge_offset * scale,
+        }
+    }
+
     /// Calculate the hinge position for a pull interval connection
     ///
     /// # Parameters
@@ -58,18 +116,15 @@ impl ConnectorSpec {
         pull_other_end: Point3<f32>,
     ) -> Point3<f32> {
         // Ring center position on the bolt
-        let axial_offset = self.ring_thickness * (slot as f32 + 0.5);
+        let axial_offset = *self.ring_thickness * (slot as f32 + 0.5);
         let ring_center = push_end + push_axis * axial_offset;
 
         // Direction from ring center toward the pull's other end, projected onto ring plane
         let to_pull = pull_other_end - ring_center;
-        // Remove the axial component to get the radial direction
         let axial_component = push_axis * to_pull.dot(push_axis);
         let radial_direction = to_pull - axial_component;
 
-        // If the radial direction is zero (pull is exactly along axis), pick an arbitrary direction
         let radial_unit = if radial_direction.magnitude2() < 1e-10 {
-            // Find any vector perpendicular to push_axis
             let arbitrary = if push_axis.x.abs() < 0.9 {
                 Vector3::new(1.0, 0.0, 0.0)
             } else {
@@ -80,8 +135,7 @@ impl ConnectorSpec {
             radial_direction.normalize()
         };
 
-        // Hinge point is at radial offset from the ring center
-        ring_center + radial_unit * self.hinge_offset
+        ring_center + radial_unit * *self.hinge_offset
     }
 
     /// Calculate the hinge angle for a pull interval at its connection point
@@ -105,6 +159,9 @@ impl ConnectorSpec {
         Degrees(sin_angle.asin().to_degrees())
     }
 }
+
+/// Type alias for backward compatibility during migration
+pub type ConnectorSpec = IntervalDimensions;
 
 /// Represents an attachment point on a push interval
 #[derive(Clone, Copy, Debug)]
@@ -585,7 +642,7 @@ pub fn generate_attachment_points(
     // Each point represents the center of a ring at that slot
     for i in 0..ATTACHMENT_POINTS {
         // Ring center is at slot index * ring_thickness + half ring thickness
-        let distance = connector.ring_thickness * (i as f32 + 0.5);
+        let distance = *connector.ring_thickness * (i as f32 + 0.5);
 
         // Calculate offset vector
         let offset = axis * distance;

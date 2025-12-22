@@ -13,47 +13,27 @@ pub use crate::build::dsl::brick_dsl::{BrickName, BrickOrientation, BrickRole, F
 pub use crate::units::Percent as Pct;
 pub use crate::build::dsl::build_phase::BuildNode as Node;
 pub use crate::units::{Meters as M, Seconds as Sec};
+pub use crate::fabric::attachment::FabricDimensions;
 
-/// Stage 1: Need altitude
-pub struct FabricStage1 {
-    pub(crate) name: FabricName,
-}
-
-impl FabricStage1 {
-    pub fn altitude(self, altitude: Meters) -> FabricStage2 {
-        FabricStage2 {
-            name: self.name,
-            altitude,
-        }
-    }
-}
-
-/// Stage 2: Need scale
-pub struct FabricStage2 {
-    name: FabricName,
-    altitude: Meters,
-}
-
-impl FabricStage2 {
-    pub fn scale(self, scale: Meters) -> FabricBuilder {
+impl FabricName {
+    /// Start building a fabric plan with the given dimensions
+    pub fn build(self, dimensions: FabricDimensions) -> FabricBuilder {
         FabricBuilder {
-            name: self.name,
-            altitude: self.altitude,
+            name: self,
+            dimensions,
             build: None,
             shape: Vec::new(),
             pretense: PretensePhaseBuilder::default(),
-            scale,
         }
     }
 }
 
 pub struct FabricBuilder {
     name: FabricName,
-    altitude: Meters,
+    dimensions: FabricDimensions,
     build: Option<BuildNode>,
     shape: Vec<ShapeStep>,
     pretense: PretensePhaseBuilder,
-    scale: Meters,
 }
 
 impl FabricBuilder {
@@ -113,11 +93,12 @@ impl FabricBuilder {
     }
 
     pub(crate) fn build_plan(self) -> FabricPlan {
+        let dims = self.dimensions;
         FabricPlan {
             name: self.name,
             build_phase: BuildPhase::new(
                 self.build.expect("build phase required"),
-                self.altitude.0 / self.scale.0,
+                *dims.altitude / *dims.scale,
             ),
             shape_phase: crate::build::dsl::shape_phase::ShapePhase {
                 steps: self.shape,
@@ -126,14 +107,13 @@ impl FabricBuilder {
                 joiners: Vec::new(),
                 anchors: Vec::new(),
                 step_index: 0,
-                scale: self.scale,
+                scale: dims.scale,
             },
             pretense_phase: self.pretense.build(),
             fall_phase: FallPhase { seconds: Seconds(5.0) },
             settle_phase: None,
             animate_phase: None,
-            scale: self.scale,
-            altitude: self.altitude,
+            dimensions: dims,
         }
     }
 }

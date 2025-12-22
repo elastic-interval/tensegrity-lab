@@ -444,7 +444,7 @@ impl ApplicationHandler<LabEvent> for Application {
                         #[cfg(not(target_arch = "wasm32"))]
                         {
                             let filename = format!("{}-{}.csv", self.crucible.fabric.name, moment.suffix());
-                            if let Err(e) = self.crucible.fabric.snapshot_csv(&filename) {
+                            if let Err(e) = self.crucible.fabric.snapshot_csv_with_phase(&filename, Some(moment.suffix())) {
                                 eprintln!("Failed to export snapshot {}: {}", filename, e);
                             }
                         }
