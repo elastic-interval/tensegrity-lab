@@ -121,8 +121,8 @@ impl IntervalDimensions {
         slot: usize,
         pull_other_end: Point3<f32>,
     ) -> Point3<f32> {
-        // Ring center position on the bolt
-        let axial_offset = *self.ring_thickness * (slot as f32 + 0.5);
+        // Ring center position on the bolt (1x, 2x, 3x ring_thickness for slots 0, 1, 2)
+        let axial_offset = *self.ring_thickness * (slot as f32 + 1.0);
         let ring_center = push_end + push_axis * axial_offset;
 
         // Direction from ring center toward the pull's other end, projected onto ring plane

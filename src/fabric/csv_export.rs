@@ -261,8 +261,8 @@ impl Fabric {
             let mut prev_slot = 0usize;
 
             for (slot, pull_end_pos, hinge_pos) in &connections {
-                // Ring center at this slot
-                let ring_center = joint_pos + push_axis * *connector.ring_thickness * (*slot as f32 - 0.5);
+                // Ring center at this slot (1x, 2x, 3x ring_thickness)
+                let ring_center = joint_pos + push_axis * *connector.ring_thickness * *slot as f32;
 
                 // Axial link: previous position → ring center
                 link_index += 1;
