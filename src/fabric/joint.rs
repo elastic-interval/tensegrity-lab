@@ -127,55 +127,85 @@ impl JointPath {
 
 impl std::fmt::Display for JointPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Branches as letters A, B, C, ...
-        for b in &self.branches {
-            write!(f, "{}", (b'A' + b) as char)?;
+        // Branches with run-length encoding: "AAAA" -> "A4", "AB" -> "AB"
+        let mut i = 0;
+        while i < self.branches.len() {
+            let b = self.branches[i];
+            let letter = (b'A' + b) as char;
+            // Count consecutive identical branches
+            let mut count = 1;
+            while i + count < self.branches.len() && self.branches[i + count] == b {
+                count += 1;
+            }
+            write!(f, "{}", letter)?;
+            if count > 1 {
+                write!(f, "{}", count)?;
+            }
+            i += count;
         }
-        // Local index as number
-        write!(f, "{}", self.local_index)
+        // Square brackets around local index for clear delimiting
+        write!(f, "[{}]", self.local_index)
     }
 }
 
 impl std::str::FromStr for JointPath {
     type Err = String;
 
-    /// Parse a JointPath from a string like "AA0" or "B3" or "5"
-    /// Format: uppercase letters for branches, followed by numeric local_index
-    /// Examples: "0" = local_index 0, "A0" = branch A + local 0, "AB2" = branches A,B + local 2
+    /// Parse a JointPath from a string like "A4P[1]" or "B[3]" or "[5]"
+    /// Format: uppercase letters with optional repeat counts, then [local_index]
+    /// Examples: "[0]" = local_index 0, "A[0]" = branch A + local 0, "A4P[1]" = AAAAP + local 1
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim();
         if s.is_empty() {
             return Err("Empty JointPath string".to_string());
         }
 
-        // Find where letters end and digits begin
-        let first_digit = s.find(|c: char| c.is_ascii_digit());
-        let (prefix, num_str) = match first_digit {
-            Some(idx) => (&s[..idx], &s[idx..]),
-            None => {
+        // Find the bracketed local_index at the end
+        let (branch_part, local_str) = match (s.rfind('['), s.rfind(']')) {
+            (Some(open), Some(close)) if close == s.len() - 1 && open < close => {
+                (&s[..open], &s[open + 1..close])
+            }
+            _ => {
                 return Err(format!(
-                    "JointPath must end with numeric local_index, got: '{}'",
+                    "JointPath must end with [local_index], got: '{}'",
                     s
                 ))
             }
         };
 
-        // Parse local index from number part
-        let local_index = num_str
+        // Parse local_index
+        let local_index = local_str
             .parse::<u8>()
-            .map_err(|_| format!("Invalid local index: {}", num_str))?;
+            .map_err(|_| format!("Invalid local index: '{}'", local_str))?;
 
-        // Parse branches from prefix (A=0, B=1, ... Z=25)
-        let branches: Vec<u8> = prefix
-            .chars()
-            .map(|c| {
-                if c.is_ascii_uppercase() {
-                    Ok(c as u8 - b'A')
-                } else {
-                    Err(format!("Branch letters must be uppercase, got: '{}'", c))
+        // Parse branches with run-length encoding
+        let mut branches = Vec::new();
+        let chars: Vec<char> = branch_part.chars().collect();
+        let mut i = 0;
+
+        while i < chars.len() {
+            let c = chars[i];
+            if c.is_ascii_uppercase() {
+                let branch = c as u8 - b'A';
+                i += 1;
+                // Check for repeat count (digits following the letter)
+                let mut count_str = String::new();
+                while i < chars.len() && chars[i].is_ascii_digit() {
+                    count_str.push(chars[i]);
+                    i += 1;
                 }
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+                let count = if count_str.is_empty() {
+                    1
+                } else {
+                    count_str.parse::<usize>().unwrap_or(1)
+                };
+                for _ in 0..count {
+                    branches.push(branch);
+                }
+            } else {
+                return Err(format!("Invalid character in branch part: '{}'", c));
+            }
+        }
 
         Ok(JointPath::with_branches(branches, local_index))
     }

@@ -57,22 +57,30 @@ impl FabricName {
                     on(OmniTop).prism(),
                     on(OmniBot).radial(),
                 ])
-                .omit([("6", "9"), ("6", "3"), ("2", "11"), ("2", "5"), ("1", "10"), ("10", "7")])
+                .omit([
+                    ("[6]", "[9]"),
+                    ("[6]", "[3]"),
+                    ("[2]", "[11]"),
+                    ("[2]", "[5]"),
+                    ("[1]", "[10]"),
+                    ("[10]", "[7]"),
+                ])
                 .space(Sec(3.0), End, Pct(15.0))
                 .vulcanize(Sec(1.0))
                 .pretense(Sec(1.0))
                 .surface_frozen()
                 .fall(Sec(2.0))
-                .settle(Sec(3.0)),
-            // Note: actuators need actual joint paths - get them by clicking joints in the UI
-            // .animate()
-            // .period(Sec(0.847))
-            // .amplitude(Pct(1.0))
-            // .stiffness(Pct(20.0))
-            // .sine()
-            // .actuators([
-            //     phase(Pct(0.0)).between("AA0".into(), "BB1".into()),
-            // ]),
+                .settle(Sec(3.0))
+                .animate()
+                .period(Sec(0.847))
+                .amplitude(Pct(1.0))
+                .stiffness(Pct(20.0))
+                .sine()
+                .actuators([
+                    phase(Pct(0.0)).between("BA8P[1]", "CA2[4]"),
+                    phase(Pct(0.0)).between("CA8P[1]", "A3[4]"),
+                    phase(Pct(0.0)).between("A9P[1]", "BA2[4]"),
+                ]),
             Mockup => self
                 .build(
                     FabricDimensions::full_size()
