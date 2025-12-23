@@ -27,25 +27,27 @@ enum Stage {
 
 #[derive(Clone, Debug)]
 pub struct SymmetricGroup {
-    #[allow(dead_code)]
-    pub born: Age,
+    pub depth: usize,
+    pub axis: u8,
     pub intervals: Vec<IntervalKey>,
     pub avg_strain: f32,
 }
 
 impl Fabric {
     pub fn discover_symmetric_groups(&self) -> Vec<SymmetricGroup> {
-        let mut by_age: HashMap<Age, Vec<IntervalKey>> = HashMap::new();
+        let mut by_path_key: HashMap<(usize, u8), Vec<IntervalKey>> = HashMap::new();
         for (key, interval) in self.intervals.iter() {
             if interval.has_role(Role::Pushing) {
-                let born = self.joints[interval.alpha_key].born;
-                by_age.entry(born).or_default().push(key);
+                let alpha_joint = &self.joints[interval.alpha_key];
+                let symmetric_key = alpha_joint.path.symmetric_key();
+                by_path_key.entry(symmetric_key).or_default().push(key);
             }
         }
-        by_age
+        by_path_key
             .into_iter()
-            .map(|(born, intervals)| SymmetricGroup {
-                born,
+            .map(|((depth, axis), intervals)| SymmetricGroup {
+                depth,
+                axis,
                 intervals,
                 avg_strain: 0.0,
             })

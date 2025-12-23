@@ -401,16 +401,26 @@ impl FabricPlanExecutor {
         }
 
         // Omit triangle intervals after faces are converted
-        for (alpha_id, omega_id) in &self.plan.pretense_phase.omit_pairs {
-            let alpha_key = self.fabric.joint_by_id[*alpha_id];
-            let omega_key = self.fabric.joint_by_id[*omega_id];
-            if let Some(key) = self.fabric.joining((alpha_key, omega_key)) {
-                self.fabric.remove_interval(key);
-            } else {
-                eprintln!(
-                    "WARNING: No interval found between joints ({}, {})",
-                    alpha_id, omega_id
-                );
+        for (alpha_path, omega_path) in &self.plan.pretense_phase.omit_pairs {
+            let alpha_key = self.fabric.joint_key_by_path(alpha_path);
+            let omega_key = self.fabric.joint_key_by_path(omega_path);
+            match (alpha_key, omega_key) {
+                (Some(a), Some(o)) => {
+                    if let Some(key) = self.fabric.joining((a, o)) {
+                        self.fabric.remove_interval(key);
+                    } else {
+                        eprintln!(
+                            "WARNING: No interval found between joints ({}, {})",
+                            alpha_path, omega_path
+                        );
+                    }
+                }
+                _ => {
+                    eprintln!(
+                        "WARNING: Could not find joints for omit pair ({}, {})",
+                        alpha_path, omega_path
+                    );
+                }
             }
         }
 

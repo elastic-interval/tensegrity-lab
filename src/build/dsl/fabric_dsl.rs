@@ -5,6 +5,7 @@ use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::fall_phase::FallPhase;
 use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::shape_phase::{ShapeAction, ShapeStep};
+use crate::fabric::joint::JointPath;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Meters, Percent, Seconds};
 
@@ -104,9 +105,12 @@ impl FabricBuilder {
         self
     }
 
-    /// Remove intervals by joint pairs (executed after triangles are created in pretense phase)
-    pub fn omit<const N: usize>(mut self, pairs: [(usize, usize); N]) -> Self {
-        self.pretense.omit_pairs.extend(pairs);
+    /// Remove intervals by joint path pairs (executed after triangles are created in pretense phase)
+    /// Paths use format: "AA0" (branches A,A + local 0), "B3" (branch B + local 3), "5" (no branches, local 5)
+    pub fn omit<const N: usize>(mut self, pairs: [(&str, &str); N]) -> Self {
+        self.pretense
+            .omit_pairs
+            .extend(pairs.iter().map(|(a, b)| ((*a).into(), (*b).into())));
         self
     }
 
@@ -379,8 +383,8 @@ impl SeedChain {
         self.finalize_build().centralize_at(seconds, altitude)
     }
 
-    /// Remove intervals by joint pairs (executed after triangles are created in pretense phase)
-    pub fn omit<const N: usize>(self, pairs: [(usize, usize); N]) -> FabricBuilder {
+    /// Remove intervals by joint path pairs (executed after triangles are created in pretense phase)
+    pub fn omit<const N: usize>(self, pairs: [(&str, &str); N]) -> FabricBuilder {
         self.finalize_build().omit(pairs)
     }
 
@@ -473,7 +477,7 @@ pub struct PretensePhaseBuilder {
     pretenst: Option<Percent>,
     rigidity: Option<Percent>,
     seconds: Option<Seconds>,
-    omit_pairs: Vec<(usize, usize)>,
+    omit_pairs: Vec<(JointPath, JointPath)>,
 }
 
 impl PretensePhaseBuilder {

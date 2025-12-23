@@ -2,10 +2,11 @@ use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 use rand::prelude::*;
 
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, IntervalKey};
+use crate::fabric::{Fabric, IntervalKey, JointKey};
 
 struct KleinFabric {
     fabric: Fabric,
+    joint_keys: Vec<JointKey>,
     random: ThreadRng,
 }
 
@@ -13,6 +14,7 @@ impl KleinFabric {
     fn new() -> KleinFabric {
         KleinFabric {
             fabric: Fabric::new("klein".to_string()),
+            joint_keys: Vec::new(),
             random: thread_rng(),
         }
     }
@@ -24,19 +26,20 @@ impl KleinFabric {
             v.y = self.coord();
             v.z = self.coord();
         }
-        self.fabric.create_joint(Point3::from_vec(v));
+        let key = self.fabric.create_joint(Point3::from_vec(v));
+        self.joint_keys.push(key);
     }
 
     fn push(&mut self, alpha: isize, omega: isize) -> IntervalKey {
-        let alpha_key = self.fabric.joint_by_id[alpha as usize];
-        let omega_key = self.fabric.joint_by_id[omega as usize];
+        let alpha_key = self.joint_keys[alpha as usize];
+        let omega_key = self.joint_keys[omega as usize];
         self.fabric
             .create_interval(alpha_key, omega_key, 8.0, Role::Pushing)
     }
 
     fn pull(&mut self, alpha: isize, omega: isize) -> IntervalKey {
-        let alpha_key = self.fabric.joint_by_id[alpha as usize];
-        let omega_key = self.fabric.joint_by_id[omega as usize];
+        let alpha_key = self.joint_keys[alpha as usize];
+        let omega_key = self.joint_keys[omega as usize];
         self.fabric
             .create_interval(alpha_key, omega_key, 1.0, Role::Pulling)
     }

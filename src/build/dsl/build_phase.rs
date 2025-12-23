@@ -5,6 +5,7 @@ use crate::build::dsl::build_phase::Launch::*;
 use crate::build::dsl::{brick_library, FaceAlias, FaceMark, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::FaceRotation;
+use crate::fabric::joint::JointPath;
 use crate::fabric::{Fabric, FaceKey};
 use crate::units::Percent;
 use std::convert::Into;
@@ -62,6 +63,7 @@ pub struct Bud {
     column_style: Option<ColumnStyle>,
     scale: Percent,
     nodes: Vec<BuildNode>,
+    branch_path: JointPath,
 }
 
 #[derive(Debug, Clone)]
@@ -142,8 +144,14 @@ impl BuildPhase {
 
 impl BuildPhase {
     pub fn init(&mut self, fabric: &mut Fabric) {
-        let (buds, marks) =
-            Self::execute_node(fabric, Scratch, &self.root, vec![], self.seed_altitude);
+        let (buds, marks) = Self::execute_node(
+            fabric,
+            Scratch,
+            &self.root,
+            vec![],
+            self.seed_altitude,
+            JointPath::default(),
+        );
         self.buds = buds;
         self.marks = marks;
     }
@@ -170,6 +178,7 @@ impl BuildPhase {
             column_style,
             scale,
             nodes,
+            branch_path,
         }: Bud,
     ) -> (Vec<Bud>, Vec<FaceMark>) {
         let (mut buds, mut marks) = (vec![], vec![]);
@@ -185,12 +194,14 @@ impl BuildPhase {
                 Spin::Right => (BrickName::SingleTwistRight, BrickRole::OnSpinRight),
             };
             let brick = brick_library::get_brick(brick_name, brick_role);
+            let next_path = branch_path.extend(0);
             let (base_face, brick_faces) = fabric.attach_brick(
                 &brick,
                 brick_role,
                 FaceRotation::Zero,
                 scale.as_factor(),
                 BaseFace::ExistingFace(face_key),
+                &next_path,
             );
             fabric.join_faces(base_face, face_key);
             // Filter out base_face since it was deleted by join_faces
@@ -210,15 +221,18 @@ impl BuildPhase {
                 column_style: style.decrement(),
                 scale,
                 nodes,
+                branch_path: next_path,
             });
         } else if !nodes.is_empty() {
-            for child_node in &nodes {
+            for (branch_index, child_node) in nodes.iter().enumerate() {
+                let child_path = branch_path.extend(branch_index as u8);
                 let (node_buds, node_marks) = Self::execute_node(
                     fabric,
                     IdentifiedFace(face_key),
                     child_node,
                     vec![],
                     self.seed_altitude,
+                    child_path,
                 );
                 buds.extend(node_buds);
                 marks.extend(node_marks);
@@ -233,6 +247,7 @@ impl BuildPhase {
         node: &BuildNode,
         faces: Vec<FaceKey>,
         seed_altitude: f32,
+        branch_path: JointPath,
     ) -> (Vec<Bud>, Vec<FaceMark>) {
         let mut buds: Vec<Bud> = vec![];
         let mut marks: Vec<FaceMark> = vec![];
@@ -245,6 +260,7 @@ impl BuildPhase {
                     build_node,
                     faces,
                     seed_altitude,
+                    branch_path,
                 );
             }
             Column {
@@ -260,6 +276,7 @@ impl BuildPhase {
                     column_style: Some(*style),
                     scale: *scale,
                     nodes: post_column_nodes.clone(),
+                    branch_path,
                 })
             }
             Hub {
@@ -283,6 +300,7 @@ impl BuildPhase {
                     rotation.into(),
                     scale.as_factor(),
                     base_face,
+                    &branch_path,
                 );
                 // Filter out base_face_key only if it was deleted by join_faces
                 let available_faces: Vec<_> = if let Some(face_key) = launch_face {
@@ -295,13 +313,17 @@ impl BuildPhase {
                 } else {
                     brick_faces.clone()
                 };
-                for (hub_face_alias, hub_node) in Self::hub_pairs(face_nodes) {
+                for (branch_index, (hub_face_alias, hub_node)) in
+                    Self::hub_pairs(face_nodes).into_iter().enumerate()
+                {
+                    let child_path = branch_path.extend(branch_index as u8);
                     let (new_buds, new_marks) = Self::execute_node(
                         fabric,
                         NamedFace(hub_face_alias),
                         hub_node,
                         available_faces.clone(),
                         seed_altitude,
+                        child_path,
                     );
                     buds.extend(new_buds);
                     marks.extend(new_marks);

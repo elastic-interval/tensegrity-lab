@@ -109,9 +109,13 @@ impl Animator {
             let phase_offset = actuator.phase_offset.as_factor();
             match &actuator.attachment {
                 ActuatorAttachment::Between { joint_a, joint_b } => {
-                    // Resolve DSL joint indices to JointKeys
-                    let alpha_key = context.fabric.joint_by_id[*joint_a];
-                    let omega_key = context.fabric.joint_by_id[*joint_b];
+                    // Resolve DSL joint paths to JointKeys
+                    let Some(alpha_key) = context.fabric.joint_key_by_path(joint_a) else {
+                        continue;
+                    };
+                    let Some(omega_key) = context.fabric.joint_key_by_path(joint_b) else {
+                        continue;
+                    };
                     let rest_length = context.fabric.distance(alpha_key, omega_key);
                     let id = context.fabric.create_interval(
                         alpha_key,
@@ -136,8 +140,10 @@ impl Animator {
                     });
                 }
                 ActuatorAttachment::ToSurface { joint, point } => {
-                    // Resolve DSL joint index to JointKey
-                    let joint_key = context.fabric.joint_by_id[*joint];
+                    // Resolve DSL joint path to JointKey
+                    let Some(joint_key) = context.fabric.joint_key_by_path(joint) else {
+                        continue;
+                    };
                     // Create anchor joint at surface position (x, 0, z)
                     let anchor_point = Point3::new(point.0, 0.0, point.1);
                     let anchor_key = context.fabric.create_joint(anchor_point);

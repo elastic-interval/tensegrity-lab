@@ -1,7 +1,7 @@
 use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::FabricPlan;
 use crate::fabric::interval::{Interval, Role};
-use crate::fabric::{FabricStats, IntervalKey, JointId, JointKey};
+use crate::fabric::{FabricStats, IntervalKey, JointKey};
 use crate::units::{Degrees, Meters};
 use crate::wgpu::Wgpu;
 use cgmath::Point3;
@@ -252,15 +252,15 @@ impl RenderStyle {
     }
 }
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug)]
 pub struct IntervalDetails {
     pub key: IntervalKey,
     pub near_joint: JointKey,
-    pub near_joint_id: JointId,
+    pub near_joint_path: String,
     pub near_slot: Option<usize>,
     pub far_slot: Option<usize>,
     pub far_joint: JointKey,
-    pub far_joint_id: JointId,
+    pub far_joint_path: String,
     pub alpha_hinge_angle: Option<Degrees>,
     pub omega_hinge_angle: Option<Degrees>,
     pub length: Meters,
@@ -338,24 +338,24 @@ impl IntervalDetails {
         self.distance.to_mm()
     }
 
-    /// Format a joint id as a string, optionally with a slot number
+    /// Format a joint path as a string, optionally with a slot number
     /// If show_attachment_points is false, the slot number will be hidden
     pub fn format_joint(&self, is_near: bool, show_attachment_points: bool) -> String {
-        let (joint_id, slot) = if is_near {
-            (self.near_joint_id, self.near_slot)
+        let (joint_path, slot) = if is_near {
+            (&self.near_joint_path, self.near_slot)
         } else {
-            (self.far_joint_id, self.far_slot)
+            (&self.far_joint_path, self.far_slot)
         };
 
         // Only show slot numbers if attachment points are visible
         if show_attachment_points {
             match slot {
-                Some(slot_idx) => format!("{}:{}", joint_id, slot_idx),
-                None => format!("{}", joint_id),
+                Some(slot_idx) => format!("{}:{}", joint_path, slot_idx),
+                None => joint_path.clone(),
             }
         } else {
             // Always use the simple format when attachment points are hidden
-            format!("{}", joint_id)
+            joint_path.clone()
         }
     }
 
@@ -370,10 +370,10 @@ impl IntervalDetails {
     }
 }
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug)]
 pub struct JointDetails {
     pub key: JointKey,
-    pub id: JointId,
+    pub path: String,
     pub location: Point3<f32>,
     pub selected_push: Option<IntervalKey>,
 }
@@ -410,10 +410,9 @@ impl JointDetails {
         (y <= 0.0).then(|| (x * 1000.0, z * 1000.0))
     }
 
-    /// Format this joint as a string (e.g., "J1" or "J1:2" with attachment points)
+    /// Format this joint as a string using the path
     pub fn joint_text(&self) -> String {
-        // Use JointId's Display implementation
-        format!("{}", self.id)
+        self.path.clone()
     }
 }
 

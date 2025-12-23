@@ -1,3 +1,4 @@
+use crate::fabric::joint::JointPath;
 use crate::fabric::physics::presets::VIEWING;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::units::{Percent, Seconds};
@@ -8,7 +9,7 @@ pub struct PretensePhase {
     pub pretenst: Option<Percent>,
     pub seconds: Option<Seconds>,
     pub rigidity: Option<Percent>,
-    pub omit_pairs: Vec<(usize, usize)>,
+    pub omit_pairs: Vec<(JointPath, JointPath)>,
 }
 
 impl PretensePhase {

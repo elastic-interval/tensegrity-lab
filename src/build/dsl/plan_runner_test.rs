@@ -428,59 +428,59 @@ mod tests {
         eprintln!("Total joints: {}", executor.fabric.joints.len());
         eprintln!("Iterations: {}", iteration);
 
-        // Analyze joint birth ages for symmetry
+        // Analyze joints by path depth for symmetry
         use std::collections::HashMap;
-        eprintln!("\n=== JOINT BIRTH AGE ANALYSIS ===");
-        let mut by_age: HashMap<crate::Age, usize> = HashMap::new();
+        eprintln!("\n=== JOINT PATH DEPTH ANALYSIS ===");
+        let mut by_depth: HashMap<usize, usize> = HashMap::new();
         for joint in executor.fabric.joints.values() {
-            *by_age.entry(joint.born).or_insert(0) += 1;
+            *by_depth.entry(joint.path.depth()).or_insert(0) += 1;
         }
-        let mut age_counts: Vec<_> = by_age.into_iter().collect();
-        age_counts.sort_by_key(|(age, _)| *age);
+        let mut depth_counts: Vec<_> = by_depth.into_iter().collect();
+        depth_counts.sort_by_key(|(depth, _)| *depth);
         eprintln!(
-            "Joints grouped by birth age ({} unique ages):",
-            age_counts.len()
+            "Joints grouped by path depth ({} unique depths):",
+            depth_counts.len()
         );
-        for (age, count) in &age_counts {
+        for (depth, count) in &depth_counts {
             // Show if count is divisible by 3 (symmetric across Triped's 3 legs)
             let sym = if count % 3 == 0 {
                 format!("({}×3)", count / 3)
             } else {
                 "".to_string()
             };
-            eprintln!("  {:?} : {} joints {}", age, count, sym);
+            eprintln!("  depth {} : {} joints {}", depth, count, sym);
         }
 
-        // Analyze push intervals grouped by their joints' birth ages
+        // Analyze push intervals grouped by their symmetric key
         use crate::fabric::interval::Role;
         use crate::fabric::interval::Span;
-        eprintln!("\n=== PUSH INTERVALS BY BIRTH AGE ===");
-        let mut push_by_age: HashMap<crate::Age, usize> = HashMap::new();
+        eprintln!("\n=== PUSH INTERVALS BY SYMMETRIC KEY ===");
+        let mut push_by_key: HashMap<(usize, u8), usize> = HashMap::new();
         for interval in executor.fabric.intervals.values() {
             if interval.has_role(Role::Pushing) {
                 let alpha = &executor.fabric.joints[interval.alpha_key];
                 let omega = &executor.fabric.joints[interval.omega_key];
-                // Push intervals have both joints born at same time
+                // Push intervals have both joints with same symmetric key
                 assert_eq!(
-                    alpha.born, omega.born,
-                    "Push interval joints should be born together"
+                    alpha.path.symmetric_key(), omega.path.symmetric_key(),
+                    "Push interval joints should have same symmetric key"
                 );
-                *push_by_age.entry(alpha.born).or_insert(0) += 1;
+                *push_by_key.entry(alpha.path.symmetric_key()).or_insert(0) += 1;
             }
         }
-        let mut push_age_counts: Vec<_> = push_by_age.into_iter().collect();
-        push_age_counts.sort_by_key(|(age, _)| *age);
+        let mut push_key_counts: Vec<_> = push_by_key.into_iter().collect();
+        push_key_counts.sort_by_key(|(key, _)| *key);
         eprintln!(
-            "Push intervals grouped by birth age ({} groups):",
-            push_age_counts.len()
+            "Push intervals grouped by symmetric key ({} groups):",
+            push_key_counts.len()
         );
-        for (age, count) in &push_age_counts {
+        for ((depth, axis), count) in &push_key_counts {
             let sym = if count % 3 == 0 {
                 format!("({}×3)", count / 3)
             } else {
                 "".to_string()
             };
-            eprintln!("  {:?} : {} pushes {}", age, count, sym);
+            eprintln!("  (depth={}, axis={}) : {} pushes {}", depth, axis, count, sym);
         }
 
         eprintln!("\n=== PUSH INTERVAL STRAIN ANALYSIS ===");

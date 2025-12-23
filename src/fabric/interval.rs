@@ -14,7 +14,7 @@ use crate::fabric::joint::Joint;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
 use crate::fabric::FabricDimensions;
-use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointId, JointKey, Joints, Progress};
+use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointKey, Joints, Progress};
 use crate::units::{Meters, NewtonsPerMeter, Percent};
 use crate::Appearance;
 use cgmath::num_traits::zero;
@@ -123,19 +123,6 @@ impl Fabric {
                 target_length: ideal,
             },
         )
-    }
-
-    /// Create an interval by JointId (creation order indices)
-    pub fn create_interval_by_id(
-        &mut self,
-        alpha_id: JointId,
-        omega_id: JointId,
-        ideal: f32,
-        role: Role,
-    ) -> IntervalKey {
-        let alpha_key = self.joint_by_id[*alpha_id];
-        let omega_key = self.joint_by_id[*omega_id];
-        self.create_interval(alpha_key, omega_key, ideal, role)
     }
 
     /// Create an interval at its current slack length (Fixed span)

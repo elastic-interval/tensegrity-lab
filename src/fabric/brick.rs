@@ -6,6 +6,7 @@ use crate::build::dsl::brick_dsl::FaceName::Attach;
 use crate::build::dsl::{FaceAlias, Spin};
 use crate::fabric::face::FaceRotation;
 use crate::fabric::interval::Role;
+use crate::fabric::joint::JointPath;
 use crate::fabric::{Fabric, FaceKey, JointKey};
 
 pub enum BaseFace {
@@ -27,6 +28,7 @@ impl Fabric {
         rotation: FaceRotation,
         scale_factor: f32,
         base_face: BaseFace,
+        base_path: &JointPath,
     ) -> (FaceKey, Vec<FaceKey>) {
         let (base_scale, spin, matrix) = match base_face {
             BaseFace::ExistingFace(id) => {
@@ -46,7 +48,11 @@ impl Fabric {
         let joint_keys: Vec<JointKey> = brick
             .joints
             .into_iter()
-            .map(|BakedJoint { location, .. }| self.create_joint(matrix.transform_point(location)))
+            .enumerate()
+            .map(|(index, BakedJoint { location, .. })| {
+                let path = base_path.with_local_index(index as u8);
+                self.create_joint_with_path(matrix.transform_point(location), path)
+            })
             .collect();
         for BakedInterval {
             alpha_index,

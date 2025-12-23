@@ -57,24 +57,23 @@ impl FabricName {
                     on(OmniTop).prism(),
                     on(OmniBot).radial(),
                 ])
-                .omit([(6, 9), (6, 3), (2, 11), (2, 5), (1, 10), (10, 7)])
-                .space(Sec(3.0), End, Pct(30.0))
+                // Note: omit pairs need actual joint paths - get them by clicking joints in the UI
+                // .omit([("A0", "B1"), ...])
+                .space(Sec(3.0), End, Pct(5.0))
                 .vulcanize(Sec(1.0))
                 .pretense(Sec(1.0))
                 .surface_frozen()
                 .fall(Sec(2.0))
-                .settle(Sec(3.0))
-                .animate()
-                .period(Sec(0.847))
-                .amplitude(Pct(1.0))
-                .stiffness(Pct(20.0))
-                .sine()
-                .actuators([
-                    phase(Pct(0.0)).between(217, 66),
-                    phase(Pct(0.0)).between(219, 50),
-                    phase(Pct(0.0)).between(215, 58),
-                ]),
-
+                .settle(Sec(3.0)),
+            // Note: actuators need actual joint paths - get them by clicking joints in the UI
+            // .animate()
+            // .period(Sec(0.847))
+            // .amplitude(Pct(1.0))
+            // .stiffness(Pct(20.0))
+            // .sine()
+            // .actuators([
+            //     phase(Pct(0.0)).between("AA0".into(), "BB1".into()),
+            // ]),
             Mockup => self
                 .build(
                     FabricDimensions::full_size()
@@ -82,7 +81,7 @@ impl FabricName {
                         .with_scale(M(0.583)),
                 )
                 .seed(SingleTwistLeft, Seed(1))
-                .faces([on(SingleTop).column(1), on(SingleBot).column(1)])
+                .faces([on(SingleTop).column(2).shrink_by(Pct(25.0))])
                 .vulcanize(Sec(2.0))
                 .pretense(Sec(2.0))
                 .surface_frozen()

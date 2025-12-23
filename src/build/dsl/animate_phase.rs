@@ -1,3 +1,4 @@
+use crate::fabric::joint::JointPath;
 use crate::units::{Percent, Seconds};
 
 /// Waveform shape for actuator control signal
@@ -22,7 +23,7 @@ pub struct PhaseBuilder {
 
 impl PhaseBuilder {
     /// Create an actuator between two joints
-    pub fn between(self, joint_a: usize, joint_b: usize) -> Actuator {
+    pub fn between(self, joint_a: JointPath, joint_b: JointPath) -> Actuator {
         Actuator {
             phase_offset: self.phase_offset,
             attachment: ActuatorAttachment::Between { joint_a, joint_b },
@@ -30,7 +31,7 @@ impl PhaseBuilder {
     }
 
     /// Create an actuator from a joint to a surface point
-    pub fn surface(self, joint: usize, point: (f32, f32)) -> Actuator {
+    pub fn surface(self, joint: JointPath, point: (f32, f32)) -> Actuator {
         Actuator {
             phase_offset: self.phase_offset,
             attachment: ActuatorAttachment::ToSurface { joint, point },
@@ -47,8 +48,8 @@ pub fn phase(offset: Percent) -> PhaseBuilder {
 
 #[derive(Debug, Clone)]
 pub enum ActuatorAttachment {
-    ToSurface { joint: usize, point: (f32, f32) },
-    Between { joint_a: usize, joint_b: usize },
+    ToSurface { joint: JointPath, point: (f32, f32) },
+    Between { joint_a: JointPath, joint_b: JointPath },
 }
 
 #[derive(Debug, Clone)]
