@@ -57,9 +57,8 @@ impl FabricName {
                     on(OmniTop).prism(),
                     on(OmniBot).radial(),
                 ])
-                // Note: omit pairs need actual joint paths - get them by clicking joints in the UI
-                // .omit([("A0", "B1"), ...])
-                .space(Sec(3.0), End, Pct(5.0))
+                .omit([("6", "9"), ("6", "3"), ("2", "11"), ("2", "5"), ("1", "10"), ("10", "7")])
+                .space(Sec(3.0), End, Pct(15.0))
                 .vulcanize(Sec(1.0))
                 .pretense(Sec(1.0))
                 .surface_frozen()
