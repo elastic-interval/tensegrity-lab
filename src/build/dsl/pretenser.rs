@@ -13,8 +13,7 @@ use std::collections::HashMap;
 
 const MIN_STRAIN: f32 = 0.01;
 const MAX_STRAIN: f32 = 0.03;
-const EXTENSION_SECONDS: Seconds = Seconds(0.2);
-const SETTLE_SECONDS: Seconds = Seconds(0.2);
+const PRETENSE_STEP_SECONDS: Seconds = Seconds(0.067);
 
 #[derive(Clone, Debug, PartialEq, Copy)]
 enum Stage {
@@ -112,7 +111,7 @@ impl Fabric {
                 };
             }
         }
-        self.progress.start(EXTENSION_SECONDS);
+        self.progress.start(PRETENSE_STEP_SECONDS);
     }
 }
 
@@ -181,7 +180,7 @@ impl Pretenser {
                 }
                 let started = self.settle_started_at.get_or_insert(fabric.age);
                 let elapsed = fabric.age.elapsed_since(*started);
-                if elapsed >= SETTLE_SECONDS {
+                if elapsed >= PRETENSE_STEP_SECONDS {
                     self.settle_started_at = None;
                     Measuring
                 } else {
