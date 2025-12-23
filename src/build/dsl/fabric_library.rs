@@ -58,7 +58,7 @@ impl FabricName {
                     on(OmniBot).radial(),
                 ])
                 .omit([(6, 9), (6, 3), (2, 11), (2, 5), (1, 10), (10, 7)])
-                .space(Sec(3.0), End, Pct(38.0))
+                .space(Sec(3.0), End, Pct(35.0))
                 .vulcanize(Sec(1.0))
                 .pretense(Sec(1.0))
                 .surface_frozen()
