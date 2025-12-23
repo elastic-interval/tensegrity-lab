@@ -180,8 +180,44 @@ impl Fabric {
                 .unwrap_or(std::cmp::Ordering::Equal),
         });
 
+        // Build a map of highest slot per joint (for FEA push endpoints)
+        let mut highest_slot_per_joint: std::collections::HashMap<JointKey, usize> =
+            std::collections::HashMap::new();
+        for ((_, _, slot), (_, _, joint_key, _, _)) in &pull_hinge_info {
+            let entry = highest_slot_per_joint.entry(*joint_key).or_insert(0);
+            if *slot > *entry {
+                *entry = *slot;
+            }
+        }
+
+        // Build a map of ring centers for pull-fea (joint_key, slot) -> ring_center
+        let mut ring_centers: std::collections::HashMap<(JointKey, usize), Point3<f32>> =
+            std::collections::HashMap::new();
+
+        for (_key, push_interval) in self.intervals.iter() {
+            if !push_interval.has_role(Role::Pushing) {
+                continue;
+            }
+            let alpha_pos = self.joints[push_interval.alpha_key].location;
+            let omega_pos = self.joints[push_interval.omega_key].location;
+            let push_dir = (omega_pos - alpha_pos).normalize();
+
+            // For each end, calculate ring centers at all slots
+            for slot in 1..=3 {
+                // Alpha end
+                let alpha_ring = alpha_pos + (-push_dir) * *dimensions.disc_thickness * slot as f32;
+                ring_centers.insert((push_interval.alpha_key, slot), alpha_ring);
+
+                // Omega end
+                let omega_ring = omega_pos + push_dir * *dimensions.disc_thickness * slot as f32;
+                ring_centers.insert((push_interval.omega_key, slot), omega_ring);
+            }
+        }
+
         // Write sorted intervals
-        for (index, info) in interval_infos.iter().enumerate() {
+        let mut current_index = 0usize;
+        for info in interval_infos.iter() {
+            current_index += 1;
             let interval = self.intervals.get(info.key).unwrap();
             let role_str = if info.is_push { "push" } else { "pull" };
 
@@ -193,7 +229,7 @@ impl Fabric {
                 writeln!(
                     file,
                     "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},{},0,90.000,{:.3},{:.3},{:.3},{},0,90.000",
-                    index + 1,
+                    current_index,
                     role_str,
                     info.length,
                     info.strain,
@@ -254,7 +290,7 @@ impl Fabric {
                 writeln!(
                     file,
                     "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},{},{},{},{:.3},{:.3},{:.3},{},{},{}",
-                    index + 1,
+                    current_index,
                     role_str,
                     shortened_length,
                     info.strain,
@@ -274,6 +310,157 @@ impl Fabric {
             }
         }
 
+        // Write FEA intervals (push-fea first, then pull-fea, sorted by length)
+        // push-fea: extends to ring center at highest slot at each end
+        // pull-fea: connects at ring centers instead of hinge endpoints
+
+        // Collect FEA interval data
+        struct FeaIntervalInfo {
+            is_push: bool,
+            length: f32,
+            strain: f32,
+            alpha_pos: Point3<f32>,
+            omega_pos: Point3<f32>,
+            alpha_joint_id: usize,
+            omega_joint_id: usize,
+            alpha_slot: usize,
+            omega_slot: usize,
+        }
+
+        let mut fea_infos: Vec<FeaIntervalInfo> = Vec::new();
+
+        // Generate push-fea intervals
+        for info in interval_infos.iter().filter(|i| i.is_push) {
+            let interval = self.intervals.get(info.key).unwrap();
+            let alpha_joint = &self.joints[interval.alpha_key];
+            let omega_joint = &self.joints[interval.omega_key];
+
+            // Get highest slot at each end
+            let alpha_highest = highest_slot_per_joint
+                .get(&interval.alpha_key)
+                .copied()
+                .unwrap_or(0);
+            let omega_highest = highest_slot_per_joint
+                .get(&interval.omega_key)
+                .copied()
+                .unwrap_or(0);
+
+            // Get ring centers at highest slots
+            let alpha_fea = if alpha_highest > 0 {
+                ring_centers
+                    .get(&(interval.alpha_key, alpha_highest))
+                    .copied()
+                    .unwrap_or(alpha_joint.location)
+            } else {
+                alpha_joint.location
+            };
+            let omega_fea = if omega_highest > 0 {
+                ring_centers
+                    .get(&(interval.omega_key, omega_highest))
+                    .copied()
+                    .unwrap_or(omega_joint.location)
+            } else {
+                omega_joint.location
+            };
+
+            let fea_length = (omega_fea - alpha_fea).magnitude();
+
+            fea_infos.push(FeaIntervalInfo {
+                is_push: true,
+                length: fea_length,
+                strain: info.strain,
+                alpha_pos: alpha_fea,
+                omega_pos: omega_fea,
+                alpha_joint_id: *alpha_joint.id,
+                omega_joint_id: *omega_joint.id,
+                alpha_slot: alpha_highest,
+                omega_slot: omega_highest,
+            });
+        }
+
+        // Generate pull-fea intervals
+        for info in interval_infos.iter().filter(|i| !i.is_push) {
+            let interval = self.intervals.get(info.key).unwrap();
+
+            // Find connection info for each end
+            let alpha_info = pull_hinge_info
+                .iter()
+                .find(|((pull_id, end, _), _)| *pull_id == info.key && *end == IntervalEnd::Alpha)
+                .map(|((_, _, slot), (_, _, joint_key, _, _))| (*joint_key, *slot));
+            let omega_info = pull_hinge_info
+                .iter()
+                .find(|((pull_id, end, _), _)| *pull_id == info.key && *end == IntervalEnd::Omega)
+                .map(|((_, _, slot), (_, _, joint_key, _, _))| (*joint_key, *slot));
+
+            // Get ring centers at connection slots
+            let (alpha_fea, alpha_joint_id, alpha_slot) =
+                if let Some((joint_key, slot)) = alpha_info {
+                    let ring = ring_centers
+                        .get(&(joint_key, slot))
+                        .copied()
+                        .unwrap_or(self.joints[joint_key].location);
+                    (ring, *self.joints[joint_key].id, slot)
+                } else {
+                    let joint = &self.joints[interval.alpha_key];
+                    (joint.location, *joint.id, 0)
+                };
+
+            let (omega_fea, omega_joint_id, omega_slot) =
+                if let Some((joint_key, slot)) = omega_info {
+                    let ring = ring_centers
+                        .get(&(joint_key, slot))
+                        .copied()
+                        .unwrap_or(self.joints[joint_key].location);
+                    (ring, *self.joints[joint_key].id, slot)
+                } else {
+                    let joint = &self.joints[interval.omega_key];
+                    (joint.location, *joint.id, 0)
+                };
+
+            let fea_length = (omega_fea - alpha_fea).magnitude();
+
+            fea_infos.push(FeaIntervalInfo {
+                is_push: false,
+                length: fea_length,
+                strain: info.strain,
+                alpha_pos: alpha_fea,
+                omega_pos: omega_fea,
+                alpha_joint_id,
+                omega_joint_id,
+                alpha_slot,
+                omega_slot,
+            });
+        }
+
+        // Sort FEA intervals: push-fea first, then pull-fea; within each group, short to long
+        fea_infos.sort_by(|a, b| match (a.is_push, b.is_push) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a
+                .length
+                .partial_cmp(&b.length)
+                .unwrap_or(std::cmp::Ordering::Equal),
+        });
+
+        // Write FEA intervals
+        for fea in &fea_infos {
+            current_index += 1;
+            let role_str = if fea.is_push { "push-fea" } else { "pull-fea" };
+            let alpha_mm = fea.alpha_pos * MM_PER_METER;
+            let omega_mm = fea.omega_pos * MM_PER_METER;
+
+            writeln!(
+                file,
+                "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},{},{},90.000,{:.3},{:.3},{:.3},{},{},90.000",
+                current_index,
+                role_str,
+                fea.length,
+                fea.strain,
+                alpha_mm.x, alpha_mm.y, alpha_mm.z, fea.alpha_joint_id, fea.alpha_slot,
+                omega_mm.x, omega_mm.y, omega_mm.z, fea.omega_joint_id, fea.omega_slot,
+            )?;
+        }
+
         // Build link structure for each push interval end
         // Group connections by push joint to build the axial chain
         // Each entry stores: (slot, pull_end_pos, hinge_pos)
@@ -290,7 +477,7 @@ impl Fabric {
             ));
         }
 
-        let mut link_index = interval_infos.len();
+        let mut link_index = current_index;
 
         for (joint_key, mut connections) in push_end_connections {
             connections.sort_by_key(|(slot, _, _)| *slot);
