@@ -11,7 +11,7 @@ use crate::fabric::Fabric;
 use crate::fabric::IntervalEnd;
 use crate::fabric::IntervalKey;
 use crate::fabric::JointKey;
-use crate::fabric::attachment::ConnectorSpec;
+use crate::fabric::FabricDimensions;
 use crate::units::{Degrees, Meters};
 use crate::{ControlState, IntervalDetails, JointDetails, PickIntent, PointerChange, Radio, Role};
 
@@ -698,7 +698,7 @@ impl Camera {
         // Pull direction: from this joint toward the other end of the pull interval
         let pull_direction = (other_joint_pos - this_joint_pos).normalize();
 
-        Some(ConnectorSpec::hinge_angle(push_axis, pull_direction))
+        Some(FabricDimensions::hinge_angle(push_axis, pull_direction))
     }
 
     fn view_matrix(&self) -> Matrix4<f32> {

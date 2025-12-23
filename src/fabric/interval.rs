@@ -5,8 +5,9 @@
 
 use crate::fabric::attachment::{
     calculate_interval_attachment_points, find_nearest_attachment_point, AttachmentPoint,
-    ConnectorSpec, PullConnection, PullConnections, PullIntervalData, ATTACHMENT_POINTS,
+    PullConnection, PullConnections, PullIntervalData, ATTACHMENT_POINTS,
 };
+use crate::fabric::FabricDimensions;
 use crate::fabric::error::FabricError;
 use crate::fabric::interval::Role::*;
 use crate::fabric::interval::Span::*;
@@ -73,8 +74,7 @@ impl Fabric {
         // Now update the attachment connections if we have a valid push interval
         if let Some(push_interval) = self.intervals.get_mut(push_interval_key) {
             // Use the new reorder_connections method to optimize attachment points
-            let connector = ConnectorSpec::for_scale(self.scale);
-            let _ = push_interval.reorder_connections(&self.joints, &connected_pulls, &pull_data, &connector);
+            let _ = push_interval.reorder_connections(&self.joints, &connected_pulls, &pull_data, &self.dimensions);
         }
     }
 
@@ -486,7 +486,7 @@ impl Interval {
         joints: &Joints,
         pull_intervals: &[(IntervalKey, JointKey, JointKey)],
         pull_data: &[PullIntervalData],
-        connector: &ConnectorSpec,
+        dimensions: &FabricDimensions,
     ) -> Result<(), FabricError> {
         // Only push intervals have connections to reorder
         if self.role != Pushing {
@@ -494,7 +494,7 @@ impl Interval {
         }
 
         // Get attachment points
-        let attachment_points = self.attachment_points(joints, connector)?;
+        let attachment_points = self.attachment_points(joints, dimensions)?;
 
         // Reorder connections
         if let Some(conn) = &mut self.connections {
@@ -518,7 +518,7 @@ impl Interval {
     pub fn attachment_points(
         &self,
         joints: &Joints,
-        connector: &ConnectorSpec,
+        dimensions: &FabricDimensions,
     ) -> Result<
         (
             [AttachmentPoint; ATTACHMENT_POINTS],
@@ -537,7 +537,7 @@ impl Interval {
         Ok(calculate_interval_attachment_points(
             alpha_location,
             omega_location,
-            connector,
+            dimensions,
         ))
     }
 
@@ -548,13 +548,13 @@ impl Interval {
         joints: &Joints,
         end: IntervalEnd,
         index: usize,
-        connector: &ConnectorSpec,
+        dimensions: &FabricDimensions,
     ) -> Result<AttachmentPoint, FabricError> {
         if index >= ATTACHMENT_POINTS {
             return Err(FabricError::InvalidAttachmentIndex);
         }
 
-        self.attachment_points(joints, connector)
+        self.attachment_points(joints, dimensions)
             .map(|points| self.get_point_from_end(points, end, index))
     }
 
@@ -581,9 +581,9 @@ impl Interval {
         &self,
         joints: &Joints,
         position: Point3<f32>,
-        connector: &ConnectorSpec,
+        dimensions: &FabricDimensions,
     ) -> Result<(IntervalEnd, AttachmentPoint), FabricError> {
-        let (alpha_points, omega_points) = self.attachment_points(joints, connector)?;
+        let (alpha_points, omega_points) = self.attachment_points(joints, dimensions)?;
 
         // Find the nearest point from each end using the standalone function
         let (alpha_nearest_idx, alpha_nearest_dist) =
@@ -606,13 +606,13 @@ impl Interval {
         joints: &Joints,
         end: IntervalEnd,
         index: usize,
-        connector: &ConnectorSpec,
+        dimensions: &FabricDimensions,
     ) -> Result<AttachmentPoint, FabricError> {
         if index >= ATTACHMENT_POINTS {
             return Err(FabricError::InvalidAttachmentIndex);
         }
 
-        let points = self.attachment_points(joints, connector)?;
+        let points = self.attachment_points(joints, dimensions)?;
 
         // Use the opposite() method from IntervalEnd
         let opposite_end = end.opposite();

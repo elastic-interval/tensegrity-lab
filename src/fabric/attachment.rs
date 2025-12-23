@@ -4,153 +4,11 @@
  */
 
 use crate::fabric::{FabricDimensions, IntervalEnd, IntervalKey, JointKey, Joints};
-use crate::units::{Degrees, Meters};
+use crate::units::Degrees;
 use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
 
 /// Number of attachment points at each end of a push interval
 pub const ATTACHMENT_POINTS: usize = 10;
-
-/// Interval geometry dimensions (subset of FabricDimensions for rendering/export)
-#[derive(Clone, Copy, Debug)]
-pub struct IntervalDimensions {
-    pub push_radius: Meters,
-    pub pull_radius: Meters,
-    pub ring_thickness: Meters,
-    pub hinge_offset: Meters,
-    pub hinge_length: Meters,
-}
-
-impl Default for IntervalDimensions {
-    fn default() -> Self {
-        FabricDimensions::full_size().interval_dimensions()
-    }
-}
-
-impl IntervalDimensions {
-    pub fn for_scale(scale: f32) -> Self {
-        Self::default().scaled(scale)
-    }
-
-    pub fn scaled(&self, scale: f32) -> Self {
-        Self {
-            push_radius: self.push_radius * scale,
-            pull_radius: self.pull_radius * scale,
-            ring_thickness: self.ring_thickness * scale,
-            hinge_offset: self.hinge_offset * scale,
-            hinge_length: self.hinge_length * scale,
-        }
-    }
-
-    /// Calculate the hinge position for a pull interval connection
-    ///
-    /// # Parameters
-    /// * `push_end` - Position of the push interval end (where the bolt starts)
-    /// * `push_axis` - Outward unit vector along the bolt (away from push interval)
-    /// * `slot` - Which ring slot (0 = closest to push end)
-    /// * `pull_other_end` - Position of the other end of the pull interval
-    ///
-    /// # Returns
-    /// The 3D position of the hinge point
-    pub fn hinge_position(
-        &self,
-        push_end: Point3<f32>,
-        push_axis: Vector3<f32>,
-        slot: usize,
-        pull_other_end: Point3<f32>,
-    ) -> Point3<f32> {
-        // Ring center position on the bolt (1x, 2x, 3x ring_thickness for slots 0, 1, 2)
-        let axial_offset = *self.ring_thickness * (slot as f32 + 1.0);
-        let ring_center = push_end + push_axis * axial_offset;
-
-        // Direction from ring center toward the pull's other end, projected onto ring plane
-        let to_pull = pull_other_end - ring_center;
-        let axial_component = push_axis * to_pull.dot(push_axis);
-        let radial_direction = to_pull - axial_component;
-
-        let radial_unit = if radial_direction.magnitude2() < 1e-10 {
-            let arbitrary = if push_axis.x.abs() < 0.9 {
-                Vector3::new(1.0, 0.0, 0.0)
-            } else {
-                Vector3::new(0.0, 1.0, 0.0)
-            };
-            push_axis.cross(arbitrary).normalize()
-        } else {
-            radial_direction.normalize()
-        };
-
-        ring_center + radial_unit * *self.hinge_offset
-    }
-
-    /// Calculate the ideal hinge angle for a pull interval at its connection point
-    ///
-    /// The hinge angle is the angle between the pull direction and the ring plane.
-    /// - 0° means pulling in the ring plane (perpendicular to bolt)
-    /// - +90° means pulling straight outward along the bolt
-    /// - -90° means pulling straight inward toward the push interval
-    ///
-    /// # Parameters
-    /// * `push_axis` - Outward unit vector along the bolt
-    /// * `pull_direction` - Unit vector of pull direction (toward the other end of pull interval)
-    ///
-    /// # Returns
-    /// Ideal hinge angle as Degrees (not snapped)
-    pub fn hinge_angle(push_axis: Vector3<f32>, pull_direction: Vector3<f32>) -> Degrees {
-        // The hinge angle is the angle between pull direction and the ring plane.
-        // The ring plane is perpendicular to push_axis.
-        // sin(hinge_angle) = dot(pull_direction, push_axis)
-        let sin_angle = pull_direction.dot(push_axis);
-        Degrees(sin_angle.asin().to_degrees())
-    }
-
-    /// Calculate hinge position, snapped angle, and endpoint for a pull interval connection
-    ///
-    /// # Returns
-    /// (hinge_pos, hinge_bend, pull_end_pos)
-    pub fn hinge_geometry(
-        &self,
-        push_end: Point3<f32>,
-        push_axis: Vector3<f32>,
-        slot: usize,
-        pull_other_end: Point3<f32>,
-    ) -> (Point3<f32>, HingeBend, Point3<f32>) {
-        // Ring center position on the bolt
-        let axial_offset = *self.ring_thickness * (slot as f32 + 1.0);
-        let ring_center = push_end + push_axis * axial_offset;
-
-        // Direction from ring center toward the pull's other end, projected onto ring plane
-        let to_pull = pull_other_end - ring_center;
-        let axial_component = push_axis * to_pull.dot(push_axis);
-        let radial_direction = to_pull - axial_component;
-
-        let radial_unit = if radial_direction.magnitude2() < 1e-10 {
-            let arbitrary = if push_axis.x.abs() < 0.9 {
-                Vector3::new(1.0, 0.0, 0.0)
-            } else {
-                Vector3::new(0.0, 1.0, 0.0)
-            };
-            push_axis.cross(arbitrary).normalize()
-        } else {
-            radial_direction.normalize()
-        };
-
-        let hinge_pos = ring_center + radial_unit * *self.hinge_offset;
-
-        // Calculate ideal angle and snap to nearest HingeBend
-        let pull_direction = (pull_other_end - hinge_pos).normalize();
-        let ideal_angle = Self::hinge_angle(push_axis, pull_direction);
-        let hinge_bend = HingeBend::from_angle(ideal_angle);
-
-        // Calculate endpoint using snapped angle
-        let pull_end_pos = hinge_bend.endpoint(
-            hinge_pos,
-            push_axis,
-            radial_unit,
-            *self.hinge_length,
-        );
-
-        (hinge_pos, hinge_bend, pull_end_pos)
-    }
-}
 
 /// The 5 allowed hinge bending angles
 #[derive(Debug, Clone, Copy, PartialEq, Eq, strum::Display)]
@@ -214,9 +72,6 @@ impl HingeBend {
         hinge_pos + hinge_direction * hinge_length
     }
 }
-
-/// Type alias for backward compatibility during migration
-pub type ConnectorSpec = IntervalDimensions;
 
 /// Represents an attachment point on a push interval
 #[derive(Clone, Copy, Debug)]
@@ -678,11 +533,11 @@ fn find_optimal_assignment(
 /// # Parameters
 /// * `end_position` - The position of the end of the push interval
 /// * `direction` - The direction vector of the push interval (points outward from interval)
-/// * `connector` - The connector spec with scaled dimensions
+/// * `dimensions` - The fabric dimensions with scaled values
 pub fn generate_attachment_points(
     end_position: Point3<f32>,
     direction: Vector3<f32>,
-    connector: &ConnectorSpec,
+    dimensions: &FabricDimensions,
 ) -> [AttachmentPoint; ATTACHMENT_POINTS] {
     // Normalize the direction vector to get the axis
     let axis = direction.normalize();
@@ -696,8 +551,8 @@ pub fn generate_attachment_points(
     // Generate attachment points extending outwards along the axis
     // Each point represents the center of a ring at that slot
     for i in 0..ATTACHMENT_POINTS {
-        // Ring center is at slot index * ring_thickness + half ring thickness
-        let distance = *connector.ring_thickness * (i as f32 + 0.5);
+        // Ring center is at slot index * disc_thickness + half disc thickness
+        let distance = *dimensions.disc_thickness * (i as f32 + 0.5);
 
         // Calculate offset vector
         let offset = axis * distance;
@@ -720,7 +575,7 @@ pub fn generate_attachment_points(
 pub fn calculate_interval_attachment_points(
     start: Point3<f32>,
     end: Point3<f32>,
-    connector: &ConnectorSpec,
+    dimensions: &FabricDimensions,
 ) -> (
     [AttachmentPoint; ATTACHMENT_POINTS],
     [AttachmentPoint; ATTACHMENT_POINTS],
@@ -732,7 +587,7 @@ pub fn calculate_interval_attachment_points(
     // Alpha end: points extend outward from start (opposite to interval direction)
     // Omega end: points extend outward from end (in interval direction)
     (
-        generate_attachment_points(start, -direction, connector),
-        generate_attachment_points(end, direction, connector),
+        generate_attachment_points(start, -direction, dimensions),
+        generate_attachment_points(end, direction, dimensions),
     )
 }
