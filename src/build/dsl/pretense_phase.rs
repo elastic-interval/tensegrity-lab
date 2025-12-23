@@ -15,8 +15,7 @@ impl PretensePhase {
     /// Note: This returns physics without surface since scale is not known here.
     /// The surface with proper scale is set by FabricPlanExecutor during transition_to_fall.
     pub fn viewing_physics(&self) -> Physics {
-        let pretenst = self.pretenst
-            .unwrap_or(VIEWING.pretenst);
+        let pretenst = self.pretenst.unwrap_or(VIEWING.pretenst);
 
         Physics {
             pretenst,

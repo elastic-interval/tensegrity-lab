@@ -34,19 +34,79 @@ mod tests {
     /// Recaptured after implementing holistic pretensing with symmetric groups
     fn ui_benchmarks() -> Vec<Benchmark> {
         vec![
-            Benchmark { age: 0.0, joints: 0, height_mm: 0.0, radius: 0.000, ground: 0 },
+            Benchmark {
+                age: 0.0,
+                joints: 0,
+                height_mm: 0.0,
+                radius: 0.000,
+                ground: 0,
+            },
             // BUILD phase (fabric age 0-6s)
-            Benchmark { age: 2.0, joints: 172, height_mm: 6470.1, radius: 12.246, ground: 0 },
-            Benchmark { age: 4.0, joints: 172, height_mm: 10849.5, radius: 8.760, ground: 0 },
-            Benchmark { age: 6.0, joints: 172, height_mm: 9157.8, radius: 6.192, ground: 0 },
+            Benchmark {
+                age: 2.0,
+                joints: 172,
+                height_mm: 6470.1,
+                radius: 12.246,
+                ground: 0,
+            },
+            Benchmark {
+                age: 4.0,
+                joints: 172,
+                height_mm: 10849.5,
+                radius: 8.760,
+                ground: 0,
+            },
+            Benchmark {
+                age: 6.0,
+                joints: 172,
+                height_mm: 9157.8,
+                radius: 6.192,
+                ground: 0,
+            },
             // PRETENSE phase with holistic pretensing (fabric age ~6-28s)
-            Benchmark { age: 10.0, joints: 165, height_mm: 8944.6, radius: 6.191, ground: 0 },
-            Benchmark { age: 15.0, joints: 165, height_mm: 8952.7, radius: 6.191, ground: 0 },
-            Benchmark { age: 20.0, joints: 165, height_mm: 8955.4, radius: 6.191, ground: 0 },
-            Benchmark { age: 25.0, joints: 165, height_mm: 8961.0, radius: 6.191, ground: 0 },
+            Benchmark {
+                age: 10.0,
+                joints: 165,
+                height_mm: 8944.6,
+                radius: 6.191,
+                ground: 0,
+            },
+            Benchmark {
+                age: 15.0,
+                joints: 165,
+                height_mm: 8952.7,
+                radius: 6.191,
+                ground: 0,
+            },
+            Benchmark {
+                age: 20.0,
+                joints: 165,
+                height_mm: 8955.4,
+                radius: 6.191,
+                ground: 0,
+            },
+            Benchmark {
+                age: 25.0,
+                joints: 165,
+                height_mm: 8961.0,
+                radius: 6.191,
+                ground: 0,
+            },
             // FALL/SETTLE phase - structure lands on 3 joints (fabric age ~28-33s)
-            Benchmark { age: 30.0, joints: 165, height_mm: 8896.1, radius: 7.564, ground: 3 },
-            Benchmark { age: 33.0, joints: 165, height_mm: 8943.2, radius: 7.564, ground: 3 },
+            Benchmark {
+                age: 30.0,
+                joints: 165,
+                height_mm: 8896.1,
+                radius: 7.564,
+                ground: 3,
+            },
+            Benchmark {
+                age: 33.0,
+                joints: 165,
+                height_mm: 8943.2,
+                radius: 7.564,
+                ground: 3,
+            },
         ]
     }
 
@@ -166,7 +226,10 @@ mod tests {
                 let height_mm = (max_y - min_y) * MM_PER_METER;
                 let radius = executor.fabric.bounding_radius();
                 let ground_tolerance = 10.0 / MM_PER_METER;
-                let ground_count = executor.fabric.joints.values()
+                let ground_count = executor
+                    .fabric
+                    .joints
+                    .values()
                     .filter(|j| j.location.y.abs() < ground_tolerance)
                     .count();
                 eprintln!(
@@ -245,10 +308,7 @@ mod tests {
             }
         }
 
-        eprintln!(
-            "\n✓ Checked {} benchmarks successfully!",
-            benchmark_idx
-        );
+        eprintln!("\n✓ Checked {} benchmarks successfully!", benchmark_idx);
 
         executor.print_log();
 
@@ -377,10 +437,17 @@ mod tests {
         }
         let mut age_counts: Vec<_> = by_age.into_iter().collect();
         age_counts.sort_by_key(|(age, _)| *age);
-        eprintln!("Joints grouped by birth age ({} unique ages):", age_counts.len());
+        eprintln!(
+            "Joints grouped by birth age ({} unique ages):",
+            age_counts.len()
+        );
         for (age, count) in &age_counts {
             // Show if count is divisible by 3 (symmetric across Triped's 3 legs)
-            let sym = if count % 3 == 0 { format!("({}×3)", count / 3) } else { "".to_string() };
+            let sym = if count % 3 == 0 {
+                format!("({}×3)", count / 3)
+            } else {
+                "".to_string()
+            };
             eprintln!("  {:?} : {} joints {}", age, count, sym);
         }
 
@@ -394,15 +461,25 @@ mod tests {
                 let alpha = &executor.fabric.joints[interval.alpha_key];
                 let omega = &executor.fabric.joints[interval.omega_key];
                 // Push intervals have both joints born at same time
-                assert_eq!(alpha.born, omega.born, "Push interval joints should be born together");
+                assert_eq!(
+                    alpha.born, omega.born,
+                    "Push interval joints should be born together"
+                );
                 *push_by_age.entry(alpha.born).or_insert(0) += 1;
             }
         }
         let mut push_age_counts: Vec<_> = push_by_age.into_iter().collect();
         push_age_counts.sort_by_key(|(age, _)| *age);
-        eprintln!("Push intervals grouped by birth age ({} groups):", push_age_counts.len());
+        eprintln!(
+            "Push intervals grouped by birth age ({} groups):",
+            push_age_counts.len()
+        );
         for (age, count) in &push_age_counts {
-            let sym = if count % 3 == 0 { format!("({}×3)", count / 3) } else { "".to_string() };
+            let sym = if count % 3 == 0 {
+                format!("({}×3)", count / 3)
+            } else {
+                "".to_string()
+            };
             eprintln!("  {:?} : {} pushes {}", age, count, sym);
         }
 
@@ -410,7 +487,12 @@ mod tests {
         let mut push_strains: Vec<(f32, f32, f32)> = Vec::new(); // (rest_length_mm, target_length_mm, strain%)
         for interval in executor.fabric.intervals.values() {
             if interval.has_role(Role::Pushing) {
-                if let Span::Pretensing { rest_length, target_length, .. } = interval.span {
+                if let Span::Pretensing {
+                    rest_length,
+                    target_length,
+                    ..
+                } = interval.span
+                {
                     let extension = target_length - rest_length;
                     let strain_pct = (extension / rest_length) * 100.0;
                     push_strains.push((rest_length * 1000.0, target_length * 1000.0, strain_pct));
@@ -420,22 +502,33 @@ mod tests {
         push_strains.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
 
         if !push_strains.is_empty() {
-            let min_strain = push_strains.iter().map(|x| x.2).fold(f32::INFINITY, f32::min);
-            let max_strain = push_strains.iter().map(|x| x.2).fold(f32::NEG_INFINITY, f32::max);
+            let min_strain = push_strains
+                .iter()
+                .map(|x| x.2)
+                .fold(f32::INFINITY, f32::min);
+            let max_strain = push_strains
+                .iter()
+                .map(|x| x.2)
+                .fold(f32::NEG_INFINITY, f32::max);
             eprintln!("Push intervals: {}", push_strains.len());
             eprintln!("Strain range: {:.2}% to {:.2}%", min_strain, max_strain);
             eprintln!("\nShortest 5:");
             for (rest, target, strain) in push_strains.iter().take(5) {
-                eprintln!("  rest:{:.0}mm → target:{:.0}mm  strain:{:.2}%", rest, target, strain);
+                eprintln!(
+                    "  rest:{:.0}mm → target:{:.0}mm  strain:{:.2}%",
+                    rest, target, strain
+                );
             }
             eprintln!("\nLongest 5:");
             for (rest, target, strain) in push_strains.iter().rev().take(5) {
-                eprintln!("  rest:{:.0}mm → target:{:.0}mm  strain:{:.2}%", rest, target, strain);
+                eprintln!(
+                    "  rest:{:.0}mm → target:{:.0}mm  strain:{:.2}%",
+                    rest, target, strain
+                );
             }
         }
 
         // Report the state
         eprintln!("\n✓ Execution completed successfully");
     }
-
 }

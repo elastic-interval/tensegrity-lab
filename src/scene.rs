@@ -109,8 +109,12 @@ impl Scene {
             ToggleColorByRole => {
                 let show_attachment_points = self.render_style.show_attachment_points();
                 self.render_style = match &self.render_style {
-                    ColorByRole { .. } => Normal { show_attachment_points },
-                    _ => ColorByRole { show_attachment_points },
+                    ColorByRole { .. } => Normal {
+                        show_attachment_points,
+                    },
+                    _ => ColorByRole {
+                        show_attachment_points,
+                    },
                 };
             }
             SetAppearanceFunction(appearance) => match &mut self.render_style {
@@ -215,7 +219,8 @@ impl Scene {
         );
         // Update surface size based on fabric bounding radius
         if has_surface {
-            self.surface_renderer.update_radius(&self.wgpu.queue, fabric.bounding_radius());
+            self.surface_renderer
+                .update_radius(&self.wgpu.queue, fabric.bounding_radius());
         }
         self.render(has_surface)?;
         Ok(())

@@ -5,7 +5,6 @@
 use crate::units::Percent;
 use crate::{PhysicsFeature, PhysicsParameter, Radio, StateChange, TweakFeature, TweakParameter};
 
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SurfaceCharacter {
     Frozen,
@@ -120,13 +119,15 @@ impl Surface {
                     clamp_y = Some(0.0);
                     velocity.y = 0.0;
 
-                    let speed_horizontal = (velocity.x * velocity.x + velocity.z * velocity.z).sqrt();
+                    let speed_horizontal =
+                        (velocity.x * velocity.x + velocity.z * velocity.z).sqrt();
 
                     const SURFACE_DAMPING: f32 = 50.0;
                     let linear_friction = 1.0
                         - ((SURFACE_DAMPING + s.drag) * s.dt
                             + SURFACE_DAMPING * s.viscosity * speed_horizontal * s.dt);
-                    let quadratic_damping = 1.0 - (2.0 * speed_horizontal * speed_horizontal * s.dt);
+                    let quadratic_damping =
+                        1.0 - (2.0 * speed_horizontal * speed_horizontal * s.dt);
                     let total_friction = (linear_friction * quadratic_damping.max(0.0)).max(0.0);
 
                     velocity.x *= total_friction;
@@ -189,9 +190,7 @@ impl Physics {
     pub fn broadcast(&self, radio: &Radio) {
         use PhysicsFeature::*;
 
-        let physics_params = [
-            Pretenst.parameter(*self.pretenst),
-        ];
+        let physics_params = [Pretenst.parameter(*self.pretenst)];
         for p in physics_params {
             StateChange::SetPhysicsParameter(p).send(radio);
         }
@@ -243,7 +242,6 @@ impl Physics {
         self.tweak.viscosity_multiplier = damping_mult;
     }
 }
-
 
 pub mod presets {
     use crate::fabric::physics::{Physics, Tweak};

@@ -109,7 +109,9 @@ impl Fabric {
         let normal = face.normal(&self);
         let midpoint = face.midpoint(&self);
         // Calculate actual distance from face center to radial joints
-        let radial_distance = self.joints[radial_joints[0]].location.distance(Point3::from_vec(midpoint));
+        let radial_distance = self.joints[radial_joints[0]]
+            .location
+            .distance(Point3::from_vec(midpoint));
         // Alpha/omega are at distance `push_length/2` along the normal.
         // By Pythagorean theorem: pull_length² = radial_distance² + (push_length/2)²
         let pull_length =
@@ -180,7 +182,6 @@ pub struct Face {
 }
 
 impl Face {
-
     pub fn midpoint(&self, fabric: &Fabric) -> Vector3<f32> {
         let loc = self.radial_joint_locations(fabric);
         (loc[0].to_vec() + loc[1].to_vec() + loc[2].to_vec()) / 3.0

@@ -13,8 +13,8 @@ use std::ops::Mul;
 use std::rc::Rc;
 use winit::dpi::PhysicalPosition;
 
-pub mod application;
 pub mod animation_export;
+pub mod application;
 pub mod build;
 pub mod camera;
 #[cfg(not(target_arch = "wasm32"))]
@@ -289,14 +289,20 @@ impl Display for IntervalDetails {
 
         // Build hinge angle info if attachments are visible and we have angles
         let hinge_info = if show_attachment_points {
-            let alpha_hinge = self.alpha_hinge_angle
+            let alpha_hinge = self
+                .alpha_hinge_angle
                 .map(|a| format!("α: {}", a))
                 .unwrap_or_default();
-            let omega_hinge = self.omega_hinge_angle
+            let omega_hinge = self
+                .omega_hinge_angle
                 .map(|a| format!("ω: {}", a))
                 .unwrap_or_default();
             if !alpha_hinge.is_empty() || !omega_hinge.is_empty() {
-                let separator = if !alpha_hinge.is_empty() && !omega_hinge.is_empty() { ", " } else { "" };
+                let separator = if !alpha_hinge.is_empty() && !omega_hinge.is_empty() {
+                    ", "
+                } else {
+                    ""
+                };
                 format!("\nHinge: {}{}{}", alpha_hinge, separator, omega_hinge)
             } else {
                 String::new()
@@ -504,7 +510,10 @@ impl std::str::FromStr for SnapshotMoment {
             "pretenst" | "pretensed" => Ok(SnapshotMoment::Pretenst),
             "settled" | "settle" => Ok(SnapshotMoment::Settled),
             "all" => Ok(SnapshotMoment::All),
-            _ => Err(format!("Unknown snapshot moment: '{}'. Use: slack, pretenst, settled, or all", s)),
+            _ => Err(format!(
+                "Unknown snapshot moment: '{}'. Use: slack, pretenst, settled, or all",
+                s
+            )),
         }
     }
 }
@@ -658,7 +667,10 @@ impl StateChange {
 #[derive(Debug, Clone)]
 pub enum LabEvent {
     Run(RunStyle),
-    ContextCreated { wgpu: Wgpu, mobile_device: bool },
+    ContextCreated {
+        wgpu: Wgpu,
+        mobile_device: bool,
+    },
     FabricBuilt(FabricStats),
     Crucible(CrucibleAction),
     UpdateState(StateChange),

@@ -34,24 +34,25 @@ impl PointerHandler {
             WindowEvent::Touch(touch_event) => {
                 self.handle_touch_event(touch_event);
                 true
-            },
+            }
             WindowEvent::CursorMoved { position, .. } => {
                 self.handle_cursor_moved(*position);
                 true
-            },
+            }
             WindowEvent::MouseInput { state, button, .. } => {
                 self.handle_mouse_input(*state, *button);
                 true
-            },
+            }
             WindowEvent::MouseWheel { delta, .. } => {
                 self.handle_mouse_wheel(*delta);
                 true
-            },
+            }
             WindowEvent::CursorLeft { .. } => {
                 // Cursor left the window - release any active drag
-                LabEvent::PointerChanged(PointerChange::Released(PickIntent::Reset)).send(&self.radio);
+                LabEvent::PointerChanged(PointerChange::Released(PickIntent::Reset))
+                    .send(&self.radio);
                 true
-            },
+            }
             _ => false, // Event not handled by this handler
         }
     }
@@ -63,21 +64,21 @@ impl PointerHandler {
             TouchPhase::Started => {
                 self.active_touch_count += 1;
                 self.active_touches.insert(touch.id, touch.location);
-            },
+            }
             TouchPhase::Ended | TouchPhase::Cancelled => {
                 if self.active_touch_count > 0 {
                     self.active_touch_count -= 1;
                 }
                 self.active_touches.remove(&touch.id);
-                
+
                 // Reset pinch state if all touches are gone
                 if self.active_touches.is_empty() {
                     self.last_pinch_distance = None;
                 }
-            },
+            }
             TouchPhase::Moved => {
                 self.active_touches.insert(touch.id, touch.location);
-            },
+            }
         }
 
         // Detect pinch gestures and convert to zoom events
@@ -86,7 +87,7 @@ impl PointerHandler {
             LabEvent::PointerChanged(PointerChange::Zoomed(zoom_amount)).send(&self.radio);
             return; // We've handled the pinch, no need to process further
         }
-        
+
         // For non-pinch touches, only process if there's exactly one touch
         if self.active_touch_count != 1 {
             return; // Skip multi-touch events that aren't pinches
@@ -96,14 +97,16 @@ impl PointerHandler {
         match touch.phase {
             TouchPhase::Started => {
                 // Use the special TouchPressed variant that includes the position
-                LabEvent::PointerChanged(PointerChange::TouchPressed(touch.location)).send(&self.radio);
-            },
+                LabEvent::PointerChanged(PointerChange::TouchPressed(touch.location))
+                    .send(&self.radio);
+            }
             TouchPhase::Moved => {
                 LabEvent::PointerChanged(PointerChange::Moved(touch.location)).send(&self.radio);
-            },
+            }
             TouchPhase::Ended | TouchPhase::Cancelled => {
                 // Use the special TouchReleased variant
-                LabEvent::PointerChanged(PointerChange::TouchReleased(PickIntent::Reset)).send(&self.radio);
+                LabEvent::PointerChanged(PointerChange::TouchReleased(PickIntent::Reset))
+                    .send(&self.radio);
             }
         }
     }
@@ -126,7 +129,7 @@ impl PointerHandler {
                 PointerChange::Released(pick_intent)
             }
         };
-        
+
         LabEvent::PointerChanged(change).send(&self.radio);
     }
 
@@ -138,7 +141,7 @@ impl PointerHandler {
                 PointerChange::Zoomed(position.y as f32 * 0.005)
             }
         };
-        
+
         LabEvent::PointerChanged(change).send(&self.radio);
     }
 
@@ -148,37 +151,38 @@ impl PointerHandler {
         if self.active_touches.len() != 2 {
             return None;
         }
-        
+
         // Get the two touch points
-        let touch_points: Vec<PhysicalPosition<f64>> = self.active_touches.values().cloned().collect();
-        
+        let touch_points: Vec<PhysicalPosition<f64>> =
+            self.active_touches.values().cloned().collect();
+
         // Calculate current distance between touch points
         let current_distance = calculate_distance(touch_points[0], touch_points[1]);
-        
+
         // Calculate zoom factor if we have a previous distance
         if let Some(last_distance) = self.last_pinch_distance {
             let scale_factor = (current_distance / last_distance) as f32;
-            
+
             // Only register significant changes to avoid jitter
             // Use a higher threshold to prevent too many zoom events
             if (scale_factor - 1.0).abs() > 0.03 {
                 // Update last distance for next time
                 self.last_pinch_distance = Some(current_distance);
-                
+
                 // Return a small zoom amount to make it gradual and stable
                 let zoom_amount = if scale_factor > 1.0 {
                     4.5 // Zoom in (fingers moving apart)
                 } else {
                     -4.5 // Zoom out (fingers moving together)
                 };
-                
+
                 return Some(zoom_amount);
             }
         } else {
             // Initialize pinch detection
             self.last_pinch_distance = Some(current_distance);
         }
-        
+
         None
     }
 }

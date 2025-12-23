@@ -17,10 +17,7 @@ impl TensegritySphere {
         scaffold.generate();
         scaffold.set_radius(radius);
         let fabric = Fabric::new(format!("Sphere {frequency}"));
-        TensegritySphere {
-            scaffold,
-            fabric,
-        }
+        TensegritySphere { scaffold, fabric }
     }
 }
 
@@ -75,7 +72,8 @@ pub fn generate_sphere(frequency: usize, radius: f32) -> Fabric {
                                 .fabric
                                 .create_joint(Point3::from_vec(quaternion * omega_base));
                             let length = (omega_base - alpha_base).magnitude();
-                            ts.fabric.create_interval(alpha, omega, length, Role::Pushing);
+                            ts.fabric
+                                .create_interval(alpha, omega, length, Role::Pushing);
                             PushInterval {
                                 alpha_vertex: *vertex_here,
                                 omega_vertex: *adjacent_vertex,
@@ -180,18 +178,29 @@ mod tests {
         assert!(!fabric.joints.is_empty(), "Should have joints");
         assert!(!fabric.intervals.is_empty(), "Should have intervals");
 
-        let push_count = fabric.intervals.values()
+        let push_count = fabric
+            .intervals
+            .values()
             .filter(|i| i.role == Role::Pushing)
             .count();
-        let pull_count = fabric.intervals.values()
+        let pull_count = fabric
+            .intervals
+            .values()
             .filter(|i| i.role == Role::Pulling)
             .count();
 
-        assert_eq!(push_count, 30, "Frequency 1 should have 30 struts (icosahedron edges)");
+        assert_eq!(
+            push_count, 30,
+            "Frequency 1 should have 30 struts (icosahedron edges)"
+        );
         assert!(pull_count > 0, "Should have pulling cables");
 
-        println!("Frequency 1 sphere: {} joints, {} struts, {} cables",
-            fabric.joints.len(), push_count, pull_count);
+        println!(
+            "Frequency 1 sphere: {} joints, {} struts, {} cables",
+            fabric.joints.len(),
+            push_count,
+            pull_count
+        );
     }
 
     #[test]
@@ -201,18 +210,29 @@ mod tests {
         assert!(!fabric.joints.is_empty(), "Should have joints");
         assert!(!fabric.intervals.is_empty(), "Should have intervals");
 
-        let push_count = fabric.intervals.values()
+        let push_count = fabric
+            .intervals
+            .values()
             .filter(|i| i.role == Role::Pushing)
             .count();
-        let pull_count = fabric.intervals.values()
+        let pull_count = fabric
+            .intervals
+            .values()
             .filter(|i| i.role == Role::Pulling)
             .count();
 
-        println!("Frequency 2 sphere: {} joints, {} struts, {} cables",
-            fabric.joints.len(), push_count, pull_count);
+        println!(
+            "Frequency 2 sphere: {} joints, {} struts, {} cables",
+            fabric.joints.len(),
+            push_count,
+            pull_count
+        );
 
         // Frequency 2 should have more elements than frequency 1
-        assert!(push_count > 30, "Frequency 2 should have more struts than frequency 1");
+        assert!(
+            push_count > 30,
+            "Frequency 2 should have more struts than frequency 1"
+        );
     }
 
     #[test]
@@ -221,11 +241,18 @@ mod tests {
 
         // All intervals should reference valid joints
         for interval in fabric.intervals.values() {
-            assert!(fabric.joints.get(interval.alpha_key).is_some(),
-                "Alpha joint key should be valid");
-            assert!(fabric.joints.get(interval.omega_key).is_some(),
-                "Omega joint key should be valid");
-            assert!(interval.ideal() > 0.0, "Interval should have positive ideal length");
+            assert!(
+                fabric.joints.get(interval.alpha_key).is_some(),
+                "Alpha joint key should be valid"
+            );
+            assert!(
+                fabric.joints.get(interval.omega_key).is_some(),
+                "Omega joint key should be valid"
+            );
+            assert!(
+                interval.ideal() > 0.0,
+                "Interval should have positive ideal length"
+            );
         }
     }
 }

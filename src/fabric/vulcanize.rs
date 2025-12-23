@@ -56,7 +56,9 @@ impl Fabric {
         for (_key, interval) in self.intervals.iter_mut() {
             if interval.material == target_material {
                 match interval.span {
-                    Span::Fixed { length: start_length } => {
+                    Span::Fixed {
+                        length: start_length,
+                    } => {
                         let slack_length = start_length * (1.0 - interval.strain);
                         let target_length = slack_length * (1.0 + average_strain);
                         interval.span = Approaching {
@@ -137,12 +139,8 @@ impl Fabric {
                      long_interval.role,
                      long_interval.ideal(),
                      dot_product);
-            let id = self.create_interval(
-                middle_joint,
-                far_joint,
-                missing_length,
-                short_interval.role,
-            );
+            let id =
+                self.create_interval(middle_joint, far_joint, missing_length, short_interval.role);
             println!("  -> Added interval {:?}", self.interval(id));
         }
     }
@@ -180,7 +178,10 @@ struct PairGenerator {
 }
 
 impl PairGenerator {
-    fn new(joints: HashMap<JointKey, JointIncident>, intervals: HashMap<(JointKey, JointKey), Interval>) -> Self {
+    fn new(
+        joints: HashMap<JointKey, JointIncident>,
+        intervals: HashMap<(JointKey, JointKey), Interval>,
+    ) -> Self {
         Self {
             joints,
             intervals,
@@ -243,9 +244,10 @@ impl PairGenerator {
         let cross_twist_diagonals: Vec<_> = diagonals
             .iter()
             .filter_map(|&(a, b)| {
-                if self
-                    .interval_exists(self.joints[&a].across_push()?, self.joints[&b].across_push()?)
-                {
+                if self.interval_exists(
+                    self.joints[&a].across_push()?,
+                    self.joints[&b].across_push()?,
+                ) {
                     return None;
                 }
                 Some((a, b))

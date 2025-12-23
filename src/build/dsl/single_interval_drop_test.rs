@@ -1,9 +1,8 @@
-
 #[cfg(test)]
 mod tests {
-    use crate::fabric::Fabric;
-    use crate::fabric::physics::presets::VIEWING;
     use crate::fabric::material::Material;
+    use crate::fabric::physics::presets::VIEWING;
+    use crate::fabric::Fabric;
     use cgmath::Point3;
 
     #[test]
@@ -21,7 +20,12 @@ mod tests {
         let joint2_index = fabric.create_joint(Point3::new(1.0, altitude_m, 0.0));
 
         // Create push interval between them (1.0 meter ideal length)
-        fabric.create_interval(joint1_index, joint2_index, 1.0, Material::Push.default_role());
+        fabric.create_interval(
+            joint1_index,
+            joint2_index,
+            1.0,
+            Material::Push.default_role(),
+        );
 
         eprintln!("Initial setup:");
         eprintln!("  Altitude: {:.2}m", altitude_m);
@@ -60,11 +64,9 @@ mod tests {
             let delta_t = 0.050; // 50ms
             let acceleration = delta_v / delta_t;
 
-            eprintln!("{:8}  {:11.3}  {:13.3}  {:11.2}",
-                time_ms,
-                avg_altitude_m,
-                velocity_m_s,
-                acceleration
+            eprintln!(
+                "{:8}  {:11.3}  {:13.3}  {:11.2}",
+                time_ms, avg_altitude_m, velocity_m_s, acceleration
             );
 
             last_velocity = velocity_m_s;

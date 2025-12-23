@@ -1,14 +1,14 @@
-use crate::build::settler::Settler;
 use crate::build::dsl::plan_runner::PlanRunner;
 use crate::build::dsl::pretenser::{Pretenser, SymmetricGroup};
 use crate::build::dsl::FabricPlan;
+use crate::build::settler::Settler;
 use crate::fabric::physics::presets::{CONSTRUCTION, PRETENSING};
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::fabric::Fabric;
 use crate::units::Seconds;
-use crate::SnapshotMoment;
 use crate::Radio;
+use crate::SnapshotMoment;
 
 const SETTLE_SECONDS: Seconds = Seconds(0.2);
 
@@ -33,17 +33,34 @@ pub enum ExecutionEvent {
     /// Construction started
     Started { iteration: usize },
     /// Transitioned to a new stage
-    StageTransition { iteration: usize, from: String, to: String },
+    StageTransition {
+        iteration: usize,
+        from: String,
+        to: String,
+    },
     /// Growth step executed
-    GrowthStep { iteration: usize, joint_count: usize },
+    GrowthStep {
+        iteration: usize,
+        joint_count: usize,
+    },
     /// Growth completed
-    GrowthComplete { iteration: usize, final_joint_count: usize },
+    GrowthComplete {
+        iteration: usize,
+        final_joint_count: usize,
+    },
     /// Faces removed during pretension
-    FacesRemoved { iteration: usize, removed_count: usize, remaining_joints: usize },
+    FacesRemoved {
+        iteration: usize,
+        removed_count: usize,
+        remaining_joints: usize,
+    },
     /// Holistic pretensing started
     PretensionApplied { iteration: usize },
     /// Physics changed
-    PhysicsChanged { iteration: usize, description: String },
+    PhysicsChanged {
+        iteration: usize,
+        description: String,
+    },
     /// Construction completed
     Completed { iteration: usize },
 }
@@ -73,22 +90,42 @@ impl std::fmt::Display for ExecutionEvent {
         let iter = format!("iter {:7}", self.iteration());
 
         match self {
-            ExecutionEvent::Started { .. } =>
-                write!(f, "[{} | {}] Construction started", time, iter),
-            ExecutionEvent::StageTransition { from, to, .. } =>
-                write!(f, "[{} | {}] {} → {}", time, iter, from, to),
-            ExecutionEvent::GrowthStep { joint_count, .. } =>
-                write!(f, "[{} | {}] Growth step (joints: {})", time, iter, joint_count),
-            ExecutionEvent::GrowthComplete { final_joint_count, .. } =>
-                write!(f, "[{} | {}] Growth complete (final joints: {})", time, iter, final_joint_count),
-            ExecutionEvent::FacesRemoved { removed_count, remaining_joints, .. } =>
-                write!(f, "[{} | {}] Removed {} faces (joints: {})", time, iter, removed_count, remaining_joints),
-            ExecutionEvent::PretensionApplied { .. } =>
-                write!(f, "[{} | {}] Holistic pretensing started", time, iter),
-            ExecutionEvent::PhysicsChanged { description, .. } =>
-                write!(f, "[{} | {}] Physics: {}", time, iter, description),
-            ExecutionEvent::Completed { .. } =>
-                write!(f, "[{} | {}] Construction completed", time, iter),
+            ExecutionEvent::Started { .. } => {
+                write!(f, "[{} | {}] Construction started", time, iter)
+            }
+            ExecutionEvent::StageTransition { from, to, .. } => {
+                write!(f, "[{} | {}] {} → {}", time, iter, from, to)
+            }
+            ExecutionEvent::GrowthStep { joint_count, .. } => write!(
+                f,
+                "[{} | {}] Growth step (joints: {})",
+                time, iter, joint_count
+            ),
+            ExecutionEvent::GrowthComplete {
+                final_joint_count, ..
+            } => write!(
+                f,
+                "[{} | {}] Growth complete (final joints: {})",
+                time, iter, final_joint_count
+            ),
+            ExecutionEvent::FacesRemoved {
+                removed_count,
+                remaining_joints,
+                ..
+            } => write!(
+                f,
+                "[{} | {}] Removed {} faces (joints: {})",
+                time, iter, removed_count, remaining_joints
+            ),
+            ExecutionEvent::PretensionApplied { .. } => {
+                write!(f, "[{} | {}] Holistic pretensing started", time, iter)
+            }
+            ExecutionEvent::PhysicsChanged { description, .. } => {
+                write!(f, "[{} | {}] Physics: {}", time, iter, description)
+            }
+            ExecutionEvent::Completed { .. } => {
+                write!(f, "[{} | {}] Construction completed", time, iter)
+            }
         }
     }
 }
@@ -130,8 +167,7 @@ impl FabricPlanExecutor {
     }
 
     fn new_internal(plan: FabricPlan, radio: Option<Radio>) -> Self {
-        let fabric = Fabric::new(plan.name.to_string())
-            .with_dimensions(plan.dimensions);
+        let fabric = Fabric::new(plan.name.to_string()).with_dimensions(plan.dimensions);
         let plan_runner = PlanRunner::new(plan.clone());
         let physics = CONSTRUCTION;
 
@@ -221,7 +257,9 @@ impl FabricPlanExecutor {
                     // Check if we should log build steps
                     let new_stage = plan_runner.stage;
                     if prev_stage != new_stage {
-                        if was_building && prev_stage == crate::build::dsl::plan_runner::Stage::BuildStep {
+                        if was_building
+                            && prev_stage == crate::build::dsl::plan_runner::Stage::BuildStep
+                        {
                             events_to_log.push(ExecutionEvent::GrowthStep {
                                 iteration: self.current_iteration,
                                 joint_count: self.fabric.joints.len(),
@@ -254,33 +292,35 @@ impl FabricPlanExecutor {
                     }
                 }
             }
-            ExecutorStage::Pretensing => {
-                match self.pretense_stage {
-                    PretenseStage::Settling => {
-                        let started = self.settle_started_at.get_or_insert(self.fabric.age);
-                        let elapsed = self.fabric.age.elapsed_since(*started);
-                        if elapsed >= SETTLE_SECONDS {
-                            self.settle_started_at = None;
-                            self.pretense_stage = PretenseStage::Measuring;
-                        }
-                    }
-                    PretenseStage::Measuring => {
-                        self.fabric.update_group_strains(&mut self.symmetric_groups);
-                        if let Some(group_idx) = self.fabric.find_group_needing_extension(&self.symmetric_groups) {
-                            self.fabric.extend_symmetric_group(&self.symmetric_groups[group_idx]);
-                            self.pretense_stage = PretenseStage::Extending;
-                        } else {
-                            self.transition_to_fall();
-                        }
-                    }
-                    PretenseStage::Extending => {
-                        if !self.fabric.progress.is_busy() {
-                            self.settle_started_at = None;
-                            self.pretense_stage = PretenseStage::Settling;
-                        }
+            ExecutorStage::Pretensing => match self.pretense_stage {
+                PretenseStage::Settling => {
+                    let started = self.settle_started_at.get_or_insert(self.fabric.age);
+                    let elapsed = self.fabric.age.elapsed_since(*started);
+                    if elapsed >= SETTLE_SECONDS {
+                        self.settle_started_at = None;
+                        self.pretense_stage = PretenseStage::Measuring;
                     }
                 }
-            }
+                PretenseStage::Measuring => {
+                    self.fabric.update_group_strains(&mut self.symmetric_groups);
+                    if let Some(group_idx) = self
+                        .fabric
+                        .find_group_needing_extension(&self.symmetric_groups)
+                    {
+                        self.fabric
+                            .extend_symmetric_group(&self.symmetric_groups[group_idx]);
+                        self.pretense_stage = PretenseStage::Extending;
+                    } else {
+                        self.transition_to_fall();
+                    }
+                }
+                PretenseStage::Extending => {
+                    if !self.fabric.progress.is_busy() {
+                        self.settle_started_at = None;
+                        self.pretense_stage = PretenseStage::Settling;
+                    }
+                }
+            },
             ExecutorStage::Falling => {
                 if !self.fabric.progress.is_busy() {
                     if self.plan.settle_phase.is_some() {
@@ -367,7 +407,10 @@ impl FabricPlanExecutor {
             if let Some(key) = self.fabric.joining((alpha_key, omega_key)) {
                 self.fabric.remove_interval(key);
             } else {
-                eprintln!("WARNING: No interval found between joints ({}, {})", alpha_id, omega_id);
+                eprintln!(
+                    "WARNING: No interval found between joints ({}, {})",
+                    alpha_id, omega_id
+                );
             }
         }
 
@@ -405,8 +448,10 @@ impl FabricPlanExecutor {
 
         // Restore user's scaling tweaks
         use crate::TweakFeature::*;
-        self.physics.accept_tweak(MassScale.parameter(mass_multiplier));
-        self.physics.accept_tweak(RigidityScale.parameter(rigidity_multiplier));
+        self.physics
+            .accept_tweak(MassScale.parameter(mass_multiplier));
+        self.physics
+            .accept_tweak(RigidityScale.parameter(rigidity_multiplier));
 
         self.plan_runner = None;
         self.stage = ExecutorStage::Pretensing;
@@ -433,12 +478,15 @@ impl FabricPlanExecutor {
         use crate::fabric::physics::Surface;
         self.physics = FALLING;
 
-        self.physics.surface = self.stored_surface_character
+        self.physics.surface = self
+            .stored_surface_character
             .map(|character| Surface::new(character, self.stored_scale));
 
         use crate::TweakFeature::*;
-        self.physics.accept_tweak(MassScale.parameter(mass_multiplier));
-        self.physics.accept_tweak(RigidityScale.parameter(rigidity_multiplier));
+        self.physics
+            .accept_tweak(MassScale.parameter(mass_multiplier));
+        self.physics
+            .accept_tweak(RigidityScale.parameter(rigidity_multiplier));
 
         self.log_event(ExecutionEvent::PhysicsChanged {
             iteration: self.current_iteration,
@@ -467,8 +515,10 @@ impl FabricPlanExecutor {
         self.physics.surface = surface;
 
         use crate::TweakFeature::*;
-        self.physics.accept_tweak(MassScale.parameter(mass_multiplier));
-        self.physics.accept_tweak(RigidityScale.parameter(rigidity_multiplier));
+        self.physics
+            .accept_tweak(MassScale.parameter(mass_multiplier));
+        self.physics
+            .accept_tweak(RigidityScale.parameter(rigidity_multiplier));
 
         self.log_event(ExecutionEvent::PhysicsChanged {
             iteration: self.current_iteration,

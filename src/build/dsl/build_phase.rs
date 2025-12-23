@@ -142,7 +142,8 @@ impl BuildPhase {
 
 impl BuildPhase {
     pub fn init(&mut self, fabric: &mut Fabric) {
-        let (buds, marks) = Self::execute_node(fabric, Scratch, &self.root, vec![], self.seed_altitude);
+        let (buds, marks) =
+            Self::execute_node(fabric, Scratch, &self.root, vec![], self.seed_altitude);
         self.buds = buds;
         self.marks = marks;
     }
@@ -212,8 +213,13 @@ impl BuildPhase {
             });
         } else if !nodes.is_empty() {
             for child_node in &nodes {
-                let (node_buds, node_marks) =
-                    Self::execute_node(fabric, IdentifiedFace(face_key), child_node, vec![], self.seed_altitude);
+                let (node_buds, node_marks) = Self::execute_node(
+                    fabric,
+                    IdentifiedFace(face_key),
+                    child_node,
+                    vec![],
+                    self.seed_altitude,
+                );
                 buds.extend(node_buds);
                 marks.extend(node_marks);
             }
@@ -233,7 +239,13 @@ impl BuildPhase {
         match node {
             Face { alias, node } => {
                 let build_node = node.as_ref();
-                return Self::execute_node(fabric, NamedFace(alias.clone()), build_node, faces, seed_altitude);
+                return Self::execute_node(
+                    fabric,
+                    NamedFace(alias.clone()),
+                    build_node,
+                    faces,
+                    seed_altitude,
+                );
             }
             Column {
                 style,
@@ -259,9 +271,12 @@ impl BuildPhase {
             } => {
                 let brick = brick_library::get_brick(*brick_name, *brick_role);
                 let launch_face = Self::find_launch_face(&launch, &faces, fabric);
-                let base_face = launch_face
-                    .map(BaseFace::ExistingFace)
-                    .unwrap_or(BaseFace::Seeded { altitude: seed_altitude });
+                let base_face =
+                    launch_face
+                        .map(BaseFace::ExistingFace)
+                        .unwrap_or(BaseFace::Seeded {
+                            altitude: seed_altitude,
+                        });
                 let (base_face_key, brick_faces) = fabric.attach_brick(
                     &brick,
                     *brick_role,

@@ -15,7 +15,11 @@ impl Fabric {
     }
 
     /// Export fabric intervals to CSV with phase indicator.
-    pub fn snapshot_csv_with_phase(&mut self, filename: &str, phase: Option<&str>) -> io::Result<()> {
+    pub fn snapshot_csv_with_phase(
+        &mut self,
+        filename: &str,
+        phase: Option<&str>,
+    ) -> io::Result<()> {
         self.update_all_attachment_connections();
 
         let path = Path::new(filename);
@@ -31,14 +35,20 @@ impl Fabric {
 
         // Header comments
         let phase_str = phase.unwrap_or("unknown");
-        writeln!(file, "# {}, Phase: {}, Height: {:.1}mm, Created: {}", self.name, phase_str, height_mm, now)?;
+        writeln!(
+            file,
+            "# {}, Phase: {}, Height: {:.1}mm, Created: {}",
+            self.name, phase_str, height_mm, now
+        )?;
         write_dimensions_comments(&mut file, &self.dimensions)?;
         writeln!(file, "Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaJoint,AlphaSlot,AlphaAngle,OmegaX,OmegaY,OmegaZ,OmegaJoint,OmegaSlot,OmegaAngle")?;
 
         // Build a map of pull interval connections for each push interval
         // Key: (pull_interval_key, end, slot) -> (pull_end_pos, hinge_pos, joint_key, slot, hinge_bend)
-        let mut pull_hinge_info: std::collections::HashMap<(IntervalKey, IntervalEnd, usize), (Point3<f32>, Point3<f32>, JointKey, usize, HingeBend)> =
-            std::collections::HashMap::new();
+        let mut pull_hinge_info: std::collections::HashMap<
+            (IntervalKey, IntervalEnd, usize),
+            (Point3<f32>, Point3<f32>, JointKey, usize, HingeBend),
+        > = std::collections::HashMap::new();
 
         // First pass: collect hinge info from push intervals using hinge_geometry
         for (_key, push_interval) in self.intervals.iter() {
@@ -54,12 +64,15 @@ impl Fabric {
             if let Some(connections) = push_interval.connections(IntervalEnd::Alpha) {
                 for (slot_idx, conn_opt) in connections.iter().enumerate() {
                     if let Some(connection) = conn_opt {
-                        if let Some(pull_interval) = self.intervals.get(connection.pull_interval_key) {
-                            let pull_other_end = if pull_interval.alpha_key == push_interval.alpha_key {
-                                self.joints[pull_interval.omega_key].location
-                            } else {
-                                self.joints[pull_interval.alpha_key].location
-                            };
+                        if let Some(pull_interval) =
+                            self.intervals.get(connection.pull_interval_key)
+                        {
+                            let pull_other_end =
+                                if pull_interval.alpha_key == push_interval.alpha_key {
+                                    self.joints[pull_interval.omega_key].location
+                                } else {
+                                    self.joints[pull_interval.alpha_key].location
+                                };
 
                             let (hinge_pos, hinge_bend, pull_end_pos) = dimensions.hinge_geometry(
                                 alpha_pos,
@@ -75,7 +88,13 @@ impl Fabric {
                             };
                             pull_hinge_info.insert(
                                 (connection.pull_interval_key, pull_end, slot_idx + 1),
-                                (pull_end_pos, hinge_pos, push_interval.alpha_key, slot_idx + 1, hinge_bend),
+                                (
+                                    pull_end_pos,
+                                    hinge_pos,
+                                    push_interval.alpha_key,
+                                    slot_idx + 1,
+                                    hinge_bend,
+                                ),
                             );
                         }
                     }
@@ -86,12 +105,15 @@ impl Fabric {
             if let Some(connections) = push_interval.connections(IntervalEnd::Omega) {
                 for (slot_idx, conn_opt) in connections.iter().enumerate() {
                     if let Some(connection) = conn_opt {
-                        if let Some(pull_interval) = self.intervals.get(connection.pull_interval_key) {
-                            let pull_other_end = if pull_interval.alpha_key == push_interval.omega_key {
-                                self.joints[pull_interval.omega_key].location
-                            } else {
-                                self.joints[pull_interval.alpha_key].location
-                            };
+                        if let Some(pull_interval) =
+                            self.intervals.get(connection.pull_interval_key)
+                        {
+                            let pull_other_end =
+                                if pull_interval.alpha_key == push_interval.omega_key {
+                                    self.joints[pull_interval.omega_key].location
+                                } else {
+                                    self.joints[pull_interval.alpha_key].location
+                                };
 
                             let (hinge_pos, hinge_bend, pull_end_pos) = dimensions.hinge_geometry(
                                 omega_pos,
@@ -107,7 +129,13 @@ impl Fabric {
                             };
                             pull_hinge_info.insert(
                                 (connection.pull_interval_key, pull_end, slot_idx + 1),
-                                (pull_end_pos, hinge_pos, push_interval.omega_key, slot_idx + 1, hinge_bend),
+                                (
+                                    pull_end_pos,
+                                    hinge_pos,
+                                    push_interval.omega_key,
+                                    slot_idx + 1,
+                                    hinge_bend,
+                                ),
                             );
                         }
                     }
@@ -123,7 +151,9 @@ impl Fabric {
             strain: f32,
         }
 
-        let mut interval_infos: Vec<IntervalInfo> = self.intervals.iter()
+        let mut interval_infos: Vec<IntervalInfo> = self
+            .intervals
+            .iter()
             .filter_map(|(key, interval)| {
                 if interval.has_role(Role::Support) {
                     return None;
@@ -141,12 +171,13 @@ impl Fabric {
             .collect();
 
         // Sort: Push first, then Pull; within each group, short to long
-        interval_infos.sort_by(|a, b| {
-            match (a.is_push, b.is_push) {
-                (true, false) => std::cmp::Ordering::Less,
-                (false, true) => std::cmp::Ordering::Greater,
-                _ => a.length.partial_cmp(&b.length).unwrap_or(std::cmp::Ordering::Equal),
-            }
+        interval_infos.sort_by(|a, b| match (a.is_push, b.is_push) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a
+                .length
+                .partial_cmp(&b.length)
+                .unwrap_or(std::cmp::Ordering::Equal),
         });
 
         // Write sorted intervals
@@ -171,27 +202,47 @@ impl Fabric {
                 )?;
             } else {
                 // Find pull_end_pos (shortened by hinge_length) for each end
-                let alpha_info = pull_hinge_info.iter()
-                    .find(|((pull_id, end, _), _)| *pull_id == info.key && *end == IntervalEnd::Alpha)
+                let alpha_info = pull_hinge_info
+                    .iter()
+                    .find(|((pull_id, end, _), _)| {
+                        *pull_id == info.key && *end == IntervalEnd::Alpha
+                    })
                     .map(|(_, data)| data);
-                let omega_info = pull_hinge_info.iter()
-                    .find(|((pull_id, end, _), _)| *pull_id == info.key && *end == IntervalEnd::Omega)
+                let omega_info = pull_hinge_info
+                    .iter()
+                    .find(|((pull_id, end, _), _)| {
+                        *pull_id == info.key && *end == IntervalEnd::Omega
+                    })
                     .map(|(_, data)| data);
 
                 // Use pull_end_pos (first element) for the interval position
-                let (alpha_pos, alpha_joint_idx, alpha_slot, alpha_bend) = if let Some((pull_end_pos, _, joint_key, slot, bend)) = alpha_info {
-                    (Point3::new(pull_end_pos.x, pull_end_pos.y, pull_end_pos.z) * MM_PER_METER, self.joints[*joint_key].id, *slot, Some(*bend))
-                } else {
-                    let joint = &self.joints[interval.alpha_key];
-                    (joint.location * MM_PER_METER, joint.id, 0, None)
-                };
+                let (alpha_pos, alpha_joint_idx, alpha_slot, alpha_bend) =
+                    if let Some((pull_end_pos, _, joint_key, slot, bend)) = alpha_info {
+                        (
+                            Point3::new(pull_end_pos.x, pull_end_pos.y, pull_end_pos.z)
+                                * MM_PER_METER,
+                            self.joints[*joint_key].id,
+                            *slot,
+                            Some(*bend),
+                        )
+                    } else {
+                        let joint = &self.joints[interval.alpha_key];
+                        (joint.location * MM_PER_METER, joint.id, 0, None)
+                    };
 
-                let (omega_pos, omega_joint_idx, omega_slot, omega_bend) = if let Some((pull_end_pos, _, joint_key, slot, bend)) = omega_info {
-                    (Point3::new(pull_end_pos.x, pull_end_pos.y, pull_end_pos.z) * MM_PER_METER, self.joints[*joint_key].id, *slot, Some(*bend))
-                } else {
-                    let joint = &self.joints[interval.omega_key];
-                    (joint.location * MM_PER_METER, joint.id, 0, None)
-                };
+                let (omega_pos, omega_joint_idx, omega_slot, omega_bend) =
+                    if let Some((pull_end_pos, _, joint_key, slot, bend)) = omega_info {
+                        (
+                            Point3::new(pull_end_pos.x, pull_end_pos.y, pull_end_pos.z)
+                                * MM_PER_METER,
+                            self.joints[*joint_key].id,
+                            *slot,
+                            Some(*bend),
+                        )
+                    } else {
+                        let joint = &self.joints[interval.omega_key];
+                        (joint.location * MM_PER_METER, joint.id, 0, None)
+                    };
 
                 // Calculate shortened length
                 let shortened_length = (omega_pos - alpha_pos).magnitude() / MM_PER_METER;
@@ -207,8 +258,18 @@ impl Fabric {
                     role_str,
                     shortened_length,
                     info.strain,
-                    alpha_pos.x, alpha_pos.y, alpha_pos.z, alpha_joint_idx, alpha_slot, alpha_bend_str,
-                    omega_pos.x, omega_pos.y, omega_pos.z, omega_joint_idx, omega_slot, omega_bend_str,
+                    alpha_pos.x,
+                    alpha_pos.y,
+                    alpha_pos.z,
+                    alpha_joint_idx,
+                    alpha_slot,
+                    alpha_bend_str,
+                    omega_pos.x,
+                    omega_pos.y,
+                    omega_pos.z,
+                    omega_joint_idx,
+                    omega_slot,
+                    omega_bend_str,
                 )?;
             }
         }
@@ -216,14 +277,17 @@ impl Fabric {
         // Build link structure for each push interval end
         // Group connections by push joint to build the axial chain
         // Each entry stores: (slot, pull_end_pos, hinge_pos)
-        let mut push_end_connections: std::collections::HashMap<JointKey, Vec<(usize, Point3<f32>, Point3<f32>)>> =
-            std::collections::HashMap::new();
+        let mut push_end_connections: std::collections::HashMap<
+            JointKey,
+            Vec<(usize, Point3<f32>, Point3<f32>)>,
+        > = std::collections::HashMap::new();
 
         for (_, (pull_end_pos, hinge_pos, joint_key, slot, _)) in &pull_hinge_info {
-            push_end_connections
-                .entry(*joint_key)
-                .or_default()
-                .push((*slot, *pull_end_pos, *hinge_pos));
+            push_end_connections.entry(*joint_key).or_default().push((
+                *slot,
+                *pull_end_pos,
+                *hinge_pos,
+            ));
         }
 
         let mut link_index = interval_infos.len();
@@ -235,13 +299,22 @@ impl Fabric {
             let joint_pos = joint.location;
 
             // Find push axis direction (outward from this joint)
-            let push_axis = self.intervals.values()
-                .find(|i| i.has_role(Role::Pushing) && (i.alpha_key == joint_key || i.omega_key == joint_key))
+            let push_axis = self
+                .intervals
+                .values()
+                .find(|i| {
+                    i.has_role(Role::Pushing)
+                        && (i.alpha_key == joint_key || i.omega_key == joint_key)
+                })
                 .map(|push_interval| {
                     let alpha_pos = self.joints[push_interval.alpha_key].location;
                     let omega_pos = self.joints[push_interval.omega_key].location;
                     let dir = (omega_pos - alpha_pos).normalize();
-                    if push_interval.alpha_key == joint_key { -dir } else { dir }
+                    if push_interval.alpha_key == joint_key {
+                        -dir
+                    } else {
+                        dir
+                    }
                 })
                 .unwrap_or(cgmath::Vector3::new(0.0, 1.0, 0.0));
 
@@ -302,11 +375,28 @@ impl Fabric {
 fn write_dimensions_comments(file: &mut File, dims: &FabricDimensions) -> io::Result<()> {
     // Engineer's input values (A, B, C, D, E)
     writeln!(file, "# push_radius (A): {:.5}m", *dims.push_radius)?;
-    writeln!(file, "# push_radius_margin (B): {:.5}m", *dims.push_radius_margin)?;
-    writeln!(file, "# disc_thickness: {:.5}m (C = {:.5}m)", *dims.disc_thickness, *dims.disc_thickness / 2.0)?;
-    writeln!(file, "# disc_separator_thickness: {:.5}m", *dims.disc_separator_thickness)?;
+    writeln!(
+        file,
+        "# push_radius_margin (B): {:.5}m",
+        *dims.push_radius_margin
+    )?;
+    writeln!(
+        file,
+        "# disc_thickness: {:.5}m (C = {:.5}m)",
+        *dims.disc_thickness,
+        *dims.disc_thickness / 2.0
+    )?;
+    writeln!(
+        file,
+        "# disc_separator_thickness: {:.5}m",
+        *dims.disc_separator_thickness
+    )?;
     writeln!(file, "# hinge_extension (D): {:.5}m", *dims.hinge_extension)?;
-    writeln!(file, "# hinge_hole_diameter (E): {:.5}m", *dims.hinge_hole_diameter)?;
+    writeln!(
+        file,
+        "# hinge_hole_diameter (E): {:.5}m",
+        *dims.hinge_hole_diameter
+    )?;
     writeln!(file, "# pull_radius: {:.5}m", *dims.pull_radius)?;
     writeln!(file, "#")?;
     // Derived values

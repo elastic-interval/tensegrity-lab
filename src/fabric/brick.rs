@@ -14,7 +14,9 @@ pub enum BaseFace {
         spin: Spin,
         vector_space: Matrix4<f32>,
     },
-    Seeded { altitude: f32 },
+    Seeded {
+        altitude: f32,
+    },
 }
 
 impl Fabric {
@@ -92,10 +94,16 @@ impl Fabric {
                     let alpha_key = self.create_joint(Point3::from_vec(midpoint));
                     let radial_intervals = brick_joints.map(|omega| {
                         let omega_key = joint_keys[omega];
-                        let ideal = self.ideal(alpha_key, omega_key, BakedBrick::TARGET_FACE_STRAIN);
+                        let ideal =
+                            self.ideal(alpha_key, omega_key, BakedBrick::TARGET_FACE_STRAIN);
                         self.create_interval(alpha_key, omega_key, ideal, Role::FaceRadial)
                     });
-                    Some(self.create_face(aliases_for_role, base_scale * scale, spin, radial_intervals))
+                    Some(self.create_face(
+                        aliases_for_role,
+                        base_scale * scale,
+                        spin,
+                        radial_intervals,
+                    ))
                 },
             )
             .collect::<Vec<_>>();

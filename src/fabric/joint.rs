@@ -25,7 +25,8 @@ impl Fabric {
 
     pub fn remove_joint(&mut self, key: JointKey) {
         // Remove all intervals that touch this joint
-        let to_remove: Vec<_> = self.intervals
+        let to_remove: Vec<_> = self
+            .intervals
             .iter()
             .filter_map(|(interval_key, interval)| {
                 if interval.alpha_key == key || interval.omega_key == key {
@@ -43,8 +44,7 @@ impl Fabric {
     }
 
     pub fn distance(&self, alpha_key: JointKey, omega_key: JointKey) -> f32 {
-        self.location(alpha_key)
-            .distance(self.location(omega_key))
+        self.location(alpha_key).distance(self.location(omega_key))
     }
 
     /// Distance between joints by their JointId (creation order)

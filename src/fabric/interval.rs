@@ -7,13 +7,13 @@ use crate::fabric::attachment::{
     calculate_interval_attachment_points, find_nearest_attachment_point, AttachmentPoint,
     PullConnection, PullConnections, PullIntervalData, ATTACHMENT_POINTS,
 };
-use crate::fabric::FabricDimensions;
 use crate::fabric::error::FabricError;
 use crate::fabric::interval::Role::*;
 use crate::fabric::interval::Span::*;
 use crate::fabric::joint::Joint;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
+use crate::fabric::FabricDimensions;
 use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointId, JointKey, Joints, Progress};
 use crate::units::{Meters, NewtonsPerMeter, Percent};
 use crate::Appearance;
@@ -53,11 +53,7 @@ impl Fabric {
                     || interval.omega_key == push_alpha
                     || interval.omega_key == push_omega
                 {
-                    connected_pulls.push((
-                        key,
-                        interval.alpha_key,
-                        interval.omega_key,
-                    ));
+                    connected_pulls.push((key, interval.alpha_key, interval.omega_key));
 
                     // Collect pull interval data for moment calculation
                     pull_data.push(PullIntervalData {
@@ -74,7 +70,12 @@ impl Fabric {
         // Now update the attachment connections if we have a valid push interval
         if let Some(push_interval) = self.intervals.get_mut(push_interval_key) {
             // Use the new reorder_connections method to optimize attachment points
-            let _ = push_interval.reorder_connections(&self.joints, &connected_pulls, &pull_data, &self.dimensions);
+            let _ = push_interval.reorder_connections(
+                &self.joints,
+                &connected_pulls,
+                &pull_data,
+                &self.dimensions,
+            );
         }
     }
 
@@ -113,10 +114,15 @@ impl Fabric {
         ideal: f32,
         role: Role,
     ) -> IntervalKey {
-        self.create_interval_with_span(alpha_key, omega_key, role, Approaching {
-            start_length: self.distance(alpha_key, omega_key),
-            target_length: ideal,
-        })
+        self.create_interval_with_span(
+            alpha_key,
+            omega_key,
+            role,
+            Approaching {
+                start_length: self.distance(alpha_key, omega_key),
+                target_length: ideal,
+            },
+        )
     }
 
     /// Create an interval by JointId (creation order indices)
@@ -151,12 +157,7 @@ impl Fabric {
         role: Role,
         span: Span,
     ) -> IntervalKey {
-        let interval = Interval::new(
-            alpha_key,
-            omega_key,
-            role,
-            span,
-        );
+        let interval = Interval::new(alpha_key, omega_key, role, span);
 
         let key = self.intervals.insert(interval);
 
@@ -188,9 +189,7 @@ impl Fabric {
 
     /// Get an interval by its key, returning a Result
     pub fn interval_result(&self, key: IntervalKey) -> Result<&Interval, FabricError> {
-        self.intervals
-            .get(key)
-            .ok_or(FabricError::IntervalNotFound)
+        self.intervals.get(key).ok_or(FabricError::IntervalNotFound)
     }
 
     /// Get an interval by its key
@@ -199,14 +198,21 @@ impl Fabric {
     }
 
     /// Get an interval snapshot by its key, returning a Result
-    pub fn interval_snapshot_result(&self, key: IntervalKey) -> Result<IntervalSnapshot, FabricError> {
+    pub fn interval_snapshot_result(
+        &self,
+        key: IntervalKey,
+    ) -> Result<IntervalSnapshot, FabricError> {
         let interval = self.interval_result(key)?;
 
         // Get joints by key - SlotMap returns None if key is invalid
-        let alpha = self.joints.get(interval.alpha_key)
+        let alpha = self
+            .joints
+            .get(interval.alpha_key)
             .ok_or(FabricError::InvalidJointIndices)?
             .clone();
-        let omega = self.joints.get(interval.omega_key)
+        let omega = self
+            .joints
+            .get(interval.omega_key)
             .ok_or(FabricError::InvalidJointIndices)?
             .clone();
 
@@ -230,23 +236,19 @@ impl Fabric {
     }
 
     pub fn find_push_at(&self, joint_key: JointKey) -> Option<IntervalKey> {
-        self.intervals
-            .iter()
-            .find_map(|(key, interval)| {
-                (interval.is_push_interval() && interval.touches(joint_key)).then_some(key)
-            })
+        self.intervals.iter().find_map(|(key, interval)| {
+            (interval.is_push_interval() && interval.touches(joint_key)).then_some(key)
+        })
     }
 
     pub fn joining(&self, pair: (JointKey, JointKey)) -> Option<IntervalKey> {
-        self.intervals
-            .iter()
-            .find_map(|(key, interval)| {
-                if interval.touches(pair.0) && interval.touches(pair.1) {
-                    Some(key)
-                } else {
-                    None
-                }
-            })
+        self.intervals.iter().find_map(|(key, interval)| {
+            if interval.touches(pair.0) && interval.touches(pair.1) {
+                Some(key)
+            } else {
+                None
+            }
+        })
     }
 
     pub fn interval_values(&self) -> impl Iterator<Item = &Interval> {
@@ -322,13 +324,7 @@ impl Role {
     pub fn is_pull_like(&self) -> bool {
         matches!(
             self,
-            Pulling
-                | Circumference
-                | BowTie
-                | FaceRadial
-                | Support
-                | GuyLine
-                | PrismPull
+            Pulling | Circumference | BowTie | FaceRadial | Support | GuyLine | PrismPull
         )
     }
 
@@ -691,12 +687,7 @@ impl Interval {
 
     /// Iterate physics for this interval.
     /// All lengths (ideal, real_length) are now in meters directly.
-    pub fn iterate(
-        &mut self,
-        joints: &mut Joints,
-        progress: &Progress,
-        physics: &Physics,
-    ) {
+    pub fn iterate(&mut self, joints: &mut Joints, progress: &Progress, physics: &Physics) {
         let ideal = match self.span {
             Fixed { length } => length,
             Pretensing {
@@ -762,7 +753,8 @@ impl Interval {
 
     /// Check if this interval touches a specific joint
     pub fn touches(&self, joint_key: JointKey) -> bool {
-        self.end_key(IntervalEnd::Alpha) == joint_key || self.end_key(IntervalEnd::Omega) == joint_key
+        self.end_key(IntervalEnd::Alpha) == joint_key
+            || self.end_key(IntervalEnd::Omega) == joint_key
     }
 
     /// Check if a specific end of this interval touches a joint

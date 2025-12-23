@@ -13,7 +13,10 @@ use crate::fabric::progress::Progress;
 use crate::units::{Degrees, Grams, Meters, Percent, Seconds};
 use crate::Age;
 use cgmath::num_traits::zero;
-use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Rotation, Transform, Vector3};
+use cgmath::{
+    EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Rotation, Transform,
+    Vector3,
+};
 use slotmap::{new_key_type, SlotMap};
 use std::fmt::Debug;
 use std::ops::Deref;
@@ -25,11 +28,11 @@ pub struct FabricDimensions {
     pub scale: Meters,
     pub push_radius: Meters, // A default 30mm
     pub pull_radius: Meters,
-    pub push_radius_margin: Meters, // B default 3mm
-    pub disc_thickness: Meters, // default 10mm, note that C is half disc_thickness
+    pub push_radius_margin: Meters,       // B default 3mm
+    pub disc_thickness: Meters,           // default 10mm, note that C is half disc_thickness
     pub disc_separator_thickness: Meters, // default 3mm
-    pub hinge_extension: Meters, // D
-    pub hinge_hole_diameter: Meters, // E
+    pub hinge_extension: Meters,          // D
+    pub hinge_hole_diameter: Meters,      // E
     pub push_length_increment: Option<Meters>,
     pub max_pretenst_strain: Option<f32>,
 }
@@ -40,13 +43,13 @@ impl FabricDimensions {
         Self {
             altitude: Meters(7.5),
             scale: Meters(1.0),
-            push_radius: Meters(0.030),              // A: 30mm
-            pull_radius: Meters(0.007),              // 7mm
-            push_radius_margin: Meters(0.003),       // B: 3mm
-            disc_thickness: Meters(0.010),           // 10mm (C = 5mm)
-            disc_separator_thickness: Meters(0.003), // 3mm
-            hinge_extension: Meters(0.012),          // D: 12mm
-            hinge_hole_diameter: Meters(0.017),      // E: 17mm
+            push_radius: Meters(0.030),                 // A: 30mm
+            pull_radius: Meters(0.007),                 // 7mm
+            push_radius_margin: Meters(0.003),          // B: 3mm
+            disc_thickness: Meters(0.010),              // 10mm (C = 5mm)
+            disc_separator_thickness: Meters(0.003),    // 3mm
+            hinge_extension: Meters(0.012),             // D: 12mm
+            hinge_hole_diameter: Meters(0.017),         // E: 17mm
             push_length_increment: Some(Meters(0.025)), // 25mm holes
             max_pretenst_strain: Some(0.03), // 3% max - skip extension if 1 increment exceeds this
         }
@@ -57,13 +60,13 @@ impl FabricDimensions {
         Self {
             altitude: Meters(0.5),
             scale: Meters(0.056),
-            push_radius: Meters(0.003),              // A: 3mm
-            pull_radius: Meters(0.0005),             // 0.5mm
-            push_radius_margin: Meters(0.0003),      // B: 0.3mm
-            disc_thickness: Meters(0.001),           // 1mm (C = 0.5mm)
-            disc_separator_thickness: Meters(0.0003),// 0.3mm
-            hinge_extension: Meters(0.0012),         // D: 1.2mm
-            hinge_hole_diameter: Meters(0.0017),     // E: 1.7mm
+            push_radius: Meters(0.003),               // A: 3mm
+            pull_radius: Meters(0.0005),              // 0.5mm
+            push_radius_margin: Meters(0.0003),       // B: 0.3mm
+            disc_thickness: Meters(0.001),            // 1mm (C = 0.5mm)
+            disc_separator_thickness: Meters(0.0003), // 0.3mm
+            hinge_extension: Meters(0.0012),          // D: 1.2mm
+            hinge_hole_diameter: Meters(0.0017),      // E: 1.7mm
             push_length_increment: None,
             max_pretenst_strain: None, // No limit for models (continuous pretensing)
         }
@@ -158,12 +161,8 @@ impl FabricDimensions {
         let ideal_angle = Self::hinge_angle(push_axis, pull_direction);
         let hinge_bend = attachment::HingeBend::from_angle(ideal_angle);
 
-        let pull_end_pos = hinge_bend.endpoint(
-            hinge_pos,
-            push_axis,
-            radial_unit,
-            *self.hinge_length(),
-        );
+        let pull_end_pos =
+            hinge_bend.endpoint(hinge_pos, push_axis, radial_unit, *self.hinge_length());
 
         (hinge_pos, hinge_bend, pull_end_pos)
     }
@@ -225,12 +224,12 @@ new_key_type! {
 pub mod attachment;
 pub mod brick;
 pub mod error;
+pub mod fabric_sampler;
 pub mod face;
 pub mod interval;
 pub mod joint;
 pub mod joint_incident;
 pub mod material;
-pub mod fabric_sampler;
 pub mod physics;
 pub mod progress;
 pub mod vulcanize;
@@ -465,7 +464,7 @@ impl Fabric {
         let s = *scale;
         self.scale = s;
         let mass_scale = s.powf(3.5); // scale^3.5: volume plus slight reduction for small structures
-        // Scale all joint positions, velocities, and mass
+                                      // Scale all joint positions, velocities, and mass
         for joint in self.joints.values_mut() {
             joint.location.x *= s;
             joint.location.y *= s;
@@ -513,7 +512,10 @@ impl Fabric {
                 downward_normals.len()
             );
         }
-        let down = downward_normals.into_iter().sum::<Vector3<f32>>().normalize();
+        let down = downward_normals
+            .into_iter()
+            .sum::<Vector3<f32>>()
+            .normalize();
         Matrix4::from(Quaternion::between_vectors(down, -Vector3::unit_y()))
     }
 
@@ -534,14 +536,18 @@ impl Fabric {
             if interval.has_role(Role::Pushing) {
                 let current_length = interval.fast_length(&self.joints);
                 let snapped_length = self.dimensions.snap_push_length(current_length);
-                interval.span = Fixed { length: snapped_length };
+                interval.span = Fixed {
+                    length: snapped_length,
+                };
             }
         }
         // Second pass: set pull intervals to their current measured length
         for interval in self.intervals.values_mut() {
             if !interval.has_role(Role::Pushing) && !interval.has_role(Role::Support) {
                 let current_length = interval.fast_length(&self.joints);
-                interval.span = Fixed { length: current_length };
+                interval.span = Fixed {
+                    length: current_length,
+                };
             }
         }
         for joint in self.joints.values_mut() {
@@ -558,9 +564,13 @@ impl Fabric {
             if !interval.has_role(Role::Support) {
                 let is_pushing = interval.has_role(Role::Pushing);
                 match interval.span {
-                    Fixed { length: rest_length } => {
+                    Fixed {
+                        length: rest_length,
+                    } => {
                         if is_pushing {
-                            let target_length = self.dimensions.discrete_pretenst_target(rest_length, target_strain);
+                            let target_length = self
+                                .dimensions
+                                .discrete_pretenst_target(rest_length, target_strain);
                             interval.span = Pretensing {
                                 start_length: rest_length,
                                 target_length,
@@ -569,8 +579,14 @@ impl Fabric {
                             };
                         }
                     }
-                    Pretensing { target_length: current_target, rest_length, .. } => {
-                        let target_length = self.dimensions.discrete_pretenst_target(rest_length, target_strain);
+                    Pretensing {
+                        target_length: current_target,
+                        rest_length,
+                        ..
+                    } => {
+                        let target_length = self
+                            .dimensions
+                            .discrete_pretenst_target(rest_length, target_strain);
                         interval.span = Pretensing {
                             start_length: current_target,
                             target_length,
@@ -617,11 +633,7 @@ impl Fabric {
             joint.reset_with_mass(ambient_mass);
         }
         for interval in self.intervals.values_mut() {
-            interval.iterate(
-                &mut self.joints,
-                &self.progress,
-                physics,
-            );
+            interval.iterate(&mut self.joints, &self.progress, physics);
             self.stats.accumulate_strain(interval.strain);
         }
         let elapsed = self.age.tick();

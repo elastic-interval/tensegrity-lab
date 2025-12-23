@@ -8,27 +8,31 @@ use crate::build::dsl::brick_dsl::{BrickRole, FaceName, MarkName};
 use crate::fabric::{Fabric, FaceKey};
 
 pub mod animate_phase;
+pub mod bake_brick_test;
 pub mod brick;
 pub mod brick_dsl;
 pub mod brick_library;
 pub mod build_phase;
-pub mod fall_phase;
-pub mod settle_phase;
 pub mod fabric_dsl;
 pub mod fabric_library;
 pub mod fabric_plan;
 pub mod fabric_plan_executor;
+pub mod fall_phase;
 pub mod plan_context;
 pub mod plan_runner;
 pub mod pretense_phase;
 pub mod pretenser;
+pub mod settle_phase;
 pub mod shape_phase;
 pub mod single_interval_drop_test;
-pub mod bake_brick_test;
 
 impl Fabric {
     pub fn expect_face(&self, face_key: FaceKey) -> &crate::fabric::face::Face {
-        self.faces.get(face_key).expect(&format!("Expected face {:?} in fabric with {} faces", &face_key, self.faces.len()))
+        self.faces.get(face_key).expect(&format!(
+            "Expected face {:?} in fabric with {} faces",
+            &face_key,
+            self.faces.len()
+        ))
     }
 }
 

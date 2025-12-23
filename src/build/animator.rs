@@ -1,4 +1,4 @@
-use crate::build::dsl::animate_phase::{AnimatePhase, Actuator, ActuatorAttachment, Waveform};
+use crate::build::dsl::animate_phase::{Actuator, ActuatorAttachment, AnimatePhase, Waveform};
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::interval::{Role, Span};
 use crate::fabric::{IntervalKey, JointKey};
@@ -9,7 +9,7 @@ use std::f32::consts::PI;
 
 /// Oscillator that tracks phase from 0.0 to 1.0 over one period
 struct Oscillator {
-    phase: f32,           // Current phase [0.0, 1.0)
+    phase: f32, // Current phase [0.0, 1.0)
     phase_per_tick: f32,
 }
 
@@ -43,7 +43,11 @@ impl Oscillator {
             }
             Waveform::Pulse { duty_cycle } => {
                 // Square wave: 1 during "on" portion, 0 during "off"
-                if phase < duty_cycle.as_factor() { 1.0 } else { 0.0 }
+                if phase < duty_cycle.as_factor() {
+                    1.0
+                } else {
+                    0.0
+                }
             }
         }
     }
@@ -69,7 +73,12 @@ impl Animator {
         let contraction_factor = 1.0 - animate_phase.amplitude.as_factor();
         let period_secs = animate_phase.period.0;
         let stiffness = animate_phase.stiffness;
-        let actuators = Self::create_actuators(context, &animate_phase.actuators, contraction_factor, stiffness);
+        let actuators = Self::create_actuators(
+            context,
+            &animate_phase.actuators,
+            contraction_factor,
+            stiffness,
+        );
 
         Self {
             oscillator: Oscillator::new(period_secs),
@@ -113,7 +122,9 @@ impl Animator {
                     // Start slack: set span to Fixed at current distance
                     // Set stiffness to reduce jiggling with rapid waveforms
                     if let Some(interval) = context.fabric.intervals.get_mut(id) {
-                        interval.span = Span::Fixed { length: rest_length };
+                        interval.span = Span::Fixed {
+                            length: rest_length,
+                        };
                         interval.stiffness = stiffness;
                     }
                     result.push(ActuatorInterval {
@@ -143,7 +154,9 @@ impl Animator {
                     // Start slack: set span to Fixed at current distance
                     // Set stiffness to reduce jiggling with rapid waveforms
                     if let Some(interval) = context.fabric.intervals.get_mut(id) {
-                        interval.span = Span::Fixed { length: rest_length };
+                        interval.span = Span::Fixed {
+                            length: rest_length,
+                        };
                         interval.stiffness = stiffness;
                     }
 
@@ -177,7 +190,9 @@ impl Animator {
             if let Some(interval) = context.fabric.intervals.get_mut(actuator.id) {
                 // Apply phase offset to get actuator-specific phase
                 let phase_with_offset = (self.oscillator.phase + actuator.phase_offset) % 1.0;
-                let contraction = self.oscillator.value_at_phase(phase_with_offset, self.waveform);
+                let contraction = self
+                    .oscillator
+                    .value_at_phase(phase_with_offset, self.waveform);
                 let length = actuator.rest_length * (1.0 - contraction)
                     + actuator.contracted_length * contraction;
                 interval.span = Span::Fixed { length };

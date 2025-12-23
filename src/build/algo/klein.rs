@@ -30,13 +30,15 @@ impl KleinFabric {
     fn push(&mut self, alpha: isize, omega: isize) -> IntervalKey {
         let alpha_key = self.fabric.joint_by_id[alpha as usize];
         let omega_key = self.fabric.joint_by_id[omega as usize];
-        self.fabric.create_interval(alpha_key, omega_key, 8.0, Role::Pushing)
+        self.fabric
+            .create_interval(alpha_key, omega_key, 8.0, Role::Pushing)
     }
 
     fn pull(&mut self, alpha: isize, omega: isize) -> IntervalKey {
         let alpha_key = self.fabric.joint_by_id[alpha as usize];
         let omega_key = self.fabric.joint_by_id[omega as usize];
-        self.fabric.create_interval(alpha_key, omega_key, 1.0, Role::Pulling)
+        self.fabric
+            .create_interval(alpha_key, omega_key, 1.0, Role::Pulling)
     }
 
     fn coord(&mut self) -> f32 {

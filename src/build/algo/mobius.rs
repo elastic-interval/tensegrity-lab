@@ -17,7 +17,6 @@ use crate::fabric::Fabric;
 pub fn generate_mobius(segments: usize) -> Fabric {
     let mut fabric = Fabric::new("Mobius".to_string());
 
-
     // Joint count must be odd to complete the Möbius twist
     let joint_count = segments * 2 + 1;
 
@@ -48,9 +47,9 @@ pub fn generate_mobius(segments: usize) -> Fabric {
 
     // Consistent interval lengths - should roughly match geometry
     // Based on test output: edge~2.1, width~2.3, diagonal~3.8
-    let push_length = 4.0;   // Diagonal struts (slightly longer to push)
-    let pull_edge = 2.0;     // Along the band edge (offset 0 to 2)
-    let pull_width = 2.2;    // Across the band width (offset 0 to 1)
+    let push_length = 4.0; // Diagonal struts (slightly longer to push)
+    let pull_edge = 2.0; // Along the band edge (offset 0 to 2)
+    let pull_width = 2.2; // Across the band width (offset 0 to 1)
 
     // Create intervals with overlapping pattern (matching original TS pattern)
     // joint(offset) = (jointIndex * 2 + offset) % joint_count
@@ -83,15 +82,23 @@ mod tests {
         assert!(!fabric.joints.is_empty(), "Should have joints");
         assert!(!fabric.intervals.is_empty(), "Should have intervals");
 
-        let push_count = fabric.intervals.values()
+        let push_count = fabric
+            .intervals
+            .values()
             .filter(|i| i.role == Role::Pushing)
             .count();
-        let pull_count = fabric.intervals.values()
+        let pull_count = fabric
+            .intervals
+            .values()
             .filter(|i| i.role == Role::Pulling)
             .count();
 
-        println!("Mobius (50 segments): {} joints, {} struts, {} cables",
-            fabric.joints.len(), push_count, pull_count);
+        println!(
+            "Mobius (50 segments): {} joints, {} struts, {} cables",
+            fabric.joints.len(),
+            push_count,
+            pull_count
+        );
 
         // 50 segments = 101 joints (2*segments + 1 for Möbius twist)
         assert_eq!(fabric.joints.len(), 101, "Should have 2*segments+1 joints");
@@ -111,20 +118,30 @@ mod tests {
             let omega = &fabric.joints[interval.omega_key];
             let actual = ((omega.location.x - alpha.location.x).powi(2)
                 + (omega.location.y - alpha.location.y).powi(2)
-                + (omega.location.z - alpha.location.z).powi(2)).sqrt();
+                + (omega.location.z - alpha.location.z).powi(2))
+            .sqrt();
             let ideal = interval.ideal();
             let strain = (actual - ideal) / ideal * 100.0;
-            println!("Interval {}: {:?} actual={:.3} ideal={:.3} strain={:.1}%",
-                i, interval.role, actual, ideal, strain);
+            println!(
+                "Interval {}: {:?} actual={:.3} ideal={:.3} strain={:.1}%",
+                i, interval.role, actual, ideal, strain
+            );
         }
 
-        println!("Before iteration: frozen={}, max_velocity={:.2}", fabric.frozen, fabric.max_velocity());
+        println!(
+            "Before iteration: frozen={}, max_velocity={:.2}",
+            fabric.frozen,
+            fabric.max_velocity()
+        );
 
         // Run a few iterations and check velocities
         for iter in 0..10 {
             fabric.iterate(&physics);
             let max_vel = fabric.max_velocity();
-            println!("Iteration {}: frozen={} max_velocity = {:.2}", iter, fabric.frozen, max_vel);
+            println!(
+                "Iteration {}: frozen={} max_velocity = {:.2}",
+                iter, fabric.frozen, max_vel
+            );
             if fabric.frozen {
                 println!("  Fabric was frozen!");
                 break;
@@ -140,11 +157,18 @@ mod tests {
 
         for interval in fabric.intervals.values() {
             // With SlotMap, we just verify the keys point to valid joints
-            assert!(fabric.joints.get(interval.alpha_key).is_some(),
-                "Alpha joint key should be valid");
-            assert!(fabric.joints.get(interval.omega_key).is_some(),
-                "Omega joint key should be valid");
-            assert!(interval.ideal() > 0.0, "Interval should have positive ideal length");
+            assert!(
+                fabric.joints.get(interval.alpha_key).is_some(),
+                "Alpha joint key should be valid"
+            );
+            assert!(
+                fabric.joints.get(interval.omega_key).is_some(),
+                "Omega joint key should be valid"
+            );
+            assert!(
+                interval.ideal() > 0.0,
+                "Interval should have positive ideal length"
+            );
         }
     }
 }

@@ -4,7 +4,7 @@
  */
 
 //! Physical units for tensegrity simulation
-//! 
+//!
 //! This module provides type-safe wrappers for physical quantities,
 //! making the physics more intuitive and preventing unit errors.
 
@@ -45,7 +45,6 @@ pub struct Percent(pub f32);
 /// Angle in degrees
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
 pub struct Degrees(pub f32);
-
 
 // Common time constants
 pub const IMMEDIATE: Seconds = Seconds(0.0);
@@ -158,7 +157,7 @@ impl Percent {
     pub fn as_factor(self) -> f32 {
         self.0 / 100.0
     }
-    
+
     /// Create from a factor (0.0-1.0)
     /// Example: 0.5 → 50%, 1.0 → 100%
     pub fn from_factor(factor: f32) -> Self {
@@ -170,7 +169,7 @@ impl Percent {
 
 impl Div<Grams> for Newtons {
     type Output = f32; // m/s² (acceleration)
-    
+
     fn div(self, mass: Grams) -> f32 {
         // F = ma, so a = F/m
         // Newton = kg⋅m/s², Grams needs conversion to kg
@@ -180,7 +179,7 @@ impl Div<Grams> for Newtons {
 
 impl Mul<f32> for Grams {
     type Output = Grams;
-    
+
     fn mul(self, scalar: f32) -> Grams {
         Grams(*self * scalar)
     }
@@ -189,7 +188,7 @@ impl Mul<f32> for Grams {
 // Division for units
 impl Div<f32> for Grams {
     type Output = Grams;
-    
+
     fn div(self, scalar: f32) -> Grams {
         Grams(*self / scalar)
     }
@@ -197,7 +196,7 @@ impl Div<f32> for Grams {
 
 impl Div<f32> for Newtons {
     type Output = Newtons;
-    
+
     fn div(self, scalar: f32) -> Newtons {
         Newtons(*self / scalar)
     }
@@ -206,7 +205,7 @@ impl Div<f32> for Newtons {
 // Addition for units
 impl Add for Grams {
     type Output = Grams;
-    
+
     fn add(self, other: Grams) -> Grams {
         Grams(*self + *other)
     }
@@ -306,7 +305,7 @@ mod tests {
     fn test_mass_conversions() {
         let mass = Grams(1000.0);
         assert_eq!(mass.to_kg(), 1.0);
-        
+
         let mass2 = Grams::from_kg(2.5);
         assert_eq!(mass2.0, 2500.0);
     }

@@ -8,13 +8,7 @@ pub struct PlanContext<'a> {
 }
 
 impl<'a> PlanContext<'a> {
-    pub fn new(
-        fabric: &'a mut Fabric,
-        physics: &'a mut Physics,
-    ) -> Self {
-        Self {
-            fabric,
-            physics,
-        }
+    pub fn new(fabric: &'a mut Fabric, physics: &'a mut Physics) -> Self {
+        Self { fabric, physics }
     }
 }
