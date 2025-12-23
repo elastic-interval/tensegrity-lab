@@ -532,4 +532,33 @@ mod tests {
         // Report the state
         eprintln!("\n✓ Execution completed successfully");
     }
+
+    #[test]
+    fn print_joint_names_expanded() {
+        eprintln!("\n=== All Triped Joint Names (Expanded) ===\n");
+
+        let plan = fabric_library::get_fabric_plan(FabricName::Triped);
+        let mut executor = FabricPlanExecutor::new_for_test(plan);
+
+        // Run to completion
+        while !executor.is_complete() {
+            let _ = executor.iterate();
+        }
+
+        // Collect and sort joint paths
+        let mut paths: Vec<_> = executor
+            .fabric
+            .joints
+            .values()
+            .map(|j| (j.path.expanded(), j.path.to_string()))
+            .collect();
+        paths.sort();
+
+        eprintln!("{:30} {:15}", "EXPANDED", "COMPRESSED");
+        eprintln!("{:30} {:15}", "--------", "----------");
+        for (expanded, compressed) in &paths {
+            eprintln!("{:30} {:15}", expanded, compressed);
+        }
+        eprintln!("\nTotal joints: {}", paths.len());
+    }
 }
