@@ -18,6 +18,116 @@ use slotmap::{new_key_type, SlotMap};
 use std::fmt::Debug;
 use std::ops::Deref;
 
+/// All physical dimensions for a fabric: structure size and interval geometry.
+#[derive(Clone, Copy, Debug)]
+pub struct FabricDimensions {
+    pub altitude: Meters,
+    pub scale: Meters,
+    pub push_radius: Meters,
+    pub pull_radius: Meters,
+    pub ring_thickness: Meters,
+    pub hinge_offset: Meters,
+    pub hinge_length: Meters,
+    pub push_length_increment: Option<Meters>,
+    /// Maximum strain allowed from a single increment. If one increment would
+    /// exceed this strain, skip pretensing for that strut entirely.
+    /// e.g., 0.03 means 3% max strain from discrete pretensing.
+    pub max_pretenst_strain: Option<f32>,
+}
+
+impl FabricDimensions {
+    /// Full-size dimensions for real structures (scale 1.0m, altitude 7.5m)
+    pub fn full_size() -> Self {
+        Self {
+            altitude: Meters(7.5),
+            scale: Meters(1.0),
+            push_radius: Meters(0.060),     // 60mm
+            pull_radius: Meters(0.007),     // 7mm
+            ring_thickness: Meters(0.012),  // 12mm
+            hinge_offset: Meters(0.063),    // 63mm
+            hinge_length: Meters(0.100),    // 100mm
+            push_length_increment: Some(Meters(0.025)), // 25mm holes
+            max_pretenst_strain: Some(0.03), // 3% max - skip extension if 1 increment exceeds this
+        }
+    }
+
+    /// Model-size dimensions for small physical models (scale 0.056m, altitude 0.5m)
+    pub fn model_size() -> Self {
+        Self {
+            altitude: Meters(0.5),
+            scale: Meters(0.056),
+            push_radius: Meters(0.003),     // 3mm
+            pull_radius: Meters(0.0005),    // 0.5mm
+            ring_thickness: Meters(0.001),  // 1mm
+            hinge_offset: Meters(0.004),    // 4mm
+            hinge_length: Meters(0.006),    // 6mm
+            push_length_increment: None,
+            max_pretenst_strain: None, // No limit for models (continuous pretensing)
+        }
+    }
+
+    /// Set custom altitude
+    pub fn with_altitude(mut self, altitude: Meters) -> Self {
+        self.altitude = altitude;
+        self
+    }
+
+    /// Set custom scale
+    pub fn with_scale(mut self, scale: Meters) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    /// Interval dimensions only (for backward compatibility)
+    pub fn interval_dimensions(&self) -> attachment::IntervalDimensions {
+        attachment::IntervalDimensions {
+            push_radius: self.push_radius,
+            pull_radius: self.pull_radius,
+            ring_thickness: self.ring_thickness,
+            hinge_offset: self.hinge_offset,
+            hinge_length: self.hinge_length,
+        }
+    }
+
+    /// Snap a length to the nearest increment (minimum 1 increment).
+    pub fn snap_push_length(&self, length: f32) -> f32 {
+        match self.push_length_increment {
+            Some(increment) => {
+                let inc = *increment;
+                let snapped = (length / inc).round() * inc;
+                snapped.max(inc)
+            }
+            None => length,
+        }
+    }
+
+    /// Calculate discrete target length for pretensing based on target strain.
+    ///
+    /// If `max_pretenst_strain` is set and even 1 increment would exceed that
+    /// strain for this strut, returns rest_length (no extension).
+    pub fn discrete_pretenst_target(&self, rest_length: f32, target_strain: f32) -> f32 {
+        match self.push_length_increment {
+            Some(increment) => {
+                let inc = *increment;
+
+                // Check if even 1 increment would exceed max strain
+                if let Some(max_strain) = self.max_pretenst_strain {
+                    let one_increment_strain = inc / rest_length;
+                    if one_increment_strain > max_strain {
+                        // Skip extension for this short strut
+                        return rest_length;
+                    }
+                }
+
+                let min_extension = rest_length * target_strain;
+                let num_increments = (min_extension / inc).ceil().max(0.0) as u32;
+                rest_length + (num_increments as f32) * inc
+            }
+            None => rest_length * (1.0 + target_strain),
+        }
+    }
+}
+
 new_key_type! {
     /// Key for joints in the fabric's SlotMap
     pub struct JointKey;
@@ -188,6 +298,7 @@ pub struct Fabric {
     pub stats: IterationStats,
     cached_bounding_radius: f32,
     scale: f32,
+    pub dimensions: FabricDimensions,
 }
 
 impl Fabric {
@@ -204,7 +315,13 @@ impl Fabric {
             stats: IterationStats::default(),
             cached_bounding_radius: 0.0,
             scale: 1.0,
+            dimensions: FabricDimensions::model_size(),
         }
+    }
+
+    pub fn with_dimensions(mut self, dimensions: FabricDimensions) -> Self {
+        self.dimensions = dimensions;
+        self
     }
 
     /// Returns the fabric's scale factor (set during construction)
@@ -330,12 +447,22 @@ impl Fabric {
         }
     }
 
+    /// Slacken all intervals by setting their span to Fixed at their current length.
+    /// Push intervals are snapped first, then pulls are measured to compensate.
     pub fn slacken(&mut self) {
+        // First pass: snap push intervals to discrete lengths
         for interval in self.intervals.values_mut() {
-            if !interval.has_role(Role::Support) {
-                interval.span = Fixed {
-                    length: interval.fast_length(&self.joints),
-                };
+            if interval.has_role(Role::Pushing) {
+                let current_length = interval.fast_length(&self.joints);
+                let snapped_length = self.dimensions.snap_push_length(current_length);
+                interval.span = Fixed { length: snapped_length };
+            }
+        }
+        // Second pass: set pull intervals to their current measured length
+        for interval in self.intervals.values_mut() {
+            if !interval.has_role(Role::Pushing) && !interval.has_role(Role::Support) {
+                let current_length = interval.fast_length(&self.joints);
+                interval.span = Fixed { length: current_length };
             }
         }
         for joint in self.joints.values_mut() {
@@ -344,41 +471,30 @@ impl Fabric {
         }
     }
 
-    /// Set pretensing target for push intervals
-    ///
-    /// Extends push intervals by the specified percentage of their rest length.
-    /// For example, with pretenst=1%, a 100mm push interval will target 101mm.
-    ///
-    /// Note: During the pretensing phase, the physics simulation continues to run,
-    /// so actual extensions may vary slightly from the target due to forces from
-    /// pull intervals and other structural dynamics.
+    /// Set pretensing target for push intervals (non-holistic, uses fabric dimensions).
     pub fn set_pretenst(&mut self, pretenst: Percent, seconds: Seconds) {
-        let factor = pretenst.as_factor();
+        let target_strain = pretenst.as_factor();
 
         for interval in self.intervals.values_mut() {
             if !interval.has_role(Role::Support) {
                 let is_pushing = interval.has_role(Role::Pushing);
                 match interval.span {
-                    Fixed {
-                        length: rest_length,
-                    } => {
+                    Fixed { length: rest_length } => {
                         if is_pushing {
+                            let target_length = self.dimensions.discrete_pretenst_target(rest_length, target_strain);
                             interval.span = Pretensing {
                                 start_length: rest_length,
-                                target_length: rest_length * (1.0 + factor),
+                                target_length,
                                 rest_length,
                                 finished: false,
                             };
                         }
                     }
-                    Pretensing {
-                        target_length,
-                        rest_length,
-                        ..
-                    } => {
+                    Pretensing { target_length: current_target, rest_length, .. } => {
+                        let target_length = self.dimensions.discrete_pretenst_target(rest_length, target_strain);
                         interval.span = Pretensing {
-                            start_length: target_length,
-                            target_length: rest_length * (1.0 + factor),
+                            start_length: current_target,
+                            target_length,
                             rest_length,
                             finished: false,
                         }

@@ -7,7 +7,7 @@ use crate::build::dsl::fall_phase::FallPhase;
 use crate::build::dsl::settle_phase::SettlePhase;
 use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::shape_phase::ShapePhase;
-use crate::fabric::attachment::FabricDimensions;
+use crate::fabric::FabricDimensions;
 
 use crate::units::{Percent, Seconds};
 

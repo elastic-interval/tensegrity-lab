@@ -6,14 +6,15 @@
 use crate::fabric::physics::{Physics, SurfaceInteraction};
 use crate::fabric::{Fabric, Force, JointId, JointKey, Location, Velocity};
 use crate::units::Grams;
-use crate::ITERATION_DURATION;
+use crate::{Age, ITERATION_DURATION};
 use cgmath::num_traits::zero;
 use cgmath::{InnerSpace, MetricSpace, Point3};
 
 impl Fabric {
     pub fn create_joint(&mut self, point: Point3<f32>) -> JointKey {
         let id = JointId(self.joint_by_id.len());
-        let key = self.joints.insert(Joint::new(point, id));
+        let born = self.age;
+        let key = self.joints.insert(Joint::new(point, id, born));
         self.joint_by_id.push(key);
         key
     }
@@ -69,6 +70,8 @@ pub const AMBIENT_MASS: Grams = Grams(100.0);
 #[derive(Clone, Debug)]
 pub struct Joint {
     pub id: JointId,
+    /// Fabric age when this joint was born. Joints born together are symmetric.
+    pub born: Age,
     pub location: Location,
     pub force: Force,
     pub velocity: Velocity,
@@ -76,9 +79,10 @@ pub struct Joint {
 }
 
 impl Joint {
-    pub fn new(location: Point3<f32>, id: JointId) -> Joint {
+    pub fn new(location: Point3<f32>, id: JointId, born: Age) -> Joint {
         Joint {
             id,
+            born,
             location,
             force: zero(),
             velocity: zero(),

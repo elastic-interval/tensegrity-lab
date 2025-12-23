@@ -31,7 +31,7 @@ pub mod wgpu;
 
 use std::time::Duration;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Age(Duration);
 
 impl Display for Age {
@@ -94,6 +94,11 @@ impl Age {
 
     pub fn as_duration(&self) -> Duration {
         self.0
+    }
+
+    pub fn elapsed_since(&self, earlier: Age) -> units::Seconds {
+        let elapsed = self.0.saturating_sub(earlier.0);
+        units::Seconds(elapsed.as_secs_f32())
     }
 }
 

@@ -5,15 +5,19 @@ mod tests {
     use crate::fabric::Fabric;
     use crate::units::MM_PER_METER;
 
-    /// Set to true to capture new benchmark values without asserting.
-    /// Run: cargo test test_all_build_benchmarks -- --nocapture
+    /// Check RECAPTURE env var to capture new benchmark values without asserting.
+    /// Run: RECAPTURE=1 cargo test test_all_build_benchmarks -- --nocapture
     /// Then copy the printed Benchmark lines into ui_benchmarks().
-    const RECAPTURE_BENCHMARKS: bool = false;
+    fn recapture_mode() -> bool {
+        std::env::var("RECAPTURE").is_ok()
+    }
 
-    /// Set to true to only check ground contacts (3 for Triped) instead of full benchmarks.
-    /// Use this when experimenting with different altitude/scale values.
-    /// When false, full benchmark checking is used (requires altitude 7.5M, scale 1.03M).
-    const GROUND_CONTACT_ONLY: bool = true;
+    /// Check GROUND_ONLY env var to only check ground contacts instead of full benchmarks.
+    /// Use when experimenting with different altitude/scale values.
+    /// Run: GROUND_ONLY=1 cargo test test_all_build_benchmarks -- --nocapture
+    fn ground_only_mode() -> bool {
+        std::env::var("GROUND_ONLY").is_ok()
+    }
 
     /// Benchmark data point from UI reference run
     #[derive(Debug)]
@@ -27,28 +31,28 @@ mod tests {
 
     /// Executor benchmarks - age is fabric.age (scaled by physics.time_scale)
     /// Updated for Triped with scale(M(1.03)), coordinates in meters directly
+    /// Recaptured after implementing holistic pretensing with symmetric groups
     fn ui_benchmarks() -> Vec<Benchmark> {
         vec![
             Benchmark { age: 0.0, joints: 0, height_mm: 0.0, radius: 0.000, ground: 0 },
-            // BUILD phase (fabric age 0-6s) - internal units, not yet scaled
+            // BUILD phase (fabric age 0-6s)
             Benchmark { age: 2.0, joints: 172, height_mm: 6470.1, radius: 12.246, ground: 0 },
             Benchmark { age: 4.0, joints: 172, height_mm: 10849.5, radius: 8.760, ground: 0 },
-            Benchmark { age: 6.0, joints: 172, height_mm: 10296.4, radius: 6.650, ground: 0 },
-            // PRETENSE phase - scale applied (1.03x), now in meters
-            Benchmark { age: 8.0, joints: 165, height_mm: 9409.1, radius: 6.376, ground: 0 },
-            // FALL phase - fabric centralized before surface appears
-            Benchmark { age: 10.0, joints: 165, height_mm: 9105.1, radius: 6.884, ground: 3 },
-            Benchmark { age: 12.0, joints: 165, height_mm: 9191.2, radius: 6.884, ground: 3 },
-            Benchmark { age: 14.0, joints: 165, height_mm: 9256.1, radius: 6.884, ground: 3 },
-            Benchmark { age: 16.0, joints: 165, height_mm: 9254.2, radius: 6.884, ground: 3 },
-            // SETTLE phase
-            Benchmark { age: 19.0, joints: 165, height_mm: 9254.7, radius: 6.884, ground: 3 },
+            Benchmark { age: 6.0, joints: 172, height_mm: 9157.8, radius: 6.192, ground: 0 },
+            // PRETENSE phase with holistic pretensing (fabric age ~6-28s)
+            Benchmark { age: 10.0, joints: 165, height_mm: 8944.6, radius: 6.191, ground: 0 },
+            Benchmark { age: 15.0, joints: 165, height_mm: 8952.7, radius: 6.191, ground: 0 },
+            Benchmark { age: 20.0, joints: 165, height_mm: 8955.4, radius: 6.191, ground: 0 },
+            Benchmark { age: 25.0, joints: 165, height_mm: 8961.0, radius: 6.191, ground: 0 },
+            // FALL/SETTLE phase - structure lands on 3 joints (fabric age ~28-33s)
+            Benchmark { age: 30.0, joints: 165, height_mm: 8896.1, radius: 7.564, ground: 3 },
+            Benchmark { age: 33.0, joints: 165, height_mm: 8943.2, radius: 7.564, ground: 3 },
         ]
     }
 
     /// Check if fabric state matches benchmark (with tolerance).
-    /// If RECAPTURE_BENCHMARKS is true, only prints values without asserting.
-    /// If GROUND_CONTACT_ONLY is true, only checks ground contacts (for experimental scales).
+    /// If recapture_mode() is true, only prints values without asserting.
+    /// If ground_only_mode() is true, only checks ground contacts (for experimental scales).
     fn check_benchmark(fabric: &Fabric, benchmark: &Benchmark, tolerance_pct: f32) {
         let fabric_age = fabric.age.as_duration().as_secs_f32();
         let bounding_radius = fabric.bounding_radius();
@@ -73,12 +77,12 @@ mod tests {
         );
 
         // Skip assertions when recapturing
-        if RECAPTURE_BENCHMARKS {
+        if recapture_mode() {
             return;
         }
 
-        // When GROUND_CONTACT_ONLY is true, only check ground contacts at end
-        if GROUND_CONTACT_ONLY {
+        // When ground_only_mode is true, only check ground contacts at end
+        if ground_only_mode() {
             if benchmark.ground > 0 {
                 assert_eq!(
                     ground_count, benchmark.ground,
@@ -248,10 +252,10 @@ mod tests {
 
         executor.print_log();
 
-        if GROUND_CONTACT_ONLY {
+        if ground_only_mode() {
             // In experimental mode, we only care that ground contacts were checked
             // (fabric may freeze at unusual scales, which is expected)
-            eprintln!("(GROUND_CONTACT_ONLY mode - skipping full benchmark count assertion)");
+            eprintln!("(ground_only_mode - skipping full benchmark count assertion)");
         } else {
             assert!(
                 benchmark_idx >= benchmarks.len(),
@@ -363,6 +367,72 @@ mod tests {
         eprintln!("Ground contacts: {}", ground_count);
         eprintln!("Total joints: {}", executor.fabric.joints.len());
         eprintln!("Iterations: {}", iteration);
+
+        // Analyze joint birth ages for symmetry
+        use std::collections::HashMap;
+        eprintln!("\n=== JOINT BIRTH AGE ANALYSIS ===");
+        let mut by_age: HashMap<crate::Age, usize> = HashMap::new();
+        for joint in executor.fabric.joints.values() {
+            *by_age.entry(joint.born).or_insert(0) += 1;
+        }
+        let mut age_counts: Vec<_> = by_age.into_iter().collect();
+        age_counts.sort_by_key(|(age, _)| *age);
+        eprintln!("Joints grouped by birth age ({} unique ages):", age_counts.len());
+        for (age, count) in &age_counts {
+            // Show if count is divisible by 3 (symmetric across Triped's 3 legs)
+            let sym = if count % 3 == 0 { format!("({}×3)", count / 3) } else { "".to_string() };
+            eprintln!("  {:?} : {} joints {}", age, count, sym);
+        }
+
+        // Analyze push intervals grouped by their joints' birth ages
+        use crate::fabric::interval::Role;
+        use crate::fabric::interval::Span;
+        eprintln!("\n=== PUSH INTERVALS BY BIRTH AGE ===");
+        let mut push_by_age: HashMap<crate::Age, usize> = HashMap::new();
+        for interval in executor.fabric.intervals.values() {
+            if interval.has_role(Role::Pushing) {
+                let alpha = &executor.fabric.joints[interval.alpha_key];
+                let omega = &executor.fabric.joints[interval.omega_key];
+                // Push intervals have both joints born at same time
+                assert_eq!(alpha.born, omega.born, "Push interval joints should be born together");
+                *push_by_age.entry(alpha.born).or_insert(0) += 1;
+            }
+        }
+        let mut push_age_counts: Vec<_> = push_by_age.into_iter().collect();
+        push_age_counts.sort_by_key(|(age, _)| *age);
+        eprintln!("Push intervals grouped by birth age ({} groups):", push_age_counts.len());
+        for (age, count) in &push_age_counts {
+            let sym = if count % 3 == 0 { format!("({}×3)", count / 3) } else { "".to_string() };
+            eprintln!("  {:?} : {} pushes {}", age, count, sym);
+        }
+
+        eprintln!("\n=== PUSH INTERVAL STRAIN ANALYSIS ===");
+        let mut push_strains: Vec<(f32, f32, f32)> = Vec::new(); // (rest_length_mm, target_length_mm, strain%)
+        for interval in executor.fabric.intervals.values() {
+            if interval.has_role(Role::Pushing) {
+                if let Span::Pretensing { rest_length, target_length, .. } = interval.span {
+                    let extension = target_length - rest_length;
+                    let strain_pct = (extension / rest_length) * 100.0;
+                    push_strains.push((rest_length * 1000.0, target_length * 1000.0, strain_pct));
+                }
+            }
+        }
+        push_strains.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        if !push_strains.is_empty() {
+            let min_strain = push_strains.iter().map(|x| x.2).fold(f32::INFINITY, f32::min);
+            let max_strain = push_strains.iter().map(|x| x.2).fold(f32::NEG_INFINITY, f32::max);
+            eprintln!("Push intervals: {}", push_strains.len());
+            eprintln!("Strain range: {:.2}% to {:.2}%", min_strain, max_strain);
+            eprintln!("\nShortest 5:");
+            for (rest, target, strain) in push_strains.iter().take(5) {
+                eprintln!("  rest:{:.0}mm → target:{:.0}mm  strain:{:.2}%", rest, target, strain);
+            }
+            eprintln!("\nLongest 5:");
+            for (rest, target, strain) in push_strains.iter().rev().take(5) {
+                eprintln!("  rest:{:.0}mm → target:{:.0}mm  strain:{:.2}%", rest, target, strain);
+            }
+        }
 
         // Report the state
         eprintln!("\n✓ Execution completed successfully");

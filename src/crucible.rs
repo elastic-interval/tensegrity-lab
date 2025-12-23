@@ -147,9 +147,7 @@ impl Crucible {
             // Send stage label updates based on executor stage
             let stage_label = match executor.stage() {
                 ExecutorStage::Building => "Building".to_string(),
-                ExecutorStage::Pretensing => {
-                    format!("Pretensing {}", self.fabric.progress.countdown())
-                }
+                ExecutorStage::Pretensing => "Pretensing".to_string(),
                 ExecutorStage::Falling => {
                     format!("Falling {}", self.fabric.progress.countdown())
                 }
@@ -288,7 +286,6 @@ impl Crucible {
             use crate::units::Percent;
             use crate::units::Seconds;
             let name = algo_fabric.name.clone();
-            // Set up pretensing: push intervals will gradually extend by 1%
             algo_fabric.set_pretenst(Percent(1.0), Seconds(10.0));
             self.fabric = algo_fabric;
             self.fabric_plan = None; // No DSL plan for algorithmic fabrics
