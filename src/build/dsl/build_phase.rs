@@ -5,7 +5,7 @@ use crate::build::dsl::build_phase::Launch::*;
 use crate::build::dsl::{brick_library, FaceAlias, FaceMark, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::FaceRotation;
-use crate::fabric::joint::{JointPath, COLUMN_MARKER};
+use crate::fabric::joint_path::{JointPath, COLUMN_MARKER};
 use crate::fabric::{Fabric, FaceKey};
 use crate::units::Percent;
 use std::convert::Into;

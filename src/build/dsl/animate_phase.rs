@@ -1,4 +1,4 @@
-use crate::fabric::joint::JointPath;
+use crate::fabric::joint_path::JointPath;
 use crate::units::{Percent, Seconds};
 
 /// Waveform shape for actuator control signal

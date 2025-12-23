@@ -227,6 +227,7 @@ pub mod fabric_sampler;
 pub mod face;
 pub mod interval;
 pub mod joint;
+pub mod joint_path;
 pub mod joint_incident;
 pub mod material;
 pub mod physics;

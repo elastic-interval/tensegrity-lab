@@ -5,7 +5,7 @@ use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::fall_phase::FallPhase;
 use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::shape_phase::{ShapeAction, ShapeStep};
-use crate::fabric::joint::JointPath;
+use crate::fabric::joint_path::JointPath;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Meters, Percent, Seconds};
 

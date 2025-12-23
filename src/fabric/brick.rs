@@ -6,7 +6,7 @@ use crate::build::dsl::brick_dsl::FaceName::Attach;
 use crate::build::dsl::{FaceAlias, Spin};
 use crate::fabric::face::FaceRotation;
 use crate::fabric::interval::Role;
-use crate::fabric::joint::JointPath;
+use crate::fabric::joint_path::JointPath;
 use crate::fabric::{Fabric, FaceKey, JointKey};
 
 pub enum BaseFace {

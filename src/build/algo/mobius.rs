@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 
 use crate::fabric::interval::Role;
-use crate::fabric::joint::JointPath;
+use crate::fabric::joint_path::JointPath;
 use crate::fabric::{Fabric, JointKey};
 
 /// Generate a tensegrity Möbius band.
