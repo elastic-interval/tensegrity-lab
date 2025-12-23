@@ -77,9 +77,9 @@ impl FabricName {
                 .stiffness(Pct(20.0))
                 .sine()
                 .actuators([
-                    phase(Pct(0.0)).between("BA8P[1]", "CA2[4]"),
-                    phase(Pct(0.0)).between("CA8P[1]", "A3[4]"),
-                    phase(Pct(0.0)).between("A9P[1]", "BA2[4]"),
+                    phase(Pct(0.0)).between("A:9P[1]", "B:3[4]"),
+                    phase(Pct(0.0)).between("B:9P[1]", "C:3[4]"),
+                    phase(Pct(0.0)).between("C:9P[1]", "A:3[4]"),
                 ]),
             Mockup => self
                 .build(
