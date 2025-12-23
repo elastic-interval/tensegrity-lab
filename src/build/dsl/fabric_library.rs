@@ -58,12 +58,12 @@ impl FabricName {
                     on(OmniBot).radial(),
                 ])
                 .omit([
-                    ("[6]", "[9]"),
-                    ("[6]", "[3]"),
-                    ("[2]", "[11]"),
-                    ("[2]", "[5]"),
-                    ("[1]", "[10]"),
-                    ("[10]", "[7]"),
+                    ("Z6", "Z9"),
+                    ("Z6", "Z3"),
+                    ("Z2", "Z11"),
+                    ("Z2", "Z5"),
+                    ("Z1", "Z10"),
+                    ("Z10", "Z7"),
                 ])
                 .space(Sec(3.0), End, Pct(15.0))
                 .vulcanize(Sec(1.0))
@@ -77,9 +77,9 @@ impl FabricName {
                 .stiffness(Pct(20.0))
                 .sine()
                 .actuators([
-                    phase(Pct(0.0)).between("A:9P[1]", "B:3[4]"),
-                    phase(Pct(0.0)).between("B:9P[1]", "C:3[4]"),
-                    phase(Pct(0.0)).between("C:9P[1]", "A:3[4]"),
+                    phase(Pct(0.0)).between("AX8YZ1", "BX2Z4"),
+                    phase(Pct(0.0)).between("BX8YZ1", "CX2Z4"),
+                    phase(Pct(0.0)).between("CX8YZ1", "AX2Z4"),
                 ]),
             Mockup => self
                 .build(

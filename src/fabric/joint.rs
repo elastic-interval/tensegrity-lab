@@ -124,90 +124,92 @@ impl JointPath {
         (self.depth(), self.axis())
     }
 
-    /// Display without run-length encoding (e.g., "AAAAAAAAA[1]" instead of "A9[1]")
+    /// Display without run-length encoding (e.g., "AXXXXXXXX[1]" instead of "AX8[1]")
     pub fn expanded(&self) -> String {
         let mut s = String::new();
         for &b in &self.branches {
-            s.push((b'A' + b) as char);
+            match b {
+                COLUMN_MARKER => s.push('X'),
+                PRISM_MARKER => s.push('Y'),
+                15 => s.push('Y'), // Legacy prism marker
+                _ => s.push((b'A' + b) as char),
+            }
         }
         s.push_str(&format!("[{}]", self.local_index));
         s
     }
 }
 
+/// Column marker in branches vec (255 = column continuation, not a face choice)
+pub const COLUMN_MARKER: u8 = 255;
+/// Prism marker in branches vec
+pub const PRISM_MARKER: u8 = 254;
+
 impl std::fmt::Display for JointPath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Leg:Depth format for columns: "BAAAAAAAA" -> "B:9", "AAAA" -> "A:4"
-        // Prism joints: "BAAAAAAAP" -> "B:9P" (P is special marker, not counted in depth)
-        // Complex paths: "AAAABCCC" -> "A:4B:3"
+        // Format: face choices as A-V; columns as X+count; prism as Y; local as ZN
+        // Examples: "AX8Z1" = face A, 8 column, local 1
+        //           "X5BX12Z3" = 5 column, face B, 12 column, local 3
+        //           "AX9YZ1" = face A, 9 column, prism, local 1
         if self.branches.is_empty() {
-            return write!(f, "[{}]", self.local_index);
+            return write!(f, "Z{}", self.local_index);
         }
 
-        // Check for trailing P (prism marker = branch 15)
-        let (main_branches, has_prism) = if *self.branches.last().unwrap() == 15 {
-            (&self.branches[..self.branches.len() - 1], true)
-        } else {
-            (&self.branches[..], false)
+        // Check for trailing prism marker (254 new, 15 legacy)
+        let (main_branches, has_prism) = match self.branches.last() {
+            Some(&PRISM_MARKER) | Some(&15) => {
+                (&self.branches[..self.branches.len() - 1], true)
+            }
+            _ => (&self.branches[..], false),
         };
 
-        if main_branches.is_empty() {
-            // Just a prism on seed
-            if has_prism {
-                write!(f, "P")?;
-            }
-        } else {
-            // Check if this is a simple column (first branch + all A's after)
-            let first = main_branches[0];
-            let is_simple_column = main_branches[1..].iter().all(|&b| b == 0);
-
-            if is_simple_column {
-                // Collapse to leg:total_depth
-                let letter = (b'A' + first) as char;
-                write!(f, "{}:{}", letter, main_branches.len())?;
-            } else {
-                // Show each segment
-                let mut i = 0;
-                while i < main_branches.len() {
-                    let b = main_branches[i];
-                    let letter = (b'A' + b) as char;
-                    let mut count = 1;
-                    while i + count < main_branches.len() && main_branches[i + count] == b {
-                        count += 1;
-                    }
-                    write!(f, "{}:{}", letter, count)?;
-                    i += count;
+        // Group branches into segments: column (X) or face choice (A-V)
+        let mut i = 0;
+        while i < main_branches.len() {
+            let b = main_branches[i];
+            if b == COLUMN_MARKER {
+                // Column segment - count consecutive column markers
+                let mut count = 1;
+                while i + count < main_branches.len()
+                    && main_branches[i + count] == COLUMN_MARKER
+                {
+                    count += 1;
                 }
-            }
-            if has_prism {
-                write!(f, "P")?;
+                write!(f, "X{}", count)?;
+                i += count;
+            } else {
+                // Face choice - single letter A-V (0-21)
+                let letter = (b'A' + b) as char;
+                write!(f, "{}", letter)?;
+                i += 1;
             }
         }
-        write!(f, "[{}]", self.local_index)
+
+        if has_prism {
+            write!(f, "Y")?;
+        }
+        write!(f, "Z{}", self.local_index)
     }
 }
 
 impl std::str::FromStr for JointPath {
     type Err = String;
 
-    /// Parse a JointPath from a string like "A:9[1]" or "B:9P[1]" or "[5]"
-    /// Format: segments of letter:count, optional P suffix, then [local_index]
-    /// Examples: "[0]" = local_index 0, "B:9[1]" = leg B depth 9, "B:9P[1]" = leg B depth 9 + prism
-    /// For simple columns: "B:9[1]" expands to B + 8×A (first is leg, rest fill with A)
+    /// Parse a JointPath from a string like "AX8YZ1" or "X5BX12Z3" or "Z0"
+    /// Format: segments of (A-V for face choice) or (X+count for column), optional Y suffix (prism), then Z+local_index
+    /// Examples: "Z0" = local_index 0, "AX8Z1" = face A + 8 column + local 1, "AX8YZ1" = face A + 8 column + prism + local 1
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.trim();
         if s.is_empty() {
             return Err("Empty JointPath string".to_string());
         }
 
-        // Find the bracketed local_index at the end
-        let (branch_part, local_str) = match (s.rfind('['), s.rfind(']')) {
-            (Some(open), Some(close)) if close == s.len() - 1 && open < close => {
-                (&s[..open], &s[open + 1..close])
-            }
-            _ => {
+        // Find the ZN local_index at the end (last Z followed by digits)
+        let (branch_part, local_str) = match s.rfind('Z') {
+            Some(z_pos) => (&s[..z_pos], &s[z_pos + 1..]),
+            None => {
                 return Err(format!(
-                    "JointPath must end with [local_index], got: '{}'",
+                    "JointPath must end with Z+local_index, got: '{}'",
                     s
                 ))
             }
@@ -218,34 +220,23 @@ impl std::str::FromStr for JointPath {
             .parse::<u8>()
             .map_err(|_| format!("Invalid local index: '{}'", local_str))?;
 
-        // Check for trailing P (prism marker)
-        let (main_part, has_prism) = if branch_part.ends_with('P') {
+        // Check for trailing Y (prism marker)
+        let (main_part, has_prism) = if branch_part.ends_with('Y') {
             (&branch_part[..branch_part.len() - 1], true)
         } else {
             (branch_part, false)
         };
 
-        // Parse segments in letter:count format
+        // Parse segments: X+count for columns, A-V for face choices
         let mut branches = Vec::new();
         let chars: Vec<char> = main_part.chars().collect();
         let mut i = 0;
 
         while i < chars.len() {
             let c = chars[i];
-            if c.is_ascii_uppercase() {
-                let branch = c as u8 - b'A';
+            if c == 'X' {
+                // Column segment - read count
                 i += 1;
-
-                // Expect colon
-                if i >= chars.len() || chars[i] != ':' {
-                    return Err(format!(
-                        "Expected ':' after letter '{}' at position {}",
-                        c, i
-                    ));
-                }
-                i += 1; // skip colon
-
-                // Read count digits
                 let mut count_str = String::new();
                 while i < chars.len() && chars[i].is_ascii_digit() {
                     count_str.push(chars[i]);
@@ -253,22 +244,15 @@ impl std::str::FromStr for JointPath {
                 }
                 let count: usize = count_str
                     .parse()
-                    .map_err(|_| format!("Invalid count after '{}:'", c))?;
-
-                // For simple column format (single segment without prism following),
-                // first branch is the leg, remaining depth fills with A
-                if branches.is_empty() && i >= chars.len() {
-                    // Single segment - this is leg:total_depth format
-                    branches.push(branch);
-                    for _ in 1..count {
-                        branches.push(0); // fill with A
-                    }
-                } else {
-                    // Multiple segments - each segment specifies exact branches
-                    for _ in 0..count {
-                        branches.push(branch);
-                    }
+                    .map_err(|_| format!("Invalid count after 'X'"))?;
+                for _ in 0..count {
+                    branches.push(COLUMN_MARKER);
                 }
+            } else if c.is_ascii_uppercase() && c >= 'A' && c <= 'V' {
+                // Face choice - single letter A-V
+                let branch = c as u8 - b'A';
+                branches.push(branch);
+                i += 1;
             } else {
                 return Err(format!("Invalid character in branch part: '{}'", c));
             }
@@ -276,7 +260,7 @@ impl std::str::FromStr for JointPath {
 
         // Add prism marker if present
         if has_prism {
-            branches.push(15); // P = branch 15
+            branches.push(PRISM_MARKER);
         }
 
         Ok(JointPath::with_branches(branches, local_index))

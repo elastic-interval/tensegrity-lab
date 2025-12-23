@@ -5,7 +5,7 @@ use crate::build::dsl::build_phase::Launch::*;
 use crate::build::dsl::{brick_library, FaceAlias, FaceMark, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::FaceRotation;
-use crate::fabric::joint::JointPath;
+use crate::fabric::joint::{JointPath, COLUMN_MARKER};
 use crate::fabric::{Fabric, FaceKey};
 use crate::units::Percent;
 use std::convert::Into;
@@ -194,7 +194,7 @@ impl BuildPhase {
                 Spin::Right => (BrickName::SingleTwistRight, BrickRole::OnSpinRight),
             };
             let brick = brick_library::get_brick(brick_name, brick_role);
-            let next_path = branch_path.extend(0);
+            let next_path = branch_path.extend(COLUMN_MARKER);
             let (base_face, brick_faces) = fabric.attach_brick(
                 &brick,
                 brick_role,
