@@ -3,9 +3,9 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::path::Path;
 
-use crate::fabric::attachment::{ConnectorSpec, HingeBend, IntervalDimensions};
+use crate::fabric::attachment::HingeBend;
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointKey};
+use crate::fabric::{Fabric, FabricDimensions, IntervalEnd, IntervalKey, JointKey};
 use crate::units::MM_PER_METER;
 
 impl Fabric {
@@ -21,7 +21,7 @@ impl Fabric {
         let path = Path::new(filename);
         let mut file = File::create(path)?;
 
-        let connector = ConnectorSpec::for_scale(self.scale);
+        let dimensions = &self.dimensions;
         let height_mm = self
             .joints
             .values()
@@ -32,7 +32,7 @@ impl Fabric {
         // Header comments
         let phase_str = phase.unwrap_or("unknown");
         writeln!(file, "# {}, Phase: {}, Height: {:.1}mm, Created: {}", self.name, phase_str, height_mm, now)?;
-        write_dimensions_comments(&mut file, &connector)?;
+        write_dimensions_comments(&mut file, &self.dimensions)?;
         writeln!(file, "Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaJoint,AlphaSlot,AlphaAngle,OmegaX,OmegaY,OmegaZ,OmegaJoint,OmegaSlot,OmegaAngle")?;
 
         // Build a map of pull interval connections for each push interval
@@ -61,7 +61,7 @@ impl Fabric {
                                 self.joints[pull_interval.alpha_key].location
                             };
 
-                            let (hinge_pos, hinge_bend, pull_end_pos) = connector.hinge_geometry(
+                            let (hinge_pos, hinge_bend, pull_end_pos) = dimensions.hinge_geometry(
                                 alpha_pos,
                                 -push_dir,
                                 slot_idx,
@@ -93,7 +93,7 @@ impl Fabric {
                                 self.joints[pull_interval.alpha_key].location
                             };
 
-                            let (hinge_pos, hinge_bend, pull_end_pos) = connector.hinge_geometry(
+                            let (hinge_pos, hinge_bend, pull_end_pos) = dimensions.hinge_geometry(
                                 omega_pos,
                                 push_dir,
                                 slot_idx,
@@ -250,7 +250,7 @@ impl Fabric {
 
             for (slot, pull_end_pos, hinge_pos) in &connections {
                 // Ring center at this slot (1x, 2x, 3x ring_thickness)
-                let ring_center = joint_pos + push_axis * *connector.ring_thickness * *slot as f32;
+                let ring_center = joint_pos + push_axis * *dimensions.disc_thickness * *slot as f32;
 
                 // Axial link: previous position → ring center
                 link_index += 1;
@@ -299,11 +299,18 @@ impl Fabric {
     }
 }
 
-fn write_dimensions_comments(file: &mut File, dims: &IntervalDimensions) -> io::Result<()> {
-    writeln!(file, "# push_radius: {:.3}m ({:.1}mm)", *dims.push_radius, dims.push_radius.to_mm())?;
-    writeln!(file, "# pull_radius: {:.3}m ({:.1}mm)", *dims.pull_radius, dims.pull_radius.to_mm())?;
-    writeln!(file, "# ring_thickness: {:.3}m ({:.1}mm)", *dims.ring_thickness, dims.ring_thickness.to_mm())?;
-    writeln!(file, "# hinge_offset: {:.3}m ({:.1}mm)", *dims.hinge_offset, dims.hinge_offset.to_mm())?;
-    writeln!(file, "# hinge_length: {:.3}m ({:.1}mm)", *dims.hinge_length, dims.hinge_length.to_mm())?;
+fn write_dimensions_comments(file: &mut File, dims: &FabricDimensions) -> io::Result<()> {
+    // Engineer's input values (A, B, C, D, E)
+    writeln!(file, "# push_radius (A): {:.5}m", *dims.push_radius)?;
+    writeln!(file, "# push_radius_margin (B): {:.5}m", *dims.push_radius_margin)?;
+    writeln!(file, "# disc_thickness: {:.5}m (C = {:.5}m)", *dims.disc_thickness, *dims.disc_thickness / 2.0)?;
+    writeln!(file, "# disc_separator_thickness: {:.5}m", *dims.disc_separator_thickness)?;
+    writeln!(file, "# hinge_extension (D): {:.5}m", *dims.hinge_extension)?;
+    writeln!(file, "# hinge_hole_diameter (E): {:.5}m", *dims.hinge_hole_diameter)?;
+    writeln!(file, "# pull_radius: {:.5}m", *dims.pull_radius)?;
+    writeln!(file, "#")?;
+    // Derived values
+    writeln!(file, "# hinge_offset (A+B+C): {:.5}m", *dims.hinge_offset())?;
+    writeln!(file, "# hinge_length (C+D+E): {:.5}m", *dims.hinge_length())?;
     Ok(())
 }

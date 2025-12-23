@@ -4,7 +4,7 @@
  */
 
 use crate::camera::Pick;
-use crate::fabric::attachment::ConnectorSpec;
+use crate::fabric::FabricDimensions;
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, IntervalEnd};
 use crate::wgpu::{default_depth_stencil_state, Wgpu, DEFAULT_PRIMITIVE_STATE};
@@ -156,7 +156,7 @@ impl HingeRenderer {
     fn create_instances(&self, fabric: &Fabric) -> Vec<LinkInstance> {
         let mut instances = Vec::new();
 
-        let connector = ConnectorSpec::for_scale(fabric.scale());
+        let dimensions = &fabric.dimensions;
         // Use same radius as pull intervals in rendering (Role::Pulling.radius() * scale)
         let link_radius = 0.14 * fabric.scale();
 
@@ -179,7 +179,7 @@ impl HingeRenderer {
                 IntervalEnd::Alpha,
                 alpha_pos,
                 -push_dir, // outward axis
-                &connector,
+                &dimensions,
                 link_radius,
             );
 
@@ -191,7 +191,7 @@ impl HingeRenderer {
                 IntervalEnd::Omega,
                 omega_pos,
                 push_dir, // outward axis
-                &connector,
+                &dimensions,
                 link_radius,
             );
         }
@@ -207,7 +207,7 @@ impl HingeRenderer {
         end: IntervalEnd,
         joint_pos: Point3<f32>,
         push_axis: cgmath::Vector3<f32>,
-        connector: &ConnectorSpec,
+        dimensions: &FabricDimensions,
         link_radius: f32,
     ) {
         let connections = match push_interval.connections(end) {
@@ -233,7 +233,7 @@ impl HingeRenderer {
                     };
 
                     // Use hinge_geometry to get snapped positions
-                    let (hinge_pos, _hinge_bend, pull_end_pos) = connector.hinge_geometry(
+                    let (hinge_pos, _hinge_bend, pull_end_pos) = dimensions.hinge_geometry(
                         joint_pos,
                         push_axis,
                         slot_idx,
@@ -257,7 +257,7 @@ impl HingeRenderer {
 
         for (slot, hinge_pos, pull_end_pos) in &slot_connections {
             // Ring center at this slot (1x, 2x, 3x ring_thickness)
-            let ring_center = joint_pos + push_axis * *connector.ring_thickness * *slot as f32;
+            let ring_center = joint_pos + push_axis * *dimensions.disc_thickness * *slot as f32;
 
             // Axial link: previous position → ring center
             instances.push(LinkInstance {

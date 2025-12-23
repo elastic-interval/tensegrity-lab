@@ -10,7 +10,7 @@ use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::{Joint, AMBIENT_MASS};
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
-use crate::units::{Grams, Meters, Percent, Seconds};
+use crate::units::{Degrees, Grams, Meters, Percent, Seconds};
 use crate::Age;
 use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Rotation, Transform, Vector3};
@@ -23,15 +23,14 @@ use std::ops::Deref;
 pub struct FabricDimensions {
     pub altitude: Meters,
     pub scale: Meters,
-    pub push_radius: Meters,
+    pub push_radius: Meters, // A default 30mm
     pub pull_radius: Meters,
-    pub ring_thickness: Meters,
-    pub hinge_offset: Meters,
-    pub hinge_length: Meters,
+    pub push_radius_margin: Meters, // B default 3mm
+    pub disc_thickness: Meters, // default 10mm, note that C is half disc_thickness
+    pub disc_separator_thickness: Meters, // default 3mm
+    pub hinge_extension: Meters, // D
+    pub hinge_hole_diameter: Meters, // E
     pub push_length_increment: Option<Meters>,
-    /// Maximum strain allowed from a single increment. If one increment would
-    /// exceed this strain, skip pretensing for that strut entirely.
-    /// e.g., 0.03 means 3% max strain from discrete pretensing.
     pub max_pretenst_strain: Option<f32>,
 }
 
@@ -41,11 +40,13 @@ impl FabricDimensions {
         Self {
             altitude: Meters(7.5),
             scale: Meters(1.0),
-            push_radius: Meters(0.060),     // 60mm
-            pull_radius: Meters(0.007),     // 7mm
-            ring_thickness: Meters(0.012),  // 12mm
-            hinge_offset: Meters(0.063),    // 63mm
-            hinge_length: Meters(0.100),    // 100mm
+            push_radius: Meters(0.030),              // A: 30mm
+            pull_radius: Meters(0.007),              // 7mm
+            push_radius_margin: Meters(0.003),       // B: 3mm
+            disc_thickness: Meters(0.010),           // 10mm (C = 5mm)
+            disc_separator_thickness: Meters(0.003), // 3mm
+            hinge_extension: Meters(0.012),          // D: 12mm
+            hinge_hole_diameter: Meters(0.017),      // E: 17mm
             push_length_increment: Some(Meters(0.025)), // 25mm holes
             max_pretenst_strain: Some(0.03), // 3% max - skip extension if 1 increment exceeds this
         }
@@ -56,14 +57,26 @@ impl FabricDimensions {
         Self {
             altitude: Meters(0.5),
             scale: Meters(0.056),
-            push_radius: Meters(0.003),     // 3mm
-            pull_radius: Meters(0.0005),    // 0.5mm
-            ring_thickness: Meters(0.001),  // 1mm
-            hinge_offset: Meters(0.004),    // 4mm
-            hinge_length: Meters(0.006),    // 6mm
+            push_radius: Meters(0.003),              // A: 3mm
+            pull_radius: Meters(0.0005),             // 0.5mm
+            push_radius_margin: Meters(0.0003),      // B: 0.3mm
+            disc_thickness: Meters(0.001),           // 1mm (C = 0.5mm)
+            disc_separator_thickness: Meters(0.0003),// 0.3mm
+            hinge_extension: Meters(0.0012),         // D: 1.2mm
+            hinge_hole_diameter: Meters(0.0017),     // E: 1.7mm
             push_length_increment: None,
             max_pretenst_strain: None, // No limit for models (continuous pretensing)
         }
+    }
+
+    /// Hinge offset from center: A + B + C (push_radius + push_radius_margin + half disc_thickness)
+    pub fn hinge_offset(&self) -> Meters {
+        Meters(*self.push_radius + *self.push_radius_margin + *self.disc_thickness / 2.0)
+    }
+
+    /// Hinge length: C + D + E (half disc_thickness + hinge_extension + hinge_hole_diameter)
+    pub fn hinge_length(&self) -> Meters {
+        Meters(*self.disc_thickness / 2.0 + *self.hinge_extension + *self.hinge_hole_diameter)
     }
 
     /// Set custom altitude
@@ -78,15 +91,81 @@ impl FabricDimensions {
         self
     }
 
-    /// Interval dimensions only (for backward compatibility)
-    pub fn interval_dimensions(&self) -> attachment::IntervalDimensions {
-        attachment::IntervalDimensions {
-            push_radius: self.push_radius,
-            pull_radius: self.pull_radius,
-            ring_thickness: self.ring_thickness,
-            hinge_offset: self.hinge_offset,
-            hinge_length: self.hinge_length,
-        }
+    /// Calculate the hinge position for a pull interval connection
+    pub fn hinge_position(
+        &self,
+        push_end: Point3<f32>,
+        push_axis: Vector3<f32>,
+        slot: usize,
+        pull_other_end: Point3<f32>,
+    ) -> Point3<f32> {
+        let axial_offset = *self.disc_thickness * (slot as f32 + 1.0);
+        let ring_center = push_end + push_axis * axial_offset;
+
+        let to_pull = pull_other_end - ring_center;
+        let axial_component = push_axis * to_pull.dot(push_axis);
+        let radial_direction = to_pull - axial_component;
+
+        let radial_unit = if radial_direction.magnitude2() < 1e-10 {
+            let arbitrary = if push_axis.x.abs() < 0.9 {
+                Vector3::new(1.0, 0.0, 0.0)
+            } else {
+                Vector3::new(0.0, 1.0, 0.0)
+            };
+            push_axis.cross(arbitrary).normalize()
+        } else {
+            radial_direction.normalize()
+        };
+
+        ring_center + radial_unit * *self.hinge_offset()
+    }
+
+    /// Calculate the ideal hinge angle for a pull interval at its connection point
+    pub fn hinge_angle(push_axis: Vector3<f32>, pull_direction: Vector3<f32>) -> Degrees {
+        let sin_angle = pull_direction.dot(push_axis);
+        Degrees(sin_angle.asin().to_degrees())
+    }
+
+    /// Calculate hinge position, snapped angle, and endpoint for a pull interval connection
+    pub fn hinge_geometry(
+        &self,
+        push_end: Point3<f32>,
+        push_axis: Vector3<f32>,
+        slot: usize,
+        pull_other_end: Point3<f32>,
+    ) -> (Point3<f32>, attachment::HingeBend, Point3<f32>) {
+        let axial_offset = *self.disc_thickness * (slot as f32 + 1.0);
+        let ring_center = push_end + push_axis * axial_offset;
+
+        let to_pull = pull_other_end - ring_center;
+        let axial_component = push_axis * to_pull.dot(push_axis);
+        let radial_direction = to_pull - axial_component;
+
+        let radial_unit = if radial_direction.magnitude2() < 1e-10 {
+            let arbitrary = if push_axis.x.abs() < 0.9 {
+                Vector3::new(1.0, 0.0, 0.0)
+            } else {
+                Vector3::new(0.0, 1.0, 0.0)
+            };
+            push_axis.cross(arbitrary).normalize()
+        } else {
+            radial_direction.normalize()
+        };
+
+        let hinge_pos = ring_center + radial_unit * *self.hinge_offset();
+
+        let pull_direction = (pull_other_end - hinge_pos).normalize();
+        let ideal_angle = Self::hinge_angle(push_axis, pull_direction);
+        let hinge_bend = attachment::HingeBend::from_angle(ideal_angle);
+
+        let pull_end_pos = hinge_bend.endpoint(
+            hinge_pos,
+            push_axis,
+            radial_unit,
+            *self.hinge_length(),
+        );
+
+        (hinge_pos, hinge_bend, pull_end_pos)
     }
 
     /// Snap a length to the nearest increment (minimum 1 increment).

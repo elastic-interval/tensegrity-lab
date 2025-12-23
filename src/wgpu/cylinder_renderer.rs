@@ -1,5 +1,4 @@
 use crate::camera::Pick;
-use crate::fabric::attachment::ConnectorSpec;
 use crate::fabric::interval::Role;
 use crate::fabric::material::Material;
 use crate::fabric::{Fabric, IntervalEnd};
@@ -279,7 +278,7 @@ impl CylinderRenderer {
             if interval.role.is_pull_like() && render_style.show_attachment_points() {
                 // Use the current index as the pull interval ID
                 let pull_key = interval_key;
-                let connector = ConnectorSpec::for_scale(fabric.scale());
+                let dimensions = &fabric.dimensions;
 
                 // Process both ends of the pull interval
                 let joint_keys = [interval.alpha_key, interval.omega_key];
@@ -328,7 +327,7 @@ impl CylinderRenderer {
                                                 };
 
                                                 // Use hinge_geometry to get snapped endpoint
-                                                let (_hinge_pos, _hinge_bend, pull_end_pos) = connector.hinge_geometry(
+                                                let (_hinge_pos, _hinge_bend, pull_end_pos) = dimensions.hinge_geometry(
                                                     push_end_pos,
                                                     push_axis,
                                                     pull_conn.attachment_index,
