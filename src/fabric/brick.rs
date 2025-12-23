@@ -97,7 +97,11 @@ impl Fabric {
                         .into_iter()
                         .sum::<Vector3<f32>>()
                         / 3.0;
-                    let alpha_key = self.create_joint(Point3::from_vec(midpoint));
+                    // Face midpoint gets a path based on base_path with local_index 6 + first brick joint
+                    // This distinguishes different faces on the same brick
+                    let midpoint_local = 6 + brick_joints[0] as u8;
+                    let midpoint_path = base_path.with_local_index(midpoint_local);
+                    let alpha_key = self.create_joint_with_path(Point3::from_vec(midpoint), midpoint_path);
                     let radial_intervals = brick_joints.map(|omega| {
                         let omega_key = joint_keys[omega];
                         let ideal =

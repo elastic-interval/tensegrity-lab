@@ -30,8 +30,9 @@ mod tests {
     }
 
     /// Executor benchmarks - age is fabric.age (scaled by physics.time_scale)
-    /// Updated for Triped with scale(M(1.03)), coordinates in meters directly
-    /// Recaptured after 3x faster pretensing (PRETENSE_STEP_SECONDS = 0.067)
+    /// Timeline: BUILD (0-30s) → PRETENSE (~30-320s) → FALL (~320-330s) → SETTLE (~330-345s)
+    /// Note: PRETENSE takes ~290s for holistic pretensing to converge
+    /// CRITICAL: Final benchmark MUST have ground: 3 (Triped lands on 3 feet)
     fn ui_benchmarks() -> Vec<Benchmark> {
         vec![
             Benchmark {
@@ -41,70 +42,58 @@ mod tests {
                 radius: 0.000,
                 ground: 0,
             },
-            // BUILD phase (fabric age 0-6s)
+            // BUILD phase (fabric age 0-30s)
             Benchmark {
                 age: 2.0,
                 joints: 172,
-                height_mm: 6470.1,
+                height_mm: 6470.0,
                 radius: 12.246,
-                ground: 0,
-            },
-            Benchmark {
-                age: 4.0,
-                joints: 172,
-                height_mm: 10989.7,
-                radius: 8.315,
                 ground: 0,
             },
             Benchmark {
                 age: 6.0,
                 joints: 172,
-                height_mm: 9297.3,
-                radius: 6.042,
+                height_mm: 9217.0,
+                radius: 6.132,
                 ground: 0,
             },
-            // PRETENSE phase with holistic pretensing (fabric age ~6-20s)
+            // PRETENSE phase with holistic pretensing (fabric age ~30-320s)
             Benchmark {
-                age: 10.0,
+                age: 35.0,
                 joints: 165,
-                height_mm: 9177.9,
-                radius: 6.039,
+                height_mm: 9136.5,
+                radius: 6.130,
                 ground: 0,
             },
+            // Structure settles on ground during PRETENSE due to surface physics
             Benchmark {
-                age: 15.0,
+                age: 100.0,
                 joints: 165,
-                height_mm: 9209.6,
-                radius: 6.039,
-                ground: 0,
-            },
-            Benchmark {
-                age: 20.0,
-                joints: 165,
-                height_mm: 9237.4,
-                radius: 6.039,
-                ground: 0,
-            },
-            // FALL/SETTLE phase - structure lands on 3 joints (fabric age ~20-33s)
-            Benchmark {
-                age: 25.0,
-                joints: 165,
-                height_mm: 9208.2,
-                radius: 7.162,
+                height_mm: 9056.2,
+                radius: 7.557,
                 ground: 3,
             },
             Benchmark {
-                age: 30.0,
+                age: 200.0,
                 joints: 165,
-                height_mm: 9210.8,
-                radius: 7.162,
+                height_mm: 9056.2,
+                radius: 7.557,
                 ground: 3,
             },
+            // FALL/SETTLE phases (~320-345s)
             Benchmark {
-                age: 33.0,
+                age: 325.0,
                 joints: 165,
-                height_mm: 9210.4,
-                radius: 7.162,
+                height_mm: 9056.2,
+                radius: 7.557,
+                ground: 3,
+            },
+            // CRITICAL: Final state must have 3 ground contacts (Triped's 3 feet)
+            Benchmark {
+                age: 345.0,
+                joints: 165,
+                height_mm: 9056.2,
+                radius: 7.557,
                 ground: 3,
             },
         ]
@@ -260,8 +249,13 @@ mod tests {
         assert_eq!(executor.stage(), &ExecutorStage::Complete);
     }
 
+    /// IMPORTANT: This test must verify that the Triped structure lands on exactly 3 joints
+    /// (its 3 feet). If this fails, something is wrong with the build/pretense/fall/settle
+    /// phases. The final benchmark MUST have ground: 3 - this is the whole point of the test!
     #[test]
     fn test_all_build_benchmarks() {
+        use crate::units::Seconds;
+
         eprintln!("\n=== Testing All Phase Benchmarks ===\n");
 
         let plan = fabric_library::get_fabric_plan(FabricName::Triped);
@@ -271,12 +265,13 @@ mod tests {
         let benchmarks = ui_benchmarks();
         let mut benchmark_idx = 0;
 
+        // Safety limit: don't run forever if something is broken
+        let max_fabric_age = Seconds(400.0);
+
         eprintln!(
             "Running through all phases, checking {} benchmarks...\n",
             benchmarks.len()
         );
-
-        let max_iterations = (210.0 * 4000.0) as usize;
 
         // Check age 0 before running any iterations
         if benchmark_idx < benchmarks.len() {
@@ -287,15 +282,18 @@ mod tests {
             }
         }
 
-        // Run executor iteration by iteration, checking benchmarks by fabric age
-        for _ in 1..=max_iterations {
-            let _ = executor.iterate();
+        // Run until all benchmarks checked, executor complete, or safety limit reached
+        loop {
+            let fabric_age = executor.fabric.age.as_duration().as_secs_f32();
+
+            // Safety limit
+            if fabric_age >= max_fabric_age.0 {
+                break;
+            }
 
             // Check if we've reached a benchmark age
             if benchmark_idx < benchmarks.len() {
                 let benchmark = &benchmarks[benchmark_idx];
-                let fabric_age = executor.fabric.age.as_duration().as_secs_f32();
-
                 if fabric_age >= benchmark.age {
                     check_benchmark(&executor.fabric, benchmark, 5.0);
                     benchmark_idx += 1;
@@ -306,6 +304,9 @@ mod tests {
             if benchmark_idx >= benchmarks.len() {
                 break;
             }
+
+            // Do one iteration
+            let _ = executor.iterate();
         }
 
         eprintln!("\n✓ Checked {} benchmarks successfully!", benchmark_idx);

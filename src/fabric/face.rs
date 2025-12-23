@@ -108,6 +108,7 @@ impl Fabric {
         let radial_joints = face.radial_joints(self);
         let normal = face.normal(&self);
         let midpoint = face.midpoint(&self);
+        let middle_joint_key = face.middle_joint(self);
         // Calculate actual distance from face center to radial joints
         let radial_distance = self.joints[radial_joints[0]]
             .location
@@ -117,8 +118,21 @@ impl Fabric {
         let pull_length =
             (radial_distance * radial_distance + (push_length / 2.0) * (push_length / 2.0)).sqrt();
 
-        let alpha = self.create_joint(Point3::from_vec(midpoint - normal * push_length / 2.0));
-        let omega = self.create_joint(Point3::from_vec(midpoint + normal * push_length / 2.0));
+        // Prism joints extend the middle joint's path with a prism branch (P=15)
+        // local_index 0 = prism alpha (below), 1 = prism omega (above)
+        // e.g., if middle is "AA6", prism alpha is "AAP0", prism omega is "AAP1"
+        let middle_path = &self.joints[middle_joint_key].path;
+        let alpha_path = middle_path.extend(15).with_local_index(0);
+        let omega_path = middle_path.extend(15).with_local_index(1);
+
+        let alpha = self.create_joint_with_path(
+            Point3::from_vec(midpoint - normal * push_length / 2.0),
+            alpha_path,
+        );
+        let omega = self.create_joint_with_path(
+            Point3::from_vec(midpoint + normal * push_length / 2.0),
+            omega_path,
+        );
 
         self.create_interval(alpha, omega, push_length, Role::Pushing);
 

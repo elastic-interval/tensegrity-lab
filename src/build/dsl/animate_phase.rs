@@ -22,19 +22,25 @@ pub struct PhaseBuilder {
 }
 
 impl PhaseBuilder {
-    /// Create an actuator between two joints
-    pub fn between(self, joint_a: JointPath, joint_b: JointPath) -> Actuator {
+    /// Create an actuator between two joints (accepts &str or JointPath)
+    pub fn between(self, joint_a: impl Into<JointPath>, joint_b: impl Into<JointPath>) -> Actuator {
         Actuator {
             phase_offset: self.phase_offset,
-            attachment: ActuatorAttachment::Between { joint_a, joint_b },
+            attachment: ActuatorAttachment::Between {
+                joint_a: joint_a.into(),
+                joint_b: joint_b.into(),
+            },
         }
     }
 
-    /// Create an actuator from a joint to a surface point
-    pub fn surface(self, joint: JointPath, point: (f32, f32)) -> Actuator {
+    /// Create an actuator from a joint to a surface point (accepts &str or JointPath)
+    pub fn surface(self, joint: impl Into<JointPath>, point: (f32, f32)) -> Actuator {
         Actuator {
             phase_offset: self.phase_offset,
-            attachment: ActuatorAttachment::ToSurface { joint, point },
+            attachment: ActuatorAttachment::ToSurface {
+                joint: joint.into(),
+                point,
+            },
         }
     }
 }
