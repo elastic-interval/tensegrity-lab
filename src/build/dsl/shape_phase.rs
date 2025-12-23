@@ -6,7 +6,7 @@ use crate::build::dsl::{brick_library, FaceMark, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Role;
-use crate::fabric::joint::JointPath;
+use crate::fabric::joint_path::JointPath;
 use crate::fabric::{Fabric, FaceKey, IntervalKey, JointKey};
 use crate::units::{Meters, Percent, Seconds};
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};

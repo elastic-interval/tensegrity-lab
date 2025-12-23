@@ -6,7 +6,7 @@ use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, MetricSpace, Point3, 
 
 use crate::build::dsl::{FaceAlias, Spin};
 use crate::fabric::interval::Role;
-use crate::fabric::joint::PRISM_MARKER;
+use crate::fabric::joint_path::PRISM_MARKER;
 use crate::fabric::{Fabric, FaceKey, IntervalKey, JointKey};
 
 const ROOT3: f32 = 1.732_050_8;

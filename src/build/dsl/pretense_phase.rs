@@ -1,4 +1,4 @@
-use crate::fabric::joint::JointPath;
+use crate::fabric::joint_path::JointPath;
 use crate::fabric::physics::presets::VIEWING;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::units::{Percent, Seconds};
