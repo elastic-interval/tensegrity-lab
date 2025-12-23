@@ -535,9 +535,9 @@ mod tests {
 
     #[test]
     fn print_joint_names_expanded() {
-        eprintln!("\n=== All Triped Joint Names (Expanded) ===\n");
+        eprintln!("\n=== All HaloByCrane Joint Names (Expanded) ===\n");
 
-        let plan = fabric_library::get_fabric_plan(FabricName::Triped);
+        let plan = fabric_library::get_fabric_plan(FabricName::HaloByCrane);
         let mut executor = FabricPlanExecutor::new_for_test(plan);
 
         // Run to completion

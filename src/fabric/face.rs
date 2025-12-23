@@ -6,6 +6,7 @@ use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, MetricSpace, Point3, 
 
 use crate::build::dsl::{FaceAlias, Spin};
 use crate::fabric::interval::Role;
+use crate::fabric::joint::PRISM_MARKER;
 use crate::fabric::{Fabric, FaceKey, IntervalKey, JointKey};
 
 const ROOT3: f32 = 1.732_050_8;
@@ -118,12 +119,12 @@ impl Fabric {
         let pull_length =
             (radial_distance * radial_distance + (push_length / 2.0) * (push_length / 2.0)).sqrt();
 
-        // Prism joints extend the middle joint's path with a prism branch (P=15)
+        // Prism joints extend the middle joint's path with a prism branch (Y)
         // local_index 0 = prism alpha (below), 1 = prism omega (above)
-        // e.g., if middle is "AA6", prism alpha is "AAP0", prism omega is "AAP1"
+        // e.g., if middle is "AX6Z0", prism alpha is "AX6YZ0", prism omega is "AX6YZ1"
         let middle_path = &self.joints[middle_joint_key].path;
-        let alpha_path = middle_path.extend(15).with_local_index(0);
-        let omega_path = middle_path.extend(15).with_local_index(1);
+        let alpha_path = middle_path.extend(PRISM_MARKER).with_local_index(0);
+        let omega_path = middle_path.extend(PRISM_MARKER).with_local_index(1);
 
         let alpha = self.create_joint_with_path(
             Point3::from_vec(midpoint - normal * push_length / 2.0),
