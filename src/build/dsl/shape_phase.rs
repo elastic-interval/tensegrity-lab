@@ -6,7 +6,8 @@ use crate::build::dsl::{brick_library, FaceMark, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, FaceKey, IntervalKey, JointId, JointKey};
+use crate::fabric::joint::JointPath;
+use crate::fabric::{Fabric, FaceKey, IntervalKey, JointKey};
 use crate::units::{Meters, Percent, Seconds};
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};
 use std::cmp::Ordering;
@@ -44,21 +45,22 @@ pub enum ShapeAction {
         distance: Percent,
     },
     Anchor {
-        joint_index: usize,
+        joint_path: JointPath,
         surface: (f32, f32),
     },
     GuyLine {
-        joint_index: usize,
+        joint_path: JointPath,
         length: f32,
         surface: (f32, f32),
     },
     Vulcanize,
     Omit {
-        pair: (usize, usize),
+        alpha_path: JointPath,
+        omega_path: JointPath,
     },
     Add {
-        alpha_index: usize,
-        omega_index: usize,
+        alpha_path: JointPath,
+        omega_path: JointPath,
         length_factor: f32,
     },
 }
@@ -154,6 +156,7 @@ impl ShapePhase {
                             FaceRotation::Zero,
                             scale,
                             base_face,
+                            &JointPath::default(),
                         );
                         let mut brick_face_midpoints = Vec::new();
                         for brick_face_key in brick_faces {
@@ -248,49 +251,56 @@ impl ShapePhase {
                 fabric.install_bow_ties();
                 StartProgress(seconds)
             }
-            ShapeAction::Omit { pair } => {
-                let alpha_key = fabric.joint_by_id[pair.0];
-                let omega_key = fabric.joint_by_id[pair.1];
-                fabric
-                    .joining((alpha_key, omega_key))
-                    .map(|id| fabric.remove_interval(id));
+            ShapeAction::Omit {
+                alpha_path,
+                omega_path,
+            } => {
+                if let (Some(alpha_key), Some(omega_key)) = (
+                    fabric.joint_key_by_path(&alpha_path),
+                    fabric.joint_key_by_path(&omega_path),
+                ) {
+                    fabric
+                        .joining((alpha_key, omega_key))
+                        .map(|id| fabric.remove_interval(id));
+                }
                 StartProgress(seconds)
             }
             ShapeAction::Add {
-                alpha_index,
-                omega_index,
+                alpha_path,
+                omega_path,
                 length_factor,
             } => {
-                let ideal = fabric.distance_by_id(JointId(alpha_index), JointId(omega_index))
-                    * length_factor;
-                fabric.create_interval_by_id(
-                    JointId(alpha_index),
-                    JointId(omega_index),
-                    ideal,
-                    Role::Pulling,
-                );
+                if let (Some(alpha_key), Some(omega_key)) = (
+                    fabric.joint_key_by_path(&alpha_path),
+                    fabric.joint_key_by_path(&omega_path),
+                ) {
+                    let ideal = fabric.distance(alpha_key, omega_key) * length_factor;
+                    fabric.create_interval(alpha_key, omega_key, ideal, Role::Pulling);
+                }
                 StartProgress(seconds)
             }
             ShapeAction::Anchor {
-                joint_index,
+                joint_path,
                 surface,
             } => {
-                let joint_key = fabric.joint_by_id[joint_index];
-                let (x, z) = surface;
-                let base = fabric.create_joint(Point3::new(x, 0.0, z));
-                let interval_key = fabric.create_interval(joint_key, base, 0.01, Role::Support);
-                self.anchors.push(interval_key);
+                if let Some(joint_key) = fabric.joint_key_by_path(&joint_path) {
+                    let (x, z) = surface;
+                    let base = fabric.create_joint(Point3::new(x, 0.0, z));
+                    let interval_key = fabric.create_interval(joint_key, base, 0.01, Role::Support);
+                    self.anchors.push(interval_key);
+                }
                 StartProgress(seconds)
             }
             ShapeAction::GuyLine {
-                joint_index,
+                joint_path,
                 length,
                 surface,
             } => {
-                let joint_key = fabric.joint_by_id[joint_index];
-                let (x, z) = surface;
-                let base = fabric.create_joint(Point3::new(x, 0.0, z));
-                fabric.create_interval(joint_key, base, length, Role::Support);
+                if let Some(joint_key) = fabric.joint_key_by_path(&joint_path) {
+                    let (x, z) = surface;
+                    let base = fabric.create_joint(Point3::new(x, 0.0, z));
+                    fabric.create_interval(joint_key, base, length, Role::Support);
+                }
                 StartProgress(seconds)
             }
             ShapeAction::Centralize => {

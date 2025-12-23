@@ -19,7 +19,6 @@ use cgmath::{
 };
 use slotmap::{new_key_type, SlotMap};
 use std::fmt::Debug;
-use std::ops::Deref;
 
 /// All physical dimensions for a fabric: structure size and interval geometry.
 #[derive(Clone, Copy, Debug)]
@@ -248,23 +247,6 @@ pub type Joints = SlotMap<JointKey, Joint>;
 pub type Intervals = SlotMap<IntervalKey, Interval>;
 pub type Faces = SlotMap<FaceKey, Face>;
 
-/// A numerical identifier for joints, used for display (e.g., "J0", "J1")
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct JointId(pub usize);
-
-impl std::fmt::Display for JointId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "J{}", self.0)
-    }
-}
-
-impl Deref for JointId {
-    type Target = usize;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 /// Statistics accumulated during iteration with zero-cost pass-through
 #[derive(Clone, Debug, Default)]
 pub struct IterationStats {
@@ -368,8 +350,6 @@ pub struct Fabric {
     pub age: Age,
     pub progress: Progress,
     pub joints: SlotMap<JointKey, Joint>,
-    /// Maps JointId (numerical index) to JointKey for DSL resolution
-    pub joint_by_id: Vec<JointKey>,
     pub intervals: SlotMap<IntervalKey, Interval>,
     pub faces: SlotMap<FaceKey, Face>,
     pub frozen: bool,
@@ -386,7 +366,6 @@ impl Fabric {
             age: Age::default(),
             progress: Progress::default(),
             joints: SlotMap::with_key(),
-            joint_by_id: Vec::new(),
             intervals: SlotMap::with_key(),
             faces: SlotMap::with_key(),
             frozen: false,
@@ -672,9 +651,8 @@ impl Fabric {
                         *finished = true;
                     }
                     Approaching { target_length, .. } => {
-                        interval.span = Approaching {
-                            start_length: *target_length,
-                            target_length: *target_length,
+                        interval.span = Fixed {
+                            length: *target_length,
                         };
                     }
                 }

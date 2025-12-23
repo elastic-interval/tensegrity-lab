@@ -183,10 +183,10 @@ impl Camera {
 
     fn select(&self, ray: Vector3<f32>, fabric: &Fabric) -> Pick {
         if let Some(best_incident) = self.best_joint(ray, fabric) {
-            match self.current_pick {
+            match &self.current_pick {
                 Pick::Nothing => Pick::Joint(JointDetails {
                     key: best_incident.key,
-                    id: fabric.joints[best_incident.key].id,
+                    path: fabric.joints[best_incident.key].path.to_string(),
                     location: fabric.location(best_incident.key),
                     selected_push: best_incident.push().map(|(key, _)| key),
                 }),
@@ -222,10 +222,10 @@ impl Camera {
             Pick::Interval(old) => {
                 let mut new = old.clone();
                 new.near_joint = old.far_joint;
-                new.near_joint_id = old.far_joint_id;
+                new.near_joint_path = old.far_joint_path.clone();
                 new.near_slot = old.far_slot;
                 new.far_joint = old.near_joint;
-                new.far_joint_id = old.near_joint_id;
+                new.far_joint_path = old.near_joint_path.clone();
                 new.far_slot = old.near_slot;
                 new.selected_push = fabric.find_push_at(old.far_joint);
                 Pick::Interval(new)
@@ -316,17 +316,17 @@ impl Camera {
                     self.mouse_click = None;
                     let PhysicalPosition { x, y } = mouse_now;
                     let pick = self.pick_ray((x as f32, y as f32), pick_intent, fabric);
-                    match pick {
+                    match &pick {
                         Pick::Nothing => {
                             self.set_target(Target::FabricMidpoint);
                         }
                         Pick::Joint(details) => {
                             self.set_target(Target::AroundJoint(details.key));
-                            ControlState::ShowingJoint(details).send(&self.radio);
+                            ControlState::ShowingJoint(details.clone()).send(&self.radio);
                         }
                         Pick::Interval(details) => {
                             self.set_target(Target::AroundInterval(details.key));
-                            ControlState::ShowingInterval(details).send(&self.radio);
+                            ControlState::ShowingInterval(details.clone()).send(&self.radio);
                         }
                     }
                     self.current_pick = pick;
@@ -349,17 +349,17 @@ impl Camera {
                     self.mouse_click = None;
                     let PhysicalPosition { x, y } = mouse_now;
                     let pick = self.pick_ray((x as f32, y as f32), pick_intent, fabric);
-                    match pick {
+                    match &pick {
                         Pick::Nothing => {
                             self.set_target(Target::FabricMidpoint);
                         }
                         Pick::Joint(details) => {
                             self.set_target(Target::AroundJoint(details.key));
-                            ControlState::ShowingJoint(details).send(&self.radio);
+                            ControlState::ShowingJoint(details.clone()).send(&self.radio);
                         }
                         Pick::Interval(details) => {
                             self.set_target(Target::AroundInterval(details.key));
-                            ControlState::ShowingInterval(details).send(&self.radio);
+                            ControlState::ShowingInterval(details.clone()).send(&self.radio);
                         }
                     }
                     self.current_pick = pick;
@@ -521,10 +521,10 @@ impl Camera {
             }
         }
 
-        // Handle camera orientation limits
+        // Handle camera orientation limits (allow viewing from ~18° from vertical)
         let gaze = (self.look_at - self.position).normalize();
         let up_dot_gaze = Vector3::unit_y().dot(gaze);
-        if !(-0.9..=0.9).contains(&up_dot_gaze) {
+        if !(-0.95..=0.95).contains(&up_dot_gaze) {
             let axis = Vector3::unit_y().cross(gaze).normalize();
             self.position = Point3::from_vec(
                 Quaternion::from_axis_angle(axis, Rad(0.01 * up_dot_gaze / abs(up_dot_gaze)))
@@ -620,11 +620,11 @@ impl Camera {
         IntervalDetails {
             key,
             near_joint,
-            near_joint_id: fabric.joints[near_joint].id,
+            near_joint_path: fabric.joints[near_joint].path.to_string(),
             near_slot,
             far_slot,
             far_joint,
-            far_joint_id: fabric.joints[far_joint].id,
+            far_joint_path: fabric.joints[far_joint].path.to_string(),
             alpha_hinge_angle,
             omega_hinge_angle,
             length: Meters(interval.ideal()),
@@ -755,9 +755,9 @@ impl Camera {
         let right = gaze.cross(up).normalize();
         let dot = gaze.normalize().dot(up);
 
-        // Limit vertical camera angle to about 37 degrees from vertical
+        // Limit vertical camera angle to about 18 degrees from vertical
         let yaw = Quaternion::from_axis_angle(up, Rad(-dx / 100.0));
-        let pitch = if (dot > 0.0 && dy < 0.0 && dot > 0.8) || (dot < 0.0 && dy > 0.0 && dot < -0.8)
+        let pitch = if (dot > 0.0 && dy < 0.0 && dot > 0.95) || (dot < 0.0 && dy > 0.0 && dot < -0.95)
         {
             // Disallow pitch when at the vertical limit
             Quaternion::from_axis_angle(right, Rad(0.0))

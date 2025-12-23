@@ -24,7 +24,6 @@ pub mod pretense_phase;
 pub mod pretenser;
 pub mod settle_phase;
 pub mod shape_phase;
-pub mod single_interval_drop_test;
 
 impl Fabric {
     pub fn expect_face(&self, face_key: FaceKey) -> &crate::fabric::face::Face {

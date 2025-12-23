@@ -49,8 +49,8 @@ mod tests {
             eprintln!(
                 "  [{i}] {:?} ({}->{}) ideal={:.4} actual={:.4}",
                 int.role,
-                alpha_joint.id,
-                omega_joint.id,
+                alpha_joint.path,
+                omega_joint.path,
                 int.ideal(),
                 actual
             );

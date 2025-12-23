@@ -266,25 +266,26 @@ impl AnimationExporter {
             return;
         }
 
-        // Build sorted joints (id, position) by id
-        let mut joint_list: Vec<_> = fabric.joints.values().collect();
-        joint_list.sort_by_key(|j| *j.id);
-        let joints: Vec<(usize, Point3<f32>)> =
-            joint_list.iter().map(|j| (*j.id, j.location)).collect();
-
-        // Build key-to-id mapping for intervals
-        let key_to_id: std::collections::HashMap<_, _> = fabric
-            .joints
+        // Build key-to-index mapping and collect joints in stable order
+        let joint_keys: Vec<_> = fabric.joints.keys().collect();
+        let key_to_idx: std::collections::HashMap<_, _> = joint_keys
             .iter()
-            .map(|(key, joint)| (key, *joint.id))
+            .enumerate()
+            .map(|(idx, &key)| (key, idx))
+            .collect();
+
+        let joints: Vec<(usize, Point3<f32>)> = joint_keys
+            .iter()
+            .enumerate()
+            .map(|(idx, &key)| (idx, fabric.joints[key].location))
             .collect();
 
         let interval_data: Vec<(usize, usize, Role)> = fabric
             .intervals
             .values()
             .filter_map(|interval| {
-                let alpha = *key_to_id.get(&interval.alpha_key)?;
-                let omega = *key_to_id.get(&interval.omega_key)?;
+                let alpha = *key_to_idx.get(&interval.alpha_key)?;
+                let omega = *key_to_idx.get(&interval.omega_key)?;
                 Some((alpha, omega, interval.role))
             })
             .collect();
@@ -333,25 +334,26 @@ impl AnimationExporter {
         self.frames.clear();
         self.frame_count = 0;
 
-        // Build sorted joints (id, position) by id
-        let mut joint_list: Vec<_> = fabric.joints.values().collect();
-        joint_list.sort_by_key(|j| *j.id);
-        let joints: Vec<(usize, Point3<f32>)> =
-            joint_list.iter().map(|j| (*j.id, j.location)).collect();
-
-        // Build key-to-id mapping for intervals
-        let key_to_id: std::collections::HashMap<_, _> = fabric
-            .joints
+        // Build key-to-index mapping and collect joints in stable order
+        let joint_keys: Vec<_> = fabric.joints.keys().collect();
+        let key_to_idx: std::collections::HashMap<_, _> = joint_keys
             .iter()
-            .map(|(key, joint)| (key, *joint.id))
+            .enumerate()
+            .map(|(idx, &key)| (key, idx))
+            .collect();
+
+        let joints: Vec<(usize, Point3<f32>)> = joint_keys
+            .iter()
+            .enumerate()
+            .map(|(idx, &key)| (idx, fabric.joints[key].location))
             .collect();
 
         let interval_data: Vec<(usize, usize, Role)> = fabric
             .intervals
             .values()
             .filter_map(|interval| {
-                let alpha = *key_to_id.get(&interval.alpha_key)?;
-                let omega = *key_to_id.get(&interval.omega_key)?;
+                let alpha = *key_to_idx.get(&interval.alpha_key)?;
+                let omega = *key_to_idx.get(&interval.omega_key)?;
                 Some((alpha, omega, interval.role))
             })
             .collect();

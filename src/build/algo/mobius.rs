@@ -3,7 +3,8 @@ use std::f32::consts::PI;
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 
 use crate::fabric::interval::Role;
-use crate::fabric::Fabric;
+use crate::fabric::joint::JointPath;
+use crate::fabric::{Fabric, JointKey};
 
 /// Generate a tensegrity Möbius band.
 ///
@@ -14,8 +15,10 @@ use crate::fabric::Fabric;
 /// - offset+3: diagonal (push - strut crossing the tile)
 ///
 /// This creates overlapping rectangular tiles with crossing struts.
+/// Joints are named sequentially (0, 1, 2, ...) following the band topology.
 pub fn generate_mobius(segments: usize) -> Fabric {
     let mut fabric = Fabric::new("Mobius".to_string());
+    let mut joint_keys: Vec<JointKey> = Vec::new();
 
     // Joint count must be odd to complete the Möbius twist
     let joint_count = segments * 2 + 1;
@@ -37,12 +40,13 @@ pub fn generate_mobius(segments: usize) -> Fabric {
     };
 
     // Create joints around the loop, alternating bottom/top
-    let mut positions: Vec<Point3<f32>> = Vec::with_capacity(joint_count);
+    // Use sequential local_index to reflect the band topology
     for joint_index in 0..joint_count {
         let angle = joint_index as f32 / joint_count as f32 * PI * 2.0;
         let pos = location(joint_index % 2 == 0, angle);
-        positions.push(pos);
-        fabric.create_joint(pos);
+        let path = JointPath::new(joint_index as u8);
+        let key = fabric.create_joint_with_path(pos, path);
+        joint_keys.push(key);
     }
 
     // Consistent interval lengths - should roughly match geometry
@@ -53,8 +57,6 @@ pub fn generate_mobius(segments: usize) -> Fabric {
 
     // Create intervals with overlapping pattern (matching original TS pattern)
     // joint(offset) = (jointIndex * 2 + offset) % joint_count
-    // Copy joint keys to avoid borrow checker issues with fabric.create_interval
-    let joint_keys: Vec<_> = fabric.joint_by_id.clone();
     for joint_index in 0..joint_count {
         let j = |offset: usize| joint_keys[(joint_index * 2 + offset) % joint_count];
 

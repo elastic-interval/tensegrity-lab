@@ -1,5 +1,5 @@
 use crate::camera::Pick;
-use crate::fabric::interval::Role;
+use crate::fabric::interval::{Role, Span};
 use crate::fabric::material::Material;
 use crate::fabric::{Fabric, IntervalEnd};
 use crate::wgpu::{Wgpu, DEFAULT_PRIMITIVE_STATE};
@@ -372,12 +372,19 @@ impl CylinderRenderer {
                 }
             }
 
+            // Override color for intervals that are approaching (being lengthened)
+            let color = if matches!(interval.span, Span::Approaching { .. }) {
+                [1.0, 0.0, 0.0, 1.0] // Red for approaching intervals
+            } else {
+                appearance.color
+            };
+
             instances.push(CylinderInstance {
                 start: [modified_start.x, modified_start.y, modified_start.z],
                 radius_factor: appearance.radius * radius_scale,
                 end: [modified_end.x, modified_end.y, modified_end.z],
                 material_type: interval.role as u32,
-                color: appearance.color,
+                color,
             });
         }
 
