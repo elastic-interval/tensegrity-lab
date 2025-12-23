@@ -3,75 +3,12 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use crate::fabric::{IntervalEnd, IntervalKey, JointKey, Joints};
+use crate::fabric::{FabricDimensions, IntervalEnd, IntervalKey, JointKey, Joints};
 use crate::units::{Degrees, Meters};
 use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
 
 /// Number of attachment points at each end of a push interval
 pub const ATTACHMENT_POINTS: usize = 10;
-
-/// All physical dimensions for a fabric: structure size and interval geometry.
-#[derive(Clone, Copy, Debug)]
-pub struct FabricDimensions {
-    pub altitude: Meters,
-    pub scale: Meters,
-    pub push_radius: Meters,
-    pub pull_radius: Meters,
-    pub ring_thickness: Meters,
-    pub hinge_offset: Meters,
-    pub hinge_length: Meters,
-}
-
-impl FabricDimensions {
-    /// Full-size dimensions for real structures (scale 1.0m, altitude 7.5m)
-    pub fn full_size() -> Self {
-        Self {
-            altitude: Meters(7.5),
-            scale: Meters(1.0),
-            push_radius: Meters(0.060),     // 60mm
-            pull_radius: Meters(0.007),     // 7mm
-            ring_thickness: Meters(0.012),  // 12mm
-            hinge_offset: Meters(0.063),    // 63mm
-            hinge_length: Meters(0.100),    // 100mm
-        }
-    }
-
-    /// Model-size dimensions for small physical models (scale 0.056m, altitude 0.5m)
-    pub fn model_size() -> Self {
-        Self {
-            altitude: Meters(0.5),
-            scale: Meters(0.056),
-            push_radius: Meters(0.003),     // 3mm
-            pull_radius: Meters(0.0005),    // 0.5mm
-            ring_thickness: Meters(0.001),  // 1mm
-            hinge_offset: Meters(0.004),    // 4mm
-            hinge_length: Meters(0.006),    // 6mm
-        }
-    }
-
-    /// Set custom altitude
-    pub fn with_altitude(mut self, altitude: Meters) -> Self {
-        self.altitude = altitude;
-        self
-    }
-
-    /// Set custom scale
-    pub fn with_scale(mut self, scale: Meters) -> Self {
-        self.scale = scale;
-        self
-    }
-
-    /// Interval dimensions only (for backward compatibility)
-    pub fn interval_dimensions(&self) -> IntervalDimensions {
-        IntervalDimensions {
-            push_radius: self.push_radius,
-            pull_radius: self.pull_radius,
-            ring_thickness: self.ring_thickness,
-            hinge_offset: self.hinge_offset,
-            hinge_length: self.hinge_length,
-        }
-    }
-}
 
 /// Interval geometry dimensions (subset of FabricDimensions for rendering/export)
 #[derive(Clone, Copy, Debug)]

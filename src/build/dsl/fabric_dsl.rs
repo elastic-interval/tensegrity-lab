@@ -13,7 +13,7 @@ pub use crate::build::dsl::brick_dsl::{BrickName, BrickOrientation, BrickRole, F
 pub use crate::units::Percent as Pct;
 pub use crate::build::dsl::build_phase::BuildNode as Node;
 pub use crate::units::{Meters as M, Seconds as Sec};
-pub use crate::fabric::attachment::FabricDimensions;
+pub use crate::fabric::FabricDimensions;
 
 impl FabricName {
     /// Start building a fabric plan with the given dimensions

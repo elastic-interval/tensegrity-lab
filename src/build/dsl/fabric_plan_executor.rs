@@ -1,13 +1,16 @@
 use crate::build::settler::Settler;
 use crate::build::dsl::plan_runner::PlanRunner;
-use crate::build::dsl::pretenser::Pretenser;
+use crate::build::dsl::pretenser::{Pretenser, SymmetricGroup};
 use crate::build::dsl::FabricPlan;
 use crate::fabric::physics::presets::{CONSTRUCTION, PRETENSING};
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::fabric::Fabric;
+use crate::units::Seconds;
 use crate::SnapshotMoment;
 use crate::Radio;
+
+const SETTLE_SECONDS: Seconds = Seconds(0.2);
 
 #[derive(Debug, PartialEq)]
 pub enum IterateResult {
@@ -37,8 +40,8 @@ pub enum ExecutionEvent {
     GrowthComplete { iteration: usize, final_joint_count: usize },
     /// Faces removed during pretension
     FacesRemoved { iteration: usize, removed_count: usize, remaining_joints: usize },
-    /// Pretension applied
-    PretensionApplied { iteration: usize, pretenst_percent: f32 },
+    /// Holistic pretensing started
+    PretensionApplied { iteration: usize },
     /// Physics changed
     PhysicsChanged { iteration: usize, description: String },
     /// Construction completed
@@ -80,14 +83,21 @@ impl std::fmt::Display for ExecutionEvent {
                 write!(f, "[{} | {}] Growth complete (final joints: {})", time, iter, final_joint_count),
             ExecutionEvent::FacesRemoved { removed_count, remaining_joints, .. } =>
                 write!(f, "[{} | {}] Removed {} faces (joints: {})", time, iter, removed_count, remaining_joints),
-            ExecutionEvent::PretensionApplied { pretenst_percent, .. } =>
-                write!(f, "[{} | {}] Pretension applied ({}%)", time, iter, pretenst_percent),
+            ExecutionEvent::PretensionApplied { .. } =>
+                write!(f, "[{} | {}] Holistic pretensing started", time, iter),
             ExecutionEvent::PhysicsChanged { description, .. } =>
                 write!(f, "[{} | {}] Physics: {}", time, iter, description),
             ExecutionEvent::Completed { .. } =>
                 write!(f, "[{} | {}] Construction completed", time, iter),
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum PretenseStage {
+    Settling,
+    Measuring,
+    Extending,
 }
 
 pub struct FabricPlanExecutor {
@@ -103,6 +113,9 @@ pub struct FabricPlanExecutor {
     stored_surface_character: Option<SurfaceCharacter>,
     stored_scale: f32,
     radio: Option<Radio>,
+    pretense_stage: PretenseStage,
+    symmetric_groups: Vec<SymmetricGroup>,
+    settle_started_at: Option<crate::Age>,
 }
 
 impl FabricPlanExecutor {
@@ -117,7 +130,8 @@ impl FabricPlanExecutor {
     }
 
     fn new_internal(plan: FabricPlan, radio: Option<Radio>) -> Self {
-        let fabric = Fabric::new(plan.name.to_string());
+        let fabric = Fabric::new(plan.name.to_string())
+            .with_dimensions(plan.dimensions);
         let plan_runner = PlanRunner::new(plan.clone());
         let physics = CONSTRUCTION;
 
@@ -134,6 +148,9 @@ impl FabricPlanExecutor {
             stored_surface_character: None,
             stored_scale: 1.0,
             radio,
+            pretense_stage: PretenseStage::Settling,
+            symmetric_groups: Vec::new(),
+            settle_started_at: None,
         };
 
         executor.log_event(ExecutionEvent::Started { iteration: 0 });
@@ -238,8 +255,30 @@ impl FabricPlanExecutor {
                 }
             }
             ExecutorStage::Pretensing => {
-                if !self.fabric.progress.is_busy() {
-                    self.transition_to_fall();
+                match self.pretense_stage {
+                    PretenseStage::Settling => {
+                        let started = self.settle_started_at.get_or_insert(self.fabric.age);
+                        let elapsed = self.fabric.age.elapsed_since(*started);
+                        if elapsed >= SETTLE_SECONDS {
+                            self.settle_started_at = None;
+                            self.pretense_stage = PretenseStage::Measuring;
+                        }
+                    }
+                    PretenseStage::Measuring => {
+                        self.fabric.update_group_strains(&mut self.symmetric_groups);
+                        if let Some(group_idx) = self.fabric.find_group_needing_extension(&self.symmetric_groups) {
+                            self.fabric.extend_symmetric_group(&self.symmetric_groups[group_idx]);
+                            self.pretense_stage = PretenseStage::Extending;
+                        } else {
+                            self.transition_to_fall();
+                        }
+                    }
+                    PretenseStage::Extending => {
+                        if !self.fabric.progress.is_busy() {
+                            self.settle_started_at = None;
+                            self.pretense_stage = PretenseStage::Settling;
+                        }
+                    }
                 }
             }
             ExecutorStage::Falling => {
@@ -338,7 +377,6 @@ impl FabricPlanExecutor {
             remaining_joints: self.fabric.joints.len(),
         });
 
-        // Apply pretension
         self.fabric.slacken();
 
         // Broadcast slackened moment before pretensing begins
@@ -346,15 +384,13 @@ impl FabricPlanExecutor {
             SnapshotMoment::Slack.send(radio);
         }
 
-        let pretenst_percent = self.plan.pretense_phase.pretenst
-            .unwrap_or(PRETENSING.pretenst);
-        let pretense_duration = self.plan.pretense_phase.seconds
-            .unwrap_or(crate::units::Seconds(15.0));
-        self.fabric.set_pretenst(pretenst_percent, pretense_duration);
+        // Discover symmetric groups for holistic pretensing
+        self.symmetric_groups = self.fabric.discover_symmetric_groups();
+        self.pretense_stage = PretenseStage::Settling;
+        self.settle_started_at = None;
 
         self.log_event(ExecutionEvent::PretensionApplied {
             iteration: self.current_iteration,
-            pretenst_percent: pretenst_percent.0,
         });
 
         // Switch to PRETENSING physics
@@ -466,6 +502,26 @@ impl FabricPlanExecutor {
 
     pub fn stage(&self) -> &ExecutorStage {
         &self.stage
+    }
+
+    /// Returns a status string for pretensing progress
+    pub fn pretense_status(&self) -> String {
+        let stage_name = match self.pretense_stage {
+            PretenseStage::Settling => "Settling",
+            PretenseStage::Measuring => "Measuring",
+            PretenseStage::Extending => "Extending",
+        };
+        let satisfied = self
+            .symmetric_groups
+            .iter()
+            .filter(|g| !g.intervals.is_empty() && g.avg_strain <= -0.01)
+            .count();
+        let total = self
+            .symmetric_groups
+            .iter()
+            .filter(|g| !g.intervals.is_empty())
+            .count();
+        format!("{} ({}/{})", stage_name, satisfied, total)
     }
 
     /// Manually trigger transition to PRETENSE phase
