@@ -148,25 +148,22 @@ impl TextState {
                     _ => Large(fabric_name.clone()),
                 },
             );
-            
+
             // Add state subtitle below title (normal size, not small)
-            self.update_section(
-                SectionName::TopSubtitle,
-                Normal(self.stage_label.clone()),
-            );
+            self.update_section(SectionName::TopSubtitle, Normal(self.stage_label.clone()));
         }
 
         // Show time scale if not 1.0
         let bottom_left_text = if (self.time_scale - 1.0).abs() > 0.01 {
-            format!("{:.0}fps {} ({:.1}×)", self.frames_per_second, self.age, self.time_scale)
+            format!(
+                "{:.0}fps {} ({:.1}×)",
+                self.frames_per_second, self.age, self.time_scale
+            )
         } else {
             format!("{:.0}fps {}", self.frames_per_second, self.age)
         };
 
-        self.update_section(
-            SectionName::BottomLeft,
-            Normal(bottom_left_text),
-        );
+        self.update_section(SectionName::BottomLeft, Normal(bottom_left_text));
 
         if !self.mobile_device {
             self.update_section(
@@ -193,9 +190,7 @@ impl TextState {
             self.update_section(
                 SectionName::Right,
                 match control_state {
-                    Animating => {
-                        Normal("2025\nGerald de Jong\npretenst.com".to_string())
-                    }
+                    Animating => Normal("2025\nGerald de Jong\npretenst.com".to_string()),
                     _ => Nothing,
                 },
             );
@@ -311,7 +306,7 @@ impl TextState {
         let margin = 50.0;
         match section_name {
             Top => [middle_h, margin],
-            TopSubtitle => [middle_h, margin + 70.0],  // Below the title
+            TopSubtitle => [middle_h, margin + 70.0], // Below the title
             Bottom => [middle_h, self.height - margin],
             Left => [margin, middle_v],
             Right => [self.width - margin, middle_v],

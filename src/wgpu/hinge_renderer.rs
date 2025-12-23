@@ -4,8 +4,8 @@
  */
 
 use crate::camera::Pick;
-use crate::fabric::FabricDimensions;
 use crate::fabric::interval::Role;
+use crate::fabric::FabricDimensions;
 use crate::fabric::{Fabric, IntervalEnd};
 use crate::wgpu::{default_depth_stencil_state, Wgpu, DEFAULT_PRIMITIVE_STATE};
 use bytemuck::{Pod, Zeroable};
@@ -15,9 +15,9 @@ use wgpu::util::DeviceExt;
 use wgpu::PipelineCompilationOptions;
 
 // Pastel colors for the three link types
-const AXIAL_COLOR: [f32; 4] = [1.0, 1.0, 0.6, 1.0];   // Pastel yellow
-const RADIAL_COLOR: [f32; 4] = [1.0, 0.8, 0.5, 1.0];  // Pastel orange
-const HINGE_COLOR: [f32; 4] = [1.0, 0.6, 0.6, 1.0];   // Pastel red
+const AXIAL_COLOR: [f32; 4] = [1.0, 1.0, 0.6, 1.0]; // Pastel yellow
+const RADIAL_COLOR: [f32; 4] = [1.0, 0.8, 0.5, 1.0]; // Pastel orange
+const HINGE_COLOR: [f32; 4] = [1.0, 0.6, 0.6, 1.0]; // Pastel red
 
 /// Instance data for a cylinder link
 #[repr(C)]
@@ -233,12 +233,8 @@ impl HingeRenderer {
                     };
 
                     // Use hinge_geometry to get snapped positions
-                    let (hinge_pos, _hinge_bend, pull_end_pos) = dimensions.hinge_geometry(
-                        joint_pos,
-                        push_axis,
-                        slot_idx,
-                        pull_other_end,
-                    );
+                    let (hinge_pos, _hinge_bend, pull_end_pos) =
+                        dimensions.hinge_geometry(joint_pos, push_axis, slot_idx, pull_other_end);
 
                     slot_connections.push((slot_idx + 1, hinge_pos, pull_end_pos));
                 }

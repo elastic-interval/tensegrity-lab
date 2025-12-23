@@ -107,7 +107,9 @@ impl Crucible {
                         self.fabric = executor.fabric.clone();
                         self.physics = executor.physics.clone();
                         // Send FabricBuilt with complete stats (including dynamics)
-                        let _ = self.radio.send_event(LabEvent::FabricBuilt(self.fabric.fabric_stats()));
+                        let _ = self
+                            .radio
+                            .send_event(LabEvent::FabricBuilt(self.fabric.fabric_stats()));
                         // Finalize and exit immediately
                         self.finalize_to_viewing();
                         return;
@@ -138,7 +140,10 @@ impl Crucible {
             if stage_changed {
                 // When transitioning to Pretensing (scale applied) or Falling (centralized),
                 // instantly jump camera to keep fabric in view
-                if matches!(current_executor_stage, ExecutorStage::Pretensing | ExecutorStage::Falling) {
+                if matches!(
+                    current_executor_stage,
+                    ExecutorStage::Pretensing | ExecutorStage::Falling
+                ) {
                     JumpToFabric.send(&self.radio);
                 }
                 self.last_executor_stage = Some(current_executor_stage.clone());
@@ -187,11 +192,8 @@ impl Crucible {
             }
             Animating(animator) => {
                 // Create a context for animator
-                let mut context = CrucibleContext::new(
-                    &mut self.fabric,
-                    &mut self.physics,
-                    &self.radio,
-                );
+                let mut context =
+                    CrucibleContext::new(&mut self.fabric, &mut self.physics, &self.radio);
                 animator.iterate(&mut context, iterations_per_frame);
 
                 // Apply any stage transition
@@ -201,11 +203,8 @@ impl Crucible {
             }
             PhysicsTesting(tester) => {
                 // Create a context for tester
-                let mut context = CrucibleContext::new(
-                    &mut self.fabric,
-                    &mut self.physics,
-                    &self.radio,
-                );
+                let mut context =
+                    CrucibleContext::new(&mut self.fabric, &mut self.physics, &self.radio);
                 tester.iterate(&mut context, iterations_per_frame);
 
                 // Apply any stage transition
@@ -215,22 +214,16 @@ impl Crucible {
             }
             BakingBrick(oven) => {
                 // Create a context for oven
-                let mut context = CrucibleContext::new(
-                    &mut self.fabric,
-                    &mut self.physics,
-                    &self.radio,
-                );
+                let mut context =
+                    CrucibleContext::new(&mut self.fabric, &mut self.physics, &self.radio);
                 if let Some(new_fabric) = oven.iterate(&mut context) {
                     context.replace_fabric(new_fabric);
                 }
             }
             Evolving(evolution) => {
                 // Create a context for evolution
-                let mut context = CrucibleContext::new(
-                    &mut self.fabric,
-                    &mut self.physics,
-                    &self.radio,
-                );
+                let mut context =
+                    CrucibleContext::new(&mut self.fabric, &mut self.physics, &self.radio);
                 evolution.iterate(&mut context);
 
                 // Apply any stage transition
@@ -310,17 +303,14 @@ impl Crucible {
         let viewing_state = self.viewing_state();
 
         // Create a context for this action
-        let mut context = CrucibleContext::new(
-            &mut self.fabric,
-            &mut self.physics,
-            &self.radio,
-        );
+        let mut context = CrucibleContext::new(&mut self.fabric, &mut self.physics, &self.radio);
 
         match crucible_action {
             StartBaking => {
                 let oven = Oven::new(self.radio.clone());
                 let fresh_fabric = oven.create_fresh_fabric();
-                StateChange::SetFabricName(format!("{}", oven.current_brick_name())).send(&self.radio);
+                StateChange::SetFabricName(format!("{}", oven.current_brick_name()))
+                    .send(&self.radio);
                 oven.send_stage_label();
                 context.replace_fabric(fresh_fabric);
                 // Initialize the physics for baking
@@ -357,9 +347,10 @@ impl Crucible {
                 if let Animating(animator) = &mut self.stage {
                     animator.adjust_period(factor);
                     let period = animator.period_secs();
-                    context.send_event(LabEvent::UpdateState(SetStageLabel(
-                        format!("Period: {:.4}s", period),
-                    )));
+                    context.send_event(LabEvent::UpdateState(SetStageLabel(format!(
+                        "Period: {:.4}s",
+                        period
+                    ))));
                 }
             }
             ToViewing => match &mut self.stage {
@@ -414,7 +405,11 @@ impl Crucible {
             }
             ToPhysicsTesting(scenario) => {
                 if let Viewing = &mut self.stage {
-                    let tester = PhysicsTester::new(context.fabric.clone(), tester_physics, self.radio.clone());
+                    let tester = PhysicsTester::new(
+                        context.fabric.clone(),
+                        tester_physics,
+                        self.radio.clone(),
+                    );
                     context.replace_fabric(tester.fabric.clone());
                     tester.copy_physics_into(&mut context);
                     context.transition_to(PhysicsTesting(tester));

@@ -10,10 +10,10 @@
 //! every joint always), this sampler only activates when requested, making it
 //! efficient and targeted.
 
-use cgmath::{MetricSpace, Point3};
 use crate::fabric::Fabric;
 use crate::units::MM_PER_METER;
 use crate::Age;
+use cgmath::{MetricSpace, Point3};
 
 /// Number of samples to collect before analysis
 const DEFAULT_SAMPLE_COUNT: usize = 240;
@@ -21,10 +21,10 @@ const DEFAULT_SAMPLE_COUNT: usize = 240;
 /// Multi-resolution sampling strategy: dense initially, progressively sparser
 /// This allows detection of both fast and slow oscillations within the same analysis
 const SAMPLING_PHASES: &[(usize, usize)] = &[
-    (60, 1),   // Phase 1: 60 samples, every 1 frame  (1.0s total)
-    (60, 2),   // Phase 2: 60 samples, every 2 frames (2.0s total)
-    (60, 4),   // Phase 3: 60 samples, every 4 frames (4.0s total)
-    (40, 8),   // Phase 4: 40 samples, every 8 frames (5.3s total)
+    (60, 1), // Phase 1: 60 samples, every 1 frame  (1.0s total)
+    (60, 2), // Phase 2: 60 samples, every 2 frames (2.0s total)
+    (60, 4), // Phase 3: 60 samples, every 4 frames (4.0s total)
+    (40, 8), // Phase 4: 40 samples, every 8 frames (5.3s total)
 ];
 // Total: 220 samples over ~12.3 seconds
 
@@ -32,35 +32,35 @@ const SAMPLING_PHASES: &[(usize, usize)] = &[
 #[derive(Clone, Debug)]
 struct Sample {
     positions: Vec<Point3<f32>>,
-    age: Age,  // When this sample was taken
+    age: Age, // When this sample was taken
 }
 
 /// Movement classification for a joint (6 tiers)
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MovementType {
-    Frozen,  // < 0.01mm
-    Stable,  // 0.01-0.1mm
-    Micro,   // 0.1-0.5mm
-    Small,   // 0.5-2mm
-    Medium,  // 2-5mm
-    Large,   // > 5mm
+    Frozen, // < 0.01mm
+    Stable, // 0.01-0.1mm
+    Micro,  // 0.1-0.5mm
+    Small,  // 0.5-2mm
+    Medium, // 2-5mm
+    Large,  // > 5mm
 }
 
 /// Oscillation frequency classification
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FrequencyClass {
-    Drift,   // < 0.5 Hz (very slow or no oscillation)
-    Slow,    // 0.5-2 Hz
-    Medium,  // 2-5 Hz
-    Fast,    // > 5 Hz
+    Drift,  // < 0.5 Hz (very slow or no oscillation)
+    Slow,   // 0.5-2 Hz
+    Medium, // 2-5 Hz
+    Fast,   // > 5 Hz
 }
 
 /// Oscillation pattern over time
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum OscillationPattern {
-    Growing,  // Amplitude increasing (unstable!)
-    Stable,   // Roughly constant amplitude
-    Damped,   // Amplitude decreasing
+    Growing, // Amplitude increasing (unstable!)
+    Stable,  // Roughly constant amplitude
+    Damped,  // Amplitude decreasing
 }
 
 /// Analysis results for a single joint
@@ -68,9 +68,9 @@ pub enum OscillationPattern {
 pub struct JointAnalysis {
     pub joint_index: usize,
     pub movement_type: MovementType,
-    pub amplitude_mm: f32,        // Peak-to-peak amplitude
-    pub avg_speed_mm_per_s: f32,  // Average speed
-    pub frequency_hz: f32,        // Estimated frequency
+    pub amplitude_mm: f32,       // Peak-to-peak amplitude
+    pub avg_speed_mm_per_s: f32, // Average speed
+    pub frequency_hz: f32,       // Estimated frequency
     pub frequency_class: FrequencyClass,
     pub pattern: OscillationPattern,
 }
@@ -130,9 +130,7 @@ impl FabricSampler {
 
         // Time to sample?
         if self.frames_since_last_sample >= frame_interval {
-            let positions: Vec<Point3<f32>> = fabric.joints.values()
-                .map(|j| j.location)
-                .collect();
+            let positions: Vec<Point3<f32>> = fabric.joints.values().map(|j| j.location).collect();
 
             self.samples.push(Sample {
                 positions,
@@ -169,15 +167,18 @@ impl FabricSampler {
         let phase = self.current_phase + 1;
         let total_phases = SAMPLING_PHASES.len();
 
-        format!("Sampling... {}/{} (Phase {}/{})",
-            current_count,
-            total_samples,
-            phase,
-            total_phases)
+        format!(
+            "Sampling... {}/{} (Phase {}/{})",
+            current_count, total_samples, phase, total_phases
+        )
     }
 
     /// Analyze collected samples to detect oscillations and movement patterns
-    pub fn analyze(&self, fabric: &Fabric, physics: &crate::fabric::physics::Physics) -> Option<FabricAnalysis> {
+    pub fn analyze(
+        &self,
+        fabric: &Fabric,
+        physics: &crate::fabric::physics::Physics,
+    ) -> Option<FabricAnalysis> {
         if !self.is_complete || self.samples.is_empty() {
             return None;
         }
@@ -239,10 +240,14 @@ impl FabricSampler {
     /// Analyze movement of a single joint (with non-uniform sampling)
     fn analyze_joint(&self, joint_idx: usize, scale: f32) -> JointAnalysis {
         // Extract positions and ages for this joint across all samples
-        let positions: Vec<Point3<f32>> = self.samples.iter()
+        let positions: Vec<Point3<f32>> = self
+            .samples
+            .iter()
             .map(|sample| sample.positions[joint_idx])
             .collect();
-        let ages: Vec<f32> = self.samples.iter()
+        let ages: Vec<f32> = self
+            .samples
+            .iter()
             .map(|sample| sample.age.0.as_secs_f32())
             .collect();
 
@@ -428,9 +433,7 @@ impl FabricAnalysis {
         lines.push(format!("Mass: {:.3} kg", self.total_mass_kg));
 
         // Sort amplitudes to create adaptive histogram
-        let mut amplitudes: Vec<f32> = self.joint_analyses.iter()
-            .map(|a| a.amplitude_mm)
-            .collect();
+        let mut amplitudes: Vec<f32> = self.joint_analyses.iter().map(|a| a.amplitude_mm).collect();
         amplitudes.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
         let total = amplitudes.len();
@@ -448,8 +451,16 @@ impl FabricAnalysis {
         for i in 0..bin_count {
             let start_idx = (i * total) / bin_count;
             let end_idx = ((i + 1) * total) / bin_count;
-            let range_min = if i == 0 { min_amp } else { amplitudes[start_idx] };
-            let range_max = if i == bin_count - 1 { max_amp } else { amplitudes[end_idx - 1] };
+            let range_min = if i == 0 {
+                min_amp
+            } else {
+                amplitudes[start_idx]
+            };
+            let range_max = if i == bin_count - 1 {
+                max_amp
+            } else {
+                amplitudes[end_idx - 1]
+            };
             let count = end_idx - start_idx;
             bins.push((range_min, range_max, count));
         }
@@ -459,18 +470,20 @@ impl FabricAnalysis {
             if *count > 0 {
                 let pct = 100.0 * *count as f32 / total as f32;
                 if range_min == range_max || range_max - range_min < 0.001 {
-                    lines.push(format!("{:.3}mm: {} ({:.1}%)",
-                        range_min, count, pct));
+                    lines.push(format!("{:.3}mm: {} ({:.1}%)", range_min, count, pct));
                 } else {
-                    lines.push(format!("{:.3}-{:.3}mm: {} ({:.1}%)",
-                        range_min, range_max, count, pct));
+                    lines.push(format!(
+                        "{:.3}-{:.3}mm: {} ({:.1}%)",
+                        range_min, range_max, count, pct
+                    ));
                 }
             }
         }
 
-        lines.push(format!("Max: {:.3}mm @ J{}",
-            self.max_amplitude_mm,
-            self.max_amplitude_joint));
+        lines.push(format!(
+            "Max: {:.3}mm @ J{}",
+            self.max_amplitude_mm, self.max_amplitude_joint
+        ));
 
         // Top active joints with detailed info
         let mut sorted = self.joint_analyses.clone();

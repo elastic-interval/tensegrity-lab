@@ -13,11 +13,7 @@ pub struct CrucibleContext<'a> {
 }
 
 impl<'a> CrucibleContext<'a> {
-    pub fn new(
-        fabric: &'a mut Fabric,
-        physics: &'a mut Physics,
-        radio: &'a Radio,
-    ) -> Self {
+    pub fn new(fabric: &'a mut Fabric, physics: &'a mut Physics, radio: &'a Radio) -> Self {
         Self {
             fabric,
             physics,

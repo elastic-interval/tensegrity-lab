@@ -40,7 +40,9 @@ impl PhaseBuilder {
 
 /// Create an actuator at the specified phase offset (0% = start of cycle, 50% = half cycle)
 pub fn phase(offset: Percent) -> PhaseBuilder {
-    PhaseBuilder { phase_offset: offset }
+    PhaseBuilder {
+        phase_offset: offset,
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -75,4 +77,3 @@ impl AnimatePhase {
         }
     }
 }
-

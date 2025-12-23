@@ -1,19 +1,21 @@
 /// Type-safe DSL for defining fabric plans with a fluent API.
 use crate::build::dsl::build_phase::{BuildNode, BuildPhase, Chirality, ColumnStyle};
-use crate::build::dsl::fall_phase::FallPhase;
 use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::fabric_plan::FabricPlan;
+use crate::build::dsl::fall_phase::FallPhase;
 use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::shape_phase::{ShapeAction, ShapeStep};
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Meters, Percent, Seconds};
 
-pub use crate::build::dsl::animate_phase::{Actuator, Waveform, phase};
-pub use crate::build::dsl::brick_dsl::{BrickName, BrickOrientation, BrickRole, FaceName, MarkName};
-pub use crate::units::Percent as Pct;
+pub use crate::build::dsl::animate_phase::{phase, Actuator, Waveform};
+pub use crate::build::dsl::brick_dsl::{
+    BrickName, BrickOrientation, BrickRole, FaceName, MarkName,
+};
 pub use crate::build::dsl::build_phase::BuildNode as Node;
-pub use crate::units::{Meters as M, Seconds as Sec};
 pub use crate::fabric::FabricDimensions;
+pub use crate::units::Percent as Pct;
+pub use crate::units::{Meters as M, Seconds as Sec};
 
 impl FabricName {
     /// Start building a fabric plan with the given dimensions
@@ -52,32 +54,53 @@ impl FabricBuilder {
 
     // Shape operations - each starts or continues the shape chain
     pub fn space(mut self, seconds: Seconds, mark_name: MarkName, distance: Percent) -> Self {
-        self.shape.push(ShapeStep { seconds, action: ShapeAction::Spacer { mark_name, distance } });
+        self.shape.push(ShapeStep {
+            seconds,
+            action: ShapeAction::Spacer {
+                mark_name,
+                distance,
+            },
+        });
         self
     }
 
     pub fn join(mut self, seconds: Seconds, mark_name: MarkName) -> Self {
-        self.shape.push(ShapeStep { seconds, action: ShapeAction::Joiner { mark_name } });
+        self.shape.push(ShapeStep {
+            seconds,
+            action: ShapeAction::Joiner { mark_name },
+        });
         self
     }
 
     pub fn vulcanize(mut self, seconds: Seconds) -> Self {
-        self.shape.push(ShapeStep { seconds, action: ShapeAction::Vulcanize });
+        self.shape.push(ShapeStep {
+            seconds,
+            action: ShapeAction::Vulcanize,
+        });
         self
     }
 
     pub fn down(mut self, seconds: Seconds, mark_name: MarkName) -> Self {
-        self.shape.push(ShapeStep { seconds, action: ShapeAction::PointDownwards { mark_name } });
+        self.shape.push(ShapeStep {
+            seconds,
+            action: ShapeAction::PointDownwards { mark_name },
+        });
         self
     }
 
     pub fn centralize(mut self, seconds: Seconds) -> Self {
-        self.shape.push(ShapeStep { seconds, action: ShapeAction::Centralize });
+        self.shape.push(ShapeStep {
+            seconds,
+            action: ShapeAction::Centralize,
+        });
         self
     }
 
     pub fn centralize_at(mut self, seconds: Seconds, altitude: Meters) -> Self {
-        self.shape.push(ShapeStep { seconds, action: ShapeAction::CentralizeAt { altitude } });
+        self.shape.push(ShapeStep {
+            seconds,
+            action: ShapeAction::CentralizeAt { altitude },
+        });
         self
     }
 
@@ -110,7 +133,9 @@ impl FabricBuilder {
                 scale: dims.scale,
             },
             pretense_phase: self.pretense.build(),
-            fall_phase: FallPhase { seconds: Seconds(5.0) },
+            fall_phase: FallPhase {
+                seconds: Seconds(5.0),
+            },
             settle_phase: None,
             animate_phase: None,
             dimensions: dims,

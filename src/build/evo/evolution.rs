@@ -35,7 +35,8 @@ impl Evolution {
     pub fn iterate(&mut self, context: &mut CrucibleContext) {
         if self.countdown > 0 {
             // Use the physics-defined number of iterations
-            for _ in 0..1000 {  // Nominal value, outer loop adjusts dynamically
+            for _ in 0..1000 {
+                // Nominal value, outer loop adjusts dynamically
                 context.fabric.iterate(context.physics);
             }
             self.countdown -= 1;

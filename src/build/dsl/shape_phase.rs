@@ -29,16 +29,38 @@ pub struct ShapeStep {
 
 #[derive(Debug, Clone)]
 pub enum ShapeAction {
-    Joiner { mark_name: MarkName },
-    PointDownwards { mark_name: MarkName },
+    Joiner {
+        mark_name: MarkName,
+    },
+    PointDownwards {
+        mark_name: MarkName,
+    },
     Centralize,
-    CentralizeAt { altitude: Meters },
-    Spacer { mark_name: MarkName, distance: Percent },
-    Anchor { joint_index: usize, surface: (f32, f32) },
-    GuyLine { joint_index: usize, length: f32, surface: (f32, f32) },
+    CentralizeAt {
+        altitude: Meters,
+    },
+    Spacer {
+        mark_name: MarkName,
+        distance: Percent,
+    },
+    Anchor {
+        joint_index: usize,
+        surface: (f32, f32),
+    },
+    GuyLine {
+        joint_index: usize,
+        length: f32,
+        surface: (f32, f32),
+    },
     Vulcanize,
-    Omit { pair: (usize, usize) },
-    Add { alpha_index: usize, omega_index: usize, length_factor: f32 },
+    Omit {
+        pair: (usize, usize),
+    },
+    Add {
+        alpha_index: usize,
+        omega_index: usize,
+        length_factor: f32,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -76,11 +98,7 @@ impl ShapePhase {
         self.execute_step(fabric, step.clone())
     }
 
-    fn execute_step(
-        &mut self,
-        fabric: &mut Fabric,
-        step: ShapeStep,
-    ) -> ShapeCommand {
+    fn execute_step(&mut self, fabric: &mut Fabric, step: ShapeStep) -> ShapeCommand {
         let seconds = step.seconds;
         match step.action {
             ShapeAction::Joiner { mark_name } => {
@@ -206,7 +224,10 @@ impl ShapePhase {
                 fabric.apply_matrix4(Matrix4::from(quaternion));
                 StartProgress(seconds)
             }
-            ShapeAction::Spacer { mark_name, distance } => {
+            ShapeAction::Spacer {
+                mark_name,
+                distance,
+            } => {
                 let faces = self.marked_faces(&mark_name);
                 let joints = self.marked_middle_joints(fabric, &faces);
                 for alpha in 0..faces.len() - 1 {
@@ -230,15 +251,30 @@ impl ShapePhase {
             ShapeAction::Omit { pair } => {
                 let alpha_key = fabric.joint_by_id[pair.0];
                 let omega_key = fabric.joint_by_id[pair.1];
-                fabric.joining((alpha_key, omega_key)).map(|id| fabric.remove_interval(id));
+                fabric
+                    .joining((alpha_key, omega_key))
+                    .map(|id| fabric.remove_interval(id));
                 StartProgress(seconds)
             }
-            ShapeAction::Add { alpha_index, omega_index, length_factor } => {
-                let ideal = fabric.distance_by_id(JointId(alpha_index), JointId(omega_index)) * length_factor;
-                fabric.create_interval_by_id(JointId(alpha_index), JointId(omega_index), ideal, Role::Pulling);
+            ShapeAction::Add {
+                alpha_index,
+                omega_index,
+                length_factor,
+            } => {
+                let ideal = fabric.distance_by_id(JointId(alpha_index), JointId(omega_index))
+                    * length_factor;
+                fabric.create_interval_by_id(
+                    JointId(alpha_index),
+                    JointId(omega_index),
+                    ideal,
+                    Role::Pulling,
+                );
                 StartProgress(seconds)
             }
-            ShapeAction::Anchor { joint_index, surface } => {
+            ShapeAction::Anchor {
+                joint_index,
+                surface,
+            } => {
                 let joint_key = fabric.joint_by_id[joint_index];
                 let (x, z) = surface;
                 let base = fabric.create_joint(Point3::new(x, 0.0, z));
@@ -246,7 +282,11 @@ impl ShapePhase {
                 self.anchors.push(interval_key);
                 StartProgress(seconds)
             }
-            ShapeAction::GuyLine { joint_index, length, surface } => {
+            ShapeAction::GuyLine {
+                joint_index,
+                length,
+                surface,
+            } => {
                 let joint_key = fabric.joint_by_id[joint_index];
                 let (x, z) = surface;
                 let base = fabric.create_joint(Point3::new(x, 0.0, z));

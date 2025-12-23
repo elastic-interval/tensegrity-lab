@@ -3,12 +3,12 @@ use crate::build::algo::mobius::generate_mobius;
 use crate::build::algo::tensegrity_sphere::generate_sphere;
 use crate::build::dsl::fabric_library;
 use crate::crucible::Crucible;
-use crate::SnapshotMoment;
 use crate::keyboard::Keyboard;
 use crate::pointer::PointerHandler;
 use crate::scene::Scene;
 use crate::units::Seconds;
 use crate::wgpu::Wgpu;
+use crate::SnapshotMoment;
 use crate::{
     ControlState, CrucibleAction, LabEvent, Radio, RunStyle, StateChange, TestScenario,
     TesterAction, ITERATION_DURATION,
@@ -206,10 +206,17 @@ impl ApplicationHandler<LabEvent> for Application {
                     RunStyle::Unknown => {
                         unreachable!()
                     }
-                    RunStyle::Fabric { fabric_name, record, export_fps, snapshot, .. } => {
+                    RunStyle::Fabric {
+                        fabric_name,
+                        record,
+                        export_fps,
+                        snapshot,
+                        ..
+                    } => {
                         if let Some(duration) = record {
                             self.record_until = Some(*duration);
-                            let mut exporter = AnimationExporter::new("animation_export", *export_fps);
+                            let mut exporter =
+                                AnimationExporter::new("animation_export", *export_fps);
                             exporter.start();
                             self.animation_exporter = Some(exporter);
                         }
@@ -250,8 +257,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 {
                     match scenario {
                         TestScenario::PhysicsTest => {
-                            CrucibleAction::ToPhysicsTesting(scenario.clone())
-                                .send(&self.radio);
+                            CrucibleAction::ToPhysicsTesting(scenario.clone()).send(&self.radio);
                         }
                         TestScenario::MachineTest(ip_address) => {
                             println!("Running machine test at {ip_address}");
@@ -409,7 +415,8 @@ impl ApplicationHandler<LabEvent> for Application {
                         }
                         Err(e) => {
                             eprintln!("Animation export error: {}", e);
-                            StateChange::SetStageLabel("Export error".to_string()).send(&self.radio);
+                            StateChange::SetStageLabel("Export error".to_string())
+                                .send(&self.radio);
                         }
                     }
                     self.animation_exporter = None;
@@ -423,12 +430,15 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             #[cfg(not(target_arch = "wasm32"))]
             ExportSnapshot => {
-                let exporter = self.animation_exporter.get_or_insert_with(|| {
-                    AnimationExporter::new("animation_export", 100.0)
-                });
+                let exporter = self
+                    .animation_exporter
+                    .get_or_insert_with(|| AnimationExporter::new("animation_export", 100.0));
                 match exporter.snapshot(&self.crucible.fabric) {
                     Ok(path) => {
-                        let label = format!("Snapshot: {}", path.file_name().unwrap_or_default().to_string_lossy());
+                        let label = format!(
+                            "Snapshot: {}",
+                            path.file_name().unwrap_or_default().to_string_lossy()
+                        );
                         StateChange::SetStageLabel(label).send(&self.radio);
                     }
                     Err(e) => {
@@ -443,8 +453,13 @@ impl ApplicationHandler<LabEvent> for Application {
                     if target.matches(moment) {
                         #[cfg(not(target_arch = "wasm32"))]
                         {
-                            let filename = format!("{}-{}.csv", self.crucible.fabric.name, moment.suffix());
-                            if let Err(e) = self.crucible.fabric.snapshot_csv_with_phase(&filename, Some(moment.suffix())) {
+                            let filename =
+                                format!("{}-{}.csv", self.crucible.fabric.name, moment.suffix());
+                            if let Err(e) = self
+                                .crucible
+                                .fabric
+                                .snapshot_csv_with_phase(&filename, Some(moment.suffix()))
+                            {
                                 eprintln!("Failed to export snapshot {}: {}", filename, e);
                             }
                         }

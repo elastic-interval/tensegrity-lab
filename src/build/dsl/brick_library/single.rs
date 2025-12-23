@@ -14,7 +14,10 @@ pub fn single_left(params: &SingleParams) -> BrickPrototype {
         .pushes_x(params.push_lengths.x, [(AlphaX, OmegaX)])
         .pushes_y(params.push_lengths.y, [(AlphaY, OmegaY)])
         .pushes_z(params.push_lengths.z, [(AlphaZ, OmegaZ)])
-        .pulls(params.pull_length, [(AlphaX, OmegaY), (AlphaY, OmegaZ), (AlphaZ, OmegaX)])
+        .pulls(
+            params.pull_length,
+            [(AlphaX, OmegaY), (AlphaY, OmegaZ), (AlphaZ, OmegaX)],
+        )
         .face(
             Spin::Left,
             [AlphaX, AlphaY, AlphaZ],

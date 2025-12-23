@@ -241,8 +241,7 @@ impl CylinderRenderer {
                         } else {
                             if interval.touches(*near_joint) {
                                 // Use the appropriate highlighted mode based on interval role
-                                appearance
-                                    .highlighted_for_role(interval.role)
+                                appearance.highlighted_for_role(interval.role)
                             } else {
                                 // Use the Faded mode for non-adjacent intervals
                                 appearance.apply_mode(AppearanceMode::Faded)
@@ -303,36 +302,39 @@ impl CylinderRenderer {
                                 };
 
                                 // Get the connection data for this end
-                                if let Some(connections) =
-                                    push_interval.connections(push_end)
-                                {
+                                if let Some(connections) = push_interval.connections(push_end) {
                                     // Look for a connection to this pull interval
                                     for conn in connections.iter() {
                                         if let Some(pull_conn) = conn {
                                             if pull_conn.pull_interval_key == pull_key {
                                                 // Found the connection - calculate carabiner position
-                                                let push_alpha_pos = fabric.joints[push_interval.alpha_key].location;
-                                                let push_omega_pos = fabric.joints[push_interval.omega_key].location;
+                                                let push_alpha_pos =
+                                                    fabric.joints[push_interval.alpha_key].location;
+                                                let push_omega_pos =
+                                                    fabric.joints[push_interval.omega_key].location;
 
                                                 // Push end position and outward axis
                                                 let (push_end_pos, push_axis) = match push_end {
                                                     IntervalEnd::Alpha => {
-                                                        let dir = (push_omega_pos - push_alpha_pos).normalize();
+                                                        let dir = (push_omega_pos - push_alpha_pos)
+                                                            .normalize();
                                                         (push_alpha_pos, -dir) // Outward from alpha
                                                     }
                                                     IntervalEnd::Omega => {
-                                                        let dir = (push_omega_pos - push_alpha_pos).normalize();
+                                                        let dir = (push_omega_pos - push_alpha_pos)
+                                                            .normalize();
                                                         (push_omega_pos, dir) // Outward from omega
                                                     }
                                                 };
 
                                                 // Use hinge_geometry to get snapped endpoint
-                                                let (_hinge_pos, _hinge_bend, pull_end_pos) = dimensions.hinge_geometry(
-                                                    push_end_pos,
-                                                    push_axis,
-                                                    pull_conn.attachment_index,
-                                                    other_joint_pos,
-                                                );
+                                                let (_hinge_pos, _hinge_bend, pull_end_pos) =
+                                                    dimensions.hinge_geometry(
+                                                        push_end_pos,
+                                                        push_axis,
+                                                        pull_conn.attachment_index,
+                                                        other_joint_pos,
+                                                    );
 
                                                 *modified_points[i] = pull_end_pos;
 
@@ -354,7 +356,9 @@ impl CylinderRenderer {
                 match pick {
                     // If a push interval is selected, we want to ensure that pull intervals
                     // connected to it are properly visualized
-                    Pick::Interval(IntervalDetails { key: picked_key, .. }) => {
+                    Pick::Interval(IntervalDetails {
+                        key: picked_key, ..
+                    }) => {
                         if let Some(push_interval) = fabric.intervals.get(*picked_key) {
                             if push_interval.has_role(Role::Pushing) {
                                 // We've already handled the basic case above, but we might need

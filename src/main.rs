@@ -7,10 +7,10 @@ use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
 
 use tensegrity_lab::application::Application;
-use tensegrity_lab::SnapshotMoment;
-use tensegrity_lab::units::Seconds;
-use tensegrity_lab::{LabEvent, RunStyle, TestScenario};
 use tensegrity_lab::build::dsl::fabric_library::FabricName;
+use tensegrity_lab::units::Seconds;
+use tensegrity_lab::SnapshotMoment;
+use tensegrity_lab::{LabEvent, RunStyle, TestScenario};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -64,7 +64,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let record_duration = args.record.map(Seconds);
 
     let run_style = if let Some(frequency) = args.sphere {
-        RunStyle::Sphere { frequency, radius: args.radius }
+        RunStyle::Sphere {
+            frequency,
+            radius: args.radius,
+        }
     } else if let Some(segments) = args.mobius {
         RunStyle::Mobius { segments }
     } else if args.bake_bricks {
@@ -110,13 +113,16 @@ fn run_with(run_style: RunStyle, time_scale: f32) -> Result<(), Box<dyn Error>> 
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(start))]
 pub fn run() {
-    run_with(RunStyle::Fabric {
-        fabric_name: FabricName::Triped,
-        scenario: None,
-        record: None,
-        export_fps: 100.0,
-        snapshot: None,
-    }, 1.0)
+    run_with(
+        RunStyle::Fabric {
+            fabric_name: FabricName::Triped,
+            scenario: None,
+            record: None,
+            export_fps: 100.0,
+            snapshot: None,
+        },
+        1.0,
+    )
     .unwrap();
 }
 

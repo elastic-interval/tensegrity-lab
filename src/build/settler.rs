@@ -26,13 +26,15 @@ impl Settler {
 
         // Update stage label to show settling progress
         let progress_pct = (progress * 100.0) as u32;
-        context.send_event(LabEvent::UpdateState(SetStageLabel(
-            format!("Settling {}%", progress_pct)
-        )));
+        context.send_event(LabEvent::UpdateState(SetStageLabel(format!(
+            "Settling {}%",
+            progress_pct
+        ))));
 
         context.physics.update_settling_multipliers(progress);
 
-        for _ in 0..1000 {  // Nominal value, outer loop adjusts dynamically
+        for _ in 0..1000 {
+            // Nominal value, outer loop adjusts dynamically
             context.fabric.iterate(context.physics);
         }
 

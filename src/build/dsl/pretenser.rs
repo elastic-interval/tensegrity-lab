@@ -6,8 +6,8 @@ use crate::fabric::interval::Span::Approaching;
 use crate::fabric::physics::presets::PRETENSING;
 use crate::fabric::physics::Physics;
 use crate::fabric::{Fabric, IntervalKey};
-use crate::LabEvent::DumpCSV;
 use crate::units::Seconds;
+use crate::LabEvent::DumpCSV;
 use crate::{Age, Radio};
 use std::collections::HashMap;
 

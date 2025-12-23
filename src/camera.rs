@@ -8,10 +8,10 @@ use winit::dpi::PhysicalPosition;
 use crate::fabric::interval::Interval;
 use crate::fabric::joint_incident::JointIncident;
 use crate::fabric::Fabric;
+use crate::fabric::FabricDimensions;
 use crate::fabric::IntervalEnd;
 use crate::fabric::IntervalKey;
 use crate::fabric::JointKey;
-use crate::fabric::FabricDimensions;
 use crate::units::{Degrees, Meters};
 use crate::{ControlState, IntervalDetails, JointDetails, PickIntent, PointerChange, Radio, Role};
 
@@ -559,64 +559,63 @@ impl Camera {
 
         // Calculate slot indices and hinge angles for pull intervals
         // Note: near/far slots depend on click position, but hinge angles use alpha/omega (structural)
-        let (near_slot, far_slot, alpha_hinge_angle, omega_hinge_angle) = if interval.has_role(Role::Pulling) {
-            // Helper function to find slot index for a joint
-            let find_slot = |joint_key: JointKey| -> Option<usize> {
-                fabric
-                    .intervals
-                    .values()
-                    .filter(|int| {
-                        int.has_role(Role::Pushing) && int.touches(joint_key)
-                    })
-                    .find_map(|push_interval| {
-                        // Determine which end of the push interval is connected to this joint
-                        let end = if push_interval.alpha_key == joint_key {
-                            IntervalEnd::Alpha
-                        } else {
-                            IntervalEnd::Omega
-                        };
+        let (near_slot, far_slot, alpha_hinge_angle, omega_hinge_angle) =
+            if interval.has_role(Role::Pulling) {
+                // Helper function to find slot index for a joint
+                let find_slot = |joint_key: JointKey| -> Option<usize> {
+                    fabric
+                        .intervals
+                        .values()
+                        .filter(|int| int.has_role(Role::Pushing) && int.touches(joint_key))
+                        .find_map(|push_interval| {
+                            // Determine which end of the push interval is connected to this joint
+                            let end = if push_interval.alpha_key == joint_key {
+                                IntervalEnd::Alpha
+                            } else {
+                                IntervalEnd::Omega
+                            };
 
-                        // Get the connections for this end
-                        let connections_array = match push_interval.connections.as_ref() {
-                            Some(connections) => connections.connections(end),
-                            None => return None,
-                        };
+                            // Get the connections for this end
+                            let connections_array = match push_interval.connections.as_ref() {
+                                Some(connections) => connections.connections(end),
+                                None => return None,
+                            };
 
-                        // Look for a connection to this pull interval
-                        for (idx, conn_opt) in connections_array.iter().enumerate() {
-                            if let Some(conn) = conn_opt {
-                                if conn.pull_interval_key == key {
-                                    return Some(idx);
+                            // Look for a connection to this pull interval
+                            for (idx, conn_opt) in connections_array.iter().enumerate() {
+                                if let Some(conn) = conn_opt {
+                                    if conn.pull_interval_key == key {
+                                        return Some(idx);
+                                    }
                                 }
                             }
-                        }
 
-                        None
-                    })
+                            None
+                        })
+                };
+
+                // Find slots for near/far joints (depends on click position)
+                let near_slot = find_slot(near_joint);
+                let far_slot = find_slot(far_joint);
+
+                // Calculate hinge angles for alpha/omega ends (structural, not click-dependent)
+                let alpha_hinge = self.calculate_hinge_angle_for_joint(
+                    interval.alpha_key,
+                    interval.omega_key,
+                    key,
+                    fabric,
+                );
+                let omega_hinge = self.calculate_hinge_angle_for_joint(
+                    interval.omega_key,
+                    interval.alpha_key,
+                    key,
+                    fabric,
+                );
+
+                (near_slot, far_slot, alpha_hinge, omega_hinge)
+            } else {
+                (None, None, None, None)
             };
-
-            // Find slots for near/far joints (depends on click position)
-            let near_slot = find_slot(near_joint);
-            let far_slot = find_slot(far_joint);
-
-            // Calculate hinge angles for alpha/omega ends (structural, not click-dependent)
-            let alpha_hinge = self.calculate_hinge_angle_for_joint(
-                interval.alpha_key,
-                interval.omega_key,
-                key,
-                fabric,
-            );
-            let omega_hinge = self.calculate_hinge_angle_for_joint(
-                interval.omega_key,
-                interval.alpha_key,
-                key,
-                fabric,
-            );
-
-            (near_slot, far_slot, alpha_hinge, omega_hinge)
-        } else {
-            (None, None, None, None)
-        };
 
         IntervalDetails {
             key,
@@ -660,11 +659,19 @@ impl Camera {
                 // Check if this pull interval is connected here
                 let connections_array = push_interval.connections.as_ref()?.connections(end);
                 let is_connected = connections_array.iter().any(|conn_opt| {
-                    conn_opt.as_ref().map_or(false, |c| c.pull_interval_key == pull_key)
+                    conn_opt
+                        .as_ref()
+                        .map_or(false, |c| c.pull_interval_key == pull_key)
                 });
 
                 if is_connected {
-                    self.calculate_hinge_angle(push_interval, end, joint_key, other_joint_key, fabric)
+                    self.calculate_hinge_angle(
+                        push_interval,
+                        end,
+                        joint_key,
+                        other_joint_key,
+                        fabric,
+                    )
                 } else {
                     None
                 }

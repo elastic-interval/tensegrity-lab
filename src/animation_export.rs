@@ -7,7 +7,6 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-
 use cgmath::{InnerSpace, Point3, Vector3};
 use serde::Serialize;
 
@@ -100,7 +99,10 @@ impl AnimationExporter {
         self.frame_count = 0;
         self.frames.clear();
         self.iteration_count = 0;
-        println!("Animation export started at {} FPS ({} iterations/frame)", self.fps, self.iterations_per_frame);
+        println!(
+            "Animation export started at {} FPS ({} iterations/frame)",
+            self.fps, self.iterations_per_frame
+        );
     }
 
     pub fn stop(&mut self) -> io::Result<()> {
@@ -114,7 +116,10 @@ impl AnimationExporter {
             return Ok(());
         }
 
-        println!("Creating animation JSON with {} frames...", self.frame_count);
+        println!(
+            "Creating animation JSON with {} frames...",
+            self.frame_count
+        );
 
         let json_path = self.output_dir.with_file_name("animation.json");
         let export_data = self.create_export_data();
@@ -153,21 +158,16 @@ impl AnimationExporter {
 
     fn export_frame(&self, frame: &FrameData) -> FrameExport {
         // Build id-to-position map for interval lookups
-        let id_to_pos: std::collections::HashMap<usize, Point3<f32>> = frame
-            .joints
-            .iter()
-            .map(|&(id, pos)| (id, pos))
-            .collect();
+        let id_to_pos: std::collections::HashMap<usize, Point3<f32>> =
+            frame.joints.iter().map(|&(id, pos)| (id, pos)).collect();
 
         // Export joints with their actual ids
         let joints: Vec<JointExport> = frame
             .joints
             .iter()
-            .map(|&(id, pos)| {
-                JointExport {
-                    name: format!("Joint_{:04}", id),
-                    matrix: create_sphere_matrix(pos, JOINT_RADIUS),
-                }
+            .map(|&(id, pos)| JointExport {
+                name: format!("Joint_{:04}", id),
+                matrix: create_sphere_matrix(pos, JOINT_RADIUS),
             })
             .collect();
 
@@ -205,7 +205,8 @@ impl AnimationExporter {
 
                 let (x_axis, y_axis, z_axis) = compute_cylinder_axes(delta, full_length);
 
-                let matrix = create_cylinder_matrix(mid, x_axis, y_axis, z_axis, PUSH_RADIUS, full_length);
+                let matrix =
+                    create_cylinder_matrix(mid, x_axis, y_axis, z_axis, PUSH_RADIUS, full_length);
 
                 // Name by endpoint joint ids for stable identity across frames
                 Some(IntervalExport {
@@ -235,7 +236,8 @@ impl AnimationExporter {
 
                 let (x_axis, y_axis, z_axis) = compute_cylinder_axes(delta, full_length);
 
-                let matrix = create_cylinder_matrix(mid, x_axis, y_axis, z_axis, PULL_RADIUS, full_length);
+                let matrix =
+                    create_cylinder_matrix(mid, x_axis, y_axis, z_axis, PULL_RADIUS, full_length);
 
                 // Name by endpoint joint ids for stable identity across frames
                 Some(IntervalExport {
@@ -267,13 +269,12 @@ impl AnimationExporter {
         // Build sorted joints (id, position) by id
         let mut joint_list: Vec<_> = fabric.joints.values().collect();
         joint_list.sort_by_key(|j| *j.id);
-        let joints: Vec<(usize, Point3<f32>)> = joint_list
-            .iter()
-            .map(|j| (*j.id, j.location))
-            .collect();
+        let joints: Vec<(usize, Point3<f32>)> =
+            joint_list.iter().map(|j| (*j.id, j.location)).collect();
 
         // Build key-to-id mapping for intervals
-        let key_to_id: std::collections::HashMap<_, _> = fabric.joints
+        let key_to_id: std::collections::HashMap<_, _> = fabric
+            .joints
             .iter()
             .map(|(key, joint)| (key, *joint.id))
             .collect();
@@ -297,7 +298,10 @@ impl AnimationExporter {
 
         if self.frame_count % self.fps as usize == 0 {
             let real_seconds = self.iteration_count as f64 * 0.00005;
-            println!("Captured {} frames ({:.1}s)", self.frame_count, real_seconds);
+            println!(
+                "Captured {} frames ({:.1}s)",
+                self.frame_count, real_seconds
+            );
         }
     }
 
@@ -332,13 +336,12 @@ impl AnimationExporter {
         // Build sorted joints (id, position) by id
         let mut joint_list: Vec<_> = fabric.joints.values().collect();
         joint_list.sort_by_key(|j| *j.id);
-        let joints: Vec<(usize, Point3<f32>)> = joint_list
-            .iter()
-            .map(|j| (*j.id, j.location))
-            .collect();
+        let joints: Vec<(usize, Point3<f32>)> =
+            joint_list.iter().map(|j| (*j.id, j.location)).collect();
 
         // Build key-to-id mapping for intervals
-        let key_to_id: std::collections::HashMap<_, _> = fabric.joints
+        let key_to_id: std::collections::HashMap<_, _> = fabric
+            .joints
             .iter()
             .map(|(key, joint)| (key, *joint.id))
             .collect();
@@ -375,7 +378,10 @@ impl AnimationExporter {
     }
 }
 
-fn compute_cylinder_axes(delta: Vector3<f32>, length: f32) -> (Vector3<f32>, Vector3<f32>, Vector3<f32>) {
+fn compute_cylinder_axes(
+    delta: Vector3<f32>,
+    length: f32,
+) -> (Vector3<f32>, Vector3<f32>, Vector3<f32>) {
     let dir = delta / length;
     let y_axis = dir;
     let arbitrary = if y_axis.y.abs() < 0.9 {
@@ -391,10 +397,10 @@ fn compute_cylinder_axes(delta: Vector3<f32>, length: f32) -> (Vector3<f32>, Vec
 fn create_sphere_matrix(pos: Point3<f32>, radius: f32) -> [f32; 16] {
     // Column-major 4x4 matrix for uniform scale + translation
     [
-        radius, 0.0, 0.0, 0.0,      // column 0
-        0.0, radius, 0.0, 0.0,      // column 1
-        0.0, 0.0, radius, 0.0,      // column 2
-        pos.x, pos.y, pos.z, 1.0,   // column 3
+        radius, 0.0, 0.0, 0.0, // column 0
+        0.0, radius, 0.0, 0.0, // column 1
+        0.0, 0.0, radius, 0.0, // column 2
+        pos.x, pos.y, pos.z, 1.0, // column 3
     ]
 }
 
@@ -414,9 +420,9 @@ fn create_cylinder_matrix(
 
     // Column-major 4x4 matrix
     [
-        c0.x, c0.y, c0.z, 0.0,      // column 0
-        c1.x, c1.y, c1.z, 0.0,      // column 1
-        c2.x, c2.y, c2.z, 0.0,      // column 2
-        mid.x, mid.y, mid.z, 1.0,   // column 3
+        c0.x, c0.y, c0.z, 0.0, // column 0
+        c1.x, c1.y, c1.z, 0.0, // column 1
+        c2.x, c2.y, c2.z, 0.0, // column 2
+        mid.x, mid.y, mid.z, 1.0, // column 3
     ]
 }

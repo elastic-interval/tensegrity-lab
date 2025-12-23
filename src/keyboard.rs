@@ -1,12 +1,12 @@
 use crate::fabric::physics::presets::VIEWING;
 use crate::units::Meters;
+use crate::ControlState::*;
 use crate::{
     ControlState, CrucibleAction, LabEvent, PhysicsFeature, PhysicsParameter, Radio, StateChange,
     TestScenario, TesterAction, TweakFeature, TweakParameter,
 };
 use winit::event::KeyEvent;
 use winit::keyboard::{KeyCode, PhysicalKey, SmolStr};
-use crate::ControlState::*;
 
 enum KeyAction {
     KeyLabEvent {
@@ -77,12 +77,7 @@ impl Keyboard {
             KeyCode::Escape,
             "Cancel selection",
             Crucible(ClearSelection),
-            Box::new(|state| {
-                matches!(
-                    state,
-                    ShowingJoint(_) | ShowingInterval(_)
-                )
-            }),
+            Box::new(|state| matches!(state, ShowingJoint(_) | ShowingInterval(_))),
         );
         self.key_lab_event(
             KeyCode::Escape,
@@ -100,7 +95,14 @@ impl Keyboard {
             KeyCode::KeyA,
             "Start animation",
             Crucible(ToAnimating),
-            Box::new(|state| matches!(state, Viewing { animation_available: true })),
+            Box::new(|state| {
+                matches!(
+                    state,
+                    Viewing {
+                        animation_available: true
+                    }
+                )
+            }),
         );
         self.animation_period(
             "P",
@@ -166,7 +168,9 @@ impl Keyboard {
             KeyCode::KeyH,
             "Hinges",
             UpdateState(StateChange::ToggleAttachmentPoints),
-            Box::new(|state| matches!(state, Viewing { .. } | ShowingJoint(_) | ShowingInterval(_))),
+            Box::new(|state| {
+                matches!(state, Viewing { .. } | ShowingJoint(_) | ShowingInterval(_))
+            }),
         );
         self.key_lab_event(
             KeyCode::Space,
@@ -377,9 +381,7 @@ impl Keyboard {
                     }
                 }
                 KeyAction::TimeScale {
-                    up_code,
-                    down_code,
-                    ..
+                    up_code, down_code, ..
                 } => {
                     legend.push(format!("{}/{}: Speed", up_code, down_code));
                 }
