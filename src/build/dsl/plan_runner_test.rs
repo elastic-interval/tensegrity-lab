@@ -31,7 +31,7 @@ mod tests {
 
     /// Executor benchmarks - age is fabric.age (scaled by physics.time_scale)
     /// Updated for Triped with scale(M(1.03)), coordinates in meters directly
-    /// Recaptured after implementing holistic pretensing with symmetric groups
+    /// Recaptured after 3x faster pretensing (PRETENSE_STEP_SECONDS = 0.067)
     fn ui_benchmarks() -> Vec<Benchmark> {
         vec![
             Benchmark {
@@ -52,59 +52,59 @@ mod tests {
             Benchmark {
                 age: 4.0,
                 joints: 172,
-                height_mm: 10849.5,
-                radius: 8.760,
+                height_mm: 10989.7,
+                radius: 8.315,
                 ground: 0,
             },
             Benchmark {
                 age: 6.0,
                 joints: 172,
-                height_mm: 9157.8,
-                radius: 6.192,
+                height_mm: 9297.3,
+                radius: 6.042,
                 ground: 0,
             },
-            // PRETENSE phase with holistic pretensing (fabric age ~6-28s)
+            // PRETENSE phase with holistic pretensing (fabric age ~6-20s)
             Benchmark {
                 age: 10.0,
                 joints: 165,
-                height_mm: 8944.6,
-                radius: 6.191,
+                height_mm: 9177.9,
+                radius: 6.039,
                 ground: 0,
             },
             Benchmark {
                 age: 15.0,
                 joints: 165,
-                height_mm: 8952.7,
-                radius: 6.191,
+                height_mm: 9209.6,
+                radius: 6.039,
                 ground: 0,
             },
             Benchmark {
                 age: 20.0,
                 joints: 165,
-                height_mm: 8955.4,
-                radius: 6.191,
+                height_mm: 9237.4,
+                radius: 6.039,
                 ground: 0,
             },
+            // FALL/SETTLE phase - structure lands on 3 joints (fabric age ~20-33s)
             Benchmark {
                 age: 25.0,
                 joints: 165,
-                height_mm: 8961.0,
-                radius: 6.191,
-                ground: 0,
+                height_mm: 9208.2,
+                radius: 7.162,
+                ground: 3,
             },
-            // FALL/SETTLE phase - structure lands on 3 joints (fabric age ~28-33s)
             Benchmark {
                 age: 30.0,
                 joints: 165,
-                height_mm: 8896.1,
-                radius: 7.564,
+                height_mm: 9210.8,
+                radius: 7.162,
                 ground: 3,
             },
             Benchmark {
                 age: 33.0,
                 joints: 165,
-                height_mm: 8943.2,
-                radius: 7.564,
+                height_mm: 9210.4,
+                radius: 7.162,
                 ground: 3,
             },
         ]
@@ -126,9 +126,9 @@ mod tests {
             .filter(|j| j.location.y.abs() < ground_tolerance)
             .count();
 
-        // Print benchmark format for easy copy-paste
+        // Print benchmark format for easy copy-paste (matches rustfmt style)
         eprintln!(
-            "            Benchmark {{ age: {:.1}, joints: {}, height_mm: {:.1}, radius: {:.3}, ground: {} }},",
+            "            Benchmark {{\n                age: {:.1},\n                joints: {},\n                height_mm: {:.1},\n                radius: {:.3},\n                ground: {},\n            }},",
             fabric_age,
             fabric.joints.len(),
             height_mm,
