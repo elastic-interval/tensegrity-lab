@@ -21,7 +21,6 @@ pub mod fall_phase;
 pub mod plan_context;
 pub mod plan_runner;
 pub mod pretense_phase;
-pub mod pretenser;
 pub mod settle_phase;
 pub mod shape_phase;
 
