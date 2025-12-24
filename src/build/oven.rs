@@ -266,20 +266,20 @@ impl Oven {
         // Build mapping from fabric joint key to baked joint index
         let mut fabric_to_baked: HashMap<JointKey, usize> = HashMap::new();
         let mut baked_index = 0;
-        let joint_incidents = oriented.joint_incidents();
-        for (key, _incident) in &joint_incidents {
-            if !face_joints.contains(key) {
-                fabric_to_baked.insert(*key, baked_index);
+        for (key, _joint) in oriented.joints.iter() {
+            if !face_joints.contains(&key) {
+                fabric_to_baked.insert(key, baked_index);
                 baked_index += 1;
             }
         }
 
         // Build joints using helper function format
-        let joints_str: Vec<String> = joint_incidents
+        let joints_str: Vec<String> = oriented
+            .joints
             .iter()
             .filter(|(key, _)| !face_joints.contains(key))
-            .map(|(_, inc)| {
-                let loc = inc.location;
+            .map(|(_, joint)| {
+                let loc = joint.location;
                 format!(
                     "            joint({:.5}, {:.5}, {:.5}),",
                     loc.x, loc.y, loc.z

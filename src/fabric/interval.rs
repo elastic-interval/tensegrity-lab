@@ -744,6 +744,11 @@ impl Interval {
             || self.end_key(IntervalEnd::Omega) == joint_key
     }
 
+    /// Check if this interval connects two specific joints
+    pub fn connects(&self, a: JointKey, b: JointKey) -> bool {
+        (self.alpha_key == a && self.omega_key == b) || (self.alpha_key == b && self.omega_key == a)
+    }
+
     /// Check if a specific end of this interval touches a joint
     pub fn end_touches(&self, end: IntervalEnd, joint_key: JointKey) -> bool {
         self.end_key(end) == joint_key
