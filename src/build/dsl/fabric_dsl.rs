@@ -73,6 +73,14 @@ impl FabricBuilder {
         self
     }
 
+    pub fn prepare_vulcanize(mut self, contraction: f32) -> Self {
+        self.shape.push(ShapeStep {
+            seconds: Seconds(0.0),
+            action: ShapeAction::PrepareVulcanize { contraction },
+        });
+        self
+    }
+
     pub fn vulcanize(mut self, seconds: Seconds) -> Self {
         self.shape.push(ShapeStep {
             seconds,
