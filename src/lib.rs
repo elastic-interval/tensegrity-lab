@@ -102,26 +102,6 @@ impl Age {
     }
 }
 
-// Actual physics parameters that affect simulation behavior
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PhysicsFeature {
-    Pretenst,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct PhysicsParameter {
-    pub feature: PhysicsFeature,
-    pub value: f32,
-}
-
-impl PhysicsFeature {
-    pub fn parameter(self, value: f32) -> PhysicsParameter {
-        PhysicsParameter {
-            feature: self,
-            value,
-        }
-    }
-}
 
 // Tweak parameters that scale/modify the physics (user-controlled view on physics)
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -436,7 +416,6 @@ impl ControlState {
 
 #[derive(Debug, Clone)]
 pub enum TesterAction {
-    SetPhysicalParameter(PhysicsParameter),
     SetTweakParameter(TweakParameter),
     DumpPhysics,
     ToggleMovementSampler,
@@ -615,7 +594,6 @@ pub enum StateChange {
         fabric_stats: FabricStats,
     },
     SetKeyboardLegend(String),
-    SetPhysicsParameter(PhysicsParameter),
     SetTweakParameter(TweakParameter),
     Time {
         frames_per_second: f32,
@@ -645,7 +623,6 @@ impl Debug for StateChange {
             StateChange::SetAnimating(_) => "SetAnimating()",
             StateChange::SetExperimentTitle { .. } => "SetExperimentTitle()",
             StateChange::SetKeyboardLegend(_) => "SetKeyboardLegend()",
-            StateChange::SetPhysicsParameter(_) => "SetPhysicsParameter()",
             StateChange::SetTweakParameter(_) => "SetTweakParameter()",
             StateChange::Time { .. } => "Time()",
             StateChange::ToggleProjection => "ToggleProjection",

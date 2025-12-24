@@ -487,7 +487,6 @@ impl From<ColumnBuilder> for BuildNode {
 #[derive(Default)]
 pub struct PretensePhaseBuilder {
     surface: Option<SurfaceCharacter>,
-    pretenst: Option<Percent>,
     rigidity: Option<Percent>,
     seconds: Option<Seconds>,
     omit_pairs: Vec<(JointPath, JointPath)>,
@@ -501,11 +500,6 @@ impl PretensePhaseBuilder {
         self
     }
 
-    pub fn pretenst(mut self, pretenst: Percent) -> Self {
-        self.pretenst = Some(pretenst);
-        self
-    }
-
     pub fn rigidity(mut self, rigidity: Percent) -> Self {
         self.rigidity = Some(rigidity);
         self
@@ -514,7 +508,6 @@ impl PretensePhaseBuilder {
     pub(crate) fn build(self) -> PretensePhase {
         PretensePhase {
             surface: self.surface,
-            pretenst: self.pretenst,
             seconds: self.seconds,
             rigidity: self.rigidity,
             omit_pairs: self.omit_pairs,
@@ -530,11 +523,6 @@ pub struct PretenseChain {
 }
 
 impl PretenseChain {
-    pub fn pretenst(mut self, pretenst: Percent) -> Self {
-        self.fabric.pretense.pretenst = Some(pretenst);
-        self
-    }
-
     pub fn rigidity(mut self, rigidity: Percent) -> Self {
         self.fabric.pretense.rigidity = Some(rigidity);
         self

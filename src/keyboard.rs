@@ -1,9 +1,8 @@
-use crate::fabric::physics::presets::VIEWING;
 use crate::units::Meters;
 use crate::ControlState::*;
 use crate::{
-    ControlState, CrucibleAction, LabEvent, PhysicsFeature, PhysicsParameter, Radio, StateChange,
-    TestScenario, TesterAction, TweakFeature, TweakParameter,
+    ControlState, CrucibleAction, LabEvent, Radio, StateChange, TestScenario, TesterAction,
+    TweakFeature, TweakParameter,
 };
 use winit::event::KeyEvent;
 use winit::keyboard::{KeyCode, PhysicalKey, SmolStr};
@@ -14,14 +13,6 @@ enum KeyAction {
         description: String,
         lab_event: Box<dyn Fn(&ControlState) -> LabEvent>,
         radio: Radio,
-        is_active_in: Box<dyn Fn(&ControlState) -> bool>,
-    },
-    PhysicsParameter {
-        up_code: SmolStr,
-        down_code: SmolStr,
-        parameter: PhysicsParameter,
-        radio: Radio,
-        render: Box<dyn Fn(&f32) -> String>,
         is_active_in: Box<dyn Fn(&ControlState) -> bool>,
     },
     TweakParameter {
@@ -116,16 +107,6 @@ impl Keyboard {
             Crucible(ToPhysicsTesting(TestScenario::PhysicsTest)),
             Box::new(|state| matches!(state, Viewing { .. })),
         );
-        self.float_parameter(
-            "P",
-            "p",
-            PhysicsParameter {
-                feature: PhysicsFeature::Pretenst,
-                value: *VIEWING.pretenst,
-            },
-            Box::new(|value| format!("Pretenst {value:.3}")),
-            Box::new(|state| matches!(state, PhysicsTesting(_))),
-        );
         self.tweak_parameter(
             "M",
             "m",
@@ -207,16 +188,6 @@ impl Keyboard {
         self
     }
 
-    pub fn set_float_parameter(&mut self, parameter_to_set: &PhysicsParameter) {
-        for action in self.actions.iter_mut() {
-            if let KeyAction::PhysicsParameter { parameter, .. } = action {
-                if parameter.feature == parameter_to_set.feature {
-                    parameter.value = parameter_to_set.value;
-                }
-            }
-        }
-    }
-
     pub fn set_tweak_parameter(&mut self, parameter_to_set: &TweakParameter) {
         for action in self.actions.iter_mut() {
             if let KeyAction::TweakParameter { parameter, .. } = action {
@@ -247,29 +218,6 @@ impl Keyboard {
                         } => {
                             if *code == pressed_key && is_active_in(control_state) {
                                 lab_event(control_state).send(&radio);
-                            }
-                        }
-                        KeyAction::PhysicsParameter {
-                            up_code,
-                            down_code,
-                            radio,
-                            parameter,
-                            is_active_in,
-                            ..
-                        } => {
-                            if is_active_in(control_state) {
-                                if text == *up_code {
-                                    StateChange::SetPhysicsParameter(
-                                        parameter.feature.parameter(parameter.value * 1.1),
-                                    )
-                                    .send(radio);
-                                }
-                                if text == *down_code {
-                                    StateChange::SetPhysicsParameter(
-                                        parameter.feature.parameter(parameter.value * 0.9),
-                                    )
-                                    .send(radio);
-                                }
                             }
                         }
                         KeyAction::TweakParameter {
@@ -342,19 +290,6 @@ impl Keyboard {
                         // Format as "Key: Action" for consistent, brief display
                         let key_name = Self::format_key_name(code);
                         legend.push(format!("{}: {}", key_name, description));
-                    }
-                }
-                KeyAction::PhysicsParameter {
-                    is_active_in,
-                    render,
-                    parameter: PhysicsParameter { value, .. },
-                    up_code,
-                    down_code,
-                    ..
-                } => {
-                    if is_active_in(control_state) {
-                        // Format as "Key+/Key-: Value" for parameters
-                        legend.push(format!("{}/{}: {}", up_code, down_code, render(value)));
                     }
                 }
                 KeyAction::TweakParameter {
@@ -434,24 +369,6 @@ impl Keyboard {
             radio: self.radio.clone(),
             is_active_in,
         });
-    }
-
-    fn float_parameter(
-        &mut self,
-        up_code: &str,
-        down_code: &str,
-        parameter: PhysicsParameter,
-        render: Box<dyn Fn(&f32) -> String>,
-        is_active_in: Box<dyn Fn(&ControlState) -> bool>,
-    ) {
-        self.actions.push(KeyAction::PhysicsParameter {
-            up_code: up_code.into(),
-            down_code: down_code.into(),
-            render,
-            is_active_in,
-            parameter,
-            radio: self.radio.clone(),
-        })
     }
 
     fn tweak_parameter(

@@ -5,12 +5,12 @@
 
 use crate::build::dsl::brick_dsl::{BrickRole, FaceName};
 use crate::fabric::face::Face;
-use crate::fabric::interval::Span::{Approaching, Fixed, Measuring, Pretensing};
+use crate::fabric::interval::Span::{Approaching, Fixed, Measuring};
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::{Joint, AMBIENT_MASS};
 use crate::fabric::physics::Physics;
 use crate::fabric::progress::Progress;
-use crate::units::{Degrees, Grams, Meters, Percent, Seconds};
+use crate::units::{Degrees, Grams, Meters};
 use crate::Age;
 use cgmath::num_traits::zero;
 use cgmath::{
@@ -535,51 +535,6 @@ impl Fabric {
         }
     }
 
-    /// Set pretensing target for push intervals (non-holistic, uses fabric dimensions).
-    pub fn set_pretenst(&mut self, pretenst: Percent, seconds: Seconds) {
-        let target_strain = pretenst.as_factor();
-
-        for interval in self.intervals.values_mut() {
-            if !interval.has_role(Role::Support) {
-                let is_pushing = interval.has_role(Role::Pushing);
-                match interval.span {
-                    Fixed {
-                        length: rest_length,
-                    } => {
-                        if is_pushing {
-                            let target_length = self
-                                .dimensions
-                                .discrete_pretenst_target(rest_length, target_strain);
-                            interval.span = Pretensing {
-                                start_length: rest_length,
-                                target_length,
-                                rest_length,
-                                finished: false,
-                            };
-                        }
-                    }
-                    Pretensing {
-                        target_length: current_target,
-                        rest_length,
-                        ..
-                    } => {
-                        let target_length = self
-                            .dimensions
-                            .discrete_pretenst_target(rest_length, target_strain);
-                        interval.span = Pretensing {
-                            start_length: current_target,
-                            target_length,
-                            rest_length,
-                            finished: false,
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-        self.progress.start(seconds);
-    }
-
     pub fn max_velocity(&self) -> f32 {
         self.joints
             .values()
@@ -647,9 +602,6 @@ impl Fabric {
             for interval in self.intervals.values_mut() {
                 match &mut interval.span {
                     Fixed { .. } | Measuring { .. } => {}
-                    Pretensing { finished, .. } => {
-                        *finished = true;
-                    }
                     Approaching { target_length, .. } => {
                         interval.span = Fixed {
                             length: *target_length,

@@ -339,19 +339,6 @@ impl ApplicationHandler<LabEvent> for Application {
                         )
                         .send(&self.radio);
                     }
-                    StateChange::SetPhysicsParameter(parameter) => {
-                        self.keyboard.set_float_parameter(parameter);
-                        self.crucible.physics.accept(parameter.clone());
-
-                        CrucibleAction::TesterDo(TesterAction::SetPhysicalParameter(
-                            parameter.clone(),
-                        ))
-                        .send(&self.radio);
-                        StateChange::SetKeyboardLegend(
-                            self.keyboard.legend(&self.control_state).join(", "),
-                        )
-                        .send(&self.radio);
-                    }
                     StateChange::SetTweakParameter(parameter) => {
                         self.keyboard.set_tweak_parameter(parameter);
                         self.crucible.physics.accept_tweak(parameter.clone());

@@ -2,8 +2,7 @@ use crate::crucible_context::CrucibleContext;
 use crate::fabric::fabric_sampler::{FabricAnalysis, FabricSampler};
 use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
-use crate::units::{Percent, Seconds};
-use crate::{PhysicsFeature, Radio, StateChange, TesterAction};
+use crate::{Radio, StateChange, TesterAction};
 
 pub struct PhysicsTester {
     pub fabric: Fabric,
@@ -76,15 +75,6 @@ impl PhysicsTester {
     pub fn action(&mut self, action: TesterAction) {
         use TesterAction::*;
         match action {
-            SetPhysicalParameter(parameter) => {
-                self.physics.accept(parameter);
-                match parameter.feature {
-                    PhysicsFeature::Pretenst => {
-                        self.fabric
-                            .set_pretenst(Percent(parameter.value), Seconds(10.0));
-                    }
-                }
-            }
             SetTweakParameter(parameter) => {
                 self.physics.accept_tweak(parameter);
                 // Mass/rigidity changes take effect on the next iterate() call

@@ -2,8 +2,7 @@
  * Copyright (c) 2020. Beautiful Code BV, Rotterdam, Netherlands
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
-use crate::units::Percent;
-use crate::{PhysicsFeature, PhysicsParameter, Radio, StateChange, TweakFeature, TweakParameter};
+use crate::{Radio, StateChange, TweakFeature, TweakParameter};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SurfaceCharacter {
@@ -146,7 +145,6 @@ use cgmath::InnerSpace;
 #[derive(Debug, Clone)]
 pub struct Physics {
     pub surface: Option<Surface>,
-    pub pretenst: Percent,
     pub drag: f32,
     pub viscosity: f32,
     pub tweak: Tweak,
@@ -179,27 +177,8 @@ impl Tweak {
 }
 
 impl Physics {
-    pub fn accept(&mut self, parameter: PhysicsParameter) {
-        use PhysicsFeature::*;
-        let PhysicsParameter { feature, value } = parameter;
-        match feature {
-            Pretenst => self.pretenst = Percent(value),
-        }
-    }
-
-    pub fn broadcast(&self, radio: &Radio) {
-        use PhysicsFeature::*;
-
-        let physics_params = [Pretenst.parameter(*self.pretenst)];
-        for p in physics_params {
-            StateChange::SetPhysicsParameter(p).send(radio);
-        }
-    }
-
-    pub fn broadcast_with_tweaks(&self, radio: &Radio) {
+    pub fn broadcast_tweaks(&self, radio: &Radio) {
         use TweakFeature::*;
-
-        self.broadcast(radio);
 
         let tweak_params = [
             MassScale.parameter(self.tweak.mass_multiplier),
@@ -245,7 +224,6 @@ impl Physics {
 
 pub mod presets {
     use crate::fabric::physics::{Physics, Tweak};
-    use crate::units::Percent;
 
     const NO_TWEAK: Tweak = Tweak {
         drag_multiplier: 1.0,
@@ -256,7 +234,6 @@ pub mod presets {
 
     pub const VIEWING: Physics = Physics {
         surface: None,
-        pretenst: Percent(1.0),
         drag: 0.5,
         viscosity: 0.0,
         tweak: NO_TWEAK,
@@ -264,7 +241,6 @@ pub mod presets {
 
     pub const CONSTRUCTION: Physics = Physics {
         surface: None,
-        pretenst: Percent(20.0),
         drag: 0.0125,
         viscosity: 40.0,
         tweak: NO_TWEAK,
@@ -272,7 +248,6 @@ pub mod presets {
 
     pub const PRETENSING: Physics = Physics {
         surface: None,
-        pretenst: Percent(1.0),
         drag: 25.0,
         viscosity: 4.0,
         tweak: NO_TWEAK,
@@ -280,7 +255,6 @@ pub mod presets {
 
     pub const BAKING: Physics = Physics {
         surface: None,
-        pretenst: Percent(5.0),
         drag: 500.0,
         viscosity: 1000.0,
         tweak: NO_TWEAK,
@@ -288,7 +262,6 @@ pub mod presets {
 
     pub const ANIMATING: Physics = Physics {
         surface: None,
-        pretenst: Percent(1.0),
         drag: 0.5,
         viscosity: 0.0,
         tweak: NO_TWEAK,
@@ -296,7 +269,6 @@ pub mod presets {
 
     pub const FALLING: Physics = Physics {
         surface: None,
-        pretenst: Percent(1.0),
         drag: 0.5,
         viscosity: 0.0,
         tweak: NO_TWEAK,
@@ -304,7 +276,6 @@ pub mod presets {
 
     pub const SETTLING: Physics = Physics {
         surface: None,
-        pretenst: Percent(1.0),
         drag: 0.01,
         viscosity: 0.5,
         tweak: NO_TWEAK,
