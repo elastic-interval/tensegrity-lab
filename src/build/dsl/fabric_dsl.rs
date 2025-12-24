@@ -491,6 +491,8 @@ pub struct PretensePhaseBuilder {
     rigidity: Option<Percent>,
     seconds: Option<Seconds>,
     omit_pairs: Vec<(JointPath, JointPath)>,
+    min_push_strain: Option<f32>,
+    max_push_strain: Option<f32>,
 }
 
 impl PretensePhaseBuilder {
@@ -516,6 +518,8 @@ impl PretensePhaseBuilder {
             seconds: self.seconds,
             rigidity: self.rigidity,
             omit_pairs: self.omit_pairs,
+            min_push_strain: self.min_push_strain,
+            max_push_strain: self.max_push_strain,
         }
     }
 }
@@ -533,6 +537,18 @@ impl PretenseChain {
 
     pub fn rigidity(mut self, rigidity: Percent) -> Self {
         self.fabric.pretense.rigidity = Some(rigidity);
+        self
+    }
+
+    /// Target compression for push intervals (default 1%)
+    pub fn min_push_strain(mut self, strain: Percent) -> Self {
+        self.fabric.pretense.min_push_strain = Some(strain.as_factor());
+        self
+    }
+
+    /// Maximum compression per extension round (default 3%)
+    pub fn max_push_strain(mut self, strain: Percent) -> Self {
+        self.fabric.pretense.max_push_strain = Some(strain.as_factor());
         self
     }
 

@@ -1,4 +1,5 @@
 use crate::build::dsl::plan_runner::PlanRunner;
+use crate::build::dsl::pretense_phase::{DEFAULT_MAX_PUSH_STRAIN, DEFAULT_MIN_PUSH_STRAIN};
 use crate::build::dsl::FabricPlan;
 use crate::build::settler::Settler;
 use crate::fabric::interval::Role;
@@ -13,8 +14,6 @@ use crate::SnapshotMoment;
 use std::collections::HashMap;
 
 const SETTLE_SECONDS: Seconds = Seconds(0.2);
-const MIN_STRAIN: f32 = 0.01;
-const MAX_STRAIN: f32 = 0.03;
 const PRETENSE_STEP_SECONDS: Seconds = Seconds(0.01);
 
 #[derive(Clone, Debug)]
@@ -62,7 +61,12 @@ impl Fabric {
 
     /// Find the single group most needing extension.
     /// Returns the group with highest strain (least compressed) that can safely be extended.
-    fn find_group_needing_extension(&self, groups: &[SymmetricGroup]) -> Option<usize> {
+    fn find_group_needing_extension(
+        &self,
+        groups: &[SymmetricGroup],
+        min_push_strain: f32,
+        max_push_strain: f32,
+    ) -> Option<usize> {
         let increment = self.dimensions.push_length_increment.map(|m| *m)?;
 
         let mut best_idx = None;
@@ -73,7 +77,7 @@ impl Fabric {
                 continue;
             }
             // Group needs extension if not yet at target compression
-            if group.avg_strain <= -MIN_STRAIN {
+            if group.avg_strain <= -min_push_strain {
                 continue;
             }
             // Group can be extended if it won't exceed max strain
@@ -81,7 +85,7 @@ impl Fabric {
                 if let Some(interval) = self.intervals.get(key) {
                     let current_length = interval.ideal();
                     let estimated_new_strain = interval.strain - increment / current_length;
-                    estimated_new_strain >= -MAX_STRAIN
+                    estimated_new_strain >= -max_push_strain
                 } else {
                     false
                 }
@@ -404,10 +408,21 @@ impl FabricPlanExecutor {
                 }
                 PretenseStage::Measuring => {
                     self.fabric.update_group_strains(&mut self.symmetric_groups);
-                    if let Some(group_idx) = self
-                        .fabric
-                        .find_group_needing_extension(&self.symmetric_groups)
-                    {
+                    let min_push_strain = self
+                        .plan
+                        .pretense_phase
+                        .min_push_strain
+                        .unwrap_or(DEFAULT_MIN_PUSH_STRAIN);
+                    let max_push_strain = self
+                        .plan
+                        .pretense_phase
+                        .max_push_strain
+                        .unwrap_or(DEFAULT_MAX_PUSH_STRAIN);
+                    if let Some(group_idx) = self.fabric.find_group_needing_extension(
+                        &self.symmetric_groups,
+                        min_push_strain,
+                        max_push_strain,
+                    ) {
                         self.fabric
                             .extend_symmetric_group(&self.symmetric_groups[group_idx]);
                         self.pretense_stage = PretenseStage::Extending;
@@ -671,10 +686,15 @@ impl FabricPlanExecutor {
             PretenseStage::Measuring => "Measuring",
             PretenseStage::Extending => "Extending",
         };
+        let min_push_strain = self
+            .plan
+            .pretense_phase
+            .min_push_strain
+            .unwrap_or(DEFAULT_MIN_PUSH_STRAIN);
         let satisfied = self
             .symmetric_groups
             .iter()
-            .filter(|g| !g.intervals.is_empty() && g.avg_strain <= -0.01)
+            .filter(|g| !g.intervals.is_empty() && g.avg_strain <= -min_push_strain)
             .count();
         let total = self
             .symmetric_groups
