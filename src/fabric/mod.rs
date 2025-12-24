@@ -228,7 +228,6 @@ pub mod face;
 pub mod interval;
 pub mod joint;
 pub mod joint_path;
-pub mod joint_incident;
 pub mod material;
 pub mod physics;
 pub mod progress;
@@ -801,5 +800,24 @@ impl Fabric {
         }
 
         total_mass
+    }
+
+    /// Find the interval connecting two joints, if one exists.
+    pub fn interval_between(
+        &self,
+        a: JointKey,
+        b: JointKey,
+    ) -> Option<(IntervalKey, &Interval)> {
+        self.intervals
+            .iter()
+            .find(|(_, interval)| interval.connects(a, b))
+    }
+
+    /// Find the strut (push interval) connected to a joint, if one exists.
+    pub fn push_at(&self, joint: JointKey) -> Option<IntervalKey> {
+        self.intervals
+            .iter()
+            .find(|(_, interval)| interval.role == Role::Pushing && interval.touches(joint))
+            .map(|(key, _)| key)
     }
 }

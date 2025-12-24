@@ -6,7 +6,6 @@ use cgmath::{
 use winit::dpi::PhysicalPosition;
 
 use crate::fabric::interval::Interval;
-use crate::fabric::joint_incident::JointIncident;
 use crate::fabric::Fabric;
 use crate::fabric::FabricDimensions;
 use crate::fabric::IntervalEnd;
@@ -182,29 +181,29 @@ impl Camera {
     }
 
     fn select(&self, ray: Vector3<f32>, fabric: &Fabric) -> Pick {
-        if let Some(best_incident) = self.best_joint(ray, fabric) {
+        if let Some(best_joint_key) = self.best_joint(ray, fabric) {
             match &self.current_pick {
                 Pick::Nothing => Pick::Joint(JointDetails {
-                    key: best_incident.key,
-                    path: fabric.joints[best_incident.key].path.to_string(),
-                    location: fabric.location(best_incident.key),
-                    selected_push: best_incident.push().map(|(key, _)| key),
+                    key: best_joint_key,
+                    path: fabric.joints[best_joint_key].path.to_string(),
+                    location: fabric.location(best_joint_key),
+                    selected_push: fabric.push_at(best_joint_key),
                 }),
                 Pick::Joint(details) => {
-                    let (key, interval) = best_incident.interval_to(details.key).unwrap();
+                    let (key, interval) = fabric.interval_between(best_joint_key, details.key).unwrap();
                     Pick::Interval(self.create_interval_details(
                         key,
-                        interval,
+                        interval.clone(),
                         details.key,
                         fabric,
                         details.selected_push,
                     ))
                 }
                 Pick::Interval(details) => {
-                    let (key, interval) = best_incident.interval_to(details.near_joint).unwrap();
+                    let (key, interval) = fabric.interval_between(best_joint_key, details.near_joint).unwrap();
                     Pick::Interval(self.create_interval_details(
                         key,
-                        interval,
+                        interval.clone(),
                         details.near_joint,
                         fabric,
                         details.selected_push,
@@ -771,7 +770,7 @@ impl Camera {
         Some(matrix)
     }
 
-    fn best_joint(&self, ray: Vector3<f32>, fabric: &Fabric) -> Option<JointIncident> {
+    fn best_joint(&self, ray: Vector3<f32>, fabric: &Fabric) -> Option<JointKey> {
         let current_joint = match self.current_pick {
             Pick::Nothing => None,
             Pick::Joint(JointDetails { key, .. }) => Some(key),
@@ -785,15 +784,16 @@ impl Camera {
         fabric: &Fabric,
         current_joint: Option<JointKey>,
         ray: Vector3<f32>,
-    ) -> Option<JointIncident> {
+    ) -> Option<JointKey> {
         // Use the ray origin that was calculated in pick_ray
         let ray_origin = self.last_ray_origin;
         fabric
-            .joint_incidents()
-            .into_values()
-            .filter_map(|joint_incident| {
+            .joints
+            .iter()
+            .filter_map(|(joint_key, joint)| {
                 let position = if let Some(current) = current_joint {
-                    let interval_opt = joint_incident.interval_to(current);
+                    // When selecting an adjacent joint, use the interval midpoint for selection
+                    let interval_opt = fabric.interval_between(joint_key, current);
                     match interval_opt {
                         None => {
                             return None;
@@ -801,7 +801,7 @@ impl Camera {
                         Some((_, interval)) => interval.midpoint(&fabric.joints),
                     }
                 } else {
-                    joint_incident.location
+                    joint.location
                 };
                 // Calculate selection score based on projection type
                 let score = match self.projection_type {
@@ -822,10 +822,10 @@ impl Camera {
                     }
                 };
 
-                Some((joint_incident, score))
+                Some((joint_key, score))
             })
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-            .map(|(item, _)| item.clone())
+            .map(|(key, _)| key)
     }
 }
 

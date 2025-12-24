@@ -248,7 +248,7 @@ impl ShapePhase {
                 StartProgress(seconds)
             }
             ShapeAction::Vulcanize => {
-                fabric.install_bow_ties();
+                fabric.vulcanize();
                 StartProgress(seconds)
             }
             ShapeAction::Omit {
