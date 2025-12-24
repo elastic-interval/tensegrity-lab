@@ -65,7 +65,8 @@ impl FabricName {
                     ("Z1", "Z10"),
                     ("Z10", "Z7"),
                 ])
-                .space(Sec(3.0), End, Pct(15.0))
+                .prepare_vulcanize(0.5)
+                .space(Sec(3.0), End, Pct(25.0))
                 .vulcanize(Sec(1.0))
                 .pretense(Sec(1.0))
                 .surface_frozen()

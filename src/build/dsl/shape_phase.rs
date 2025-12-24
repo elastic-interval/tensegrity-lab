@@ -53,6 +53,7 @@ pub enum ShapeAction {
         length: f32,
         surface: (f32, f32),
     },
+    PrepareVulcanize { contraction: f32 },
     Vulcanize,
     Omit {
         alpha_path: JointPath,
@@ -245,6 +246,10 @@ impl ShapePhase {
                         self.spacers.push(interval);
                     }
                 }
+                StartProgress(seconds)
+            }
+            ShapeAction::PrepareVulcanize { contraction } => {
+                fabric.prepare_vulcanize(contraction);
                 StartProgress(seconds)
             }
             ShapeAction::Vulcanize => {

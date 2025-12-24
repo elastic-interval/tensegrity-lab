@@ -258,6 +258,11 @@ pub enum Span {
         target_length: f32,
         start_length: f32,
     },
+    /// Exerts no force; records baseline and contraction for activation.
+    Measuring {
+        baseline: f32,
+        contraction: f32,
+    },
 }
 
 impl Span {
@@ -283,6 +288,9 @@ impl Span {
             } => {
                 *target_length *= factor;
                 *start_length *= factor;
+            }
+            Span::Measuring { baseline, .. } => {
+                *baseline *= factor;
             }
         }
     }
@@ -668,13 +676,18 @@ impl Interval {
             | Approaching {
                 target_length: length,
                 ..
-            } => length,
+            }
+            | Measuring { baseline: length, .. } => length,
         }
     }
 
     /// Iterate physics for this interval.
     /// All lengths (ideal, real_length) are now in meters directly.
     pub fn iterate(&mut self, joints: &mut Joints, progress: &Progress, physics: &Physics) {
+        // Measuring intervals exert no force - they're just recording baseline
+        if matches!(self.span, Measuring { .. }) {
+            return;
+        }
         let ideal = match self.span {
             Fixed { length } => length,
             Pretensing {
@@ -698,6 +711,7 @@ impl Interval {
                 let completion = progress.completion();
                 start_length * (1.0 - completion) + target_length * completion
             }
+            Measuring { .. } => unreachable!(),
         };
         let real_length = self.fast_length(joints);
 

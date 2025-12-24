@@ -5,7 +5,7 @@
 
 use crate::build::dsl::brick_dsl::{BrickRole, FaceName};
 use crate::fabric::face::Face;
-use crate::fabric::interval::Span::{Approaching, Fixed, Pretensing};
+use crate::fabric::interval::Span::{Approaching, Fixed, Measuring, Pretensing};
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::{Joint, AMBIENT_MASS};
 use crate::fabric::physics::Physics;
@@ -646,7 +646,7 @@ impl Fabric {
             // final step
             for interval in self.intervals.values_mut() {
                 match &mut interval.span {
-                    Fixed { .. } => {}
+                    Fixed { .. } | Measuring { .. } => {}
                     Pretensing { finished, .. } => {
                         *finished = true;
                     }

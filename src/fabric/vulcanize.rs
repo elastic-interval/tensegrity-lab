@@ -4,38 +4,38 @@
 //! adjacent tensegrity bricks, transforming a flexible spine-like structure
 //! into a rigid unified whole.
 //!
-//! ## The Process
+//! ## Two-Phase Vulcanization (for curve preservation)
 //!
-//! 1. **Before vulcanization**: Bricks are connected at shared faces but can
-//!    pivot freely relative to each other (like vertebrae in a spine)
+//! 1. **prepare_vulcanize()**: Before shaping, installs bow ties as "measuring
+//!    tapes" (Span::Measuring) that exert no force but record baseline distances.
 //!
-//! 2. **Shaping**: Forces curve the structure, displacing joints from their
-//!    original positions
+//! 2. **Shaping**: Forces curve the structure. The measuring bow ties passively
+//!    track how distances change.
 //!
-//! 3. **Vulcanization**: Bow tie cables are added between adjacent bricks.
-//!    Their ideal lengths are set based on *current* joint positions (after
-//!    shaping), so they "remember" the curve.
+//! 3. **activate_vulcanize()**: After shaping, activates the bow ties with
+//!    differential contraction based on how much each span changed:
+//!    - Spans that got shorter (inside of curve) → less contraction
+//!    - Spans that got longer (outside of curve) → more contraction
 //!
-//! 4. **After vulcanization**: The structure is locked into its curved shape.
-//!    The bow ties resist any forces that would straighten the curve.
+//! ## Single-Phase Vulcanization (legacy)
+//!
+//! **vulcanize()**: Adds bow ties directly with uniform contraction. Simpler
+//! but doesn't preserve curves as well during pretensing.
 //!
 //! ## Algorithm Overview
 //!
-//! For each strut (push interval), we look for places where the two bricks
-//! it connects can be cross-linked:
+//! For each strut, we look for places where adjacent bricks can be cross-linked:
 //!
-//! - **Bridge pattern**: Two bricks share a cable (the "bridge"). We add
-//!   diagonal bow ties across the bridge to prevent rotation.
-//!
-//! - **Apex pattern**: Two bricks meet at a common joint (the "apex"). We add
-//!   bow ties from that apex to joints on the opposite brick.
+//! - **Bridge pattern**: Two bricks share a cable. Add diagonal bow ties.
+//! - **Apex pattern**: Two bricks meet at a common joint. Add bow ties from apex.
 
 use std::collections::{HashMap, HashSet};
 
 use cgmath::MetricSpace;
 
-use crate::fabric::interval::{Interval, Role};
-use crate::fabric::{Fabric, IntervalKey, JointKey, Joints};
+use crate::fabric::interval::Span::Measuring;
+use crate::fabric::interval::{Interval, Role, Span};
+use crate::fabric::{Fabric, IntervalKey, JointKey};
 
 /// Bow ties are created shorter than current distance to pull structure tight.
 /// A value of 0.5 means the bow tie's rest length is 50% of the current
@@ -55,13 +55,56 @@ const APEX_MEETING: usize = 8;
 // ============================================================================
 
 impl Fabric {
-    /// Add bow tie cables to cross-link adjacent bricks, locking in the
-    /// current (possibly curved) shape.
-    pub fn vulcanize(&mut self) {
-        let bow_ties = BowTieFinder::new(self).find_all_bow_ties();
+    /// Install bow ties as "measuring tapes" before shaping.
+    /// They exert no force but record baseline distances for vulcanize().
+    pub fn prepare_vulcanize(&mut self, contraction: f32) {
+        let bow_tie_pairs = BowTieFinder::new(self).find_all_bow_tie_pairs();
 
-        for bow_tie in bow_ties {
-            self.create_interval(bow_tie.alpha, bow_tie.omega, bow_tie.length, Role::BowTie);
+        for (alpha, omega) in bow_tie_pairs {
+            let baseline = self.joints[alpha].location.distance(self.joints[omega].location);
+            let key = self.create_interval(alpha, omega, baseline, Role::BowTie);
+            self.intervals[key].span = Measuring { baseline, contraction };
+        }
+    }
+
+    /// Activate bow ties. If prepare_vulcanize() was called, uses differential
+    /// contraction based on how distances changed during shaping. Otherwise,
+    /// creates new bow ties with uniform contraction.
+    pub fn vulcanize(&mut self) {
+        // Check if we have measuring bow ties (prepared mode)
+        let has_measuring = self.intervals.values().any(|i| {
+            i.role == Role::BowTie && matches!(i.span, Measuring { .. })
+        });
+
+        if has_measuring {
+            // Activate prepared bow ties with differential contraction
+            for interval in self.intervals.values_mut() {
+                if interval.role != Role::BowTie {
+                    continue;
+                }
+                if let Measuring { baseline, contraction } = interval.span {
+                    let current = interval.fast_length(&self.joints);
+                    let curvature_factor = current / baseline;
+                    let adjusted_contraction = contraction * curvature_factor;
+                    let target_length = current * adjusted_contraction;
+                    interval.span = Span::Approaching {
+                        start_length: current,
+                        target_length,
+                    };
+                }
+            }
+        } else {
+            // No preparation - create bow ties with uniform contraction
+            let bow_ties = BowTieFinder::new(self).find_all_bow_tie_pairs();
+            for (alpha, omega) in bow_ties {
+                let current = self.joints[alpha].location.distance(self.joints[omega].location);
+                let target_length = current * BOW_TIE_CONTRACTION;
+                let key = self.create_interval(alpha, omega, current, Role::BowTie);
+                self.intervals[key].span = Span::Approaching {
+                    start_length: current,
+                    target_length,
+                };
+            }
         }
     }
 }
@@ -70,32 +113,16 @@ impl Fabric {
 // Bow Tie Representation
 // ============================================================================
 
-/// A bow tie cable to be created between two joints.
+/// A bow tie joint pair (alpha, omega) for deduplication.
 #[derive(Debug, Clone)]
 struct BowTie {
     alpha: JointKey,
     omega: JointKey,
-    length: f32,
 }
 
 impl BowTie {
-    /// Create a bow tie between two joints, with length based on current distance.
-    fn between(alpha: JointKey, omega: JointKey, joints: &Joints) -> Self {
-        let current_distance = joints[alpha].location.distance(joints[omega].location);
-        Self {
-            alpha,
-            omega,
-            length: current_distance * BOW_TIE_CONTRACTION,
-        }
-    }
-
-    /// Create a bow tie with a specific length (for apex pattern).
-    fn with_length(alpha: JointKey, omega: JointKey, length: f32) -> Self {
-        Self {
-            alpha,
-            omega,
-            length,
-        }
+    fn new(alpha: JointKey, omega: JointKey) -> Self {
+        Self { alpha, omega }
     }
 
     /// Canonical key for deduplication (smaller key first).
@@ -240,24 +267,21 @@ impl Meeting {
 // Bow Tie Finder: The main algorithm
 // ============================================================================
 
-struct BowTieFinder<'a> {
-    joints: &'a Joints,
+struct BowTieFinder {
     joint_contexts: HashMap<JointKey, JointContext>,
     intervals: HashMap<IntervalKey, Interval>,
     existing_intervals: HashSet<(JointKey, JointKey)>,
     found_bow_ties: HashMap<(JointKey, JointKey), BowTie>,
 }
 
-impl<'a> BowTieFinder<'a> {
-    fn new(fabric: &'a Fabric) -> Self {
-        // Build joint contexts
+impl BowTieFinder {
+    fn new(fabric: &Fabric) -> Self {
         let mut joint_contexts: HashMap<JointKey, JointContext> = fabric
             .joints
             .iter()
             .map(|(key, _joint)| (key, JointContext::new(key)))
             .collect();
 
-        // Build interval map and populate joint contexts
         let mut intervals = HashMap::new();
         for (key, interval) in fabric.intervals.iter() {
             intervals.insert(key, interval.clone());
@@ -269,7 +293,6 @@ impl<'a> BowTieFinder<'a> {
             }
         }
 
-        // Track existing intervals to avoid duplicates
         let existing_intervals: HashSet<_> = intervals
             .values()
             .map(|i| {
@@ -282,7 +305,6 @@ impl<'a> BowTieFinder<'a> {
             .collect();
 
         Self {
-            joints: &fabric.joints,
             joint_contexts,
             intervals,
             existing_intervals,
@@ -290,8 +312,12 @@ impl<'a> BowTieFinder<'a> {
         }
     }
 
-    /// Find all bow ties needed to cross-link the structure.
-    fn find_all_bow_ties(mut self) -> Vec<BowTie> {
+    fn find_all_bow_tie_pairs(mut self) -> Vec<(JointKey, JointKey)> {
+        self.find_bow_ties_internal();
+        self.found_bow_ties.into_keys().collect()
+    }
+
+    fn find_bow_ties_internal(&mut self) {
         // Get all struts (push intervals)
         let struts: Vec<_> = self
             .intervals
@@ -305,8 +331,6 @@ impl<'a> BowTieFinder<'a> {
             let meetings = self.find_meetings(&strut);
             self.process_meetings(&meetings, &strut);
         }
-
-        self.found_bow_ties.into_values().collect()
     }
 
     /// Find all places where paths from opposite ends of a strut meet.
@@ -442,11 +466,7 @@ impl<'a> BowTieFinder<'a> {
         for (path, other_path) in candidates {
             let middle_joint = other_path.penultimate_joint();
             if !self.joint_contexts[&middle_joint].has_strut() {
-                let bow_tie = BowTie::between(
-                    path.joints[0],   // Start of path (at the strut)
-                    path.end_joint(), // End of path
-                    self.joints,
-                );
+                let bow_tie = BowTie::new(path.joints[0], path.end_joint());
                 self.add_bow_tie(bow_tie);
                 return;
             }
@@ -458,12 +478,8 @@ impl<'a> BowTieFinder<'a> {
         let valid_diagonals: Vec<_> = corners
             .iter()
             .filter(|&&(a, b)| {
-                // Get the strut partners of both corners
                 let a_partner = self.joint_contexts[&a].strut_partner(&self.intervals);
                 let b_partner = self.joint_contexts[&b].strut_partner(&self.intervals);
-
-                // Only valid if both have strut partners and those partners
-                // aren't already connected
                 match (a_partner, b_partner) {
                     (Some(ap), Some(bp)) => !self.interval_exists(ap, bp),
                     _ => false,
@@ -471,10 +487,9 @@ impl<'a> BowTieFinder<'a> {
             })
             .collect();
 
-        // Only create bow tie if exactly one diagonal is valid
         if valid_diagonals.len() == 1 {
             let &(alpha, omega) = valid_diagonals[0];
-            Some(BowTie::between(alpha, omega, self.joints))
+            Some(BowTie::new(alpha, omega))
         } else {
             None
         }
@@ -485,7 +500,7 @@ impl<'a> BowTieFinder<'a> {
         &mut self,
         meeting1: (&CablePath, &CablePath, JointKey),
         meeting2: (&CablePath, &CablePath, JointKey),
-        strut: &Interval,
+        _strut: &Interval,
     ) {
         let (alpha1, omega1, _apex1) = meeting1;
         let (alpha2, omega2, apex2) = meeting2;
@@ -499,15 +514,8 @@ impl<'a> BowTieFinder<'a> {
 
         for (path, target_apex) in candidates {
             let through_joint = path.penultimate_joint();
-
-            // Only create bow tie if the path goes through a strut joint
             if self.joint_contexts[&through_joint].has_strut() {
-                let bow_tie = BowTie::with_length(
-                    through_joint,
-                    target_apex,
-                    strut.ideal() / 4.0, // Short bow tie for apex pattern
-                );
-                self.add_bow_tie(bow_tie);
+                self.add_bow_tie(BowTie::new(through_joint, target_apex));
             }
         }
     }
