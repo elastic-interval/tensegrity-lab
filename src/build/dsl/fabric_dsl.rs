@@ -14,6 +14,7 @@ pub use crate::build::dsl::brick_dsl::{
     BrickName, BrickOrientation, BrickRole, FaceName, MarkName,
 };
 pub use crate::build::dsl::build_phase::BuildNode as Node;
+pub use crate::fabric::vulcanize::VulcanizeMode;
 pub use crate::fabric::FabricDimensions;
 pub use crate::units::Percent as Pct;
 pub use crate::units::{Meters as M, Seconds as Sec};
@@ -73,10 +74,10 @@ impl FabricBuilder {
         self
     }
 
-    pub fn prepare_vulcanize(mut self, contraction: f32) -> Self {
+    pub fn prepare_vulcanize(mut self, contraction: f32, mode: VulcanizeMode) -> Self {
         self.shape.push(ShapeStep {
             seconds: Seconds(0.0),
-            action: ShapeAction::PrepareVulcanize { contraction },
+            action: ShapeAction::PrepareVulcanize { contraction, mode },
         });
         self
     }
@@ -373,6 +374,10 @@ impl SeedChain {
 
     pub fn join(self, seconds: Seconds, mark_name: MarkName) -> FabricBuilder {
         self.finalize_build().join(seconds, mark_name)
+    }
+
+    pub fn prepare_vulcanize(self, contraction: f32, mode: VulcanizeMode) -> FabricBuilder {
+        self.finalize_build().prepare_vulcanize(contraction, mode)
     }
 
     pub fn vulcanize(self, seconds: Seconds) -> FabricBuilder {

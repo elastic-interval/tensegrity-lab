@@ -65,7 +65,7 @@ impl FabricName {
                     ("Z1", "Z10"),
                     ("Z10", "Z7"),
                 ])
-                .prepare_vulcanize(0.5)
+                .prepare_vulcanize(0.5, VulcanizeMode::Linear)
                 .space(Sec(3.0), End, Pct(25.0))
                 .vulcanize(Sec(1.0))
                 .pretense(Sec(1.0))
