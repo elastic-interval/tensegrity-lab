@@ -1,16 +1,119 @@
 use crate::build::dsl::plan_runner::PlanRunner;
-use crate::build::dsl::pretenser::{Pretenser, SymmetricGroup};
 use crate::build::dsl::FabricPlan;
 use crate::build::settler::Settler;
+use crate::fabric::interval::Role;
+use crate::fabric::interval::Span::Approaching;
 use crate::fabric::physics::presets::{CONSTRUCTION, PRETENSING};
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter;
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, IntervalKey};
 use crate::units::Seconds;
 use crate::Radio;
 use crate::SnapshotMoment;
+use std::collections::HashMap;
 
 const SETTLE_SECONDS: Seconds = Seconds(0.2);
+const MIN_STRAIN: f32 = 0.01;
+const MAX_STRAIN: f32 = 0.03;
+const PRETENSE_STEP_SECONDS: Seconds = Seconds(0.01);
+
+#[derive(Clone, Debug)]
+pub struct SymmetricGroup {
+    pub depth: usize,
+    pub axis: u8,
+    pub intervals: Vec<IntervalKey>,
+    pub avg_strain: f32,
+}
+
+impl Fabric {
+    fn discover_symmetric_groups(&self) -> Vec<SymmetricGroup> {
+        let mut by_path_key: HashMap<(usize, u8), Vec<IntervalKey>> = HashMap::new();
+        for (key, interval) in self.intervals.iter() {
+            if interval.has_role(Role::Pushing) {
+                let alpha_joint = &self.joints[interval.alpha_key];
+                let symmetric_key = alpha_joint.path.symmetric_key();
+                by_path_key.entry(symmetric_key).or_default().push(key);
+            }
+        }
+        by_path_key
+            .into_iter()
+            .map(|((depth, axis), intervals)| SymmetricGroup {
+                depth,
+                axis,
+                intervals,
+                avg_strain: 0.0,
+            })
+            .collect()
+    }
+
+    fn update_group_strains(&self, groups: &mut [SymmetricGroup]) {
+        for group in groups {
+            let mut total = 0.0;
+            let mut count = 0;
+            for &key in &group.intervals {
+                if let Some(interval) = self.intervals.get(key) {
+                    total += interval.strain;
+                    count += 1;
+                }
+            }
+            group.avg_strain = if count > 0 { total / count as f32 } else { 0.0 };
+        }
+    }
+
+    /// Find the single group most needing extension.
+    /// Returns the group with highest strain (least compressed) that can safely be extended.
+    fn find_group_needing_extension(&self, groups: &[SymmetricGroup]) -> Option<usize> {
+        let increment = self.dimensions.push_length_increment.map(|m| *m)?;
+
+        let mut best_idx = None;
+        let mut best_strain = f32::NEG_INFINITY;
+
+        for (idx, group) in groups.iter().enumerate() {
+            if group.intervals.is_empty() {
+                continue;
+            }
+            // Group needs extension if not yet at target compression
+            if group.avg_strain <= -MIN_STRAIN {
+                continue;
+            }
+            // Group can be extended if it won't exceed max strain
+            let can_extend = group.intervals.iter().all(|&key| {
+                if let Some(interval) = self.intervals.get(key) {
+                    let current_length = interval.ideal();
+                    let estimated_new_strain = interval.strain - increment / current_length;
+                    estimated_new_strain >= -MAX_STRAIN
+                } else {
+                    false
+                }
+            });
+            if can_extend && group.avg_strain > best_strain {
+                best_strain = group.avg_strain;
+                best_idx = Some(idx);
+            }
+        }
+        best_idx
+    }
+
+    /// Extend a single symmetric group.
+    fn extend_symmetric_group(&mut self, group: &SymmetricGroup) {
+        let increment = match self.dimensions.push_length_increment {
+            Some(m) => *m,
+            None => return,
+        };
+        for &key in &group.intervals {
+            if let Some(interval) = self.intervals.get_mut(key) {
+                let current_length = interval.ideal();
+                let new_length = current_length + increment;
+                interval.span = Approaching {
+                    start_length: current_length,
+                    target_length: new_length,
+                };
+            }
+        }
+        self.progress.start(PRETENSE_STEP_SECONDS);
+    }
+
+}
 
 #[derive(Debug, PartialEq)]
 pub enum IterateResult {
@@ -140,7 +243,6 @@ enum PretenseStage {
 pub struct FabricPlanExecutor {
     stage: ExecutorStage,
     plan_runner: Option<PlanRunner>,
-    pretenser: Option<Pretenser>,
     settler: Option<Settler>,
     pub fabric: Fabric,
     pub physics: Physics,
@@ -174,7 +276,6 @@ impl FabricPlanExecutor {
         let mut executor = Self {
             stage: ExecutorStage::Building,
             plan_runner: Some(plan_runner),
-            pretenser: None,
             settler: None,
             fabric,
             physics,
@@ -505,7 +606,6 @@ impl FabricPlanExecutor {
 
         self.fabric.progress.start(self.plan.fall_phase.seconds);
 
-        self.pretenser = None;
         self.stage = ExecutorStage::Falling;
     }
 
