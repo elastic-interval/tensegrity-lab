@@ -274,15 +274,12 @@ impl Crucible {
         }
 
         // Handle LoadAlgoFabric - loads a pre-built algorithmic fabric directly
-        if let LoadAlgoFabric(mut algo_fabric) = crucible_action {
-            use crate::fabric::physics::presets::PRETENSING;
-            use crate::units::Percent;
-            use crate::units::Seconds;
+        if let LoadAlgoFabric(algo_fabric) = crucible_action {
+            use crate::fabric::physics::presets::VIEWING;
             let name = algo_fabric.name.clone();
-            algo_fabric.set_pretenst(Percent(1.0), Seconds(10.0));
             self.fabric = algo_fabric;
             self.fabric_plan = None; // No DSL plan for algorithmic fabrics
-            self.physics = PRETENSING;
+            self.physics = VIEWING;
             self.stage = Viewing;
 
             // Set fabric name and transition to viewing

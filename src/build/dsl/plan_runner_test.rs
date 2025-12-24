@@ -53,47 +53,47 @@ mod tests {
             Benchmark {
                 age: 6.0,
                 joints: 172,
-                height_mm: 9217.0,
-                radius: 6.132,
+                height_mm: 9366.3,
+                radius: 6.251,
                 ground: 0,
             },
             // PRETENSE phase with holistic pretensing (fabric age ~30-320s)
             Benchmark {
                 age: 35.0,
                 joints: 165,
-                height_mm: 9136.5,
-                radius: 6.130,
+                height_mm: 9288.9,
+                radius: 6.249,
                 ground: 0,
             },
             // Structure settles on ground during PRETENSE due to surface physics
             Benchmark {
                 age: 100.0,
                 joints: 165,
-                height_mm: 9056.2,
-                radius: 7.557,
+                height_mm: 9328.0,
+                radius: 7.128,
                 ground: 3,
             },
             Benchmark {
                 age: 200.0,
                 joints: 165,
-                height_mm: 9056.2,
-                radius: 7.557,
+                height_mm: 9328.0,
+                radius: 7.128,
                 ground: 3,
             },
             // FALL/SETTLE phases (~320-345s)
             Benchmark {
                 age: 325.0,
                 joints: 165,
-                height_mm: 9056.2,
-                radius: 7.557,
+                height_mm: 9328.0,
+                radius: 7.128,
                 ground: 3,
             },
             // CRITICAL: Final state must have 3 ground contacts (Triped's 3 feet)
             Benchmark {
                 age: 345.0,
                 joints: 165,
-                height_mm: 9056.2,
-                radius: 7.557,
+                height_mm: 9328.0,
+                radius: 7.128,
                 ground: 3,
             },
         ]
@@ -484,48 +484,31 @@ mod tests {
             eprintln!("  (depth={}, axis={}) : {} pushes {}", depth, axis, count, sym);
         }
 
-        eprintln!("\n=== PUSH INTERVAL STRAIN ANALYSIS ===");
-        let mut push_strains: Vec<(f32, f32, f32)> = Vec::new(); // (rest_length_mm, target_length_mm, strain%)
+        eprintln!("\n=== PUSH INTERVAL LENGTH ANALYSIS ===");
+        let mut push_lengths: Vec<f32> = Vec::new(); // length in mm
         for interval in executor.fabric.intervals.values() {
             if interval.has_role(Role::Pushing) {
-                if let Span::Pretensing {
-                    rest_length,
-                    target_length,
-                    ..
-                } = interval.span
-                {
-                    let extension = target_length - rest_length;
-                    let strain_pct = (extension / rest_length) * 100.0;
-                    push_strains.push((rest_length * 1000.0, target_length * 1000.0, strain_pct));
+                if let Span::Fixed { length } = interval.span {
+                    push_lengths.push(length * 1000.0);
                 }
             }
         }
-        push_strains.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        push_lengths.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-        if !push_strains.is_empty() {
-            let min_strain = push_strains
+        if !push_lengths.is_empty() {
+            let min_length = push_lengths.iter().fold(f32::INFINITY, |a, &b| a.min(b));
+            let max_length = push_lengths
                 .iter()
-                .map(|x| x.2)
-                .fold(f32::INFINITY, f32::min);
-            let max_strain = push_strains
-                .iter()
-                .map(|x| x.2)
-                .fold(f32::NEG_INFINITY, f32::max);
-            eprintln!("Push intervals: {}", push_strains.len());
-            eprintln!("Strain range: {:.2}% to {:.2}%", min_strain, max_strain);
+                .fold(f32::NEG_INFINITY, |a, &b| a.max(b));
+            eprintln!("Push intervals: {}", push_lengths.len());
+            eprintln!("Length range: {:.0}mm to {:.0}mm", min_length, max_length);
             eprintln!("\nShortest 5:");
-            for (rest, target, strain) in push_strains.iter().take(5) {
-                eprintln!(
-                    "  rest:{:.0}mm → target:{:.0}mm  strain:{:.2}%",
-                    rest, target, strain
-                );
+            for length in push_lengths.iter().take(5) {
+                eprintln!("  {:.0}mm", length);
             }
             eprintln!("\nLongest 5:");
-            for (rest, target, strain) in push_strains.iter().rev().take(5) {
-                eprintln!(
-                    "  rest:{:.0}mm → target:{:.0}mm  strain:{:.2}%",
-                    rest, target, strain
-                );
+            for length in push_lengths.iter().rev().take(5) {
+                eprintln!("  {:.0}mm", length);
             }
         }
 

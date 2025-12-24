@@ -249,12 +249,6 @@ pub enum Span {
     Fixed {
         length: f32,
     },
-    Pretensing {
-        target_length: f32,
-        start_length: f32,
-        rest_length: f32,
-        finished: bool,
-    },
     Approaching {
         target_length: f32,
         start_length: f32,
@@ -273,16 +267,6 @@ impl Span {
         match self {
             Span::Fixed { length } => {
                 *length *= factor;
-            }
-            Span::Pretensing {
-                target_length,
-                start_length,
-                rest_length,
-                ..
-            } => {
-                *target_length *= factor;
-                *start_length *= factor;
-                *rest_length *= factor;
             }
             Span::Approaching {
                 target_length,
@@ -671,10 +655,6 @@ impl Interval {
     pub fn ideal(&self) -> f32 {
         match self.span {
             Fixed { length, .. }
-            | Pretensing {
-                target_length: length,
-                ..
-            }
             | Approaching {
                 target_length: length,
                 ..
@@ -692,19 +672,6 @@ impl Interval {
         }
         let ideal = match self.span {
             Fixed { length } => length,
-            Pretensing {
-                start_length,
-                target_length,
-                finished,
-                ..
-            } => {
-                if finished {
-                    target_length
-                } else {
-                    let completion = progress.completion();
-                    start_length * (1.0 - completion) + target_length * completion
-                }
-            }
             Approaching {
                 start_length,
                 target_length,
