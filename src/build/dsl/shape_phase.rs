@@ -2,6 +2,7 @@ use crate::build::dsl::brick_dsl::BrickName::OmniSymmetrical;
 use crate::build::dsl::brick_dsl::BrickRole::{OnSpinLeft, OnSpinRight};
 use crate::build::dsl::brick_dsl::MarkName;
 use crate::build::dsl::shape_phase::ShapeCommand::*;
+use crate::fabric::vulcanize::VulcanizeMode;
 use crate::build::dsl::{brick_library, FaceMark, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
@@ -53,7 +54,7 @@ pub enum ShapeAction {
         length: f32,
         surface: (f32, f32),
     },
-    PrepareVulcanize { contraction: f32 },
+    PrepareVulcanize { contraction: f32, mode: VulcanizeMode },
     Vulcanize,
     Omit {
         alpha_path: JointPath,
@@ -248,8 +249,8 @@ impl ShapePhase {
                 }
                 StartProgress(seconds)
             }
-            ShapeAction::PrepareVulcanize { contraction } => {
-                fabric.prepare_vulcanize(contraction);
+            ShapeAction::PrepareVulcanize { contraction, mode } => {
+                fabric.prepare_vulcanize(contraction, mode);
                 StartProgress(seconds)
             }
             ShapeAction::Vulcanize => {

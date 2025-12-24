@@ -3,6 +3,7 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
+use crate::fabric::vulcanize::VulcanizeMode;
 use crate::fabric::attachment::{
     calculate_interval_attachment_points, find_nearest_attachment_point, AttachmentPoint,
     PullConnection, PullConnections, PullIntervalData, ATTACHMENT_POINTS,
@@ -258,10 +259,11 @@ pub enum Span {
         target_length: f32,
         start_length: f32,
     },
-    /// Exerts no force; records baseline and contraction for activation.
+    /// Exerts no force; records baseline for activation.
     Measuring {
         baseline: f32,
         contraction: f32,
+        mode: VulcanizeMode,
     },
 }
 

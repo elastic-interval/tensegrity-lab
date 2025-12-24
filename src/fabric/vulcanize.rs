@@ -1,33 +1,7 @@
 //! # Vulcanization: Cross-linking Adjacent Bricks
 //!
-//! Like sulfur cross-links in rubber vulcanization, bow tie cables cross-link
-//! adjacent tensegrity bricks, transforming a flexible spine-like structure
-//! into a rigid unified whole.
-//!
-//! ## Two-Phase Vulcanization (for curve preservation)
-//!
-//! 1. **prepare_vulcanize()**: Before shaping, installs bow ties as "measuring
-//!    tapes" (Span::Measuring) that exert no force but record baseline distances.
-//!
-//! 2. **Shaping**: Forces curve the structure. The measuring bow ties passively
-//!    track how distances change.
-//!
-//! 3. **activate_vulcanize()**: After shaping, activates the bow ties with
-//!    differential contraction based on how much each span changed:
-//!    - Spans that got shorter (inside of curve) → less contraction
-//!    - Spans that got longer (outside of curve) → more contraction
-//!
-//! ## Single-Phase Vulcanization (legacy)
-//!
-//! **vulcanize()**: Adds bow ties directly with uniform contraction. Simpler
-//! but doesn't preserve curves as well during pretensing.
-//!
-//! ## Algorithm Overview
-//!
-//! For each strut, we look for places where adjacent bricks can be cross-linked:
-//!
-//! - **Bridge pattern**: Two bricks share a cable. Add diagonal bow ties.
-//! - **Apex pattern**: Two bricks meet at a common joint. Add bow ties from apex.
+//! Bow tie cables cross-link adjacent tensegrity bricks, transforming a
+//! flexible spine-like structure into a rigid unified whole.
 
 use std::collections::{HashMap, HashSet};
 
@@ -37,10 +11,16 @@ use crate::fabric::interval::Span::Measuring;
 use crate::fabric::interval::{Interval, Role, Span};
 use crate::fabric::{Fabric, IntervalKey, JointKey};
 
-/// Bow ties are created shorter than current distance to pull structure tight.
-/// A value of 0.5 means the bow tie's rest length is 50% of the current
-/// joint-to-joint distance, creating significant tension.
-const BOW_TIE_CONTRACTION: f32 = 0.5;
+/// How the differential ratio affects contraction.
+#[derive(Debug, Clone, Copy)]
+pub enum VulcanizeMode {
+    /// target = current × contraction
+    Constant,
+    /// target = current × contraction × ratio
+    Linear,
+    /// target = current × contraction × ratio²
+    Quadratic,
+}
 
 /// When two paths from opposite ends of a strut meet at the same interval,
 /// we call this a "bridge" meeting - they found a shared cable.
@@ -54,39 +34,49 @@ const APEX_MEETING: usize = 8;
 // Main Entry Point
 // ============================================================================
 
+const DEFAULT_CONTRACTION: f32 = 0.5;
+
 impl Fabric {
     /// Install bow ties as "measuring tapes" before shaping.
-    /// They exert no force but record baseline distances for vulcanize().
-    pub fn prepare_vulcanize(&mut self, contraction: f32) {
+    pub fn prepare_vulcanize(&mut self, contraction: f32, mode: VulcanizeMode) {
         let bow_tie_pairs = BowTieFinder::new(self).find_all_bow_tie_pairs();
-
         for (alpha, omega) in bow_tie_pairs {
             let baseline = self.joints[alpha].location.distance(self.joints[omega].location);
             let key = self.create_interval(alpha, omega, baseline, Role::BowTie);
-            self.intervals[key].span = Measuring { baseline, contraction };
+            self.intervals[key].span = Measuring {
+                baseline,
+                contraction,
+                mode,
+            };
         }
     }
 
-    /// Activate bow ties. If prepare_vulcanize() was called, uses differential
-    /// contraction based on how distances changed during shaping. Otherwise,
-    /// creates new bow ties with uniform contraction.
+    /// Activate bow ties. If prepare_vulcanize was called, activates measuring tapes.
+    /// Otherwise creates new bow ties with default Constant mode.
     pub fn vulcanize(&mut self) {
-        // Check if we have measuring bow ties (prepared mode)
-        let has_measuring = self.intervals.values().any(|i| {
-            i.role == Role::BowTie && matches!(i.span, Measuring { .. })
-        });
+        let has_measuring = self
+            .intervals
+            .values()
+            .any(|i| i.role == Role::BowTie && matches!(i.span, Measuring { .. }));
 
         if has_measuring {
-            // Activate prepared bow ties with differential contraction
             for interval in self.intervals.values_mut() {
                 if interval.role != Role::BowTie {
                     continue;
                 }
-                if let Measuring { baseline, contraction } = interval.span {
+                if let Measuring {
+                    baseline,
+                    contraction,
+                    mode,
+                } = interval.span
+                {
                     let current = interval.fast_length(&self.joints);
-                    let curvature_factor = current / baseline;
-                    let adjusted_contraction = contraction * curvature_factor;
-                    let target_length = current * adjusted_contraction;
+                    let ratio = current / baseline;
+                    let target_length = match mode {
+                        VulcanizeMode::Constant => current * contraction,
+                        VulcanizeMode::Linear => current * contraction * ratio,
+                        VulcanizeMode::Quadratic => current * contraction * ratio * ratio,
+                    };
                     interval.span = Span::Approaching {
                         start_length: current,
                         target_length,
@@ -94,11 +84,10 @@ impl Fabric {
                 }
             }
         } else {
-            // No preparation - create bow ties with uniform contraction
-            let bow_ties = BowTieFinder::new(self).find_all_bow_tie_pairs();
-            for (alpha, omega) in bow_ties {
+            let bow_tie_pairs = BowTieFinder::new(self).find_all_bow_tie_pairs();
+            for (alpha, omega) in bow_tie_pairs {
                 let current = self.joints[alpha].location.distance(self.joints[omega].location);
-                let target_length = current * BOW_TIE_CONTRACTION;
+                let target_length = current * DEFAULT_CONTRACTION;
                 let key = self.create_interval(alpha, omega, current, Role::BowTie);
                 self.intervals[key].span = Span::Approaching {
                     start_length: current,
