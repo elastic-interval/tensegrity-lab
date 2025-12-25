@@ -6,7 +6,7 @@ use std::path::Path;
 use crate::fabric::attachment::HingeBend;
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, FabricDimensions, IntervalEnd, IntervalKey, JointKey};
-use crate::units::MM_PER_METER;
+use crate::units::{Unit, MM_PER_METER};
 
 impl Fabric {
     /// Export fabric intervals to CSV with hinge positions and angles.
@@ -205,11 +205,11 @@ impl Fabric {
             // For each end, calculate ring centers at all slots
             for slot in 1..=3 {
                 // Alpha end
-                let alpha_ring = alpha_pos + (-push_dir) * *dimensions.hinge.disc_thickness * slot as f32;
+                let alpha_ring = alpha_pos + (-push_dir) * dimensions.hinge.disc_thickness.f32() * slot as f32;
                 ring_centers.insert((push_interval.alpha_key, slot), alpha_ring);
 
                 // Omega end
-                let omega_ring = omega_pos + push_dir * *dimensions.hinge.disc_thickness * slot as f32;
+                let omega_ring = omega_pos + push_dir * dimensions.hinge.disc_thickness.f32() * slot as f32;
                 ring_centers.insert((push_interval.omega_key, slot), omega_ring);
             }
         }
@@ -511,7 +511,7 @@ impl Fabric {
             let joint_path = &joint.path;
             for (slot, pull_end_pos, hinge_pos) in &connections {
                 // Ring center at this slot (1x, 2x, 3x ring_thickness)
-                let ring_center = joint_pos + push_axis * *dimensions.hinge.disc_thickness * *slot as f32;
+                let ring_center = joint_pos + push_axis * dimensions.hinge.disc_thickness.f32() * *slot as f32;
 
                 // Axial link: previous position → ring center
                 link_index += 1;
@@ -562,16 +562,16 @@ impl Fabric {
 
 fn write_dimensions_comments(file: &mut File, dims: &FabricDimensions) -> io::Result<()> {
     let h = &dims.hinge;
-    writeln!(file, "# push_radius: {:.5}m", *h.push_radius)?;
-    writeln!(file, "# push_radius_margin: {:.5}m", *h.push_radius_margin)?;
-    writeln!(file, "# disc_thickness: {:.5}m", *h.disc_thickness)?;
-    writeln!(file, "# disc_separator_thickness: {:.5}m", *h.disc_separator_thickness)?;
-    writeln!(file, "# hinge_extension: {:.5}m", *h.hinge_extension)?;
-    writeln!(file, "# hinge_hole_diameter: {:.5}m", *h.hinge_hole_diameter)?;
-    writeln!(file, "# pull_radius: {:.5}m", *dims.pull_radius)?;
+    writeln!(file, "# push_radius: {:.5}m", h.push_radius.f32())?;
+    writeln!(file, "# push_radius_margin: {:.5}m", h.push_radius_margin.f32())?;
+    writeln!(file, "# disc_thickness: {:.5}m", h.disc_thickness.f32())?;
+    writeln!(file, "# disc_separator_thickness: {:.5}m", h.disc_separator_thickness.f32())?;
+    writeln!(file, "# hinge_extension: {:.5}m", h.hinge_extension.f32())?;
+    writeln!(file, "# hinge_hole_diameter: {:.5}m", h.hinge_hole_diameter.f32())?;
+    writeln!(file, "# pull_radius: {:.5}m", dims.pull_radius.f32())?;
     writeln!(file, "#")?;
     // Derived values
-    writeln!(file, "# hinge_offset: {:.5}m", *dims.hinge.offset())?;
-    writeln!(file, "# hinge_length: {:.5}m", *dims.hinge.length())?;
+    writeln!(file, "# hinge_offset: {:.5}m", dims.hinge.offset().f32())?;
+    writeln!(file, "# hinge_length: {:.5}m", dims.hinge.length().f32())?;
     Ok(())
 }

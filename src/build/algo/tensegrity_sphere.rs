@@ -3,6 +3,7 @@ use cgmath::{EuclideanSpace, InnerSpace, Point3, Quaternion, Rad, Rotation3, Vec
 use crate::build::algo::sphere::{SphereScaffold, Vertex};
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, JointKey};
+use crate::units::Meters;
 
 const TWIST_ANGLE: f32 = 0.52;
 
@@ -31,7 +32,7 @@ enum Cell {
         omega_vertex: usize,
         alpha: JointKey,
         omega: JointKey,
-        length: f32,
+        length: Meters,
     },
 }
 
@@ -39,7 +40,7 @@ enum Cell {
 struct Spoke {
     far_vertex: usize,
     near_joint: JointKey,
-    length: f32,
+    length: Meters,
 }
 
 pub fn generate_sphere(frequency: usize, radius: f32) -> Fabric {
@@ -71,7 +72,7 @@ pub fn generate_sphere(frequency: usize, radius: f32) -> Fabric {
                             let omega = ts
                                 .fabric
                                 .create_joint(Point3::from_vec(quaternion * omega_base));
-                            let length = (omega_base - alpha_base).magnitude();
+                            let length = Meters((omega_base - alpha_base).magnitude());
                             ts.fabric
                                 .create_fixed_interval(alpha, omega, Role::Pushing, length);
                             PushInterval {
@@ -168,6 +169,7 @@ pub fn generate_sphere(frequency: usize, radius: f32) -> Fabric {
 mod tests {
     use super::*;
     use crate::fabric::interval::Role;
+    use crate::units::Unit;
 
     #[test]
     fn test_generate_sphere_frequency_1() {
@@ -250,7 +252,7 @@ mod tests {
                 "Omega joint key should be valid"
             );
             assert!(
-                interval.ideal() > 0.0,
+                interval.ideal().f32() > 0.0,
                 "Interval should have positive ideal length"
             );
         }

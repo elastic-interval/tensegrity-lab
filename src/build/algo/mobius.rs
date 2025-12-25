@@ -5,6 +5,7 @@ use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 use crate::fabric::interval::Role;
 use crate::fabric::joint_path::JointPath;
 use crate::fabric::{Fabric, JointKey};
+use crate::units::Meters;
 
 /// Generate a tensegrity Möbius band.
 ///
@@ -51,9 +52,9 @@ pub fn generate_mobius(segments: usize) -> Fabric {
 
     // Consistent interval lengths - should roughly match geometry
     // Based on test output: edge~2.1, width~2.3, diagonal~3.8
-    let push_length = 4.0; // Diagonal struts (slightly longer to push)
-    let pull_edge = 2.0; // Along the band edge (offset 0 to 2)
-    let pull_width = 2.2; // Across the band width (offset 0 to 1)
+    let push_length = Meters(4.0); // Diagonal struts (slightly longer to push)
+    let pull_edge = Meters(2.0); // Along the band edge (offset 0 to 2)
+    let pull_width = Meters(2.2); // Across the band width (offset 0 to 1)
 
     // Create intervals with overlapping pattern (matching original TS pattern)
     // joint(offset) = (jointIndex * 2 + offset) % joint_count
@@ -76,6 +77,7 @@ mod tests {
     use super::*;
     use crate::fabric::interval::Role;
     use crate::fabric::physics::presets::PRETENSING;
+    use crate::units::Unit;
 
     #[test]
     fn test_generate_mobius() {
@@ -122,7 +124,7 @@ mod tests {
                 + (omega.location.y - alpha.location.y).powi(2)
                 + (omega.location.z - alpha.location.z).powi(2))
             .sqrt();
-            let ideal = interval.ideal();
+            let ideal = interval.ideal().f32();
             let strain = (actual - ideal) / ideal * 100.0;
             println!(
                 "Interval {}: {:?} actual={:.3} ideal={:.3} strain={:.1}%",
@@ -168,7 +170,7 @@ mod tests {
                 "Omega joint key should be valid"
             );
             assert!(
-                interval.ideal() > 0.0,
+                interval.ideal().f32() > 0.0,
                 "Interval should have positive ideal length"
             );
         }

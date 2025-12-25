@@ -9,7 +9,7 @@ use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Role;
 use crate::fabric::joint_path::JointPath;
 use crate::fabric::{Fabric, FaceKey, IntervalKey, JointKey};
-use crate::units::{Meters, Percent, Seconds};
+use crate::units::{Meters, Percent, Seconds, Unit};
 use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};
 use std::cmp::Ordering;
 
@@ -111,7 +111,7 @@ impl ShapePhase {
                 match face_keys.len() {
                     2 => {
                         let interval =
-                            fabric.create_approaching_interval(joints[0], joints[1], 0.01, Role::Pulling, seconds);
+                            fabric.create_approaching_interval(joints[0], joints[1], Meters(0.01), Role::Pulling, seconds);
                         self.joiners.push(Joiner {
                             interval,
                             alpha_face: face_keys[0],
@@ -202,7 +202,7 @@ impl ShapePhase {
                         );
                         for (near_face_key, near_joint, far_face_key, far_joint) in shapers {
                             let interval =
-                                fabric.create_approaching_interval(near_joint, far_joint, 0.01, Role::Pulling, seconds);
+                                fabric.create_approaching_interval(near_joint, far_joint, Meters(0.01), Role::Pulling, seconds);
                             self.joiners.push(Joiner {
                                 interval,
                                 alpha_face: near_face_key,
@@ -241,7 +241,7 @@ impl ShapePhase {
                         let omega_key = joints[omega];
                         let alpha_pt = fabric.joints[alpha_key].location;
                         let omega_pt = fabric.joints[omega_key].location;
-                        let length = alpha_pt.distance(omega_pt) * distance.as_factor();
+                        let length = Meters(alpha_pt.distance(omega_pt) * distance.as_factor());
                         let interval =
                             fabric.create_approaching_interval(alpha_key, omega_key, length, Role::Pulling, seconds);
                         self.spacers.push(interval);
@@ -292,7 +292,7 @@ impl ShapePhase {
                 if let Some(joint_key) = fabric.joint_key_by_path(&joint_path) {
                     let (x, z) = surface;
                     let base = fabric.create_joint(Point3::new(x, 0.0, z));
-                    let interval_key = fabric.create_approaching_interval(joint_key, base, 0.01, Role::Support, seconds);
+                    let interval_key = fabric.create_approaching_interval(joint_key, base, Meters(0.01), Role::Support, seconds);
                     self.anchors.push(interval_key);
                 }
                 StartProgress(seconds)
@@ -305,7 +305,7 @@ impl ShapePhase {
                 if let Some(joint_key) = fabric.joint_key_by_path(&joint_path) {
                     let (x, z) = surface;
                     let base = fabric.create_joint(Point3::new(x, 0.0, z));
-                    fabric.create_approaching_interval(joint_key, base, length, Role::Support, seconds);
+                    fabric.create_approaching_interval(joint_key, base, Meters(length), Role::Support, seconds);
                 }
                 StartProgress(seconds)
             }
@@ -316,7 +316,7 @@ impl ShapePhase {
             }
             ShapeAction::CentralizeAt { altitude } => {
                 // Convert altitude to internal units: altitude / scale (both in meters)
-                let internal_altitude = *altitude / *self.scale;
+                let internal_altitude = altitude.f32() / self.scale.f32();
                 let translation = fabric.centralize_translation(Some(internal_altitude));
                 fabric.apply_translation(translation);
                 StartProgress(seconds)

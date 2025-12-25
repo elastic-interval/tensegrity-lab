@@ -4,7 +4,7 @@
  */
 
 use crate::fabric::{FabricDimensions, IntervalEnd, IntervalKey, JointKey, Joints};
-use crate::units::Degrees;
+use crate::units::{Degrees, Unit};
 use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
 
 /// Number of attachment points at each end of a push interval
@@ -552,7 +552,7 @@ pub fn generate_attachment_points(
     // Each point represents the center of a ring at that slot
     for i in 0..ATTACHMENT_POINTS {
         // Ring center is at slot index * disc_thickness + half disc thickness
-        let distance = *dimensions.hinge.disc_thickness * (i as f32 + 0.5);
+        let distance = dimensions.hinge.disc_thickness.f32() * (i as f32 + 0.5);
 
         // Calculate offset vector
         let offset = axis * distance;

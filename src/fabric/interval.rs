@@ -16,7 +16,7 @@ use crate::fabric::physics::Physics;
 use crate::fabric::vulcanize::VulcanizeMode;
 use crate::fabric::FabricDimensions;
 use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointKey, Joints};
-use crate::units::{Meters, NewtonsPerMeter, Percent, Seconds};
+use crate::units::{Meters, NewtonsPerMeter, Percent, Seconds, Unit};
 use crate::Age;
 use crate::Appearance;
 use cgmath::num_traits::zero;
@@ -150,7 +150,7 @@ impl Fabric {
         &mut self,
         alpha_key: JointKey,
         omega_key: JointKey,
-        target_length: f32,
+        target_length: Meters,
         role: Role,
         duration: Seconds,
     ) -> IntervalKey {
@@ -170,7 +170,7 @@ impl Fabric {
     }
 
     /// Extend an existing interval to a new target length
-    pub fn extend_interval(&mut self, key: IntervalKey, target_length: f32, duration: Seconds) {
+    pub fn extend_interval(&mut self, key: IntervalKey, target_length: Meters, duration: Seconds) {
         if let Some(interval) = self.intervals.get_mut(key) {
             let current_length = interval.ideal();
             interval.span = Approaching {
@@ -189,7 +189,7 @@ impl Fabric {
         alpha_key: JointKey,
         omega_key: JointKey,
         role: Role,
-        length: f32,
+        length: Meters,
     ) -> IntervalKey {
         self.create_interval(alpha_key, omega_key, role, Fixed { length })
     }
@@ -203,7 +203,7 @@ impl Fabric {
         strain: f32,
     ) -> IntervalKey {
         let distance = self.distance(alpha_key, omega_key);
-        let length = distance / (1.0 + strain * distance);
+        let length = Meters(distance.f32() / (1.0 + strain * distance.f32()));
         self.create_fixed_interval(alpha_key, omega_key, role, length)
     }
 
@@ -316,16 +316,16 @@ impl Fabric {
 #[derive(Clone, Copy, Debug)]
 pub enum Span {
     Fixed {
-        length: f32,
+        length: Meters,
     },
     Approaching {
-        start_length: f32,
-        target_length: f32,
+        start_length: Meters,
+        target_length: Meters,
         start_age: Age,
         duration: Seconds,
     },
     Measuring {
-        baseline: f32,
+        baseline: Meters,
         contraction: f32,
         mode: VulcanizeMode,
     },
@@ -335,19 +335,29 @@ impl Span {
     pub fn scale(&mut self, factor: f32) {
         match self {
             Span::Fixed { length } => {
-                *length *= factor;
+                *length = *length * factor;
             }
             Span::Approaching {
                 start_length,
                 target_length,
                 ..
             } => {
-                *start_length *= factor;
-                *target_length *= factor;
+                *start_length = *start_length * factor;
+                *target_length = *target_length * factor;
             }
             Span::Measuring { baseline, .. } => {
-                *baseline *= factor;
+                *baseline = *baseline * factor;
             }
+        }
+    }
+}
+
+impl Unit for Span {
+    fn f32(self) -> f32 {
+        match self {
+            Span::Fixed { length } => length.f32(),
+            Span::Approaching { target_length, .. } => target_length.f32(),
+            Span::Measuring { baseline, .. } => baseline.f32(),
         }
     }
 }
@@ -728,7 +738,7 @@ impl Interval {
         magnitude_squared.sqrt()
     }
 
-    pub fn ideal(&self) -> f32 {
+    pub fn ideal(&self) -> Meters {
         match self.span {
             Fixed { length, .. }
             | Approaching {
@@ -763,36 +773,33 @@ impl Interval {
                     transition = SpanTransition::ApproachCompleted;
                     target_length
                 } else {
-                    start_length * (1.0 - completion) + target_length * completion
+                    Meters(start_length.f32() * (1.0 - completion) + target_length.f32() * completion)
                 }
             }
             Measuring { .. } => unreachable!(),
         };
         let real_length = self.fast_length(joints);
+        let actual_length = Meters(real_length);
 
         // Check if interval is slack (push stretched or pull compressed)
-        let is_slack = (self.is_push_interval() && real_length > ideal)
-            || (self.is_pull_interval() && real_length < ideal);
+        let is_slack = (self.is_push_interval() && real_length > ideal.f32())
+            || (self.is_pull_interval() && real_length < ideal.f32());
 
         // Calculate strain (dimensionless)
         self.strain = if is_slack {
             0.0
         } else {
-            (real_length - ideal) / ideal
+            (real_length - ideal.f32()) / ideal.f32()
         };
-
-        // ideal and real_length are already in meters
-        let ideal_length = Meters(ideal);
-        let actual_length = Meters(real_length);
 
         // Force: F = k × ΔL where ΔL = strain × L₀
         // Spring constant scales with 1/L for proper physics
         // Stiffness percentage allows softer intervals (e.g., actuators at 10%)
-        let k = self.material.spring_constant(ideal_length, physics);
-        let k_adjusted = NewtonsPerMeter(*k * self.stiffness.as_factor());
-        let extension = Meters(self.strain * ideal);
-        let force = k_adjusted * extension; // (N/m) × m = N
-        let force_vector: Vector3<f32> = self.unit * *force / 2.0;
+        let k = self.material.spring_constant(ideal, physics);
+        let k_adjusted = NewtonsPerMeter(k.f32() * self.stiffness.as_factor());
+        let extension = Meters(self.strain * ideal.f32());
+        let force = k_adjusted * extension;
+        let force_vector: Vector3<f32> = self.unit * force.f32() / 2.0;
 
         // Apply forces to both ends
         let alpha_key = self.end_key(IntervalEnd::Alpha);

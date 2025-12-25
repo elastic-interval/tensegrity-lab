@@ -7,7 +7,7 @@ use crate::fabric::physics::presets::{CONSTRUCTION, PRETENSING};
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::fabric::{Fabric, IntervalKey};
-use crate::units::Seconds;
+use crate::units::{Seconds, Unit};
 use crate::Radio;
 use crate::SnapshotMoment;
 use std::collections::HashMap;
@@ -63,7 +63,7 @@ impl Fabric {
         min_push_strain: f32,
         max_push_strain: f32,
     ) -> Option<usize> {
-        let increment = self.dimensions.push_length_increment.map(|m| *m)?;
+        let increment = self.dimensions.push_length_increment?;
 
         let mut best_idx = None;
         let mut best_strain = f32::NEG_INFINITY;
@@ -97,7 +97,7 @@ impl Fabric {
     /// Extend a single symmetric group.
     fn extend_symmetric_group(&mut self, group: &SymmetricGroup, duration: Seconds) {
         let increment = match self.dimensions.push_length_increment {
-            Some(m) => *m,
+            Some(m) => m,
             None => return,
         };
         for &key in &group.intervals {
@@ -486,12 +486,12 @@ impl FabricPlanExecutor {
         // After this, all coordinates and lengths are in meters directly
         if let Some(plan_runner) = &self.plan_runner {
             let scale = plan_runner.get_scale();
-            self.stored_scale = *scale;
+            self.stored_scale = scale.f32();
             self.fabric.apply_scale(scale);
 
             // Scale rigidity to maintain similar dynamics at different scales
             // Empirically tuned: scale^1.5 balances stability and structural integrity
-            let scale_factor = *scale;
+            let scale_factor = scale.f32();
             rigidity_multiplier *= scale_factor.powf(1.5);
         }
 

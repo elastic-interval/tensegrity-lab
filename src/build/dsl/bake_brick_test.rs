@@ -4,6 +4,7 @@ mod tests {
     use crate::build::dsl::brick_library::get_prototype;
     use crate::fabric::interval::Role;
     use crate::fabric::physics::presets::BAKING;
+    use crate::units::Unit;
     use cgmath::MetricSpace;
     use strum::IntoEnumIterator;
 
@@ -90,7 +91,7 @@ mod tests {
             let alpha = fabric.joints[int.alpha_key].location;
             let omega = fabric.joints[int.omega_key].location;
             let actual = alpha.distance(omega);
-            let diff_pct = ((actual - int.ideal()) / int.ideal() * 100.0).abs();
+            let diff_pct = ((actual - int.ideal().f32()) / int.ideal().f32() * 100.0).abs();
             eprintln!(
                 "  [{i}] {:?} ideal={:.4} actual={:.4} diff={:.1}%",
                 int.role,

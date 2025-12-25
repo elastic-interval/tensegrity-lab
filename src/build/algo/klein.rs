@@ -3,6 +3,7 @@ use rand::prelude::*;
 
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, IntervalKey, JointKey};
+use crate::units::Meters;
 
 struct KleinFabric {
     fabric: Fabric,
@@ -33,13 +34,13 @@ impl KleinFabric {
     fn push(&mut self, alpha: isize, omega: isize) -> IntervalKey {
         let alpha_key = self.joint_keys[alpha as usize];
         let omega_key = self.joint_keys[omega as usize];
-        self.fabric.create_fixed_interval(alpha_key, omega_key, Role::Pushing, 8.0)
+        self.fabric.create_fixed_interval(alpha_key, omega_key, Role::Pushing, Meters(8.0))
     }
 
     fn pull(&mut self, alpha: isize, omega: isize) -> IntervalKey {
         let alpha_key = self.joint_keys[alpha as usize];
         let omega_key = self.joint_keys[omega as usize];
-        self.fabric.create_fixed_interval(alpha_key, omega_key, Role::Pulling, 1.0)
+        self.fabric.create_fixed_interval(alpha_key, omega_key, Role::Pulling, Meters(1.0))
     }
 
     fn coord(&mut self) -> f32 {

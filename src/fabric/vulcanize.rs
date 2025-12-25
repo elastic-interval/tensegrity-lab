@@ -8,6 +8,7 @@ use std::collections::{HashMap, HashSet};
 use crate::fabric::interval::Span::Measuring;
 use crate::fabric::interval::{Interval, Role, Span};
 use crate::fabric::{Fabric, IntervalKey, JointKey};
+use crate::units::Meters;
 use crate::units::Seconds;
 
 const VULCANIZE_DURATION: Seconds = Seconds(1.0);
@@ -66,12 +67,12 @@ impl Fabric {
                     mode,
                 } = interval.span
                 {
-                    let current = interval.fast_length(&self.joints);
+                    let current = Meters(interval.fast_length(&self.joints));
                     let ratio = current / baseline;
                     let target_length = match mode {
                         VulcanizeMode::Constant => current * contraction,
-                        VulcanizeMode::Linear => current * contraction * ratio,
-                        VulcanizeMode::Quadratic => current * contraction * ratio * ratio,
+                        VulcanizeMode::Linear => current * (contraction * ratio),
+                        VulcanizeMode::Quadratic => current * (contraction * ratio * ratio),
                     };
                     interval.span = Span::Approaching {
                         start_length: current,

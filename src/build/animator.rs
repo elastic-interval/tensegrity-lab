@@ -2,7 +2,7 @@ use crate::build::dsl::animate_phase::{Actuator, ActuatorAttachment, AnimatePhas
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::interval::{Role, Span};
 use crate::fabric::{IntervalKey, JointKey};
-use crate::units::Percent;
+use crate::units::{Meters, Percent};
 use crate::ITERATION_DURATION;
 use cgmath::Point3;
 use std::f32::consts::PI;
@@ -55,8 +55,8 @@ impl Oscillator {
 
 struct ActuatorInterval {
     id: IntervalKey,
-    rest_length: f32,
-    contracted_length: f32,
+    rest_length: Meters,
+    contracted_length: Meters,
     phase_offset: f32,
     anchor_joint: Option<JointKey>,
 }

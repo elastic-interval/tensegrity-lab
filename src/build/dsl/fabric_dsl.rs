@@ -7,7 +7,7 @@ use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::shape_phase::{ShapeAction, ShapeStep};
 use crate::fabric::joint_path::JointPath;
 use crate::fabric::physics::SurfaceCharacter;
-use crate::units::{Meters, Percent, Seconds};
+use crate::units::{Meters, Percent, Seconds, Unit};
 
 pub use crate::build::dsl::animate_phase::{phase, Actuator, Waveform};
 pub use crate::build::dsl::brick_dsl::{
@@ -133,7 +133,7 @@ impl FabricBuilder {
             name: self.name,
             build_phase: BuildPhase::new(
                 self.build.expect("build phase required"),
-                *dims.altitude / *dims.scale,
+                dims.altitude.f32() / dims.scale.f32(),
             ),
             shape_phase: crate::build::dsl::shape_phase::ShapePhase {
                 steps: self.shape,
