@@ -73,7 +73,7 @@ impl FabricName {
                 .fall(Sec(2.0))
                 .settle(Sec(3.0))
                 .animate()
-                .period(Sec(0.847))
+                .period(Sec(0.4))
                 .amplitude(Pct(1.0))
                 .stiffness(Pct(20.0))
                 .sine()
