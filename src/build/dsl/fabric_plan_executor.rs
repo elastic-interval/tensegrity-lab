@@ -3,7 +3,6 @@ use crate::build::dsl::pretense_phase::{DEFAULT_MAX_PUSH_STRAIN, DEFAULT_MIN_PUS
 use crate::build::dsl::FabricPlan;
 use crate::build::settler::Settler;
 use crate::fabric::interval::Role;
-use crate::fabric::interval::Span::Approaching;
 use crate::fabric::physics::presets::{CONSTRUCTION, PRETENSING};
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter;
@@ -105,16 +104,11 @@ impl Fabric {
             None => return,
         };
         for &key in &group.intervals {
-            if let Some(interval) = self.intervals.get_mut(key) {
-                let current_length = interval.ideal();
-                let new_length = current_length + increment;
-                interval.span = Approaching {
-                    start_length: current_length,
-                    target_length: new_length,
-                };
+            if let Some(interval) = self.intervals.get(key) {
+                let new_length = interval.ideal() + increment;
+                self.extend_interval(key, new_length, PRETENSE_STEP_SECONDS);
             }
         }
-        self.progress.start(PRETENSE_STEP_SECONDS);
     }
 
 }
@@ -259,6 +253,8 @@ pub struct FabricPlanExecutor {
     pretense_stage: PretenseStage,
     symmetric_groups: Vec<SymmetricGroup>,
     settle_started_at: Option<crate::Age>,
+    fall_start_age: Option<crate::Age>,
+    settle_phase_start_age: Option<crate::Age>,
 }
 
 impl FabricPlanExecutor {
@@ -292,6 +288,8 @@ impl FabricPlanExecutor {
             pretense_stage: PretenseStage::Settling,
             symmetric_groups: Vec::new(),
             settle_started_at: None,
+            fall_start_age: None,
+            settle_phase_start_age: None,
         };
 
         executor.log_event(ExecutionEvent::Started { iteration: 0 });
@@ -431,14 +429,18 @@ impl FabricPlanExecutor {
                     }
                 }
                 PretenseStage::Extending => {
-                    if !self.fabric.progress.is_busy() {
+                    if !self.fabric.has_approaching_intervals() {
                         self.settle_started_at = None;
                         self.pretense_stage = PretenseStage::Settling;
                     }
                 }
             },
             ExecutorStage::Falling => {
-                if !self.fabric.progress.is_busy() {
+                let fall_done = self.fall_start_age.map_or(false, |start| {
+                    let elapsed = self.fabric.age.elapsed_since(start);
+                    elapsed >= self.plan.fall_phase.seconds
+                });
+                if fall_done {
                     if self.plan.settle_phase.is_some() {
                         self.transition_to_settle();
                     } else {
@@ -447,10 +449,17 @@ impl FabricPlanExecutor {
                 }
             }
             ExecutorStage::Settling => {
-                let progress = self.fabric.progress.completion();
-                self.physics.update_settling_multipliers(progress);
-                if !self.fabric.progress.is_busy() {
-                    self.complete();
+                if let Some(settle_phase) = &self.plan.settle_phase {
+                    let duration_secs = settle_phase.seconds.0;
+                    let (progress, done) = self.settle_phase_start_age.map_or((0.0, false), |start| {
+                        let elapsed = self.fabric.age.elapsed_since(start);
+                        let completion = (elapsed.0 / duration_secs).min(1.0);
+                        (completion, completion >= 1.0)
+                    });
+                    self.physics.update_settling_multipliers(progress);
+                    if done {
+                        self.complete();
+                    }
                 }
             }
             ExecutorStage::Complete => {}
@@ -619,7 +628,7 @@ impl FabricPlanExecutor {
             description: "FALLING".to_string(),
         });
 
-        self.fabric.progress.start(self.plan.fall_phase.seconds);
+        self.fall_start_age = Some(self.fabric.age);
 
         self.stage = ExecutorStage::Falling;
     }
@@ -650,9 +659,7 @@ impl FabricPlanExecutor {
             description: "SETTLING".to_string(),
         });
 
-        if let Some(settle_phase) = &self.plan.settle_phase {
-            self.fabric.progress.start(settle_phase.seconds);
-        }
+        self.settle_phase_start_age = Some(self.fabric.age);
         self.stage = ExecutorStage::Settling;
     }
 
@@ -677,6 +684,30 @@ impl FabricPlanExecutor {
 
     pub fn stage(&self) -> &ExecutorStage {
         &self.stage
+    }
+
+    /// Returns countdown string for current phase (Falling or Settling)
+    pub fn phase_countdown(&self) -> String {
+        let (start_age, duration) = match self.stage {
+            ExecutorStage::Falling => (self.fall_start_age, self.plan.fall_phase.seconds),
+            ExecutorStage::Settling => {
+                let duration = self
+                    .plan
+                    .settle_phase
+                    .as_ref()
+                    .map(|p| p.seconds)
+                    .unwrap_or(Seconds(0.0));
+                (self.settle_phase_start_age, duration)
+            }
+            _ => return String::new(),
+        };
+        if let Some(start) = start_age {
+            let elapsed = self.fabric.age.elapsed_since(start);
+            let remaining = (duration.0 - elapsed.0).max(0.0);
+            format!("{:.1}s", remaining)
+        } else {
+            format!("{:.1}s", duration.0)
+        }
     }
 
     /// Returns a status string for pretensing progress

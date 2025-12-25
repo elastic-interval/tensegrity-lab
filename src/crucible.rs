@@ -154,10 +154,10 @@ impl Crucible {
                 ExecutorStage::Building => "Building".to_string(),
                 ExecutorStage::Pretensing => "Pretensing".to_string(),
                 ExecutorStage::Falling => {
-                    format!("Falling {}", self.fabric.progress.countdown())
+                    format!("Falling {}", executor.phase_countdown())
                 }
                 ExecutorStage::Settling => {
-                    format!("Settling {}", self.fabric.progress.countdown())
+                    format!("Settling {}", executor.phase_countdown())
                 }
                 ExecutorStage::Complete => "Complete".to_string(),
             };

@@ -83,7 +83,7 @@ impl Fabric {
             .unwrap();
         let ideal = (alpha.scale + omega.scale) / 2.0;
         for (a, b) in links {
-            self.create_interval(alpha_rotated[a], omega_ends[b], ideal, Role::Circumference);
+            self.create_fixed_interval(alpha_rotated[a], omega_ends[b], Role::Circumference, ideal);
         }
         self.remove_face(alpha_key);
         self.remove_face(omega_key);
@@ -94,11 +94,11 @@ impl Fabric {
         let side_length = face.scale * ROOT3;
         let radial_joints = face.radial_joints(self);
         for (alpha, omega) in [(0, 1), (1, 2), (2, 0)] {
-            self.create_interval(
+            self.create_fixed_interval(
                 radial_joints[alpha],
                 radial_joints[omega],
-                side_length,
                 Role::Pulling,
+                side_length,
             );
         }
     }
@@ -135,12 +135,12 @@ impl Fabric {
             omega_path,
         );
 
-        self.create_interval(alpha, omega, push_length, Role::Pushing);
+        self.create_fixed_interval(alpha, omega, Role::Pushing, push_length);
 
         // Connect prism push joints to radials
         for radial in radial_joints {
-            self.create_interval(alpha, radial, pull_length, Role::PrismPull);
-            self.create_interval(omega, radial, pull_length, Role::PrismPull);
+            self.create_fixed_interval(alpha, radial, Role::PrismPull, pull_length);
+            self.create_fixed_interval(omega, radial, Role::PrismPull, pull_length);
         }
         // Mark the face as having a prism
         if let Some(face) = self.faces.get_mut(face_key) {

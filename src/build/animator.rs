@@ -103,32 +103,22 @@ impl Animator {
         contraction_factor: f32,
         stiffness: Percent,
     ) -> Vec<ActuatorInterval> {
+        let fabric = &mut context.fabric;
         let mut result = Vec::new();
 
         for actuator in actuators {
             let phase_offset = actuator.phase_offset.as_factor();
             match &actuator.attachment {
                 ActuatorAttachment::Between { joint_a, joint_b } => {
-                    // Resolve DSL joint paths to JointKeys
-                    let Some(alpha_key) = context.fabric.joint_key_by_path(joint_a) else {
+                    let Some(alpha_key) = fabric.joint_key_by_path(joint_a) else {
                         continue;
                     };
-                    let Some(omega_key) = context.fabric.joint_key_by_path(joint_b) else {
+                    let Some(omega_key) = fabric.joint_key_by_path(joint_b) else {
                         continue;
                     };
-                    let rest_length = context.fabric.distance(alpha_key, omega_key);
-                    let id = context.fabric.create_interval(
-                        alpha_key,
-                        omega_key,
-                        rest_length,
-                        Role::Pulling,
-                    );
-                    // Start slack: set span to Fixed at current distance
-                    // Set stiffness to reduce jiggling with rapid waveforms
-                    if let Some(interval) = context.fabric.intervals.get_mut(id) {
-                        interval.span = Span::Fixed {
-                            length: rest_length,
-                        };
+                    let rest_length = fabric.distance(alpha_key, omega_key);
+                    let id = fabric.create_slack_interval(alpha_key, omega_key, Role::Pulling);
+                    if let Some(interval) = fabric.intervals.get_mut(id) {
                         interval.stiffness = stiffness;
                     }
                     result.push(ActuatorInterval {
@@ -140,32 +130,16 @@ impl Animator {
                     });
                 }
                 ActuatorAttachment::ToSurface { joint, point } => {
-                    // Resolve DSL joint path to JointKey
-                    let Some(joint_key) = context.fabric.joint_key_by_path(joint) else {
+                    let Some(joint_key) = fabric.joint_key_by_path(joint) else {
                         continue;
                     };
-                    // Create anchor joint at surface position (x, 0, z)
                     let anchor_point = Point3::new(point.0, 0.0, point.1);
-                    let anchor_key = context.fabric.create_joint(anchor_point);
-
-                    // Create actuator interval from fabric joint to anchor
-                    let rest_length = context.fabric.distance(joint_key, anchor_key);
-                    let id = context.fabric.create_interval(
-                        joint_key,
-                        anchor_key,
-                        rest_length,
-                        Role::Pulling,
-                    );
-
-                    // Start slack: set span to Fixed at current distance
-                    // Set stiffness to reduce jiggling with rapid waveforms
-                    if let Some(interval) = context.fabric.intervals.get_mut(id) {
-                        interval.span = Span::Fixed {
-                            length: rest_length,
-                        };
+                    let anchor_key = fabric.create_joint(anchor_point);
+                    let rest_length = fabric.distance(joint_key, anchor_key);
+                    let id = fabric.create_slack_interval(joint_key, anchor_key, Role::Pulling);
+                    if let Some(interval) = fabric.intervals.get_mut(id) {
                         interval.stiffness = stiffness;
                     }
-
                     result.push(ActuatorInterval {
                         id,
                         rest_length,

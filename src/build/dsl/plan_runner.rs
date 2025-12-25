@@ -7,8 +7,8 @@ use crate::build::dsl::FabricPlan;
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::CONSTRUCTION;
 use crate::fabric::physics::Physics;
-use crate::units::{Meters, IMMEDIATE, MOMENT};
-use crate::{LabEvent, StateChange};
+use crate::units::{Meters, Seconds, IMMEDIATE, MOMENT};
+use crate::{Age, LabEvent, StateChange};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Clone, Debug, Copy, PartialEq)]
@@ -29,6 +29,8 @@ pub struct PlanRunner {
     pretense_phase: PretensePhase,
     disabled: Option<String>,
     scale: Meters,
+    stage_start_age: Option<Age>,
+    stage_duration: Seconds,
 }
 
 impl PlanRunner {
@@ -49,6 +51,8 @@ impl PlanRunner {
             scale: dimensions.scale,
             stage: Initialize,
             disabled: None,
+            stage_start_age: None,
+            stage_duration: IMMEDIATE,
         }
     }
 
@@ -56,9 +60,17 @@ impl PlanRunner {
         *context.physics = self.physics.clone();
     }
 
+    /// Check if stage duration elapsed
+    fn stage_elapsed(&self, current_age: Age) -> bool {
+        self.stage_start_age.map_or(true, |start| {
+            let elapsed = current_age.elapsed_since(start);
+            elapsed >= self.stage_duration
+        })
+    }
+
     /// Simplified version for use with PlanContext (no events)
     pub fn check_and_advance_stage_simple(&mut self, context: &mut PlanContext) -> bool {
-        if !context.fabric.progress.is_busy() && self.disabled.is_none() {
+        if self.stage_elapsed(context.fabric.age) && self.disabled.is_none() {
             let (next_stage, seconds) = match self.stage {
                 Initialize => {
                     self.build_phase.init(context.fabric);
@@ -72,7 +84,6 @@ impl PlanRunner {
                         self.shape_phase.marks = self.build_phase.marks.split_off(0);
                         (Shaping, IMMEDIATE)
                     } else {
-                        // Build complete - transition immediately so executor can start PRETENSE phase
                         (Completed, IMMEDIATE)
                     }
                 }
@@ -88,7 +99,8 @@ impl PlanRunner {
             };
 
             let stage_changed = self.stage != next_stage;
-            context.fabric.progress.start(seconds);
+            self.stage_start_age = Some(context.fabric.age);
+            self.stage_duration = seconds;
             self.stage = next_stage;
             stage_changed
         } else {
@@ -100,7 +112,7 @@ impl PlanRunner {
     /// This should be called AFTER running one fabric iteration.
     /// Returns true if a stage transition occurred.
     pub fn check_and_advance_stage(&mut self, context: &mut CrucibleContext) -> bool {
-        if !context.fabric.progress.is_busy() && self.disabled.is_none() {
+        if self.stage_elapsed(context.fabric.age) && self.disabled.is_none() {
             let (next_stage, seconds) = match self.stage {
                 Initialize => {
                     self.build_phase.init(context.fabric);
@@ -132,7 +144,8 @@ impl PlanRunner {
             };
 
             let stage_changed = self.stage != next_stage;
-            context.fabric.progress.start(seconds);
+            self.stage_start_age = Some(context.fabric.age);
+            self.stage_duration = seconds;
             self.stage = next_stage;
             stage_changed
         } else {
@@ -145,23 +158,21 @@ impl PlanRunner {
         // Stage logic executes at exact fabric time, outer loop adjusts dynamically to maintain target time scale
         static TOTAL_ITERATIONS: AtomicUsize = AtomicUsize::new(0);
         for _ in 0..1000 {
-            // Nominal value, outer loop adjusts dynamically
-            // DETAILED LOGGING FOR FIRST 100 AND AROUND 12000
             let iter_count = TOTAL_ITERATIONS.fetch_add(1, Ordering::Relaxed);
             let should_log = iter_count <= 100 || (iter_count >= 11900 && iter_count <= 12100);
             if should_log {
                 let (min_y, max_y) = context.fabric.altitude_range();
                 let height = max_y - min_y;
                 let radius = context.fabric.bounding_radius();
-                let progress_busy = context.fabric.progress.is_busy();
+                let stage_elapsed = self.stage_elapsed(context.fabric.age);
 
                 eprintln!(
-                    "[UI-{:05}] joints:{:3} height:{:8.3} radius:{:8.5} busy:{} stage:{:?}",
+                    "[UI-{:05}] joints:{:3} height:{:8.3} radius:{:8.5} elapsed:{} stage:{:?}",
                     iter_count,
                     context.fabric.joints.len(),
                     height,
                     radius,
-                    progress_busy,
+                    stage_elapsed,
                     self.stage
                 );
             }

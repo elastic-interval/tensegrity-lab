@@ -5,11 +5,11 @@
 
 use crate::build::dsl::brick_dsl::{BrickRole, FaceName};
 use crate::fabric::face::Face;
-use crate::fabric::interval::Span::{Approaching, Fixed, Measuring};
+use crate::fabric::interval::Span::Fixed;
+use crate::fabric::interval::SpanTransition;
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::{Joint, AMBIENT_MASS};
 use crate::fabric::physics::Physics;
-use crate::fabric::progress::Progress;
 use crate::units::{Degrees, Grams, Meters};
 use crate::Age;
 use cgmath::num_traits::zero;
@@ -230,7 +230,6 @@ pub mod joint;
 pub mod joint_path;
 pub mod material;
 pub mod physics;
-pub mod progress;
 pub mod vulcanize;
 
 pub mod csv_export;
@@ -348,15 +347,16 @@ pub struct FabricStats {
 pub struct Fabric {
     pub name: String,
     pub age: Age,
-    pub progress: Progress,
     pub joints: SlotMap<JointKey, Joint>,
     pub intervals: SlotMap<IntervalKey, Interval>,
     pub faces: SlotMap<FaceKey, Face>,
     pub frozen: bool,
     pub stats: IterationStats,
+    pub dimensions: FabricDimensions,
+
     cached_bounding_radius: f32,
     scale: f32,
-    pub dimensions: FabricDimensions,
+    approaching_count: usize,
 }
 
 impl Fabric {
@@ -364,7 +364,6 @@ impl Fabric {
         Self {
             name,
             age: Age::default(),
-            progress: Progress::default(),
             joints: SlotMap::with_key(),
             intervals: SlotMap::with_key(),
             faces: SlotMap::with_key(),
@@ -373,6 +372,7 @@ impl Fabric {
             cached_bounding_radius: 0.0,
             scale: 1.0,
             dimensions: FabricDimensions::model_size(),
+            approaching_count: 0,
         }
     }
 
@@ -566,15 +566,17 @@ impl Fabric {
         for joint in self.joints.values_mut() {
             joint.reset_with_mass(ambient_mass);
         }
+        let age = self.age;
         for interval in self.intervals.values_mut() {
-            interval.iterate(&mut self.joints, &self.progress, physics);
+            if interval.iterate(&mut self.joints, age, physics) == SpanTransition::ApproachCompleted {
+                self.approaching_count = self.approaching_count.saturating_sub(1);
+            }
             self.stats.accumulate_strain(interval.strain);
         }
         let elapsed = self.age.tick();
 
         // Check for excessive speed and accumulate velocity/energy stats
-        // Now in meters: 1000 m/s max speed (still very high, for safety)
-        const MAX_SPEED_SQUARED: f32 = 1000.0 * 1000.0; // (m per tick)²
+        const MAX_SPEED_SQUARED: f32 = 1000.0 * 1000.0; // (m/s)²
         let mut max_speed_squared = 0.0;
 
         for joint in self.joints.values_mut() {
@@ -590,28 +592,20 @@ impl Fabric {
         self.stats.finalize();
         if max_speed_squared > MAX_SPEED_SQUARED || max_speed_squared.is_nan() {
             eprintln!(
-                "Excessive speed detected: {:.2} mm/tick - freezing fabric",
+                "Excessive speed detected: {:.2} m/s - freezing fabric",
                 max_speed_squared.sqrt()
             );
             self.zero_velocities();
             self.frozen = true;
             return 0.0;
         }
-        if self.progress.step(elapsed) {
-            // final step
-            for interval in self.intervals.values_mut() {
-                match &mut interval.span {
-                    Fixed { .. } | Measuring { .. } => {}
-                    Approaching { target_length, .. } => {
-                        interval.span = Fixed {
-                            length: *target_length,
-                        };
-                    }
-                }
-            }
-        }
 
         elapsed.as_micros() as f32
+    }
+
+    /// Check if any intervals are still approaching their target length
+    pub fn has_approaching_intervals(&self) -> bool {
+        self.approaching_count > 0
     }
 
     pub fn kinetic_energy(&self) -> f32 {
