@@ -552,7 +552,7 @@ pub fn generate_attachment_points(
     // Each point represents the center of a ring at that slot
     for i in 0..ATTACHMENT_POINTS {
         // Ring center is at slot index * disc_thickness + half disc thickness
-        let distance = *dimensions.disc_thickness * (i as f32 + 0.5);
+        let distance = *dimensions.hinge.disc_thickness * (i as f32 + 0.5);
 
         // Calculate offset vector
         let offset = axis * distance;

@@ -205,11 +205,11 @@ impl Fabric {
             // For each end, calculate ring centers at all slots
             for slot in 1..=3 {
                 // Alpha end
-                let alpha_ring = alpha_pos + (-push_dir) * *dimensions.disc_thickness * slot as f32;
+                let alpha_ring = alpha_pos + (-push_dir) * *dimensions.hinge.disc_thickness * slot as f32;
                 ring_centers.insert((push_interval.alpha_key, slot), alpha_ring);
 
                 // Omega end
-                let omega_ring = omega_pos + push_dir * *dimensions.disc_thickness * slot as f32;
+                let omega_ring = omega_pos + push_dir * *dimensions.hinge.disc_thickness * slot as f32;
                 ring_centers.insert((push_interval.omega_key, slot), omega_ring);
             }
         }
@@ -511,7 +511,7 @@ impl Fabric {
             let joint_path = &joint.path;
             for (slot, pull_end_pos, hinge_pos) in &connections {
                 // Ring center at this slot (1x, 2x, 3x ring_thickness)
-                let ring_center = joint_pos + push_axis * *dimensions.disc_thickness * *slot as f32;
+                let ring_center = joint_pos + push_axis * *dimensions.hinge.disc_thickness * *slot as f32;
 
                 // Axial link: previous position → ring center
                 link_index += 1;
@@ -561,34 +561,17 @@ impl Fabric {
 }
 
 fn write_dimensions_comments(file: &mut File, dims: &FabricDimensions) -> io::Result<()> {
-    // Engineer's input values (A, B, C, D, E)
-    writeln!(file, "# push_radius (A): {:.5}m", *dims.push_radius)?;
-    writeln!(
-        file,
-        "# push_radius_margin (B): {:.5}m",
-        *dims.push_radius_margin
-    )?;
-    writeln!(
-        file,
-        "# disc_thickness: {:.5}m (C = {:.5}m)",
-        *dims.disc_thickness,
-        *dims.disc_thickness / 2.0
-    )?;
-    writeln!(
-        file,
-        "# disc_separator_thickness: {:.5}m",
-        *dims.disc_separator_thickness
-    )?;
-    writeln!(file, "# hinge_extension (D): {:.5}m", *dims.hinge_extension)?;
-    writeln!(
-        file,
-        "# hinge_hole_diameter (E): {:.5}m",
-        *dims.hinge_hole_diameter
-    )?;
+    let h = &dims.hinge;
+    writeln!(file, "# push_radius: {:.5}m", *h.push_radius)?;
+    writeln!(file, "# push_radius_margin: {:.5}m", *h.push_radius_margin)?;
+    writeln!(file, "# disc_thickness: {:.5}m", *h.disc_thickness)?;
+    writeln!(file, "# disc_separator_thickness: {:.5}m", *h.disc_separator_thickness)?;
+    writeln!(file, "# hinge_extension: {:.5}m", *h.hinge_extension)?;
+    writeln!(file, "# hinge_hole_diameter: {:.5}m", *h.hinge_hole_diameter)?;
     writeln!(file, "# pull_radius: {:.5}m", *dims.pull_radius)?;
     writeln!(file, "#")?;
     // Derived values
-    writeln!(file, "# hinge_offset (A+B+C): {:.5}m", *dims.hinge_offset())?;
-    writeln!(file, "# hinge_length (C+D+E): {:.5}m", *dims.hinge_length())?;
+    writeln!(file, "# hinge_offset: {:.5}m", *dims.hinge.offset())?;
+    writeln!(file, "# hinge_length: {:.5}m", *dims.hinge.length())?;
     Ok(())
 }
