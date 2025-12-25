@@ -7,7 +7,6 @@ use winit::dpi::PhysicalPosition;
 
 use crate::fabric::interval::Interval;
 use crate::fabric::Fabric;
-use crate::fabric::FabricDimensions;
 use crate::fabric::IntervalEnd;
 use crate::fabric::IntervalKey;
 use crate::fabric::JointKey;
@@ -703,7 +702,7 @@ impl Camera {
         // Pull direction: from this joint toward the other end of the pull interval
         let pull_direction = (other_joint_pos - this_joint_pos).normalize();
 
-        Some(FabricDimensions::hinge_angle(push_axis, pull_direction))
+        Some(crate::fabric::hinge_angle(push_axis, pull_direction))
     }
 
     fn view_matrix(&self) -> Matrix4<f32> {

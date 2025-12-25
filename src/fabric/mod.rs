@@ -20,80 +20,122 @@ use cgmath::{
 use slotmap::{new_key_type, SlotMap};
 use std::fmt::Debug;
 
+/// Hinge geometry dimensions for physical construction.
+#[derive(Clone, Copy, Debug)]
+pub struct HingeDimensions {
+    pub push_radius: Meters,
+    pub push_radius_margin: Meters,
+    pub disc_thickness: Meters,
+    pub disc_separator_thickness: Meters,
+    pub hinge_extension: Meters,
+    pub hinge_hole_diameter: Meters,
+}
+
+impl HingeDimensions {
+    pub fn full_size() -> Self {
+        Self {
+            push_radius: Meters(0.030),
+            push_radius_margin: Meters(0.003),
+            disc_thickness: Meters(0.010),
+            disc_separator_thickness: Meters(0.003),
+            hinge_extension: Meters(0.012),
+            hinge_hole_diameter: Meters(0.017),
+        }
+    }
+
+    pub fn model_size() -> Self {
+        Self {
+            push_radius: Meters(0.003),
+            push_radius_margin: Meters(0.0003),
+            disc_thickness: Meters(0.001),
+            disc_separator_thickness: Meters(0.0003),
+            hinge_extension: Meters(0.0012),
+            hinge_hole_diameter: Meters(0.0017),
+        }
+    }
+
+    pub fn offset(&self) -> Meters {
+        Meters(*self.push_radius + *self.push_radius_margin + *self.disc_thickness / 2.0)
+    }
+
+    pub fn length(&self) -> Meters {
+        Meters(*self.disc_thickness / 2.0 + *self.hinge_extension + *self.hinge_hole_diameter)
+    }
+}
+
+const NEAR_PARALLEL_THRESHOLD: f32 = 1e-10;
+const AXIS_ALIGNMENT_THRESHOLD: f32 = 0.9;
+
+pub fn hinge_angle(push_axis: Vector3<f32>, pull_direction: Vector3<f32>) -> Degrees {
+    let sin_angle = pull_direction.dot(push_axis);
+    Degrees(sin_angle.asin().to_degrees())
+}
+
+fn radial_unit_from_axis(push_axis: Vector3<f32>, direction: Vector3<f32>) -> Vector3<f32> {
+    let axial_component = push_axis * direction.dot(push_axis);
+    let radial_direction = direction - axial_component;
+
+    if radial_direction.magnitude2() < NEAR_PARALLEL_THRESHOLD {
+        let arbitrary = if push_axis.x.abs() < AXIS_ALIGNMENT_THRESHOLD {
+            Vector3::new(1.0, 0.0, 0.0)
+        } else {
+            Vector3::new(0.0, 1.0, 0.0)
+        };
+        push_axis.cross(arbitrary).normalize()
+    } else {
+        radial_direction.normalize()
+    }
+}
+
 /// All physical dimensions for a fabric: structure size and interval geometry.
 #[derive(Clone, Copy, Debug)]
 pub struct FabricDimensions {
     pub altitude: Meters,
     pub scale: Meters,
-    pub push_radius: Meters, // A default 30mm
     pub pull_radius: Meters,
-    pub push_radius_margin: Meters,       // B default 3mm
-    pub disc_thickness: Meters,           // default 10mm, note that C is half disc_thickness
-    pub disc_separator_thickness: Meters, // default 3mm
-    pub hinge_extension: Meters,          // D
-    pub hinge_hole_diameter: Meters,      // E
+    pub hinge: HingeDimensions,
     pub push_length_increment: Option<Meters>,
     pub max_pretenst_strain: Option<f32>,
 }
 
 impl FabricDimensions {
-    /// Full-size dimensions for real structures (scale 1.0m, altitude 7.5m)
     pub fn full_size() -> Self {
         Self {
             altitude: Meters(7.5),
             scale: Meters(1.0),
-            push_radius: Meters(0.030),                 // A: 30mm
-            pull_radius: Meters(0.007),                 // 7mm
-            push_radius_margin: Meters(0.003),          // B: 3mm
-            disc_thickness: Meters(0.010),              // 10mm (C = 5mm)
-            disc_separator_thickness: Meters(0.003),    // 3mm
-            hinge_extension: Meters(0.012),             // D: 12mm
-            hinge_hole_diameter: Meters(0.017),         // E: 17mm
-            push_length_increment: Some(Meters(0.025)), // 25mm holes
-            max_pretenst_strain: Some(0.03), // 3% max - skip extension if 1 increment exceeds this
+            pull_radius: Meters(0.007),
+            hinge: HingeDimensions::full_size(),
+            push_length_increment: Some(Meters(0.025)),
+            max_pretenst_strain: Some(0.03),
         }
     }
 
-    /// Model-size dimensions for small physical models (scale 0.056m, altitude 0.5m)
     pub fn model_size() -> Self {
         Self {
             altitude: Meters(0.5),
             scale: Meters(0.056),
-            push_radius: Meters(0.003),               // A: 3mm
-            pull_radius: Meters(0.0005),              // 0.5mm
-            push_radius_margin: Meters(0.0003),       // B: 0.3mm
-            disc_thickness: Meters(0.001),            // 1mm (C = 0.5mm)
-            disc_separator_thickness: Meters(0.0003), // 0.3mm
-            hinge_extension: Meters(0.0012),          // D: 1.2mm
-            hinge_hole_diameter: Meters(0.0017),      // E: 1.7mm
+            pull_radius: Meters(0.0005),
+            hinge: HingeDimensions::model_size(),
             push_length_increment: None,
-            max_pretenst_strain: None, // No limit for models (continuous pretensing)
+            max_pretenst_strain: None,
         }
     }
 
-    /// Hinge offset from center: A + B + C (push_radius + push_radius_margin + half disc_thickness)
-    pub fn hinge_offset(&self) -> Meters {
-        Meters(*self.push_radius + *self.push_radius_margin + *self.disc_thickness / 2.0)
-    }
-
-    /// Hinge length: C + D + E (half disc_thickness + hinge_extension + hinge_hole_diameter)
-    pub fn hinge_length(&self) -> Meters {
-        Meters(*self.disc_thickness / 2.0 + *self.hinge_extension + *self.hinge_hole_diameter)
-    }
-
-    /// Set custom altitude
     pub fn with_altitude(mut self, altitude: Meters) -> Self {
         self.altitude = altitude;
         self
     }
 
-    /// Set custom scale
     pub fn with_scale(mut self, scale: Meters) -> Self {
         self.scale = scale;
         self
     }
 
-    /// Calculate the hinge position for a pull interval connection
+    fn ring_center(&self, push_end: Point3<f32>, push_axis: Vector3<f32>, slot: usize) -> Point3<f32> {
+        let axial_offset = *self.hinge.disc_thickness * (slot as f32 + 1.0);
+        push_end + push_axis * axial_offset
+    }
+
     pub fn hinge_position(
         &self,
         push_end: Point3<f32>,
@@ -101,34 +143,10 @@ impl FabricDimensions {
         slot: usize,
         pull_other_end: Point3<f32>,
     ) -> Point3<f32> {
-        let axial_offset = *self.disc_thickness * (slot as f32 + 1.0);
-        let ring_center = push_end + push_axis * axial_offset;
-
-        let to_pull = pull_other_end - ring_center;
-        let axial_component = push_axis * to_pull.dot(push_axis);
-        let radial_direction = to_pull - axial_component;
-
-        let radial_unit = if radial_direction.magnitude2() < 1e-10 {
-            let arbitrary = if push_axis.x.abs() < 0.9 {
-                Vector3::new(1.0, 0.0, 0.0)
-            } else {
-                Vector3::new(0.0, 1.0, 0.0)
-            };
-            push_axis.cross(arbitrary).normalize()
-        } else {
-            radial_direction.normalize()
-        };
-
-        ring_center + radial_unit * *self.hinge_offset()
+        let (hinge_pos, _, _) = self.hinge_geometry(push_end, push_axis, slot, pull_other_end);
+        hinge_pos
     }
 
-    /// Calculate the ideal hinge angle for a pull interval at its connection point
-    pub fn hinge_angle(push_axis: Vector3<f32>, pull_direction: Vector3<f32>) -> Degrees {
-        let sin_angle = pull_direction.dot(push_axis);
-        Degrees(sin_angle.asin().to_degrees())
-    }
-
-    /// Calculate hinge position, snapped angle, and endpoint for a pull interval connection
     pub fn hinge_geometry(
         &self,
         push_end: Point3<f32>,
@@ -136,32 +154,18 @@ impl FabricDimensions {
         slot: usize,
         pull_other_end: Point3<f32>,
     ) -> (Point3<f32>, attachment::HingeBend, Point3<f32>) {
-        let axial_offset = *self.disc_thickness * (slot as f32 + 1.0);
-        let ring_center = push_end + push_axis * axial_offset;
-
+        let ring_center = self.ring_center(push_end, push_axis, slot);
         let to_pull = pull_other_end - ring_center;
-        let axial_component = push_axis * to_pull.dot(push_axis);
-        let radial_direction = to_pull - axial_component;
+        let radial_unit = radial_unit_from_axis(push_axis, to_pull);
 
-        let radial_unit = if radial_direction.magnitude2() < 1e-10 {
-            let arbitrary = if push_axis.x.abs() < 0.9 {
-                Vector3::new(1.0, 0.0, 0.0)
-            } else {
-                Vector3::new(0.0, 1.0, 0.0)
-            };
-            push_axis.cross(arbitrary).normalize()
-        } else {
-            radial_direction.normalize()
-        };
-
-        let hinge_pos = ring_center + radial_unit * *self.hinge_offset();
+        let hinge_pos = ring_center + radial_unit * *self.hinge.offset();
 
         let pull_direction = (pull_other_end - hinge_pos).normalize();
-        let ideal_angle = Self::hinge_angle(push_axis, pull_direction);
+        let sin_angle = pull_direction.dot(push_axis);
+        let ideal_angle = Degrees(sin_angle.asin().to_degrees());
         let hinge_bend = attachment::HingeBend::from_angle(ideal_angle);
 
-        let pull_end_pos =
-            hinge_bend.endpoint(hinge_pos, push_axis, radial_unit, *self.hinge_length());
+        let pull_end_pos = hinge_bend.endpoint(hinge_pos, push_axis, radial_unit, *self.hinge.length());
 
         (hinge_pos, hinge_bend, pull_end_pos)
     }
