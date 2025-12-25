@@ -492,6 +492,7 @@ pub struct PretensePhaseBuilder {
     omit_pairs: Vec<(JointPath, JointPath)>,
     min_push_strain: Option<f32>,
     max_push_strain: Option<f32>,
+    extension_overlap: Option<Percent>,
 }
 
 impl PretensePhaseBuilder {
@@ -513,6 +514,7 @@ impl PretensePhaseBuilder {
             omit_pairs: self.omit_pairs,
             min_push_strain: self.min_push_strain,
             max_push_strain: self.max_push_strain,
+            extension_overlap: self.extension_overlap,
         }
     }
 }
@@ -537,6 +539,12 @@ impl PretenseChain {
     /// Maximum compression per extension round (default 3%)
     pub fn max_push_strain(mut self, strain: Percent) -> Self {
         self.fabric.pretense.max_push_strain = Some(strain.as_factor());
+        self
+    }
+
+    /// How much extensions can overlap (0% = sequential, 100% = fully parallel)
+    pub fn extension_overlap(mut self, overlap: Percent) -> Self {
+        self.fabric.pretense.extension_overlap = Some(overlap);
         self
     }
 

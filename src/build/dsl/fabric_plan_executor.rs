@@ -253,6 +253,7 @@ pub struct FabricPlanExecutor {
     pretense_stage: PretenseStage,
     symmetric_groups: Vec<SymmetricGroup>,
     settle_started_at: Option<crate::Age>,
+    extension_start_age: Option<crate::Age>,
     fall_start_age: Option<crate::Age>,
     settle_phase_start_age: Option<crate::Age>,
 }
@@ -288,6 +289,7 @@ impl FabricPlanExecutor {
             pretense_stage: PretenseStage::Settling,
             symmetric_groups: Vec::new(),
             settle_started_at: None,
+            extension_start_age: None,
             fall_start_age: None,
             settle_phase_start_age: None,
         };
@@ -423,15 +425,34 @@ impl FabricPlanExecutor {
                     ) {
                         self.fabric
                             .extend_symmetric_group(&self.symmetric_groups[group_idx]);
+                        self.extension_start_age = Some(self.fabric.age);
+                        self.pretense_stage = PretenseStage::Extending;
+                    } else if self.fabric.has_approaching_intervals() {
+                        // Groups done but still have approaching intervals - wait in Extending
                         self.pretense_stage = PretenseStage::Extending;
                     } else {
                         self.transition_to_fall();
                     }
                 }
                 PretenseStage::Extending => {
-                    if !self.fabric.has_approaching_intervals() {
-                        self.settle_started_at = None;
-                        self.pretense_stage = PretenseStage::Settling;
+                    if let Some(overlap) = self.plan.pretense_phase.extension_overlap {
+                        // Overlap configured: skip settling, go directly to next extension
+                        let wait_fraction = 1.0 - overlap.as_factor();
+                        let wait_duration = Seconds(PRETENSE_STEP_SECONDS.0 * wait_fraction);
+
+                        let can_start_next = self.extension_start_age.map_or(true, |start| {
+                            self.fabric.age.elapsed_since(start) >= wait_duration
+                        });
+
+                        if can_start_next {
+                            self.pretense_stage = PretenseStage::Measuring;
+                        }
+                    } else {
+                        // No overlap: original behavior - wait for completion then settle
+                        if !self.fabric.has_approaching_intervals() {
+                            self.settle_started_at = None;
+                            self.pretense_stage = PretenseStage::Settling;
+                        }
                     }
                 }
             },
