@@ -10,7 +10,7 @@ use crate::fabric::Fabric;
 use crate::fabric::IntervalEnd;
 use crate::fabric::IntervalKey;
 use crate::fabric::JointKey;
-use crate::units::{Degrees, Meters};
+use crate::units::Degrees;
 use crate::{ControlState, IntervalDetails, JointDetails, PickIntent, PointerChange, Radio, Role};
 
 #[derive(Debug, Clone)]
@@ -624,9 +624,9 @@ impl Camera {
             far_joint_path: fabric.joints[far_joint].path.to_string(),
             alpha_hinge_angle,
             omega_hinge_angle,
-            length: Meters(interval.ideal()),
+            length: interval.ideal(),
             strain: interval.strain,
-            distance: Meters(fabric.distance(near_joint, far_joint)),
+            distance: fabric.distance(near_joint, far_joint),
             role: interval.role,
             selected_push,
         }

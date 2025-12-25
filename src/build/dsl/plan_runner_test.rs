@@ -2,7 +2,7 @@
 mod tests {
     use crate::build::dsl::fabric_library::{self, FabricName};
     use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
-    use crate::units::MM_PER_METER;
+    use crate::units::{MM_PER_METER, Unit};
 
     const EXPECTED_GROUND_CONTACTS: usize = 3;
     const EXPECTED_HEIGHT_MM: f32 = 9327.0;
@@ -279,7 +279,7 @@ mod tests {
         for interval in executor.fabric.intervals.values() {
             if interval.has_role(Role::Pushing) {
                 if let Span::Fixed { length } = interval.span {
-                    push_lengths.push(length * 1000.0);
+                    push_lengths.push(length.f32() * 1000.0);
                 }
             }
         }

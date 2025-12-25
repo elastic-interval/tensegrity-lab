@@ -6,7 +6,7 @@
 use crate::fabric::joint_path::JointPath;
 use crate::fabric::physics::{Physics, SurfaceInteraction};
 use crate::fabric::{Fabric, Force, JointKey, Location, Velocity};
-use crate::units::Grams;
+use crate::units::{Grams, Meters, Unit};
 use crate::ITERATION_DURATION;
 use cgmath::num_traits::zero;
 use cgmath::{InnerSpace, MetricSpace, Point3};
@@ -46,8 +46,8 @@ impl Fabric {
         self.joints.remove(key);
     }
 
-    pub fn distance(&self, alpha_key: JointKey, omega_key: JointKey) -> f32 {
-        self.location(alpha_key).distance(self.location(omega_key))
+    pub fn distance(&self, alpha_key: JointKey, omega_key: JointKey) -> Meters {
+        Meters(self.location(alpha_key).distance(self.location(omega_key)))
     }
 
     /// Find a joint by its path (linear search, only for setup)
@@ -94,7 +94,7 @@ impl Joint {
     pub fn iterate(&mut self, physics: &Physics) {
         let drag = physics.drag();
         let viscosity = physics.viscosity();
-        let mass = *self.accumulated_mass;
+        let mass = self.accumulated_mass.f32();
         let dt = ITERATION_DURATION.secs;
 
         // Force is in Newtons, mass in grams (converted to kg)

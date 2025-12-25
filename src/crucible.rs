@@ -9,6 +9,7 @@ use crate::fabric::physics::presets::{ANIMATING, VIEWING};
 use crate::fabric::physics::Physics;
 use crate::fabric::physics_test::PhysicsTester;
 use crate::fabric::Fabric;
+use crate::units::Unit;
 use crate::{ControlState, CrucibleAction, LabEvent, Radio, StateChange};
 use StateChange::*;
 
@@ -326,7 +327,7 @@ impl Crucible {
             }
             CentralizeFabric(altitude) => {
                 // Altitude is in meters, coordinates are in meters
-                let altitude_f32 = altitude.map(|m| *m);
+                let altitude_f32 = altitude.map(|m| m.f32());
                 let translation = context.fabric.centralize_translation(altitude_f32);
                 context.fabric.apply_translation(translation);
                 context.fabric.zero_velocities();

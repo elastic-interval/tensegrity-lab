@@ -8,6 +8,7 @@ use crate::build::dsl::{FaceAlias, Spin};
 use crate::fabric::interval::Role;
 use crate::fabric::joint_path::PRISM_MARKER;
 use crate::fabric::{Fabric, FaceKey, IntervalKey, JointKey};
+use crate::units::Meters;
 
 const ROOT3: f32 = 1.732_050_8;
 
@@ -81,7 +82,7 @@ impl Fabric {
             })
             .min_by(|(length_a, _), (length_b, _)| length_a.partial_cmp(length_b).unwrap())
             .unwrap();
-        let ideal = (alpha.scale + omega.scale) / 2.0;
+        let ideal = Meters((alpha.scale + omega.scale) / 2.0);
         for (a, b) in links {
             self.create_fixed_interval(alpha_rotated[a], omega_ends[b], Role::Circumference, ideal);
         }
@@ -91,7 +92,7 @@ impl Fabric {
 
     pub fn add_face_triangle(&mut self, face_key: FaceKey) {
         let face = self.face(face_key);
-        let side_length = face.scale * ROOT3;
+        let side_length = Meters(face.scale * ROOT3);
         let radial_joints = face.radial_joints(self);
         for (alpha, omega) in [(0, 1), (1, 2), (2, 0)] {
             self.create_fixed_interval(
@@ -135,12 +136,12 @@ impl Fabric {
             omega_path,
         );
 
-        self.create_fixed_interval(alpha, omega, Role::Pushing, push_length);
+        self.create_fixed_interval(alpha, omega, Role::Pushing, Meters(push_length));
 
         // Connect prism push joints to radials
         for radial in radial_joints {
-            self.create_fixed_interval(alpha, radial, Role::PrismPull, pull_length);
-            self.create_fixed_interval(omega, radial, Role::PrismPull, pull_length);
+            self.create_fixed_interval(alpha, radial, Role::PrismPull, Meters(pull_length));
+            self.create_fixed_interval(omega, radial, Role::PrismPull, Meters(pull_length));
         }
         // Mark the face as having a prism
         if let Some(face) = self.faces.get_mut(face_key) {

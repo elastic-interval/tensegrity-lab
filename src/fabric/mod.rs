@@ -10,7 +10,7 @@ use crate::fabric::interval::SpanTransition;
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::{Joint, AMBIENT_MASS};
 use crate::fabric::physics::Physics;
-use crate::units::{Degrees, Grams, Meters};
+use crate::units::{Degrees, Grams, Meters, Unit};
 use crate::Age;
 use cgmath::num_traits::zero;
 use cgmath::{
@@ -55,11 +55,11 @@ impl HingeDimensions {
     }
 
     pub fn offset(&self) -> Meters {
-        Meters(*self.push_radius + *self.push_radius_margin + *self.disc_thickness / 2.0)
+        self.push_radius + self.push_radius_margin + self.disc_thickness / 2.0
     }
 
     pub fn length(&self) -> Meters {
-        Meters(*self.disc_thickness / 2.0 + *self.hinge_extension + *self.hinge_hole_diameter)
+        self.disc_thickness / 2.0 + self.hinge_extension + self.hinge_hole_diameter
     }
 }
 
@@ -132,7 +132,7 @@ impl FabricDimensions {
     }
 
     fn ring_center(&self, push_end: Point3<f32>, push_axis: Vector3<f32>, slot: usize) -> Point3<f32> {
-        let axial_offset = *self.hinge.disc_thickness * (slot as f32 + 1.0);
+        let axial_offset = self.hinge.disc_thickness.f32() * (slot as f32 + 1.0);
         push_end + push_axis * axial_offset
     }
 
@@ -158,14 +158,14 @@ impl FabricDimensions {
         let to_pull = pull_other_end - ring_center;
         let radial_unit = radial_unit_from_axis(push_axis, to_pull);
 
-        let hinge_pos = ring_center + radial_unit * *self.hinge.offset();
+        let hinge_pos = ring_center + radial_unit * self.hinge.offset().f32();
 
         let pull_direction = (pull_other_end - hinge_pos).normalize();
         let sin_angle = pull_direction.dot(push_axis);
         let ideal_angle = Degrees(sin_angle.asin().to_degrees());
         let hinge_bend = attachment::HingeBend::from_angle(ideal_angle);
 
-        let pull_end_pos = hinge_bend.endpoint(hinge_pos, push_axis, radial_unit, *self.hinge.length());
+        let pull_end_pos = hinge_bend.endpoint(hinge_pos, push_axis, radial_unit, self.hinge.length().f32());
 
         (hinge_pos, hinge_bend, pull_end_pos)
     }
@@ -174,7 +174,7 @@ impl FabricDimensions {
     pub fn snap_push_length(&self, length: f32) -> f32 {
         match self.push_length_increment {
             Some(increment) => {
-                let inc = *increment;
+                let inc = increment.f32();
                 let snapped = (length / inc).round() * inc;
                 snapped.max(inc)
             }
@@ -189,7 +189,7 @@ impl FabricDimensions {
     pub fn discrete_pretenst_target(&self, rest_length: f32, target_strain: f32) -> f32 {
         match self.push_length_increment {
             Some(increment) => {
-                let inc = *increment;
+                let inc = increment.f32();
 
                 // Check if even 1 increment would exceed max strain
                 if let Some(max_strain) = self.max_pretenst_strain {
@@ -392,7 +392,7 @@ impl Fabric {
 
     pub fn ambient_mass(&self) -> Grams {
         // Mass scales with scale^3.5: volume (scale³) plus slight reduction for small structures
-        Grams(*AMBIENT_MASS * self.scale.powf(3.5))
+        Grams(AMBIENT_MASS.f32() * self.scale.powf(3.5))
     }
 
     pub fn apply_matrix4(&mut self, matrix: Matrix4<f32>) {
@@ -444,7 +444,7 @@ impl Fabric {
     /// - Additional scale factor represents using lighter materials at small scales
     ///   to maintain structural integrity against (relatively stronger) gravity
     pub fn apply_scale(&mut self, scale: Meters) {
-        let s = *scale;
+        let s = scale.f32();
         self.scale = s;
         let mass_scale = s.powf(3.5); // scale^3.5: volume plus slight reduction for small structures
                                       // Scale all joint positions, velocities, and mass
@@ -458,7 +458,7 @@ impl Fabric {
             // Forces will be recalculated on next iteration
             joint.force = cgmath::num_traits::zero();
             // Scale mass with volume (thinner intervals at small scale)
-            joint.accumulated_mass = Grams(*joint.accumulated_mass * mass_scale);
+            joint.accumulated_mass = Grams(joint.accumulated_mass.f32() * mass_scale);
         }
         // Scale all interval ideal lengths
         for interval in self.intervals.values_mut() {
@@ -520,7 +520,7 @@ impl Fabric {
                 let current_length = interval.fast_length(&self.joints);
                 let snapped_length = self.dimensions.snap_push_length(current_length);
                 interval.span = Fixed {
-                    length: snapped_length,
+                    length: Meters(snapped_length),
                 };
             }
         }
@@ -529,7 +529,7 @@ impl Fabric {
             if !interval.has_role(Role::Pushing) && !interval.has_role(Role::Support) {
                 let current_length = interval.fast_length(&self.joints);
                 interval.span = Fixed {
-                    length: current_length,
+                    length: Meters(current_length),
                 };
             }
         }
@@ -586,7 +586,7 @@ impl Fabric {
         for joint in self.joints.values_mut() {
             joint.iterate(physics);
             let speed_squared = joint.velocity.magnitude2();
-            let mass = *joint.accumulated_mass;
+            let mass = joint.accumulated_mass.f32();
             self.stats.accumulate_joint(mass, speed_squared);
             self.stats.update_max_speed_squared(speed_squared);
             if speed_squared > max_speed_squared {
@@ -617,7 +617,7 @@ impl Fabric {
             .values()
             .map(|joint| {
                 let speed_squared = joint.velocity.magnitude2();
-                0.5 * *joint.accumulated_mass * speed_squared
+                0.5 * joint.accumulated_mass.f32() * speed_squared
             })
             .sum()
     }
@@ -698,19 +698,19 @@ impl Fabric {
                 if interval.role == Role::Pushing {
                     push_count += 1;
                     push_total = push_total + length;
-                    if *length < *push_range.0 {
+                    if length < push_range.0 {
                         push_range.0 = length;
                     }
-                    if *length > *push_range.1 {
+                    if length > push_range.1 {
                         push_range.1 = length;
                     }
                 } else if interval.role.is_pull_like() {
                     pull_count += 1;
                     pull_total = pull_total + length;
-                    if *length < *pull_range.0 {
+                    if length < pull_range.0 {
                         pull_range.0 = length;
                     }
-                    if *length > *pull_range.1 {
+                    if length > pull_range.1 {
                         pull_range.1 = length;
                     }
                 }

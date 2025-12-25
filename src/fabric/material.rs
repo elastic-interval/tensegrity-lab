@@ -1,7 +1,7 @@
 use crate::fabric::interval::Role;
 use crate::fabric::material::Material::{Pull, Push, Spring};
 use crate::fabric::physics::Physics;
-use crate::units::{Grams, GramsPerMeter, Meters, NewtonsPerMeter};
+use crate::units::{Grams, GramsPerMeter, Meters, NewtonsPerMeter, Unit};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Material {
@@ -40,7 +40,7 @@ impl Material {
     /// k(L) = k(1m) / L
     pub fn spring_constant(&self, length: Meters, physics: &Physics) -> NewtonsPerMeter {
         let k_at_1m = self.spring_constant_at_1m();
-        let k = (*k_at_1m / (*length).max(0.001)) * physics.rigidity_multiplier();
+        let k = (k_at_1m.f32() / length.f32().max(0.001)) * physics.rigidity_multiplier();
         NewtonsPerMeter(k)
     }
 

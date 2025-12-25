@@ -2,6 +2,7 @@
  * Copyright (c) 2020. Beautiful Code BV, Rotterdam, Netherlands
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
+use crate::units::Unit;
 use crate::{Radio, StateChange, TweakFeature, TweakParameter};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -54,7 +55,7 @@ impl Surface {
     /// Apply surface physics and return the resulting velocity and optional y-position clamp
     /// All coordinates are now in meters directly. Tolerances scale with fabric scale.
     pub fn interact(&self, s: SurfaceInteraction) -> SurfaceResult {
-        let gravity = *EARTH_GRAVITY;
+        let gravity = EARTH_GRAVITY.f32();
         let mut velocity = s.velocity;
         let mut clamp_y = None;
 
