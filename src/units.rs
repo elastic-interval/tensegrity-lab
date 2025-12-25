@@ -115,39 +115,35 @@ impl Deref for Degrees {
 /// Standard Earth gravity: 9.81 m/s²
 pub const EARTH_GRAVITY: MetersPerSecondSquared = MetersPerSecondSquared(9.81);
 
-/// Millimeters per meter - for converting meter coordinates to millimeters
 pub const MM_PER_METER: f32 = 1000.0;
+pub const GRAMS_PER_KG: f32 = 1000.0;
+pub const MICROSECONDS_PER_SECOND: f32 = 1_000_000.0;
 
 // Conversion implementations
 
 impl Grams {
-    /// Convert grams to kilograms
     pub fn to_kg(self) -> f32 {
-        self.0 / 1000.0
+        self.0 / GRAMS_PER_KG
     }
 
-    /// Create from kilograms
     pub fn from_kg(kg: f32) -> Self {
-        Self(kg * 1000.0)
+        Self(kg * GRAMS_PER_KG)
     }
 }
 
 impl Meters {
-    /// Convert meters to millimeters (for display purposes)
     pub fn to_mm(self) -> f32 {
-        self.0 * 1000.0
+        self.0 * MM_PER_METER
     }
 }
 
 impl Seconds {
-    /// Convert seconds to microseconds
     pub fn to_microseconds(self) -> f32 {
-        self.0 * 1_000_000.0
+        self.0 * MICROSECONDS_PER_SECOND
     }
 
-    /// Create from microseconds
     pub fn from_microseconds(us: f32) -> Self {
-        Self(us / 1_000_000.0)
+        Self(us / MICROSECONDS_PER_SECOND)
     }
 }
 

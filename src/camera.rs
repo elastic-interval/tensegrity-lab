@@ -21,11 +21,10 @@ pub enum Pick {
     Interval(IntervalDetails),
 }
 
-const TARGET_HIT: f32 = 0.001;
-// Time-based camera movement constants
-const CAMERA_MOVE_SPEED: f32 = 0.6; // Units per second
-const ZOOM_SPEED: f32 = 1.5; // Speed of zoom adjustment
-const ZOOM_DURATION: f32 = 3.0; // Duration in seconds to apply automatic zooming
+const TARGET_APPROACH_THRESHOLD: f32 = 0.001;
+const CAMERA_MOVE_SPEED: f32 = 0.6;
+const ZOOM_SPEED: f32 = 1.5;
+const ZOOM_DURATION: f32 = 3.0;
 
 // Thread-local storage for camera approach state
 // This is shared between target_approach() and reset() to track animation progress
@@ -441,10 +440,10 @@ impl Camera {
         });
 
         // Track if we're still working on approaching
-        let mut working = position_distance > TARGET_HIT;
+        let mut working = position_distance > TARGET_APPROACH_THRESHOLD;
 
         // Always track the target to keep it in view, even after initial approach completes
-        if position_distance > TARGET_HIT {
+        if position_distance > TARGET_APPROACH_THRESHOLD {
             // Handle position approach with smooth easing during initial approach
             // Get the initial distance to calculate progress
             let initial_distance = CAMERA_INITIAL_DISTANCE.with(|dist| *dist.borrow());
