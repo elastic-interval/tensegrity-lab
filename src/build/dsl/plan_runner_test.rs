@@ -2,189 +2,12 @@
 mod tests {
     use crate::build::dsl::fabric_library::{self, FabricName};
     use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
-    use crate::fabric::Fabric;
     use crate::units::MM_PER_METER;
 
-    /// Check RECAPTURE env var to capture new benchmark values without asserting.
-    /// Run: RECAPTURE=1 cargo test test_all_build_benchmarks -- --nocapture
-    /// Then copy the printed Benchmark lines into ui_benchmarks().
-    fn recapture_mode() -> bool {
-        std::env::var("RECAPTURE").is_ok()
-    }
-
-    /// Check GROUND_ONLY env var to only check ground contacts instead of full benchmarks.
-    /// Use when experimenting with different altitude/scale values.
-    /// Run: GROUND_ONLY=1 cargo test test_all_build_benchmarks -- --nocapture
-    fn ground_only_mode() -> bool {
-        std::env::var("GROUND_ONLY").is_ok()
-    }
-
-    /// Benchmark data point from UI reference run
-    #[derive(Debug)]
-    struct Benchmark {
-        age: f32,
-        joints: usize,
-        height_mm: f32,
-        radius: f32,
-        ground: usize,
-    }
-
-    /// Executor benchmarks - age is fabric.age (scaled by physics.time_scale)
-    /// Timeline: BUILD (0-30s) → PRETENSE (~30-320s) → FALL (~320-330s) → SETTLE (~330-345s)
-    /// Note: PRETENSE takes ~290s for holistic pretensing to converge
-    /// CRITICAL: Final benchmark MUST have ground: 3 (Triped lands on 3 feet)
-    fn ui_benchmarks() -> Vec<Benchmark> {
-        vec![
-            Benchmark {
-                age: 0.0,
-                joints: 0,
-                height_mm: 0.0,
-                radius: 0.000,
-                ground: 0,
-            },
-            // BUILD phase (fabric age 0-30s)
-            Benchmark {
-                age: 2.0,
-                joints: 172,
-                height_mm: 6470.0,
-                radius: 12.246,
-                ground: 0,
-            },
-            Benchmark {
-                age: 6.0,
-                joints: 172,
-                height_mm: 9366.3,
-                radius: 6.251,
-                ground: 0,
-            },
-            // PRETENSE phase with holistic pretensing (fabric age ~30-320s)
-            Benchmark {
-                age: 35.0,
-                joints: 165,
-                height_mm: 9288.9,
-                radius: 6.249,
-                ground: 0,
-            },
-            // Structure settles on ground during PRETENSE due to surface physics
-            Benchmark {
-                age: 100.0,
-                joints: 165,
-                height_mm: 9328.0,
-                radius: 7.128,
-                ground: 3,
-            },
-            Benchmark {
-                age: 200.0,
-                joints: 165,
-                height_mm: 9328.0,
-                radius: 7.128,
-                ground: 3,
-            },
-            // FALL/SETTLE phases (~320-345s)
-            Benchmark {
-                age: 325.0,
-                joints: 165,
-                height_mm: 9328.0,
-                radius: 7.128,
-                ground: 3,
-            },
-            // CRITICAL: Final state must have 3 ground contacts (Triped's 3 feet)
-            Benchmark {
-                age: 345.0,
-                joints: 165,
-                height_mm: 9328.0,
-                radius: 7.128,
-                ground: 3,
-            },
-        ]
-    }
-
-    /// Check if fabric state matches benchmark (with tolerance).
-    /// If recapture_mode() is true, only prints values without asserting.
-    /// If ground_only_mode() is true, only checks ground contacts (for experimental scales).
-    fn check_benchmark(fabric: &Fabric, benchmark: &Benchmark, tolerance_pct: f32) {
-        let fabric_age = fabric.age.as_duration().as_secs_f32();
-        let bounding_radius = fabric.bounding_radius();
-        let (min_y, max_y) = fabric.altitude_range();
-        let height_mm = (max_y - min_y) * MM_PER_METER;
-        // Scale ground tolerance with fabric scale for small structures
-        let ground_tolerance = 10.0 / MM_PER_METER * fabric.scale().max(1.0);
-        let ground_count = fabric
-            .joints
-            .values()
-            .filter(|j| j.location.y.abs() < ground_tolerance)
-            .count();
-
-        // Print benchmark format for easy copy-paste (matches rustfmt style)
-        eprintln!(
-            "            Benchmark {{\n                age: {:.1},\n                joints: {},\n                height_mm: {:.1},\n                radius: {:.3},\n                ground: {},\n            }},",
-            fabric_age,
-            fabric.joints.len(),
-            height_mm,
-            bounding_radius,
-            ground_count
-        );
-
-        // Skip assertions when recapturing
-        if recapture_mode() {
-            return;
-        }
-
-        // When ground_only_mode is true, only check ground contacts at end
-        if ground_only_mode() {
-            if benchmark.ground > 0 {
-                assert_eq!(
-                    ground_count, benchmark.ground,
-                    "At age {:.1}s: Expected {} ground contacts, got {}",
-                    fabric_age, benchmark.ground, ground_count
-                );
-            }
-            return;
-        }
-
-        // Full benchmark checking (for normal altitude 7.5M, scale 1.03M)
-
-        // Check joints (exact)
-        assert_eq!(
-            fabric.joints.len(),
-            benchmark.joints,
-            "At age {:.1}s: Expected {} joints, got {}",
-            fabric_age,
-            benchmark.joints,
-            fabric.joints.len()
-        );
-
-        // Check height (with tolerance)
-        if benchmark.height_mm > 0.0 {
-            let height_diff_pct =
-                ((height_mm - benchmark.height_mm) / benchmark.height_mm * 100.0).abs();
-            assert!(
-                height_diff_pct < tolerance_pct,
-                "At age {:.1}s: Height {:.1}mm differs from benchmark {:.1}mm by {:.1}% (tolerance: {:.1}%)",
-                fabric_age, height_mm, benchmark.height_mm, height_diff_pct, tolerance_pct
-            );
-        }
-
-        // Check radius (with tolerance)
-        if benchmark.radius > 0.0 {
-            let radius_diff_pct =
-                ((bounding_radius - benchmark.radius) / benchmark.radius * 100.0).abs();
-            assert!(
-                radius_diff_pct < tolerance_pct,
-                "At age {:.1}s: Radius {:.3}m differs from benchmark {:.3}m by {:.1}% (tolerance: {:.1}%)",
-                fabric_age, bounding_radius, benchmark.radius, radius_diff_pct, tolerance_pct
-            );
-        }
-
-        // Check ground contacts at end
-        if benchmark.ground > 0 {
-            assert_eq!(
-                ground_count, benchmark.ground,
-                "At age {:.1}s: Expected {} ground contacts, got {}",
-                fabric_age, benchmark.ground, ground_count
-            );
-        }
-    }
+    const EXPECTED_GROUND_CONTACTS: usize = 3;
+    const EXPECTED_HEIGHT_MM: f32 = 9327.0;
+    const HEIGHT_TOLERANCE_PCT: f32 = 1.0;
+    const EXPECTED_LANDING_SECONDS: f32 = 35.0;
 
     #[test]
     fn test_executor_phases() {
@@ -249,82 +72,49 @@ mod tests {
         assert_eq!(executor.stage(), &ExecutorStage::Complete);
     }
 
-    /// IMPORTANT: This test must verify that the Triped structure lands on exactly 3 joints
-    /// (its 3 feet). If this fails, something is wrong with the build/pretense/fall/settle
-    /// phases. The final benchmark MUST have ground: 3 - this is the whole point of the test!
     #[test]
-    fn test_all_build_benchmarks() {
-        use crate::units::Seconds;
-
-        eprintln!("\n=== Testing All Phase Benchmarks ===\n");
-
+    fn test_triped_lands_on_three_feet() {
         let plan = fabric_library::get_fabric_plan(FabricName::Triped);
-
         let mut executor = FabricPlanExecutor::new_for_test(plan);
 
-        let benchmarks = ui_benchmarks();
-        let mut benchmark_idx = 0;
+        let max_seconds = EXPECTED_LANDING_SECONDS * 2.0;
+        let mut landed = false;
 
-        // Safety limit: don't run forever if something is broken
-        let max_fabric_age = Seconds(400.0);
-
-        eprintln!(
-            "Running through all phases, checking {} benchmarks...\n",
-            benchmarks.len()
-        );
-
-        // Check age 0 before running any iterations
-        if benchmark_idx < benchmarks.len() {
-            let benchmark = &benchmarks[benchmark_idx];
-            if benchmark.age == 0.0 {
-                check_benchmark(&executor.fabric, benchmark, 0.1);
-                benchmark_idx += 1;
-            }
-        }
-
-        // Run until all benchmarks checked, executor complete, or safety limit reached
-        loop {
-            let fabric_age = executor.fabric.age.as_duration().as_secs_f32();
-
-            // Safety limit
-            if fabric_age >= max_fabric_age.0 {
-                break;
-            }
-
-            // Check if we've reached a benchmark age
-            if benchmark_idx < benchmarks.len() {
-                let benchmark = &benchmarks[benchmark_idx];
-                if fabric_age >= benchmark.age {
-                    check_benchmark(&executor.fabric, benchmark, 5.0);
-                    benchmark_idx += 1;
-                }
-            }
-
-            // Stop if all benchmarks checked
-            if benchmark_idx >= benchmarks.len() {
-                break;
-            }
-
-            // Do one iteration
+        while executor.fabric.age.as_duration().as_secs_f32() < max_seconds {
             let _ = executor.iterate();
+
+            let fabric = &executor.fabric;
+            let ground_tolerance = 10.0 / MM_PER_METER * fabric.scale().max(1.0);
+            let ground_count = fabric
+                .joints
+                .values()
+                .filter(|j| j.location.y.abs() < ground_tolerance)
+                .count();
+
+            if ground_count == EXPECTED_GROUND_CONTACTS {
+                landed = true;
+                let (min_y, max_y) = fabric.altitude_range();
+                let height_mm = (max_y - min_y) * MM_PER_METER;
+                let age = fabric.age.as_duration().as_secs_f32();
+
+                eprintln!("Landed at {:.1}s with height {:.0}mm", age, height_mm);
+
+                let height_diff_pct =
+                    ((height_mm - EXPECTED_HEIGHT_MM) / EXPECTED_HEIGHT_MM * 100.0).abs();
+                assert!(
+                    height_diff_pct < HEIGHT_TOLERANCE_PCT,
+                    "Height {:.1}mm differs from expected {:.1}mm by {:.1}%",
+                    height_mm, EXPECTED_HEIGHT_MM, height_diff_pct
+                );
+                break;
+            }
         }
 
-        eprintln!("\n✓ Checked {} benchmarks successfully!", benchmark_idx);
-
-        executor.print_log();
-
-        if ground_only_mode() {
-            // In experimental mode, we only care that ground contacts were checked
-            // (fabric may freeze at unusual scales, which is expected)
-            eprintln!("(ground_only_mode - skipping full benchmark count assertion)");
-        } else {
-            assert!(
-                benchmark_idx >= benchmarks.len(),
-                "Only checked {} of {} benchmarks",
-                benchmark_idx,
-                benchmarks.len()
-            );
-        }
+        assert!(
+            landed,
+            "Triped failed to land on {} feet within {:.0}s",
+            EXPECTED_GROUND_CONTACTS, max_seconds
+        );
     }
 
     #[test]

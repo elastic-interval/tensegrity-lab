@@ -376,6 +376,13 @@ cargo test --release
 - Drop test with 'J' key validates gravity
 - Speed tracking validates real-time performance
 
+**Benchmark Testing:**
+- `test_all_build_benchmarks` uses hardcoded benchmark values in `ui_benchmarks()`
+- NEVER recapture benchmarks automatically when they fail
+- Only recapture after user has visually verified the UI behavior is correct
+- Use `RECAPTURE=1 cargo test --release test_all_build_benchmarks -- --nocapture` to print new values
+- The user must manually update `ui_benchmarks()` after confirming the behavior is good
+
 ## Key Insights and Philosophy
 
 1. **No Hardcoded Iteration Constants** - System dynamically adjusts to maintain target time scales. Use nominal values, let outer loop correct.
