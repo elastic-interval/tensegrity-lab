@@ -62,10 +62,9 @@ impl Fabric {
         } in brick.intervals
         {
             let (alpha_key, omega_key) = (joint_keys[alpha_index], joint_keys[omega_index]);
-            let ideal = self.ideal(alpha_key, omega_key, strain);
             let role =
                 Role::from_label(&material_name).expect(&format!("Material: {}", material_name));
-            self.create_interval(alpha_key, omega_key, ideal, role);
+            self.create_strained_interval(alpha_key, omega_key, role, strain);
         }
         let brick_faces = brick
             .faces
@@ -104,9 +103,7 @@ impl Fabric {
                     let alpha_key = self.create_joint_with_path(Point3::from_vec(midpoint), midpoint_path);
                     let radial_intervals = brick_joints.map(|omega| {
                         let omega_key = joint_keys[omega];
-                        let ideal =
-                            self.ideal(alpha_key, omega_key, BakedBrick::TARGET_FACE_STRAIN);
-                        self.create_interval(alpha_key, omega_key, ideal, Role::FaceRadial)
+                        self.create_strained_interval(alpha_key, omega_key, Role::FaceRadial, BakedBrick::TARGET_FACE_STRAIN)
                     });
                     Some(self.create_face(
                         aliases_for_role,

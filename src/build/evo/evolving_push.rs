@@ -15,7 +15,7 @@ impl EvolvingPush {
     pub fn first_push(fabric: &mut Fabric) -> Self {
         let alpha = fabric.create_joint(Point3::new(0.5, 0.0, 0.0));
         let omega = fabric.create_joint(Point3::new(-0.5, 0.0, 0.0));
-        let interval_key = fabric.create_interval(alpha, omega, 1.0, Role::Pushing);
+        let interval_key = fabric.create_slack_interval(alpha, omega, Role::Pushing);
         Self::new(interval_key)
     }
 
@@ -37,9 +37,9 @@ impl EvolvingPush {
         };
         let alpha_key = fabric.create_joint(&here - project / 2.0);
         let omega_key = fabric.create_joint(&here + project / 2.0);
-        let interval_key = fabric.create_interval(alpha_key, omega_key, 1.0, Role::Pushing);
-        let alpha_pull = fabric.create_interval(here_key, alpha_key, 0.5, Role::Pulling);
-        let omega_pull = fabric.create_interval(here_key, omega_key, 0.5, Role::Pulling);
+        let interval_key = fabric.create_slack_interval(alpha_key, omega_key, Role::Pushing);
+        let alpha_pull = fabric.create_slack_interval(here_key, alpha_key, Role::Pulling);
+        let omega_pull = fabric.create_slack_interval(here_key, omega_key, Role::Pulling);
         pulls.push(alpha_pull);
         pulls.push(omega_pull);
         Self {
@@ -75,7 +75,7 @@ impl EvolvingPush {
         for (end_a, end_b) in ends {
             let key_a = snapshot_a.1.end_key(&end_a);
             let key_b = snapshot_b.1.end_key(&end_b);
-            let pull = fabric.create_interval(key_a, key_b, 0.5, Role::Pulling);
+            let pull = fabric.create_slack_interval(key_a, key_b, Role::Pulling);
             evolving_pushes[snapshot_a.0].add_pull(&end_a, pull);
             evolving_pushes[snapshot_b.0].add_pull(&end_b, pull);
         }

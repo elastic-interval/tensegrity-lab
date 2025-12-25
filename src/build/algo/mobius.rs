@@ -61,11 +61,11 @@ pub fn generate_mobius(segments: usize) -> Fabric {
         let j = |offset: usize| joint_keys[(joint_index * 2 + offset) % joint_count];
 
         // Pull along edge (offset 0 to 2)
-        fabric.create_interval(j(0), j(2), pull_edge, Role::Pulling);
+        fabric.create_fixed_interval(j(0), j(2), Role::Pulling, pull_edge);
         // Pull across width (offset 0 to 1)
-        fabric.create_interval(j(0), j(1), pull_width, Role::Pulling);
+        fabric.create_fixed_interval(j(0), j(1), Role::Pulling, pull_width);
         // Push diagonal (offset 0 to 3)
-        fabric.create_interval(j(0), j(3), push_length, Role::Pushing);
+        fabric.create_fixed_interval(j(0), j(3), Role::Pushing, push_length);
     }
 
     fabric

@@ -5,11 +5,12 @@
 
 use std::collections::{HashMap, HashSet};
 
-use cgmath::MetricSpace;
-
 use crate::fabric::interval::Span::Measuring;
 use crate::fabric::interval::{Interval, Role, Span};
 use crate::fabric::{Fabric, IntervalKey, JointKey};
+use crate::units::Seconds;
+
+const VULCANIZE_DURATION: Seconds = Seconds(1.0);
 
 /// How the differential ratio affects contraction.
 #[derive(Debug, Clone, Copy)]
@@ -41,13 +42,7 @@ impl Fabric {
     pub fn prepare_vulcanize(&mut self, contraction: f32, mode: VulcanizeMode) {
         let bow_tie_pairs = BowTieFinder::new(self).find_all_bow_tie_pairs();
         for (alpha, omega) in bow_tie_pairs {
-            let baseline = self.joints[alpha].location.distance(self.joints[omega].location);
-            let key = self.create_interval(alpha, omega, baseline, Role::BowTie);
-            self.intervals[key].span = Measuring {
-                baseline,
-                contraction,
-                mode,
-            };
+            self.create_measuring_interval(alpha, omega, Role::BowTie, contraction, mode);
         }
     }
 
@@ -59,6 +54,7 @@ impl Fabric {
             .values()
             .any(|i| i.role == Role::BowTie && matches!(i.span, Measuring { .. }));
 
+        let start_age = self.age;
         if has_measuring {
             for interval in self.intervals.values_mut() {
                 if interval.role != Role::BowTie {
@@ -80,19 +76,17 @@ impl Fabric {
                     interval.span = Span::Approaching {
                         start_length: current,
                         target_length,
+                        start_age,
+                        duration: VULCANIZE_DURATION,
                     };
                 }
             }
         } else {
             let bow_tie_pairs = BowTieFinder::new(self).find_all_bow_tie_pairs();
             for (alpha, omega) in bow_tie_pairs {
-                let current = self.joints[alpha].location.distance(self.joints[omega].location);
+                let current = self.distance(alpha, omega);
                 let target_length = current * DEFAULT_CONTRACTION;
-                let key = self.create_interval(alpha, omega, current, Role::BowTie);
-                self.intervals[key].span = Span::Approaching {
-                    start_length: current,
-                    target_length,
-                };
+                self.create_approaching_interval(alpha, omega, target_length, Role::BowTie, VULCANIZE_DURATION);
             }
         }
     }

@@ -50,11 +50,6 @@ impl Fabric {
         self.location(alpha_key).distance(self.location(omega_key))
     }
 
-    pub fn ideal(&self, alpha_key: JointKey, omega_key: JointKey, strain: f32) -> f32 {
-        let distance = self.distance(alpha_key, omega_key);
-        distance / (1.0 + strain * distance)
-    }
-
     /// Find a joint by its path (linear search, only for setup)
     pub fn joint_key_by_path(&self, path: &JointPath) -> Option<JointKey> {
         self.joints

@@ -3,7 +3,6 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use crate::fabric::vulcanize::VulcanizeMode;
 use crate::fabric::attachment::{
     calculate_interval_attachment_points, find_nearest_attachment_point, AttachmentPoint,
     PullConnection, PullConnections, PullIntervalData, ATTACHMENT_POINTS,
@@ -14,9 +13,11 @@ use crate::fabric::interval::Span::*;
 use crate::fabric::joint::Joint;
 use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
+use crate::fabric::vulcanize::VulcanizeMode;
 use crate::fabric::FabricDimensions;
-use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointKey, Joints, Progress};
-use crate::units::{Meters, NewtonsPerMeter, Percent};
+use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointKey, Joints};
+use crate::units::{Meters, NewtonsPerMeter, Percent, Seconds};
+use crate::Age;
 use crate::Appearance;
 use cgmath::num_traits::zero;
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
@@ -107,38 +108,7 @@ impl Fabric {
         }
     }
 
-    /// Create an interval with a specified role
-    pub fn create_interval(
-        &mut self,
-        alpha_key: JointKey,
-        omega_key: JointKey,
-        ideal: f32,
-        role: Role,
-    ) -> IntervalKey {
-        self.create_interval_with_span(
-            alpha_key,
-            omega_key,
-            role,
-            Approaching {
-                start_length: self.distance(alpha_key, omega_key),
-                target_length: ideal,
-            },
-        )
-    }
-
-    /// Create an interval at its current slack length (Fixed span)
-    /// Use this for algorithmic fabrics that will be pretensed
-    pub fn create_interval_fixed(
-        &mut self,
-        alpha_key: JointKey,
-        omega_key: JointKey,
-        role: Role,
-    ) -> IntervalKey {
-        let length = self.distance(alpha_key, omega_key);
-        self.create_interval_with_span(alpha_key, omega_key, role, Fixed { length })
-    }
-
-    fn create_interval_with_span(
+    fn create_interval(
         &mut self,
         alpha_key: JointKey,
         omega_key: JointKey,
@@ -173,6 +143,105 @@ impl Fabric {
         }
 
         key
+    }
+
+    /// Create an interval that approaches a target length over a duration
+    pub fn create_approaching_interval(
+        &mut self,
+        alpha_key: JointKey,
+        omega_key: JointKey,
+        target_length: f32,
+        role: Role,
+        duration: Seconds,
+    ) -> IntervalKey {
+        let start_length = self.distance(alpha_key, omega_key);
+        self.approaching_count += 1;
+        self.create_interval(
+            alpha_key,
+            omega_key,
+            role,
+            Approaching {
+                start_length,
+                target_length,
+                start_age: self.age,
+                duration,
+            },
+        )
+    }
+
+    /// Extend an existing interval to a new target length
+    pub fn extend_interval(&mut self, key: IntervalKey, target_length: f32, duration: Seconds) {
+        if let Some(interval) = self.intervals.get_mut(key) {
+            let current_length = interval.ideal();
+            interval.span = Approaching {
+                start_length: current_length,
+                target_length,
+                start_age: self.age,
+                duration,
+            };
+            self.approaching_count += 1;
+        }
+    }
+
+    /// Create an interval with a Fixed span at a specific length
+    pub fn create_fixed_interval(
+        &mut self,
+        alpha_key: JointKey,
+        omega_key: JointKey,
+        role: Role,
+        length: f32,
+    ) -> IntervalKey {
+        self.create_interval(alpha_key, omega_key, role, Fixed { length })
+    }
+
+    /// Create an interval with a Fixed span at length calculated from strain
+    pub fn create_strained_interval(
+        &mut self,
+        alpha_key: JointKey,
+        omega_key: JointKey,
+        role: Role,
+        strain: f32,
+    ) -> IntervalKey {
+        let distance = self.distance(alpha_key, omega_key);
+        let length = distance / (1.0 + strain * distance);
+        self.create_fixed_interval(alpha_key, omega_key, role, length)
+    }
+
+    /// Create a measuring interval (for vulcanize bow ties)
+    pub fn create_measuring_interval(
+        &mut self,
+        alpha_key: JointKey,
+        omega_key: JointKey,
+        role: Role,
+        contraction: f32,
+        mode: VulcanizeMode,
+    ) -> IntervalKey {
+        let baseline = self.distance(alpha_key, omega_key);
+        self.create_interval(
+            alpha_key,
+            omega_key,
+            role,
+            Measuring {
+                baseline,
+                contraction,
+                mode,
+            },
+        )
+    }
+
+    /// Create an interval at its current slack length (Fixed span at current distance)
+    pub fn create_slack_interval(
+        &mut self,
+        alpha_key: JointKey,
+        omega_key: JointKey,
+        role: Role,
+    ) -> IntervalKey {
+        self.create_fixed_interval(
+            alpha_key,
+            omega_key,
+            role,
+            self.distance(alpha_key, omega_key),
+        )
     }
 
     /// Get an interval by its key, returning a Result
@@ -250,10 +319,11 @@ pub enum Span {
         length: f32,
     },
     Approaching {
-        target_length: f32,
         start_length: f32,
+        target_length: f32,
+        start_age: Age,
+        duration: Seconds,
     },
-    /// Exerts no force; records baseline for activation.
     Measuring {
         baseline: f32,
         contraction: f32,
@@ -262,24 +332,30 @@ pub enum Span {
 }
 
 impl Span {
-    /// Scale all lengths by the given factor
     pub fn scale(&mut self, factor: f32) {
         match self {
             Span::Fixed { length } => {
                 *length *= factor;
             }
             Span::Approaching {
-                target_length,
                 start_length,
+                target_length,
+                ..
             } => {
-                *target_length *= factor;
                 *start_length *= factor;
+                *target_length *= factor;
             }
             Span::Measuring { baseline, .. } => {
                 *baseline *= factor;
             }
         }
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum SpanTransition {
+    Unchanged,
+    ApproachCompleted,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -659,26 +735,36 @@ impl Interval {
                 target_length: length,
                 ..
             }
-            | Measuring { baseline: length, .. } => length,
+            | Measuring {
+                baseline: length, ..
+            } => length,
         }
     }
 
-    /// Iterate physics for this interval.
-    /// All lengths (ideal, real_length) are now in meters directly.
-    pub fn iterate(&mut self, joints: &mut Joints, progress: &Progress, physics: &Physics) {
-        // Measuring intervals exert no force - they're just recording baseline
+    pub fn iterate(&mut self, joints: &mut Joints, age: Age, physics: &Physics) -> SpanTransition {
         if matches!(self.span, Measuring { .. }) {
-            return;
+            return SpanTransition::Unchanged;
         }
+        let mut transition = SpanTransition::Unchanged;
         let ideal = match self.span {
             Fixed { length } => length,
             Approaching {
                 start_length,
                 target_length,
-                ..
+                start_age,
+                duration,
             } => {
-                let completion = progress.completion();
-                start_length * (1.0 - completion) + target_length * completion
+                let elapsed = age.elapsed_since(start_age);
+                let completion = (elapsed.0 / duration.0).min(1.0);
+                if completion >= 1.0 {
+                    self.span = Fixed {
+                        length: target_length,
+                    };
+                    transition = SpanTransition::ApproachCompleted;
+                    target_length
+                } else {
+                    start_length * (1.0 - completion) + target_length * completion
+                }
             }
             Measuring { .. } => unreachable!(),
         };
@@ -719,6 +805,8 @@ impl Interval {
         let half_mass = interval_mass / 2.0;
         joints[alpha_key].accumulated_mass += half_mass;
         joints[omega_key].accumulated_mass += half_mass;
+
+        transition
     }
 
     /// Check if this interval touches a specific joint

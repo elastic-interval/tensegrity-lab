@@ -158,7 +158,7 @@ impl BrickPrototype {
                 }
                 joint_key
             });
-            fabric.create_interval(alpha_key, omega_key, ideal, Role::Pushing);
+            fabric.create_slack_interval(alpha_key, omega_key, Role::Pushing);
         }
         for pull in &self.pulls {
             let [alpha_key, omega_key] = [pull.alpha, pull.omega].map(|name| {
@@ -168,7 +168,7 @@ impl BrickPrototype {
             });
             let role = Role::from_label(&pull.material)
                 .expect(&format!("Unknown role label: {}", pull.material));
-            fabric.create_interval(alpha_key, omega_key, pull.ideal, role);
+            fabric.create_slack_interval(alpha_key, omega_key, role);
         }
         for face_def in &self.faces {
             let joint_keys = face_def.joints.map(|name| {
@@ -180,7 +180,7 @@ impl BrickPrototype {
             // Start face center at origin - radial tensions will pull it into position
             let alpha_key = fabric.create_joint(Point3::origin());
             let radial_intervals = joint_keys.map(|omega_key| {
-                fabric.create_interval(alpha_key, omega_key, face_scale, Role::FaceRadial)
+                fabric.create_slack_interval(alpha_key, omega_key, Role::FaceRadial)
             });
             fabric.create_face(
                 face_def.aliases.clone(),

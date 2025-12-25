@@ -73,7 +73,7 @@ pub fn generate_sphere(frequency: usize, radius: f32) -> Fabric {
                                 .create_joint(Point3::from_vec(quaternion * omega_base));
                             let length = (omega_base - alpha_base).magnitude();
                             ts.fabric
-                                .create_interval(alpha, omega, length, Role::Pushing);
+                                .create_fixed_interval(alpha, omega, Role::Pushing, length);
                             PushInterval {
                                 alpha_vertex: *vertex_here,
                                 omega_vertex: *adjacent_vertex,
@@ -142,11 +142,11 @@ pub fn generate_sphere(frequency: usize, radius: f32) -> Fabric {
     for (hub, spokes) in vertex_spokes.iter().enumerate() {
         for (spoke_index, spoke) in spokes.iter().enumerate() {
             let next_spoke = &spokes[(spoke_index + 1) % spokes.len()];
-            ts.fabric.create_interval(
+            ts.fabric.create_fixed_interval(
                 spoke.near_joint,
                 next_spoke.near_joint,
-                spoke.length / 3.0,
                 Role::Pulling,
+                spoke.length / 3.0,
             );
             let next_near = &spokes[(spoke_index + 1) % spokes.len()].near_joint;
             let next_far = {
@@ -157,7 +157,7 @@ pub fn generate_sphere(frequency: usize, radius: f32) -> Fabric {
             if *next_far > *next_near {
                 // only up-hill
                 ts.fabric
-                    .create_interval(*next_near, *next_far, spoke.length, Role::Pulling);
+                    .create_fixed_interval(*next_near, *next_far, Role::Pulling, spoke.length);
             }
         }
     }
