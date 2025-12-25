@@ -18,8 +18,6 @@ pub struct PretensePhase {
     pub min_push_strain: Option<f32>,
     /// Maximum compression per extension round (default 3%)
     pub max_push_strain: Option<f32>,
-    /// How much extensions can overlap (0% = wait for completion, 100% = start immediately)
-    pub extension_overlap: Option<Percent>,
 }
 
 impl PretensePhase {

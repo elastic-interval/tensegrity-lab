@@ -12,9 +12,6 @@ use crate::Radio;
 use crate::SnapshotMoment;
 use std::collections::HashMap;
 
-const SETTLE_SECONDS: Seconds = Seconds(0.2);
-const PRETENSE_STEP_SECONDS: Seconds = Seconds(0.01);
-
 #[derive(Clone, Debug)]
 pub struct SymmetricGroup {
     pub depth: usize,
@@ -98,7 +95,7 @@ impl Fabric {
     }
 
     /// Extend a single symmetric group.
-    fn extend_symmetric_group(&mut self, group: &SymmetricGroup) {
+    fn extend_symmetric_group(&mut self, group: &SymmetricGroup, duration: Seconds) {
         let increment = match self.dimensions.push_length_increment {
             Some(m) => *m,
             None => return,
@@ -106,7 +103,7 @@ impl Fabric {
         for &key in &group.intervals {
             if let Some(interval) = self.intervals.get(key) {
                 let new_length = interval.ideal() + increment;
-                self.extend_interval(key, new_length, PRETENSE_STEP_SECONDS);
+                self.extend_interval(key, new_length, duration);
             }
         }
     }
@@ -233,7 +230,6 @@ impl std::fmt::Display for ExecutionEvent {
 
 #[derive(Clone, Debug, PartialEq)]
 enum PretenseStage {
-    Settling,
     Measuring,
     Extending,
 }
@@ -252,8 +248,6 @@ pub struct FabricPlanExecutor {
     radio: Option<Radio>,
     pretense_stage: PretenseStage,
     symmetric_groups: Vec<SymmetricGroup>,
-    settle_started_at: Option<crate::Age>,
-    extension_start_age: Option<crate::Age>,
     fall_start_age: Option<crate::Age>,
     settle_phase_start_age: Option<crate::Age>,
 }
@@ -286,10 +280,8 @@ impl FabricPlanExecutor {
             stored_surface_character: None,
             stored_scale: 1.0,
             radio,
-            pretense_stage: PretenseStage::Settling,
+            pretense_stage: PretenseStage::Measuring,
             symmetric_groups: Vec::new(),
-            settle_started_at: None,
-            extension_start_age: None,
             fall_start_age: None,
             settle_phase_start_age: None,
         };
@@ -398,14 +390,6 @@ impl FabricPlanExecutor {
                 }
             }
             ExecutorStage::Pretensing => match self.pretense_stage {
-                PretenseStage::Settling => {
-                    let started = self.settle_started_at.get_or_insert(self.fabric.age);
-                    let elapsed = self.fabric.age.elapsed_since(*started);
-                    if elapsed >= SETTLE_SECONDS {
-                        self.settle_started_at = None;
-                        self.pretense_stage = PretenseStage::Measuring;
-                    }
-                }
                 PretenseStage::Measuring => {
                     self.fabric.update_group_strains(&mut self.symmetric_groups);
                     let min_push_strain = self
@@ -423,36 +407,21 @@ impl FabricPlanExecutor {
                         min_push_strain,
                         max_push_strain,
                     ) {
+                        let duration = self
+                            .plan
+                            .pretense_phase
+                            .seconds
+                            .unwrap_or(Seconds(0.05));
                         self.fabric
-                            .extend_symmetric_group(&self.symmetric_groups[group_idx]);
-                        self.extension_start_age = Some(self.fabric.age);
-                        self.pretense_stage = PretenseStage::Extending;
-                    } else if self.fabric.has_approaching_intervals() {
-                        // Groups done but still have approaching intervals - wait in Extending
+                            .extend_symmetric_group(&self.symmetric_groups[group_idx], duration);
                         self.pretense_stage = PretenseStage::Extending;
                     } else {
                         self.transition_to_fall();
                     }
                 }
                 PretenseStage::Extending => {
-                    if let Some(overlap) = self.plan.pretense_phase.extension_overlap {
-                        // Overlap configured: skip settling, go directly to next extension
-                        let wait_fraction = 1.0 - overlap.as_factor();
-                        let wait_duration = Seconds(PRETENSE_STEP_SECONDS.0 * wait_fraction);
-
-                        let can_start_next = self.extension_start_age.map_or(true, |start| {
-                            self.fabric.age.elapsed_since(start) >= wait_duration
-                        });
-
-                        if can_start_next {
-                            self.pretense_stage = PretenseStage::Measuring;
-                        }
-                    } else {
-                        // No overlap: original behavior - wait for completion then settle
-                        if !self.fabric.has_approaching_intervals() {
-                            self.settle_started_at = None;
-                            self.pretense_stage = PretenseStage::Settling;
-                        }
+                    if !self.fabric.has_approaching_intervals() {
+                        self.pretense_stage = PretenseStage::Measuring;
                     }
                 }
             },
@@ -585,8 +554,7 @@ impl FabricPlanExecutor {
 
         // Discover symmetric groups for holistic pretensing
         self.symmetric_groups = self.fabric.discover_symmetric_groups();
-        self.pretense_stage = PretenseStage::Settling;
-        self.settle_started_at = None;
+        self.pretense_stage = PretenseStage::Measuring;
 
         self.log_event(ExecutionEvent::PretensionApplied {
             iteration: self.current_iteration,
@@ -734,7 +702,6 @@ impl FabricPlanExecutor {
     /// Returns a status string for pretensing progress
     pub fn pretense_status(&self) -> String {
         let stage_name = match self.pretense_stage {
-            PretenseStage::Settling => "Settling",
             PretenseStage::Measuring => "Measuring",
             PretenseStage::Extending => "Extending",
         };

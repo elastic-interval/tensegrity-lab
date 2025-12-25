@@ -68,7 +68,7 @@ impl FabricName {
                 .prepare_vulcanize(0.5, VulcanizeMode::Linear)
                 .space(Sec(3.0), End, Pct(25.0))
                 .vulcanize(Sec(1.0))
-                .pretense(Sec(1.0))
+                .pretense()
                 .surface_frozen()
                 .fall(Sec(2.0))
                 .settle(Sec(3.0))
@@ -91,7 +91,7 @@ impl FabricName {
                 .seed(SingleTwistLeft, Seed(1))
                 .faces([on(SingleTop).column(2).shrink_by(Pct(25.0))])
                 .vulcanize(Sec(2.0))
-                .pretense(Sec(2.0))
+                .pretense()
                 .surface_frozen()
                 .fall(Sec(3.0))
                 .settle(Sec(4.0)),
@@ -111,7 +111,7 @@ impl FabricName {
                 )])
                 .join(Sec(10.0), HaloEnd)
                 .vulcanize(Sec(5.0))
-                .pretense(Sec(10.0))
+                .pretense()
                 .surface_frozen(),
 
             Vertebra => self
@@ -123,7 +123,7 @@ impl FabricName {
                 .seed(SingleTwistLeft, Seed(1))
                 .faces([on(SingleTop).column(1)])
                 .centralize_at(Sec(1.0), M(0.075))
-                .pretense(Sec(10.0))
+                .pretense()
                 .floating(),
 
             Flagellum => self
@@ -135,7 +135,7 @@ impl FabricName {
                 .seed(SingleTwistLeft, Seed(1))
                 .faces([on(SingleTop).column(20).shrink_by(Pct(5.0))])
                 .vulcanize(Sec(1.0))
-                .pretense(Sec(15.0))
+                .pretense()
                 .surface_frozen(),
 
             HeadlessHug => self
@@ -186,7 +186,7 @@ impl FabricName {
                 .space(Sec(2.0), Chest2, Pct(40.0))
                 .vulcanize(Sec(6.0))
                 .centralize_at(Sec(1.0), M(1.0))
-                .pretense(Sec(15.0))
+                .pretense()
                 .surface_frozen(),
         }
     }

@@ -123,8 +123,7 @@ impl FabricBuilder {
         self
     }
 
-    pub fn pretense(mut self, seconds: Seconds) -> PretenseChain {
-        self.pretense.seconds = Some(seconds);
+    pub fn pretense(self) -> PretenseChain {
         PretenseChain { fabric: self }
     }
 
@@ -401,9 +400,8 @@ impl SeedChain {
         self.finalize_build().omit(pairs)
     }
 
-    // Terminal operation (no shape phase)
-    pub fn pretense(self, seconds: Seconds) -> PretenseChain {
-        self.finalize_build().pretense(seconds)
+    pub fn pretense(self) -> PretenseChain {
+        self.finalize_build().pretense()
     }
 }
 
@@ -492,7 +490,6 @@ pub struct PretensePhaseBuilder {
     omit_pairs: Vec<(JointPath, JointPath)>,
     min_push_strain: Option<f32>,
     max_push_strain: Option<f32>,
-    extension_overlap: Option<Percent>,
 }
 
 impl PretensePhaseBuilder {
@@ -514,7 +511,6 @@ impl PretensePhaseBuilder {
             omit_pairs: self.omit_pairs,
             min_push_strain: self.min_push_strain,
             max_push_strain: self.max_push_strain,
-            extension_overlap: self.extension_overlap,
         }
     }
 }
@@ -525,26 +521,23 @@ pub struct PretenseChain {
 }
 
 impl PretenseChain {
+    pub fn step_duration(mut self, seconds: Seconds) -> Self {
+        self.fabric.pretense.seconds = Some(seconds);
+        self
+    }
+
     pub fn rigidity(mut self, rigidity: Percent) -> Self {
         self.fabric.pretense.rigidity = Some(rigidity);
         self
     }
 
-    /// Target compression for push intervals (default 1%)
     pub fn min_push_strain(mut self, strain: Percent) -> Self {
         self.fabric.pretense.min_push_strain = Some(strain.as_factor());
         self
     }
 
-    /// Maximum compression per extension round (default 3%)
     pub fn max_push_strain(mut self, strain: Percent) -> Self {
         self.fabric.pretense.max_push_strain = Some(strain.as_factor());
-        self
-    }
-
-    /// How much extensions can overlap (0% = sequential, 100% = fully parallel)
-    pub fn extension_overlap(mut self, overlap: Percent) -> Self {
-        self.fabric.pretense.extension_overlap = Some(overlap);
         self
     }
 

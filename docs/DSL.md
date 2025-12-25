@@ -19,7 +19,7 @@ Triped
     ])
     .space(Sec(3.0), End, Pct(38.0))
     .vulcanize(Sec(1.0))
-    .pretense(Sec(1.0))
+    .pretense()
     .surface_frozen()
     .fall(Sec(3.0))
     .settle(Sec(3.0))
@@ -139,10 +139,11 @@ Manipulate the structure while still in construction physics. Each shape operati
 Apply pretension to cables (no gravity). Removes construction faces, leaving only the tensegrity structure.
 
 ```rust
-.pretense(Sec(duration))
-    .altitude(M(height))                // Optional altitude in meters
-    .pretenst(Pct(1.0))                 // Optional pretension
+.pretense()
+    .step_duration(Sec(0.1))            // Optional: duration per extension step
     .rigidity(Pct(100.0))               // Optional rigidity
+    .min_push_strain(Pct(1.0))          // Optional target compression
+    .max_push_strain(Pct(3.0))          // Optional max compression per step
     .surface_frozen()                   // Required: specify surface interaction
 ```
 
