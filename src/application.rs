@@ -37,8 +37,6 @@ pub struct Application {
     pointer_handler: PointerHandler,
     time_scale: f32,
     model_scale: Option<f32>,
-    #[cfg(not(target_arch = "wasm32"))]
-    machine: Option<crate::cord_machine::CordMachine>,
     animation_exporter: Option<AnimationExporter>,
     record_until: Option<Seconds>,
     snapshot_moment: Option<SnapshotMoment>,
@@ -72,8 +70,6 @@ impl Application {
             control_state: ControlState::Waiting,
             time_scale,
             model_scale: model_scale.map(|n| 1.0 / n),
-            #[cfg(not(target_arch = "wasm32"))]
-            machine: None,
             animation_exporter: None,
             record_until: None,
             snapshot_moment: None,
@@ -257,26 +253,11 @@ impl ApplicationHandler<LabEvent> for Application {
                 StateChange::SetStageLabel("Viewing".to_string()).send(&self.radio);
                 // Handle test scenarios first
                 if let RunStyle::Fabric {
-                    scenario: Some(scenario),
+                    scenario: Some(TestScenario::PhysicsTest),
                     ..
                 } = &self.run_style
                 {
-                    match scenario {
-                        TestScenario::PhysicsTest => {
-                            CrucibleAction::ToPhysicsTesting(scenario.clone()).send(&self.radio);
-                        }
-                        TestScenario::MachineTest(ip_address) => {
-                            println!("Running machine test at {ip_address}");
-                            #[cfg(not(target_arch = "wasm32"))]
-                            match crate::cord_machine::CordMachine::new(ip_address) {
-                                Ok(machine) => self.machine = Some(machine),
-                                Err(error) => {
-                                    panic!("Machine [{ip_address}]: {error}");
-                                }
-                            }
-                            self.crucible.viewing_state().send(&self.radio);
-                        }
-                    }
+                    CrucibleAction::ToPhysicsTesting(TestScenario::PhysicsTest).send(&self.radio);
                 } else if self.mobile_device && self.crucible.animation_available() {
                     // Auto-start animation on mobile devices with actuators
                     CrucibleAction::ToAnimating.send(&self.radio);
@@ -305,23 +286,6 @@ impl ApplicationHandler<LabEvent> for Application {
                     let name = format!("{}.csv", self.crucible.fabric.name);
                     if let Err(e) = self.crucible.fabric.snapshot_csv(&name) {
                         eprintln!("Failed to export CSV: {}", e);
-                    }
-                }
-            }
-            PrintCord(length) => {
-                let scaled_length = length * self.model_scale.unwrap_or(1.0);
-                println!("Cord {scaled_length:.?} ");
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    if let Some(machine) = &self.machine {
-                        match machine.make_wire(scaled_length) {
-                            Ok(length_mm) => {
-                                println!("Cord created {length_mm:.2}mm")
-                            }
-                            Err(error) => {
-                                panic!("Machine: {error}");
-                            }
-                        }
                     }
                 }
             }

@@ -52,18 +52,6 @@ impl Keyboard {
     pub fn with_actions(mut self, model_scale: Option<f32>) -> Self {
         use CrucibleAction::*;
         use LabEvent::*;
-        self.key_dynamic_lab_event(
-            KeyCode::KeyP,
-            "Print cord",
-            Box::new(|control_state| {
-                if let ShowingInterval(interval_details) = control_state {
-                    PrintCord(interval_details.length)
-                } else {
-                    panic!("expected ShowingInterval state")
-                }
-            }),
-            Box::new(|state| matches!(state, ShowingInterval(_))),
-        );
         self.key_lab_event(
             KeyCode::Escape,
             "Cancel selection",
@@ -353,22 +341,6 @@ impl Keyboard {
             code,
             description: description.into(),
             lab_event: Box::new(move |_| lab_event.clone()),
-            radio: self.radio.clone(),
-            is_active_in,
-        });
-    }
-
-    fn key_dynamic_lab_event(
-        &mut self,
-        code: KeyCode,
-        description: &str,
-        lab_event: Box<dyn Fn(&ControlState) -> LabEvent>,
-        is_active_in: Box<dyn Fn(&ControlState) -> bool>,
-    ) {
-        self.actions.push(KeyAction::KeyLabEvent {
-            code,
-            description: description.into(),
-            lab_event,
             radio: self.radio.clone(),
             is_active_in,
         });
