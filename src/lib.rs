@@ -17,8 +17,6 @@ pub mod animation_export;
 pub mod application;
 pub mod build;
 pub mod camera;
-#[cfg(not(target_arch = "wasm32"))]
-pub mod cord_machine;
 pub mod crucible;
 pub mod crucible_context;
 pub mod fabric;
@@ -708,7 +706,6 @@ pub enum LabEvent {
     UpdateState(StateChange),
     RebuildFabric,
     NextBrick,
-    PrintCord(Meters),
     DumpCSV,
     RequestRedraw,
     PointerChanged(PointerChange),
