@@ -8,6 +8,8 @@ use urlencoding;
 
 use crate::units::Meters;
 
+const EXTENSION: f32 = 20.0;
+
 /// Controller for a wire-cutting/forming machine
 pub struct CordMachine {
     base_url: String,
@@ -83,10 +85,11 @@ impl CordMachine {
     }
 
     /// Create and execute a G-code file to make a wire of the specified length
-    pub fn make_wire(&self, length: Meters) -> Result<(), Box<dyn Error>> {
+    pub fn make_wire(&self, length: Meters) -> Result<f32, Box<dyn Error>> {
+        let length_mm = length.to_mm() + EXTENSION;
         let base_url = self.base_url.clone();
         let client = self.client.clone();
-        let gcode = self.template_make_wire(length.to_mm());
+        let gcode = self.template_make_wire(length_mm);
 
         let runtime = self.runtime.clone();
 
@@ -120,7 +123,7 @@ impl CordMachine {
             })
         })?;
 
-        Ok(())
+        Ok(length_mm)
     }
 
     /// Generate a G-code template for making a wire

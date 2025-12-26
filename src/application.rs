@@ -310,13 +310,13 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             PrintCord(length) => {
                 let scaled_length = length * self.model_scale.unwrap_or(1.0);
-                println!("Print cord {scaled_length:?}");
+                println!("Cord {scaled_length:.?} ");
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     if let Some(machine) = &self.machine {
                         match machine.make_wire(scaled_length) {
-                            Ok(_) => {
-                                println!("Printed!")
+                            Ok(length_mm) => {
+                                println!("Cord created {length_mm:.2}mm")
                             }
                             Err(error) => {
                                 panic!("Machine: {error}");
