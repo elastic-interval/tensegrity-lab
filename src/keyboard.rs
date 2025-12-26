@@ -1,7 +1,7 @@
 use crate::units::Meters;
 use crate::ControlState::*;
 use crate::{
-    ControlState, CrucibleAction, LabEvent, Radio, StateChange, TestScenario, TesterAction,
+    ControlState, CrucibleAction, LabEvent, Radio, StateChange, TesterAction,
     TweakFeature, TweakParameter,
 };
 use winit::event::KeyEvent;
@@ -62,7 +62,7 @@ impl Keyboard {
             KeyCode::Escape,
             "Exit",
             Crucible(ToViewing),
-            Box::new(|state| matches!(state, PhysicsTesting(_))),
+            Box::new(|state| matches!(state, PhysicsTesting)),
         );
         self.key_lab_event(
             KeyCode::KeyA,
@@ -92,7 +92,7 @@ impl Keyboard {
         self.key_lab_event(
             KeyCode::KeyX,
             "Physics testing",
-            Crucible(ToPhysicsTesting(TestScenario::PhysicsTest)),
+            Crucible(ToPhysicsTesting),
             Box::new(|state| matches!(state, Viewing { .. })),
         );
         self.tweak_parameter(
@@ -103,7 +103,7 @@ impl Keyboard {
                 value: 1.0,
             },
             Box::new(|value| format!("Mass {value:.4}")),
-            Box::new(|state| matches!(state, PhysicsTesting(_))),
+            Box::new(|state| matches!(state, PhysicsTesting)),
         );
         self.tweak_parameter(
             "R",
@@ -113,25 +113,25 @@ impl Keyboard {
                 value: 1.0,
             },
             Box::new(|value| format!("Rigidity {value:.4}")),
-            Box::new(|state| matches!(state, PhysicsTesting(_))),
+            Box::new(|state| matches!(state, PhysicsTesting)),
         );
         self.key_lab_event(
             KeyCode::KeyS,
             "Movement stats",
             Crucible(TesterDo(TesterAction::ToggleMovementSampler)),
-            Box::new(|state| matches!(state, PhysicsTesting(_))),
+            Box::new(|state| matches!(state, PhysicsTesting)),
         );
         self.key_lab_event(
             KeyCode::KeyJ,
             "Jump",
             Crucible(CrucibleAction::CentralizeFabric(Some(Meters(1.0)))),
-            Box::new(|state| matches!(state, PhysicsTesting(_) | Viewing { .. })),
+            Box::new(|state| matches!(state, PhysicsTesting | Viewing { .. })),
         );
         self.key_lab_event(
             KeyCode::KeyC,
             "Color by Role",
             UpdateState(StateChange::ToggleColorByRole),
-            Box::new(|state| matches!(state, PhysicsTesting(_))),
+            Box::new(|state| matches!(state, PhysicsTesting)),
         );
         // Hinges are only available when not in model-scale mode
         if model_scale.is_none() {

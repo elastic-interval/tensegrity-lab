@@ -5,7 +5,7 @@ use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::Wgpu;
 use crate::{
-    ControlState, PickIntent, PointerChange, Radio, RenderStyle, StateChange, TestScenario,
+    ControlState, PickIntent, PointerChange, Radio, RenderStyle, StateChange,
     SHOW_ATTACHMENT_POINTS,
 };
 use std::rc::Rc;
@@ -54,7 +54,6 @@ impl Scene {
         use ControlState::*;
         use RenderStyle::*;
         use StateChange::*;
-        use TestScenario::*;
         self.text_renderer.update_state(&state_change);
         match state_change {
             ToggleProjection => {
@@ -88,16 +87,11 @@ impl Scene {
                 ShowingInterval(_) => {
                     self.pick_allowed = true;
                 }
-                PhysicsTesting(scenario) => {
+                PhysicsTesting => {
                     self.reset();
-                    match scenario {
-                        PhysicsTest => {
-                            self.render_style = WithAppearanceFunction {
-                                function: Rc::new(|_| None),
-                                show_attachment_points: false,
-                            }
-                        }
-                        _ => unreachable!(),
+                    self.render_style = WithAppearanceFunction {
+                        function: Rc::new(|_| None),
+                        show_attachment_points: false,
                     }
                 }
             },

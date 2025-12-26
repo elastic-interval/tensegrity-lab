@@ -401,7 +401,7 @@ impl Crucible {
                     }
                 }
             }
-            ToPhysicsTesting(scenario) => {
+            ToPhysicsTesting => {
                 if let Viewing = &mut self.stage {
                     let tester = PhysicsTester::new(
                         context.fabric.clone(),
@@ -412,7 +412,7 @@ impl Crucible {
                     tester.copy_physics_into(&mut context);
                     context.transition_to(PhysicsTesting(tester));
                     context.send_event(LabEvent::UpdateState(SetControlState(
-                        ControlState::PhysicsTesting(scenario),
+                        ControlState::PhysicsTesting,
                     )));
                     context.send_event(LabEvent::UpdateState(SetStageLabel(
                         "Testing Physics".to_string(),

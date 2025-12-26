@@ -126,17 +126,10 @@ impl TweakFeature {
 }
 
 #[derive(Debug, Clone)]
-pub enum TestScenario {
-    PhysicsTest,
-    MachineTest(String),
-}
-
-#[derive(Debug, Clone)]
 pub enum RunStyle {
     Unknown,
     Fabric {
         fabric_name: FabricName,
-        scenario: Option<TestScenario>,
         /// Record animation for this duration from start
         record: Option<units::Seconds>,
         /// FPS for animation export (default 100)
@@ -380,7 +373,7 @@ impl IntervalDetails {
         let scaled_length_mm = self.length_mm() * scale;
 
         // Show caliper reading for Pull intervals when in model-scale mode
-        let caliper_info = if matches!(self.role, Role::Pulling) && (scale - 1.0).abs() > 0.001 {
+        let caliper_info = if self.role.is_pull_like() && (scale - 1.0).abs() > 0.001 {
             let reading = caliper_reading(Meters(self.length.0 * scale));
             format!("\nCaliper: {} mm", reading)
         } else {
@@ -471,7 +464,7 @@ pub enum ControlState {
     Animating,
     ShowingJoint(JointDetails),
     ShowingInterval(IntervalDetails),
-    PhysicsTesting(TestScenario),
+    PhysicsTesting,
     Baking,
 }
 
@@ -500,7 +493,7 @@ pub enum CrucibleAction {
     AdjustAnimationPeriod(f32),
     ToViewing,
     ToAnimating,
-    ToPhysicsTesting(TestScenario),
+    ToPhysicsTesting,
     ToEvolving(u64),
     TesterDo(TesterAction),
 }

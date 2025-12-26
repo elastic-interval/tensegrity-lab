@@ -10,7 +10,7 @@ use crate::units::Seconds;
 use crate::wgpu::Wgpu;
 use crate::SnapshotMoment;
 use crate::{
-    ControlState, CrucibleAction, LabEvent, Radio, RunStyle, StateChange, TestScenario,
+    ControlState, CrucibleAction, LabEvent, Radio, RunStyle, StateChange,
     TesterAction, ITERATION_DURATION,
 };
 use instant::{Duration, Instant};
@@ -251,14 +251,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 StateChange::SetFabricStats(Some(fabric_stats)).send(&self.radio);
                 StateChange::SetControlState(self.crucible.viewing_state()).send(&self.radio);
                 StateChange::SetStageLabel("Viewing".to_string()).send(&self.radio);
-                // Handle test scenarios first
-                if let RunStyle::Fabric {
-                    scenario: Some(TestScenario::PhysicsTest),
-                    ..
-                } = &self.run_style
-                {
-                    CrucibleAction::ToPhysicsTesting(TestScenario::PhysicsTest).send(&self.radio);
-                } else if self.mobile_device && self.crucible.animation_available() {
+                if self.mobile_device && self.crucible.animation_available() {
                     // Auto-start animation on mobile devices with actuators
                     CrucibleAction::ToAnimating.send(&self.radio);
                 } else {
@@ -315,7 +308,7 @@ impl ApplicationHandler<LabEvent> for Application {
                         self.crucible.physics.accept_tweak(parameter.clone());
 
                         // Trigger fabric rebuild (but not in PhysicsTesting mode)
-                        if !matches!(self.control_state, ControlState::PhysicsTesting(_)) {
+                        if !matches!(self.control_state, ControlState::PhysicsTesting) {
                             RebuildFabric.send(&self.radio);
                         }
 
