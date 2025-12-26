@@ -49,7 +49,7 @@ impl Keyboard {
         }
     }
 
-    pub fn with_actions(mut self) -> Self {
+    pub fn with_actions(mut self, model_scale: Option<f32>) -> Self {
         use CrucibleAction::*;
         use LabEvent::*;
         self.key_dynamic_lab_event(
@@ -145,14 +145,17 @@ impl Keyboard {
             UpdateState(StateChange::ToggleColorByRole),
             Box::new(|state| matches!(state, PhysicsTesting(_))),
         );
-        self.key_lab_event(
-            KeyCode::KeyH,
-            "Hinges",
-            UpdateState(StateChange::ToggleAttachmentPoints),
-            Box::new(|state| {
-                matches!(state, Viewing { .. } | ShowingJoint(_) | ShowingInterval(_))
-            }),
-        );
+        // Hinges are only available when not in model-scale mode
+        if model_scale.is_none() {
+            self.key_lab_event(
+                KeyCode::KeyH,
+                "Hinges",
+                UpdateState(StateChange::ToggleAttachmentPoints),
+                Box::new(|state| {
+                    matches!(state, Viewing { .. } | ShowingJoint(_) | ShowingInterval(_))
+                }),
+            );
+        }
         self.key_lab_event(
             KeyCode::Space,
             "Next brick",

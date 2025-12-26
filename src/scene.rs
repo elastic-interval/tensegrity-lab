@@ -19,14 +19,15 @@ pub struct Scene {
     text_renderer: TextRenderer,
     render_style: RenderStyle,
     pick_allowed: bool,
+    model_scale: Option<f32>,
 }
 
 impl Scene {
-    pub fn new(mobile_device: bool, wgpu: Wgpu, radio: Radio) -> Self {
+    pub fn new(mobile_device: bool, wgpu: Wgpu, radio: Radio, model_scale: Option<f32>) -> Self {
         let camera = wgpu.create_camera(radio);
         let fabric_renderer = wgpu.create_fabric_renderer();
         let surface_renderer = wgpu.create_surface_renderer();
-        let text_renderer = wgpu.create_text_renderer(mobile_device);
+        let text_renderer = wgpu.create_text_renderer(mobile_device, model_scale);
         // Initialize the render style with attachment points hidden
         let render_style = RenderStyle::Normal {
             show_attachment_points: false,
@@ -45,6 +46,7 @@ impl Scene {
             text_renderer,
             render_style,
             pick_allowed: false,
+            model_scale,
         }
     }
 
@@ -59,8 +61,10 @@ impl Scene {
                 self.camera.toggle_projection();
             }
             ToggleAttachmentPoints => {
-                // Toggle the attachment points visibility
-                self.render_style.toggle_attachment_points();
+                // In model-scale mode, attachment points are not available
+                if self.model_scale.is_none() {
+                    self.render_style.toggle_attachment_points();
+                }
             }
             SetControlState(control_state) => match control_state {
                 Waiting | Building => self.reset(),
