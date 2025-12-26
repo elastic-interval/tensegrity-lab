@@ -36,6 +36,7 @@ pub struct Application {
     control_state: ControlState,
     pointer_handler: PointerHandler,
     time_scale: f32,
+    model_scale: Option<f32>,
     #[cfg(not(target_arch = "wasm32"))]
     machine: Option<crate::cord_machine::CordMachine>,
     animation_exporter: Option<AnimationExporter>,
@@ -48,14 +49,18 @@ impl Application {
     // Construction and Initialization
     //==================================================
 
-    /// Create a new Application instance
-    pub fn new(window_attributes: WindowAttributes, radio: Radio, time_scale: f32) -> Application {
+    pub fn new(
+        window_attributes: WindowAttributes,
+        radio: Radio,
+        time_scale: f32,
+        model_scale: Option<f32>,
+    ) -> Application {
         Application {
             run_style: RunStyle::Unknown,
             mobile_device: false,
             window_attributes,
             radio: radio.clone(),
-            keyboard: Keyboard::new(radio.clone()).with_actions(),
+            keyboard: Keyboard::new(radio.clone()).with_actions(model_scale.map(|n| 1.0 / n)),
             scene: None,
             crucible: Crucible::new(radio.clone()),
             last_update: Instant::now(),
@@ -66,6 +71,7 @@ impl Application {
             current_fps: 60.0,
             control_state: ControlState::Waiting,
             time_scale,
+            model_scale: model_scale.map(|n| 1.0 / n),
             #[cfg(not(target_arch = "wasm32"))]
             machine: None,
             animation_exporter: None,
@@ -196,7 +202,7 @@ impl ApplicationHandler<LabEvent> for Application {
                 mobile_device,
             } => {
                 self.mobile_device = mobile_device;
-                self.scene = Some(Scene::new(self.mobile_device, wgpu, self.radio.clone()));
+                self.scene = Some(Scene::new(self.mobile_device, wgpu, self.radio.clone(), self.model_scale));
             }
             Run(run_style) => {
                 self.run_style = run_style;
@@ -303,11 +309,12 @@ impl ApplicationHandler<LabEvent> for Application {
                 }
             }
             PrintCord(length) => {
-                println!("Print cord {length:?}");
+                let scaled_length = length * self.model_scale.unwrap_or(1.0);
+                println!("Print cord {scaled_length:?}");
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     if let Some(machine) = &self.machine {
-                        match machine.make_wire(length) {
+                        match machine.make_wire(scaled_length) {
                             Ok(_) => {
                                 println!("Printed!")
                             }

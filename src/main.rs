@@ -57,6 +57,11 @@ struct Args {
     /// Export CSV snapshot at specified moment (slack, pretenst, settled, or all)
     #[arg(long)]
     snapshot: Option<SnapshotMoment>,
+
+    /// Display dimensions at model scale (e.g., 18.5 for 18.5:1 scale)
+    /// Only affects displayed measurements, not simulation
+    #[arg(long)]
+    model_scale: Option<f32>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -93,10 +98,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Err("use --fabric <name> or --bake-bricks or --seed <seed> or --sphere <freq> or --mobius <segments>".into());
     };
 
-    run_with(run_style, args.time_scale)
+    run_with(run_style, args.time_scale, args.model_scale)
 }
 
-fn run_with(run_style: RunStyle, time_scale: f32) -> Result<(), Box<dyn Error>> {
+fn run_with(run_style: RunStyle, time_scale: f32, model_scale: Option<f32>) -> Result<(), Box<dyn Error>> {
     let mut builder = EventLoop::<LabEvent>::with_user_event();
     let event_loop: EventLoop<LabEvent> = builder.build()?;
     let radio = event_loop.create_proxy();
@@ -105,7 +110,7 @@ fn run_with(run_style: RunStyle, time_scale: f32) -> Result<(), Box<dyn Error>> 
     let window_attributes = create_window_attributes();
     #[cfg(target_arch = "wasm32")]
     let window_attributes = create_window_attributes();
-    let mut application = Application::new(window_attributes, radio.clone(), time_scale);
+    let mut application = Application::new(window_attributes, radio.clone(), time_scale, model_scale);
     LabEvent::Run(run_style).send(&radio);
     event_loop.run_app(&mut application)?;
     Ok(())
@@ -122,6 +127,7 @@ pub fn run() {
             snapshot: None,
         },
         1.0,
+        None, // No model scale for WASM
     )
     .unwrap();
 }

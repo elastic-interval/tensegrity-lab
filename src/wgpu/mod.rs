@@ -285,7 +285,7 @@ impl Wgpu {
         SurfaceRenderer::new(&self)
     }
 
-    pub fn create_text_renderer(&self, mobile_device: bool) -> TextRenderer {
-        TextRenderer::new(mobile_device, &self)
+    pub fn create_text_renderer(&self, mobile_device: bool, model_scale: Option<f32>) -> TextRenderer {
+        TextRenderer::new(mobile_device, model_scale, &self)
     }
 }

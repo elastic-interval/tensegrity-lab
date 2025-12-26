@@ -11,7 +11,7 @@ pub struct TextRenderer {
 }
 
 impl TextRenderer {
-    pub fn new(mobile_device: bool, wgpu: &Wgpu) -> Self {
+    pub fn new(mobile_device: bool, model_scale: Option<f32>, wgpu: &Wgpu) -> Self {
         let width = wgpu.surface_configuration.width;
         let height = wgpu.surface_configuration.height;
         let brush =
@@ -24,7 +24,7 @@ impl TextRenderer {
                     height,
                     wgpu.surface_configuration.format,
                 );
-        let text_state = TextState::new(mobile_device, width, height);
+        let text_state = TextState::new(mobile_device, model_scale, width, height);
         TextRenderer { brush, text_state }
     }
 

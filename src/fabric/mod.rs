@@ -31,8 +31,8 @@ pub struct HingeDimensions {
     pub hinge_hole_diameter: Meters,
 }
 
-impl HingeDimensions {
-    pub fn full_size() -> Self {
+impl Default for HingeDimensions {
+    fn default() -> Self {
         Self {
             push_radius: Meters(0.030),
             push_radius_margin: Meters(0.003),
@@ -42,17 +42,9 @@ impl HingeDimensions {
             hinge_hole_diameter: Meters(0.017),
         }
     }
+}
 
-    pub fn model_size() -> Self {
-        Self {
-            push_radius: Meters(0.003),
-            push_radius_margin: Meters(0.0003),
-            disc_thickness: Meters(0.001),
-            disc_separator_thickness: Meters(0.0003),
-            hinge_extension: Meters(0.0012),
-            hinge_hole_diameter: Meters(0.0017),
-        }
-    }
+impl HingeDimensions {
 
     pub fn offset(&self) -> Meters {
         self.push_radius + self.push_radius_margin + self.disc_thickness / 2.0
@@ -98,28 +90,20 @@ pub struct FabricDimensions {
     pub max_pretenst_strain: Option<f32>,
 }
 
-impl FabricDimensions {
-    pub fn full_size() -> Self {
+impl Default for FabricDimensions {
+    fn default() -> Self {
         Self {
             altitude: Meters(7.5),
             scale: Meters(1.0),
             pull_radius: Meters(0.007),
-            hinge: HingeDimensions::full_size(),
+            hinge: HingeDimensions::default(),
             push_length_increment: Some(Meters(0.025)),
             max_pretenst_strain: Some(0.03),
         }
     }
+}
 
-    pub fn model_size() -> Self {
-        Self {
-            altitude: Meters(0.5),
-            scale: Meters(0.056),
-            pull_radius: Meters(0.0005),
-            hinge: HingeDimensions::model_size(),
-            push_length_increment: None,
-            max_pretenst_strain: None,
-        }
-    }
+impl FabricDimensions {
 
     pub fn with_altitude(mut self, altitude: Meters) -> Self {
         self.altitude = altitude;
@@ -375,7 +359,7 @@ impl Fabric {
             stats: IterationStats::default(),
             cached_bounding_radius: 0.0,
             scale: 1.0,
-            dimensions: FabricDimensions::model_size(),
+            dimensions: FabricDimensions::default(),
             approaching_count: 0,
         }
     }

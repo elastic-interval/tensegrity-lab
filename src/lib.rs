@@ -348,6 +348,46 @@ impl IntervalDetails {
     pub fn far_joint_text(&self, show_attachment_points: bool) -> String {
         self.format_joint(false, show_attachment_points)
     }
+
+    pub fn format_with_scale(&self, scale: f32) -> String {
+        let role_text = match self.role {
+            Role::Pushing => "Strut",
+            Role::Pulling => "Cable",
+            Role::Springy => "Spring",
+            Role::Circumference => "Circumference",
+            Role::BowTie => "BowTie",
+            Role::FaceRadial => "FaceRadial",
+            Role::Support => "Support",
+            Role::GuyLine => "GuyLine",
+            Role::PrismPull => "PrismPull",
+        };
+
+        let show_attachment_points = SHOW_ATTACHMENT_POINTS.with(|cell| *cell.borrow());
+
+        let hinge_info = if show_attachment_points {
+            let alpha_hinge = self.alpha_hinge_angle.map(|a| format!("α: {}", a)).unwrap_or_default();
+            let omega_hinge = self.omega_hinge_angle.map(|a| format!("ω: {}", a)).unwrap_or_default();
+            if !alpha_hinge.is_empty() || !omega_hinge.is_empty() {
+                let separator = if !alpha_hinge.is_empty() && !omega_hinge.is_empty() { ", " } else { "" };
+                format!("\nHinge: {}{}{}", alpha_hinge, separator, omega_hinge)
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
+        format!(
+            "{} {}-{}\nLength: {:.1} mm\nStrain: {:.6}%\nDistance: {:.1} mm{}\nRight-click to jump",
+            role_text,
+            self.near_joint_text(show_attachment_points),
+            self.far_joint_text(show_attachment_points),
+            self.length_mm() * scale,
+            self.strain_percent(),
+            self.distance_mm() * scale,
+            hinge_info
+        )
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -393,6 +433,22 @@ impl JointDetails {
     /// Format this joint as a string using the path
     pub fn joint_text(&self) -> String {
         self.path.clone()
+    }
+
+    pub fn format_with_scale(&self, scale: f32) -> String {
+        let height_m = self.location.y * scale;
+
+        let surface_location = match self.surface_location_mm() {
+            None => "".into(),
+            Some((x, z)) => format!(" at ({:.1} mm, {:.1} mm)", x * scale, z * scale),
+        };
+
+        format!(
+            "{} at {:.2} m{}\nClick interval for details",
+            self.joint_text(),
+            height_m,
+            surface_location
+        )
     }
 }
 

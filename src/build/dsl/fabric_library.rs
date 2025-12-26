@@ -16,8 +16,6 @@ static PLANS: [OnceLock<FabricPlan>; 6] = [
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, EnumIter)]
 pub enum FabricName {
     Triped,
-    #[strum(serialize = "Triped Model")]
-    TripedModel,
     Mockup,
     Vertebra,
     Flagellum,
@@ -31,12 +29,7 @@ impl FabricName {
     pub fn fabric_plan(self) -> FabricPlan {
         use FabricName::*;
         match self {
-            Triped | TripedModel => self
-                .build(if self == Triped {
-                    FabricDimensions::full_size()
-                } else {
-                    FabricDimensions::model_size()
-                })
+            Triped => self.build(FabricDimensions::default())
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([
                     on(OmniBotX)
@@ -84,7 +77,7 @@ impl FabricName {
                 ]),
             Mockup => self
                 .build(
-                    FabricDimensions::full_size()
+                    FabricDimensions::default()
                         .with_altitude(M(2.0))
                         .with_scale(M(0.583)),
                 )
@@ -98,7 +91,7 @@ impl FabricName {
 
             HaloByCrane => self
                 .build(
-                    FabricDimensions::full_size()
+                    FabricDimensions::default()
                         .with_altitude(M(2.0))
                         .with_scale(M(1.0)),
                 )
@@ -116,7 +109,7 @@ impl FabricName {
 
             Vertebra => self
                 .build(
-                    FabricDimensions::full_size()
+                    FabricDimensions::default()
                         .with_altitude(M(0.5))
                         .with_scale(M(0.0746)),
                 )
@@ -128,7 +121,7 @@ impl FabricName {
 
             Flagellum => self
                 .build(
-                    FabricDimensions::full_size()
+                    FabricDimensions::default()
                         .with_altitude(M(2.0))
                         .with_scale(M(1.0)),
                 )
@@ -140,7 +133,7 @@ impl FabricName {
 
             HeadlessHug => self
                 .build(
-                    FabricDimensions::full_size()
+                    FabricDimensions::default()
                         .with_altitude(M(2.0))
                         .with_scale(M(1.0)),
                 )

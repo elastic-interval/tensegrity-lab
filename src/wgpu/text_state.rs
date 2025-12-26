@@ -26,6 +26,7 @@ impl SectionName {
 #[derive(Clone, Debug)]
 pub struct TextState {
     mobile_device: bool,
+    model_scale: Option<f32>,
     width: f32,
     height: f32,
     fabric_name: Option<String>,
@@ -59,9 +60,10 @@ impl TextInstance {
 }
 
 impl TextState {
-    pub fn new(mobile_device: bool, width: u32, height: u32) -> Self {
+    pub fn new(mobile_device: bool, model_scale: Option<f32>, width: u32, height: u32) -> Self {
         let mut fresh = Self {
             mobile_device,
+            model_scale,
             width: width as f32,
             height: height as f32,
             fabric_name: None,
@@ -173,12 +175,13 @@ impl TextState {
                     None => Nothing,
                 },
             );
+            let scale = self.model_scale.unwrap_or(1.0);
             self.update_section(
                 SectionName::Right,
                 match control_state {
                     Viewing { .. } => Large("Click to select".to_string()),
-                    ShowingJoint(joint_details) => Large(joint_details.to_string()),
-                    ShowingInterval(interval_details) => Large(interval_details.to_string()),
+                    ShowingJoint(joint_details) => Large(joint_details.format_with_scale(scale)),
+                    ShowingInterval(interval_details) => Large(interval_details.format_with_scale(scale)),
                     PhysicsTesting(_) => match &self.movement_analysis {
                         Some(text) => Normal(text.clone()),
                         None => Nothing,
@@ -214,8 +217,20 @@ impl TextState {
                         ..
                     } = fabric_stats;
 
+                    let scale = self.model_scale.unwrap_or(1.0);
+                    let scale_label = self.model_scale
+                        .map(|s| {
+                            let ratio = 1.0 / s;
+                            if (ratio - ratio.round()).abs() < 0.01 {
+                                format!(" ({}:1)", ratio as u32)
+                            } else {
+                                format!(" ({:.1}:1)", ratio)
+                            }
+                        })
+                        .unwrap_or_default();
+
                     let text = format!(
-                        "Stats at {age}:\n\
+                        "Stats at {age}{scale_label}:\n\
                          Height: {:.3}m\n\
                          Joints: {:?}\n\
                          Bars: {:?}\n\
@@ -224,16 +239,16 @@ impl TextState {
                          Cables: {:?}\n\
                          → {:.1}-{:.1}mm\n\
                          → total {:.1}m",
-                        height.0,
+                        height.0 * scale,
                         joint_count,
                         push_count,
-                        push_range.0.to_mm(),
-                        push_range.1.to_mm(),
-                        push_total.0,
+                        push_range.0.to_mm() * scale,
+                        push_range.1.to_mm() * scale,
+                        push_total.0 * scale,
                         pull_count,
-                        pull_range.0.to_mm(),
-                        pull_range.1.to_mm(),
-                        pull_total.0,
+                        pull_range.0.to_mm() * scale,
+                        pull_range.1.to_mm() * scale,
+                        pull_total.0 * scale,
                     );
                     Normal(text)
                 }
