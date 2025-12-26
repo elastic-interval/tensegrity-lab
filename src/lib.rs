@@ -1,5 +1,6 @@
 use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::FabricPlan;
+use crate::caliper::caliper_reading;
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::{FabricStats, IntervalKey, JointKey};
 use crate::units::{Degrees, Meters};
@@ -16,6 +17,7 @@ use winit::dpi::PhysicalPosition;
 pub mod animation_export;
 pub mod application;
 pub mod build;
+pub mod caliper;
 pub mod camera;
 pub mod crucible;
 pub mod crucible_context;
@@ -375,15 +377,26 @@ impl IntervalDetails {
             String::new()
         };
 
+        let scaled_length_mm = self.length_mm() * scale;
+
+        // Show caliper reading for Pull intervals when in model-scale mode
+        let caliper_info = if matches!(self.role, Role::Pulling) && (scale - 1.0).abs() > 0.001 {
+            let reading = caliper_reading(Meters(self.length.0 * scale));
+            format!("\nCaliper: {} mm", reading)
+        } else {
+            String::new()
+        };
+
         format!(
-            "{} {}-{}\nLength: {:.1} mm\nStrain: {:.6}%\nDistance: {:.1} mm{}\nRight-click to jump",
+            "{} {}-{}\nLength: {:.1} mm\nStrain: {:.6}%\nDistance: {:.1} mm{}{}\nRight-click to jump",
             role_text,
             self.near_joint_text(show_attachment_points),
             self.far_joint_text(show_attachment_points),
-            self.length_mm() * scale,
+            scaled_length_mm,
             self.strain_percent(),
             self.distance_mm() * scale,
-            hinge_info
+            hinge_info,
+            caliper_info
         )
     }
 }
