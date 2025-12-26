@@ -10,7 +10,7 @@ use tensegrity_lab::application::Application;
 use tensegrity_lab::build::dsl::fabric_library::FabricName;
 use tensegrity_lab::units::Seconds;
 use tensegrity_lab::SnapshotMoment;
-use tensegrity_lab::{LabEvent, RunStyle, TestScenario};
+use tensegrity_lab::{LabEvent, RunStyle};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -23,12 +23,6 @@ struct Args {
 
     #[arg(long)]
     seed: Option<u64>,
-
-    #[arg(long)]
-    test: Option<String>,
-
-    #[arg(long)]
-    machine: Option<String>,
 
     /// Generate an algorithmic tensegrity sphere with given frequency (1, 2, or 3+)
     #[arg(long)]
@@ -80,16 +74,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     } else if let Some(seed) = args.seed {
         RunStyle::Seeded(seed)
     } else if let Some(fabric_name) = args.fabric {
-        let scenario = match (args.test.as_deref(), args.machine) {
-            (Some("physics"), None) => Some(TestScenario::PhysicsTest),
-            (Some(test), None) => panic!("unknown test: \"{test}\""),
-            (None, Some(ip)) => Some(TestScenario::MachineTest(ip)),
-            (None, None) => None,
-            _ => return Err("cannot combine --test and --machine".into()),
-        };
         RunStyle::Fabric {
             fabric_name,
-            scenario,
             record: record_duration,
             export_fps: args.fps,
             snapshot: args.snapshot,
@@ -121,7 +107,6 @@ pub fn run() {
     run_with(
         RunStyle::Fabric {
             fabric_name: FabricName::Triped,
-            scenario: None,
             record: None,
             export_fps: 100.0,
             snapshot: None,

@@ -1,6 +1,6 @@
 use crate::Age;
 use crate::FabricStats;
-use crate::{ControlState, StateChange, TestScenario};
+use crate::{ControlState, StateChange};
 use std::default::Default;
 use wgpu_text::glyph_brush::{
     BuiltInLineBreaker, HorizontalAlign, Layout, OwnedSection, OwnedText, VerticalAlign,
@@ -140,13 +140,10 @@ impl TextState {
             self.update_section(
                 SectionName::Top,
                 match control_state {
-                    PhysicsTesting(scenario) => match scenario {
-                        TestScenario::PhysicsTest => Large(format!(
-                            "Physics test of {} {}",
-                            fabric_name, self.experiment_title
-                        )),
-                        _ => unreachable!(),
-                    },
+                    PhysicsTesting => Large(format!(
+                        "Physics test of {} {}",
+                        fabric_name, self.experiment_title
+                    )),
                     _ => Large(fabric_name.clone()),
                 },
             );
@@ -182,7 +179,7 @@ impl TextState {
                     Viewing { .. } => Large("Click to select".to_string()),
                     ShowingJoint(joint_details) => Large(joint_details.format_with_scale(scale)),
                     ShowingInterval(interval_details) => Large(interval_details.format_with_scale(scale)),
-                    PhysicsTesting(_) => match &self.movement_analysis {
+                    PhysicsTesting => match &self.movement_analysis {
                         Some(text) => Normal(text.clone()),
                         None => Nothing,
                     },
