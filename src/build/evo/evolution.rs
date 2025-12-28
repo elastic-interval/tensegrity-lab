@@ -3,7 +3,7 @@ use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::CONSTRUCTION;
 use crate::fabric::Fabric;
 use crate::fabric::IntervalEnd;
-use cgmath::{InnerSpace, Vector3};
+use glam::Vec3;
 use rand::Rng;
 use rand_chacha::rand_core::{RngCore, SeedableRng};
 use rand_chacha::ChaCha8Rng;
@@ -104,8 +104,8 @@ impl Evolution {
         self.random.random_range(0..self.evolving_pushes.len())
     }
 
-    fn random_unit(&mut self) -> Vector3<f32> {
-        Vector3::new(self.random_f32(), self.random_f32(), self.random_f32()).normalize()
+    fn random_unit(&mut self) -> Vec3 {
+        Vec3::new(self.random_f32(), self.random_f32(), self.random_f32()).normalize()
     }
 
     fn random_f32(&mut self) -> f32 {

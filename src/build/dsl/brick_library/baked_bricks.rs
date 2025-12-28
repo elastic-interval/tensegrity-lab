@@ -3,7 +3,7 @@ use crate::build::dsl::brick_dsl::{
     BrickName, BrickParams, OmniParams, SingleParams, TorqueParams,
 };
 use crate::build::dsl::brick_library::get_prototype;
-use cgmath::{Point3, Vector3};
+use glam::Vec3;
 
 pub fn get_baked_brick(brick_name: BrickName) -> BakedBrick {
     use BrickName::*;
@@ -18,7 +18,7 @@ pub fn get_baked_brick(brick_name: BrickName) -> BakedBrick {
 
 fn joint(x: f32, y: f32, z: f32) -> BakedJoint {
     BakedJoint {
-        location: Point3::new(x, y, z),
+        location: Vec3::new(x, y, z),
     }
 }
 
@@ -47,7 +47,7 @@ fn baked_faces(brick_name: BrickName) -> Vec<BrickFace> {
 fn single_twist_left_baked() -> BakedBrick {
     BakedBrick {
         params: BrickParams::SingleLeft(SingleParams {
-            push_lengths: Vector3::new(3.204, 3.204, 3.204),
+            push_lengths: Vec3::new(3.204, 3.204, 3.204),
             pull_length: 2.0,
         }),
         scale: 0.91490,
@@ -78,7 +78,7 @@ fn single_twist_right_baked() -> BakedBrick {
 fn omni_symmetrical_baked() -> BakedBrick {
     BakedBrick {
         params: BrickParams::Omni(OmniParams {
-            push_lengths: Vector3::new(3.271, 3.271, 3.271),
+            push_lengths: Vec3::new(3.271, 3.271, 3.271),
         }),
         scale: 0.96720,
         joints: vec![
@@ -111,7 +111,7 @@ fn omni_tetrahedral_baked() -> BakedBrick {
     // Initial values - will be re-baked with face scaling applied
     BakedBrick {
         params: BrickParams::Omni(OmniParams {
-            push_lengths: Vector3::new(3.271, 3.271, 3.271),
+            push_lengths: Vec3::new(3.271, 3.271, 3.271),
         }),
         scale: 1.20312,
         joints: vec![
@@ -143,7 +143,7 @@ fn omni_tetrahedral_baked() -> BakedBrick {
 fn torque_symmetrical_baked() -> BakedBrick {
     BakedBrick {
         params: BrickParams::Torque(TorqueParams {
-            push_lengths: Vector3::new(3.0, 3.0, 6.0),
+            push_lengths: Vec3::new(3.0, 3.0, 6.0),
             pull_length: 1.86,
         }),
         scale: 1.01770,

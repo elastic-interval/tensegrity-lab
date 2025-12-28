@@ -1,8 +1,4 @@
-use cgmath::num_traits::abs;
-use cgmath::{
-    ortho, perspective, Deg, EuclideanSpace, InnerSpace, Matrix4, Point3, Quaternion, Rad,
-    Rotation, Rotation3, SquareMatrix, Transform, Vector3,
-};
+use glam::{Mat4, Quat, Vec3};
 use winit::dpi::PhysicalPosition;
 
 use crate::fabric::interval::Interval;
@@ -32,7 +28,7 @@ thread_local! {
     static CAMERA_APPROACHING: std::cell::RefCell<bool> = std::cell::RefCell::new(true);
     static CAMERA_APPROACH_ELAPSED: std::cell::RefCell<f32> = std::cell::RefCell::new(0.0);
     static CAMERA_LAST_TARGET: std::cell::RefCell<Option<Target>> = std::cell::RefCell::new(None);
-    static CAMERA_START_POSITION: std::cell::RefCell<Option<Point3<f32>>> = std::cell::RefCell::new(None);
+    static CAMERA_START_POSITION: std::cell::RefCell<Option<Vec3>> = std::cell::RefCell::new(None);
     static CAMERA_INITIAL_DISTANCE: std::cell::RefCell<f32> = std::cell::RefCell::new(0.0);
 }
 
@@ -57,9 +53,9 @@ pub enum ProjectionType {
 }
 
 pub struct Camera {
-    position: Point3<f32>,
+    position: Vec3,
     target: Target,
-    look_at: Point3<f32>,
+    look_at: Vec3,
     width: f32,
     height: f32,
     mouse_now: Option<PhysicalPosition<f64>>,
@@ -68,7 +64,7 @@ pub struct Camera {
     current_pick: Pick,
     radio: Radio,
     projection_type: ProjectionType,
-    last_ray_origin: Point3<f32>,
+    last_ray_origin: Vec3,
     initialized: bool,
 }
 
@@ -76,9 +72,9 @@ impl Camera {
     pub fn new(width: f32, height: f32, radio: Radio) -> Self {
         // Uninitialized - call jump_to_fabric() to position for a specific fabric
         Self {
-            position: Point3::origin(),
+            position: Vec3::ZERO,
             target: Target::default(),
-            look_at: Point3::origin(),
+            look_at: Vec3::ZERO,
             width,
             height,
             mouse_now: None,
@@ -87,7 +83,7 @@ impl Camera {
             current_pick: Pick::Nothing,
             radio,
             projection_type: ProjectionType::Perspective,
-            last_ray_origin: Point3::origin(),
+            last_ray_origin: Vec3::ZERO,
             initialized: false,
         }
     }
@@ -102,7 +98,7 @@ impl Camera {
     }
 
     /// Get camera position and look-at target for export
-    pub fn export_view(&self) -> (Point3<f32>, Point3<f32>) {
+    pub fn export_view(&self) -> (Vec3, Vec3) {
         (self.position, self.look_at)
     }
 
@@ -139,7 +135,7 @@ impl Camera {
         py: f32,
         width: f32,
         height: f32,
-    ) -> (Point3<f32>, Vector3<f32>) {
+    ) -> (Vec3, Vec3) {
         let x = (px - width) / width;
         let y = (height - py) / height;
 
@@ -150,23 +146,22 @@ impl Camera {
     }
 
     // Calculate ray for perspective projection
-    fn calculate_perspective_ray(&self, x: f32, y: f32) -> (Point3<f32>, Vector3<f32>) {
-        let position = Point3::new(x, y, 1.0);
+    fn calculate_perspective_ray(&self, x: f32, y: f32) -> (Vec3, Vec3) {
+        let position = Vec3::new(x, y, 1.0);
         let point3d = self
             .mvp_matrix()
-            .invert()
-            .unwrap()
-            .transform_point(position);
+            .inverse()
+            .transform_point3(position);
         (self.position, (point3d - self.position).normalize())
     }
 
     // Calculate ray for orthogonal projection
-    fn calculate_orthogonal_ray(&self, x: f32, y: f32) -> (Point3<f32>, Vector3<f32>) {
+    fn calculate_orthogonal_ray(&self, x: f32, y: f32) -> (Vec3, Vec3) {
         let view_dir = (self.look_at - self.position).normalize();
-        let right = view_dir.cross(Vector3::unit_y()).normalize();
+        let right = view_dir.cross(Vec3::Y).normalize();
         let up = right.cross(view_dir).normalize();
 
-        let distance = (self.look_at - self.position).magnitude();
+        let distance = (self.look_at - self.position).length();
         let view_size = distance * 0.5;
 
         let x_offset = x * view_size * self.width / self.height; // Adjust for aspect ratio
@@ -178,7 +173,7 @@ impl Camera {
         (ray_origin, view_dir)
     }
 
-    fn select(&self, ray: Vector3<f32>, fabric: &Fabric) -> Pick {
+    fn select(&self, ray: Vec3, fabric: &Fabric) -> Pick {
         if let Some(best_joint_key) = self.best_joint(ray, fabric) {
             match &self.current_pick {
                 Pick::Nothing => Pick::Joint(JointDetails {
@@ -254,7 +249,7 @@ impl Camera {
         let ideal_distance = self.target.ideal_distance(fabric);
 
         // Position camera at same altitude as midpoint, looking at it from the side
-        let offset = Vector3::new(1.0, 0.0, 1.0).normalize() * ideal_distance;
+        let offset = Vec3::new(1.0, 0.0, 1.0).normalize() * ideal_distance;
         self.position = midpoint + offset;
         self.look_at = midpoint;
         self.last_ray_origin = self.position;
@@ -273,7 +268,7 @@ impl Camera {
                     );
                     if let Some(rotation) = self.rotation(diff) {
                         self.position =
-                            self.look_at - rotation.transform_vector(self.look_at - self.position);
+                            self.look_at - rotation.transform_vector3(self.look_at - self.position);
                     }
                     self.mouse_follower = Some(mouse_now)
                 }
@@ -281,7 +276,7 @@ impl Camera {
             PointerChange::Zoomed(delta) => {
                 let gaze = self.look_at - self.position;
                 // Allow zooming as long as we don't get too close (minimum 0.1 distance)
-                if gaze.magnitude() - delta > 0.1 {
+                if gaze.length() - delta > 0.1 {
                     self.position += gaze.normalize() * delta;
                 }
             }
@@ -385,7 +380,7 @@ impl Camera {
         let look_at = self.target.look_at(fabric);
 
         // Calculate distance to target position
-        let position_distance = (look_at - self.look_at).magnitude();
+        let position_distance = (look_at - self.look_at).length();
 
         // Check if target has changed and reset state if needed
         CAMERA_LAST_TARGET.with(|last_target| {
@@ -480,7 +475,7 @@ impl Camera {
 
             // Calculate current view vector and distance
             let view_vector = self.look_at - self.position;
-            let current_distance = view_vector.magnitude();
+            let current_distance = view_vector.length();
 
             // For fabric midpoint, also adjust altitude to mid-height
             if matches!(self.target, Target::FabricMidpoint) {
@@ -520,13 +515,11 @@ impl Camera {
 
         // Handle camera orientation limits (allow viewing from ~18° from vertical)
         let gaze = (self.look_at - self.position).normalize();
-        let up_dot_gaze = Vector3::unit_y().dot(gaze);
+        let up_dot_gaze = Vec3::Y.dot(gaze);
         if !(-0.95..=0.95).contains(&up_dot_gaze) {
-            let axis = Vector3::unit_y().cross(gaze).normalize();
-            self.position = Point3::from_vec(
-                Quaternion::from_axis_angle(axis, Rad(0.01 * up_dot_gaze / abs(up_dot_gaze)))
-                    .rotate_vector(self.position.to_vec()),
-            );
+            let axis = Vec3::Y.cross(gaze).normalize();
+            self.position = Quat::from_axis_angle(axis, 0.01 * up_dot_gaze / up_dot_gaze.abs())
+                * self.position;
         }
 
         working
@@ -537,9 +530,9 @@ impl Camera {
         self.height = height;
     }
 
-    pub fn mvp_matrix(&self) -> Matrix4<f32> {
+    pub fn mvp_matrix(&self) -> Mat4 {
         if !self.initialized {
-            return Matrix4::identity();
+            return Mat4::IDENTITY;
         }
         self.projection_matrix() * self.view_matrix()
     }
@@ -705,19 +698,19 @@ impl Camera {
         Some(crate::fabric::hinge_angle(push_axis, pull_direction))
     }
 
-    fn view_matrix(&self) -> Matrix4<f32> {
-        Matrix4::look_at_rh(self.position, self.look_at, Vector3::unit_y())
+    fn view_matrix(&self) -> Mat4 {
+        Mat4::look_at_rh(self.position, self.look_at, Vec3::Y)
     }
 
-    fn projection_matrix(&self) -> Matrix4<f32> {
+    fn projection_matrix(&self) -> Mat4 {
         let aspect = self.width / self.height;
         let proj_matrix = match self.projection_type {
-            ProjectionType::Perspective => perspective(Deg(45.0), aspect, 0.1, 100.0),
+            ProjectionType::Perspective => Mat4::perspective_rh(45.0_f32.to_radians(), aspect, 0.1, 100.0),
             ProjectionType::Orthogonal => {
                 // For orthographic projection, calculate a reasonable view size based on distance
-                let distance = (self.look_at - self.position).magnitude();
+                let distance = (self.look_at - self.position).length();
                 let view_size = distance * 0.5;
-                ortho(
+                Mat4::orthographic_rh(
                     -view_size * aspect,
                     view_size * aspect, // left, right
                     -view_size,
@@ -730,7 +723,7 @@ impl Camera {
         OPENGL_TO_WGPU_MATRIX * proj_matrix
     }
 
-    fn rotation(&self, diff: (f32, f32)) -> Option<Matrix4<f32>> {
+    fn rotation(&self, diff: (f32, f32)) -> Option<Mat4> {
         // Don't allow rotation if not initialized (would produce NaN)
         if !self.initialized {
             return None;
@@ -747,28 +740,28 @@ impl Camera {
         let dx = dx * sensitivity;
         let dy = dy * sensitivity;
 
-        let up = Vector3::unit_y();
+        let up = Vec3::Y;
         let gaze = self.look_at - self.position;
         let right = gaze.cross(up).normalize();
         let dot = gaze.normalize().dot(up);
 
         // Limit vertical camera angle to about 18 degrees from vertical
-        let yaw = Quaternion::from_axis_angle(up, Rad(-dx / 100.0));
+        let yaw = Quat::from_axis_angle(up, -dx / 100.0);
         let pitch = if (dot > 0.0 && dy < 0.0 && dot > 0.95) || (dot < 0.0 && dy > 0.0 && dot < -0.95)
         {
             // Disallow pitch when at the vertical limit
-            Quaternion::from_axis_angle(right, Rad(0.0))
+            Quat::from_axis_angle(right, 0.0)
         } else {
             // Apply pitch
-            Quaternion::from_axis_angle(right, Rad(-dy / 100.0))
+            Quat::from_axis_angle(right, -dy / 100.0)
         };
 
         let rotation = yaw * pitch;
-        let matrix = Matrix4::from(rotation);
+        let matrix = Mat4::from_quat(rotation);
         Some(matrix)
     }
 
-    fn best_joint(&self, ray: Vector3<f32>, fabric: &Fabric) -> Option<JointKey> {
+    fn best_joint(&self, ray: Vec3, fabric: &Fabric) -> Option<JointKey> {
         let current_joint = match self.current_pick {
             Pick::Nothing => None,
             Pick::Joint(JointDetails { key, .. }) => Some(key),
@@ -781,7 +774,7 @@ impl Camera {
         &self,
         fabric: &Fabric,
         current_joint: Option<JointKey>,
-        ray: Vector3<f32>,
+        ray: Vec3,
     ) -> Option<JointKey> {
         // Use the ray origin that was calculated in pick_ray
         let ray_origin = self.last_ray_origin;
@@ -816,7 +809,7 @@ impl Camera {
                         let perpendicular = ray_to_point - projection;
 
                         // Negative distance (closer points have higher scores)
-                        -perpendicular.magnitude()
+                        -perpendicular.length()
                     }
                 };
 
@@ -827,9 +820,9 @@ impl Camera {
     }
 }
 
-const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
+const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::from_cols_array(&[
     1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.5, 1.0,
-);
+]);
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Target {
@@ -845,7 +838,7 @@ impl Default for Target {
 }
 
 impl Target {
-    pub fn look_at(&self, fabric: &Fabric) -> Point3<f32> {
+    pub fn look_at(&self, fabric: &Fabric) -> Vec3 {
         match self {
             Target::FabricMidpoint => fabric.midpoint(),
             Target::AroundJoint(key) => fabric.location(*key),

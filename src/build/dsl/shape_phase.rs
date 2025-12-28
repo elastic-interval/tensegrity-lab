@@ -10,7 +10,7 @@ use crate::fabric::interval::Role;
 use crate::fabric::joint_path::JointPath;
 use crate::fabric::{Fabric, FaceKey, IntervalKey, JointKey};
 use crate::units::{Meters, Percent, Seconds, Unit};
-use cgmath::{EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Vector3};
+use glam::{Mat4, Quat, Vec3};
 use std::cmp::Ordering;
 
 const DEFAULT_JOINER_COUNTDOWN: Seconds = Seconds(3.0);
@@ -134,7 +134,7 @@ impl ShapePhase {
                             / 3.0
                             + normal * 3.0;
                         let rays = face_midpoints
-                            .map(|face_mid| (face_mid - midpoint).normalize_to(scale));
+                            .map(|face_mid| (face_mid - midpoint).normalize() * scale);
                         let spin_normal = match spin {
                             Spin::Left => rays[0].cross(rays[1]).normalize(),
                             Spin::Right => rays[1].cross(rays[0]).normalize(),
@@ -144,7 +144,7 @@ impl ShapePhase {
                         } else {
                             [rays[0], rays[2], rays[1]]
                         };
-                        let points = ordered_rays.map(|ray| ray + midpoint).map(Point3::from_vec);
+                        let points = ordered_rays.map(|ray| ray + midpoint);
                         let vector_space = vector_space(points, scale, spin, FaceRotation::Zero);
                         let base_face = BaseFace::Situated { spin, vector_space };
                         let brick_role = match spin {
@@ -183,8 +183,8 @@ impl ShapePhase {
                                 let brick_face = brick_face_midpoints.iter().min_by(
                                     |(_, location_a, _), (_, location_b, _)| {
                                         let (dx, dy) = (
-                                            location_a.distance2(far_face_midpoint),
-                                            location_b.distance2(far_face_midpoint),
+                                            location_a.distance_squared(far_face_midpoint),
+                                            location_b.distance_squared(far_face_midpoint),
                                         );
                                         if dx < dy {
                                             Ordering::Less
@@ -223,10 +223,10 @@ impl ShapePhase {
                 let down = faces
                     .into_iter()
                     .map(|face| face.normal(fabric))
-                    .sum::<Vector3<f32>>()
+                    .sum::<Vec3>()
                     .normalize();
-                let quaternion = Quaternion::from_arc(down, -Vector3::unit_y(), None);
-                fabric.apply_matrix4(Matrix4::from(quaternion));
+                let quaternion = Quat::from_rotation_arc(down, -Vec3::Y);
+                fabric.apply_matrix4(Mat4::from_quat(quaternion));
                 StartProgress(seconds)
             }
             ShapeAction::Spacer {
@@ -291,7 +291,7 @@ impl ShapePhase {
             } => {
                 if let Some(joint_key) = fabric.joint_key_by_path(&joint_path) {
                     let (x, z) = surface;
-                    let base = fabric.create_joint(Point3::new(x, 0.0, z));
+                    let base = fabric.create_joint(Vec3::new(x, 0.0, z));
                     let interval_key = fabric.create_approaching_interval(joint_key, base, Meters(0.01), Role::Support, seconds);
                     self.anchors.push(interval_key);
                 }
@@ -304,7 +304,7 @@ impl ShapePhase {
             } => {
                 if let Some(joint_key) = fabric.joint_key_by_path(&joint_path) {
                     let (x, z) = surface;
-                    let base = fabric.create_joint(Point3::new(x, 0.0, z));
+                    let base = fabric.create_joint(Vec3::new(x, 0.0, z));
                     fabric.create_approaching_interval(joint_key, base, Meters(length), Role::Support, seconds);
                 }
                 StartProgress(seconds)

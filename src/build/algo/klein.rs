@@ -1,4 +1,4 @@
-use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
+use glam::Vec3;
 use rand::prelude::*;
 use rand::rngs::ThreadRng;
 
@@ -22,13 +22,13 @@ impl KleinFabric {
     }
 
     fn random_joint(&mut self) {
-        let mut v = Vector3::new(1.0, 1.0, 1.0);
-        while v.magnitude2() > 1.0 {
+        let mut v = Vec3::new(1.0, 1.0, 1.0);
+        while v.length_squared() > 1.0 {
             v.x = self.coord();
             v.y = self.coord();
             v.z = self.coord();
         }
-        let key = self.fabric.create_joint(Point3::from_vec(v));
+        let key = self.fabric.create_joint(v);
         self.joint_keys.push(key);
     }
 

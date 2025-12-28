@@ -26,15 +26,14 @@ impl Surface {
     }
 }
 
-use crate::fabric::Velocity;
 use crate::units::EARTH_GRAVITY;
-use cgmath::num_traits::zero;
+use glam::Vec3;
 
 /// Parameters for surface interaction calculation
 pub struct SurfaceInteraction {
     pub altitude: f32,
-    pub velocity: Velocity,
-    pub force_velocity: Velocity,
+    pub velocity: Vec3,
+    pub force_velocity: Vec3,
     pub drag: f32,
     pub viscosity: f32,
     pub mass: f32,
@@ -43,7 +42,7 @@ pub struct SurfaceInteraction {
 
 /// Result of surface interaction
 pub struct SurfaceResult {
-    pub velocity: Velocity,
+    pub velocity: Vec3,
     pub clamp_y: Option<f32>,
 }
 
@@ -68,7 +67,7 @@ impl Surface {
             // Above surface - apply gravity and standard physics
             // gravity is m/s², dt is seconds, result is m/s velocity change
             velocity.y -= gravity * s.dt;
-            let speed_squared = velocity.magnitude2();
+            let speed_squared = velocity.length_squared();
             velocity += s.force_velocity - velocity * speed_squared * s.viscosity * s.dt;
             velocity *= 1.0 - s.drag * s.dt;
         } else {
@@ -80,7 +79,7 @@ impl Surface {
 
             match self.character {
                 SurfaceCharacter::Frozen => {
-                    velocity = zero();
+                    velocity = Vec3::ZERO;
                     clamp_y = Some(0.0);
                 }
                 SurfaceCharacter::Sticky => {
@@ -140,7 +139,6 @@ impl Surface {
     }
 }
 
-use cgmath::InnerSpace;
 
 /// Core physics environment with base values
 #[derive(Debug, Clone)]

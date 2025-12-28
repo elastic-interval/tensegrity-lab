@@ -1,7 +1,7 @@
 use crate::fabric::interval::{IntervalSnapshot, Role};
 use crate::fabric::IntervalEnd;
 use crate::fabric::{Fabric, IntervalKey};
-use cgmath::{Point3, Vector3};
+use glam::Vec3;
 
 pub struct EvolvingPush {
     pub interval_key: IntervalKey,
@@ -13,8 +13,8 @@ impl EvolvingPush {}
 
 impl EvolvingPush {
     pub fn first_push(fabric: &mut Fabric) -> Self {
-        let alpha = fabric.create_joint(Point3::new(0.5, 0.0, 0.0));
-        let omega = fabric.create_joint(Point3::new(-0.5, 0.0, 0.0));
+        let alpha = fabric.create_joint(Vec3::new(0.5, 0.0, 0.0));
+        let omega = fabric.create_joint(Vec3::new(-0.5, 0.0, 0.0));
         let interval_key = fabric.create_slack_interval(alpha, omega, Role::Pushing);
         Self::new(interval_key)
     }
@@ -24,7 +24,7 @@ impl EvolvingPush {
         fabric: &mut Fabric,
         snapshot: IntervalSnapshot,
         end: IntervalEnd,
-        project: Vector3<f32>,
+        project: Vec3,
     ) -> Self {
         let IntervalSnapshot {
             interval,
@@ -35,8 +35,8 @@ impl EvolvingPush {
             IntervalEnd::Alpha => (interval.alpha_key, alpha.location, &mut self.alpha_pulls),
             IntervalEnd::Omega => (interval.omega_key, omega.location, &mut self.omega_pulls),
         };
-        let alpha_key = fabric.create_joint(&here - project / 2.0);
-        let omega_key = fabric.create_joint(&here + project / 2.0);
+        let alpha_key = fabric.create_joint(here - project / 2.0);
+        let omega_key = fabric.create_joint(here + project / 2.0);
         let interval_key = fabric.create_slack_interval(alpha_key, omega_key, Role::Pushing);
         let alpha_pull = fabric.create_slack_interval(here_key, alpha_key, Role::Pulling);
         let omega_pull = fabric.create_slack_interval(here_key, omega_key, Role::Pulling);

@@ -2,7 +2,7 @@ use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
 use bytemuck::cast_slice;
-use cgmath::Matrix4;
+use glam::Mat4;
 use wgpu::util::DeviceExt;
 use wgpu::MemoryHints::Performance;
 use wgpu::VertexAttribute;
@@ -259,10 +259,10 @@ impl Wgpu {
             .create_view(&wgpu::TextureViewDescriptor::default())
     }
 
-    pub fn update_mvp_matrix(&self, matrix: Matrix4<f32>) {
-        let mvp_ref: &[f32; 16] = matrix.as_ref();
+    pub fn update_mvp_matrix(&self, matrix: Mat4) {
+        let mvp_ref: [f32; 16] = matrix.to_cols_array();
         self.queue
-            .write_buffer(&self.uniform_buffer, 0, cast_slice(mvp_ref));
+            .write_buffer(&self.uniform_buffer, 0, cast_slice(&mvp_ref));
     }
 
     pub fn create_camera(&self, radio: Radio) -> Camera {

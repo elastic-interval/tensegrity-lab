@@ -5,12 +5,11 @@ use crate::fabric::interval::{Interval, Role};
 use crate::fabric::{FabricStats, IntervalKey, JointKey};
 use crate::units::{Degrees, Meters};
 use crate::wgpu::Wgpu;
-use cgmath::Point3;
+use glam::Vec3;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::{Display, Formatter, Result as FmtResult};
-use std::ops::Mul;
 use std::rc::Rc;
 use winit::dpi::PhysicalPosition;
 
@@ -398,7 +397,7 @@ impl IntervalDetails {
 pub struct JointDetails {
     pub key: JointKey,
     pub path: String,
-    pub location: Point3<f32>,
+    pub location: Vec3,
     pub selected_push: Option<IntervalKey>,
 }
 
@@ -423,13 +422,13 @@ impl Display for JointDetails {
 }
 
 impl JointDetails {
-    pub fn location_mm(&self) -> Point3<f32> {
+    pub fn location_mm(&self) -> Vec3 {
         // Coordinates are in meters, convert to mm
-        self.location.mul(1000.0)
+        self.location * 1000.0
     }
 
     pub fn surface_location_mm(&self) -> Option<(f32, f32)> {
-        let Point3 { x, y, z } = self.location;
+        let Vec3 { x, y, z } = self.location;
         // Coordinates are in meters, convert to mm
         (y <= 0.0).then(|| (x * 1000.0, z * 1000.0))
     }

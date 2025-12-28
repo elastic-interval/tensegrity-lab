@@ -19,10 +19,8 @@ use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointKey, Joints};
 use crate::units::{Meters, NewtonsPerMeter, Percent, Seconds, Unit};
 use crate::Age;
 use crate::Appearance;
-use cgmath::num_traits::zero;
-use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 use fast_inv_sqrt::InvSqrt32;
-use std::ops::Mul;
+use glam::Vec3;
 
 impl Fabric {
     /// Update the attachment connections for a specific push interval
@@ -490,7 +488,7 @@ pub struct Interval {
     pub role: Role,
     pub material: Material,
     pub span: Span,
-    pub unit: Vector3<f32>,
+    pub unit: Vec3,
     pub strain: f32,
     pub stiffness: Percent,
     pub connections: Option<Box<PullConnections>>,
@@ -512,7 +510,7 @@ impl Interval {
             role,
             material: role.material(),
             span,
-            unit: zero(),
+            unit: Vec3::ZERO,
             strain: 0.0,
             stiffness: Percent(100.0),
             connections,
@@ -643,7 +641,7 @@ impl Interval {
     pub fn nearest_attachment_point(
         &self,
         joints: &Joints,
-        position: Point3<f32>,
+        position: Vec3,
         dimensions: &FabricDimensions,
     ) -> Result<(IntervalEnd, AttachmentPoint), FabricError> {
         let (alpha_points, omega_points) = self.attachment_points(joints, dimensions)?;
@@ -700,26 +698,26 @@ impl Interval {
     }
 
     /// Get the joint location for a specific end of the interval
-    pub fn end_location(&self, joints: &Joints, end: IntervalEnd) -> Point3<f32> {
+    pub fn end_location(&self, joints: &Joints, end: IntervalEnd) -> Vec3 {
         joints[self.end_key(end)].location
     }
 
-    pub fn locations(&self, joints: &Joints) -> (Point3<f32>, Point3<f32>) {
+    pub fn locations(&self, joints: &Joints) -> (Vec3, Vec3) {
         (
             self.end_location(joints, IntervalEnd::Alpha),
             self.end_location(joints, IntervalEnd::Omega),
         )
     }
 
-    pub fn midpoint(&self, joints: &Joints) -> Point3<f32> {
+    pub fn midpoint(&self, joints: &Joints) -> Vec3 {
         let (alpha, omega) = self.locations(joints);
-        Point3::from_vec((alpha.to_vec() + omega.to_vec()) / 2f32)
+        (alpha + omega) / 2.0
     }
 
     pub fn fast_length(&mut self, joints: &Joints) -> f32 {
         let (alpha_location, omega_location) = self.locations(joints);
         self.unit = omega_location - alpha_location;
-        let magnitude_squared = self.unit.magnitude2();
+        let magnitude_squared = self.unit.length_squared();
         if magnitude_squared < 0.00001 {
             return 0.00001;
         }
@@ -731,7 +729,7 @@ impl Interval {
     pub fn length(&self, joints: &Joints) -> f32 {
         let (alpha_location, omega_location) = self.locations(joints);
         let tween = omega_location - alpha_location;
-        let magnitude_squared = tween.magnitude2();
+        let magnitude_squared = tween.length_squared();
         if magnitude_squared < 0.00001 {
             return 0.00001;
         }
@@ -799,7 +797,7 @@ impl Interval {
         let k_adjusted = NewtonsPerMeter(k.f32() * self.stiffness.as_factor());
         let extension = Meters(self.strain * ideal.f32());
         let force = k_adjusted * extension;
-        let force_vector: Vector3<f32> = self.unit * force.f32() / 2.0;
+        let force_vector: Vec3 = self.unit * force.f32() / 2.0;
 
         // Apply forces to both ends
         let alpha_key = self.end_key(IntervalEnd::Alpha);
@@ -844,10 +842,10 @@ impl Interval {
     }
 
     /// Get the ray direction from a joint
-    pub fn ray_from(&self, joint_key: JointKey) -> Vector3<f32> {
+    pub fn ray_from(&self, joint_key: JointKey) -> Vec3 {
         match self.joint_end(joint_key) {
             IntervalEnd::Alpha => self.unit,
-            IntervalEnd::Omega => self.unit.mul(-1.0),
+            IntervalEnd::Omega => -self.unit,
         }
     }
 

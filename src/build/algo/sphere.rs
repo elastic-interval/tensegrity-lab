@@ -1,9 +1,9 @@
-use cgmath::{vec3, InnerSpace, Vector3, VectorSpace};
+use glam::Vec3;
 
 #[derive(Debug, Clone)]
 pub struct Vertex {
     pub index: usize,
-    pub location: Vector3<f32>,
+    pub location: Vec3,
     pub adjacent: Vec<usize>,
 }
 
@@ -143,7 +143,7 @@ impl SphereScaffold {
                 }
             }
         };
-        let locations: Vec<Vector3<f32>> = self.locations();
+        let locations: Vec<Vec3> = self.locations();
         for vertex in &mut self.vertex {
             vertex.sort_clockwise(&locations);
         }
@@ -155,14 +155,14 @@ impl SphereScaffold {
         }
     }
 
-    pub fn locations(&self) -> Vec<Vector3<f32>> {
+    pub fn locations(&self) -> Vec<Vec3> {
         self.vertex
             .iter()
             .map(|Vertex { location, .. }| *location)
             .collect()
     }
 
-    fn at(&mut self, location: Vector3<f32>) -> usize {
+    fn at(&mut self, location: Vec3) -> usize {
         let index = self.vertex.len();
         let vertex = Vertex {
             index,
@@ -180,7 +180,7 @@ impl SphereScaffold {
 }
 
 impl Vertex {
-    fn sort_clockwise(&mut self, locations: &[Vector3<f32>]) {
+    fn sort_clockwise(&mut self, locations: &[Vec3]) {
         let outward = self.location.normalize();
         let vector_to = |index: usize| (locations[index] - self.location).normalize();
         let count = self.adjacent.len();
@@ -216,19 +216,19 @@ const NUL: f32 = 0.0;
 const ONE: f32 = 0.525_731_1;
 const PHI: f32 = 0.850_650_8;
 
-const VERTEX: [Vector3<f32>; 12] = [
-    vec3(ONE, NUL, PHI),
-    vec3(ONE, NUL, -PHI),
-    vec3(PHI, ONE, NUL),
-    vec3(-PHI, ONE, NUL),
-    vec3(NUL, PHI, ONE),
-    vec3(NUL, -PHI, ONE),
-    vec3(-ONE, NUL, -PHI),
-    vec3(-ONE, NUL, PHI),
-    vec3(-PHI, -ONE, NUL),
-    vec3(PHI, -ONE, NUL),
-    vec3(NUL, -PHI, -ONE),
-    vec3(NUL, PHI, -ONE),
+const VERTEX: [Vec3; 12] = [
+    Vec3::new(ONE, NUL, PHI),
+    Vec3::new(ONE, NUL, -PHI),
+    Vec3::new(PHI, ONE, NUL),
+    Vec3::new(-PHI, ONE, NUL),
+    Vec3::new(NUL, PHI, ONE),
+    Vec3::new(NUL, -PHI, ONE),
+    Vec3::new(-ONE, NUL, -PHI),
+    Vec3::new(-ONE, NUL, PHI),
+    Vec3::new(-PHI, -ONE, NUL),
+    Vec3::new(PHI, -ONE, NUL),
+    Vec3::new(NUL, -PHI, -ONE),
+    Vec3::new(NUL, PHI, -ONE),
 ];
 
 const EDGE: [[usize; 2]; 30] = [

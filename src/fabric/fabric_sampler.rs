@@ -13,7 +13,7 @@
 use crate::fabric::Fabric;
 use crate::units::MM_PER_METER;
 use crate::Age;
-use cgmath::{MetricSpace, Point3};
+use glam::Vec3;
 
 /// Number of samples to collect before analysis
 const DEFAULT_SAMPLE_COUNT: usize = 240;
@@ -31,7 +31,7 @@ const SAMPLING_PHASES: &[(usize, usize)] = &[
 /// A single snapshot of all joint positions at one point in time
 #[derive(Clone, Debug)]
 struct Sample {
-    positions: Vec<Point3<f32>>,
+    positions: Vec<Vec3>,
     age: Age, // When this sample was taken
 }
 
@@ -130,7 +130,7 @@ impl FabricSampler {
 
         // Time to sample?
         if self.frames_since_last_sample >= frame_interval {
-            let positions: Vec<Point3<f32>> = fabric.joints.values().map(|j| j.location).collect();
+            let positions: Vec<Vec3> = fabric.joints.values().map(|j| j.location).collect();
 
             self.samples.push(Sample {
                 positions,
@@ -240,7 +240,7 @@ impl FabricSampler {
     /// Analyze movement of a single joint (with non-uniform sampling)
     fn analyze_joint(&self, joint_idx: usize, scale: f32) -> JointAnalysis {
         // Extract positions and ages for this joint across all samples
-        let positions: Vec<Point3<f32>> = self
+        let positions: Vec<Vec3> = self
             .samples
             .iter()
             .map(|sample| sample.positions[joint_idx])

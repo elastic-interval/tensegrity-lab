@@ -9,7 +9,7 @@ pub use torque::torque;
 
 use crate::build::dsl::brick::{BakedBrick, BrickPrototype};
 use crate::build::dsl::brick_dsl::*;
-use cgmath::{SquareMatrix, Vector3};
+use glam::Vec3;
 use std::sync::OnceLock;
 
 static SINGLE_LEFT_PROTO: OnceLock<BrickPrototype> = OnceLock::new();
@@ -24,7 +24,7 @@ pub fn get_prototype(brick_name: BrickName) -> BrickPrototype {
         BrickName::SingleTwistLeft => SINGLE_LEFT_PROTO
             .get_or_init(|| {
                 single_left(&SingleParams {
-                    push_lengths: Vector3::new(3.204, 3.204, 3.204),
+                    push_lengths: Vec3::new(3.204, 3.204, 3.204),
                     pull_length: 2.0,
                 })
             })
@@ -32,14 +32,14 @@ pub fn get_prototype(brick_name: BrickName) -> BrickPrototype {
         BrickName::OmniSymmetrical | BrickName::OmniTetrahedral => OMNI_PROTO
             .get_or_init(|| {
                 omni(&OmniParams {
-                    push_lengths: Vector3::new(3.271, 3.271, 3.271),
+                    push_lengths: Vec3::new(3.271, 3.271, 3.271),
                 })
             })
             .clone(),
         BrickName::TorqueSymmetrical => TORQUE_PROTO
             .get_or_init(|| {
                 torque(&TorqueParams {
-                    push_lengths: Vector3::new(3.0, 3.0, 6.0),
+                    push_lengths: Vec3::new(3.0, 3.0, 6.0),
                     pull_length: 1.86,
                 })
             })
@@ -76,7 +76,7 @@ pub fn get_brick(brick_name: BrickName, brick_role: BrickRole) -> BakedBrick {
                     })
                 })
                 .expect("Brick does not have any face aliases for this role");
-            face.vector_space(&baked).invert().unwrap()
+            face.vector_space(&baked).inverse()
         }
     };
     baked.apply_matrix(space);

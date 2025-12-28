@@ -12,11 +12,7 @@ use crate::fabric::joint::{Joint, AMBIENT_MASS};
 use crate::fabric::physics::Physics;
 use crate::units::{Degrees, Grams, Meters, Unit};
 use crate::Age;
-use cgmath::num_traits::zero;
-use cgmath::{
-    EuclideanSpace, InnerSpace, Matrix4, MetricSpace, Point3, Quaternion, Rotation, Transform,
-    Vector3,
-};
+use glam::{Mat4, Quat, Vec3};
 use slotmap::{new_key_type, SlotMap};
 use std::fmt::Debug;
 
@@ -58,20 +54,20 @@ impl HingeDimensions {
 const NEAR_PARALLEL_THRESHOLD: f32 = 1e-10;
 const AXIS_ALIGNMENT_THRESHOLD: f32 = 0.9;
 
-pub fn hinge_angle(push_axis: Vector3<f32>, pull_direction: Vector3<f32>) -> Degrees {
+pub fn hinge_angle(push_axis: Vec3, pull_direction: Vec3) -> Degrees {
     let sin_angle = pull_direction.dot(push_axis);
     Degrees(sin_angle.asin().to_degrees())
 }
 
-fn radial_unit_from_axis(push_axis: Vector3<f32>, direction: Vector3<f32>) -> Vector3<f32> {
+fn radial_unit_from_axis(push_axis: Vec3, direction: Vec3) -> Vec3 {
     let axial_component = push_axis * direction.dot(push_axis);
     let radial_direction = direction - axial_component;
 
-    if radial_direction.magnitude2() < NEAR_PARALLEL_THRESHOLD {
+    if radial_direction.length_squared() < NEAR_PARALLEL_THRESHOLD {
         let arbitrary = if push_axis.x.abs() < AXIS_ALIGNMENT_THRESHOLD {
-            Vector3::new(1.0, 0.0, 0.0)
+            Vec3::new(1.0, 0.0, 0.0)
         } else {
-            Vector3::new(0.0, 1.0, 0.0)
+            Vec3::new(0.0, 1.0, 0.0)
         };
         push_axis.cross(arbitrary).normalize()
     } else {
@@ -115,29 +111,29 @@ impl FabricDimensions {
         self
     }
 
-    fn ring_center(&self, push_end: Point3<f32>, push_axis: Vector3<f32>, slot: usize) -> Point3<f32> {
+    fn ring_center(&self, push_end: Vec3, push_axis: Vec3, slot: usize) -> Vec3 {
         let axial_offset = self.hinge.disc_thickness.f32() * (slot as f32 + 1.0);
         push_end + push_axis * axial_offset
     }
 
     pub fn hinge_position(
         &self,
-        push_end: Point3<f32>,
-        push_axis: Vector3<f32>,
+        push_end: Vec3,
+        push_axis: Vec3,
         slot: usize,
-        pull_other_end: Point3<f32>,
-    ) -> Point3<f32> {
+        pull_other_end: Vec3,
+    ) -> Vec3 {
         let (hinge_pos, _, _) = self.hinge_geometry(push_end, push_axis, slot, pull_other_end);
         hinge_pos
     }
 
     pub fn hinge_geometry(
         &self,
-        push_end: Point3<f32>,
-        push_axis: Vector3<f32>,
+        push_end: Vec3,
+        push_axis: Vec3,
         slot: usize,
-        pull_other_end: Point3<f32>,
-    ) -> (Point3<f32>, attachment::HingeBend, Point3<f32>) {
+        pull_other_end: Vec3,
+    ) -> (Vec3, attachment::HingeBend, Vec3) {
         let ring_center = self.ring_center(push_end, push_axis, slot);
         let to_pull = pull_other_end - ring_center;
         let radial_unit = radial_unit_from_axis(push_axis, to_pull);
@@ -222,12 +218,6 @@ pub mod vulcanize;
 
 pub mod csv_export;
 pub mod physics_test;
-
-// Type aliases for physics quantities - improves readability and provides
-// hook for future unit-aware types without cluttering code with f32 generics
-pub type Location = Point3<f32>;
-pub type Velocity = Vector3<f32>;
-pub type Force = Vector3<f32>;
 
 // Type aliases for SlotMap containers
 pub type Joints = SlotMap<JointKey, Joint>;
@@ -379,18 +369,18 @@ impl Fabric {
         Grams(AMBIENT_MASS.f32() * self.scale.powf(3.5))
     }
 
-    pub fn apply_matrix4(&mut self, matrix: Matrix4<f32>) {
+    pub fn apply_matrix4(&mut self, matrix: Mat4) {
         for joint in self.joints.values_mut() {
-            joint.location = matrix.transform_point(joint.location);
-            joint.velocity = matrix.transform_vector(joint.velocity);
+            joint.location = matrix.transform_point3(joint.location);
+            joint.velocity = matrix.transform_vector3(joint.velocity);
         }
     }
 
     /// Calculate the translation needed to centralize the fabric
-    pub fn centralize_translation(&self, altitude: Option<f32>) -> Vector3<f32> {
-        let mut midpoint: Vector3<f32> = zero();
+    pub fn centralize_translation(&self, altitude: Option<f32>) -> Vec3 {
+        let mut midpoint: Vec3 = Vec3::ZERO;
         for joint in self.joints.values() {
-            midpoint += joint.location.to_vec();
+            midpoint += joint.location;
         }
         midpoint /= self.joints.len() as f32;
         midpoint.y = 0.0;
@@ -414,7 +404,7 @@ impl Fabric {
     }
 
     /// Apply a translation to all joints
-    pub fn apply_translation(&mut self, translation: Vector3<f32>) {
+    pub fn apply_translation(&mut self, translation: Vec3) {
         for joint in self.joints.values_mut() {
             joint.location += translation;
         }
@@ -440,7 +430,7 @@ impl Fabric {
             joint.velocity.y *= s;
             joint.velocity.z *= s;
             // Forces will be recalculated on next iteration
-            joint.force = cgmath::num_traits::zero();
+            joint.force = Vec3::ZERO;
             // Scale mass with volume (thinner intervals at small scale)
             joint.accumulated_mass = Grams(joint.accumulated_mass.f32() * mass_scale);
         }
@@ -457,7 +447,7 @@ impl Fabric {
     }
 
     /// Get the rotation matrix to orient the fabric so faces with Downwards(n) point down
-    pub fn down_rotation(&self, brick_role: BrickRole) -> Matrix4<f32> {
+    pub fn down_rotation(&self, brick_role: BrickRole) -> Mat4 {
         let downward_count = match brick_role {
             BrickRole::Seed(n) => n,
             _ => panic!("Brick role {:?} is not a seed", brick_role),
@@ -479,19 +469,19 @@ impl Fabric {
                 downward_normals.len()
             );
         }
-        let down = downward_normals
+        let down: Vec3 = downward_normals
             .into_iter()
-            .sum::<Vector3<f32>>()
+            .sum::<Vec3>()
             .normalize();
-        Matrix4::from(Quaternion::between_vectors(down, -Vector3::unit_y()))
+        Mat4::from_quat(Quat::from_rotation_arc(down, -Vec3::Y))
     }
 
     /// Zero out all joint velocities and forces
     /// Useful when freezing the fabric to prevent accumulated velocity artifacts
     pub fn zero_velocities(&mut self) {
         for joint in self.joints.values_mut() {
-            joint.velocity = zero();
-            joint.force = zero();
+            joint.velocity = Vec3::ZERO;
+            joint.force = Vec3::ZERO;
         }
     }
 
@@ -518,15 +508,15 @@ impl Fabric {
             }
         }
         for joint in self.joints.values_mut() {
-            joint.force = zero();
-            joint.velocity = zero();
+            joint.force = Vec3::ZERO;
+            joint.velocity = Vec3::ZERO;
         }
     }
 
     pub fn max_velocity(&self) -> f32 {
         self.joints
             .values()
-            .map(|joint| joint.velocity.magnitude2())
+            .map(|joint| joint.velocity.length_squared())
             .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .map(|speed_sq| speed_sq.sqrt())
             .unwrap_or(0.0)
@@ -569,7 +559,7 @@ impl Fabric {
 
         for joint in self.joints.values_mut() {
             joint.iterate(physics);
-            let speed_squared = joint.velocity.magnitude2();
+            let speed_squared = joint.velocity.length_squared();
             let mass = joint.accumulated_mass.f32();
             self.stats.accumulate_joint(mass, speed_squared);
             self.stats.update_max_speed_squared(speed_squared);
@@ -600,16 +590,16 @@ impl Fabric {
         self.joints
             .values()
             .map(|joint| {
-                let speed_squared = joint.velocity.magnitude2();
+                let speed_squared = joint.velocity.length_squared();
                 0.5 * joint.accumulated_mass.f32() * speed_squared
             })
             .sum()
     }
 
-    pub fn midpoint(&self) -> Point3<f32> {
-        let mut midpoint: Point3<f32> = Point3::origin();
+    pub fn midpoint(&self) -> Vec3 {
+        let mut midpoint: Vec3 = Vec3::ZERO;
         for joint in self.joints.values() {
-            midpoint += joint.location.to_vec();
+            midpoint += joint.location;
         }
         let denominator = if self.joints.is_empty() {
             1
@@ -634,7 +624,7 @@ impl Fabric {
         let max_distance_squared = self
             .joints
             .values()
-            .map(|joint| joint.location.distance2(midpoint))
+            .map(|joint| joint.location.distance_squared(midpoint))
             .fold(0.0_f32, |max, dist_sq| max.max(dist_sq));
 
         // Add a small margin to ensure everything is visible
@@ -728,7 +718,7 @@ impl Fabric {
         for interval in self.intervals.values() {
             let alpha = &self.joints[interval.alpha_key];
             let omega = &self.joints[interval.omega_key];
-            let real_length = Meters((&omega.location - &alpha.location).magnitude());
+            let real_length = Meters((omega.location - alpha.location).length());
             let interval_mass = interval.material.linear_density(physics) * real_length;
             total_mass += interval_mass;
         }

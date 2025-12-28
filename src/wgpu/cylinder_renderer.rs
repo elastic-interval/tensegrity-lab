@@ -5,7 +5,6 @@ use crate::fabric::{Fabric, IntervalEnd};
 use crate::wgpu::{Wgpu, DEFAULT_PRIMITIVE_STATE};
 use crate::{Appearance, AppearanceMode, IntervalDetails, JointDetails, RenderStyle};
 use bytemuck::{Pod, Zeroable};
-use cgmath::InnerSpace;
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
 use wgpu::PipelineCompilationOptions;
