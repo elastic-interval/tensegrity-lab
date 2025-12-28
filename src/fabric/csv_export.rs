@@ -377,39 +377,57 @@ impl Fabric {
         }
 
         // Generate pull-fea intervals
+        // All pull-fea endpoints connect to the HIGHEST ring center at each joint
+        // (same point as push-fea endpoints) so all FEA elements meet at the same node
         for info in interval_infos.iter().filter(|i| !i.is_push) {
             let interval = self.intervals.get(info.key).unwrap();
 
-            // Find connection info for each end
+            // Find connection info for each end (to get the joint_key)
             let alpha_info = pull_hinge_info
                 .iter()
                 .find(|((pull_id, end, _), _)| *pull_id == info.key && *end == IntervalEnd::Alpha)
-                .map(|((_, _, slot), (_, _, joint_key, _, _))| (*joint_key, *slot));
+                .map(|((_, _, _slot), (_, _, joint_key, _, _))| *joint_key);
             let omega_info = pull_hinge_info
                 .iter()
                 .find(|((pull_id, end, _), _)| *pull_id == info.key && *end == IntervalEnd::Omega)
-                .map(|((_, _, slot), (_, _, joint_key, _, _))| (*joint_key, *slot));
+                .map(|((_, _, _slot), (_, _, joint_key, _, _))| *joint_key);
 
-            // Get ring centers at connection slots
+            // Get ring centers at HIGHEST slot (same as push-fea endpoints)
             let (alpha_fea, alpha_joint_path, alpha_slot) =
-                if let Some((joint_key, slot)) = alpha_info {
-                    let ring = ring_centers
-                        .get(&(joint_key, slot))
+                if let Some(joint_key) = alpha_info {
+                    let highest_slot = highest_slot_per_joint
+                        .get(&joint_key)
                         .copied()
-                        .unwrap_or(self.joints[joint_key].location);
-                    (ring, self.joints[joint_key].path.to_string(), slot)
+                        .unwrap_or(0);
+                    let ring = if highest_slot > 0 {
+                        ring_centers
+                            .get(&(joint_key, highest_slot))
+                            .copied()
+                            .unwrap_or(self.joints[joint_key].location)
+                    } else {
+                        self.joints[joint_key].location
+                    };
+                    (ring, self.joints[joint_key].path.to_string(), highest_slot)
                 } else {
                     let joint = &self.joints[interval.alpha_key];
                     (joint.location, joint.path.to_string(), 0)
                 };
 
             let (omega_fea, omega_joint_path, omega_slot) =
-                if let Some((joint_key, slot)) = omega_info {
-                    let ring = ring_centers
-                        .get(&(joint_key, slot))
+                if let Some(joint_key) = omega_info {
+                    let highest_slot = highest_slot_per_joint
+                        .get(&joint_key)
                         .copied()
-                        .unwrap_or(self.joints[joint_key].location);
-                    (ring, self.joints[joint_key].path.to_string(), slot)
+                        .unwrap_or(0);
+                    let ring = if highest_slot > 0 {
+                        ring_centers
+                            .get(&(joint_key, highest_slot))
+                            .copied()
+                            .unwrap_or(self.joints[joint_key].location)
+                    } else {
+                        self.joints[joint_key].location
+                    };
+                    (ring, self.joints[joint_key].path.to_string(), highest_slot)
                 } else {
                     let joint = &self.joints[interval.omega_key];
                     (joint.location, joint.path.to_string(), 0)
