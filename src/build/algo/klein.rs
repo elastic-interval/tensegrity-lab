@@ -1,5 +1,6 @@
 use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
 use rand::prelude::*;
+use rand::rngs::ThreadRng;
 
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, IntervalKey, JointKey};
@@ -16,7 +17,7 @@ impl KleinFabric {
         KleinFabric {
             fabric: Fabric::new("klein".to_string()),
             joint_keys: Vec::new(),
-            random: thread_rng(),
+            random: rand::rng(),
         }
     }
 
@@ -44,7 +45,7 @@ impl KleinFabric {
     }
 
     fn coord(&mut self) -> f32 {
-        self.random.gen_range(-1000..1000) as f32 / 1000.0
+        self.random.random_range(-1000..1000) as f32 / 1000.0
     }
 }
 
