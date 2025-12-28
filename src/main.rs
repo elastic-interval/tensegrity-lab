@@ -81,10 +81,25 @@ fn main() -> Result<(), Box<dyn Error>> {
             snapshot: args.snapshot,
         }
     } else {
-        return Err("use --fabric <name> or --bake-bricks or --seed <seed> or --sphere <freq> or --mobius <segments>".into());
+        // Default: Triped with model-scale 18
+        RunStyle::Fabric {
+            fabric_name: FabricName::Triped,
+            record: None,
+            export_fps: 100.0,
+            snapshot: None,
+        }
     };
 
-    run_with(run_style, args.time_scale, args.model_scale)
+    // Use model_scale from args, or default to 18 if running with default fabric
+    let model_scale = args.model_scale.or_else(|| {
+        if matches!(run_style, RunStyle::Fabric { fabric_name: FabricName::Triped, .. }) && args.fabric.is_none() {
+            Some(18.0)
+        } else {
+            None
+        }
+    });
+
+    run_with(run_style, args.time_scale, model_scale)
 }
 
 fn run_with(run_style: RunStyle, time_scale: f32, model_scale: Option<f32>) -> Result<(), Box<dyn Error>> {

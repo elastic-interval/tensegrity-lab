@@ -1,1 +1,1 @@
-cargo run --release -- --fabric Triped --model-scale 19.5 
+cargo run --release -- --fabric Triped --model-scale 18
