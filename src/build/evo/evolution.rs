@@ -101,7 +101,7 @@ impl Evolution {
     }
 
     fn random_push(&mut self) -> usize {
-        self.random.gen_range(0..self.evolving_pushes.len())
+        self.random.random_range(0..self.evolving_pushes.len())
     }
 
     fn random_unit(&mut self) -> Vector3<f32> {
@@ -109,6 +109,6 @@ impl Evolution {
     }
 
     fn random_f32(&mut self) -> f32 {
-        self.random.gen_range(-1.0..1.0)
+        self.random.random_range(-1.0..1.0)
     }
 }
