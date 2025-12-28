@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::path::PathBuf;
 
-use cgmath::{InnerSpace, Point3, Vector3};
+use glam::Vec3;
 use serde::Serialize;
 
 use crate::fabric::interval::Role;
@@ -64,7 +64,7 @@ struct IntervalExport {
 
 struct FrameData {
     /// (joint_id, position)
-    joints: Vec<(usize, Point3<f32>)>,
+    joints: Vec<(usize, Vec3)>,
     /// (alpha_joint_id, omega_joint_id, role)
     interval_data: Vec<(usize, usize, Role)>,
 }
@@ -158,7 +158,7 @@ impl AnimationExporter {
 
     fn export_frame(&self, frame: &FrameData) -> FrameExport {
         // Build id-to-position map for interval lookups
-        let id_to_pos: std::collections::HashMap<usize, Point3<f32>> =
+        let id_to_pos: std::collections::HashMap<usize, Vec3> =
             frame.joints.iter().map(|&(id, pos)| (id, pos)).collect();
 
         // Export joints with their actual ids
@@ -192,16 +192,12 @@ impl AnimationExporter {
                 let omega_pos = *id_to_pos.get(omega)?;
 
                 let delta = omega_pos - alpha_pos;
-                let full_length = delta.magnitude();
+                let full_length = delta.length();
                 if full_length < 1e-6 {
                     return None;
                 }
 
-                let mid = Point3::new(
-                    (alpha_pos.x + omega_pos.x) / 2.0,
-                    (alpha_pos.y + omega_pos.y) / 2.0,
-                    (alpha_pos.z + omega_pos.z) / 2.0,
-                );
+                let mid = (alpha_pos + omega_pos) / 2.0;
 
                 let (x_axis, y_axis, z_axis) = compute_cylinder_axes(delta, full_length);
 
@@ -223,16 +219,12 @@ impl AnimationExporter {
                 let omega_pos = *id_to_pos.get(omega)?;
 
                 let delta = omega_pos - alpha_pos;
-                let full_length = delta.magnitude();
+                let full_length = delta.length();
                 if full_length < 1e-6 {
                     return None;
                 }
 
-                let mid = Point3::new(
-                    (alpha_pos.x + omega_pos.x) / 2.0,
-                    (alpha_pos.y + omega_pos.y) / 2.0,
-                    (alpha_pos.z + omega_pos.z) / 2.0,
-                );
+                let mid = (alpha_pos + omega_pos) / 2.0;
 
                 let (x_axis, y_axis, z_axis) = compute_cylinder_axes(delta, full_length);
 
@@ -274,7 +266,7 @@ impl AnimationExporter {
             .map(|(idx, &key)| (key, idx))
             .collect();
 
-        let joints: Vec<(usize, Point3<f32>)> = joint_keys
+        let joints: Vec<(usize, Vec3)> = joint_keys
             .iter()
             .enumerate()
             .map(|(idx, &key)| (idx, fabric.joints[key].location))
@@ -342,7 +334,7 @@ impl AnimationExporter {
             .map(|(idx, &key)| (key, idx))
             .collect();
 
-        let joints: Vec<(usize, Point3<f32>)> = joint_keys
+        let joints: Vec<(usize, Vec3)> = joint_keys
             .iter()
             .enumerate()
             .map(|(idx, &key)| (idx, fabric.joints[key].location))
@@ -380,23 +372,20 @@ impl AnimationExporter {
     }
 }
 
-fn compute_cylinder_axes(
-    delta: Vector3<f32>,
-    length: f32,
-) -> (Vector3<f32>, Vector3<f32>, Vector3<f32>) {
+fn compute_cylinder_axes(delta: Vec3, length: f32) -> (Vec3, Vec3, Vec3) {
     let dir = delta / length;
     let y_axis = dir;
     let arbitrary = if y_axis.y.abs() < 0.9 {
-        Vector3::new(0.0, 1.0, 0.0)
+        Vec3::Y
     } else {
-        Vector3::new(1.0, 0.0, 0.0)
+        Vec3::X
     };
     let x_axis = y_axis.cross(arbitrary).normalize();
     let z_axis = x_axis.cross(y_axis).normalize();
     (x_axis, y_axis, z_axis)
 }
 
-fn create_sphere_matrix(pos: Point3<f32>, radius: f32) -> [f32; 16] {
+fn create_sphere_matrix(pos: Vec3, radius: f32) -> [f32; 16] {
     // Column-major 4x4 matrix for uniform scale + translation
     [
         radius, 0.0, 0.0, 0.0, // column 0
@@ -407,10 +396,10 @@ fn create_sphere_matrix(pos: Point3<f32>, radius: f32) -> [f32; 16] {
 }
 
 fn create_cylinder_matrix(
-    mid: Point3<f32>,
-    x_axis: Vector3<f32>,
-    y_axis: Vector3<f32>,
-    z_axis: Vector3<f32>,
+    mid: Vec3,
+    x_axis: Vec3,
+    y_axis: Vec3,
+    z_axis: Vec3,
     radius: f32,
     length: f32,
 ) -> [f32; 16] {

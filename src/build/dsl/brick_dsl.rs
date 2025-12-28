@@ -2,23 +2,23 @@ use crate::build::dsl::brick::{Axis, BrickPrototype, FaceDef, PullDef, PushDef};
 use crate::build::dsl::brick_dsl::FaceName::Downwards;
 use crate::build::dsl::{FaceAlias, ScaleMode, Spin};
 pub use crate::fabric::material::Material;
-use cgmath::Vector3;
+use glam::Vec3;
 use strum::Display;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OmniParams {
-    pub push_lengths: Vector3<f32>,
+    pub push_lengths: Vec3,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SingleParams {
-    pub push_lengths: Vector3<f32>,
+    pub push_lengths: Vec3,
     pub pull_length: f32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TorqueParams {
-    pub push_lengths: Vector3<f32>,
+    pub push_lengths: Vec3,
     pub pull_length: f32,
 }
 

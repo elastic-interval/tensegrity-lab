@@ -10,7 +10,7 @@ use crate::units::Unit;
 use crate::fabric::{Fabric, IntervalEnd};
 use crate::wgpu::{default_depth_stencil_state, Wgpu, DEFAULT_PRIMITIVE_STATE};
 use bytemuck::{Pod, Zeroable};
-use cgmath::{InnerSpace, Point3};
+use glam::Vec3;
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
 use wgpu::PipelineCompilationOptions;
@@ -206,8 +206,8 @@ impl HingeRenderer {
         fabric: &Fabric,
         push_interval: &crate::fabric::interval::Interval,
         end: IntervalEnd,
-        joint_pos: Point3<f32>,
-        push_axis: cgmath::Vector3<f32>,
+        joint_pos: Vec3,
+        push_axis: Vec3,
         dimensions: &FabricDimensions,
         link_radius: f32,
     ) {
@@ -217,7 +217,7 @@ impl HingeRenderer {
         };
 
         // Collect connections with their slot indices
-        let mut slot_connections: Vec<(usize, Point3<f32>, Point3<f32>)> = Vec::new();
+        let mut slot_connections: Vec<(usize, Vec3, Vec3)> = Vec::new();
 
         for (slot_idx, conn_opt) in connections.iter().enumerate() {
             if let Some(connection) = conn_opt {

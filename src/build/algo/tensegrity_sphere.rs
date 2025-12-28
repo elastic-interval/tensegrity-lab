@@ -1,4 +1,4 @@
-use cgmath::{EuclideanSpace, InnerSpace, Point3, Quaternion, Rad, Rotation3, VectorSpace};
+use glam::Quat;
 
 use crate::build::algo::sphere::{SphereScaffold, Vertex};
 use crate::fabric::interval::Role;
@@ -65,14 +65,14 @@ pub fn generate_sphere(frequency: usize, radius: f32) -> Fabric {
                             let (alpha_base, omega_base) =
                                 (locations[*vertex_here], locations[*adjacent_vertex]);
                             let axis = alpha_base.lerp(omega_base, 0.5).normalize();
-                            let quaternion = Quaternion::from_axis_angle(axis, Rad(TWIST_ANGLE));
+                            let quaternion = Quat::from_axis_angle(axis, TWIST_ANGLE);
                             let alpha = ts
                                 .fabric
-                                .create_joint(Point3::from_vec(quaternion * alpha_base));
+                                .create_joint(quaternion * alpha_base);
                             let omega = ts
                                 .fabric
-                                .create_joint(Point3::from_vec(quaternion * omega_base));
-                            let length = Meters((omega_base - alpha_base).magnitude());
+                                .create_joint(quaternion * omega_base);
+                            let length = Meters((omega_base - alpha_base).length());
                             ts.fabric
                                 .create_fixed_interval(alpha, omega, Role::Pushing, length);
                             PushInterval {

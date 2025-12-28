@@ -1,4 +1,4 @@
-use cgmath::{EuclideanSpace, Matrix4, Point3, Transform, Vector3};
+use glam::{Mat4, Vec3};
 
 use crate::build::dsl::brick::{BakedBrick, BakedInterval, BakedJoint, BrickFace};
 use crate::build::dsl::brick_dsl::BrickRole;
@@ -13,7 +13,7 @@ pub enum BaseFace {
     ExistingFace(FaceKey),
     Situated {
         spin: Spin,
-        vector_space: Matrix4<f32>,
+        vector_space: Mat4,
     },
     Seeded {
         altitude: f32,
@@ -39,8 +39,8 @@ impl Fabric {
             }
             BaseFace::Situated { spin, vector_space } => (scale_factor, Some(spin), vector_space),
             BaseFace::Seeded { altitude } => {
-                let matrix = Matrix4::from_translation(Vector3::new(0.0, altitude, 0.0))
-                    * Matrix4::from_scale(scale_factor);
+                let matrix = Mat4::from_translation(Vec3::new(0.0, altitude, 0.0))
+                    * Mat4::from_scale(Vec3::splat(scale_factor));
                 (scale_factor, None, matrix)
             }
         };
@@ -51,7 +51,7 @@ impl Fabric {
             .enumerate()
             .map(|(index, BakedJoint { location, .. })| {
                 let path = base_path.with_local_index(index as u8);
-                self.create_joint_with_path(matrix.transform_point(location), path)
+                self.create_joint_with_path(matrix.transform_point3(location), path)
             })
             .collect();
         for BakedInterval {
@@ -92,15 +92,15 @@ impl Fabric {
                     }
 
                     let midpoint = brick_joints
-                        .map(|index| self.joints[joint_keys[index]].location.to_vec())
+                        .map(|index| self.joints[joint_keys[index]].location)
                         .into_iter()
-                        .sum::<Vector3<f32>>()
+                        .sum::<Vec3>()
                         / 3.0;
                     // Face midpoint gets a path based on base_path with local_index 6 + first brick joint
                     // This distinguishes different faces on the same brick
                     let midpoint_local = 6 + brick_joints[0] as u8;
                     let midpoint_path = base_path.with_local_index(midpoint_local);
-                    let alpha_key = self.create_joint_with_path(Point3::from_vec(midpoint), midpoint_path);
+                    let alpha_key = self.create_joint_with_path(midpoint, midpoint_path);
                     let radial_intervals = brick_joints.map(|omega| {
                         let omega_key = joint_keys[omega];
                         self.create_strained_interval(alpha_key, omega_key, Role::FaceRadial, BakedBrick::TARGET_FACE_STRAIN)

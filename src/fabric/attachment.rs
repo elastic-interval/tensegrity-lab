@@ -5,7 +5,7 @@
 
 use crate::fabric::{FabricDimensions, IntervalEnd, IntervalKey, JointKey, Joints};
 use crate::units::{Degrees, Unit};
-use cgmath::{InnerSpace, MetricSpace, Point3, Vector3};
+use glam::Vec3;
 
 /// Number of attachment points at each end of a push interval
 pub const ATTACHMENT_POINTS: usize = 10;
@@ -56,11 +56,11 @@ impl HingeBend {
     /// Calculate the hinge endpoint position
     pub fn endpoint(
         &self,
-        hinge_pos: Point3<f32>,
-        push_axis: Vector3<f32>,
-        radial_direction: Vector3<f32>,
+        hinge_pos: Vec3,
+        push_axis: Vec3,
+        radial_direction: Vec3,
         hinge_length: f32,
-    ) -> Point3<f32> {
+    ) -> Vec3 {
         // At 0°, hinge points along radial_direction (away from ring center)
         // At +angle, it rotates toward push_axis (outward along bolt)
         // At -angle, it rotates away from push_axis (inward toward push interval)
@@ -77,7 +77,7 @@ impl HingeBend {
 #[derive(Clone, Copy, Debug)]
 pub struct AttachmentPoint {
     /// The position of the attachment point in 3D space
-    pub position: Point3<f32>,
+    pub position: Vec3,
 
     /// The index of this attachment point (0-5)
     pub index: usize,
@@ -298,7 +298,7 @@ pub struct PullIntervalData {
     pub alpha_key: JointKey,
     pub omega_key: JointKey,
     pub strain: f32,
-    pub unit: Vector3<f32>,
+    pub unit: Vec3,
 }
 
 /// Helper function to find the nearest attachment point in a set of points
@@ -306,7 +306,7 @@ pub struct PullIntervalData {
 /// If the points array is empty, returns (0, f32::MAX) as a fallback
 pub fn find_nearest_attachment_point(
     points: &[AttachmentPoint],
-    position: Point3<f32>,
+    position: Vec3,
 ) -> (usize, f32) {
     if points.is_empty() {
         return (0, f32::MAX); // Fallback for empty arrays
@@ -315,7 +315,7 @@ pub fn find_nearest_attachment_point(
     points
         .iter()
         .enumerate()
-        .map(|(i, point)| (i, position.distance2(point.position)))
+        .map(|(i, point)| (i, position.distance_squared(point.position)))
         .min_by(|(_, dist1), (_, dist2)| {
             // Handle NaN values safely by considering them equal
             // This prevents unwrap failures on partial_cmp
@@ -344,7 +344,7 @@ fn calculate_rotational_moment(
     let pivot_position = attachment_points[0].position;
 
     // Accumulate moment vector
-    let mut total_moment = Vector3::new(0.0, 0.0, 0.0);
+    let mut total_moment = Vec3::ZERO;
 
     for (pull_key, attach_idx) in assignment {
         // Find the pull interval data
@@ -353,11 +353,7 @@ fn calculate_rotational_moment(
             let attach_pos = attachment_points[*attach_idx].position;
 
             // Calculate moment arm: vector from pivot to attachment point
-            let moment_arm = Vector3::new(
-                attach_pos.x - pivot_position.x,
-                attach_pos.y - pivot_position.y,
-                attach_pos.z - pivot_position.z,
-            );
+            let moment_arm = attach_pos - pivot_position;
 
             // Determine which end of the pull connects to this push
             let connected_key = if pull.alpha_key == push_joint_key {
@@ -375,12 +371,7 @@ fn calculate_rotational_moment(
             };
 
             let other_pos = joints[other_key].location;
-            let pull_direction = Vector3::new(
-                other_pos.x - attach_pos.x,
-                other_pos.y - attach_pos.y,
-                other_pos.z - attach_pos.z,
-            )
-            .normalize();
+            let pull_direction = (other_pos - attach_pos).normalize();
 
             let force = pull_direction * pull.strain;
 
@@ -391,7 +382,7 @@ fn calculate_rotational_moment(
     }
 
     // Return magnitude of total moment
-    total_moment.magnitude()
+    total_moment.length()
 }
 
 /// Checks if a pull interval is "outward-pulling" (positive dot product with push axis)
@@ -399,7 +390,7 @@ fn calculate_rotational_moment(
 fn is_outward_pulling(
     pull: &PullIntervalData,
     push_joint_key: JointKey,
-    push_axis: Vector3<f32>,
+    push_axis: Vec3,
     joints: &Joints,
 ) -> bool {
     // Determine which end of the pull connects to this push joint
@@ -427,7 +418,7 @@ fn find_optimal_assignment(
     pull_data: &[PullIntervalData],
     joints: &Joints,
     push_joint_key: JointKey,
-    push_axis: Vector3<f32>,
+    push_axis: Vec3,
 ) -> Vec<(IntervalEnd, IntervalKey, JointKey)> {
     if pulls.is_empty() {
         return Vec::new();
@@ -535,8 +526,8 @@ fn find_optimal_assignment(
 /// * `direction` - The direction vector of the push interval (points outward from interval)
 /// * `dimensions` - The fabric dimensions with scaled values
 pub fn generate_attachment_points(
-    end_position: Point3<f32>,
-    direction: Vector3<f32>,
+    end_position: Vec3,
+    direction: Vec3,
     dimensions: &FabricDimensions,
 ) -> [AttachmentPoint; ATTACHMENT_POINTS] {
     // Normalize the direction vector to get the axis
@@ -559,11 +550,7 @@ pub fn generate_attachment_points(
 
         // Set the position and index
         points[i] = AttachmentPoint {
-            position: Point3::new(
-                end_position.x + offset.x,
-                end_position.y + offset.y,
-                end_position.z + offset.z,
-            ),
+            position: end_position + offset,
             index: i,
         };
     }
@@ -573,15 +560,15 @@ pub fn generate_attachment_points(
 
 /// Calculates attachment points for both ends of a push interval
 pub fn calculate_interval_attachment_points(
-    start: Point3<f32>,
-    end: Point3<f32>,
+    start: Vec3,
+    end: Vec3,
     dimensions: &FabricDimensions,
 ) -> (
     [AttachmentPoint; ATTACHMENT_POINTS],
     [AttachmentPoint; ATTACHMENT_POINTS],
 ) {
     // Calculate direction vector from start to end
-    let direction = Vector3::new(end.x - start.x, end.y - start.y, end.z - start.z);
+    let direction = end - start;
 
     // Generate attachment points at both ends
     // Alpha end: points extend outward from start (opposite to interval direction)

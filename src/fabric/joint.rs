@@ -5,24 +5,23 @@
 
 use crate::fabric::joint_path::JointPath;
 use crate::fabric::physics::{Physics, SurfaceInteraction};
-use crate::fabric::{Fabric, Force, JointKey, Location, Velocity};
+use crate::fabric::{Fabric, JointKey};
 use crate::units::{Grams, Meters, Unit};
 use crate::ITERATION_DURATION;
-use cgmath::num_traits::zero;
-use cgmath::{InnerSpace, MetricSpace, Point3};
+use glam::Vec3;
 
 impl Fabric {
     /// Create a joint with a specific path (for structured brick creation)
-    pub fn create_joint_with_path(&mut self, point: Point3<f32>, path: JointPath) -> JointKey {
+    pub fn create_joint_with_path(&mut self, point: Vec3, path: JointPath) -> JointKey {
         self.joints.insert(Joint::new(point, path))
     }
 
     /// Create a joint with default path (for legacy code and non-brick joints)
-    pub fn create_joint(&mut self, point: Point3<f32>) -> JointKey {
+    pub fn create_joint(&mut self, point: Vec3) -> JointKey {
         self.create_joint_with_path(point, JointPath::default())
     }
 
-    pub fn location(&self, key: JointKey) -> Point3<f32> {
+    pub fn location(&self, key: JointKey) -> Vec3 {
         self.joints[key].location
     }
 
@@ -64,30 +63,30 @@ pub const AMBIENT_MASS: Grams = Grams(100.0);
 #[derive(Clone, Debug)]
 pub struct Joint {
     pub path: JointPath,
-    pub location: Location,
-    pub force: Force,
-    pub velocity: Velocity,
+    pub location: Vec3,
+    pub force: Vec3,
+    pub velocity: Vec3,
     pub accumulated_mass: Grams,
 }
 
 impl Joint {
-    pub fn new(location: Point3<f32>, path: JointPath) -> Joint {
+    pub fn new(location: Vec3, path: JointPath) -> Joint {
         Joint {
             path,
             location,
-            force: zero(),
-            velocity: zero(),
+            force: Vec3::ZERO,
+            velocity: Vec3::ZERO,
             accumulated_mass: AMBIENT_MASS,
         }
     }
 
     pub fn reset(&mut self) {
-        self.force = zero();
+        self.force = Vec3::ZERO;
         self.accumulated_mass = AMBIENT_MASS;
     }
 
     pub fn reset_with_mass(&mut self, ambient_mass: Grams) {
-        self.force = zero();
+        self.force = Vec3::ZERO;
         self.accumulated_mass = ambient_mass;
     }
 
@@ -104,7 +103,7 @@ impl Joint {
         match &physics.surface {
             None => {
                 // No surface, no gravity - free floating
-                let speed_squared = self.velocity.magnitude2();
+                let speed_squared = self.velocity.length_squared();
                 self.velocity += force_velocity - self.velocity * speed_squared * viscosity * dt;
                 self.velocity *= 1.0 - drag * dt;
             }
@@ -124,6 +123,6 @@ impl Joint {
                 }
             }
         }
-        self.location = &self.location + self.velocity * dt;
+        self.location = self.location + self.velocity * dt;
     }
 }

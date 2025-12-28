@@ -5,7 +5,6 @@ mod tests {
     use crate::fabric::interval::Role;
     use crate::fabric::physics::presets::BAKING;
     use crate::units::Unit;
-    use cgmath::MetricSpace;
     use strum::IntoEnumIterator;
 
     const SPEED_LIMIT: f32 = 1e-6;

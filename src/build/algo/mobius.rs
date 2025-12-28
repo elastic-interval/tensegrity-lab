@@ -1,6 +1,6 @@
 use std::f32::consts::PI;
 
-use cgmath::{EuclideanSpace, InnerSpace, Point3, Vector3};
+use glam::Vec3;
 
 use crate::fabric::interval::Role;
 use crate::fabric::joint_path::JointPath;
@@ -30,14 +30,14 @@ pub fn generate_mobius(segments: usize) -> Fabric {
 
     // Möbius strip parametric position
     // Joints alternate bottom/top as they go around
-    let location = |bottom: bool, angle: f32| -> Point3<f32> {
-        let major = Vector3::new(angle.cos() * radius, 0.0, angle.sin() * radius);
+    let location = |bottom: bool, angle: f32| -> Vec3 {
+        let major = Vec3::new(angle.cos() * radius, 0.0, angle.sin() * radius);
         let outwards = major.normalize();
-        let up = Vector3::unit_y();
+        let up = Vec3::Y;
         // The twist: cross-section rotates by angle/2
         let ray = outwards * (angle / 2.0).sin() + up * (angle / 2.0).cos();
         let minor = ray * band_width * if bottom { -0.5 } else { 0.5 };
-        Point3::from_vec(major + minor)
+        major + minor
     };
 
     // Create joints around the loop, alternating bottom/top

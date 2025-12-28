@@ -1,4 +1,4 @@
-use cgmath::{InnerSpace, Point3};
+use glam::Vec3;
 use std::fs::File;
 use std::io::{self, Write};
 use std::path::Path;
@@ -47,7 +47,7 @@ impl Fabric {
         // Key: (pull_interval_key, end, slot) -> (pull_end_pos, hinge_pos, joint_key, slot, hinge_bend)
         let mut pull_hinge_info: std::collections::HashMap<
             (IntervalKey, IntervalEnd, usize),
-            (Point3<f32>, Point3<f32>, JointKey, usize, HingeBend),
+            (Vec3, Vec3, JointKey, usize, HingeBend),
         > = std::collections::HashMap::new();
 
         // First pass: collect hinge info from push intervals using hinge_geometry
@@ -160,7 +160,7 @@ impl Fabric {
                 }
                 let alpha = self.joints[interval.alpha_key].location;
                 let omega = self.joints[interval.omega_key].location;
-                let length = (omega - alpha).magnitude();
+                let length = (omega - alpha).length();
                 Some(IntervalInfo {
                     key,
                     is_push: interval.has_role(Role::Pushing),
@@ -191,7 +191,7 @@ impl Fabric {
         }
 
         // Build a map of ring centers for pull-fea (joint_key, slot) -> ring_center
-        let mut ring_centers: std::collections::HashMap<(JointKey, usize), Point3<f32>> =
+        let mut ring_centers: std::collections::HashMap<(JointKey, usize), Vec3> =
             std::collections::HashMap::new();
 
         for (_key, push_interval) in self.intervals.iter() {
@@ -255,8 +255,7 @@ impl Fabric {
                 let (alpha_pos, alpha_joint_path, alpha_slot, alpha_bend) =
                     if let Some((pull_end_pos, _, joint_key, slot, bend)) = alpha_info {
                         (
-                            Point3::new(pull_end_pos.x, pull_end_pos.y, pull_end_pos.z)
-                                * MM_PER_METER,
+                            *pull_end_pos * MM_PER_METER,
                             self.joints[*joint_key].path.to_string(),
                             *slot,
                             Some(*bend),
@@ -269,8 +268,7 @@ impl Fabric {
                 let (omega_pos, omega_joint_path, omega_slot, omega_bend) =
                     if let Some((pull_end_pos, _, joint_key, slot, bend)) = omega_info {
                         (
-                            Point3::new(pull_end_pos.x, pull_end_pos.y, pull_end_pos.z)
-                                * MM_PER_METER,
+                            *pull_end_pos * MM_PER_METER,
                             self.joints[*joint_key].path.to_string(),
                             *slot,
                             Some(*bend),
@@ -281,7 +279,7 @@ impl Fabric {
                     };
 
                 // Calculate shortened length
-                let shortened_length = (omega_pos - alpha_pos).magnitude() / MM_PER_METER;
+                let shortened_length = (omega_pos - alpha_pos).length() / MM_PER_METER;
 
                 // Format hinge bend as string (empty if not attached)
                 let alpha_bend_str = alpha_bend.map_or(String::new(), |b| b.to_string());
@@ -319,8 +317,8 @@ impl Fabric {
             is_push: bool,
             length: f32,
             strain: f32,
-            alpha_pos: Point3<f32>,
-            omega_pos: Point3<f32>,
+            alpha_pos: Vec3,
+            omega_pos: Vec3,
             alpha_joint_path: String,
             omega_joint_path: String,
             alpha_slot: usize,
@@ -363,7 +361,7 @@ impl Fabric {
                 omega_joint.location
             };
 
-            let fea_length = (omega_fea - alpha_fea).magnitude();
+            let fea_length = (omega_fea - alpha_fea).length();
 
             fea_infos.push(FeaIntervalInfo {
                 is_push: true,
@@ -417,7 +415,7 @@ impl Fabric {
                     (joint.location, joint.path.to_string(), 0)
                 };
 
-            let fea_length = (omega_fea - alpha_fea).magnitude();
+            let fea_length = (omega_fea - alpha_fea).length();
 
             fea_infos.push(FeaIntervalInfo {
                 is_push: false,
@@ -466,7 +464,7 @@ impl Fabric {
         // Each entry stores: (slot, pull_end_pos, hinge_pos)
         let mut push_end_connections: std::collections::HashMap<
             JointKey,
-            Vec<(usize, Point3<f32>, Point3<f32>)>,
+            Vec<(usize, Vec3, Vec3)>,
         > = std::collections::HashMap::new();
 
         for (_, (pull_end_pos, hinge_pos, joint_key, slot, _)) in &pull_hinge_info {
@@ -503,7 +501,7 @@ impl Fabric {
                         dir
                     }
                 })
-                .unwrap_or(cgmath::Vector3::new(0.0, 1.0, 0.0));
+                .unwrap_or(Vec3::Y);
 
             let mut prev_pos = joint_pos;
             let mut prev_slot = 0usize;
@@ -517,7 +515,7 @@ impl Fabric {
                 link_index += 1;
                 let prev_mm = prev_pos * MM_PER_METER;
                 let ring_mm = ring_center * MM_PER_METER;
-                let axial_length = (ring_center - prev_pos).magnitude();
+                let axial_length = (ring_center - prev_pos).length();
                 writeln!(
                     file,
                     "{},axial,{:.3},0.000e0,{:.3},{:.3},{:.3},{},{},90.000,{:.3},{:.3},{:.3},{},{},90.000",
@@ -529,7 +527,7 @@ impl Fabric {
                 // Radial link: ring center → hinge
                 link_index += 1;
                 let hinge_mm = *hinge_pos * MM_PER_METER;
-                let radial_length = (*hinge_pos - ring_center).magnitude();
+                let radial_length = (*hinge_pos - ring_center).length();
                 writeln!(
                     file,
                     "{},radial,{:.3},0.000e0,{:.3},{:.3},{:.3},{},{},0.000,{:.3},{:.3},{:.3},{},{},0.000",
@@ -541,7 +539,7 @@ impl Fabric {
                 // Hinge link: hinge → pull_end (along pull direction)
                 link_index += 1;
                 let pull_end_mm = *pull_end_pos * MM_PER_METER;
-                let hinge_link_length = (*pull_end_pos - *hinge_pos).magnitude();
+                let hinge_link_length = (*pull_end_pos - *hinge_pos).length();
                 writeln!(
                     file,
                     "{},hinge,{:.3},0.000e0,{:.3},{:.3},{:.3},{},{},0.000,{:.3},{:.3},{:.3},{},{},0.000",

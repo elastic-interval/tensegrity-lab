@@ -2,7 +2,7 @@
  * Copyright (c) 2020. Beautiful Code BV, Rotterdam, Netherlands
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
-use cgmath::{EuclideanSpace, InnerSpace, Matrix3, Matrix4, MetricSpace, Point3, Vector3};
+use glam::{Mat3, Mat4, Vec3};
 
 use crate::build::dsl::{FaceAlias, Spin};
 use crate::fabric::interval::Role;
@@ -114,7 +114,7 @@ impl Fabric {
         // Calculate actual distance from face center to radial joints
         let radial_distance = self.joints[radial_joints[0]]
             .location
-            .distance(Point3::from_vec(midpoint));
+            .distance(midpoint);
         // Alpha/omega are at distance `push_length/2` along the normal.
         // By Pythagorean theorem: pull_length² = radial_distance² + (push_length/2)²
         let pull_length =
@@ -128,11 +128,11 @@ impl Fabric {
         let omega_path = middle_path.extend(PRISM_MARKER).with_local_index(1);
 
         let alpha = self.create_joint_with_path(
-            Point3::from_vec(midpoint - normal * push_length / 2.0),
+            midpoint - normal * push_length / 2.0,
             alpha_path,
         );
         let omega = self.create_joint_with_path(
-            Point3::from_vec(midpoint + normal * push_length / 2.0),
+            midpoint + normal * push_length / 2.0,
             omega_path,
         );
 
@@ -198,12 +198,12 @@ pub struct Face {
 }
 
 impl Face {
-    pub fn midpoint(&self, fabric: &Fabric) -> Vector3<f32> {
+    pub fn midpoint(&self, fabric: &Fabric) -> Vec3 {
         let loc = self.radial_joint_locations(fabric);
-        (loc[0].to_vec() + loc[1].to_vec() + loc[2].to_vec()) / 3.0
+        (loc[0] + loc[1] + loc[2]) / 3.0
     }
 
-    fn normal_to(&self, fabric: &Fabric, length: f32) -> Vector3<f32> {
+    fn normal_to(&self, fabric: &Fabric, length: f32) -> Vec3 {
         let loc = self.radial_joint_locations(fabric);
         let v1 = loc[1] - loc[0];
         let v2 = loc[2] - loc[0];
@@ -211,25 +211,21 @@ impl Face {
             Spin::Left => v2.cross(v1),
             Spin::Right => v1.cross(v2),
         }
-        .normalize_to(length)
+        .normalize() * length
     }
 
-    pub fn normal(&self, fabric: &Fabric) -> Vector3<f32> {
+    pub fn normal(&self, fabric: &Fabric) -> Vec3 {
         self.normal_to(fabric, 1.0)
     }
 
-    pub fn visible_points(&self, fabric: &Fabric) -> (Point3<f32>, Point3<f32>, Point3<f32>) {
+    pub fn visible_points(&self, fabric: &Fabric) -> (Vec3, Vec3, Vec3) {
         let alpha = self.midpoint(fabric);
         let omega = alpha + self.normal_to(fabric, 1.5) * self.scale;
         let middle = (alpha + omega) / 2.0;
-        (
-            Point3::from_vec(alpha),
-            Point3::from_vec(middle),
-            Point3::from_vec(omega),
-        )
+        (alpha, middle, omega)
     }
 
-    pub fn radial_joint_locations(&self, fabric: &Fabric) -> [Point3<f32>; 3] {
+    pub fn radial_joint_locations(&self, fabric: &Fabric) -> [Vec3; 3] {
         self.radial_joints(fabric)
             .map(|joint_key| fabric.joints[joint_key].location)
     }
@@ -252,7 +248,7 @@ impl Face {
             / 3.0
     }
 
-    pub fn vector_space(&self, fabric: &Fabric, rotation: FaceRotation) -> Matrix4<f32> {
+    pub fn vector_space(&self, fabric: &Fabric, rotation: FaceRotation) -> Mat4 {
         vector_space(
             self.radial_joint_locations(fabric),
             self.scale,
@@ -263,12 +259,12 @@ impl Face {
 }
 
 pub fn vector_space(
-    p: [Point3<f32>; 3],
+    p: [Vec3; 3],
     scale: f32,
     spin: Spin,
     rotation: FaceRotation,
-) -> Matrix4<f32> {
-    let midpoint = (p[0].to_vec() + p[1].to_vec() + p[2].to_vec()) / 3.0;
+) -> Mat4 {
+    let midpoint = (p[0] + p[1] + p[2]) / 3.0;
     let (a, b) = match rotation {
         FaceRotation::Zero => (p[0], p[1]),
         FaceRotation::OneThird => (p[1], p[2]),
@@ -280,9 +276,9 @@ pub fn vector_space(
         Spin::Left => v2.cross(v1).normalize(),
         Spin::Right => v1.cross(v2).normalize(),
     };
-    let x_axis = (a.to_vec() + b.to_vec() - midpoint * 2.0).normalize();
+    let x_axis = (a + b - midpoint * 2.0).normalize();
     let z_axis = x_axis.cross(y_axis).normalize();
-    Matrix4::from_translation(midpoint)
-        * Matrix4::from(Matrix3::from_cols(x_axis, y_axis, z_axis))
-        * Matrix4::from_scale(scale)
+    Mat4::from_translation(midpoint)
+        * Mat4::from_mat3(Mat3::from_cols(x_axis, y_axis, z_axis))
+        * Mat4::from_scale(Vec3::splat(scale))
 }

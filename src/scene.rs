@@ -275,7 +275,7 @@ impl Scene {
     }
 
     /// Get camera view for export (position, look_at)
-    pub fn export_view(&self) -> (cgmath::Point3<f32>, cgmath::Point3<f32>) {
+    pub fn export_view(&self) -> (glam::Vec3, glam::Vec3) {
         self.camera.export_view()
     }
 }

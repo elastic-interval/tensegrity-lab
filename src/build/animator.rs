@@ -4,7 +4,7 @@ use crate::fabric::interval::{Role, Span};
 use crate::fabric::{IntervalKey, JointKey};
 use crate::units::{Meters, Percent};
 use crate::ITERATION_DURATION;
-use cgmath::Point3;
+use glam::Vec3;
 use std::f32::consts::PI;
 
 /// Oscillator that tracks phase from 0.0 to 1.0 over one period
@@ -133,7 +133,7 @@ impl Animator {
                     let Some(joint_key) = fabric.joint_key_by_path(joint) else {
                         continue;
                     };
-                    let anchor_point = Point3::new(point.0, 0.0, point.1);
+                    let anchor_point = Vec3::new(point.0, 0.0, point.1);
                     let anchor_key = fabric.create_joint(anchor_point);
                     let rest_length = fabric.distance(joint_key, anchor_key);
                     let id = fabric.create_slack_interval(joint_key, anchor_key, Role::Pulling);

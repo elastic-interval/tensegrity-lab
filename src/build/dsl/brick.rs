@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use cgmath::{
-    EuclideanSpace, InnerSpace, Matrix3, Matrix4, Point3, Quaternion, Rotation, Transform, Vector3,
-};
+use glam::{Mat3, Mat4, Quat, Vec3};
 
 use crate::build::dsl::brick_dsl::FaceName::Downwards;
 use crate::build::dsl::brick_dsl::{BrickName, BrickParams, BrickRole, JointName};
@@ -135,16 +133,16 @@ impl BrickPrototype {
         let mut fabric = Fabric::new("prototype".to_string());
         let mut joints_by_name: HashMap<JointName, JointKey> = HashMap::new();
         for name in &self.joints {
-            let joint_key = fabric.create_joint(Point3::origin());
+            let joint_key = fabric.create_joint(Vec3::ZERO);
             if joints_by_name.insert(*name, joint_key).is_some() {
                 panic!("joint with that name already exists")
             }
         }
         for push in &self.pushes {
             let vector = match push.axis {
-                Axis::X => Vector3::unit_x(),
-                Axis::Y => Vector3::unit_y(),
-                Axis::Z => Vector3::unit_z(),
+                Axis::X => Vec3::X,
+                Axis::Y => Vec3::Y,
+                Axis::Z => Vec3::Z,
             };
             let ideal = push.ideal;
             let ends = [
@@ -152,7 +150,7 @@ impl BrickPrototype {
                 (push.omega, vector * ideal / 2.0),
             ];
             let [alpha_key, omega_key] = ends.map(|(name, loc)| {
-                let joint_key = fabric.create_joint(Point3::from_vec(loc));
+                let joint_key = fabric.create_joint(loc);
                 if joints_by_name.insert(name, joint_key).is_some() {
                     panic!("joint with that name already exists")
                 }
@@ -178,7 +176,7 @@ impl BrickPrototype {
             });
             let face_scale = face_def.scale_for(face_scaling);
             // Start face center at origin - radial tensions will pull it into position
-            let alpha_key = fabric.create_joint(Point3::origin());
+            let alpha_key = fabric.create_joint(Vec3::ZERO);
             let radial_intervals = joint_keys.map(|omega_key| {
                 fabric.create_slack_interval(alpha_key, omega_key, Role::FaceRadial)
             });
@@ -203,7 +201,7 @@ pub struct BrickFace {
 }
 
 impl BrickFace {
-    pub fn vector_space(&self, baked: &BakedBrick) -> Matrix4<f32> {
+    pub fn vector_space(&self, baked: &BakedBrick) -> Mat4 {
         let location = self.radial_locations(baked);
         let midpoint = Self::midpoint(location);
         let radial = self.radial_vectors(location);
@@ -214,15 +212,15 @@ impl BrickFace {
         let (x_axis, y_axis, scale) = (
             radial[0].normalize(),
             inward.normalize(),
-            radial[0].magnitude(),
+            radial[0].length(),
         );
         let z_axis = x_axis.cross(y_axis).normalize();
-        Matrix4::from_translation(midpoint)
-            * Matrix4::from(Matrix3::from_cols(x_axis, y_axis, z_axis))
-            * Matrix4::from_scale(scale)
+        Mat4::from_translation(midpoint)
+            * Mat4::from_mat3(Mat3::from_cols(x_axis, y_axis, z_axis))
+            * Mat4::from_scale(Vec3::splat(scale))
     }
 
-    pub fn normal(&self, baked: &BakedBrick) -> Vector3<f32> {
+    pub fn normal(&self, baked: &BakedBrick) -> Vec3 {
         let location = self.radial_locations(baked);
         let radial = self.radial_vectors(location);
         let direction = match self.spin {
@@ -232,16 +230,16 @@ impl BrickFace {
         direction.normalize()
     }
 
-    fn radial_locations(&self, baked: &BakedBrick) -> [Vector3<f32>; 3] {
+    fn radial_locations(&self, baked: &BakedBrick) -> [Vec3; 3] {
         self.joints
-            .map(|index| baked.joints[index].location.to_vec())
+            .map(|index| baked.joints[index].location)
     }
 
-    fn midpoint(radial: [Vector3<f32>; 3]) -> Vector3<f32> {
+    fn midpoint(radial: [Vec3; 3]) -> Vec3 {
         (radial[0] + radial[1] + radial[2]) / 3.0
     }
 
-    fn radial_vectors(&self, location: [Vector3<f32>; 3]) -> [Vector3<f32>; 3] {
+    fn radial_vectors(&self, location: [Vec3; 3]) -> [Vec3; 3] {
         let midpoint = Self::midpoint(location);
         location.map(|location| location - midpoint)
     }
@@ -249,7 +247,7 @@ impl BrickFace {
 
 #[derive(Debug, Clone)]
 pub struct BakedJoint {
-    pub location: Point3<f32>,
+    pub location: Vec3,
 }
 
 #[derive(Debug, Clone)]
@@ -281,7 +279,7 @@ impl BakedBrick {
                 .joints
                 .iter()
                 .map(|j| BakedJoint {
-                    location: Point3::new(j.location.z, j.location.y, j.location.x),
+                    location: Vec3::new(j.location.z, j.location.y, j.location.x),
                 })
                 .collect(),
             intervals: self.intervals.clone(),
@@ -297,13 +295,13 @@ impl BakedBrick {
         }
     }
 
-    pub fn apply_matrix(&mut self, matrix: Matrix4<f32>) {
+    pub fn apply_matrix(&mut self, matrix: Mat4) {
         for joint in &mut self.joints {
-            joint.location = matrix.transform_point(joint.location)
+            joint.location = matrix.transform_point3(joint.location)
         }
     }
 
-    pub fn down_rotation(&self, brick_role: BrickRole) -> Matrix4<f32> {
+    pub fn down_rotation(&self, brick_role: BrickRole) -> Mat4 {
         let downward_count = match brick_role {
             BrickRole::Seed(downward_count) => downward_count,
             _ => {
@@ -327,8 +325,8 @@ impl BakedBrick {
                 downward_faces.len()
             );
         }
-        let down = downward_faces.into_iter().sum::<Vector3<f32>>().normalize();
-        Matrix4::from(Quaternion::between_vectors(down, -Vector3::unit_y()))
+        let down = downward_faces.into_iter().sum::<Vec3>().normalize();
+        Mat4::from_quat(Quat::from_rotation_arc(down, -Vec3::Y))
     }
 
     pub const TARGET_FACE_STRAIN: f32 = 0.1;
