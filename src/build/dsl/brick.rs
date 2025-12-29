@@ -8,6 +8,7 @@ use crate::build::dsl::Spin::{Left, Right};
 use crate::build::dsl::{FaceAlias, ScaleMode, Spin};
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, JointKey};
+use crate::units::{Meters, Seconds};
 
 #[derive(Copy, Clone, Debug)]
 pub enum Axis {
@@ -156,8 +157,13 @@ impl BrickPrototype {
                 }
                 joint_key
             });
+            // Joints are positioned at correct distance, so slack interval works
             fabric.create_slack_interval(alpha_key, omega_key, Role::Pushing);
         }
+        // Approach duration for gradual force application
+        // Longer duration prevents explosive forces especially for Tetrahedral scaling
+        // which requires 3x compression on some faces
+        let approach_duration = Seconds(1.0);
         for pull in &self.pulls {
             let [alpha_key, omega_key] = [pull.alpha, pull.omega].map(|name| {
                 *joints_by_name
@@ -166,7 +172,14 @@ impl BrickPrototype {
             });
             let role = Role::from_label(&pull.material)
                 .expect(&format!("Unknown role label: {}", pull.material));
-            fabric.create_slack_interval(alpha_key, omega_key, role);
+            // Use approaching interval for gradual force application
+            fabric.create_approaching_interval(
+                alpha_key,
+                omega_key,
+                Meters(pull.ideal),
+                role,
+                approach_duration,
+            );
         }
         for face_def in &self.faces {
             let joint_keys = face_def.joints.map(|name| {
@@ -175,10 +188,22 @@ impl BrickPrototype {
                     .expect(&format!("Joint {:?} not found", name))
             });
             let face_scale = face_def.scale_for(face_scaling);
-            // Start face center at origin - radial tensions will pull it into position
-            let alpha_key = fabric.create_joint(Vec3::ZERO);
+            // Compute centroid of the triangle to start face center near final position
+            let corner_positions: Vec<Vec3> = joint_keys
+                .iter()
+                .map(|key| fabric.location(*key))
+                .collect();
+            let centroid = (corner_positions[0] + corner_positions[1] + corner_positions[2]) / 3.0;
+            let alpha_key = fabric.create_joint(centroid);
             let radial_intervals = joint_keys.map(|omega_key| {
-                fabric.create_slack_interval(alpha_key, omega_key, Role::FaceRadial)
+                // Use approaching interval for gradual force application
+                fabric.create_approaching_interval(
+                    alpha_key,
+                    omega_key,
+                    Meters(face_scale),
+                    Role::FaceRadial,
+                    approach_duration,
+                )
             });
             fabric.create_face(
                 face_def.aliases.clone(),

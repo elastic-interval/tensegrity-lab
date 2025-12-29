@@ -313,6 +313,8 @@ impl Crucible {
                 context.replace_fabric(fresh_fabric);
                 // Initialize the physics for baking
                 oven.copy_physics_into(&mut context);
+                // Position camera to view the brick at a good distance
+                JumpToFabric.send(&self.radio);
                 context.transition_to(BakingBrick(oven));
             }
             CycleBrick => {

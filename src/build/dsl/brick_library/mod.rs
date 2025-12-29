@@ -16,6 +16,12 @@ static SINGLE_LEFT_PROTO: OnceLock<BrickPrototype> = OnceLock::new();
 static OMNI_PROTO: OnceLock<BrickPrototype> = OnceLock::new();
 static TORQUE_PROTO: OnceLock<BrickPrototype> = OnceLock::new();
 
+/// Returns true if this brick is derived from another (via mirror, etc.)
+/// Derived bricks should not be baked directly.
+pub fn is_derived(brick_name: BrickName) -> bool {
+    matches!(brick_name, BrickName::SingleTwistRight)
+}
+
 pub fn get_prototype(brick_name: BrickName) -> BrickPrototype {
     match brick_name {
         BrickName::SingleTwistRight => {
