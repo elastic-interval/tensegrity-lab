@@ -48,7 +48,7 @@ impl CylinderRenderer {
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Cylinder Pipeline Layout"),
                 bind_group_layouts: &[&wgpu.uniform_bind_group_layout],
-                push_constant_ranges: &[],
+                immediate_size: 0,
             });
 
         // Create the render pipeline
@@ -122,7 +122,7 @@ impl CylinderRenderer {
                     mask: !0,
                     alpha_to_coverage_enabled: false,
                 },
-                multiview: None,
+                multiview_mask: None,
             });
 
         Self {

@@ -39,7 +39,7 @@ impl SurfaceRenderer {
                     primitive: DEFAULT_PRIMITIVE_STATE,
                     depth_stencil: Some(crate::wgpu::default_depth_stencil_state()),
                     multisample: wgpu::MultisampleState::default(),
-                    multiview: None,
+                    multiview_mask: None,
                     cache: None,
                 });
         let surface_buffer = wgpu

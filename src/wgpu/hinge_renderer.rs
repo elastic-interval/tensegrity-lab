@@ -56,7 +56,7 @@ impl HingeRenderer {
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Link Pipeline Layout"),
                 bind_group_layouts: &[&wgpu.uniform_bind_group_layout],
-                push_constant_ranges: &[],
+                immediate_size: 0,
             });
 
         let instance_layout = wgpu::VertexBufferLayout {
@@ -126,7 +126,7 @@ impl HingeRenderer {
                     mask: !0,
                     alpha_to_coverage_enabled: false,
                 },
-                multiview: None,
+                multiview_mask: None,
             });
 
         HingeRenderer {
