@@ -193,6 +193,7 @@ impl Fabric {
     }
 
     /// Create an interval with a Fixed span at length calculated from strain
+    /// Formula: strain = (actual - ideal) / ideal, so ideal = actual / (1 + strain)
     pub fn create_strained_interval(
         &mut self,
         alpha_key: JointKey,
@@ -201,7 +202,7 @@ impl Fabric {
         strain: f32,
     ) -> IntervalKey {
         let distance = self.distance(alpha_key, omega_key);
-        let length = Meters(distance.f32() / (1.0 + strain * distance.f32()));
+        let length = Meters(distance.f32() / (1.0 + strain));
         self.create_fixed_interval(alpha_key, omega_key, role, length)
     }
 

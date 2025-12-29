@@ -12,7 +12,8 @@ use std::time::Duration;
 use strum::IntoEnumIterator;
 
 /// Bricks are considered done after this much fabric time
-const BAKED_DURATION: Duration = Duration::from_secs(1);
+/// Must be longer than the approach duration used in to_fabric()
+const BAKED_DURATION: Duration = Duration::from_secs(2);
 
 /// Reorient the brick at this time so user can see it
 const REORIENT_DURATION: Duration = Duration::from_millis(500);
@@ -49,7 +50,10 @@ pub struct Oven {
 
 impl Oven {
     pub fn new(radio: Radio) -> Self {
-        let brick_names: Vec<BrickName> = BrickName::iter().collect();
+        // Only include non-derived bricks
+        let brick_names: Vec<BrickName> = BrickName::iter()
+            .filter(|name| !brick_library::is_derived(*name))
+            .collect();
         let baked_fabrics = vec![None; brick_names.len()];
         let initial_scale = brick_library::get_scale(brick_names[0]);
 
@@ -238,7 +242,8 @@ impl Oven {
                 self.tuning =
                     TuningState::new(brick_library::get_scale(self.brick_names[next_index]));
                 self.send_name_and_label();
-                StateChange::RestartApproach.send(&self.radio);
+                // Jump camera to view new brick at good distance
+                StateChange::JumpToFabric.send(&self.radio);
                 return Some(self.create_fresh_fabric());
             } else {
                 self.send_stage_label();

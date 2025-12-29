@@ -79,7 +79,6 @@ pub struct Wgpu {
     surface: wgpu::Surface<'static>,
     surface_configuration: wgpu::SurfaceConfiguration,
     uniform_buffer: wgpu::Buffer,
-    pipeline_layout: wgpu::PipelineLayout,
     shader: wgpu::ShaderModule,
     pub queue: wgpu::Queue,
     pub device: wgpu::Device,
@@ -174,11 +173,6 @@ impl Wgpu {
             }],
             label: Some("Uniform Bind Group"),
         });
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[&uniform_bind_group_layout],
-            immediate_size: 0,
-        });
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
@@ -205,7 +199,6 @@ impl Wgpu {
             uniform_bind_group_layout,
             uniform_buffer,
             uniform_bind_group,
-            pipeline_layout,
             shader,
             depth_texture,
         }
