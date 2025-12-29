@@ -596,17 +596,17 @@ impl Fabric {
             .sum()
     }
 
-    pub fn midpoint(&self) -> Vec3 {
-        let mut midpoint: Vec3 = Vec3::ZERO;
+    pub fn centroid(&self) -> Vec3 {
+        let mut centroid: Vec3 = Vec3::ZERO;
         for joint in self.joints.values() {
-            midpoint += joint.location;
+            centroid += joint.location;
         }
         let denominator = if self.joints.is_empty() {
             1
         } else {
             self.joints.len()
         } as f32;
-        midpoint / denominator
+        centroid / denominator
     }
 
     /// Returns the cached bounding radius (updated periodically during construction)
@@ -619,12 +619,12 @@ impl Fabric {
         if self.joints.is_empty() {
             return 0.0;
         }
-        let midpoint = self.midpoint();
+        let centroid = self.centroid();
 
         let max_distance_squared = self
             .joints
             .values()
-            .map(|joint| joint.location.distance_squared(midpoint))
+            .map(|joint| joint.location.distance_squared(centroid))
             .fold(0.0_f32, |max, dist_sq| max.max(dist_sq));
 
         // Add a small margin to ensure everything is visible

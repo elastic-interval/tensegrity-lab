@@ -190,9 +190,14 @@ impl Oven {
         }
 
         if !self.reoriented && context.fabric.age.as_duration() >= REORIENT_DURATION {
+            // First move centroid to origin so rotation is around the centroid
+            let centroid = context.fabric.centroid();
+            context.fabric.apply_translation(-centroid);
+            // Now rotate around the (centered) origin
             let prototype = brick_library::get_prototype(self.current_brick_name());
             let rotation = context.fabric.down_rotation(prototype.max_seed());
             context.fabric.apply_matrix4(rotation);
+            // Finally centralize with bottom at y=0
             let translation = context.fabric.centralize_translation(Some(0.0));
             context.fabric.apply_translation(translation);
             context.fabric.zero_velocities();
@@ -255,11 +260,10 @@ impl Oven {
 
     fn generate_baked_code(&self, fabric: &Fabric, scale: f32) -> String {
         let mut oriented = fabric.clone();
-        let prototype = brick_library::get_prototype(self.current_brick_name());
-        let rotation = oriented.down_rotation(prototype.max_seed());
-        oriented.apply_matrix4(rotation);
-        let translation = oriented.centralize_translation(Some(0.0));
-        oriented.apply_translation(translation);
+        // The fabric is already rotated during the baking display phase.
+        // Just move centroid to origin - baked bricks must have centroid at origin.
+        let centroid = oriented.centroid();
+        oriented.apply_translation(-centroid);
 
         // Get face center joints to exclude them
         let face_joints: Vec<JointKey> = oriented

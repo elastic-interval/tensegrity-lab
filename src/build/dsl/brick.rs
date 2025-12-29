@@ -320,6 +320,17 @@ impl BakedBrick {
         }
     }
 
+    pub fn centroid(&self) -> Vec3 {
+        let sum: Vec3 = self.joints.iter().map(|j| j.location).sum();
+        sum / self.joints.len() as f32
+    }
+
+    pub fn apply_translation(&mut self, translation: Vec3) {
+        for joint in &mut self.joints {
+            joint.location += translation;
+        }
+    }
+
     pub fn apply_matrix(&mut self, matrix: Mat4) {
         for joint in &mut self.joints {
             joint.location = matrix.transform_point3(joint.location)

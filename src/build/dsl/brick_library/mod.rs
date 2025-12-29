@@ -69,6 +69,14 @@ pub fn get_brick(brick_name: BrickName, brick_role: BrickRole) -> BakedBrick {
     for face in &mut baked.faces {
         face.aliases.retain(|alias| alias.brick_role == brick_role);
     }
+    // Verify brick is centered at origin (baked bricks should already be centered)
+    let centroid = baked.centroid();
+    assert!(
+        centroid.length() < 0.01,
+        "Brick {:?} centroid is not at origin: {:?}. Re-bake the brick.",
+        brick_name,
+        centroid
+    );
     let space = match brick_role {
         BrickRole::Seed(_) => baked.down_rotation(brick_role),
         BrickRole::OnSpinLeft | BrickRole::OnSpinRight => {

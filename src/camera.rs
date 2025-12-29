@@ -250,13 +250,13 @@ impl Camera {
         self.set_target(Target::FabricMidpoint);
 
         // Calculate ideal position based on fabric
-        let midpoint = fabric.midpoint();
+        let centroid = fabric.centroid();
         let ideal_distance = self.target.ideal_distance(fabric);
 
-        // Position camera at same altitude as midpoint, looking at it from the side
+        // Position camera at same altitude as centroid, looking at it from the side
         let offset = Vec3::new(1.0, 0.0, 1.0).normalize() * ideal_distance;
-        self.position = midpoint + offset;
-        self.look_at = midpoint;
+        self.position = centroid + offset;
+        self.look_at = centroid;
         self.last_ray_origin = self.position;
         self.initialized = true;
     }
@@ -845,7 +845,7 @@ impl Default for Target {
 impl Target {
     pub fn look_at(&self, fabric: &Fabric) -> Vec3 {
         match self {
-            Target::FabricMidpoint => fabric.midpoint(),
+            Target::FabricMidpoint => fabric.centroid(),
             Target::AroundJoint(key) => fabric.location(*key),
             Target::AroundInterval(id) => fabric.interval(*id).midpoint(&fabric.joints),
         }
