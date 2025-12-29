@@ -130,15 +130,13 @@ impl Wgpu {
         required_limits.max_storage_buffer_binding_size = 0;
         required_limits.max_uniform_buffer_binding_size = 16384;
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    required_features: wgpu::Features::empty(),
-                    required_limits,
-                    memory_hints: Performance,
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: None,
+                required_features: wgpu::Features::empty(),
+                required_limits,
+                memory_hints: Performance,
+                trace: wgpu::Trace::Off,
+            })
             .await
             .expect("Failed to create device");
         let size = window.inner_size();
