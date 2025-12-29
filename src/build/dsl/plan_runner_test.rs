@@ -212,7 +212,9 @@ mod tests {
             .filter(|j| j.location.y.abs() < ground_tolerance)
             .count();
 
+        let centroid = executor.fabric.centroid();
         eprintln!("\n=== FINAL CONVERGED STATE ===");
+        eprintln!("Centroid: ({:.4}, {:.4}, {:.4})", centroid.x, centroid.y, centroid.z);
         eprintln!("Height: {:.1}mm ({:.2}m)", height_mm, height_mm / 1000.0);
         eprintln!("Radius: {:.3}m", radius);
         eprintln!("Ground contacts: {}", ground_count);
