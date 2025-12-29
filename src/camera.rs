@@ -1,4 +1,4 @@
-use glam::{Mat4, Quat, Vec3};
+use glam::{Mat4, Quat, Vec3, Vec4};
 use winit::dpi::PhysicalPosition;
 
 use crate::fabric::interval::Interval;
@@ -147,11 +147,16 @@ impl Camera {
 
     // Calculate ray for perspective projection
     fn calculate_perspective_ray(&self, x: f32, y: f32) -> (Vec3, Vec3) {
-        let position = Vec3::new(x, y, 1.0);
-        let point3d = self
-            .mvp_matrix()
-            .inverse()
-            .transform_point3(position);
+        // For perspective unprojection, we need to do the full Vec4 transform
+        // with perspective divide, since the projection matrix is not affine
+        let clip_pos = Vec4::new(x, y, 1.0, 1.0);
+        let world_pos = self.mvp_matrix().inverse() * clip_pos;
+        // Perspective divide
+        let point3d = Vec3::new(
+            world_pos.x / world_pos.w,
+            world_pos.y / world_pos.w,
+            world_pos.z / world_pos.w,
+        );
         (self.position, (point3d - self.position).normalize())
     }
 
