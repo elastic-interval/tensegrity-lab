@@ -166,20 +166,34 @@ fn fabric_fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     return vec4<f32>(gamma_corrected, in.color.a);
 }
 
-struct SurfaceOutput {
-    @builtin(position) position : vec4<f32>,
+struct SurfaceVertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) world_pos: vec3<f32>,
 };
 
 @vertex
-fn surface_vertex(@location(0) pos: vec4<f32>) -> SurfaceOutput {
-    var output: SurfaceOutput;
+fn surface_vertex(@location(0) pos: vec4<f32>) -> SurfaceVertexOutput {
+    var output: SurfaceVertexOutput;
     output.position = uniforms.mvp_matrix * pos;
+    output.world_pos = pos.xyz;
     return output;
 }
 
+// Texture bindings for surface
+@group(1) @binding(0) var surface_texture: texture_2d<f32>;
+@group(1) @binding(1) var surface_sampler: sampler;
+
 @fragment
-fn surface_fragment(in: SurfaceOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(0.7, 0.7, 0.7, 0.1);
+fn surface_fragment(in: SurfaceVertexOutput) -> @location(0) vec4<f32> {
+    // Use world XZ position as UV for tiling (scale for tile size)
+    let tile_scale = 0.5; // Adjust for desired tile density
+    let uv = in.world_pos.xz * tile_scale;
+
+    // Sample the texture
+    let tex_color = textureSample(surface_texture, surface_sampler, uv);
+
+    // Return with some transparency
+    return vec4<f32>(tex_color.rgb, 0.8);
 }
 
 // Joint marker shader code
@@ -331,4 +345,91 @@ fn ring_fragment(in: RingVertexOutput) -> @location(0) vec4<f32> {
     let final_color = vec3<f32>(in.color.rgb) * lighting;
 
     return vec4<f32>(final_color, in.color.a);
+}
+
+// ============================================
+// Sky shader - starry night background
+// ============================================
+
+@group(0) @binding(0) var<uniform> sky_time: f32;
+
+struct SkyVertexInput {
+    @location(0) position: vec2<f32>,
+    @location(1) uv: vec2<f32>,
+};
+
+struct SkyVertexOutput {
+    @builtin(position) position: vec4<f32>,
+    @location(0) uv: vec2<f32>,
+};
+
+@vertex
+fn sky_vertex(in: SkyVertexInput) -> SkyVertexOutput {
+    var out: SkyVertexOutput;
+    out.position = vec4<f32>(in.position, 0.999, 1.0);  // Near far plane
+    out.uv = in.uv;
+    return out;
+}
+
+// Hash function for pseudo-random star placement
+fn hash21(p: vec2<f32>) -> f32 {
+    var p3 = fract(vec3<f32>(p.x, p.y, p.x) * 0.1031);
+    p3 = p3 + dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+// Hash function returning vec2 for star properties
+fn hash22(p: vec2<f32>) -> vec2<f32> {
+    let p3 = fract(vec3<f32>(p.x, p.y, p.x) * vec3<f32>(0.1031, 0.1030, 0.0973));
+    let p4 = p3 + dot(p3, p3.yzx + 33.33);
+    return fract((p3.xx + p3.yz) * p3.zy);
+}
+
+@fragment
+fn sky_fragment(in: SkyVertexOutput) -> @location(0) vec4<f32> {
+    // Dark gradient background (darker at top)
+    let gradient = mix(
+        vec3<f32>(0.01, 0.01, 0.02),  // Bottom: very dark
+        vec3<f32>(0.0, 0.0, 0.0),     // Top: black
+        in.uv.y
+    );
+
+    // Star field - white stars with sparkle
+    var star_brightness = 0.0;
+
+    // Multiple layers of stars at different scales
+    for (var layer: u32 = 0u; layer < 3u; layer++) {
+        let scale = 50.0 + f32(layer) * 80.0;
+        let star_uv = in.uv * scale;
+        let cell = floor(star_uv);
+        let cell_uv = fract(star_uv);
+
+        // Random position within cell
+        let star_pos = hash22(cell + f32(layer) * 100.0);
+
+        // Distance from star center
+        let dist = length(cell_uv - star_pos);
+
+        // Star brightness (random per star)
+        let brightness = hash21(cell + f32(layer) * 200.0);
+
+        // Only show stars above threshold
+        if (brightness > 0.92) {
+            // Star size varies with brightness
+            let star_size = 0.02 + brightness * 0.03;
+
+            // Sparkle effect using time and star position
+            let sparkle_phase = hash21(cell + f32(layer) * 300.0) * 6.28318;
+            let sparkle_speed = 0.5 + hash21(cell + f32(layer) * 400.0) * 2.0;
+            let sparkle = 0.6 + 0.4 * sin(sky_time * sparkle_speed + sparkle_phase);
+
+            // Star intensity with soft falloff
+            let intensity = smoothstep(star_size, 0.0, dist) * sparkle;
+
+            star_brightness = star_brightness + intensity * (0.5 + brightness * 0.5);
+        }
+    }
+
+    let final_color = gradient + vec3<f32>(star_brightness);
+    return vec4<f32>(final_color, 1.0);
 }

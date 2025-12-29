@@ -33,6 +33,7 @@ pub struct Application {
     frames_count: u32,
     fps_timer: Instant,
     current_fps: f32,
+    last_frame_secs: f32,
     control_state: ControlState,
     pointer_handler: PointerHandler,
     time_scale: f32,
@@ -67,6 +68,7 @@ impl Application {
             frames_count: 0,
             fps_timer: Instant::now(),
             current_fps: 60.0,
+            last_frame_secs: 0.016,
             control_state: ControlState::Waiting,
             time_scale,
             model_scale: model_scale.map(|n| 1.0 / n),
@@ -101,11 +103,12 @@ impl Application {
             .send(&self.radio);
 
         let has_surface = self.crucible.physics.surface.is_some();
+        let delta = self.last_frame_secs;
         if let Some(scene) = &mut self.scene {
             if scene.needs_camera_init() {
                 scene.jump_to_fabric(&self.crucible.fabric);
             }
-            if let Err(error) = scene.redraw(&self.crucible.fabric, has_surface) {
+            if let Err(error) = scene.redraw(&self.crucible.fabric, has_surface, delta) {
                 eprintln!("Error redrawing scene: {:?}", error);
             }
         }
@@ -516,9 +519,11 @@ impl ApplicationHandler<LabEvent> for Application {
         if elapsed > Duration::from_millis(100) {
             self.last_update = now;
             self.accumulated_time = Duration::from_secs(0);
+            self.last_frame_secs = 0.016; // Reset to nominal
             return;
         }
 
+        self.last_frame_secs = elapsed.as_secs_f32();
         self.last_update = now;
 
         // Cap elapsed time to avoid large time steps

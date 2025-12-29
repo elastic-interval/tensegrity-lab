@@ -13,6 +13,7 @@ use winit::window::Window;
 
 use crate::camera::Camera;
 use crate::wgpu::fabric_renderer::FabricRenderer;
+use crate::wgpu::sky_renderer::SkyRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 use crate::{LabEvent, Radio};
@@ -21,6 +22,7 @@ pub mod cylinder;
 pub mod cylinder_renderer;
 pub mod fabric_renderer;
 pub mod hinge_renderer;
+pub mod sky_renderer;
 pub mod surface_renderer;
 pub mod surface_vertex;
 pub mod text_renderer;
@@ -278,6 +280,10 @@ impl Wgpu {
 
     pub fn create_fabric_renderer(&self) -> FabricRenderer {
         FabricRenderer::new(&self)
+    }
+
+    pub fn create_sky_renderer(&self) -> SkyRenderer {
+        SkyRenderer::new(&self)
     }
 
     pub fn create_surface_renderer(&self) -> SurfaceRenderer {
