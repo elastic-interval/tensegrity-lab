@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 bytemuck = { version = "1.24.0", features = ["derive"] }
-glam = "0.29"
+glam = "0.30"
 slotmap = "1.1.1"
 clap = { version = "4.5.53", features = ["derive"] }
 fast_inv_sqrt = "~1.0"
