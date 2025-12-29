@@ -1,6 +1,7 @@
 use crate::camera::{Camera, Pick};
 use crate::fabric::Fabric;
 use crate::wgpu::fabric_renderer::FabricRenderer;
+use crate::wgpu::sky_renderer::SkyRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 use crate::wgpu::Wgpu;
@@ -14,6 +15,7 @@ use winit::dpi::PhysicalSize;
 pub struct Scene {
     wgpu: Wgpu,
     camera: Camera,
+    sky_renderer: SkyRenderer,
     fabric_renderer: FabricRenderer,
     surface_renderer: SurfaceRenderer,
     text_renderer: TextRenderer,
@@ -25,6 +27,7 @@ pub struct Scene {
 impl Scene {
     pub fn new(mobile_device: bool, wgpu: Wgpu, radio: Radio, model_scale: Option<f32>) -> Self {
         let camera = wgpu.create_camera(radio);
+        let sky_renderer = wgpu.create_sky_renderer();
         let fabric_renderer = wgpu.create_fabric_renderer();
         let surface_renderer = wgpu.create_surface_renderer();
         let text_renderer = wgpu.create_text_renderer(mobile_device, model_scale);
@@ -41,6 +44,7 @@ impl Scene {
         Self {
             wgpu,
             camera,
+            sky_renderer,
             fabric_renderer,
             surface_renderer,
             text_renderer,
@@ -164,18 +168,41 @@ impl Scene {
             .create_view(&wgpu::TextureViewDescriptor::default());
         let depth_view = self.wgpu.create_depth_view();
         let mut encoder = self.wgpu.create_encoder();
+
+        // First pass: render sky (no depth testing, clears the screen)
+        {
+            let mut sky_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Sky Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                multiview_mask: None,
+                depth_stencil_attachment: None, // No depth for sky
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            self.sky_renderer.render(&mut sky_pass);
+        }
+
+        // Second pass: render everything else with depth testing
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render Pass"),
+            label: Some("Main Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.0,
-                        g: 0.0,
-                        b: 0.0,
-                        a: 1.0,
-                    }),
+                    load: wgpu::LoadOp::Load, // Keep sky background
                     store: wgpu::StoreOp::Store,
                 },
                 depth_slice: None,
@@ -209,8 +236,9 @@ impl Scene {
         Ok(())
     }
 
-    pub fn redraw(&mut self, fabric: &Fabric, has_surface: bool) -> Result<(), wgpu::SurfaceError> {
+    pub fn redraw(&mut self, fabric: &Fabric, has_surface: bool, delta_seconds: f32) -> Result<(), wgpu::SurfaceError> {
         self.wgpu.update_mvp_matrix(self.camera.mvp_matrix());
+        self.sky_renderer.update_time(&self.wgpu.queue, delta_seconds);
         self.fabric_renderer.update(
             &mut self.wgpu,
             fabric,
