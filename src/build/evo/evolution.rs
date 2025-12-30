@@ -5,7 +5,7 @@ use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::SETTLING;
 use crate::fabric::physics::{Physics, Surface, SurfaceCharacter};
 use crate::fabric::Fabric;
-use crate::{LabEvent, StateChange};
+use crate::{LabEvent, StateChange, ITERATION_DURATION};
 use rand::Rng;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
@@ -31,7 +31,7 @@ impl Default for EvolutionConfig {
             population_size: 20,  // Larger population for more diversity
             seed_push_count: 3,
             seed_settle_seconds: 1.5,   // Faster settling
-            mutation_settle_seconds: 2.5, // Time to fall and settle
+            mutation_settle_seconds: 3.5, // Time to fall and settle
             push_length: 3.0,  // Longer pushes look less thick visually
         }
     }
@@ -63,38 +63,24 @@ pub enum ViewingMode {
 
 /// Main controller for evolutionary tensegrity system.
 pub struct Evolution {
-    /// RNG for random decisions
     rng: ChaCha8Rng,
-    /// The seed used for this evolution run
     #[allow(dead_code)]
     seed: u64,
-    /// Live population
     population: Population,
-    /// Fitness evaluator
     evaluator: FitnessEvaluator,
-    /// Configuration
     config: EvolutionConfig,
-    /// Current state
     state: EvolutionState,
-    /// Current fabric being grown/settled
     current_fabric: Option<Fabric>,
-    /// Push count of current fabric
     current_push_count: usize,
-    /// Mutation count of current fabric's parent
     current_parent_mutations: usize,
-    /// Physics for settling (with gravity)
     settling_physics: Physics,
-    /// The visible fabric
     pub fabric: Fabric,
-    /// Total evaluations performed
     evaluations: usize,
-    /// Grower for mutations
     grower: Grower,
-    /// Current viewing mode
     viewing_mode: ViewingMode,
-    /// Maximum fitness ever seen (high-water mark, NEVER decreases)
+    /// High-water mark, NEVER decreases
     max_fitness_ever: f32,
-    /// Maximum height ever seen (high-water mark, NEVER decreases)
+    /// High-water mark, NEVER decreases
     max_height_ever: f32,
 }
 
@@ -148,32 +134,38 @@ impl Evolution {
     /// Main iteration loop - called each frame.
     /// iterations_per_frame controls physics speed (from time_scale).
     pub fn iterate(&mut self, context: &mut CrucibleContext, iterations_per_frame: usize) {
+        // Swap current_fabric back from context if we moved it there last frame
+        if self.current_fabric.is_none() && !context.fabric.joints.is_empty() {
+            // Take the fabric back from context for continued work
+            let empty = Fabric::new("temp".to_string());
+            self.current_fabric = Some(std::mem::replace(&mut *context.fabric, empty));
+        }
+
         // Run step with the given iteration budget
         self.step(iterations_per_frame);
 
-        // Update visible fabric
+        // Update context fabric for display (swap instead of clone when possible)
         match self.viewing_mode {
             ViewingMode::Watch => {
-                // Show current fabric being worked on (so we see physics)
-                if let Some(ref fabric) = self.current_fabric {
-                    self.fabric = fabric.clone();
+                // Show current fabric being worked on - swap to avoid clone
+                if let Some(fabric) = self.current_fabric.take() {
+                    *context.fabric = fabric;
+                    // Note: current_fabric is now None, will be swapped back next frame
                 } else if let Some(best) = self.population.best_current() {
-                    self.fabric = best.fabric.clone();
+                    // Fallback: clone from population (can't move)
+                    *context.fabric = best.fabric.clone();
                 }
             }
             ViewingMode::Fast => {
-                // Always show best current structure
+                // Show best - must clone since it stays in population
                 if let Some(best) = self.population.best_current() {
-                    self.fabric = best.fabric.clone();
+                    *context.fabric = best.fabric.clone();
                 }
             }
         }
 
         // Update bounding radius for proper surface sizing and camera
-        self.fabric.update_bounding_radius();
-
-        // Update context fabric
-        *context.fabric = self.fabric.clone();
+        context.fabric.update_bounding_radius();
 
         // Calculate current population stats using CACHED values (no recalculation!)
         let mut current_max_fitness = 0.0f32;
@@ -255,7 +247,7 @@ impl Evolution {
         self.current_push_count = push_count;
 
         // Start settling
-        let iterations = (self.config.seed_settle_seconds / 0.00005) as usize;
+        let iterations = (self.config.seed_settle_seconds / ITERATION_DURATION.secs) as usize;
         self.state = EvolutionState::Settling {
             remaining_iterations: iterations,
         };
@@ -268,9 +260,19 @@ impl Evolution {
             return;
         }
 
-        // Clone the settled seed and add to population (no additional settling)
+        // Clone the settled seed and apply a random mutation to create variation
         if let Some(ref seed_fabric) = self.current_fabric {
-            let fabric = seed_fabric.clone();
+            let mut fabric = seed_fabric.clone();
+
+            // Apply a random mutation to create diversity
+            let mutation_type = self.rng.random_range(0..4);
+            match mutation_type {
+                0 => { self.grower.shorten_random_pull(&mut fabric); }
+                1 => { self.grower.lengthen_random_pull(&mut fabric); }
+                2 => { self.grower.add_more_connections(&mut fabric); }
+                _ => { /* keep as-is for some baseline diversity */ }
+            }
+
             let details = self.evaluator.evaluate_detailed(&fabric, self.current_push_count);
             self.population.add_initial(fabric, details.fitness, details.height, self.current_push_count);
             self.evaluations += 1;
@@ -380,7 +382,7 @@ impl Evolution {
         self.current_push_count = new_push_count;
 
         // Start settling the mutation
-        let iterations = (self.config.mutation_settle_seconds / 0.00005) as usize;
+        let iterations = (self.config.mutation_settle_seconds / ITERATION_DURATION.secs) as usize;
         self.state = EvolutionState::Settling {
             remaining_iterations: iterations,
         };
