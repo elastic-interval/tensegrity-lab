@@ -3,25 +3,46 @@ use rand::Rng;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
+/// Types of mutations that can be applied.
+#[derive(Clone, Debug)]
+pub enum MutationType {
+    Seed,
+    ShortenPull,
+    LengthenPull,
+    RemovePull,
+    AddPush,
+    FlatRemovePull,
+    FlatAddConnections,
+}
+
+impl std::fmt::Display for MutationType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MutationType::Seed => write!(f, "seed"),
+            MutationType::ShortenPull => write!(f, "shorten"),
+            MutationType::LengthenPull => write!(f, "lengthen"),
+            MutationType::RemovePull => write!(f, "rm_pull"),
+            MutationType::AddPush => write!(f, "add_push"),
+            MutationType::FlatRemovePull => write!(f, "flat_rm"),
+            MutationType::FlatAddConnections => write!(f, "flat_add"),
+        }
+    }
+}
+
 /// An individual in the population - stores actual fabric state.
 #[derive(Clone)]
 pub struct Individual {
-    /// The actual fabric with joint positions and intervals
     pub fabric: Fabric,
-    /// Fitness score (higher is better)
     pub fitness: f32,
-    /// Height of the structure (cached to avoid recalculation)
     pub height: f32,
-    /// Number of push intervals (for cost calculation)
     pub push_count: usize,
-    /// Generation when this individual was created
     pub generation: usize,
-    /// Number of mutations in this individual's lineage
     pub mutations: usize,
+    /// History of mutations applied to this lineage
+    pub mutation_log: Vec<(MutationType, f32)>, // (mutation, resulting_fitness)
 }
 
 impl Individual {
-    /// Create a new individual from a fabric.
     pub fn new(fabric: Fabric, fitness: f32, height: f32, push_count: usize, generation: usize) -> Self {
         Self {
             fabric,
@@ -30,11 +51,22 @@ impl Individual {
             push_count,
             generation,
             mutations: 0,
+            mutation_log: vec![(MutationType::Seed, fitness)],
         }
     }
 
-    /// Create offspring with incremented mutation count.
-    pub fn offspring(fabric: Fabric, fitness: f32, height: f32, push_count: usize, generation: usize, parent_mutations: usize) -> Self {
+    pub fn offspring(
+        fabric: Fabric,
+        fitness: f32,
+        height: f32,
+        push_count: usize,
+        generation: usize,
+        parent_mutations: usize,
+        parent_log: Vec<(MutationType, f32)>,
+        mutation: MutationType,
+    ) -> Self {
+        let mut log = parent_log;
+        log.push((mutation, fitness));
         Self {
             fabric,
             fitness,
@@ -42,7 +74,17 @@ impl Individual {
             push_count,
             generation,
             mutations: parent_mutations + 1,
+            mutation_log: log,
         }
+    }
+
+    /// Format mutation history as compact string.
+    pub fn history_string(&self) -> String {
+        self.mutation_log
+            .iter()
+            .map(|(m, f)| format!("{}:{:.3}", m, f))
+            .collect::<Vec<_>>()
+            .join(" -> ")
     }
 }
 
@@ -107,8 +149,21 @@ impl Population {
     }
 
     /// Try to insert an offspring into the population.
-    pub fn try_insert(&mut self, fabric: Fabric, fitness: f32, height: f32, push_count: usize, parent_mutations: usize) -> bool {
-        let individual = Individual::offspring(fabric, fitness, height, push_count, self.generation, parent_mutations);
+    /// Accepts better offspring always, and "close enough" offspring with some probability.
+    pub fn try_insert(
+        &mut self,
+        fabric: Fabric,
+        fitness: f32,
+        height: f32,
+        push_count: usize,
+        parent_mutations: usize,
+        parent_log: Vec<(MutationType, f32)>,
+        mutation: MutationType,
+    ) -> bool {
+        let individual = Individual::offspring(
+            fabric, fitness, height, push_count, self.generation,
+            parent_mutations, parent_log, mutation,
+        );
 
         // Update best-ever tracking
         self.update_best(&individual);
@@ -123,8 +178,27 @@ impl Population {
         let worst_idx = self.find_worst_index();
         let worst_fitness = self.pool[worst_idx].fitness;
 
-        // Replace if strictly better
+        eprintln!("try_insert: fit={:.4} worst={:.4} ratio={:.1}% | {}",
+                  fitness, worst_fitness, (fitness / worst_fitness) * 100.0,
+                  individual.history_string());
+
+        // Replace if better
         if fitness > worst_fitness {
+            eprintln!("  -> ACCEPTED (better)");
+            self.pool[worst_idx] = individual;
+            return true;
+        }
+
+        // Accept within 80% of worst fitness, 30% probability (neutral drift)
+        if fitness >= worst_fitness * 0.80 && self.rng.random_range(0.0..1.0) < 0.3 {
+            eprintln!("  -> ACCEPTED (drift)");
+            self.pool[worst_idx] = individual;
+            return true;
+        }
+
+        // 5% unconditional acceptance to prevent stagnation
+        if self.rng.random_range(0.0..1.0) < 0.05 {
+            eprintln!("  -> ACCEPTED (random)");
             self.pool[worst_idx] = individual;
             return true;
         }
