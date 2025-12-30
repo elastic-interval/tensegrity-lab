@@ -1,7 +1,8 @@
 use crate::fabric::interval::Role;
 use crate::fabric::physics::Physics;
-use crate::fabric::{Fabric, JointKey};
+use crate::fabric::{Fabric, IntervalKey, JointKey};
 use crate::units::{Meters, Seconds, Unit};
+use crate::ITERATION_DURATION;
 use glam::Vec3;
 use rand::Rng;
 use rand_chacha::rand_core::SeedableRng;
@@ -93,9 +94,8 @@ impl Grower {
         (fabric, self.config.seed_push_count)
     }
 
-    /// Mutate a fabric by adding one push interval randomly within the structure.
-    /// The new push appears somewhere inside the bounding box and connects
-    /// to nearby less-connected joints.
+    /// Mutate a fabric by adding one push interval near the current height.
+    /// The new push's midpoint is placed near the top of the structure to encourage building higher.
     /// Returns the new push count.
     pub fn mutate(&mut self, fabric: &mut Fabric, current_push_count: usize) -> usize {
         let push_length = self.config.push_length.f32();
@@ -109,10 +109,13 @@ impl Grower {
         // Find the bounds of the structure
         let (min_pos, max_pos) = self.find_bounds(fabric);
 
-        // Place new push randomly WITHIN the structure bounds (not above)
+        // Place new push with midpoint near the current max height
+        // This encourages structures to build higher rather than wider
+        let height_variation = push_length * 0.3; // Small variation around max height
+        let target_y = max_pos.y + self.rng.random_range(-height_variation..height_variation);
         let new_center = Vec3::new(
             self.rng.random_range(min_pos.x..max_pos.x),
-            self.rng.random_range(min_pos.y.max(0.1)..max_pos.y), // Stay above ground
+            target_y.max(0.1), // Stay above ground
             self.rng.random_range(min_pos.z..max_pos.z),
         );
 
@@ -130,14 +133,9 @@ impl Grower {
         current_push_count + 1
     }
 
-    /// Mutate by shortening a random pull interval.
-    /// This can pull the structure tighter and potentially increase height.
-    /// Returns true if a mutation was applied.
-    pub fn shorten_random_pull(&mut self, fabric: &mut Fabric) -> bool {
-        use crate::fabric::IntervalKey;
-
-        // Find all pull intervals
-        let pull_keys: Vec<IntervalKey> = fabric
+    /// Get all pull interval keys from the fabric.
+    fn get_pull_keys(&self, fabric: &Fabric) -> Vec<IntervalKey> {
+        fabric
             .intervals
             .iter()
             .filter_map(|(key, interval)| {
@@ -147,65 +145,35 @@ impl Grower {
                     None
                 }
             })
-            .collect();
+            .collect()
+    }
 
-        if pull_keys.is_empty() {
-            return false;
-        }
-
-        // Pick a random pull interval
-        let idx = self.rng.random_range(0..pull_keys.len());
-        let pull_key = pull_keys[idx];
-
-        // Get current ideal length and shorten it
-        if let Some(interval) = fabric.intervals.get(pull_key) {
-            let current_ideal = interval.ideal();
-            // Shorten by 1-3% (small increments for gradual evolution)
-            let shrink_factor = self.rng.random_range(0.97..0.99);
-            let new_target = Meters(current_ideal.f32() * shrink_factor);
-
-            // Use extend_interval to set new approaching target
-            fabric.extend_interval(pull_key, new_target, self.config.pull_approach_seconds);
-            return true;
-        }
-
-        false
+    /// Mutate by shortening a random pull interval.
+    /// This can pull the structure tighter and potentially increase height.
+    pub fn shorten_random_pull(&mut self, fabric: &mut Fabric) -> bool {
+        self.adjust_random_pull(fabric, 0.97..0.99)
     }
 
     /// Mutate by lengthening a random pull interval.
     /// This can loosen the structure and allow it to expand.
-    /// Returns true if a mutation was applied.
     pub fn lengthen_random_pull(&mut self, fabric: &mut Fabric) -> bool {
-        use crate::fabric::IntervalKey;
+        self.adjust_random_pull(fabric, 1.01..1.03)
+    }
 
-        // Find all pull intervals
-        let pull_keys: Vec<IntervalKey> = fabric
-            .intervals
-            .iter()
-            .filter_map(|(key, interval)| {
-                if interval.role == Role::Pulling {
-                    Some(key)
-                } else {
-                    None
-                }
-            })
-            .collect();
-
+    /// Adjust a random pull interval by a factor in the given range.
+    fn adjust_random_pull(&mut self, fabric: &mut Fabric, factor_range: std::ops::Range<f32>) -> bool {
+        let pull_keys = self.get_pull_keys(fabric);
         if pull_keys.is_empty() {
             return false;
         }
 
-        // Pick a random pull interval
         let idx = self.rng.random_range(0..pull_keys.len());
         let pull_key = pull_keys[idx];
 
-        // Get current ideal length and lengthen it
         if let Some(interval) = fabric.intervals.get(pull_key) {
             let current_ideal = interval.ideal();
-            // Lengthen by 1-3% (small increments for gradual evolution)
-            let grow_factor = self.rng.random_range(1.01..1.03);
-            let new_target = Meters(current_ideal.f32() * grow_factor);
-
+            let factor = self.rng.random_range(factor_range);
+            let new_target = Meters(current_ideal.f32() * factor);
             fabric.extend_interval(pull_key, new_target, self.config.pull_approach_seconds);
             return true;
         }
@@ -218,8 +186,6 @@ impl Grower {
     /// Only removes pulls where both joints would still have at least 3 pull connections.
     /// Returns true if a pull was removed.
     pub fn remove_random_pull(&mut self, fabric: &mut Fabric) -> bool {
-        use crate::fabric::IntervalKey;
-        use crate::fabric::JointKey;
         use std::collections::HashMap;
 
         // Count pull connections per joint
@@ -267,8 +233,6 @@ impl Grower {
     /// This simplifies the structure significantly.
     /// Returns true if a push was removed.
     pub fn remove_random_push(&mut self, fabric: &mut Fabric) -> bool {
-        use crate::fabric::IntervalKey;
-
         // Find all push intervals
         let push_keys: Vec<IntervalKey> = fabric
             .intervals
@@ -388,8 +352,7 @@ impl Grower {
 
     /// Settle the fabric with physics for the specified number of seconds.
     pub fn settle(&self, fabric: &mut Fabric, physics: &Physics, seconds: f32) {
-        // Each iteration = 50 microseconds = 0.00005 seconds
-        let iterations = (seconds / 0.00005) as usize;
+        let iterations = (seconds / ITERATION_DURATION.secs) as usize;
         for _ in 0..iterations {
             fabric.iterate(physics);
         }

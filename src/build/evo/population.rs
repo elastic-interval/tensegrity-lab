@@ -81,42 +81,14 @@ impl Population {
         }
     }
 
-    /// Pick an individual as a parent for mutation, favoring fitter individuals.
-    /// Uses rank-based selection: best has weight N, worst has weight 1.
-    /// This allows escaping local maxima while still favoring the fittest.
+    /// Pick a random individual as a parent for mutation.
+    /// Uses uniform random selection - any individual has equal chance.
     pub fn pick_random(&mut self) -> Option<&Individual> {
         if self.pool.is_empty() {
             return None;
         }
-
-        // Get indices sorted by fitness (best first)
-        let mut indices: Vec<usize> = (0..self.pool.len()).collect();
-        indices.sort_by(|&a, &b| {
-            self.pool[b].fitness
-                .partial_cmp(&self.pool[a].fitness)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-
-        // Rank-based weights: best gets N, worst gets 1
-        // Total weight = N + (N-1) + ... + 1 = N*(N+1)/2
-        let n = self.pool.len();
-        let total_weight = n * (n + 1) / 2;
-
-        // Pick a random weight
-        let target = self.rng.random_range(0..total_weight);
-
-        // Find which rank this falls into
-        let mut cumulative = 0;
-        for (rank, &idx) in indices.iter().enumerate() {
-            let weight = n - rank; // Best has weight N, worst has weight 1
-            cumulative += weight;
-            if target < cumulative {
-                return Some(&self.pool[idx]);
-            }
-        }
-
-        // Fallback (shouldn't reach here)
-        Some(&self.pool[indices[0]])
+        let idx = self.rng.random_range(0..self.pool.len());
+        Some(&self.pool[idx])
     }
 
     /// Pick a random parent and return a clone of its fabric for mutation.
