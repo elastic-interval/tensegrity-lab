@@ -234,7 +234,7 @@ impl ApplicationHandler<LabEvent> for Application {
                         ControlState::Baking.send(&self.radio);
                         self.crucible.action(CrucibleAction::StartBaking);
                     }
-                    RunStyle::Seeded(seed) => {
+                    RunStyle::Evolving(seed) => {
                         self.crucible.action(CrucibleAction::ToEvolving(*seed));
                     }
                     RunStyle::Sphere { frequency, radius } => {

@@ -1,257 +1,385 @@
-use crate::build::evo::cell::Cell;
-use crate::build::evo::decision_maker::DecisionMaker;
-use crate::build::evo::genome::Genome;
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, IntervalEnd};
-use crate::units::{Meters, Unit};
+use crate::fabric::physics::Physics;
+use crate::fabric::{Fabric, JointKey};
+use crate::units::{Meters, Seconds, Unit};
 use glam::Vec3;
+use rand::Rng;
+use rand_chacha::rand_core::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 
 /// Configuration for structure growth.
 #[derive(Clone, Debug)]
 pub struct GrowthConfig {
-    /// Length of push intervals (default: 1.0m)
+    /// Length of push intervals
     pub push_length: Meters,
-    /// How far a cell can "see" to find connection targets
-    pub perception_radius: f32,
     /// Maximum pull length as ratio of push length
     pub max_pull_ratio: f32,
-    /// Number of physics iterations for settling
-    pub settle_iterations: usize,
-    /// Maximum growth steps
-    pub max_steps: usize,
+    /// Target pull length as ratio of current distance (< 1.0 means pulls will contract)
+    pub pull_target_ratio: f32,
+    /// Duration for pulls to approach their target length
+    pub pull_approach_seconds: Seconds,
+    /// Seconds of fabric time to settle initial seed
+    pub seed_settle_seconds: f32,
+    /// Seconds of fabric time to settle after each mutation
+    pub mutation_settle_seconds: f32,
+    /// Number of push intervals in initial seed
+    pub seed_push_count: usize,
 }
 
 impl Default for GrowthConfig {
     fn default() -> Self {
         Self {
             push_length: Meters(1.0),
-            perception_radius: 2.0,   // 2x push length
-            max_pull_ratio: 1.0,      // pull ≤ push
-            settle_iterations: 5000,
-            max_steps: 50,
+            max_pull_ratio: 3.0, // Allow longer pulls to connect falling structures
+            pull_target_ratio: 0.7, // Pulls contract to 70% of initial distance
+            pull_approach_seconds: Seconds(1.0), // 1 second to reach target
+            seed_settle_seconds: 5.0,
+            mutation_settle_seconds: 2.0,
+            seed_push_count: 3,
         }
     }
 }
 
-/// Result of a growth step.
-pub enum GrowthResult {
-    /// Growth can continue
-    Continue,
-    /// Growth is complete (max steps reached)
-    Complete,
-    /// Growth failed (structure collapsed or became invalid)
-    Failed(String),
-}
-
-/// Manages the growth of a tensegrity structure from a genome.
+/// Creates and mutates tensegrity structures.
 pub struct Grower {
-    /// The fabric being grown
-    pub fabric: Fabric,
-    /// Cells (push intervals) in the structure
-    pub cells: Vec<Cell>,
-    /// Decision maker with seeded RNG and genome
-    pub decision_maker: DecisionMaker,
+    /// RNG for random decisions
+    rng: ChaCha8Rng,
     /// Growth configuration
-    pub config: GrowthConfig,
-    /// Current growth step
-    pub growth_step: usize,
-    /// The seed used for this growth
-    pub seed: u64,
+    config: GrowthConfig,
 }
 
 impl Grower {
-    /// Create a new grower with the given seed and genome.
-    pub fn new(seed: u64, genome: Genome, config: GrowthConfig) -> Self {
+    /// Create a new grower with the given seed.
+    pub fn new(seed: u64, config: GrowthConfig) -> Self {
         Self {
-            fabric: Fabric::new(format!("Evo-{}", seed)),
-            cells: Vec::new(),
-            decision_maker: DecisionMaker::new(seed, genome),
+            rng: ChaCha8Rng::seed_from_u64(seed),
             config,
-            growth_step: 0,
-            seed,
         }
     }
 
-    /// Grow the structure to completion (all steps).
-    pub fn grow_complete(&mut self) -> GrowthResult {
-        while self.growth_step < self.config.max_steps {
-            match self.grow_step() {
-                GrowthResult::Continue => continue,
-                result => return result,
-            }
+    /// Create the initial seed structure with N random pushes connected by pulls.
+    /// Returns (fabric, push_count).
+    /// Structure starts elevated above the floor so it can fall and settle.
+    pub fn create_seed(&mut self) -> (Fabric, usize) {
+        let mut fabric = Fabric::new("evo-seed".to_string());
+        let push_length = self.config.push_length.f32();
+        let mut push_joints: Vec<(JointKey, JointKey)> = Vec::new();
+
+        // Starting elevation - high enough to fall and settle
+        let base_height = push_length * 2.0;
+
+        // Create N push intervals with random orientations around a central point
+        for _ in 0..self.config.seed_push_count {
+            let direction = self.random_direction();
+
+            // Spread pushes in a small area at the starting height
+            let spread = push_length * 0.3;
+            let center = Vec3::new(
+                self.rng.random_range(-spread..spread),
+                base_height + self.rng.random_range(0.0..push_length),
+                self.rng.random_range(-spread..spread),
+            );
+
+            let half = direction * push_length / 2.0;
+            let alpha = fabric.create_joint(center - half);
+            let omega = fabric.create_joint(center + half);
+            fabric.create_slack_interval(alpha, omega, Role::Pushing);
+            push_joints.push((alpha, omega));
         }
-        GrowthResult::Complete
+
+        // Connect pushes with pulls
+        self.connect_with_pulls(&mut fabric, &push_joints);
+
+        (fabric, self.config.seed_push_count)
     }
 
-    /// Perform one growth step.
-    pub fn grow_step(&mut self) -> GrowthResult {
-        // First step: create initial cell
-        if self.cells.is_empty() {
-            self.spawn_first_cell();
-            self.growth_step += 1;
-            return GrowthResult::Continue;
+    /// Mutate a fabric by adding one push interval that falls from above.
+    /// The new push starts above the highest point of the structure and connects
+    /// to nearby joints as it settles.
+    /// Returns the new push count.
+    pub fn mutate(&mut self, fabric: &mut Fabric, current_push_count: usize) -> usize {
+        let push_length = self.config.push_length.f32();
+
+        // Collect existing joints
+        let joints: Vec<JointKey> = fabric.joints.keys().collect();
+        if joints.is_empty() {
+            return current_push_count;
         }
 
-        // Pick a random cell
-        let cell_idx = self.decision_maker.choose(self.cells.len());
+        // Find the highest point and center of the structure
+        let (min_pos, max_pos) = self.find_bounds(fabric);
+        let center_x = (min_pos.x + max_pos.x) / 2.0;
+        let center_z = (min_pos.z + max_pos.z) / 2.0;
+        let highest_y = max_pos.y;
 
-        // Pick an end (alpha or omega)
-        let end = if self.decision_maker.decide() {
-            IntervalEnd::Alpha
-        } else {
-            IntervalEnd::Omega
-        };
-
-        // Find nearby endpoints from other cells
-        let nearby = self.find_nearby_endpoints(cell_idx, end);
-
-        if !nearby.is_empty() && self.decision_maker.decide() {
-            // Try to connect to an existing endpoint
-            self.try_connect(cell_idx, end, &nearby);
-        } else if self.cells.len() < 100 {
-            // Spawn a new cell nearby (limit total cells)
-            self.spawn_cell_near(cell_idx, end);
-        }
-
-        self.growth_step += 1;
-
-        if self.growth_step >= self.config.max_steps {
-            GrowthResult::Complete
-        } else {
-            GrowthResult::Continue
-        }
-    }
-
-    /// Create the first cell at the origin, pointing up.
-    fn spawn_first_cell(&mut self) {
-        let cell = Cell::new(
-            &mut self.fabric,
-            Vec3::ZERO,
-            Vec3::Y,
-            self.config.push_length.f32(),
+        // Create new push above the structure
+        // Random horizontal position within the structure's footprint
+        let spread = (max_pos.x - min_pos.x).max(push_length);
+        let new_center = Vec3::new(
+            center_x + self.rng.random_range(-spread * 0.5..spread * 0.5),
+            highest_y + push_length, // Start 1 push length above so pulls can reach
+            center_z + self.rng.random_range(-spread * 0.5..spread * 0.5),
         );
-        self.cells.push(cell);
+
+        // Random direction for the push
+        let direction = self.random_direction();
+        let half = direction * push_length / 2.0;
+        let new_alpha = fabric.create_joint(new_center - half);
+        let new_omega = fabric.create_joint(new_center + half);
+        fabric.create_slack_interval(new_alpha, new_omega, Role::Pushing);
+
+        // Connect new push endpoints to nearby existing joints
+        // They will be pulled down toward the structure
+        self.connect_new_push(fabric, new_alpha, new_omega, &joints);
+
+        current_push_count + 1
     }
 
-    /// Find endpoints of other cells within perception radius.
-    /// Returns vec of (cell_index, end, distance).
-    fn find_nearby_endpoints(
-        &self,
-        from_cell_idx: usize,
-        from_end: IntervalEnd,
-    ) -> Vec<(usize, IntervalEnd, f32)> {
-        let from_joint = self.cells[from_cell_idx].joint_at(from_end);
-        let from_location = self.fabric.location(from_joint);
-        let max_dist = self.config.push_length.f32() * self.config.max_pull_ratio;
+    /// Mutate by shortening a random pull interval.
+    /// This can pull the structure tighter and potentially increase height.
+    /// Returns true if a mutation was applied.
+    pub fn shorten_random_pull(&mut self, fabric: &mut Fabric) -> bool {
+        use crate::fabric::IntervalKey;
 
-        let mut nearby = Vec::new();
+        // Find all pull intervals
+        let pull_keys: Vec<IntervalKey> = fabric
+            .intervals
+            .iter()
+            .filter_map(|(key, interval)| {
+                if interval.role == Role::Pulling {
+                    Some(key)
+                } else {
+                    None
+                }
+            })
+            .collect();
 
-        for (idx, cell) in self.cells.iter().enumerate() {
-            if idx == from_cell_idx {
-                continue; // Don't connect to self
-            }
+        if pull_keys.is_empty() {
+            return false;
+        }
 
-            for (joint, end) in cell.endpoints() {
-                let location = self.fabric.location(joint);
-                let dist = from_location.distance(location);
+        // Pick a random pull interval
+        let idx = self.rng.random_range(0..pull_keys.len());
+        let pull_key = pull_keys[idx];
 
-                // Within range and not too close (avoid zero-length pulls)
-                if dist <= max_dist && dist > 0.01 {
-                    // Check not already connected
-                    if self.fabric.interval_between(from_joint, joint).is_none() {
-                        nearby.push((idx, end, dist));
+        // Get current ideal length and shorten it
+        if let Some(interval) = fabric.intervals.get(pull_key) {
+            let current_ideal = interval.ideal();
+            // Shorten by 5-15%
+            let shrink_factor = self.rng.random_range(0.85..0.95);
+            let new_target = Meters(current_ideal.f32() * shrink_factor);
+
+            // Use extend_interval to set new approaching target
+            fabric.extend_interval(pull_key, new_target, self.config.pull_approach_seconds);
+            return true;
+        }
+
+        false
+    }
+
+    /// Find the bounding box of the fabric.
+    fn find_bounds(&self, fabric: &Fabric) -> (Vec3, Vec3) {
+        let mut min = Vec3::new(f32::MAX, f32::MAX, f32::MAX);
+        let mut max = Vec3::new(f32::MIN, f32::MIN, f32::MIN);
+
+        for joint in fabric.joints.values() {
+            min = min.min(joint.location);
+            max = max.max(joint.location);
+        }
+
+        if min.x == f32::MAX {
+            // Empty fabric, return origin
+            (Vec3::ZERO, Vec3::ZERO)
+        } else {
+            (min, max)
+        }
+    }
+
+    /// Try to add more pull connections between existing joints using V patterns.
+    /// Focuses on connecting joints from different pushes to create volume.
+    /// Returns true if any new connections were made.
+    pub fn add_more_connections(&mut self, fabric: &mut Fabric) -> bool {
+        let max_pull_length = self.config.push_length.f32() * self.config.max_pull_ratio;
+        let joints: Vec<JointKey> = fabric.joints.keys().collect();
+        let push_pairs = self.find_push_pairs(fabric, &joints);
+        let mut added = false;
+
+        // For each pair of pushes, ensure V patterns exist
+        for i in 0..push_pairs.len() {
+            for j in (i + 1)..push_pairs.len() {
+                let (a_alpha, a_omega) = push_pairs[i];
+                let (b_alpha, b_omega) = push_pairs[j];
+
+                // Try to create all four V-pattern connections
+                let pairs = [
+                    (a_alpha, b_alpha),
+                    (a_alpha, b_omega),
+                    (a_omega, b_alpha),
+                    (a_omega, b_omega),
+                ];
+
+                for (p, q) in pairs {
+                    if fabric.interval_between(p, q).is_some() {
+                        continue;
+                    }
+                    let dist = fabric.location(p).distance(fabric.location(q));
+                    if dist <= max_pull_length && dist > 0.01 {
+                        // Use force_connect for approaching intervals
+                        self.force_connect(fabric, p, q);
+                        added = true;
                     }
                 }
             }
         }
 
-        // Sort by distance (closest first)
-        nearby.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
-        nearby
+        added
     }
 
-    /// Try to connect two endpoints with a pull interval.
-    fn try_connect(
+    /// Settle the fabric with physics for the specified number of seconds.
+    pub fn settle(&self, fabric: &mut Fabric, physics: &Physics, seconds: f32) {
+        // Each iteration = 50 microseconds = 0.00005 seconds
+        let iterations = (seconds / 0.00005) as usize;
+        for _ in 0..iterations {
+            fabric.iterate(physics);
+        }
+    }
+
+    /// Settle the seed structure.
+    pub fn settle_seed(&self, fabric: &mut Fabric, physics: &Physics) {
+        self.settle(fabric, physics, self.config.seed_settle_seconds);
+    }
+
+    /// Settle after a mutation.
+    pub fn settle_mutation(&self, fabric: &mut Fabric, physics: &Physics) {
+        self.settle(fabric, physics, self.config.mutation_settle_seconds);
+    }
+
+    /// Connect existing push endpoints with pulls using "V" patterns.
+    /// Each endpoint connects to BOTH ends of other pushes to create tent-like structures.
+    fn connect_with_pulls(&mut self, fabric: &mut Fabric, push_joints: &[(JointKey, JointKey)]) {
+        // For each push, connect both its ends to both ends of every other push
+        // This creates "V" patterns that can generate volume
+        for i in 0..push_joints.len() {
+            for j in (i + 1)..push_joints.len() {
+                let (a_alpha, a_omega) = push_joints[i];
+                let (b_alpha, b_omega) = push_joints[j];
+
+                // Connect all four combinations to maximize triangulation
+                // a_alpha connects to both b_alpha and b_omega (V pattern)
+                self.force_connect(fabric, a_alpha, b_alpha);
+                self.force_connect(fabric, a_alpha, b_omega);
+                // a_omega connects to both b_alpha and b_omega (V pattern)
+                self.force_connect(fabric, a_omega, b_alpha);
+                self.force_connect(fabric, a_omega, b_omega);
+            }
+        }
+    }
+
+    /// Force a connection between two joints with an approaching pull interval.
+    /// The pull will contract to pull_target_ratio of current distance.
+    fn force_connect(&mut self, fabric: &mut Fabric, a: JointKey, b: JointKey) {
+        if fabric.interval_between(a, b).is_none() {
+            let current_dist = fabric.distance(a, b);
+            let target_length = Meters(current_dist.f32() * self.config.pull_target_ratio);
+            fabric.create_approaching_interval(
+                a,
+                b,
+                target_length,
+                Role::Pulling,
+                self.config.pull_approach_seconds,
+            );
+        }
+    }
+
+    /// Connect a new push to existing structure using V patterns.
+    /// Each new endpoint connects to BOTH ends of nearby existing pushes.
+    fn connect_new_push(
         &mut self,
-        from_cell_idx: usize,
-        from_end: IntervalEnd,
-        nearby: &[(usize, IntervalEnd, f32)],
+        fabric: &mut Fabric,
+        new_alpha: JointKey,
+        new_omega: JointKey,
+        existing_joints: &[JointKey],
     ) {
-        // Pick from nearby (biased toward closer)
-        let pick_count = nearby.len().min(3);
-        if pick_count == 0 {
-            return;
+        let max_pull_length = self.config.push_length.f32() * self.config.max_pull_ratio;
+        let new_alpha_loc = fabric.location(new_alpha);
+        let new_omega_loc = fabric.location(new_omega);
+
+        // Find push intervals in the existing structure
+        // A push connects two joints - we want to connect to BOTH ends
+        let push_pairs = self.find_push_pairs(fabric, existing_joints);
+
+        // Sort push pairs by distance to new push center
+        let new_center = (new_alpha_loc + new_omega_loc) / 2.0;
+        let mut pairs_by_dist: Vec<_> = push_pairs
+            .iter()
+            .map(|&(a, b)| {
+                let pair_center = (fabric.location(a) + fabric.location(b)) / 2.0;
+                let dist = pair_center.distance(new_center);
+                (a, b, dist)
+            })
+            .collect();
+        pairs_by_dist.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
+
+        // Connect new alpha and omega to BOTH ends of nearest push pairs
+        let max_v_connections = 2; // Connect to 2 existing pushes (4 joints each end)
+        let mut v_connections = 0;
+
+        for (existing_alpha, existing_omega, _dist) in pairs_by_dist {
+            if v_connections >= max_v_connections {
+                break;
+            }
+
+            // Check if connections are within range
+            let alpha_to_ea = fabric.location(existing_alpha).distance(new_alpha_loc);
+            let alpha_to_eo = fabric.location(existing_omega).distance(new_alpha_loc);
+            let omega_to_ea = fabric.location(existing_alpha).distance(new_omega_loc);
+            let omega_to_eo = fabric.location(existing_omega).distance(new_omega_loc);
+
+            // Only connect if at least some connections are in range
+            let in_range = alpha_to_ea <= max_pull_length
+                || alpha_to_eo <= max_pull_length
+                || omega_to_ea <= max_pull_length
+                || omega_to_eo <= max_pull_length;
+
+            if in_range {
+                // Connect new_alpha to both ends of existing push (V pattern)
+                if alpha_to_ea <= max_pull_length {
+                    self.force_connect(fabric, new_alpha, existing_alpha);
+                }
+                if alpha_to_eo <= max_pull_length {
+                    self.force_connect(fabric, new_alpha, existing_omega);
+                }
+                // Connect new_omega to both ends of existing push (V pattern)
+                if omega_to_ea <= max_pull_length {
+                    self.force_connect(fabric, new_omega, existing_alpha);
+                }
+                if omega_to_eo <= max_pull_length {
+                    self.force_connect(fabric, new_omega, existing_omega);
+                }
+                v_connections += 1;
+            }
         }
-        let target_idx = self.decision_maker.choose(pick_count);
-        let (to_cell_idx, to_end, _dist) = nearby[target_idx];
+    }
 
-        // Check both ends can accept more pulls
-        if !self.cells[from_cell_idx].can_accept_pull(from_end) {
-            return;
+    /// Find pairs of joints that are connected by push intervals.
+    fn find_push_pairs(&self, fabric: &Fabric, joints: &[JointKey]) -> Vec<(JointKey, JointKey)> {
+        let mut pairs = Vec::new();
+        for interval in fabric.intervals.values() {
+            if interval.role == Role::Pushing {
+                // Only include if both joints are in our list
+                if joints.contains(&interval.alpha_key) && joints.contains(&interval.omega_key) {
+                    pairs.push((interval.alpha_key, interval.omega_key));
+                }
+            }
         }
-        if !self.cells[to_cell_idx].can_accept_pull(to_end) {
-            return;
-        }
-
-        // Get joint keys
-        let from_joint = self.cells[from_cell_idx].joint_at(from_end);
-        let to_joint = self.cells[to_cell_idx].joint_at(to_end);
-
-        // Create pull interval
-        let pull_key = self.fabric.create_slack_interval(from_joint, to_joint, Role::Pulling);
-
-        // Track in both cells
-        self.cells[from_cell_idx].add_pull(from_end, pull_key);
-        self.cells[to_cell_idx].add_pull(to_end, pull_key);
+        pairs
     }
 
-    /// Spawn a new cell near an existing cell's endpoint.
-    fn spawn_cell_near(&mut self, parent_idx: usize, parent_end: IntervalEnd) {
-        let parent_joint = self.cells[parent_idx].joint_at(parent_end);
-        let parent_loc = self.fabric.location(parent_joint);
-
-        // Random direction for new cell
-        let direction = self.decision_maker.random_direction();
-        let push_length = self.config.push_length.f32();
-
-        // Place new cell nearby (offset in the random direction)
-        let offset = direction * push_length * 0.6;
-        let new_cell = Cell::new(&mut self.fabric, parent_loc + offset, direction, push_length);
-
-        // Connect parent to the closer end of the new cell
-        let alpha_dist = self.fabric.location(new_cell.alpha_joint).distance(parent_loc);
-        let omega_dist = self.fabric.location(new_cell.omega_joint).distance(parent_loc);
-
-        let (near_end, near_joint) = if alpha_dist < omega_dist {
-            (IntervalEnd::Alpha, new_cell.alpha_joint)
-        } else {
-            (IntervalEnd::Omega, new_cell.omega_joint)
-        };
-
-        // Create pull from parent to new cell
-        let pull_key = self.fabric.create_slack_interval(parent_joint, near_joint, Role::Pulling);
-
-        // Track the new cell
-        let new_cell_idx = self.cells.len();
-        self.cells.push(new_cell);
-
-        // Add pull to both cells
-        self.cells[parent_idx].add_pull(parent_end, pull_key);
-        self.cells[new_cell_idx].add_pull(near_end, pull_key);
-    }
-
-    /// Get a reference to the genome.
-    pub fn genome(&self) -> &Genome {
-        self.decision_maker.genome()
-    }
-
-    /// Clone the genome for creating offspring.
-    pub fn clone_genome(&self) -> Genome {
-        self.decision_maker.clone_genome()
-    }
-
-    /// Get the current virtual position (for mutation targeting).
-    pub fn decision_position(&self) -> usize {
-        self.decision_maker.virtual_position()
+    /// Generate a random unit direction vector.
+    fn random_direction(&mut self) -> Vec3 {
+        let x = self.rng.random_range(-1.0..1.0);
+        let y = self.rng.random_range(-1.0..1.0);
+        let z = self.rng.random_range(-1.0..1.0);
+        Vec3::new(x, y, z).normalize_or_zero()
     }
 }

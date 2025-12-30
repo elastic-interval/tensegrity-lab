@@ -1,34 +1,34 @@
-use crate::build::evo::genome::Genome;
+use crate::fabric::Fabric;
 use rand::Rng;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
-/// An individual in the population with its genome and fitness.
-#[derive(Clone, Debug)]
+/// An individual in the population - stores actual fabric state.
+#[derive(Clone)]
 pub struct Individual {
-    /// The genome encoding this individual's structure
-    pub genome: Genome,
+    /// The actual fabric with joint positions and intervals
+    pub fabric: Fabric,
     /// Fitness score (higher is better)
     pub fitness: f32,
+    /// Number of push intervals (for cost calculation)
+    pub push_count: usize,
     /// Generation when this individual was created
     pub generation: usize,
 }
 
 impl Individual {
-    /// Create a new individual.
-    pub fn new(genome: Genome, fitness: f32, generation: usize) -> Self {
+    /// Create a new individual from a fabric.
+    pub fn new(fabric: Fabric, fitness: f32, push_count: usize, generation: usize) -> Self {
         Self {
-            genome,
+            fabric,
             fitness,
+            push_count,
             generation,
         }
     }
 }
 
 /// A live population of individuals competing for survival.
-///
-/// Implements steady-state evolution where offspring compete against
-/// the current population for survival.
 pub struct Population {
     /// RNG for random selection
     rng: ChaCha8Rng,
@@ -55,19 +55,15 @@ impl Population {
     }
 
     /// Add an initial individual to the population.
-    ///
-    /// This is used during population seeding, before evolution begins.
-    pub fn add_initial(&mut self, genome: Genome, fitness: f32) {
+    pub fn add_initial(&mut self, fabric: Fabric, fitness: f32, push_count: usize) {
         if self.pool.len() < self.capacity {
-            let individual = Individual::new(genome.clone(), fitness, 0);
+            let individual = Individual::new(fabric.clone(), fitness, push_count, 0);
             self.update_best(&individual);
             self.pool.push(individual);
         }
     }
 
     /// Pick a random individual as a parent for mutation.
-    ///
-    /// Returns None if the population is empty.
     pub fn pick_random(&mut self) -> Option<&Individual> {
         if self.pool.is_empty() {
             return None;
@@ -76,22 +72,24 @@ impl Population {
         Some(&self.pool[idx])
     }
 
-    /// Pick a random parent and return a clone of its genome for mutation.
-    ///
-    /// Returns None if the population is empty.
-    pub fn pick_parent_genome(&mut self) -> Option<Genome> {
-        self.pick_random().map(|ind| ind.genome.clone())
+    /// Pick a random parent and return a clone of its fabric for mutation.
+    pub fn pick_parent_fabric(&mut self) -> Option<Fabric> {
+        self.pick_random().map(|ind| ind.fabric.clone())
+    }
+
+    /// Get the push count of the picked parent (call after pick_parent_fabric).
+    pub fn pick_parent_push_count(&mut self) -> Option<usize> {
+        // Pick same index as last pick_random would have
+        if self.pool.is_empty() {
+            return None;
+        }
+        let idx = self.rng.random_range(0..self.pool.len());
+        Some(self.pool[idx].push_count)
     }
 
     /// Try to insert an offspring into the population.
-    ///
-    /// The offspring competes against the worst individual:
-    /// - If better, replaces the worst
-    /// - If worse or equal, is discarded
-    ///
-    /// Returns true if the offspring was inserted.
-    pub fn try_insert(&mut self, genome: Genome, fitness: f32) -> bool {
-        let individual = Individual::new(genome, fitness, self.generation);
+    pub fn try_insert(&mut self, fabric: Fabric, fitness: f32, push_count: usize) -> bool {
+        let individual = Individual::new(fabric, fitness, push_count, self.generation);
 
         // Update best-ever tracking
         self.update_best(&individual);
@@ -133,6 +131,11 @@ impl Population {
     /// Get the population capacity.
     pub fn capacity(&self) -> usize {
         self.capacity
+    }
+
+    /// Get access to the pool of individuals (for testing/inspection).
+    pub fn pool(&self) -> &[Individual] {
+        &self.pool
     }
 
     /// Check if the population is at capacity.
@@ -180,6 +183,9 @@ impl Population {
             / fitnesses.len() as f32;
         let std_dev = variance.sqrt();
 
+        let avg_pushes: f32 = self.pool.iter().map(|i| i.push_count as f32).sum::<f32>()
+            / self.pool.len() as f32;
+
         PopulationStats {
             size: self.pool.len(),
             generation: self.generation,
@@ -187,6 +193,7 @@ impl Population {
             max_fitness: max,
             mean_fitness: mean,
             std_dev,
+            avg_push_count: avg_pushes,
         }
     }
 
@@ -237,4 +244,6 @@ pub struct PopulationStats {
     pub mean_fitness: f32,
     /// Standard deviation of fitness
     pub std_dev: f32,
+    /// Average number of push intervals
+    pub avg_push_count: f32,
 }

@@ -98,6 +98,13 @@ impl Scene {
                         show_attachment_points: false,
                     }
                 }
+                Evolving => {
+                    self.reset();
+                    self.render_style = WithAppearanceFunction {
+                        function: Rc::new(|_| None),
+                        show_attachment_points: false,
+                    }
+                }
             },
             SetAnimating(_) => {}
             ResetView => {

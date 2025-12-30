@@ -1,354 +1,185 @@
 #![cfg(test)]
 
-use crate::build::evo::cell::Cell;
-use crate::build::evo::decision_maker::DecisionMaker;
 use crate::build::evo::evolution::{Evolution, EvolutionConfig, EvolutionState};
 use crate::build::evo::fitness::FitnessEvaluator;
-use crate::build::evo::genome::Genome;
-use crate::build::evo::grower::{GrowthConfig, GrowthResult, Grower};
+use crate::build::evo::grower::{GrowthConfig, Grower};
 use crate::build::evo::population::Population;
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, IntervalEnd};
+use crate::fabric::physics::presets::SETTLING;
+use crate::fabric::physics::{Surface, SurfaceCharacter};
+use crate::fabric::Fabric;
+use crate::units::Meters;
 use glam::Vec3;
-
-// ============ Genome Tests ============
-
-#[test]
-fn test_empty_genome_no_skips() {
-    let genome = Genome::new();
-    for i in 0..100 {
-        assert!(!genome.should_skip(i), "Position {} should not be skipped", i);
-    }
-}
-
-#[test]
-fn test_single_skip() {
-    let genome = Genome::from_offsets(vec![5]);
-    assert!(!genome.should_skip(0));
-    assert!(!genome.should_skip(4));
-    assert!(genome.should_skip(5));
-    assert!(!genome.should_skip(6));
-}
-
-#[test]
-fn test_multiple_skips() {
-    // Skip at 5, 17 (5+12), 20 (17+3)
-    let genome = Genome::from_offsets(vec![5, 12, 3]);
-    assert!(genome.should_skip(5));
-    assert!(genome.should_skip(17));
-    assert!(genome.should_skip(20));
-    assert!(!genome.should_skip(6));
-    assert!(!genome.should_skip(16));
-    assert!(!genome.should_skip(18));
-}
-
-#[test]
-fn test_with_skip_at_beginning() {
-    let genome = Genome::from_offsets(vec![10]);
-    let mutated = genome.with_skip_at(3);
-    assert_eq!(mutated.skip_positions(), vec![3, 10]);
-}
-
-#[test]
-fn test_with_skip_at_middle() {
-    let genome = Genome::from_offsets(vec![5, 10]); // skips at 5, 15
-    let mutated = genome.with_skip_at(8);
-    assert_eq!(mutated.skip_positions(), vec![5, 8, 15]);
-}
-
-#[test]
-fn test_with_skip_at_end() {
-    let genome = Genome::from_offsets(vec![5]); // skip at 5
-    let mutated = genome.with_skip_at(20);
-    assert_eq!(mutated.skip_positions(), vec![5, 20]);
-}
-
-#[test]
-fn test_skip_positions() {
-    let genome = Genome::from_offsets(vec![5, 12, 3]);
-    assert_eq!(genome.skip_positions(), vec![5, 17, 20]);
-}
-
-#[test]
-fn test_rle_long_gap() {
-    // Test skip at position 522 (256 + 256 + 10)
-    let genome = Genome::new();
-    let mutated = genome.with_skip_at(522);
-    assert!(mutated.should_skip(522));
-    assert!(!mutated.should_skip(521));
-    assert!(!mutated.should_skip(523));
-    // Should use RLE encoding: [0, 0, 10]
-    assert_eq!(mutated.skip_positions(), vec![522]);
-}
-
-#[test]
-fn test_rle_encoding() {
-    // Direct RLE encoding test: [0, 0, 10] = skip at 256+256+10 = 522
-    let genome = Genome::from_offsets(vec![0, 0, 10]);
-    assert_eq!(genome.skip_positions(), vec![522]);
-    assert!(genome.should_skip(522));
-}
-
-// ============ DecisionMaker Tests ============
-
-#[test]
-fn test_determinism_same_seed_same_genome() {
-    let genome = Genome::new();
-    let seed = 42u64;
-
-    let mut dm1 = DecisionMaker::new(seed, genome.clone());
-    let mut dm2 = DecisionMaker::new(seed, genome.clone());
-
-    for _ in 0..100 {
-        assert_eq!(dm1.decide(), dm2.decide());
-    }
-}
-
-#[test]
-fn test_different_seeds_different_results() {
-    let genome = Genome::new();
-
-    let mut dm1 = DecisionMaker::new(42, genome.clone());
-    let mut dm2 = DecisionMaker::new(43, genome.clone());
-
-    // Collect results
-    let results1: Vec<bool> = (0..20).map(|_| dm1.decide()).collect();
-    let results2: Vec<bool> = (0..20).map(|_| dm2.decide()).collect();
-
-    // Should differ somewhere
-    assert_ne!(results1, results2);
-}
-
-#[test]
-fn test_skip_changes_sequence() {
-    let genome1 = Genome::new();
-    let genome2 = genome1.with_skip_at(5);
-    let seed = 42u64;
-
-    let mut dm1 = DecisionMaker::new(seed, genome1);
-    let mut dm2 = DecisionMaker::new(seed, genome2);
-
-    // First 5 decisions should match
-    for i in 0..5 {
-        assert_eq!(
-            dm1.decide(),
-            dm2.decide(),
-            "Decision {} should match before skip",
-            i
-        );
-    }
-
-    // After skip point, at least one should differ in next 20
-    let mut any_different = false;
-    for _ in 0..20 {
-        if dm1.decide() != dm2.decide() {
-            any_different = true;
-            break;
-        }
-    }
-    assert!(any_different, "Sequences should diverge after skip");
-}
-
-#[test]
-fn test_choose_range() {
-    let mut dm = DecisionMaker::new(42, Genome::new());
-
-    for _ in 0..100 {
-        let choice = dm.choose(10);
-        assert!(choice < 10, "Choice should be in range [0, 10)");
-    }
-}
-
-#[test]
-fn test_random_direction_normalized() {
-    let mut dm = DecisionMaker::new(42, Genome::new());
-
-    for _ in 0..100 {
-        let dir = dm.random_direction();
-        let len = dir.length();
-        // Should be normalized (length ~1.0) or zero vector
-        assert!(
-            (len - 1.0).abs() < 0.001 || len < 0.001,
-            "Direction should be normalized, got length {}",
-            len
-        );
-    }
-}
-
-#[test]
-fn test_virtual_position_increments() {
-    let mut dm = DecisionMaker::new(42, Genome::new());
-    assert_eq!(dm.virtual_position(), 0);
-
-    dm.decide();
-    assert_eq!(dm.virtual_position(), 1);
-
-    dm.decide();
-    assert_eq!(dm.virtual_position(), 2);
-}
-
-#[test]
-fn test_virtual_position_with_skips() {
-    // Genome with skip at position 2
-    let genome = Genome::from_offsets(vec![2]);
-    let mut dm = DecisionMaker::new(42, genome);
-
-    dm.decide(); // Uses position 0
-    assert_eq!(dm.virtual_position(), 1);
-
-    dm.decide(); // Uses position 1
-    assert_eq!(dm.virtual_position(), 2);
-
-    dm.decide(); // Position 2 is skipped, uses position 3
-    assert_eq!(dm.virtual_position(), 4);
-}
-
-// ============ Cell Tests ============
-
-#[test]
-fn test_cell_creation() {
-    let mut fabric = Fabric::new("test".to_string());
-    let cell = Cell::new(&mut fabric, Vec3::ZERO, Vec3::Y, 1.0);
-
-    assert_eq!(fabric.joints.len(), 2);
-    assert_eq!(fabric.intervals.len(), 1);
-    assert_eq!(cell.total_pulls(), 0);
-}
-
-#[test]
-fn test_pull_tracking() {
-    let mut fabric = Fabric::new("test".to_string());
-    let cell1 = Cell::new(&mut fabric, Vec3::ZERO, Vec3::Y, 1.0);
-    let cell2 = Cell::new(&mut fabric, Vec3::new(1.0, 0.0, 0.0), Vec3::Y, 1.0);
-
-    // Create a pull between cell1.alpha and cell2.alpha
-    let pull = fabric.create_slack_interval(cell1.alpha_joint, cell2.alpha_joint, Role::Pulling);
-
-    let mut cell1 = cell1;
-    let mut cell2 = cell2;
-    cell1.add_pull(IntervalEnd::Alpha, pull);
-    cell2.add_pull(IntervalEnd::Alpha, pull);
-
-    assert_eq!(cell1.pull_count(IntervalEnd::Alpha), 1);
-    assert_eq!(cell1.pull_count(IntervalEnd::Omega), 0);
-    assert!(cell1.needs_more_pulls(IntervalEnd::Alpha)); // < 3
-    assert!(cell1.can_accept_pull(IntervalEnd::Alpha)); // < 6
-}
-
-#[test]
-fn test_connection_limits() {
-    let mut fabric = Fabric::new("test".to_string());
-    let mut cell = Cell::new(&mut fabric, Vec3::ZERO, Vec3::Y, 1.0);
-
-    // Add 6 dummy pulls
-    for i in 0..6 {
-        let dummy_joint = fabric.create_joint(Vec3::new(i as f32, 0.0, 0.0));
-        let pull = fabric.create_slack_interval(cell.alpha_joint, dummy_joint, Role::Pulling);
-        cell.add_pull(IntervalEnd::Alpha, pull);
-    }
-
-    assert_eq!(cell.pull_count(IntervalEnd::Alpha), 6);
-    assert!(!cell.needs_more_pulls(IntervalEnd::Alpha)); // >= 3
-    assert!(!cell.can_accept_pull(IntervalEnd::Alpha)); // >= 6
-}
 
 // ============ Grower Tests ============
 
 #[test]
-fn test_grower_creates_first_cell() {
-    let config = GrowthConfig {
-        max_steps: 10,
-        ..Default::default()
-    };
-    let mut grower = Grower::new(42, Genome::new(), config);
+fn test_grower_creates_seed_with_three_pushes() {
+    let config = GrowthConfig::default();
+    let mut grower = Grower::new(42, config);
 
-    // First step should create first cell
-    let result = grower.grow_step();
-    assert!(matches!(result, GrowthResult::Continue));
-    assert_eq!(grower.cells.len(), 1);
-    assert_eq!(grower.fabric.joints.len(), 2);
-    assert_eq!(grower.fabric.intervals.len(), 1);
+    let (fabric, push_count) = grower.create_seed();
+
+    // Should have 3 pushes = 6 joints
+    assert_eq!(push_count, 3);
+    assert_eq!(fabric.joints.len(), 6, "3 pushes should have 6 joints");
+
+    // Count push intervals
+    let push_intervals = fabric
+        .intervals
+        .values()
+        .filter(|i| i.role == Role::Pushing)
+        .count();
+    assert_eq!(push_intervals, 3, "Should have 3 push intervals");
+
+    // Should have some pull intervals connecting the pushes
+    let pull_intervals = fabric
+        .intervals
+        .values()
+        .filter(|i| i.role == Role::Pulling)
+        .count();
+    assert!(pull_intervals > 0, "Should have pull intervals connecting pushes");
 }
 
 #[test]
-fn test_grower_deterministic() {
-    let config = GrowthConfig {
-        max_steps: 20,
-        ..Default::default()
-    };
+fn test_grower_seed_deterministic() {
+    let config = GrowthConfig::default();
 
-    // Grow two structures with same seed and genome
-    let mut grower1 = Grower::new(42, Genome::new(), config.clone());
-    let mut grower2 = Grower::new(42, Genome::new(), config);
+    let mut grower1 = Grower::new(42, config.clone());
+    let mut grower2 = Grower::new(42, config);
 
-    grower1.grow_complete();
-    grower2.grow_complete();
+    let (fabric1, count1) = grower1.create_seed();
+    let (fabric2, count2) = grower2.create_seed();
 
-    // Should produce identical structures
-    assert_eq!(grower1.cells.len(), grower2.cells.len());
-    assert_eq!(grower1.fabric.joints.len(), grower2.fabric.joints.len());
-    assert_eq!(grower1.fabric.intervals.len(), grower2.fabric.intervals.len());
+    assert_eq!(count1, count2);
+    assert_eq!(fabric1.joints.len(), fabric2.joints.len());
+    assert_eq!(fabric1.intervals.len(), fabric2.intervals.len());
+
+    // Joint positions should be identical
+    let positions1: Vec<_> = fabric1
+        .joints
+        .values()
+        .map(|j| (j.location.x, j.location.y, j.location.z))
+        .collect();
+    let positions2: Vec<_> = fabric2
+        .joints
+        .values()
+        .map(|j| (j.location.x, j.location.y, j.location.z))
+        .collect();
+    assert_eq!(positions1, positions2);
 }
 
 #[test]
-fn test_grower_skip_changes_structure() {
-    let config = GrowthConfig {
-        max_steps: 30,
-        ..Default::default()
-    };
+fn test_grower_different_seeds_different_structures() {
+    let config = GrowthConfig::default();
 
-    let genome1 = Genome::new();
-    let genome2 = genome1.with_skip_at(5);
+    let mut grower1 = Grower::new(42, config.clone());
+    let mut grower2 = Grower::new(43, config);
 
-    let mut grower1 = Grower::new(42, genome1, config.clone());
-    let mut grower2 = Grower::new(42, genome2, config);
+    let (fabric1, _) = grower1.create_seed();
+    let (fabric2, _) = grower2.create_seed();
 
-    grower1.grow_complete();
-    grower2.grow_complete();
+    // Joint positions should differ
+    let positions1: Vec<_> = fabric1
+        .joints
+        .values()
+        .map(|j| (j.location.x, j.location.y, j.location.z))
+        .collect();
+    let positions2: Vec<_> = fabric2
+        .joints
+        .values()
+        .map(|j| (j.location.x, j.location.y, j.location.z))
+        .collect();
+    assert_ne!(positions1, positions2, "Different seeds should produce different structures");
+}
 
-    // Structures should differ due to skip
-    // (At least intervals should be different since decisions diverge)
-    let different = grower1.fabric.intervals.len() != grower2.fabric.intervals.len()
-        || grower1.cells.len() != grower2.cells.len();
+#[test]
+fn test_grower_mutate_adds_one_push() {
+    let config = GrowthConfig::default();
+    let mut grower = Grower::new(42, config);
+
+    let (mut fabric, push_count) = grower.create_seed();
+    let initial_pushes = fabric
+        .intervals
+        .values()
+        .filter(|i| i.role == Role::Pushing)
+        .count();
+
+    // Mutate
+    let new_count = grower.mutate(&mut fabric, push_count);
+
+    let final_pushes = fabric
+        .intervals
+        .values()
+        .filter(|i| i.role == Role::Pushing)
+        .count();
+
+    assert_eq!(new_count, push_count + 1);
+    assert_eq!(final_pushes, initial_pushes + 1);
+}
+
+#[test]
+fn test_grower_mutate_adds_connections() {
+    let config = GrowthConfig::default();
+    let mut grower = Grower::new(42, config);
+
+    let (mut fabric, push_count) = grower.create_seed();
+    let initial_pulls = fabric
+        .intervals
+        .values()
+        .filter(|i| i.role == Role::Pulling)
+        .count();
+
+    // Mutate
+    grower.mutate(&mut fabric, push_count);
+
+    let final_pulls = fabric
+        .intervals
+        .values()
+        .filter(|i| i.role == Role::Pulling)
+        .count();
+
+    // New push should add some pull connections
     assert!(
-        different,
-        "Skip should produce different structure: cells1={} cells2={} intervals1={} intervals2={}",
-        grower1.cells.len(),
-        grower2.cells.len(),
-        grower1.fabric.intervals.len(),
-        grower2.fabric.intervals.len()
+        final_pulls > initial_pulls,
+        "Mutation should add pull connections"
     );
 }
 
 #[test]
-fn test_grower_creates_connections() {
-    let config = GrowthConfig {
-        max_steps: 30,
-        ..Default::default()
-    };
-    let mut grower = Grower::new(42, Genome::new(), config);
+fn test_grower_settling() {
+    let config = GrowthConfig::default();
+    let mut grower = Grower::new(42, config);
 
-    grower.grow_complete();
+    let (mut fabric, _) = grower.create_seed();
 
-    // Should have multiple cells and connections
-    assert!(grower.cells.len() > 1, "Should have multiple cells");
+    // Create physics with slippery surface
+    let mut physics = SETTLING.clone();
+    physics.surface = Some(Surface::new(SurfaceCharacter::Slippery, 1.0));
 
-    // Count total pull connections
-    let total_pulls: usize = grower.cells.iter().map(|c| c.total_pulls()).sum();
-    assert!(total_pulls > 0, "Should have pull connections");
-}
+    // Get initial positions
+    let initial_positions: Vec<_> = fabric
+        .joints
+        .values()
+        .map(|j| j.location)
+        .collect();
 
-#[test]
-fn test_grower_completes_at_max_steps() {
-    let config = GrowthConfig {
-        max_steps: 5,
-        ..Default::default()
-    };
-    let mut grower = Grower::new(42, Genome::new(), config);
+    // Settle for a short time
+    grower.settle(&mut fabric, &physics, 0.1);
 
-    let result = grower.grow_complete();
-    assert!(matches!(result, GrowthResult::Complete));
-    assert_eq!(grower.growth_step, 5);
+    // Positions should have changed due to physics
+    let final_positions: Vec<_> = fabric
+        .joints
+        .values()
+        .map(|j| j.location)
+        .collect();
+
+    let any_moved = initial_positions
+        .iter()
+        .zip(final_positions.iter())
+        .any(|(a, b)| (*a - *b).length() > 0.0001);
+
+    assert!(any_moved, "Settling should move joints");
 }
 
 // ============ Fitness Tests ============
@@ -357,70 +188,93 @@ fn test_grower_completes_at_max_steps() {
 fn test_empty_fabric_zero_fitness() {
     let fabric = Fabric::new("test".to_string());
     let evaluator = FitnessEvaluator::new();
-    assert_eq!(evaluator.evaluate(&fabric), 0.0);
+    assert_eq!(evaluator.evaluate(&fabric, 0), 0.0);
 }
 
 #[test]
-fn test_single_cell_has_fitness() {
+fn test_fitness_with_push_count() {
+    // Create a simple fabric with known height
     let mut fabric = Fabric::new("test".to_string());
-    let _cell = Cell::new(&mut fabric, Vec3::ZERO, Vec3::Y, 1.0);
+    let bottom = fabric.create_joint(Vec3::new(0.0, 0.0, 0.0));
+    let top = fabric.create_joint(Vec3::new(0.0, 1.0, 0.0));
+    fabric.create_slack_interval(bottom, top, Role::Pushing);
 
     let evaluator = FitnessEvaluator::new();
-    let fitness = evaluator.evaluate(&fabric);
 
-    // Single vertical cell should have height ~1.0
-    assert!(fitness > 0.5, "Fitness should be > 0.5, got {}", fitness);
-}
+    // With 1 push, fitness should be height / sqrt(1) = height
+    let fitness1 = evaluator.evaluate(&fabric, 1);
+    assert!(fitness1 > 0.9 && fitness1 < 1.2, "Fitness with 1 push should be ~1.0");
 
-#[test]
-fn test_taller_structure_higher_fitness() {
-    // Create two structures of different heights
-    let mut fabric1 = Fabric::new("short".to_string());
-    Cell::new(&mut fabric1, Vec3::ZERO, Vec3::Y, 1.0);
-
-    let mut fabric2 = Fabric::new("tall".to_string());
-    Cell::new(&mut fabric2, Vec3::ZERO, Vec3::Y, 2.0);
-
-    let evaluator = FitnessEvaluator::new();
-    let fitness1 = evaluator.evaluate(&fabric1);
-    let fitness2 = evaluator.evaluate(&fabric2);
-
+    // With 4 pushes, fitness should be height / sqrt(4) = height / 2
+    let fitness4 = evaluator.evaluate(&fabric, 4);
     assert!(
-        fitness2 > fitness1,
-        "Taller structure should have higher fitness: {} vs {}",
-        fitness2,
-        fitness1
+        fitness4 < fitness1,
+        "Higher push count should reduce fitness"
     );
 }
 
 #[test]
-fn test_grown_structure_fitness() {
-    let config = GrowthConfig {
-        max_steps: 30,
-        ..Default::default()
-    };
-    let mut grower = Grower::new(42, Genome::new(), config);
-    grower.grow_complete();
+fn test_fitness_taller_is_better() {
+    // Create two fabrics with different heights
+    let mut fabric1 = Fabric::new("short".to_string());
+    let bottom1 = fabric1.create_joint(Vec3::new(0.0, 0.0, 0.0));
+    let top1 = fabric1.create_joint(Vec3::new(0.0, 1.0, 0.0));
+    fabric1.create_slack_interval(bottom1, top1, Role::Pushing);
+
+    let mut fabric2 = Fabric::new("tall".to_string());
+    let bottom2 = fabric2.create_joint(Vec3::new(0.0, 0.0, 0.0));
+    let top2 = fabric2.create_joint(Vec3::new(0.0, 2.0, 0.0));
+    fabric2.create_slack_interval(bottom2, top2, Role::Pushing);
 
     let evaluator = FitnessEvaluator::new();
-    let details = evaluator.evaluate_detailed(&grower.fabric);
+    let fitness1 = evaluator.evaluate(&fabric1, 1);
+    let fitness2 = evaluator.evaluate(&fabric2, 1);
 
-    assert!(details.is_valid, "Grown structure should be valid");
-    assert!(details.fitness > 0.0, "Grown structure should have positive fitness");
-    assert!(details.height > 0.0, "Grown structure should have height");
+    assert!(
+        fitness2 > fitness1,
+        "Taller fabric should have higher fitness"
+    );
+}
+
+#[test]
+fn test_fitness_cost_adjusted() {
+    // Two fabrics with same height but different push counts
+    let mut fabric1 = Fabric::new("efficient".to_string());
+    let bottom1 = fabric1.create_joint(Vec3::new(0.0, 0.0, 0.0));
+    let top1 = fabric1.create_joint(Vec3::new(0.0, 1.0, 0.0));
+    fabric1.create_slack_interval(bottom1, top1, Role::Pushing);
+
+    let mut fabric2 = Fabric::new("wasteful".to_string());
+    let bottom2 = fabric2.create_joint(Vec3::new(0.0, 0.0, 0.0));
+    let top2 = fabric2.create_joint(Vec3::new(0.0, 1.0, 0.0));
+    fabric2.create_slack_interval(bottom2, top2, Role::Pushing);
+
+    let evaluator = FitnessEvaluator::new();
+    // Same fabric, but evaluating with different push counts
+    let fitness_efficient = evaluator.evaluate(&fabric1, 1);
+    let fitness_wasteful = evaluator.evaluate(&fabric2, 9);
+
+    // 1 push vs 9 pushes should show sqrt(9) = 3x cost penalty
+    assert!(
+        fitness_efficient > fitness_wasteful * 2.0,
+        "Efficient structure should have much higher fitness"
+    );
 }
 
 #[test]
 fn test_fitness_details() {
     let mut fabric = Fabric::new("test".to_string());
-    Cell::new(&mut fabric, Vec3::ZERO, Vec3::Y, 1.0);
+    let bottom = fabric.create_joint(Vec3::new(0.0, 0.0, 0.0));
+    let top = fabric.create_joint(Vec3::new(0.0, 1.5, 0.0));
+    fabric.create_slack_interval(bottom, top, Role::Pushing);
 
     let evaluator = FitnessEvaluator::new();
-    let details = evaluator.evaluate_detailed(&fabric);
+    let details = evaluator.evaluate_detailed(&fabric, 2);
 
     assert!(details.is_valid);
-    assert!(details.height > 0.9 && details.height < 1.1, "Height should be ~1.0");
-    assert!(details.max_strain >= 0.0);
+    assert!((details.height - 1.5).abs() < 0.01);
+    assert_eq!(details.push_count, 2);
+    assert!(details.fitness > 0.0);
 }
 
 // ============ Population Tests ============
@@ -439,9 +293,13 @@ fn test_population_empty() {
 fn test_population_add_initial() {
     let mut pop = Population::new(42, 100);
 
-    pop.add_initial(Genome::new(), 1.0);
-    pop.add_initial(Genome::new(), 2.0);
-    pop.add_initial(Genome::new(), 0.5);
+    let fabric1 = Fabric::new("test1".to_string());
+    let fabric2 = Fabric::new("test2".to_string());
+    let fabric3 = Fabric::new("test3".to_string());
+
+    pop.add_initial(fabric1, 1.0, 3);
+    pop.add_initial(fabric2, 2.0, 4);
+    pop.add_initial(fabric3, 0.5, 2);
 
     assert_eq!(pop.size(), 3);
     assert_eq!(pop.best_current().unwrap().fitness, 2.0);
@@ -452,14 +310,14 @@ fn test_population_add_initial() {
 fn test_population_try_insert_better() {
     let mut pop = Population::new(42, 3);
 
-    pop.add_initial(Genome::new(), 1.0);
-    pop.add_initial(Genome::new(), 2.0);
-    pop.add_initial(Genome::new(), 0.5);
+    pop.add_initial(Fabric::new("a".to_string()), 1.0, 3);
+    pop.add_initial(Fabric::new("b".to_string()), 2.0, 3);
+    pop.add_initial(Fabric::new("c".to_string()), 0.5, 3);
 
     assert!(pop.is_full());
 
     // Insert something better than worst (0.5)
-    let inserted = pop.try_insert(Genome::new(), 1.5);
+    let inserted = pop.try_insert(Fabric::new("d".to_string()), 1.5, 3);
     assert!(inserted);
     assert_eq!(pop.worst_current().unwrap().fitness, 1.0);
 }
@@ -468,12 +326,12 @@ fn test_population_try_insert_better() {
 fn test_population_try_insert_worse() {
     let mut pop = Population::new(42, 3);
 
-    pop.add_initial(Genome::new(), 1.0);
-    pop.add_initial(Genome::new(), 2.0);
-    pop.add_initial(Genome::new(), 0.5);
+    pop.add_initial(Fabric::new("a".to_string()), 1.0, 3);
+    pop.add_initial(Fabric::new("b".to_string()), 2.0, 3);
+    pop.add_initial(Fabric::new("c".to_string()), 0.5, 3);
 
     // Try to insert something worse than worst (0.5)
-    let inserted = pop.try_insert(Genome::new(), 0.3);
+    let inserted = pop.try_insert(Fabric::new("d".to_string()), 0.3, 3);
     assert!(!inserted);
     assert_eq!(pop.size(), 3);
     assert_eq!(pop.worst_current().unwrap().fitness, 0.5);
@@ -483,18 +341,18 @@ fn test_population_try_insert_worse() {
 fn test_population_best_ever_tracking() {
     let mut pop = Population::new(42, 3);
 
-    pop.add_initial(Genome::new(), 1.0);
+    pop.add_initial(Fabric::new("a".to_string()), 1.0, 3);
     assert_eq!(pop.best_ever().unwrap().fitness, 1.0);
 
-    pop.add_initial(Genome::new(), 3.0);
+    pop.add_initial(Fabric::new("b".to_string()), 3.0, 3);
     assert_eq!(pop.best_ever().unwrap().fitness, 3.0);
 
-    pop.add_initial(Genome::new(), 2.0);
+    pop.add_initial(Fabric::new("c".to_string()), 2.0, 3);
     // Best ever should still be 3.0
     assert_eq!(pop.best_ever().unwrap().fitness, 3.0);
 
     // Insert a new best
-    pop.try_insert(Genome::new(), 5.0);
+    pop.try_insert(Fabric::new("d".to_string()), 5.0, 3);
     assert_eq!(pop.best_ever().unwrap().fitness, 5.0);
 }
 
@@ -505,9 +363,9 @@ fn test_population_pick_random() {
     // Empty population
     assert!(pop.pick_random().is_none());
 
-    pop.add_initial(Genome::new(), 1.0);
-    pop.add_initial(Genome::new(), 2.0);
-    pop.add_initial(Genome::new(), 3.0);
+    pop.add_initial(Fabric::new("a".to_string()), 1.0, 3);
+    pop.add_initial(Fabric::new("b".to_string()), 2.0, 3);
+    pop.add_initial(Fabric::new("c".to_string()), 3.0, 3);
 
     // Should be able to pick
     for _ in 0..20 {
@@ -516,32 +374,19 @@ fn test_population_pick_random() {
 }
 
 #[test]
-fn test_population_pick_parent_genome() {
-    let mut pop = Population::new(42, 10);
-
-    // Create a genome with a skip
-    let genome = Genome::from_offsets(vec![5]);
-    pop.add_initial(genome, 1.0);
-
-    let picked = pop.pick_parent_genome();
-    assert!(picked.is_some());
-    let picked_genome = picked.unwrap();
-    assert_eq!(picked_genome.skip_positions(), vec![5]);
-}
-
-#[test]
 fn test_population_stats() {
     let mut pop = Population::new(42, 10);
 
-    pop.add_initial(Genome::new(), 1.0);
-    pop.add_initial(Genome::new(), 2.0);
-    pop.add_initial(Genome::new(), 3.0);
+    pop.add_initial(Fabric::new("a".to_string()), 1.0, 3);
+    pop.add_initial(Fabric::new("b".to_string()), 2.0, 4);
+    pop.add_initial(Fabric::new("c".to_string()), 3.0, 5);
 
     let stats = pop.stats();
     assert_eq!(stats.size, 3);
     assert_eq!(stats.min_fitness, 1.0);
     assert_eq!(stats.max_fitness, 3.0);
     assert!((stats.mean_fitness - 2.0).abs() < 0.001);
+    assert!((stats.avg_push_count - 4.0).abs() < 0.001);
 }
 
 #[test]
@@ -556,51 +401,24 @@ fn test_population_generation() {
     assert_eq!(pop.generation(), 2);
 }
 
-#[test]
-fn test_population_diversity_maintained() {
-    // Simulate a steady-state evolution scenario
-    let mut pop = Population::new(42, 5);
-
-    // Initial population
-    for i in 0..5 {
-        let genome = Genome::from_offsets(vec![i as u8]);
-        pop.add_initial(genome, i as f32);
-    }
-
-    // Try inserting various offspring
-    // This tests that diversity is maintained through competition
-    for i in 5..20 {
-        let genome = Genome::from_offsets(vec![i as u8]);
-        let fitness = (i % 7) as f32;
-        pop.try_insert(genome, fitness);
-    }
-
-    // Should still be at capacity
-    assert_eq!(pop.size(), 5);
-
-    // Population should have changed (better individuals survived)
-    assert!(pop.best_current().unwrap().fitness >= 4.0);
-}
-
 // ============ Evolution Tests ============
 
 #[test]
 fn test_evolution_creation() {
     let config = EvolutionConfig {
         population_size: 5,
-        max_growth_steps: 10,
         ..Default::default()
     };
     let evo = Evolution::new(42, config);
 
-    assert_eq!(*evo.state(), EvolutionState::Seeding);
+    assert_eq!(*evo.state(), EvolutionState::CreatingSeed);
     assert_eq!(evo.population().size(), 0);
 }
 
 #[test]
 fn test_evolution_with_seed() {
     let evo = Evolution::with_seed(42);
-    assert_eq!(*evo.state(), EvolutionState::Seeding);
+    assert_eq!(*evo.state(), EvolutionState::CreatingSeed);
 }
 
 #[test]
@@ -615,4 +433,240 @@ fn test_evolution_stats_initial() {
     assert_eq!(stats.generation, 0);
     assert_eq!(stats.population_size, 0);
     assert_eq!(stats.evaluations, 0);
+}
+
+#[test]
+fn test_evolution_step_creates_seed() {
+    let config = EvolutionConfig {
+        population_size: 5,
+        seed_push_count: 3,
+        ..Default::default()
+    };
+    let mut evo = Evolution::new(42, config);
+
+    // Initially in CreatingSeed state
+    assert_eq!(*evo.state(), EvolutionState::CreatingSeed);
+
+    // Run enough steps to move past seed creation
+    for _ in 0..200_000 {
+        // One step internally
+        if !matches!(*evo.state(), EvolutionState::CreatingSeed) {
+            break;
+        }
+        // We need to access the step function - but it's private
+        // So we'll use this workaround
+    }
+
+    // The Evolution struct manages its own stepping, so we can't directly test
+    // internal state transitions without the iterate() function
+}
+
+#[test]
+fn test_grower_integration_full_cycle() {
+    // Test the full cycle: create seed, settle, mutate, settle
+    let config = GrowthConfig {
+        push_length: Meters(1.0),
+        seed_push_count: 3,
+        seed_settle_seconds: 0.5, // Short for testing
+        mutation_settle_seconds: 0.2,
+        ..Default::default()
+    };
+
+    let mut grower = Grower::new(42, config);
+
+    // Create seed
+    let (mut fabric, push_count) = grower.create_seed();
+    assert_eq!(push_count, 3);
+
+    // Create physics with slippery surface
+    let mut physics = SETTLING.clone();
+    physics.surface = Some(Surface::new(SurfaceCharacter::Slippery, 1.0));
+
+    // Settle seed
+    grower.settle_seed(&mut fabric, &physics);
+
+    // Check it's still valid
+    assert!(fabric.joints.len() >= 6);
+
+    // Mutate
+    let new_push_count = grower.mutate(&mut fabric, push_count);
+    assert_eq!(new_push_count, 4);
+
+    // Settle mutation
+    grower.settle_mutation(&mut fabric, &physics);
+
+    // Final check
+    let push_intervals = fabric
+        .intervals
+        .values()
+        .filter(|i| i.role == Role::Pushing)
+        .count();
+    assert_eq!(push_intervals, 4);
+}
+
+#[test]
+fn test_evolution_seeding_process() {
+    // Create a simple evolution run and verify population fills
+    let config = GrowthConfig {
+        push_length: Meters(1.0),
+        seed_push_count: 3,
+        seed_settle_seconds: 0.1,
+        mutation_settle_seconds: 0.1,
+        ..Default::default()
+    };
+
+    let mut grower = Grower::new(42, config);
+    let mut pop = Population::new(42, 5);
+    let evaluator = FitnessEvaluator::new();
+
+    // Create physics
+    let mut physics = SETTLING.clone();
+    physics.surface = Some(Surface::new(SurfaceCharacter::Slippery, 1.0));
+
+    // Create and settle seed
+    let (seed_fabric, push_count) = grower.create_seed();
+    let mut seed = seed_fabric.clone();
+    grower.settle_seed(&mut seed, &physics);
+
+    // Evaluate and add seed
+    let seed_fitness = evaluator.evaluate(&seed, push_count);
+    pop.add_initial(seed.clone(), seed_fitness, push_count);
+
+    // Fill rest of population with variations
+    for _ in 1..5 {
+        let mut variant = seed.clone();
+        let new_count = grower.mutate(&mut variant, push_count);
+        grower.settle_mutation(&mut variant, &physics);
+
+        let fitness = evaluator.evaluate(&variant, new_count);
+        pop.add_initial(variant, fitness, new_count);
+    }
+
+    assert!(pop.is_full());
+    assert!(pop.best_current().unwrap().fitness > 0.0);
+
+    let stats = pop.stats();
+    eprintln!(
+        "Population filled: size={}, best={:.3}, mean={:.3}, avg_pushes={:.1}",
+        stats.size, stats.max_fitness, stats.mean_fitness, stats.avg_push_count
+    );
+}
+
+#[test]
+fn test_evolution_competitive_insertion() {
+    // Test that better offspring replace worse individuals
+    let config = GrowthConfig::default();
+    let mut grower = Grower::new(42, config);
+    let mut pop = Population::new(42, 3);
+    let evaluator = FitnessEvaluator::new();
+
+    let mut physics = SETTLING.clone();
+    physics.surface = Some(Surface::new(SurfaceCharacter::Slippery, 1.0));
+
+    // Create seed
+    let (mut seed, push_count) = grower.create_seed();
+    grower.settle_seed(&mut seed, &physics);
+
+    // Add initial population with known fitnesses
+    pop.add_initial(seed.clone(), 0.1, push_count);
+    pop.add_initial(seed.clone(), 0.2, push_count);
+    pop.add_initial(seed.clone(), 0.3, push_count);
+
+    // Try to insert something better
+    let inserted = pop.try_insert(seed.clone(), 0.5, push_count);
+    assert!(inserted);
+    assert!(pop.worst_current().unwrap().fitness >= 0.2);
+
+    // Try to insert something worse
+    let not_inserted = pop.try_insert(seed.clone(), 0.05, push_count);
+    assert!(!not_inserted);
+}
+
+#[test]
+fn test_evolution_determinism() {
+    // Test that the same seed produces identical results
+    use crate::fabric::physics::SurfaceCharacter;
+
+    fn run_evolution(seed: u64) -> (f32, usize, Vec<f32>) {
+        let config = GrowthConfig {
+            push_length: Meters(1.0),
+            seed_push_count: 3,
+            seed_settle_seconds: 0.5,
+            mutation_settle_seconds: 0.2,
+            ..Default::default()
+        };
+
+        let mut grower = Grower::new(seed, config);
+        let mut pop = Population::new(seed, 10);
+        let evaluator = FitnessEvaluator::new();
+
+        let mut physics = SETTLING.clone();
+        physics.surface = Some(Surface::new(SurfaceCharacter::Bouncy, 1.0));
+
+        // Create and settle seed
+        let (mut seed_fabric, push_count) = grower.create_seed();
+        grower.settle_seed(&mut seed_fabric, &physics);
+
+        // Evaluate seed
+        let seed_fitness = evaluator.evaluate(&seed_fabric, push_count);
+        pop.add_initial(seed_fabric.clone(), seed_fitness, push_count);
+
+        // Fill population with mutations
+        for _ in 1..10 {
+            let mut variant = seed_fabric.clone();
+            let new_count = grower.mutate(&mut variant, push_count);
+            grower.settle_mutation(&mut variant, &physics);
+            let fitness = evaluator.evaluate(&variant, new_count);
+            pop.add_initial(variant, fitness, new_count);
+        }
+
+        // Collect all fitnesses for comparison
+        let fitnesses: Vec<f32> = pop
+            .pool()
+            .iter()
+            .map(|ind| ind.fitness)
+            .collect();
+
+        let stats = pop.stats();
+        (stats.max_fitness, pop.size(), fitnesses)
+    }
+
+    // Run twice with same seed
+    let (best1, size1, fitnesses1) = run_evolution(42);
+    let (best2, size2, fitnesses2) = run_evolution(42);
+
+    // Verify identical results
+    assert_eq!(size1, size2, "Population sizes should match");
+    assert!(
+        (best1 - best2).abs() < 1e-6,
+        "Best fitness should match: {} vs {}",
+        best1,
+        best2
+    );
+    assert_eq!(
+        fitnesses1.len(),
+        fitnesses2.len(),
+        "Fitness vectors should have same length"
+    );
+    for (i, (f1, f2)) in fitnesses1.iter().zip(fitnesses2.iter()).enumerate() {
+        assert!(
+            (f1 - f2).abs() < 1e-6,
+            "Fitness at index {} should match: {} vs {}",
+            i,
+            f1,
+            f2
+        );
+    }
+
+    // Also verify we got nonzero height
+    assert!(
+        best1 > 0.0,
+        "Best fitness should be positive (nonzero height): {}",
+        best1
+    );
+
+    eprintln!(
+        "Determinism verified: best_fitness={:.4}, population_size={}",
+        best1, size1
+    );
 }

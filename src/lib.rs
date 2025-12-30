@@ -146,7 +146,7 @@ pub enum RunStyle {
         segments: usize,
     },
     BakeBricks,
-    Seeded(u64),
+    Evolving(u64),
 }
 
 #[derive(Clone)]
@@ -465,6 +465,7 @@ pub enum ControlState {
     ShowingInterval(IntervalDetails),
     PhysicsTesting,
     Baking,
+    Evolving,
 }
 
 impl ControlState {
@@ -494,6 +495,7 @@ pub enum CrucibleAction {
     ToAnimating,
     ToPhysicsTesting,
     ToEvolving(u64),
+    ToggleEvolutionMode,
     TesterDo(TesterAction),
 }
 

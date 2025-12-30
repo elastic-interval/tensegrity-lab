@@ -95,6 +95,12 @@ impl Keyboard {
             Crucible(ToPhysicsTesting),
             Box::new(|state| matches!(state, Viewing { .. })),
         );
+        self.key_lab_event(
+            KeyCode::KeyE,
+            "Toggle evolution mode (Watch/Fast)",
+            Crucible(ToggleEvolutionMode),
+            Box::new(|state| matches!(state, Evolving)),
+        );
         self.tweak_parameter(
             "M",
             "m",

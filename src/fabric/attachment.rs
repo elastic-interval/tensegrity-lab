@@ -347,6 +347,10 @@ fn calculate_rotational_moment(
     let mut total_moment = Vec3::ZERO;
 
     for (pull_key, attach_idx) in assignment {
+        // Skip if attachment index is out of bounds
+        if *attach_idx >= attachment_points.len() {
+            continue;
+        }
         // Find the pull interval data
         if let Some(pull) = pull_data.iter().find(|p| p.key == *pull_key) {
             // Get attachment point position
