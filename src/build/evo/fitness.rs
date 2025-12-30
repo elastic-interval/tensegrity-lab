@@ -1,9 +1,9 @@
 use crate::fabric::Fabric;
 
-/// Evaluates the fitness of grown structures.
+/// Evaluates the fitness of structures with cost adjustment.
 ///
-/// Fitness is primarily based on height (taller = better), with penalties
-/// for instability or collapse.
+/// Fitness = height / sqrt(push_count)
+/// This rewards tall structures but penalizes excessive material use.
 pub struct FitnessEvaluator {
     /// Maximum allowable strain before structure is considered failed
     pub max_strain_threshold: f32,
@@ -15,7 +15,7 @@ impl Default for FitnessEvaluator {
     fn default() -> Self {
         Self {
             max_strain_threshold: 0.5,   // 50% strain is failure
-            min_height_threshold: 0.1,   // Must be at least 10cm tall
+            min_height_threshold: 0.01,  // Must have some height
         }
     }
 }
@@ -28,15 +28,15 @@ impl FitnessEvaluator {
 
     /// Evaluate the fitness of a fabric.
     ///
-    /// Returns a fitness score where higher is better.
+    /// Fitness = height / sqrt(push_count)
     /// Returns 0.0 for collapsed or invalid structures.
-    pub fn evaluate(&self, fabric: &Fabric) -> f32 {
+    pub fn evaluate(&self, fabric: &Fabric, push_count: usize) -> f32 {
         // Check for empty or trivial structures
-        if fabric.joints.len() < 2 {
+        if fabric.joints.len() < 2 || push_count == 0 {
             return 0.0;
         }
 
-        // Calculate height (y-extent)
+        // Calculate height (y-extent from floor)
         let height = self.calculate_height(fabric);
         if height < self.min_height_threshold {
             return 0.0;
@@ -48,17 +48,18 @@ impl FitnessEvaluator {
             return 0.0;
         }
 
-        // Base fitness is height
-        let mut fitness = height;
+        // Cost-adjusted fitness: height / sqrt(push_count)
+        // This rewards efficient structures that are tall with fewer pushes
+        let cost = (push_count as f32).sqrt();
+        let fitness = height / cost;
 
-        // Bonus for stability (lower strain is better)
+        // Small bonus for stability (lower strain is better)
         let stability_bonus = 1.0 - (max_strain / self.max_strain_threshold);
-        fitness *= 1.0 + stability_bonus * 0.2; // Up to 20% bonus
-
-        fitness
+        fitness * (1.0 + stability_bonus * 0.1) // Up to 10% bonus for low strain
     }
 
-    /// Calculate the height (y-extent) of the structure.
+    /// Calculate the height of the structure (max_y - min_y, but from floor).
+    /// For structures on a floor at y=0, this is just max_y.
     fn calculate_height(&self, fabric: &Fabric) -> f32 {
         if fabric.joints.is_empty() {
             return 0.0;
@@ -77,6 +78,7 @@ impl FitnessEvaluator {
             return 0.0;
         }
 
+        // Height from lowest point (floor) to highest
         max_y - min_y
     }
 
@@ -90,14 +92,15 @@ impl FitnessEvaluator {
     }
 
     /// Get detailed fitness breakdown for debugging/display.
-    pub fn evaluate_detailed(&self, fabric: &Fabric) -> FitnessDetails {
+    pub fn evaluate_detailed(&self, fabric: &Fabric, push_count: usize) -> FitnessDetails {
         let height = self.calculate_height(fabric);
         let max_strain = self.calculate_max_strain(fabric);
-        let fitness = self.evaluate(fabric);
+        let fitness = self.evaluate(fabric, push_count);
 
         FitnessDetails {
             height,
             max_strain,
+            push_count,
             fitness,
             is_valid: fitness > 0.0,
         }
@@ -111,6 +114,8 @@ pub struct FitnessDetails {
     pub height: f32,
     /// Maximum strain in any interval
     pub max_strain: f32,
+    /// Number of push intervals
+    pub push_count: usize,
     /// Final fitness score
     pub fitness: f32,
     /// Whether the structure is valid (non-zero fitness)

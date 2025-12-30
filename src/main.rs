@@ -21,8 +21,13 @@ struct Args {
     #[arg(long)]
     bake_bricks: bool,
 
+    /// Run evolutionary tensegrity
     #[arg(long)]
-    seed: Option<u64>,
+    evolve: bool,
+
+    /// Seed for evolution (default: random based on time)
+    #[arg(long, default_value_t = 0)]
+    seed: u64,
 
     /// Generate an algorithmic tensegrity sphere with given frequency (1, 2, or 3+)
     #[arg(long)]
@@ -71,8 +76,16 @@ fn main() -> Result<(), Box<dyn Error>> {
         RunStyle::Mobius { segments }
     } else if args.bake_bricks {
         RunStyle::BakeBricks
-    } else if let Some(seed) = args.seed {
-        RunStyle::Seeded(seed)
+    } else if args.evolve {
+        let seed = if args.seed == 0 {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(42)
+        } else {
+            args.seed
+        };
+        RunStyle::Evolving(seed)
     } else if let Some(fabric_name) = args.fabric {
         RunStyle::Fabric {
             fabric_name,

@@ -432,12 +432,27 @@ impl Crucible {
             ToEvolving(seed) => {
                 let evolution = Evolution::with_seed(seed);
 
-                context.replace_fabric(evolution.visible_fabric.clone());
+                context.replace_fabric(evolution.fabric.clone());
 
                 // Initialize the physics for evolution
                 evolution.adopt_physics(&mut context);
 
+                // Set UI state
+                StateChange::SetStageLabel("Evolving (Watch)".to_string()).send(&self.radio);
+                ControlState::Evolving.send(&self.radio);
+
                 context.transition_to(Evolving(evolution));
+            }
+            ToggleEvolutionMode => {
+                if let Evolving(ref mut evolution) = self.stage {
+                    evolution.toggle_viewing_mode();
+                    let mode_name = match evolution.viewing_mode() {
+                        crate::build::evo::evolution::ViewingMode::Watch => "Watch",
+                        crate::build::evo::evolution::ViewingMode::Fast => "Fast",
+                    };
+                    StateChange::SetStageLabel(format!("Evolving ({})", mode_name))
+                        .send(&self.radio);
+                }
             }
         }
 

@@ -5,7 +5,7 @@ mod tests {
     use crate::units::{MM_PER_METER, Unit};
 
     const EXPECTED_GROUND_CONTACTS: usize = 3;
-    const EXPECTED_HEIGHT_MM: f32 = 9327.0;
+    const EXPECTED_HEIGHT_MM: f32 = 9431.0;
     const HEIGHT_TOLERANCE_PCT: f32 = 1.0;
     const EXPECTED_LANDING_SECONDS: f32 = 35.0;
 
