@@ -430,12 +430,12 @@ impl Crucible {
                 _ => {}
             },
             ToEvolving(seed) => {
-                let evolution = Evolution::new(seed);
+                let evolution = Evolution::with_seed(seed);
 
-                context.replace_fabric(evolution.fabric.clone());
+                context.replace_fabric(evolution.visible_fabric.clone());
 
                 // Initialize the physics for evolution
-                evolution.adopt_physica(&mut context);
+                evolution.adopt_physics(&mut context);
 
                 context.transition_to(Evolving(evolution));
             }
