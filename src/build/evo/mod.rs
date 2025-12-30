@@ -1,2 +1,10 @@
+pub mod cell;
+pub mod decision_maker;
 pub mod evolution;
-mod evolving_push;
+pub mod fitness;
+pub mod genome;
+pub mod grower;
+pub mod population;
+
+#[cfg(test)]
+mod tests;
