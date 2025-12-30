@@ -1,6 +1,6 @@
 use crate::build::evo::fitness::FitnessEvaluator;
 use crate::build::evo::grower::{GrowthConfig, Grower};
-use crate::build::evo::population::Population;
+use crate::build::evo::population::{MutationType, Population};
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::SETTLING;
 use crate::fabric::physics::{Physics, Surface, SurfaceCharacter};
@@ -73,14 +73,14 @@ pub struct Evolution {
     current_fabric: Option<Fabric>,
     current_push_count: usize,
     current_parent_mutations: usize,
+    current_parent_log: Vec<(MutationType, f32)>,
+    current_mutation: MutationType,
     settling_physics: Physics,
     pub fabric: Fabric,
     evaluations: usize,
     grower: Grower,
     viewing_mode: ViewingMode,
-    /// High-water mark, NEVER decreases
     max_fitness_ever: f32,
-    /// High-water mark, NEVER decreases
     max_height_ever: f32,
 }
 
@@ -111,6 +111,8 @@ impl Evolution {
             current_fabric: None,
             current_push_count: 0,
             current_parent_mutations: 0,
+            current_parent_log: Vec::new(),
+            current_mutation: MutationType::Seed,
             settling_physics,
             fabric: Fabric::new(format!("Evo-{}", seed)),
             evaluations: 0,
@@ -253,26 +255,17 @@ impl Evolution {
         };
     }
 
-    /// Add variations of the seed to the population.
+    /// Fill population with clones of the settled seed.
+    /// All diversity comes from evolution, not seeding.
     fn seed_population(&mut self) {
         if self.population.is_full() {
             self.state = EvolutionState::Evolving;
             return;
         }
 
-        // Clone the settled seed and apply a random mutation to create variation
+        // Clone the settled seed as-is (no mutations - let evolution create diversity)
         if let Some(ref seed_fabric) = self.current_fabric {
-            let mut fabric = seed_fabric.clone();
-
-            // Apply a random mutation to create diversity
-            let mutation_type = self.rng.random_range(0..4);
-            match mutation_type {
-                0 => { self.grower.shorten_random_pull(&mut fabric); }
-                1 => { self.grower.lengthen_random_pull(&mut fabric); }
-                2 => { self.grower.add_more_connections(&mut fabric); }
-                _ => { /* keep as-is for some baseline diversity */ }
-            }
-
+            let fabric = seed_fabric.clone();
             let details = self.evaluator.evaluate_detailed(&fabric, self.current_push_count);
             self.population.add_initial(fabric, details.fitness, details.height, self.current_push_count);
             self.evaluations += 1;
@@ -315,74 +308,84 @@ impl Evolution {
     fn evaluate_current(&mut self) {
         if let Some(fabric) = self.current_fabric.take() {
             let details = self.evaluator.evaluate_detailed(&fabric, self.current_push_count);
-            self.population.try_insert(fabric, details.fitness, details.height, self.current_push_count, self.current_parent_mutations);
+            let parent_log = self.current_parent_log.clone();
+            let mutation = self.current_mutation.clone();
+
+            // Try to insert into population
+            self.population.try_insert(
+                fabric, details.fitness, details.height, self.current_push_count,
+                self.current_parent_mutations, parent_log, mutation,
+            );
             self.population.next_generation();
             self.evaluations += 1;
         }
         self.state = EvolutionState::Evolving;
     }
 
-    /// Main evolution step: select parent, mutate, settle, evaluate.
+    /// Main evolution step: pick parent from population, mutate, settle, evaluate.
     fn evolution_step(&mut self) {
-        // Pick a parent
-        let (parent_fabric, parent_push_count, parent_mutations) = match self.population.pick_random() {
-            Some(ind) => (ind.fabric.clone(), ind.push_count, ind.mutations),
-            None => return,
-        };
+        // Pick a random parent from the population
+        let (mut offspring, parent_push_count, parent_mutations, parent_log) =
+            match self.population.pick_random() {
+                Some(ind) => (ind.fabric.clone(), ind.push_count, ind.mutations, ind.mutation_log.clone()),
+                None => return,
+            };
+
         self.current_parent_mutations = parent_mutations;
-
-        let mut offspring = parent_fabric;
-        let mut new_push_count = parent_push_count;
-
+        self.current_parent_log = parent_log;
         // Check if parent has height
         let height = self.evaluator.evaluate_detailed(&offspring, parent_push_count).height;
 
-        if height < 0.1 {
+        // Apply mutation based on structure state
+        let new_push_count = if height < 0.1 {
             // Structure is flat - try removing a pull to let it unfold
-            if !self.grower.remove_random_pull(&mut offspring) {
-                // If can't remove, try adding connections
-                self.grower.add_more_connections(&mut offspring);
-            }
-        } else {
-            // Structure has height - choose mutation type randomly
-            let mutation_choice = self.rng.random_range(0.0..1.0);
-
-            if mutation_choice < 0.20 {
-                // 20% chance: shorten a random pull (tighten, might increase height)
-                self.grower.shorten_random_pull(&mut offspring);
-            } else if mutation_choice < 0.40 {
-                // 20% chance: lengthen a random pull (loosen, explore new shapes)
-                self.grower.lengthen_random_pull(&mut offspring);
-            } else if mutation_choice < 0.60 {
-                // 20% chance: remove a random pull (reduce cost, might unfold)
-                self.grower.remove_random_pull(&mut offspring);
+            let mutation = if self.grower.remove_random_pull(&mut offspring) {
+                MutationType::FlatRemovePull
             } else {
-                // 40% chance: add a new push
-                new_push_count = self.grower.mutate(&mut offspring, parent_push_count);
+                self.grower.add_more_connections(&mut offspring);
+                MutationType::FlatAddConnections
+            };
+            self.current_mutation = mutation;
+
+            // Lift flat structures and add large perturbations to help them snap open
+            let lift_altitude = 0.2;
+            let translation = offspring.centralize_translation(Some(lift_altitude));
+            offspring.apply_translation(translation);
+
+            let perturbation_size = 0.05; // 5cm random nudges for flat structures
+            for joint in offspring.joints.values_mut() {
+                joint.location.x += self.rng.random_range(-perturbation_size..perturbation_size);
+                joint.location.y += self.rng.random_range(-perturbation_size..perturbation_size);
+                joint.location.z += self.rng.random_range(-perturbation_size..perturbation_size);
             }
-        }
+            offspring.zero_velocities();
 
-        // Lift structure slightly and add random perturbations to help flat structures snap open
-        let lift_altitude = 0.2;
-        let translation = offspring.centralize_translation(Some(lift_altitude));
-        offspring.apply_translation(translation);
+            parent_push_count
+        } else {
+            // Structure has height - apply weighted random mutation
+            let (count, mutation) = self.grower.apply_random_mutation(&mut offspring, parent_push_count);
+            self.current_mutation = mutation.clone();
 
-        // Add small random perturbations to each joint
-        let perturbation_size = 0.05; // 5cm random nudges
-        for joint in offspring.joints.values_mut() {
-            joint.location.x += self.rng.random_range(-perturbation_size..perturbation_size);
-            joint.location.y += self.rng.random_range(-perturbation_size..perturbation_size);
-            joint.location.z += self.rng.random_range(-perturbation_size..perturbation_size);
-        }
+            // Lift structure slightly so frozen joints unstick from floor
+            let lift_altitude = 0.1; // 10cm above floor
+            let translation = offspring.centralize_translation(Some(lift_altitude));
+            offspring.apply_translation(translation);
+            offspring.zero_velocities();
 
-        // Zero velocities so it falls fresh
-        offspring.zero_velocities();
+            count
+        };
 
         self.current_fabric = Some(offspring);
         self.current_push_count = new_push_count;
 
-        // Start settling the mutation
-        let iterations = (self.config.mutation_settle_seconds / ITERATION_DURATION.secs) as usize;
+        // Settling times: long enough to see physics settle completely
+        let settle_seconds = match &self.current_mutation {
+            MutationType::ShortenPull | MutationType::LengthenPull => 4.0, // Fine-tuning mutations
+            MutationType::AddPush | MutationType::RemovePull => 6.0,       // Structural changes need more
+            _ => self.config.mutation_settle_seconds,                       // Flat structures
+        };
+
+        let iterations = (settle_seconds / ITERATION_DURATION.secs) as usize;
         self.state = EvolutionState::Settling {
             remaining_iterations: iterations,
         };

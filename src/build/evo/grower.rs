@@ -8,35 +8,56 @@ use rand::Rng;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
+/// Relative weights for each mutation type.
+#[derive(Clone, Debug)]
+pub struct MutationWeights {
+    pub shorten_pull: f32,
+    pub lengthen_pull: f32,
+    pub remove_pull: f32,
+    pub add_push: f32,
+}
+
+impl Default for MutationWeights {
+    fn default() -> Self {
+        Self {
+            shorten_pull: 35.0,  // Fine-tuning: tighten
+            lengthen_pull: 35.0, // Fine-tuning: loosen
+            remove_pull: 10.0,   // Reduce complexity
+            add_push: 20.0,      // Add structure
+        }
+    }
+}
+
+impl MutationWeights {
+    fn total(&self) -> f32 {
+        self.shorten_pull + self.lengthen_pull + self.remove_pull + self.add_push
+    }
+}
+
 /// Configuration for structure growth.
 #[derive(Clone, Debug)]
 pub struct GrowthConfig {
-    /// Length of push intervals
     pub push_length: Meters,
-    /// Maximum pull length as ratio of push length
     pub max_pull_ratio: f32,
-    /// Target pull length as ratio of current distance (< 1.0 means pulls will contract)
     pub pull_target_ratio: f32,
-    /// Duration for pulls to approach their target length
     pub pull_approach_seconds: Seconds,
-    /// Seconds of fabric time to settle initial seed
     pub seed_settle_seconds: f32,
-    /// Seconds of fabric time to settle after each mutation
     pub mutation_settle_seconds: f32,
-    /// Number of push intervals in initial seed
     pub seed_push_count: usize,
+    pub mutation_weights: MutationWeights,
 }
 
 impl Default for GrowthConfig {
     fn default() -> Self {
         Self {
             push_length: Meters(1.0),
-            max_pull_ratio: 3.0, // Allow longer pulls to connect falling structures
-            pull_target_ratio: 0.7, // Pulls contract to 70% of initial distance
-            pull_approach_seconds: Seconds(1.0), // 1 second to reach target
+            max_pull_ratio: 3.0,
+            pull_target_ratio: 0.7,
+            pull_approach_seconds: Seconds(1.0),
             seed_settle_seconds: 5.0,
             mutation_settle_seconds: 2.0,
             seed_push_count: 3,
+            mutation_weights: MutationWeights::default(),
         }
     }
 }
@@ -94,8 +115,8 @@ impl Grower {
         (fabric, self.config.seed_push_count)
     }
 
-    /// Mutate a fabric by adding one push interval near the current height.
-    /// The new push's midpoint is placed near the top of the structure to encourage building higher.
+    /// Mutate a fabric by adding one push interval above the current height.
+    /// The new push falls and pulls on the structure, potentially lifting flat structures.
     /// Returns the new push count.
     pub fn mutate(&mut self, fabric: &mut Fabric, current_push_count: usize) -> usize {
         let push_length = self.config.push_length.f32();
@@ -109,13 +130,12 @@ impl Grower {
         // Find the bounds of the structure
         let (min_pos, max_pos) = self.find_bounds(fabric);
 
-        // Place new push with midpoint near the current max height
-        // This encourages structures to build higher rather than wider
-        let height_variation = push_length * 0.3; // Small variation around max height
-        let target_y = max_pos.y + self.rng.random_range(-height_variation..height_variation);
+        // Place new push just above the structure (20cm above top)
+        let above_height = 0.2;
+        let target_y = max_pos.y + above_height;
         let new_center = Vec3::new(
             self.rng.random_range(min_pos.x..max_pos.x),
-            target_y.max(0.1), // Stay above ground
+            target_y,
             self.rng.random_range(min_pos.z..max_pos.z),
         );
 
@@ -131,6 +151,40 @@ impl Grower {
         self.connect_new_push(fabric, new_alpha, new_omega, &joints);
 
         current_push_count + 1
+    }
+
+    /// Apply a random mutation and return (new_push_count, mutation_type).
+    pub fn apply_random_mutation(
+        &mut self,
+        fabric: &mut Fabric,
+        current_push_count: usize,
+    ) -> (usize, crate::build::evo::population::MutationType) {
+        use crate::build::evo::population::MutationType;
+
+        let weights = &self.config.mutation_weights;
+        let total = weights.total();
+        let roll = self.rng.random_range(0.0..total);
+
+        let mut threshold = weights.shorten_pull;
+        if roll < threshold {
+            self.shorten_random_pull(fabric);
+            return (current_push_count, MutationType::ShortenPull);
+        }
+
+        threshold += weights.lengthen_pull;
+        if roll < threshold {
+            self.lengthen_random_pull(fabric);
+            return (current_push_count, MutationType::LengthenPull);
+        }
+
+        threshold += weights.remove_pull;
+        if roll < threshold {
+            self.remove_random_pull(fabric);
+            return (current_push_count, MutationType::RemovePull);
+        }
+
+        let new_count = self.mutate(fabric, current_push_count);
+        (new_count, MutationType::AddPush)
     }
 
     /// Get all pull interval keys from the fabric.
