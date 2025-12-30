@@ -5,6 +5,7 @@ use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::SETTLING;
 use crate::fabric::physics::{Physics, Surface, SurfaceCharacter};
 use crate::fabric::Fabric;
+use crate::{LabEvent, StateChange};
 use rand::Rng;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
@@ -27,11 +28,11 @@ pub struct EvolutionConfig {
 impl Default for EvolutionConfig {
     fn default() -> Self {
         Self {
-            population_size: 100,
+            population_size: 20,  // Larger population for more diversity
             seed_push_count: 3,
-            seed_settle_seconds: 5.0,
-            mutation_settle_seconds: 2.0,
-            push_length: 1.0,
+            seed_settle_seconds: 1.5,   // Faster settling
+            mutation_settle_seconds: 2.5, // Time to fall and settle
+            push_length: 3.0,  // Longer pushes look less thick visually
         }
     }
 }
@@ -79,6 +80,8 @@ pub struct Evolution {
     current_fabric: Option<Fabric>,
     /// Push count of current fabric
     current_push_count: usize,
+    /// Mutation count of current fabric's parent
+    current_parent_mutations: usize,
     /// Physics for settling (with gravity)
     settling_physics: Physics,
     /// The visible fabric
@@ -89,8 +92,10 @@ pub struct Evolution {
     grower: Grower,
     /// Current viewing mode
     viewing_mode: ViewingMode,
-    /// Best fitness seen (for detecting new best)
-    best_fitness_seen: f32,
+    /// Maximum fitness ever seen (high-water mark, NEVER decreases)
+    max_fitness_ever: f32,
+    /// Maximum height ever seen (high-water mark, NEVER decreases)
+    max_height_ever: f32,
 }
 
 impl Evolution {
@@ -106,9 +111,9 @@ impl Evolution {
             ..Default::default()
         };
 
-        // Use settling physics with bouncy surface for gravity
+        // Use settling physics with frozen surface so joints stick when they land
         let mut settling_physics = SETTLING.clone();
-        settling_physics.surface = Some(Surface::new(SurfaceCharacter::Bouncy, 1.0));
+        settling_physics.surface = Some(Surface::new(SurfaceCharacter::Frozen, 1.0));
 
         Self {
             rng: ChaCha8Rng::seed_from_u64(seed.wrapping_add(1)),
@@ -119,12 +124,14 @@ impl Evolution {
             state: EvolutionState::CreatingSeed,
             current_fabric: None,
             current_push_count: 0,
+            current_parent_mutations: 0,
             settling_physics,
             fabric: Fabric::new(format!("Evo-{}", seed)),
             evaluations: 0,
             grower: Grower::new(seed.wrapping_add(2), growth_config),
             viewing_mode: ViewingMode::Watch,
-            best_fitness_seen: 0.0,
+            max_fitness_ever: 0.0,
+            max_height_ever: 0.0,
         }
     }
 
@@ -139,10 +146,10 @@ impl Evolution {
     }
 
     /// Main iteration loop - called each frame.
-    /// Behavior depends on viewing mode.
-    pub fn iterate(&mut self, context: &mut CrucibleContext) {
-        // Always run exactly one step per frame - time budgeting happens inside settle_step
-        self.step();
+    /// iterations_per_frame controls physics speed (from time_scale).
+    pub fn iterate(&mut self, context: &mut CrucibleContext, iterations_per_frame: usize) {
+        // Run step with the given iteration budget
+        self.step(iterations_per_frame);
 
         // Update visible fabric
         match self.viewing_mode {
@@ -157,9 +164,6 @@ impl Evolution {
             ViewingMode::Fast => {
                 // Always show best current structure
                 if let Some(best) = self.population.best_current() {
-                    if best.fitness > self.best_fitness_seen {
-                        self.best_fitness_seen = best.fitness;
-                    }
                     self.fabric = best.fabric.clone();
                 }
             }
@@ -170,6 +174,44 @@ impl Evolution {
 
         // Update context fabric
         *context.fabric = self.fabric.clone();
+
+        // Calculate current population stats using CACHED values (no recalculation!)
+        let mut current_max_fitness = 0.0f32;
+        let mut current_max_height = 0.0f32;
+        let mut total_fitness = 0.0f32;
+        let mut total_height = 0.0f32;
+        let count = self.population.pool().len() as f32;
+
+        for ind in self.population.pool() {
+            // Use cached values - no expensive recalculation
+            current_max_fitness = current_max_fitness.max(ind.fitness);
+            current_max_height = current_max_height.max(ind.height);
+            total_fitness += ind.fitness;
+            total_height += ind.height;
+        }
+
+        // Update high-water marks (NEVER decrease)
+        self.max_fitness_ever = self.max_fitness_ever.max(current_max_fitness);
+        self.max_height_ever = self.max_height_ever.max(current_max_height);
+
+        let avg_fitness = if count > 0.0 { total_fitness / count } else { 0.0 };
+        let avg_height = if count > 0.0 { total_height / count } else { 0.0 };
+
+        // Get mutation count of the displayed fabric
+        let displayed_mutations = match self.viewing_mode {
+            ViewingMode::Watch => self.current_parent_mutations + 1, // Current offspring
+            ViewingMode::Fast => self.population.best_current()
+                .map(|ind| ind.mutations)
+                .unwrap_or(0),
+        };
+
+        let label = format!(
+            "Mut:{} | Fit:{:.5}({:.5}) | Ht:{:.5}({:.5})m",
+            displayed_mutations,
+            self.max_fitness_ever, avg_fitness,
+            self.max_height_ever, avg_height
+        );
+        let _ = context.radio.send_event(LabEvent::UpdateState(StateChange::SetStageLabel(label)));
     }
 
     /// Toggle between Watch and Fast viewing modes.
@@ -186,7 +228,7 @@ impl Evolution {
     }
 
     /// Single evolution step.
-    fn step(&mut self) {
+    fn step(&mut self, iterations_per_frame: usize) {
         match self.state.clone() {
             EvolutionState::CreatingSeed => {
                 self.create_seed();
@@ -195,7 +237,7 @@ impl Evolution {
                 self.seed_population();
             }
             EvolutionState::Settling { remaining_iterations } => {
-                self.settle_step(remaining_iterations);
+                self.settle_step(remaining_iterations, iterations_per_frame);
             }
             EvolutionState::Evaluating => {
                 self.evaluate_current();
@@ -229,16 +271,21 @@ impl Evolution {
         // Clone the settled seed and add to population (no additional settling)
         if let Some(ref seed_fabric) = self.current_fabric {
             let fabric = seed_fabric.clone();
-            let fitness = self.evaluator.evaluate(&fabric, self.current_push_count);
-            self.population.add_initial(fabric, fitness, self.current_push_count);
+            let details = self.evaluator.evaluate_detailed(&fabric, self.current_push_count);
+            self.population.add_initial(fabric, details.fitness, details.height, self.current_push_count);
             self.evaluations += 1;
         }
     }
 
-    /// Perform settling iterations with time budget.
-    fn settle_step(&mut self, remaining: usize) {
+    /// Perform settling iterations based on time_scale (iterations_per_frame).
+    fn settle_step(&mut self, remaining: usize, iterations_per_frame: usize) {
         if remaining == 0 {
-            // Done settling
+            // Done settling - centralize the fabric so it stays in view
+            if let Some(ref mut fabric) = self.current_fabric {
+                let translation = fabric.centralize_translation(None);
+                fabric.apply_translation(translation);
+            }
+            // Transition to next state
             if self.population.is_full() {
                 self.state = EvolutionState::Evaluating;
             } else {
@@ -247,41 +294,26 @@ impl Evolution {
             return;
         }
 
-        // Time budget per frame to stay responsive
-        // Watch: slower so we can see physics
-        // Fast: faster but still responsive
-        let max_millis = match self.viewing_mode {
-            ViewingMode::Watch => 1.0,  // 1ms for physics
-            ViewingMode::Fast => 5.0,   // 5ms for physics
-        };
-
-        let start = std::time::Instant::now();
-        let mut done = 0;
+        // Use iterations_per_frame from time_scale, but cap to stay responsive
+        // Max 5000 iterations per frame to keep UI smooth while allowing faster settling
+        let batch = iterations_per_frame.min(5000).min(remaining);
 
         if let Some(ref mut fabric) = self.current_fabric {
-            while done < remaining {
+            for _ in 0..batch {
                 fabric.iterate(&self.settling_physics);
-                done += 1;
-
-                // Check time every 100 iterations to reduce overhead
-                if done % 100 == 0 {
-                    if start.elapsed().as_secs_f64() * 1000.0 > max_millis {
-                        break;
-                    }
-                }
             }
         }
 
         self.state = EvolutionState::Settling {
-            remaining_iterations: remaining - done,
+            remaining_iterations: remaining - batch,
         };
     }
 
     /// Evaluate current fabric and insert into population.
     fn evaluate_current(&mut self) {
         if let Some(fabric) = self.current_fabric.take() {
-            let fitness = self.evaluator.evaluate(&fabric, self.current_push_count);
-            self.population.try_insert(fabric, fitness, self.current_push_count);
+            let details = self.evaluator.evaluate_detailed(&fabric, self.current_push_count);
+            self.population.try_insert(fabric, details.fitness, details.height, self.current_push_count, self.current_parent_mutations);
             self.population.next_generation();
             self.evaluations += 1;
         }
@@ -291,10 +323,11 @@ impl Evolution {
     /// Main evolution step: select parent, mutate, settle, evaluate.
     fn evolution_step(&mut self) {
         // Pick a parent
-        let (parent_fabric, parent_push_count) = match self.population.pick_random() {
-            Some(ind) => (ind.fabric.clone(), ind.push_count),
+        let (parent_fabric, parent_push_count, parent_mutations) = match self.population.pick_random() {
+            Some(ind) => (ind.fabric.clone(), ind.push_count, ind.mutations),
             None => return,
         };
+        self.current_parent_mutations = parent_mutations;
 
         let mut offspring = parent_fabric;
         let mut new_push_count = parent_push_count;
@@ -303,21 +336,45 @@ impl Evolution {
         let height = self.evaluator.evaluate_detailed(&offspring, parent_push_count).height;
 
         if height < 0.1 {
-            // Structure is flat - try to add more connections instead of new push
-            self.grower.add_more_connections(&mut offspring);
-            // Keep same push count since we only added pulls
+            // Structure is flat - try removing a pull to let it unfold
+            if !self.grower.remove_random_pull(&mut offspring) {
+                // If can't remove, try adding connections
+                self.grower.add_more_connections(&mut offspring);
+            }
         } else {
             // Structure has height - choose mutation type randomly
             let mutation_choice = self.rng.random_range(0.0..1.0);
 
-            if mutation_choice < 0.4 {
-                // 40% chance: shorten a random pull (can increase height)
+            if mutation_choice < 0.20 {
+                // 20% chance: shorten a random pull (tighten, might increase height)
                 self.grower.shorten_random_pull(&mut offspring);
+            } else if mutation_choice < 0.40 {
+                // 20% chance: lengthen a random pull (loosen, explore new shapes)
+                self.grower.lengthen_random_pull(&mut offspring);
+            } else if mutation_choice < 0.60 {
+                // 20% chance: remove a random pull (reduce cost, might unfold)
+                self.grower.remove_random_pull(&mut offspring);
             } else {
-                // 60% chance: add a new push
+                // 40% chance: add a new push
                 new_push_count = self.grower.mutate(&mut offspring, parent_push_count);
             }
         }
+
+        // Lift structure slightly and add random perturbations to help flat structures snap open
+        let lift_altitude = 0.2;
+        let translation = offspring.centralize_translation(Some(lift_altitude));
+        offspring.apply_translation(translation);
+
+        // Add small random perturbations to each joint
+        let perturbation_size = 0.05; // 5cm random nudges
+        for joint in offspring.joints.values_mut() {
+            joint.location.x += self.rng.random_range(-perturbation_size..perturbation_size);
+            joint.location.y += self.rng.random_range(-perturbation_size..perturbation_size);
+            joint.location.z += self.rng.random_range(-perturbation_size..perturbation_size);
+        }
+
+        // Zero velocities so it falls fresh
+        offspring.zero_velocities();
 
         self.current_fabric = Some(offspring);
         self.current_push_count = new_push_count;

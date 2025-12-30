@@ -65,8 +65,8 @@ impl Grower {
         let push_length = self.config.push_length.f32();
         let mut push_joints: Vec<(JointKey, JointKey)> = Vec::new();
 
-        // Starting elevation - high enough to fall and settle
-        let base_height = push_length * 2.0;
+        // Starting elevation - enough room to form before hitting ground
+        let base_height = push_length * 1.0;
 
         // Create N push intervals with random orientations around a central point
         for _ in 0..self.config.seed_push_count {
@@ -76,7 +76,7 @@ impl Grower {
             let spread = push_length * 0.3;
             let center = Vec3::new(
                 self.rng.random_range(-spread..spread),
-                base_height + self.rng.random_range(0.0..push_length),
+                base_height + self.rng.random_range(0.0..push_length * 0.5),
                 self.rng.random_range(-spread..spread),
             );
 
@@ -93,9 +93,9 @@ impl Grower {
         (fabric, self.config.seed_push_count)
     }
 
-    /// Mutate a fabric by adding one push interval that falls from above.
-    /// The new push starts above the highest point of the structure and connects
-    /// to nearby joints as it settles.
+    /// Mutate a fabric by adding one push interval randomly within the structure.
+    /// The new push appears somewhere inside the bounding box and connects
+    /// to nearby less-connected joints.
     /// Returns the new push count.
     pub fn mutate(&mut self, fabric: &mut Fabric, current_push_count: usize) -> usize {
         let push_length = self.config.push_length.f32();
@@ -106,19 +106,14 @@ impl Grower {
             return current_push_count;
         }
 
-        // Find the highest point and center of the structure
+        // Find the bounds of the structure
         let (min_pos, max_pos) = self.find_bounds(fabric);
-        let center_x = (min_pos.x + max_pos.x) / 2.0;
-        let center_z = (min_pos.z + max_pos.z) / 2.0;
-        let highest_y = max_pos.y;
 
-        // Create new push above the structure
-        // Random horizontal position within the structure's footprint
-        let spread = (max_pos.x - min_pos.x).max(push_length);
+        // Place new push randomly WITHIN the structure bounds (not above)
         let new_center = Vec3::new(
-            center_x + self.rng.random_range(-spread * 0.5..spread * 0.5),
-            highest_y + push_length, // Start 1 push length above so pulls can reach
-            center_z + self.rng.random_range(-spread * 0.5..spread * 0.5),
+            self.rng.random_range(min_pos.x..max_pos.x),
+            self.rng.random_range(min_pos.y.max(0.1)..max_pos.y), // Stay above ground
+            self.rng.random_range(min_pos.z..max_pos.z),
         );
 
         // Random direction for the push
@@ -129,7 +124,7 @@ impl Grower {
         fabric.create_slack_interval(new_alpha, new_omega, Role::Pushing);
 
         // Connect new push endpoints to nearby existing joints
-        // They will be pulled down toward the structure
+        // Favor less-connected joints
         self.connect_new_push(fabric, new_alpha, new_omega, &joints);
 
         current_push_count + 1
@@ -165,8 +160,8 @@ impl Grower {
         // Get current ideal length and shorten it
         if let Some(interval) = fabric.intervals.get(pull_key) {
             let current_ideal = interval.ideal();
-            // Shorten by 5-15%
-            let shrink_factor = self.rng.random_range(0.85..0.95);
+            // Shorten by 1-3% (small increments for gradual evolution)
+            let shrink_factor = self.rng.random_range(0.97..0.99);
             let new_target = Meters(current_ideal.f32() * shrink_factor);
 
             // Use extend_interval to set new approaching target
@@ -175,6 +170,162 @@ impl Grower {
         }
 
         false
+    }
+
+    /// Mutate by lengthening a random pull interval.
+    /// This can loosen the structure and allow it to expand.
+    /// Returns true if a mutation was applied.
+    pub fn lengthen_random_pull(&mut self, fabric: &mut Fabric) -> bool {
+        use crate::fabric::IntervalKey;
+
+        // Find all pull intervals
+        let pull_keys: Vec<IntervalKey> = fabric
+            .intervals
+            .iter()
+            .filter_map(|(key, interval)| {
+                if interval.role == Role::Pulling {
+                    Some(key)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if pull_keys.is_empty() {
+            return false;
+        }
+
+        // Pick a random pull interval
+        let idx = self.rng.random_range(0..pull_keys.len());
+        let pull_key = pull_keys[idx];
+
+        // Get current ideal length and lengthen it
+        if let Some(interval) = fabric.intervals.get(pull_key) {
+            let current_ideal = interval.ideal();
+            // Lengthen by 1-3% (small increments for gradual evolution)
+            let grow_factor = self.rng.random_range(1.01..1.03);
+            let new_target = Meters(current_ideal.f32() * grow_factor);
+
+            fabric.extend_interval(pull_key, new_target, self.config.pull_approach_seconds);
+            return true;
+        }
+
+        false
+    }
+
+    /// Mutate by removing a random pull interval.
+    /// This reduces complexity and cost, potentially improving fitness.
+    /// Only removes pulls where both joints would still have at least 3 pull connections.
+    /// Returns true if a pull was removed.
+    pub fn remove_random_pull(&mut self, fabric: &mut Fabric) -> bool {
+        use crate::fabric::IntervalKey;
+        use crate::fabric::JointKey;
+        use std::collections::HashMap;
+
+        // Count pull connections per joint
+        let mut pull_counts: HashMap<JointKey, usize> = HashMap::new();
+        for interval in fabric.intervals.values() {
+            if interval.role == Role::Pulling {
+                *pull_counts.entry(interval.alpha_key).or_insert(0) += 1;
+                *pull_counts.entry(interval.omega_key).or_insert(0) += 1;
+            }
+        }
+
+        // Find pulls that are safe to remove (both joints would still have >= 3 pulls)
+        let safe_pull_keys: Vec<IntervalKey> = fabric
+            .intervals
+            .iter()
+            .filter_map(|(key, interval)| {
+                if interval.role == Role::Pulling {
+                    let alpha_count = pull_counts.get(&interval.alpha_key).copied().unwrap_or(0);
+                    let omega_count = pull_counts.get(&interval.omega_key).copied().unwrap_or(0);
+                    // Both joints must have > 3 pulls (so after removal they have >= 3)
+                    if alpha_count > 3 && omega_count > 3 {
+                        Some(key)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // No safe pulls to remove
+        if safe_pull_keys.is_empty() {
+            return false;
+        }
+
+        // Pick a random safe pull interval and remove it
+        let idx = self.rng.random_range(0..safe_pull_keys.len());
+        let pull_key = safe_pull_keys[idx];
+        fabric.intervals.remove(pull_key);
+        true
+    }
+
+    /// Mutate by removing a random push interval and its orphaned joints.
+    /// This simplifies the structure significantly.
+    /// Returns true if a push was removed.
+    pub fn remove_random_push(&mut self, fabric: &mut Fabric) -> bool {
+        use crate::fabric::IntervalKey;
+
+        // Find all push intervals
+        let push_keys: Vec<IntervalKey> = fabric
+            .intervals
+            .iter()
+            .filter_map(|(key, interval)| {
+                if interval.role == Role::Pushing {
+                    Some(key)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Need at least 2 pushes to maintain any structure
+        if push_keys.len() <= 2 {
+            return false;
+        }
+
+        // Pick a random push interval
+        let idx = self.rng.random_range(0..push_keys.len());
+        let push_key = push_keys[idx];
+
+        // Get the joints before removing
+        let (alpha_key, omega_key) = {
+            let interval = fabric.intervals.get(push_key).unwrap();
+            (interval.alpha_key, interval.omega_key)
+        };
+
+        // Remove the push interval
+        fabric.intervals.remove(push_key);
+
+        // Remove any pulls connected to these joints
+        let pulls_to_remove: Vec<IntervalKey> = fabric
+            .intervals
+            .iter()
+            .filter_map(|(key, interval)| {
+                if interval.alpha_key == alpha_key
+                    || interval.omega_key == alpha_key
+                    || interval.alpha_key == omega_key
+                    || interval.omega_key == omega_key
+                {
+                    Some(key)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for key in pulls_to_remove {
+            fabric.intervals.remove(key);
+        }
+
+        // Remove the orphaned joints
+        fabric.joints.remove(alpha_key);
+        fabric.joints.remove(omega_key);
+
+        true
     }
 
     /// Find the bounding box of the fabric.
@@ -291,8 +442,14 @@ impl Grower {
         }
     }
 
-    /// Connect a new push to existing structure using V patterns.
-    /// Each new endpoint connects to BOTH ends of nearby existing pushes.
+    /// Count how many intervals connect to a joint.
+    fn connection_count(&self, fabric: &Fabric, joint: JointKey) -> usize {
+        fabric.intervals.values()
+            .filter(|i| i.alpha_key == joint || i.omega_key == joint)
+            .count()
+    }
+
+    /// Connect a new push to existing structure, favoring less-connected joints.
     fn connect_new_push(
         &mut self,
         fabric: &mut Fabric,
@@ -303,60 +460,47 @@ impl Grower {
         let max_pull_length = self.config.push_length.f32() * self.config.max_pull_ratio;
         let new_alpha_loc = fabric.location(new_alpha);
         let new_omega_loc = fabric.location(new_omega);
-
-        // Find push intervals in the existing structure
-        // A push connects two joints - we want to connect to BOTH ends
-        let push_pairs = self.find_push_pairs(fabric, existing_joints);
-
-        // Sort push pairs by distance to new push center
         let new_center = (new_alpha_loc + new_omega_loc) / 2.0;
-        let mut pairs_by_dist: Vec<_> = push_pairs
+
+        // Score each existing joint: prefer close AND less-connected
+        // Score = distance + connection_count * distance_penalty
+        let distance_penalty = 0.5; // Each connection adds this much "virtual distance"
+
+        let mut scored_joints: Vec<_> = existing_joints
             .iter()
-            .map(|&(a, b)| {
-                let pair_center = (fabric.location(a) + fabric.location(b)) / 2.0;
-                let dist = pair_center.distance(new_center);
-                (a, b, dist)
+            .filter(|&&j| j != new_alpha && j != new_omega)
+            .map(|&j| {
+                let dist = fabric.location(j).distance(new_center);
+                let connections = self.connection_count(fabric, j);
+                let score = dist + connections as f32 * distance_penalty;
+                (j, dist, score)
             })
+            .filter(|(_, dist, _)| *dist <= max_pull_length)
             .collect();
-        pairs_by_dist.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
 
-        // Connect new alpha and omega to BOTH ends of nearest push pairs
-        let max_v_connections = 2; // Connect to 2 existing pushes (4 joints each end)
-        let mut v_connections = 0;
+        // Sort by score (lower is better: closer AND less connected)
+        scored_joints.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
 
-        for (existing_alpha, existing_omega, _dist) in pairs_by_dist {
-            if v_connections >= max_v_connections {
+        // Connect to best-scored joints (up to 6 connections total)
+        let max_connections = 6;
+        let mut connections_made = 0;
+
+        for (existing_joint, _dist, _score) in scored_joints {
+            if connections_made >= max_connections {
                 break;
             }
 
-            // Check if connections are within range
-            let alpha_to_ea = fabric.location(existing_alpha).distance(new_alpha_loc);
-            let alpha_to_eo = fabric.location(existing_omega).distance(new_alpha_loc);
-            let omega_to_ea = fabric.location(existing_alpha).distance(new_omega_loc);
-            let omega_to_eo = fabric.location(existing_omega).distance(new_omega_loc);
+            // Connect both new endpoints to this joint if in range
+            let alpha_dist = fabric.location(existing_joint).distance(new_alpha_loc);
+            let omega_dist = fabric.location(existing_joint).distance(new_omega_loc);
 
-            // Only connect if at least some connections are in range
-            let in_range = alpha_to_ea <= max_pull_length
-                || alpha_to_eo <= max_pull_length
-                || omega_to_ea <= max_pull_length
-                || omega_to_eo <= max_pull_length;
-
-            if in_range {
-                // Connect new_alpha to both ends of existing push (V pattern)
-                if alpha_to_ea <= max_pull_length {
-                    self.force_connect(fabric, new_alpha, existing_alpha);
-                }
-                if alpha_to_eo <= max_pull_length {
-                    self.force_connect(fabric, new_alpha, existing_omega);
-                }
-                // Connect new_omega to both ends of existing push (V pattern)
-                if omega_to_ea <= max_pull_length {
-                    self.force_connect(fabric, new_omega, existing_alpha);
-                }
-                if omega_to_eo <= max_pull_length {
-                    self.force_connect(fabric, new_omega, existing_omega);
-                }
-                v_connections += 1;
+            if alpha_dist <= max_pull_length {
+                self.force_connect(fabric, new_alpha, existing_joint);
+                connections_made += 1;
+            }
+            if omega_dist <= max_pull_length && connections_made < max_connections {
+                self.force_connect(fabric, new_omega, existing_joint);
+                connections_made += 1;
             }
         }
     }

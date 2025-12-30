@@ -225,7 +225,7 @@ impl Crucible {
                 // Create a context for evolution
                 let mut context =
                     CrucibleContext::new(&mut self.fabric, &mut self.physics, &self.radio);
-                evolution.iterate(&mut context);
+                evolution.iterate(&mut context, iterations_per_frame);
 
                 // Apply any stage transition
                 if let Some(new_stage) = context.apply_changes() {
@@ -438,8 +438,12 @@ impl Crucible {
                 evolution.adopt_physics(&mut context);
 
                 // Set UI state
+                StateChange::SetFabricName(format!("Evolution (seed {})", seed)).send(&self.radio);
                 StateChange::SetStageLabel("Evolving (Watch)".to_string()).send(&self.radio);
                 ControlState::Evolving.send(&self.radio);
+
+                // Start at 5x speed for faster evolution
+                LabEvent::SetTimeScale(5.0).send(&self.radio);
 
                 context.transition_to(Evolving(evolution));
             }

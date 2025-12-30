@@ -10,20 +10,38 @@ pub struct Individual {
     pub fabric: Fabric,
     /// Fitness score (higher is better)
     pub fitness: f32,
+    /// Height of the structure (cached to avoid recalculation)
+    pub height: f32,
     /// Number of push intervals (for cost calculation)
     pub push_count: usize,
     /// Generation when this individual was created
     pub generation: usize,
+    /// Number of mutations in this individual's lineage
+    pub mutations: usize,
 }
 
 impl Individual {
     /// Create a new individual from a fabric.
-    pub fn new(fabric: Fabric, fitness: f32, push_count: usize, generation: usize) -> Self {
+    pub fn new(fabric: Fabric, fitness: f32, height: f32, push_count: usize, generation: usize) -> Self {
         Self {
             fabric,
             fitness,
+            height,
             push_count,
             generation,
+            mutations: 0,
+        }
+    }
+
+    /// Create offspring with incremented mutation count.
+    pub fn offspring(fabric: Fabric, fitness: f32, height: f32, push_count: usize, generation: usize, parent_mutations: usize) -> Self {
+        Self {
+            fabric,
+            fitness,
+            height,
+            push_count,
+            generation,
+            mutations: parent_mutations + 1,
         }
     }
 }
@@ -55,21 +73,50 @@ impl Population {
     }
 
     /// Add an initial individual to the population.
-    pub fn add_initial(&mut self, fabric: Fabric, fitness: f32, push_count: usize) {
+    pub fn add_initial(&mut self, fabric: Fabric, fitness: f32, height: f32, push_count: usize) {
         if self.pool.len() < self.capacity {
-            let individual = Individual::new(fabric.clone(), fitness, push_count, 0);
+            let individual = Individual::new(fabric.clone(), fitness, height, push_count, 0);
             self.update_best(&individual);
             self.pool.push(individual);
         }
     }
 
-    /// Pick a random individual as a parent for mutation.
+    /// Pick an individual as a parent for mutation, favoring fitter individuals.
+    /// Uses rank-based selection: best has weight N, worst has weight 1.
+    /// This allows escaping local maxima while still favoring the fittest.
     pub fn pick_random(&mut self) -> Option<&Individual> {
         if self.pool.is_empty() {
             return None;
         }
-        let idx = self.rng.random_range(0..self.pool.len());
-        Some(&self.pool[idx])
+
+        // Get indices sorted by fitness (best first)
+        let mut indices: Vec<usize> = (0..self.pool.len()).collect();
+        indices.sort_by(|&a, &b| {
+            self.pool[b].fitness
+                .partial_cmp(&self.pool[a].fitness)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        // Rank-based weights: best gets N, worst gets 1
+        // Total weight = N + (N-1) + ... + 1 = N*(N+1)/2
+        let n = self.pool.len();
+        let total_weight = n * (n + 1) / 2;
+
+        // Pick a random weight
+        let target = self.rng.random_range(0..total_weight);
+
+        // Find which rank this falls into
+        let mut cumulative = 0;
+        for (rank, &idx) in indices.iter().enumerate() {
+            let weight = n - rank; // Best has weight N, worst has weight 1
+            cumulative += weight;
+            if target < cumulative {
+                return Some(&self.pool[idx]);
+            }
+        }
+
+        // Fallback (shouldn't reach here)
+        Some(&self.pool[indices[0]])
     }
 
     /// Pick a random parent and return a clone of its fabric for mutation.
@@ -88,8 +135,8 @@ impl Population {
     }
 
     /// Try to insert an offspring into the population.
-    pub fn try_insert(&mut self, fabric: Fabric, fitness: f32, push_count: usize) -> bool {
-        let individual = Individual::new(fabric, fitness, push_count, self.generation);
+    pub fn try_insert(&mut self, fabric: Fabric, fitness: f32, height: f32, push_count: usize, parent_mutations: usize) -> bool {
+        let individual = Individual::offspring(fabric, fitness, height, push_count, self.generation, parent_mutations);
 
         // Update best-ever tracking
         self.update_best(&individual);
