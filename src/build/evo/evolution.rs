@@ -63,14 +63,14 @@ pub enum ViewingMode {
 
 /// Main controller for evolutionary tensegrity system.
 pub struct Evolution {
+    /// Master RNG for generating individual seeds
     rng: ChaCha8Rng,
-    #[allow(dead_code)]
-    seed: u64,
     population: Population,
     evaluator: FitnessEvaluator,
     config: EvolutionConfig,
     state: EvolutionState,
     current_fabric: Option<Fabric>,
+    current_seed: u64,
     current_push_count: usize,
     current_parent_mutations: usize,
     current_parent_log: Vec<(MutationType, f32)>,
@@ -85,9 +85,20 @@ pub struct Evolution {
 }
 
 impl Evolution {
-    /// Create a new evolution controller.
-    pub fn new(seed: u64, config: EvolutionConfig) -> Self {
-        let population = Population::new(seed, config.population_size);
+    /// Create a new evolution controller with random seed from system time.
+    pub fn new() -> Self {
+        Self::with_config(EvolutionConfig::default())
+    }
+
+    /// Create with specific configuration.
+    pub fn with_config(config: EvolutionConfig) -> Self {
+        // Generate master seed from system time
+        let master_seed = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos() as u64)
+            .unwrap_or(42);
+
+        let population = Population::new(master_seed, config.population_size);
 
         let growth_config = GrowthConfig {
             push_length: crate::units::Meters(config.push_length),
@@ -102,30 +113,63 @@ impl Evolution {
         settling_physics.surface = Some(Surface::new(SurfaceCharacter::Frozen, 1.0));
 
         Self {
-            rng: ChaCha8Rng::seed_from_u64(seed.wrapping_add(1)),
-            seed,
+            rng: ChaCha8Rng::seed_from_u64(master_seed),
             population,
             evaluator: FitnessEvaluator::new(),
             config,
             state: EvolutionState::CreatingSeed,
             current_fabric: None,
+            current_seed: 0,
             current_push_count: 0,
             current_parent_mutations: 0,
             current_parent_log: Vec::new(),
             current_mutation: MutationType::Seed,
             settling_physics,
-            fabric: Fabric::new(format!("Evo-{}", seed)),
+            fabric: Fabric::new("Evolution".to_string()),
             evaluations: 0,
-            grower: Grower::new(seed.wrapping_add(2), growth_config),
+            grower: Grower::new(master_seed.wrapping_add(1), growth_config),
             viewing_mode: ViewingMode::Watch,
             max_fitness_ever: 0.0,
             max_height_ever: 0.0,
         }
     }
 
-    /// Create with default configuration.
-    pub fn with_seed(seed: u64) -> Self {
-        Self::new(seed, EvolutionConfig::default())
+    /// Create with a specific master seed (for deterministic testing).
+    #[cfg(test)]
+    pub fn with_master_seed(master_seed: u64, config: EvolutionConfig) -> Self {
+        let population = Population::new(master_seed, config.population_size);
+
+        let growth_config = GrowthConfig {
+            push_length: crate::units::Meters(config.push_length),
+            seed_settle_seconds: config.seed_settle_seconds,
+            mutation_settle_seconds: config.mutation_settle_seconds,
+            seed_push_count: config.seed_push_count,
+            ..Default::default()
+        };
+
+        let mut settling_physics = SETTLING.clone();
+        settling_physics.surface = Some(Surface::new(SurfaceCharacter::Frozen, 1.0));
+
+        Self {
+            rng: ChaCha8Rng::seed_from_u64(master_seed),
+            population,
+            evaluator: FitnessEvaluator::new(),
+            config,
+            state: EvolutionState::CreatingSeed,
+            current_fabric: None,
+            current_seed: 0,
+            current_push_count: 0,
+            current_parent_mutations: 0,
+            current_parent_log: Vec::new(),
+            current_mutation: MutationType::Seed,
+            settling_physics,
+            fabric: Fabric::new("Evolution".to_string()),
+            evaluations: 0,
+            grower: Grower::new(master_seed.wrapping_add(1), growth_config),
+            viewing_mode: ViewingMode::Watch,
+            max_fitness_ever: 0.0,
+            max_height_ever: 0.0,
+        }
     }
 
     /// Adopt physics settings for evolution.
@@ -242,11 +286,26 @@ impl Evolution {
         }
     }
 
-    /// Create the initial seed structure.
+    /// Create a new seed structure with a unique random seed.
     fn create_seed(&mut self) {
-        let (fabric, push_count) = self.grower.create_seed();
+        // Generate a unique seed for this individual
+        self.current_seed = self.rng.random();
+
+        // Create a new grower with this seed for deterministic structure
+        let growth_config = GrowthConfig {
+            push_length: crate::units::Meters(self.config.push_length),
+            seed_settle_seconds: self.config.seed_settle_seconds,
+            mutation_settle_seconds: self.config.mutation_settle_seconds,
+            seed_push_count: self.config.seed_push_count,
+            ..Default::default()
+        };
+        let mut grower = Grower::new(self.current_seed, growth_config);
+
+        let (fabric, push_count) = grower.create_seed();
         self.current_fabric = Some(fabric);
         self.current_push_count = push_count;
+        // Store the grower for this individual's future mutations
+        self.grower = grower;
 
         // Start settling
         let iterations = (self.config.seed_settle_seconds / ITERATION_DURATION.secs) as usize;
@@ -255,20 +314,21 @@ impl Evolution {
         };
     }
 
-    /// Fill population with clones of the settled seed.
-    /// All diversity comes from evolution, not seeding.
+    /// Add the settled individual to the population, then create next seed if not full.
     fn seed_population(&mut self) {
-        if self.population.is_full() {
-            self.state = EvolutionState::Evolving;
-            return;
+        // Add the settled individual to population
+        if let Some(fabric) = self.current_fabric.take() {
+            let details = self.evaluator.evaluate_detailed(&fabric, self.current_push_count);
+            self.population.add_initial(self.current_seed, fabric, details.fitness, details.height, self.current_push_count);
+            self.evaluations += 1;
         }
 
-        // Clone the settled seed as-is (no mutations - let evolution create diversity)
-        if let Some(ref seed_fabric) = self.current_fabric {
-            let fabric = seed_fabric.clone();
-            let details = self.evaluator.evaluate_detailed(&fabric, self.current_push_count);
-            self.population.add_initial(fabric, details.fitness, details.height, self.current_push_count);
-            self.evaluations += 1;
+        // Check if population is full
+        if self.population.is_full() {
+            self.state = EvolutionState::Evolving;
+        } else {
+            // Create another unique seed structure
+            self.state = EvolutionState::CreatingSeed;
         }
     }
 
@@ -311,9 +371,9 @@ impl Evolution {
             let parent_log = self.current_parent_log.clone();
             let mutation = self.current_mutation.clone();
 
-            // Try to insert into population
+            // Try to insert into population (offspring inherits parent's seed)
             self.population.try_insert(
-                fabric, details.fitness, details.height, self.current_push_count,
+                self.current_seed, fabric, details.fitness, details.height, self.current_push_count,
                 self.current_parent_mutations, parent_log, mutation,
             );
             self.population.next_generation();
@@ -325,12 +385,13 @@ impl Evolution {
     /// Main evolution step: pick parent from population, mutate, settle, evaluate.
     fn evolution_step(&mut self) {
         // Pick a random parent from the population
-        let (mut offspring, parent_push_count, parent_mutations, parent_log) =
+        let (parent_seed, mut offspring, parent_push_count, parent_mutations, parent_log) =
             match self.population.pick_random() {
-                Some(ind) => (ind.fabric.clone(), ind.push_count, ind.mutations, ind.mutation_log.clone()),
+                Some(ind) => (ind.seed, ind.fabric.clone(), ind.push_count, ind.mutations, ind.mutation_log.clone()),
                 None => return,
             };
 
+        self.current_seed = parent_seed;  // Offspring inherits parent's seed
         self.current_parent_mutations = parent_mutations;
         self.current_parent_log = parent_log;
         // Check if parent has height

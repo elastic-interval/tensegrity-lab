@@ -32,6 +32,8 @@ impl std::fmt::Display for MutationType {
 /// An individual in the population - stores actual fabric state.
 #[derive(Clone)]
 pub struct Individual {
+    /// Seed for deterministic replay of this individual's history
+    pub seed: u64,
     pub fabric: Fabric,
     pub fitness: f32,
     pub height: f32,
@@ -43,8 +45,9 @@ pub struct Individual {
 }
 
 impl Individual {
-    pub fn new(fabric: Fabric, fitness: f32, height: f32, push_count: usize, generation: usize) -> Self {
+    pub fn new(seed: u64, fabric: Fabric, fitness: f32, height: f32, push_count: usize, generation: usize) -> Self {
         Self {
+            seed,
             fabric,
             fitness,
             height,
@@ -56,6 +59,7 @@ impl Individual {
     }
 
     pub fn offspring(
+        seed: u64,
         fabric: Fabric,
         fitness: f32,
         height: f32,
@@ -68,6 +72,7 @@ impl Individual {
         let mut log = parent_log;
         log.push((mutation, fitness));
         Self {
+            seed,
             fabric,
             fitness,
             height,
@@ -115,9 +120,9 @@ impl Population {
     }
 
     /// Add an initial individual to the population.
-    pub fn add_initial(&mut self, fabric: Fabric, fitness: f32, height: f32, push_count: usize) {
+    pub fn add_initial(&mut self, seed: u64, fabric: Fabric, fitness: f32, height: f32, push_count: usize) {
         if self.pool.len() < self.capacity {
-            let individual = Individual::new(fabric.clone(), fitness, height, push_count, 0);
+            let individual = Individual::new(seed, fabric.clone(), fitness, height, push_count, 0);
             self.update_best(&individual);
             self.pool.push(individual);
         }
@@ -152,6 +157,7 @@ impl Population {
     /// Accepts better offspring always, and "close enough" offspring with some probability.
     pub fn try_insert(
         &mut self,
+        seed: u64,
         fabric: Fabric,
         fitness: f32,
         height: f32,
@@ -161,7 +167,7 @@ impl Population {
         mutation: MutationType,
     ) -> bool {
         let individual = Individual::offspring(
-            fabric, fitness, height, push_count, self.generation,
+            seed, fabric, fitness, height, push_count, self.generation,
             parent_mutations, parent_log, mutation,
         );
 

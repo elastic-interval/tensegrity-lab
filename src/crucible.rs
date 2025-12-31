@@ -429,8 +429,8 @@ impl Crucible {
                 }
                 _ => {}
             },
-            ToEvolving(seed) => {
-                let evolution = Evolution::with_seed(seed);
+            ToEvolving => {
+                let evolution = Evolution::new();
 
                 context.replace_fabric(evolution.fabric.clone());
 
@@ -438,7 +438,7 @@ impl Crucible {
                 evolution.adopt_physics(&mut context);
 
                 // Set UI state
-                StateChange::SetFabricName(format!("Evolution (seed {})", seed)).send(&self.radio);
+                StateChange::SetFabricName("Evolution".to_string()).send(&self.radio);
                 StateChange::SetStageLabel("Evolving (Watch)".to_string()).send(&self.radio);
                 ControlState::Evolving.send(&self.radio);
 

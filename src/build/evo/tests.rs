@@ -298,9 +298,9 @@ fn test_population_add_initial() {
     let fabric2 = Fabric::new("test2".to_string());
     let fabric3 = Fabric::new("test3".to_string());
 
-    pop.add_initial(fabric1, 1.0, 0.5, 3);
-    pop.add_initial(fabric2, 2.0, 0.5, 4);
-    pop.add_initial(fabric3, 0.5, 0.5, 2);
+    pop.add_initial(1, fabric1, 1.0, 0.5, 3);
+    pop.add_initial(2, fabric2, 2.0, 0.5, 4);
+    pop.add_initial(3, fabric3, 0.5, 0.5, 2);
 
     assert_eq!(pop.size(), 3);
     assert_eq!(pop.best_current().unwrap().fitness, 2.0);
@@ -311,15 +311,15 @@ fn test_population_add_initial() {
 fn test_population_try_insert_better() {
     let mut pop = Population::new(42, 3);
 
-    pop.add_initial(Fabric::new("a".to_string()), 1.0, 0.5, 3);
-    pop.add_initial(Fabric::new("b".to_string()), 2.0, 0.5, 3);
-    pop.add_initial(Fabric::new("c".to_string()), 0.5, 0.5, 3);
+    pop.add_initial(1, Fabric::new("a".to_string()), 1.0, 0.5, 3);
+    pop.add_initial(2, Fabric::new("b".to_string()), 2.0, 0.5, 3);
+    pop.add_initial(3, Fabric::new("c".to_string()), 0.5, 0.5, 3);
 
     assert!(pop.is_full());
 
     // Insert something better than worst (0.5)
     let inserted = pop.try_insert(
-        Fabric::new("d".to_string()), 1.5, 0.5, 3, 0,
+        4, Fabric::new("d".to_string()), 1.5, 0.5, 3, 0,
         vec![(MutationType::Seed, 0.5)], MutationType::ShortenPull,
     );
     assert!(inserted);
@@ -330,14 +330,14 @@ fn test_population_try_insert_better() {
 fn test_population_try_insert_worse() {
     let mut pop = Population::new(42, 3);
 
-    pop.add_initial(Fabric::new("a".to_string()), 1.0, 0.5, 3);
-    pop.add_initial(Fabric::new("b".to_string()), 2.0, 0.5, 3);
-    pop.add_initial(Fabric::new("c".to_string()), 0.5, 0.5, 3);
+    pop.add_initial(1, Fabric::new("a".to_string()), 1.0, 0.5, 3);
+    pop.add_initial(2, Fabric::new("b".to_string()), 2.0, 0.5, 3);
+    pop.add_initial(3, Fabric::new("c".to_string()), 0.5, 0.5, 3);
 
     // Try to insert something worse than worst (0.5)
     // Note: Has 5% random chance to be accepted, but we use seeded RNG so it's deterministic
     let inserted = pop.try_insert(
-        Fabric::new("d".to_string()), 0.3, 0.5, 3, 0,
+        4, Fabric::new("d".to_string()), 0.3, 0.5, 3, 0,
         vec![(MutationType::Seed, 0.5)], MutationType::ShortenPull,
     );
     // With seed 42, this should not be accepted by random chance
@@ -351,19 +351,19 @@ fn test_population_try_insert_worse() {
 fn test_population_best_ever_tracking() {
     let mut pop = Population::new(42, 3);
 
-    pop.add_initial(Fabric::new("a".to_string()), 1.0, 0.5, 3);
+    pop.add_initial(1, Fabric::new("a".to_string()), 1.0, 0.5, 3);
     assert_eq!(pop.best_ever().unwrap().fitness, 1.0);
 
-    pop.add_initial(Fabric::new("b".to_string()), 3.0, 0.5, 3);
+    pop.add_initial(2, Fabric::new("b".to_string()), 3.0, 0.5, 3);
     assert_eq!(pop.best_ever().unwrap().fitness, 3.0);
 
-    pop.add_initial(Fabric::new("c".to_string()), 2.0, 0.5, 3);
+    pop.add_initial(3, Fabric::new("c".to_string()), 2.0, 0.5, 3);
     // Best ever should still be 3.0
     assert_eq!(pop.best_ever().unwrap().fitness, 3.0);
 
     // Insert a new best
     pop.try_insert(
-        Fabric::new("d".to_string()), 5.0, 0.5, 3, 0,
+        4, Fabric::new("d".to_string()), 5.0, 0.5, 3, 0,
         vec![(MutationType::Seed, 1.0)], MutationType::AddPush,
     );
     assert_eq!(pop.best_ever().unwrap().fitness, 5.0);
@@ -376,9 +376,9 @@ fn test_population_pick_random() {
     // Empty population
     assert!(pop.pick_random().is_none());
 
-    pop.add_initial(Fabric::new("a".to_string()), 1.0, 0.5, 3);
-    pop.add_initial(Fabric::new("b".to_string()), 2.0, 0.5, 3);
-    pop.add_initial(Fabric::new("c".to_string()), 3.0, 0.5, 3);
+    pop.add_initial(1, Fabric::new("a".to_string()), 1.0, 0.5, 3);
+    pop.add_initial(2, Fabric::new("b".to_string()), 2.0, 0.5, 3);
+    pop.add_initial(3, Fabric::new("c".to_string()), 3.0, 0.5, 3);
 
     // Should be able to pick
     for _ in 0..20 {
@@ -390,9 +390,9 @@ fn test_population_pick_random() {
 fn test_population_stats() {
     let mut pop = Population::new(42, 10);
 
-    pop.add_initial(Fabric::new("a".to_string()), 1.0, 0.5, 3);
-    pop.add_initial(Fabric::new("b".to_string()), 2.0, 0.5, 4);
-    pop.add_initial(Fabric::new("c".to_string()), 3.0, 0.5, 5);
+    pop.add_initial(1, Fabric::new("a".to_string()), 1.0, 0.5, 3);
+    pop.add_initial(2, Fabric::new("b".to_string()), 2.0, 0.5, 4);
+    pop.add_initial(3, Fabric::new("c".to_string()), 3.0, 0.5, 5);
 
     let stats = pop.stats();
     assert_eq!(stats.size, 3);
@@ -422,7 +422,7 @@ fn test_evolution_creation() {
         population_size: 5,
         ..Default::default()
     };
-    let evo = Evolution::new(42, config);
+    let evo = Evolution::with_master_seed(42, config);
 
     assert_eq!(*evo.state(), EvolutionState::CreatingSeed);
     assert_eq!(evo.population().size(), 0);
@@ -430,7 +430,7 @@ fn test_evolution_creation() {
 
 #[test]
 fn test_evolution_with_seed() {
-    let evo = Evolution::with_seed(42);
+    let evo = Evolution::with_master_seed(42, EvolutionConfig::default());
     assert_eq!(*evo.state(), EvolutionState::CreatingSeed);
 }
 
@@ -440,7 +440,7 @@ fn test_evolution_stats_initial() {
         population_size: 5,
         ..Default::default()
     };
-    let evo = Evolution::new(42, config);
+    let evo = Evolution::with_master_seed(42, config);
     let stats = evo.stats();
 
     assert_eq!(stats.generation, 0);
@@ -455,7 +455,7 @@ fn test_evolution_step_creates_seed() {
         seed_push_count: 3,
         ..Default::default()
     };
-    let evo = Evolution::new(42, config);
+    let evo = Evolution::with_master_seed(42, config);
 
     // Initially in CreatingSeed state
     assert_eq!(*evo.state(), EvolutionState::CreatingSeed);
@@ -543,16 +543,16 @@ fn test_evolution_seeding_process() {
 
     // Evaluate and add seed
     let seed_details = evaluator.evaluate_detailed(&seed, push_count);
-    pop.add_initial(seed.clone(), seed_details.fitness, seed_details.height, push_count);
+    pop.add_initial(42, seed.clone(), seed_details.fitness, seed_details.height, push_count);
 
     // Fill rest of population with variations
-    for _ in 1..5 {
+    for i in 1..5 {
         let mut variant = seed.clone();
         let new_count = grower.mutate(&mut variant, push_count);
         grower.settle_mutation(&mut variant, &physics);
 
         let details = evaluator.evaluate_detailed(&variant, new_count);
-        pop.add_initial(variant, details.fitness, details.height, new_count);
+        pop.add_initial(42 + i as u64, variant, details.fitness, details.height, new_count);
     }
 
     assert!(pop.is_full());
@@ -581,13 +581,13 @@ fn test_evolution_competitive_insertion() {
     grower.settle_seed(&mut seed, &physics);
 
     // Add initial population with known fitnesses
-    pop.add_initial(seed.clone(), 0.1, 0.5, push_count);
-    pop.add_initial(seed.clone(), 0.2, 0.5, push_count);
-    pop.add_initial(seed.clone(), 0.3, 0.5, push_count);
+    pop.add_initial(1, seed.clone(), 0.1, 0.5, push_count);
+    pop.add_initial(2, seed.clone(), 0.2, 0.5, push_count);
+    pop.add_initial(3, seed.clone(), 0.3, 0.5, push_count);
 
     // Try to insert something better
     let inserted = pop.try_insert(
-        seed.clone(), 0.5, 0.5, push_count, 0,
+        4, seed.clone(), 0.5, 0.5, push_count, 0,
         vec![(MutationType::Seed, 0.1)], MutationType::ShortenPull,
     );
     assert!(inserted);
@@ -596,7 +596,7 @@ fn test_evolution_competitive_insertion() {
     // Try to insert something worse (but has 5% random chance, so we check deterministically fails)
     // Note: this test may occasionally pass due to random acceptance, so we just verify behavior
     let _result = pop.try_insert(
-        seed.clone(), 0.05, 0.5, push_count, 0,
+        5, seed.clone(), 0.05, 0.5, push_count, 0,
         vec![(MutationType::Seed, 0.1)], MutationType::ShortenPull,
     );
 }
@@ -628,15 +628,15 @@ fn test_evolution_determinism() {
 
         // Evaluate seed
         let seed_details = evaluator.evaluate_detailed(&seed_fabric, push_count);
-        pop.add_initial(seed_fabric.clone(), seed_details.fitness, seed_details.height, push_count);
+        pop.add_initial(seed, seed_fabric.clone(), seed_details.fitness, seed_details.height, push_count);
 
         // Fill population with mutations
-        for _ in 1..10 {
+        for i in 1..10 {
             let mut variant = seed_fabric.clone();
             let new_count = grower.mutate(&mut variant, push_count);
             grower.settle_mutation(&mut variant, &physics);
             let details = evaluator.evaluate_detailed(&variant, new_count);
-            pop.add_initial(variant, details.fitness, details.height, new_count);
+            pop.add_initial(seed + i as u64, variant, details.fitness, details.height, new_count);
         }
 
         // Collect all fitnesses for comparison

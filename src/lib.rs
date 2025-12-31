@@ -146,7 +146,7 @@ pub enum RunStyle {
         segments: usize,
     },
     BakeBricks,
-    Evolving(u64),
+    Evolving,
 }
 
 #[derive(Clone)]
@@ -494,7 +494,7 @@ pub enum CrucibleAction {
     ToViewing,
     ToAnimating,
     ToPhysicsTesting,
-    ToEvolving(u64),
+    ToEvolving,
     ToggleEvolutionMode,
     TesterDo(TesterAction),
 }
