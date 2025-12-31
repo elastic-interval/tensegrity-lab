@@ -285,6 +285,9 @@ impl Population {
         let avg_pushes: f32 = self.pool.iter().map(|i| i.push_count as f32).sum::<f32>()
             / self.pool.len() as f32;
 
+        let avg_mutations: f32 = self.pool.iter().map(|i| i.mutations as f32).sum::<f32>()
+            / self.pool.len() as f32;
+
         PopulationStats {
             size: self.pool.len(),
             generation: self.generation,
@@ -293,6 +296,7 @@ impl Population {
             mean_fitness: mean,
             std_dev,
             avg_push_count: avg_pushes,
+            avg_mutations,
         }
     }
 
@@ -345,4 +349,6 @@ pub struct PopulationStats {
     pub std_dev: f32,
     /// Average number of push intervals
     pub avg_push_count: f32,
+    /// Average number of mutations per individual
+    pub avg_mutations: f32,
 }

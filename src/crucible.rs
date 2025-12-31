@@ -2,6 +2,7 @@ use crate::build::animator::Animator;
 use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
 use crate::build::dsl::FabricPlan;
 use crate::build::evo::evolution::Evolution;
+use crate::build::evo::scenario::ScenarioName;
 use crate::build::oven::Oven;
 use crate::crucible::Stage::*;
 use crate::crucible_context::CrucibleContext;
@@ -429,17 +430,24 @@ impl Crucible {
                 }
                 _ => {}
             },
-            ToEvolving => {
-                let evolution = Evolution::new();
+            ToEvolving { scenario_name } => {
+                // Get scenario by name or use default
+                let scenario = match scenario_name.as_deref() {
+                    Some("aggressive") => ScenarioName::Aggressive.scenario(),
+                    Some("conservative") => ScenarioName::Conservative.scenario(),
+                    Some("tall-towers") => ScenarioName::TallTowers.scenario(),
+                    _ => ScenarioName::Default.scenario(),
+                };
+
+                let config = scenario.to_config();
+                let evolution = Evolution::with_config(config);
 
                 context.replace_fabric(evolution.fabric.clone());
 
                 // Initialize the physics for evolution
                 evolution.adopt_physics(&mut context);
 
-                // Set UI state
-                StateChange::SetFabricName("Evolution".to_string()).send(&self.radio);
-                StateChange::SetStageLabel("Evolving (Watch)".to_string()).send(&self.radio);
+                // Set UI state (title is set via DisplayState in Evolution::iterate)
                 ControlState::Evolving.send(&self.radio);
 
                 // Start at 5x speed for faster evolution

@@ -1,11 +1,11 @@
-use crate::build::evo::fitness::FitnessEvaluator;
+use crate::build::evo::fitness::{FitnessDetails, FitnessEvaluator};
 use crate::build::evo::grower::{GrowthConfig, Grower};
 use crate::build::evo::population::{MutationType, Population};
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::SETTLING;
 use crate::fabric::physics::{Physics, Surface, SurfaceCharacter};
 use crate::fabric::Fabric;
-use crate::{LabEvent, StateChange, ITERATION_DURATION};
+use crate::{DisplayState, LabEvent, StateChange, ITERATION_DURATION};
 use rand::Rng;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
@@ -13,6 +13,8 @@ use rand_chacha::ChaCha8Rng;
 /// Configuration for the evolution process.
 #[derive(Clone, Debug)]
 pub struct EvolutionConfig {
+    /// Scenario name for display
+    pub name: String,
     /// Population capacity
     pub population_size: usize,
     /// Number of push intervals in initial seed
@@ -28,6 +30,7 @@ pub struct EvolutionConfig {
 impl Default for EvolutionConfig {
     fn default() -> Self {
         Self {
+            name: "Default".to_string(),
             population_size: 20,  // Larger population for more diversity
             seed_push_count: 3,
             seed_settle_seconds: 1.5,   // Faster settling
@@ -80,6 +83,8 @@ pub struct Evolution {
     evaluations: usize,
     grower: Grower,
     viewing_mode: ViewingMode,
+    /// Cached fitness details for display (computed before fabric swap)
+    cached_fitness: Option<FitnessDetails>,
 }
 
 impl Evolution {
@@ -127,6 +132,7 @@ impl Evolution {
             evaluations: 0,
             grower: Grower::new(master_seed.wrapping_add(1), growth_config),
             viewing_mode: ViewingMode::Watch,
+            cached_fitness: None,
         }
     }
 
@@ -163,6 +169,7 @@ impl Evolution {
             evaluations: 0,
             grower: Grower::new(master_seed.wrapping_add(1), growth_config),
             viewing_mode: ViewingMode::Watch,
+            cached_fitness: None,
         }
     }
 
@@ -183,6 +190,11 @@ impl Evolution {
 
         // Run step with the given iteration budget
         self.step(iterations_per_frame);
+
+        // Cache fitness details BEFORE swap (fixes "no data" bug)
+        if let Some(ref fabric) = self.current_fabric {
+            self.cached_fitness = Some(self.evaluator.evaluate_detailed(fabric, self.current_push_count));
+        }
 
         // Update context fabric for display (swap instead of clone when possible)
         match self.viewing_mode {
@@ -207,15 +219,22 @@ impl Evolution {
         // Update bounding radius for proper surface sizing and camera
         context.fabric.update_bounding_radius();
 
-        // Get mutation count and fitness details for the displayed fabric
-        let (displayed_mutations, details) = match self.viewing_mode {
+        // Send unified display state
+        self.send_display_state(context);
+    }
+
+    /// Send unified display state for evolution mode.
+    fn send_display_state(&self, context: &CrucibleContext) {
+        let pop_stats = self.population.stats();
+
+        // Get fitness details based on viewing mode
+        let (mutations, fitness_details) = match self.viewing_mode {
             ViewingMode::Watch => {
-                let mutations = self.current_parent_mutations + 1;
-                let details = self.current_fabric.as_ref()
-                    .map(|f| self.evaluator.evaluate_detailed(f, self.current_push_count));
-                (mutations, details)
+                // Use cached fitness (computed before swap)
+                (self.current_parent_mutations + 1, self.cached_fitness.clone())
             }
             ViewingMode::Fast => {
+                // Get from best in population
                 self.population.best_current()
                     .map(|ind| {
                         let details = self.evaluator.evaluate_detailed(&ind.fabric, ind.push_count);
@@ -225,11 +244,34 @@ impl Evolution {
             }
         };
 
-        let label = match details {
-            Some(d) => format!("Mut:{} | {}", displayed_mutations, d),
-            None => format!("Mut:{} | (no data)", displayed_mutations),
+        // Build left panel: fitness details + population stats
+        let mut left_details = Vec::new();
+
+        if let Some(ref details) = fitness_details {
+            left_details.push(format!("Fitness: {:.3}", details.fitness));
+            left_details.push(format!("Suspended: {} joints", details.suspended_joints));
+            left_details.push(format!("Height: {:.2}m", details.height));
+            left_details.push(format!("Intervals: {}", details.interval_count));
+            left_details.push(String::new()); // Blank separator
+        }
+
+        left_details.push(format!("Best: {:.3}", pop_stats.max_fitness));
+        left_details.push(format!("Avg: {:.3}", pop_stats.mean_fitness));
+        left_details.push(format!("Avg Mut: {:.1}", pop_stats.avg_mutations));
+
+        let mode_suffix = match self.viewing_mode {
+            ViewingMode::Watch => "",
+            ViewingMode::Fast => " [Fast]",
         };
-        let _ = context.radio.send_event(LabEvent::UpdateState(StateChange::SetStageLabel(label)));
+
+        let display = DisplayState {
+            title: Some(format!("{}{}", self.config.name, mode_suffix)),
+            subtitle: Some(format!("Mutation #{}", mutations)),
+            left_details,
+            right_details: vec![],
+        };
+
+        let _ = context.radio.send_event(LabEvent::UpdateState(StateChange::SetDisplayState(display)));
     }
 
     /// Toggle between Watch and Fast viewing modes.

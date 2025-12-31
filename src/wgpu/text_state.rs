@@ -1,6 +1,6 @@
 use crate::Age;
 use crate::FabricStats;
-use crate::{ControlState, StateChange};
+use crate::{ControlState, DisplayState, StateChange};
 use std::default::Default;
 use wgpu_text::glyph_brush::{
     BuiltInLineBreaker, HorizontalAlign, Layout, OwnedSection, OwnedText, VerticalAlign,
@@ -41,6 +41,8 @@ pub struct TextState {
     frames_per_second: f32,
     age: Age,
     time_scale: f32,
+    /// Unified display state (overrides other fields when set)
+    display_state: Option<DisplayState>,
 }
 
 enum TextInstance {
@@ -78,6 +80,7 @@ impl TextState {
             frames_per_second: 0.0,
             age: Age::default(),
             time_scale: 1.0,
+            display_state: None,
         };
         fresh.update_sections();
         fresh
@@ -123,6 +126,12 @@ impl TextState {
             ShowMovementAnalysis(text) => {
                 self.movement_analysis = text.clone();
             }
+            SetDisplayState(display_state) => {
+                self.display_state = Some(display_state.clone());
+            }
+            ClearDisplayState => {
+                self.display_state = None;
+            }
             _ => {}
         }
         self.update_sections()
@@ -133,9 +142,96 @@ impl TextState {
     }
 
     fn update_sections(&mut self) {
+        // Common sections that always update
+        self.update_common_sections();
+
+        // If display_state is set, use unified display system
+        if let Some(ref display_state) = self.display_state.clone() {
+            self.update_sections_from_display_state(&display_state);
+            return;
+        }
+
+        // Otherwise, use mode-specific display logic
+        self.update_mode_specific_sections();
+    }
+
+    fn update_common_sections(&mut self) {
+        use TextInstance::*;
+
+        // Bottom left: FPS and age (always shown)
+        let bottom_left_text = if (self.time_scale - 1.0).abs() > 0.01 {
+            format!(
+                "{:.0}fps {} ({:.1}×)",
+                self.frames_per_second, self.age, self.time_scale
+            )
+        } else {
+            format!("{:.0}fps {}", self.frames_per_second, self.age)
+        };
+        self.update_section(SectionName::BottomLeft, Normal(bottom_left_text));
+
+        // Bottom: keyboard legend (if not mobile)
+        if !self.mobile_device {
+            self.update_section(
+                SectionName::Bottom,
+                match &self.keyboard_legend {
+                    Some(legend) => Normal(legend.clone()),
+                    None => Nothing,
+                },
+            );
+        }
+
+        // Center section reserved for future use
+        self.update_section(SectionName::Center, Nothing);
+    }
+
+    fn update_sections_from_display_state(&mut self, display_state: &DisplayState) {
+        use TextInstance::*;
+
+        // Title (top center, large)
+        self.update_section(
+            SectionName::Top,
+            match &display_state.title {
+                Some(title) => Large(title.clone()),
+                None => Nothing,
+            },
+        );
+
+        // Subtitle (below title, normal)
+        self.update_section(
+            SectionName::TopSubtitle,
+            match &display_state.subtitle {
+                Some(subtitle) => Normal(subtitle.clone()),
+                None => Nothing,
+            },
+        );
+
+        // Left details (multi-line, normal)
+        self.update_section(
+            SectionName::Left,
+            if display_state.left_details.is_empty() {
+                Nothing
+            } else {
+                Normal(display_state.left_details.join("\n"))
+            },
+        );
+
+        // Right details (multi-line, normal)
+        self.update_section(
+            SectionName::Right,
+            if display_state.right_details.is_empty() {
+                Nothing
+            } else {
+                Normal(display_state.right_details.join("\n"))
+            },
+        );
+    }
+
+    fn update_mode_specific_sections(&mut self) {
         use ControlState::*;
         use TextInstance::*;
         let control_state = &self.control_state.clone();
+
+        // Top: fabric name / title
         if let Some(fabric_name) = &self.fabric_name {
             self.update_section(
                 SectionName::Top,
@@ -148,30 +244,12 @@ impl TextState {
                 },
             );
 
-            // Add state subtitle below title (normal size, not small)
+            // Subtitle below title
             self.update_section(SectionName::TopSubtitle, Normal(self.stage_label.clone()));
         }
 
-        // Show time scale if not 1.0
-        let bottom_left_text = if (self.time_scale - 1.0).abs() > 0.01 {
-            format!(
-                "{:.0}fps {} ({:.1}×)",
-                self.frames_per_second, self.age, self.time_scale
-            )
-        } else {
-            format!("{:.0}fps {}", self.frames_per_second, self.age)
-        };
-
-        self.update_section(SectionName::BottomLeft, Normal(bottom_left_text));
-
+        // Right side
         if !self.mobile_device {
-            self.update_section(
-                SectionName::Bottom,
-                match &self.keyboard_legend {
-                    Some(legend) => Normal(legend.clone()),
-                    None => Nothing,
-                },
-            );
             let scale = self.model_scale.unwrap_or(1.0);
             self.update_section(
                 SectionName::Right,
@@ -196,6 +274,7 @@ impl TextState {
             );
         }
 
+        // Left side: fabric stats
         self.update_section(
             SectionName::Left,
             match &self.fabric_stats {
@@ -251,9 +330,6 @@ impl TextState {
                 }
             },
         );
-
-        // Center section reserved for future use
-        self.update_section(SectionName::Center, Nothing);
     }
 
     fn update_section(&mut self, section_name: SectionName, text_instance: TextInstance) {
