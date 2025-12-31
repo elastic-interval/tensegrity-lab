@@ -79,10 +79,10 @@ impl FabricName {
                 .build(
                     FabricDimensions::default()
                         .with_altitude(M(2.0))
-                        .with_scale(M(0.583)),
+                        .with_scale(M(0.59)),
                 )
                 .seed(SingleTwistLeft, Seed(1))
-                .faces([on(SingleTop).column(2).shrink_by(Pct(25.0))])
+                .faces([on(SingleTop).column(2).shrink_by(Pct(12.0))])
                 .vulcanize(Sec(2.0))
                 .pretense()
                 .surface_frozen()
