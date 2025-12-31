@@ -10,6 +10,9 @@ use rand::Rng;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
+#[cfg(not(target_arch = "wasm32"))]
+use rayon::prelude::*;
+
 /// Configuration for the evolution process.
 #[derive(Clone, Debug)]
 pub struct EvolutionConfig {
@@ -289,7 +292,17 @@ impl Evolution {
 
     /// Single evolution step.
     fn step(&mut self, iterations_per_frame: usize) {
-        // In Fast mode, run multiple complete cycles per frame
+        // In Fast mode with full population, use parallel evolution
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.viewing_mode == ViewingMode::Fast
+            && self.population.is_full()
+            && matches!(self.state, EvolutionState::Evolving)
+        {
+            self.parallel_evolution_step();
+            return;
+        }
+
+        // Sequential mode: run multiple cycles in Fast mode
         let cycles = if self.viewing_mode == ViewingMode::Fast { 5 } else { 1 };
 
         for _ in 0..cycles {
@@ -316,6 +329,154 @@ impl Evolution {
                 self.evolution_step();
             }
         }
+    }
+
+    /// Parallel evolution step - evaluates multiple mutations concurrently.
+    /// Only used in Fast mode on native (not WASM).
+    #[cfg(not(target_arch = "wasm32"))]
+    fn parallel_evolution_step(&mut self) {
+        // Number of parallel evaluations (use available parallelism)
+        let num_parallel = rayon::current_num_threads().min(8);
+
+        // Collect parent info for parallel processing
+        let parents: Vec<_> = (0..num_parallel)
+            .filter_map(|_| {
+                self.population.pick_random().map(|ind| {
+                    (
+                        ind.seed,
+                        ind.fabric.clone(),
+                        ind.push_count,
+                        ind.mutations,
+                        ind.mutation_log.clone(),
+                    )
+                })
+            })
+            .collect();
+
+        if parents.is_empty() {
+            return;
+        }
+
+        // Generate seeds for each parallel task
+        let task_seeds: Vec<u64> = (0..parents.len())
+            .map(|_| self.rng.random())
+            .collect();
+
+        // Clone config for parallel tasks
+        let growth_config = GrowthConfig {
+            push_length: crate::units::Meters(self.config.push_length),
+            seed_settle_seconds: self.config.seed_settle_seconds,
+            mutation_settle_seconds: self.config.mutation_settle_seconds,
+            seed_push_count: self.config.seed_push_count,
+            ..Default::default()
+        };
+        let settling_physics = self.settling_physics.clone();
+        let settle_iterations = (self.config.mutation_settle_seconds / ITERATION_DURATION.secs) as usize;
+
+        // Run mutations in parallel
+        let results: Vec<_> = parents
+            .into_par_iter()
+            .zip(task_seeds.into_par_iter())
+            .map(|((seed, fabric, push_count, mutations, log), task_seed)| {
+                Self::evaluate_mutation_parallel(
+                    seed,
+                    fabric,
+                    push_count,
+                    mutations,
+                    log,
+                    task_seed,
+                    growth_config.clone(),
+                    settling_physics.clone(),
+                    settle_iterations,
+                )
+            })
+            .collect();
+
+        // Insert results into population
+        for result in results {
+            let (seed, fabric, fitness, height, push_count, mutations, log, mutation) = result;
+            self.population.try_insert(
+                seed, fabric, fitness, height, push_count,
+                mutations, log, mutation,
+            );
+            self.population.next_generation();
+            self.evaluations += 1;
+        }
+    }
+
+    /// Evaluate a single mutation in a parallel context.
+    /// This is a static method that can run on any thread.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn evaluate_mutation_parallel(
+        parent_seed: u64,
+        mut offspring: Fabric,
+        parent_push_count: usize,
+        parent_mutations: usize,
+        parent_log: Vec<(MutationType, f32)>,
+        task_seed: u64,
+        growth_config: GrowthConfig,
+        settling_physics: Physics,
+        settle_iterations: usize,
+    ) -> (u64, Fabric, f32, f32, usize, usize, Vec<(MutationType, f32)>, MutationType) {
+        // Create local RNG and grower for this thread
+        let mut rng = ChaCha8Rng::seed_from_u64(task_seed);
+        let mut grower = Grower::new(task_seed, growth_config);
+        let evaluator = FitnessEvaluator::new();
+
+        // Evaluate height to determine mutation type
+        let height = evaluator.evaluate_detailed(&offspring, parent_push_count).height;
+
+        // Apply mutation based on structure state
+        let (new_push_count, mutation) = if height < 0.1 {
+            // Structure is flat
+            let mutation = if grower.remove_random_pull(&mut offspring) {
+                MutationType::FlatRemovePull
+            } else {
+                grower.add_more_connections(&mut offspring);
+                MutationType::FlatAddConnections
+            };
+
+            // Lift and perturb
+            let translation = offspring.centralize_translation(Some(0.2));
+            offspring.apply_translation(translation);
+            for joint in offspring.joints.values_mut() {
+                joint.location.x += rng.random_range(-0.05..0.05);
+                joint.location.y += rng.random_range(-0.05..0.05);
+                joint.location.z += rng.random_range(-0.05..0.05);
+            }
+            offspring.zero_velocities();
+            (parent_push_count, mutation)
+        } else {
+            // Structure has height
+            let (count, mutation) = grower.apply_random_mutation(&mut offspring, parent_push_count);
+            let translation = offspring.centralize_translation(Some(0.1));
+            offspring.apply_translation(translation);
+            offspring.zero_velocities();
+            (count, mutation)
+        };
+
+        // Settle completely
+        for _ in 0..settle_iterations {
+            offspring.iterate(&settling_physics);
+        }
+
+        // Centralize after settling
+        let translation = offspring.centralize_translation(None);
+        offspring.apply_translation(translation);
+
+        // Evaluate fitness
+        let details = evaluator.evaluate_detailed(&offspring, new_push_count);
+
+        (
+            parent_seed,
+            offspring,
+            details.fitness,
+            details.height,
+            new_push_count,
+            parent_mutations,
+            parent_log,
+            mutation,
+        )
     }
 
     /// Create a new seed structure with a unique random seed.
