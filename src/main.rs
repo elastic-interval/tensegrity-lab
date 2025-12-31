@@ -25,10 +25,6 @@ struct Args {
     #[arg(long)]
     evolve: bool,
 
-    /// Seed for evolution (default: random based on time)
-    #[arg(long, default_value_t = 0)]
-    seed: u64,
-
     /// Generate an algorithmic tensegrity sphere with given frequency (1, 2, or 3+)
     #[arg(long)]
     sphere: Option<usize>,
@@ -77,15 +73,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     } else if args.bake_bricks {
         RunStyle::BakeBricks
     } else if args.evolve {
-        let seed = if args.seed == 0 {
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs())
-                .unwrap_or(42)
-        } else {
-            args.seed
-        };
-        RunStyle::Evolving(seed)
+        RunStyle::Evolving
     } else if let Some(fabric_name) = args.fabric {
         RunStyle::Fabric {
             fabric_name,
