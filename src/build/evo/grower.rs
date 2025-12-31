@@ -15,6 +15,7 @@ pub struct MutationWeights {
     pub lengthen_pull: f32,
     pub remove_pull: f32,
     pub add_push: f32,
+    pub split_pull: f32,
 }
 
 impl Default for MutationWeights {
@@ -23,14 +24,15 @@ impl Default for MutationWeights {
             shorten_pull: 35.0,  // Fine-tuning: tighten
             lengthen_pull: 35.0, // Fine-tuning: loosen
             remove_pull: 10.0,   // Reduce complexity
-            add_push: 20.0,      // Add structure
+            add_push: 20.0,      // Add structure randomly
+            split_pull: 0.0,     // Add structure at pull midpoint (disabled by default)
         }
     }
 }
 
 impl MutationWeights {
     fn total(&self) -> f32 {
-        self.shorten_pull + self.lengthen_pull + self.remove_pull + self.add_push
+        self.shorten_pull + self.lengthen_pull + self.remove_pull + self.add_push + self.split_pull
     }
 }
 
@@ -87,18 +89,19 @@ impl Grower {
         let push_length = self.config.push_length.f32();
         let mut push_joints: Vec<(JointKey, JointKey)> = Vec::new();
 
-        // Starting elevation - enough room to form before hitting ground
-        let base_height = push_length * 1.0;
+        // Starting elevation - high enough that push endpoints stay above floor
+        // Push center needs to be at least half push length above ground
+        let base_height = push_length / 2.0 + 0.1;
 
         // Create N push intervals with random orientations around a central point
         for _ in 0..self.config.seed_push_count {
             let direction = self.random_direction();
 
-            // Spread pushes in a small area at the starting height
-            let spread = push_length * 0.3;
+            // Spread pushes in a small area at the starting height (10cm spread, 5cm vertical)
+            let spread = 0.1;
             let center = Vec3::new(
                 self.rng.random_range(-spread..spread),
-                base_height + self.rng.random_range(0.0..push_length * 0.5),
+                base_height + self.rng.random_range(0.0..0.05),
                 self.rng.random_range(-spread..spread),
             );
 
@@ -130,8 +133,8 @@ impl Grower {
         // Find the bounds of the structure
         let (min_pos, max_pos) = self.find_bounds(fabric);
 
-        // Place new push just above the structure (20cm above top)
-        let above_height = 0.2;
+        // Place new push just above the structure (5cm above top)
+        let above_height = 0.05;
         let target_y = max_pos.y + above_height;
         let new_center = Vec3::new(
             self.rng.random_range(min_pos.x..max_pos.x),
@@ -179,12 +182,19 @@ impl Grower {
 
         threshold += weights.remove_pull;
         if roll < threshold {
-            self.remove_random_pull(fabric);
+            self.remove_smart_pull(fabric);
             return (current_push_count, MutationType::RemovePull);
         }
 
-        let new_count = self.mutate(fabric, current_push_count);
-        (new_count, MutationType::AddPush)
+        threshold += weights.add_push;
+        if roll < threshold {
+            let new_count = self.mutate(fabric, current_push_count);
+            return (new_count, MutationType::AddPush);
+        }
+
+        // SplitPull: insert a push at the midpoint of an existing pull
+        let new_count = self.split_pull_mutation(fabric, current_push_count);
+        (new_count, MutationType::SplitPull)
     }
 
     /// Get all pull interval keys from the fabric.
@@ -235,11 +245,11 @@ impl Grower {
         false
     }
 
-    /// Mutate by removing a random pull interval.
-    /// This reduces complexity and cost, potentially improving fitness.
+    /// Mutate by removing a pull interval, preferring overpopulated joints.
+    /// This reduces complexity and cost while balancing joint connectivity.
     /// Only removes pulls where both joints would still have at least 3 pull connections.
     /// Returns true if a pull was removed.
-    pub fn remove_random_pull(&mut self, fabric: &mut Fabric) -> bool {
+    pub fn remove_smart_pull(&mut self, fabric: &mut Fabric) -> bool {
         use std::collections::HashMap;
 
         // Count pull connections per joint
@@ -252,7 +262,8 @@ impl Grower {
         }
 
         // Find pulls that are safe to remove (both joints would still have >= 3 pulls)
-        let safe_pull_keys: Vec<IntervalKey> = fabric
+        // Score each pull by how overpopulated its joints are (higher = better to remove)
+        let mut scored_pulls: Vec<(IntervalKey, usize)> = fabric
             .intervals
             .iter()
             .filter_map(|(key, interval)| {
@@ -261,7 +272,10 @@ impl Grower {
                     let omega_count = pull_counts.get(&interval.omega_key).copied().unwrap_or(0);
                     // Both joints must have > 3 pulls (so after removal they have >= 3)
                     if alpha_count > 3 && omega_count > 3 {
-                        Some(key)
+                        // Score = sum of connections on both joints
+                        // Higher score means more overpopulated, better to prune
+                        let score = alpha_count + omega_count;
+                        Some((key, score))
                     } else {
                         None
                     }
@@ -272,15 +286,164 @@ impl Grower {
             .collect();
 
         // No safe pulls to remove
-        if safe_pull_keys.is_empty() {
+        if scored_pulls.is_empty() {
             return false;
         }
 
-        // Pick a random safe pull interval and remove it
-        let idx = self.rng.random_range(0..safe_pull_keys.len());
-        let pull_key = safe_pull_keys[idx];
+        // Sort by score descending (most overpopulated first)
+        scored_pulls.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // Pick from the top 3 most overpopulated with some randomness
+        let top_n = scored_pulls.len().min(3);
+        let idx = self.rng.random_range(0..top_n);
+        let pull_key = scored_pulls[idx].0;
         fabric.intervals.remove(pull_key);
         true
+    }
+
+    /// Mutate by inserting a push at the midpoint of an existing pull.
+    /// This creates well-connected structures that naturally avoid crossings.
+    /// Returns the new push count.
+    pub fn split_pull_mutation(&mut self, fabric: &mut Fabric, current_push_count: usize) -> usize {
+        let push_length = self.config.push_length.f32();
+
+        // Find all pull intervals with their lengths
+        let mut pulls_with_length: Vec<(IntervalKey, f32)> = fabric
+            .intervals
+            .iter()
+            .filter_map(|(key, interval)| {
+                if interval.role == Role::Pulling {
+                    let length = fabric
+                        .location(interval.alpha_key)
+                        .distance(fabric.location(interval.omega_key));
+                    Some((key, length))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if pulls_with_length.is_empty() {
+            return current_push_count;
+        }
+
+        // Sort by length descending (prefer splitting longer pulls)
+        pulls_with_length.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+
+        // Pick from top 5 longest pulls with some randomness
+        let top_n = pulls_with_length.len().min(5);
+        let idx = self.rng.random_range(0..top_n);
+        let (pull_key, _pull_length) = pulls_with_length[idx];
+
+        // Get the pull's endpoints
+        let (pull_alpha, pull_omega) = {
+            let interval = fabric.intervals.get(pull_key).unwrap();
+            (interval.alpha_key, interval.omega_key)
+        };
+
+        let alpha_pos = fabric.location(pull_alpha);
+        let omega_pos = fabric.location(pull_omega);
+        let midpoint = (alpha_pos + omega_pos) / 2.0;
+
+        // Calculate a direction for the new push, perpendicular to the pull
+        let pull_dir = (omega_pos - alpha_pos).normalize();
+        let perp_dir = self.perpendicular_direction(pull_dir);
+        let half_push = perp_dir * push_length / 2.0;
+
+        // Create the new push at the midpoint
+        let new_alpha = fabric.create_joint(midpoint - half_push);
+        let new_omega = fabric.create_joint(midpoint + half_push);
+        fabric.create_slack_interval(new_alpha, new_omega, Role::Pushing);
+
+        // Remove the original pull
+        fabric.intervals.remove(pull_key);
+
+        // Connect the old pull endpoints to the new push endpoints
+        // This creates 4 new pulls forming a "bowtie" pattern
+        self.force_connect(fabric, pull_alpha, new_alpha);
+        self.force_connect(fabric, pull_alpha, new_omega);
+        self.force_connect(fabric, pull_omega, new_alpha);
+        self.force_connect(fabric, pull_omega, new_omega);
+
+        // Add extra connections so each new endpoint has at least 3 pulls
+        // The bowtie only gives 2 pulls per endpoint, which causes teetering
+        self.add_extra_split_connections(fabric, new_alpha, new_omega, pull_alpha, pull_omega);
+
+        current_push_count + 1
+    }
+
+    /// Add extra connections to new push endpoints from split_pull mutation.
+    /// Each endpoint starts with 2 pulls (bowtie pattern), needs at least 1 more.
+    fn add_extra_split_connections(
+        &mut self,
+        fabric: &mut Fabric,
+        new_alpha: JointKey,
+        new_omega: JointKey,
+        exclude_alpha: JointKey,
+        exclude_omega: JointKey,
+    ) {
+        let max_pull_length = self.config.push_length.f32() * self.config.max_pull_ratio;
+
+        // Find nearby joints to connect to (excluding the bowtie joints)
+        let candidates: Vec<JointKey> = fabric
+            .joints
+            .keys()
+            .filter(|&j| {
+                j != new_alpha && j != new_omega && j != exclude_alpha && j != exclude_omega
+            })
+            .collect();
+
+        // For each new endpoint, find the closest candidate and connect
+        for &new_endpoint in &[new_alpha, new_omega] {
+            let new_loc = fabric.location(new_endpoint);
+
+            // Score candidates by distance
+            let mut scored: Vec<(JointKey, f32)> = candidates
+                .iter()
+                .filter_map(|&j| {
+                    let dist = fabric.location(j).distance(new_loc);
+                    if dist <= max_pull_length && fabric.interval_between(new_endpoint, j).is_none()
+                    {
+                        Some((j, dist))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            if scored.is_empty() {
+                continue;
+            }
+
+            // Sort by distance (closest first)
+            scored.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+
+            // Connect to closest joint (gives us 3rd pull connection)
+            let (closest, _) = scored[0];
+            self.force_connect(fabric, new_endpoint, closest);
+        }
+    }
+
+    /// Generate a direction perpendicular to the given direction.
+    fn perpendicular_direction(&mut self, dir: Vec3) -> Vec3 {
+        // Find a vector not parallel to dir
+        let arbitrary = if dir.y.abs() < 0.9 {
+            Vec3::Y
+        } else {
+            Vec3::X
+        };
+
+        // Cross product gives perpendicular, then rotate randomly around dir
+        let perp = dir.cross(arbitrary).normalize();
+        let angle = self.rng.random_range(0.0..std::f32::consts::TAU);
+        let rotation = glam::Quat::from_axis_angle(dir, angle);
+        rotation.mul_vec3(perp)
+    }
+
+    /// Mutate by removing a random pull interval (legacy method, use remove_smart_pull instead).
+    #[allow(dead_code)]
+    pub fn remove_random_pull(&mut self, fabric: &mut Fabric) -> bool {
+        self.remove_smart_pull(fabric)
     }
 
     /// Mutate by removing a random push interval and its orphaned joints.

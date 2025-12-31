@@ -436,6 +436,7 @@ impl Crucible {
                     Some("aggressive") => ScenarioName::Aggressive.scenario(),
                     Some("conservative") => ScenarioName::Conservative.scenario(),
                     Some("tall-towers") => ScenarioName::TallTowers.scenario(),
+                    Some("buildable") => ScenarioName::Buildable.scenario(),
                     _ => ScenarioName::Default.scenario(),
                 };
 

@@ -1,5 +1,6 @@
 pub mod evolution;
 pub mod fitness;
+pub mod geometry;
 pub mod grower;
 pub mod mutations;
 pub mod population;

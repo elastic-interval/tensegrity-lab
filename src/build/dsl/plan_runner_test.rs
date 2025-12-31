@@ -304,6 +304,48 @@ mod tests {
             }
         }
 
+        // === GEOMETRIC ANALYSIS (buildability) ===
+        let analysis = executor.fabric.analyze_buildability();
+        eprintln!("\n=== GEOMETRIC ANALYSIS ===");
+        eprintln!(
+            "Pull connections: Avg: {:.2}, Min: {}, Max: {}",
+            analysis.avg_pull_connections, analysis.min_pull_connections, analysis.max_pull_connections
+        );
+        eprintln!(
+            "Joint population: {} overpopulated (>5), {} underpopulated (<3)",
+            analysis.overpopulated_joints, analysis.underpopulated_joints
+        );
+        eprintln!(
+            "Push distances: min {:.1}mm, {} crossings, {} near-misses",
+            analysis.min_push_distance * 1000.0,
+            analysis.crossing_count,
+            analysis.near_miss_count
+        );
+        eprintln!("Buildability score: {:.3}", analysis.buildability_score());
+
+        // Distribution of pull connections
+        let pull_counts = executor.fabric.pull_connections_per_joint();
+        let mut by_count: HashMap<usize, usize> = HashMap::new();
+        for count in pull_counts.values() {
+            *by_count.entry(*count).or_insert(0) += 1;
+        }
+        let mut dist: Vec<_> = by_count.into_iter().collect();
+        dist.sort_by_key(|(c, _)| *c);
+        eprintln!("\nPull connection distribution:");
+        for (count, num_joints) in dist {
+            eprintln!("  {} joints with {} pulls", num_joints, count);
+        }
+
+        // Push distance details
+        let distances = executor.fabric.push_distances();
+        eprintln!("\nPush-to-push distances (non-adjacent, {} pairs):", distances.len());
+        if !distances.is_empty() {
+            eprintln!("Closest 5 (mm):");
+            for d in distances.iter().take(5) {
+                eprintln!("  {:.1}mm", d * 1000.0);
+            }
+        }
+
         // Report the state
         eprintln!("\n✓ Execution completed successfully");
     }

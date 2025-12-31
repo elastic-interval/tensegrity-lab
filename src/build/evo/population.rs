@@ -11,6 +11,7 @@ pub enum MutationType {
     LengthenPull,
     RemovePull,
     AddPush,
+    SplitPull,
     FlatRemovePull,
     FlatAddConnections,
 }
@@ -23,6 +24,7 @@ impl std::fmt::Display for MutationType {
             MutationType::LengthenPull => write!(f, "lengthen"),
             MutationType::RemovePull => write!(f, "rm_pull"),
             MutationType::AddPush => write!(f, "add_push"),
+            MutationType::SplitPull => write!(f, "split"),
             MutationType::FlatRemovePull => write!(f, "flat_rm"),
             MutationType::FlatAddConnections => write!(f, "flat_add"),
         }
@@ -195,15 +197,15 @@ impl Population {
             return true;
         }
 
-        // Accept within 80% of worst fitness, 30% probability (neutral drift)
-        if fitness >= worst_fitness * 0.80 && self.rng.random_range(0.0..1.0) < 0.3 {
+        // Accept within 80% of worst fitness, 50% probability (neutral drift)
+        if fitness >= worst_fitness * 0.80 && self.rng.random_range(0.0..1.0) < 0.5 {
             eprintln!("  -> ACCEPTED (drift)");
             self.pool[worst_idx] = individual;
             return true;
         }
 
-        // 5% unconditional acceptance to prevent stagnation
-        if self.rng.random_range(0.0..1.0) < 0.05 {
+        // 15% unconditional acceptance to prevent stagnation
+        if self.rng.random_range(0.0..1.0) < 0.15 {
             eprintln!("  -> ACCEPTED (random)");
             self.pool[worst_idx] = individual;
             return true;
