@@ -1,3 +1,4 @@
+use crate::build::evo::population::MutationType;
 use crate::fabric::interval::Role;
 use crate::fabric::physics::Physics;
 use crate::fabric::{Fabric, IntervalKey, JointKey};
@@ -7,6 +8,15 @@ use glam::Vec3;
 use rand::Rng;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
+
+/// Height below which a structure is considered "flat" and needs special handling.
+const FLAT_STRUCTURE_THRESHOLD: f32 = 0.1;
+
+/// How high to lift structures after mutation to unstick frozen joints.
+const LIFT_ALTITUDE: f32 = 0.05;
+
+/// Random perturbation size to help flat structures snap open.
+const PERTURBATION_SIZE: f32 = 0.05;
 
 /// Relative weights for each mutation type.
 #[derive(Clone, Debug)]
@@ -161,9 +171,7 @@ impl Grower {
         &mut self,
         fabric: &mut Fabric,
         current_push_count: usize,
-    ) -> (usize, crate::build::evo::population::MutationType) {
-        use crate::build::evo::population::MutationType;
-
+    ) -> (usize, MutationType) {
         let weights = &self.config.mutation_weights;
         let total = weights.total();
         let roll = self.rng.random_range(0.0..total);
@@ -195,6 +203,47 @@ impl Grower {
         // SplitPull: insert a push at the midpoint of an existing pull
         let new_count = self.split_pull_mutation(fabric, current_push_count);
         (new_count, MutationType::SplitPull)
+    }
+
+    /// Apply mutation with all preparation steps (lift, perturb, zero velocities).
+    /// This is the unified mutation logic used by both sequential and parallel evolution.
+    pub fn apply_mutation_with_preparation(
+        &mut self,
+        fabric: &mut Fabric,
+        push_count: usize,
+        height: f32,
+    ) -> (usize, MutationType) {
+        if height < FLAT_STRUCTURE_THRESHOLD {
+            // Structure is flat - try removing a pull to let it unfold
+            let mutation = if self.remove_random_pull(fabric) {
+                MutationType::FlatRemovePull
+            } else {
+                self.add_more_connections(fabric);
+                MutationType::FlatAddConnections
+            };
+
+            // Lift and perturb to help flat structures snap open
+            let translation = fabric.centralize_translation(Some(LIFT_ALTITUDE));
+            fabric.apply_translation(translation);
+            for joint in fabric.joints.values_mut() {
+                joint.location.x += self.rng.random_range(-PERTURBATION_SIZE..PERTURBATION_SIZE);
+                joint.location.y += self.rng.random_range(-PERTURBATION_SIZE..PERTURBATION_SIZE);
+                joint.location.z += self.rng.random_range(-PERTURBATION_SIZE..PERTURBATION_SIZE);
+            }
+            fabric.zero_velocities();
+
+            (push_count, mutation)
+        } else {
+            // Structure has height - apply weighted random mutation
+            let (new_count, mutation) = self.apply_random_mutation(fabric, push_count);
+
+            // Lift structure slightly so frozen joints unstick from floor
+            let translation = fabric.centralize_translation(Some(LIFT_ALTITUDE));
+            fabric.apply_translation(translation);
+            fabric.zero_velocities();
+
+            (new_count, mutation)
+        }
     }
 
     /// Get all pull interval keys from the fabric.

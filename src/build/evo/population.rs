@@ -186,27 +186,20 @@ impl Population {
         let worst_idx = self.find_worst_index();
         let worst_fitness = self.pool[worst_idx].fitness;
 
-        eprintln!("try_insert: fit={:.4} worst={:.4} ratio={:.1}% | {}",
-                  fitness, worst_fitness, (fitness / worst_fitness) * 100.0,
-                  individual.history_string());
-
         // Replace if better
         if fitness > worst_fitness {
-            eprintln!("  -> ACCEPTED (better)");
             self.pool[worst_idx] = individual;
             return true;
         }
 
         // Accept within 80% of worst fitness, 50% probability (neutral drift)
         if fitness >= worst_fitness * 0.80 && self.rng.random_range(0.0..1.0) < 0.5 {
-            eprintln!("  -> ACCEPTED (drift)");
             self.pool[worst_idx] = individual;
             return true;
         }
 
         // 15% unconditional acceptance to prevent stagnation
         if self.rng.random_range(0.0..1.0) < 0.15 {
-            eprintln!("  -> ACCEPTED (random)");
             self.pool[worst_idx] = individual;
             return true;
         }
