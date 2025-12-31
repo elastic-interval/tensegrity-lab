@@ -80,8 +80,6 @@ pub struct Evolution {
     evaluations: usize,
     grower: Grower,
     viewing_mode: ViewingMode,
-    max_fitness_ever: f32,
-    max_height_ever: f32,
 }
 
 impl Evolution {
@@ -129,8 +127,6 @@ impl Evolution {
             evaluations: 0,
             grower: Grower::new(master_seed.wrapping_add(1), growth_config),
             viewing_mode: ViewingMode::Watch,
-            max_fitness_ever: 0.0,
-            max_height_ever: 0.0,
         }
     }
 
@@ -167,8 +163,6 @@ impl Evolution {
             evaluations: 0,
             grower: Grower::new(master_seed.wrapping_add(1), growth_config),
             viewing_mode: ViewingMode::Watch,
-            max_fitness_ever: 0.0,
-            max_height_ever: 0.0,
         }
     }
 
@@ -213,42 +207,28 @@ impl Evolution {
         // Update bounding radius for proper surface sizing and camera
         context.fabric.update_bounding_radius();
 
-        // Calculate current population stats using CACHED values (no recalculation!)
-        let mut current_max_fitness = 0.0f32;
-        let mut current_max_height = 0.0f32;
-        let mut total_fitness = 0.0f32;
-        let mut total_height = 0.0f32;
-        let count = self.population.pool().len() as f32;
-
-        for ind in self.population.pool() {
-            // Use cached values - no expensive recalculation
-            current_max_fitness = current_max_fitness.max(ind.fitness);
-            current_max_height = current_max_height.max(ind.height);
-            total_fitness += ind.fitness;
-            total_height += ind.height;
-        }
-
-        // Update high-water marks (NEVER decrease)
-        self.max_fitness_ever = self.max_fitness_ever.max(current_max_fitness);
-        self.max_height_ever = self.max_height_ever.max(current_max_height);
-
-        let avg_fitness = if count > 0.0 { total_fitness / count } else { 0.0 };
-        let avg_height = if count > 0.0 { total_height / count } else { 0.0 };
-
-        // Get mutation count of the displayed fabric
-        let displayed_mutations = match self.viewing_mode {
-            ViewingMode::Watch => self.current_parent_mutations + 1, // Current offspring
-            ViewingMode::Fast => self.population.best_current()
-                .map(|ind| ind.mutations)
-                .unwrap_or(0),
+        // Get mutation count and fitness details for the displayed fabric
+        let (displayed_mutations, details) = match self.viewing_mode {
+            ViewingMode::Watch => {
+                let mutations = self.current_parent_mutations + 1;
+                let details = self.current_fabric.as_ref()
+                    .map(|f| self.evaluator.evaluate_detailed(f, self.current_push_count));
+                (mutations, details)
+            }
+            ViewingMode::Fast => {
+                self.population.best_current()
+                    .map(|ind| {
+                        let details = self.evaluator.evaluate_detailed(&ind.fabric, ind.push_count);
+                        (ind.mutations, Some(details))
+                    })
+                    .unwrap_or((0, None))
+            }
         };
 
-        let label = format!(
-            "Mut:{} | Fit:{:.5}({:.5}) | Ht:{:.5}({:.5})m",
-            displayed_mutations,
-            self.max_fitness_ever, avg_fitness,
-            self.max_height_ever, avg_height
-        );
+        let label = match details {
+            Some(d) => format!("Mut:{} | {}", displayed_mutations, d),
+            None => format!("Mut:{} | (no data)", displayed_mutations),
+        };
         let _ = context.radio.send_event(LabEvent::UpdateState(StateChange::SetStageLabel(label)));
     }
 

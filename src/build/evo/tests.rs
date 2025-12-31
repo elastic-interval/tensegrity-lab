@@ -192,8 +192,8 @@ fn test_empty_fabric_zero_fitness() {
 }
 
 #[test]
-fn test_fitness_with_push_count() {
-    // Create a simple fabric with known height
+fn test_fitness_sum_of_suspended_heights() {
+    // Create a simple fabric with one joint on ground, one at 1.0m
     let mut fabric = Fabric::new("test".to_string());
     let bottom = fabric.create_joint(Vec3::new(0.0, 0.0, 0.0));
     let top = fabric.create_joint(Vec3::new(0.0, 1.0, 0.0));
@@ -201,17 +201,15 @@ fn test_fitness_with_push_count() {
 
     let evaluator = FitnessEvaluator::new();
 
-    // Fitness = perceived_height / cost, where cost = push_count * 4 + pull_count
-    // With height=1.0, 1 push, 0 pulls: cost = 4, fitness ≈ 1.0/4 = 0.25 (+ stability bonus)
-    let fitness1 = evaluator.evaluate(&fabric, 1);
-    assert!(fitness1 > 0.2 && fitness1 < 0.4, "Fitness with 1 push should be ~0.25-0.3, got {}", fitness1);
+    // Fitness = sum of (height - threshold) for suspended joints
+    // With threshold 0.05: top joint contributes (1.0 - 0.05) = 0.95
+    // Bottom joint at y=0.0 contributes 0 (below threshold)
+    let fitness = evaluator.evaluate(&fabric, 1);
+    assert!((fitness - 0.95).abs() < 0.01, "Fitness should be ~0.95, got {}", fitness);
 
-    // With 4 pushes reported, cost = 16, fitness ≈ 1.0/16 = 0.0625
-    let fitness4 = evaluator.evaluate(&fabric, 4);
-    assert!(
-        fitness4 < fitness1,
-        "Higher push count should reduce fitness"
-    );
+    // Push count doesn't affect fitness anymore
+    let fitness_same = evaluator.evaluate(&fabric, 4);
+    assert_eq!(fitness, fitness_same, "Push count should not affect fitness");
 }
 
 #[test]
@@ -238,27 +236,32 @@ fn test_fitness_taller_is_better() {
 }
 
 #[test]
-fn test_fitness_cost_adjusted() {
-    // Two fabrics with same height but different push counts
-    let mut fabric1 = Fabric::new("efficient".to_string());
+fn test_fitness_more_suspended_joints() {
+    // Fabric with one suspended joint
+    let mut fabric1 = Fabric::new("one_suspended".to_string());
     let bottom1 = fabric1.create_joint(Vec3::new(0.0, 0.0, 0.0));
     let top1 = fabric1.create_joint(Vec3::new(0.0, 1.0, 0.0));
     fabric1.create_slack_interval(bottom1, top1, Role::Pushing);
 
-    let mut fabric2 = Fabric::new("wasteful".to_string());
+    // Fabric with two suspended joints (both above threshold)
+    let mut fabric2 = Fabric::new("two_suspended".to_string());
     let bottom2 = fabric2.create_joint(Vec3::new(0.0, 0.0, 0.0));
+    let mid2 = fabric2.create_joint(Vec3::new(0.0, 0.5, 0.0));
     let top2 = fabric2.create_joint(Vec3::new(0.0, 1.0, 0.0));
-    fabric2.create_slack_interval(bottom2, top2, Role::Pushing);
+    fabric2.create_slack_interval(bottom2, mid2, Role::Pushing);
+    fabric2.create_slack_interval(mid2, top2, Role::Pushing);
 
     let evaluator = FitnessEvaluator::new();
-    // Same fabric, but evaluating with different push counts
-    let fitness_efficient = evaluator.evaluate(&fabric1, 1);
-    let fitness_wasteful = evaluator.evaluate(&fabric2, 9);
+    let fitness1 = evaluator.evaluate(&fabric1, 1);
+    let fitness2 = evaluator.evaluate(&fabric2, 2);
 
-    // 1 push vs 9 pushes should show sqrt(9) = 3x cost penalty
+    // fabric2 has two suspended joints (mid at 0.5, top at 1.0)
+    // Expected: (0.5 - 0.05) + (1.0 - 0.05) = 0.45 + 0.95 = 1.40
+    // fabric1 has one suspended joint: (1.0 - 0.05) = 0.95
     assert!(
-        fitness_efficient > fitness_wasteful * 2.0,
-        "Efficient structure should have much higher fitness"
+        fitness2 > fitness1,
+        "More suspended joints should give higher fitness: {} vs {}",
+        fitness2, fitness1
     );
 }
 
