@@ -234,8 +234,10 @@ impl ApplicationHandler<LabEvent> for Application {
                         ControlState::Baking.send(&self.radio);
                         self.crucible.action(CrucibleAction::StartBaking);
                     }
-                    RunStyle::Evolving => {
-                        self.crucible.action(CrucibleAction::ToEvolving);
+                    RunStyle::Evolving { scenario_name } => {
+                        self.crucible.action(CrucibleAction::ToEvolving {
+                            scenario_name: scenario_name.clone(),
+                        });
                     }
                     RunStyle::Sphere { frequency, radius } => {
                         let fabric = generate_sphere(*frequency, *radius);

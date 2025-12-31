@@ -146,7 +146,11 @@ pub enum RunStyle {
         segments: usize,
     },
     BakeBricks,
-    Evolving,
+    /// Evolutionary tensegrity
+    Evolving {
+        /// Scenario name (default, aggressive, conservative, tall-towers)
+        scenario_name: Option<String>,
+    },
 }
 
 #[derive(Clone)]
@@ -494,7 +498,9 @@ pub enum CrucibleAction {
     ToViewing,
     ToAnimating,
     ToPhysicsTesting,
-    ToEvolving,
+    ToEvolving {
+        scenario_name: Option<String>,
+    },
     ToggleEvolutionMode,
     TesterDo(TesterAction),
 }
@@ -634,12 +640,29 @@ impl Appearance {
 
 type AppearanceFunction = Rc<dyn Fn(&Interval) -> Option<Appearance>>;
 
+/// Unified display state for all modes (Title, Subtitle, LeftDetails, RightDetails)
+#[derive(Clone, Debug, Default)]
+pub struct DisplayState {
+    /// Main title (top center, large)
+    pub title: Option<String>,
+    /// Subtitle below title (top center, normal)
+    pub subtitle: Option<String>,
+    /// Multi-line left panel details
+    pub left_details: Vec<String>,
+    /// Multi-line right panel details
+    pub right_details: Vec<String>,
+}
+
 #[derive(Clone)]
 pub enum StateChange {
     SetFabricName(String),
     SetFabricStats(Option<FabricStats>),
     SetControlState(ControlState),
     SetStageLabel(String),
+    /// Set unified display state (for evolution and other modes)
+    SetDisplayState(DisplayState),
+    /// Clear unified display state (return to normal mode-specific display)
+    ClearDisplayState,
     ResetView,
     RestartApproach,
     JumpToFabric,
@@ -676,6 +699,8 @@ impl Debug for StateChange {
             StateChange::SetFabricStats(_) => "SetFabricStats()",
             StateChange::SetControlState(_) => "SetControlState()",
             StateChange::SetStageLabel(_) => "SetStageLabel()",
+            StateChange::SetDisplayState(_) => "SetDisplayState()",
+            StateChange::ClearDisplayState => "ClearDisplayState",
             StateChange::SetAppearanceFunction(_) => "SetColorFunction()",
             StateChange::SetIntervalColor { .. } => "SetIntervalColor()",
             StateChange::ResetView => "ResetView()",

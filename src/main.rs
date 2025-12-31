@@ -25,6 +25,10 @@ struct Args {
     #[arg(long)]
     evolve: bool,
 
+    /// Evolution scenario name (default, aggressive, conservative, tall-towers)
+    #[arg(long)]
+    scenario: Option<String>,
+
     /// Generate an algorithmic tensegrity sphere with given frequency (1, 2, or 3+)
     #[arg(long)]
     sphere: Option<usize>,
@@ -72,8 +76,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         RunStyle::Mobius { segments }
     } else if args.bake_bricks {
         RunStyle::BakeBricks
-    } else if args.evolve {
-        RunStyle::Evolving
+    } else if args.evolve || args.scenario.is_some() {
+        RunStyle::Evolving {
+            scenario_name: args.scenario,
+        }
     } else if let Some(fabric_name) = args.fabric {
         RunStyle::Fabric {
             fabric_name,
