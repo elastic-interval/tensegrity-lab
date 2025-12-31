@@ -90,6 +90,18 @@ pub struct Evolution {
 }
 
 impl Evolution {
+    /// Build GrowthConfig from EvolutionConfig.
+    fn build_growth_config(config: &EvolutionConfig) -> GrowthConfig {
+        GrowthConfig {
+            push_length: crate::units::Meters(config.push_length),
+            seed_settle_seconds: config.seed_settle_seconds,
+            mutation_settle_seconds: config.mutation_settle_seconds,
+            seed_push_count: config.seed_push_count,
+            mutation_weights: config.mutation_weights.clone(),
+            ..Default::default()
+        }
+    }
+
     /// Create a new evolution controller with random seed from system time.
     pub fn new() -> Self {
         Self::with_config(EvolutionConfig::default())
@@ -104,15 +116,7 @@ impl Evolution {
             .unwrap_or(42);
 
         let population = Population::new(master_seed, config.population_size);
-
-        let growth_config = GrowthConfig {
-            push_length: crate::units::Meters(config.push_length),
-            seed_settle_seconds: config.seed_settle_seconds,
-            mutation_settle_seconds: config.mutation_settle_seconds,
-            seed_push_count: config.seed_push_count,
-            mutation_weights: config.mutation_weights.clone(),
-            ..Default::default()
-        };
+        let growth_config = Self::build_growth_config(&config);
 
         // Use settling physics with frozen surface so joints stick when they land
         let mut settling_physics = SETTLING.clone();
@@ -146,15 +150,7 @@ impl Evolution {
     #[cfg(test)]
     pub fn with_master_seed(master_seed: u64, config: EvolutionConfig) -> Self {
         let population = Population::new(master_seed, config.population_size);
-
-        let growth_config = GrowthConfig {
-            push_length: crate::units::Meters(config.push_length),
-            seed_settle_seconds: config.seed_settle_seconds,
-            mutation_settle_seconds: config.mutation_settle_seconds,
-            seed_push_count: config.seed_push_count,
-            mutation_weights: config.mutation_weights.clone(),
-            ..Default::default()
-        };
+        let growth_config = Self::build_growth_config(&config);
 
         let mut settling_physics = SETTLING.clone();
         settling_physics.surface = Some(Surface::new(SurfaceCharacter::Frozen, 1.0));
@@ -299,15 +295,6 @@ impl Evolution {
 
     /// Single evolution step.
     fn step(&mut self, iterations_per_frame: usize) {
-        // Check if we should analyze (TEMPORARY - for comparing evolved vs designed)
-        let stats = self.population.stats();
-        if self.viewing_mode == ViewingMode::Fast
-            && stats.avg_push_count >= 15.0
-            && self.population.is_full()
-        {
-            self.analyze_and_compare_to_triped();
-        }
-
         // In Fast mode with full population, use parallel evolution
         #[cfg(not(target_arch = "wasm32"))]
         if self.viewing_mode == ViewingMode::Fast
@@ -379,14 +366,7 @@ impl Evolution {
             .collect();
 
         // Clone config for parallel tasks
-        let growth_config = GrowthConfig {
-            push_length: crate::units::Meters(self.config.push_length),
-            seed_settle_seconds: self.config.seed_settle_seconds,
-            mutation_settle_seconds: self.config.mutation_settle_seconds,
-            seed_push_count: self.config.seed_push_count,
-            mutation_weights: self.config.mutation_weights.clone(),
-            ..Default::default()
-        };
+        let growth_config = Self::build_growth_config(&self.config);
         let settling_physics = self.settling_physics.clone();
         let settle_iterations = (self.config.mutation_settle_seconds / ITERATION_DURATION.secs) as usize;
         let fitness_name = self.config.fitness;
@@ -438,42 +418,17 @@ impl Evolution {
         settle_iterations: usize,
         fitness_name: FitnessName,
     ) -> (u64, Fabric, f32, f32, usize, usize, Vec<(MutationType, f32)>, MutationType) {
-        // Create local RNG and grower for this thread
-        let mut rng = ChaCha8Rng::seed_from_u64(task_seed);
+        // Create local grower for this thread
         let mut grower = Grower::new(task_seed, growth_config);
         let evaluator = FitnessEvaluator::with_function(fitness_name.fitness_function());
 
-        // Evaluate height to determine mutation type
+        // Apply mutation with lift/perturb/zero velocities
         let height = evaluator.evaluate_detailed(&offspring, parent_push_count).height;
-
-        // Apply mutation based on structure state
-        let (new_push_count, mutation) = if height < 0.1 {
-            // Structure is flat
-            let mutation = if grower.remove_random_pull(&mut offspring) {
-                MutationType::FlatRemovePull
-            } else {
-                grower.add_more_connections(&mut offspring);
-                MutationType::FlatAddConnections
-            };
-
-            // Lift and perturb
-            let translation = offspring.centralize_translation(Some(0.05));
-            offspring.apply_translation(translation);
-            for joint in offspring.joints.values_mut() {
-                joint.location.x += rng.random_range(-0.05..0.05);
-                joint.location.y += rng.random_range(-0.05..0.05);
-                joint.location.z += rng.random_range(-0.05..0.05);
-            }
-            offspring.zero_velocities();
-            (parent_push_count, mutation)
-        } else {
-            // Structure has height
-            let (count, mutation) = grower.apply_random_mutation(&mut offspring, parent_push_count);
-            let translation = offspring.centralize_translation(Some(0.05));
-            offspring.apply_translation(translation);
-            offspring.zero_velocities();
-            (count, mutation)
-        };
+        let (new_push_count, mutation) = grower.apply_mutation_with_preparation(
+            &mut offspring,
+            parent_push_count,
+            height,
+        );
 
         // Settle completely
         for _ in 0..settle_iterations {
@@ -505,14 +460,7 @@ impl Evolution {
         self.current_seed = self.rng.random();
 
         // Create a new grower with this seed for deterministic structure
-        let growth_config = GrowthConfig {
-            push_length: crate::units::Meters(self.config.push_length),
-            seed_settle_seconds: self.config.seed_settle_seconds,
-            mutation_settle_seconds: self.config.mutation_settle_seconds,
-            seed_push_count: self.config.seed_push_count,
-            mutation_weights: self.config.mutation_weights.clone(),
-            ..Default::default()
-        };
+        let growth_config = Self::build_growth_config(&self.config);
         let mut grower = Grower::new(self.current_seed, growth_config);
 
         let (fabric, push_count) = grower.create_seed();
@@ -610,51 +558,18 @@ impl Evolution {
                 None => return,
             };
 
-        self.current_seed = parent_seed;  // Offspring inherits parent's seed
+        self.current_seed = parent_seed;
         self.current_parent_mutations = parent_mutations;
         self.current_parent_log = parent_log;
-        // Check if parent has height
+
+        // Apply mutation with lift/perturb/zero velocities
         let height = self.evaluator.evaluate_detailed(&offspring, parent_push_count).height;
-
-        // Apply mutation based on structure state
-        let new_push_count = if height < 0.1 {
-            // Structure is flat - try removing a pull to let it unfold
-            let mutation = if self.grower.remove_random_pull(&mut offspring) {
-                MutationType::FlatRemovePull
-            } else {
-                self.grower.add_more_connections(&mut offspring);
-                MutationType::FlatAddConnections
-            };
-            self.current_mutation = mutation;
-
-            // Lift flat structures and add large perturbations to help them snap open
-            let lift_altitude = 0.05;
-            let translation = offspring.centralize_translation(Some(lift_altitude));
-            offspring.apply_translation(translation);
-
-            let perturbation_size = 0.05; // 5cm random nudges for flat structures
-            for joint in offspring.joints.values_mut() {
-                joint.location.x += self.rng.random_range(-perturbation_size..perturbation_size);
-                joint.location.y += self.rng.random_range(-perturbation_size..perturbation_size);
-                joint.location.z += self.rng.random_range(-perturbation_size..perturbation_size);
-            }
-            offspring.zero_velocities();
-
-            parent_push_count
-        } else {
-            // Structure has height - apply weighted random mutation
-            let (count, mutation) = self.grower.apply_random_mutation(&mut offspring, parent_push_count);
-            self.current_mutation = mutation.clone();
-
-            // Lift structure slightly so frozen joints unstick from floor
-            let lift_altitude = 0.05; // 5cm above floor
-            let translation = offspring.centralize_translation(Some(lift_altitude));
-            offspring.apply_translation(translation);
-            offspring.zero_velocities();
-
-            count
-        };
-
+        let (new_push_count, mutation) = self.grower.apply_mutation_with_preparation(
+            &mut offspring,
+            parent_push_count,
+            height,
+        );
+        self.current_mutation = mutation;
         self.current_fabric = Some(offspring);
         self.current_push_count = new_push_count;
 
@@ -694,113 +609,6 @@ impl Evolution {
     /// Get reference to the population.
     pub fn population(&self) -> &Population {
         &self.population
-    }
-
-    /// TEMPORARY: Analyze evolved structure and compare to designed Triped.
-    /// Panics with detailed comparison to stop execution and show results.
-    fn analyze_and_compare_to_triped(&self) {
-        use crate::fabric::GeometricAnalysis;
-
-        let best = match self.population.best_current() {
-            Some(ind) => ind,
-            None => return,
-        };
-
-        let fabric = &best.fabric;
-        let analysis = fabric.analyze_buildability();
-        let pop_stats = self.population.stats();
-
-        // Triped baseline (measured from built structure in check_final_settled_state test)
-        let triped = GeometricAnalysis {
-            avg_pull_connections: 3.96,
-            min_pull_connections: 3,
-            max_pull_connections: 5,
-            overpopulated_joints: 0,
-            underpopulated_joints: 0,
-            min_push_distance: 0.234, // 234mm
-            crossing_count: 0,
-            near_miss_count: 0,
-        };
-
-        let mut report = String::new();
-        report.push_str("\n");
-        report.push_str("╔══════════════════════════════════════════════════════════════════════════════╗\n");
-        report.push_str("║                    EVOLVED vs DESIGNED STRUCTURE ANALYSIS                   ║\n");
-        report.push_str("╠══════════════════════════════════════════════════════════════════════════════╣\n");
-        report.push_str("║                                                                              ║\n");
-        report.push_str(&format!("║  Population Stats:                                                           ║\n"));
-        report.push_str(&format!("║    Generation: {:>6}     Evaluations: {:>8}                            ║\n",
-            pop_stats.generation, self.evaluations));
-        report.push_str(&format!("║    Best Fitness: {:>8.3}  Mean Fitness: {:>8.3}                         ║\n",
-            pop_stats.max_fitness, pop_stats.mean_fitness));
-        report.push_str(&format!("║    Avg Push Count: {:>5.1}   Avg Mutations: {:>5.1}                            ║\n",
-            pop_stats.avg_push_count, pop_stats.avg_mutations));
-        report.push_str("║                                                                              ║\n");
-        report.push_str("╠══════════════════════════════════════════════════════════════════════════════╣\n");
-        report.push_str("║                                                                              ║\n");
-        report.push_str("║  METRIC                          EVOLVED         TRIPED          VERDICT     ║\n");
-        report.push_str("║  ──────────────────────────────────────────────────────────────────────────  ║\n");
-
-        // Avg pulls per joint
-        let verdict_avg = if (analysis.avg_pull_connections - triped.avg_pull_connections).abs() < 0.5 { "✓ GOOD" } else if analysis.avg_pull_connections > 5.0 { "✗ TOO MANY" } else { "~ OK" };
-        report.push_str(&format!("║  Avg pulls/joint               {:>8.2}        {:>8.2}        {:>10}  ║\n",
-            analysis.avg_pull_connections, triped.avg_pull_connections, verdict_avg));
-
-        // Min pulls per joint
-        let verdict_min = if analysis.min_pull_connections >= triped.min_pull_connections { "✓ GOOD" } else { "✗ UNSTABLE" };
-        report.push_str(&format!("║  Min pulls/joint               {:>8}        {:>8}        {:>10}  ║\n",
-            analysis.min_pull_connections, triped.min_pull_connections, verdict_min));
-
-        // Max pulls per joint
-        let verdict_max = if analysis.max_pull_connections <= triped.max_pull_connections { "✓ GOOD" } else if analysis.max_pull_connections <= 7 { "~ HIGH" } else { "✗ MESSY" };
-        report.push_str(&format!("║  Max pulls/joint               {:>8}        {:>8}        {:>10}  ║\n",
-            analysis.max_pull_connections, triped.max_pull_connections, verdict_max));
-
-        // Overpopulated joints
-        let verdict_overpop = if analysis.overpopulated_joints == 0 { "✓ GOOD" } else if analysis.overpopulated_joints < 5 { "~ FEW" } else { "✗ MANY" };
-        report.push_str(&format!("║  Overpopulated joints (>5)     {:>8}        {:>8}        {:>10}  ║\n",
-            analysis.overpopulated_joints, triped.overpopulated_joints, verdict_overpop));
-
-        // Underpopulated joints
-        let verdict_underpop = if analysis.underpopulated_joints == 0 { "✓ GOOD" } else if analysis.underpopulated_joints < 3 { "~ FEW" } else { "✗ UNSTABLE" };
-        report.push_str(&format!("║  Underpopulated joints (<3)    {:>8}        {:>8}        {:>10}  ║\n",
-            analysis.underpopulated_joints, triped.underpopulated_joints, verdict_underpop));
-
-        // Min push distance (convert to mm for display)
-        let evolved_mm = analysis.min_push_distance * 1000.0;
-        let triped_mm = triped.min_push_distance * 1000.0;
-        let verdict_dist = if evolved_mm > 100.0 { "✓ GOOD" } else if evolved_mm > 50.0 { "~ CLOSE" } else if evolved_mm > 10.0 { "✗ NEAR-MISS" } else { "✗ CROSSING" };
-        report.push_str(&format!("║  Min push distance (mm)        {:>8.1}        {:>8.1}        {:>10}  ║\n",
-            evolved_mm, triped_mm, verdict_dist));
-
-        // Crossings
-        let verdict_cross = if analysis.crossing_count == 0 { "✓ GOOD" } else { "✗ UNBUILDABLE" };
-        report.push_str(&format!("║  Push crossings (<10mm)        {:>8}        {:>8}        {:>10}  ║\n",
-            analysis.crossing_count, triped.crossing_count, verdict_cross));
-
-        // Near-misses
-        let verdict_near = if analysis.near_miss_count == 0 { "✓ GOOD" } else if analysis.near_miss_count < 3 { "~ FEW" } else { "✗ MANY" };
-        report.push_str(&format!("║  Near-misses (10-50mm)         {:>8}        {:>8}        {:>10}  ║\n",
-            analysis.near_miss_count, triped.near_miss_count, verdict_near));
-
-        report.push_str("║                                                                              ║\n");
-        report.push_str("╠══════════════════════════════════════════════════════════════════════════════╣\n");
-
-        // Overall assessment
-        let total_issues = analysis.overpopulated_joints + analysis.underpopulated_joints + analysis.crossing_count + analysis.near_miss_count;
-        let buildable = analysis.crossing_count == 0 && analysis.min_pull_connections >= 3;
-        let clean = analysis.overpopulated_joints == 0 && analysis.max_pull_connections <= 5;
-
-        report.push_str("║                                                                              ║\n");
-        report.push_str(&format!("║  SUMMARY:                                                                    ║\n"));
-        report.push_str(&format!("║    Total joints: {}    Total intervals: {}    Push count: {}              \n",
-            fabric.joints.len(), fabric.intervals.len(), best.push_count));
-        report.push_str(&format!("║    Buildable: {}    Clean topology: {}    Total issues: {}                \n",
-            if buildable { "YES" } else { "NO" }, if clean { "YES" } else { "NO" }, total_issues));
-        report.push_str("║                                                                              ║\n");
-        report.push_str("╚══════════════════════════════════════════════════════════════════════════════╝\n");
-
-        panic!("{}", report);
     }
 }
 

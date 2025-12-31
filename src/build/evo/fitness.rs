@@ -38,20 +38,12 @@ impl FitnessName {
 }
 
 /// Trait for fitness evaluation strategies.
-///
-/// Different fitness functions can reward different properties of structures:
-/// - Suspended joints (keeps things in the air)
-/// - Height (maximizes vertical extent)
-/// - etc.
 pub trait FitnessFunction: Send + Sync {
-    /// Name of this fitness function (for display and config).
     fn name(&self) -> &'static str;
 
-    /// Evaluate the fitness of a fabric.
     /// Returns 0.0 for invalid/collapsed structures.
     fn evaluate(&self, fabric: &Fabric, push_count: usize) -> f32;
 
-    /// Get detailed fitness breakdown for display.
     fn evaluate_detailed(&self, fabric: &Fabric, push_count: usize) -> FitnessDetails;
 }
 
