@@ -75,6 +75,7 @@ impl DefaultMutationStrategy {
                 lengthen_pull: 35.0,
                 remove_pull: 10.0,
                 add_push: 20.0,
+                split_pull: 0.0,
             },
             ..Default::default()
         };
@@ -179,6 +180,7 @@ impl AggressiveMutationStrategy {
                 lengthen_pull: 10.0,
                 remove_pull: 30.0,
                 add_push: 50.0,
+                split_pull: 0.0,
             },
             ..Default::default()
         };
@@ -286,6 +288,7 @@ impl ConservativeMutationStrategy {
                 lengthen_pull: 45.0,
                 remove_pull: 5.0,
                 add_push: 5.0,
+                split_pull: 0.0,
             },
             ..Default::default()
         };

@@ -1,5 +1,5 @@
 use crate::build::evo::evolution::EvolutionConfig;
-use crate::build::evo::fitness::{get_fitness_function, FitnessFunction, SuspendedJointsFitness};
+use crate::build::evo::fitness::FitnessName;
 use crate::build::evo::grower::MutationWeights;
 use crate::units::{Meters, Seconds};
 
@@ -8,12 +8,13 @@ use crate::units::{Meters, Seconds};
 /// # Example
 /// ```ignore
 /// let scenario = EvolutionScenario::new("Aggressive Growth")
-///     .fitness("suspended")
+///     .fitness(FitnessName::Suspended)
 ///     .mutations(MutationWeights {
 ///         shorten_pull: 10.0,
 ///         lengthen_pull: 10.0,
 ///         remove_pull: 30.0,
 ///         add_push: 50.0,
+///         split_pull: 0.0,
 ///     })
 ///     .population(30)
 ///     .seed_pushes(4)
@@ -23,21 +24,13 @@ use crate::units::{Meters, Seconds};
 /// ```
 #[derive(Clone, Debug)]
 pub struct EvolutionScenario {
-    /// Scenario name
     pub name: String,
-    /// Fitness function name
-    pub fitness_name: String,
-    /// Mutation weights
+    pub fitness: FitnessName,
     pub mutation_weights: MutationWeights,
-    /// Population size
     pub population_size: usize,
-    /// Number of pushes in seed structure
     pub seed_push_count: usize,
-    /// Seconds to settle initial seed
     pub seed_settle_seconds: f32,
-    /// Seconds to settle after each mutation
     pub mutation_settle_seconds: f32,
-    /// Push interval length
     pub push_length: Meters,
 }
 
@@ -45,7 +38,7 @@ impl Default for EvolutionScenario {
     fn default() -> Self {
         Self {
             name: "Default".to_string(),
-            fitness_name: "suspended".to_string(),
+            fitness: FitnessName::default(),
             mutation_weights: MutationWeights::default(),
             population_size: 20,
             seed_push_count: 3,
@@ -65,9 +58,9 @@ impl EvolutionScenario {
         }
     }
 
-    /// Set the fitness function by name ("suspended" or "height").
-    pub fn fitness(mut self, name: impl Into<String>) -> Self {
-        self.fitness_name = name.into();
+    /// Set the fitness function.
+    pub fn fitness(mut self, fitness: FitnessName) -> Self {
+        self.fitness = fitness;
         self
     }
 
@@ -82,23 +75,25 @@ impl EvolutionScenario {
         self.mutations(MutationWeights::default())
     }
 
-    /// Use aggressive mutations favoring structural changes (10/10/30/50).
+    /// Use aggressive mutations favoring structural changes (10/10/30/50/0).
     pub fn aggressive_mutations(self) -> Self {
         self.mutations(MutationWeights {
             shorten_pull: 10.0,
             lengthen_pull: 10.0,
             remove_pull: 30.0,
             add_push: 50.0,
+            split_pull: 0.0,
         })
     }
 
-    /// Use conservative mutations favoring fine-tuning (45/45/5/5).
+    /// Use conservative mutations favoring fine-tuning (45/45/5/5/0).
     pub fn conservative_mutations(self) -> Self {
         self.mutations(MutationWeights {
             shorten_pull: 45.0,
             lengthen_pull: 45.0,
             remove_pull: 5.0,
             add_push: 5.0,
+            split_pull: 0.0,
         })
     }
 
@@ -141,13 +136,9 @@ impl EvolutionScenario {
             seed_settle_seconds: self.seed_settle_seconds,
             mutation_settle_seconds: self.mutation_settle_seconds,
             push_length: self.push_length.0,
+            mutation_weights: self.mutation_weights.clone(),
+            fitness: self.fitness,
         }
-    }
-
-    /// Get the fitness function for this scenario.
-    pub fn fitness_function(&self) -> Box<dyn FitnessFunction> {
-        get_fitness_function(&self.fitness_name)
-            .unwrap_or_else(|| Box::new(SuspendedJointsFitness::default()))
     }
 }
 
@@ -178,6 +169,7 @@ pub enum ScenarioName {
     Aggressive,
     Conservative,
     TallTowers,
+    Buildable,
 }
 
 impl ScenarioName {
@@ -185,8 +177,14 @@ impl ScenarioName {
     pub fn scenario(self) -> EvolutionScenario {
         match self {
             ScenarioName::Default => EvolutionScenario::new("Default")
-                .fitness("suspended")
-                .balanced_mutations()
+                .fitness(FitnessName::Suspended)
+                .mutations(MutationWeights {
+                    shorten_pull: 35.0,
+                    lengthen_pull: 35.0,
+                    remove_pull: 10.0,
+                    add_push: 20.0,
+                    split_pull: 0.0,
+                })
                 .population(20)
                 .seed_pushes(3)
                 .settle_seed(Sec(1.5))
@@ -194,8 +192,14 @@ impl ScenarioName {
                 .push_length(M(3.0)),
 
             ScenarioName::Aggressive => EvolutionScenario::new("Aggressive Growth")
-                .fitness("suspended")
-                .aggressive_mutations()
+                .fitness(FitnessName::Suspended)
+                .mutations(MutationWeights {
+                    shorten_pull: 10.0,
+                    lengthen_pull: 10.0,
+                    remove_pull: 30.0,
+                    add_push: 50.0,
+                    split_pull: 0.0,
+                })
                 .population(30)
                 .seed_pushes(4)
                 .settle_seed(Sec(1.0))
@@ -203,8 +207,14 @@ impl ScenarioName {
                 .push_length(M(2.5)),
 
             ScenarioName::Conservative => EvolutionScenario::new("Conservative Refinement")
-                .fitness("suspended")
-                .conservative_mutations()
+                .fitness(FitnessName::Suspended)
+                .mutations(MutationWeights {
+                    shorten_pull: 45.0,
+                    lengthen_pull: 45.0,
+                    remove_pull: 5.0,
+                    add_push: 5.0,
+                    split_pull: 0.0,
+                })
                 .population(15)
                 .seed_pushes(3)
                 .settle_seed(Sec(2.0))
@@ -212,18 +222,34 @@ impl ScenarioName {
                 .push_length(M(3.5)),
 
             ScenarioName::TallTowers => EvolutionScenario::new("Tall Towers")
-                .fitness("height")
+                .fitness(FitnessName::Height)
                 .mutations(MutationWeights {
                     shorten_pull: 30.0,
                     lengthen_pull: 30.0,
                     remove_pull: 15.0,
                     add_push: 25.0,
+                    split_pull: 0.0,
                 })
                 .population(25)
                 .seed_pushes(4)
                 .settle_seed(Sec(1.5))
                 .settle_mutation(Sec(4.0))
                 .push_length(M(4.0)),
+
+            ScenarioName::Buildable => EvolutionScenario::new("Buildable")
+                .fitness(FitnessName::Buildable)
+                .mutations(MutationWeights {
+                    shorten_pull: 20.0,
+                    lengthen_pull: 20.0,
+                    remove_pull: 10.0,
+                    add_push: 0.0,       // Disabled - causes crossings
+                    split_pull: 50.0,    // Main growth mechanism
+                })
+                .population(50)
+                .seed_pushes(4)
+                .settle_seed(Sec(1.5))
+                .settle_mutation(Sec(3.5))
+                .push_length(M(3.0)),
         }
     }
 }
@@ -235,14 +261,14 @@ mod tests {
     #[test]
     fn test_default_scenario() {
         let scenario = EvolutionScenario::default();
-        assert_eq!(scenario.fitness_name, "suspended");
+        assert_eq!(scenario.fitness, FitnessName::Suspended);
         assert_eq!(scenario.population_size, 20);
     }
 
     #[test]
     fn test_builder_pattern() {
         let scenario = EvolutionScenario::new("Test")
-            .fitness("height")
+            .fitness(FitnessName::Height)
             .aggressive_mutations()
             .population(30)
             .seed_pushes(5)
@@ -251,7 +277,7 @@ mod tests {
             .push_length(M(4.0));
 
         assert_eq!(scenario.name, "Test");
-        assert_eq!(scenario.fitness_name, "height");
+        assert_eq!(scenario.fitness, FitnessName::Height);
         assert_eq!(scenario.mutation_weights.add_push, 50.0);
         assert_eq!(scenario.population_size, 30);
         assert_eq!(scenario.seed_push_count, 5);
@@ -265,6 +291,6 @@ mod tests {
         assert_eq!(aggressive.mutation_weights.add_push, 50.0);
 
         let tall = ScenarioName::TallTowers.scenario();
-        assert_eq!(tall.fitness_name, "height");
+        assert_eq!(tall.fitness, FitnessName::Height);
     }
 }

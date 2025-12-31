@@ -745,3 +745,154 @@ impl Fabric {
             .map(|(key, _)| key)
     }
 }
+
+/// Geometric analysis results for buildability assessment
+#[derive(Debug, Clone, Default)]
+pub struct GeometricAnalysis {
+    /// Average pull connections per joint
+    pub avg_pull_connections: f32,
+    /// Minimum pull connections on any joint
+    pub min_pull_connections: usize,
+    /// Maximum pull connections on any joint
+    pub max_pull_connections: usize,
+    /// Number of overpopulated joints (>5 pulls)
+    pub overpopulated_joints: usize,
+    /// Number of underpopulated joints (<3 pulls)
+    pub underpopulated_joints: usize,
+    /// Minimum distance between non-adjacent push pairs (meters)
+    pub min_push_distance: f32,
+    /// Number of crossing push pairs (distance < crossing_threshold)
+    pub crossing_count: usize,
+    /// Number of near-miss push pairs (distance < near_miss_threshold but >= crossing_threshold)
+    pub near_miss_count: usize,
+}
+
+impl GeometricAnalysis {
+    /// Score from 0.0 (poor) to 1.0 (excellent) based on buildability.
+    pub fn buildability_score(&self) -> f32 {
+        // Crossing penalty: each crossing halves the score
+        let crossing_penalty = 0.5_f32.powi(self.crossing_count as i32);
+
+        // Overpopulation penalty: each overpopulated joint reduces by 10%
+        let overpop_penalty = 0.9_f32.powi(self.overpopulated_joints as i32);
+
+        // Underpopulation penalty: each underpopulated joint reduces by 10%
+        let underpop_penalty = 0.9_f32.powi(self.underpopulated_joints as i32);
+
+        crossing_penalty * overpop_penalty * underpop_penalty
+    }
+}
+
+/// Geometric analysis methods for buildability assessment
+impl Fabric {
+    /// Count pull connections per joint, returning a map from joint key to count.
+    pub fn pull_connections_per_joint(&self) -> std::collections::HashMap<JointKey, usize> {
+        use std::collections::HashMap;
+        let mut counts: HashMap<JointKey, usize> = HashMap::new();
+
+        for joint_key in self.joints.keys() {
+            counts.insert(joint_key, 0);
+        }
+
+        for interval in self.intervals.values() {
+            if interval.role.is_pull_like() {
+                *counts.entry(interval.alpha_key).or_insert(0) += 1;
+                *counts.entry(interval.omega_key).or_insert(0) += 1;
+            }
+        }
+
+        counts
+    }
+
+    /// Calculate minimum distances between all non-adjacent push pairs.
+    /// Returns distances in meters, sorted ascending.
+    pub fn push_distances(&self) -> Vec<f32> {
+        use crate::build::evo::geometry::segment_min_distance;
+
+        let push_intervals: Vec<_> = self
+            .intervals
+            .iter()
+            .filter(|(_, interval)| interval.has_role(Role::Pushing))
+            .collect();
+
+        let mut distances = Vec::new();
+
+        for i in 0..push_intervals.len() {
+            for j in (i + 1)..push_intervals.len() {
+                let (_, int1) = push_intervals[i];
+                let (_, int2) = push_intervals[j];
+
+                // Skip if they share a joint (adjacent pushes)
+                if int1.alpha_key == int2.alpha_key
+                    || int1.alpha_key == int2.omega_key
+                    || int1.omega_key == int2.alpha_key
+                    || int1.omega_key == int2.omega_key
+                {
+                    continue;
+                }
+
+                let p1 = self.location(int1.alpha_key);
+                let q1 = self.location(int1.omega_key);
+                let p2 = self.location(int2.alpha_key);
+                let q2 = self.location(int2.omega_key);
+
+                let distance = segment_min_distance(p1, q1, p2, q2);
+                distances.push(distance);
+            }
+        }
+
+        distances.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        distances
+    }
+
+    /// Perform full geometric analysis for buildability assessment.
+    ///
+    /// Parameters:
+    /// - `crossing_threshold`: Distance below which pushes are crossing (meters), default 0.01 (10mm)
+    /// - `near_miss_threshold`: Distance below which pushes are dangerously close (meters), default 0.05 (50mm)
+    pub fn geometric_analysis(
+        &self,
+        crossing_threshold: f32,
+        near_miss_threshold: f32,
+    ) -> GeometricAnalysis {
+        let pull_counts = self.pull_connections_per_joint();
+
+        let total: usize = pull_counts.values().sum();
+        let avg = if pull_counts.is_empty() {
+            0.0
+        } else {
+            total as f32 / pull_counts.len() as f32
+        };
+        let min = *pull_counts.values().min().unwrap_or(&0);
+        let max = *pull_counts.values().max().unwrap_or(&0);
+
+        let overpopulated = pull_counts.values().filter(|&&c| c > 5).count();
+        let underpopulated = pull_counts.values().filter(|&&c| c < 3).count();
+
+        let distances = self.push_distances();
+        let min_distance = distances.first().copied().unwrap_or(f32::MAX);
+
+        let crossing_count = distances.iter().filter(|&&d| d < crossing_threshold).count();
+        let near_miss_count = distances
+            .iter()
+            .filter(|&&d| d >= crossing_threshold && d < near_miss_threshold)
+            .count();
+
+        GeometricAnalysis {
+            avg_pull_connections: avg,
+            min_pull_connections: min,
+            max_pull_connections: max,
+            overpopulated_joints: overpopulated,
+            underpopulated_joints: underpopulated,
+            min_push_distance: min_distance,
+            crossing_count,
+            near_miss_count,
+        }
+    }
+
+    /// Convenience method for geometric analysis with default thresholds.
+    /// Uses 10mm for crossing, 50mm for near-miss.
+    pub fn analyze_buildability(&self) -> GeometricAnalysis {
+        self.geometric_analysis(0.010, 0.050)
+    }
+}
