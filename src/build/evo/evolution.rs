@@ -265,7 +265,7 @@ impl Evolution {
         };
 
         let display = DisplayState {
-            title: Some(format!("{}{}", self.config.name, mode_suffix)),
+            title: Some(format!("Evolution: {}{}", self.config.name, mode_suffix)),
             subtitle: Some(format!("Mutation #{}", mutations)),
             left_details,
             right_details: vec![],
@@ -289,6 +289,16 @@ impl Evolution {
 
     /// Single evolution step.
     fn step(&mut self, iterations_per_frame: usize) {
+        // In Fast mode, run multiple complete cycles per frame
+        let cycles = if self.viewing_mode == ViewingMode::Fast { 5 } else { 1 };
+
+        for _ in 0..cycles {
+            self.step_once(iterations_per_frame);
+        }
+    }
+
+    /// Execute one step of the state machine.
+    fn step_once(&mut self, iterations_per_frame: usize) {
         match self.state.clone() {
             EvolutionState::CreatingSeed => {
                 self.create_seed();
@@ -371,9 +381,14 @@ impl Evolution {
             return;
         }
 
-        // Use iterations_per_frame from time_scale, but cap to stay responsive
-        // Max 5000 iterations per frame to keep UI smooth while allowing faster settling
-        let batch = iterations_per_frame.min(5000).min(remaining);
+        // In Fast mode, complete all settling at once
+        // In Watch mode, do incremental batches for visual feedback
+        let batch = if self.viewing_mode == ViewingMode::Fast {
+            remaining // Complete all at once
+        } else {
+            // Cap to stay responsive while allowing faster settling
+            iterations_per_frame.min(5000).min(remaining)
+        };
 
         if let Some(ref mut fabric) = self.current_fabric {
             for _ in 0..batch {
