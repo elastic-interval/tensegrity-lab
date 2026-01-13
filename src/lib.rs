@@ -52,39 +52,34 @@ impl Display for Age {
     }
 }
 
-/// Time values for each physics iteration, with pre-computed derivatives
-#[derive(Debug, Clone, Copy)]
-pub struct IterationDuration {
-    pub duration: Duration,
-    pub secs: f32,
-}
-
-impl IterationDuration {
-    const fn new(microseconds: u64) -> Self {
-        let duration = Duration::from_micros(microseconds);
-        let secs = microseconds as f32 / 1_000_000.0;
-
-        Self { duration, secs }
-    }
-}
-
-/// Duration of each physics iteration tick
-pub const ITERATION_DURATION: IterationDuration = IterationDuration::new(50);
-
 impl Default for Age {
     fn default() -> Self {
         Self(Duration::ZERO)
     }
 }
 
+/// Duration of each physics iteration tick (50 microseconds)
+const TICK_DURATION: Duration = Duration::from_micros(50);
+const TICK_SECS: f32 = 50.0 / 1_000_000.0;
+
 impl Age {
+    /// Duration of a single physics iteration in seconds
+    pub fn iteration_duration() -> f32 {
+        TICK_SECS
+    }
+
+    /// Number of iterations per second (inverse of iteration_duration)
+    pub fn iterations_per_second() -> f32 {
+        1.0 / TICK_SECS
+    }
+
     pub fn tick(&mut self) -> Duration {
-        self.0 += ITERATION_DURATION.duration;
-        ITERATION_DURATION.duration
+        self.0 += TICK_DURATION;
+        TICK_DURATION
     }
 
     pub fn advanced(&self, ticks: usize) -> Self {
-        Self(self.0 + ITERATION_DURATION.duration * ticks as u32)
+        Self(self.0 + TICK_DURATION * ticks as u32)
     }
 
     pub fn within(&self, limit: &Self) -> bool {

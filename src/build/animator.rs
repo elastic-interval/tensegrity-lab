@@ -3,7 +3,7 @@ use crate::crucible_context::CrucibleContext;
 use crate::fabric::interval::{Role, Span};
 use crate::fabric::{IntervalKey, JointKey};
 use crate::units::{Meters, Percent};
-use crate::ITERATION_DURATION;
+use crate::Age;
 use glam::Vec3;
 use std::f32::consts::PI;
 
@@ -15,7 +15,7 @@ struct Oscillator {
 
 impl Oscillator {
     fn new(period_secs: f32) -> Self {
-        let ticks_per_cycle = period_secs / ITERATION_DURATION.secs;
+        let ticks_per_cycle = period_secs / Age::iteration_duration();
         Self {
             phase: 0.0,
             phase_per_tick: 1.0 / ticks_per_cycle,
@@ -23,7 +23,7 @@ impl Oscillator {
     }
 
     fn set_period(&mut self, period_secs: f32) {
-        let ticks_per_cycle = period_secs / ITERATION_DURATION.secs;
+        let ticks_per_cycle = period_secs / Age::iteration_duration();
         self.phase_per_tick = 1.0 / ticks_per_cycle;
     }
 

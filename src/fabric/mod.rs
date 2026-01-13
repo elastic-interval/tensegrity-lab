@@ -535,15 +535,36 @@ impl Fabric {
             .collect()
     }
 
+    /// Velocity Verlet integration using kick-drift-kick formulation
     pub fn iterate(&mut self, physics: &Physics) -> f32 {
         if self.frozen {
             return 0.0;
         }
+
+        use crate::units::EARTH_GRAVITY;
+
         self.stats.reset();
+        let dt = Age::iteration_duration();
+        let has_gravity = physics.surface.is_some();
+
+        // 1. First half-kick: v += 0.5 * a * dt (using forces from previous iteration)
+        //    Note: On first iteration, forces are zero, so this is a no-op
+        for joint in self.joints.values_mut() {
+            joint.half_kick(dt);
+        }
+
+        // 2. Drift: x += v * dt (position update)
+        for joint in self.joints.values_mut() {
+            joint.drift(dt);
+        }
+
+        // 3. Reset forces and recalculate at new positions
         let ambient_mass = self.ambient_mass();
         for joint in self.joints.values_mut() {
             joint.reset_with_mass(ambient_mass);
         }
+
+        // Calculate interval forces (also adds interval mass to joints)
         let age = self.age;
         for interval in self.intervals.values_mut() {
             if interval.iterate(&mut self.joints, age, physics) == SpanTransition::ApproachCompleted {
@@ -551,14 +572,25 @@ impl Fabric {
             }
             self.stats.accumulate_strain(interval.strain);
         }
-        let elapsed = self.age.tick();
 
-        // Check for excessive speed and accumulate velocity/energy stats
+        // Apply gravity force AFTER interval.iterate so accumulated_mass includes interval mass
+        if has_gravity {
+            let g = EARTH_GRAVITY.f32();
+            for joint in self.joints.values_mut() {
+                let mass = joint.accumulated_mass.f32();
+                joint.force += Vec3::new(0.0, -mass * g, 0.0);
+            }
+        }
+
+        // 4. Second half-kick: v += 0.5 * a * dt (using new forces)
+        //    Also apply damping and surface interaction after the velocity update
         const MAX_SPEED_SQUARED: f32 = 1000.0 * 1000.0; // (m/s)²
         let mut max_speed_squared = 0.0;
 
         for joint in self.joints.values_mut() {
-            joint.iterate(physics);
+            joint.half_kick(dt);
+            joint.apply_damping_and_surface(physics, dt);
+
             let speed_squared = joint.velocity.length_squared();
             let mass = joint.accumulated_mass.f32();
             self.stats.accumulate_joint(mass, speed_squared);
@@ -567,7 +599,10 @@ impl Fabric {
                 max_speed_squared = speed_squared;
             }
         }
+
+        let elapsed = self.age.tick();
         self.stats.finalize();
+
         if max_speed_squared > MAX_SPEED_SQUARED || max_speed_squared.is_nan() {
             eprintln!(
                 "Excessive speed detected: {:.2} m/s - freezing fabric",
@@ -594,6 +629,28 @@ impl Fabric {
                 0.5 * joint.accumulated_mass.f32() * speed_squared
             })
             .sum()
+    }
+
+    /// Calculate elastic potential energy stored in all intervals
+    /// E = 0.5 * k * x² where x = strain * ideal_length
+    pub fn potential_energy(&self, physics: &Physics) -> f32 {
+        self.intervals
+            .values()
+            .map(|interval| {
+                let strain = interval.strain;
+                let ideal = interval.ideal();
+                let k = interval.material.spring_constant(ideal, physics);
+                // Extension in meters
+                let extension = Meters(strain * ideal.f32());
+                // E = 0.5 * k * x²
+                0.5 * k.f32() * extension.f32() * extension.f32()
+            })
+            .sum()
+    }
+
+    /// Total mechanical energy (kinetic + potential)
+    pub fn total_energy(&self, physics: &Physics) -> f32 {
+        self.kinetic_energy() + self.potential_energy(physics)
     }
 
     pub fn centroid(&self) -> Vec3 {

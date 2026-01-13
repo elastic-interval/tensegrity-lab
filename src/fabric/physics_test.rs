@@ -77,23 +77,19 @@ impl PhysicsTester {
         match action {
             SetTweakParameter(parameter) => {
                 self.physics.accept_tweak(parameter);
-                // Mass/rigidity changes take effect on the next iterate() call
             }
             DumpPhysics => {
                 println!("{:?}", self.physics);
             }
             ToggleMovementSampler => {
                 if self.showing_analysis {
-                    // Hide analysis
                     self.showing_analysis = false;
                     self.fabric_analysis = None;
                     StateChange::ShowMovementAnalysis(None).send(&self.radio);
                 } else if self.fabric_sampler.is_some() {
-                    // Cancel active sampling
                     self.fabric_sampler = None;
                     StateChange::ShowMovementAnalysis(None).send(&self.radio);
                 } else {
-                    // Start new sampling
                     let sampler = FabricSampler::new(self.fabric.joints.len());
                     let progress = sampler.format_progress();
                     StateChange::ShowMovementAnalysis(Some(progress)).send(&self.radio);

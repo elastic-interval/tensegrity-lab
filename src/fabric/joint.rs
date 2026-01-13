@@ -7,7 +7,6 @@ use crate::fabric::joint_path::JointPath;
 use crate::fabric::physics::{Physics, SurfaceInteraction};
 use crate::fabric::{Fabric, JointKey};
 use crate::units::{Grams, Meters, Unit};
-use crate::ITERATION_DURATION;
 use glam::Vec3;
 
 impl Fabric {
@@ -90,39 +89,60 @@ impl Joint {
         self.accumulated_mass = ambient_mass;
     }
 
-    pub fn iterate(&mut self, physics: &Physics) {
+    /// Half-kick: update velocity by half timestep using current force
+    /// v += 0.5 * (F/m) * dt
+    pub fn half_kick(&mut self, dt: f32) {
+        let mass = self.accumulated_mass.f32();
+        let acceleration = self.force / mass;
+        self.velocity += acceleration * dt * 0.5;
+    }
+
+    /// Drift: update position using current velocity
+    /// x += v * dt
+    pub fn drift(&mut self, dt: f32) {
+        self.location += self.velocity * dt;
+    }
+
+    /// Apply damping and surface interaction (called after second half-kick in Verlet)
+    /// This handles both air damping and surface collision/friction
+    /// Note: Gravity is applied as a force in iterate_verlet, so we skip gravity here
+    pub fn apply_damping_and_surface(&mut self, physics: &Physics, dt: f32) {
         let drag = physics.drag();
         let viscosity = physics.viscosity();
-        let mass = self.accumulated_mass.f32();
-        let dt = ITERATION_DURATION.secs;
-
-        // Force is in Newtons, mass in grams (converted to kg)
-        // a = F/m gives m/s², multiply by dt gives velocity change in m/s
-        let force_velocity = (self.force / mass) * dt;
 
         match &physics.surface {
             None => {
-                // No surface, no gravity - free floating
+                // No surface - apply quadratic viscosity and linear drag
                 let speed_squared = self.velocity.length_squared();
-                self.velocity += force_velocity - self.velocity * speed_squared * viscosity * dt;
+                self.velocity -= self.velocity * speed_squared * viscosity * dt;
                 self.velocity *= 1.0 - drag * dt;
             }
             Some(surface) => {
-                let result = surface.interact(SurfaceInteraction {
-                    altitude: self.location.y,
-                    velocity: self.velocity,
-                    force_velocity,
-                    drag,
-                    viscosity,
-                    mass,
-                    dt,
-                });
-                self.velocity = result.velocity;
-                if let Some(y) = result.clamp_y {
-                    self.location.y = y;
+                let surface_tolerance = 0.01 * surface.scale;
+
+                if self.location.y > surface_tolerance {
+                    // Above surface - just apply air damping (gravity already in forces)
+                    let speed_squared = self.velocity.length_squared();
+                    self.velocity -= self.velocity * speed_squared * viscosity * dt;
+                    self.velocity *= 1.0 - drag * dt;
+                } else {
+                    // On or below surface - use surface interaction for collision/friction
+                    // Pass force_velocity as ZERO since forces already applied via half_kick
+                    let result = surface.interact(SurfaceInteraction {
+                        altitude: self.location.y,
+                        velocity: self.velocity,
+                        force_velocity: Vec3::ZERO,
+                        drag,
+                        viscosity,
+                        mass: self.accumulated_mass.f32(),
+                        dt,
+                    });
+                    self.velocity = result.velocity;
+                    if let Some(y) = result.clamp_y {
+                        self.location.y = y;
+                    }
                 }
             }
         }
-        self.location = self.location + self.velocity * dt;
     }
 }
