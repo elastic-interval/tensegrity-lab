@@ -247,6 +247,9 @@ impl ApplicationHandler<LabEvent> for Application {
                         let fabric = generate_mobius(*segments);
                         self.crucible.action(CrucibleAction::LoadAlgoFabric(fabric));
                     }
+                    RunStyle::Growing { seed } => {
+                        self.crucible.action(CrucibleAction::ToGrowing { seed: *seed });
+                    }
                 };
             }
             FabricBuilt(fabric_stats) => {

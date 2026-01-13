@@ -151,6 +151,11 @@ pub enum RunStyle {
         /// Scenario name (default, aggressive, conservative, tall-towers)
         scenario_name: Option<String>,
     },
+    /// Self-assembling tensegrity growth
+    Growing {
+        /// Random seed for reproducibility
+        seed: Option<u64>,
+    },
 }
 
 #[derive(Clone)]
@@ -470,6 +475,7 @@ pub enum ControlState {
     PhysicsTesting,
     Baking,
     Evolving,
+    Growing,
 }
 
 impl ControlState {
@@ -503,6 +509,9 @@ pub enum CrucibleAction {
     },
     ToggleEvolutionMode,
     TesterDo(TesterAction),
+    ToGrowing {
+        seed: Option<u64>,
+    },
 }
 
 impl CrucibleAction {

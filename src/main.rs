@@ -29,6 +29,14 @@ struct Args {
     #[arg(long)]
     scenario: Option<String>,
 
+    /// Run self-assembling tensegrity growth
+    #[arg(long)]
+    grow: bool,
+
+    /// Random seed for growth/evolution (for reproducibility)
+    #[arg(long)]
+    seed: Option<u64>,
+
     /// Generate an algorithmic tensegrity sphere with given frequency (1, 2, or 3+)
     #[arg(long)]
     sphere: Option<usize>,
@@ -80,6 +88,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         RunStyle::Evolving {
             scenario_name: args.scenario,
         }
+    } else if args.grow {
+        RunStyle::Growing { seed: args.seed }
     } else if let Some(fabric_name) = args.fabric {
         RunStyle::Fabric {
             fabric_name,

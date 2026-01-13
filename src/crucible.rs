@@ -3,6 +3,7 @@ use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor}
 use crate::build::dsl::FabricPlan;
 use crate::build::evo::evolution::Evolution;
 use crate::build::evo::scenario::ScenarioName;
+use crate::build::growth::{GrowthDna, GrowthSimulator};
 use crate::build::oven::Oven;
 use crate::crucible::Stage::*;
 use crate::crucible_context::CrucibleContext;
@@ -22,6 +23,7 @@ pub enum Stage {
     PhysicsTesting(PhysicsTester),
     BakingBrick(Oven),
     Evolving(Evolution),
+    Growing(GrowthSimulator),
 }
 
 pub struct Crucible {
@@ -227,6 +229,27 @@ impl Crucible {
                 let mut context =
                     CrucibleContext::new(&mut self.fabric, &mut self.physics, &self.radio);
                 evolution.iterate(&mut context, iterations_per_frame);
+
+                // Apply any stage transition
+                if let Some(new_stage) = context.apply_changes() {
+                    self.stage = new_stage;
+                }
+            }
+            Growing(simulator) => {
+                // Create a context for growth
+                let mut context =
+                    CrucibleContext::new(&mut self.fabric, &mut self.physics, &self.radio);
+                simulator.iterate(&mut context, iterations_per_frame);
+
+                // Update stage label with growth statistics
+                let label = format!(
+                    "Growing: {} pushes ({} pivoting)",
+                    simulator.push_count(),
+                    simulator.pivoting_count()
+                );
+                let _ = self
+                    .radio
+                    .send_event(LabEvent::UpdateState(SetStageLabel(label)));
 
                 // Apply any stage transition
                 if let Some(new_stage) = context.apply_changes() {
@@ -466,6 +489,31 @@ impl Crucible {
                     StateChange::SetStageLabel(format!("Evolving ({})", mode_name))
                         .send(&self.radio);
                 }
+            }
+            ToGrowing { seed } => {
+                use crate::fabric::physics::presets::CONSTRUCTION;
+
+                // Create a fresh fabric for growth
+                let growth_fabric = Fabric::new("Growth".to_string());
+                context.replace_fabric(growth_fabric);
+
+                // Use CONSTRUCTION physics (no gravity, moderate damping)
+                context.replace_physics(CONSTRUCTION);
+
+                // Create the growth simulator with seed
+                let dna = GrowthDna::default();
+                let seed_value = seed.unwrap_or(42);
+                let simulator = GrowthSimulator::new(dna, seed_value, &mut context);
+
+                // Set UI state
+                ControlState::Growing.send(&self.radio);
+                SetFabricName("Growth".to_string()).send(&self.radio);
+                SetStageLabel("Growing: 1 pushes (0 pivoting)".to_string()).send(&self.radio);
+
+                // Start at 5x speed for faster growth visualization
+                LabEvent::SetTimeScale(5.0).send(&self.radio);
+
+                context.transition_to(Growing(simulator));
             }
         }
 
