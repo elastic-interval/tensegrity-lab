@@ -10,8 +10,8 @@ use crate::units::Seconds;
 use crate::wgpu::Wgpu;
 use crate::SnapshotMoment;
 use crate::{
-    ControlState, CrucibleAction, LabEvent, Radio, RunStyle, StateChange,
-    TesterAction, ITERATION_DURATION,
+    Age, ControlState, CrucibleAction, LabEvent, Radio, RunStyle, StateChange,
+    TesterAction,
 };
 use instant::{Duration, Instant};
 use std::sync::Arc;
@@ -565,8 +565,7 @@ impl ApplicationHandler<LabEvent> for Application {
             updates_this_frame += 1;
 
             // Calculate iterations needed to maintain time scale
-            // iterations_per_second = 1.0 / ITERATION_DURATION.secs (e.g., 20000 for 50µs)
-            let iterations_per_second = 1.0 / ITERATION_DURATION.secs;
+            let iterations_per_second = Age::iterations_per_second();
             let iterations_per_frame = if self.current_fps > 0.0 && animate {
                 (self.time_scale * iterations_per_second / self.current_fps).round() as usize
             } else {

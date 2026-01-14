@@ -131,7 +131,7 @@ impl Keyboard {
             KeyCode::KeyJ,
             "Jump",
             Crucible(CrucibleAction::CentralizeFabric(Some(Meters(1.0)))),
-            Box::new(|state| matches!(state, PhysicsTesting | Viewing { .. })),
+            Box::new(|state| matches!(state, Viewing { .. } | PhysicsTesting)),
         );
         self.key_lab_event(
             KeyCode::KeyC,

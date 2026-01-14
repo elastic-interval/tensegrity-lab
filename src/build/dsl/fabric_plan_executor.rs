@@ -560,7 +560,6 @@ impl FabricPlanExecutor {
             iteration: self.current_iteration,
         });
 
-        // Switch to PRETENSING physics
         self.physics = PRETENSING;
 
         self.stored_surface_character = self.plan.pretense_phase.surface;
