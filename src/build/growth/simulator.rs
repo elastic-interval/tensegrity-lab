@@ -9,7 +9,7 @@ use crate::crucible_context::CrucibleContext;
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, IntervalKey, JointKey};
 use crate::units::Unit;
-use crate::ITERATION_DURATION;
+use crate::Age;
 
 use super::dna::GrowthDna;
 use super::push::{GrowingPush, PushState};
@@ -72,12 +72,11 @@ impl GrowthSimulator {
         let alpha_key = context.fabric.create_joint(alpha_pos);
         let omega_key = context.fabric.create_joint(omega_pos);
 
-        // Create the Push interval
-        let interval_key = context.fabric.create_fixed_interval(
+        // Create the Push interval at slack length (no immediate strain)
+        let interval_key = context.fabric.create_slack_interval(
             alpha_key,
             omega_key,
             Role::Pushing,
-            self.dna.push_length,
         );
 
         // Track as anchored (seed starts ready to spawn)
@@ -93,7 +92,7 @@ impl GrowthSimulator {
     /// Main iteration loop - called once per frame by Crucible.
     pub fn iterate(&mut self, context: &mut CrucibleContext, iterations_per_frame: usize) {
         // Get the time delta per iteration for probability calculations
-        let dt = ITERATION_DURATION.secs;
+        let dt = Age::iteration_duration();
 
         for _ in 0..iterations_per_frame {
             let current_age = context.fabric.age;
@@ -348,23 +347,23 @@ impl GrowthSimulator {
         let phi: f32 = self.rng.random_range(-0.5..0.5); // Slight vertical variation
         let direction = Vec3::new(theta.cos() * phi.cos(), phi.sin(), theta.sin() * phi.cos()).normalize();
 
-        let push_length = self.dna.push_length.f32();
+        let short_pull_len = self.dna.short_pull_length().f32();
+        let long_pull_len = self.dna.long_pull_length().f32();
 
-        // Position new Push so that it extends outward from parent
-        // Alpha is near parent, omega is far
-        let alpha_pos = parent_pos + direction * 0.1; // Slight offset from parent
-        let omega_pos = parent_pos + direction * push_length;
+        // Position new Push so pulls have correct lengths from the start
+        // Alpha connects to parent with short pull (1/3), omega with long pull (2/3)
+        let alpha_pos = parent_pos + direction * short_pull_len;
+        let omega_pos = parent_pos + direction * long_pull_len;
 
         // Create joints
         let alpha_key = context.fabric.create_joint(alpha_pos);
         let omega_key = context.fabric.create_joint(omega_pos);
 
-        // Create Push interval
-        let interval_key = context.fabric.create_fixed_interval(
+        // Create Push interval at slack length (no immediate strain)
+        let interval_key = context.fabric.create_slack_interval(
             alpha_key,
             omega_key,
             Role::Pushing,
-            self.dna.push_length,
         );
 
         // Create the 1/3 and 2/3 pull connections to parent

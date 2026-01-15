@@ -3,7 +3,7 @@ use crate::fabric::interval::Role;
 use crate::fabric::physics::Physics;
 use crate::fabric::{Fabric, IntervalKey, JointKey};
 use crate::units::{Meters, Seconds, Unit};
-use crate::ITERATION_DURATION;
+use crate::Age;
 use glam::Vec3;
 use rand::Rng;
 use rand_chacha::rand_core::SeedableRng;
@@ -618,7 +618,7 @@ impl Grower {
 
     /// Settle the fabric with physics for the specified number of seconds.
     pub fn settle(&self, fabric: &mut Fabric, physics: &Physics, seconds: f32) {
-        let iterations = (seconds / ITERATION_DURATION.secs) as usize;
+        let iterations = (seconds / Age::iteration_duration()) as usize;
         for _ in 0..iterations {
             fabric.iterate(physics);
         }

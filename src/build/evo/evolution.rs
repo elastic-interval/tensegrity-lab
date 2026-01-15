@@ -5,7 +5,7 @@ use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::SETTLING;
 use crate::fabric::physics::{Physics, Surface, SurfaceCharacter};
 use crate::fabric::Fabric;
-use crate::{DisplayState, LabEvent, StateChange, ITERATION_DURATION};
+use crate::{Age, DisplayState, LabEvent, StateChange};
 use rand::Rng;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
@@ -368,7 +368,7 @@ impl Evolution {
         // Clone config for parallel tasks
         let growth_config = Self::build_growth_config(&self.config);
         let settling_physics = self.settling_physics.clone();
-        let settle_iterations = (self.config.mutation_settle_seconds / ITERATION_DURATION.secs) as usize;
+        let settle_iterations = (self.config.mutation_settle_seconds / Age::iteration_duration()) as usize;
         let fitness_name = self.config.fitness;
 
         // Run mutations in parallel
@@ -470,7 +470,7 @@ impl Evolution {
         self.grower = grower;
 
         // Start settling
-        let iterations = (self.config.seed_settle_seconds / ITERATION_DURATION.secs) as usize;
+        let iterations = (self.config.seed_settle_seconds / Age::iteration_duration()) as usize;
         self.state = EvolutionState::Settling {
             remaining_iterations: iterations,
         };
@@ -580,7 +580,7 @@ impl Evolution {
             _ => self.config.mutation_settle_seconds,                       // Flat structures
         };
 
-        let iterations = (settle_seconds / ITERATION_DURATION.secs) as usize;
+        let iterations = (settle_seconds / Age::iteration_duration()) as usize;
         self.state = EvolutionState::Settling {
             remaining_iterations: iterations,
         };
