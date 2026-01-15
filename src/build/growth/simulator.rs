@@ -17,6 +17,12 @@ use super::push::{GrowingPush, PushState};
 /// Seed altitude in meters (how high above ground the seed Push is placed)
 const SEED_ALTITUDE: f32 = 0.5;
 
+/// Maximum number of pushes before growth stops
+const MAX_PUSHES: usize = 50;
+
+/// How often to run growth logic (every N physics iterations)
+const GROWTH_INTERVAL: usize = 100;
+
 /// Orchestrates tensegrity growth from a single seed Push.
 ///
 /// The simulator manages the lifecycle of growing Push intervals:
@@ -91,10 +97,23 @@ impl GrowthSimulator {
 
     /// Main iteration loop - called once per frame by Crucible.
     pub fn iterate(&mut self, context: &mut CrucibleContext, iterations_per_frame: usize) {
-        // Get the time delta per iteration for probability calculations
-        let dt = Age::iteration_duration();
+        // Get the time delta for growth logic (scaled by how often we run it)
+        let dt = Age::iteration_duration() * GROWTH_INTERVAL as f32;
 
-        for _ in 0..iterations_per_frame {
+        for i in 0..iterations_per_frame {
+            // Run physics every iteration
+            context.fabric.iterate(context.physics);
+
+            // Run growth logic less frequently to reduce CPU load
+            if i % GROWTH_INTERVAL != 0 {
+                continue;
+            }
+
+            // Stop growing if we hit the limit
+            if self.pushes.len() >= MAX_PUSHES {
+                continue;
+            }
+
             let current_age = context.fabric.age;
 
             // 1. Check for pivot timeouts (based on fabric age)
@@ -111,9 +130,6 @@ impl GrowthSimulator {
 
             // 5. Anchored Pushes may spawn children (probability per unit time)
             self.try_spawning(context, current_age, dt);
-
-            // 6. Physics step
-            context.fabric.iterate(context.physics);
         }
     }
 
