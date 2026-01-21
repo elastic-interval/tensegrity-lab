@@ -9,7 +9,7 @@ use crate::fabric::physics::presets::{ANIMATING, VIEWING};
 use crate::fabric::physics::Physics;
 use crate::fabric::physics_test::PhysicsTester;
 use crate::fabric::Fabric;
-use crate::units::Unit;
+use crate::units::{Seconds, Unit};
 use crate::{ControlState, CrucibleAction, LabEvent, Radio, StateChange};
 use StateChange::*;
 
@@ -347,6 +347,12 @@ impl Crucible {
                 if let Animating(animator) = &mut self.stage {
                     animator.adjust_period(factor);
                     let period = animator.period_secs();
+                    // Also update the fabric_plan so the period persists across animation toggles
+                    if let Some(ref mut plan) = self.fabric_plan {
+                        if let Some(ref mut animate_phase) = plan.animate_phase {
+                            animate_phase.period = Seconds(period);
+                        }
+                    }
                     context.send_event(LabEvent::UpdateState(SetStageLabel(format!(
                         "Period: {:.4}s",
                         period

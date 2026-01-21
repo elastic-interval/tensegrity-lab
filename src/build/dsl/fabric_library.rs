@@ -66,9 +66,9 @@ impl FabricName {
                 .fall(Sec(2.0))
                 .settle(Sec(3.0))
                 .animate()
-                .period(Sec(0.4))
-                .amplitude(Pct(1.0))
-                .stiffness(Pct(20.0))
+                .period(Sec(0.46))
+                .amplitude(Pct(10.0))
+                .stiffness(Pct(1.0))
                 .sine()
                 .actuators([
                     phase(Pct(0.0)).between("AX8YZ1", "BX2Z4"),
