@@ -151,6 +151,8 @@ pub enum RunStyle {
         /// Random seed for reproducibility
         seed: Option<u64>,
     },
+    /// Walking tensegrity evolution
+    Walking,
 }
 
 #[derive(Clone)]
@@ -471,6 +473,7 @@ pub enum ControlState {
     Baking,
     Evolving,
     Growing,
+    Walking,
 }
 
 impl ControlState {
@@ -507,6 +510,8 @@ pub enum CrucibleAction {
     ToGrowing {
         seed: Option<u64>,
     },
+    ToWalking,
+    ToggleWalkingMode,
 }
 
 impl CrucibleAction {

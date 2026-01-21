@@ -70,11 +70,24 @@ pub struct Animator {
 
 impl Animator {
     pub fn new(animate_phase: AnimatePhase, context: &mut CrucibleContext) -> Self {
+        Self::new_with_fabric(animate_phase, &mut context.fabric)
+    }
+
+    /// Create an animator for headless (non-UI) usage.
+    /// Sets up actuators directly on the fabric.
+    pub fn new_headless(animate_phase: AnimatePhase, fabric: &mut crate::fabric::Fabric) -> Self {
+        Self::new_with_fabric(animate_phase, fabric)
+    }
+
+    fn new_with_fabric(
+        animate_phase: AnimatePhase,
+        fabric: &mut crate::fabric::Fabric,
+    ) -> Self {
         let contraction_factor = 1.0 - animate_phase.amplitude.as_factor();
         let period_secs = animate_phase.period.0;
         let stiffness = animate_phase.stiffness;
-        let actuators = Self::create_actuators(
-            context,
+        let actuators = Self::create_actuators_on_fabric(
+            fabric,
             &animate_phase.actuators,
             contraction_factor,
             stiffness,
@@ -97,13 +110,12 @@ impl Animator {
         self.oscillator.set_period(self.period_secs);
     }
 
-    fn create_actuators(
-        context: &mut CrucibleContext,
+    fn create_actuators_on_fabric(
+        fabric: &mut crate::fabric::Fabric,
         actuators: &[Actuator],
         contraction_factor: f32,
         stiffness: Percent,
     ) -> Vec<ActuatorInterval> {
-        let fabric = &mut context.fabric;
         let mut result = Vec::new();
 
         for actuator in actuators {
@@ -166,8 +178,12 @@ impl Animator {
     }
 
     fn update_actuator_lengths(&self, context: &mut CrucibleContext) {
+        self.update_actuator_lengths_on_fabric(&mut context.fabric);
+    }
+
+    fn update_actuator_lengths_on_fabric(&self, fabric: &mut crate::fabric::Fabric) {
         for actuator in &self.actuators {
-            if let Some(interval) = context.fabric.intervals.get_mut(actuator.id) {
+            if let Some(interval) = fabric.intervals.get_mut(actuator.id) {
                 // Apply phase offset to get actuator-specific phase
                 let phase_with_offset = (self.oscillator.phase + actuator.phase_offset) % 1.0;
                 let contraction = self
@@ -185,6 +201,20 @@ impl Animator {
             self.oscillator.tick();
             self.update_actuator_lengths(context);
             context.fabric.iterate(context.physics);
+        }
+    }
+
+    /// Iterate animation in headless mode (no CrucibleContext required).
+    pub fn iterate_headless(
+        &mut self,
+        fabric: &mut crate::fabric::Fabric,
+        physics: &crate::fabric::physics::Physics,
+        iterations_per_frame: usize,
+    ) {
+        for _ in 0..iterations_per_frame {
+            self.oscillator.tick();
+            self.update_actuator_lengths_on_fabric(fabric);
+            fabric.iterate(physics);
         }
     }
 }

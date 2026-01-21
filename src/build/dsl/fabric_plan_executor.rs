@@ -257,10 +257,16 @@ impl FabricPlanExecutor {
         Self::new_internal(plan, Some(radio))
     }
 
-    /// Creates an executor without a radio - for tests only
+    /// Creates an executor without a radio - for headless/non-UI usage.
+    /// Used by evolution and other batch processing that doesn't need UI events.
+    pub fn new_headless(plan: FabricPlan) -> Self {
+        Self::new_internal(plan, None)
+    }
+
+    /// Alias for new_headless, used in tests.
     #[cfg(test)]
     pub fn new_for_test(plan: FabricPlan) -> Self {
-        Self::new_internal(plan, None)
+        Self::new_headless(plan)
     }
 
     fn new_internal(plan: FabricPlan, radio: Option<Radio>) -> Self {
@@ -591,6 +597,17 @@ impl FabricPlanExecutor {
             from: "PRETENSE".to_string(),
             to: "FALL".to_string(),
         });
+
+        // Zero velocities to ensure clean start for fall phase
+        // (PRETENSING uses high damping which keeps velocities low, but the switch
+        // to FALLING's low damping could cause instability from accumulated energy)
+        self.fabric.zero_velocities();
+
+        // Lift structure so lowest joint starts at dimensions.altitude above ground
+        // This prevents joints from starting below y=0 which causes surface interaction issues
+        let altitude = self.plan.dimensions.altitude.f32();
+        let translation = self.fabric.centralize_translation(Some(altitude));
+        self.fabric.apply_translation(translation);
 
         self.fabric.update_bounding_radius();
 

@@ -250,6 +250,9 @@ impl ApplicationHandler<LabEvent> for Application {
                     RunStyle::Growing { seed } => {
                         self.crucible.action(CrucibleAction::ToGrowing { seed: *seed });
                     }
+                    RunStyle::Walking => {
+                        self.crucible.action(CrucibleAction::ToWalking);
+                    }
                 };
             }
             FabricBuilt(fabric_stats) => {

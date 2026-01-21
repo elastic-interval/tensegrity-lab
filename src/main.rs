@@ -33,6 +33,10 @@ struct Args {
     #[arg(long)]
     grow: bool,
 
+    /// Run walking tensegrity evolution
+    #[arg(long)]
+    walk: bool,
+
     /// Random seed for growth/evolution (for reproducibility)
     #[arg(long)]
     seed: Option<u64>,
@@ -90,6 +94,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     } else if args.grow {
         RunStyle::Growing { seed: args.seed }
+    } else if args.walk {
+        RunStyle::Walking
     } else if let Some(fabric_name) = args.fabric {
         RunStyle::Fabric {
             fabric_name,

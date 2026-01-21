@@ -3,6 +3,7 @@ use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor}
 use crate::build::dsl::FabricPlan;
 use crate::build::evo::evolution::Evolution;
 use crate::build::evo::scenario::ScenarioName;
+use crate::build::evo::walking::WalkingEvolution;
 use crate::build::growth::{GrowthDna, GrowthSimulator};
 use crate::build::oven::Oven;
 use crate::crucible::Stage::*;
@@ -24,6 +25,7 @@ pub enum Stage {
     BakingBrick(Oven),
     Evolving(Evolution),
     Growing(GrowthSimulator),
+    Walking(WalkingEvolution),
 }
 
 pub struct Crucible {
@@ -250,6 +252,17 @@ impl Crucible {
                 let _ = self
                     .radio
                     .send_event(LabEvent::UpdateState(SetStageLabel(label)));
+
+                // Apply any stage transition
+                if let Some(new_stage) = context.apply_changes() {
+                    self.stage = new_stage;
+                }
+            }
+            Walking(walker) => {
+                // Create a context for walking evolution
+                let mut context =
+                    CrucibleContext::new(&mut self.fabric, &mut self.physics, &self.radio);
+                walker.iterate(&mut context, iterations_per_frame);
 
                 // Apply any stage transition
                 if let Some(new_stage) = context.apply_changes() {
@@ -510,10 +523,40 @@ impl Crucible {
                 SetFabricName("Growth".to_string()).send(&self.radio);
                 SetStageLabel("Growing: 1 pushes (0 pivoting)".to_string()).send(&self.radio);
 
-                // Start at 5x speed for faster growth visualization
-                LabEvent::SetTimeScale(5.0).send(&self.radio);
+                // Start at 1x speed (real-time) to keep CPU reasonable
+                LabEvent::SetTimeScale(1.0).send(&self.radio);
 
                 context.transition_to(Growing(simulator));
+            }
+            ToWalking => {
+                // Create the walking evolution controller
+                let walker = WalkingEvolution::new();
+
+                context.replace_fabric(walker.fabric.clone());
+
+                // Initialize physics for walking evolution
+                walker.adopt_physics(&mut context);
+
+                // Set UI state
+                ControlState::Walking.send(&self.radio);
+                SetFabricName("Walking Evolution".to_string()).send(&self.radio);
+                SetStageLabel("Walking: Building".to_string()).send(&self.radio);
+
+                // Start at 5x speed for faster evolution
+                LabEvent::SetTimeScale(5.0).send(&self.radio);
+
+                context.transition_to(Walking(walker));
+            }
+            ToggleWalkingMode => {
+                if let Walking(ref mut walker) = self.stage {
+                    walker.toggle_viewing_mode();
+                    let mode_name = match walker.viewing_mode() {
+                        crate::build::evo::walking::ViewingMode::Watch => "Watch",
+                        crate::build::evo::walking::ViewingMode::Fast => "Fast",
+                    };
+                    StateChange::SetStageLabel(format!("Walking ({})", mode_name))
+                        .send(&self.radio);
+                }
             }
         }
 
