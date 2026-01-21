@@ -411,7 +411,7 @@ impl FabricPlanExecutor {
                             .plan
                             .pretense_phase
                             .seconds
-                            .unwrap_or(Seconds(0.05));
+                            .unwrap_or(Seconds(0.02));
                         self.fabric
                             .extend_symmetric_group(&self.symmetric_groups[group_idx], duration);
                         self.pretense_stage = PretenseStage::Extending;
