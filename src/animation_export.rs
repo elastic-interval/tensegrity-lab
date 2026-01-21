@@ -9,9 +9,10 @@ use std::path::PathBuf;
 
 use glam::Vec3;
 use serde::Serialize;
+use slotmap::Key;
 
 use crate::fabric::interval::Role;
-use crate::fabric::Fabric;
+use crate::fabric::{Fabric, JointKey};
 
 const DEFAULT_EXPORT_FPS: f64 = 100.0;
 
@@ -63,10 +64,10 @@ struct IntervalExport {
 }
 
 struct FrameData {
-    /// (joint_id, position)
-    joints: Vec<(usize, Vec3)>,
-    /// (alpha_joint_id, omega_joint_id, role)
-    interval_data: Vec<(usize, usize, Role)>,
+    /// (joint_key, position) - uses actual slotmap keys for stable identity
+    joints: Vec<(JointKey, Vec3)>,
+    /// (alpha_joint_key, omega_joint_key, role) - uses actual slotmap keys for stable identity
+    interval_data: Vec<(JointKey, JointKey, Role)>,
 }
 
 pub struct AnimationExporter {
@@ -157,16 +158,16 @@ impl AnimationExporter {
     }
 
     fn export_frame(&self, frame: &FrameData) -> FrameExport {
-        // Build id-to-position map for interval lookups
-        let id_to_pos: std::collections::HashMap<usize, Vec3> =
-            frame.joints.iter().map(|&(id, pos)| (id, pos)).collect();
+        // Build key-to-position map for interval lookups
+        let key_to_pos: std::collections::HashMap<JointKey, Vec3> =
+            frame.joints.iter().map(|&(key, pos)| (key, pos)).collect();
 
-        // Export joints with their actual ids
+        // Export joints using stable key identifiers (as_ffi() gives unique u64 per key)
         let joints: Vec<JointExport> = frame
             .joints
             .iter()
-            .map(|&(id, pos)| JointExport {
-                name: format!("Joint_{:04}", id),
+            .map(|&(key, pos)| JointExport {
+                name: format!("Joint_{}", key.data().as_ffi()),
                 matrix: create_sphere_matrix(pos, JOINT_RADIUS),
             })
             .collect();
@@ -174,22 +175,22 @@ impl AnimationExporter {
         let mut push_intervals = Vec::new();
         let mut pull_intervals = Vec::new();
 
-        for &(alpha, omega, role) in &frame.interval_data {
+        for &(alpha_key, omega_key, role) in &frame.interval_data {
             if role == Role::Support {
                 continue;
             }
             match role {
-                Role::Pushing => push_intervals.push((alpha, omega)),
-                _ if role.is_pull_like() => pull_intervals.push((alpha, omega)),
+                Role::Pushing => push_intervals.push((alpha_key, omega_key)),
+                _ if role.is_pull_like() => pull_intervals.push((alpha_key, omega_key)),
                 _ => {}
             }
         }
 
         let push: Vec<IntervalExport> = push_intervals
             .iter()
-            .filter_map(|(alpha, omega)| {
-                let alpha_pos = *id_to_pos.get(alpha)?;
-                let omega_pos = *id_to_pos.get(omega)?;
+            .filter_map(|(alpha_key, omega_key)| {
+                let alpha_pos = *key_to_pos.get(alpha_key)?;
+                let omega_pos = *key_to_pos.get(omega_key)?;
 
                 let delta = omega_pos - alpha_pos;
                 let full_length = delta.length();
@@ -204,9 +205,9 @@ impl AnimationExporter {
                 let matrix =
                     create_cylinder_matrix(mid, x_axis, y_axis, z_axis, PUSH_RADIUS, full_length);
 
-                // Name by endpoint joint ids for stable identity across frames
+                // Name by stable joint key identifiers for consistent identity across frames
                 Some(IntervalExport {
-                    name: format!("Push_{:04}_{:04}", alpha, omega),
+                    name: format!("Push_{}_{}", alpha_key.data().as_ffi(), omega_key.data().as_ffi()),
                     matrix,
                 })
             })
@@ -214,9 +215,9 @@ impl AnimationExporter {
 
         let pull: Vec<IntervalExport> = pull_intervals
             .iter()
-            .filter_map(|(alpha, omega)| {
-                let alpha_pos = *id_to_pos.get(alpha)?;
-                let omega_pos = *id_to_pos.get(omega)?;
+            .filter_map(|(alpha_key, omega_key)| {
+                let alpha_pos = *key_to_pos.get(alpha_key)?;
+                let omega_pos = *key_to_pos.get(omega_key)?;
 
                 let delta = omega_pos - alpha_pos;
                 let full_length = delta.length();
@@ -231,9 +232,9 @@ impl AnimationExporter {
                 let matrix =
                     create_cylinder_matrix(mid, x_axis, y_axis, z_axis, PULL_RADIUS, full_length);
 
-                // Name by endpoint joint ids for stable identity across frames
+                // Name by stable joint key identifiers for consistent identity across frames
                 Some(IntervalExport {
-                    name: format!("Pull_{:04}_{:04}", alpha, omega),
+                    name: format!("Pull_{}_{}", alpha_key.data().as_ffi(), omega_key.data().as_ffi()),
                     matrix,
                 })
             })
@@ -258,28 +259,18 @@ impl AnimationExporter {
             return;
         }
 
-        // Build key-to-index mapping and collect joints in stable order
-        let joint_keys: Vec<_> = fabric.joints.keys().collect();
-        let key_to_idx: std::collections::HashMap<_, _> = joint_keys
+        // Collect joints with their stable keys
+        let joints: Vec<(JointKey, Vec3)> = fabric
+            .joints
             .iter()
-            .enumerate()
-            .map(|(idx, &key)| (key, idx))
+            .map(|(key, joint)| (key, joint.location))
             .collect();
 
-        let joints: Vec<(usize, Vec3)> = joint_keys
-            .iter()
-            .enumerate()
-            .map(|(idx, &key)| (idx, fabric.joints[key].location))
-            .collect();
-
-        let interval_data: Vec<(usize, usize, Role)> = fabric
+        // Collect interval data with stable keys
+        let interval_data: Vec<(JointKey, JointKey, Role)> = fabric
             .intervals
             .values()
-            .filter_map(|interval| {
-                let alpha = *key_to_idx.get(&interval.alpha_key)?;
-                let omega = *key_to_idx.get(&interval.omega_key)?;
-                Some((alpha, omega, interval.role))
-            })
+            .map(|interval| (interval.alpha_key, interval.omega_key, interval.role))
             .collect();
 
         self.frames.push(FrameData {
@@ -326,28 +317,18 @@ impl AnimationExporter {
         self.frames.clear();
         self.frame_count = 0;
 
-        // Build key-to-index mapping and collect joints in stable order
-        let joint_keys: Vec<_> = fabric.joints.keys().collect();
-        let key_to_idx: std::collections::HashMap<_, _> = joint_keys
+        // Collect joints with their stable keys
+        let joints: Vec<(JointKey, Vec3)> = fabric
+            .joints
             .iter()
-            .enumerate()
-            .map(|(idx, &key)| (key, idx))
+            .map(|(key, joint)| (key, joint.location))
             .collect();
 
-        let joints: Vec<(usize, Vec3)> = joint_keys
-            .iter()
-            .enumerate()
-            .map(|(idx, &key)| (idx, fabric.joints[key].location))
-            .collect();
-
-        let interval_data: Vec<(usize, usize, Role)> = fabric
+        // Collect interval data with stable keys
+        let interval_data: Vec<(JointKey, JointKey, Role)> = fabric
             .intervals
             .values()
-            .filter_map(|interval| {
-                let alpha = *key_to_idx.get(&interval.alpha_key)?;
-                let omega = *key_to_idx.get(&interval.omega_key)?;
-                Some((alpha, omega, interval.role))
-            })
+            .map(|interval| (interval.alpha_key, interval.omega_key, interval.role))
             .collect();
 
         self.frames.push(FrameData {

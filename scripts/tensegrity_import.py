@@ -11,7 +11,7 @@ bl_info = {
     "category": "Import-Export",
 }
 
-SCRIPT_VERSION = "1.5 - 2024-12-05"
+SCRIPT_VERSION = "1.6 - 2025-01-21"
 
 # Fixed playback FPS - capture FPS controls slow-motion factor
 PLAYBACK_FPS = 30
@@ -259,10 +259,6 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
         print(f"File: {self.filepath}")
         print(f"Frames: {len(frames)}, Construction mode: {self.construction_mode}")
 
-        # Set up progress indicator
-        wm = context.window_manager
-        wm.progress_begin(0, 100)
-
         # Find or load prototypes
         prototypes = find_prototype_objects()
         missing = [name for name, obj in prototypes.items() if obj is None]
@@ -367,14 +363,10 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                     else:
                         object_visibility[name]['last'] = blender_frame
 
-                if frame_num % 10 == 0:
-                    wm.progress_update(int(10 * frame_num / len(frames)))
-                    bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
                 if frame_num % 100 == 0:
                     print(f"  Scanned {frame_num + 1}/{len(frames)} frames...")
 
             print(f"Found {len(object_visibility)} unique objects across {len(frames)} frames")
-            wm.progress_update(10)
 
             def keyframe_visibility(obj, first_frame, last_frame, total_frames):
                 """Set visibility keyframes for an object with CONSTANT interpolation."""
@@ -418,9 +410,6 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
             total_objects = len(object_visibility)
             for name, info in object_visibility.items():
                 obj_count += 1
-                if obj_count % 10 == 0:
-                    wm.progress_update(10 + int(20 * obj_count / total_objects))
-                    bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
                 if obj_count % 100 == 0:
                     print(f"  Created {obj_count}/{total_objects} objects...")
                 obj_type = info['type']
@@ -566,10 +555,6 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                     obj.keyframe_insert(data_path="rotation_quaternion", frame=blender_frame)
                     obj.keyframe_insert(data_path="scale", frame=blender_frame)
 
-            # Progress reporting
-            if frame_num % 10 == 0:
-                wm.progress_update(30 + int(70 * frame_num / len(frames)))
-                bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
             if frame_num % 50 == 0 or frame_num == len(frames) - 1:
                 print(f"Processing frame {frame_num + 1}/{len(frames)}...")
 
@@ -592,8 +577,6 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                     for fcurve in obj.animation_data.action.fcurves:
                         keyframe_count += len(fcurve.keyframe_points)
             print(f"Total keyframes created: {keyframe_count}")
-
-        wm.progress_end()
 
         obj_count = len(created_objects)
         mode_str = " (construction mode)" if construction_mode else ""
