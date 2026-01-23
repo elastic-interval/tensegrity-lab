@@ -16,6 +16,20 @@ use glam::{Mat4, Quat, Vec3};
 use slotmap::{new_key_type, SlotMap};
 use std::fmt::Debug;
 
+#[derive(Clone, Debug)]
+pub struct IntervalReading {
+    pub interval_key: IntervalKey,
+    pub role: Role,
+    pub strain: f32,
+    pub actual_length: Meters,
+    pub ideal_length: Meters,
+    pub unit_vector: Vec3,
+    pub alpha_position: Vec3,
+    pub alpha_velocity: Vec3,
+    pub omega_position: Vec3,
+    pub omega_velocity: Vec3,
+}
+
 /// Hinge geometry dimensions for physical construction.
 #[derive(Clone, Copy, Debug)]
 pub struct HingeDimensions {
@@ -793,5 +807,35 @@ impl Fabric {
             .iter()
             .find(|(_, interval)| interval.role == Role::Pushing && interval.touches(joint))
             .map(|(key, _)| key)
+    }
+
+    pub fn interval_reading(&self, key: IntervalKey) -> Option<IntervalReading> {
+        let interval = self.intervals.get(key)?;
+        let alpha = self.joints.get(interval.alpha_key)?;
+        let omega = self.joints.get(interval.omega_key)?;
+        let ideal = interval.ideal().0;
+        let actual = (omega.location - alpha.location).length();
+        let strain = if ideal > 0.0 {
+            (actual - ideal) / ideal
+        } else {
+            0.0
+        };
+        let unit = if actual > 0.0 {
+            (omega.location - alpha.location) / actual
+        } else {
+            Vec3::Y
+        };
+        Some(IntervalReading {
+            interval_key: key,
+            role: interval.role,
+            strain,
+            actual_length: Meters(actual),
+            ideal_length: Meters(ideal),
+            unit_vector: unit,
+            alpha_position: alpha.location,
+            alpha_velocity: alpha.velocity,
+            omega_position: omega.location,
+            omega_velocity: omega.velocity,
+        })
     }
 }

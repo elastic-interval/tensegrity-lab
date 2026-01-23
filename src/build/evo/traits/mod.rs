@@ -6,13 +6,14 @@
  * evolution explores what's reachable from the current state, not a predefined space.
  */
 
-use crate::fabric::interval::Role;
 use crate::fabric::physics::Physics;
-use crate::fabric::{Fabric, IntervalKey};
-use crate::units::{Meters, Seconds};
+use crate::fabric::Fabric;
+use crate::units::Seconds;
 use glam::Vec3;
 use rand::Rng;
 use std::fmt::Debug;
+
+pub use crate::fabric::IntervalReading;
 
 // ============================================================================
 // Genome Trait - The Hereditary Information
@@ -47,30 +48,18 @@ impl ExpressionContext {
     }
 }
 
-/// Core trait for any evolvable genetic information.
-///
-/// The genome encodes HOW to build and control a fabric, not the fabric itself.
-/// Each genome type defines its own mutation space via `adjacent_possible()`,
-/// embodying Kauffman's insight that the search space is defined by what's
-/// reachable, not predefined.
 pub trait Genome: Clone + Send + Sync + Debug {
-    /// Unique identifier for this genome instance.
     fn id(&self) -> GenomeId;
-
-    /// Build the initial fabric structure from this genome.
-    /// This is the "development" phase - genotype becomes phenotype.
     fn express(&self, context: &ExpressionContext) -> Fabric;
-
-    /// The adjacent possible: mutations reachable from this genome.
-    /// Returns a vector of variant genomes that are "one step away".
-    /// This is the key to Kauffman's concept - the search space is
-    /// defined by what's reachable, not predefined.
     fn adjacent_possible(&self, rng: &mut impl Rng) -> Vec<Self>
     where
         Self: Sized;
-
-    /// Human-readable description of this genome.
     fn describe(&self) -> String;
+
+    /// Controllers to attach to intervals. Default: none.
+    fn controllers(&self) -> Vec<ControllerAttachment> {
+        vec![]
+    }
 }
 
 // ============================================================================
@@ -239,39 +228,17 @@ pub trait PopulationStrategy<G: Genome>: Send {
 }
 
 // ============================================================================
-// Interval Reading (for future sensorimotor controllers)
+// Sensorimotor Control
 // ============================================================================
 
-/// Immutable snapshot of interval state for sensing.
-/// Controllers can read this to make actuation decisions.
-#[derive(Clone, Debug)]
-pub struct IntervalReading {
-    pub interval_key: IntervalKey,
-    pub role: Role,
+pub trait IntervalController: Send + Sync {
+    fn react(&mut self, reading: &IntervalReading) -> Option<f32>;
+    fn reset(&mut self) {}
+}
 
-    /// Strain: (actual - ideal) / ideal. Positive = stretched, negative = compressed.
-    pub strain: f32,
-
-    /// Current actual length.
-    pub actual_length: Meters,
-
-    /// Target/ideal length from span.
-    pub ideal_length: Meters,
-
-    /// Unit direction vector from alpha to omega.
-    pub unit_vector: Vec3,
-
-    /// Alpha joint position.
-    pub alpha_position: Vec3,
-
-    /// Alpha joint velocity.
-    pub alpha_velocity: Vec3,
-
-    /// Omega joint position.
-    pub omega_position: Vec3,
-
-    /// Omega joint velocity.
-    pub omega_velocity: Vec3,
+pub struct ControllerAttachment {
+    pub interval_index: usize,
+    pub controller: Box<dyn IntervalController>,
 }
 
 // ============================================================================

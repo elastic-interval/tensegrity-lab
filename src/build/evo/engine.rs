@@ -113,7 +113,7 @@ impl<G: Genome> EvolutionEngine<G> {
                             // Trial done - evaluate fitness
                             let trial = self.current_trial.take().unwrap();
                             let genome = trial.genome.clone();
-                            let result = trial.into_result();
+                            let result = trial.complete();
                             let fitness = self.fitness.evaluate(&result);
 
                             // Record result
