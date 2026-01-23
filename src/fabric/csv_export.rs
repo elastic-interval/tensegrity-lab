@@ -205,11 +205,13 @@ impl Fabric {
             // For each end, calculate ring centers at all slots
             for slot in 1..=3 {
                 // Alpha end
-                let alpha_ring = alpha_pos + (-push_dir) * dimensions.hinge.disc_thickness.f32() * slot as f32;
+                let alpha_ring =
+                    alpha_pos + (-push_dir) * dimensions.hinge.disc_thickness.f32() * slot as f32;
                 ring_centers.insert((push_interval.alpha_key, slot), alpha_ring);
 
                 // Omega end
-                let omega_ring = omega_pos + push_dir * dimensions.hinge.disc_thickness.f32() * slot as f32;
+                let omega_ring =
+                    omega_pos + push_dir * dimensions.hinge.disc_thickness.f32() * slot as f32;
                 ring_centers.insert((push_interval.omega_key, slot), omega_ring);
             }
         }
@@ -262,7 +264,12 @@ impl Fabric {
                         )
                     } else {
                         let joint = &self.joints[interval.alpha_key];
-                        (joint.location * MM_PER_METER, joint.path.to_string(), 0, None)
+                        (
+                            joint.location * MM_PER_METER,
+                            joint.path.to_string(),
+                            0,
+                            None,
+                        )
                     };
 
                 let (omega_pos, omega_joint_path, omega_slot, omega_bend) =
@@ -275,7 +282,12 @@ impl Fabric {
                         )
                     } else {
                         let joint = &self.joints[interval.omega_key];
-                        (joint.location * MM_PER_METER, joint.path.to_string(), 0, None)
+                        (
+                            joint.location * MM_PER_METER,
+                            joint.path.to_string(),
+                            0,
+                            None,
+                        )
                     };
 
                 // Calculate shortened length
@@ -393,45 +405,37 @@ impl Fabric {
                 .map(|((_, _, _slot), (_, _, joint_key, _, _))| *joint_key);
 
             // Get ring centers at HIGHEST slot (same as push-fea endpoints)
-            let (alpha_fea, alpha_joint_path, alpha_slot) =
-                if let Some(joint_key) = alpha_info {
-                    let highest_slot = highest_slot_per_joint
-                        .get(&joint_key)
+            let (alpha_fea, alpha_joint_path, alpha_slot) = if let Some(joint_key) = alpha_info {
+                let highest_slot = highest_slot_per_joint.get(&joint_key).copied().unwrap_or(0);
+                let ring = if highest_slot > 0 {
+                    ring_centers
+                        .get(&(joint_key, highest_slot))
                         .copied()
-                        .unwrap_or(0);
-                    let ring = if highest_slot > 0 {
-                        ring_centers
-                            .get(&(joint_key, highest_slot))
-                            .copied()
-                            .unwrap_or(self.joints[joint_key].location)
-                    } else {
-                        self.joints[joint_key].location
-                    };
-                    (ring, self.joints[joint_key].path.to_string(), highest_slot)
+                        .unwrap_or(self.joints[joint_key].location)
                 } else {
-                    let joint = &self.joints[interval.alpha_key];
-                    (joint.location, joint.path.to_string(), 0)
+                    self.joints[joint_key].location
                 };
+                (ring, self.joints[joint_key].path.to_string(), highest_slot)
+            } else {
+                let joint = &self.joints[interval.alpha_key];
+                (joint.location, joint.path.to_string(), 0)
+            };
 
-            let (omega_fea, omega_joint_path, omega_slot) =
-                if let Some(joint_key) = omega_info {
-                    let highest_slot = highest_slot_per_joint
-                        .get(&joint_key)
+            let (omega_fea, omega_joint_path, omega_slot) = if let Some(joint_key) = omega_info {
+                let highest_slot = highest_slot_per_joint.get(&joint_key).copied().unwrap_or(0);
+                let ring = if highest_slot > 0 {
+                    ring_centers
+                        .get(&(joint_key, highest_slot))
                         .copied()
-                        .unwrap_or(0);
-                    let ring = if highest_slot > 0 {
-                        ring_centers
-                            .get(&(joint_key, highest_slot))
-                            .copied()
-                            .unwrap_or(self.joints[joint_key].location)
-                    } else {
-                        self.joints[joint_key].location
-                    };
-                    (ring, self.joints[joint_key].path.to_string(), highest_slot)
+                        .unwrap_or(self.joints[joint_key].location)
                 } else {
-                    let joint = &self.joints[interval.omega_key];
-                    (joint.location, joint.path.to_string(), 0)
+                    self.joints[joint_key].location
                 };
+                (ring, self.joints[joint_key].path.to_string(), highest_slot)
+            } else {
+                let joint = &self.joints[interval.omega_key];
+                (joint.location, joint.path.to_string(), 0)
+            };
 
             let fea_length = (omega_fea - alpha_fea).length();
 
@@ -472,8 +476,16 @@ impl Fabric {
                 role_str,
                 fea.length,
                 fea.strain,
-                alpha_mm.x, alpha_mm.y, alpha_mm.z, fea.alpha_joint_path, fea.alpha_slot,
-                omega_mm.x, omega_mm.y, omega_mm.z, fea.omega_joint_path, fea.omega_slot,
+                alpha_mm.x,
+                alpha_mm.y,
+                alpha_mm.z,
+                fea.alpha_joint_path,
+                fea.alpha_slot,
+                omega_mm.x,
+                omega_mm.y,
+                omega_mm.z,
+                fea.omega_joint_path,
+                fea.omega_slot,
             )?;
         }
 
@@ -527,7 +539,8 @@ impl Fabric {
             let joint_path = &joint.path;
             for (slot, pull_end_pos, hinge_pos) in &connections {
                 // Ring center at this slot (1x, 2x, 3x ring_thickness)
-                let ring_center = joint_pos + push_axis * dimensions.hinge.disc_thickness.f32() * *slot as f32;
+                let ring_center =
+                    joint_pos + push_axis * dimensions.hinge.disc_thickness.f32() * *slot as f32;
 
                 // Axial link: previous position → ring center
                 link_index += 1;
@@ -579,11 +592,23 @@ impl Fabric {
 fn write_dimensions_comments(file: &mut File, dims: &FabricDimensions) -> io::Result<()> {
     let h = &dims.hinge;
     writeln!(file, "# push_radius: {:.5}m", h.push_radius.f32())?;
-    writeln!(file, "# push_radius_margin: {:.5}m", h.push_radius_margin.f32())?;
+    writeln!(
+        file,
+        "# push_radius_margin: {:.5}m",
+        h.push_radius_margin.f32()
+    )?;
     writeln!(file, "# disc_thickness: {:.5}m", h.disc_thickness.f32())?;
-    writeln!(file, "# disc_separator_thickness: {:.5}m", h.disc_separator_thickness.f32())?;
+    writeln!(
+        file,
+        "# disc_separator_thickness: {:.5}m",
+        h.disc_separator_thickness.f32()
+    )?;
     writeln!(file, "# hinge_extension: {:.5}m", h.hinge_extension.f32())?;
-    writeln!(file, "# hinge_hole_diameter: {:.5}m", h.hinge_hole_diameter.f32())?;
+    writeln!(
+        file,
+        "# hinge_hole_diameter: {:.5}m",
+        h.hinge_hole_diameter.f32()
+    )?;
     writeln!(file, "# pull_radius: {:.5}m", dims.pull_radius.f32())?;
     writeln!(file, "#")?;
     // Derived values

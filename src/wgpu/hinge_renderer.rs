@@ -6,8 +6,8 @@
 use crate::camera::Pick;
 use crate::fabric::interval::Role;
 use crate::fabric::FabricDimensions;
-use crate::units::Unit;
 use crate::fabric::{Fabric, IntervalEnd};
+use crate::units::Unit;
 use crate::wgpu::{default_depth_stencil_state, Wgpu, DEFAULT_PRIMITIVE_STATE};
 use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
@@ -254,7 +254,8 @@ impl HingeRenderer {
 
         for (slot, hinge_pos, pull_end_pos) in &slot_connections {
             // Ring center at this slot (1x, 2x, 3x ring_thickness)
-            let ring_center = joint_pos + push_axis * dimensions.hinge.disc_thickness.f32() * *slot as f32;
+            let ring_center =
+                joint_pos + push_axis * dimensions.hinge.disc_thickness.f32() * *slot as f32;
 
             // Axial link: previous position → ring center
             instances.push(LinkInstance {

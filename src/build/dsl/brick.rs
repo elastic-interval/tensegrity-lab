@@ -189,10 +189,8 @@ impl BrickPrototype {
             });
             let face_scale = face_def.scale_for(face_scaling);
             // Compute centroid of the triangle to start face center near final position
-            let corner_positions: Vec<Vec3> = joint_keys
-                .iter()
-                .map(|key| fabric.location(*key))
-                .collect();
+            let corner_positions: Vec<Vec3> =
+                joint_keys.iter().map(|key| fabric.location(*key)).collect();
             let centroid = (corner_positions[0] + corner_positions[1] + corner_positions[2]) / 3.0;
             let alpha_key = fabric.create_joint(centroid);
             let radial_intervals = joint_keys.map(|omega_key| {
@@ -256,8 +254,7 @@ impl BrickFace {
     }
 
     fn radial_locations(&self, baked: &BakedBrick) -> [Vec3; 3] {
-        self.joints
-            .map(|index| baked.joints[index].location)
+        self.joints.map(|index| baked.joints[index].location)
     }
 
     fn midpoint(radial: [Vec3; 3]) -> Vec3 {

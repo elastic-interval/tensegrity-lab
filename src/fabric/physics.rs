@@ -139,7 +139,6 @@ impl Surface {
     }
 }
 
-
 /// Core physics environment with base values
 #[derive(Debug, Clone)]
 pub struct Physics {

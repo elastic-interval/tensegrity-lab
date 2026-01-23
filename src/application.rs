@@ -10,8 +10,7 @@ use crate::units::Seconds;
 use crate::wgpu::Wgpu;
 use crate::SnapshotMoment;
 use crate::{
-    Age, ControlState, CrucibleAction, LabEvent, Radio, RunStyle, StateChange,
-    TesterAction,
+    Age, ControlState, CrucibleAction, LabEvent, Radio, RunStyle, StateChange, TesterAction,
 };
 use instant::{Duration, Instant};
 use std::sync::Arc;
@@ -201,7 +200,12 @@ impl ApplicationHandler<LabEvent> for Application {
                 mobile_device,
             } => {
                 self.mobile_device = mobile_device;
-                self.scene = Some(Scene::new(self.mobile_device, wgpu, self.radio.clone(), self.model_scale));
+                self.scene = Some(Scene::new(
+                    self.mobile_device,
+                    wgpu,
+                    self.radio.clone(),
+                    self.model_scale,
+                ));
             }
             Run(run_style) => {
                 self.run_style = run_style;
@@ -234,7 +238,7 @@ impl ApplicationHandler<LabEvent> for Application {
                         ControlState::Baking.send(&self.radio);
                         self.crucible.action(CrucibleAction::StartBaking);
                     }
-                    RunStyle::Seeded(seed) => {
+                    RunStyle::Evolution(seed) => {
                         self.crucible.action(CrucibleAction::ToEvolving(*seed));
                     }
                     RunStyle::Sphere { frequency, radius } => {

@@ -2,12 +2,12 @@ use crate::build::dsl::brick_dsl::BrickName::OmniSymmetrical;
 use crate::build::dsl::brick_dsl::BrickRole::{OnSpinLeft, OnSpinRight};
 use crate::build::dsl::brick_dsl::MarkName;
 use crate::build::dsl::shape_phase::ShapeCommand::*;
-use crate::fabric::vulcanize::VulcanizeMode;
 use crate::build::dsl::{brick_library, FaceMark, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::{vector_space, FaceRotation};
 use crate::fabric::interval::Role;
 use crate::fabric::joint_path::JointPath;
+use crate::fabric::vulcanize::VulcanizeMode;
 use crate::fabric::{Fabric, FaceKey, IntervalKey, JointKey};
 use crate::units::{Meters, Percent, Seconds, Unit};
 use glam::{Mat4, Quat, Vec3};
@@ -54,7 +54,10 @@ pub enum ShapeAction {
         length: f32,
         surface: (f32, f32),
     },
-    PrepareVulcanize { contraction: f32, mode: VulcanizeMode },
+    PrepareVulcanize {
+        contraction: f32,
+        mode: VulcanizeMode,
+    },
     Vulcanize,
     Omit {
         alpha_path: JointPath,
@@ -110,8 +113,13 @@ impl ShapePhase {
                 let joints = self.marked_middle_joints(fabric, &face_keys);
                 match face_keys.len() {
                     2 => {
-                        let interval =
-                            fabric.create_approaching_interval(joints[0], joints[1], Meters(0.01), Role::Pulling, seconds);
+                        let interval = fabric.create_approaching_interval(
+                            joints[0],
+                            joints[1],
+                            Meters(0.01),
+                            Role::Pulling,
+                            seconds,
+                        );
                         self.joiners.push(Joiner {
                             interval,
                             alpha_face: face_keys[0],
@@ -201,8 +209,13 @@ impl ShapePhase {
                             },
                         );
                         for (near_face_key, near_joint, far_face_key, far_joint) in shapers {
-                            let interval =
-                                fabric.create_approaching_interval(near_joint, far_joint, Meters(0.01), Role::Pulling, seconds);
+                            let interval = fabric.create_approaching_interval(
+                                near_joint,
+                                far_joint,
+                                Meters(0.01),
+                                Role::Pulling,
+                                seconds,
+                            );
                             self.joiners.push(Joiner {
                                 interval,
                                 alpha_face: near_face_key,
@@ -242,8 +255,13 @@ impl ShapePhase {
                         let alpha_pt = fabric.joints[alpha_key].location;
                         let omega_pt = fabric.joints[omega_key].location;
                         let length = Meters(alpha_pt.distance(omega_pt) * distance.as_factor());
-                        let interval =
-                            fabric.create_approaching_interval(alpha_key, omega_key, length, Role::Pulling, seconds);
+                        let interval = fabric.create_approaching_interval(
+                            alpha_key,
+                            omega_key,
+                            length,
+                            Role::Pulling,
+                            seconds,
+                        );
                         self.spacers.push(interval);
                     }
                 }
@@ -281,7 +299,13 @@ impl ShapePhase {
                     fabric.joint_key_by_path(&omega_path),
                 ) {
                     let ideal = fabric.distance(alpha_key, omega_key) * length_factor;
-                    fabric.create_approaching_interval(alpha_key, omega_key, ideal, Role::Pulling, seconds);
+                    fabric.create_approaching_interval(
+                        alpha_key,
+                        omega_key,
+                        ideal,
+                        Role::Pulling,
+                        seconds,
+                    );
                 }
                 StartProgress(seconds)
             }
@@ -292,7 +316,13 @@ impl ShapePhase {
                 if let Some(joint_key) = fabric.joint_key_by_path(&joint_path) {
                     let (x, z) = surface;
                     let base = fabric.create_joint(Vec3::new(x, 0.0, z));
-                    let interval_key = fabric.create_approaching_interval(joint_key, base, Meters(0.01), Role::Support, seconds);
+                    let interval_key = fabric.create_approaching_interval(
+                        joint_key,
+                        base,
+                        Meters(0.01),
+                        Role::Support,
+                        seconds,
+                    );
                     self.anchors.push(interval_key);
                 }
                 StartProgress(seconds)
@@ -305,7 +335,13 @@ impl ShapePhase {
                 if let Some(joint_key) = fabric.joint_key_by_path(&joint_path) {
                     let (x, z) = surface;
                     let base = fabric.create_joint(Vec3::new(x, 0.0, z));
-                    fabric.create_approaching_interval(joint_key, base, Meters(length), Role::Support, seconds);
+                    fabric.create_approaching_interval(
+                        joint_key,
+                        base,
+                        Meters(length),
+                        Role::Support,
+                        seconds,
+                    );
                 }
                 StartProgress(seconds)
             }

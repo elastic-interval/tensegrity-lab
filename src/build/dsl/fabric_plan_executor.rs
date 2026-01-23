@@ -107,7 +107,6 @@ impl Fabric {
             }
         }
     }
-
 }
 
 #[derive(Debug, PartialEq)]
@@ -407,11 +406,7 @@ impl FabricPlanExecutor {
                         min_push_strain,
                         max_push_strain,
                     ) {
-                        let duration = self
-                            .plan
-                            .pretense_phase
-                            .seconds
-                            .unwrap_or(Seconds(0.02));
+                        let duration = self.plan.pretense_phase.seconds.unwrap_or(Seconds(0.02));
                         self.fabric
                             .extend_symmetric_group(&self.symmetric_groups[group_idx], duration);
                         self.pretense_stage = PretenseStage::Extending;
@@ -441,11 +436,12 @@ impl FabricPlanExecutor {
             ExecutorStage::Settling => {
                 if let Some(settle_phase) = &self.plan.settle_phase {
                     let duration_secs = settle_phase.seconds.0;
-                    let (progress, done) = self.settle_phase_start_age.map_or((0.0, false), |start| {
-                        let elapsed = self.fabric.age.elapsed_since(start);
-                        let completion = (elapsed.0 / duration_secs).min(1.0);
-                        (completion, completion >= 1.0)
-                    });
+                    let (progress, done) =
+                        self.settle_phase_start_age.map_or((0.0, false), |start| {
+                            let elapsed = self.fabric.age.elapsed_since(start);
+                            let completion = (elapsed.0 / duration_secs).min(1.0);
+                            (completion, completion >= 1.0)
+                        });
                     self.physics.update_settling_multipliers(progress);
                     if done {
                         self.complete();

@@ -54,8 +54,14 @@ pub fn phase(offset: Percent) -> PhaseBuilder {
 
 #[derive(Debug, Clone)]
 pub enum ActuatorAttachment {
-    ToSurface { joint: JointPath, point: (f32, f32) },
-    Between { joint_a: JointPath, joint_b: JointPath },
+    ToSurface {
+        joint: JointPath,
+        point: (f32, f32),
+    },
+    Between {
+        joint_a: JointPath,
+        joint_b: JointPath,
+    },
 }
 
 #[derive(Debug, Clone)]

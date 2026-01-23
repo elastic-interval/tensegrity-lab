@@ -30,9 +30,9 @@ impl Material {
 
     fn spring_constant_at_1m(&self) -> NewtonsPerMeter {
         NewtonsPerMeter(match self {
-            Push => 2e10,   // aluminum tube ~50mm diameter
-            Pull => 2e9,    // Dyneema rope ~10mm diameter
-            Spring => 9e4,  // steel coil spring for actuation
+            Push => 2e10,  // aluminum tube ~50mm diameter
+            Pull => 2e9,   // Dyneema rope ~10mm diameter
+            Spring => 9e4, // steel coil spring for actuation
         })
     }
 

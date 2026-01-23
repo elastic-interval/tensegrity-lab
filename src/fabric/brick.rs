@@ -11,13 +11,8 @@ use crate::fabric::{Fabric, FaceKey, JointKey};
 
 pub enum BaseFace {
     ExistingFace(FaceKey),
-    Situated {
-        spin: Spin,
-        vector_space: Mat4,
-    },
-    Seeded {
-        altitude: f32,
-    },
+    Situated { spin: Spin, vector_space: Mat4 },
+    Seeded { altitude: f32 },
 }
 
 impl Fabric {
@@ -103,7 +98,12 @@ impl Fabric {
                     let alpha_key = self.create_joint_with_path(midpoint, midpoint_path);
                     let radial_intervals = brick_joints.map(|omega| {
                         let omega_key = joint_keys[omega];
-                        self.create_strained_interval(alpha_key, omega_key, Role::FaceRadial, BakedBrick::TARGET_FACE_STRAIN)
+                        self.create_strained_interval(
+                            alpha_key,
+                            omega_key,
+                            Role::FaceRadial,
+                            BakedBrick::TARGET_FACE_STRAIN,
+                        )
                     });
                     Some(self.create_face(
                         aliases_for_role,

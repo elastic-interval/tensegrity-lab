@@ -66,12 +66,8 @@ pub fn generate_sphere(frequency: usize, radius: f32) -> Fabric {
                                 (locations[*vertex_here], locations[*adjacent_vertex]);
                             let axis = alpha_base.lerp(omega_base, 0.5).normalize();
                             let quaternion = Quat::from_axis_angle(axis, TWIST_ANGLE);
-                            let alpha = ts
-                                .fabric
-                                .create_joint(quaternion * alpha_base);
-                            let omega = ts
-                                .fabric
-                                .create_joint(quaternion * omega_base);
+                            let alpha = ts.fabric.create_joint(quaternion * alpha_base);
+                            let omega = ts.fabric.create_joint(quaternion * omega_base);
                             let length = Meters((omega_base - alpha_base).length());
                             ts.fabric
                                 .create_fixed_interval(alpha, omega, Role::Pushing, length);

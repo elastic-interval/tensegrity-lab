@@ -2,7 +2,7 @@
 mod tests {
     use crate::build::dsl::fabric_library::{self, FabricName};
     use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
-    use crate::units::{MM_PER_METER, Unit};
+    use crate::units::{Unit, MM_PER_METER};
 
     const EXPECTED_GROUND_CONTACTS: usize = 3;
     const EXPECTED_HEIGHT_MM: f32 = 9327.0;
@@ -104,7 +104,9 @@ mod tests {
                 assert!(
                     height_diff_pct < HEIGHT_TOLERANCE_PCT,
                     "Height {:.1}mm differs from expected {:.1}mm by {:.1}%",
-                    height_mm, EXPECTED_HEIGHT_MM, height_diff_pct
+                    height_mm,
+                    EXPECTED_HEIGHT_MM,
+                    height_diff_pct
                 );
                 break;
             }
@@ -214,7 +216,10 @@ mod tests {
 
         let centroid = executor.fabric.centroid();
         eprintln!("\n=== FINAL CONVERGED STATE ===");
-        eprintln!("Centroid: ({:.4}, {:.4}, {:.4})", centroid.x, centroid.y, centroid.z);
+        eprintln!(
+            "Centroid: ({:.4}, {:.4}, {:.4})",
+            centroid.x, centroid.y, centroid.z
+        );
         eprintln!("Height: {:.1}mm ({:.2}m)", height_mm, height_mm / 1000.0);
         eprintln!("Radius: {:.3}m", radius);
         eprintln!("Ground contacts: {}", ground_count);
@@ -255,7 +260,8 @@ mod tests {
                 let omega = &executor.fabric.joints[interval.omega_key];
                 // Push intervals have both joints with same symmetric key
                 assert_eq!(
-                    alpha.path.symmetric_key(), omega.path.symmetric_key(),
+                    alpha.path.symmetric_key(),
+                    omega.path.symmetric_key(),
                     "Push interval joints should have same symmetric key"
                 );
                 *push_by_key.entry(alpha.path.symmetric_key()).or_insert(0) += 1;
@@ -273,7 +279,10 @@ mod tests {
             } else {
                 "".to_string()
             };
-            eprintln!("  (depth={}, axis={}) : {} pushes {}", depth, axis, count, sym);
+            eprintln!(
+                "  (depth={}, axis={}) : {} pushes {}",
+                depth, axis, count, sym
+            );
         }
 
         eprintln!("\n=== PUSH INTERVAL LENGTH ANALYSIS ===");

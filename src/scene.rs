@@ -236,9 +236,15 @@ impl Scene {
         Ok(())
     }
 
-    pub fn redraw(&mut self, fabric: &Fabric, has_surface: bool, delta_seconds: f32) -> Result<(), wgpu::SurfaceError> {
+    pub fn redraw(
+        &mut self,
+        fabric: &Fabric,
+        has_surface: bool,
+        delta_seconds: f32,
+    ) -> Result<(), wgpu::SurfaceError> {
         self.wgpu.update_mvp_matrix(self.camera.mvp_matrix());
-        self.sky_renderer.update_time(&self.wgpu.queue, delta_seconds);
+        self.sky_renderer
+            .update_time(&self.wgpu.queue, delta_seconds);
         self.fabric_renderer.update(
             &mut self.wgpu,
             fabric,

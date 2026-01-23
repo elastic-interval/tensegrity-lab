@@ -207,7 +207,11 @@ impl AnimationExporter {
 
                 // Name by stable joint key identifiers for consistent identity across frames
                 Some(IntervalExport {
-                    name: format!("Push_{}_{}", alpha_key.data().as_ffi(), omega_key.data().as_ffi()),
+                    name: format!(
+                        "Push_{}_{}",
+                        alpha_key.data().as_ffi(),
+                        omega_key.data().as_ffi()
+                    ),
                     matrix,
                 })
             })
@@ -234,7 +238,11 @@ impl AnimationExporter {
 
                 // Name by stable joint key identifiers for consistent identity across frames
                 Some(IntervalExport {
-                    name: format!("Pull_{}_{}", alpha_key.data().as_ffi(), omega_key.data().as_ffi()),
+                    name: format!(
+                        "Pull_{}_{}",
+                        alpha_key.data().as_ffi(),
+                        omega_key.data().as_ffi()
+                    ),
                     matrix,
                 })
             })

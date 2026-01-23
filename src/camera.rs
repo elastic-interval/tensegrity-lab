@@ -129,13 +129,7 @@ impl Camera {
     }
 
     // Calculate ray based on projection type
-    fn calculate_ray(
-        &self,
-        px: f32,
-        py: f32,
-        width: f32,
-        height: f32,
-    ) -> (Vec3, Vec3) {
+    fn calculate_ray(&self, px: f32, py: f32, width: f32, height: f32) -> (Vec3, Vec3) {
         let x = (px - width) / width;
         let y = (height - py) / height;
 
@@ -188,7 +182,9 @@ impl Camera {
                     selected_push: fabric.push_at(best_joint_key),
                 }),
                 Pick::Joint(details) => {
-                    let (key, interval) = fabric.interval_between(best_joint_key, details.key).unwrap();
+                    let (key, interval) = fabric
+                        .interval_between(best_joint_key, details.key)
+                        .unwrap();
                     Pick::Interval(self.create_interval_details(
                         key,
                         interval.clone(),
@@ -198,7 +194,9 @@ impl Camera {
                     ))
                 }
                 Pick::Interval(details) => {
-                    let (key, interval) = fabric.interval_between(best_joint_key, details.near_joint).unwrap();
+                    let (key, interval) = fabric
+                        .interval_between(best_joint_key, details.near_joint)
+                        .unwrap();
                     Pick::Interval(self.create_interval_details(
                         key,
                         interval.clone(),
@@ -523,8 +521,8 @@ impl Camera {
         let up_dot_gaze = Vec3::Y.dot(gaze);
         if !(-0.95..=0.95).contains(&up_dot_gaze) {
             let axis = Vec3::Y.cross(gaze).normalize();
-            self.position = Quat::from_axis_angle(axis, 0.01 * up_dot_gaze / up_dot_gaze.abs())
-                * self.position;
+            self.position =
+                Quat::from_axis_angle(axis, 0.01 * up_dot_gaze / up_dot_gaze.abs()) * self.position;
         }
 
         working
@@ -710,7 +708,9 @@ impl Camera {
     fn projection_matrix(&self) -> Mat4 {
         let aspect = self.width / self.height;
         let proj_matrix = match self.projection_type {
-            ProjectionType::Perspective => Mat4::perspective_rh(45.0_f32.to_radians(), aspect, 0.1, 100.0),
+            ProjectionType::Perspective => {
+                Mat4::perspective_rh(45.0_f32.to_radians(), aspect, 0.1, 100.0)
+            }
             ProjectionType::Orthogonal => {
                 // For orthographic projection, calculate a reasonable view size based on distance
                 let distance = (self.look_at - self.position).length();
@@ -752,14 +752,14 @@ impl Camera {
 
         // Limit vertical camera angle to about 18 degrees from vertical
         let yaw = Quat::from_axis_angle(up, -dx / 100.0);
-        let pitch = if (dot > 0.0 && dy < 0.0 && dot > 0.95) || (dot < 0.0 && dy > 0.0 && dot < -0.95)
-        {
-            // Disallow pitch when at the vertical limit
-            Quat::from_axis_angle(right, 0.0)
-        } else {
-            // Apply pitch
-            Quat::from_axis_angle(right, -dy / 100.0)
-        };
+        let pitch =
+            if (dot > 0.0 && dy < 0.0 && dot > 0.95) || (dot < 0.0 && dy > 0.0 && dot < -0.95) {
+                // Disallow pitch when at the vertical limit
+                Quat::from_axis_angle(right, 0.0)
+            } else {
+                // Apply pitch
+                Quat::from_axis_angle(right, -dy / 100.0)
+            };
 
         let rotation = yaw * pitch;
         let matrix = Mat4::from_quat(rotation);

@@ -1,8 +1,8 @@
 use crate::units::Meters;
 use crate::ControlState::*;
 use crate::{
-    ControlState, CrucibleAction, LabEvent, Radio, StateChange, TesterAction,
-    TweakFeature, TweakParameter,
+    ControlState, CrucibleAction, LabEvent, Radio, StateChange, TesterAction, TweakFeature,
+    TweakParameter,
 };
 use winit::event::KeyEvent;
 use winit::keyboard::{KeyCode, PhysicalKey, SmolStr};

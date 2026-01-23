@@ -87,7 +87,13 @@ impl Fabric {
             for (alpha, omega) in bow_tie_pairs {
                 let current = self.distance(alpha, omega);
                 let target_length = current * DEFAULT_CONTRACTION;
-                self.create_approaching_interval(alpha, omega, target_length, Role::BowTie, VULCANIZE_DURATION);
+                self.create_approaching_interval(
+                    alpha,
+                    omega,
+                    target_length,
+                    Role::BowTie,
+                    VULCANIZE_DURATION,
+                );
             }
         }
     }

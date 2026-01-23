@@ -772,7 +772,9 @@ impl Interval {
                     transition = SpanTransition::ApproachCompleted;
                     target_length
                 } else {
-                    Meters(start_length.f32() * (1.0 - completion) + target_length.f32() * completion)
+                    Meters(
+                        start_length.f32() * (1.0 - completion) + target_length.f32() * completion,
+                    )
                 }
             }
             Measuring { .. } => unreachable!(),

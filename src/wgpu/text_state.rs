@@ -178,7 +178,9 @@ impl TextState {
                 match control_state {
                     Viewing { .. } => Large("Click to select".to_string()),
                     ShowingJoint(joint_details) => Large(joint_details.format_with_scale(scale)),
-                    ShowingInterval(interval_details) => Large(interval_details.format_with_scale(scale)),
+                    ShowingInterval(interval_details) => {
+                        Large(interval_details.format_with_scale(scale))
+                    }
                     PhysicsTesting => match &self.movement_analysis {
                         Some(text) => Normal(text.clone()),
                         None => Nothing,
@@ -215,7 +217,8 @@ impl TextState {
                     } = fabric_stats;
 
                     let scale = self.model_scale.unwrap_or(1.0);
-                    let scale_label = self.model_scale
+                    let scale_label = self
+                        .model_scale
                         .map(|s| {
                             let ratio = 1.0 / s;
                             if (ratio - ratio.round()).abs() < 0.01 {

@@ -304,10 +304,7 @@ pub struct PullIntervalData {
 /// Helper function to find the nearest attachment point in a set of points
 /// Returns the index of the nearest point and its squared distance
 /// If the points array is empty, returns (0, f32::MAX) as a fallback
-pub fn find_nearest_attachment_point(
-    points: &[AttachmentPoint],
-    position: Vec3,
-) -> (usize, f32) {
+pub fn find_nearest_attachment_point(points: &[AttachmentPoint], position: Vec3) -> (usize, f32) {
     if points.is_empty() {
         return (0, f32::MAX); // Fallback for empty arrays
     }

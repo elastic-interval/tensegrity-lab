@@ -109,13 +109,13 @@ impl SkyRenderer {
         });
 
         // Create pipeline layout
-        let pipeline_layout =
-            wgpu.device
-                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("Sky Pipeline Layout"),
-                    bind_group_layouts: &[&time_bind_group_layout],
-                    immediate_size: 0,
-                });
+        let pipeline_layout = wgpu
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Sky Pipeline Layout"),
+                bind_group_layouts: &[&time_bind_group_layout],
+                immediate_size: 0,
+            });
 
         // Create vertex buffer
         let vertex_buffer = wgpu

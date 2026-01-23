@@ -108,9 +108,7 @@ impl std::fmt::Display for JointPath {
 
         // Check for trailing prism marker (254 new, 15 legacy)
         let (main_branches, has_prism) = match self.branches.last() {
-            Some(&PRISM_MARKER) | Some(&15) => {
-                (&self.branches[..self.branches.len() - 1], true)
-            }
+            Some(&PRISM_MARKER) | Some(&15) => (&self.branches[..self.branches.len() - 1], true),
             _ => (&self.branches[..], false),
         };
 
@@ -121,9 +119,7 @@ impl std::fmt::Display for JointPath {
             if b == COLUMN_MARKER {
                 // Column segment - count consecutive column markers
                 let mut count = 1;
-                while i + count < main_branches.len()
-                    && main_branches[i + count] == COLUMN_MARKER
-                {
+                while i + count < main_branches.len() && main_branches[i + count] == COLUMN_MARKER {
                     count += 1;
                 }
                 write!(f, "X{}", count)?;

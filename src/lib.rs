@@ -96,7 +96,6 @@ impl Age {
     }
 }
 
-
 // Tweak parameters that scale/modify the physics (user-controlled view on physics)
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TweakFeature {
@@ -141,7 +140,7 @@ pub enum RunStyle {
         segments: usize,
     },
     BakeBricks,
-    Seeded(u64),
+    Evolution(u64),
 }
 
 #[derive(Clone)]
@@ -352,10 +351,20 @@ impl IntervalDetails {
         let show_attachment_points = SHOW_ATTACHMENT_POINTS.with(|cell| *cell.borrow());
 
         let hinge_info = if show_attachment_points {
-            let alpha_hinge = self.alpha_hinge_angle.map(|a| format!("α: {}", a)).unwrap_or_default();
-            let omega_hinge = self.omega_hinge_angle.map(|a| format!("ω: {}", a)).unwrap_or_default();
+            let alpha_hinge = self
+                .alpha_hinge_angle
+                .map(|a| format!("α: {}", a))
+                .unwrap_or_default();
+            let omega_hinge = self
+                .omega_hinge_angle
+                .map(|a| format!("ω: {}", a))
+                .unwrap_or_default();
             if !alpha_hinge.is_empty() || !omega_hinge.is_empty() {
-                let separator = if !alpha_hinge.is_empty() && !omega_hinge.is_empty() { ", " } else { "" };
+                let separator = if !alpha_hinge.is_empty() && !omega_hinge.is_empty() {
+                    ", "
+                } else {
+                    ""
+                };
                 format!("\nHinge: {}{}{}", alpha_hinge, separator, omega_hinge)
             } else {
                 String::new()

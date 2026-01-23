@@ -29,7 +29,8 @@ impl FabricName {
     pub fn fabric_plan(self) -> FabricPlan {
         use FabricName::*;
         match self {
-            Triped => self.build(FabricDimensions::default())
+            Triped => self
+                .build(FabricDimensions::default())
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([
                     on(OmniBotX)

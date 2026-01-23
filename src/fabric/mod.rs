@@ -41,7 +41,6 @@ impl Default for HingeDimensions {
 }
 
 impl HingeDimensions {
-
     pub fn offset(&self) -> Meters {
         self.push_radius + self.push_radius_margin + self.disc_thickness / 2.0
     }
@@ -100,7 +99,6 @@ impl Default for FabricDimensions {
 }
 
 impl FabricDimensions {
-
     pub fn with_altitude(mut self, altitude: Meters) -> Self {
         self.altitude = altitude;
         self
@@ -145,7 +143,8 @@ impl FabricDimensions {
         let ideal_angle = Degrees(sin_angle.asin().to_degrees());
         let hinge_bend = attachment::HingeBend::from_angle(ideal_angle);
 
-        let pull_end_pos = hinge_bend.endpoint(hinge_pos, push_axis, radial_unit, self.hinge.length().f32());
+        let pull_end_pos =
+            hinge_bend.endpoint(hinge_pos, push_axis, radial_unit, self.hinge.length().f32());
 
         (hinge_pos, hinge_bend, pull_end_pos)
     }
@@ -469,10 +468,7 @@ impl Fabric {
                 downward_normals.len()
             );
         }
-        let down: Vec3 = downward_normals
-            .into_iter()
-            .sum::<Vec3>()
-            .normalize();
+        let down: Vec3 = downward_normals.into_iter().sum::<Vec3>().normalize();
         Mat4::from_quat(Quat::from_rotation_arc(down, -Vec3::Y))
     }
 
@@ -567,7 +563,8 @@ impl Fabric {
         // Calculate interval forces (also adds interval mass to joints)
         let age = self.age;
         for interval in self.intervals.values_mut() {
-            if interval.iterate(&mut self.joints, age, physics) == SpanTransition::ApproachCompleted {
+            if interval.iterate(&mut self.joints, age, physics) == SpanTransition::ApproachCompleted
+            {
                 self.approaching_count = self.approaching_count.saturating_sub(1);
             }
             self.stats.accumulate_strain(interval.strain);
@@ -784,11 +781,7 @@ impl Fabric {
     }
 
     /// Find the interval connecting two joints, if one exists.
-    pub fn interval_between(
-        &self,
-        a: JointKey,
-        b: JointKey,
-    ) -> Option<(IntervalKey, &Interval)> {
+    pub fn interval_between(&self, a: JointKey, b: JointKey) -> Option<(IntervalKey, &Interval)> {
         self.intervals
             .iter()
             .find(|(_, interval)| interval.connects(a, b))

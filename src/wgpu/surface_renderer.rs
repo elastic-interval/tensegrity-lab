@@ -111,13 +111,13 @@ impl SurfaceRenderer {
         });
 
         // Create pipeline layout with both uniform and texture bind groups
-        let pipeline_layout =
-            wgpu.device
-                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("Surface Pipeline Layout"),
-                    bind_group_layouts: &[&wgpu.uniform_bind_group_layout, &texture_bind_group_layout],
-                    immediate_size: 0,
-                });
+        let pipeline_layout = wgpu
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Surface Pipeline Layout"),
+                bind_group_layouts: &[&wgpu.uniform_bind_group_layout, &texture_bind_group_layout],
+                immediate_size: 0,
+            });
 
         let surface_vertices = SurfaceVertex::for_radius(10.0).to_vec();
         let surface_pipeline =

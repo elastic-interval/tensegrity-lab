@@ -22,7 +22,7 @@ struct Args {
     bake_bricks: bool,
 
     #[arg(long)]
-    seed: Option<u64>,
+    evolve: Option<u64>,
 
     /// Generate an algorithmic tensegrity sphere with given frequency (1, 2, or 3+)
     #[arg(long)]
@@ -71,8 +71,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         RunStyle::Mobius { segments }
     } else if args.bake_bricks {
         RunStyle::BakeBricks
-    } else if let Some(seed) = args.seed {
-        RunStyle::Seeded(seed)
+    } else if let Some(seed) = args.evolve {
+        RunStyle::Evolution(seed)
     } else if let Some(fabric_name) = args.fabric {
         RunStyle::Fabric {
             fabric_name,
@@ -92,7 +92,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Use model_scale from args, or default to 18 if running with default fabric
     let model_scale = args.model_scale.or_else(|| {
-        if matches!(run_style, RunStyle::Fabric { fabric_name: FabricName::Triped, .. }) && args.fabric.is_none() {
+        if matches!(
+            run_style,
+            RunStyle::Fabric {
+                fabric_name: FabricName::Triped,
+                ..
+            }
+        ) && args.fabric.is_none()
+        {
             Some(18.0)
         } else {
             None
@@ -102,7 +109,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     run_with(run_style, args.time_scale, model_scale)
 }
 
-fn run_with(run_style: RunStyle, time_scale: f32, model_scale: Option<f32>) -> Result<(), Box<dyn Error>> {
+fn run_with(
+    run_style: RunStyle,
+    time_scale: f32,
+    model_scale: Option<f32>,
+) -> Result<(), Box<dyn Error>> {
     let mut builder = EventLoop::<LabEvent>::with_user_event();
     let event_loop: EventLoop<LabEvent> = builder.build()?;
     let radio = event_loop.create_proxy();
@@ -111,7 +122,8 @@ fn run_with(run_style: RunStyle, time_scale: f32, model_scale: Option<f32>) -> R
     let window_attributes = create_window_attributes();
     #[cfg(target_arch = "wasm32")]
     let window_attributes = create_window_attributes();
-    let mut application = Application::new(window_attributes, radio.clone(), time_scale, model_scale);
+    let mut application =
+        Application::new(window_attributes, radio.clone(), time_scale, model_scale);
     LabEvent::Run(run_style).send(&radio);
     event_loop.run_app(&mut application)?;
     Ok(())

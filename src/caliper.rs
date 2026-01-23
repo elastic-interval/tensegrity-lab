@@ -3,7 +3,7 @@ use crate::units::Meters;
 /// Calibration data points: (input_length_mm, caliper_reading_mm)
 /// The caliper holds a cord that is almost folded in half, so the reading
 /// is approximately half the input length, but not exactly.
-const CALIBRATION_MM : &[(f32, f32)] = &[
+const CALIBRATION_MM: &[(f32, f32)] = &[
     (29.0, 15.0),
     (57.0, 30.0),
     (88.5, 45.0),
@@ -54,7 +54,7 @@ pub fn caliper_reading(length: Meters) -> String {
                 y
             }
         }
-        (None, Some((_, y))) => y, // Below first point, use first value
+        (None, Some((_, y))) => y,    // Below first point, use first value
         (Some((_, y)), Some(_)) => y, // Same point
         (None, None) => input_mm / 2.0, // Fallback
     };

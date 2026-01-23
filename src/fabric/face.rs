@@ -112,9 +112,7 @@ impl Fabric {
         let midpoint = face.midpoint(&self);
         let middle_joint_key = face.middle_joint(self);
         // Calculate actual distance from face center to radial joints
-        let radial_distance = self.joints[radial_joints[0]]
-            .location
-            .distance(midpoint);
+        let radial_distance = self.joints[radial_joints[0]].location.distance(midpoint);
         // Alpha/omega are at distance `push_length/2` along the normal.
         // By Pythagorean theorem: pull_length² = radial_distance² + (push_length/2)²
         let pull_length =
@@ -127,14 +125,8 @@ impl Fabric {
         let alpha_path = middle_path.extend(PRISM_MARKER).with_local_index(0);
         let omega_path = middle_path.extend(PRISM_MARKER).with_local_index(1);
 
-        let alpha = self.create_joint_with_path(
-            midpoint - normal * push_length / 2.0,
-            alpha_path,
-        );
-        let omega = self.create_joint_with_path(
-            midpoint + normal * push_length / 2.0,
-            omega_path,
-        );
+        let alpha = self.create_joint_with_path(midpoint - normal * push_length / 2.0, alpha_path);
+        let omega = self.create_joint_with_path(midpoint + normal * push_length / 2.0, omega_path);
 
         self.create_fixed_interval(alpha, omega, Role::Pushing, Meters(push_length));
 
@@ -211,7 +203,8 @@ impl Face {
             Spin::Left => v2.cross(v1),
             Spin::Right => v1.cross(v2),
         }
-        .normalize() * length
+        .normalize()
+            * length
     }
 
     pub fn normal(&self, fabric: &Fabric) -> Vec3 {
@@ -258,12 +251,7 @@ impl Face {
     }
 }
 
-pub fn vector_space(
-    p: [Vec3; 3],
-    scale: f32,
-    spin: Spin,
-    rotation: FaceRotation,
-) -> Mat4 {
+pub fn vector_space(p: [Vec3; 3], scale: f32, spin: Spin, rotation: FaceRotation) -> Mat4 {
     let midpoint = (p[0] + p[1] + p[2]) / 3.0;
     let (a, b) = match rotation {
         FaceRotation::Zero => (p[0], p[1]),

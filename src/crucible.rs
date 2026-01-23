@@ -1,7 +1,7 @@
 use crate::build::animator::Animator;
 use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
 use crate::build::dsl::FabricPlan;
-use crate::build::evo::evolution::Evolution;
+use crate::build::evo::visual_runner::VisualEvolutionRunner;
 use crate::build::oven::Oven;
 use crate::crucible::Stage::*;
 use crate::crucible_context::CrucibleContext;
@@ -20,7 +20,7 @@ pub enum Stage {
     Animating(Animator),
     PhysicsTesting(PhysicsTester),
     BakingBrick(Oven),
-    Evolving(Evolution),
+    Evolving(VisualEvolutionRunner),
 }
 
 pub struct Crucible {
@@ -221,14 +221,16 @@ impl Crucible {
                     context.replace_fabric(new_fabric);
                 }
             }
-            Evolving(evolution) => {
+            Evolving(runner) => {
                 // Create a context for evolution
                 let mut context =
                     CrucibleContext::new(&mut self.fabric, &mut self.physics, &self.radio);
-                evolution.iterate(&mut context);
+                runner.iterate(&mut context);
 
-                // Apply any stage transition
-                if let Some(new_stage) = context.apply_changes() {
+                // Check if evolution should terminate
+                if runner.should_terminate() {
+                    self.finalize_to_viewing();
+                } else if let Some(new_stage) = context.apply_changes() {
                     self.stage = new_stage;
                 }
             }
@@ -436,14 +438,17 @@ impl Crucible {
                 _ => {}
             },
             ToEvolving(seed) => {
-                let evolution = Evolution::new(seed);
+                let runner = VisualEvolutionRunner::new(seed);
 
-                context.replace_fabric(evolution.fabric.clone());
+                context.replace_fabric(runner.fabric.clone());
 
                 // Initialize the physics for evolution
-                evolution.adopt_physica(&mut context);
+                runner.adopt_physics(&mut context);
 
-                context.transition_to(Evolving(evolution));
+                SetFabricName(format!("Evolution {}", seed)).send(&self.radio);
+                SetStageLabel("Evolving...".to_string()).send(&self.radio);
+
+                context.transition_to(Evolving(runner));
             }
         }
 
