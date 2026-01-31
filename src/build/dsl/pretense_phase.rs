@@ -3,26 +3,17 @@ use crate::fabric::physics::presets::VIEWING;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::units::{Percent, Seconds};
 
-/// Default target compression for push intervals (1%)
-pub const DEFAULT_MIN_PUSH_STRAIN: f32 = 0.01;
-/// Default maximum compression per extension round (3%)
-pub const DEFAULT_MAX_PUSH_STRAIN: f32 = 0.03;
-
-#[derive(Debug, Clone, Default)]
-pub struct PretensePhase {
+#[derive(Debug, Clone)]
+pub struct ZeroGPretensePhase {
     pub surface: Option<SurfaceCharacter>,
     pub seconds: Option<Seconds>,
     pub rigidity: Option<Percent>,
     pub omit_pairs: Vec<(JointPath, JointPath)>,
-    /// Target compression for push intervals (default 1%)
-    pub min_push_strain: Option<f32>,
-    /// Maximum compression per extension round (default 3%)
-    pub max_push_strain: Option<f32>,
+    pub min_push_strain: f32,
+    pub pull_lengthening: f32,
 }
 
-impl PretensePhase {
-    /// Note: This returns physics without surface since scale is not known here.
-    /// The surface with proper scale is set by FabricPlanExecutor during transition_to_fall.
+impl ZeroGPretensePhase {
     pub fn viewing_physics(&self) -> Physics {
         VIEWING.clone()
     }

@@ -53,7 +53,7 @@ impl PhysicsTester {
             // Check if sampling is complete
             if sampler.is_complete() {
                 // Analyze and show results
-                if let Some(analysis) = sampler.analyze(&self.fabric, &self.physics) {
+                if let Some(analysis) = sampler.analyze() {
                     let text = analysis.format();
                     StateChange::ShowMovementAnalysis(Some(text)).send(&self.radio);
 

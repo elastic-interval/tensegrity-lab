@@ -49,7 +49,7 @@ impl FabricName {
                         .mark(End)
                         .prism(),
                     on(OmniTop).prism(),
-                    on(OmniBot).radial(),
+                    on(OmniBot).open(),
                 ])
                 .omit([
                     ("Z6", "Z9"),
@@ -60,26 +60,22 @@ impl FabricName {
                     ("Z10", "Z7"),
                 ])
                 .prepare_vulcanize(0.5, VulcanizeMode::Linear)
-                .space(Sec(3.0), End, Pct(25.0))
+                .space(Sec(3.0), End, Pct(35.0))
                 .vulcanize(Sec(1.0))
-                .pretense()
-                .min_push_strain(Pct(1.0))
-                .max_push_strain(Pct(3.0))
+                .zero_g_pretense(Sec(0.2), Pct(0.05), Pct(1.0))
                 .surface_frozen()
                 .fall(Sec(2.0))
                 .settle(Sec(3.0))
-                .grav_pretense(Sec(0.02))
-                .min_push_strain(Pct(3.0))
-                .max_push_strain(Pct(5.0))
+                .grav_pretense(Sec(0.3), Pct(0.1))
                 .animate()
-                .period(Sec(0.46))
-                .amplitude(Pct(10.0))
+                .period(Sec(1.05))
+                .amplitude(Pct(3.0))
                 .stiffness(Pct(1.0))
                 .sine()
                 .actuators([
-                    phase(Pct(0.0)).between("AX8YZ1", "BX2Z4"),
-                    phase(Pct(0.0)).between("BX8YZ1", "CX2Z4"),
-                    phase(Pct(0.0)).between("CX8YZ1", "AX2Z4"),
+                    phase(Pct(0.0)).between("AX8YZ1", "CX1Z3"),
+                    phase(Pct(0.0)).between("BX8YZ1", "AX1Z3"),
+                    phase(Pct(0.0)).between("CX8YZ1", "BX1Z3"),
                 ]),
             Mockup => self
                 .build(
@@ -90,7 +86,7 @@ impl FabricName {
                 .seed(SingleTwistLeft, Seed(1))
                 .faces([on(SingleTop).column(2).shrink_by(Pct(12.0))])
                 .vulcanize(Sec(2.0))
-                .pretense()
+                .zero_g_pretense(Sec(0.02), Pct(0.1), Pct(1.0))
                 .surface_frozen()
                 .fall(Sec(3.0))
                 .settle(Sec(4.0)),
@@ -110,7 +106,7 @@ impl FabricName {
                 )])
                 .join(Sec(10.0), HaloEnd)
                 .vulcanize(Sec(5.0))
-                .pretense()
+                .zero_g_pretense(Sec(0.02), Pct(0.1), Pct(1.0))
                 .surface_frozen(),
 
             Vertebra => self
@@ -122,7 +118,7 @@ impl FabricName {
                 .seed(SingleTwistLeft, Seed(1))
                 .faces([on(SingleTop).column(1)])
                 .centralize_at(Sec(1.0), M(0.075))
-                .pretense()
+                .zero_g_pretense(Sec(0.02), Pct(0.1), Pct(1.0))
                 .floating(),
 
             Flagellum => self
@@ -134,7 +130,7 @@ impl FabricName {
                 .seed(SingleTwistLeft, Seed(1))
                 .faces([on(SingleTop).column(20).shrink_by(Pct(5.0))])
                 .vulcanize(Sec(1.0))
-                .pretense()
+                .zero_g_pretense(Sec(0.02), Pct(0.1), Pct(1.0))
                 .surface_frozen(),
 
             HeadlessHug => self
@@ -185,7 +181,7 @@ impl FabricName {
                 .space(Sec(2.0), Chest2, Pct(40.0))
                 .vulcanize(Sec(6.0))
                 .centralize_at(Sec(1.0), M(1.0))
-                .pretense()
+                .zero_g_pretense(Sec(0.02), Pct(0.1), Pct(1.0))
                 .surface_frozen(),
         }
     }

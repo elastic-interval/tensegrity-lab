@@ -88,15 +88,15 @@ pub enum BuildNode {
         face_nodes: Vec<BuildNode>,
     },
     Prism,
-    /// Mark face as radial (radials only, no triangle)
-    Radial,
+    RadialsOnly,
+    Open,
 }
 
 impl BuildNode {
     pub fn traverse(&self, f: &mut impl FnMut(&Self)) {
         f(self);
         match self {
-            Mark { .. } | Prism { .. } | Radial { .. } => {}
+            Mark { .. } | Prism { .. } | RadialsOnly { .. } | Open { .. } => {}
             Face { node, .. } => {
                 node.traverse(f);
             }
@@ -342,10 +342,15 @@ impl BuildPhase {
                     .expect("Unable to find face for prism");
                 fabric.add_face_prism(face_key);
             }
-            Radial => {
+            RadialsOnly => {
                 let face_key = Self::find_launch_face(&launch, &faces, fabric)
-                    .expect("Unable to find face for radial");
-                fabric.set_face_radial(face_key);
+                    .expect("Unable to find face for radials_only");
+                fabric.set_face_radials_only(face_key);
+            }
+            Open => {
+                let face_key = Self::find_launch_face(&launch, &faces, fabric)
+                    .expect("Unable to find face for open");
+                fabric.set_face_open(face_key);
             }
         };
         (buds, marks)

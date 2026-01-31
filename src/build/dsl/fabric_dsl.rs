@@ -3,7 +3,7 @@ use crate::build::dsl::build_phase::{BuildNode, BuildPhase, Chirality, ColumnSty
 use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::fall_phase::FallPhase;
-use crate::build::dsl::pretense_phase::PretensePhase;
+use crate::build::dsl::pretense_phase::ZeroGPretensePhase;
 use crate::build::dsl::shape_phase::{ShapeAction, ShapeStep};
 use crate::fabric::joint_path::JointPath;
 use crate::fabric::physics::SurfaceCharacter;
@@ -20,14 +20,13 @@ pub use crate::units::Percent as Pct;
 pub use crate::units::{Meters as M, Seconds as Sec};
 
 impl FabricName {
-    /// Start building a fabric plan with the given dimensions
     pub fn build(self, dimensions: FabricDimensions) -> FabricBuilder {
         FabricBuilder {
             name: self,
             dimensions,
             build: None,
             shape: Vec::new(),
-            pretense: PretensePhaseBuilder::default(),
+            omit_pairs: Vec::new(),
         }
     }
 }
@@ -37,7 +36,7 @@ pub struct FabricBuilder {
     dimensions: FabricDimensions,
     build: Option<BuildNode>,
     shape: Vec<ShapeStep>,
-    pretense: PretensePhaseBuilder,
+    omit_pairs: Vec<(JointPath, JointPath)>,
 }
 
 impl FabricBuilder {
@@ -114,44 +113,25 @@ impl FabricBuilder {
         self
     }
 
-    /// Remove intervals by joint path pairs (executed after triangles are created in pretense phase)
-    /// Paths use format: "AA0" (branches A,A + local 0), "B3" (branch B + local 3), "5" (no branches, local 5)
     pub fn omit<const N: usize>(mut self, pairs: [(&str, &str); N]) -> Self {
-        self.pretense
-            .omit_pairs
+        self.omit_pairs
             .extend(pairs.iter().map(|(a, b)| ((*a).into(), (*b).into())));
         self
     }
 
-    pub fn pretense(self) -> PretenseChain {
-        PretenseChain { fabric: self }
-    }
-
-    pub(crate) fn build_plan(self) -> FabricPlan {
-        let dims = self.dimensions;
-        FabricPlan {
-            name: self.name,
-            build_phase: BuildPhase::new(
-                self.build.expect("build phase required"),
-                dims.altitude.f32() / dims.scale.f32(),
-            ),
-            shape_phase: crate::build::dsl::shape_phase::ShapePhase {
-                steps: self.shape,
-                marks: Vec::new(),
-                spacers: Vec::new(),
-                joiners: Vec::new(),
-                anchors: Vec::new(),
-                step_index: 0,
-                scale: dims.scale,
-            },
-            pretense_phase: self.pretense.build(),
-            fall_phase: FallPhase {
-                seconds: Seconds(5.0),
-            },
-            settle_phase: None,
-            grav_pretense_phase: None,
-            animate_phase: None,
-            dimensions: dims,
+    pub fn zero_g_pretense(
+        self,
+        seconds: Seconds,
+        min_strain: Percent,
+        pull_lengthening: Percent,
+    ) -> ZeroGPretenseChain {
+        ZeroGPretenseChain {
+            fabric: self,
+            min_push_strain: min_strain.as_factor(),
+            pull_lengthening: pull_lengthening.as_factor(),
+            surface: None,
+            rigidity: None,
+            seconds: Some(seconds),
         }
     }
 }
@@ -239,19 +219,28 @@ impl FaceBuilder {
         }
     }
 
-    /// Mark this face as radial (keep radials only, no triangle)
-    pub fn radial(self) -> FaceColumnBuilder {
+    pub fn radials_only(self) -> FaceColumnBuilder {
         FaceColumnBuilder {
             face_name: self.face_name,
             column: ColumnBuilder {
                 style: ColumnStyle::alternating(0),
                 scale: Percent(100.0),
-                post_column_nodes: vec![BuildNode::Radial],
+                post_column_nodes: vec![BuildNode::RadialsOnly],
             },
         }
     }
 
-    /// Add a prism to this face (no column)
+    pub fn open(self) -> FaceColumnBuilder {
+        FaceColumnBuilder {
+            face_name: self.face_name,
+            column: ColumnBuilder {
+                style: ColumnStyle::alternating(0),
+                scale: Percent(100.0),
+                post_column_nodes: vec![BuildNode::Open],
+            },
+        }
+    }
+
     pub fn prism(self) -> FaceColumnBuilder {
         FaceColumnBuilder {
             face_name: self.face_name,
@@ -296,8 +285,13 @@ impl FaceColumnBuilder {
         self
     }
 
-    pub fn radial(mut self) -> Self {
-        self.column = self.column.radial();
+    pub fn radials_only(mut self) -> Self {
+        self.column = self.column.radials_only();
+        self
+    }
+
+    pub fn open(mut self) -> Self {
+        self.column = self.column.open();
         self
     }
 
@@ -396,13 +390,18 @@ impl SeedChain {
         self.finalize_build().centralize_at(seconds, altitude)
     }
 
-    /// Remove intervals by joint path pairs (executed after triangles are created in pretense phase)
     pub fn omit<const N: usize>(self, pairs: [(&str, &str); N]) -> FabricBuilder {
         self.finalize_build().omit(pairs)
     }
 
-    pub fn pretense(self) -> PretenseChain {
-        self.finalize_build().pretense()
+    pub fn zero_g_pretense(
+        self,
+        seconds: Seconds,
+        min_strain: Percent,
+        pull_lengthening: Percent,
+    ) -> ZeroGPretenseChain {
+        self.finalize_build()
+            .zero_g_pretense(seconds, min_strain, pull_lengthening)
     }
 }
 
@@ -454,8 +453,13 @@ impl ColumnBuilder {
         self
     }
 
-    pub fn radial(mut self) -> Self {
-        self.post_column_nodes.push(BuildNode::Radial);
+    pub fn radials_only(mut self) -> Self {
+        self.post_column_nodes.push(BuildNode::RadialsOnly);
+        self
+    }
+
+    pub fn open(mut self) -> Self {
+        self.post_column_nodes.push(BuildNode::Open);
         self
     }
 
@@ -481,79 +485,68 @@ impl From<ColumnBuilder> for BuildNode {
     }
 }
 
-// Pretense Phase
-
-#[derive(Default)]
-pub struct PretensePhaseBuilder {
+pub struct ZeroGPretenseChain {
+    fabric: FabricBuilder,
+    min_push_strain: f32,
+    pull_lengthening: f32,
     surface: Option<SurfaceCharacter>,
     rigidity: Option<Percent>,
     seconds: Option<Seconds>,
-    omit_pairs: Vec<(JointPath, JointPath)>,
-    min_push_strain: Option<f32>,
-    max_push_strain: Option<f32>,
 }
 
-impl PretensePhaseBuilder {
-    pub fn surface(mut self, surface: SurfaceCharacter) -> Self {
-        self.surface = Some(surface);
-        self
-    }
-
+impl ZeroGPretenseChain {
     pub fn rigidity(mut self, rigidity: Percent) -> Self {
         self.rigidity = Some(rigidity);
         self
     }
 
-    pub(crate) fn build(self) -> PretensePhase {
-        PretensePhase {
+    fn build_plan(self) -> FabricPlan {
+        let dims = self.fabric.dimensions;
+        let zero_g_pretense_phase = ZeroGPretensePhase {
             surface: self.surface,
             seconds: self.seconds,
             rigidity: self.rigidity,
-            omit_pairs: self.omit_pairs,
+            omit_pairs: self.fabric.omit_pairs,
             min_push_strain: self.min_push_strain,
-            max_push_strain: self.max_push_strain,
+            pull_lengthening: self.pull_lengthening,
+        };
+        FabricPlan {
+            name: self.fabric.name,
+            build_phase: BuildPhase::new(
+                self.fabric.build.expect("build phase required"),
+                dims.altitude.f32() / dims.scale.f32(),
+            ),
+            shape_phase: crate::build::dsl::shape_phase::ShapePhase {
+                steps: self.fabric.shape,
+                marks: Vec::new(),
+                spacers: Vec::new(),
+                joiners: Vec::new(),
+                anchors: Vec::new(),
+                step_index: 0,
+                scale: dims.scale,
+            },
+            zero_g_pretense_phase,
+            fall_phase: FallPhase {
+                seconds: Seconds(5.0),
+            },
+            settle_phase: None,
+            grav_pretense_phase: None,
+            animate_phase: None,
+            dimensions: dims,
         }
-    }
-}
-
-/// Chained pretense configuration - must specify surface to complete the plan
-pub struct PretenseChain {
-    fabric: FabricBuilder,
-}
-
-impl PretenseChain {
-    pub fn step_duration(mut self, seconds: Seconds) -> Self {
-        self.fabric.pretense.seconds = Some(seconds);
-        self
-    }
-
-    pub fn rigidity(mut self, rigidity: Percent) -> Self {
-        self.fabric.pretense.rigidity = Some(rigidity);
-        self
-    }
-
-    pub fn min_push_strain(mut self, strain: Percent) -> Self {
-        self.fabric.pretense.min_push_strain = Some(strain.as_factor());
-        self
-    }
-
-    pub fn max_push_strain(mut self, strain: Percent) -> Self {
-        self.fabric.pretense.max_push_strain = Some(strain.as_factor());
-        self
     }
 
     pub fn surface_frozen(mut self) -> FabricPlan {
-        self.fabric.pretense.surface = Some(SurfaceCharacter::Frozen);
-        self.fabric.build_plan()
+        self.surface = Some(SurfaceCharacter::Frozen);
+        self.build_plan()
     }
 
     pub fn surface_bouncy(mut self) -> FabricPlan {
-        self.fabric.pretense.surface = Some(SurfaceCharacter::Bouncy);
-        self.fabric.build_plan()
+        self.surface = Some(SurfaceCharacter::Bouncy);
+        self.build_plan()
     }
 
     pub fn floating(self) -> FabricPlan {
-        // No surface interaction - fabric floats in space
-        self.fabric.build_plan()
+        self.build_plan()
     }
 }

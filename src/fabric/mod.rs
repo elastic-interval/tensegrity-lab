@@ -332,6 +332,11 @@ pub struct FabricStats {
     pub pull_count: usize,
     pub pull_range: (Meters, Meters),
     pub pull_total: Meters,
+    pub mass_kg: f32,
+    pub max_pull_force_kn: f32,
+    pub push_strain_range: (f32, f32),
+    pub pull_strain_range: (f32, f32),
+    pub slack_pull_count: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -496,8 +501,9 @@ impl Fabric {
     }
 
     /// Slacken all intervals by setting their span to Fixed at their current length.
-    /// Push intervals are snapped first, then pulls are measured to compensate.
-    pub fn slacken(&mut self) {
+    /// Push intervals are snapped first, then pulls have ideal length extended.
+    /// `pull_lengthening` extends pull ideal lengths (e.g., 0.01 = 1% longer), giving slack room.
+    pub fn slacken(&mut self, pull_lengthening: f32) {
         // First pass: snap push intervals to discrete lengths
         for interval in self.intervals.values_mut() {
             if interval.has_role(Role::Pushing) {
@@ -508,12 +514,14 @@ impl Fabric {
                 };
             }
         }
-        // Second pass: set pull intervals to their current measured length
+        // Second pass: set pull intervals with slack allowance
+        // Lengthen ideal so pulls start slack; push adjustments will take up the slack
         for interval in self.intervals.values_mut() {
             if !interval.has_role(Role::Pushing) && !interval.has_role(Role::Support) {
                 let current_length = interval.fast_length(&self.joints);
+                let ideal_length = current_length * (1.0 + pull_lengthening);
                 interval.span = Fixed {
-                    length: Meters(current_length),
+                    length: Meters(ideal_length),
                 };
             }
         }
@@ -726,17 +734,25 @@ impl Fabric {
         }
     }
 
-    pub fn fabric_stats(&self) -> FabricStats {
+    pub fn fabric_stats(&self, physics: &Physics) -> FabricStats {
         let mut push_range = (Meters(1000.0), Meters(0.0));
         let mut pull_range = (Meters(1000.0), Meters(0.0));
         let mut push_count = 0;
         let mut push_total = Meters(0.0);
         let mut pull_count = 0;
         let mut pull_total = Meters(0.0);
+        let mut push_strain_min = f32::MAX;
+        let mut push_strain_max = f32::MIN;
+        let mut pull_strain_min = f32::MAX;
+        let mut pull_strain_max = f32::MIN;
+        let mut max_pull_force_kn = 0.0f32;
+        let mut slack_pull_count = 0usize;
+
+        const SLACK_THRESHOLD: f32 = 0.0001;
+
         for interval in self.intervals.values() {
             let length = Meters(interval.length(&self.joints));
             if !interval.has_role(Role::Support) {
-                // Categorize by push-like vs pull-like behavior
                 if interval.role == Role::Pushing {
                     push_count += 1;
                     push_total = push_total + length;
@@ -746,6 +762,8 @@ impl Fabric {
                     if length > push_range.1 {
                         push_range.1 = length;
                     }
+                    push_strain_min = push_strain_min.min(interval.strain);
+                    push_strain_max = push_strain_max.max(interval.strain);
                 } else if interval.role.is_pull_like() {
                     pull_count += 1;
                     pull_total = pull_total + length;
@@ -755,11 +773,20 @@ impl Fabric {
                     if length > pull_range.1 {
                         pull_range.1 = length;
                     }
+                    pull_strain_min = pull_strain_min.min(interval.strain);
+                    pull_strain_max = pull_strain_max.max(interval.strain);
+                    if interval.strain < SLACK_THRESHOLD {
+                        slack_pull_count += 1;
+                    }
+                    let k_real = interval.material.real_spring_constant_at_1m();
+                    let force_kn = k_real.0 * interval.strain.abs() / 1000.0;
+                    max_pull_force_kn = max_pull_force_kn.max(force_kn);
                 }
-                // Springy and other roles are ignored in stats
             }
         }
         let (_, max_y) = self.altitude_range();
+        let mass_kg = self.calculate_total_mass(physics).0 / 1000.0;
+
         FabricStats {
             name: self.name.clone(),
             age: self.age,
@@ -771,6 +798,11 @@ impl Fabric {
             pull_count,
             pull_range,
             pull_total,
+            mass_kg,
+            max_pull_force_kn,
+            push_strain_range: (push_strain_min, push_strain_max),
+            pull_strain_range: (pull_strain_min, pull_strain_max),
+            slack_pull_count,
         }
     }
 

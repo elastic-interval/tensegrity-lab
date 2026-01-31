@@ -28,11 +28,23 @@ impl Material {
         self.linear_density(physics) * length
     }
 
-    fn spring_constant_at_1m(&self) -> NewtonsPerMeter {
+    pub fn spring_constant_at_1m(&self) -> NewtonsPerMeter {
         NewtonsPerMeter(match self {
-            Push => 2e10,  // aluminum tube ~50mm diameter
-            Pull => 2e9,   // Dyneema rope ~10mm diameter
-            Spring => 9e4, // steel coil spring for actuation
+            Push => 2e10,
+            Pull => 6.7e9, // ratio ~3:1 to match aluminum/dyneema
+            Spring => 9e4,
+        })
+    }
+
+    /// Realistic spring constant for physical force calculations
+    /// Based on actual material properties (not simulation stiffness)
+    pub fn real_spring_constant_at_1m(&self) -> NewtonsPerMeter {
+        NewtonsPerMeter(match self {
+            // 50mm aluminum tube, 2mm wall: E=70GPa, A≈300mm², k=EA/L≈2.1e7 N/m
+            Push => 2.1e7,
+            // 14mm Dyneema: E=100GPa, A≈154mm², k=EA/L≈1.5e7 N/m
+            Pull => 1.5e7,
+            Spring => 9e4,
         })
     }
 

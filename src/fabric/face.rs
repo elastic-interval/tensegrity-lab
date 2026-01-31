@@ -37,23 +37,26 @@ impl Fabric {
 
     pub fn remove_face(&mut self, id: FaceKey) {
         let face = self.face(id);
-        let middle_joint = face.middle_joint(self);
-        let is_radial = face.ending == FaceEnding::Radial;
+        let ending = face.ending.clone();
         let radial_intervals = face.radial_intervals;
 
-        if is_radial {
-            // For radial faces, convert radials to Pulling instead of removing
-            for interval_key in radial_intervals {
-                if let Some(interval) = self.intervals.get_mut(interval_key) {
-                    interval.role = Role::Pulling;
+        match ending {
+            FaceEnding::RadialsOnly => {
+                // Convert radials to Pulling instead of removing
+                for interval_key in radial_intervals {
+                    if let Some(interval) = self.intervals.get_mut(interval_key) {
+                        interval.role = Role::Pulling;
+                    }
                 }
             }
-        } else {
-            // Normal face removal: delete radials
-            for interval_key in radial_intervals {
-                self.remove_interval(interval_key);
+            FaceEnding::Open => {
+                // Radials and middle joint already removed by remove_face_radials
             }
-            self.remove_joint(middle_joint);
+            _ => {
+                // Normal face removal: remove middle joint (which removes connected radials)
+                let middle_joint = self.interval(radial_intervals[0]).alpha_key;
+                self.remove_joint(middle_joint);
+            }
         }
         self.faces.remove(id);
     }
@@ -141,11 +144,23 @@ impl Fabric {
         }
     }
 
-    /// Mark a face as radial (radials only, no triangle or prism)
-    /// The radial intervals will be converted from FaceRadial to Pulling when removed
-    pub fn set_face_radial(&mut self, face_key: FaceKey) {
+    pub fn set_face_radials_only(&mut self, face_key: FaceKey) {
         if let Some(face) = self.faces.get_mut(face_key) {
-            face.ending = FaceEnding::Radial;
+            face.ending = FaceEnding::RadialsOnly;
+        }
+    }
+
+    pub fn set_face_open(&mut self, face_key: FaceKey) {
+        if let Some(face) = self.faces.get_mut(face_key) {
+            face.ending = FaceEnding::Open;
+        }
+    }
+
+    pub fn remove_face_radials(&mut self, face_key: FaceKey) {
+        if let Some(face) = self.faces.get(face_key) {
+            // Get middle joint - removing it will also remove all connected radials
+            let middle_joint = self.interval(face.radial_intervals[0]).alpha_key;
+            self.remove_joint(middle_joint);
         }
     }
 }
@@ -177,7 +192,9 @@ pub enum FaceEnding {
     /// Add a prism (push strut with cables to radials)
     Prism,
     /// Keep only the radials (converted to Pulling), no triangle or prism
-    Radial,
+    RadialsOnly,
+    /// Remove face entirely, including radials
+    Open,
 }
 
 #[derive(Clone, Debug)]

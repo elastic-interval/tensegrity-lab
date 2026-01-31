@@ -110,7 +110,7 @@ impl Crucible {
                         // Send FabricBuilt with complete stats (including dynamics)
                         let _ = self
                             .radio
-                            .send_event(LabEvent::FabricBuilt(self.fabric.fabric_stats()));
+                            .send_event(LabEvent::FabricBuilt(self.fabric.fabric_stats(&self.physics)));
                         // Finalize and exit immediately
                         self.finalize_to_viewing();
                         return;
@@ -298,7 +298,7 @@ impl Crucible {
                 .send_event(LabEvent::UpdateState(SetStageLabel("Viewing".to_string())));
             let _ = self
                 .radio
-                .send_event(LabEvent::FabricBuilt(self.fabric.fabric_stats()));
+                .send_event(LabEvent::FabricBuilt(self.fabric.fabric_stats(&self.physics)));
             return;
         }
 

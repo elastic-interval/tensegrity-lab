@@ -5,7 +5,7 @@ use crate::build::dsl::build_phase::BuildPhase;
 use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::fall_phase::FallPhase;
 use crate::build::dsl::grav_pretense_phase::GravPretensePhase;
-use crate::build::dsl::pretense_phase::PretensePhase;
+use crate::build::dsl::pretense_phase::ZeroGPretensePhase;
 use crate::build::dsl::settle_phase::SettlePhase;
 use crate::build::dsl::shape_phase::ShapePhase;
 use crate::fabric::FabricDimensions;
@@ -17,7 +17,7 @@ pub struct FabricPlan {
     pub name: FabricName,
     pub build_phase: BuildPhase,
     pub shape_phase: ShapePhase,
-    pub pretense_phase: PretensePhase,
+    pub zero_g_pretense_phase: ZeroGPretensePhase,
     pub fall_phase: FallPhase,
     pub settle_phase: Option<SettlePhase>,
     pub grav_pretense_phase: Option<GravPretensePhase>,
@@ -36,13 +36,12 @@ impl FabricPlan {
         self
     }
 
-    pub fn grav_pretense(self, seconds: Seconds) -> GravPretenseBuilder {
+    pub fn grav_pretense(self, seconds: Seconds, min_strain: Percent) -> GravPretenseBuilder {
         GravPretenseBuilder {
             plan: self,
             phase: GravPretensePhase {
                 seconds: Some(seconds),
-                min_push_strain: None,
-                max_push_strain: None,
+                min_push_strain: min_strain.as_factor(),
             },
         }
     }
@@ -95,32 +94,17 @@ impl AnimateBuilder {
     }
 }
 
-/// Builder for configuring gravitational pretensing with chained methods
 pub struct GravPretenseBuilder {
     plan: FabricPlan,
     phase: GravPretensePhase,
 }
 
 impl GravPretenseBuilder {
-    /// Set the target minimum compression for push intervals (default 1%)
-    pub fn min_push_strain(mut self, strain: Percent) -> Self {
-        self.phase.min_push_strain = Some(strain.as_factor());
-        self
-    }
-
-    /// Set the maximum compression per extension round (default 3%)
-    pub fn max_push_strain(mut self, strain: Percent) -> Self {
-        self.phase.max_push_strain = Some(strain.as_factor());
-        self
-    }
-
-    /// Terminal method: finalize gravitational pretensing configuration
     pub fn done(mut self) -> FabricPlan {
         self.plan.grav_pretense_phase = Some(self.phase);
         self.plan
     }
 
-    /// Continue to animation configuration
     pub fn animate(mut self) -> AnimateBuilder {
         self.plan.grav_pretense_phase = Some(self.phase);
         self.plan.animate()

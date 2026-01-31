@@ -1,8 +1,4 @@
-use crate::build::dsl::grav_pretense_phase::{
-    DEFAULT_GRAV_MAX_PUSH_STRAIN, DEFAULT_GRAV_MIN_PUSH_STRAIN,
-};
 use crate::build::dsl::plan_runner::PlanRunner;
-use crate::build::dsl::pretense_phase::{DEFAULT_MAX_PUSH_STRAIN, DEFAULT_MIN_PUSH_STRAIN};
 use crate::build::dsl::FabricPlan;
 use crate::build::settler::Settler;
 use crate::fabric::interval::Role;
@@ -58,16 +54,13 @@ impl Fabric {
         }
     }
 
-    /// Find the single group most needing extension.
-    /// Returns the group with highest strain (least compressed) that can safely be extended.
+    /// Find the group most needing extension.
+    /// Returns the group with highest strain (least compressed) that hasn't reached the target.
     fn find_group_needing_extension(
         &self,
         groups: &[SymmetricGroup],
         min_push_strain: f32,
-        max_push_strain: f32,
     ) -> Option<usize> {
-        let increment = self.dimensions.push_length_increment?;
-
         let mut best_idx = None;
         let mut best_strain = f32::NEG_INFINITY;
 
@@ -79,17 +72,7 @@ impl Fabric {
             if group.avg_strain <= -min_push_strain {
                 continue;
             }
-            // Group can be extended if it won't exceed max strain
-            let can_extend = group.intervals.iter().all(|&key| {
-                if let Some(interval) = self.intervals.get(key) {
-                    let current_length = interval.ideal();
-                    let estimated_new_strain = interval.strain - increment / current_length;
-                    estimated_new_strain >= -max_push_strain
-                } else {
-                    false
-                }
-            });
-            if can_extend && group.avg_strain > best_strain {
+            if group.avg_strain > best_strain {
                 best_strain = group.avg_strain;
                 best_idx = Some(idx);
             }
@@ -254,6 +237,8 @@ pub struct FabricPlanExecutor {
     symmetric_groups: Vec<SymmetricGroup>,
     fall_start_age: Option<crate::Age>,
     settle_phase_start_age: Option<crate::Age>,
+    zero_g_extension_count: usize,
+    grav_extension_count: usize,
 }
 
 impl FabricPlanExecutor {
@@ -289,6 +274,8 @@ impl FabricPlanExecutor {
             symmetric_groups: Vec::new(),
             fall_start_age: None,
             settle_phase_start_age: None,
+            zero_g_extension_count: 0,
+            grav_extension_count: 0,
         };
 
         executor.log_event(ExecutionEvent::Started { iteration: 0 });
@@ -397,24 +384,15 @@ impl FabricPlanExecutor {
             ExecutorStage::ZeroGPretensing => match self.pretense_stage {
                 PretenseStage::Measuring => {
                     self.fabric.update_group_strains(&mut self.symmetric_groups);
-                    let min_push_strain = self
-                        .plan
-                        .pretense_phase
-                        .min_push_strain
-                        .unwrap_or(DEFAULT_MIN_PUSH_STRAIN);
-                    let max_push_strain = self
-                        .plan
-                        .pretense_phase
-                        .max_push_strain
-                        .unwrap_or(DEFAULT_MAX_PUSH_STRAIN);
+                    let min_push_strain = self.plan.zero_g_pretense_phase.min_push_strain;
                     if let Some(group_idx) = self.fabric.find_group_needing_extension(
                         &self.symmetric_groups,
                         min_push_strain,
-                        max_push_strain,
                     ) {
-                        let duration = self.plan.pretense_phase.seconds.unwrap_or(Seconds(0.02));
+                        let duration = self.plan.zero_g_pretense_phase.seconds.unwrap_or(Seconds(0.02));
                         self.fabric
                             .extend_symmetric_group(&self.symmetric_groups[group_idx], duration);
+                        self.zero_g_extension_count += 1;
                         self.pretense_stage = PretenseStage::Extending;
                     } else {
                         self.transition_to_fall();
@@ -462,20 +440,15 @@ impl FabricPlanExecutor {
                 PretenseStage::Measuring => {
                     self.fabric.update_group_strains(&mut self.symmetric_groups);
                     let grav_phase = self.plan.grav_pretense_phase.as_ref().unwrap();
-                    let min_push_strain = grav_phase
-                        .min_push_strain
-                        .unwrap_or(DEFAULT_GRAV_MIN_PUSH_STRAIN);
-                    let max_push_strain = grav_phase
-                        .max_push_strain
-                        .unwrap_or(DEFAULT_GRAV_MAX_PUSH_STRAIN);
+                    let min_push_strain = grav_phase.min_push_strain;
                     if let Some(group_idx) = self.fabric.find_group_needing_extension(
                         &self.symmetric_groups,
                         min_push_strain,
-                        max_push_strain,
                     ) {
                         let duration = grav_phase.seconds.unwrap_or(Seconds(0.02));
                         self.fabric
                             .extend_symmetric_group(&self.symmetric_groups[group_idx], duration);
+                        self.grav_extension_count += 1;
                         self.grav_pretense_stage = PretenseStage::Extending;
                     } else {
                         self.complete_grav_pretense();
@@ -543,15 +516,19 @@ impl FabricPlanExecutor {
                 FaceEnding::Triangle => {
                     self.fabric.add_face_triangle(face_key);
                 }
-                FaceEnding::Prism | FaceEnding::Radial => {
-                    // Prism already added during build; Radial keeps radials as-is
+                FaceEnding::Prism | FaceEnding::RadialsOnly => {
+                    // Prism already added during build; RadialsOnly keeps radials as-is
+                }
+                FaceEnding::Open => {
+                    // Remove radial intervals entirely
+                    self.fabric.remove_face_radials(face_key);
                 }
             }
             self.fabric.remove_face(face_key);
         }
 
         // Omit triangle intervals after faces are converted
-        for (alpha_path, omega_path) in &self.plan.pretense_phase.omit_pairs {
+        for (alpha_path, omega_path) in &self.plan.zero_g_pretense_phase.omit_pairs {
             let alpha_key = self.fabric.joint_key_by_path(alpha_path);
             let omega_key = self.fabric.joint_key_by_path(omega_path);
             match (alpha_key, omega_key) {
@@ -580,7 +557,8 @@ impl FabricPlanExecutor {
             remaining_joints: self.fabric.joints.len(),
         });
 
-        self.fabric.slacken();
+        let pull_lengthening = self.plan.zero_g_pretense_phase.pull_lengthening;
+        self.fabric.slacken(pull_lengthening);
 
         // Broadcast slackened moment before pretensing begins
         if let Some(radio) = &self.radio {
@@ -597,7 +575,7 @@ impl FabricPlanExecutor {
 
         self.physics = PRETENSING;
 
-        self.stored_surface_character = self.plan.pretense_phase.surface;
+        self.stored_surface_character = self.plan.zero_g_pretense_phase.surface;
 
         self.log_event(ExecutionEvent::PhysicsChanged {
             iteration: self.current_iteration,
@@ -768,17 +746,12 @@ impl FabricPlanExecutor {
         }
     }
 
-    /// Returns a status string for pretensing progress
     pub fn pretense_status(&self) -> String {
         let stage_name = match self.pretense_stage {
             PretenseStage::Measuring => "Measuring",
             PretenseStage::Extending => "Extending",
         };
-        let min_push_strain = self
-            .plan
-            .pretense_phase
-            .min_push_strain
-            .unwrap_or(DEFAULT_MIN_PUSH_STRAIN);
+        let min_push_strain = self.plan.zero_g_pretense_phase.min_push_strain;
         let satisfied = self
             .symmetric_groups
             .iter()
@@ -792,7 +765,6 @@ impl FabricPlanExecutor {
         format!("{} ({}/{})", stage_name, satisfied, total)
     }
 
-    /// Returns a status string for gravitational pretensing progress
     pub fn grav_pretense_status(&self) -> String {
         let stage_name = match self.grav_pretense_stage {
             PretenseStage::Measuring => "Measuring",
@@ -802,8 +774,8 @@ impl FabricPlanExecutor {
             .plan
             .grav_pretense_phase
             .as_ref()
-            .and_then(|p| p.min_push_strain)
-            .unwrap_or(DEFAULT_GRAV_MIN_PUSH_STRAIN);
+            .map(|p| p.min_push_strain)
+            .unwrap_or(0.0);
         let satisfied = self
             .symmetric_groups
             .iter()
@@ -817,11 +789,13 @@ impl FabricPlanExecutor {
         format!("{} ({}/{})", stage_name, satisfied, total)
     }
 
-    /// Manually trigger transition to PRETENSE phase
-    /// This should be called when BUILD phase is complete and you're ready to apply pretension
     pub fn start_pretension(&mut self) {
         if self.stage == ExecutorStage::Building {
             self.transition_to_pretense();
         }
+    }
+
+    pub fn extension_counts(&self) -> (usize, usize) {
+        (self.zero_g_extension_count, self.grav_extension_count)
     }
 }

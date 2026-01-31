@@ -88,7 +88,6 @@ pub struct FabricAnalysis {
     pub max_amplitude_mm: f32,
     pub max_amplitude_joint: usize,
     pub growing_pattern_count: usize,
-    pub total_mass_kg: f32,
 }
 
 /// On-demand sampler for fabric analysis with multi-resolution sampling
@@ -174,11 +173,7 @@ impl FabricSampler {
     }
 
     /// Analyze collected samples to detect oscillations and movement patterns
-    pub fn analyze(
-        &self,
-        fabric: &Fabric,
-        physics: &crate::fabric::physics::Physics,
-    ) -> Option<FabricAnalysis> {
+    pub fn analyze(&self) -> Option<FabricAnalysis> {
         if !self.is_complete || self.samples.is_empty() {
             return None;
         }
@@ -193,9 +188,6 @@ impl FabricSampler {
         let mut growing_pattern_count = 0;
         let mut max_amplitude_mm = 0.0;
         let mut max_amplitude_joint = 0;
-
-        // Calculate total mass (convert from grams to kg)
-        let total_mass_kg = fabric.calculate_total_mass(physics).0 / 1000.0;
 
         // Analyze each joint (coordinates are in meters)
         for joint_idx in 0..self.joint_count {
@@ -233,7 +225,6 @@ impl FabricSampler {
             max_amplitude_mm,
             max_amplitude_joint,
             growing_pattern_count,
-            total_mass_kg,
         })
     }
 
@@ -425,86 +416,23 @@ impl FabricSampler {
 }
 
 impl FabricAnalysis {
-    /// Format analysis as human-readable text with adaptive histogram
+    /// Format analysis as human-readable text
     pub fn format(&self) -> String {
-        let mut lines = Vec::new();
-
-        // Display total mass first
-        lines.push(format!("Mass: {:.3} kg", self.total_mass_kg));
-
-        // Sort amplitudes to create adaptive histogram
-        let mut amplitudes: Vec<f32> = self.joint_analyses.iter().map(|a| a.amplitude_mm).collect();
-        amplitudes.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-        let total = amplitudes.len();
-        if total == 0 {
-            return lines.join("\n");
+        // Find the joint with maximum amplitude and show its details
+        if let Some(max_joint) = self
+            .joint_analyses
+            .iter()
+            .max_by(|a, b| a.amplitude_mm.partial_cmp(&b.amplitude_mm).unwrap())
+        {
+            format!(
+                "Max: {:.3}mm {:.2}Hz {:?} @ J{}",
+                max_joint.amplitude_mm,
+                max_joint.frequency_hz,
+                max_joint.pattern,
+                max_joint.joint_index
+            )
+        } else {
+            String::new()
         }
-
-        let min_amp = amplitudes[0];
-        let max_amp = amplitudes[total - 1];
-
-        // Create adaptive bins based on quantiles (10 bins for detailed distribution)
-        let bin_count = 10.min(total); // Use fewer bins if we have few joints
-        let mut bins: Vec<(f32, f32, usize)> = Vec::new();
-
-        for i in 0..bin_count {
-            let start_idx = (i * total) / bin_count;
-            let end_idx = ((i + 1) * total) / bin_count;
-            let range_min = if i == 0 {
-                min_amp
-            } else {
-                amplitudes[start_idx]
-            };
-            let range_max = if i == bin_count - 1 {
-                max_amp
-            } else {
-                amplitudes[end_idx - 1]
-            };
-            let count = end_idx - start_idx;
-            bins.push((range_min, range_max, count));
-        }
-
-        // Display adaptive histogram
-        for (range_min, range_max, count) in bins.iter() {
-            if *count > 0 {
-                let pct = 100.0 * *count as f32 / total as f32;
-                if range_min == range_max || range_max - range_min < 0.001 {
-                    lines.push(format!("{:.3}mm: {} ({:.1}%)", range_min, count, pct));
-                } else {
-                    lines.push(format!(
-                        "{:.3}-{:.3}mm: {} ({:.1}%)",
-                        range_min, range_max, count, pct
-                    ));
-                }
-            }
-        }
-
-        lines.push(format!(
-            "Max: {:.3}mm @ J{}",
-            self.max_amplitude_mm, self.max_amplitude_joint
-        ));
-
-        // Top active joints with detailed info
-        let mut sorted = self.joint_analyses.clone();
-        sorted.sort_by(|a, b| b.amplitude_mm.partial_cmp(&a.amplitude_mm).unwrap());
-
-        // Show top joints if there's significant variation
-        let top_count = 5.min(total);
-        if max_amp > min_amp * 2.0 && top_count > 0 {
-            for analysis in sorted.iter().take(top_count) {
-                if analysis.amplitude_mm > min_amp * 1.5 {
-                    lines.push(format!(
-                        "J{}: {:.3}mm {:.1}Hz {:?}",
-                        analysis.joint_index,
-                        analysis.amplitude_mm,
-                        analysis.frequency_hz,
-                        analysis.pattern
-                    ));
-                }
-            }
-        }
-
-        lines.join("\n")
     }
 }

@@ -149,9 +149,14 @@ mod tests {
             iteration += 1;
         }
 
+        let (zero_g_ext, grav_ext) = executor.extension_counts();
         eprintln!(
             "\n✓ Execution completed at iteration {} (age: {})",
             iteration, executor.fabric.age
+        );
+        eprintln!(
+            "Extension counts: zero-G={}, gravity={}",
+            zero_g_ext, grav_ext
         );
 
         // Check for final stage transition to Complete

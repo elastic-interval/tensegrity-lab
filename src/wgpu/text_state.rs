@@ -213,6 +213,11 @@ impl TextState {
                         pull_range,
                         pull_total,
                         age,
+                        mass_kg,
+                        max_pull_force_kn,
+                        push_strain_range,
+                        pull_strain_range,
+                        slack_pull_count,
                         ..
                     } = fabric_stats;
 
@@ -229,6 +234,12 @@ impl TextState {
                         })
                         .unwrap_or_default();
 
+                    let slack_warning = if *slack_pull_count > 0 {
+                        format!(" ({} SLACK)", slack_pull_count)
+                    } else {
+                        String::new()
+                    };
+
                     let text = format!(
                         "Stats at {age}{scale_label}:\n\
                          Height: {:.3}m\n\
@@ -238,7 +249,11 @@ impl TextState {
                          → total {:.1}m\n\
                          Cables: {:?}\n\
                          → {:.1}-{:.1}mm\n\
-                         → total {:.1}m",
+                         → total {:.1}m\n\
+                         Mass: {:.3}kg\n\
+                         Max pull: {:.1}kN\n\
+                         Push strain: {:.2}% to {:.2}%\n\
+                         Pull strain: {:.2}% to {:.2}%{}",
                         height.0 * scale,
                         joint_count,
                         push_count,
@@ -249,6 +264,13 @@ impl TextState {
                         pull_range.0.to_mm() * scale,
                         pull_range.1.to_mm() * scale,
                         pull_total.0 * scale,
+                        mass_kg,
+                        max_pull_force_kn,
+                        push_strain_range.0 * 100.0,
+                        push_strain_range.1 * 100.0,
+                        pull_strain_range.0 * 100.0,
+                        pull_strain_range.1 * 100.0,
+                        slack_warning,
                     );
                     Normal(text)
                 }
