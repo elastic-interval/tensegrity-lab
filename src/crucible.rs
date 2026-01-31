@@ -143,7 +143,7 @@ impl Crucible {
                 // instantly jump camera to keep fabric in view
                 if matches!(
                     current_executor_stage,
-                    ExecutorStage::Pretensing | ExecutorStage::Falling
+                    ExecutorStage::ZeroGPretensing | ExecutorStage::Falling
                 ) {
                     JumpToFabric.send(&self.radio);
                 }
@@ -153,19 +153,23 @@ impl Crucible {
             // Send stage label updates based on executor stage
             let stage_label = match executor.stage() {
                 ExecutorStage::Building => "Building".to_string(),
-                ExecutorStage::Pretensing => "Pretensing".to_string(),
+                ExecutorStage::ZeroGPretensing => "Zero-G Pretensing".to_string(),
                 ExecutorStage::Falling => {
                     format!("Falling {}", executor.phase_countdown())
                 }
                 ExecutorStage::Settling => {
                     format!("Settling {}", executor.phase_countdown())
                 }
+                ExecutorStage::GravPretensing => "Gravity Pretensing".to_string(),
                 ExecutorStage::Complete => "Complete".to_string(),
             };
 
             let should_update = matches!(
                 executor.stage(),
-                ExecutorStage::Pretensing | ExecutorStage::Falling | ExecutorStage::Settling
+                ExecutorStage::ZeroGPretensing
+                    | ExecutorStage::Falling
+                    | ExecutorStage::Settling
+                    | ExecutorStage::GravPretensing
             ) || self
                 .last_stage_label
                 .as_ref()

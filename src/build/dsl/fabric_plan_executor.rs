@@ -1,3 +1,6 @@
+use crate::build::dsl::grav_pretense_phase::{
+    DEFAULT_GRAV_MAX_PUSH_STRAIN, DEFAULT_GRAV_MIN_PUSH_STRAIN,
+};
 use crate::build::dsl::plan_runner::PlanRunner;
 use crate::build::dsl::pretense_phase::{DEFAULT_MAX_PUSH_STRAIN, DEFAULT_MIN_PUSH_STRAIN};
 use crate::build::dsl::FabricPlan;
@@ -118,9 +121,10 @@ pub enum IterateResult {
 #[derive(Debug, PartialEq, Clone)]
 pub enum ExecutorStage {
     Building,
-    Pretensing,
+    ZeroGPretensing,
     Falling,
     Settling,
+    GravPretensing,
     Complete,
 }
 
@@ -246,6 +250,7 @@ pub struct FabricPlanExecutor {
     stored_scale: f32,
     radio: Option<Radio>,
     pretense_stage: PretenseStage,
+    grav_pretense_stage: PretenseStage,
     symmetric_groups: Vec<SymmetricGroup>,
     fall_start_age: Option<crate::Age>,
     settle_phase_start_age: Option<crate::Age>,
@@ -280,6 +285,7 @@ impl FabricPlanExecutor {
             stored_scale: 1.0,
             radio,
             pretense_stage: PretenseStage::Measuring,
+            grav_pretense_stage: PretenseStage::Measuring,
             symmetric_groups: Vec::new(),
             fall_start_age: None,
             settle_phase_start_age: None,
@@ -388,7 +394,7 @@ impl FabricPlanExecutor {
                     }
                 }
             }
-            ExecutorStage::Pretensing => match self.pretense_stage {
+            ExecutorStage::ZeroGPretensing => match self.pretense_stage {
                 PretenseStage::Measuring => {
                     self.fabric.update_group_strains(&mut self.symmetric_groups);
                     let min_push_strain = self
@@ -444,10 +450,43 @@ impl FabricPlanExecutor {
                         });
                     self.physics.update_settling_multipliers(progress);
                     if done {
-                        self.complete();
+                        if self.plan.grav_pretense_phase.is_some() {
+                            self.transition_to_grav_pretense();
+                        } else {
+                            self.complete();
+                        }
                     }
                 }
             }
+            ExecutorStage::GravPretensing => match self.grav_pretense_stage {
+                PretenseStage::Measuring => {
+                    self.fabric.update_group_strains(&mut self.symmetric_groups);
+                    let grav_phase = self.plan.grav_pretense_phase.as_ref().unwrap();
+                    let min_push_strain = grav_phase
+                        .min_push_strain
+                        .unwrap_or(DEFAULT_GRAV_MIN_PUSH_STRAIN);
+                    let max_push_strain = grav_phase
+                        .max_push_strain
+                        .unwrap_or(DEFAULT_GRAV_MAX_PUSH_STRAIN);
+                    if let Some(group_idx) = self.fabric.find_group_needing_extension(
+                        &self.symmetric_groups,
+                        min_push_strain,
+                        max_push_strain,
+                    ) {
+                        let duration = grav_phase.seconds.unwrap_or(Seconds(0.02));
+                        self.fabric
+                            .extend_symmetric_group(&self.symmetric_groups[group_idx], duration);
+                        self.grav_pretense_stage = PretenseStage::Extending;
+                    } else {
+                        self.complete_grav_pretense();
+                    }
+                }
+                PretenseStage::Extending => {
+                    if !self.fabric.has_approaching_intervals() {
+                        self.grav_pretense_stage = PretenseStage::Measuring;
+                    }
+                }
+            },
             ExecutorStage::Complete => {}
         }
 
@@ -573,7 +612,7 @@ impl FabricPlanExecutor {
             .accept_tweak(RigidityScale.parameter(rigidity_multiplier));
 
         self.plan_runner = None;
-        self.stage = ExecutorStage::Pretensing;
+        self.stage = ExecutorStage::ZeroGPretensing;
     }
 
     fn transition_to_fall(&mut self) {
@@ -662,6 +701,41 @@ impl FabricPlanExecutor {
         self.stage = ExecutorStage::Complete;
     }
 
+    fn transition_to_grav_pretense(&mut self) {
+        self.log_event(ExecutionEvent::StageTransition {
+            iteration: self.current_iteration,
+            from: "SETTLE".to_string(),
+            to: "GRAV_PRETENSE".to_string(),
+        });
+
+        // Physics remains in settling mode (gravity + surface active)
+        // Reset strain measurements for gravitational pretensing
+        self.fabric.update_group_strains(&mut self.symmetric_groups);
+        self.grav_pretense_stage = PretenseStage::Measuring;
+
+        self.log_event(ExecutionEvent::PhysicsChanged {
+            iteration: self.current_iteration,
+            description: "GRAV_PRETENSING".to_string(),
+        });
+
+        self.stage = ExecutorStage::GravPretensing;
+    }
+
+    fn complete_grav_pretense(&mut self) {
+        // Broadcast grav pretenst moment before completing
+        if let Some(radio) = &self.radio {
+            SnapshotMoment::GravPretenst.send(radio);
+        }
+
+        self.log_event(ExecutionEvent::Completed {
+            iteration: self.current_iteration,
+        });
+
+        self.fabric.zero_velocities();
+        self.settler = None;
+        self.stage = ExecutorStage::Complete;
+    }
+
     pub fn is_complete(&self) -> bool {
         self.stage == ExecutorStage::Complete
     }
@@ -705,6 +779,31 @@ impl FabricPlanExecutor {
             .pretense_phase
             .min_push_strain
             .unwrap_or(DEFAULT_MIN_PUSH_STRAIN);
+        let satisfied = self
+            .symmetric_groups
+            .iter()
+            .filter(|g| !g.intervals.is_empty() && g.avg_strain <= -min_push_strain)
+            .count();
+        let total = self
+            .symmetric_groups
+            .iter()
+            .filter(|g| !g.intervals.is_empty())
+            .count();
+        format!("{} ({}/{})", stage_name, satisfied, total)
+    }
+
+    /// Returns a status string for gravitational pretensing progress
+    pub fn grav_pretense_status(&self) -> String {
+        let stage_name = match self.grav_pretense_stage {
+            PretenseStage::Measuring => "Measuring",
+            PretenseStage::Extending => "Extending",
+        };
+        let min_push_strain = self
+            .plan
+            .grav_pretense_phase
+            .as_ref()
+            .and_then(|p| p.min_push_strain)
+            .unwrap_or(DEFAULT_GRAV_MIN_PUSH_STRAIN);
         let satisfied = self
             .symmetric_groups
             .iter()

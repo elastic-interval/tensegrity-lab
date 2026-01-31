@@ -516,6 +516,8 @@ pub enum SnapshotMoment {
     Pretenst,
     /// After settling on surface
     Settled,
+    /// After gravitational pretensing completes
+    GravPretenst,
     /// Export at all moments
     All,
 }
@@ -527,6 +529,7 @@ impl SnapshotMoment {
             SnapshotMoment::Slack => "slack",
             SnapshotMoment::Pretenst => "pretenst",
             SnapshotMoment::Settled => "settled",
+            SnapshotMoment::GravPretenst => "grav_pretenst",
             SnapshotMoment::All => unreachable!("All should be expanded before calling suffix"),
         }
     }
@@ -550,9 +553,10 @@ impl std::str::FromStr for SnapshotMoment {
             "slack" | "slackened" => Ok(SnapshotMoment::Slack),
             "pretenst" | "pretensed" => Ok(SnapshotMoment::Pretenst),
             "settled" | "settle" => Ok(SnapshotMoment::Settled),
+            "grav_pretenst" | "gravpretenst" | "grav" => Ok(SnapshotMoment::GravPretenst),
             "all" => Ok(SnapshotMoment::All),
             _ => Err(format!(
-                "Unknown snapshot moment: '{}'. Use: slack, pretenst, settled, or all",
+                "Unknown snapshot moment: '{}'. Use: slack, pretenst, settled, grav_pretenst, or all",
                 s
             )),
         }

@@ -167,8 +167,8 @@ mod tests {
             "Should have Building stage"
         );
         assert!(
-            stages.contains(&&ExecutorStage::Pretensing),
-            "Should have Pretensing stage"
+            stages.contains(&&ExecutorStage::ZeroGPretensing),
+            "Should have ZeroGPretensing stage"
         );
         assert!(
             stages.contains(&&ExecutorStage::Falling),

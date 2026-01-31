@@ -149,6 +149,7 @@ impl FabricBuilder {
                 seconds: Seconds(5.0),
             },
             settle_phase: None,
+            grav_pretense_phase: None,
             animate_phase: None,
             dimensions: dims,
         }
