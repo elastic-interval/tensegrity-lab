@@ -79,7 +79,7 @@ impl GrowthGenome {
         let perp2 = parent_dir.cross(perp1).normalize();
 
         // Random angle in perpendicular plane
-        let angle = rng.random_range(0.0..2.0 * PI);
+        let angle = rng.gen_range(0.0..2.0 * PI);
         (perp1 * angle.cos() + perp2 * angle.sin()).normalize()
     }
 
@@ -124,8 +124,8 @@ impl GrowthGenome {
         }
 
         // Pick a random push to sprout from
-        let parent_idx = rng.random_range(0..self.pushes.len());
-        let parent_end = if rng.random_bool(0.5) {
+        let parent_idx = rng.gen_range(0..self.pushes.len());
+        let parent_end = if rng.gen_bool(0.5) {
             PushEnd::Alpha
         } else {
             PushEnd::Omega
@@ -135,7 +135,7 @@ impl GrowthGenome {
 
         // Create new push perpendicular to parent
         let direction = self.random_perpendicular(parent_push.direction, rng);
-        let length = rng.random_range(0.5..1.5);
+        let length = rng.gen_range(0.5..1.5);
 
         let mut new_genome = self.clone();
         new_genome.id = GenomeId::new();
@@ -162,9 +162,9 @@ impl GrowthGenome {
         }
 
         // Pick two different endpoints
-        let idx1 = rng.random_range(0..endpoints.len());
+        let idx1 = rng.gen_range(0..endpoints.len());
         let idx2 = loop {
-            let idx = rng.random_range(0..endpoints.len());
+            let idx = rng.gen_range(0..endpoints.len());
             if idx != idx1 {
                 break idx;
             }

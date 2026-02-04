@@ -1,3 +1,4 @@
+#[cfg(not(target_arch = "wasm32"))]
 use crate::animation_export::AnimationExporter;
 use crate::build::algo::mobius::generate_mobius;
 use crate::build::algo::tensegrity_sphere::generate_sphere;
@@ -6,6 +7,7 @@ use crate::crucible::Crucible;
 use crate::keyboard::Keyboard;
 use crate::pointer::PointerHandler;
 use crate::scene::Scene;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::units::Seconds;
 use crate::wgpu::Wgpu;
 use crate::SnapshotMoment;
@@ -37,7 +39,9 @@ pub struct Application {
     pointer_handler: PointerHandler,
     time_scale: f32,
     model_scale: Option<f32>,
+    #[cfg(not(target_arch = "wasm32"))]
     animation_exporter: Option<AnimationExporter>,
+    #[cfg(not(target_arch = "wasm32"))]
     record_until: Option<Seconds>,
     snapshot_moment: Option<SnapshotMoment>,
 }
@@ -71,7 +75,9 @@ impl Application {
             control_state: ControlState::Waiting,
             time_scale,
             model_scale: model_scale.map(|n| 1.0 / n),
+            #[cfg(not(target_arch = "wasm32"))]
             animation_exporter: None,
+            #[cfg(not(target_arch = "wasm32"))]
             record_until: None,
             snapshot_moment: None,
         }
@@ -217,11 +223,14 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                     RunStyle::Fabric {
                         fabric_name,
+                        #[cfg(not(target_arch = "wasm32"))]
                         record,
+                        #[cfg(not(target_arch = "wasm32"))]
                         export_fps,
                         snapshot,
                         ..
                     } => {
+                        #[cfg(not(target_arch = "wasm32"))]
                         if let Some(duration) = record {
                             self.record_until = Some(*duration);
                             let mut exporter =
@@ -576,6 +585,7 @@ impl ApplicationHandler<LabEvent> for Application {
             }
 
             // Capture frame for animation export if enabled (works in all states)
+            #[cfg(not(target_arch = "wasm32"))]
             if let Some(exporter) = &mut self.animation_exporter {
                 let dominated = self.record_until.is_some_and(|Seconds(limit)| {
                     self.crucible.fabric.age.as_duration().as_secs_f32() >= limit

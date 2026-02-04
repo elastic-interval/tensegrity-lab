@@ -140,12 +140,12 @@ impl Crucible {
             let stage_changed = self.last_executor_stage.as_ref() != Some(&current_executor_stage);
             if stage_changed {
                 // When transitioning to Pretensing (scale applied) or Falling (centralized),
-                // instantly jump camera to keep fabric in view
+                // smoothly zoom camera to keep fabric in view
                 if matches!(
                     current_executor_stage,
                     ExecutorStage::ZeroGPretensing | ExecutorStage::Falling
                 ) {
-                    JumpToFabric.send(&self.radio);
+                    RestartApproach.send(&self.radio);
                 }
                 self.last_executor_stage = Some(current_executor_stage.clone());
             }
@@ -353,6 +353,7 @@ impl Crucible {
                 if let Animating(animator) = &mut self.stage {
                     animator.adjust_period(factor);
                     let period = animator.period_secs();
+                    let frequency = 1.0 / period;
                     // Also update the fabric_plan so the period persists across animation toggles
                     if let Some(ref mut plan) = self.fabric_plan {
                         if let Some(ref mut animate_phase) = plan.animate_phase {
@@ -360,8 +361,8 @@ impl Crucible {
                         }
                     }
                     context.send_event(LabEvent::UpdateState(SetStageLabel(format!(
-                        "Period: {:.4}s",
-                        period
+                        "Frequency: {:.2} Hz",
+                        frequency
                     ))));
                 }
             }

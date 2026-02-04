@@ -859,8 +859,7 @@ impl Target {
             Target::FabricMidpoint => {
                 // For fabric overview, calculate distance based on bounding sphere
                 // Assuming 45-degree FOV, distance = radius / tan(22.5°) ≈ radius * 2.4
-                // Add extra margin for comfortable viewing (especially during baking)
-                radius * 5.0
+                radius * 2.8
             }
             Target::AroundJoint(_) => {
                 // Zoom in closer for joint details

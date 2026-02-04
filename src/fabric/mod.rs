@@ -106,7 +106,7 @@ impl Default for FabricDimensions {
             scale: Meters(1.0),
             pull_radius: Meters(0.007),
             hinge: HingeDimensions::default(),
-            push_length_increment: Some(Meters(0.025)),
+            push_length_increment: Some(Meters(0.01)),
             max_pretenst_strain: Some(0.03),
         }
     }

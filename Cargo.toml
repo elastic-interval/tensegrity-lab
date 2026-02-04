@@ -12,10 +12,10 @@ slotmap = "1.1.1"
 clap = { version = "4.5.53", features = ["derive"] }
 fast_inv_sqrt = "~1.0"
 futures = "0.3.30"
-getrandom = { version = "0.2.16", features = ["js"] }
-rand = "0.9"
+getrandom = { version = "0.2", features = ["js"] }
+rand = "0.8"
 winit = { version = "0.30.12", features = ["rwh_04"] }
-rand_chacha = "0.9"
+rand_chacha = "0.3"
 wgpu_text = "28"
 instant = { version = "0.1.13", features = ["wasm-bindgen"] }
 chrono = "0.4.42"

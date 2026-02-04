@@ -17,7 +17,7 @@ impl KleinFabric {
         KleinFabric {
             fabric: Fabric::new("klein".to_string()),
             joint_keys: Vec::new(),
-            random: rand::rng(),
+            random: rand::thread_rng(),
         }
     }
 
@@ -47,7 +47,7 @@ impl KleinFabric {
     }
 
     fn coord(&mut self) -> f32 {
-        self.random.random_range(-1000..1000) as f32 / 1000.0
+        self.random.gen_range(-1000..1000) as f32 / 1000.0
     }
 }
 

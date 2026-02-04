@@ -122,7 +122,7 @@ impl<G: Genome> PopulationStrategy<G> for SimplePopulation<G> {
                 break;
             }
             // Pick a random individual and mutate
-            let idx = self.rng.random_range(0..initial.len());
+            let idx = self.rng.gen_range(0..initial.len());
             let variants = initial[idx].adjacent_possible(&mut self.rng);
             if let Some(variant) = variants.into_iter().next() {
                 initial.push(variant);
@@ -176,7 +176,7 @@ impl<G: Genome> PopulationStrategy<G> for SimplePopulation<G> {
             }
 
             // Select parent (fitness-proportional would be better, but keep it simple)
-            let idx = self.rng.random_range(0..self.individuals.len());
+            let idx = self.rng.gen_range(0..self.individuals.len());
             let parent = &self.individuals[idx].genome;
 
             // Generate mutations
@@ -253,7 +253,7 @@ mod tests {
         fn adjacent_possible(&self, rng: &mut impl rand::Rng) -> Vec<Self> {
             vec![TestGenome {
                 id: GenomeId::new(),
-                value: self.value + rng.random_range(-0.1..0.1),
+                value: self.value + rng.gen_range(-0.1..0.1),
             }]
         }
 

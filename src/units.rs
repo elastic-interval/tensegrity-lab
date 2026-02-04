@@ -43,6 +43,7 @@ unit!(Meters);
 unit!(Newtons);
 unit!(MetersPerSecondSquared);
 unit!(Seconds);
+unit!(Hertz);
 unit!(Percent, Default);
 unit!(Degrees, Default);
 unit!(GramsPerMeter);
@@ -85,6 +86,18 @@ impl Seconds {
 
     pub fn from_microseconds(us: f32) -> Self {
         Self(us / MICROSECONDS_PER_SECOND)
+    }
+
+    /// Convert period to frequency: f = 1/T
+    pub fn to_hertz(self) -> Hertz {
+        Hertz(1.0 / self.0)
+    }
+}
+
+impl Hertz {
+    /// Convert frequency to period: T = 1/f
+    pub fn to_seconds(self) -> Seconds {
+        Seconds(1.0 / self.0)
     }
 }
 
@@ -240,6 +253,12 @@ impl std::fmt::Display for NewtonsPerMeter {
 impl std::fmt::Display for Seconds {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:.1}s", self.0)
+    }
+}
+
+impl std::fmt::Display for Hertz {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:.2}Hz", self.0)
     }
 }
 

@@ -13,6 +13,7 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::rc::Rc;
 use winit::dpi::PhysicalPosition;
 
+#[cfg(not(target_arch = "wasm32"))]
 pub mod animation_export;
 pub mod application;
 pub mod build;

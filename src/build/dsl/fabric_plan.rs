@@ -10,7 +10,7 @@ use crate::build::dsl::settle_phase::SettlePhase;
 use crate::build::dsl::shape_phase::ShapePhase;
 use crate::fabric::FabricDimensions;
 
-use crate::units::{Percent, Seconds};
+use crate::units::{Hertz, Percent, Seconds};
 
 #[derive(Debug, Clone)]
 pub struct FabricPlan {
@@ -61,8 +61,8 @@ pub struct AnimateBuilder {
 }
 
 impl AnimateBuilder {
-    pub fn period(mut self, period: Seconds) -> Self {
-        self.phase.period = period;
+    pub fn actuator_frequency(mut self, frequency: Hertz) -> Self {
+        self.phase.period = frequency.to_seconds();
         self
     }
 
