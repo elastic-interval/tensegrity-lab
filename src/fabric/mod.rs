@@ -37,6 +37,7 @@ pub struct HingeDimensions {
     pub push_radius_margin: Meters,
     pub disc_thickness: Meters,
     pub disc_separator_thickness: Meters,
+    pub cap_thickness: Meters,
     pub hinge_extension: Meters,
     pub hinge_hole_diameter: Meters,
 }
@@ -48,6 +49,7 @@ impl Default for HingeDimensions {
             push_radius_margin: Meters(0.003),
             disc_thickness: Meters(0.010),
             disc_separator_thickness: Meters(0.003),
+            cap_thickness: Meters(0.006),
             hinge_extension: Meters(0.012),
             hinge_hole_diameter: Meters(0.017),
         }
@@ -61,6 +63,15 @@ impl HingeDimensions {
 
     pub fn length(&self) -> Meters {
         self.disc_thickness / 2.0 + self.hinge_extension + self.hinge_hole_diameter
+    }
+
+    /// Axial offset from the strut endpoint to the center of a disc at the given 0-indexed slot.
+    ///
+    /// offset = cap_thickness + separator + disc_thickness/2 + slot * (disc_thickness + separator)
+    pub fn disc_center_offset(&self, slot: usize) -> Meters {
+        let step = self.disc_thickness + self.disc_separator_thickness;
+        self.cap_thickness + self.disc_separator_thickness + self.disc_thickness / 2.0
+            + step * slot as f32
     }
 }
 
@@ -123,9 +134,8 @@ impl FabricDimensions {
         self
     }
 
-    fn ring_center(&self, push_end: Vec3, push_axis: Vec3, slot: usize) -> Vec3 {
-        let axial_offset = self.hinge.disc_thickness.f32() * (slot as f32 + 1.0);
-        push_end + push_axis * axial_offset
+    pub fn ring_center(&self, push_end: Vec3, push_axis: Vec3, slot: usize) -> Vec3 {
+        push_end + push_axis * self.hinge.disc_center_offset(slot).f32()
     }
 
     pub fn hinge_position(

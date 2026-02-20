@@ -202,17 +202,16 @@ impl Fabric {
             let omega_pos = self.joints[push_interval.omega_key].location;
             let push_dir = (omega_pos - alpha_pos).normalize();
 
-            // For each end, calculate ring centers at all slots
-            for slot in 1..=3 {
+            // For each end, calculate ring centers at all slots (0-indexed internally, 1-indexed in hashmap keys)
+            for slot_0 in 0..3 {
+                let slot_1 = slot_0 + 1;
                 // Alpha end
-                let alpha_ring =
-                    alpha_pos + (-push_dir) * dimensions.hinge.disc_thickness.f32() * slot as f32;
-                ring_centers.insert((push_interval.alpha_key, slot), alpha_ring);
+                let alpha_ring = dimensions.ring_center(alpha_pos, -push_dir, slot_0);
+                ring_centers.insert((push_interval.alpha_key, slot_1), alpha_ring);
 
                 // Omega end
-                let omega_ring =
-                    omega_pos + push_dir * dimensions.hinge.disc_thickness.f32() * slot as f32;
-                ring_centers.insert((push_interval.omega_key, slot), omega_ring);
+                let omega_ring = dimensions.ring_center(omega_pos, push_dir, slot_0);
+                ring_centers.insert((push_interval.omega_key, slot_1), omega_ring);
             }
         }
 
@@ -538,9 +537,8 @@ impl Fabric {
 
             let joint_path = &joint.path;
             for (slot, pull_end_pos, hinge_pos) in &connections {
-                // Ring center at this slot (1x, 2x, 3x ring_thickness)
-                let ring_center =
-                    joint_pos + push_axis * dimensions.hinge.disc_thickness.f32() * *slot as f32;
+                // slot is 1-indexed here (from pull_hinge_info), convert to 0-indexed for ring_center
+                let ring_center = dimensions.ring_center(joint_pos, push_axis, *slot - 1);
 
                 // Axial link: previous position → ring center
                 link_index += 1;
@@ -603,6 +601,7 @@ fn write_dimensions_comments(file: &mut File, dims: &FabricDimensions) -> io::Re
         "# disc_separator_thickness: {:.5}m",
         h.disc_separator_thickness.f32()
     )?;
+    writeln!(file, "# cap_thickness: {:.5}m", h.cap_thickness.f32())?;
     writeln!(file, "# hinge_extension: {:.5}m", h.hinge_extension.f32())?;
     writeln!(
         file,

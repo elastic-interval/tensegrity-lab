@@ -539,15 +539,11 @@ pub fn generate_attachment_points(
     // Generate attachment points extending outwards along the axis
     // Each point represents the center of a ring at that slot
     for i in 0..ATTACHMENT_POINTS {
-        // Ring center is at slot index * disc_thickness + half disc thickness
-        let distance = dimensions.hinge.disc_thickness.f32() * (i as f32 + 0.5);
-
-        // Calculate offset vector
-        let offset = axis * distance;
+        let distance = dimensions.hinge.disc_center_offset(i).f32();
 
         // Set the position and index
         points[i] = AttachmentPoint {
-            position: end_position + offset,
+            position: end_position + axis * distance,
             index: i,
         };
     }
