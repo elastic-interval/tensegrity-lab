@@ -87,7 +87,7 @@ pub enum BuildNode {
         scale: Percent,
         face_nodes: Vec<BuildNode>,
     },
-    Prism,
+    Prism { outer_percent: Percent },
     RadialsOnly,
     Open,
 }
@@ -96,7 +96,7 @@ impl BuildNode {
     pub fn traverse(&self, f: &mut impl FnMut(&Self)) {
         f(self);
         match self {
-            Mark { .. } | Prism { .. } | RadialsOnly { .. } | Open { .. } => {}
+            Mark { .. } | Prism { .. } | RadialsOnly | Open => {}
             Face { node, .. } => {
                 node.traverse(f);
             }
@@ -337,10 +337,10 @@ impl BuildPhase {
                     mark_name: *mark_name,
                 });
             }
-            Prism => {
+            Prism { outer_percent } => {
                 let face_key = Self::find_launch_face(&launch, &faces, fabric)
                     .expect("Unable to find face for prism");
-                fabric.add_face_prism(face_key);
+                fabric.add_face_prism(face_key, *outer_percent);
             }
             RadialsOnly => {
                 let face_key = Self::find_launch_face(&launch, &faces, fabric)

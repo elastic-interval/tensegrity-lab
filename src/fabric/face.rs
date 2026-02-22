@@ -8,7 +8,7 @@ use crate::build::dsl::{FaceAlias, Spin};
 use crate::fabric::interval::Role;
 use crate::fabric::joint_path::PRISM_MARKER;
 use crate::fabric::{Fabric, FaceKey, IntervalKey, JointKey};
-use crate::units::Meters;
+use crate::units::{Meters, Percent};
 
 const ROOT3: f32 = 1.732_050_8;
 
@@ -107,7 +107,7 @@ impl Fabric {
         }
     }
 
-    pub fn add_face_prism(&mut self, face_key: FaceKey) {
+    pub fn add_face_prism(&mut self, face_key: FaceKey, outer_percent: Percent) {
         let face = self.face(face_key);
         let push_length = face.scale * 1.5;
         let radial_joints = face.radial_joints(self);
@@ -116,27 +116,35 @@ impl Fabric {
         let middle_joint_key = face.middle_joint(self);
         // Calculate actual distance from face center to radial joints
         let radial_distance = self.joints[radial_joints[0]].location.distance(midpoint);
-        // Alpha/omega are at distance `push_length/2` along the normal.
-        // By Pythagorean theorem: pull_length² = radial_distance² + (push_length/2)²
-        let pull_length =
-            (radial_distance * radial_distance + (push_length / 2.0) * (push_length / 2.0)).sqrt();
+
+        // outer_percent controls how far the outer end extends relative to symmetric.
+        // Pct(100) = symmetric (inner = outer = push_length/2).
+        // Pct(200) = outer extends twice as far, push strut grows accordingly.
+        let half = push_length / 2.0;
+        let inner = half;
+        let outer = half * (outer_percent.0 / 100.0);
+        let total_push = inner + outer;
+
+        let alpha_pull_length =
+            (radial_distance * radial_distance + inner * inner).sqrt();
+        let omega_pull_length =
+            (radial_distance * radial_distance + outer * outer).sqrt();
 
         // Prism joints extend the middle joint's path with a prism branch (Y)
-        // local_index 0 = prism alpha (below), 1 = prism omega (above)
-        // e.g., if middle is "AX6Z0", prism alpha is "AX6YZ0", prism omega is "AX6YZ1"
+        // local_index 0 = prism alpha (inner), 1 = prism omega (outer)
         let middle_path = &self.joints[middle_joint_key].path;
         let alpha_path = middle_path.extend(PRISM_MARKER).with_local_index(0);
         let omega_path = middle_path.extend(PRISM_MARKER).with_local_index(1);
 
-        let alpha = self.create_joint_with_path(midpoint - normal * push_length / 2.0, alpha_path);
-        let omega = self.create_joint_with_path(midpoint + normal * push_length / 2.0, omega_path);
+        let alpha = self.create_joint_with_path(midpoint - normal * inner, alpha_path);
+        let omega = self.create_joint_with_path(midpoint + normal * outer, omega_path);
 
-        self.create_fixed_interval(alpha, omega, Role::Pushing, Meters(push_length));
+        self.create_fixed_interval(alpha, omega, Role::Pushing, Meters(total_push));
 
         // Connect prism push joints to radials
         for radial in radial_joints {
-            self.create_fixed_interval(alpha, radial, Role::PrismPull, Meters(pull_length));
-            self.create_fixed_interval(omega, radial, Role::PrismPull, Meters(pull_length));
+            self.create_fixed_interval(alpha, radial, Role::PrismPull, Meters(alpha_pull_length));
+            self.create_fixed_interval(omega, radial, Role::PrismPull, Meters(omega_pull_length));
         }
         // Mark the face as having a prism
         if let Some(face) = self.faces.get_mut(face_key) {

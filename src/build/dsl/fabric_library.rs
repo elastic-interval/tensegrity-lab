@@ -36,21 +36,21 @@ impl FabricName {
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([
                     on(OmniBotX)
-                        .column(4)
+                        .column(3)
                         .shrink_by(Pct(20.0))
                         .mark(End)
-                        .prism(),
+                        .prism(Pct(400.0)),
                     on(OmniBotY)
-                        .column(4)
+                        .column(3)
                         .shrink_by(Pct(20.0))
                         .mark(End)
-                        .prism(),
+                        .prism(Pct(400.0)),
                     on(OmniBotZ)
-                        .column(4)
+                        .column(3)
                         .shrink_by(Pct(20.0))
                         .mark(End)
-                        .prism(),
-                    on(OmniTop).prism(),
+                        .prism(Pct(400.0)),
+                    on(OmniTop).prism(Pct(400.0)),
                     on(OmniBot).open(),
                 ])
                 .omit([
@@ -61,8 +61,8 @@ impl FabricName {
                     ("Z1", "Z10"),
                     ("Z10", "Z7"),
                 ])
-                .prepare_vulcanize(0.5, VulcanizeMode::Linear)
-                .space(Sec(3.0), End, Pct(25.0))
+                .prepare_vulcanize(0.5, VulcanizeMode::Quadratic)
+                .space(Sec(3.0), End, Pct(35.0))
                 .vulcanize(Sec(1.0))
                 .zero_g_pretense(Sec(0.2), Pct(0.08), Pct(0.0))
                 .surface_frozen()
@@ -78,18 +78,18 @@ impl FabricName {
                         .column(8)
                         .shrink_by(Pct(10.0))
                         .mark(End)
-                        .prism(),
+                        .prism(Pct(100.0)),
                     on(OmniBotY)
                         .column(8)
                         .shrink_by(Pct(10.0))
                         .mark(End)
-                        .prism(),
+                        .prism(Pct(100.0)),
                     on(OmniBotZ)
                         .column(8)
                         .shrink_by(Pct(10.0))
                         .mark(End)
-                        .prism(),
-                    on(OmniTop).prism(),
+                        .prism(Pct(100.0)),
+                    on(OmniTop).prism(Pct(100.0)),
                     on(OmniBot).open(),
                 ])
                 .omit([

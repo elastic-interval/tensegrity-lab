@@ -241,13 +241,13 @@ impl FaceBuilder {
         }
     }
 
-    pub fn prism(self) -> FaceColumnBuilder {
+    pub fn prism(self, outer_percent: Percent) -> FaceColumnBuilder {
         FaceColumnBuilder {
             face_name: self.face_name,
             column: ColumnBuilder {
                 style: ColumnStyle::alternating(0),
                 scale: Percent(100.0),
-                post_column_nodes: vec![BuildNode::Prism],
+                post_column_nodes: vec![BuildNode::Prism { outer_percent }],
             },
         }
     }
@@ -280,8 +280,8 @@ impl FaceColumnBuilder {
         self
     }
 
-    pub fn prism(mut self) -> Self {
-        self.column = self.column.prism();
+    pub fn prism(mut self, outer_percent: Percent) -> Self {
+        self.column = self.column.prism(outer_percent);
         self
     }
 
@@ -448,8 +448,9 @@ impl ColumnBuilder {
         self
     }
 
-    pub fn prism(mut self) -> Self {
-        self.post_column_nodes.push(BuildNode::Prism);
+    pub fn prism(mut self, outer_percent: Percent) -> Self {
+        self.post_column_nodes
+            .push(BuildNode::Prism { outer_percent });
         self
     }
 
