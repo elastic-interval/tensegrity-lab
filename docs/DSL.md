@@ -12,9 +12,9 @@ Triped
     .scale(M(1.03))
     .seed(OmniSymmetrical, Seed(1))
     .faces([
-        on(OmniBotX).column(8).shrink_by(Pct(10.0)).mark(End).prism(),
-        on(OmniBotY).column(8).shrink_by(Pct(10.0)).mark(End).prism(),
-        on(OmniBotZ).column(8).shrink_by(Pct(10.0)).mark(End).prism(),
+        on(OmniBotX).column(8).shrink_by(Pct(10.0)).mark(End).prism(Pct(100.0)),
+        on(OmniBotY).column(8).shrink_by(Pct(10.0)).mark(End).prism(Pct(100.0)),
+        on(OmniBotZ).column(8).shrink_by(Pct(10.0)).mark(End).prism(Pct(100.0)),
         on(OmniTop).column(1),
     ])
     .space(Sec(3.0), End, Pct(38.0))
@@ -66,8 +66,8 @@ The typestate pattern enforces that `altitude()` and `scale()` must be called be
 ```rust
 .seed(OmniSymmetrical, Seed(1))
 .faces([
-    on(OmniBotX).column(8).shrink_by(Pct(10.0)).mark(End).prism(),
-    on(OmniBotY).column(8).shrink_by(Pct(10.0)).mark(End).prism(),
+    on(OmniBotX).column(8).shrink_by(Pct(10.0)).mark(End).prism(Pct(100.0)),
+    on(OmniBotY).column(8).shrink_by(Pct(10.0)).mark(End).prism(Pct(100.0)),
     on(OmniTop).column(1),
 ])
 .space(Sec(3.0), End, Pct(38.0))
@@ -94,7 +94,7 @@ column(count)                // Build n bricks in a column
     .grow_by(Pct(10.0))      // Grow each successive brick by 10% (110% scale per brick)
     .chiral()                // Same chirality (vs alternating default)
     .mark(MarkName)          // Tag the end face for later operations
-    .prism()                 // Add prism reinforcement
+    .prism(Pct(100.0))           // Add prism: Pct(100) = symmetric, Pct(200) = outer extends 2×
     .then(node)              // Continue with nested structure at the end
 ```
 
