@@ -15,6 +15,8 @@ static PLANS: [OnceLock<FabricPlan>; 6] = [
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, EnumIter)]
 pub enum FabricName {
+    #[strum(serialize = "Open Claw")]
+    OpenClaw,
     Triped,
     Mockup,
     Vertebra,
@@ -29,6 +31,45 @@ impl FabricName {
     pub fn fabric_plan(self) -> FabricPlan {
         use FabricName::*;
         match self {
+            OpenClaw => self
+                .build(FabricDimensions::default())
+                .seed(OmniSymmetrical, Seed(1))
+                .faces([
+                    on(OmniBotX)
+                        .column(4)
+                        .shrink_by(Pct(20.0))
+                        .mark(End)
+                        .prism(),
+                    on(OmniBotY)
+                        .column(4)
+                        .shrink_by(Pct(20.0))
+                        .mark(End)
+                        .prism(),
+                    on(OmniBotZ)
+                        .column(4)
+                        .shrink_by(Pct(20.0))
+                        .mark(End)
+                        .prism(),
+                    on(OmniTop).prism(),
+                    on(OmniBot).open(),
+                ])
+                .omit([
+                    ("Z6", "Z9"),
+                    ("Z6", "Z3"),
+                    ("Z2", "Z11"),
+                    ("Z2", "Z5"),
+                    ("Z1", "Z10"),
+                    ("Z10", "Z7"),
+                ])
+                .prepare_vulcanize(0.5, VulcanizeMode::Linear)
+                .space(Sec(3.0), End, Pct(25.0))
+                .vulcanize(Sec(1.0))
+                .zero_g_pretense(Sec(0.2), Pct(0.08), Pct(0.0))
+                .surface_frozen()
+                .fall(Sec(2.0))
+                .settle(Sec(3.0))
+                .grav_pretense(Sec(0.3), Pct(0.12))
+                .done(),
             Triped => self
                 .build(FabricDimensions::default())
                 .seed(OmniSymmetrical, Seed(1))
@@ -60,7 +101,7 @@ impl FabricName {
                     ("Z10", "Z7"),
                 ])
                 .prepare_vulcanize(0.5, VulcanizeMode::Linear)
-                .space(Sec(3.0), End, Pct(35.0))
+                .space(Sec(3.0), End, Pct(25.0))
                 .vulcanize(Sec(1.0))
                 .zero_g_pretense(Sec(0.2), Pct(0.08), Pct(0.0))
                 .surface_frozen()

@@ -114,7 +114,7 @@ impl Default for FabricDimensions {
     fn default() -> Self {
         Self {
             altitude: Meters(7.5),
-            scale: Meters(1.0),
+            scale: Meters(1.5),
             pull_radius: Meters(0.007),
             hinge: HingeDimensions::default(),
             push_length_increment: Some(Meters(0.01)),
