@@ -475,6 +475,7 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                     new_obj = prototypes['Joint'].copy()
                     new_obj.data = prototypes['Joint'].data
                     new_obj.name = name
+                    new_obj.hide_render = False
                     joints_collection.objects.link(new_obj)
                     created_objects[name] = new_obj
 
@@ -504,6 +505,7 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                     if proto.data:
                         new_obj.data = proto.data
                     new_obj.name = name
+                    new_obj.hide_render = False
                     push_collection.objects.link(new_obj)
                     created_objects[name] = new_obj
 
@@ -514,6 +516,7 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                         child_copy.name = f"{name}_{child.name}"
                         child_copy.parent = new_obj
                         child_copy.matrix_parent_inverse = child.matrix_parent_inverse.copy()
+                        child_copy.hide_render = False
                         push_collection.objects.link(child_copy)
 
                 obj = created_objects[name]
@@ -540,6 +543,7 @@ class TENSEGRITY_OT_import_json(bpy.types.Operator, ImportHelper):
                     new_obj = prototypes['Pull'].copy()
                     new_obj.data = prototypes['Pull'].data
                     new_obj.name = name
+                    new_obj.hide_render = False
                     pull_collection.objects.link(new_obj)
                     created_objects[name] = new_obj
 

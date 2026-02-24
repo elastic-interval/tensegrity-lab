@@ -36,21 +36,21 @@ impl FabricName {
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([
                     on(OmniBotX)
-                        .column(3)
-                        .shrink_by(Pct(20.0))
+                        .column(4)
+                        .shrink_by(Pct(15.0))
                         .mark(End)
                         .prism(Pct(250.0)),
                     on(OmniBotY)
-                        .column(3)
-                        .shrink_by(Pct(20.0))
+                        .column(4)
+                        .shrink_by(Pct(15.0))
                         .mark(End)
                         .prism(Pct(250.0)),
                     on(OmniBotZ)
-                        .column(3)
-                        .shrink_by(Pct(20.0))
+                        .column(4)
+                        .shrink_by(Pct(15.0))
                         .mark(End)
                         .prism(Pct(250.0)),
-                    on(OmniTop).prism(Pct(350.0)),
+                    on(OmniTop).prism(Pct(200.0)),
                     on(OmniBot).open(),
                 ])
                 .omit([
