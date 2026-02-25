@@ -3,6 +3,7 @@ use crate::build::dsl::fabric_dsl::{on, *};
 use crate::build::dsl::fabric_plan::FabricPlan;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
+use crate::units::Meters;
 
 static PLANS: [OnceLock<FabricPlan>; 6] = [
     OnceLock::new(),
@@ -32,7 +33,7 @@ impl FabricName {
         use FabricName::*;
         match self {
             OpenClaw => self
-                .build(FabricDimensions::default())
+                .build(FabricDimensions::default().with_altitude(Meters(8.0)))
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([
                     on(OmniBotX)
@@ -62,13 +63,13 @@ impl FabricName {
                     ("Z10", "Z7"),
                 ])
                 .prepare_vulcanize(0.5, VulcanizeMode::Quadratic)
-                .space(Sec(3.0), End, Pct(35.0))
-                .vulcanize(Sec(1.0))
-                .zero_g_pretense(Sec(0.2), Pct(0.08), Pct(0.0))
+                .space(Sec(2.8), End, Pct(35.0))
+                .vulcanize(Sec(0.15))
+                .zero_g_pretense(Sec(0.1), Pct(0.08), Pct(0.0))
                 .surface_frozen()
-                .fall(Sec(2.0))
-                .settle(Sec(3.0))
-                .grav_pretense(Sec(0.3), Pct(0.12))
+                .fall(Sec(1.5))
+                .settle(Sec(1.5))
+                .grav_pretense(Sec(0.1), Pct(0.12))
                 .done(),
             Triped => self
                 .build(FabricDimensions::default())
