@@ -3,7 +3,6 @@ use crate::build::dsl::fabric_dsl::{on, *};
 use crate::build::dsl::fabric_plan::FabricPlan;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
-use crate::units::Meters;
 
 static PLANS: [OnceLock<FabricPlan>; 6] = [
     OnceLock::new(),
@@ -33,7 +32,7 @@ impl FabricName {
         use FabricName::*;
         match self {
             OpenClaw => self
-                .build(FabricDimensions::default().with_altitude(Meters(8.0)))
+                .build(FabricDimensions::default())
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([
                     on(OmniBotX)
