@@ -191,11 +191,11 @@ A head with 3 discs costs approximately €62.06 instead of €69.30.
 
 The OpenClaw design (see `fabric_library.rs`) is an omni-symmetrical seed with three legs of 3 bricks each, prisms on three end faces and the top face, and an open bottom face.
 
-### Simulation Data (default scale 1.5m)
+### Simulation Data (scale 1.0m)
 
-Obtained by running the build to completion and counting intervals:
+Obtained by running the build to completion and counting intervals. Interval counts are independent of scale; lengths are reported at the current scale of 1.0m (originally simulated at 1.5m, lengths scaled by 2/3).
 
-| | Mockup (0.59m) | OpenClaw (1.5m) | Ratio |
+| | Mockup (0.59m) | OpenClaw (1.0m) | Ratio |
 |-|---------------:|----------------:|------:|
 | **Struts** | 9 | 46 | 5.1× |
 | **Cables** | 36 | 180 | 5.0× |
@@ -216,20 +216,20 @@ Cable breakdown by role:
 
 | Length group | Count |
 |-------------|------:|
-| ~2,100mm | 3 |
-| ~2,340mm | 9 |
-| ~2,720mm | 9 |
-| ~3,200mm | 9 |
-| ~3,750mm | 10 |
-| ~4,500mm | 3 |
-| ~4,860mm | 3 |
-| **Average** | **3,182mm** |
+| ~1,400mm | 3 |
+| ~1,560mm | 9 |
+| ~1,810mm | 9 |
+| ~2,130mm | 9 |
+| ~2,500mm | 10 |
+| ~3,000mm | 3 |
+| ~3,240mm | 3 |
+| **Average** | **2,121mm** |
 
-Range: 2,100mm to 4,860mm. Total strut tube material: 146.4m.
+Range: 1,400mm to 3,240mm. Total strut tube material: 97.6m.
 
 ### Cable Lengths
 
-Average cable: 1,701mm. Range: 923mm to 3,295mm. Total Dyneema: 306.2m.
+Average cable: 1,134mm. Range: 615mm to 2,197mm. Total Dyneema: 204.1m.
 
 ### Cables Per Strut End (Disc Requirement)
 
@@ -240,7 +240,7 @@ Average cable: 1,701mm. Range: 923mm to 3,295mm. Total Dyneema: 306.2m.
 
 Total connector discs needed: 84 × 4 + 8 × 3 = **360** (vs 72 in Mockup).
 
-### Cost Estimate at Default Scale (1.5m)
+### Cost Estimate (1.0m scale)
 
 Strut tube costs scale by strut length at €0.055/mm. Connector heads and cable hardware are fixed per unit.
 
@@ -248,8 +248,8 @@ Strut tube costs scale by strut length at €0.055/mm. Connector heads and cable
 
 | | Calculation | Total (€) |
 |-|-------------|----------:|
-| Tube material | 146,390mm total × €0.055/mm | 8,051 |
-| **Strut bodies** | | **€8,051** |
+| Tube material | 97,600mm total × €0.055/mm | 5,367 |
+| **Strut bodies** | | **€5,367** |
 
 **Connector heads (92 strut ends):**
 
@@ -264,10 +264,10 @@ Strut tube costs scale by strut length at €0.055/mm. Connector heads and cable
 
 | | Calculation | Total (€) |
 |-|-------------|----------:|
-| Dyneema | 306.2m × €10.57/m | 3,237 |
+| Dyneema | 204.1m × €10.57/m | 2,157 |
 | Quick links | 360 × €2.65 | 954 |
 | Splicing labor | 180 × €28.89 | 5,200 |
-| **Cables** | | **€9,391** |
+| **Cables** | | **€8,311** |
 
 **Fixed costs:**
 
@@ -278,45 +278,45 @@ Strut tube costs scale by strut length at €0.055/mm. Connector heads and cable
 | Cable jig | 200 |
 | **Fixed** | **€1,367** |
 
-### OpenClaw Cost Summary (1.5m scale)
+### OpenClaw Cost Summary (1.0m scale)
 
 | Category | Material (€) | Labor (€) | Total (€) |
 |----------|-----------:|--------:|--------:|
-| Strut bodies | 8,051 | -- | 8,051 |
+| Strut bodies | 5,367 | -- | 5,367 |
 | Connector heads (92) | 6,318 | 598 | 6,916 |
-| Cables (180) | 4,191 | 5,200 | 9,391 |
+| Cables (180) | 3,111 | 5,200 | 8,311 |
 | Fixed costs | 1,367 | -- | 1,367 |
-| **Total** | **€19,927** | **€5,798** | **€25,725** |
+| **Total** | **€16,163** | **€5,798** | **€21,961** |
 
-### OpenClaw Weight Estimate (1.5m scale)
+### OpenClaw Weight Estimate (1.0m scale)
 
 Strut body weight scales linearly with length. Mockup strut body: 4.31 kg at 1,419mm avg = 3.04 g/mm.
 
 | Component | Calculation | Total (kg) |
 |-----------|-------------|----------:|
-| Strut tubes | 146.4m total × 3.04 g/mm | 445 |
+| Strut tubes | 97.6m total × 3.04 g/mm | 297 |
 | Connector heads | 84 × 2.28 + 8 × 1.93 | 207 |
-| Dyneema | 306.2m × 0.11 kg/m | 34 |
+| Dyneema | 204.1m × 0.11 kg/m | 22 |
 | Quick links | 360 × 0.29 kg | 104 |
-| **Total** | | **~790 kg** |
+| **Total** | | **~630 kg** |
 
 ### Comparison
 
 | | Mockup | OpenClaw | Ratio |
 |-|-------:|---------:|------:|
-| Scale | 0.59m | 1.5m | 2.5× |
+| Scale | 0.59m | 1.0m | 1.7× |
 | Struts | 9 | 46 | 5.1× |
 | Cables | 36 | 180 | 5.0× |
-| Weight | 105 kg | ~790 kg | 7.5× |
-| Material cost | €3,713 | €19,927 | 5.4× |
+| Weight | 105 kg | ~630 kg | 6.0× |
+| Material cost | €3,713 | €16,163 | 4.4× |
 | Labor cost | €1,157 | €5,798 | 5.0× |
-| **Total cost** | **€4,870** | **€25,725** | **5.3×** |
+| **Total cost** | **€4,870** | **€21,961** | **4.5×** |
 
 ### Caveats
 
-- **Tube sizing**: The Mockup uses 60x4mm aluminum outer tubes for struts up to ~1.55m. OpenClaw struts reach 4.86m — larger tube diameters may be needed for stiffness, which would increase cost and weight.
-- **Shipping**: Estimated higher than Mockup due to larger/heavier parts. Actual cost depends on supplier and location.
-- **Scale flexibility**: All tube and cable costs scale linearly. At a smaller scale (e.g., 0.59m like Mockup), the OpenClaw would cost roughly €13,000-€15,000 and weigh roughly 400-500 kg, with shorter struts that fit the existing 60x4mm tube specification.
+- **Tube sizing**: The Mockup uses 60x4mm aluminum outer tubes for struts up to ~1.55m. OpenClaw struts reach 3.24m at 1.0m scale — larger tube diameters may be needed for the longer struts, which would increase cost and weight.
+- **Shipping**: Estimated higher than Mockup due to more parts. Actual cost depends on supplier and location.
+- **Scale flexibility**: All tube and cable costs scale linearly with the scale factor. Connector heads, quick links, and labor are fixed per unit and do not change with scale.
 
 ---
 
