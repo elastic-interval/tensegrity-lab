@@ -11,7 +11,7 @@ pub enum Material {
 }
 
 impl Material {
-    fn base_linear_density(&self) -> GramsPerMeter {
+    pub fn base_linear_density(&self) -> GramsPerMeter {
         GramsPerMeter(match self {
             Push => 3000.0,   // 3 kg/m: doubled for effective mass
             Pull => 50.0,     // Dyneema rope ~10mm diameter

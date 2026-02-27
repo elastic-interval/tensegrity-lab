@@ -37,17 +37,17 @@ impl FabricName {
                 .faces([
                     on(OmniBotX)
                         .column(4)
-                        .shrink_by(Pct(15.0))
+                        .shrink_by(Pct(20.0))
                         .mark(End)
                         .prism(Pct(250.0)),
                     on(OmniBotY)
                         .column(4)
-                        .shrink_by(Pct(15.0))
+                        .shrink_by(Pct(20.0))
                         .mark(End)
                         .prism(Pct(250.0)),
                     on(OmniBotZ)
                         .column(4)
-                        .shrink_by(Pct(15.0))
+                        .shrink_by(Pct(20.0))
                         .mark(End)
                         .prism(Pct(250.0)),
                     on(OmniTop).prism(Pct(200.0)),
@@ -61,9 +61,9 @@ impl FabricName {
                     ("Z1", "Z10"),
                     ("Z10", "Z7"),
                 ])
-                .prepare_vulcanize(0.5, VulcanizeMode::Quadratic)
+                .prepare_vulcanize(0.5, VulcanizeMode::Linear)
                 .space(Sec(2.8), End, Pct(35.0))
-                .vulcanize(Sec(0.15))
+                .vulcanize(Sec(1.0))
                 .zero_g_pretense(Sec(0.1), Pct(0.08), Pct(0.0))
                 .surface_frozen()
                 .fall(Sec(1.5))

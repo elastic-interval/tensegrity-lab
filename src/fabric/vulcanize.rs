@@ -11,8 +11,6 @@ use crate::fabric::{Fabric, IntervalKey, JointKey};
 use crate::units::Meters;
 use crate::units::Seconds;
 
-const VULCANIZE_DURATION: Seconds = Seconds(1.0);
-
 /// How the differential ratio affects contraction.
 #[derive(Debug, Clone, Copy)]
 pub enum VulcanizeMode {
@@ -47,9 +45,10 @@ impl Fabric {
         }
     }
 
-    /// Activate bow ties. If prepare_vulcanize was called, activates measuring tapes.
+    /// Activate bow ties with the given duration for approaching their target length.
+    /// If prepare_vulcanize was called, activates measuring tapes.
     /// Otherwise creates new bow ties with default Constant mode.
-    pub fn vulcanize(&mut self) {
+    pub fn vulcanize(&mut self, duration: Seconds) {
         let has_measuring = self
             .intervals
             .values()
@@ -78,7 +77,7 @@ impl Fabric {
                         start_length: current,
                         target_length,
                         start_age,
-                        duration: VULCANIZE_DURATION,
+                        duration,
                     };
                 }
             }
@@ -92,7 +91,7 @@ impl Fabric {
                     omega,
                     target_length,
                     Role::BowTie,
-                    VULCANIZE_DURATION,
+                    duration,
                 );
             }
         }

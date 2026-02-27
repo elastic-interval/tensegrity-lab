@@ -8,9 +8,10 @@ use crate::fabric::face::Face;
 use crate::fabric::interval::Span::Fixed;
 use crate::fabric::interval::SpanTransition;
 use crate::fabric::interval::{Interval, Role};
-use crate::fabric::joint::{Joint, AMBIENT_MASS};
+use crate::fabric::joint::Joint;
 use crate::fabric::physics::Physics;
-use crate::units::{Degrees, Grams, Meters, Unit};
+use crate::fabric::material::Material;
+use crate::units::{Degrees, Grams, GramsPerMeter, Meters, Unit};
 use crate::Age;
 use glam::{Mat4, Quat, Vec3};
 use slotmap::{new_key_type, SlotMap};
@@ -108,6 +109,8 @@ pub struct FabricDimensions {
     pub hinge: HingeDimensions,
     pub push_length_increment: Option<Meters>,
     pub max_pretenst_strain: Option<f32>,
+    pub joint_mass: Grams,
+    pub push_density: GramsPerMeter,
 }
 
 impl Default for FabricDimensions {
@@ -119,6 +122,8 @@ impl Default for FabricDimensions {
             hinge: HingeDimensions::default(),
             push_length_increment: Some(Meters(0.01)),
             max_pretenst_strain: Some(0.03),
+            joint_mass: Grams(2280.0),
+            push_density: GramsPerMeter(3000.0),
         }
     }
 }
@@ -132,6 +137,25 @@ impl FabricDimensions {
     pub fn with_scale(mut self, scale: Meters) -> Self {
         self.scale = scale;
         self
+    }
+
+    pub fn with_joint_mass(mut self, mass: Grams) -> Self {
+        self.joint_mass = mass;
+        self
+    }
+
+    pub fn with_push_density(mut self, density: GramsPerMeter) -> Self {
+        self.push_density = density;
+        self
+    }
+
+    /// Linear density for a material type, using configurable push density.
+    pub fn linear_density(&self, material: Material, physics: &Physics) -> GramsPerMeter {
+        let base = match material {
+            Material::Push => self.push_density,
+            _ => material.base_linear_density(),
+        };
+        GramsPerMeter(base.0 * physics.mass_multiplier())
     }
 
     pub fn ring_center(&self, push_end: Vec3, push_axis: Vec3, slot: usize) -> Vec3 {
@@ -393,8 +417,7 @@ impl Fabric {
     }
 
     pub fn ambient_mass(&self) -> Grams {
-        // Mass scales with scale^3.5: volume (scale³) plus slight reduction for small structures
-        Grams(AMBIENT_MASS.f32() * self.scale.powf(3.5))
+        self.dimensions.joint_mass
     }
 
     pub fn apply_matrix4(&mut self, matrix: Mat4) {
@@ -594,8 +617,9 @@ impl Fabric {
 
         // Calculate interval forces (also adds interval mass to joints)
         let age = self.age;
+        let dimensions = &self.dimensions;
         for interval in self.intervals.values_mut() {
-            if interval.iterate(&mut self.joints, age, physics) == SpanTransition::ApproachCompleted
+            if interval.iterate(&mut self.joints, age, physics, dimensions) == SpanTransition::ApproachCompleted
             {
                 self.approaching_count = self.approaching_count.saturating_sub(1);
             }
@@ -821,15 +845,15 @@ impl Fabric {
     fn calculate_total_mass(&self, physics: &Physics) -> Grams {
         let mut total_mass = Grams(0.0);
 
-        // Add ambient mass for each joint
-        total_mass += AMBIENT_MASS * self.joints.len() as f32;
+        // Add joint mass (connector hardware) for each joint
+        total_mass += self.dimensions.joint_mass * self.joints.len() as f32;
 
         // Add mass from each interval
         for interval in self.intervals.values() {
             let alpha = &self.joints[interval.alpha_key];
             let omega = &self.joints[interval.omega_key];
             let real_length = Meters((omega.location - alpha.location).length());
-            let interval_mass = interval.material.linear_density(physics) * real_length;
+            let interval_mass = self.dimensions.linear_density(interval.material, physics) * real_length;
             total_mass += interval_mass;
         }
 

@@ -750,7 +750,7 @@ impl Interval {
         }
     }
 
-    pub fn iterate(&mut self, joints: &mut Joints, age: Age, physics: &Physics) -> SpanTransition {
+    pub fn iterate(&mut self, joints: &mut Joints, age: Age, physics: &Physics, dimensions: &FabricDimensions) -> SpanTransition {
         if matches!(self.span, Measuring { .. }) {
             return SpanTransition::Unchanged;
         }
@@ -809,7 +809,7 @@ impl Interval {
         joints[omega_key].force -= force_vector;
 
         // Mass from linear density × length
-        let interval_mass = self.material.linear_density(physics) * actual_length;
+        let interval_mass = dimensions.linear_density(self.material, physics) * actual_length;
         let half_mass = interval_mass / 2.0;
         joints[alpha_key].accumulated_mass += half_mass;
         joints[omega_key].accumulated_mass += half_mass;

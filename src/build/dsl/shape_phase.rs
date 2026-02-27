@@ -272,7 +272,7 @@ impl ShapePhase {
                 StartProgress(seconds)
             }
             ShapeAction::Vulcanize => {
-                fabric.vulcanize();
+                fabric.vulcanize(seconds);
                 StartProgress(seconds)
             }
             ShapeAction::Omit {

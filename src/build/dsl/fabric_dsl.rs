@@ -17,7 +17,7 @@ pub use crate::build::dsl::build_phase::BuildNode as Node;
 pub use crate::fabric::vulcanize::VulcanizeMode;
 pub use crate::fabric::FabricDimensions;
 pub use crate::units::Percent as Pct;
-pub use crate::units::{Hertz as Hz, Meters as M, Seconds as Sec};
+pub use crate::units::{Grams as Gm, GramsPerMeter as GpmM, Hertz as Hz, Meters as M, Seconds as Sec};
 
 impl FabricName {
     pub fn build(self, dimensions: FabricDimensions) -> FabricBuilder {
