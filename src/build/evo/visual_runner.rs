@@ -1,7 +1,7 @@
 use crate::build::evo::engine::{EngineState, EvolutionEngine};
-use crate::build::evo::fitness::StabilityFitness;
-use crate::build::evo::genomes::GrowthGenome;
-use crate::build::evo::populations::SimplePopulation;
+use crate::build::evo::growth::GrowthGenome;
+use crate::build::evo::simple_population::SimplePopulation;
+use crate::build::evo::stability::StabilityFitness;
 use crate::build::evo::traits::{CompositeFitness, ExpressionContext, Genome, TrialConfig};
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::CONSTRUCTION;
