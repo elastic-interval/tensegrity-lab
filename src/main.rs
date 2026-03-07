@@ -36,17 +36,9 @@ struct Args {
     #[arg(long)]
     mobius: Option<usize>,
 
-    /// Generate an algorithmic Klein bottle tensegrity with given width
+    /// Generate an algorithmic Klein bottle tensegrity
     #[arg(long)]
-    klein: Option<usize>,
-
-    /// Height of the Klein bottle (default 5)
-    #[arg(long, default_value_t = 5)]
-    klein_height: usize,
-
-    /// Shift of the Klein bottle (default 0)
-    #[arg(long, default_value_t = 0)]
-    klein_shift: usize,
+    klein: bool,
 
     /// Record animation for specified duration (seconds) from start of fabric construction
     #[arg(long)]
@@ -81,11 +73,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     } else if let Some(segments) = args.mobius {
         RunStyle::Mobius { segments }
-    } else if let Some(width) = args.klein {
+    } else if args.klein {
         RunStyle::Klein {
-            width,
-            height: args.klein_height,
-            shift: args.klein_shift,
+            width: 10,
+            height: 31,
+            shift: 0,
         }
     } else if args.bake_bricks {
         RunStyle::BakeBricks

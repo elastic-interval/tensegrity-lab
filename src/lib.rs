@@ -140,7 +140,7 @@ pub enum RunStyle {
     Mobius {
         segments: usize,
     },
-    /// Algorithmic Klein bottle tensegrity
+    /// Algorithmic Klein bottle tensegrity (width=even, height=odd)
     Klein {
         width: usize,
         height: usize,
