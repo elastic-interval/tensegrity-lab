@@ -251,7 +251,7 @@ impl Camera {
         let centroid = fabric.centroid();
         let ideal_distance = self.target.ideal_distance(fabric);
 
-        // Position camera at same altitude as centroid, looking at it from the side
+        // Position camera at ideal viewing distance
         let offset = Vec3::new(1.0, 0.0, 1.0).normalize() * ideal_distance;
         self.position = centroid + offset;
         self.look_at = centroid;

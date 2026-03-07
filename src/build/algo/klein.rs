@@ -113,6 +113,7 @@ pub fn generate_klein(width: usize, height: usize, shift: usize) -> Fabric {
         kf.fabric.iterate(&physics);
     }
     kf.fabric.zero_velocities();
+    kf.fabric.update_bounding_radius();
     kf.fabric
 }
 
@@ -138,9 +139,11 @@ mod tests {
             .filter(|i| i.role == Role::Pulling)
             .count();
 
+        let bounding_radius = fabric.bounding_radius();
+        let centroid = fabric.centroid();
         println!(
-            "Klein (10x31): {} joints, {} struts, {} cables",
-            joint_count, push_count, pull_count
+            "Klein (10x31): {} joints, {} struts, {} cables, bounding_radius={:.2}, centroid=({:.2}, {:.2}, {:.2})",
+            joint_count, push_count, pull_count, bounding_radius, centroid.x, centroid.y, centroid.z
         );
 
         // width * height / 2 = 10 * 31 / 2 = 155 joints

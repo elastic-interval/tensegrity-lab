@@ -299,6 +299,7 @@ impl Crucible {
             let _ = self
                 .radio
                 .send_event(LabEvent::FabricBuilt(self.fabric.fabric_stats(&self.physics)));
+            JumpToFabric.send(&self.radio);
             return;
         }
 
