@@ -1,5 +1,6 @@
 #[cfg(not(target_arch = "wasm32"))]
 use crate::animation_export::AnimationExporter;
+use crate::build::algo::klein::generate_klein;
 use crate::build::algo::mobius::generate_mobius;
 use crate::build::algo::tensegrity_sphere::generate_sphere;
 use crate::build::dsl::fabric_library;
@@ -256,6 +257,10 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                     RunStyle::Mobius { segments } => {
                         let fabric = generate_mobius(*segments);
+                        self.crucible.action(CrucibleAction::LoadAlgoFabric(fabric));
+                    }
+                    RunStyle::Klein { width, height, shift } => {
+                        let fabric = generate_klein(*width, *height, *shift);
                         self.crucible.action(CrucibleAction::LoadAlgoFabric(fabric));
                     }
                 };

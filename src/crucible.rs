@@ -7,7 +7,7 @@ use crate::crucible::Stage::*;
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::{ANIMATING, VIEWING};
 use crate::fabric::physics::Physics;
-use crate::fabric::physics_test::PhysicsTester;
+use crate::fabric::physics_tester::PhysicsTester;
 use crate::fabric::Fabric;
 use crate::units::{Seconds, Unit};
 use crate::{ControlState, CrucibleAction, LabEvent, Radio, StateChange};

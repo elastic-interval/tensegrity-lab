@@ -140,6 +140,12 @@ pub enum RunStyle {
     Mobius {
         segments: usize,
     },
+    /// Algorithmic Klein bottle tensegrity
+    Klein {
+        width: usize,
+        height: usize,
+        shift: usize,
+    },
     BakeBricks,
     Evolution(u64),
 }

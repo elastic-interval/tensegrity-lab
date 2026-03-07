@@ -264,7 +264,7 @@ pub mod physics;
 pub mod vulcanize;
 
 pub mod csv_export;
-pub mod physics_test;
+pub mod physics_tester;
 
 // Type aliases for SlotMap containers
 pub type Joints = SlotMap<JointKey, Joint>;
