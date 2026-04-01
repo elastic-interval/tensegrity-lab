@@ -297,7 +297,7 @@ impl ApplicationHandler<LabEvent> for Application {
             DumpCSV => {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    let name = format!("{}.csv", self.crucible.fabric.name);
+                    let name = format!("{}.csv", self.crucible.fabric.name.replace(' ', ""));
                     if let Err(e) = self.crucible.fabric.snapshot_csv(&name) {
                         eprintln!("Failed to export CSV: {}", e);
                     }
@@ -426,7 +426,7 @@ impl ApplicationHandler<LabEvent> for Application {
                         #[cfg(not(target_arch = "wasm32"))]
                         {
                             let filename =
-                                format!("{}-{}.csv", self.crucible.fabric.name, moment.suffix());
+                                format!("{}-{}.csv", self.crucible.fabric.name.replace(' ', ""), moment.suffix());
                             if let Err(e) = self
                                 .crucible
                                 .fabric
