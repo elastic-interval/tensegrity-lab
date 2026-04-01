@@ -73,6 +73,96 @@ mod tests {
     }
 
     #[test]
+    fn test_open_claw_base_triangle() {
+        let plan = fabric_library::get_fabric_plan(FabricName::OpenClaw);
+        let mut executor = FabricPlanExecutor::new_for_test(plan);
+
+        while !executor.is_complete() {
+            let _ = executor.iterate();
+        }
+
+        let fabric = &executor.fabric;
+
+        // Find ground contacts
+        let ground_tolerance = 10.0 / MM_PER_METER * fabric.scale().max(1.0);
+        let ground_joints: Vec<_> = fabric
+            .joints
+            .values()
+            .filter(|j| j.location.y.abs() < ground_tolerance)
+            .collect();
+
+        assert_eq!(
+            ground_joints.len(),
+            EXPECTED_GROUND_CONTACTS,
+            "OpenClaw should land on exactly 3 feet, got {}",
+            ground_joints.len()
+        );
+
+        // Measure all 3 edges of the base triangle
+        let mut edge_lengths_mm = Vec::new();
+        for i in 0..ground_joints.len() {
+            for k in (i + 1)..ground_joints.len() {
+                let d = (ground_joints[i].location - ground_joints[k].location).length();
+                edge_lengths_mm.push(d * MM_PER_METER);
+            }
+        }
+        assert_eq!(edge_lengths_mm.len(), 3);
+
+        let avg_edge_mm: f32 = edge_lengths_mm.iter().sum::<f32>() / 3.0;
+
+        eprintln!(
+            "OpenClaw base triangle edges: {:.0}, {:.0}, {:.0} mm (avg {:.0})",
+            edge_lengths_mm[0], edge_lengths_mm[1], edge_lengths_mm[2], avg_edge_mm
+        );
+
+        // Check equilateral: all edges within tolerance of average
+        const EQUILATERAL_TOLERANCE_PCT: f32 = 2.0;
+        for (i, &edge) in edge_lengths_mm.iter().enumerate() {
+            let diff_pct = ((edge - avg_edge_mm) / avg_edge_mm * 100.0).abs();
+            assert!(
+                diff_pct < EQUILATERAL_TOLERANCE_PCT,
+                "Edge {} ({:.0}mm) differs from average ({:.0}mm) by {:.1}%",
+                i,
+                edge,
+                avg_edge_mm,
+                diff_pct
+            );
+        }
+
+        // Check target edge length (6m)
+        const EXPECTED_EDGE_MM: f32 = 6000.0;
+        const EDGE_TOLERANCE_PCT: f32 = 2.0;
+        let edge_diff_pct = ((avg_edge_mm - EXPECTED_EDGE_MM) / EXPECTED_EDGE_MM * 100.0).abs();
+        eprintln!(
+            "Average edge {:.0}mm vs target {:.0}mm ({:.1}% difference)",
+            avg_edge_mm, EXPECTED_EDGE_MM, edge_diff_pct
+        );
+        assert!(
+            edge_diff_pct < EDGE_TOLERANCE_PCT,
+            "Average edge {:.0}mm differs from target {:.0}mm by {:.1}%",
+            avg_edge_mm,
+            EXPECTED_EDGE_MM,
+            edge_diff_pct
+        );
+
+        // Report height and max strut length
+        let (min_y, max_y) = fabric.altitude_range();
+        let height_mm = (max_y - min_y) * MM_PER_METER;
+
+        use crate::fabric::interval::Role;
+        let max_push_mm = fabric
+            .intervals
+            .values()
+            .filter(|iv| iv.has_role(Role::Pushing))
+            .map(|iv| iv.length(&fabric.joints) * MM_PER_METER)
+            .fold(0.0_f32, f32::max);
+        eprintln!(
+            "Height: {:.0}mm, max strut: {:.0}mm, scale: {:.3}",
+            height_mm, max_push_mm, fabric.scale()
+        );
+    }
+
+    #[test]
     fn test_triped_lands_on_three_feet() {
         let plan = fabric_library::get_fabric_plan(FabricName::Triped);
         let mut executor = FabricPlanExecutor::new_for_test(plan);
