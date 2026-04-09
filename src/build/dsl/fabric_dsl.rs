@@ -547,6 +547,11 @@ impl ZeroGPretenseChain {
         self.build_plan()
     }
 
+    pub fn surface_slippery(mut self) -> FabricPlan {
+        self.surface = Some(SurfaceCharacter::Slippery);
+        self.build_plan()
+    }
+
     pub fn floating(self) -> FabricPlan {
         self.build_plan()
     }
