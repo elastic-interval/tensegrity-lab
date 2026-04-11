@@ -3,13 +3,15 @@
 //! Design: `docs/gpu-compute-backend.md`.
 //!
 //! The CPU build pipeline stays authoritative. This module accepts
-//! slices of already-built `Fabric`s, freezes each one, and steps them
-//! all in lockstep on the GPU — one slot per fabric, no shared topology.
+//! slices of already-built `Fabric`s, parallelizes each one onto the
+//! GPU, and steps them all in lockstep — one slot per fabric, no
+//! shared topology. Phase 2 supports single-fabric batches only;
+//! phase 4 will generalize to N.
 
-pub mod growable;
+pub mod batch;
 pub mod params;
 
-pub use growable::GrowablePhysics;
+pub use batch::GpuBatch;
 pub use params::{GpuPhysicsConfig, PhysicsParams};
 
 #[cfg(test)]
