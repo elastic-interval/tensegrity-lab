@@ -800,9 +800,9 @@ impl Interval {
         let k_adjusted = NewtonsPerMeter(k.f32() * self.stiffness.as_factor());
         let extension = Meters(self.strain * ideal.f32());
         let force = k_adjusted * extension;
-        let force_vector: Vec3 = self.unit * force.f32() / 2.0;
+        let force_vector: Vec3 = self.unit * force.f32();
 
-        // Apply forces to both ends
+        // Apply equal and opposite forces to both ends (Newton's 3rd law).
         let alpha_key = self.end_key(IntervalEnd::Alpha);
         let omega_key = self.end_key(IntervalEnd::Omega);
         joints[alpha_key].force += force_vector;

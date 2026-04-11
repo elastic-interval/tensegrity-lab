@@ -23,6 +23,8 @@ pub mod crucible;
 pub mod crucible_context;
 pub mod fabric;
 pub mod keyboard;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod physics_gpu;
 pub mod pointer;
 pub mod scene;
 pub mod units;

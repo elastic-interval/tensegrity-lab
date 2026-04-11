@@ -29,10 +29,14 @@ impl Material {
     }
 
     pub fn spring_constant_at_1m(&self) -> NewtonsPerMeter {
+        // Values are halved from their historical k_at_1m so that the
+        // per-interval force is applied in full (F on each end per Newton's
+        // 3rd law) instead of the old `force_vector / 2` convention.
+        // Simulation behavior is preserved: halved k + full force = original.
         NewtonsPerMeter(match self {
-            Push => 2e10,
-            Pull => 6.7e9, // ratio ~3:1 to match aluminum/dyneema
-            Spring => 9e4,
+            Push => 1e10,
+            Pull => 3.35e9, // ratio ~3:1 to match aluminum/dyneema
+            Spring => 4.5e4,
         })
     }
 
