@@ -339,3 +339,68 @@ fn identical_batch_produces_identical_results() {
         "slot 0 vs CPU: max error {error} exceeds {PARITY_TOLERANCE}"
     );
 }
+
+/// Phase 5: two different fabrics in one batch. A 3-joint pull triangle
+/// (slot 0) and a 4-joint push-with-pulls (slot 1). The pad-to-max
+/// layout gives both slots 4 joint entries; the triangle only uses 3,
+/// leaving one padded. Each slot must independently match its own CPU
+/// reference, proving that padding, per-slot metadata, and per-slot
+/// topology indexing all work.
+#[test]
+fn varied_batch_parity() {
+    let Some((device, queue)) = create_headless_device() else {
+        eprintln!("No compute-capable adapter available; skipping.");
+        return;
+    };
+
+    // Fabric A: 3-joint pull triangle
+    let mut fabric_a = Fabric::new("tri".to_string());
+    let a0 = fabric_a.create_joint(Vec3::new(0.0, 0.0, 0.0));
+    let a1 = fabric_a.create_joint(Vec3::new(1.0, 0.0, 0.0));
+    let a2 = fabric_a.create_joint(Vec3::new(0.5, 0.0, 0.866_025_4));
+    fabric_a.create_fixed_interval(a0, a1, Role::Pulling, Meters(0.9));
+    fabric_a.create_fixed_interval(a1, a2, Role::Pulling, Meters(0.9));
+    fabric_a.create_fixed_interval(a2, a0, Role::Pulling, Meters(0.9));
+
+    // Fabric B: 4-joint push-with-pulls
+    let mut fabric_b = Fabric::new("push".to_string());
+    let b0 = fabric_b.create_joint(Vec3::new(-1.0, 0.0, 0.0));
+    let b1 = fabric_b.create_joint(Vec3::new(0.0, 0.0, 0.0));
+    let b2 = fabric_b.create_joint(Vec3::new(1.0, 0.0, 0.0));
+    let b3 = fabric_b.create_joint(Vec3::new(2.0, 0.0, 0.0));
+    fabric_b.create_fixed_interval(b1, b2, Role::Pushing, Meters(1.2));
+    fabric_b.create_fixed_interval(b0, b1, Role::Pulling, Meters(0.9));
+    fabric_b.create_fixed_interval(b2, b3, Role::Pulling, Meters(0.9));
+
+    let physics = CONSTRUCTION.clone();
+    let batch = GpuBatch::parallelize(&device, &queue, &[&fabric_a, &fabric_b], &physics);
+    assert_eq!(batch.num_slots(), 2);
+
+    let iterations = 500u32;
+    batch.step(&device, &queue, iterations);
+    let all_gpu = batch.read_all_positions(&device, &queue);
+
+    // CPU reference for fabric A
+    let mut cpu_a = fabric_a.clone();
+    for _ in 0..iterations {
+        cpu_a.iterate(&physics);
+    }
+    let ref_a = cpu_positions(&cpu_a);
+    let err_a = compare(&ref_a, &all_gpu[0], "varied_slot_0_tri");
+    assert!(
+        err_a < PARITY_TOLERANCE,
+        "slot 0 (triangle): max error {err_a} exceeds {PARITY_TOLERANCE}"
+    );
+
+    // CPU reference for fabric B
+    let mut cpu_b = fabric_b.clone();
+    for _ in 0..iterations {
+        cpu_b.iterate(&physics);
+    }
+    let ref_b = cpu_positions(&cpu_b);
+    let err_b = compare(&ref_b, &all_gpu[1], "varied_slot_1_push");
+    assert!(
+        err_b < PARITY_TOLERANCE,
+        "slot 1 (push): max error {err_b} exceeds {PARITY_TOLERANCE}"
+    );
+}
