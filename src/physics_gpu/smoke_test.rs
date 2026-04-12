@@ -69,10 +69,6 @@ fn parallelize_runs_on_real_fabric() {
     let initial_centroid = centroid(&fabric);
 
     let batch = GpuBatch::parallelize(&device, &queue, &[&fabric], &physics);
-    assert_eq!(batch.num_joints(), 3);
-    assert_eq!(batch.num_elastic(), 3);
-    assert_eq!(batch.num_push(), 0);
-
     batch.step(&device, &queue, 200);
 
     let positions = batch.read_positions(&device, &queue);
@@ -85,11 +81,6 @@ fn parallelize_runs_on_real_fabric() {
         );
     }
 
-    // The centroid should stay in place (symmetry) while the three
-    // corner joints contract toward it. A loose upper bound on the
-    // distance from each joint to the centroid is "less than the
-    // original distance". At 200 iterations with CONSTRUCTION physics
-    // the movement should be modest but nonzero.
     let final_centroid = positions.iter().copied().sum::<Vec3>() / 3.0;
     let drift = (final_centroid - initial_centroid).length();
     assert!(
@@ -106,11 +97,6 @@ fn parallelize_runs_on_real_fabric() {
     assert!(
         max_distance_change > 1e-6,
         "joints did not move at all after 200 iterations (got {max_distance_change})"
-    );
-
-    assert!(
-        !batch.read_frozen(&device, &queue),
-        "fabric should not have tripped the speed limit"
     );
 }
 

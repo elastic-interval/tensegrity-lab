@@ -282,3 +282,60 @@ fn single_twist_left_parity() {
         "max position error {error} exceeds tolerance {PARITY_TOLERANCE}"
     );
 }
+
+/// Phase 4 acceptance test: N identical fabrics in one batch all
+/// produce the same positions. This validates the slot-indexing
+/// arithmetic without introducing per-slot variation.
+#[test]
+fn identical_batch_produces_identical_results() {
+    let Some((device, queue)) = create_headless_device() else {
+        eprintln!("No compute-capable adapter available; skipping.");
+        return;
+    };
+
+    let mut fabric = Fabric::new("batch-triangle".to_string());
+    let a = fabric.create_joint(Vec3::new(0.0, 0.0, 0.0));
+    let b = fabric.create_joint(Vec3::new(1.0, 0.0, 0.0));
+    let c = fabric.create_joint(Vec3::new(0.5, 0.0, 0.866_025_4));
+    fabric.create_fixed_interval(a, b, Role::Pulling, Meters(0.9));
+    fabric.create_fixed_interval(b, c, Role::Pulling, Meters(0.9));
+    fabric.create_fixed_interval(c, a, Role::Pulling, Meters(0.9));
+
+    let physics = CONSTRUCTION.clone();
+    let n = 10;
+    let refs: Vec<&Fabric> = (0..n).map(|_| &fabric).collect();
+    let batch = GpuBatch::parallelize(&device, &queue, &refs, &physics);
+    assert_eq!(batch.num_slots(), n as u32);
+
+    batch.step(&device, &queue, 500);
+    let all_positions = batch.read_all_positions(&device, &queue);
+    assert_eq!(all_positions.len(), n);
+
+    let reference = &all_positions[0];
+    for (slot, positions) in all_positions.iter().enumerate().skip(1) {
+        assert_eq!(
+            positions.len(),
+            reference.len(),
+            "slot {slot}: joint count mismatch"
+        );
+        for (j, (r, p)) in reference.iter().zip(positions.iter()).enumerate() {
+            let err = (*r - *p).length();
+            assert!(
+                err == 0.0,
+                "slot {slot} joint {j}: expected bit-exact match to slot 0, got err={err}"
+            );
+        }
+    }
+
+    // Verify slot 0 also matches single-fabric CPU reference.
+    let mut fabric_cpu = fabric.clone();
+    for _ in 0..500 {
+        fabric_cpu.iterate(&physics);
+    }
+    let cpu = cpu_positions(&fabric_cpu);
+    let error = compare(&cpu, reference, "batch_slot_0");
+    assert!(
+        error < PARITY_TOLERANCE,
+        "slot 0 vs CPU: max error {error} exceeds {PARITY_TOLERANCE}"
+    );
+}
