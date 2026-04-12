@@ -564,8 +564,52 @@ impl GpuBatch {
         self.read_all_positions(device, queue).into_iter().next().unwrap()
     }
 
+    /// Compute per-slot facts from the current GPU state. Reads back
+    /// all positions and derives the facts on the CPU.
+    pub fn read_facts(&self, device: &wgpu::Device, queue: &wgpu::Queue) -> Vec<SlotFacts> {
+        self.read_all_positions(device, queue)
+            .iter()
+            .map(|p| SlotFacts::from_positions(p))
+            .collect()
+    }
+
     pub fn num_slots(&self) -> u32 {
         self.num_slots
+    }
+}
+
+/// Per-slot summary computed from joint positions after stepping.
+#[derive(Clone, Debug)]
+pub struct SlotFacts {
+    pub centroid: Vec3,
+    pub bounding_radius: f32,
+    pub height: f32,
+}
+
+impl SlotFacts {
+    pub fn from_positions(positions: &[Vec3]) -> Self {
+        if positions.is_empty() {
+            return Self {
+                centroid: Vec3::ZERO,
+                bounding_radius: 0.0,
+                height: 0.0,
+            };
+        }
+        let n = positions.len() as f32;
+        let centroid = positions.iter().copied().sum::<Vec3>() / n;
+        let bounding_radius = positions
+            .iter()
+            .map(|p| (*p - centroid).length())
+            .fold(0.0f32, f32::max);
+        let height = positions
+            .iter()
+            .map(|p| p.y)
+            .fold(f32::NEG_INFINITY, f32::max);
+        Self {
+            centroid,
+            bounding_radius,
+            height,
+        }
     }
 }
 

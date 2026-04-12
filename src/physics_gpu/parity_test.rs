@@ -19,7 +19,7 @@ use crate::build::dsl::brick_library::get_prototype;
 use crate::fabric::interval::{Role, Span};
 use crate::fabric::physics::presets::{BAKING, CONSTRUCTION};
 use crate::fabric::Fabric;
-use crate::physics_gpu::GpuBatch;
+use crate::physics_gpu::{GpuBatch, SlotFacts};
 use crate::units::Meters;
 
 const PARITY_TOLERANCE: f32 = 1e-3;
@@ -403,4 +403,44 @@ fn varied_batch_parity() {
         err_b < PARITY_TOLERANCE,
         "slot 1 (push): max error {err_b} exceeds {PARITY_TOLERANCE}"
     );
+}
+
+/// Phase 6: per-slot facts (centroid, bounding_radius, height) match
+/// CPU-computed equivalents.
+#[test]
+fn slot_facts_match_cpu() {
+    let Some((device, queue)) = create_headless_device() else {
+        eprintln!("No compute-capable adapter available; skipping.");
+        return;
+    };
+
+    let proto = get_prototype(BrickName::SingleTwistLeft);
+    let mut fabric = proto.to_fabric(BrickName::SingleTwistLeft.face_scaling());
+    let baking = BAKING.clone();
+    for _ in 0..25_000 {
+        fabric.iterate(&baking);
+    }
+
+    let physics = CONSTRUCTION.clone();
+    let batch = GpuBatch::parallelize(&device, &queue, &[&fabric], &physics);
+    batch.step(&device, &queue, 500);
+    let facts = batch.read_facts(&device, &queue);
+    assert_eq!(facts.len(), 1);
+
+    let mut cpu = fabric.clone();
+    for _ in 0..500 {
+        cpu.iterate(&physics);
+    }
+    let cpu_pos = cpu_positions(&cpu);
+    let cpu_facts = SlotFacts::from_positions(&cpu_pos);
+
+    let centroid_err = (facts[0].centroid - cpu_facts.centroid).length();
+    let radius_err = (facts[0].bounding_radius - cpu_facts.bounding_radius).abs();
+    let height_err = (facts[0].height - cpu_facts.height).abs();
+
+    eprintln!("facts: centroid_err={centroid_err:.3e} radius_err={radius_err:.3e} height_err={height_err:.3e}");
+
+    assert!(centroid_err < PARITY_TOLERANCE, "centroid {centroid_err}");
+    assert!(radius_err < PARITY_TOLERANCE, "bounding_radius {radius_err}");
+    assert!(height_err < PARITY_TOLERANCE, "height {height_err}");
 }

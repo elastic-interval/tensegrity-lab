@@ -11,7 +11,7 @@
 pub mod batch;
 pub mod params;
 
-pub use batch::GpuBatch;
+pub use batch::{GpuBatch, SlotFacts};
 pub use params::{GpuPhysicsConfig, PhysicsParams};
 
 #[cfg(test)]
