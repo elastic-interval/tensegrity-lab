@@ -15,4 +15,6 @@ pub use batch::GpuBatch;
 pub use params::{GpuPhysicsConfig, PhysicsParams};
 
 #[cfg(test)]
+mod parity_test;
+#[cfg(test)]
 mod smoke_test;

@@ -73,8 +73,27 @@ fn is_frozen() -> bool {
 // gives smallest representable mass 1e-4 grams = 0.1 micrograms.
 const MASS_SCALE: f32 = 1e4;
 
-// First half-kick + drift: v += 0.5*(F/m)*dt, x += v*dt
-// Mirrors the first two for-loops in Fabric::iterate.
+// Reset forces to zero and mass to ambient. Must run between
+// half_kick_and_drift (which consumes the previous iteration's
+// accumulated force and mass) and elastic_forces/push_forces (which
+// re-accumulate them at the new positions). Mirrors the CPU's
+// `joint.reset_with_mass(ambient_mass)` step in Fabric::iterate.
+@compute @workgroup_size(64)
+fn reset_forces_and_mass(@builtin(global_invocation_id) id: vec3<u32>) {
+    let idx = id.x;
+    if idx >= params.num_joints { return; }
+    atomicStore(&force_x[idx], 0);
+    atomicStore(&force_y[idx], 0);
+    atomicStore(&force_z[idx], 0);
+    atomicStore(&masses[idx], i32(params.ambient_mass * MASS_SCALE));
+}
+
+// First half-kick + drift: v += 0.5*(F/m)*dt, x += v*dt.
+// Reads force and mass that were accumulated during the previous
+// iteration's force passes — the Velocity Verlet "a(n) carried forward
+// from the end of step n" term. Mirrors the first two for-loops in
+// Fabric::iterate, which likewise use `joint.accumulated_mass` and
+// `joint.force` that were left untouched since the last iteration.
 @compute @workgroup_size(64)
 fn half_kick_and_drift(@builtin(global_invocation_id) id: vec3<u32>) {
     let idx = id.x;
@@ -103,10 +122,12 @@ fn half_kick_and_drift(@builtin(global_invocation_id) id: vec3<u32>) {
     positions[idx] = pos;
 }
 
-// Elastic forces. Matches Interval::iterate for pull-like roles:
-// slack when compressed (strain <= 0), otherwise F = k*strain*ideal
-// applied in full (±) to each endpoint, and half the dynamically
-// computed mass added to each endpoint's accumulated_mass.
+// Elastic forces. Matches Interval::iterate for pull-like roles.
+// Operation order mirrors the CPU exactly: unit vector by
+// component-wise division, then force_mag = k * (strain * ideal),
+// then force_vector = unit * force_mag. This matters — f32 ops
+// are not associative, and stiff pull systems amplify any last-bit
+// difference over hundreds of iterations.
 @compute @workgroup_size(64)
 fn elastic_forces(@builtin(global_invocation_id) id: vec3<u32>) {
     let idx = id.x;
@@ -124,11 +145,12 @@ fn elastic_forces(@builtin(global_invocation_id) id: vec3<u32>) {
     let dx = pos_o.x - pos_a.x;
     let dy = pos_o.y - pos_a.y;
     let dz = pos_o.z - pos_a.z;
-    let actual = sqrt(dx * dx + dy * dy + dz * dz);
+    let length_sq = dx * dx + dy * dy + dz * dz;
+    let actual = sqrt(length_sq);
     if actual < 0.0001 { return; }
 
-    // Mass contribution is independent of slack state — the cable
-    // still has mass even when slack.
+    // Mass contribution is unconditional of slack. Matches CPU
+    // `interval_mass = linear_density * actual_length; half_mass = /2`.
     let interval_mass = linear_density * actual;
     let half_mass_i = i32(interval_mass * 0.5 * MASS_SCALE);
     atomicAdd(&masses[a], half_mass_i);
@@ -137,11 +159,20 @@ fn elastic_forces(@builtin(global_invocation_id) id: vec3<u32>) {
     let strain = (actual - ideal) / ideal;
     if strain <= 0.0 { return; }
 
-    let force_mag = k * strain * ideal;
-    let inv_actual = 1.0 / actual;
-    let fx = force_mag * dx * inv_actual;
-    let fy = force_mag * dy * inv_actual;
-    let fz = force_mag * dz * inv_actual;
+    // CPU: unit.x = diff.x / length (one divide per component).
+    let ux = dx / actual;
+    let uy = dy / actual;
+    let uz = dz / actual;
+
+    // CPU: extension = strain * ideal; force = k * extension.
+    // In f32, (k * strain) * ideal != k * (strain * ideal).
+    let extension = strain * ideal;
+    let force_mag = k * extension;
+
+    // CPU: force_vector = unit * force (one multiply per component).
+    let fx = ux * force_mag;
+    let fy = uy * force_mag;
+    let fz = uz * force_mag;
 
     let ifx = i32(fx * params.force_scale);
     let ify = i32(fy * params.force_scale);
@@ -156,8 +187,10 @@ fn elastic_forces(@builtin(global_invocation_id) id: vec3<u32>) {
 }
 
 // Push forces. Matches Interval::iterate for Role::Pushing: slack when
-// STRETCHED (actual > ideal, i.e. the strut would need to be longer),
-// otherwise F = k*strain*ideal applied symmetrically.
+// STRETCHED (actual > ideal), otherwise F = k*strain*ideal applied
+// symmetrically. Operation order mirrors the CPU exactly for the same
+// reason as elastic_forces: stiff push struts amplify any f32 last-bit
+// difference over hundreds of iterations.
 @compute @workgroup_size(64)
 fn push_forces(@builtin(global_invocation_id) id: vec3<u32>) {
     let idx = id.x;
@@ -175,10 +208,11 @@ fn push_forces(@builtin(global_invocation_id) id: vec3<u32>) {
     let dx = pos_o.x - pos_a.x;
     let dy = pos_o.y - pos_a.y;
     let dz = pos_o.z - pos_a.z;
-    let actual = sqrt(dx * dx + dy * dy + dz * dz);
+    let length_sq = dx * dx + dy * dy + dz * dz;
+    let actual = sqrt(length_sq);
     if actual < 0.0001 { return; }
 
-    // Mass accumulation is unconditional.
+    // Mass accumulation is unconditional of slack.
     let interval_mass = linear_density * actual;
     let half_mass_i = i32(interval_mass * 0.5 * MASS_SCALE);
     atomicAdd(&masses[a], half_mass_i);
@@ -188,12 +222,17 @@ fn push_forces(@builtin(global_invocation_id) id: vec3<u32>) {
     // which is what the strut wants to resist.
     if actual > ideal { return; }
 
+    let ux = dx / actual;
+    let uy = dy / actual;
+    let uz = dz / actual;
+
     let strain = (actual - ideal) / ideal;
-    let force_mag = k * strain * ideal;
-    let inv_actual = 1.0 / actual;
-    let fx = force_mag * dx * inv_actual;
-    let fy = force_mag * dy * inv_actual;
-    let fz = force_mag * dz * inv_actual;
+    let extension = strain * ideal;
+    let force_mag = k * extension;
+
+    let fx = ux * force_mag;
+    let fy = uy * force_mag;
+    let fz = uz * force_mag;
 
     let ifx = i32(fx * params.force_scale);
     let ify = i32(fy * params.force_scale);
@@ -209,8 +248,10 @@ fn push_forces(@builtin(global_invocation_id) id: vec3<u32>) {
 
 // Second half-kick. Matches the post-intervals loop in Fabric::iterate:
 // first adds gravity (if present), then the second half velocity kick,
-// then quadratic viscosity, then linear drag — in that order — and
-// resets forces/mass for the next iteration.
+// then quadratic viscosity, then linear drag — in that order. Force
+// and mass buffers are NOT reset here; the next iteration's
+// half_kick_and_drift reads them as "a(n) from end of step n" before
+// reset_forces_and_mass wipes them for the new force pass.
 @compute @workgroup_size(64)
 fn second_half_kick(@builtin(global_invocation_id) id: vec3<u32>) {
     let idx = id.x;
@@ -226,13 +267,6 @@ fn second_half_kick(@builtin(global_invocation_id) id: vec3<u32>) {
     let fx = f32(atomicLoad(&force_x[idx])) / params.force_scale;
     let fy = f32(atomicLoad(&force_y[idx])) / params.force_scale;
     let fz = f32(atomicLoad(&force_z[idx])) / params.force_scale;
-
-    // Reset forces and mass for the next iteration, exactly as
-    // joint.reset_with_mass(ambient_mass) does on the CPU.
-    atomicStore(&force_x[idx], 0);
-    atomicStore(&force_y[idx], 0);
-    atomicStore(&force_z[idx], 0);
-    atomicStore(&masses[idx], i32(params.ambient_mass * MASS_SCALE));
 
     if is_frozen() { return; }
 

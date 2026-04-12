@@ -32,7 +32,15 @@ impl GpuPhysicsConfig {
             drag: physics.drag(),
             viscosity: physics.viscosity(),
             ambient_mass: fabric.ambient_mass().f32(),
-            force_scale: 1e4,
+            // Atomic-int quantization scale for forces. Tensegrity-lab
+            // spring constants produce per-interval forces up to a few
+            // ×1e9 N at realistic strains; force_scale = 1 gives an i32
+            // accumulator range of ±2.1e9 with quantization of 1 N per
+            // unit — tight enough that quantization error is far below
+            // f32 integrator noise, and large enough that headroom
+            // covers fabrics where joints receive multiple interval
+            // contributions. Chopstix's default of 1e4 would overflow.
+            force_scale: 1.0,
             ground_y: 0.0,
             speed_limit: 1000.0,
             surface_character: SURFACE_ABSENT,

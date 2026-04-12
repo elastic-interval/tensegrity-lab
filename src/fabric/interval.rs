@@ -19,7 +19,6 @@ use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointKey, Joints};
 use crate::units::{Meters, NewtonsPerMeter, Percent, Seconds, Unit};
 use crate::Age;
 use crate::Appearance;
-use fast_inv_sqrt::InvSqrt32;
 use glam::Vec3;
 
 impl Fabric {
@@ -722,9 +721,9 @@ impl Interval {
         if magnitude_squared < 0.00001 {
             return 0.00001;
         }
-        let inverse_square_root = magnitude_squared.inv_sqrt32();
-        self.unit *= inverse_square_root;
-        1.0 / inverse_square_root
+        let length = magnitude_squared.sqrt();
+        self.unit /= length;
+        length
     }
 
     pub fn length(&self, joints: &Joints) -> f32 {

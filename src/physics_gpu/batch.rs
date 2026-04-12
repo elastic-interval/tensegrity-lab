@@ -151,6 +151,7 @@ pub struct GpuBatch {
     push_bind_group: wgpu::BindGroup,
 
     half_kick_pipeline: wgpu::ComputePipeline,
+    reset_pipeline: wgpu::ComputePipeline,
     elastic_forces_pipeline: wgpu::ComputePipeline,
     push_forces_pipeline: wgpu::ComputePipeline,
     second_half_kick_pipeline: wgpu::ComputePipeline,
@@ -431,6 +432,7 @@ impl GpuBatch {
             params_bind_group,
             push_bind_group,
             half_kick_pipeline: make_pipeline("half_kick_and_drift"),
+            reset_pipeline: make_pipeline("reset_forces_and_mass"),
             elastic_forces_pipeline: make_pipeline("elastic_forces"),
             push_forces_pipeline: make_pipeline("push_forces"),
             second_half_kick_pipeline: make_pipeline("second_half_kick"),
@@ -486,6 +488,9 @@ impl GpuBatch {
 
             for _ in 0..iterations {
                 pass.set_pipeline(&self.half_kick_pipeline);
+                pass.dispatch_workgroups(joint_groups, 1, 1);
+
+                pass.set_pipeline(&self.reset_pipeline);
                 pass.dispatch_workgroups(joint_groups, 1, 1);
 
                 if elastic_groups > 0 {
