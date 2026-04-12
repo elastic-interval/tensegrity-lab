@@ -578,6 +578,25 @@ impl GpuBatch {
     }
 }
 
+/// Run a whole generation of fabrics in one GPU dispatch. Each fabric
+/// is stepped for `duration` of fabric time under the given `physics`,
+/// then per-slot facts are read back. This is the core pattern for
+/// GPU-accelerated evolution: build/mutate fabrics on the CPU, step
+/// them in parallel on the GPU, evaluate fitness from the returned
+/// facts on the CPU.
+pub fn run_generation(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    fabrics: &[&Fabric],
+    physics: &Physics,
+    duration: crate::units::Seconds,
+) -> Vec<SlotFacts> {
+    let iterations = (duration.f32() / crate::Age::iteration_duration()) as u32;
+    let batch = GpuBatch::parallelize(device, queue, fabrics, physics);
+    batch.step(device, queue, iterations);
+    batch.read_facts(device, queue)
+}
+
 /// Per-slot summary computed from joint positions after stepping.
 #[derive(Clone, Debug)]
 pub struct SlotFacts {

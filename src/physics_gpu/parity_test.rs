@@ -19,7 +19,8 @@ use crate::build::dsl::brick_library::get_prototype;
 use crate::fabric::interval::{Role, Span};
 use crate::fabric::physics::presets::{BAKING, CONSTRUCTION};
 use crate::fabric::Fabric;
-use crate::physics_gpu::{GpuBatch, SlotFacts};
+use crate::physics_gpu::{run_generation, GpuBatch, SlotFacts};
+use crate::units::Seconds;
 use crate::units::Meters;
 
 const PARITY_TOLERANCE: f32 = 1e-3;
@@ -402,6 +403,68 @@ fn varied_batch_parity() {
     assert!(
         err_b < PARITY_TOLERANCE,
         "slot 1 (push): max error {err_b} exceeds {PARITY_TOLERANCE}"
+    );
+}
+
+/// Phase 7: `run_generation` evaluates a population of fabrics in one
+/// GPU dispatch and returns per-slot facts. This simulates the core
+/// evolution pattern: build varied structures on CPU, step them all
+/// on GPU, read back facts for fitness evaluation on CPU.
+#[test]
+fn run_generation_returns_meaningful_facts() {
+    let Some((device, queue)) = create_headless_device() else {
+        eprintln!("No compute-capable adapter available; skipping.");
+        return;
+    };
+
+    // Build a small "population" of 5 fabric variants.
+    let mut fabrics: Vec<Fabric> = Vec::new();
+
+    for i in 0..5 {
+        let mut f = Fabric::new(format!("pop-{i}"));
+        let spread = 0.8 + i as f32 * 0.1;
+        let a = f.create_joint(Vec3::new(0.0, 0.0, 0.0));
+        let b = f.create_joint(Vec3::new(spread, 0.0, 0.0));
+        let c = f.create_joint(Vec3::new(spread * 0.5, spread * 0.866, 0.0));
+        let ideal = Meters(spread * 0.85);
+        f.create_fixed_interval(a, b, Role::Pulling, ideal);
+        f.create_fixed_interval(b, c, Role::Pulling, ideal);
+        f.create_fixed_interval(c, a, Role::Pulling, ideal);
+        fabrics.push(f);
+    }
+
+    let refs: Vec<&Fabric> = fabrics.iter().collect();
+    let physics = CONSTRUCTION.clone();
+
+    // 500 iterations × 50µs = 25ms of fabric time
+    let facts = run_generation(&device, &queue, &refs, &physics, Seconds(0.025));
+    assert_eq!(facts.len(), 5);
+
+    for (i, fact) in facts.iter().enumerate() {
+        assert!(
+            fact.centroid.is_finite(),
+            "slot {i}: centroid not finite"
+        );
+        assert!(
+            fact.bounding_radius > 0.0 && fact.bounding_radius.is_finite(),
+            "slot {i}: bounding_radius {}", fact.bounding_radius
+        );
+        assert!(
+            fact.height.is_finite(),
+            "slot {i}: height not finite"
+        );
+        eprintln!(
+            "slot {i}: centroid={:?} radius={:.4} height={:.4}",
+            fact.centroid, fact.bounding_radius, fact.height
+        );
+    }
+
+    // Each variant has a different spread so bounding radii should differ.
+    let radii: Vec<f32> = facts.iter().map(|f| f.bounding_radius).collect();
+    let all_same = radii.windows(2).all(|w| (w[0] - w[1]).abs() < 1e-6);
+    assert!(
+        !all_same,
+        "all 5 variants produced the same bounding radius — mutations had no effect"
     );
 }
 
