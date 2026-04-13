@@ -192,19 +192,51 @@ Carried forward from the previous revision, still non-negotiable:
 5. **Compile-time feature flag or runtime env var?** Lean runtime, default off.
 6. **Fate of `../chopstix`?** Archive, scratch pad, or delete?
 
-## 12. Out of scope
+## 12. Live GPU physics in the application
+
+Press **G** while in **Viewing** mode to switch the current fabric to GPU-accelerated physics. This is a one-way transition: the fabric's positions are now driven by the GPU compute pipeline, and the CPU fabric becomes a read-only mirror updated via position readback each frame.
+
+### How it works
+
+1. `GpuBatch::parallelize` uploads the settled fabric's joints, intervals, and physics to the GPU (using the main wgpu device shared with the renderer).
+2. Each frame, `batch.step()` runs the GPU compute pipeline for the iteration count demanded by the current time scale.
+3. `batch.read_positions()` copies joint positions back to CPU (~1.5 KB for an OpenClaw).
+4. The application writes these positions into `Joint::location` on the CPU fabric.
+5. The renderer picks up the updated locations and draws as usual.
+
+### What goes stale after the switch
+
+Once GPU physics is active, the following CPU-side fields are **not updated** because they are computed inside `Fabric::iterate()` or `Interval::iterate()` which no longer runs:
+
+| Field | Where | Impact |
+|---|---|---|
+| `Interval::strain` | `interval.rs` | Interval strain display (click-to-inspect) shows the last CPU value, not the current GPU-computed strain |
+| `Interval::unit` | `interval.rs` | Direction vector used by CPU force calculation; irrelevant since forces are now on GPU |
+| `Fabric::stats` (IterationStats) | `fabric/mod.rs` | Max speed, average strain, kinetic energy — all stale |
+| `Fabric::age` | `fabric/mod.rs` | The CPU age counter stops ticking; GPU time is tracked only by iteration count |
+| `Joint::velocity` | `joint.rs` | CPU velocities are stale; GPU has the real velocities but they aren't read back (only positions are) |
+| `Joint::force` | `joint.rs` | Same — forces live on GPU only |
+| `Joint::accumulated_mass` | `joint.rs` | Mass accumulation happens on GPU; CPU value is stale |
+
+**For interactive viewing** (watching the structure move, camera control, rotation), none of these matter — rendering depends only on `Joint::location`.
+
+**For detailed inspection** (clicking an interval to see strain, reading stats), the stale values would be misleading. A future enhancement could recompute strains from readback positions on the CPU, or read back velocities alongside positions. Neither is needed for the initial GPU experience.
+
+### Returning to CPU physics
+
+There is no "switch back" — once GPU physics is active, the CPU fabric's velocities, forces, and mass state are stale. Pressing **Enter** (rebuild fabric) clears the GPU batch and rebuilds from scratch on the CPU.
+
+## 13. Out of scope
 
 - GPU baking. Oven stays CPU.
 - GPU-side building, brick assembly, or DSL execution. CPU does all of this.
-- Mid-run topology changes. Freeze means freeze.
+- Mid-run topology changes. Parallelize means freeze topology.
 - Rigid push (SHAKE/RATTLE). Spring-push only, matching CPU.
 - wasm/webgl backend for GPU physics. Native first.
 - Replacing the CPU path. CPU is reference, forever.
 - Refactoring `Fabric`, `Joint`, `Interval`, `Role`, `Span`, or the oven.
-- Porting chopstix's Sphere/Klein/Möbius demos.
-- Fixing chopstix's brick/face/executor drift. That code is being retired.
 
-## 13. Where this doc came from
+## 14. Where this doc came from
 
 Written by Claude (Opus 4.6) on 2026-04-11. The doc went through three drafts in one session as Gerald refined what he actually wanted:
 

@@ -734,6 +734,8 @@ pub enum LabEvent {
     AdjustTimeScale(f32),
     SetTimeScale(f32),
     #[cfg(not(target_arch = "wasm32"))]
+    ToGpuPhysics,
+    #[cfg(not(target_arch = "wasm32"))]
     ToggleAnimationExport,
     #[cfg(not(target_arch = "wasm32"))]
     ExportSnapshot,

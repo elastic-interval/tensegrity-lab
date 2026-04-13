@@ -43,7 +43,7 @@ struct Params {
     num_slots: u32,
     speed_limit: f32,
     surface_character: u32,
-    _pad0: u32,
+    surface_scale: f32,
     _pad1: u32,
     _pad2: u32,
 }
@@ -234,25 +234,95 @@ fn second_half_kick(@builtin(global_invocation_id) id: vec3<u32>) {
     vel.y += 0.5 * fy * inv_m * params.dt;
     vel.z += 0.5 * fz * inv_m * params.dt;
 
-    let speed_sq = vel.x * vel.x + vel.y * vel.y + vel.z * vel.z;
-    let viscosity_factor = 1.0 - speed_sq * params.viscosity * params.dt;
-    vel.x *= viscosity_factor;
-    vel.y *= viscosity_factor;
-    vel.z *= viscosity_factor;
+    // Damping: only applied when no surface, or when the joint is above
+    // the surface tolerance. Below the surface, ground_collision handles
+    // its own friction model. Matches the CPU's apply_damping_and_surface
+    // branching on `self.location.y > surface_tolerance`.
+    let surface_tolerance = 0.01 * params.surface_scale;
+    let above_surface = params.surface_character == 0u || positions[gj].y > surface_tolerance;
+    if above_surface {
+        let speed_sq = vel.x * vel.x + vel.y * vel.y + vel.z * vel.z;
+        let viscosity_factor = 1.0 - speed_sq * params.viscosity * params.dt;
+        vel.x *= viscosity_factor;
+        vel.y *= viscosity_factor;
+        vel.z *= viscosity_factor;
 
-    let drag_factor = 1.0 - params.drag * params.dt;
-    vel.x *= drag_factor;
-    vel.y *= drag_factor;
-    vel.z *= drag_factor;
+        let drag_factor = 1.0 - params.drag * params.dt;
+        vel.x *= drag_factor;
+        vel.y *= drag_factor;
+        vel.z *= drag_factor;
+    }
 
     check_speed_limit_slot(vec3<f32>(vel.x, vel.y, vel.z), slot);
     velocities[gj] = vel;
 }
 
+// Ground collision / surface interaction. Mirrors Surface::interact in
+// physics.rs for joints at or below the surface tolerance. Joints above
+// the surface are untouched here — their damping was already handled
+// in second_half_kick.
 @compute @workgroup_size(64)
 fn ground_collision(@builtin(global_invocation_id) id: vec3<u32>) {
     let local = id.x;
     let slot = id.y;
     if local >= params.max_joints || slot_frozen(slot) { return; }
     if params.surface_character == 0u { return; }
+
+    let gj = slot * params.max_joints + local;
+    var pos = positions[gj];
+    let surface_tolerance = 0.01 * params.surface_scale;
+    if pos.y > surface_tolerance { return; }
+
+    var vel = velocities[gj];
+    let depth = -pos.y;
+    let submersion_ref = params.surface_scale;
+    let degree_submerged = min(depth / submersion_ref, 1.0);
+    let m = f32(atomicLoad(&masses[gj])) / MASS_SCALE;
+
+    switch params.surface_character {
+        case 1u: { // bouncy
+            if vel.y < 0.0 {
+                vel.y *= -0.5;
+            }
+            vel.x *= 0.6;
+            vel.z *= 0.6;
+            let antigravity = params.gravity * m * degree_submerged * 5.0;
+            vel.y += antigravity * params.dt;
+        }
+        case 2u: { // frozen
+            vel = vec4<f32>(0.0, 0.0, 0.0, 0.0);
+            pos.y = 0.0;
+        }
+        case 3u: { // sticky
+            let friction = select(1.0 - params.drag * params.dt, 0.8, vel.y < 0.0);
+            vel.x *= friction;
+            vel.z *= friction;
+            let antigravity = params.gravity * m * degree_submerged * 50.0;
+            vel.y += antigravity * params.dt;
+            if vel.y < 0.0 {
+                vel.y *= 0.5;
+            }
+            let max_depth = 0.1 * params.surface_scale;
+            if depth > max_depth {
+                pos.y = -max_depth;
+                vel.y = 0.0;
+            }
+        }
+        case 4u: { // slippery
+            pos.y = 0.0;
+            vel.y = 0.0;
+            let speed_h = sqrt(vel.x * vel.x + vel.z * vel.z);
+            let surface_damping = 50.0;
+            let lin_fric = 1.0 - ((surface_damping + params.drag) * params.dt
+                + surface_damping * params.viscosity * speed_h * params.dt);
+            let quad_fric = 1.0 - 2.0 * speed_h * speed_h * params.dt;
+            let total = max(lin_fric * max(quad_fric, 0.0), 0.0);
+            vel.x *= total;
+            vel.z *= total;
+        }
+        default: {}
+    }
+
+    positions[gj] = pos;
+    velocities[gj] = vel;
 }

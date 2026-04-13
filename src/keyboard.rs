@@ -95,6 +95,13 @@ impl Keyboard {
             Crucible(ToPhysicsTesting),
             Box::new(|state| matches!(state, Viewing { .. })),
         );
+        #[cfg(not(target_arch = "wasm32"))]
+        self.key_lab_event(
+            KeyCode::KeyG,
+            "GPU Physics",
+            LabEvent::ToGpuPhysics,
+            Box::new(|state| matches!(state, Viewing { .. })),
+        );
         self.tweak_parameter(
             "M",
             "m",

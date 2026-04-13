@@ -13,10 +13,26 @@ pub struct GpuPhysicsConfig {
     pub ground_y: f32,
     pub speed_limit: f32,
     pub surface_character: u32,
+    pub surface_scale: f32,
 }
 
 impl GpuPhysicsConfig {
     pub fn from_fabric(fabric: &Fabric, physics: &Physics) -> Self {
+        // Surface character mapping matches the WGSL switch in ground_collision:
+        // 0=absent, 1=bouncy, 2=frozen, 3=sticky, 4=slippery.
+        let (surface_character, surface_scale) = match &physics.surface {
+            None => (0, 1.0),
+            Some(surface) => {
+                use crate::fabric::physics::SurfaceCharacter::*;
+                let character = match surface.character {
+                    Bouncy => 1,
+                    Frozen => 2,
+                    Sticky => 3,
+                    Slippery => 4,
+                };
+                (character, surface.scale)
+            }
+        };
         Self {
             dt: crate::Age::iteration_duration(),
             gravity: if physics.surface.is_some() {
@@ -30,12 +46,11 @@ impl GpuPhysicsConfig {
             force_scale: 1.0,
             ground_y: 0.0,
             speed_limit: 1000.0,
-            surface_character: SURFACE_ABSENT,
+            surface_character,
+            surface_scale,
         }
     }
 }
-
-pub const SURFACE_ABSENT: u32 = 0;
 
 /// Byte-identical mirror of the WGSL `Params` struct.
 /// 16 slots × 4 bytes = 64 bytes. Do not reorder.
@@ -55,7 +70,7 @@ pub struct PhysicsParams {
     pub num_slots: u32,
     pub speed_limit: f32,
     pub surface_character: u32,
-    pub _pad0: u32,
+    pub surface_scale: f32,
     pub _pad1: u32,
     pub _pad2: u32,
 }
@@ -82,7 +97,7 @@ impl PhysicsParams {
             num_slots,
             speed_limit: config.speed_limit,
             surface_character: config.surface_character,
-            _pad0: 0,
+            surface_scale: config.surface_scale,
             _pad1: 0,
             _pad2: 0,
         }

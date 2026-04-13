@@ -1,5 +1,7 @@
 #[cfg(not(target_arch = "wasm32"))]
 use crate::animation_export::AnimationExporter;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::physics_gpu::GpuBatch;
 use crate::build::algo::klein::generate_klein;
 use crate::build::algo::mobius::generate_mobius;
 use crate::build::algo::tensegrity_sphere::generate_sphere;
@@ -44,6 +46,8 @@ pub struct Application {
     animation_exporter: Option<AnimationExporter>,
     #[cfg(not(target_arch = "wasm32"))]
     record_until: Option<Seconds>,
+    #[cfg(not(target_arch = "wasm32"))]
+    gpu_batch: Option<GpuBatch>,
     snapshot_moment: Option<SnapshotMoment>,
 }
 
@@ -80,6 +84,8 @@ impl Application {
             animation_exporter: None,
             #[cfg(not(target_arch = "wasm32"))]
             record_until: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            gpu_batch: None,
             snapshot_moment: None,
         }
     }
@@ -283,7 +289,8 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.crucible.action(crucible_action);
             }
             RebuildFabric => {
-                // Rebuild the current fabric with updated physics parameters
+                #[cfg(not(target_arch = "wasm32"))]
+                { self.gpu_batch = None; }
                 Run(self.run_style.clone()).send(&self.radio);
             }
             NextBrick => {
@@ -416,6 +423,22 @@ impl ApplicationHandler<LabEvent> for Application {
                     Err(e) => {
                         eprintln!("Snapshot error: {}", e);
                         StateChange::SetStageLabel("Snapshot error".to_string()).send(&self.radio);
+                    }
+                }
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            ToGpuPhysics => {
+                if self.gpu_batch.is_none() {
+                    if let Some(scene) = &self.scene {
+                        let physics = self.crucible.physics.clone();
+                        let batch = GpuBatch::parallelize(
+                            &scene.wgpu.device,
+                            &scene.wgpu.queue,
+                            &[&self.crucible.fabric],
+                            &physics,
+                        );
+                        self.gpu_batch = Some(batch);
+                        StateChange::SetStageLabel("GPU Physics".to_string()).send(&self.radio);
                     }
                 }
             }
@@ -586,6 +609,19 @@ impl ApplicationHandler<LabEvent> for Application {
             };
 
             if iterations_per_frame > 0 {
+                #[cfg(not(target_arch = "wasm32"))]
+                if let Some(batch) = &self.gpu_batch {
+                    if let Some(scene) = &self.scene {
+                        batch.step(&scene.wgpu.device, &scene.wgpu.queue, iterations_per_frame as u32);
+                        let positions = batch.read_positions(&scene.wgpu.device, &scene.wgpu.queue);
+                        for (joint, pos) in self.crucible.fabric.joints.values_mut().zip(positions.iter()) {
+                            joint.location = *pos;
+                        }
+                    }
+                } else {
+                    self.crucible.iterate(iterations_per_frame);
+                }
+                #[cfg(target_arch = "wasm32")]
                 self.crucible.iterate(iterations_per_frame);
             }
 

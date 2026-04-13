@@ -13,7 +13,7 @@ use std::rc::Rc;
 use winit::dpi::PhysicalSize;
 
 pub struct Scene {
-    wgpu: Wgpu,
+    pub wgpu: Wgpu,
     camera: Camera,
     sky_renderer: SkyRenderer,
     fabric_renderer: FabricRenderer,

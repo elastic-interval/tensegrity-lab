@@ -116,20 +116,11 @@ impl Wgpu {
             })
             .await
             .expect("Failed to find an appropriate adapter");
-        // Create the logical device and command queue
-        // Make sure we use the texture resolution limits from the adapter, so we can support images the size of the swap chain.
-        let mut required_limits = wgpu::Limits::default();
-        required_limits.max_storage_textures_per_shader_stage = 0;
-        required_limits.max_storage_buffers_per_shader_stage = 0;
-        required_limits.max_dynamic_storage_buffers_per_pipeline_layout = 0;
-        required_limits.max_compute_workgroups_per_dimension = 0;
-        required_limits.max_compute_workgroup_size_x = 0;
-        required_limits.max_compute_workgroup_size_y = 0;
-        required_limits.max_compute_workgroup_size_z = 0;
-        required_limits.max_compute_invocations_per_workgroup = 0;
-        required_limits.max_compute_workgroup_storage_size = 0;
-        required_limits.max_storage_buffer_binding_size = 0;
-        required_limits.max_uniform_buffer_binding_size = 16384;
+        // Create the logical device and command queue.
+        // Use adapter's actual limits so the device supports both rendering
+        // and GPU compute (physics_gpu module). The adapter reports what
+        // the hardware can do; we request all of it.
+        let required_limits = adapter.limits();
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
