@@ -1,4 +1,5 @@
-use glam::Vec3;
+use glam::{Mat3, Vec3};
+use std::f32::consts::FRAC_PI_2;
 use std::fs::File;
 use std::io::{self, Write};
 use std::path::Path;
@@ -7,6 +8,17 @@ use crate::fabric::attachment::HingeBend;
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, FabricDimensions, IntervalEnd, IntervalKey, JointKey};
 use crate::units::{Unit, MM_PER_METER};
+
+/// Rotation from simulation space (Y-up) to CSV space (Z-up, RFEM/Rhino).
+///
+/// Verified against OpenClawA grav_pretenst data: in sim space the vertical
+/// extent is clearly in `.y` (feet at 0, top at ~7 m), while `.x` and `.z`
+/// are horizontal. A +90° rotation about X sends sim +Y → csv +Z, so the
+/// vertical extent lands in the CSV's Z column. Sim +Z → csv −Y keeps the
+/// transform a pure right-handed rotation.
+fn sim_to_csv() -> Mat3 {
+    Mat3::from_rotation_x(FRAC_PI_2)
+}
 
 impl Fabric {
     /// Export fabric intervals to CSV with hinge positions and angles.
@@ -26,11 +38,28 @@ impl Fabric {
         let mut file = File::create(path)?;
 
         let dimensions = &self.dimensions;
+        let to_csv = sim_to_csv();
         let height_mm = self
             .joints
             .values()
             .fold(0.0f32, |h, joint| h.max(joint.location.y))
             * MM_PER_METER;
+
+        // Collect every joint with its CSV-space (rotated, mm) position and
+        // its path identifier so we can record the three lowest points and
+        // the single highest one as header comments. Lowest/highest here is
+        // measured along the CSV-space vertical axis (Z), which — after the
+        // sim→csv rotation — equals simulation Y.
+        let joints_csv: Vec<(String, Vec3)> = self
+            .joints
+            .values()
+            .map(|j| (j.path.to_string(), to_csv * (j.location * MM_PER_METER)))
+            .collect();
+        let mut sorted_by_z = joints_csv.clone();
+        sorted_by_z.sort_by(|a, b| a.1.z.partial_cmp(&b.1.z).unwrap_or(std::cmp::Ordering::Equal));
+        let lowest_three: Vec<&(String, Vec3)> = sorted_by_z.iter().take(3).collect();
+        let highest_one: &(String, Vec3) = sorted_by_z.last().expect("fabric has at least one joint");
+
         let now = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
 
         // Header comments
@@ -39,6 +68,26 @@ impl Fabric {
             file,
             "# {}, Phase: {}, Height: {:.1}mm, Created: {}",
             self.name, phase_str, height_mm, now
+        )?;
+        // Orientation check: coordinates below are all in CSV space (Z-up).
+        // If the engineer sees the three "lowest" joints at the bottom of the
+        // model and the single "highest" at the top, the export is correct.
+        writeln!(
+            file,
+            "# Orientation check (CSV coords, mm, Z-up): ground plane at Z=0, apex at Z={:.1}",
+            highest_one.1.z
+        )?;
+        for (i, (path, pos)) in lowest_three.iter().enumerate() {
+            writeln!(
+                file,
+                "# Lowest[{}]: joint={} X={:.1} Y={:.1} Z={:.1}",
+                i + 1, path, pos.x, pos.y, pos.z
+            )?;
+        }
+        writeln!(
+            file,
+            "# Highest:   joint={} X={:.1} Y={:.1} Z={:.1}",
+            highest_one.0, highest_one.1.x, highest_one.1.y, highest_one.1.z
         )?;
         write_dimensions_comments(&mut file, &self.dimensions)?;
         writeln!(file, "Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaJoint,AlphaSlot,AlphaAngle,OmegaX,OmegaY,OmegaZ,OmegaJoint,OmegaSlot,OmegaAngle")?;
@@ -225,8 +274,8 @@ impl Fabric {
             if info.is_push {
                 let alpha_joint = &self.joints[interval.alpha_key];
                 let omega_joint = &self.joints[interval.omega_key];
-                let alpha = alpha_joint.location * MM_PER_METER;
-                let omega = omega_joint.location * MM_PER_METER;
+                let alpha = to_csv * (alpha_joint.location * MM_PER_METER);
+                let omega = to_csv * (omega_joint.location * MM_PER_METER);
                 writeln!(
                     file,
                     "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},{},0,90.000,{:.3},{:.3},{:.3},{},0,90.000",
@@ -256,7 +305,7 @@ impl Fabric {
                 let (alpha_pos, alpha_joint_path, alpha_slot, alpha_bend) =
                     if let Some((pull_end_pos, _, joint_key, slot, bend)) = alpha_info {
                         (
-                            *pull_end_pos * MM_PER_METER,
+                            to_csv * (*pull_end_pos * MM_PER_METER),
                             self.joints[*joint_key].path.to_string(),
                             *slot,
                             Some(*bend),
@@ -264,7 +313,7 @@ impl Fabric {
                     } else {
                         let joint = &self.joints[interval.alpha_key];
                         (
-                            joint.location * MM_PER_METER,
+                            to_csv * (joint.location * MM_PER_METER),
                             joint.path.to_string(),
                             0,
                             None,
@@ -274,7 +323,7 @@ impl Fabric {
                 let (omega_pos, omega_joint_path, omega_slot, omega_bend) =
                     if let Some((pull_end_pos, _, joint_key, slot, bend)) = omega_info {
                         (
-                            *pull_end_pos * MM_PER_METER,
+                            to_csv * (*pull_end_pos * MM_PER_METER),
                             self.joints[*joint_key].path.to_string(),
                             *slot,
                             Some(*bend),
@@ -282,7 +331,7 @@ impl Fabric {
                     } else {
                         let joint = &self.joints[interval.omega_key];
                         (
-                            joint.location * MM_PER_METER,
+                            to_csv * (joint.location * MM_PER_METER),
                             joint.path.to_string(),
                             0,
                             None,
@@ -465,8 +514,8 @@ impl Fabric {
         for fea in &fea_infos {
             current_index += 1;
             let role_str = if fea.is_push { "push-fea" } else { "pull-fea" };
-            let alpha_mm = fea.alpha_pos * MM_PER_METER;
-            let omega_mm = fea.omega_pos * MM_PER_METER;
+            let alpha_mm = to_csv * (fea.alpha_pos * MM_PER_METER);
+            let omega_mm = to_csv * (fea.omega_pos * MM_PER_METER);
 
             writeln!(
                 file,
@@ -542,8 +591,8 @@ impl Fabric {
 
                 // Axial link: previous position → ring center
                 link_index += 1;
-                let prev_mm = prev_pos * MM_PER_METER;
-                let ring_mm = ring_center * MM_PER_METER;
+                let prev_mm = to_csv * (prev_pos * MM_PER_METER);
+                let ring_mm = to_csv * (ring_center * MM_PER_METER);
                 let axial_length = (ring_center - prev_pos).length();
                 writeln!(
                     file,
@@ -555,7 +604,7 @@ impl Fabric {
 
                 // Radial link: ring center → hinge
                 link_index += 1;
-                let hinge_mm = *hinge_pos * MM_PER_METER;
+                let hinge_mm = to_csv * (*hinge_pos * MM_PER_METER);
                 let radial_length = (*hinge_pos - ring_center).length();
                 writeln!(
                     file,
@@ -567,7 +616,7 @@ impl Fabric {
 
                 // Hinge link: hinge → pull_end (along pull direction)
                 link_index += 1;
-                let pull_end_mm = *pull_end_pos * MM_PER_METER;
+                let pull_end_mm = to_csv * (*pull_end_pos * MM_PER_METER);
                 let hinge_link_length = (*pull_end_pos - *hinge_pos).length();
                 writeln!(
                     file,
