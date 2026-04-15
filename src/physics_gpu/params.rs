@@ -45,7 +45,10 @@ impl GpuPhysicsConfig {
             ambient_mass: fabric.ambient_mass().f32(),
             force_scale: 1.0,
             ground_y: 0.0,
-            speed_limit: 1000.0,
+            // High sanity bound (NaN / runaway catch), not a physics parameter.
+            // Now that quadratic damping is unconditionally stable, routine
+            // transients stay orders of magnitude below this.
+            speed_limit: 10_000.0,
             surface_character,
             surface_scale,
         }

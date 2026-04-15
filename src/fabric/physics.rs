@@ -64,11 +64,14 @@ impl Surface {
         let submersion_reference = self.scale; // 1m at scale 1.0
 
         if s.altitude > surface_tolerance {
-            // Above surface - apply gravity and standard physics
-            // gravity is m/s², dt is seconds, result is m/s velocity change
+            // Above surface - apply gravity and standard physics.
+            // Unconditionally stable quadratic damping: v' = v / (1 + speed^2 · visc · dt).
+            // Original was `v += force - v*speed^2*visc*dt`, i.e. damp then add force.
+            // New form preserves that ordering: damp v, then add force_velocity.
             velocity.y -= gravity * s.dt;
             let speed_squared = velocity.length_squared();
-            velocity += s.force_velocity - velocity * speed_squared * s.viscosity * s.dt;
+            velocity /= 1.0 + speed_squared * s.viscosity * s.dt;
+            velocity += s.force_velocity;
             velocity *= 1.0 - s.drag * s.dt;
         } else {
             // On or below surface

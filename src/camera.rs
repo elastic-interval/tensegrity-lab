@@ -242,6 +242,23 @@ impl Camera {
         });
     }
 
+    pub fn set_position(&mut self, position: Vec3, look_at: Vec3) {
+        self.position = position;
+        self.look_at = look_at;
+        self.last_ray_origin = position;
+        self.initialized = true;
+    }
+
+    /// Set camera position and prevent the approach animation from
+    /// overriding it. Used for scripted camera placements like the
+    /// sphere drop view.
+    pub fn set_position_and_hold(&mut self, position: Vec3, look_at: Vec3) {
+        self.set_position(position, look_at);
+        self.set_target(Target::FabricMidpoint);
+        // Mark approach as complete so animate() doesn't move us.
+        CAMERA_APPROACHING.with(|state| *state.borrow_mut() = false);
+    }
+
     /// Jump camera to ideal viewing position for the given fabric
     pub fn jump_to_fabric(&mut self, fabric: &Fabric) {
         self.current_pick = Pick::Nothing;

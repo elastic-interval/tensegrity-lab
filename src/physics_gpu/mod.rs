@@ -18,3 +18,5 @@ pub use params::{GpuPhysicsConfig, PhysicsParams};
 mod parity_test;
 #[cfg(test)]
 mod smoke_test;
+#[cfg(test)]
+mod sphere_sweep_test;

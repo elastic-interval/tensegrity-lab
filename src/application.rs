@@ -219,6 +219,13 @@ impl ApplicationHandler<LabEvent> for Application {
                     self.radio.clone(),
                     self.model_scale,
                 ));
+                // A `Run(Sphere)` queued from main.rs fires before this
+                // event, so the Sphere handler saw scene=None and bailed.
+                // Retry now that the scene (and its wgpu device/queue) is
+                // available. Sphere is GPU-only and cannot run otherwise.
+                if let RunStyle::Sphere { .. } = &self.run_style {
+                    LabEvent::Run(self.run_style.clone()).send(&self.radio);
+                }
             }
             Run(run_style) => {
                 self.run_style = run_style;
@@ -258,8 +265,189 @@ impl ApplicationHandler<LabEvent> for Application {
                         self.crucible.action(CrucibleAction::ToEvolving(*seed));
                     }
                     RunStyle::Sphere { frequency, radius } => {
-                        let fabric = generate_sphere(*frequency, *radius);
-                        self.crucible.action(CrucibleAction::LoadAlgoFabric(fabric));
+                        use crate::fabric::interval::{Role, Span};
+                        use crate::fabric::physics::{presets, Surface, SurfaceCharacter};
+                        use crate::fabric::physics_tester::PhysicsTester;
+                        use crate::crucible::Stage;
+                        use crate::units::{Grams, GramsPerMeter, Meters, Seconds, Unit};
+
+                        // GPU-only algorithmic sphere: no CPU iteration anywhere.
+                        // CPU path freezes at frequency ≥ 10 when MAX_SPEED_SQUARED
+                        // is exceeded; GPU handles much higher frequencies with a
+                        // 1/√f pretension scaling law.
+                        let Some(scene) = &mut self.scene else {
+                            eprintln!("[sphere] scene not yet initialised; skipping");
+                            return;
+                        };
+                        let device = scene.wgpu.device.clone();
+                        let queue = scene.wgpu.queue.clone();
+
+                        let mut fabric = generate_sphere(*frequency, *radius);
+                        fabric.dimensions = fabric
+                            .dimensions
+                            .with_joint_mass(Grams(2.0))
+                            .with_push_density(GramsPerMeter(3.0));
+                        println!(
+                            "[sphere-gpu] freq={} joints={} intervals={} bound_r(initial)={:.3}",
+                            frequency,
+                            fabric.joints.len(),
+                            fabric.intervals.len(),
+                            fabric.bounding_radius()
+                        );
+
+                        // 1/√f pretension scaling — keeps per-joint strain energy
+                        // roughly constant as frequency rises.
+                        let f = *frequency as f32;
+                        let push_pretension = 1.0 + 0.10 / f.sqrt();
+                        let pull_pretension = 1.0 - 0.05 / f.sqrt();
+                        let approach_duration = Seconds(2.0);
+                        let settle_duration = Seconds(1.0);
+
+                        let cable_actuals: Vec<(crate::fabric::IntervalKey, f32)> = fabric
+                            .intervals
+                            .iter()
+                            .filter(|(_, i)| i.role != Role::Pushing)
+                            .map(|(k, i)| {
+                                let a = fabric.joints[i.alpha_key].location;
+                                let o = fabric.joints[i.omega_key].location;
+                                (k, (o - a).length())
+                            })
+                            .collect();
+                        let age = fabric.age;
+                        for interval in fabric.intervals.values_mut() {
+                            if interval.role == Role::Pushing {
+                                if let Span::Fixed { length } = interval.span {
+                                    interval.span = Span::Approaching {
+                                        start_length: length,
+                                        target_length: Meters(length.f32() * push_pretension),
+                                        start_age: age,
+                                        duration: approach_duration,
+                                    };
+                                }
+                            }
+                        }
+                        for (key, actual) in cable_actuals {
+                            if let Some(interval) = fabric.intervals.get_mut(key) {
+                                if let Span::Fixed { length } = interval.span {
+                                    interval.span = Span::Approaching {
+                                        start_length: length,
+                                        target_length: Meters(actual * pull_pretension),
+                                        start_age: age,
+                                        duration: approach_duration,
+                                    };
+                                }
+                            }
+                        }
+
+                        // Material stiffness is k_at_1m / L. Edge length shrinks
+                        // as 1/f, so effective stiffness grows as f; natural
+                        // frequency ω ∝ √f; Verlet needs dt·ω < 2 for stability.
+                        // Scaling rigidity_multiplier as 1/f cancels the f term,
+                        // keeping the integrator in the same stability regime at
+                        // every frequency (and also softening the spheres
+                        // visibly, which is what we want for the drop demo).
+                        let rigidity_scale = 1.0 / f;
+                        let mut build_physics = presets::CONSTRUCTION;
+                        build_physics.tweak.rigidity_multiplier = rigidity_scale;
+                        let build_batch = GpuBatch::parallelize(
+                            &device,
+                            &queue,
+                            &[&fabric],
+                            &build_physics,
+                        );
+                        let dt = Age::iteration_duration();
+                        let approach_iters = (approach_duration.0 / dt) as u32;
+                        let settle_iters = (settle_duration.0 / dt) as u32;
+                        let rounds = 40u32;
+                        let chunk = (approach_iters / rounds).max(1);
+                        for _ in 0..rounds {
+                            fabric.age = fabric.age.advanced(chunk as usize);
+                            build_batch.update_ideals(&queue, &[&fabric], &build_physics);
+                            build_batch.step(&device, &queue, chunk);
+                        }
+                        if settle_iters > 0 {
+                            build_batch.step(&device, &queue, settle_iters);
+                        }
+
+                        // Check whether the approach survived on GPU.
+                        let frozen_flags = build_batch.read_frozen(&device, &queue);
+                        let approach_frozen = frozen_flags.first().copied().unwrap_or(false);
+                        if approach_frozen {
+                            eprintln!(
+                                "[sphere-gpu] freq={} APPROACH FROZE on GPU (speed > {} m/s)",
+                                frequency,
+                                crate::physics_gpu::params::GpuPhysicsConfig::from_fabric(
+                                    &fabric,
+                                    &build_physics,
+                                )
+                                .speed_limit
+                            );
+                        }
+
+                        // Read settled positions back into the fabric.
+                        let settled = build_batch.read_positions(&device, &queue);
+                        for (joint, pos) in fabric.joints.values_mut().zip(settled.iter()) {
+                            joint.location = *pos;
+                            joint.velocity = glam::Vec3::ZERO;
+                        }
+                        fabric.update_bounding_radius();
+
+                        // Convert Approaching spans to Fixed so the renderer
+                        // stops drawing intervals in red (the "approaching"
+                        // highlight) and so any future CPU logic sees a
+                        // settled fabric.
+                        for interval in fabric.intervals.values_mut() {
+                            if let Span::Approaching { target_length, .. } = interval.span {
+                                interval.span = Span::Fixed { length: target_length };
+                            }
+                        }
+                        println!(
+                            "[sphere-gpu] after settle: bound_r={:.3} centroid={:?}",
+                            fabric.bounding_radius(),
+                            fabric.centroid()
+                        );
+
+                        // Raise to drop altitude and switch to falling physics.
+                        let r = *radius;
+                        let translation = fabric.centralize_translation(Some(r));
+                        fabric.apply_translation(translation);
+                        fabric.update_bounding_radius();
+
+                        let mut drop_physics = presets::FALLING;
+                        drop_physics.surface = Some(Surface::new(SurfaceCharacter::Bouncy, 1.0));
+                        drop_physics.tweak.rigidity_multiplier = rigidity_scale;
+
+                        // Fresh GpuBatch for the drop phase (positions changed;
+                        // physics preset changed). Store as the live-GPU batch.
+                        let drop_batch = GpuBatch::parallelize(
+                            &device,
+                            &queue,
+                            &[&fabric],
+                            &drop_physics,
+                        );
+                        self.gpu_batch = Some(drop_batch);
+
+                        let tester = PhysicsTester::new(
+                            fabric.clone(),
+                            drop_physics.clone(),
+                            self.radio.clone(),
+                        );
+                        self.crucible.fabric = fabric;
+                        self.crucible.physics = drop_physics;
+                        self.crucible.stage = Stage::PhysicsTesting(tester);
+                        self.control_state = ControlState::PhysicsTesting;
+                        StateChange::SetControlState(ControlState::PhysicsTesting)
+                            .send(&self.radio);
+                        let initial_label = if approach_frozen {
+                            "Sphere Drop (GPU — APPROACH FROZE)"
+                        } else {
+                            "Sphere Drop (GPU)"
+                        };
+                        StateChange::SetStageLabel(initial_label.to_string())
+                            .send(&self.radio);
+                        if let Some(scene) = &mut self.scene {
+                            scene.position_camera_for_drop(r);
+                        }
                     }
                     RunStyle::Mobius { segments } => {
                         let fabric = generate_mobius(*segments);
@@ -614,6 +802,34 @@ impl ApplicationHandler<LabEvent> for Application {
                     if let Some(scene) = &self.scene {
                         batch.step(&scene.wgpu.device, &scene.wgpu.queue, iterations_per_frame as u32);
                         let positions = batch.read_positions(&scene.wgpu.device, &scene.wgpu.queue);
+                        // Periodically check the GPU's frozen flag; if set, surface
+                        // it once as a stage label so the user can tell "frozen"
+                        // apart from "slow". Also print a y-range once per second
+                        // so we can see whether the sphere is actually moving.
+                        use std::sync::atomic::{AtomicU32, AtomicBool, Ordering};
+                        static FRAME_COUNT: AtomicU32 = AtomicU32::new(0);
+                        static FROZEN_REPORTED: AtomicBool = AtomicBool::new(false);
+                        let n = FRAME_COUNT.fetch_add(1, Ordering::Relaxed);
+                        if n % 60 == 0 {
+                            if !FROZEN_REPORTED.load(Ordering::Relaxed) {
+                                let frozen = batch.read_frozen(&scene.wgpu.device, &scene.wgpu.queue);
+                                if frozen.iter().any(|&f| f) {
+                                    FROZEN_REPORTED.store(true, Ordering::Relaxed);
+                                    StateChange::SetStageLabel(
+                                        "GPU Frozen (speed limit)".to_string(),
+                                    )
+                                    .send(&self.radio);
+                                }
+                            }
+                            if !positions.is_empty() {
+                                let y_max = positions.iter().map(|p| p.y).fold(f32::NEG_INFINITY, f32::max);
+                                let y_min = positions.iter().map(|p| p.y).fold(f32::INFINITY, f32::min);
+                                eprintln!(
+                                    "[gpu-live] frame={} iters={} joints={} y=[{:.3},{:.3}]",
+                                    n, iterations_per_frame, positions.len(), y_min, y_max,
+                                );
+                            }
+                        }
                         for (joint, pos) in self.crucible.fabric.joints.values_mut().zip(positions.iter()) {
                             joint.location = *pos;
                         }

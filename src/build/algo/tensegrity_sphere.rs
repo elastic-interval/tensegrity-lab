@@ -233,6 +233,105 @@ mod tests {
         );
     }
 
+    /// Mirrors the pretension setup in `application.rs` for `RunStyle::Sphere`:
+    /// push ideals → 1.10× original, pull ideals → 0.95× actual distance,
+    /// then 20k CONSTRUCTION + 20k PRETENSING iterations. Reports which
+    /// frequency first triggers the `MAX_SPEED_SQUARED` freeze guard.
+    #[test]
+    fn test_sphere_pretension_stability_across_frequencies() {
+        use crate::fabric::interval::Span;
+        use crate::fabric::physics::presets;
+        use crate::units::{Grams, GramsPerMeter, Meters, Seconds};
+
+        let frequencies = [1usize, 2, 3, 4, 5, 6, 7, 8, 10, 12];
+        let radius = 10.0;
+        let push_pretension = 1.10;
+        let pull_pretension = 0.95;
+        let approach_duration = Seconds(1.0);
+
+        println!("\n{:>5} | {:>6} | {:>9} | {:>6} | {:>12} | {:>12}",
+                 "freq", "joints", "intervals", "frozen", "max_speed_c", "max_speed_p");
+        println!("{}", "-".repeat(72));
+
+        for &frequency in &frequencies {
+            let mut fabric = generate_sphere(frequency, radius);
+            fabric.dimensions = fabric
+                .dimensions
+                .with_joint_mass(Grams(2.0))
+                .with_push_density(GramsPerMeter(3.0));
+
+            let cable_actuals: Vec<(crate::fabric::IntervalKey, f32)> = fabric
+                .intervals
+                .iter()
+                .filter(|(_, i)| i.role != Role::Pushing)
+                .map(|(k, i)| {
+                    let a = fabric.joints[i.alpha_key].location;
+                    let o = fabric.joints[i.omega_key].location;
+                    (k, (o - a).length())
+                })
+                .collect();
+            let age = fabric.age;
+            for interval in fabric.intervals.values_mut() {
+                if interval.role == Role::Pushing {
+                    if let Span::Fixed { length } = interval.span {
+                        interval.span = Span::Approaching {
+                            start_length: length,
+                            target_length: Meters(length.f32() * push_pretension),
+                            start_age: age,
+                            duration: approach_duration,
+                        };
+                    }
+                }
+            }
+            for (key, actual) in cable_actuals {
+                if let Some(interval) = fabric.intervals.get_mut(key) {
+                    if let Span::Fixed { length } = interval.span {
+                        interval.span = Span::Approaching {
+                            start_length: length,
+                            target_length: Meters(actual * pull_pretension),
+                            start_age: age,
+                            duration: approach_duration,
+                        };
+                    }
+                }
+            }
+
+            let mut max_speed_construction: f32 = 0.0;
+            for _ in 0..20_000 {
+                fabric.iterate(&presets::CONSTRUCTION);
+                max_speed_construction = max_speed_construction.max(fabric.stats.max_speed);
+                if fabric.frozen {
+                    break;
+                }
+            }
+            let frozen_after_construction = fabric.frozen;
+
+            let mut max_speed_pretensing: f32 = 0.0;
+            if !fabric.frozen {
+                for _ in 0..20_000 {
+                    fabric.iterate(&presets::PRETENSING);
+                    max_speed_pretensing = max_speed_pretensing.max(fabric.stats.max_speed);
+                    if fabric.frozen {
+                        break;
+                    }
+                }
+            }
+
+            let joint_count = fabric.joints.len();
+            let interval_count = fabric.intervals.len();
+            println!(
+                "{:>5} | {:>6} | {:>9} | {:>6} | {:>12.3e} | {:>12.3e}{}",
+                frequency,
+                joint_count,
+                interval_count,
+                fabric.frozen,
+                max_speed_construction,
+                max_speed_pretensing,
+                if frozen_after_construction { " (froze in CONSTRUCTION)" } else { "" },
+            );
+        }
+    }
+
     #[test]
     fn test_generate_sphere_creates_valid_intervals() {
         let fabric = generate_sphere(1, 10.0);

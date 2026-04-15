@@ -310,6 +310,18 @@ impl Scene {
         !self.camera.is_initialized()
     }
 
+    /// Position camera for watching a sphere drop. Places the camera
+    /// at ground level, far enough back to see the full drop.
+    pub fn position_camera_for_drop(&mut self, radius: f32) {
+        use glam::Vec3;
+        // Sphere center starts at ~2*radius. Camera at ground level,
+        // far enough to see the whole sphere + its drop path.
+        let distance = radius * 5.0;
+        let camera_pos = Vec3::new(distance, radius * 0.2, 0.0);
+        let look_at = Vec3::new(0.0, radius, 0.0);
+        self.camera.set_position_and_hold(camera_pos, look_at);
+    }
+
     /// Get camera view for export (position, look_at)
     pub fn export_view(&self) -> (glam::Vec3, glam::Vec3) {
         self.camera.export_view()

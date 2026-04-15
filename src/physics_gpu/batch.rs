@@ -152,6 +152,12 @@ pub struct GpuBatch {
     position_buffer: wgpu::Buffer,
     staging_buffer: wgpu::Buffer,
 
+    elastic_ideal_buffer: wgpu::Buffer,
+    elastic_k_buffer: wgpu::Buffer,
+    push_ideal_buffer: wgpu::Buffer,
+    push_k_buffer: wgpu::Buffer,
+    frozen_buffer: wgpu::Buffer,
+
     num_slots: u32,
     max_joints: u32,
     max_elastic: u32,
@@ -301,17 +307,24 @@ impl GpuBatch {
                 usage: wgpu::BufferUsages::STORAGE,
             })
         };
+        let mkf_writable = |label: &str, data: &[f32]| {
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some(label),
+                contents: bytemuck::cast_slice(data),
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            })
+        };
 
         let ea = mk("elastic_alpha", &all_elastic_alpha);
         let eo_buf = mk("elastic_omega", &all_elastic_omega);
-        let ei = mkf("elastic_ideal", &all_elastic_ideal);
-        let ek = mkf("elastic_k", &all_elastic_k);
+        let ei = mkf_writable("elastic_ideal", &all_elastic_ideal);
+        let ek = mkf_writable("elastic_k", &all_elastic_k);
         let eld = mkf("elastic_ld", &all_elastic_ld);
 
         let pa = mk("push_alpha", &all_push_alpha);
         let po_buf = mk("push_omega", &all_push_omega);
-        let pi = mkf("push_ideal", &all_push_ideal);
-        let pk = mkf("push_k", &all_push_k);
+        let pi = mkf_writable("push_ideal", &all_push_ideal);
+        let pk = mkf_writable("push_k", &all_push_k);
         let pld = mkf("push_ld", &all_push_ld);
 
         let params = PhysicsParams::from_config(&config, max_joints, max_elastic, max_push, num_slots);
@@ -444,11 +457,104 @@ impl GpuBatch {
             ground_collision_pipeline: pipe("ground_collision"),
             position_buffer,
             staging_buffer,
+            elastic_ideal_buffer: ei,
+            elastic_k_buffer: ek,
+            push_ideal_buffer: pi,
+            push_k_buffer: pk,
+            frozen_buffer,
             num_slots,
             max_joints,
             max_elastic,
             max_push,
             slot_joint_counts,
+        }
+    }
+
+    /// Re-resolve `Span` values from the given fabrics (using each fabric's
+    /// current `age`) and write the resulting `ideal` and `k` arrays into the
+    /// GPU storage buffers, leaving positions and velocities untouched.
+    ///
+    /// Use this to drive a slow approach phase on GPU: advance each fabric's
+    /// `age` on the CPU between calls, and `Span::Approaching` spans will
+    /// interpolate toward their targets without a CPU iteration round trip.
+    ///
+    /// The fabrics must have the same interval topology (order and roles) as
+    /// those passed to `parallelize`; only span/material-derived fields are
+    /// updated. Panics if slot count or per-slot interval counts differ.
+    pub fn update_ideals(
+        &self,
+        queue: &wgpu::Queue,
+        fabrics: &[&Fabric],
+        physics: &Physics,
+    ) {
+        assert_eq!(
+            fabrics.len() as u32,
+            self.num_slots,
+            "update_ideals: slot count mismatch"
+        );
+
+        let total_elastic = (self.num_slots * self.max_elastic) as usize;
+        let total_push = (self.num_slots * self.max_push) as usize;
+        let mut all_elastic_ideal = vec![0.0f32; total_elastic.max(1)];
+        let mut all_elastic_k = vec![0.0f32; total_elastic.max(1)];
+        let mut all_push_ideal = vec![0.0f32; total_push.max(1)];
+        let mut all_push_k = vec![0.0f32; total_push.max(1)];
+
+        for (slot, fabric) in fabrics.iter().enumerate() {
+            let mut elastic_i = 0usize;
+            let mut push_i = 0usize;
+            let eo = slot * self.max_elastic as usize;
+            let po = slot * self.max_push as usize;
+            for interval in fabric.intervals.values() {
+                let ideal = resolve_span(&interval.span, fabric.age);
+                let k = interval.material.spring_constant(ideal, physics).f32()
+                    * interval.stiffness.as_factor();
+                match interval.role {
+                    Role::Pushing => {
+                        assert!(
+                            push_i < self.max_push as usize,
+                            "update_ideals: push count exceeds parallelize-time max"
+                        );
+                        all_push_ideal[po + push_i] = ideal.f32();
+                        all_push_k[po + push_i] = k;
+                        push_i += 1;
+                    }
+                    _ => {
+                        assert!(
+                            elastic_i < self.max_elastic as usize,
+                            "update_ideals: elastic count exceeds parallelize-time max"
+                        );
+                        all_elastic_ideal[eo + elastic_i] = ideal.f32();
+                        all_elastic_k[eo + elastic_i] = k;
+                        elastic_i += 1;
+                    }
+                }
+            }
+        }
+
+        if self.max_elastic > 0 {
+            queue.write_buffer(
+                &self.elastic_ideal_buffer,
+                0,
+                bytemuck::cast_slice(&all_elastic_ideal),
+            );
+            queue.write_buffer(
+                &self.elastic_k_buffer,
+                0,
+                bytemuck::cast_slice(&all_elastic_k),
+            );
+        }
+        if self.max_push > 0 {
+            queue.write_buffer(
+                &self.push_ideal_buffer,
+                0,
+                bytemuck::cast_slice(&all_push_ideal),
+            );
+            queue.write_buffer(
+                &self.push_k_buffer,
+                0,
+                bytemuck::cast_slice(&all_push_k),
+            );
         }
     }
 
@@ -575,6 +681,45 @@ impl GpuBatch {
 
     pub fn num_slots(&self) -> u32 {
         self.num_slots
+    }
+
+    /// Read the per-slot frozen flag. A slot becomes frozen when the shader
+    /// detects a speed above `params.speed_limit` (see `check_speed_limit_slot`
+    /// in `physics.wgsl`); once set, kick/drift passes skip the slot, so it
+    /// stops moving.
+    pub fn read_frozen(&self, device: &wgpu::Device, queue: &wgpu::Queue) -> Vec<bool> {
+        let byte_size = (self.num_slots as u64) * 4;
+        if byte_size == 0 {
+            return Vec::new();
+        }
+        let staging = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("gpu frozen staging"),
+            size: byte_size,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("gpu frozen readback"),
+        });
+        encoder.copy_buffer_to_buffer(&self.frozen_buffer, 0, &staging, 0, byte_size);
+        queue.submit(Some(encoder.finish()));
+
+        let slice = staging.slice(..byte_size);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        slice.map_async(wgpu::MapMode::Read, move |r| sender.send(r).unwrap());
+        device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: None,
+            })
+            .unwrap();
+        receiver.recv().unwrap().unwrap();
+
+        let data = slice.get_mapped_range();
+        let raw: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
+        drop(data);
+        staging.unmap();
+        raw.into_iter().map(|v| v != 0).collect()
     }
 }
 

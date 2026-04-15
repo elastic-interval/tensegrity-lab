@@ -112,9 +112,11 @@ impl Joint {
 
         match &physics.surface {
             None => {
-                // No surface - apply quadratic viscosity and linear drag
+                // No surface - apply quadratic viscosity and linear drag.
+                // Stable form: v' = v / (1 + speed² · visc · dt). See
+                // fabric/physics.rs for the rationale.
                 let speed_squared = self.velocity.length_squared();
-                self.velocity -= self.velocity * speed_squared * viscosity * dt;
+                self.velocity /= 1.0 + speed_squared * viscosity * dt;
                 self.velocity *= 1.0 - drag * dt;
             }
             Some(surface) => {
@@ -123,7 +125,7 @@ impl Joint {
                 if self.location.y > surface_tolerance {
                     // Above surface - just apply air damping (gravity already in forces)
                     let speed_squared = self.velocity.length_squared();
-                    self.velocity -= self.velocity * speed_squared * viscosity * dt;
+                    self.velocity /= 1.0 + speed_squared * viscosity * dt;
                     self.velocity *= 1.0 - drag * dt;
                 } else {
                     // On or below surface - use surface interaction for collision/friction

@@ -241,8 +241,14 @@ fn second_half_kick(@builtin(global_invocation_id) id: vec3<u32>) {
     let surface_tolerance = 0.01 * params.surface_scale;
     let above_surface = params.surface_character == 0u || positions[gj].y > surface_tolerance;
     if above_surface {
+        // Unconditionally stable quadratic damping: v' = v / (1 + speed^2 * visc * dt).
+        // Equivalent to the old (1 - speed^2 * visc * dt) multiplier in the small-
+        // speed limit, but the divisor is always > 1 so the multiplier never flips
+        // sign. The old formula turned into amplification above a threshold speed
+        // (e.g. ~22 m/s at visc=40, dt=50us), which caused dense/stiff simulations
+        // to blow up rather than damp.
         let speed_sq = vel.x * vel.x + vel.y * vel.y + vel.z * vel.z;
-        let viscosity_factor = 1.0 - speed_sq * params.viscosity * params.dt;
+        let viscosity_factor = 1.0 / (1.0 + speed_sq * params.viscosity * params.dt);
         vel.x *= viscosity_factor;
         vel.y *= viscosity_factor;
         vel.z *= viscosity_factor;

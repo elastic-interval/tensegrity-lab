@@ -24,7 +24,7 @@ pub enum Stage {
 }
 
 pub struct Crucible {
-    stage: Stage,
+    pub stage: Stage,
     radio: Radio,
     pub fabric: Fabric,
     pub physics: Physics,
