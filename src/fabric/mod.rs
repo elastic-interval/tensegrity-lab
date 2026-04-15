@@ -43,16 +43,17 @@ pub struct HingeDimensions {
     pub hinge_hole_diameter: Meters,
 }
 
+
 impl Default for HingeDimensions {
     fn default() -> Self {
         Self {
-            push_radius: Meters(0.030),
-            push_radius_margin: Meters(0.003),
-            disc_thickness: Meters(0.010),
-            disc_separator_thickness: Meters(0.003),
+            push_radius: Meters(0.025),
+            push_radius_margin: Meters(0.002),
+            disc_thickness: Meters(0.008),
+            disc_separator_thickness: Meters(0.002),
             cap_thickness: Meters(0.006),
-            hinge_extension: Meters(0.012),
-            hinge_hole_diameter: Meters(0.017),
+            hinge_extension: Meters(0.015),
+            hinge_hole_diameter: Meters(0.012),
         }
     }
 }
