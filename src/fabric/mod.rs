@@ -49,8 +49,8 @@ impl Default for HingeDimensions {
         Self {
             push_radius: Meters(0.025),
             push_radius_margin: Meters(0.002),
-            disc_thickness: Meters(0.008),
-            disc_separator_thickness: Meters(0.002),
+            disc_thickness: Meters(0.006),
+            disc_separator_thickness: Meters(0.001),
             cap_thickness: Meters(0.006),
             hinge_extension: Meters(0.015),
             hinge_hole_diameter: Meters(0.012),
