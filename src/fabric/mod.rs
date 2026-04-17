@@ -906,3 +906,129 @@ impl Fabric {
         })
     }
 }
+
+#[cfg(test)]
+mod hinge_geometry_tests {
+    use super::*;
+    use glam::Vec3;
+
+    const MM: f32 = 1000.0;
+    const TOL: f32 = 0.001; // 1 micron tolerance
+
+    fn assert_mm(label: &str, actual_m: f32, expected_mm: f32) {
+        let actual_mm = actual_m * MM;
+        let diff = (actual_mm - expected_mm).abs();
+        assert!(
+            diff < TOL * MM,
+            "{}: expected {:.3}mm, got {:.3}mm (diff {:.4}mm)",
+            label, expected_mm, actual_mm, diff
+        );
+    }
+
+    /// Test that HingeDimensions formulas produce the correct derived values.
+    /// These are the numbers shown in the CSV header as "Afgeleide waarden".
+    #[test]
+    fn hinge_dimension_formulas() {
+        let h = HingeDimensions::default();
+        let a = h.push_radius.f32();      // 25mm
+        let b = h.push_radius_margin.f32(); // 2mm
+        let t1 = h.disc_thickness.f32();   // 6mm
+        let t2 = h.disc_separator_thickness.f32(); // 1mm
+        let cap = h.cap_thickness.f32();   // 6mm
+        let d = h.hinge_extension.f32();   // 14mm
+        let e = h.hinge_hole_diameter.f32(); // 12mm
+        let c = t1 / 2.0;                 // 3mm
+
+        // offset() = A + B + C (radial distance from tube axis to hinge bolt)
+        assert_mm("offset = A+B+C", h.offset().f32(), (a + b + c) * MM);
+
+        // length() = C + D + E (hinge length from disc center to cable endpoint)
+        assert_mm("length = C+D+E", h.length().f32(), (c + d + e) * MM);
+
+        // disc_center_offset(0) = cap + t2 + t1/2
+        assert_mm(
+            "disc_center_offset(0) = cap+t2+t1/2",
+            h.disc_center_offset(0).f32(),
+            (cap + t2 + c) * MM,
+        );
+
+        // disc_center_offset(1) = disc_center_offset(0) + t1 + t2
+        assert_mm(
+            "disc_center_offset(1) - offset(0) = t1+t2",
+            h.disc_center_offset(1).f32() - h.disc_center_offset(0).f32(),
+            (t1 + t2) * MM,
+        );
+
+        // Print summary for engineer verification
+        println!("\n=== Hinge dimension check (mm) ===");
+        println!("A  (push_radius):       {:.1}", a * MM);
+        println!("B  (margin):            {:.1}", b * MM);
+        println!("C  (t1/2):              {:.1}", c * MM);
+        println!("D  (hinge_extension):   {:.1}", d * MM);
+        println!("E  (hole_diameter):     {:.1}", e * MM);
+        println!("t1 (disc_thickness):    {:.1}", t1 * MM);
+        println!("t2 (disc_separator):    {:.1}", t2 * MM);
+        println!("cap_thickness:          {:.1}", cap * MM);
+        println!();
+        println!("A + B + C = offset():           {:.1}", h.offset().f32() * MM);
+        println!("C + D + E = length():           {:.1}", h.length().f32() * MM);
+        println!("t1 + t2:                        {:.1}", (t1 + t2) * MM);
+        println!("disc_center_offset(0):          {:.1}", h.disc_center_offset(0).f32() * MM);
+        println!("disc_center_offset(1):          {:.1}", h.disc_center_offset(1).f32() * MM);
+    }
+
+    /// Test that the 3D positions produced by ring_center / hinge_geometry
+    /// have the exact distances the engineer expects to measure between them.
+    #[test]
+    fn hinge_geometry_distances() {
+        let dims = FabricDimensions::default();
+        let h = &dims.hinge;
+
+        // Synthetic push interval along +Z axis
+        let push_end = Vec3::ZERO;
+        let push_axis = Vec3::Z;
+        // Pull cable going roughly radially outward in +X
+        let pull_other_end = Vec3::new(1.0, 0.0, 0.2);
+
+        // --- Axial distances (along push axis) ---
+
+        let rc0 = dims.ring_center(push_end, push_axis, 0);
+        let rc1 = dims.ring_center(push_end, push_axis, 1);
+        let rc2 = dims.ring_center(push_end, push_axis, 2);
+
+        // Push end to first disc center
+        let axial_0 = (rc0 - push_end).length();
+        assert_mm("push_end → ring_center(0)", axial_0, h.disc_center_offset(0).f32() * MM);
+
+        // Between consecutive disc centers = t1 + t2
+        let disc_step = (rc1 - rc0).length();
+        assert_mm("ring_center(0) → ring_center(1) = t1+t2", disc_step,
+                  (h.disc_thickness.f32() + h.disc_separator_thickness.f32()) * MM);
+
+        let disc_step_2 = (rc2 - rc1).length();
+        assert_mm("ring_center(1) → ring_center(2) = t1+t2", disc_step_2,
+                  (h.disc_thickness.f32() + h.disc_separator_thickness.f32()) * MM);
+
+        // --- Radial distance (ring center to hinge bolt) ---
+
+        let (hinge_pos, _bend, pull_end_pos) =
+            dims.hinge_geometry(push_end, push_axis, 0, pull_other_end);
+
+        let radial_dist = (hinge_pos - rc0).length();
+        assert_mm("ring_center → hinge_pos = offset() = A+B+C", radial_dist,
+                  h.offset().f32() * MM);
+
+        // --- Hinge length (hinge bolt to cable endpoint) = C + D + E ---
+
+        let hinge_len = (pull_end_pos - hinge_pos).length();
+        assert_mm("hinge_pos → pull_end_pos = length() = C+D+E", hinge_len,
+                  h.length().f32() * MM);
+
+        // Print summary for engineer
+        println!("\n=== Geometry distance check (mm) ===");
+        println!("push_end → ring_center(0):     {:.3}", axial_0 * MM);
+        println!("ring_center(0) → ring_center(1): {:.3} (= t1+t2)", disc_step * MM);
+        println!("ring_center → hinge_pos:       {:.3} (= A+B+C = offset)", radial_dist * MM);
+        println!("hinge_pos → pull_end_pos:      {:.3} (= C+D+E = length)", hinge_len * MM);
+    }
+}

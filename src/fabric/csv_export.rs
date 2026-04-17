@@ -654,8 +654,8 @@ fn write_dimensions_comments(file: &mut File, dims: &FabricDimensions) -> io::Re
     writeln!(file, "# C  offset door radius (= t1/2):             {:.1}mm  ({:.5}m)", mm(c), c)?;
     writeln!(file, "# D  randafstand (hinge_extension):           {:.1}mm  ({:.5}m)", mm(d), d)?;
     writeln!(file, "# E  diameter gat (hinge_hole_diameter):      {:.1}mm  ({:.5}m)", mm(e), e)?;
-    writeln!(file, "# t1 dikte van de plaat (disc_thickness):     {:.1}mm  ({:.5}m)", mm(t1), t1)?;
-    writeln!(file, "# t2 dikte separator (disc_separator):        {:.1}mm  ({:.5}m)", mm(t2), t2)?;
+    writeln!(file, "# t1 dikte staal (disc_thickness):             {:.1}mm  ({:.5}m)", mm(t1), t1)?;
+    writeln!(file, "# t2 dikte POM (disc_separator):              {:.1}mm  ({:.5}m)", mm(t2), t2)?;
     writeln!(file, "#    cap_thickness:                           {:.1}mm  ({:.5}m)", mm(cap), cap)?;
     writeln!(file, "#    pull_radius:                             {:.1}mm  ({:.5}m)", mm(dims.pull_radius.f32()), dims.pull_radius.f32())?;
     writeln!(file, "#")?;
