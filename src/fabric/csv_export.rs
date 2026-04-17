@@ -640,14 +640,14 @@ fn write_dimensions_comments(file: &mut File, dims: &FabricDimensions) -> io::Re
     let h = &dims.hinge;
     writeln!(file, "# A  push_radius: {:.5}m", h.push_radius.f32())?;
     writeln!(file, "# B  push_radius_margin: {:.5}m", h.push_radius_margin.f32())?;
-    writeln!(file, "# t1 disc_thickness: {:.5}m", h.disc_thickness.f32())?;
-    writeln!(file, "# t2 disc_separator_thickness: {:.5}m", h.disc_separator_thickness.f32())?;
-    writeln!(file, "#    cap_thickness: {:.5}m", h.cap_thickness.f32())?;
+    writeln!(file, "# C  half_disc_thickness: {:.5}m", (dims.hinge.disc_thickness.f32() / 2.0))?;
     writeln!(file, "# D  hinge_extension: {:.5}m", h.hinge_extension.f32())?;
     writeln!(file, "# E  hinge_hole_diameter: {:.5}m", h.hinge_hole_diameter.f32())?;
-    writeln!(file, "#    pull_radius: {:.5}m", dims.pull_radius.f32())?;
+    writeln!(file, "# t1 disc_thickness: {:.5}m", h.disc_thickness.f32())?;
+    writeln!(file, "# t2 disc_separator_thickness: {:.5}m", h.disc_separator_thickness.f32())?;
     writeln!(file, "#")?;
-    writeln!(file, "# C  hinge_offset: {:.5}m", dims.hinge.offset().f32())?;
+    writeln!(file, "#    cap_thickness: {:.5}m", h.cap_thickness.f32())?;
+    writeln!(file, "#    pull_radius: {:.5}m", dims.pull_radius.f32())?;
     writeln!(file, "#    hinge_length: {:.5}m", dims.hinge.length().f32())?;
     Ok(())
 }

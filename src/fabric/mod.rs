@@ -52,7 +52,7 @@ impl Default for HingeDimensions {
             disc_thickness: Meters(0.006),
             disc_separator_thickness: Meters(0.001),
             cap_thickness: Meters(0.006),
-            hinge_extension: Meters(0.015),
+            hinge_extension: Meters(0.014),
             hinge_hole_diameter: Meters(0.012),
         }
     }
