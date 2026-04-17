@@ -638,16 +638,36 @@ impl Fabric {
 
 fn write_dimensions_comments(file: &mut File, dims: &FabricDimensions) -> io::Result<()> {
     let h = &dims.hinge;
-    writeln!(file, "# A  push_radius: {:.5}m", h.push_radius.f32())?;
-    writeln!(file, "# B  push_radius_margin: {:.5}m", h.push_radius_margin.f32())?;
-    writeln!(file, "# C  half_disc_thickness: {:.5}m", (dims.hinge.disc_thickness.f32() / 2.0))?;
-    writeln!(file, "# D  hinge_extension: {:.5}m", h.hinge_extension.f32())?;
-    writeln!(file, "# E  hinge_hole_diameter: {:.5}m", h.hinge_hole_diameter.f32())?;
-    writeln!(file, "# t1 disc_thickness: {:.5}m", h.disc_thickness.f32())?;
-    writeln!(file, "# t2 disc_separator_thickness: {:.5}m", h.disc_separator_thickness.f32())?;
+    let mm = |m: f32| m * 1000.0;
+    let a = h.push_radius.f32();
+    let b = h.push_radius_margin.f32();
+    let t1 = h.disc_thickness.f32();
+    let t2 = h.disc_separator_thickness.f32();
+    let c = t1 / 2.0;
+    let d = h.hinge_extension.f32();
+    let e = h.hinge_hole_diameter.f32();
+    let cap = h.cap_thickness.f32();
     writeln!(file, "#")?;
-    writeln!(file, "#    cap_thickness: {:.5}m", h.cap_thickness.f32())?;
-    writeln!(file, "#    pull_radius: {:.5}m", dims.pull_radius.f32())?;
-    writeln!(file, "#    hinge_length: {:.5}m", dims.hinge.length().f32())?;
+    writeln!(file, "# === Hinge parameters (see diagram) ===")?;
+    writeln!(file, "# A  radius van de buis (push_radius):        {:.1}mm  ({:.5}m)", mm(a), a)?;
+    writeln!(file, "# B  marge (push_radius_margin):              {:.1}mm  ({:.5}m)", mm(b), b)?;
+    writeln!(file, "# C  offset door radius (= t1/2):             {:.1}mm  ({:.5}m)", mm(c), c)?;
+    writeln!(file, "# D  randafstand (hinge_extension):           {:.1}mm  ({:.5}m)", mm(d), d)?;
+    writeln!(file, "# E  diameter gat (hinge_hole_diameter):      {:.1}mm  ({:.5}m)", mm(e), e)?;
+    writeln!(file, "# t1 dikte van de plaat (disc_thickness):     {:.1}mm  ({:.5}m)", mm(t1), t1)?;
+    writeln!(file, "# t2 dikte separator (disc_separator):        {:.1}mm  ({:.5}m)", mm(t2), t2)?;
+    writeln!(file, "#    cap_thickness:                           {:.1}mm  ({:.5}m)", mm(cap), cap)?;
+    writeln!(file, "#    pull_radius:                             {:.1}mm  ({:.5}m)", mm(dims.pull_radius.f32()), dims.pull_radius.f32())?;
+    writeln!(file, "#")?;
+    writeln!(file, "# === Afgeleide waarden ===")?;
+    writeln!(file, "#    A + B + C  = {:.1}mm  (halve breedte schijf)", mm(a + b + c))?;
+    writeln!(file, "#    C + D + E  = {:.1}mm  (scharnier lengte)", mm(c + d + e))?;
+    writeln!(file, "#    t1 + t2    = {:.1}mm  (schijf + separator)", mm(t1 + t2))?;
+    writeln!(
+        file,
+        "#    disc_center_offset(0) = {:.1}mm  (as-afstand tot centrum eerste schijf)",
+        mm(h.disc_center_offset(0).f32()),
+    )?;
+    writeln!(file, "#")?;
     Ok(())
 }
