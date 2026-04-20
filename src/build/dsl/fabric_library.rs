@@ -4,9 +4,7 @@ use crate::build::dsl::fabric_plan::FabricPlan;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
-static PLANS: [OnceLock<FabricPlan>; 9] = [
-    OnceLock::new(),
-    OnceLock::new(),
+static PLANS: [OnceLock<FabricPlan>; 7] = [
     OnceLock::new(),
     OnceLock::new(),
     OnceLock::new(),
@@ -20,10 +18,6 @@ static PLANS: [OnceLock<FabricPlan>; 9] = [
 pub enum FabricName {
     #[strum(serialize = "Open Claw")]
     OpenClaw,
-    #[strum(serialize = "Open Claw A")]
-    OpenClawA,
-    #[strum(serialize = "Open Claw B")]
-    OpenClawB,
     Triped,
     Mockup,
     Vertebra,
@@ -38,31 +32,13 @@ impl FabricName {
     pub fn fabric_plan(self) -> FabricPlan {
         use FabricName::*;
         match self {
-            OpenClaw | OpenClawA | OpenClawB => {
-                let (shrink, spacer, scale) = match self {
-                    OpenClaw => (20.0, 48.2, 1.0),
-                    OpenClawA => (0.0, 43.5, 0.80),
-                    OpenClawB => (10.0, 45.0, 0.90),
-                    _ => unreachable!(),
-                };
-                self.build(FabricDimensions::default().with_scale(M(scale)))
+            OpenClaw => self
+                .build(FabricDimensions::default().with_scale(M(0.80)))
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([
-                    on(OmniBotX)
-                        .column(4)
-                        .shrink_by(Pct(shrink))
-                        .mark(End)
-                        .prism(Pct(200.0)),
-                    on(OmniBotY)
-                        .column(4)
-                        .shrink_by(Pct(shrink))
-                        .mark(End)
-                        .prism(Pct(200.0)),
-                    on(OmniBotZ)
-                        .column(4)
-                        .shrink_by(Pct(shrink))
-                        .mark(End)
-                        .prism(Pct(200.0)),
+                    on(OmniBotX).column(4).mark(End).prism(Pct(200.0)),
+                    on(OmniBotY).column(4).mark(End).prism(Pct(200.0)),
+                    on(OmniBotZ).column(4).mark(End).prism(Pct(200.0)),
                     on(OmniTop).prism(Pct(200.0)),
                     on(OmniBot).open(),
                 ])
@@ -75,15 +51,14 @@ impl FabricName {
                     ("Z10", "Z7"),
                 ])
                 .prepare_vulcanize(0.5, VulcanizeMode::Linear)
-                .space(Sec(2.8), End, Pct(spacer))
+                .space(Sec(2.8), End, Pct(43.5))
                 .vulcanize(Sec(1.0))
                 .zero_g_pretense(Sec(0.1), Pct(0.08), Pct(0.0))
                 .surface_slippery()
                 .fall(Sec(1.5))
                 .settle(Sec(1.5))
                 .grav_pretense(Sec(0.1), Pct(0.12))
-                .done()
-            }
+                .done(),
             Triped => self
                 .build(FabricDimensions::default())
                 .seed(OmniSymmetrical, Seed(1))

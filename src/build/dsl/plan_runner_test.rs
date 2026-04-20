@@ -160,13 +160,45 @@ mod tests {
     }
 
     #[test]
-    fn test_open_claw_a_base_triangle() {
-        find_scale_for_6m_base(FabricName::OpenClawA);
-    }
-
-    #[test]
-    fn test_open_claw_b_base_triangle() {
-        find_scale_for_6m_base(FabricName::OpenClawB);
+    fn test_open_claw_foot_positions() {
+        let plan = fabric_library::get_fabric_plan(FabricName::OpenClaw);
+        let mut executor = FabricPlanExecutor::new_for_test(plan);
+        while !executor.is_complete() {
+            let _ = executor.iterate();
+        }
+        let fabric = &executor.fabric;
+        let ground_tolerance = 10.0 / MM_PER_METER * fabric.scale().max(1.0);
+        let mut feet: Vec<_> = fabric
+            .joints
+            .values()
+            .filter(|j| j.location.y.abs() < ground_tolerance)
+            .map(|j| j.location)
+            .collect();
+        assert_eq!(feet.len(), 3, "expected 3 ground contacts");
+        // Sort by angle from centroid for consistent ordering
+        let centroid = feet.iter().copied().sum::<glam::Vec3>() / 3.0;
+        feet.sort_by(|a, b| {
+            let aa = (a.z - centroid.z).atan2(a.x - centroid.x);
+            let ba = (b.z - centroid.z).atan2(b.x - centroid.x);
+            aa.partial_cmp(&ba).unwrap()
+        });
+        // Print in CSV space (Z-up): sim (x, y, z) → csv (x, -z, y)
+        // Positions in meters for Blender
+        eprintln!("\n=== OpenClaw foot positions (Blender Z-up, meters) ===");
+        eprintln!("TOWER_POSITIONS = [");
+        for (i, foot) in feet.iter().enumerate() {
+            eprintln!(
+                "    ({:.4}, {:.4}, {:.4}),  # foot {}",
+                foot.x, -foot.z, foot.y, i
+            );
+        }
+        eprintln!("]");
+        // Verify edge lengths
+        for i in 0..3 {
+            let j = (i + 1) % 3;
+            let d = (feet[i] - feet[j]).length() * MM_PER_METER;
+            eprintln!("edge {}-{}: {:.0}mm", i, j, d);
+        }
     }
 
     #[test]

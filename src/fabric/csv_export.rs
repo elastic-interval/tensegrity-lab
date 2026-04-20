@@ -11,7 +11,7 @@ use crate::units::{Unit, MM_PER_METER};
 
 /// Rotation from simulation space (Y-up) to CSV space (Z-up, RFEM/Rhino).
 ///
-/// Verified against OpenClawA grav_pretenst data: in sim space the vertical
+/// Verified against OpenClaw grav_pretenst data: in sim space the vertical
 /// extent is clearly in `.y` (feet at 0, top at ~7 m), while `.x` and `.z`
 /// are horizontal. A +90° rotation about X sends sim +Y → csv +Z, so the
 /// vertical extent lands in the CSV's Z column. Sim +Z → csv −Y keeps the

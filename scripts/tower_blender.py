@@ -2,26 +2,33 @@
 Open Claw Truss Tower — Blender Model Generator
 
 Run in Blender: Scripting workspace > Open > Run Script
-Creates 3 aluminum truss towers on concrete bases, arranged in an
-equilateral triangle with 6m center-to-center spacing.
+Creates 3 aluminum truss towers on concrete bases, positioned exactly
+at the Open Claw structure's ground contact points. Each tower is
+rotated to face the triangle centroid.
 
+Foot positions extracted from settled OpenClaw fabric (sim→Blender Z-up).
 Spec: docs/tower-blender-spec.md
 """
 
 import bpy
 import bmesh
 import math
-from mathutils import Vector
+from mathutils import Vector, Matrix
+
+# --- Tower positions from settled OpenClaw fabric ---
+# Extracted by test_open_claw_foot_positions (sim Y-up → Blender Z-up).
+# Each tower's platform sits exactly at one of these XY positions, at Z=0.
+TOWER_POSITIONS = [
+    Vector((-2.4629, 2.4365, 0.0)),
+    Vector((3.2767, 0.9895, 0.0)),
+    Vector((-0.8190, -3.3970, 0.0)),
+]
 
 # --- Configuration ---
 
 TOWER_HEIGHT = 2.9          # meters (aluminum truss only)
 CONCRETE_HEIGHT = 0.3       # meters
 TOTAL_HEIGHT = TOWER_HEIGHT + CONCRETE_HEIGHT
-
-# The imported structure stands on the XY plane (Z=0). Towers sit below
-# the surface so the top platform triangles are exactly at Z=0.
-TOWER_Z_OFFSET = -TOTAL_HEIGHT  # towers descend from Z=0 down to Z=-3.2
 
 TOWER_BASE_RADIUS = 0.55    # meters (triangular footprint circumradius ~1.1m wide)
 TOWER_TOP_RADIUS = 0.35     # meters (slight taper)
@@ -31,14 +38,12 @@ TUBE_SEGMENTS = 8           # polygon count per tube cross-section
 
 CONCRETE_SIZE = 1.5         # meters (square side)
 
-TOWER_SPACING = 6.0         # meters center-to-center
-
-# Bracing levels (Z above concrete top)
-LEVELS = [0.0, 0.7, 1.7, 2.6]  # relative to tower base (Z=0.3)
+# Bracing levels (relative to tower base, above concrete top)
+LEVELS = [0.0, 0.7, 1.7, 2.6]
 
 # Colors
-COLOR_ALUMINUM = (0.75, 0.75, 0.78, 1.0)   # silver
-COLOR_CONCRETE = (0.37, 0.37, 0.37, 1.0)   # dark gray
+COLOR_ALUMINUM = (0.75, 0.75, 0.78, 1.0)
+COLOR_CONCRETE = (0.37, 0.37, 0.37, 1.0)
 
 
 def clear_scene():
@@ -88,18 +93,17 @@ def add_tube(start, end, radius, collection, material):
 
     obj.data.materials.append(material)
 
-    # Move to tower collection
     for c in obj.users_collection:
         c.objects.unlink(obj)
     collection.objects.link(obj)
     return obj
 
 
-def tower_posts(base_z, base_radius, top_radius, height, n=3):
-    """Return list of (bottom, top) pairs for n vertical corner posts."""
+def tower_posts_local(base_z, base_radius, top_radius, height, n=3):
+    """Corner posts in local space (centered at origin)."""
     posts = []
     for i in range(n):
-        angle = i * 2 * math.pi / n - math.pi / 2  # first post at -Y
+        angle = i * 2 * math.pi / n
         bx = math.cos(angle) * base_radius
         by = math.sin(angle) * base_radius
         tx = math.cos(angle) * top_radius
@@ -112,20 +116,25 @@ def tower_posts(base_z, base_radius, top_radius, height, n=3):
 
 
 def post_at_level(post_bottom, post_top, base_z, height, z_rel):
-    """Interpolate a post position at relative height z_rel."""
     t = z_rel / height
     return post_bottom.lerp(post_top, t)
 
 
-def add_platform(center, z, radius, collection, material, name_prefix):
-    """Add a triangular platform (flat surface) at the top of a tower."""
+def transform_point(point, center, rotation_angle):
+    """Rotate point around Z axis by rotation_angle, then translate to center."""
+    rot = Matrix.Rotation(rotation_angle, 3, 'Z')
+    return rot @ point + center
+
+
+def add_platform(center, z, radius, rotation_angle, collection, material, name_prefix):
+    """Triangular platform at tower top, rotated to face centroid."""
     mesh = bpy.data.meshes.new(f"{name_prefix}_platform_mesh")
     obj = bpy.data.objects.new(f"{name_prefix}_platform", mesh)
 
     bm = bmesh.new()
     verts = []
     for i in range(3):
-        angle = i * 2 * math.pi / 3 - math.pi / 2
+        angle = i * 2 * math.pi / 3 + rotation_angle
         v = bm.verts.new((
             center.x + math.cos(angle) * radius,
             center.y + math.sin(angle) * radius,
@@ -141,44 +150,45 @@ def add_platform(center, z, radius, collection, material, name_prefix):
     return obj
 
 
-def build_tower(center, mat_aluminum, mat_concrete):
-    """Build one truss tower with concrete base at the given XY center.
-    The tower top (platform) sits at Z=0; everything else descends below."""
-    name = f"Tower_{center.x:.0f}_{center.y:.0f}"
+def build_tower(center, rotation_angle, tower_index, mat_aluminum, mat_concrete):
+    """Build one truss tower at `center`, rotated by `rotation_angle` about Z
+    so that towers arranged in a circle each face inward toward the centroid.
+    Tower top (platform) is at Z=0; everything descends below."""
+    name = f"Tower_{tower_index}"
     collection = bpy.data.collections.new(name)
     bpy.context.scene.collection.children.link(collection)
 
-    # All Z coordinates are shifted so tower top = Z=0
-    z_off = TOWER_Z_OFFSET
+    z_off = -TOTAL_HEIGHT
 
-    # Concrete base (at the bottom of the tower)
+    # Concrete base
+    rot = Matrix.Rotation(rotation_angle, 4, 'Z')
     bpy.ops.mesh.primitive_cube_add(
         size=1,
         location=(center.x, center.y, z_off + CONCRETE_HEIGHT / 2),
         scale=(CONCRETE_SIZE, CONCRETE_SIZE, CONCRETE_HEIGHT),
     )
-    base = bpy.context.active_object
-    base.name = f"{name}_concrete"
-    base.data.materials.append(mat_concrete)
-    for c in base.users_collection:
-        c.objects.unlink(base)
-    collection.objects.link(base)
+    base_obj = bpy.context.active_object
+    base_obj.name = f"{name}_concrete"
+    base_obj.rotation_euler = (0, 0, rotation_angle)
+    base_obj.data.materials.append(mat_concrete)
+    for c in base_obj.users_collection:
+        c.objects.unlink(base_obj)
+    collection.objects.link(base_obj)
 
-    # Triangular platform at tower top (exactly at Z=0)
-    add_platform(center, 0.0, PLATFORM_RADIUS, collection, mat_aluminum, name)
+    # Platform at Z=0
+    add_platform(center, 0.0, PLATFORM_RADIUS, rotation_angle, collection, mat_aluminum, name)
 
-    # Tower geometry
+    # Tower posts in local space, then transformed
     base_z = z_off + CONCRETE_HEIGHT
-    posts = tower_posts(base_z, TOWER_BASE_RADIUS, TOWER_TOP_RADIUS, TOWER_HEIGHT)
+    local_posts = tower_posts_local(base_z, TOWER_BASE_RADIUS, TOWER_TOP_RADIUS, TOWER_HEIGHT)
 
-    # Offset posts by tower center
     posts = [
-        (b + Vector((center.x, center.y, 0)),
-         t + Vector((center.x, center.y, 0)))
-        for b, t in posts
+        (transform_point(b, center, rotation_angle),
+         transform_point(t, center, rotation_angle))
+        for b, t in local_posts
     ]
 
-    # Vertical struts (main corner posts)
+    # Vertical struts
     for bottom, top in posts:
         add_tube(bottom, top, TUBE_RADIUS, collection, mat_aluminum)
 
@@ -186,10 +196,7 @@ def build_tower(center, mat_aluminum, mat_concrete):
 
     # Horizontal bracing at each level
     for z_rel in LEVELS:
-        points = []
-        for bottom, top in posts:
-            p = post_at_level(bottom, top, base_z, TOWER_HEIGHT, z_rel)
-            points.append(p)
+        points = [post_at_level(b, t, base_z, TOWER_HEIGHT, z_rel) for b, t in posts]
         for i in range(n):
             add_tube(points[i], points[(i + 1) % n], TUBE_RADIUS * 0.7, collection, mat_aluminum)
 
@@ -201,14 +208,14 @@ def build_tower(center, mat_aluminum, mat_concrete):
             lo_here = post_at_level(posts[i][0], posts[i][1], base_z, TOWER_HEIGHT, z_lo)
             hi_next = post_at_level(
                 posts[(i + 1) % n][0], posts[(i + 1) % n][1],
-                base_z, TOWER_HEIGHT, z_hi
+                base_z, TOWER_HEIGHT, z_hi,
             )
             add_tube(lo_here, hi_next, TUBE_RADIUS * 0.5, collection, mat_aluminum)
 
             hi_here = post_at_level(posts[i][0], posts[i][1], base_z, TOWER_HEIGHT, z_hi)
             lo_next = post_at_level(
                 posts[(i + 1) % n][0], posts[(i + 1) % n][1],
-                base_z, TOWER_HEIGHT, z_lo
+                base_z, TOWER_HEIGHT, z_lo,
             )
             add_tube(hi_here, lo_next, TUBE_RADIUS * 0.5, collection, mat_aluminum)
 
@@ -221,13 +228,14 @@ def main():
     mat_aluminum = make_material("Aluminum", COLOR_ALUMINUM)
     mat_concrete = make_material("Concrete", COLOR_CONCRETE)
 
-    # 3 towers in equilateral triangle, 6m spacing
-    # One corner pointing toward +Y
-    for i in range(3):
-        angle = i * 2 * math.pi / 3 + math.pi / 2  # first tower at +Y
-        cx = math.cos(angle) * TOWER_SPACING / math.sqrt(3)
-        cy = math.sin(angle) * TOWER_SPACING / math.sqrt(3)
-        build_tower(Vector((cx, cy, 0)), mat_aluminum, mat_concrete)
+    # Centroid of the three foot positions
+    centroid = sum(TOWER_POSITIONS, Vector((0, 0, 0))) / len(TOWER_POSITIONS)
+
+    for i, pos in enumerate(TOWER_POSITIONS):
+        # Rotation: each tower faces inward toward the centroid
+        to_center = centroid - pos
+        rotation_angle = math.atan2(to_center.y, to_center.x)
+        build_tower(pos, rotation_angle, i, mat_aluminum, mat_concrete)
 
     # Set viewport
     for area in bpy.context.screen.areas:
@@ -237,7 +245,10 @@ def main():
                     space.clip_end = 100
                     space.shading.type = 'MATERIAL'
 
-    print("Tower model created: 3 towers, 6m spacing, Z-up")
+    print(f"Tower model created: 3 towers at OpenClaw foot positions, facing centroid")
+    print(f"Centroid: ({centroid.x:.3f}, {centroid.y:.3f})")
+    for i, pos in enumerate(TOWER_POSITIONS):
+        print(f"  Tower {i}: ({pos.x:.4f}, {pos.y:.4f})")
 
 
 if __name__ == "__main__":
