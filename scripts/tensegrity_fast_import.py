@@ -127,6 +127,15 @@ def clear_existing_prototypes():
     return len(objects_to_remove)
 
 
+def remove_collection_recursive(collection):
+    """Remove a collection and everything inside it: objects, children, subcollections."""
+    for child_col in list(collection.children):
+        remove_collection_recursive(child_col)
+    for obj in list(collection.objects):
+        bpy.data.objects.remove(obj, do_unlink=True)
+    bpy.data.collections.remove(collection)
+
+
 def load_prototypes_from_blend(filepath, force_reload=False):
     """Load prototype objects from a .blend file into a Prototypes scene."""
     if not os.path.exists(filepath):
@@ -408,14 +417,11 @@ class TENSEGRITY_OT_fast_import_json(bpy.types.Operator, ImportHelper):
             self.report({'ERROR'}, f"Missing prototypes: {', '.join(missing)}")
             return {'CANCELLED'}
 
-        # Create collections
+        # Remove previous import (entire hierarchy) before re-importing
         json_name = os.path.splitext(os.path.basename(self.filepath))[0]
         collection_name = f"Tensegrity_{json_name}"
         if collection_name in bpy.data.collections:
-            old_col = bpy.data.collections[collection_name]
-            for obj in old_col.objects:
-                bpy.data.objects.remove(obj, do_unlink=True)
-            bpy.data.collections.remove(old_col)
+            remove_collection_recursive(bpy.data.collections[collection_name])
 
         main_collection = bpy.data.collections.new(collection_name)
         context.scene.collection.children.link(main_collection)

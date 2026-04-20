@@ -51,10 +51,10 @@ impl FabricName {
                     ("Z10", "Z7"),
                 ])
                 .prepare_vulcanize(0.5, VulcanizeMode::Linear)
-                .space(Sec(2.8), End, Pct(43.5))
+                .space(Sec(2.8), End, Pct(46.0))
                 .vulcanize(Sec(1.0))
                 .zero_g_pretense(Sec(0.1), Pct(0.08), Pct(0.0))
-                .surface_slippery()
+                .surface_frozen()
                 .fall(Sec(1.5))
                 .settle(Sec(1.5))
                 .grav_pretense(Sec(0.1), Pct(0.12))

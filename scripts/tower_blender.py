@@ -19,9 +19,9 @@ from mathutils import Vector, Matrix
 # Extracted by test_open_claw_foot_positions (sim Y-up → Blender Z-up).
 # Each tower's platform sits exactly at one of these XY positions, at Z=0.
 TOWER_POSITIONS = [
-    Vector((-2.4629, 2.4365, 0.0)),
-    Vector((3.2767, 0.9895, 0.0)),
-    Vector((-0.8190, -3.3970, 0.0)),
+    Vector((-2.4529, 2.3107, 0.0)),
+    Vector((3.2296, 0.9693, 0.0)),
+    Vector((-0.7744, -3.2807, 0.0)),
 ]
 
 # --- Configuration ---
@@ -46,11 +46,13 @@ COLOR_ALUMINUM = (0.75, 0.75, 0.78, 1.0)
 COLOR_CONCRETE = (0.37, 0.37, 0.37, 1.0)
 
 
-def clear_scene():
-    bpy.ops.object.select_all(action='SELECT')
-    bpy.ops.object.delete(use_global=False)
-    for mat in list(bpy.data.materials):
-        bpy.data.materials.remove(mat)
+def clear_towers():
+    """Remove only tower objects/collections from previous runs, leave everything else."""
+    for col in list(bpy.data.collections):
+        if col.name.startswith("Tower_"):
+            for obj in list(col.objects):
+                bpy.data.objects.remove(obj, do_unlink=True)
+            bpy.data.collections.remove(col)
 
 
 def make_material(name, color):
@@ -223,7 +225,7 @@ def build_tower(center, rotation_angle, tower_index, mat_aluminum, mat_concrete)
 
 
 def main():
-    clear_scene()
+    clear_towers()
 
     mat_aluminum = make_material("Aluminum", COLOR_ALUMINUM)
     mat_concrete = make_material("Concrete", COLOR_CONCRETE)
