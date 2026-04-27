@@ -96,8 +96,8 @@ def make_material(name, color):
     if bsdf:
         bsdf.inputs["Base Color"].default_value = color
         if "aluminum" in name.lower():
-            bsdf.inputs["Metallic"].default_value = 0.9
-            bsdf.inputs["Roughness"].default_value = 0.3
+            bsdf.inputs["Metallic"].default_value = 1.0
+            bsdf.inputs["Roughness"].default_value = 0.15
         else:
             bsdf.inputs["Metallic"].default_value = 0.0
             bsdf.inputs["Roughness"].default_value = 0.8
@@ -373,9 +373,9 @@ def build_lighting():
         ((0.15, 0.2, 1.0), "Blue"),     # blue
     ]
 
-    fixture_radius = 0.3    # housing cylinder radius
-    fixture_height = 0.5    # housing cylinder height
-    lens_radius = 0.25      # glowing lens disc
+    fixture_radius = 0.15   # housing cylinder radius
+    fixture_height = 0.25   # housing cylinder height
+    lens_radius = 0.125     # glowing lens disc
 
     for i, pos in enumerate(TOWER_POSITIONS):
         color, color_name = spot_colors[i]
@@ -388,8 +388,8 @@ def build_lighting():
             0.0,
         ))
 
-        # Aim down at structure center (roughly mid-height)
-        target = Vector((centroid.x, centroid.y, 3.5))
+        # Aim at structure center, tilted ~10° more upward than center
+        target = Vector((centroid.x, centroid.y, 5.0))
         direction = target - mount_pos
         rot_quat = direction.to_track_quat('-Z', 'Y')
         rot_euler = rot_quat.to_euler()
