@@ -490,7 +490,7 @@ impl FabricPlanExecutor {
         // time through the seed face, so no apply_scale needed. Rigidity was
         // also adjusted from build start in PlanRunner::new.
         let mass_multiplier = self.physics.mass_multiplier();
-        let mut rigidity_multiplier = self.physics.rigidity_multiplier();
+        let rigidity_multiplier = self.physics.rigidity_multiplier();
 
         if let Some(plan_runner) = &self.plan_runner {
             self.stored_scale = plan_runner.get_scale().f32();
