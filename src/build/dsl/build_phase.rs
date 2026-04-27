@@ -143,13 +143,14 @@ impl BuildPhase {
 }
 
 impl BuildPhase {
-    pub fn init(&mut self, fabric: &mut Fabric) {
+    pub fn init(&mut self, fabric: &mut Fabric, build_scale: f32) {
         let (buds, marks) = Self::execute_node(
             fabric,
             Scratch,
             &self.root,
             vec![],
             self.seed_altitude,
+            build_scale,
             JointPath::default(),
         );
         self.buds = buds;
@@ -232,6 +233,7 @@ impl BuildPhase {
                     child_node,
                     vec![],
                     self.seed_altitude,
+                    1.0,
                     child_path,
                 );
                 buds.extend(node_buds);
@@ -247,6 +249,7 @@ impl BuildPhase {
         node: &BuildNode,
         faces: Vec<FaceKey>,
         seed_altitude: f32,
+        build_scale: f32,
         branch_path: JointPath,
     ) -> (Vec<Bud>, Vec<FaceMark>) {
         let mut buds: Vec<Bud> = vec![];
@@ -260,6 +263,7 @@ impl BuildPhase {
                     build_node,
                     faces,
                     seed_altitude,
+                    build_scale,
                     branch_path,
                 );
             }
@@ -288,17 +292,24 @@ impl BuildPhase {
             } => {
                 let brick = brick_library::get_brick(*brick_name, *brick_role);
                 let launch_face = Self::find_launch_face(&launch, &faces, fabric);
-                let base_face =
-                    launch_face
-                        .map(BaseFace::ExistingFace)
-                        .unwrap_or(BaseFace::Seeded {
-                            altitude: seed_altitude,
-                        });
+                // For the seed (no existing face), apply build_scale so the
+                // fabric is built at final scale from the start. Subsequent
+                // bricks inherit the scale through the face hierarchy.
+                let (base_face, effective_scale) = if let Some(fk) = launch_face {
+                    (BaseFace::ExistingFace(fk), scale.as_factor())
+                } else {
+                    (
+                        BaseFace::Seeded {
+                            altitude: seed_altitude * build_scale,
+                        },
+                        scale.as_factor() * build_scale,
+                    )
+                };
                 let (base_face_key, brick_faces) = fabric.attach_brick(
                     &brick,
                     *brick_role,
                     rotation.into(),
-                    scale.as_factor(),
+                    effective_scale,
                     base_face,
                     &branch_path,
                 );
@@ -323,6 +334,7 @@ impl BuildPhase {
                         hub_node,
                         available_faces.clone(),
                         seed_altitude,
+                        build_scale,
                         child_path,
                     );
                     buds.extend(new_buds);

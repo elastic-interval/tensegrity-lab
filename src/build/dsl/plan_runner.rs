@@ -7,7 +7,7 @@ use crate::build::dsl::FabricPlan;
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::CONSTRUCTION;
 use crate::fabric::physics::Physics;
-use crate::units::{Meters, Seconds, IMMEDIATE, MOMENT};
+use crate::units::{Meters, Seconds, Unit, IMMEDIATE, MOMENT};
 use crate::{Age, LabEvent, StateChange};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -73,7 +73,7 @@ impl PlanRunner {
         if self.stage_elapsed(context.fabric.age) && self.disabled.is_none() {
             let (next_stage, seconds) = match self.stage {
                 Initialize => {
-                    self.build_phase.init(context.fabric);
+                    self.build_phase.init(context.fabric, self.scale.f32());
                     (BuildApproach, MOMENT)
                 }
                 BuildStep => {
@@ -115,7 +115,7 @@ impl PlanRunner {
         if self.stage_elapsed(context.fabric.age) && self.disabled.is_none() {
             let (next_stage, seconds) = match self.stage {
                 Initialize => {
-                    self.build_phase.init(context.fabric);
+                    self.build_phase.init(context.fabric, self.scale.f32());
                     (BuildApproach, MOMENT)
                 }
                 BuildStep => {

@@ -490,17 +490,13 @@ impl FabricPlanExecutor {
         let mass_multiplier = self.physics.mass_multiplier();
         let mut rigidity_multiplier = self.physics.rigidity_multiplier();
 
-        // Apply scale to convert from internal units to meters
-        // After this, all coordinates and lengths are in meters directly
+        // Scale is now applied at build time (in BuildPhase seed placement),
+        // so coordinates are already in meters. Just record the scale factor
+        // and adjust rigidity.
         if let Some(plan_runner) = &self.plan_runner {
             let scale = plan_runner.get_scale();
             self.stored_scale = scale.f32();
-            self.fabric.apply_scale(scale);
-
-            // Scale rigidity to maintain similar dynamics at different scales
-            // Empirically tuned: scale^1.5 balances stability and structural integrity
-            let scale_factor = scale.f32();
-            rigidity_multiplier *= scale_factor.powf(1.5);
+            rigidity_multiplier *= scale.f32().powf(1.5);
         }
 
         // Update bounding radius after scale is applied

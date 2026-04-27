@@ -467,36 +467,7 @@ impl Fabric {
     /// After this, all coordinates are in meters directly.
     /// Mass scales with scale⁴ to compensate for gravity not scaling:
     /// - Volume scaling gives scale³
-    /// - Additional scale factor represents using lighter materials at small scales
-    ///   to maintain structural integrity against (relatively stronger) gravity
-    pub fn apply_scale(&mut self, scale: Meters) {
-        let s = scale.f32();
-        self.scale = s;
-        let mass_scale = s.powf(3.5); // scale^3.5: volume plus slight reduction for small structures
-                                      // Scale all joint positions, velocities, and mass
-        for joint in self.joints.values_mut() {
-            joint.location.x *= s;
-            joint.location.y *= s;
-            joint.location.z *= s;
-            joint.velocity.x *= s;
-            joint.velocity.y *= s;
-            joint.velocity.z *= s;
-            // Forces will be recalculated on next iteration
-            joint.force = Vec3::ZERO;
-            // Scale mass with volume (thinner intervals at small scale)
-            joint.accumulated_mass = Grams(joint.accumulated_mass.f32() * mass_scale);
-        }
-        // Scale all interval ideal lengths
-        for interval in self.intervals.values_mut() {
-            interval.scale_lengths(s);
-        }
-        // Scale face scales
-        for face in self.faces.values_mut() {
-            face.scale *= s;
-        }
-        // Scale cached bounding radius
-        self.cached_bounding_radius *= s;
-    }
+
 
     /// Get the rotation matrix to orient the fabric so faces with Downwards(n) point down
     pub fn down_rotation(&self, brick_role: BrickRole) -> Mat4 {
