@@ -373,9 +373,9 @@ def build_lighting():
         ((0.15, 0.2, 1.0), "Blue"),     # blue
     ]
 
-    fixture_radius = 0.15   # housing cylinder radius
-    fixture_height = 0.25   # housing cylinder height
-    lens_radius = 0.125     # glowing lens disc
+    fixture_radius = 0.075  # housing cylinder radius
+    fixture_height = 0.125  # housing cylinder height
+    lens_radius = 0.06      # glowing lens disc
 
     for i, pos in enumerate(TOWER_POSITIONS):
         color, color_name = spot_colors[i]
@@ -388,8 +388,8 @@ def build_lighting():
             0.0,
         ))
 
-        # Aim at structure center, tilted ~10° more upward than center
-        target = Vector((centroid.x, centroid.y, 5.0))
+        # Aim at structure center, tilted upward
+        target = Vector((centroid.x, centroid.y, 6.5))
         direction = target - mount_pos
         rot_quat = direction.to_track_quat('-Z', 'Y')
         rot_euler = rot_quat.to_euler()
@@ -431,9 +431,9 @@ def build_lighting():
         spot_data = bpy.data.lights.new(f"Spotlight_{color_name}", 'SPOT')
         spot_data.energy = 10000
         spot_data.color = color
-        spot_data.spot_size = math.radians(60)
-        spot_data.spot_blend = 0.4
-        spot_data.shadow_soft_size = 0.3
+        spot_data.spot_size = math.radians(80)
+        spot_data.spot_blend = 0.7
+        spot_data.shadow_soft_size = 1.0
 
         spot_obj = bpy.data.objects.new(f"Spotlight_{color_name}", spot_data)
         spot_obj.location = lens_pos
