@@ -368,9 +368,9 @@ def build_lighting():
 
     # RGB uplights — one per tower
     spot_colors = [
-        ((1.0, 0.15, 0.1), "Red"),     # red
-        ((0.1, 1.0, 0.15), "Green"),    # green
-        ((0.15, 0.2, 1.0), "Blue"),     # blue
+        ((1.0, 0.15, 0.1), "Red", 1.0),       # red
+        ((0.1, 1.0, 0.15), "Green", 0.85),     # green — reduced, eye is most sensitive here
+        ((0.15, 0.2, 1.0), "Blue", 1.0),       # blue
     ]
 
     fixture_radius = 0.075  # housing cylinder radius
@@ -378,13 +378,13 @@ def build_lighting():
     lens_radius = 0.06      # glowing lens disc
 
     for i, pos in enumerate(TOWER_POSITIONS):
-        color, color_name = spot_colors[i]
+        color, color_name, intensity = spot_colors[i]
 
         # Mount at tower top (Z=0), slightly inward toward centroid
         to_center = (centroid - pos).normalized()
         mount_pos = Vector((
-            pos.x + to_center.x * 0.3,
-            pos.y + to_center.y * 0.3,
+            pos.x - to_center.x * 0.3,
+            pos.y - to_center.y * 0.3,
             0.0,
         ))
 
@@ -429,11 +429,11 @@ def build_lighting():
 
         # Spot light — shining inward and down onto structure
         spot_data = bpy.data.lights.new(f"Spotlight_{color_name}", 'SPOT')
-        spot_data.energy = 10000
+        spot_data.energy = 10000 * intensity
         spot_data.color = color
-        spot_data.spot_size = math.radians(80)
-        spot_data.spot_blend = 0.7
-        spot_data.shadow_soft_size = 1.0
+        spot_data.spot_size = math.radians(90)
+        spot_data.spot_blend = 0.85
+        spot_data.shadow_soft_size = 2.0
 
         spot_obj = bpy.data.objects.new(f"Spotlight_{color_name}", spot_data)
         spot_obj.location = lens_pos
@@ -442,7 +442,7 @@ def build_lighting():
 
     # Soft overhead fill light (moonlight stand-in)
     sun_data = bpy.data.lights.new("Moonlight", 'SUN')
-    sun_data.energy = 1.0
+    sun_data.energy = 2.0
     sun_data.color = (0.7, 0.75, 1.0)
     sun_data.angle = math.radians(10)
 
