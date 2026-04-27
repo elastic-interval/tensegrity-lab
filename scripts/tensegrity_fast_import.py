@@ -392,27 +392,18 @@ class TENSEGRITY_OT_fast_import_json(bpy.types.Operator, ImportHelper):
         print(f"File: {self.filepath}")
         print(f"Frames: {len(frames)}, Construction mode: {self.construction_mode}")
 
-        # Find or load prototypes
+        # Always reload prototypes fresh from prototypes.blend so edits
+        # to the .blend file take effect immediately.
+        clear_existing_prototypes()
+        proto_path = find_prototypes_blend()
+        if not proto_path:
+            proto_path = os.path.join(json_dir, "scripts", "prototypes.blend")
+        loaded, error = load_prototypes_from_blend(proto_path)
+        if error:
+            self.report({'ERROR'}, f"Failed to load prototypes: {error}")
+            return {'CANCELLED'}
         prototypes = find_prototype_objects(reset_transforms=True)
         missing = [name for name, obj in prototypes.items() if obj is None]
-
-        if missing:
-            proto_path = self.prototypes_path or find_prototypes_blend()
-
-            if not proto_path:
-                json_relative = os.path.join(json_dir, "scripts", "prototypes.blend")
-                if os.path.exists(json_relative):
-                    proto_path = json_relative
-
-            if proto_path:
-                loaded, error = load_prototypes_from_blend(proto_path)
-                if error:
-                    self.report({'WARNING'}, f"Error loading prototypes: {error}")
-                elif loaded:
-                    self.report({'INFO'}, f"Auto-loaded prototypes from {proto_path}")
-                    prototypes = find_prototype_objects(reset_transforms=True)
-                    missing = [name for name, obj in prototypes.items() if obj is None]
-
         if missing:
             self.report({'ERROR'}, f"Missing prototypes: {', '.join(missing)}")
             return {'CANCELLED'}
