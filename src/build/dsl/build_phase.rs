@@ -7,7 +7,7 @@ use crate::fabric::brick::BaseFace;
 use crate::fabric::face::FaceRotation;
 use crate::fabric::joint_path::{JointPath, COLUMN_MARKER};
 use crate::fabric::{Fabric, FaceKey};
-use crate::units::Percent;
+use crate::units::{Percent, Unit};
 use std::convert::Into;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -143,7 +143,8 @@ impl BuildPhase {
 }
 
 impl BuildPhase {
-    pub fn init(&mut self, fabric: &mut Fabric, build_scale: f32) {
+    pub fn init(&mut self, fabric: &mut Fabric) {
+        let build_scale = fabric.dimensions.scale.f32();
         let (buds, marks) = Self::execute_node(
             fabric,
             Scratch,
@@ -292,9 +293,6 @@ impl BuildPhase {
             } => {
                 let brick = brick_library::get_brick(*brick_name, *brick_role);
                 let launch_face = Self::find_launch_face(&launch, &faces, fabric);
-                // For the seed (no existing face), apply build_scale so the
-                // fabric is built at final scale from the start. Subsequent
-                // bricks inherit the scale through the face hierarchy.
                 let (base_face, effective_scale) = if let Some(fk) = launch_face {
                     (BaseFace::ExistingFace(fk), scale.as_factor())
                 } else {
@@ -334,7 +332,7 @@ impl BuildPhase {
                         hub_node,
                         available_faces.clone(),
                         seed_altitude,
-                        build_scale,
+                        1.0,
                         child_path,
                     );
                     buds.extend(new_buds);

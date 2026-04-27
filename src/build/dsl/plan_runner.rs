@@ -43,8 +43,14 @@ impl PlanRunner {
             ..
         }: FabricPlan,
     ) -> Self {
+        let mut physics = CONSTRUCTION;
+        // Scale is applied to the seed face and propagated through the face
+        // hierarchy, so intervals are shorter by the scale factor. Adjust
+        // rigidity to maintain equivalent build dynamics.
+        let s = dimensions.scale.f32();
+        physics.tweak.rigidity_multiplier *= s.powf(1.5);
         Self {
-            physics: CONSTRUCTION,
+            physics,
             shape_phase,
             build_phase,
             zero_g_pretense_phase,
@@ -73,7 +79,7 @@ impl PlanRunner {
         if self.stage_elapsed(context.fabric.age) && self.disabled.is_none() {
             let (next_stage, seconds) = match self.stage {
                 Initialize => {
-                    self.build_phase.init(context.fabric, self.scale.f32());
+                    self.build_phase.init(context.fabric);
                     (BuildApproach, MOMENT)
                 }
                 BuildStep => {
@@ -115,7 +121,7 @@ impl PlanRunner {
         if self.stage_elapsed(context.fabric.age) && self.disabled.is_none() {
             let (next_stage, seconds) = match self.stage {
                 Initialize => {
-                    self.build_phase.init(context.fabric, self.scale.f32());
+                    self.build_phase.init(context.fabric);
                     (BuildApproach, MOMENT)
                 }
                 BuildStep => {

@@ -386,7 +386,6 @@ pub struct Fabric {
     pub dimensions: FabricDimensions,
 
     cached_bounding_radius: f32,
-    scale: f32,
     approaching_count: usize,
 }
 
@@ -401,7 +400,6 @@ impl Fabric {
             frozen: false,
             stats: IterationStats::default(),
             cached_bounding_radius: 0.0,
-            scale: 1.0,
             dimensions: FabricDimensions::default(),
             approaching_count: 0,
         }
@@ -412,9 +410,8 @@ impl Fabric {
         self
     }
 
-    /// Returns the fabric's scale factor (set during construction)
     pub fn scale(&self) -> f32 {
-        self.scale
+        self.dimensions.scale.f32()
     }
 
     pub fn ambient_mass(&self) -> Grams {
@@ -465,10 +462,6 @@ impl Fabric {
     /// Scale all coordinates and interval lengths by the given factor.
     /// This converts from internal units to meters when called with the plan's scale.
     /// After this, all coordinates are in meters directly.
-    /// Mass scales with scale⁴ to compensate for gravity not scaling:
-    /// - Volume scaling gives scale³
-
-
     /// Get the rotation matrix to orient the fabric so faces with Downwards(n) point down
     pub fn down_rotation(&self, brick_role: BrickRole) -> Mat4 {
         let downward_count = match brick_role {

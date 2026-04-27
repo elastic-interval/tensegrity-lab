@@ -486,17 +486,14 @@ impl FabricPlanExecutor {
             to: "PRETENSE".to_string(),
         });
 
-        // Preserve user's scaling tweaks
+        // Preserve user's scaling tweaks. Scale was already applied at build
+        // time through the seed face, so no apply_scale needed. Rigidity was
+        // also adjusted from build start in PlanRunner::new.
         let mass_multiplier = self.physics.mass_multiplier();
         let mut rigidity_multiplier = self.physics.rigidity_multiplier();
 
-        // Scale is now applied at build time (in BuildPhase seed placement),
-        // so coordinates are already in meters. Just record the scale factor
-        // and adjust rigidity.
         if let Some(plan_runner) = &self.plan_runner {
-            let scale = plan_runner.get_scale();
-            self.stored_scale = scale.f32();
-            rigidity_multiplier *= scale.f32().powf(1.5);
+            self.stored_scale = plan_runner.get_scale().f32();
         }
 
         // Update bounding radius after scale is applied
