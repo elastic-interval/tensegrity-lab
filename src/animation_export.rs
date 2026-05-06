@@ -13,13 +13,12 @@ use slotmap::Key;
 
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, JointKey};
+use crate::units::Unit;
 
 const DEFAULT_EXPORT_FPS: f64 = 100.0;
 
 const JOINT_RADIUS: f32 = 0.015;
-const PUSH_RADIUS: f32 = 0.04;
-const HOLDER_RADIUS: f32 = PUSH_RADIUS / 5.0;
-const PULL_RADIUS: f32 = 0.007;
+const HOLDER_RADIUS_RATIO: f32 = 1.0 / 5.0;
 
 #[derive(Serialize)]
 struct ExportData {
@@ -78,6 +77,8 @@ pub struct AnimationExporter {
     iteration_count: usize,
     iterations_per_frame: usize,
     fps: f64,
+    push_radius: f32,
+    pull_radius: f32,
 }
 
 impl AnimationExporter {
@@ -92,6 +93,8 @@ impl AnimationExporter {
             iteration_count: 0,
             iterations_per_frame,
             fps,
+            push_radius: 0.0,
+            pull_radius: 0.0,
         }
     }
 
@@ -149,9 +152,9 @@ impl AnimationExporter {
             fps: self.fps,
             prototypes: PrototypeDimensions {
                 joint_radius: JOINT_RADIUS,
-                push_radius: PUSH_RADIUS,
-                holder_radius: HOLDER_RADIUS,
-                pull_radius: PULL_RADIUS,
+                push_radius: self.push_radius,
+                holder_radius: self.push_radius * HOLDER_RADIUS_RATIO,
+                pull_radius: self.pull_radius,
             },
             frames,
         }
@@ -202,8 +205,14 @@ impl AnimationExporter {
 
                 let (x_axis, y_axis, z_axis) = compute_cylinder_axes(delta, full_length);
 
-                let matrix =
-                    create_cylinder_matrix(mid, x_axis, y_axis, z_axis, PUSH_RADIUS, full_length);
+                let matrix = create_cylinder_matrix(
+                    mid,
+                    x_axis,
+                    y_axis,
+                    z_axis,
+                    self.push_radius,
+                    full_length,
+                );
 
                 // Name by stable joint key identifiers for consistent identity across frames
                 Some(IntervalExport {
@@ -233,8 +242,14 @@ impl AnimationExporter {
 
                 let (x_axis, y_axis, z_axis) = compute_cylinder_axes(delta, full_length);
 
-                let matrix =
-                    create_cylinder_matrix(mid, x_axis, y_axis, z_axis, PULL_RADIUS, full_length);
+                let matrix = create_cylinder_matrix(
+                    mid,
+                    x_axis,
+                    y_axis,
+                    z_axis,
+                    self.pull_radius,
+                    full_length,
+                );
 
                 // Name by stable joint key identifiers for consistent identity across frames
                 Some(IntervalExport {
@@ -258,6 +273,9 @@ impl AnimationExporter {
         if !self.enabled || iterations == 0 {
             return;
         }
+
+        self.push_radius = fabric.dimensions.hinge.push_radius.f32();
+        self.pull_radius = fabric.dimensions.pull_radius.f32();
 
         let prev_frame = self.iteration_count / self.iterations_per_frame;
         self.iteration_count += iterations;
@@ -322,6 +340,8 @@ impl AnimationExporter {
     }
 
     pub fn snapshot(&mut self, fabric: &Fabric) -> io::Result<PathBuf> {
+        self.push_radius = fabric.dimensions.hinge.push_radius.f32();
+        self.pull_radius = fabric.dimensions.pull_radius.f32();
         self.frames.clear();
         self.frame_count = 0;
 
