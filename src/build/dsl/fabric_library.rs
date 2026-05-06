@@ -58,7 +58,16 @@ impl FabricName {
                 .fall(Sec(1.5))
                 .settle(Sec(1.5))
                 .grav_pretense(Sec(0.1), Pct(0.12))
-                .done(),
+                .animate()
+                .actuator_frequency(Hz(1.94))
+                .amplitude(Pct(3.0))
+                .stiffness(Pct(1.0))
+                .sine()
+                .actuators([
+                    phase(Pct(0.0)).between("CX2Z4", "BX4Z5"),
+                    phase(Pct(0.0)).between("AX2Z4", "CX4Z5"),
+                    phase(Pct(0.0)).between("BX2Z4", "AX4Z5"),
+                ]),
             Triped => self
                 .build(FabricDimensions::default())
                 .seed(OmniSymmetrical, Seed(1))

@@ -350,11 +350,12 @@ impl Crucible {
                 };
                 context.send_event(LabEvent::UpdateState(SetControlState(control_state)));
             }
-            AdjustAnimationPeriod(factor) => {
+            AdjustAnimationFrequency(factor) => {
                 if let Animating(animator) = &mut self.stage {
-                    animator.adjust_period(factor);
+                    animator.adjust_period(1.0 / factor);
                     let period = animator.period_secs();
                     let frequency = 1.0 / period;
+                    println!("actuator_frequency(Hz({:.4}))", frequency);
                     // Also update the fabric_plan so the period persists across animation toggles
                     if let Some(ref mut plan) = self.fabric_plan {
                         if let Some(ref mut animate_phase) = plan.animate_phase {

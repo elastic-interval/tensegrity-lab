@@ -502,7 +502,7 @@ pub enum CrucibleAction {
     LoadAlgoFabric(fabric::Fabric),
     CentralizeFabric(Option<Meters>),
     ClearSelection,
-    AdjustAnimationPeriod(f32),
+    AdjustAnimationFrequency(f32),
     ToViewing,
     ToAnimating,
     ToPhysicsTesting,

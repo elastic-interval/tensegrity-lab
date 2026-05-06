@@ -110,12 +110,12 @@ impl Animator {
             let phase_offset = actuator.phase_offset.as_factor();
             match &actuator.attachment {
                 ActuatorAttachment::Between { joint_a, joint_b } => {
-                    let Some(alpha_key) = fabric.joint_key_by_path(joint_a) else {
-                        continue;
-                    };
-                    let Some(omega_key) = fabric.joint_key_by_path(joint_b) else {
-                        continue;
-                    };
+                    let alpha_key = fabric
+                        .joint_key_by_path(joint_a)
+                        .unwrap_or_else(|| panic!("actuator joint not found: {joint_a}"));
+                    let omega_key = fabric
+                        .joint_key_by_path(joint_b)
+                        .unwrap_or_else(|| panic!("actuator joint not found: {joint_b}"));
                     let rest_length = fabric.distance(alpha_key, omega_key);
                     let id = fabric.create_slack_interval(alpha_key, omega_key, Role::Pulling);
                     if let Some(interval) = fabric.intervals.get_mut(id) {
@@ -130,9 +130,9 @@ impl Animator {
                     });
                 }
                 ActuatorAttachment::ToSurface { joint, point } => {
-                    let Some(joint_key) = fabric.joint_key_by_path(joint) else {
-                        continue;
-                    };
+                    let joint_key = fabric
+                        .joint_key_by_path(joint)
+                        .unwrap_or_else(|| panic!("actuator joint not found: {joint}"));
                     let anchor_point = Vec3::new(point.0, 0.0, point.1);
                     let anchor_key = fabric.create_joint(anchor_point);
                     let rest_length = fabric.distance(joint_key, anchor_key);

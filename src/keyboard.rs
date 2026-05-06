@@ -23,7 +23,7 @@ enum KeyAction {
         render: Box<dyn Fn(&f32) -> String>,
         is_active_in: Box<dyn Fn(&ControlState) -> bool>,
     },
-    AnimationPeriod {
+    AnimationFrequency {
         up_code: SmolStr,
         down_code: SmolStr,
         radio: Radio,
@@ -83,9 +83,9 @@ impl Keyboard {
                 )
             }),
         );
-        self.animation_period(
-            "P",
-            "p",
+        self.animation_frequency(
+            "F",
+            "f",
             Box::new(|state| matches!(state, Animating | ShowingJoint(_))),
         );
         self.time_scale("T", "t");
@@ -241,7 +241,7 @@ impl Keyboard {
                                 }
                             }
                         }
-                        KeyAction::AnimationPeriod {
+                        KeyAction::AnimationFrequency {
                             up_code,
                             down_code,
                             radio,
@@ -249,10 +249,10 @@ impl Keyboard {
                         } => {
                             if is_active_in(control_state) {
                                 if text == *up_code {
-                                    CrucibleAction::AdjustAnimationPeriod(1.01).send(radio);
+                                    CrucibleAction::AdjustAnimationFrequency(1.01).send(radio);
                                 }
                                 if text == *down_code {
-                                    CrucibleAction::AdjustAnimationPeriod(0.99).send(radio);
+                                    CrucibleAction::AdjustAnimationFrequency(0.99).send(radio);
                                 }
                             }
                         }
@@ -303,14 +303,14 @@ impl Keyboard {
                         legend.push(format!("{}/{}: {}", up_code, down_code, render(value)));
                     }
                 }
-                KeyAction::AnimationPeriod {
+                KeyAction::AnimationFrequency {
                     is_active_in,
                     up_code,
                     down_code,
                     ..
                 } => {
                     if is_active_in(control_state) {
-                        legend.push(format!("{}/{}: Period", up_code, down_code));
+                        legend.push(format!("{}/{}: Frequency", up_code, down_code));
                     }
                 }
                 KeyAction::TimeScale {
@@ -371,13 +371,13 @@ impl Keyboard {
         })
     }
 
-    fn animation_period(
+    fn animation_frequency(
         &mut self,
         up_code: &str,
         down_code: &str,
         is_active_in: Box<dyn Fn(&ControlState) -> bool>,
     ) {
-        self.actions.push(KeyAction::AnimationPeriod {
+        self.actions.push(KeyAction::AnimationFrequency {
             up_code: up_code.into(),
             down_code: down_code.into(),
             is_active_in,
