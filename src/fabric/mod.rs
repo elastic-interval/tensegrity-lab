@@ -47,7 +47,7 @@ pub struct HingeDimensions {
 impl Default for HingeDimensions {
     fn default() -> Self {
         Self {
-            push_radius: Meters(0.025),
+            push_radius: Meters(0.02),
             push_radius_margin: Meters(0.002),
             disc_thickness: Meters(0.006),
             disc_separator_thickness: Meters(0.001),
