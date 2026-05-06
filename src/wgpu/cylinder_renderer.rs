@@ -1,9 +1,23 @@
 use crate::camera::Pick;
 use crate::fabric::interval::{Role, Span};
 use crate::fabric::material::Material;
-use crate::fabric::{Fabric, IntervalEnd};
+use crate::fabric::{Fabric, FabricDimensions, IntervalEnd};
+use crate::units::Unit;
 use crate::wgpu::{Wgpu, DEFAULT_PRIMITIVE_STATE};
 use crate::{Appearance, AppearanceMode, IntervalDetails, JointDetails, RenderStyle};
+
+fn physical_radius(role: Role, dims: &FabricDimensions) -> f32 {
+    use Role::*;
+    let push = dims.hinge.push_radius.f32();
+    let pull = dims.pull_radius.f32();
+    match role {
+        Pushing => push,
+        Pulling | BowTie | Support | GuyLine | PrismPull => pull,
+        Springy => push * 7.0 / 12.0,
+        Circumference => pull * 18.0 / 14.0,
+        FaceRadial => pull * 10.0 / 14.0,
+    }
+}
 use bytemuck::{Pod, Zeroable};
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
@@ -166,9 +180,6 @@ impl CylinderRenderer {
         use RenderStyle::*;
         let mut instances = Vec::with_capacity(fabric.intervals.len());
 
-        // Scale interval thickness based on fabric scale
-        // This ensures intervals look proportional regardless of fabric scale
-        let radius_scale = fabric.scale();
         for (interval_key, interval) in fabric.intervals.iter() {
             let push = interval.material == Material::Push;
             match render_style {
@@ -378,9 +389,11 @@ impl CylinderRenderer {
                 appearance.color
             };
 
+            let phys_radius = physical_radius(interval.role, &fabric.dimensions);
+            let multiplier = appearance.radius / interval.role.radius();
             instances.push(CylinderInstance {
                 start: [modified_start.x, modified_start.y, modified_start.z],
-                radius_factor: appearance.radius * radius_scale,
+                radius_factor: phys_radius * multiplier,
                 end: [modified_end.x, modified_end.y, modified_end.z],
                 material_type: interval.role as u32,
                 color,
