@@ -32,7 +32,7 @@ pub struct IntervalReading {
 }
 
 /// Hinge geometry dimensions for physical construction.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct HingeDimensions {
     pub push_radius: Meters,
     pub push_radius_margin: Meters,
@@ -41,6 +41,9 @@ pub struct HingeDimensions {
     pub cap_thickness: Meters,
     pub hinge_extension: Meters,
     pub hinge_hole_diameter: Meters,
+    pub bend_count: usize,
+    /// Empty = no snap (use continuous ideal). Populated by `Fabric::recompute_bend_magnitudes`.
+    pub bend_magnitudes: Vec<f32>,
 }
 
 
@@ -49,11 +52,13 @@ impl Default for HingeDimensions {
         Self {
             push_radius: Meters(0.02),
             push_radius_margin: Meters(0.002),
-            disc_thickness: Meters(0.006),
+            disc_thickness: Meters(0.005),
             disc_separator_thickness: Meters(0.001),
             cap_thickness: Meters(0.006),
             hinge_extension: Meters(0.014),
             hinge_hole_diameter: Meters(0.012),
+            bend_count: 4,
+            bend_magnitudes: Vec::new(),
         }
     }
 }
@@ -102,7 +107,7 @@ fn radial_unit_from_axis(push_axis: Vec3, direction: Vec3) -> Vec3 {
 }
 
 /// All physical dimensions for a fabric: structure size and interval geometry.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct FabricDimensions {
     pub altitude: Meters,
     pub scale: Meters,
@@ -170,17 +175,19 @@ impl FabricDimensions {
         slot: usize,
         pull_other_end: Vec3,
     ) -> Vec3 {
-        let (hinge_pos, _, _) = self.hinge_geometry(push_end, push_axis, slot, pull_other_end);
+        let (hinge_pos, _, _, _) = self.hinge_geometry(push_end, push_axis, slot, pull_other_end);
         hinge_pos
     }
 
+    /// Returns `(hinge_pos, hinge_bend, pull_end_pos, ideal_deg)`. `hinge_bend`
+    /// is snapped when `bend_magnitudes` is populated, else equals `ideal_deg`.
     pub fn hinge_geometry(
         &self,
         push_end: Vec3,
         push_axis: Vec3,
         slot: usize,
         pull_other_end: Vec3,
-    ) -> (Vec3, attachment::HingeBend, Vec3) {
+    ) -> (Vec3, attachment::HingeBend, Vec3, f32) {
         let ring_center = self.ring_center(push_end, push_axis, slot);
         let to_pull = pull_other_end - ring_center;
         let radial_unit = radial_unit_from_axis(push_axis, to_pull);
@@ -189,13 +196,19 @@ impl FabricDimensions {
 
         let pull_direction = (pull_other_end - hinge_pos).normalize();
         let sin_angle = pull_direction.dot(push_axis);
-        let ideal_angle = Degrees(sin_angle.asin().to_degrees());
-        let hinge_bend = attachment::HingeBend::from_angle(ideal_angle);
+        let ideal_deg = sin_angle.asin().to_degrees();
+
+        let snapped_deg = if self.hinge.bend_magnitudes.is_empty() {
+            ideal_deg
+        } else {
+            bend_optimizer::snap_to_magnitudes(ideal_deg, &self.hinge.bend_magnitudes).0
+        };
+        let hinge_bend = attachment::HingeBend(snapped_deg);
 
         let pull_end_pos =
             hinge_bend.endpoint(hinge_pos, push_axis, radial_unit, self.hinge.length().f32());
 
-        (hinge_pos, hinge_bend, pull_end_pos)
+        (hinge_pos, hinge_bend, pull_end_pos, ideal_deg)
     }
 
     /// Snap a length to the nearest increment (minimum 1 increment).
@@ -253,6 +266,7 @@ new_key_type! {
 }
 
 pub mod attachment;
+pub mod bend_optimizer;
 pub mod brick;
 pub mod error;
 pub mod fabric_sampler;
@@ -416,6 +430,64 @@ impl Fabric {
 
     pub fn ambient_mass(&self) -> Grams {
         self.dimensions.joint_mass
+    }
+
+    /// Update `self.dimensions.hinge.bend_magnitudes` with the K-center
+    /// optimal set for this fabric's cable ends. No-op when K=0 or no pulls.
+    pub fn recompute_bend_magnitudes(&mut self) {
+        let k = self.dimensions.hinge.bend_count;
+        if k == 0 {
+            return;
+        }
+        let ideals = self.collect_ideal_bend_angles();
+        if ideals.is_empty() {
+            return;
+        }
+        self.dimensions.hinge.bend_magnitudes =
+            bend_optimizer::optimize_magnitudes(&ideals, k);
+    }
+
+    /// Continuous ideal bend angle (degrees) at every cable end.
+    pub fn collect_ideal_bend_angles(&self) -> Vec<f32> {
+        let mut ideals = Vec::new();
+        for (_key, push_interval) in self.intervals.iter() {
+            if !push_interval.has_role(Role::Pushing) {
+                continue;
+            }
+            let alpha_pos = self.joints[push_interval.alpha_key].location;
+            let omega_pos = self.joints[push_interval.omega_key].location;
+            let push_dir = (omega_pos - alpha_pos).normalize();
+
+            for interval_end in [IntervalEnd::Alpha, IntervalEnd::Omega] {
+                let (end_pos, axis_dir, end_key) = match interval_end {
+                    IntervalEnd::Alpha => (alpha_pos, -push_dir, push_interval.alpha_key),
+                    IntervalEnd::Omega => (omega_pos, push_dir, push_interval.omega_key),
+                };
+                let Some(connections) = push_interval.connections(interval_end) else {
+                    continue;
+                };
+                for (slot_idx, conn_opt) in connections.iter().enumerate() {
+                    let Some(connection) = conn_opt else { continue };
+                    let Some(pull_interval) = self.intervals.get(connection.pull_interval_key)
+                    else {
+                        continue;
+                    };
+                    let pull_other_end = if pull_interval.alpha_key == end_key {
+                        self.joints[pull_interval.omega_key].location
+                    } else {
+                        self.joints[pull_interval.alpha_key].location
+                    };
+                    let (_, _, _, ideal_deg) = self.dimensions.hinge_geometry(
+                        end_pos,
+                        axis_dir,
+                        slot_idx,
+                        pull_other_end,
+                    );
+                    ideals.push(ideal_deg);
+                }
+            }
+        }
+        ideals
     }
 
     pub fn apply_matrix4(&mut self, matrix: Mat4) {
@@ -975,7 +1047,7 @@ mod hinge_geometry_tests {
 
         // --- Radial distance (ring center to hinge bolt) ---
 
-        let (hinge_pos, _bend, pull_end_pos) =
+        let (hinge_pos, _bend, pull_end_pos, _ideal) =
             dims.hinge_geometry(push_end, push_axis, 0, pull_other_end);
 
         let radial_dist = (hinge_pos - rc0).length();

@@ -338,7 +338,7 @@ impl CylinderRenderer {
                                                 };
 
                                                 // Use hinge_geometry to get snapped endpoint
-                                                let (_hinge_pos, _hinge_bend, pull_end_pos) =
+                                                let (_hinge_pos, _hinge_bend, pull_end_pos, _ideal) =
                                                     dimensions.hinge_geometry(
                                                         push_end_pos,
                                                         push_axis,

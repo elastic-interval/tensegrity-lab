@@ -33,6 +33,7 @@ impl Fabric {
         phase: Option<&str>,
     ) -> io::Result<()> {
         self.update_all_attachment_connections();
+        self.recompute_bend_magnitudes();
 
         let path = Path::new(filename);
         let mut file = File::create(path)?;
@@ -90,13 +91,16 @@ impl Fabric {
             highest_one.0, highest_one.1.x, highest_one.1.y, highest_one.1.z
         )?;
         write_dimensions_comments(&mut file, &self.dimensions)?;
+        let bend_summary = build_bend_summary(self);
+        file.write_all(bend_summary.as_bytes())?;
         writeln!(file, "Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaJoint,AlphaSlot,AlphaAngle,OmegaX,OmegaY,OmegaZ,OmegaJoint,OmegaSlot,OmegaAngle")?;
 
         // Build a map of pull interval connections for each push interval
-        // Key: (pull_interval_key, end, slot) -> (pull_end_pos, hinge_pos, joint_key, slot, hinge_bend)
+        // Key: (pull_interval_key, end, slot) -> (pull_end_pos, hinge_pos,
+        // joint_key, slot, hinge_bend, ideal_deg)
         let mut pull_hinge_info: std::collections::HashMap<
             (IntervalKey, IntervalEnd, usize),
-            (Vec3, Vec3, JointKey, usize, HingeBend),
+            (Vec3, Vec3, JointKey, usize, HingeBend, f32),
         > = std::collections::HashMap::new();
 
         // First pass: collect hinge info from push intervals using hinge_geometry
@@ -123,12 +127,13 @@ impl Fabric {
                                     self.joints[pull_interval.alpha_key].location
                                 };
 
-                            let (hinge_pos, hinge_bend, pull_end_pos) = dimensions.hinge_geometry(
-                                alpha_pos,
-                                -push_dir,
-                                slot_idx,
-                                pull_other_end,
-                            );
+                            let (hinge_pos, hinge_bend, pull_end_pos, ideal_deg) =
+                                dimensions.hinge_geometry(
+                                    alpha_pos,
+                                    -push_dir,
+                                    slot_idx,
+                                    pull_other_end,
+                                );
 
                             let pull_end = if pull_interval.alpha_key == push_interval.alpha_key {
                                 IntervalEnd::Alpha
@@ -143,6 +148,7 @@ impl Fabric {
                                     push_interval.alpha_key,
                                     slot_idx + 1,
                                     hinge_bend,
+                                    ideal_deg,
                                 ),
                             );
                         }
@@ -164,12 +170,13 @@ impl Fabric {
                                     self.joints[pull_interval.alpha_key].location
                                 };
 
-                            let (hinge_pos, hinge_bend, pull_end_pos) = dimensions.hinge_geometry(
-                                omega_pos,
-                                push_dir,
-                                slot_idx,
-                                pull_other_end,
-                            );
+                            let (hinge_pos, hinge_bend, pull_end_pos, ideal_deg) =
+                                dimensions.hinge_geometry(
+                                    omega_pos,
+                                    push_dir,
+                                    slot_idx,
+                                    pull_other_end,
+                                );
 
                             let pull_end = if pull_interval.alpha_key == push_interval.omega_key {
                                 IntervalEnd::Alpha
@@ -184,6 +191,7 @@ impl Fabric {
                                     push_interval.omega_key,
                                     slot_idx + 1,
                                     hinge_bend,
+                                    ideal_deg,
                                 ),
                             );
                         }
@@ -232,7 +240,7 @@ impl Fabric {
         // Build a map of highest slot per joint (for FEA push endpoints)
         let mut highest_slot_per_joint: std::collections::HashMap<JointKey, usize> =
             std::collections::HashMap::new();
-        for ((_, _, slot), (_, _, joint_key, _, _)) in &pull_hinge_info {
+        for ((_, _, slot), (_, _, joint_key, _, _, _)) in &pull_hinge_info {
             let entry = highest_slot_per_joint.entry(*joint_key).or_insert(0);
             if *slot > *entry {
                 *entry = *slot;
@@ -278,7 +286,7 @@ impl Fabric {
                 let omega = to_csv * (omega_joint.location * MM_PER_METER);
                 writeln!(
                     file,
-                    "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},{},0,90.000,{:.3},{:.3},{:.3},{},0,90.000",
+                    "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},{},0,90,{:.3},{:.3},{:.3},{},0,90",
                     current_index,
                     role_str,
                     info.length,
@@ -303,7 +311,7 @@ impl Fabric {
 
                 // Use pull_end_pos (first element) for the interval position
                 let (alpha_pos, alpha_joint_path, alpha_slot, alpha_bend) =
-                    if let Some((pull_end_pos, _, joint_key, slot, bend)) = alpha_info {
+                    if let Some((pull_end_pos, _, joint_key, slot, bend, _)) = alpha_info {
                         (
                             to_csv * (*pull_end_pos * MM_PER_METER),
                             self.joints[*joint_key].path.to_string(),
@@ -321,7 +329,7 @@ impl Fabric {
                     };
 
                 let (omega_pos, omega_joint_path, omega_slot, omega_bend) =
-                    if let Some((pull_end_pos, _, joint_key, slot, bend)) = omega_info {
+                    if let Some((pull_end_pos, _, joint_key, slot, bend, _)) = omega_info {
                         (
                             to_csv * (*pull_end_pos * MM_PER_METER),
                             self.joints[*joint_key].path.to_string(),
@@ -446,11 +454,11 @@ impl Fabric {
             let alpha_info = pull_hinge_info
                 .iter()
                 .find(|((pull_id, end, _), _)| *pull_id == info.key && *end == IntervalEnd::Alpha)
-                .map(|((_, _, _slot), (_, _, joint_key, _, _))| *joint_key);
+                .map(|((_, _, _slot), (_, _, joint_key, _, _, _))| *joint_key);
             let omega_info = pull_hinge_info
                 .iter()
                 .find(|((pull_id, end, _), _)| *pull_id == info.key && *end == IntervalEnd::Omega)
-                .map(|((_, _, _slot), (_, _, joint_key, _, _))| *joint_key);
+                .map(|((_, _, _slot), (_, _, joint_key, _, _, _))| *joint_key);
 
             // Get ring centers at HIGHEST slot (same as push-fea endpoints)
             let (alpha_fea, alpha_joint_path, alpha_slot) = if let Some(joint_key) = alpha_info {
@@ -519,7 +527,7 @@ impl Fabric {
 
             writeln!(
                 file,
-                "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},{},{},90.000,{:.3},{:.3},{:.3},{},{},90.000",
+                "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},{},{},90,{:.3},{:.3},{:.3},{},{},90",
                 current_index,
                 role_str,
                 fea.length,
@@ -545,7 +553,7 @@ impl Fabric {
             Vec<(usize, Vec3, Vec3)>,
         > = std::collections::HashMap::new();
 
-        for (_, (pull_end_pos, hinge_pos, joint_key, slot, _)) in &pull_hinge_info {
+        for (_, (pull_end_pos, hinge_pos, joint_key, slot, _, _)) in &pull_hinge_info {
             push_end_connections.entry(*joint_key).or_default().push((
                 *slot,
                 *pull_end_pos,
@@ -596,7 +604,7 @@ impl Fabric {
                 let axial_length = (ring_center - prev_pos).length();
                 writeln!(
                     file,
-                    "{},axial,{:.3},0.000e0,{:.3},{:.3},{:.3},{},{},90.000,{:.3},{:.3},{:.3},{},{},90.000",
+                    "{},axial,{:.3},0.000e0,{:.3},{:.3},{:.3},{},{},90,{:.3},{:.3},{:.3},{},{},90",
                     link_index, axial_length,
                     prev_mm.x, prev_mm.y, prev_mm.z, joint_path, prev_slot,
                     ring_mm.x, ring_mm.y, ring_mm.z, joint_path, slot,
@@ -634,6 +642,119 @@ impl Fabric {
         println!("Exported {} to {}", self.name, filename);
         Ok(())
     }
+}
+
+fn format_unsigned_angle(deg: f32) -> String {
+    if (deg - deg.round()).abs() < 0.05 {
+        format!("{}°", deg.round() as i32)
+    } else {
+        format!("{:.1}°", deg)
+    }
+}
+
+fn format_signed_angle(deg: f32) -> String {
+    if deg.abs() < 0.05 {
+        "0°".to_string()
+    } else if (deg - deg.round()).abs() < 0.05 {
+        format!("{:+}°", deg.round() as i32)
+    } else {
+        format!("{:+.1}°", deg)
+    }
+}
+
+fn build_bend_summary(fabric: &Fabric) -> String {
+    use std::fmt::Write;
+    use crate::fabric::bend_optimizer::snap_to_magnitudes;
+
+    let mut s = String::new();
+    let h = &fabric.dimensions.hinge;
+    let ideals = fabric.collect_ideal_bend_angles();
+
+    writeln!(s, "# === Hinge bend snap quality ===").ok();
+    writeln!(s, "# Bend count (K):       {}", h.bend_count).ok();
+
+    if h.bend_count == 0 {
+        writeln!(s, "# Snapping disabled (K = 0); CSV uses continuous ideal angles.").ok();
+        writeln!(s, "# Cable ends measured: {}", ideals.len()).ok();
+        writeln!(s, "#").ok();
+        return s;
+    }
+    if ideals.is_empty() {
+        writeln!(s, "# Cable ends measured: 0  (no pull connections)").ok();
+        writeln!(s, "#").ok();
+        return s;
+    }
+
+    let mags = &h.bend_magnitudes;
+    let mag_str: Vec<String> = mags.iter().map(|m| format_unsigned_angle(*m)).collect();
+    writeln!(s, "# Optimal magnitudes:   [{}]", mag_str.join(", ")).ok();
+
+    let mut signed: Vec<f32> = Vec::with_capacity(mags.len() * 2);
+    for &m in mags.iter().rev() {
+        if m != 0.0 {
+            signed.push(-m);
+        }
+    }
+    for &m in mags {
+        signed.push(m);
+    }
+    let signed_str: Vec<String> = signed.iter().map(|m| format_signed_angle(*m)).collect();
+    writeln!(s, "# Effective signed set: [{}]", signed_str.join(", ")).ok();
+
+    let n = ideals.len();
+    let snapped: Vec<(f32, f32)> = ideals
+        .iter()
+        .map(|&x| snap_to_magnitudes(x, mags))
+        .collect();
+
+    let signed_counts: Vec<usize> = signed
+        .iter()
+        .map(|&candidate| {
+            snapped
+                .iter()
+                .filter(|(snap, _)| (snap - candidate).abs() < 0.5)
+                .count()
+        })
+        .collect();
+    let mag_counts: Vec<usize> = mags
+        .iter()
+        .map(|&m| {
+            snapped
+                .iter()
+                .filter(|(snap, _)| (snap.abs() - m).abs() < 0.5)
+                .count()
+        })
+        .collect();
+
+    let counts_line = signed_counts
+        .iter()
+        .zip(signed.iter())
+        .map(|(c, m)| format!("{}×{}", format_signed_angle(*m), c))
+        .collect::<Vec<_>>()
+        .join("  ");
+    writeln!(s, "# Bend counts (signed): {}", counts_line).ok();
+
+    let mag_counts_line = mag_counts
+        .iter()
+        .zip(mags.iter())
+        .map(|(c, m)| format!("{}×{}", format_unsigned_angle(*m), c))
+        .collect::<Vec<_>>()
+        .join("  ");
+    writeln!(s, "# Bend counts (per magnitude): {}", mag_counts_line).ok();
+
+    let errors: Vec<f32> = snapped.iter().map(|(_, e)| *e).collect();
+    let mean = errors.iter().sum::<f32>() / n as f32;
+    let max = errors.iter().fold(0.0_f32, |a, &b| a.max(b));
+    let rms = (errors.iter().map(|e| e * e).sum::<f32>() / n as f32).sqrt();
+    writeln!(s, "# Cable ends measured:  {}", n).ok();
+    writeln!(
+        s,
+        "# Snap error:           mean |Δ|={:.2}°  max |Δ|={:.2}°  RMS={:.2}°",
+        mean, max, rms
+    )
+    .ok();
+    writeln!(s, "#").ok();
+    s
 }
 
 fn write_dimensions_comments(file: &mut File, dims: &FabricDimensions) -> io::Result<()> {

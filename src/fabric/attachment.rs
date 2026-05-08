@@ -4,56 +4,24 @@
  */
 
 use crate::fabric::{FabricDimensions, IntervalEnd, IntervalKey, JointKey, Joints};
-use crate::units::{Degrees, Unit};
+use crate::units::Unit;
 use glam::Vec3;
+use std::fmt;
 
 /// Number of attachment points at each end of a push interval
 pub const ATTACHMENT_POINTS: usize = 10;
 
-/// The 5 allowed hinge bending angles
-#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::Display)]
-pub enum HingeBend {
-    #[strum(serialize = "-60")]
-    Neg60,
-    #[strum(serialize = "-30")]
-    Neg30,
-    #[strum(serialize = "0")]
-    Zero,
-    #[strum(serialize = "+30")]
-    Pos30,
-    #[strum(serialize = "+60")]
-    Pos60,
-}
+/// Signed bend angle (degrees) at a cable end. Continuous ideal during
+/// build, snapped to the optimised magnitude set after Viewing.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HingeBend(pub f32);
 
 impl HingeBend {
-    /// Get the angle in degrees as f32
     pub fn degrees(&self) -> f32 {
-        match self {
-            HingeBend::Neg60 => -60.0,
-            HingeBend::Neg30 => -30.0,
-            HingeBend::Zero => 0.0,
-            HingeBend::Pos30 => 30.0,
-            HingeBend::Pos60 => 60.0,
-        }
+        self.0
     }
 
-    /// Snap an ideal angle to the nearest HingeBend
-    pub fn from_angle(angle: Degrees) -> Self {
-        let deg = angle.0;
-        if deg < -45.0 {
-            HingeBend::Neg60
-        } else if deg < -15.0 {
-            HingeBend::Neg30
-        } else if deg < 15.0 {
-            HingeBend::Zero
-        } else if deg < 45.0 {
-            HingeBend::Pos30
-        } else {
-            HingeBend::Pos60
-        }
-    }
-
-    /// Calculate the hinge endpoint position
+    /// 0° = radial; +angle tilts toward push_axis (outward), −angle inward.
     pub fn endpoint(
         &self,
         hinge_pos: Vec3,
@@ -61,15 +29,25 @@ impl HingeBend {
         radial_direction: Vec3,
         hinge_length: f32,
     ) -> Vec3 {
-        // At 0°, hinge points along radial_direction (away from ring center)
-        // At +angle, it rotates toward push_axis (outward along bolt)
-        // At -angle, it rotates away from push_axis (inward toward push interval)
         let angle_rad = self.degrees().to_radians();
         let cos_a = angle_rad.cos();
         let sin_a = angle_rad.sin();
 
         let hinge_direction = radial_direction * cos_a + push_axis * sin_a;
         hinge_pos + hinge_direction * hinge_length
+    }
+}
+
+impl fmt::Display for HingeBend {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let deg = self.0;
+        if deg.abs() < 0.05 {
+            write!(f, "0")
+        } else if (deg - deg.round()).abs() < 0.05 {
+            write!(f, "{:+}", deg.round() as i32)
+        } else {
+            write!(f, "{:+.1}", deg)
+        }
     }
 }
 

@@ -233,7 +233,7 @@ impl HingeRenderer {
                     };
 
                     // Use hinge_geometry to get snapped positions
-                    let (hinge_pos, _hinge_bend, pull_end_pos) =
+                    let (hinge_pos, _hinge_bend, pull_end_pos, _ideal) =
                         dimensions.hinge_geometry(joint_pos, push_axis, slot_idx, pull_other_end);
 
                     slot_connections.push((slot_idx, hinge_pos, pull_end_pos));

@@ -253,7 +253,7 @@ impl FabricPlanExecutor {
     }
 
     fn new_internal(plan: FabricPlan, radio: Option<Radio>) -> Self {
-        let fabric = Fabric::new(plan.name.to_string()).with_dimensions(plan.dimensions);
+        let fabric = Fabric::new(plan.name.to_string()).with_dimensions(plan.dimensions.clone());
         let plan_runner = PlanRunner::new(plan.clone());
         let physics = CONSTRUCTION;
 
