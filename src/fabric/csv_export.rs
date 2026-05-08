@@ -63,16 +63,15 @@ impl Fabric {
 
         let now = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
 
-        // Header comments
         let phase_str = phase.unwrap_or("unknown");
         writeln!(
             file,
             "# {}, Phase: {}, Height: {:.1}mm, Created: {}",
             self.name, phase_str, height_mm, now
         )?;
-        // Orientation check: coordinates below are all in CSV space (Z-up).
-        // If the engineer sees the three "lowest" joints at the bottom of the
-        // model and the single "highest" at the top, the export is correct.
+        // Hinge parameters first so engineering tools that only display the
+        // top of the file (e.g. Grasshopper Panel) see all of A–E + t1, t2.
+        write_dimensions_comments(&mut file, &self.dimensions)?;
         writeln!(
             file,
             "# Orientation check (CSV coords, mm, Z-up): ground plane at Z=0, apex at Z={:.1}",
@@ -90,7 +89,6 @@ impl Fabric {
             "# Highest:   joint={} X={:.1} Y={:.1} Z={:.1}",
             highest_one.0, highest_one.1.x, highest_one.1.y, highest_one.1.z
         )?;
-        write_dimensions_comments(&mut file, &self.dimensions)?;
         let bend_summary = build_bend_summary(self);
         file.write_all(bend_summary.as_bytes())?;
         writeln!(file, "Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaJoint,AlphaSlot,AlphaAngle,OmegaX,OmegaY,OmegaZ,OmegaJoint,OmegaSlot,OmegaAngle")?;
