@@ -1,7 +1,7 @@
 # CSV Handoff to Engineer
 
-How the CSV exports are structured, which one the engineer (Peter) uses, and what
-his workflow with it looks like. Source of truth for the format is
+How the CSV exports are structured, which one the engineer uses, and what
+their workflow with it looks like. Source of truth for the format is
 `src/fabric/csv_export.rs`; for snapshot moments, `src/lib.rs::SnapshotMoment`
 and the broadcasts in `src/build/dsl/fabric_plan_executor.rs`.
 
@@ -47,34 +47,34 @@ This ordering — pushes incrementally extending, pulls passively pulled into
 tension — is the opposite of "tighten the cables." Cables are not actively
 shortened anywhere in the pipeline.
 
-## What Peter uses, and how
+## What the engineer uses, and how
 
-Peter (engineer) takes the **`slack`** CSV as input to his FEA workflow. He has
-confirmed:
+The structural engineer takes the **`slack`** CSV as input to their FEA
+workflow. Confirmed assumptions:
 
-- He imports **only the geometry** from the CSV — joint coordinates and
-  element connectivity. He does not consume strains or forces from the
-  simulation.
-- He applies the pretension himself in his FEA tool, then layers on the
-  operational loads (gravity, wind, etc.) once the pretensioned structure is
-  stable.
+- Only the **geometry** is imported from the CSV — joint coordinates and
+  element connectivity. Strains and forces from the simulation are not
+  consumed.
+- The engineer applies the pretension themselves in their FEA tool, then
+  layers on the operational loads (gravity, wind, etc.) once the pretensioned
+  structure is stable.
 
 Implications for our exports:
 
 - The `slack` joint coordinates are the end-of-build geometry. Pushes have
   already been snapped to discrete lengths (`snap_push_length`) at this point,
   so a push's rest length in the CSV does not exactly equal the geometric
-  distance between its two joint coordinates. If Peter were importing both, the
-  small residual discrepancy would show up as initial strain in his FEA. He
-  imports only coordinates, so this does not bite him.
+  distance between its two joint coordinates. If both were imported, the small
+  residual discrepancy would show up as initial strain in the FEA. With only
+  coordinates imported, this does not bite.
 - The pulls in the `slack` CSV have rest lengths that are
   `(1 + pull_lengthening)` times the geometric distance between their joints —
   i.e. they are intentionally slack. Again, irrelevant if only coordinates are
   imported.
 - If verification of our pretensioning solution is ever desired, the
   `pretenst` and `grav_pretenst` CSVs give equilibrium geometries that can be
-  compared against the same in his FEA. Independent cross-check, not part of
-  the active workflow.
+  compared against the same result in the FEA. Independent cross-check, not
+  part of the active workflow.
 
 ## CSV header layout
 
@@ -115,10 +115,10 @@ Index,Role,Length(m),Strain,AlphaX,...,AlphaAngle,OmegaX,...,OmegaAngle
 <rows>
 ```
 
-The hinge parameters block sits early on purpose: Peter's Grasshopper "Overview
-of design parameters" panel shows roughly the first 12 lines of the CSV. With
-the parameters block in lines 2–11, all of A–E plus t1 and t2 are visible
-without resizing the panel.
+The hinge parameters block sits early on purpose: a downstream Grasshopper
+"Overview of design parameters" panel shows roughly the first 12 lines of the
+CSV. With the parameters block in lines 2–11, all of A–E plus t1 and t2 are
+visible without resizing the panel.
 
 ## Coordinate system
 
@@ -144,12 +144,12 @@ so the engineer can see how many of each manufactured angle to produce.
 ## Ongoing changes worth noting
 
 - **Cap thickness** was 6mm until 2026-05-08; corrected to 5mm (matches `t1`)
-  per Peter's note that `disc_center_offset(0)` should equal `t1 + t2 + t1/2 = 8.5 mm`.
+  per the engineer's note that `disc_center_offset(0)` should equal `t1 + t2 + t1/2 = 8.5 mm`.
 - **Push radius** changed 25 → 20 mm earlier in the same week.
 - **Disc thickness (`t1`)** changed 6 → 5 mm.
 - **Bend angles** moved from a fixed set `{-60, -30, 0, +30, +60}` to per-fabric
   optimised magnitudes (k-center, K configurable, default 4, rounded to whole
   degrees).
 
-Peter should always be working from the most recent zip. If something looks off,
-check that the CSV's `Created:` timestamp is fresh.
+The engineer should always be working from the most recent zip. If something
+looks off, check that the CSV's `Created:` timestamp is fresh.

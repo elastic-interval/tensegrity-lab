@@ -82,6 +82,6 @@ Rendering Open Claw structure in Blender with realistic truss tower support. The
 
 ---
 
-**Generated for:** Gerald de Jong, Open Claw project  
+**Generated for:** Open Claw project  
 **Date:** April 2026  
 **Status:** Specification ready for Blender model generation

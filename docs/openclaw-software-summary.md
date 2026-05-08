@@ -43,7 +43,7 @@ The structure is defined in `src/build/dsl/fabric_library.rs` as:
 
 | Metric | Target | Constraint |
 |--------|--------|------------|
-| Base triangle edges | **6000mm** | Tower spacing confirmed 6m (Anke, 25 Mar) |
+| Base triangle edges | **6000mm** | Tower spacing confirmed 6m (project lead, 25 Mar) |
 | Height | ~8000–10000mm | ITW Amersfoort: 8m total incl truss; other festivals: no limit |
 | Longest strut | ≤3600mm | Must fit in bestelbus cargo (3.6m long) |
 
@@ -100,6 +100,6 @@ The software is the starting point for the engineering iteration described in Co
 1. Adjust OpenClaw parameters in `fabric_library.rs`
 2. Run `test_open_claw_base_triangle` to verify 6m base + strut lengths
 3. Run application, export CSV
-4. Send CSV to Peter / ENS
+4. Send CSV to the structural engineer
 5. ENS feeds back on forces/dimensioning
 6. Repeat until green-lit
