@@ -76,6 +76,106 @@ Implications for our exports:
   compared against the same result in the FEA. Independent cross-check, not
   part of the active workflow.
 
+## Column meanings — read carefully before sending anything to the factory
+
+The data row format is:
+
+```
+Index, Role, Length(m), Strain,
+AlphaX, AlphaY, AlphaZ, AlphaJoint, AlphaSlot, AlphaAngle,
+OmegaX, OmegaY, OmegaZ, OmegaJoint, OmegaSlot, OmegaAngle
+```
+
+These columns mean *different physical things* depending on `Role`. Mixing
+them up is the most likely path to a mis-fabricated part. The conventions
+are unfortunately not symmetric between push and pull rows:
+
+### Push rows (`Role = push`)
+
+- `Length(m)` — **snapped rest length** of the strut tube. Already rounded
+  to a discrete length via `HingeDimensions::snap_push_length`. This is what
+  the strut should be **manufactured to**, including end-cap allowances.
+- `AlphaXYZ`, `OmegaXYZ` — the **joint locations** in CSV coordinates (mm,
+  Z-up). The Euclidean distance between them will be very close to
+  `Length(m)` × 1000 but **not exactly equal**, because of the snap.
+- `AlphaSlot`, `OmegaSlot` — always `0` for push rows (push intervals are
+  not on a hinge).
+- `AlphaAngle`, `OmegaAngle` — always `90` (axial; no hinge bend).
+
+### Pull rows (`Role = pull`)
+
+- `Length(m)` — the **distance between the two hinge endpoints**
+  (`pull_end_pos`), *not* the slack rest length and *not* the joint-to-joint
+  distance. It is the length the cable's tensioned segment would have if it
+  spanned exactly between the bolt-and-disc terminations on each side, with
+  the hinge mechanism's `length()` (≈ `t1/2 + D + E` ≈ 28.5 mm) accounted
+  for at each end. **This is the closest thing in the CSV to "what the
+  cable should be manufactured to" — but it is *not* the slack rest
+  length.** The slack rest length used internally by the simulation is
+  longer by the `pull_lengthening` factor; that number is not exported.
+- `AlphaXYZ`, `OmegaXYZ` — the **hinge endpoint** at each end (i.e. the
+  point on the bolt-and-disc termination where the cable attaches), *not*
+  the joint location. Distance between them equals `Length(m)`. The actual
+  joints are inset toward the strut centre by `length()` along the bend
+  direction; the joint coordinates can be recovered from the corresponding
+  push row at the same `AlphaJoint` / `OmegaJoint`.
+- `AlphaSlot`, `OmegaSlot` — `1`-indexed slot at each end's hinge stack.
+  The axial position of slot `k` along the strut, measured from the strut
+  end, is `disc_center_offset(k - 1)` in `HingeDimensions`. **This depends
+  on `cap_thickness`, `disc_thickness`, `disc_separator_thickness`, all of
+  which have changed in recent iterations** — see Ongoing changes below.
+- `AlphaAngle`, `OmegaAngle` — the **snapped hinge bend** at each end, in
+  whole degrees. `+30` and `-30` are the same physical part installed in
+  opposite orientations.
+
+### Strain
+
+For both roles, `Strain` is the simulation's internal strain at the moment
+the snapshot was taken. For `slack` it will be near zero across the board —
+the structure has not yet been pretensioned. **The engineer's workflow
+ignores this column**, computing strains in the FEA tool instead.
+
+### What the factory needs to receive (and what gets it wrong)
+
+Send to the factory:
+
+- For each strut: a length, a tube diameter, and end-cap details. The length
+  must come from the **push row's `Length(m)`** column, not from the
+  Euclidean distance between joint coordinates.
+- For each cable: a length and (separately) the hinge bend angles at each
+  end and the slot assignments. The "length" is **not** in the CSV in any
+  directly usable form. The closest column is the pull row's `Length(m)`
+  (hinge-endpoint to hinge-endpoint), but that omits the
+  hinge-mechanism portion at each end, which is part of the physical cable
+  routing. The slack rest length used by the simulation is `Length(m) ×
+  (1 + pull_lengthening)`, where `pull_lengthening` lives in the fabric's
+  `zero_g_pretense_phase` configuration (not in the CSV). If a single
+  authoritative cable length is needed for fabrication, derive it in the
+  FEA from the deployed equilibrium geometry rather than the CSV.
+- For each hinge mechanism: `cap_thickness`, `disc_thickness`,
+  `disc_separator_thickness`, the bend magnitudes set, and the slot
+  inventory. All of this lives in the header parameters block and the
+  bend-quality summary; it does **not** appear in the data rows.
+
+Common pitfalls:
+
+- **Computing element lengths from joint-to-joint Euclidean distance.** This
+  is wrong for both pushes (snap drift) and especially pulls (the AlphaXYZ /
+  OmegaXYZ are *hinge endpoints*, not joints, on pull rows).
+- **Reading the AlphaSlot column as if it were a node index.** It's a slot
+  number on the hinge stack at that joint.
+- **Reusing factory drawings across simulation iterations.** If
+  `cap_thickness` or any other hinge dimension changed between runs, slot
+  axial positions shifted, and the manufactured strut endcaps no longer
+  match the cable attachment positions. The CSV's `Created:` timestamp is
+  the version marker.
+- **Manufacturing a hinge inventory at iteration N's optimised
+  magnitudes, then running iteration N+1.** The optimiser is currently
+  free to pick fresh magnitudes per fabric. Once parts are made, the
+  intended set should be locked in (a "freeze magnitudes" mode is
+  outstanding work; until it lands, freezing happens by editing the
+  source).
+
 ## CSV header layout
 
 ```
