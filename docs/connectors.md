@@ -15,21 +15,26 @@ Each disc can rotate freely around the strut axis, allowing its hinge to point i
 
 ## Geometry and Dimensions
 
-All physical dimensions are defined in `HingeDimensions` (`src/fabric/mod.rs:35-43`):
+All physical dimensions are defined in `HingeDimensions` (`src/fabric/mod.rs`).
+Defaults reflect the values in `Default::default()` and are the source of truth;
+this table is informational and can drift between code edits and doc updates.
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `push_radius` | 30mm | Radius of the strut tube |
-| `push_radius_margin` | 3mm | Gap between tube surface and disc center |
-| `disc_thickness` | 10mm | Thickness of each connector disc |
-| `disc_separator_thickness` | 3mm | Spacer between adjacent discs |
-| `cap_thickness` | 6mm | Thickness of the end-cap closing the strut tube |
-| `hinge_extension` | 12mm | Length of the hinge arm beyond the disc edge |
-| `hinge_hole_diameter` | 17mm | Diameter of the hole at the hinge tip |
+| `push_radius` | 20 mm | Radius of the strut tube (A in the diagram) |
+| `push_radius_margin` | 2 mm | Gap between tube surface and disc center (B) |
+| `disc_thickness` | 5 mm | Thickness of each connector disc (t1) |
+| `disc_separator_thickness` | 1 mm | Spacer between cap/disc and adjacent discs (t2) |
+| `cap_thickness` | 5 mm | Thickness of the end-cap closing the strut tube |
+| `hinge_extension` | 14 mm | Length of the hinge arm beyond the disc edge (D) |
+| `hinge_hole_diameter` | 12 mm | Diameter of the hole at the hinge tip (E) |
+| `bend_count` | 4 | Number of distinct manufactured bend magnitudes |
+| `bend_magnitudes` | `Vec::new()` initially | Set by `Fabric::recompute_bend_magnitudes` once the fabric reaches Viewing |
 
-Derived values:
-- **Hinge offset** = `push_radius + push_radius_margin + disc_thickness/2` = 38mm (radial distance from strut axis to hinge center)
-- **Hinge length** = `disc_thickness/2 + hinge_extension + hinge_hole_diameter` = 34mm (from hinge center to cable attachment point)
+Derived values (with the defaults above):
+- **Hinge offset** = `A + B + t1/2` = 24.5 mm (radial distance from strut axis to hinge center)
+- **Hinge length** = `t1/2 + D + E` = 28.5 mm (from hinge center to cable attachment point)
+- **Disc step** = `t1 + t2` = 6 mm
 
 ## Slot Positioning Along the Strut Axis
 
@@ -41,10 +46,10 @@ offset = cap_thickness + separator + disc_thickness/2 + slot * (disc_thickness +
 
 The first disc sits on the far side of the **cap** that closes the strut tube, with a separator between cap and disc. After that, each subsequent disc is spaced by the full disc thickness plus a separator.
 
-For 0-indexed slots with the default dimensions (cap=6mm, disc=10mm, separator=3mm):
-- Slot 0: 6 + 3 + 5 = 14mm from the strut end
-- Slot 1: 6 + 3 + 5 + 13 = 27mm from the strut end
-- Slot 2: 6 + 3 + 5 + 26 = 40mm from the strut end
+For 0-indexed slots with the current defaults (cap=5 mm, t1=5 mm, t2=1 mm):
+- Slot 0: 5 + 1 + 2.5 = 8.5 mm from the strut end
+- Slot 1: 8.5 + 6 = 14.5 mm
+- Slot 2: 8.5 + 12 = 20.5 mm
 
 `FabricDimensions::ring_center()` uses `disc_center_offset()` to compute the 3D position of a disc center given a strut endpoint and axis direction.
 
@@ -83,16 +88,36 @@ where `moment_arm` is the vector from the pivot (slot 0) to the attachment point
 
 ## Hinge Geometry: How Cable Endpoints are Positioned
 
-Once a cable is assigned to a slot, its exact 3D attachment position is calculated by `FabricDimensions::hinge_geometry()` (`src/fabric/mod.rs:152-174`):
+Once a cable is assigned to a slot, its exact 3D attachment position is
+calculated by `FabricDimensions::hinge_geometry()` (`src/fabric/mod.rs`). The
+function returns `(hinge_pos, hinge_bend, pull_end_pos, ideal_deg)`:
 
 1. **Ring center**: Position along the strut axis at this slot
 2. **Radial direction**: Perpendicular to the strut axis, pointing toward the cable's far end
-3. **Hinge position**: Ring center + radial direction * hinge_offset (38mm out from axis)
-4. **Ideal angle**: Calculated from the pull direction relative to the strut axis
-5. **Snapped angle**: Quantized to one of 5 allowed `HingeBend` values: -60, -30, 0, +30, +60 degrees
-6. **Cable endpoint**: Hinge position + hinge arm rotated by the snapped angle
+3. **Hinge position**: Ring center + radial direction × hinge offset (radial distance from axis to bolt)
+4. **Ideal angle** (`ideal_deg`): Continuous angle between the pull direction and the strut axis, computed as `asin(pull_direction · push_axis)` measured from the radial-perpendicular plane
+5. **Snapped angle** (`hinge_bend`): If `bend_magnitudes` is empty (build/converge phases), equals the ideal angle. Otherwise, the ideal is snapped to the nearest signed candidate from `±m` for each `m` in `bend_magnitudes`.
+6. **Cable endpoint** (`pull_end_pos`): Hinge position + hinge arm rotated by `hinge_bend`
 
-The 5 discrete hinge angles (`HingeBend` enum, `src/fabric/attachment.rs:14-74`) represent physical hinge positions that can be set during construction. The hinge arm rotates in the plane defined by the radial direction and the strut axis.
+`HingeBend` is `pub struct HingeBend(pub f32)` — a thin wrapper around the
+signed angle in degrees (`src/fabric/attachment.rs`).
+
+### How `bend_magnitudes` is chosen
+
+`Fabric::recompute_bend_magnitudes` runs at two points:
+- When the fabric transitions to Viewing (in `Crucible::finalize_to_viewing`)
+- At the start of every CSV export (in `snapshot_csv_with_phase`)
+
+It collects every cable end's continuous ideal angle, takes absolute values
+(the part can be flipped, so signs come for free), and runs 1D k-center DP
+(`src/fabric/bend_optimizer.rs::optimize_magnitudes`) to pick `bend_count`
+non-negative magnitudes that minimise the worst-case snap error. Magnitudes
+are rounded to whole degrees and deduplicated, so a `bend_count` of 4 may
+yield as few as 3 distinct magnitudes when the data is dense.
+
+This means the snapped values are **per-fabric** and **whole-degree**, not a
+fixed 5-bin set. The CSV header reports the chosen magnitudes, the effective
+signed set, the count distribution, and snap-error statistics.
 
 ## Rendering
 

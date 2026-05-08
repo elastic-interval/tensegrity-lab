@@ -24,7 +24,7 @@ Triped
     .fall(Sec(3.0))
     .settle(Sec(3.0))
     .animate()
-    .period(Sec(0.8266))
+    .actuator_frequency(Hz(1.21))
     .amplitude(Pct(1.0))
     .stiffness(Pct(10.0))
     .pulse(Pct(10.0))
@@ -172,12 +172,16 @@ Calm the structure with progressive damping until stable.
 
 Add actuators that rhythmically contract to animate the structure.
 
+At runtime the frequency can be tuned interactively with the `F` / `f` keys
+(raise / lower) while in the Animating state. The crucible logs each new value
+in `actuator_frequency(Hz(...))` form, ready to paste back into the DSL.
+
 ```rust
 .animate()
-    .period(Sec(0.8266))     // Cycle period
-    .amplitude(Pct(1.0))     // Contraction amplitude
-    .stiffness(Pct(10.0))    // Actuator stiffness
-    .pulse(Pct(10.0))        // Square wave with 10% duty cycle (or .sine())
+    .actuator_frequency(Hz(1.21))   // Cycle frequency in Hz (≡ 0.8266 s period)
+    .amplitude(Pct(1.0))            // Contraction amplitude
+    .stiffness(Pct(10.0))           // Actuator stiffness
+    .pulse(Pct(10.0))               // Square wave with 10% duty cycle (or .sine())
     .actuators(&[
         phase(Pct(0.0)).between(151, 48),
         phase(Pct(0.0)).between(157, 36),

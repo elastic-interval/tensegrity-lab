@@ -11,7 +11,10 @@ The structure is designed and simulated in [tensegrity-lab](https://github.com/e
 3. **Settles** to final shape with frozen surface (joints that touch ground lock in place)
 4. **Exports CSV** with all interval coordinates, lengths, strains, and hinge geometry
 
-The CSV (`Open Claw-grav_pretenst.csv`) is the handoff artifact to ENS for structural analysis.
+A run produces three CSVs (`OpenClaw-slack.csv`, `-pretenst.csv`,
+`-grav_pretenst.csv`); the engineer's current input is the **`slack`** CSV.
+See [docs/csv-handoff.md](csv-handoff.md) for the full handoff format and
+the engineer's FEA workflow.
 
 ## OpenClaw Definition Parameters
 
@@ -88,7 +91,7 @@ DSL definition (fabric_library.rs)
 | `src/build/dsl/plan_runner_test.rs` | Base triangle test |
 | `src/build/dsl/fabric_plan_executor.rs` | Execution engine |
 | `src/fabric/csv_export.rs` | CSV export for ENS |
-| `Open Claw-grav_pretenst.csv` | Latest CSV (25 Mar) |
+| `docs/csv-handoff.md` | CSV format + engineer's FEA workflow |
 
 ## ENS Iteration Loop
 

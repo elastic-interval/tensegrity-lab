@@ -42,7 +42,14 @@ For the Mockup at scale 0.59m:
 
 Each strut end has a connector head: a steel assembly that provides cable attachment points. The head consists of stacked connector discs at different angles, separated by POM plastic spacers, all held together by an M20 bolt.
 
-This matches the `HingeDimensions` in the codebase: disc_thickness=10mm, disc_separator_thickness=3mm, cap_thickness=6mm.
+This corresponds to the `HingeDimensions` in the codebase. The mockup tabled
+below was built and costed against an earlier spec
+(disc_thickness 10 mm, separator 3 mm, cap 6 mm); the current code defaults
+are **disc_thickness 5 mm, separator 1 mm, cap 5 mm**, with discrete bend
+magnitudes now optimised per-fabric (typically four of them) rather than the
+fixed `±30 / ±60` pair the original mockup used. If the cost tables below are
+ever rebuilt, those material thicknesses and the disc-angle inventory both
+need to be revisited.
 
 ### Head Components
 
@@ -65,7 +72,14 @@ This matches the `HingeDimensions` in the codebase: disc_thickness=10mm, disc_se
 
 Each head has **4 connector discs** (2 at 30 degrees, 2 at 60 degrees), providing 4 cable attachment slots. With 18 heads x 4 slots = 72 slots, matching exactly 36 cables x 2 endpoints = 72.
 
-The disc angles (30 and 60 degrees) correspond to the `HingeBend` angles in the codebase. Each disc can be installed in either orientation, giving effective angles of +/-30 and +/-60 degrees.
+The disc angles (30 and 60 degrees) correspond to the bend magnitudes the
+mockup was built around — at the time those were fixed in code as part of a
+five-variant `HingeBend` enum (`±30, ±60, 0`). The codebase has since moved
+to per-fabric optimised whole-degree magnitudes (`HingeBend(pub f32)` plus
+`Fabric::recompute_bend_magnitudes`), so the *number* of distinct bend
+angles and their values are now design outputs rather than fixed inputs. Each
+manufactured disc can still be installed in either orientation (the part is
+flippable), so signed candidates `±m` still come from the same physical part.
 
 ## Cable Assembly
 
