@@ -1,7 +1,3 @@
-#[cfg(not(target_arch = "wasm32"))]
-use crate::animation_export::AnimationExporter;
-#[cfg(not(target_arch = "wasm32"))]
-use crate::physics_gpu::GpuBatch;
 use crate::build::algo::klein::generate_klein;
 use crate::build::algo::mobius::generate_mobius;
 use crate::build::algo::tensegrity_sphere::generate_sphere;
@@ -10,8 +6,6 @@ use crate::crucible::Crucible;
 use crate::keyboard::Keyboard;
 use crate::pointer::PointerHandler;
 use crate::scene::Scene;
-#[cfg(not(target_arch = "wasm32"))]
-use crate::units::Seconds;
 use crate::wgpu::Wgpu;
 use crate::SnapshotMoment;
 use crate::{
@@ -23,6 +17,24 @@ use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
 use winit::window::{WindowAttributes, WindowId};
+
+#[cfg(not(target_arch = "wasm32"))]
+use crate::animation_export::AnimationExporter;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::physics_gpu::GpuBatch;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::units::Seconds;
+
+/// State that only exists in the native build: animation export, CSV export
+/// recording, and the on-demand GPU compute batch. Grouped here so the
+/// `Application` struct doesn't sprout three separate `#[cfg]` fields.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Default)]
+struct NativeState {
+    animation_exporter: Option<AnimationExporter>,
+    record_until: Option<Seconds>,
+    gpu_batch: Option<GpuBatch>,
+}
 
 pub struct Application {
     run_style: RunStyle,
@@ -42,13 +54,9 @@ pub struct Application {
     pointer_handler: PointerHandler,
     time_scale: f32,
     model_scale: Option<f32>,
-    #[cfg(not(target_arch = "wasm32"))]
-    animation_exporter: Option<AnimationExporter>,
-    #[cfg(not(target_arch = "wasm32"))]
-    record_until: Option<Seconds>,
-    #[cfg(not(target_arch = "wasm32"))]
-    gpu_batch: Option<GpuBatch>,
     snapshot_moment: Option<SnapshotMoment>,
+    #[cfg(not(target_arch = "wasm32"))]
+    native: NativeState,
 }
 
 impl Application {
@@ -80,13 +88,9 @@ impl Application {
             control_state: ControlState::Waiting,
             time_scale,
             model_scale: model_scale.map(|n| 1.0 / n),
-            #[cfg(not(target_arch = "wasm32"))]
-            animation_exporter: None,
-            #[cfg(not(target_arch = "wasm32"))]
-            record_until: None,
-            #[cfg(not(target_arch = "wasm32"))]
-            gpu_batch: None,
             snapshot_moment: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            native: NativeState::default(),
         }
     }
 
@@ -246,11 +250,11 @@ impl ApplicationHandler<LabEvent> for Application {
                     } => {
                         #[cfg(not(target_arch = "wasm32"))]
                         if let Some(duration) = record {
-                            self.record_until = Some(*duration);
+                            self.native.record_until = Some(*duration);
                             let mut exporter =
                                 AnimationExporter::new("animation_export", *export_fps);
                             exporter.start();
-                            self.animation_exporter = Some(exporter);
+                            self.native.animation_exporter = Some(exporter);
                         }
                         self.snapshot_moment = *snapshot;
                         let fabric_plan = fabric_library::get_fabric_plan(*fabric_name);
@@ -425,7 +429,7 @@ impl ApplicationHandler<LabEvent> for Application {
                             &[&fabric],
                             &drop_physics,
                         );
-                        self.gpu_batch = Some(drop_batch);
+                        self.native.gpu_batch = Some(drop_batch);
 
                         let tester = PhysicsTester::new(
                             fabric.clone(),
@@ -478,7 +482,7 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             RebuildFabric => {
                 #[cfg(not(target_arch = "wasm32"))]
-                { self.gpu_batch = None; }
+                { self.native.gpu_batch = None; }
                 Run(self.run_style.clone()).send(&self.radio);
             }
             NextBrick => {
@@ -572,7 +576,7 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             #[cfg(not(target_arch = "wasm32"))]
             ToggleAnimationExport => {
-                if let Some(exporter) = &mut self.animation_exporter {
+                if let Some(exporter) = &mut self.native.animation_exporter {
                     // Stop recording
                     let frame_count = exporter.frame_count();
                     match exporter.stop() {
@@ -586,18 +590,19 @@ impl ApplicationHandler<LabEvent> for Application {
                                 .send(&self.radio);
                         }
                     }
-                    self.animation_exporter = None;
+                    self.native.animation_exporter = None;
                 } else {
                     // Start recording
                     let mut exporter = AnimationExporter::new("animation_export", 100.0);
                     exporter.start();
                     StateChange::SetStageLabel("Recording...".to_string()).send(&self.radio);
-                    self.animation_exporter = Some(exporter);
+                    self.native.animation_exporter = Some(exporter);
                 }
             }
             #[cfg(not(target_arch = "wasm32"))]
             ExportSnapshot => {
                 let exporter = self
+                    .native
                     .animation_exporter
                     .get_or_insert_with(|| AnimationExporter::new("animation_export", 100.0));
                 match exporter.snapshot(&self.crucible.fabric) {
@@ -616,7 +621,7 @@ impl ApplicationHandler<LabEvent> for Application {
             }
             #[cfg(not(target_arch = "wasm32"))]
             ToGpuPhysics => {
-                if self.gpu_batch.is_none() {
+                if self.native.gpu_batch.is_none() {
                     if let Some(scene) = &self.scene {
                         let physics = self.crucible.physics.clone();
                         let batch = GpuBatch::parallelize(
@@ -625,7 +630,7 @@ impl ApplicationHandler<LabEvent> for Application {
                             &[&self.crucible.fabric],
                             &physics,
                         );
-                        self.gpu_batch = Some(batch);
+                        self.native.gpu_batch = Some(batch);
                         StateChange::SetStageLabel("GPU Physics".to_string()).send(&self.radio);
                     }
                 }
@@ -798,7 +803,7 @@ impl ApplicationHandler<LabEvent> for Application {
 
             if iterations_per_frame > 0 {
                 #[cfg(not(target_arch = "wasm32"))]
-                if let Some(batch) = &self.gpu_batch {
+                if let Some(batch) = &self.native.gpu_batch {
                     if let Some(scene) = &self.scene {
                         batch.step(&scene.wgpu.device, &scene.wgpu.queue, iterations_per_frame as u32);
                         let positions = batch.read_positions(&scene.wgpu.device, &scene.wgpu.queue);
@@ -843,8 +848,8 @@ impl ApplicationHandler<LabEvent> for Application {
 
             // Capture frame for animation export if enabled (works in all states)
             #[cfg(not(target_arch = "wasm32"))]
-            if let Some(exporter) = &mut self.animation_exporter {
-                let dominated = self.record_until.is_some_and(|Seconds(limit)| {
+            if let Some(exporter) = &mut self.native.animation_exporter {
+                let dominated = self.native.record_until.is_some_and(|Seconds(limit)| {
                     self.crucible.fabric.age.as_duration().as_secs_f32() >= limit
                 });
                 if dominated {
@@ -853,8 +858,8 @@ impl ApplicationHandler<LabEvent> for Application {
                         Ok(_) => eprintln!("Recording complete: {} frames", frame_count),
                         Err(e) => eprintln!("Error stopping animation export: {}", e),
                     }
-                    self.record_until = None;
-                    self.animation_exporter = None;
+                    self.native.record_until = None;
+                    self.native.animation_exporter = None;
                 } else {
                     exporter.tick(&self.crucible.fabric, iterations_per_frame);
                 }

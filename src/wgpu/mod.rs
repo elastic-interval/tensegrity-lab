@@ -262,6 +262,50 @@ impl Wgpu {
         render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
     }
 
+    /// Build a render pipeline that draws unit cylinders with one set of
+    /// per-instance attributes against the shared fabric shader.
+    /// Used by the cylinder and hinge renderers; their pipelines differ only
+    /// in label and instance-buffer layout.
+    pub fn create_fabric_pipeline(
+        &self,
+        label: &str,
+        instance_buffer_layout: wgpu::VertexBufferLayout<'_>,
+    ) -> wgpu::RenderPipeline {
+        let pipeline_layout = self
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some(label),
+                bind_group_layouts: &[&self.uniform_bind_group_layout],
+                immediate_size: 0,
+            });
+        self.device
+            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                cache: None,
+                label: Some(label),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    module: &self.shader,
+                    entry_point: Some("fabric_vertex"),
+                    buffers: &[Self::cylinder_vertex_layout(), instance_buffer_layout],
+                },
+                fragment: Some(wgpu::FragmentState {
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    module: &self.shader,
+                    entry_point: Some("fabric_fragment"),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: self.surface_configuration.format,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                primitive: DEFAULT_PRIMITIVE_STATE,
+                depth_stencil: Some(default_depth_stencil_state()),
+                multisample: wgpu::MultisampleState::default(),
+                multiview_mask: None,
+            })
+    }
+
     pub fn create_fabric_renderer(&self) -> FabricRenderer {
         FabricRenderer::new(&self)
     }

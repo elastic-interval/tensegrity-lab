@@ -67,428 +67,212 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ## Project Overview
 
-Tensegrity Lab is a high-performance Rust application for designing, simulating, and physically building tensegrity structures using Elastic Interval Geometry (EIG). Tensegrity structures are spatial systems composed entirely of compression elements (bars/struts) and tension elements (cables) that maintain their shape through balanced push-pull forces.
+Tensegrity Lab is a Rust application for designing, simulating, and physically
+building tensegrity structures using Elastic Interval Geometry (EIG).
+Tensegrities are spatial systems of compression elements (struts) and tension
+elements (cables) that maintain shape through balanced push-pull forces.
 
-**Key Goals:**
-- Fast implementation of Elastic Interval Geometry physics simulation
-- Design tensegrities by composing modular "bricks" using Tenscript language
-- Enable physical construction of designed structures
-- Support Darwinian evolution of tensegrity structures
+**Dual targets:**
 
-**Dual Architecture:**
-1. **Native version** (WGPU rendering) - Design-focused with Tenscript file watching
-2. **Web version** (WASM) - Build-focused with interval selection for physical construction
+- **Native (WGPU)** — design focus, file watching, GPU compute, animation export.
+- **Web (WASM)** — build/inspection focus. WebGL backend, no compute shaders.
 
 ## Core Architecture
 
-### The Fabric Model
+### Fabric
 
-The `Fabric` (src/fabric/mod.rs) is the central data structure representing a tensegrity structure:
-- **Joints**: Points in 3D space with position, velocity, and mass
-- **Intervals**: Connections between joints with role (push/pull), stiffness, and strain
-- **Faces**: Triangular surfaces for visual representation
-- **Age**: Tracks simulation time (each iteration = 50 microseconds of fabric time)
-- **Scale**: Meters per fabric unit (e.g., Scale=1.0 means 1 fabric unit = 1 meter)
+`src/fabric/mod.rs` defines `Fabric` — the central data structure:
+- `joints` (SlotMap): position, velocity, mass.
+- `intervals` (SlotMap): push/pull connections with role, stiffness, strain.
+- `faces` (SlotMap): triangular surfaces.
+- `age`: simulated time (one tick = 50 µs).
+- `dimensions: FabricDimensions` (see `src/fabric/dimensions.rs`).
 
-### Physics System
+`Fabric::iterate(...)` is the per-tick physics step (Verlet). Use it; don't
+reinvent.
 
-**Physics Presets** (src/fabric/physics/presets.rs):
-- `CONSTRUCTION` - Used during building phase (5× time acceleration)
-- `PRETENSING` - Used when applying tension to reach equilibrium
-- `VIEWING` - Physics for frozen viewing state
-- `PHYSICS_TEST` - Real-time (1×) physics for drop tests
+### FabricDimensions and HingeDimensions
 
-**Key Physics Concepts:**
-- Each iteration represents 50 microseconds of fabric time
-- Gravity: 9.8 m/s² in real time
-- Convergence: Gradual damping increase to reach equilibrium
-- Pretenst: Target tension percentage for intervals
+`src/fabric/dimensions.rs` defines both. `FabricDimensions` carries scale,
+altitude, pull-radius, hinge geometry, joint mass, push density. `HingeDimensions`
+is a sub-struct for the physical hinge mechanism (push radius, disc/cap
+thicknesses, hinge hole, bend-magnitude inventory). Defaults are in their
+`Default::default()` impls and are the source of truth.
 
-### Dynamic Time Scaling System
+### Time
 
-**Critical Recent Implementation:**
+- One iteration = 50 µs of fabric time (`TICK_DURATION` / `TICK_SECS` in `src/lib.rs`).
+- `Age::iteration_duration()` returns that value; `Age::iterations_per_second()` returns its inverse (20000).
+- `iterations_per_frame` is computed live each frame in `application.rs`:
+  `time_scale × iterations_per_second / fps`.
+- Don't introduce hardcoded iteration counts.
 
-The simulation uses **dynamic iteration calculation** to maintain target time scales regardless of frame rate:
+### Crucible — lifecycle manager
 
-```rust
-// Formula: iterations_per_frame = target_scale × 20000 / FPS
-// At 100 FPS with 5× target: 5.0 × 20000 / 100 = 1000 iterations
-```
+`src/crucible.rs`. `Stage` enum:
+- `RunningPlan(FabricPlanExecutor)` — runs the whole build/shape/pretense pipeline.
+- `Viewing` — settled, idle.
+- `Animating(Animator)` — runs DSL-defined actuators.
+- `PhysicsTesting(PhysicsTester)` — real-time gravity test.
 
-**Target Time Scales:**
-- **5.0** during construction/building (5× speedup)
-- **1.0** during physics testing (real time, 1:1)
-- **0.0** during viewing (frozen, no iteration)
+Transitions go through `finalize_to_viewing()` which also recomputes hinge bend
+magnitudes (see `Fabric::recompute_bend_magnitudes`).
 
-**How it works:**
-1. Application tracks current FPS
-2. Crucible provides `target_time_scale()` based on current stage
-3. Application calculates `iterations_per_frame` dynamically each frame
-4. Internal components use nominal 1000 iterations, outer loop adjusts
+### Build pipeline
 
-**Key Files:**
-- `src/crucible.rs:60-68` - Target time scale logic
-- `src/application.rs:554-564` - Dynamic iteration calculation
-- `src/lib.rs:70` - `ITERATION_DURATION` constant (50µs)
+DSL in `src/build/dsl/`:
+- `fabric_library.rs` — named fabrics (`OpenClaw`, `Triped`, `Halo by Crane`, …).
+- `fabric_plan.rs` + `fabric_plan_executor.rs` — phased execution
+  (`Building → ZeroGPretensing → Falling → Settling → GravPretensing → Complete`).
+  Pretensing iteratively extends symmetric groups of pushes until target
+  compression is reached. The shared loop logic lives in
+  `FabricPlanExecutor::pretense_step`.
+- `plan_runner.rs` — drives Initialize → Build → Shape inside the executor.
 
-**Philosophy:** No hardcoded iteration constants. System self-corrects to maintain target time scale. Start with nominal estimate, quickly adjust to target.
+Snapshot moments (`SnapshotMoment` in `src/events.rs`): `Slack`, `Pretenst`,
+`Settled`, `GravPretenst`. Engineer-facing CSVs are exported at these
+moments; see `docs/csv-handoff.md`.
 
-### The Crucible
+### Physics presets
 
-The `Crucible` (src/crucible.rs) manages the entire simulation lifecycle through stages:
+`src/fabric/physics/presets.rs`:
+- `CONSTRUCTION` — build/shape with damping.
+- `PRETENSING` — zero-G pretension settling.
+- `FALLING` / `SETTLING` — gravity, surface contact.
+- `VIEWING` — frozen.
+- `PHYSICS_TEST` — real-time (1:1) gravity test.
 
-**Stages:**
-1. **Initialization** - Setting up
-2. **Animator** - Running build animations
-3. **Converger** - Settling to equilibrium with gradual damping
-4. **PhysicsTester** - Real-time physics testing with gravity
-5. **Viewing** - Frozen final state
+Don't tweak physics in place — pick a preset, or compose with `Tweak*` if you
+need to adjust mass or rigidity multipliers at runtime.
 
-**CrucibleContext:**
-Bundles commonly-passed data:
-- `fabric` - The structure being simulated
-- `physics` - Current physics parameters
-- `brick_library` - Reusable structural components
-- `radio` - Event broadcasting system
+### Rendering
 
-### Build System
+`src/wgpu/`:
+- `cylinder_renderer.rs` — push/pull intervals as cylinders.
+  - The "fabric pipeline" boilerplate is centralised in
+    `Wgpu::create_fabric_pipeline`; cylinder and hinge renderers both use it.
+- `hinge_renderer.rs` — connector geometry when attachment points visible.
+- `sphere_renderer.rs` — joints.
+- `sky_renderer.rs`, `surface_renderer.rs`, `text_renderer.rs` — chrome.
+- `shader.wgsl` — shared WGSL for fabric pipelines.
 
-**Tenscript Language** (docs/Tenscript.md):
-- Custom DSL for procedurally generating tensegrity structures
-- Defines bricks (modular components) and fabrics (complete structures)
-- Supports phases: build, shape, pretense, converge
+UI/render state separation:
+- `src/control.rs` — UI state (`ControlState`, `RenderStyle`, `Appearance`,
+  `IntervalDetails`, `JointDetails`, `PointerChange`).
+- `src/events.rs` — event types (`LabEvent`, `CrucibleAction`, `StateChange`,
+  `SnapshotMoment`, `Radio`).
+- Both are re-exported at the crate root so `use crate::ControlState` etc.
+  still work.
 
-**Build Phases:**
-1. **Build Phase** - Grows structure by placing bricks and creating intervals
-2. **Shape Phase** - Applies transformations to reach target geometry
-3. **Pretense Phase** - Applies tension to reach equilibrium
-4. **Converge Phase** - Settles structure over specified time
+### GPU compute (native only)
 
-**PlanRunner** (src/build/tenscript/plan_runner.rs):
-- Executes Tenscript plans through distinct stages
-- Stages: Initialize → GrowStep → GrowApproach → GrowCalm → Shaping → Completed
-- Each stage transition is synchronized with fabric progress system
-- Uses dynamic iteration count (nominal 1000, outer loop adjusts)
+`src/physics_gpu/` parallelises CPU-built fabrics on the GPU for evolution and
+the in-app live-physics mode (G key in Viewing). Architecture and the
+WASM/WebGPU caveat are documented in `docs/gpu-compute-backend.md`.
 
-**FabricPlanExecutor** (src/build/tenscript/fabric_plan_executor.rs):
-- Frame-independent execution of fabric plans
-- Transitions from BUILD → PRETENSE → CONVERGE phases
-- Works for both UI (real-time) and tests (headless)
-
-### Component Lifecycle Managers
-
-**Animator** (src/build/animator.rs):
-- Runs build animations that create structure over time
-- Uses nominal 1000 iterations per call, outer loop adjusts dynamically
-
-**Oven** (src/build/oven.rs):
-- "Bakes" brick prototypes into stable configurations
-- Waits for fabric to settle (max velocity < 3e-6)
-- Validates structure can be used as reusable brick
-
-**Converger** (src/build/converger.rs):
-- Handles convergence phase where fabric settles to equilibrium
-- Gradually increases damping over specified time period
-- Zeros velocities and freezes fabric when complete
-- Disables convergence physics when transitioning to Viewing
-
-**Pretenser** (src/build/tenscript/pretenser.rs):
-- Applies pretension to intervals
-- Stages: Start → Slacken → Pretensing → Pretenst
-- Centralizes structure and sets target altitude
-
-**PhysicsTester** (src/fabric/physics_test.rs):
-- Real-time physics testing with gravity
-- Accepts dynamic `iterations_per_frame` parameter
-- Supports features: gravity, freeze, reset, speed tracking
-
-### Rendering System
-
-**WGPU-based 3D rendering** (src/wgpu/):
-- `render_state.rs` - Main render coordinator
-- `fabric_state.rs` - Renders intervals (cylinders) and joints (spheres)
-- `mark_state.rs` - Renders marks (spherical indicators)
-- `floor_state.rs` - Ground plane reference
-- `text_state.rs` - UI text overlay (FPS, age, time scale)
-
-**Camera System** (src/camera.rs):
-- Spherical coordinate camera (azimuth, altitude, radius)
-- Focus point with smooth transitions
-- Synchronized with fabric centralization
-
-### Event System
-
-**Radio** - Broadcast-style event system (crossbeam channels)
-- Events flow from Crucible → Application → UI
-- Types: `LabEvent` (app-level) and `StateChange` (UI updates)
-
-**Key Events:**
-- `FabricBuilt` - Structure complete, transition to viewing
-- `UpdateState` - UI state changes (camera, appearance, stage label)
-- `Time` - FPS and time scale updates
-
-## Important Design Patterns
-
-### Progress System
-
-The `Progress` struct (src/units.rs) manages time-based operations:
-- Tracks remaining seconds for current operation
-- `start(seconds)` - Begin countdown
-- `decrement(delta)` - Advance by time delta
-- `is_busy()` - Check if operation in progress
-
-Used for stage transitions, shaping operations, and pretensing.
-
-### Interval Roles
-
-Intervals have distinct roles (src/fabric/material.rs):
-- **Push** - Compression elements (bars/struts)
-- **Pull** - Tension elements (cables)
-- Each role has appearance properties (color, radius)
-
-### Brick Library
-
-Reusable structural components stored in `BrickLibrary`:
-- Bricks are pre-baked, stable configurations
-- Created by baking prototypes in Oven
-- Used by PlanRunner during build phase
-- Enables modular tensegrity design
-
-### State Management
-
-The application maintains separation between:
-- **Simulation state** (Crucible, Fabric) - Pure computation
-- **Rendering state** (WGPU states) - GPU resources
-- **UI state** (Camera, controls) - User interaction
-
-## File Structure Guide
+## File Structure
 
 ```
 src/
-├── lib.rs                    # Core types, constants (ITERATION_DURATION)
-├── main.rs                   # Native entry point
-├── application.rs            # Main app loop, dynamic iteration calculation
-├── crucible.rs              # Simulation lifecycle manager, target_time_scale()
-├── crucible_context.rs      # Bundles fabric/physics/library/events
+├── lib.rs              # Module declarations, Age, RunStyle, re-exports
+├── main.rs             # CLI entry (native)
+├── application.rs      # Main event loop, time scaling, native side-effects
+├── control.rs          # UI state types
+├── events.rs           # Event types, Radio
+├── crucible.rs         # Lifecycle (Stage enum + transitions)
+├── crucible_context.rs # Bundles fabric/physics/radio for inner code
+├── camera.rs           # Camera (spherical, pick/zoom/approach)
+├── scene.rs            # Scene = renderers + camera + render style
+├── keyboard.rs         # Key bindings
+├── pointer.rs          # Mouse/touch → PointerChange
+├── caliper.rs          # Caliper readings for model-scale display
+├── units.rs            # Meters/Seconds/Grams etc. newtypes
+├── animation_export.rs # JSON export for Blender (native only)
 │
 ├── fabric/
-│   ├── mod.rs               # Core Fabric struct
-│   ├── physics/             # Physics parameters and presets
-│   ├── material.rs          # Interval roles and properties
-│   └── physics_test.rs      # Physics testing mode
+│   ├── mod.rs          # Fabric struct + main impl
+│   ├── dimensions.rs   # FabricDimensions, HingeDimensions, hinge_geometry
+│   ├── interval.rs     # Interval, Role, Span
+│   ├── joint.rs, joint_path.rs
+│   ├── face.rs, brick.rs, material.rs
+│   ├── physics.rs      # Physics struct, presets
+│   ├── physics_tester.rs
+│   ├── attachment.rs   # PullConnections, HingeBend, attachment points
+│   ├── bend_optimizer.rs  # K-center optimiser for bend magnitudes
+│   ├── vulcanize.rs
+│   ├── csv_export.rs   # Engineering CSV format
+│   └── fabric_sampler.rs
 │
 ├── build/
-│   ├── animator.rs          # Build animations
-│   ├── oven.rs              # Brick baking
-│   ├── converger.rs         # Convergence phase manager
-│   ├── evolution.rs         # Evolutionary algorithms
-│   └── tenscript/           # Tenscript language implementation
-│       ├── plan_runner.rs           # Executes build/shape phases
-│       ├── fabric_plan_executor.rs  # Frame-independent execution
-│       ├── pretenser.rs             # Pretension phase
-│       ├── build_phase.rs           # Growth logic
-│       ├── shape_phase.rs           # Shaping operations
-│       └── pretense_phase.rs        # Pretension configuration
+│   ├── animator.rs     # Animation actuators
+│   ├── oven.rs         # Brick baking
+│   ├── settler.rs
+│   ├── algo/           # Algorithmic generators (sphere, klein, mobius)
+│   ├── evo/            # Evolution
+│   └── dsl/            # Tenscript DSL builders + executors
 │
-├── wgpu/                    # Rendering system
-│   ├── render_state.rs      # Main render coordinator
-│   ├── fabric_state.rs      # Fabric rendering
-│   └── text_state.rs        # UI text (includes time scale display)
-│
-└── camera.rs                # Camera control
+├── wgpu/               # Rendering (see Rendering section)
+└── physics_gpu/        # GPU compute (native; see docs/gpu-compute-backend.md)
 ```
-
-## Recent Evolution and Key Changes
-
-### Dynamic Time Scaling Implementation
-
-**Problem:** Iteration counts were hardcoded for specific frame rates, making the system fragile and difficult to tune.
-
-**Solution:** Implemented dynamic iteration calculation based on target time scales:
-- Removed `ITERATIONS_PER_FRAME` and `PHYSICS_TEST_ITERATIONS_PER_FRAME` constants
-- System now calculates iterations needed per frame to maintain target scale
-- Formula: `target_scale × 20000 / FPS`
-- At 100 FPS: 5× target → 1000 iterations, 1× target → 200 iterations
-- At 60 FPS: Would automatically adjust to 1667 and 333 respectively
-
-**Files Changed:**
-- `src/lib.rs` - Removed constants
-- `src/crucible.rs` - Added `target_time_scale()`, changed `iterate()` signature
-- `src/application.rs` - Added `current_fps` field, dynamic calculation
-- `src/fabric/physics_test.rs` - Accept dynamic iterations parameter
-- `src/wgpu/text_state.rs` - Display target scale instead of fluctuating percentage
-- All build components - Use nominal 1000, outer loop adjusts
-
-**UI Changes:**
-- Show "5×" during construction (target visible)
-- Show nothing during physics testing (striving for 100% real time)
-- Never show "0×" during viewing
-
-### Convergence Lifecycle Fix
-
-**Problem:** `disable_convergence()` was called when entering physics testing, but it's actually part of ending the build process.
-
-**Solution:** Moved call from `ToPhysicsTesting` action to end of convergence phase (transition to Viewing).
-
-**Location:** `src/crucible.rs:243`
-
-### Authentic Gravity Implementation
-
-**Previous Session Work:**
-- Implemented 9.8 m/s² gravity in real time
-- 'J' key centralizes fabric at 1m altitude (tests gravity drop)
-- Physics testing achieves true 1:1 real time
-- Average speed tracking over 100 iterations
-
-### Camera Animation and Interaction System
-
-**Critical Architecture Fix:**
-
-The camera must ALWAYS update via `scene.animate()`, regardless of control state. This was broken by short-circuit evaluation.
-
-**Problem:** In `application.rs`, the condition for running animation was:
-```rust
-let animate = matches!(control_state, Viewing | PhysicsTesting(_)) || scene.animate(fabric)
-```
-
-When in `Viewing` mode, the `||` short-circuited and `scene.animate()` never ran, preventing camera from approaching its target.
-
-**Solution:** Always call `scene.animate()` first (application.rs:527-533):
-```rust
-let camera_animating = scene.animate(fabric);  // Always call first
-let animate = matches!(control_state, Viewing | PhysicsTesting(_)) || camera_animating;
-```
-
-**Camera Reset Pattern:**
-
-Keep `camera.reset()` simple - just set the target (camera.rs:221-224):
-```rust
-pub fn reset(&mut self) {
-    self.current_pick = Pick::Nothing;
-    self.set_target(Target::FabricMidpoint);
-}
-```
-
-Let `target_approach()` detect target changes naturally via thread_local state. Don't manually manipulate thread_local variables in reset().
-
-**Picking Restrictions:**
-
-Only allow picking when in Viewing mode. Check implemented in `scene.pointer_changed()` (scene.rs:223-237):
-```rust
-let pointer_changed = if !self.pick_allowed {
-    match pointer_changed {
-        PointerChange::Released(_) | PointerChange::TouchReleased(_) => PointerChange::NoChange,
-        other => other,  // Allow rotation, zoom in all modes
-    }
-} else {
-    pointer_changed
-};
-```
-
-This allows camera rotation and zooming in all states, but restricts selection to Viewing mode only.
-
-**WASM Compatibility:**
-
-Removed `#[cfg(not(target_arch = "wasm32"))]` guards from `RefreshLibrary` and `UpdatedLibrary` handlers (application.rs:298-312). The code uses WASM-compatible `instant` crate and doesn't access filesystem, so reload fabric (Enter key) now works in browser.
-
-## Common Operations
-
-### Adding New Physics Features
-
-1. Define feature flag in `PhysicsFeature` enum (src/lib.rs)
-2. Add toggle handling in `PhysicsTester::toggle_feature()` (src/fabric/physics_test.rs)
-3. Update physics application in `Fabric::iterate()` (src/fabric/mod.rs)
-4. Add UI control in Application event handling
-
-### Adding New Build Phases
-
-1. Define phase configuration struct in `src/build/tenscript/`
-2. Parse phase from Tenscript in `FabricPlan::from_source()`
-3. Create phase manager (like Converger, Pretenser)
-4. Add to FabricPlanExecutor state machine
-5. Ensure uses nominal iterations, outer loop adjusts
-
-### Modifying Time Scaling
-
-The dynamic time scaling system is now complete and should rarely need modification:
-- Change target scales in `Crucible::target_time_scale()`
-- Formula is: `target_scale × 20000 / FPS`
-- The 20000 constant comes from: (1 second = 1000ms) / (50µs per iteration) = 20000
-
-### Adding Rendering Elements
-
-1. Create state struct in `src/wgpu/` implementing `WgpuState` trait
-2. Add to `RenderState` creation in `new()`
-3. Add to render pass in `render()`
-4. Handle updates in `redraw()` or via events
 
 ## Testing
 
-**IMPORTANT: Always run tests in release mode for speed:**
+Run with release mode:
+
 ```bash
 cargo test --release
 ```
 
-**Unit Tests:**
-- Many modules have inline tests (see `#[cfg(test)]` blocks)
-
-**Integration Tests:**
-- `src/build/tenscript/plan_runner_test.rs` - Tests plan execution
-- `src/build/tenscript/fabric_plan_executor_test.rs` - Tests frame-independent execution
-
-**Physics Tests:**
-- Interactive physics testing mode in application
-- Drop test with 'J' key validates gravity
-- Speed tracking validates real-time performance
-
-**Benchmark Testing:**
-- `test_all_build_benchmarks` uses hardcoded benchmark values in `ui_benchmarks()`
-- NEVER recapture benchmarks automatically when they fail
-- Only recapture after user has visually verified the UI behavior is correct
-- Use `RECAPTURE=1 cargo test --release test_all_build_benchmarks -- --nocapture` to print new values
-- The user must manually update `ui_benchmarks()` after confirming the behavior is good
-
-## Key Insights and Philosophy
-
-1. **No Hardcoded Iteration Constants** - System dynamically adjusts to maintain target time scales. Use nominal values, let outer loop correct.
-
-2. **Frame Independence** - Build logic works same in UI and headless tests. FabricPlanExecutor enables this.
-
-3. **Physics Presets** - Different phases need different physics. Don't tweak parameters directly, use/modify presets.
-
-4. **Convergence is Build Phase** - Convergence happens at end of build, not beginning of testing. Disable it when transitioning to Viewing.
-
-5. **Separation of Concerns** - Crucible manages lifecycle, Fabric manages structure, Physics manages forces, Rendering displays results.
-
-6. **Event-Driven UI** - Simulation doesn't know about rendering. Radio events keep them loosely coupled.
-
-7. **Real Time Means 1:1** - Physics testing should match real-world time. Each iteration = 50µs. Gravity = 9.8 m/s².
-
-8. **Scale for Construction** - Fabric units are arbitrary. Scale is in Meters (use `.to_mm()` for display).
-
-## Common Gotchas
-
-1. **Don't add iteration constants** - Use dynamic calculation instead
-2. **Check convergence state** - Disable it when transitioning from build to viewing
-3. **Remember the scale** - Fabric coordinates × scale = meters (use `.to_mm()` for display)
-4. **Physics presets matter** - Construction physics != testing physics != viewing physics
-5. **Progress must complete** - Stage transitions only happen when `progress.is_busy() == false`
-6. **Clone when necessary** - Some contexts require cloning to avoid borrow checker issues (see `tester_physics`)
+Important integration tests:
+- `src/build/dsl/plan_runner_test.rs` — `test_open_claw_base_triangle`,
+  `test_open_claw_foot_positions`, `test_triped_*`.
+- `src/physics_gpu/parity_test.rs` — CPU vs GPU numeric parity.
+- `src/fabric/hinge_geometry_tests` (inline in `mod.rs`) — derived dimension formulas.
+- `src/fabric/bend_optimizer.rs` (inline tests) — k-center DP correctness.
 
 ## Entry Points
 
-**Native Application:**
 ```bash
+# Native:
 cargo run --release -- --fabric "Halo by Crane"
-```
+cargo run --release -- --fabric "Open Claw" --snapshot all
 
-**Web Version:**
-```bash
+# Web:
 trunk serve
 ```
 
+## Key Insights and Gotchas
+
+1. **Iterations per frame is computed, not constant.** Don't hardcode iteration
+   counts; let the outer loop do `time_scale × iterations_per_second / fps`.
+
+2. **Convergence is build, not testing.** Hinge bend magnitudes are recomputed
+   on entering Viewing (`Crucible::finalize_to_viewing`). Don't trigger that
+   from elsewhere.
+
+3. **Coordinate systems.** Simulation is Y-up. CSV export converts to Z-up via
+   `sim_to_csv()` in `csv_export.rs`. The Blender import pipeline expects
+   meters; see `scripts/tensegrity_fast_import.py`.
+
+4. **Units.** Joint locations are stored in meters. The `units` newtypes
+   (`Meters`, `Seconds`, `Grams`, …) catch mismatches at compile time — use
+   them at boundaries, unwrap with `.f32()` only when interfacing with raw math.
+
+5. **Physics presets.** Different phases need different presets. To tweak at
+   runtime, send a `TweakParameter` via the radio; don't mutate presets
+   directly.
+
+6. **WASM ≠ native.** Compute shaders aren't available on WebGL. GPU physics
+   (`src/physics_gpu/`) is native-only; gated by `cfg(not(target_arch = "wasm32"))`.
+   Native-only state on `Application` is grouped under a single `NativeState`
+   struct.
+
+7. **Re-exports at the crate root.** `lib.rs` does `pub use control::*;
+   pub use events::*;` and `fabric/mod.rs` does `pub use dimensions::*;`.
+   External imports use the short path (`use crate::ControlState`) but the
+   types live in their domain modules.
+
 ## Contact
 
-For questions: pretenst@gmail.com
 Project: https://github.com/elastic-interval/tensegrity-lab
 Related: https://pretenst.com/

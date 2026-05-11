@@ -7,12 +7,11 @@ use crate::camera::Pick;
 use crate::fabric::interval::Role;
 use crate::fabric::FabricDimensions;
 use crate::fabric::{Fabric, IntervalEnd};
-use crate::wgpu::{default_depth_stencil_state, Wgpu, DEFAULT_PRIMITIVE_STATE};
+use crate::wgpu::Wgpu;
 use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
-use wgpu::PipelineCompilationOptions;
 
 // Pastel colors for the three link types
 const AXIAL_COLOR: [f32; 4] = [1.0, 1.0, 0.6, 1.0]; // Pastel yellow
@@ -42,21 +41,6 @@ pub struct HingeRenderer {
 impl HingeRenderer {
     pub fn new(wgpu: &Wgpu) -> Self {
         let (vertex_buffer, index_buffer, num_indices) = wgpu.create_cylinder();
-
-        let shader = wgpu
-            .device
-            .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("Link Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-            });
-
-        let pipeline_layout = wgpu
-            .device
-            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Link Pipeline Layout"),
-                bind_group_layouts: &[&wgpu.uniform_bind_group_layout],
-                immediate_size: 0,
-            });
 
         let instance_layout = wgpu::VertexBufferLayout {
             array_stride: size_of::<LinkInstance>() as wgpu::BufferAddress,
@@ -96,37 +80,7 @@ impl HingeRenderer {
             ],
         };
 
-        let render_pipeline = wgpu
-            .device
-            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                cache: None,
-                label: Some("Link Pipeline"),
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    compilation_options: PipelineCompilationOptions::default(),
-                    module: &shader,
-                    entry_point: Some("fabric_vertex"),
-                    buffers: &[Wgpu::cylinder_vertex_layout(), instance_layout],
-                },
-                fragment: Some(wgpu::FragmentState {
-                    compilation_options: PipelineCompilationOptions::default(),
-                    module: &shader,
-                    entry_point: Some("fabric_fragment"),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: wgpu.surface_configuration.format,
-                        blend: Some(wgpu::BlendState::REPLACE),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                primitive: DEFAULT_PRIMITIVE_STATE,
-                depth_stencil: Some(default_depth_stencil_state()),
-                multisample: wgpu::MultisampleState {
-                    count: 1,
-                    mask: !0,
-                    alpha_to_coverage_enabled: false,
-                },
-                multiview_mask: None,
-            });
+        let render_pipeline = wgpu.create_fabric_pipeline("Hinge Pipeline", instance_layout);
 
         HingeRenderer {
             vertex_buffer,

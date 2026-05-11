@@ -1,6 +1,5 @@
-use crate::Age;
-use crate::FabricStats;
-use crate::{ControlState, StateChange};
+use crate::fabric::FabricStats;
+use crate::{Age, ControlState, StateChange};
 use std::default::Default;
 use wgpu_text::glyph_brush::{
     BuiltInLineBreaker, HorizontalAlign, Layout, OwnedSection, OwnedText, VerticalAlign,

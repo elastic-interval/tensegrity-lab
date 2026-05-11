@@ -10,33 +10,8 @@ use glam::Vec3;
 use crate::fabric::physics::presets::CONSTRUCTION;
 use crate::fabric::interval::Role;
 use crate::fabric::Fabric;
-use crate::physics_gpu::GpuBatch;
+use crate::physics_gpu::{create_headless_device, GpuBatch};
 use crate::units::Meters;
-
-fn create_headless_device() -> Option<(wgpu::Device, wgpu::Queue)> {
-    let instance = wgpu::Instance::default();
-    let adapter = futures::executor::block_on(instance.request_adapter(
-        &wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::default(),
-            force_fallback_adapter: false,
-            compatible_surface: None,
-        },
-    ))
-    .ok()?;
-    let limits = adapter.limits();
-    let (device, queue) = futures::executor::block_on(adapter.request_device(
-        &wgpu::DeviceDescriptor {
-            label: Some("physics_gpu smoke test device"),
-            required_features: wgpu::Features::empty(),
-            required_limits: limits,
-            memory_hints: wgpu::MemoryHints::Performance,
-            trace: wgpu::Trace::Off,
-            experimental_features: wgpu::ExperimentalFeatures::default(),
-        },
-    ))
-    .ok()?;
-    Some((device, queue))
-}
 
 /// Build a tiny triangle of three pull cables. Each cable's ideal
 /// length is 90% of its actual length, so all three pull the triangle
@@ -58,7 +33,7 @@ fn build_triangle_fabric() -> Fabric {
 
 #[test]
 fn parallelize_runs_on_real_fabric() {
-    let Some((device, queue)) = create_headless_device() else {
+    let Some((device, queue)) = create_headless_device("physics_gpu smoke") else {
         eprintln!("No compute-capable adapter available; skipping.");
         return;
     };

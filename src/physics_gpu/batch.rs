@@ -623,35 +623,14 @@ impl GpuBatch {
             return vec![Vec::new(); self.num_slots as usize];
         }
 
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("gpu readback"),
-        });
-        encoder.copy_buffer_to_buffer(
+        let raw: Vec<[f32; 4]> = read_buffer_typed(
+            device,
+            queue,
             &self.position_buffer,
-            0,
             &self.staging_buffer,
-            0,
             total * 16,
+            "gpu readback",
         );
-        queue.submit(Some(encoder.finish()));
-
-        let slice = self.staging_buffer.slice(..(total * 16));
-        let (sender, receiver) = std::sync::mpsc::channel();
-        slice.map_async(wgpu::MapMode::Read, move |result| {
-            sender.send(result).unwrap();
-        });
-        device
-            .poll(wgpu::PollType::Wait {
-                submission_index: None,
-                timeout: None,
-            })
-            .unwrap();
-        receiver.recv().unwrap().unwrap();
-
-        let data = slice.get_mapped_range();
-        let raw: Vec<[f32; 4]> = bytemuck::cast_slice(&data).to_vec();
-        drop(data);
-        self.staging_buffer.unmap();
 
         (0..self.num_slots as usize)
             .map(|slot| {
@@ -698,29 +677,55 @@ impl GpuBatch {
             usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("gpu frozen readback"),
-        });
-        encoder.copy_buffer_to_buffer(&self.frozen_buffer, 0, &staging, 0, byte_size);
-        queue.submit(Some(encoder.finish()));
-
-        let slice = staging.slice(..byte_size);
-        let (sender, receiver) = std::sync::mpsc::channel();
-        slice.map_async(wgpu::MapMode::Read, move |r| sender.send(r).unwrap());
-        device
-            .poll(wgpu::PollType::Wait {
-                submission_index: None,
-                timeout: None,
-            })
-            .unwrap();
-        receiver.recv().unwrap().unwrap();
-
-        let data = slice.get_mapped_range();
-        let raw: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
-        drop(data);
-        staging.unmap();
+        let raw: Vec<u32> = read_buffer_typed(
+            device,
+            queue,
+            &self.frozen_buffer,
+            &staging,
+            byte_size,
+            "gpu frozen readback",
+        );
         raw.into_iter().map(|v| v != 0).collect()
     }
+}
+
+/// Copy a GPU buffer into a host-mappable staging buffer, map it, and
+/// return the contents as a `Vec<T>`. Blocking on `device.poll(Wait)` —
+/// callers must run on a thread that can spare a stall, which excludes
+/// the wasm main thread (see `docs/gpu-compute-backend.md` browser
+/// caveat).
+fn read_buffer_typed<T: bytemuck::Pod>(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    src: &wgpu::Buffer,
+    staging: &wgpu::Buffer,
+    byte_size: u64,
+    label: &str,
+) -> Vec<T> {
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some(label),
+    });
+    encoder.copy_buffer_to_buffer(src, 0, staging, 0, byte_size);
+    queue.submit(Some(encoder.finish()));
+
+    let slice = staging.slice(..byte_size);
+    let (sender, receiver) = std::sync::mpsc::channel();
+    slice.map_async(wgpu::MapMode::Read, move |result| {
+        sender.send(result).unwrap();
+    });
+    device
+        .poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: None,
+        })
+        .unwrap();
+    receiver.recv().unwrap().unwrap();
+
+    let data = slice.get_mapped_range();
+    let out: Vec<T> = bytemuck::cast_slice(&data).to_vec();
+    drop(data);
+    staging.unmap();
+    out
 }
 
 /// Run a whole generation of fabrics in one GPU dispatch. Each fabric

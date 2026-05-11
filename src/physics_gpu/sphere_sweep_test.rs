@@ -13,30 +13,8 @@ use crate::fabric::interval::{Role, Span};
 use crate::fabric::physics::presets;
 use crate::fabric::{Fabric, IntervalKey};
 use crate::physics_gpu::batch::{GpuBatch, SlotFacts};
+use crate::physics_gpu::create_headless_device;
 use crate::units::{Grams, GramsPerMeter, Meters, Seconds, Unit};
-
-fn create_headless_device() -> Option<(wgpu::Device, wgpu::Queue)> {
-    let instance = wgpu::Instance::default();
-    let adapter = futures::executor::block_on(instance.request_adapter(
-        &wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::default(),
-            force_fallback_adapter: false,
-            compatible_surface: None,
-        },
-    ))
-    .ok()?;
-    let (device, queue) = futures::executor::block_on(adapter.request_device(
-        &wgpu::DeviceDescriptor {
-            label: Some("sphere sweep"),
-            required_features: wgpu::Features::empty(),
-            required_limits: adapter.limits(),
-            memory_hints: wgpu::MemoryHints::Performance,
-            ..Default::default()
-        },
-    ))
-    .ok()?;
-    Some((device, queue))
-}
 
 /// Configure a sphere fabric for GPU-only iteration: sets joint/push densities
 /// and installs `Span::Approaching` pretensions with the candidate scaling law.
@@ -160,7 +138,7 @@ fn run_single_sphere_on_gpu(
 
 #[test]
 fn sphere_gpu_sweep_scaling_law() {
-    let Some((device, queue)) = create_headless_device() else {
+    let Some((device, queue)) = create_headless_device("physics_gpu sphere sweep") else {
         eprintln!("skipping: no GPU adapter");
         return;
     };
@@ -211,7 +189,7 @@ fn sphere_gpu_sweep_scaling_law() {
 /// near the original geometric radius.
 #[test]
 fn sphere_gpu_strain_exponent_probe() {
-    let Some((device, queue)) = create_headless_device() else {
+    let Some((device, queue)) = create_headless_device("physics_gpu sphere sweep") else {
         eprintln!("skipping: no GPU adapter");
         return;
     };

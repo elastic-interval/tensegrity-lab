@@ -6,8 +6,9 @@ use crate::fabric::Fabric;
 use crate::fabric::IntervalEnd;
 use crate::fabric::IntervalKey;
 use crate::fabric::JointKey;
+use crate::fabric::interval::Role;
 use crate::units::Degrees;
-use crate::{ControlState, IntervalDetails, JointDetails, PickIntent, PointerChange, Radio, Role};
+use crate::{ControlState, IntervalDetails, JointDetails, PickIntent, PointerChange, Radio};
 
 #[derive(Debug, Clone)]
 pub enum Pick {

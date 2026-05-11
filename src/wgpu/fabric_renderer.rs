@@ -26,12 +26,13 @@ impl FabricRenderer {
         wgpu: &Wgpu,
         fabric: &Fabric,
         pick: &Pick,
-        render_style: &mut RenderStyle,
+        render_style: &RenderStyle,
+        show_attachment_points: bool,
     ) {
         self.cylinder_renderer
-            .update(wgpu, fabric, pick, render_style);
+            .update(wgpu, fabric, pick, render_style, show_attachment_points);
 
-        if render_style.show_attachment_points() {
+        if show_attachment_points {
             self.hinge_renderer.update(wgpu, fabric, pick);
         }
     }
@@ -40,11 +41,11 @@ impl FabricRenderer {
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         bind_group: &'a wgpu::BindGroup,
-        render_style: &RenderStyle,
+        show_attachment_points: bool,
     ) {
         self.cylinder_renderer.render(render_pass, bind_group);
 
-        if render_style.show_attachment_points() {
+        if show_attachment_points {
             self.hinge_renderer.render(render_pass, bind_group);
         }
     }

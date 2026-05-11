@@ -19,36 +19,11 @@ use crate::build::dsl::brick_library::get_prototype;
 use crate::fabric::interval::{Role, Span};
 use crate::fabric::physics::presets::{BAKING, CONSTRUCTION};
 use crate::fabric::Fabric;
-use crate::physics_gpu::{run_generation, GpuBatch, SlotFacts};
+use crate::physics_gpu::{create_headless_device, run_generation, GpuBatch, SlotFacts};
 use crate::units::Seconds;
 use crate::units::Meters;
 
 const PARITY_TOLERANCE: f32 = 1e-3;
-
-fn create_headless_device() -> Option<(wgpu::Device, wgpu::Queue)> {
-    let instance = wgpu::Instance::default();
-    let adapter = futures::executor::block_on(instance.request_adapter(
-        &wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::default(),
-            force_fallback_adapter: false,
-            compatible_surface: None,
-        },
-    ))
-    .ok()?;
-    let limits = adapter.limits();
-    let (device, queue) = futures::executor::block_on(adapter.request_device(
-        &wgpu::DeviceDescriptor {
-            label: Some("physics_gpu parity device"),
-            required_features: wgpu::Features::empty(),
-            required_limits: limits,
-            memory_hints: wgpu::MemoryHints::Performance,
-            trace: wgpu::Trace::Off,
-            experimental_features: wgpu::ExperimentalFeatures::default(),
-        },
-    ))
-    .ok()?;
-    Some((device, queue))
-}
 
 fn cpu_positions(fabric: &Fabric) -> Vec<Vec3> {
     fabric.joints.values().map(|j| j.location).collect()
@@ -73,7 +48,7 @@ fn compare(cpu: &[Vec3], gpu: &[Vec3], label: &str) -> f32 {
 /// force application. No pushes, no gravity, no surface.
 #[test]
 fn two_joint_pull_parity() {
-    let Some((device, queue)) = create_headless_device() else {
+    let Some((device, queue)) = create_headless_device("physics_gpu parity") else {
         eprintln!("No compute-capable adapter available; skipping.");
         return;
     };
@@ -109,7 +84,7 @@ fn two_joint_pull_parity() {
 /// matter. Still no pushes or gravity.
 #[test]
 fn pull_triangle_parity() {
-    let Some((device, queue)) = create_headless_device() else {
+    let Some((device, queue)) = create_headless_device("physics_gpu parity") else {
         eprintln!("No compute-capable adapter available; skipping.");
         return;
     };
@@ -149,7 +124,7 @@ fn pull_triangle_parity() {
 /// prints the state progression.
 #[test]
 fn push_with_pulls_progression() {
-    let Some((device, queue)) = create_headless_device() else {
+    let Some((device, queue)) = create_headless_device("physics_gpu parity") else {
         eprintln!("No compute-capable adapter available; skipping.");
         return;
     };
@@ -191,7 +166,7 @@ fn push_with_pulls_progression() {
 /// 0→1 and 2→3. No gravity, no surface.
 #[test]
 fn push_with_pulls_parity() {
-    let Some((device, queue)) = create_headless_device() else {
+    let Some((device, queue)) = create_headless_device("physics_gpu parity") else {
         eprintln!("No compute-capable adapter available; skipping.");
         return;
     };
@@ -240,7 +215,7 @@ fn push_with_pulls_parity() {
 /// from that fully-built state.
 #[test]
 fn single_twist_left_parity() {
-    let Some((device, queue)) = create_headless_device() else {
+    let Some((device, queue)) = create_headless_device("physics_gpu parity") else {
         eprintln!("No compute-capable adapter available; skipping.");
         return;
     };
@@ -289,7 +264,7 @@ fn single_twist_left_parity() {
 /// arithmetic without introducing per-slot variation.
 #[test]
 fn identical_batch_produces_identical_results() {
-    let Some((device, queue)) = create_headless_device() else {
+    let Some((device, queue)) = create_headless_device("physics_gpu parity") else {
         eprintln!("No compute-capable adapter available; skipping.");
         return;
     };
@@ -349,7 +324,7 @@ fn identical_batch_produces_identical_results() {
 /// topology indexing all work.
 #[test]
 fn varied_batch_parity() {
-    let Some((device, queue)) = create_headless_device() else {
+    let Some((device, queue)) = create_headless_device("physics_gpu parity") else {
         eprintln!("No compute-capable adapter available; skipping.");
         return;
     };
@@ -412,7 +387,7 @@ fn varied_batch_parity() {
 /// on GPU, read back facts for fitness evaluation on CPU.
 #[test]
 fn run_generation_returns_meaningful_facts() {
-    let Some((device, queue)) = create_headless_device() else {
+    let Some((device, queue)) = create_headless_device("physics_gpu parity") else {
         eprintln!("No compute-capable adapter available; skipping.");
         return;
     };
@@ -472,7 +447,7 @@ fn run_generation_returns_meaningful_facts() {
 /// CPU-computed equivalents.
 #[test]
 fn slot_facts_match_cpu() {
-    let Some((device, queue)) = create_headless_device() else {
+    let Some((device, queue)) = create_headless_device("physics_gpu parity") else {
         eprintln!("No compute-capable adapter available; skipping.");
         return;
     };

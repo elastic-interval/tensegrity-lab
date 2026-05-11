@@ -74,89 +74,66 @@ impl PlanRunner {
         })
     }
 
-    /// Simplified version for use with PlanContext (no events)
+    /// Headless stage advance (used by `FabricPlanExecutor`, no events emitted).
     pub fn check_and_advance_stage_simple(&mut self, context: &mut PlanContext) -> bool {
-        if self.stage_elapsed(context.fabric.age) && self.disabled.is_none() {
-            let (next_stage, seconds) = match self.stage {
-                Initialize => {
-                    self.build_phase.init(context.fabric);
-                    (BuildApproach, MOMENT)
-                }
-                BuildStep => {
-                    if self.build_phase.is_building() {
-                        self.build_phase.build_step(context.fabric);
-                        (BuildApproach, MOMENT)
-                    } else if self.shape_phase.needs_shaping() {
-                        self.shape_phase.marks = self.build_phase.marks.split_off(0);
-                        (Shaping, IMMEDIATE)
-                    } else {
-                        (Completed, IMMEDIATE)
-                    }
-                }
-                BuildApproach => (BuildCalm, MOMENT),
-                BuildCalm => (BuildStep, IMMEDIATE),
-                Shaping => match self.shape_phase.shaping_step(context.fabric) {
-                    ShapeCommand::Noop => (Shaping, IMMEDIATE),
-                    ShapeCommand::StartProgress(seconds) => (Shaping, seconds),
-                    ShapeCommand::Rigidity(_percent) => (Shaping, IMMEDIATE),
-                    ShapeCommand::Terminate => (Completed, IMMEDIATE),
-                },
-                Completed => (Completed, IMMEDIATE),
-            };
-
-            let stage_changed = self.stage != next_stage;
-            self.stage_start_age = Some(context.fabric.age);
-            self.stage_duration = seconds;
-            self.stage = next_stage;
-            stage_changed
-        } else {
-            false
-        }
+        let (stage_changed, _entered_shaping) = self.advance_stage(context.fabric);
+        stage_changed
     }
 
-    /// Check if progress has completed and advance to the next stage if needed.
-    /// This should be called AFTER running one fabric iteration.
-    /// Returns true if a stage transition occurred.
+    /// UI-driven stage advance: same logic as the headless version but emits a
+    /// `SetStageLabel("Shaping")` event when the build-step transition lands
+    /// on `Shaping`. Returns true if a stage transition occurred.
     pub fn check_and_advance_stage(&mut self, context: &mut CrucibleContext) -> bool {
-        if self.stage_elapsed(context.fabric.age) && self.disabled.is_none() {
-            let (next_stage, seconds) = match self.stage {
-                Initialize => {
-                    self.build_phase.init(context.fabric);
-                    (BuildApproach, MOMENT)
-                }
-                BuildStep => {
-                    if self.build_phase.is_building() {
-                        self.build_phase.build_step(context.fabric);
-                        (BuildApproach, MOMENT)
-                    } else if self.shape_phase.needs_shaping() {
-                        self.shape_phase.marks = self.build_phase.marks.split_off(0);
-                        context.send_event(LabEvent::UpdateState(StateChange::SetStageLabel(
-                            "Shaping".to_string(),
-                        )));
-                        (Shaping, IMMEDIATE)
-                    } else {
-                        (Completed, IMMEDIATE)
-                    }
-                }
-                BuildApproach => (BuildCalm, MOMENT),
-                BuildCalm => (BuildStep, IMMEDIATE),
-                Shaping => match self.shape_phase.shaping_step(context.fabric) {
-                    ShapeCommand::Noop => (Shaping, IMMEDIATE),
-                    ShapeCommand::StartProgress(seconds) => (Shaping, seconds),
-                    ShapeCommand::Rigidity(_percent) => (Shaping, IMMEDIATE),
-                    ShapeCommand::Terminate => (Completed, IMMEDIATE),
-                },
-                Completed => (Completed, IMMEDIATE),
-            };
-
-            let stage_changed = self.stage != next_stage;
-            self.stage_start_age = Some(context.fabric.age);
-            self.stage_duration = seconds;
-            self.stage = next_stage;
-            stage_changed
-        } else {
-            false
+        let (stage_changed, entered_shaping) = self.advance_stage(context.fabric);
+        if entered_shaping {
+            context.send_event(LabEvent::UpdateState(StateChange::SetStageLabel(
+                "Shaping".to_string(),
+            )));
         }
+        stage_changed
+    }
+
+    /// Pure stage transition logic. Returns `(stage_changed, entered_shaping)`
+    /// — `entered_shaping` is true only when this call moved from `BuildStep`
+    /// to `Shaping`, so the UI caller knows to emit a label event.
+    fn advance_stage(&mut self, fabric: &mut crate::fabric::Fabric) -> (bool, bool) {
+        if !(self.stage_elapsed(fabric.age) && self.disabled.is_none()) {
+            return (false, false);
+        }
+        let mut entered_shaping = false;
+        let (next_stage, seconds) = match self.stage {
+            Initialize => {
+                self.build_phase.init(fabric);
+                (BuildApproach, MOMENT)
+            }
+            BuildStep => {
+                if self.build_phase.is_building() {
+                    self.build_phase.build_step(fabric);
+                    (BuildApproach, MOMENT)
+                } else if self.shape_phase.needs_shaping() {
+                    self.shape_phase.marks = self.build_phase.marks.split_off(0);
+                    entered_shaping = true;
+                    (Shaping, IMMEDIATE)
+                } else {
+                    (Completed, IMMEDIATE)
+                }
+            }
+            BuildApproach => (BuildCalm, MOMENT),
+            BuildCalm => (BuildStep, IMMEDIATE),
+            Shaping => match self.shape_phase.shaping_step(fabric) {
+                ShapeCommand::Noop => (Shaping, IMMEDIATE),
+                ShapeCommand::StartProgress(seconds) => (Shaping, seconds),
+                ShapeCommand::Rigidity(_percent) => (Shaping, IMMEDIATE),
+                ShapeCommand::Terminate => (Completed, IMMEDIATE),
+            },
+            Completed => (Completed, IMMEDIATE),
+        };
+
+        let stage_changed = self.stage != next_stage;
+        self.stage_start_age = Some(fabric.age);
+        self.stage_duration = seconds;
+        self.stage = next_stage;
+        (stage_changed, entered_shaping)
     }
 
     pub fn iterate(&mut self, context: &mut CrucibleContext) {

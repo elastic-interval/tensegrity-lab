@@ -15,7 +15,7 @@ Each disc can rotate freely around the strut axis, allowing its hinge to point i
 
 ## Geometry and Dimensions
 
-All physical dimensions are defined in `HingeDimensions` (`src/fabric/mod.rs`).
+All physical dimensions are defined in `HingeDimensions` (`src/fabric/dimensions.rs`).
 Defaults reflect the values in `Default::default()` and are the source of truth;
 this table is informational and can drift between code edits and doc updates.
 
@@ -89,7 +89,7 @@ where `moment_arm` is the vector from the pivot (slot 0) to the attachment point
 ## Hinge Geometry: How Cable Endpoints are Positioned
 
 Once a cable is assigned to a slot, its exact 3D attachment position is
-calculated by `FabricDimensions::hinge_geometry()` (`src/fabric/mod.rs`). The
+calculated by `FabricDimensions::hinge_geometry()` (`src/fabric/dimensions.rs`). The
 function returns `(hinge_pos, hinge_bend, pull_end_pos, ideal_deg)`:
 
 1. **Ring center**: Position along the strut axis at this slot
@@ -151,7 +151,7 @@ When attachment points are visible, picking a cable shows its slot assignments:
 
 | File | Purpose |
 |------|---------|
-| `src/fabric/mod.rs:35-174` | `HingeDimensions`, `FabricDimensions`, `disc_center_offset()`, `ring_center()`, `hinge_geometry()` |
+| `src/fabric/dimensions.rs` | `HingeDimensions`, `FabricDimensions`, `disc_center_offset()`, `ring_center()`, `hinge_geometry()` |
 | `src/fabric/attachment.rs` | `PullConnections`, attachment points, moment optimization |
 | `src/fabric/interval.rs:490-683` | Interval's connection storage and attachment point access |
 | `src/wgpu/hinge_renderer.rs` | 3D rendering of connector links |

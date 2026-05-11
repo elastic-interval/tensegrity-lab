@@ -2,7 +2,7 @@
 
 How the CSV exports are structured, which one the engineer uses, and what
 their workflow with it looks like. Source of truth for the format is
-`src/fabric/csv_export.rs`; for snapshot moments, `src/lib.rs::SnapshotMoment`
+`src/fabric/csv_export.rs`; for snapshot moments, `src/events.rs::SnapshotMoment`
 and the broadcasts in `src/build/dsl/fabric_plan_executor.rs`.
 
 ## Snapshot moments

@@ -3,7 +3,7 @@ use crate::fabric::interval::{Role, Span};
 use crate::fabric::material::Material;
 use crate::fabric::{Fabric, FabricDimensions, IntervalEnd};
 use crate::units::Unit;
-use crate::wgpu::{Wgpu, DEFAULT_PRIMITIVE_STATE};
+use crate::wgpu::Wgpu;
 use crate::{Appearance, AppearanceMode, IntervalDetails, JointDetails, RenderStyle};
 
 fn physical_radius(role: Role, dims: &FabricDimensions) -> f32 {
@@ -21,7 +21,6 @@ fn physical_radius(role: Role, dims: &FabricDimensions) -> f32 {
 use bytemuck::{Pod, Zeroable};
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
-use wgpu::PipelineCompilationOptions;
 
 // Instance data for cylinders - to be transformed by the GPU
 #[repr(C)]
@@ -45,99 +44,47 @@ pub struct CylinderRenderer {
 
 impl CylinderRenderer {
     pub fn new(wgpu: &Wgpu) -> Self {
-        // Create a unit cylinder
         let (vertex_buffer, index_buffer, num_indices) = wgpu.create_cylinder();
 
-        // Create the shader module
-        let shader = wgpu
-            .device
-            .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("Cylinder Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-            });
-
-        // Create the pipeline layout
-        let pipeline_layout = wgpu
-            .device
-            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Cylinder Pipeline Layout"),
-                bind_group_layouts: &[&wgpu.uniform_bind_group_layout],
-                immediate_size: 0,
-            });
-
-        // Create the render pipeline
-        let render_pipeline = wgpu
-            .device
-            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                cache: None,
-                label: Some("Cylinder Render Pipeline"),
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    compilation_options: PipelineCompilationOptions::default(),
-                    module: &shader,
-                    entry_point: Option::from("fabric_vertex"),
-                    buffers: &[
-                        // Vertex buffer layout
-                        Wgpu::cylinder_vertex_layout(),
-                        // Instance buffer layout
-                        wgpu::VertexBufferLayout {
-                            array_stride: size_of::<CylinderInstance>() as wgpu::BufferAddress,
-                            step_mode: wgpu::VertexStepMode::Instance,
-                            attributes: &[
-                                // start position
-                                wgpu::VertexAttribute {
-                                    offset: 0,
-                                    shader_location: 3,
-                                    format: wgpu::VertexFormat::Float32x3,
-                                },
-                                // radius factor
-                                wgpu::VertexAttribute {
-                                    offset: size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                                    shader_location: 4,
-                                    format: wgpu::VertexFormat::Float32,
-                                },
-                                // end position
-                                wgpu::VertexAttribute {
-                                    offset: size_of::<[f32; 4]>() as wgpu::BufferAddress,
-                                    shader_location: 5,
-                                    format: wgpu::VertexFormat::Float32x3,
-                                },
-                                // material type
-                                wgpu::VertexAttribute {
-                                    offset: size_of::<[f32; 7]>() as wgpu::BufferAddress,
-                                    shader_location: 6,
-                                    format: wgpu::VertexFormat::Uint32,
-                                },
-                                // color
-                                wgpu::VertexAttribute {
-                                    offset: size_of::<[f32; 7]>() as wgpu::BufferAddress
-                                        + size_of::<u32>() as wgpu::BufferAddress,
-                                    shader_location: 7,
-                                    format: wgpu::VertexFormat::Float32x4,
-                                },
-                            ],
-                        },
-                    ],
+        let instance_layout = wgpu::VertexBufferLayout {
+            array_stride: size_of::<CylinderInstance>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &[
+                // start position
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 3,
+                    format: wgpu::VertexFormat::Float32x3,
                 },
-                fragment: Some(wgpu::FragmentState {
-                    compilation_options: PipelineCompilationOptions::default(),
-                    module: &shader,
-                    entry_point: Option::from("fabric_fragment"),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: wgpu.surface_configuration.format,
-                        blend: Some(wgpu::BlendState::REPLACE),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                primitive: DEFAULT_PRIMITIVE_STATE,
-                depth_stencil: Some(crate::wgpu::default_depth_stencil_state()),
-                multisample: wgpu::MultisampleState {
-                    count: 1,
-                    mask: !0,
-                    alpha_to_coverage_enabled: false,
+                // radius factor
+                wgpu::VertexAttribute {
+                    offset: size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    shader_location: 4,
+                    format: wgpu::VertexFormat::Float32,
                 },
-                multiview_mask: None,
-            });
+                // end position
+                wgpu::VertexAttribute {
+                    offset: size_of::<[f32; 4]>() as wgpu::BufferAddress,
+                    shader_location: 5,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                // material type
+                wgpu::VertexAttribute {
+                    offset: size_of::<[f32; 7]>() as wgpu::BufferAddress,
+                    shader_location: 6,
+                    format: wgpu::VertexFormat::Uint32,
+                },
+                // color
+                wgpu::VertexAttribute {
+                    offset: size_of::<[f32; 7]>() as wgpu::BufferAddress
+                        + size_of::<u32>() as wgpu::BufferAddress,
+                    shader_location: 7,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+            ],
+        };
+
+        let render_pipeline = wgpu.create_fabric_pipeline("Cylinder Pipeline", instance_layout);
 
         Self {
             vertex_buffer,
@@ -154,9 +101,11 @@ impl CylinderRenderer {
         wgpu: &Wgpu,
         fabric: &Fabric,
         pick: &Pick,
-        render_style: &mut RenderStyle,
+        render_style: &RenderStyle,
+        show_attachment_points: bool,
     ) {
-        let instances = self.create_instances_from_fabric(fabric, pick, render_style);
+        let instances =
+            self.create_instances_from_fabric(fabric, pick, render_style, show_attachment_points);
         self.num_instances = instances.len() as u32;
         // Update instance buffer if there are instances to render
         if self.num_instances > 0 {
@@ -176,6 +125,7 @@ impl CylinderRenderer {
         fabric: &Fabric,
         pick: &Pick,
         render_style: &RenderStyle,
+        show_attachment_points: bool,
     ) -> Vec<CylinderInstance> {
         use RenderStyle::*;
         let mut instances = Vec::with_capacity(fabric.intervals.len());
@@ -284,7 +234,7 @@ impl CylinderRenderer {
 
             // For pull-like intervals, connect them to hinge positions on push intervals
             // only when attachment points are visible (hinges mode)
-            if interval.role.is_pull_like() && render_style.show_attachment_points() {
+            if interval.role.is_pull_like() && show_attachment_points {
                 // Use the current index as the pull interval ID
                 let pull_key = interval_key;
                 let dimensions = &fabric.dimensions;

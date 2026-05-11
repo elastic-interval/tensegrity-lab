@@ -20,6 +20,7 @@ pub struct Scene {
     surface_renderer: SurfaceRenderer,
     text_renderer: TextRenderer,
     render_style: RenderStyle,
+    show_attachment_points: bool,
     pick_allowed: bool,
     model_scale: Option<f32>,
 }
@@ -31,12 +32,7 @@ impl Scene {
         let fabric_renderer = wgpu.create_fabric_renderer();
         let surface_renderer = wgpu.create_surface_renderer();
         let text_renderer = wgpu.create_text_renderer(mobile_device, model_scale);
-        // Initialize the render style with attachment points hidden
-        let render_style = RenderStyle::Normal {
-            show_attachment_points: false,
-        };
-
-        // Initialize the thread-local state for joint text formatting
+        let render_style = RenderStyle::Normal;
         SHOW_ATTACHMENT_POINTS.with(|cell| {
             *cell.borrow_mut() = false;
         });
@@ -49,9 +45,17 @@ impl Scene {
             surface_renderer,
             text_renderer,
             render_style,
+            show_attachment_points: false,
             pick_allowed: false,
             model_scale,
         }
+    }
+
+    fn toggle_attachment_points(&mut self) {
+        self.show_attachment_points = !self.show_attachment_points;
+        SHOW_ATTACHMENT_POINTS.with(|cell| {
+            *cell.borrow_mut() = self.show_attachment_points;
+        });
     }
 
     pub fn update_state(&mut self, state_change: StateChange) {
@@ -66,7 +70,7 @@ impl Scene {
             ToggleAttachmentPoints => {
                 // In model-scale mode, attachment points are not available
                 if self.model_scale.is_none() {
-                    self.render_style.toggle_attachment_points();
+                    self.toggle_attachment_points();
                 }
             }
             SetControlState(control_state) => match control_state {
@@ -78,7 +82,6 @@ impl Scene {
                 Baking => {
                     self.render_style = WithAppearanceFunction {
                         function: Rc::new(|_| None),
-                        show_attachment_points: false,
                     }
                 }
                 Viewing { .. } => {
@@ -95,38 +98,26 @@ impl Scene {
                     self.reset();
                     self.render_style = WithAppearanceFunction {
                         function: Rc::new(|_| None),
-                        show_attachment_points: false,
                     }
                 }
             },
             SetAnimating(_) => {}
             ResetView => {
-                self.render_style = Normal {
-                    show_attachment_points: false,
-                };
+                self.render_style = Normal;
             }
             RestartApproach => {
                 self.camera.restart_approach();
             }
             ToggleColorByRole => {
-                let show_attachment_points = self.render_style.show_attachment_points();
                 self.render_style = match &self.render_style {
-                    ColorByRole { .. } => Normal {
-                        show_attachment_points,
-                    },
-                    _ => ColorByRole {
-                        show_attachment_points,
-                    },
+                    ColorByRole => Normal,
+                    _ => ColorByRole,
                 };
             }
             SetAppearanceFunction(appearance) => match &mut self.render_style {
-                WithAppearanceFunction {
-                    show_attachment_points,
-                    ..
-                } => {
+                WithAppearanceFunction { .. } => {
                     self.render_style = WithAppearanceFunction {
                         function: appearance.clone(),
-                        show_attachment_points: *show_attachment_points,
                     }
                 }
                 _ => {
@@ -158,7 +149,7 @@ impl Scene {
     }
 
     pub fn render_style_shows_attachment_points(&self) -> bool {
-        self.render_style.show_attachment_points()
+        self.show_attachment_points
     }
 
     fn render(&mut self, show_surface: bool) -> Result<(), wgpu::SurfaceError> {
@@ -223,7 +214,7 @@ impl Scene {
         self.fabric_renderer.render(
             &mut render_pass,
             &self.wgpu.uniform_bind_group,
-            &self.render_style,
+            self.show_attachment_points,
         );
         // Only render surface when gravity is present
         if show_surface {
@@ -249,7 +240,8 @@ impl Scene {
             &mut self.wgpu,
             fabric,
             &self.camera.current_pick(),
-            &mut self.render_style,
+            &self.render_style,
+            self.show_attachment_points,
         );
         // Update surface size based on fabric bounding radius
         if has_surface {
@@ -286,9 +278,8 @@ impl Scene {
     }
 
     pub fn normal_rendering(&mut self) {
-        self.render_style = RenderStyle::Normal {
-            show_attachment_points: false,
-        };
+        self.render_style = RenderStyle::Normal;
+        self.show_attachment_points = false;
     }
 
     pub fn reset(&mut self) {
