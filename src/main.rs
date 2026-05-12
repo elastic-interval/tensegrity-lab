@@ -143,7 +143,7 @@ fn run_with(
 pub fn run() {
     run_with(
         RunStyle::Fabric {
-            fabric_name: FabricName::Triped,
+            fabric_name: FabricName::OpenClaw,
             record: None,
             export_fps: 100.0,
             snapshot: None,

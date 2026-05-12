@@ -1,5 +1,6 @@
 use crate::build::algo::klein::generate_klein;
 use crate::build::algo::mobius::generate_mobius;
+#[cfg(not(target_arch = "wasm32"))]
 use crate::build::algo::tensegrity_sphere::generate_sphere;
 use crate::build::dsl::fabric_library;
 use crate::crucible::Crucible;
@@ -268,6 +269,14 @@ impl ApplicationHandler<LabEvent> for Application {
                     RunStyle::Evolution(seed) => {
                         self.crucible.action(CrucibleAction::ToEvolving(*seed));
                     }
+                    #[cfg(target_arch = "wasm32")]
+                    RunStyle::Sphere { .. } => {
+                        StateChange::SetStageLabel(
+                            "Sphere fabric needs native GPU compute".to_string(),
+                        )
+                        .send(&self.radio);
+                    }
+                    #[cfg(not(target_arch = "wasm32"))]
                     RunStyle::Sphere { frequency, radius } => {
                         use crate::fabric::interval::{Role, Span};
                         use crate::fabric::physics::{presets, Surface, SurfaceCharacter};
