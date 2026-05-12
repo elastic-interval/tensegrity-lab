@@ -1,10 +1,5 @@
-//! Physical dimensions for a fabric: structure size, hinge geometry, and the
-//! derived helpers (`hinge_geometry`, `ring_center`, …) that turn a strut
-//! endpoint and a cable direction into concrete 3D positions.
-//!
-//! `FabricDimensions` owns a `HingeDimensions` and is referenced by the
-//! `Fabric` struct in this module's parent. Snapping of hinge-bend angles
-//! to manufactured magnitudes happens here too, via `bend_optimizer`.
+//! Fabric and hinge dimensions, plus the geometry helpers that turn a strut
+//! endpoint and a cable direction into 3D positions.
 
 use crate::fabric::physics::Physics;
 use crate::fabric::material::Material;
@@ -52,9 +47,8 @@ impl HingeDimensions {
         self.disc_thickness / 2.0 + self.hinge_extension + self.hinge_hole_diameter
     }
 
-    /// Axial offset from the strut endpoint to the center of a disc at the given 0-indexed slot.
-    ///
-    /// offset = cap_thickness + separator + disc_thickness/2 + slot * (disc_thickness + separator)
+    /// Axial offset (strut end → disc centre) for 0-indexed `slot`.
+    /// = cap + separator + t1/2 + slot × (t1 + separator).
     pub fn disc_center_offset(&self, slot: usize) -> Meters {
         let step = self.disc_thickness + self.disc_separator_thickness;
         self.cap_thickness + self.disc_separator_thickness + self.disc_thickness / 2.0
@@ -95,8 +89,13 @@ pub struct FabricDimensions {
     pub hinge: HingeDimensions,
     pub push_length_increment: Option<Meters>,
     pub max_pretenst_strain: Option<f32>,
+    /// Head + per-joint hardware share. Back-calibrated to total mass; refine when the full parts list lands.
     pub joint_mass: Grams,
     pub push_density: GramsPerMeter,
+    /// Combined linear density of telescoping inner tubes (one outer-length per strut). Mass-reporting only.
+    pub inner_push_density: GramsPerMeter,
+    /// Mass of one cable-end fork termination; counted twice per `Role::Pulling` interval.
+    pub pull_end_mass: Grams,
 }
 
 impl Default for FabricDimensions {
@@ -108,8 +107,10 @@ impl Default for FabricDimensions {
             hinge: HingeDimensions::default(),
             push_length_increment: Some(Meters(0.01)),
             max_pretenst_strain: Some(0.03),
-            joint_mass: Grams(2280.0),
-            push_density: GramsPerMeter(3000.0),
+            joint_mass: Grams(1800.0),
+            push_density: GramsPerMeter(800.0),
+            inner_push_density: GramsPerMeter(560.0),
+            pull_end_mass: Grams(160.0),
         }
     }
 }
@@ -159,8 +160,8 @@ impl FabricDimensions {
         hinge_pos
     }
 
-    /// Returns `(hinge_pos, hinge_bend, pull_end_pos, ideal_deg)`. `hinge_bend`
-    /// is snapped when `bend_magnitudes` is populated, else equals `ideal_deg`.
+    /// `(hinge_pos, hinge_bend, pull_end_pos, ideal_deg)`. `hinge_bend` is snapped when
+    /// `bend_magnitudes` is populated, else equals `ideal_deg`.
     pub fn hinge_geometry(
         &self,
         push_end: Vec3,
@@ -191,7 +192,7 @@ impl FabricDimensions {
         (hinge_pos, hinge_bend, pull_end_pos, ideal_deg)
     }
 
-    /// Snap a length to the nearest increment (minimum 1 increment).
+    /// Snap to nearest `push_length_increment` (min one increment).
     pub fn snap_push_length(&self, length: f32) -> f32 {
         match self.push_length_increment {
             Some(increment) => {
@@ -203,10 +204,8 @@ impl FabricDimensions {
         }
     }
 
-    /// Calculate discrete target length for pretensing based on target strain.
-    ///
-    /// If `max_pretenst_strain` is set and even 1 increment would exceed that
-    /// strain for this strut, returns rest_length (no extension).
+    /// Target length for pretensing, snapped to discrete increments.
+    /// Returns rest_length unchanged if one increment would exceed `max_pretenst_strain`.
     pub fn discrete_pretenst_target(&self, rest_length: f32, target_strain: f32) -> f32 {
         match self.push_length_increment {
             Some(increment) => {

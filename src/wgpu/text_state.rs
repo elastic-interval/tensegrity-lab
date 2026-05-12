@@ -249,7 +249,7 @@ impl TextState {
                          Cables: {:?}\n\
                          → {:.1}-{:.1}mm\n\
                          → total {:.1}m\n\
-                         Mass: {:.3}kg\n\
+                         Mass: {:.0}kg\n\
                          Max pull: {:.1}kN\n\
                          Push strain: {:.2}% to {:.2}%\n\
                          Pull strain: {:.2}% to {:.2}%{}",

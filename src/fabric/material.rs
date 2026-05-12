@@ -13,8 +13,12 @@ pub enum Material {
 impl Material {
     pub fn base_linear_density(&self) -> GramsPerMeter {
         GramsPerMeter(match self {
-            Push => 3000.0,   // 3 kg/m: doubled for effective mass
-            Pull => 50.0,     // Dyneema rope ~10mm diameter
+            // 40 mm OD aluminium tube, ~2.5 mm wall: cross-section ≈ 295 mm²,
+            // density 2700 kg/m³ → ≈ 0.80 kg/m. Per Phase-4 (May 2026) spec.
+            Push => 800.0,
+            // 6 mm steel (RVS) cable. Per Phase-4 spec. Fork terminations
+            // are added separately as per-end mass on Pulling intervals.
+            Pull => 130.0,
             Spring => 1000.0, // 1 kg/m: steel coil spring
         })
     }

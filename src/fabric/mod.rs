@@ -667,17 +667,30 @@ impl Fabric {
     fn calculate_total_mass(&self, physics: &Physics) -> Grams {
         let mut total_mass = Grams(0.0);
 
-        // Add joint mass (connector hardware) for each joint
+        // Connector head + per-joint hardware share, once per joint.
         total_mass += self.dimensions.joint_mass * self.joints.len() as f32;
 
-        // Add mass from each interval
+        let mut pulling_count: usize = 0;
         for interval in self.intervals.values() {
             let alpha = &self.joints[interval.alpha_key];
             let omega = &self.joints[interval.omega_key];
             let real_length = Meters((omega.location - alpha.location).length());
-            let interval_mass = self.dimensions.linear_density(interval.material, physics) * real_length;
-            total_mass += interval_mass;
+            total_mass +=
+                self.dimensions.linear_density(interval.material, physics) * real_length;
+
+            // Telescoping inner tubes inside each push strut: total length
+            // ≈ one full outer-tube length per strut. Reported here (not
+            // included in the integrator's per-interval mass).
+            if interval.role == Role::Pushing {
+                total_mass += self.dimensions.inner_push_density * real_length;
+            }
+            if interval.role == Role::Pulling {
+                pulling_count += 1;
+            }
         }
+
+        // Cable terminations: one fork-and-thread at each end of every cable.
+        total_mass += self.dimensions.pull_end_mass * (2.0 * pulling_count as f32);
 
         total_mass
     }
