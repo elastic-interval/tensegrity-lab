@@ -20,6 +20,10 @@ pub struct HingeDimensions {
     pub bend_count: usize,
     /// Empty = no snap (use continuous ideal). Populated by `Fabric::recompute_bend_magnitudes`.
     pub bend_magnitudes: Vec<f32>,
+    /// When true, `Fabric::recompute_bend_magnitudes` is a no-op and `bend_magnitudes`
+    /// is taken as authoritative (e.g. matching a factory plate inventory already in
+    /// production). Set via `FabricDimensions::with_locked_bend_magnitudes`.
+    pub bend_magnitudes_locked: bool,
 }
 
 impl Default for HingeDimensions {
@@ -34,6 +38,7 @@ impl Default for HingeDimensions {
             hinge_hole_diameter: Meters(0.012),
             bend_count: 4,
             bend_magnitudes: Vec::new(),
+            bend_magnitudes_locked: false,
         }
     }
 }
@@ -133,6 +138,17 @@ impl FabricDimensions {
 
     pub fn with_push_density(mut self, density: GramsPerMeter) -> Self {
         self.push_density = density;
+        self
+    }
+
+    /// Lock the snap magnitudes to a fixed inventory (e.g. parts already in production).
+    /// `Fabric::recompute_bend_magnitudes` becomes a no-op and these values are used
+    /// for snapping at every CSV export. Values are whole non-negative degrees, sorted
+    /// ascending; the optimiser's normal output respects the same shape.
+    pub fn with_locked_bend_magnitudes(mut self, magnitudes: Vec<f32>) -> Self {
+        self.hinge.bend_count = magnitudes.len();
+        self.hinge.bend_magnitudes = magnitudes;
+        self.hinge.bend_magnitudes_locked = true;
         self
     }
 

@@ -218,8 +218,11 @@ impl Fabric {
     }
 
     /// Update `self.dimensions.hinge.bend_magnitudes` with the K-center
-    /// optimal set for this fabric's cable ends. No-op when K=0 or no pulls.
+    /// optimal set for this fabric's cable ends. No-op when locked, K=0, or no pulls.
     pub fn recompute_bend_magnitudes(&mut self) {
+        if self.dimensions.hinge.bend_magnitudes_locked {
+            return;
+        }
         let k = self.dimensions.hinge.bend_count;
         if k == 0 {
             return;

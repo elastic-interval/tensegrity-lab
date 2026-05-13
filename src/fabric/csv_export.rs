@@ -670,6 +670,11 @@ fn build_bend_summary(fabric: &Fabric) -> String {
 
     writeln!(s, "# === Hinge bend snap quality ===").ok();
     writeln!(s, "# Bend count (K):       {}", h.bend_count).ok();
+    if h.bend_magnitudes_locked {
+        writeln!(s, "# Magnitude source:     LOCKED to factory inventory (no per-export reoptimisation)").ok();
+    } else {
+        writeln!(s, "# Magnitude source:     k-center optimiser, recomputed per export").ok();
+    }
 
     if h.bend_count == 0 {
         writeln!(s, "# Snapping disabled (K = 0); CSV uses continuous ideal angles.").ok();

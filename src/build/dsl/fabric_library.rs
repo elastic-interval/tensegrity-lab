@@ -33,7 +33,11 @@ impl FabricName {
         use FabricName::*;
         match self {
             OpenClaw => self
-                .build(FabricDimensions::default().with_scale(M(0.80)))
+                .build(
+                    FabricDimensions::default()
+                        .with_scale(M(0.80))
+                        .with_locked_bend_magnitudes(vec![12.0, 30.0, 49.0, 68.0]),
+                )
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([
                     on(OmniBotX).column(4).mark(End).prism(Pct(200.0)),
