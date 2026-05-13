@@ -139,74 +139,7 @@ CPU reference paths (for parity work):
 - `src/wgpu/mod.rs` — `Wgpu` struct, single device + queue. The compute
   pipelines share this device with the renderer.
 
-## 8. Phased plan
-
-Each phase ends with a commit and `cargo test --release`. No phase proceeds until the previous is green.
-
-### Phase 0 — Scaffolding (half a day)
-Create `src/physics_gpu/` behind `cfg(not(target_arch = "wasm32"))`. Empty module. `cargo build` clean.
-
-### Phase 1 — Compute pipelines, single-copy (1-2 days)
-Implement `physics.wgsl` (one pass per entry point) plus the Rust side that
-owns buffers, bind groups, and pipelines. Single-copy mode (batch size = 1).
-Headless test: tiny fabric, dispatch, read back positions. Just proving the
-pipeline runs.
-
-### Phase 2 — `FrozenFabric` adapter (1 day)
-Implement `Fabric::freeze()` and `FrozenFabric` upload to a single-copy `GpuBatch`. Walk joints in SlotMap order; partition intervals by role; resolve all spans to fixed lengths; precompute `k` and `half_mass`.
-
-### Phase 3 — Parity harness (1 day)
-**This phase defines success.** Build a known fabric (start: a single baked brick). Clone into `fabric_cpu` and `fabric_gpu`. Step both 500 iterations. Compare joint positions pairwise; assert max error < 1e-3. Then OpenClaw, Column3, Triped. Until single-brick parity passes, no batch work.
-
-### Phase 4 — Batch dimension, identical fabrics (2 days)
-Generalize the GPU buffers to N slots in pad-to-max layout. Implement `GpuBatch::from_fabrics` accepting a slice of `Fabric`s. First test: hand it N **identical** fabrics. Verify every slot produces the same result, equal to the single-fabric run from phase 3. This validates the slot-indexing arithmetic without introducing per-slot variation as a second variable.
-
-### Phase 5 — Batch dimension, varied fabrics (1-2 days)
-Hand `GpuBatch::from_fabrics` a slice of **different** fabrics — start with two unrelated fabrics in one batch (e.g., a brick and a small claw), then a parent fabric plus several CPU-mutated variants. For each slot, run the same fabric independently on CPU and verify the GPU slot's final positions match within tolerance. This proves padding, per-slot metadata, and per-slot topology indexing all work.
-
-### Phase 6 — Fitness readback (1 day)
-Per-fabric scalar output buffers. Shader writes simple per-trial scalars (final altitude, max strain over the run, displacement from initial centroid — exact metric TBD with the project lead). Host reads back and ranks. This is the minimal evolution loop.
-
-### Phase 7 — Wire into evolution driver (2-3 days)
-Replace `evolution.rs`'s per-trial CPU loop with a batched GPU pass when a runtime flag (`TENSEGRITY_GPU=1`) is set. The driver builds and mutates fabrics in CPU code as it does today, then submits the whole population as one `GpuBatch::from_fabrics` call per generation. Keep the CPU path as default and reference. Side-by-side test on a small population.
-
-### Phase 8 — Cleanup and docs
-Update this doc with phase outcomes and any divergences from the design.
-
-## 9. Zero-regression principles
-
-Carried forward from the previous revision, still non-negotiable:
-
-1. `Fabric::iterate()` is not modified. CPU reference path stays.
-2. `Joint`, `Interval`, `Role`, `Span` struct layouts are not modified.
-3. `physics_gpu/` is additive. Nothing else imports from it (until phase 7, behind a flag).
-4. The oven stays CPU. Baked bricks are calibrated to the CPU integrator; changing it invalidates them.
-5. The render loop is not restructured.
-6. Existing tests stay green at every phase boundary.
-7. No "while we're here" refactors.
-8. Numeric parity (≤1e-3 max per-joint position error after 500 iterations) is the acceptance gate before any batch or mutation work.
-
-## 10. Known risks
-
-1. **Integrator order parity.** CPU does half-kick → drift → reset → forces → half-kick-2 (with damping + surface). Subtle ordering differences in the shader (when damping multiplies, when gravity adds) will cause divergence. Phase 3 surfaces this. Fix the shader to match CPU, not the other way around.
-2. **Atomic int force accumulation.** Force buffers are `atomic<i32>` with a `force_scale` quantization. Bounded numeric error vs CPU `f32` accumulation. This is why parity tolerance is ~1e-3, not machine epsilon.
-3. **Drag formulation.** Verify whether CPU uses exponential or linear damping and match it.
-4. **Surface interaction.** Run parity tests with `surface = None` until the shader's `surface_character` mapping is verified against tensegrity-lab's `Surface` enum.
-5. **Accumulated mass.** CPU recomputes `Joint::accumulated_mass` from incident intervals each iteration. The freeze step precomputes this once per fabric (since topology is fixed within a slot). Verify the values match.
-6. **`Joint::frozen` semantics.** CPU sets `Fabric::frozen` when max velocity exceeds a threshold. In a batch this becomes per-slot state. One slot freezing halts only that slot, not the whole dispatch — a diverging trial shouldn't poison the rest of the generation.
-7. **Compute and render share the device.** Use separate command encoders, submit compute first then render. Don't share encoders between passes.
-8. **Slot indexing arithmetic.** With pad-to-max layout `[slot_0 | slot_1 | ... | slot_N]`, every shader access becomes `slot_idx * max_joints + local_joint_idx`, plus an early-out against the per-slot metadata count. Off-by-one errors are silent and produce convincing-looking garbage. Phase 4's "N identical fabrics, all slots equal" test catches them.
-9. **Pad-to-max waste.** If one fabric in a batch is much larger than the rest, padding wastes memory and dispatch threads. For typical evolutionary populations the variance is small (±10–20% from a parent). If variance ever gets large enough to matter, swap to an offset-table layout — but not in this design.
-
-## 11. Open questions for the project lead
-
-1. **What's a trial fitness scalar?** Phase 6 needs at least one concrete metric. Final altitude? Survives N seconds without freezing? Distance traveled? Deviation from a target shape? You'll know better than I do which one matches the evolutionary work you have in mind.
-2. **How big is N in practice?** 100? 1000? 10000? GPU memory is not the constraint at any of these for typical fabrics, but it shapes the workgroup layout decisions in phase 4.
-3. **How much fabric-size variance per batch?** If most batches are "one parent + N variants ±10% in size," pad-to-max is a clear win. If batches routinely mix tiny and huge fabrics, an offset-table layout becomes worth doing earlier.
-4. **What gets visualized during a batch run?** One representative slot? A wireframe overlay of all slots? Nothing — just final fitness scores? Affects the readback strategy.
-5. **Compile-time feature flag or runtime env var?** Lean runtime, default off.
-
-## 12. Live GPU physics in the application
+## 8. Live GPU physics in the application
 
 Press **G** while in **Viewing** mode to switch the current fabric to GPU-accelerated physics. This is a one-way transition: the fabric's positions are now driven by the GPU compute pipeline, and the CPU fabric becomes a read-only mirror updated via position readback each frame.
 
@@ -240,7 +173,7 @@ Once GPU physics is active, the following CPU-side fields are **not updated** be
 
 There is no "switch back" — once GPU physics is active, the CPU fabric's velocities, forces, and mass state are stale. Pressing **Enter** (rebuild fabric) clears the GPU batch and rebuilds from scratch on the CPU.
 
-## 13. Out of scope
+## 9. Out of scope
 
 - GPU baking. Oven stays CPU.
 - GPU-side building, brick assembly, or DSL execution. CPU does all of this.
@@ -250,7 +183,7 @@ There is no "switch back" — once GPU physics is active, the CPU fabric's veloc
 - Replacing the CPU path. CPU is reference, forever.
 - Refactoring `Fabric`, `Joint`, `Interval`, `Role`, `Span`, or the oven.
 
-## 14. Design rationale, briefly
+## 10. Design rationale, briefly
 
 Two earlier shapes of this design were tried and discarded:
 
