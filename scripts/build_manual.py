@@ -542,20 +542,18 @@ def write_strut_end_pages(data: ManualData) -> str:
                 f"### {tag} — joint `{end_joint}`",
                 "",
                 f"- Strut tube length (cut to): **{s.length_mm:.0f} mm**",
-                f"- End coordinate (CSV Z-up): {fmt_xyz_mm(end_xyz)}",
                 f"- Discs on this end: {len(discs)}",
                 "",
                 "```",
                 "Stack on the M20 bolt, cap end first:",
                 "",
-                "    [ cap ]                              axial offset from strut end:",
+                "    [ cap ]",
                 "    [ separator ]",
             ]
             for d in discs:
-                offset = h.disc_center_offset_mm(d.slot)
                 lines.append(
-                    f"    [ DISC {fmt_signed(d.angle)}° ]      "
-                    f"slot {d.slot}  →  {d.cable_label:<6}                  {offset:.1f} mm"
+                    f"    [ DISC {fmt_signed(d.angle)}° ]   "
+                    f"slot {d.slot}  →  {d.cable_label}"
                 )
                 lines.append("    [ separator ]")
             lines += [
