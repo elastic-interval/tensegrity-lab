@@ -7,31 +7,34 @@ The Tensegrity DSL is a Rust-embedded domain-specific language for defining tens
 Fabrics are defined in `src/build/dsl/fabric_library.rs` using a fluent builder API:
 
 ```rust
-Triped
-    .altitude(M(7.5))
-    .scale(M(1.03))
+OpenClaw
+    .scale(M(0.80))
+    .with_locked_bend_magnitudes(vec![12.0, 30.0, 49.0, 68.0])
     .seed(OmniSymmetrical, Seed(1))
     .faces([
-        on(OmniBotX).column(8).shrink_by(Pct(10.0)).mark(End).prism(Pct(100.0)),
-        on(OmniBotY).column(8).shrink_by(Pct(10.0)).mark(End).prism(Pct(100.0)),
-        on(OmniBotZ).column(8).shrink_by(Pct(10.0)).mark(End).prism(Pct(100.0)),
-        on(OmniTop).column(1),
+        on(OmniBotX).column(4).mark(End).prism(Pct(200.0)),
+        on(OmniBotY).column(4).mark(End).prism(Pct(200.0)),
+        on(OmniBotZ).column(4).mark(End).prism(Pct(200.0)),
+        on(OmniTop).prism(Pct(200.0)),
+        on(OmniBot).open(),
     ])
-    .space(Sec(3.0), End, Pct(38.0))
+    .prepare_vulcanize(0.5, VulcanizeMode::Linear)
+    .space(Sec(2.8), End, Pct(46.0))
     .vulcanize(Sec(1.0))
-    .pretense()
+    .zero_g_pretense(Sec(0.1), Pct(0.08), Pct(0.0))
     .surface_frozen()
-    .fall(Sec(3.0))
-    .settle(Sec(3.0))
+    .fall(Sec(1.5))
+    .settle(Sec(1.5))
+    .grav_pretense(Sec(0.1), Pct(0.12))
     .animate()
-    .actuator_frequency(Hz(1.21))
-    .amplitude(Pct(1.0))
-    .stiffness(Pct(10.0))
-    .pulse(Pct(10.0))
-    .actuators(&[
-        phase(Pct(0.0)).between(151, 48),
-        phase(Pct(0.0)).between(157, 36),
-        phase(Pct(0.0)).between(145, 42),
+    .actuator_frequency(Hz(1.94))
+    .amplitude(Pct(3.0))
+    .stiffness(Pct(1.0))
+    .sine()
+    .actuators([
+        phase(Pct(0.0)).between("CX2Z4", "BX4Z5"),
+        phase(Pct(0.0)).between("AX2Z4", "CX4Z5"),
+        phase(Pct(0.0)).between("BX2Z4", "AX4Z5"),
     ])
 ```
 

@@ -30,12 +30,12 @@ impl Default for HingeDimensions {
     fn default() -> Self {
         Self {
             push_radius: Meters(0.02),
-            push_radius_margin: Meters(0.002),
+            push_radius_margin: Meters(0.003),
             disc_thickness: Meters(0.005),
-            disc_separator_thickness: Meters(0.001),
+            disc_separator_thickness: Meters(0.002),
             cap_thickness: Meters(0.005),
-            hinge_extension: Meters(0.014),
-            hinge_hole_diameter: Meters(0.012),
+            hinge_extension: Meters(0.030),
+            hinge_hole_diameter: Meters(0.014),
             bend_count: 4,
             bend_magnitudes: Vec::new(),
             bend_magnitudes_locked: false,
@@ -69,7 +69,7 @@ pub fn hinge_angle(push_axis: Vec3, pull_direction: Vec3) -> Degrees {
     Degrees(sin_angle.asin().to_degrees())
 }
 
-fn radial_unit_from_axis(push_axis: Vec3, direction: Vec3) -> Vec3 {
+pub(crate) fn radial_unit_from_axis(push_axis: Vec3, direction: Vec3) -> Vec3 {
     let axial_component = push_axis * direction.dot(push_axis);
     let radial_direction = direction - axial_component;
 

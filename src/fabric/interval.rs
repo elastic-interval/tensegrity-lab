@@ -567,6 +567,7 @@ impl Interval {
                 pull_data,
                 self.alpha_key,
                 self.omega_key,
+                dimensions,
             );
         }
 

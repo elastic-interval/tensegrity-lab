@@ -91,30 +91,16 @@ fn main() -> Result<(), Box<dyn Error>> {
             snapshot: args.snapshot,
         }
     } else {
-        // Default: Triped with model-scale 18
+        // Default: OpenClaw
         RunStyle::Fabric {
-            fabric_name: FabricName::Triped,
+            fabric_name: FabricName::OpenClaw,
             record: None,
             export_fps: 100.0,
             snapshot: None,
         }
     };
 
-    // Use model_scale from args, or default to 18 if running with default fabric
-    let model_scale = args.model_scale.or_else(|| {
-        if matches!(
-            run_style,
-            RunStyle::Fabric {
-                fabric_name: FabricName::Triped,
-                ..
-            }
-        ) && args.fabric.is_none()
-        {
-            Some(18.0)
-        } else {
-            None
-        }
-    });
+    let model_scale = args.model_scale;
 
     run_with(run_style, args.time_scale, model_scale)
 }

@@ -7,6 +7,7 @@ use crate::camera::Pick;
 use crate::fabric::interval::Role;
 use crate::fabric::FabricDimensions;
 use crate::fabric::{Fabric, IntervalEnd};
+use crate::units::Unit;
 use crate::wgpu::Wgpu;
 use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
@@ -111,8 +112,9 @@ impl HingeRenderer {
         let mut instances = Vec::new();
 
         let dimensions = &fabric.dimensions;
-        // Use same radius as pull intervals in rendering (Role::Pulling.radius() * scale)
-        let link_radius = 0.14 * fabric.scale();
+        // Render the connector links at the cable thickness, matching the
+        // cylinder_renderer's physical_radius() for pulls.
+        let link_radius = dimensions.pull_radius.f32();
 
         // Iterate through all push intervals to find their connections
         for (_key, interval) in fabric.intervals.iter() {

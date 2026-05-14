@@ -4,8 +4,7 @@ use crate::build::dsl::fabric_plan::FabricPlan;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
-static PLANS: [OnceLock<FabricPlan>; 7] = [
-    OnceLock::new(),
+static PLANS: [OnceLock<FabricPlan>; 6] = [
     OnceLock::new(),
     OnceLock::new(),
     OnceLock::new(),
@@ -18,7 +17,6 @@ static PLANS: [OnceLock<FabricPlan>; 7] = [
 pub enum FabricName {
     #[strum(serialize = "Open Claw")]
     OpenClaw,
-    Triped,
     Mockup,
     Vertebra,
     Flagellum,
@@ -71,54 +69,6 @@ impl FabricName {
                     phase(Pct(0.0)).between("CX2Z4", "BX4Z5"),
                     phase(Pct(0.0)).between("AX2Z4", "CX4Z5"),
                     phase(Pct(0.0)).between("BX2Z4", "AX4Z5"),
-                ]),
-            Triped => self
-                .build(FabricDimensions::default())
-                .seed(OmniSymmetrical, Seed(1))
-                .faces([
-                    on(OmniBotX)
-                        .column(8)
-                        .shrink_by(Pct(10.0))
-                        .mark(End)
-                        .prism(Pct(100.0)),
-                    on(OmniBotY)
-                        .column(8)
-                        .shrink_by(Pct(10.0))
-                        .mark(End)
-                        .prism(Pct(100.0)),
-                    on(OmniBotZ)
-                        .column(8)
-                        .shrink_by(Pct(10.0))
-                        .mark(End)
-                        .prism(Pct(100.0)),
-                    on(OmniTop).prism(Pct(100.0)),
-                    on(OmniBot).open(),
-                ])
-                .omit([
-                    ("Z6", "Z9"),
-                    ("Z6", "Z3"),
-                    ("Z2", "Z11"),
-                    ("Z2", "Z5"),
-                    ("Z1", "Z10"),
-                    ("Z10", "Z7"),
-                ])
-                .prepare_vulcanize(0.5, VulcanizeMode::Linear)
-                .space(Sec(3.0), End, Pct(25.0))
-                .vulcanize(Sec(1.0))
-                .zero_g_pretense(Sec(0.2), Pct(0.08), Pct(0.0))
-                .surface_frozen()
-                .fall(Sec(2.0))
-                .settle(Sec(3.0))
-                .grav_pretense(Sec(0.3), Pct(0.12))
-                .animate()
-                .actuator_frequency(Hz(0.73))
-                .amplitude(Pct(3.0))
-                .stiffness(Pct(2.0))
-                .sine()
-                .actuators([
-                    phase(Pct(0.0)).between("AX8YZ1", "CX1Z3"),
-                    phase(Pct(0.0)).between("BX8YZ1", "AX1Z3"),
-                    phase(Pct(0.0)).between("CX8YZ1", "BX1Z3"),
                 ]),
             Mockup => self
                 .build(

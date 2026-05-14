@@ -3,6 +3,7 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
+use crate::fabric::dimensions::radial_unit_from_axis;
 use crate::fabric::{FabricDimensions, IntervalEnd, IntervalKey, JointKey, Joints};
 use crate::units::Unit;
 use glam::Vec3;
@@ -95,8 +96,12 @@ impl PullConnections {
         }
     }
 
-    /// Reorders connections to ensure each pull interval is assigned to the most appropriate attachment point
-    /// This optimizes the positions of connections to minimize rotational moment
+    /// Reorders connections so each pull interval lands on the best slot:
+    ///   - Hard rule: an outward-pulling cable may not occupy the topmost slot
+    ///     (the final nut at the strut tip would otherwise carry the full axial load).
+    ///   - Soft objective: among permutations satisfying the hard rule, pick the one
+    ///     that maximises the minimum 3D distance between any pair of bent hinge arms.
+    ///   - Tie-break: rotational moment about slot 0, as before.
     pub fn reorder_connections(
         &mut self,
         alpha_attachment_points: &[AttachmentPoint],
@@ -106,6 +111,7 @@ impl PullConnections {
         pull_data: &[PullIntervalData],
         push_alpha_key: JointKey,
         push_omega_key: JointKey,
+        dimensions: &FabricDimensions,
     ) {
         // Step 1: Collect all connections that need to be made
         let connections_to_make =
@@ -133,7 +139,7 @@ impl PullConnections {
         let omega_pos = joints[push_omega_key].location;
         let push_direction = (omega_pos - alpha_pos).normalize();
 
-        // Step 4: Find optimal assignment for each end using moment minimization
+        // Step 4: Find optimal assignment for each end.
         // Alpha end: push axis points outward (opposite to push direction)
         let optimized_alpha = find_optimal_assignment(
             &alpha_connections,
@@ -141,7 +147,9 @@ impl PullConnections {
             pull_data,
             joints,
             push_alpha_key,
+            alpha_pos,
             -push_direction, // Outward from alpha end
+            dimensions,
         );
 
         // Omega end: push axis points outward (same as push direction)
@@ -151,7 +159,9 @@ impl PullConnections {
             pull_data,
             joints,
             push_omega_key,
+            omega_pos,
             push_direction, // Outward from omega end
+            dimensions,
         );
 
         // Step 5: Assign connections using optimized order
@@ -360,103 +370,116 @@ fn calculate_rotational_moment(
     total_moment.length()
 }
 
-/// Checks if a pull interval is "outward-pulling" (positive dot product with push axis)
-/// These must be assigned to the lowest slot (slot 0)
-fn is_outward_pulling(
-    pull: &PullIntervalData,
-    push_joint_key: JointKey,
-    push_axis: Vec3,
-    joints: &Joints,
-) -> bool {
-    // Determine which end of the pull connects to this push joint
-    let other_key = if pull.alpha_key == push_joint_key {
-        pull.omega_key
-    } else {
-        pull.alpha_key
-    };
-
-    // Pull direction: from push joint toward the other end
-    let push_pos = joints[push_joint_key].location;
-    let other_pos = joints[other_key].location;
-    let pull_direction = (other_pos - push_pos).normalize();
-
-    // Positive dot product means pulling outward along the push axis
-    pull_direction.dot(push_axis) > 0.0
-}
-
-/// Finds the optimal assignment of pull intervals to attachment points
-/// that minimizes rotational moment.
-/// Outward-pulling intervals (positive dot with push axis) are forced to slot 0.
+/// Finds the optimal assignment of pull intervals to attachment points.
+///
+/// Hard rule:
+///   An outward-pulling cable (positive dot with the outward strut axis) may
+///   not occupy the topmost (highest-index) slot. If the only feasible
+///   arrangement violates this, a warning is logged.
+///
+/// Soft rules (preferred over clearance), in priority order:
+///   1. Lid choice: when the joint-end has any outward-pulling cable, the
+///      cable whose hinge-arm radial direction is most opposite (around the
+///      strut axis) to the outward cable's should sit directly above it.
+///      Their arms project on opposite sides of the strut, so the cover
+///      disc never fouls the outward arm.
+///   2. Outward placement: the topmost outward-pulling cable should sit at
+///      slot n−2 (second from the top), leaving only the lid above it. This
+///      keeps the outward arm's axial reach clear of the rest of the stack.
+///
+/// Soft objective:
+///   Among permutations satisfying the above, pick the one that maximises
+///   the minimum 3D distance between any pair of bent hinge arms (modelled
+///   as line segments from `hinge_pos` to `pull_end_pos`).
+///
+/// Tie-break:
+///   Rotational moment about the slot-0 ring centre, as before.
 fn find_optimal_assignment(
     pulls: &[(IntervalEnd, IntervalKey, JointKey)], // (end, pull_id, joint_key)
     attachment_points: &[AttachmentPoint],
     pull_data: &[PullIntervalData],
     joints: &Joints,
     push_joint_key: JointKey,
+    push_end: Vec3,
     push_axis: Vec3,
+    dimensions: &FabricDimensions,
 ) -> Vec<(IntervalEnd, IntervalKey, JointKey)> {
     if pulls.is_empty() {
         return Vec::new();
     }
+    if pulls.len() == 1 {
+        return pulls.to_vec();
+    }
 
-    // Separate outward-pulling intervals from inward-pulling ones
-    let mut outward_pulls = Vec::new();
-    let mut inward_pulls = Vec::new();
+    let n = pulls.len();
 
+    // Per-cable metadata: far-end position, is_outward, and the radial unit
+    // vector around the strut axis (slot-independent — only the radial
+    // component of (far_end - ring_centre) determines it).
+    let push_pos = joints[push_joint_key].location;
+    let mut other_ends: Vec<Vec3> = Vec::with_capacity(n);
+    let mut is_outward: Vec<bool> = Vec::with_capacity(n);
+    let mut radials: Vec<Vec3> = Vec::with_capacity(n);
     for pull in pulls {
         if let Some(data) = pull_data.iter().find(|d| d.key == pull.1) {
-            if is_outward_pulling(data, push_joint_key, push_axis, joints) {
-                outward_pulls.push(*pull);
+            let other_key = if data.alpha_key == push_joint_key {
+                data.omega_key
             } else {
-                inward_pulls.push(*pull);
-            }
+                data.alpha_key
+            };
+            let other_pos = joints[other_key].location;
+            let axial = (other_pos - push_pos).normalize().dot(push_axis);
+            other_ends.push(other_pos);
+            is_outward.push(axial > 0.0);
+            radials.push(radial_unit_from_axis(push_axis, other_pos - push_pos));
         } else {
-            inward_pulls.push(*pull);
+            other_ends.push(Vec3::ZERO);
+            is_outward.push(false);
+            radials.push(Vec3::ZERO);
         }
     }
 
-    // Build result: outward pulls get lowest slots, then inward pulls
-    let mut result = Vec::with_capacity(pulls.len());
+    // For each potential outward cable o, the best "lid" is the cable whose
+    // radial direction is most opposite to o's (smallest dot product). The
+    // lookup is per-cable because the outward cable's identity depends on
+    // the permutation we're scoring.
+    let best_lid_for: Vec<usize> = (0..n)
+        .map(|o| {
+            (0..n)
+                .filter(|&c| c != o)
+                .min_by(|&a, &b| {
+                    let da = radials[a].dot(radials[o]);
+                    let db = radials[b].dot(radials[o]);
+                    da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .unwrap_or(o)
+        })
+        .collect();
+    let any_outward = is_outward.iter().any(|&o| o);
 
-    // Add outward-pulling intervals first (they get the lowest slots)
-    for pull in &outward_pulls {
-        result.push(*pull);
+    // Precompute arm segments (hinge_pos, pull_end_pos) per (cable, slot).
+    // Bend angle and ring centre both depend on slot, so we recompute per slot.
+    // We only need slots 0..n (one slot per cable).
+    let mut segments: Vec<Vec<(Vec3, Vec3)>> = Vec::with_capacity(n);
+    for c in 0..n {
+        let mut row = Vec::with_capacity(n);
+        for k in 0..n {
+            let (hinge_pos, _bend, pull_end_pos, _ideal) =
+                dimensions.hinge_geometry(push_end, push_axis, k, other_ends[c]);
+            row.push((hinge_pos, pull_end_pos));
+        }
+        segments.push(row);
     }
 
-    // If there are no inward pulls to optimize, we're done
-    if inward_pulls.is_empty() {
-        return result;
-    }
+    // Score: (outward_at_top, lid_miss, outward_low_miss, -min_clearance, moment).
+    let mut best_outward_top: u32 = u32::MAX;
+    let mut best_lid_miss: u32 = u32::MAX;
+    let mut best_outward_low_miss: u32 = u32::MAX;
+    let mut best_neg_clearance: f32 = f32::MAX;
+    let mut best_moment: f32 = f32::MAX;
+    let mut best_order: Vec<usize> = (0..n).collect();
 
-    // If there's only one inward pull, no optimization needed
-    if inward_pulls.len() == 1 {
-        result.push(inward_pulls[0]);
-        return result;
-    }
-
-    // Optimize the inward pulls using moment minimization
-    let n = inward_pulls.len();
-    let start_slot = outward_pulls.len(); // Inward pulls start after outward slots
-
-    let mut best_moment = f32::MAX;
     let mut indices: Vec<usize> = (0..n).collect();
-    let mut best_order = inward_pulls.clone();
-
-    // Helper to evaluate current permutation
-    let evaluate = |perm: &[usize]| -> f32 {
-        let assignment: Vec<(IntervalKey, usize)> = perm
-            .iter()
-            .enumerate()
-            .map(|(i, &pull_idx)| (inward_pulls[pull_idx].1, start_slot + i))
-            .collect();
-        calculate_rotational_moment(
-            &assignment,
-            attachment_points,
-            pull_data,
-            joints,
-            push_joint_key,
-        )
-    };
 
     // Heap's algorithm for generating permutations
     fn heap_permute<F>(k: usize, indices: &mut [usize], callback: &mut F)
@@ -479,19 +502,135 @@ fn find_optimal_assignment(
     }
 
     heap_permute(n, &mut indices, &mut |perm| {
-        let moment = evaluate(perm);
-        if moment < best_moment {
-            best_moment = moment;
-            for (i, &pull_idx) in perm.iter().enumerate() {
-                best_order[i] = inward_pulls[pull_idx];
+        // Hard rule: outward cable at topmost slot.
+        let outward_at_top: u32 = if is_outward[perm[n - 1]] { 1 } else { 0 };
+
+        let top_outward_slot: Option<usize> =
+            if any_outward { (0..n).rev().find(|&s| is_outward[perm[s]]) } else { None };
+
+        // Soft rule 1: the cable whose radial direction is most opposite the
+        // topmost outward cable's should sit directly above it.
+        let lid_miss: u32 = match top_outward_slot {
+            Some(s) if s + 1 < n => {
+                let outward_cable = perm[s];
+                if perm[s + 1] == best_lid_for[outward_cable] { 0 } else { 1 }
             }
+            _ => 0, // None, or outward at top (latter caught by outward_at_top)
+        };
+
+        // Soft rule 2: the topmost outward cable should sit at slot n-2.
+        let outward_low_miss: u32 = match top_outward_slot {
+            Some(s) if s == n - 2 => 0,
+            None => 0,
+            _ => 1,
+        };
+
+        // Minimum 3D distance between any pair of bent arms.
+        let mut min_clearance = f32::INFINITY;
+        for i in 0..n {
+            let (h_i, e_i) = segments[perm[i]][i];
+            for j in (i + 1)..n {
+                let (h_j, e_j) = segments[perm[j]][j];
+                let d = segment_segment_distance(h_i, e_i, h_j, e_j);
+                if d < min_clearance {
+                    min_clearance = d;
+                }
+            }
+        }
+        let neg_clearance = -min_clearance;
+
+        // Rotational moment as final tiebreak.
+        let assignment: Vec<(IntervalKey, usize)> = perm
+            .iter()
+            .enumerate()
+            .map(|(slot, &pull_idx)| (pulls[pull_idx].1, slot))
+            .collect();
+        let moment = calculate_rotational_moment(
+            &assignment,
+            attachment_points,
+            pull_data,
+            joints,
+            push_joint_key,
+        );
+
+        // Lex comparison: (outward_at_top, lid_miss, outward_low_miss, -clearance, moment)
+        let better = if outward_at_top != best_outward_top {
+            outward_at_top < best_outward_top
+        } else if lid_miss != best_lid_miss {
+            lid_miss < best_lid_miss
+        } else if outward_low_miss != best_outward_low_miss {
+            outward_low_miss < best_outward_low_miss
+        } else if neg_clearance != best_neg_clearance {
+            neg_clearance < best_neg_clearance
+        } else {
+            moment < best_moment
+        };
+
+        if better {
+            best_outward_top = outward_at_top;
+            best_lid_miss = lid_miss;
+            best_outward_low_miss = outward_low_miss;
+            best_neg_clearance = neg_clearance;
+            best_moment = moment;
+            best_order.clear();
+            best_order.extend_from_slice(perm);
         }
     });
 
-    // Add the optimized inward pulls
-    result.extend(best_order);
+    if best_outward_top > 0 {
+        eprintln!(
+            "warning: disc-ordering at push joint {:?}: outward-pulling cable forced \
+             to topmost slot (no other arrangement available).",
+            push_joint_key
+        );
+    }
 
-    result
+    best_order.into_iter().map(|i| pulls[i]).collect()
+}
+
+/// Minimum distance between two 3D line segments (closed-form).
+/// Reference: Lumelsky 1985 / Eberly's "Geometric Tools" segment-segment routine.
+pub(crate) fn segment_segment_distance(p1: Vec3, p2: Vec3, p3: Vec3, p4: Vec3) -> f32 {
+    let d1 = p2 - p1;
+    let d2 = p4 - p3;
+    let r = p1 - p3;
+
+    let a = d1.length_squared();
+    let e = d2.length_squared();
+    let f = d2.dot(r);
+
+    const EPS: f32 = 1e-10;
+
+    let (s, t) = if a <= EPS && e <= EPS {
+        (0.0_f32, 0.0_f32)
+    } else if a <= EPS {
+        (0.0, (f / e).clamp(0.0, 1.0))
+    } else {
+        let c = d1.dot(r);
+        if e <= EPS {
+            ((-c / a).clamp(0.0, 1.0), 0.0)
+        } else {
+            let b = d1.dot(d2);
+            let denom = a * e - b * b;
+            let s0 = if denom.abs() > EPS {
+                ((b * f - c * e) / denom).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let t0 = (b * s0 + f) / e;
+            if t0 < 0.0 {
+                ((-c / a).clamp(0.0, 1.0), 0.0)
+            } else if t0 > 1.0 {
+                (((b - c) / a).clamp(0.0, 1.0), 1.0)
+            } else {
+                (s0, t0)
+            }
+        }
+    };
+
+    let c1 = p1 + d1 * s;
+    let c2 = p3 + d2 * t;
+    c1.distance(c2)
 }
 
 /// Generates the positions of attachment points at the end of a push interval

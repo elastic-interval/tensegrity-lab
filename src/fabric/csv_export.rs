@@ -91,6 +91,8 @@ impl Fabric {
         )?;
         let bend_summary = build_bend_summary(self);
         file.write_all(bend_summary.as_bytes())?;
+        let clearance_summary = build_clearance_summary(self);
+        file.write_all(clearance_summary.as_bytes())?;
         writeln!(file, "Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaJoint,AlphaSlot,AlphaAngle,OmegaX,OmegaY,OmegaZ,OmegaJoint,OmegaSlot,OmegaAngle")?;
 
         // Build a map of pull interval connections for each push interval
@@ -754,6 +756,100 @@ fn build_bend_summary(fabric: &Fabric) -> String {
         s,
         "# Snap error:           mean |Δ|={:.2}°  max |Δ|={:.2}°  RMS={:.2}°",
         mean, max, rms
+    )
+    .ok();
+    writeln!(s, "#").ok();
+    s
+}
+
+/// Minimum 3D distance between any pair of bent hinge arms at every push
+/// joint-end (modelled as a segment from `hinge_pos` to `pull_end_pos`).
+/// Used as a quality metric in the CSV header so the engineer can see where
+/// the geometry is tight.
+fn build_clearance_summary(fabric: &Fabric) -> String {
+    use crate::fabric::attachment::segment_segment_distance;
+    use std::fmt::Write;
+
+    let mut s = String::new();
+    let mut pair_distances: Vec<f32> = Vec::new();
+    let mut ends_measured: usize = 0;
+
+    for (_key, push_interval) in fabric.intervals.iter() {
+        if !push_interval.has_role(Role::Pushing) {
+            continue;
+        }
+        let alpha_pos = fabric.joints[push_interval.alpha_key].location;
+        let omega_pos = fabric.joints[push_interval.omega_key].location;
+        let push_dir = (omega_pos - alpha_pos).normalize();
+
+        for interval_end in [IntervalEnd::Alpha, IntervalEnd::Omega] {
+            let (end_pos, axis_dir, end_key) = match interval_end {
+                IntervalEnd::Alpha => (alpha_pos, -push_dir, push_interval.alpha_key),
+                IntervalEnd::Omega => (omega_pos, push_dir, push_interval.omega_key),
+            };
+            let Some(connections) = push_interval.connections(interval_end) else {
+                continue;
+            };
+
+            // Collect arm segments at this joint-end.
+            let mut segs: Vec<(Vec3, Vec3)> = Vec::new();
+            for (slot_idx, conn_opt) in connections.iter().enumerate() {
+                let Some(connection) = conn_opt else { continue };
+                let Some(pull_interval) = fabric.intervals.get(connection.pull_interval_key)
+                else {
+                    continue;
+                };
+                let pull_other_end = if pull_interval.alpha_key == end_key {
+                    fabric.joints[pull_interval.omega_key].location
+                } else {
+                    fabric.joints[pull_interval.alpha_key].location
+                };
+                let (hinge_pos, _bend, pull_end_pos, _ideal) = fabric.dimensions.hinge_geometry(
+                    end_pos,
+                    axis_dir,
+                    slot_idx,
+                    pull_other_end,
+                );
+                segs.push((hinge_pos, pull_end_pos));
+            }
+
+            if segs.len() >= 2 {
+                ends_measured += 1;
+                for i in 0..segs.len() {
+                    for j in (i + 1)..segs.len() {
+                        let d =
+                            segment_segment_distance(segs[i].0, segs[i].1, segs[j].0, segs[j].1);
+                        pair_distances.push(d);
+                    }
+                }
+            }
+        }
+    }
+
+    writeln!(s, "# === Hinge arm clearance ===").ok();
+    writeln!(
+        s,
+        "# Per joint-end, minimum 3D distance between any two arm segments (hinge_pos -> pull_end_pos)."
+    )
+    .ok();
+    if pair_distances.is_empty() {
+        writeln!(s, "# No multi-cable joint-ends measured.").ok();
+        writeln!(s, "#").ok();
+        return s;
+    }
+
+    let n = pair_distances.len();
+    let min_m = pair_distances.iter().copied().fold(f32::INFINITY, f32::min);
+    let max_m = pair_distances.iter().copied().fold(0.0_f32, f32::max);
+    let mean_m = pair_distances.iter().sum::<f32>() / n as f32;
+    writeln!(s, "# Joint-ends measured: {}", ends_measured).ok();
+    writeln!(s, "# Pairs measured:      {}", n).ok();
+    writeln!(
+        s,
+        "# Clearance:           min={:.1}mm  mean={:.1}mm  max={:.1}mm",
+        min_m * MM_PER_METER,
+        mean_m * MM_PER_METER,
+        max_m * MM_PER_METER,
     )
     .ok();
     writeln!(s, "#").ok();
