@@ -18,6 +18,8 @@ from __future__ import annotations
 import argparse
 import math
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -514,7 +516,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("csv", type=Path, help="Path to an OpenClaw-*.csv export")
     parser.add_argument("--out", type=Path, default=None,
-                        help="Output HTML path (default: <csv-basename>-strut-pages.html alongside the input)")
+                        help="Output PDF path (default: <csv-basename>-strut-pages.pdf alongside the input)")
+    parser.add_argument("--keep-html", action="store_true",
+                        help="Keep the intermediate HTML alongside the PDF (default: delete it)")
     args = parser.parse_args()
 
     if not args.csv.is_file():
@@ -523,11 +527,27 @@ def main() -> None:
     data = parse_csv(args.csv)
     html = render_html(data)
 
-    out = args.out or args.csv.with_name(args.csv.stem + "-strut-pages.html")
-    out.write_text(html, encoding="utf-8")
-    print(f"Wrote {out}")
+    pdf_path = args.out or args.csv.with_name(args.csv.stem + "-strut-pages.pdf")
+    html_path = pdf_path.with_suffix(".html")
+    html_path.write_text(html, encoding="utf-8")
+
+    weasyprint_bin = shutil.which("weasyprint")
+    if not weasyprint_bin:
+        sys.exit("weasyprint CLI not found. Install with: brew install weasyprint")
+
+    result = subprocess.run(
+        [weasyprint_bin, str(html_path), str(pdf_path)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        sys.stderr.write(result.stderr)
+        sys.exit(f"weasyprint failed (exit {result.returncode})")
+
+    if not args.keep_html:
+        html_path.unlink()
+
+    print(f"Wrote {pdf_path}")
     print(f"  {len(data.struts)} struts → {len(data.struts)} pages")
-    print(f"  Render to PDF: weasyprint {out} {out.with_suffix('.pdf')}")
 
 
 if __name__ == "__main__":
