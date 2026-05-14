@@ -30,7 +30,7 @@ impl Default for HingeDimensions {
     fn default() -> Self {
         Self {
             push_radius: Meters(0.02),
-            push_radius_margin: Meters(0.003),
+            push_radius_margin: Meters(0.001),
             disc_thickness: Meters(0.005),
             disc_separator_thickness: Meters(0.002),
             cap_thickness: Meters(0.005),

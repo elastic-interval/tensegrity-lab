@@ -3,7 +3,7 @@
 file ready for weasyprint.
 
 Usage:
-    python3 build_strut_pages.py OpenClaw-slack-2026-05-13.csv
+    python3 build_strut_pages.py source.csv
     weasyprint OpenClaw-slack-2026-05-13-strut-pages.html OpenClaw-slack-2026-05-13-strut-pages.pdf
 
 Reuses build_manual.parse_csv for CSV ingestion. Adds:
