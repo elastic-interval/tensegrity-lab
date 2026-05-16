@@ -61,11 +61,11 @@ pub enum RenderStyle {
 pub struct IntervalDetails {
     pub key: IntervalKey,
     pub near_joint: JointKey,
-    pub near_joint_path: String,
+    pub near_joint_label: String,
     pub near_slot: Option<usize>,
     pub far_slot: Option<usize>,
     pub far_joint: JointKey,
-    pub far_joint_path: String,
+    pub far_joint_label: String,
     pub alpha_hinge_angle: Option<Degrees>,
     pub omega_hinge_angle: Option<Degrees>,
     pub length: Meters,
@@ -143,24 +143,24 @@ impl IntervalDetails {
         self.distance.to_mm()
     }
 
-    /// Format a joint path as a string, optionally with a slot number
+    /// Format a joint label as a string, optionally with a slot number
     /// If show_attachment_points is false, the slot number will be hidden
     pub fn format_joint(&self, is_near: bool, show_attachment_points: bool) -> String {
-        let (joint_path, slot) = if is_near {
-            (&self.near_joint_path, self.near_slot)
+        let (joint_label, slot) = if is_near {
+            (&self.near_joint_label, self.near_slot)
         } else {
-            (&self.far_joint_path, self.far_slot)
+            (&self.far_joint_label, self.far_slot)
         };
 
         // Only show slot numbers if attachment points are visible
         if show_attachment_points {
             match slot {
-                Some(slot_idx) => format!("{}:{}", joint_path, slot_idx),
-                None => joint_path.clone(),
+                Some(slot_idx) => format!("{}:{}", joint_label, slot_idx),
+                None => joint_label.clone(),
             }
         } else {
             // Always use the simple format when attachment points are hidden
-            joint_path.clone()
+            joint_label.clone()
         }
     }
 

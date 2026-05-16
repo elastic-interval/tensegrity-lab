@@ -296,6 +296,14 @@ impl BuildPhase {
                 let (base_face, effective_scale) = if let Some(fk) = launch_face {
                     (BaseFace::ExistingFace(fk), scale.as_factor())
                 } else {
+                    // First (root) Hub is the seed — install the DSL's joint
+                    // labeller so seed-joint names render symbolically.
+                    fabric.labeller = Some(std::sync::Arc::new(
+                        crate::build::dsl::labelling::OmniSeedLabeller {
+                            brick_name: *brick_name,
+                            brick_role: *brick_role,
+                        },
+                    ));
                     (
                         BaseFace::Seeded {
                             altitude: seed_altitude * build_scale,

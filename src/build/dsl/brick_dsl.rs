@@ -173,6 +173,49 @@ pub enum JointName {
     BottomRight,
 }
 
+/// Category of an Omni brick joint, decoded from its `JointName`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum OmniCategory {
+    BotAlpha,
+    BotOmega,
+    TopAlpha,
+    TopOmega,
+}
+
+impl OmniCategory {
+    pub fn short(self) -> &'static str {
+        match self {
+            OmniCategory::BotAlpha => "BA",
+            OmniCategory::BotOmega => "BO",
+            OmniCategory::TopAlpha => "TA",
+            OmniCategory::TopOmega => "TO",
+        }
+    }
+}
+
+impl JointName {
+    /// Decode an OmniSymmetrical joint name into (category, axis).
+    /// Returns `None` for joint names that are not Omni-shaped.
+    pub fn omni_decode(self) -> Option<(OmniCategory, Axis)> {
+        use JointName::*;
+        match self {
+            BotAlphaX => Some((OmniCategory::BotAlpha, Axis::X)),
+            BotAlphaY => Some((OmniCategory::BotAlpha, Axis::Y)),
+            BotAlphaZ => Some((OmniCategory::BotAlpha, Axis::Z)),
+            BotOmegaX => Some((OmniCategory::BotOmega, Axis::X)),
+            BotOmegaY => Some((OmniCategory::BotOmega, Axis::Y)),
+            BotOmegaZ => Some((OmniCategory::BotOmega, Axis::Z)),
+            TopAlphaX => Some((OmniCategory::TopAlpha, Axis::X)),
+            TopAlphaY => Some((OmniCategory::TopAlpha, Axis::Y)),
+            TopAlphaZ => Some((OmniCategory::TopAlpha, Axis::Z)),
+            TopOmegaX => Some((OmniCategory::TopOmega, Axis::X)),
+            TopOmegaY => Some((OmniCategory::TopOmega, Axis::Y)),
+            TopOmegaZ => Some((OmniCategory::TopOmega, Axis::Z)),
+            _ => None,
+        }
+    }
+}
+
 /// Simple brick orientation types
 #[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
 pub enum BrickOrientation {
@@ -246,6 +289,7 @@ pub struct ProtoBuilder {
     pushes: Vec<PushDef>,
     pulls: Vec<PullDef>,
     faces: Vec<FaceDef>,
+    cyclic_axes: Vec<(BrickRole, Vec<Axis>)>,
 }
 
 impl ProtoBuilder {
@@ -262,7 +306,21 @@ impl ProtoBuilder {
             pushes: vec![],
             pulls: vec![],
             faces: vec![],
+            cyclic_axes: vec![],
         }
+    }
+
+    /// Declare the cyclic 3-fold axis order under a given orientation role.
+    /// The N-th axis in the list corresponds to position N in the cycle and
+    /// becomes letter `A` / `B` / `C` (etc.) in the symbolic name assigned to
+    /// seed joints. Used only when this brick is the fabric's seed.
+    pub fn cyclic_axes_for<const N: usize>(
+        mut self,
+        role: BrickRole,
+        axes: [Axis; N],
+    ) -> Self {
+        self.cyclic_axes.push((role, axes.into_iter().collect()));
+        self
     }
 
     /// Add explicit joint declarations (joints that aren't created by pushes)
@@ -373,6 +431,7 @@ impl ProtoBuilder {
             pushes: self.pushes,
             pulls: self.pulls,
             faces: self.faces,
+            cyclic_axes: self.cyclic_axes,
         }
     }
 }

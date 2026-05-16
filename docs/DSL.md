@@ -56,6 +56,10 @@ FabricName
 
 The typestate pattern enforces that `altitude()` and `scale()` must be called before `seed()`.
 
+The seed brick's orientation also drives **joint naming** — see
+[joint-naming.md](joint-naming.md) for how seed joints become labels like
+`BAA` / `TOC` and how that reveals the 3-fold symmetry of the structure.
+
 **Seed (starting hub at root):**
 ```rust
 .seed(BrickName, BrickRole)

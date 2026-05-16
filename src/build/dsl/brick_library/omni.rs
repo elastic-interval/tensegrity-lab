@@ -1,4 +1,4 @@
-use crate::build::dsl::brick::BrickPrototype;
+use crate::build::dsl::brick::{Axis, BrickPrototype};
 use crate::build::dsl::brick_dsl::*;
 use crate::build::dsl::{ScaleMode, Spin};
 
@@ -113,5 +113,9 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         ],
         [Tetrahedral.small()],
     )
+    // Under Seed(1) the brick exhibits 3-fold cyclic symmetry over its three
+    // axes in the order X → Y → Z. Seed joints with axis X, Y, Z get symbolic
+    // letters A, B, C respectively in their display names.
+    .cyclic_axes_for(Seed(1), [Axis::X, Axis::Y, Axis::Z])
     .build()
 }

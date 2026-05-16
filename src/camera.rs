@@ -178,7 +178,7 @@ impl Camera {
             match &self.current_pick {
                 Pick::Nothing => Pick::Joint(JointDetails {
                     key: best_joint_key,
-                    path: fabric.joints[best_joint_key].path.to_string(),
+                    path: fabric.joint_label(best_joint_key),
                     location: fabric.location(best_joint_key),
                     selected_push: fabric.push_at(best_joint_key),
                 }),
@@ -218,10 +218,10 @@ impl Camera {
             Pick::Interval(old) => {
                 let mut new = old.clone();
                 new.near_joint = old.far_joint;
-                new.near_joint_path = old.far_joint_path.clone();
+                new.near_joint_label = old.far_joint_label.clone();
                 new.near_slot = old.far_slot;
                 new.far_joint = old.near_joint;
-                new.far_joint_path = old.near_joint_path.clone();
+                new.far_joint_label = old.near_joint_label.clone();
                 new.far_slot = old.near_slot;
                 new.selected_push = fabric.find_push_at(old.far_joint);
                 Pick::Interval(new)
@@ -631,11 +631,11 @@ impl Camera {
         IntervalDetails {
             key,
             near_joint,
-            near_joint_path: fabric.joints[near_joint].path.to_string(),
+            near_joint_label: fabric.joint_label(near_joint),
             near_slot,
             far_slot,
             far_joint,
-            far_joint_path: fabric.joints[far_joint].path.to_string(),
+            far_joint_label: fabric.joint_label(far_joint),
             alpha_hinge_angle,
             omega_hinge_angle,
             length: interval.ideal(),

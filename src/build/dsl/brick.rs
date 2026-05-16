@@ -10,7 +10,7 @@ use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, JointKey};
 use crate::units::{Meters, Seconds};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Axis {
     X,
     Y,
@@ -77,6 +77,23 @@ pub struct BrickPrototype {
     pub pushes: Vec<PushDef>,
     pub pulls: Vec<PullDef>,
     pub faces: Vec<FaceDef>,
+    /// Cyclic axis order per orientation. When the brick is used as a seed
+    /// under one of these roles, the listed axes give the order in which the
+    /// three symmetric axes cycle under 120° rotation. Position 0 / 1 / 2 in
+    /// this list becomes letter `A` / `B` / `C` in the symbolic name that the
+    /// fabric assigns to seed joints. (How a downstream plan *uses* those
+    /// letters — e.g. as leg identifiers — is not the brick's concern.)
+    pub cyclic_axes: Vec<(BrickRole, Vec<Axis>)>,
+}
+
+impl BrickPrototype {
+    /// Look up the cyclic axis order for a given orientation role, if declared.
+    pub fn cyclic_axes_for(&self, role: BrickRole) -> Option<&[Axis]> {
+        self.cyclic_axes
+            .iter()
+            .find(|(r, _)| *r == role)
+            .map(|(_, axes)| axes.as_slice())
+    }
 }
 
 impl BrickPrototype {

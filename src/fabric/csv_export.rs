@@ -11,11 +11,10 @@ use crate::units::{Unit, MM_PER_METER};
 
 /// Rotation from simulation space (Y-up) to CSV space (Z-up, RFEM/Rhino).
 ///
-/// Verified against OpenClaw grav_pretenst data: in sim space the vertical
-/// extent is clearly in `.y` (feet at 0, top at ~7 m), while `.x` and `.z`
-/// are horizontal. A +90° rotation about X sends sim +Y → csv +Z, so the
-/// vertical extent lands in the CSV's Z column. Sim +Z → csv −Y keeps the
-/// transform a pure right-handed rotation.
+/// Simulation uses Y as the vertical axis; the engineer's FEA tools expect
+/// Z-up. A +90° rotation about X sends sim +Y → csv +Z (vertical extent lands
+/// in the CSV's Z column). Sim +Z → csv −Y keeps the transform a pure
+/// right-handed rotation.
 fn sim_to_csv() -> Mat3 {
     Mat3::from_rotation_x(FRAC_PI_2)
 }
@@ -43,8 +42,8 @@ impl Fabric {
         // sim→csv rotation — equals simulation Y.
         let joints_csv: Vec<(String, Vec3)> = self
             .joints
-            .values()
-            .map(|j| (j.path.to_string(), to_csv * (j.location * MM_PER_METER)))
+            .iter()
+            .map(|(k, j)| (self.joint_label(k), to_csv * (j.location * MM_PER_METER)))
             .collect();
         let mut sorted_by_z = joints_csv.clone();
         sorted_by_z.sort_by(|a, b| a.1.z.partial_cmp(&b.1.z).unwrap_or(std::cmp::Ordering::Equal));
@@ -274,6 +273,8 @@ impl Fabric {
                 let omega_joint = &self.joints[interval.omega_key];
                 let alpha = to_csv * (alpha_joint.location * MM_PER_METER);
                 let omega = to_csv * (omega_joint.location * MM_PER_METER);
+                let alpha_label = self.joint_label(interval.alpha_key);
+                let omega_label = self.joint_label(interval.omega_key);
                 writeln!(
                     file,
                     "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},{},0,90,{:.3},{:.3},{:.3},{},0,90",
@@ -281,8 +282,8 @@ impl Fabric {
                     role_str,
                     info.length,
                     info.strain,
-                    alpha.x, alpha.y, alpha.z, alpha_joint.path,
-                    omega.x, omega.y, omega.z, omega_joint.path,
+                    alpha.x, alpha.y, alpha.z, alpha_label,
+                    omega.x, omega.y, omega.z, omega_label,
                 )?;
             } else {
                 // Find pull_end_pos (shortened by hinge_length) for each end
@@ -300,11 +301,11 @@ impl Fabric {
                     .map(|(_, data)| data);
 
                 // Use pull_end_pos (first element) for the interval position
-                let (alpha_pos, alpha_joint_path, alpha_slot, alpha_bend) =
+                let (alpha_pos, alpha_joint_label, alpha_slot, alpha_bend) =
                     if let Some((pull_end_pos, _, joint_key, slot, bend, _)) = alpha_info {
                         (
                             to_csv * (*pull_end_pos * MM_PER_METER),
-                            self.joints[*joint_key].path.to_string(),
+                            self.joint_label(*joint_key),
                             *slot,
                             Some(*bend),
                         )
@@ -312,17 +313,17 @@ impl Fabric {
                         let joint = &self.joints[interval.alpha_key];
                         (
                             to_csv * (joint.location * MM_PER_METER),
-                            joint.path.to_string(),
+                            self.joint_label(interval.alpha_key),
                             0,
                             None,
                         )
                     };
 
-                let (omega_pos, omega_joint_path, omega_slot, omega_bend) =
+                let (omega_pos, omega_joint_label, omega_slot, omega_bend) =
                     if let Some((pull_end_pos, _, joint_key, slot, bend, _)) = omega_info {
                         (
                             to_csv * (*pull_end_pos * MM_PER_METER),
-                            self.joints[*joint_key].path.to_string(),
+                            self.joint_label(*joint_key),
                             *slot,
                             Some(*bend),
                         )
@@ -330,7 +331,7 @@ impl Fabric {
                         let joint = &self.joints[interval.omega_key];
                         (
                             to_csv * (joint.location * MM_PER_METER),
-                            joint.path.to_string(),
+                            self.joint_label(interval.omega_key),
                             0,
                             None,
                         )
@@ -353,13 +354,13 @@ impl Fabric {
                     alpha_pos.x,
                     alpha_pos.y,
                     alpha_pos.z,
-                    alpha_joint_path,
+                    alpha_joint_label,
                     alpha_slot,
                     alpha_bend_str,
                     omega_pos.x,
                     omega_pos.y,
                     omega_pos.z,
-                    omega_joint_path,
+                    omega_joint_label,
                     omega_slot,
                     omega_bend_str,
                 )?;
@@ -377,8 +378,8 @@ impl Fabric {
             strain: f32,
             alpha_pos: Vec3,
             omega_pos: Vec3,
-            alpha_joint_path: String,
-            omega_joint_path: String,
+            alpha_joint_label: String,
+            omega_joint_label: String,
             alpha_slot: usize,
             omega_slot: usize,
         }
@@ -427,8 +428,8 @@ impl Fabric {
                 strain: info.strain,
                 alpha_pos: alpha_fea,
                 omega_pos: omega_fea,
-                alpha_joint_path: alpha_joint.path.to_string(),
-                omega_joint_path: omega_joint.path.to_string(),
+                alpha_joint_label: self.joint_label(interval.alpha_key),
+                omega_joint_label: self.joint_label(interval.omega_key),
                 alpha_slot: alpha_highest,
                 omega_slot: omega_highest,
             });
@@ -451,7 +452,7 @@ impl Fabric {
                 .map(|((_, _, _slot), (_, _, joint_key, _, _, _))| *joint_key);
 
             // Get ring centers at HIGHEST slot (same as push-fea endpoints)
-            let (alpha_fea, alpha_joint_path, alpha_slot) = if let Some(joint_key) = alpha_info {
+            let (alpha_fea, alpha_joint_label, alpha_slot) = if let Some(joint_key) = alpha_info {
                 let highest_slot = highest_slot_per_joint.get(&joint_key).copied().unwrap_or(0);
                 let ring = if highest_slot > 0 {
                     ring_centers
@@ -461,13 +462,13 @@ impl Fabric {
                 } else {
                     self.joints[joint_key].location
                 };
-                (ring, self.joints[joint_key].path.to_string(), highest_slot)
+                (ring, self.joint_label(joint_key), highest_slot)
             } else {
                 let joint = &self.joints[interval.alpha_key];
-                (joint.location, joint.path.to_string(), 0)
+                (joint.location, self.joint_label(interval.alpha_key), 0)
             };
 
-            let (omega_fea, omega_joint_path, omega_slot) = if let Some(joint_key) = omega_info {
+            let (omega_fea, omega_joint_label, omega_slot) = if let Some(joint_key) = omega_info {
                 let highest_slot = highest_slot_per_joint.get(&joint_key).copied().unwrap_or(0);
                 let ring = if highest_slot > 0 {
                     ring_centers
@@ -477,10 +478,10 @@ impl Fabric {
                 } else {
                     self.joints[joint_key].location
                 };
-                (ring, self.joints[joint_key].path.to_string(), highest_slot)
+                (ring, self.joint_label(joint_key), highest_slot)
             } else {
                 let joint = &self.joints[interval.omega_key];
-                (joint.location, joint.path.to_string(), 0)
+                (joint.location, self.joint_label(interval.omega_key), 0)
             };
 
             let fea_length = (omega_fea - alpha_fea).length();
@@ -491,8 +492,8 @@ impl Fabric {
                 strain: info.strain,
                 alpha_pos: alpha_fea,
                 omega_pos: omega_fea,
-                alpha_joint_path,
-                omega_joint_path,
+                alpha_joint_label,
+                omega_joint_label,
                 alpha_slot,
                 omega_slot,
             });
@@ -525,12 +526,12 @@ impl Fabric {
                 alpha_mm.x,
                 alpha_mm.y,
                 alpha_mm.z,
-                fea.alpha_joint_path,
+                fea.alpha_joint_label,
                 fea.alpha_slot,
                 omega_mm.x,
                 omega_mm.y,
                 omega_mm.z,
-                fea.omega_joint_path,
+                fea.omega_joint_label,
                 fea.omega_slot,
             )?;
         }
@@ -582,7 +583,7 @@ impl Fabric {
             let mut prev_pos = joint_pos;
             let mut prev_slot = 0usize;
 
-            let joint_path = &joint.path;
+            let joint_label = self.joint_label(joint_key);
             for (slot, pull_end_pos, hinge_pos) in &connections {
                 // slot is 1-indexed here (from pull_hinge_info), convert to 0-indexed for ring_center
                 let ring_center = dimensions.ring_center(joint_pos, push_axis, *slot - 1);
@@ -596,8 +597,8 @@ impl Fabric {
                     file,
                     "{},axial,{:.3},0.000e0,{:.3},{:.3},{:.3},{},{},90,{:.3},{:.3},{:.3},{},{},90",
                     link_index, axial_length,
-                    prev_mm.x, prev_mm.y, prev_mm.z, joint_path, prev_slot,
-                    ring_mm.x, ring_mm.y, ring_mm.z, joint_path, slot,
+                    prev_mm.x, prev_mm.y, prev_mm.z, joint_label, prev_slot,
+                    ring_mm.x, ring_mm.y, ring_mm.z, joint_label, slot,
                 )?;
 
                 // Radial link: ring center → hinge
@@ -608,8 +609,8 @@ impl Fabric {
                     file,
                     "{},radial,{:.3},0.000e0,{:.3},{:.3},{:.3},{},{},0.000,{:.3},{:.3},{:.3},{},{},0.000",
                     link_index, radial_length,
-                    ring_mm.x, ring_mm.y, ring_mm.z, joint_path, slot,
-                    hinge_mm.x, hinge_mm.y, hinge_mm.z, joint_path, slot,
+                    ring_mm.x, ring_mm.y, ring_mm.z, joint_label, slot,
+                    hinge_mm.x, hinge_mm.y, hinge_mm.z, joint_label, slot,
                 )?;
 
                 // Hinge link: hinge → pull_end (along pull direction)
@@ -620,8 +621,8 @@ impl Fabric {
                     file,
                     "{},hinge,{:.3},0.000e0,{:.3},{:.3},{:.3},{},{},0.000,{:.3},{:.3},{:.3},{},{},0.000",
                     link_index, hinge_link_length,
-                    hinge_mm.x, hinge_mm.y, hinge_mm.z, joint_path, slot,
-                    pull_end_mm.x, pull_end_mm.y, pull_end_mm.z, joint_path, slot,
+                    hinge_mm.x, hinge_mm.y, hinge_mm.z, joint_label, slot,
+                    pull_end_mm.x, pull_end_mm.y, pull_end_mm.z, joint_label, slot,
                 )?;
 
                 prev_pos = ring_center;

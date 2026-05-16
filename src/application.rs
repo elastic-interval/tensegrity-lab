@@ -647,9 +647,11 @@ impl ApplicationHandler<LabEvent> for Application {
                 if self.snapshot_pending {
                     #[cfg(not(target_arch = "wasm32"))]
                     {
+                        let date = chrono::Local::now().format("%Y-%m-%d");
                         let filename = format!(
-                            "{}-slack.csv",
-                            self.crucible.fabric.name.replace(' ', "")
+                            "{}-{}.csv",
+                            self.crucible.fabric.name.replace(' ', ""),
+                            date,
                         );
                         if let Err(e) = self.crucible.fabric.snapshot_csv(&filename) {
                             eprintln!("Failed to export snapshot {}: {}", filename, e);

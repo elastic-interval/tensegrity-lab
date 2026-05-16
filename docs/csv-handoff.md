@@ -51,6 +51,12 @@ AlphaX, AlphaY, AlphaZ, AlphaJoint, AlphaSlot, AlphaAngle,
 OmegaX, OmegaY, OmegaZ, OmegaJoint, OmegaSlot, OmegaAngle
 ```
 
+`AlphaJoint` and `OmegaJoint` follow the naming scheme described in
+[joint-naming.md](joint-naming.md): path-shaped names like `AX4YZ1` for
+joints created during construction, and short 3-letter names like `BAA` /
+`TOC` for the seed joints. The seed-joint scheme is what makes the 3-fold
+symmetry of cable triples visible at a glance.
+
 These columns mean *different physical things* depending on `Role`. Mixing
 them up is the most likely path to a mis-fabricated part. The conventions
 are unfortunately not symmetric between push and pull rows:

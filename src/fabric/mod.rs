@@ -15,6 +15,17 @@ use crate::Age;
 use glam::{Mat4, Quat, Vec3};
 use slotmap::{new_key_type, SlotMap};
 use std::fmt::Debug;
+use std::sync::Arc;
+
+/// Plug-in for rendering joint identifiers as human-meaningful labels.
+/// Implementations may inspect the fabric and a joint key; returning `Some`
+/// supplies the label. Returning `None` defers to the default formatting
+/// (the `JointPath`'s `Display` impl). Installed on a `Fabric` only when its
+/// construction path knows how to provide one — algorithmic fabrics with no
+/// installed labeller use the default formatting throughout.
+pub trait JointLabeller: Debug + Send + Sync {
+    fn label(&self, fabric: &Fabric, key: JointKey) -> Option<String>;
+}
 
 #[derive(Clone, Debug)]
 pub struct IntervalReading {
@@ -183,6 +194,7 @@ pub struct Fabric {
     pub frozen: bool,
     pub stats: IterationStats,
     pub dimensions: FabricDimensions,
+    pub labeller: Option<Arc<dyn JointLabeller>>,
 
     cached_bounding_radius: f32,
     approaching_count: usize,
@@ -200,6 +212,7 @@ impl Fabric {
             stats: IterationStats::default(),
             cached_bounding_radius: 0.0,
             dimensions: FabricDimensions::default(),
+            labeller: None,
             approaching_count: 0,
         }
     }
@@ -211,6 +224,18 @@ impl Fabric {
 
     pub fn scale(&self) -> f32 {
         self.dimensions.scale.f32()
+    }
+
+    pub fn joint_label(&self, joint_key: JointKey) -> String {
+        let Some(joint) = self.joints.get(joint_key) else {
+            return String::new();
+        };
+        if let Some(labeller) = &self.labeller {
+            if let Some(label) = labeller.label(self, joint_key) {
+                return label;
+            }
+        }
+        joint.path.to_string()
     }
 
     pub fn ambient_mass(&self) -> Grams {
