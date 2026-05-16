@@ -141,12 +141,17 @@ Every step is symbolic, derived from DSL declarations:
 2. The brick orientation (e.g. `Seed(1)`) declares its **cyclic axis
    order** via `.cyclic_axes_for(role, [axes])` on the prototype. For
    OmniSymmetrical's `Seed(1)`: `[X, Y, Z]`.
-3. The fabric records the seed brick + role when the root Hub is processed
-   in `build_phase.rs`, in `Fabric.seed_brick`.
-4. `Fabric::joint_label(key)` walks: local index → `JointName` via the
-   brick's `joints` and `pushes`; `JointName.omni_decode()` →
-   `(category, axis)`; cyclic axes → leg letter; concatenate.
-5. The CSV export calls `joint_label` for every joint identifier it writes.
+3. When the root Hub is processed during build (`build_phase.rs`), the DSL
+   wraps `(brick_name, role)` into an `OmniSeedLabeller`
+   (`src/build/dsl/labelling.rs`) and installs it as
+   `fabric.labeller: Option<Arc<dyn JointLabeller>>`.
+4. `Fabric::joint_label(key)` dispatches to the installed labeller. The
+   labeller walks: local index → `JointName` via the brick's `joints` and
+   `pushes`; `JointName.omni_decode()` → `(category, axis)`; cyclic axes →
+   leg letter; concatenate. If no labeller is installed (algorithmic
+   fabrics), `joint_label` falls back to `JointPath::Display`.
+5. The CSV export, picking display, etc. call `joint_label` for every joint
+   identifier they write.
 
 No floating-point geometry is consulted at any step. Different runs of the
 same plan produce byte-identical names. A different plan that uses the same
@@ -158,15 +163,14 @@ For a (brick, orientation) pair to participate in symbolic seed naming:
 
 1. The brick prototype must declare its 3-fold cyclic axis order under that
    orientation via `.cyclic_axes_for(role, [axes])`.
-2. The brick's joint names must be Omni-shaped (BotAlpha/Omega ×
-   TopAlpha/Omega × X/Y/Z); `JointName::omni_decode` currently recognises
-   only those. For bricks with different joint conventions (Single, Torque,
-   …), `omni_decode` returns `None` and `joint_label` falls back to
-   `Z<local_index>`.
+2. Either reuse `OmniSeedLabeller` (works for any Omni-shaped joint set —
+   BotAlpha/Omega × TopAlpha/Omega × X/Y/Z that `JointName::omni_decode`
+   recognises) or write a new `impl JointLabeller` and have the build path
+   install it on the fabric.
 
-If a brick has no declared cyclic axes for the orientation in use, seed
-joints display as `Z0..Z<n-1>` (the historical default). This is what
-happens for non-OmniSymmetrical seeds today.
+If no labeller is installed (e.g. a non-OmniSymmetrical seed, or any of the
+algorithmic fabrics — sphere, klein, mobius, evolution), `joint_label` falls
+back to `JointPath`'s `Display`, which renders seed joints as `Z<n>`.
 
 ## What the engineer sees in the CSV
 
