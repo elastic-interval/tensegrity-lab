@@ -42,61 +42,6 @@ impl CrucibleAction {
     }
 }
 
-/// When to take a CSV snapshot during fabric construction
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SnapshotMoment {
-    /// After slackening, before pretensing begins
-    Slack,
-    /// After pretensing completes
-    Pretenst,
-    /// After settling on surface
-    Settled,
-    /// After gravitational pretensing completes
-    GravPretenst,
-    /// Export at all moments
-    All,
-}
-
-impl SnapshotMoment {
-    /// Get the suffix for this snapshot moment (e.g., "slack", "pretenst", "settled")
-    pub fn suffix(&self) -> &'static str {
-        match self {
-            SnapshotMoment::Slack => "slack",
-            SnapshotMoment::Pretenst => "pretenst",
-            SnapshotMoment::Settled => "settled",
-            SnapshotMoment::GravPretenst => "grav_pretenst",
-            SnapshotMoment::All => unreachable!("All should be expanded before calling suffix"),
-        }
-    }
-
-    /// Check if this moment matches the given moment (handles All)
-    pub fn matches(&self, moment: SnapshotMoment) -> bool {
-        *self == SnapshotMoment::All || *self == moment
-    }
-
-    /// Send this snapshot moment as a LabEvent
-    pub fn send(self, radio: &Radio) {
-        LabEvent::SnapshotReached(self).send(radio);
-    }
-}
-
-impl std::str::FromStr for SnapshotMoment {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "slack" | "slackened" => Ok(SnapshotMoment::Slack),
-            "pretenst" | "pretensed" => Ok(SnapshotMoment::Pretenst),
-            "settled" | "settle" => Ok(SnapshotMoment::Settled),
-            "grav_pretenst" | "gravpretenst" | "grav" => Ok(SnapshotMoment::GravPretenst),
-            "all" => Ok(SnapshotMoment::All),
-            _ => Err(format!(
-                "Unknown snapshot moment: '{}'. Use: slack, pretenst, settled, grav_pretenst, or all",
-                s
-            )),
-        }
-    }
-}
 
 #[derive(Clone)]
 pub enum StateChange {
@@ -188,8 +133,7 @@ pub enum LabEvent {
     ToggleAnimationExport,
     #[cfg(not(target_arch = "wasm32"))]
     ExportSnapshot,
-    /// A snapshot moment has been reached during fabric construction
-    SnapshotReached(SnapshotMoment),
+    SnapshotReached,
 }
 
 pub type Radio = winit::event_loop::EventLoopProxy<LabEvent>;

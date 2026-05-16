@@ -9,7 +9,6 @@ use winit::window::WindowAttributes;
 use tensegrity_lab::application::Application;
 use tensegrity_lab::build::dsl::fabric_library::FabricName;
 use tensegrity_lab::units::Seconds;
-use tensegrity_lab::SnapshotMoment;
 use tensegrity_lab::{LabEvent, RunStyle};
 
 #[derive(Parser, Debug)]
@@ -52,9 +51,8 @@ struct Args {
     #[arg(long, default_value_t = 1.0)]
     time_scale: f32,
 
-    /// Export CSV snapshot at specified moment (slack, pretenst, settled, or all)
     #[arg(long)]
-    snapshot: Option<SnapshotMoment>,
+    snapshot: bool,
 
     /// Display dimensions at model scale (e.g., 18.5 for 18.5:1 scale)
     /// Only affects displayed measurements, not simulation
@@ -96,7 +94,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             fabric_name: FabricName::OpenClaw,
             record: None,
             export_fps: 100.0,
-            snapshot: None,
+            snapshot: false,
         }
     };
 
@@ -132,7 +130,7 @@ pub fn run() {
             fabric_name: FabricName::OpenClaw,
             record: None,
             export_fps: 100.0,
-            snapshot: None,
+            snapshot: false,
         },
         1.0,
         None, // No model scale for WASM

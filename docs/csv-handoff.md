@@ -1,56 +1,25 @@
 # CSV Handoff to Engineer
 
-How the CSV exports are structured, which one the engineer uses, and what
-their workflow with it looks like. Source of truth for the format is
-`src/fabric/csv_export.rs`; for snapshot moments, `src/events.rs::SnapshotMoment`
-and the broadcasts in `src/build/dsl/fabric_plan_executor.rs`.
+How the CSV export is structured and what the engineer's workflow with it
+looks like. Source of truth for the format is `src/fabric/csv_export.rs`; the
+single `Slack` broadcast lives in `src/build/dsl/fabric_plan_executor.rs`.
 
-## Snapshot moments
+## One CSV: `slack`
 
-The simulation broadcasts `SnapshotMoment` events at four distinct stages of the
-build → pretension → drop pipeline. Each moment, when matched against
-`--snapshot=<moment>` on the CLI (or `All`), triggers a CSV export with the
-moment's suffix in the filename (e.g. `OpenClaw-slack.csv`).
+The simulation exports exactly one CSV, captured right after slackening (end
+of Building, before zero-G pretensing begins). Run with `--snapshot` on the
+CLI and the file is written as `<FabricName>-slack.csv` (e.g.
+`OpenClaw-slack.csv`).
 
-| Moment | Suffix | When | Physical state |
-|---|---|---|---|
-| `Slack` | `slack` | After slackening, before zero-G pretensing begins | Pulls have been given extra rest length (slack); pushes have been snapped to discrete lengths. Joint positions are end-of-build geometry. No pretension yet. |
-| `Pretenst` | `pretenst` | After zero-G pretension equilibrium | Pushes incrementally extended in symmetric groups until each reaches target compression strain. No gravity. |
-| `Settled` | `settled` | After fall + settle, when no `grav_pretense` phase exists | Structure has dropped onto the surface and reached static equilibrium under gravity. |
-| `GravPretenst` | `grav_pretenst` | After gravitational re-pretensioning | A second pretension pass with gravity active. Final deployed-state geometry. |
+Physical state at this moment: pulls have been given extra rest length
+(slack); pushes have been snapped to discrete lengths. Joint positions are
+end-of-build geometry. No pretension yet.
 
-`Settled` and `GravPretenst` are **mutually exclusive**: a fabric plan with a
-`.grav_pretense(...)` step (such as OpenClaw) emits `GravPretenst`; a plan
-without it emits `Settled`. So a typical fabric produces three CSVs in one run:
-`slack`, `pretenst`, plus one of `settled`/`grav_pretenst`.
-
-## Pretension is iterative, not single-step
-
-The `pretenst` and `grav_pretenst` moments are not simple instantaneous loads.
-The simulation reaches them through a stepwise process:
-
-1. **Symmetric groups** are formed from the pushes only (one group per
-   `(depth, axis)` of the alpha joint's path) — see
-   `Fabric::discover_symmetric_groups` in
-   `src/build/dsl/fabric_plan_executor.rs`.
-2. The group with the **highest (least compressed) strain** that has not yet
-   reached `min_push_strain` is selected.
-3. Every push in that group has its rest length increased by
-   `dimensions.push_length_increment` (one tick per call to
-   `extend_symmetric_group`). Longer rest length means the push pries its joints
-   further apart; the slack pulls between those joints stretch and gain tension.
-4. The system iterates physics until equilibrium re-settles.
-5. Steps 2–4 repeat until every group meets the target strain. The final state
-   is broadcast as the moment.
-
-This ordering — pushes incrementally extending, pulls passively pulled into
-tension — is the opposite of "tighten the cables." Cables are not actively
-shortened anywhere in the pipeline.
+Earlier iterations of the codebase also emitted `pretenst`, `settled`, and
+`grav_pretenst` snapshots, but the engineer's FEA workflow never consumed
+them, so they were removed.
 
 ## What the engineer uses, and how
-
-The structural engineer takes the **`slack`** CSV as input to their FEA
-workflow. Confirmed assumptions:
 
 - Only the **geometry** is imported from the CSV — joint coordinates and
   element connectivity. Strains and forces from the simulation are not
@@ -61,20 +30,16 @@ workflow. Confirmed assumptions:
 
 Implications for our exports:
 
-- The `slack` joint coordinates are the end-of-build geometry. Pushes have
+- The slack joint coordinates are the end-of-build geometry. Pushes have
   already been snapped to discrete lengths (`snap_push_length`) at this point,
   so a push's rest length in the CSV does not exactly equal the geometric
   distance between its two joint coordinates. If both were imported, the small
   residual discrepancy would show up as initial strain in the FEA. With only
   coordinates imported, this does not bite.
-- The pulls in the `slack` CSV have rest lengths that are
+- The pulls in the slack CSV have rest lengths that are
   `(1 + pull_lengthening)` times the geometric distance between their joints —
   i.e. they are intentionally slack. Again, irrelevant if only coordinates are
   imported.
-- If verification of our pretensioning solution is ever desired, the
-  `pretenst` and `grav_pretenst` CSVs give equilibrium geometries that can be
-  compared against the same result in the FEA. Independent cross-check, not
-  part of the active workflow.
 
 ## Column meanings — read carefully before sending anything to the factory
 

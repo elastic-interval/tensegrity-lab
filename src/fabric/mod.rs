@@ -128,7 +128,7 @@ impl IterationStats {
 
 /// Represents which end of an interval (alpha or omega)
 /// This is used throughout the fabric module for consistent handling of interval ends
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum IntervalEnd {
     /// The alpha (start) end of an interval
     Alpha,

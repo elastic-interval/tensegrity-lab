@@ -129,9 +129,9 @@ DSL in `src/build/dsl/`:
   `FabricPlanExecutor::pretense_step`.
 - `plan_runner.rs` — drives Initialize → Build → Shape inside the executor.
 
-Snapshot moments (`SnapshotMoment` in `src/events.rs`): `Slack`, `Pretenst`,
-`Settled`, `GravPretenst`. Engineer-facing CSVs are exported at these
-moments; see `docs/csv-handoff.md`.
+Snapshot: a single `slack`-moment CSV is exported on `--snapshot`. The
+`SnapshotMoment` marker in `src/events.rs` is broadcast once, when Building
+ends; see `docs/csv-handoff.md`.
 
 ### Physics presets
 
@@ -235,7 +235,7 @@ Important integration tests:
 ```bash
 # Native:
 cargo run --release -- --fabric "Halo by Crane"
-cargo run --release -- --fabric "Open Claw" --snapshot all
+cargo run --release -- --fabric "Open Claw" --snapshot
 
 # Web:
 trunk serve

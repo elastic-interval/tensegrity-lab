@@ -11,10 +11,9 @@ The structure is designed and simulated in [tensegrity-lab](https://github.com/e
 3. **Settles** to final shape with frozen surface (joints that touch ground lock in place)
 4. **Exports CSV** with all interval coordinates, lengths, strains, and hinge geometry
 
-A run produces three CSVs (`OpenClaw-slack.csv`, `-pretenst.csv`,
-`-grav_pretenst.csv`); the engineer's current input is the **`slack`** CSV.
-See [docs/csv-handoff.md](csv-handoff.md) for the full handoff format and
-the engineer's FEA workflow.
+A run with `--snapshot` produces a single `OpenClaw-slack.csv` — the input to
+the engineer's FEA workflow. See [docs/csv-handoff.md](csv-handoff.md) for the
+full handoff format.
 
 ## OpenClaw Definition Parameters
 

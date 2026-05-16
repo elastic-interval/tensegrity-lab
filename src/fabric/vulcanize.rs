@@ -3,7 +3,7 @@
 //! Bow tie cables cross-link adjacent tensegrity bricks, transforming a
 //! flexible spine-like structure into a rigid unified whole.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::fabric::interval::Span::Measuring;
 use crate::fabric::interval::{Interval, Role, Span};
@@ -159,7 +159,7 @@ impl JointContext {
     }
 
     /// Get the joint at the other end of this joint's strut.
-    fn strut_partner(&self, intervals: &HashMap<IntervalKey, Interval>) -> Option<JointKey> {
+    fn strut_partner(&self, intervals: &BTreeMap<IntervalKey, Interval>) -> Option<JointKey> {
         self.push.map(|push_key| {
             let push = &intervals[&push_key];
             push.other_joint(self.key)
@@ -257,21 +257,21 @@ impl Meeting {
 // ============================================================================
 
 struct BowTieFinder {
-    joint_contexts: HashMap<JointKey, JointContext>,
-    intervals: HashMap<IntervalKey, Interval>,
-    existing_intervals: HashSet<(JointKey, JointKey)>,
-    found_bow_ties: HashMap<(JointKey, JointKey), BowTie>,
+    joint_contexts: BTreeMap<JointKey, JointContext>,
+    intervals: BTreeMap<IntervalKey, Interval>,
+    existing_intervals: BTreeSet<(JointKey, JointKey)>,
+    found_bow_ties: BTreeMap<(JointKey, JointKey), BowTie>,
 }
 
 impl BowTieFinder {
     fn new(fabric: &Fabric) -> Self {
-        let mut joint_contexts: HashMap<JointKey, JointContext> = fabric
+        let mut joint_contexts: BTreeMap<JointKey, JointContext> = fabric
             .joints
             .iter()
             .map(|(key, _joint)| (key, JointContext::new(key)))
             .collect();
 
-        let mut intervals = HashMap::new();
+        let mut intervals = BTreeMap::new();
         for (key, interval) in fabric.intervals.iter() {
             intervals.insert(key, interval.clone());
             if let Some(ctx) = joint_contexts.get_mut(&interval.alpha_key) {
@@ -282,7 +282,7 @@ impl BowTieFinder {
             }
         }
 
-        let existing_intervals: HashSet<_> = intervals
+        let existing_intervals: BTreeSet<_> = intervals
             .values()
             .map(|i| {
                 if i.alpha_key < i.omega_key {
@@ -297,7 +297,7 @@ impl BowTieFinder {
             joint_contexts,
             intervals,
             existing_intervals,
-            found_bow_ties: HashMap::new(),
+            found_bow_ties: BTreeMap::new(),
         }
     }
 

@@ -103,6 +103,7 @@ impl Crucible {
             use crate::build::dsl::fabric_plan_executor::IterateResult;
 
             for _ in 0..iterations_per_frame {
+                let was_building = matches!(executor.stage(), ExecutorStage::Building);
                 match executor.iterate() {
                     IterateResult::Complete => {
                         // Sync fabric and physics from executor
@@ -117,7 +118,17 @@ impl Crucible {
                         return;
                     }
                     IterateResult::Continue => {
-                        // Continue iterating
+                        // If Building just ended, the executor broadcast
+                        // `SnapshotReached`. Stop iterating for this frame so
+                        // the snapshot handler sees the fabric in the exact
+                        // post-slacken state with zero pretensing ticks
+                        // applied. Otherwise downstream CSVs would be
+                        // sensitive to iterations_per_frame.
+                        let still_building =
+                            matches!(executor.stage(), ExecutorStage::Building);
+                        if was_building && !still_building {
+                            break;
+                        }
                     }
                 }
             }

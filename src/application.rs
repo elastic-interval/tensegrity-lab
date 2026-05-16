@@ -8,7 +8,6 @@ use crate::keyboard::Keyboard;
 use crate::pointer::PointerHandler;
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
-use crate::SnapshotMoment;
 use crate::{
     Age, ControlState, CrucibleAction, LabEvent, Radio, RunStyle, StateChange, TesterAction,
 };
@@ -55,7 +54,7 @@ pub struct Application {
     pointer_handler: PointerHandler,
     time_scale: f32,
     model_scale: Option<f32>,
-    snapshot_moment: Option<SnapshotMoment>,
+    snapshot_pending: bool,
     #[cfg(not(target_arch = "wasm32"))]
     native: NativeState,
 }
@@ -89,7 +88,7 @@ impl Application {
             control_state: ControlState::Waiting,
             time_scale,
             model_scale: model_scale.map(|n| 1.0 / n),
-            snapshot_moment: None,
+            snapshot_pending: false,
             #[cfg(not(target_arch = "wasm32"))]
             native: NativeState::default(),
         }
@@ -257,7 +256,7 @@ impl ApplicationHandler<LabEvent> for Application {
                             exporter.start();
                             self.native.animation_exporter = Some(exporter);
                         }
-                        self.snapshot_moment = *snapshot;
+                        self.snapshot_pending = *snapshot;
                         let fabric_plan = fabric_library::get_fabric_plan(*fabric_name);
                         CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
                     }
@@ -644,27 +643,19 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                 }
             }
-            SnapshotReached(moment) => {
-                // Check if this moment matches our snapshot setting (handles All)
-                if let Some(target) = self.snapshot_moment {
-                    if target.matches(moment) {
-                        #[cfg(not(target_arch = "wasm32"))]
-                        {
-                            let filename =
-                                format!("{}-{}.csv", self.crucible.fabric.name.replace(' ', ""), moment.suffix());
-                            if let Err(e) = self
-                                .crucible
-                                .fabric
-                                .snapshot_csv_with_phase(&filename, Some(moment.suffix()))
-                            {
-                                eprintln!("Failed to export snapshot {}: {}", filename, e);
-                            }
-                        }
-                        // Clear if not All (All continues to match future moments)
-                        if target != SnapshotMoment::All {
-                            self.snapshot_moment = None;
+            SnapshotReached => {
+                if self.snapshot_pending {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        let filename = format!(
+                            "{}-slack.csv",
+                            self.crucible.fabric.name.replace(' ', "")
+                        );
+                        if let Err(e) = self.crucible.fabric.snapshot_csv(&filename) {
+                            eprintln!("Failed to export snapshot {}: {}", filename, e);
                         }
                     }
+                    self.snapshot_pending = false;
                 }
             }
         }

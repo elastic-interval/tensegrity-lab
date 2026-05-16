@@ -21,17 +21,7 @@ fn sim_to_csv() -> Mat3 {
 }
 
 impl Fabric {
-    /// Export fabric intervals to CSV with hinge positions and angles.
     pub fn snapshot_csv(&mut self, filename: &str) -> io::Result<()> {
-        self.snapshot_csv_with_phase(filename, None)
-    }
-
-    /// Export fabric intervals to CSV with phase indicator.
-    pub fn snapshot_csv_with_phase(
-        &mut self,
-        filename: &str,
-        phase: Option<&str>,
-    ) -> io::Result<()> {
         self.update_all_attachment_connections();
         self.recompute_bend_magnitudes();
 
@@ -63,7 +53,7 @@ impl Fabric {
 
         let now = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
 
-        let phase_str = phase.unwrap_or("unknown");
+        let phase_str = "slack";
         writeln!(
             file,
             "# {}, Phase: {}, Height: {:.1}mm, Created: {}",
@@ -98,10 +88,10 @@ impl Fabric {
         // Build a map of pull interval connections for each push interval
         // Key: (pull_interval_key, end, slot) -> (pull_end_pos, hinge_pos,
         // joint_key, slot, hinge_bend, ideal_deg)
-        let mut pull_hinge_info: std::collections::HashMap<
+        let mut pull_hinge_info: std::collections::BTreeMap<
             (IntervalKey, IntervalEnd, usize),
             (Vec3, Vec3, JointKey, usize, HingeBend, f32),
-        > = std::collections::HashMap::new();
+        > = std::collections::BTreeMap::new();
 
         // First pass: collect hinge info from push intervals using hinge_geometry
         for (_key, push_interval) in self.intervals.iter() {
@@ -238,8 +228,8 @@ impl Fabric {
         });
 
         // Build a map of highest slot per joint (for FEA push endpoints)
-        let mut highest_slot_per_joint: std::collections::HashMap<JointKey, usize> =
-            std::collections::HashMap::new();
+        let mut highest_slot_per_joint: std::collections::BTreeMap<JointKey, usize> =
+            std::collections::BTreeMap::new();
         for ((_, _, slot), (_, _, joint_key, _, _, _)) in &pull_hinge_info {
             let entry = highest_slot_per_joint.entry(*joint_key).or_insert(0);
             if *slot > *entry {
@@ -248,8 +238,8 @@ impl Fabric {
         }
 
         // Build a map of ring centers for pull-fea (joint_key, slot) -> ring_center
-        let mut ring_centers: std::collections::HashMap<(JointKey, usize), Vec3> =
-            std::collections::HashMap::new();
+        let mut ring_centers: std::collections::BTreeMap<(JointKey, usize), Vec3> =
+            std::collections::BTreeMap::new();
 
         for (_key, push_interval) in self.intervals.iter() {
             if !push_interval.has_role(Role::Pushing) {
@@ -548,10 +538,10 @@ impl Fabric {
         // Build link structure for each push interval end
         // Group connections by push joint to build the axial chain
         // Each entry stores: (slot, pull_end_pos, hinge_pos)
-        let mut push_end_connections: std::collections::HashMap<
+        let mut push_end_connections: std::collections::BTreeMap<
             JointKey,
             Vec<(usize, Vec3, Vec3)>,
-        > = std::collections::HashMap::new();
+        > = std::collections::BTreeMap::new();
 
         for (_, (pull_end_pos, hinge_pos, joint_key, slot, _, _)) in &pull_hinge_info {
             push_end_connections.entry(*joint_key).or_default().push((

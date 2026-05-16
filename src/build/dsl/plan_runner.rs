@@ -184,6 +184,3 @@ impl PlanRunner {
     }
 }
 
-#[cfg(test)]
-#[path = "plan_runner_test.rs"]
-mod plan_runner_test;

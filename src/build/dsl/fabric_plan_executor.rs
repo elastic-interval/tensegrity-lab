@@ -8,7 +8,7 @@ use crate::fabric::physics::SurfaceCharacter;
 use crate::fabric::{Fabric, IntervalKey};
 use crate::units::{Seconds, Unit};
 use crate::Radio;
-use crate::SnapshotMoment;
+use crate::LabEvent;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
@@ -594,7 +594,7 @@ impl FabricPlanExecutor {
 
         // Broadcast slackened moment before pretensing begins
         if let Some(radio) = &self.radio {
-            SnapshotMoment::Slack.send(radio);
+            LabEvent::SnapshotReached.send(radio);
         }
 
         // Discover symmetric groups for holistic pretensing
@@ -626,11 +626,6 @@ impl FabricPlanExecutor {
     }
 
     fn transition_to_fall(&mut self) {
-        // Broadcast pretenst moment before transitioning to fall
-        if let Some(radio) = &self.radio {
-            SnapshotMoment::Pretenst.send(radio);
-        }
-
         self.log_event(ExecutionEvent::StageTransition {
             iteration: self.current_iteration,
             from: "PRETENSE".to_string(),
@@ -697,11 +692,6 @@ impl FabricPlanExecutor {
     }
 
     fn complete(&mut self) {
-        // Broadcast settled moment before completing
-        if let Some(radio) = &self.radio {
-            SnapshotMoment::Settled.send(radio);
-        }
-
         self.log_event(ExecutionEvent::Completed {
             iteration: self.current_iteration,
         });
@@ -732,11 +722,6 @@ impl FabricPlanExecutor {
     }
 
     fn complete_grav_pretense(&mut self) {
-        // Broadcast grav pretenst moment before completing
-        if let Some(radio) = &self.radio {
-            SnapshotMoment::GravPretenst.send(radio);
-        }
-
         self.log_event(ExecutionEvent::Completed {
             iteration: self.current_iteration,
         });
