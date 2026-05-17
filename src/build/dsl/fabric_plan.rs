@@ -4,8 +4,7 @@ use crate::build::dsl::animate_phase::{Actuator, AnimatePhase, Waveform};
 use crate::build::dsl::build_phase::BuildPhase;
 use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::fall_phase::FallPhase;
-use crate::build::dsl::grav_pretense_phase::GravPretensePhase;
-use crate::build::dsl::pretense_phase::ZeroGPretensePhase;
+use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::settle_phase::SettlePhase;
 use crate::build::dsl::shape_phase::ShapePhase;
 use crate::fabric::FabricDimensions;
@@ -17,10 +16,9 @@ pub struct FabricPlan {
     pub name: FabricName,
     pub build_phase: BuildPhase,
     pub shape_phase: ShapePhase,
-    pub zero_g_pretense_phase: ZeroGPretensePhase,
+    pub pretense_phase: PretensePhase,
     pub fall_phase: FallPhase,
     pub settle_phase: Option<SettlePhase>,
-    pub grav_pretense_phase: Option<GravPretensePhase>,
     pub animate_phase: Option<AnimatePhase>,
     pub dimensions: FabricDimensions,
 }
@@ -34,16 +32,6 @@ impl FabricPlan {
     pub fn settle(mut self, seconds: Seconds) -> Self {
         self.settle_phase = Some(SettlePhase { seconds });
         self
-    }
-
-    pub fn grav_pretense(self, seconds: Seconds, min_strain: Percent) -> GravPretenseBuilder {
-        GravPretenseBuilder {
-            plan: self,
-            phase: GravPretensePhase {
-                seconds: Some(seconds),
-                min_push_strain: min_strain.as_factor(),
-            },
-        }
     }
 
     pub fn animate(self) -> AnimateBuilder {
@@ -94,19 +82,3 @@ impl AnimateBuilder {
     }
 }
 
-pub struct GravPretenseBuilder {
-    plan: FabricPlan,
-    phase: GravPretensePhase,
-}
-
-impl GravPretenseBuilder {
-    pub fn done(mut self) -> FabricPlan {
-        self.plan.grav_pretense_phase = Some(self.phase);
-        self.plan
-    }
-
-    pub fn animate(mut self) -> AnimateBuilder {
-        self.plan.grav_pretense_phase = Some(self.phase);
-        self.plan.animate()
-    }
-}

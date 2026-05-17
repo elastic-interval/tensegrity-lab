@@ -21,11 +21,10 @@ OpenClaw
     .prepare_vulcanize(0.5, VulcanizeMode::Linear)
     .space(Sec(2.8), End, Pct(46.0))
     .vulcanize(Sec(1.0))
-    .zero_g_pretense(Sec(0.1), Pct(0.08), Pct(0.0))
+    .pretense(Sec(3.0), Pct(1.0))
     .surface_frozen()
     .fall(Sec(1.5))
     .settle(Sec(1.5))
-    .grav_pretense(Sec(0.1), Pct(0.12))
     .animate()
     .actuator_frequency(Hz(1.94))
     .amplitude(Pct(3.0))
@@ -143,15 +142,15 @@ Manipulate the structure while still in construction physics. Each shape operati
 
 ### 3. PRETENSE Phase
 
-Apply pretension to cables (no gravity). Removes construction faces, leaving only the tensegrity structure.
+Apply pretension to cables (no gravity). Removes construction faces, leaving
+only the tensegrity structure. Pretensing grows every push interval's rest
+length by `pretenst%` over `seconds`; pulls absorb the displacement and
+tension up.
 
 ```rust
-.pretense()
-    .step_duration(Sec(0.1))            // Optional: duration per extension step
-    .rigidity(Pct(100.0))               // Optional rigidity
-    .min_push_strain(Pct(1.0))          // Optional target compression
-    .max_push_strain(Pct(3.0))          // Optional max compression per step
-    .surface_frozen()                   // Required: specify surface interaction
+.pretense(Sec(0.1), Pct(1.0))           // duration, percent push lengthening
+    .rigidity(Pct(100.0))               // optional rigidity
+    .surface_frozen()                   // required: specify surface interaction
 ```
 
 **Surface choices (required - one must be called to complete the plan):**

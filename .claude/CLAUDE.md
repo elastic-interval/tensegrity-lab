@@ -121,12 +121,13 @@ magnitudes (see `Fabric::recompute_bend_magnitudes`).
 ### Build pipeline
 
 DSL in `src/build/dsl/`:
-- `fabric_library.rs` — named fabrics (`OpenClaw`, `Triped`, `Halo by Crane`, …).
+- `fabric_library.rs` — named fabrics (`OpenClaw`, `Halo by Crane`, …).
 - `fabric_plan.rs` + `fabric_plan_executor.rs` — phased execution
-  (`Building → ZeroGPretensing → Falling → Settling → GravPretensing → Complete`).
-  Pretensing iteratively extends symmetric groups of pushes until target
-  compression is reached. The shared loop logic lives in
-  `FabricPlanExecutor::pretense_step`.
+  (`Building → Pretensing → Falling → Settling → Complete`).
+  Pretensing is a single-shot percentage extension: `Fabric::set_pretenst(pretenst, seconds)`
+  drives every push interval through an `Approaching` span from its current
+  rest length to `length × (1 + pretenst%)` over the configured duration; the
+  stage advances when no intervals are still approaching.
 - `plan_runner.rs` — drives Initialize → Build → Shape inside the executor.
 
 Snapshot: a single `slack`-moment CSV is exported on `--snapshot`. The

@@ -69,17 +69,6 @@ impl JointPath {
         self.branches.len()
     }
 
-    /// Get the axis (0=X, 1=Y, 2=Z) derived from local_index
-    /// For single twist bricks: 0,1=X; 2,3=Y; 4,5=Z
-    pub fn axis(&self) -> u8 {
-        self.local_index / 2
-    }
-
-    /// Key for symmetric grouping: (depth, axis)
-    pub fn symmetric_key(&self) -> (usize, u8) {
-        (self.depth(), self.axis())
-    }
-
     /// Display without run-length encoding (e.g., "AXXXXXXXX[1]" instead of "AX8[1]")
     pub fn expanded(&self) -> String {
         let mut s = String::new();

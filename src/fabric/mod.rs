@@ -10,7 +10,7 @@ use crate::fabric::interval::SpanTransition;
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::Joint;
 use crate::fabric::physics::Physics;
-use crate::units::{Grams, Meters, Unit};
+use crate::units::{Grams, Meters, Percent, Seconds, Unit};
 use crate::Age;
 use glam::{Mat4, Quat, Vec3};
 use slotmap::{new_key_type, SlotMap};
@@ -383,34 +383,44 @@ impl Fabric {
         }
     }
 
-    /// Slacken all intervals by setting their span to Fixed at their current length.
-    /// Push intervals are snapped first, then pulls have ideal length extended.
-    /// `pull_lengthening` extends pull ideal lengths (e.g., 0.01 = 1% longer), giving slack room.
-    pub fn slacken(&mut self, pull_lengthening: f32) {
-        // First pass: snap push intervals to discrete lengths
+    /// Freeze every non-Support interval at its current geometric length
+    /// (zero strain everywhere) and clear all joint forces/velocities. The
+    /// subsequent `set_pretenst` call grows push rest-lengths from here.
+    pub fn slacken(&mut self) {
         for interval in self.intervals.values_mut() {
-            if interval.has_role(Role::Pushing) {
-                let current_length = interval.fast_length(&self.joints);
-                let snapped_length = self.dimensions.snap_push_length(current_length);
+            if !interval.has_role(Role::Support) {
                 interval.span = Fixed {
-                    length: Meters(snapped_length),
-                };
-            }
-        }
-        // Second pass: set pull intervals with slack allowance
-        // Lengthen ideal so pulls start slack; push adjustments will take up the slack
-        for interval in self.intervals.values_mut() {
-            if !interval.has_role(Role::Pushing) && !interval.has_role(Role::Support) {
-                let current_length = interval.fast_length(&self.joints);
-                let ideal_length = current_length * (1.0 + pull_lengthening);
-                interval.span = Fixed {
-                    length: Meters(ideal_length),
+                    length: Meters(interval.fast_length(&self.joints)),
                 };
             }
         }
         for joint in self.joints.values_mut() {
             joint.force = Vec3::ZERO;
             joint.velocity = Vec3::ZERO;
+        }
+    }
+
+    /// Begin pretensing: each push interval extends from its current rest
+    /// length to `length × (1 + percent_as_factor)` smoothly over `seconds`
+    /// of fabric time, via an `Approaching` span. Pulls stretch passively
+    /// as the joints separate, building tension.
+    pub fn set_pretenst(&mut self, pretenst: Percent, seconds: Seconds) {
+        use crate::fabric::interval::Span::Approaching;
+        let factor = pretenst.as_factor();
+        let start_age = self.age;
+        for interval in self.intervals.values_mut() {
+            if !interval.has_role(Role::Pushing) {
+                continue;
+            }
+            if let Fixed { length } = interval.span {
+                interval.span = Approaching {
+                    start_length: length,
+                    target_length: length * (1.0 + factor),
+                    start_age,
+                    duration: seconds,
+                };
+                self.approaching_count += 1;
+            }
         }
     }
 

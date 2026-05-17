@@ -122,9 +122,9 @@ mod tests {
     ///
     /// A small tolerance is allowed per magnitude because the CSV is captured
     /// at a slightly-different fabric moment than this test (the interactive
-    /// binary runs a handful of extra ZeroGPretensing ticks between the
-    /// `Slack` broadcast and the event-handler that writes the CSV). Cables
-    /// whose ideal bend sits near a snap boundary can flip between adjacent
+    /// binary may run a handful of extra pretensing ticks between the `Slack`
+    /// broadcast and the event-handler that writes the CSV). Cables whose
+    /// ideal bend sits near a snap boundary can flip between adjacent
     /// magnitudes across these tiny geometric shifts. The factory order
     /// includes spare pieces of each angle to absorb a few-cable mismatch.
     ///

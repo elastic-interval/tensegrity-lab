@@ -3,7 +3,7 @@ use crate::build::dsl::build_phase::{BuildNode, BuildPhase, Chirality, ColumnSty
 use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::fall_phase::FallPhase;
-use crate::build::dsl::pretense_phase::ZeroGPretensePhase;
+use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::shape_phase::{ShapeAction, ShapeStep};
 use crate::fabric::joint_path::JointPath;
 use crate::fabric::physics::SurfaceCharacter;
@@ -119,16 +119,14 @@ impl FabricBuilder {
         self
     }
 
-    pub fn zero_g_pretense(
+    pub fn pretense(
         self,
         seconds: Seconds,
-        min_strain: Percent,
-        pull_lengthening: Percent,
-    ) -> ZeroGPretenseChain {
-        ZeroGPretenseChain {
+        pretenst: Percent,
+    ) -> PretenseChain {
+        PretenseChain {
             fabric: self,
-            min_push_strain: min_strain.as_factor(),
-            pull_lengthening: pull_lengthening.as_factor(),
+            pretenst,
             surface: None,
             rigidity: None,
             seconds: Some(seconds),
@@ -394,14 +392,12 @@ impl SeedChain {
         self.finalize_build().omit(pairs)
     }
 
-    pub fn zero_g_pretense(
+    pub fn pretense(
         self,
         seconds: Seconds,
-        min_strain: Percent,
-        pull_lengthening: Percent,
-    ) -> ZeroGPretenseChain {
-        self.finalize_build()
-            .zero_g_pretense(seconds, min_strain, pull_lengthening)
+        pretenst: Percent,
+    ) -> PretenseChain {
+        self.finalize_build().pretense(seconds, pretenst)
     }
 }
 
@@ -486,16 +482,15 @@ impl From<ColumnBuilder> for BuildNode {
     }
 }
 
-pub struct ZeroGPretenseChain {
+pub struct PretenseChain {
     fabric: FabricBuilder,
-    min_push_strain: f32,
-    pull_lengthening: f32,
+    pretenst: Percent,
     surface: Option<SurfaceCharacter>,
     rigidity: Option<Percent>,
     seconds: Option<Seconds>,
 }
 
-impl ZeroGPretenseChain {
+impl PretenseChain {
     pub fn rigidity(mut self, rigidity: Percent) -> Self {
         self.rigidity = Some(rigidity);
         self
@@ -503,13 +498,12 @@ impl ZeroGPretenseChain {
 
     fn build_plan(self) -> FabricPlan {
         let dims = self.fabric.dimensions;
-        let zero_g_pretense_phase = ZeroGPretensePhase {
+        let pretense_phase = PretensePhase {
             surface: self.surface,
             seconds: self.seconds,
             rigidity: self.rigidity,
             omit_pairs: self.fabric.omit_pairs,
-            min_push_strain: self.min_push_strain,
-            pull_lengthening: self.pull_lengthening,
+            pretenst: self.pretenst,
         };
         FabricPlan {
             name: self.fabric.name,
@@ -526,12 +520,11 @@ impl ZeroGPretenseChain {
                 step_index: 0,
                 scale: dims.scale,
             },
-            zero_g_pretense_phase,
+            pretense_phase,
             fall_phase: FallPhase {
                 seconds: Seconds(5.0),
             },
             settle_phase: None,
-            grav_pretense_phase: None,
             animate_phase: None,
             dimensions: dims,
         }

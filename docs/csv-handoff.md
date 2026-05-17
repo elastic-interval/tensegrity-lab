@@ -30,16 +30,12 @@ them, so they were removed.
 
 Implications for our exports:
 
-- The slack joint coordinates are the end-of-build geometry. Pushes have
-  already been snapped to discrete lengths (`snap_push_length`) at this point,
-  so a push's rest length in the CSV does not exactly equal the geometric
-  distance between its two joint coordinates. If both were imported, the small
-  residual discrepancy would show up as initial strain in the FEA. With only
-  coordinates imported, this does not bite.
-- The pulls in the slack CSV have rest lengths that are
-  `(1 + pull_lengthening)` times the geometric distance between their joints —
-  i.e. they are intentionally slack. Again, irrelevant if only coordinates are
-  imported.
+- The slack joint coordinates are the end-of-build geometry. At this
+  moment every non-Support interval has been frozen at its current
+  geometric length (zero strain everywhere); the subsequent pretensing
+  grows each push's rest length by a small percentage to build tension.
+  Because no part-length snapping happens, the push's rest length in the
+  CSV matches the Euclidean distance between its two joint coordinates.
 
 ## Column meanings — read carefully before sending anything to the factory
 
@@ -63,12 +59,10 @@ are unfortunately not symmetric between push and pull rows:
 
 ### Push rows (`Role = push`)
 
-- `Length(m)` — **snapped rest length** of the strut tube. Already rounded
-  to a discrete length via `HingeDimensions::snap_push_length`. This is what
-  the strut should be **manufactured to**, including end-cap allowances.
+- `Length(m)` — **rest length** of the strut tube — what the strut should be
+  manufactured to, including end-cap allowances.
 - `AlphaXYZ`, `OmegaXYZ` — the **joint locations** in CSV coordinates (mm,
-  Z-up). The Euclidean distance between them will be very close to
-  `Length(m)` × 1000 but **not exactly equal**, because of the snap.
+  Z-up). The Euclidean distance between them equals `Length(m)` × 1000.
 - `AlphaSlot`, `OmegaSlot` — always `0` for push rows (push intervals are
   not on a hinge).
 - `AlphaAngle`, `OmegaAngle` — always `90` (axial; no hinge bend).
@@ -76,14 +70,11 @@ are unfortunately not symmetric between push and pull rows:
 ### Pull rows (`Role = pull`)
 
 - `Length(m)` — the **distance between the two hinge endpoints**
-  (`pull_end_pos`), *not* the slack rest length and *not* the joint-to-joint
-  distance. It is the length the cable's tensioned segment would have if it
-  spanned exactly between the bolt-and-disc terminations on each side, with
-  the hinge mechanism's `length()` (≈ `t1/2 + D + E` ≈ 28.5 mm) accounted
-  for at each end. **This is the closest thing in the CSV to "what the
-  cable should be manufactured to" — but it is *not* the slack rest
-  length.** The slack rest length used internally by the simulation is
-  longer by the `pull_lengthening` factor; that number is not exported.
+  (`pull_end_pos`), *not* the joint-to-joint distance. It is the length the
+  cable's tensioned segment would have if it spanned exactly between the
+  bolt-and-disc terminations on each side, with the hinge mechanism's
+  `length()` (≈ `t1/2 + D + E`) accounted for at each end. **This is the
+  closest thing in the CSV to "what the cable should be manufactured to."**
 - `AlphaXYZ`, `OmegaXYZ` — the **hinge endpoint** at each end (i.e. the
   point on the bolt-and-disc termination where the cable attaches), *not*
   the joint location. Distance between them equals `Length(m)`. The actual
@@ -113,16 +104,12 @@ Send to the factory:
 - For each strut: a length, a tube diameter, and end-cap details. The length
   must come from the **push row's `Length(m)`** column, not from the
   Euclidean distance between joint coordinates.
-- For each cable: a length and (separately) the hinge bend angles at each
-  end and the slot assignments. The "length" is **not** in the CSV in any
-  directly usable form. The closest column is the pull row's `Length(m)`
-  (hinge-endpoint to hinge-endpoint), but that omits the
-  hinge-mechanism portion at each end, which is part of the physical cable
-  routing. The slack rest length used by the simulation is `Length(m) ×
-  (1 + pull_lengthening)`, where `pull_lengthening` lives in the fabric's
-  `zero_g_pretense_phase` configuration (not in the CSV). If a single
-  authoritative cable length is needed for fabrication, derive it in the
-  FEA from the deployed equilibrium geometry rather than the CSV.
+- For each cable: a length (the pull row's `Length(m)`, hinge-endpoint to
+  hinge-endpoint, plus the hinge-mechanism portion at each end if the
+  manufactured cable should also span that), the hinge bend angles at each
+  end, and the slot assignments. If a single authoritative cable length is
+  needed for fabrication, derive it in the FEA from the deployed
+  equilibrium geometry rather than the CSV.
 - For each hinge mechanism: `cap_thickness`, `disc_thickness`,
   `disc_separator_thickness`, the bend magnitudes set, and the slot
   inventory. All of this lives in the header parameters block and the

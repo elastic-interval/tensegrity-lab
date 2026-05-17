@@ -1,7 +1,7 @@
 use crate::build::dsl::build_phase::BuildPhase;
 use crate::build::dsl::plan_context::PlanContext;
 use crate::build::dsl::plan_runner::Stage::*;
-use crate::build::dsl::pretense_phase::ZeroGPretensePhase;
+use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::shape_phase::{ShapeCommand, ShapePhase};
 use crate::build::dsl::FabricPlan;
 use crate::crucible_context::CrucibleContext;
@@ -26,7 +26,7 @@ pub struct PlanRunner {
     pub stage: Stage,
     pub build_phase: BuildPhase,
     shape_phase: ShapePhase,
-    zero_g_pretense_phase: ZeroGPretensePhase,
+    pretense_phase: PretensePhase,
     disabled: Option<String>,
     scale: Meters,
     stage_start_age: Option<Age>,
@@ -38,7 +38,7 @@ impl PlanRunner {
         FabricPlan {
             shape_phase,
             build_phase,
-            zero_g_pretense_phase,
+            pretense_phase,
             dimensions,
             ..
         }: FabricPlan,
@@ -53,7 +53,7 @@ impl PlanRunner {
             physics,
             shape_phase,
             build_phase,
-            zero_g_pretense_phase,
+            pretense_phase,
             scale: dimensions.scale,
             stage: Initialize,
             disabled: None,
@@ -179,8 +179,8 @@ impl PlanRunner {
         self.scale
     }
 
-    pub fn zero_g_pretense_phase(&self) -> ZeroGPretensePhase {
-        self.zero_g_pretense_phase.clone()
+    pub fn pretense_phase(&self) -> PretensePhase {
+        self.pretense_phase.clone()
     }
 }
 

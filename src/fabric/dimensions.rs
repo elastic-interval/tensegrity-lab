@@ -92,8 +92,6 @@ pub struct FabricDimensions {
     pub scale: Meters,
     pub pull_radius: Meters,
     pub hinge: HingeDimensions,
-    pub push_length_increment: Option<Meters>,
-    pub max_pretenst_strain: Option<f32>,
     /// Head + per-joint hardware share. Back-calibrated to total mass; refine when the full parts list lands.
     pub joint_mass: Grams,
     pub push_density: GramsPerMeter,
@@ -110,8 +108,6 @@ impl Default for FabricDimensions {
             scale: Meters(1.0),
             pull_radius: Meters(0.007),
             hinge: HingeDimensions::default(),
-            push_length_increment: Some(Meters(0.01)),
-            max_pretenst_strain: Some(0.03),
             joint_mass: Grams(1800.0),
             push_density: GramsPerMeter(800.0),
             inner_push_density: GramsPerMeter(560.0),
@@ -208,39 +204,4 @@ impl FabricDimensions {
         (hinge_pos, hinge_bend, pull_end_pos, ideal_deg)
     }
 
-    /// Snap to nearest `push_length_increment` (min one increment).
-    pub fn snap_push_length(&self, length: f32) -> f32 {
-        match self.push_length_increment {
-            Some(increment) => {
-                let inc = increment.f32();
-                let snapped = (length / inc).round() * inc;
-                snapped.max(inc)
-            }
-            None => length,
-        }
-    }
-
-    /// Target length for pretensing, snapped to discrete increments.
-    /// Returns rest_length unchanged if one increment would exceed `max_pretenst_strain`.
-    pub fn discrete_pretenst_target(&self, rest_length: f32, target_strain: f32) -> f32 {
-        match self.push_length_increment {
-            Some(increment) => {
-                let inc = increment.f32();
-
-                // Check if even 1 increment would exceed max strain
-                if let Some(max_strain) = self.max_pretenst_strain {
-                    let one_increment_strain = inc / rest_length;
-                    if one_increment_strain > max_strain {
-                        // Skip extension for this short strut
-                        return rest_length;
-                    }
-                }
-
-                let min_extension = rest_length * target_strain;
-                let num_increments = (min_extension / inc).ceil().max(0.0) as u32;
-                rest_length + (num_increments as f32) * inc
-            }
-            None => rest_length * (1.0 + target_strain),
-        }
-    }
 }

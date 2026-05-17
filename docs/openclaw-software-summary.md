@@ -75,7 +75,7 @@ Also reports height and max strut length for monitoring transport constraints.
 
 ```
 DSL definition (fabric_library.rs)
-  → FabricPlanExecutor runs: Build → Shape → Pretense → Fall → Settle → GravPretense
+  → FabricPlanExecutor runs: Build → Shape → Pretense → Fall → Settle
   → Settled Fabric with final coordinates
   → CSV export for ENS
   → ENS structural analysis (Phase 3)

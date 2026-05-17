@@ -1,99 +1,13 @@
 use crate::build::dsl::plan_runner::PlanRunner;
 use crate::build::dsl::FabricPlan;
 use crate::build::settler::Settler;
-use crate::fabric::interval::Role;
 use crate::fabric::physics::presets::{CONSTRUCTION, PRETENSING};
 use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter;
-use crate::fabric::{Fabric, IntervalKey};
+use crate::fabric::Fabric;
 use crate::units::{Seconds, Unit};
-use crate::Radio;
 use crate::LabEvent;
-use std::collections::HashMap;
-
-#[derive(Clone, Debug)]
-pub struct SymmetricGroup {
-    pub depth: usize,
-    pub axis: u8,
-    pub intervals: Vec<IntervalKey>,
-    pub avg_strain: f32,
-}
-
-impl Fabric {
-    fn discover_symmetric_groups(&self) -> Vec<SymmetricGroup> {
-        let mut by_path_key: HashMap<(usize, u8), Vec<IntervalKey>> = HashMap::new();
-        for (key, interval) in self.intervals.iter() {
-            if interval.has_role(Role::Pushing) {
-                let alpha_joint = &self.joints[interval.alpha_key];
-                let symmetric_key = alpha_joint.path.symmetric_key();
-                by_path_key.entry(symmetric_key).or_default().push(key);
-            }
-        }
-        by_path_key
-            .into_iter()
-            .map(|((depth, axis), intervals)| SymmetricGroup {
-                depth,
-                axis,
-                intervals,
-                avg_strain: 0.0,
-            })
-            .collect()
-    }
-
-    fn update_group_strains(&self, groups: &mut [SymmetricGroup]) {
-        for group in groups {
-            let mut total = 0.0;
-            let mut count = 0;
-            for &key in &group.intervals {
-                if let Some(interval) = self.intervals.get(key) {
-                    total += interval.strain;
-                    count += 1;
-                }
-            }
-            group.avg_strain = if count > 0 { total / count as f32 } else { 0.0 };
-        }
-    }
-
-    /// Find the group most needing extension.
-    /// Returns the group with highest strain (least compressed) that hasn't reached the target.
-    fn find_group_needing_extension(
-        &self,
-        groups: &[SymmetricGroup],
-        min_push_strain: f32,
-    ) -> Option<usize> {
-        let mut best_idx = None;
-        let mut best_strain = f32::NEG_INFINITY;
-
-        for (idx, group) in groups.iter().enumerate() {
-            if group.intervals.is_empty() {
-                continue;
-            }
-            // Group needs extension if not yet at target compression
-            if group.avg_strain <= -min_push_strain {
-                continue;
-            }
-            if group.avg_strain > best_strain {
-                best_strain = group.avg_strain;
-                best_idx = Some(idx);
-            }
-        }
-        best_idx
-    }
-
-    /// Extend a single symmetric group.
-    fn extend_symmetric_group(&mut self, group: &SymmetricGroup, duration: Seconds) {
-        let increment = match self.dimensions.push_length_increment {
-            Some(m) => m,
-            None => return,
-        };
-        for &key in &group.intervals {
-            if let Some(interval) = self.intervals.get(key) {
-                let new_length = interval.ideal() + increment;
-                self.extend_interval(key, new_length, duration);
-            }
-        }
-    }
-}
+use crate::Radio;
 
 #[derive(Debug, PartialEq)]
 pub enum IterateResult {
@@ -104,10 +18,9 @@ pub enum IterateResult {
 #[derive(Debug, PartialEq, Clone)]
 pub enum ExecutorStage {
     Building,
-    ZeroGPretensing,
+    Pretensing,
     Falling,
     Settling,
-    GravPretensing,
     Complete,
 }
 
@@ -214,39 +127,6 @@ impl std::fmt::Display for ExecutionEvent {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-enum PretenseStage {
-    Measuring,
-    Extending,
-}
-
-#[derive(Clone, Debug)]
-struct PretenseLoop {
-    stage: PretenseStage,
-    extension_count: usize,
-}
-
-impl PretenseLoop {
-    fn new() -> Self {
-        Self {
-            stage: PretenseStage::Measuring,
-            extension_count: 0,
-        }
-    }
-
-    fn reset(&mut self) {
-        self.stage = PretenseStage::Measuring;
-    }
-}
-
-/// Result of one tick of `pretense_step`: `Continue` means the loop is
-/// still running, `Exhausted` means every group has reached its target
-/// strain and the caller should run its terminal transition.
-enum PretenseStepResult {
-    Continue,
-    Exhausted,
-}
-
 pub struct FabricPlanExecutor {
     stage: ExecutorStage,
     plan_runner: Option<PlanRunner>,
@@ -259,48 +139,11 @@ pub struct FabricPlanExecutor {
     stored_surface_character: Option<SurfaceCharacter>,
     stored_scale: f32,
     radio: Option<Radio>,
-    zero_g_loop: PretenseLoop,
-    grav_loop: PretenseLoop,
-    symmetric_groups: Vec<SymmetricGroup>,
     fall_start_age: Option<crate::Age>,
     settle_phase_start_age: Option<crate::Age>,
 }
 
 impl FabricPlanExecutor {
-    /// One tick of a pretense loop. Picks the group most under-strained and
-    /// extends its pushes by one increment, or — if every group has reached
-    /// its target — reports the loop as exhausted so the caller can run its
-    /// terminal transition. Shared between zero-G and gravitational pretense.
-    fn pretense_step(
-        fabric: &mut Fabric,
-        symmetric_groups: &mut Vec<SymmetricGroup>,
-        pretense: &mut PretenseLoop,
-        min_push_strain: f32,
-        duration: Seconds,
-    ) -> PretenseStepResult {
-        match pretense.stage {
-            PretenseStage::Measuring => {
-                fabric.update_group_strains(symmetric_groups);
-                if let Some(group_idx) =
-                    fabric.find_group_needing_extension(symmetric_groups, min_push_strain)
-                {
-                    fabric.extend_symmetric_group(&symmetric_groups[group_idx], duration);
-                    pretense.extension_count += 1;
-                    pretense.stage = PretenseStage::Extending;
-                    PretenseStepResult::Continue
-                } else {
-                    PretenseStepResult::Exhausted
-                }
-            }
-            PretenseStage::Extending => {
-                if !fabric.has_approaching_intervals() {
-                    pretense.stage = PretenseStage::Measuring;
-                }
-                PretenseStepResult::Continue
-            }
-        }
-    }
-
     pub fn new(plan: FabricPlan, radio: Radio) -> Self {
         Self::new_internal(plan, Some(radio))
     }
@@ -328,9 +171,6 @@ impl FabricPlanExecutor {
             stored_surface_character: None,
             stored_scale: 1.0,
             radio,
-            zero_g_loop: PretenseLoop::new(),
-            grav_loop: PretenseLoop::new(),
-            symmetric_groups: Vec::new(),
             fall_start_age: None,
             settle_phase_start_age: None,
         };
@@ -438,17 +278,8 @@ impl FabricPlanExecutor {
                     }
                 }
             }
-            ExecutorStage::ZeroGPretensing => {
-                let min_push_strain = self.plan.zero_g_pretense_phase.min_push_strain;
-                let duration = self.plan.zero_g_pretense_phase.seconds.unwrap_or(Seconds(0.02));
-                let result = Self::pretense_step(
-                    &mut self.fabric,
-                    &mut self.symmetric_groups,
-                    &mut self.zero_g_loop,
-                    min_push_strain,
-                    duration,
-                );
-                if matches!(result, PretenseStepResult::Exhausted) {
+            ExecutorStage::Pretensing => {
+                if !self.fabric.has_approaching_intervals() {
                     self.transition_to_fall();
                 }
             }
@@ -476,27 +307,8 @@ impl FabricPlanExecutor {
                         });
                     self.physics.update_settling_multipliers(progress);
                     if done {
-                        if self.plan.grav_pretense_phase.is_some() {
-                            self.transition_to_grav_pretense();
-                        } else {
-                            self.complete();
-                        }
+                        self.complete();
                     }
-                }
-            }
-            ExecutorStage::GravPretensing => {
-                let grav_phase = self.plan.grav_pretense_phase.as_ref().unwrap();
-                let min_push_strain = grav_phase.min_push_strain;
-                let duration = grav_phase.seconds.unwrap_or(Seconds(0.02));
-                let result = Self::pretense_step(
-                    &mut self.fabric,
-                    &mut self.symmetric_groups,
-                    &mut self.grav_loop,
-                    min_push_strain,
-                    duration,
-                );
-                if matches!(result, PretenseStepResult::Exhausted) {
-                    self.complete_grav_pretense();
                 }
             }
             ExecutorStage::Complete => {}
@@ -560,7 +372,7 @@ impl FabricPlanExecutor {
         }
 
         // Omit triangle intervals after faces are converted
-        for (alpha_path, omega_path) in &self.plan.zero_g_pretense_phase.omit_pairs {
+        for (alpha_path, omega_path) in &self.plan.pretense_phase.omit_pairs {
             let alpha_key = self.fabric.joint_key_by_path(alpha_path);
             let omega_key = self.fabric.joint_key_by_path(omega_path);
             match (alpha_key, omega_key) {
@@ -589,17 +401,18 @@ impl FabricPlanExecutor {
             remaining_joints: self.fabric.joints.len(),
         });
 
-        let pull_lengthening = self.plan.zero_g_pretense_phase.pull_lengthening;
-        self.fabric.slacken(pull_lengthening);
+        self.fabric.slacken();
 
         // Broadcast slackened moment before pretensing begins
         if let Some(radio) = &self.radio {
             LabEvent::SnapshotReached.send(radio);
         }
 
-        // Discover symmetric groups for holistic pretensing
-        self.symmetric_groups = self.fabric.discover_symmetric_groups();
-        self.zero_g_loop.reset();
+        // Start the percentage-based pretensing: push rest lengths approach
+        // `length × (1 + pretenst)` over the phase's configured duration.
+        let phase = &self.plan.pretense_phase;
+        let seconds = phase.seconds.unwrap_or(Seconds(0.1));
+        self.fabric.set_pretenst(phase.pretenst, seconds);
 
         self.log_event(ExecutionEvent::PretensionApplied {
             iteration: self.current_iteration,
@@ -607,7 +420,7 @@ impl FabricPlanExecutor {
 
         self.physics = PRETENSING;
 
-        self.stored_surface_character = self.plan.zero_g_pretense_phase.surface;
+        self.stored_surface_character = self.plan.pretense_phase.surface;
 
         self.log_event(ExecutionEvent::PhysicsChanged {
             iteration: self.current_iteration,
@@ -622,7 +435,7 @@ impl FabricPlanExecutor {
             .accept_tweak(RigidityScale.parameter(rigidity_multiplier));
 
         self.plan_runner = None;
-        self.stage = ExecutorStage::ZeroGPretensing;
+        self.stage = ExecutorStage::Pretensing;
     }
 
     fn transition_to_fall(&mut self) {
@@ -701,36 +514,6 @@ impl FabricPlanExecutor {
         self.stage = ExecutorStage::Complete;
     }
 
-    fn transition_to_grav_pretense(&mut self) {
-        self.log_event(ExecutionEvent::StageTransition {
-            iteration: self.current_iteration,
-            from: "SETTLE".to_string(),
-            to: "GRAV_PRETENSE".to_string(),
-        });
-
-        // Physics remains in settling mode (gravity + surface active)
-        // Reset strain measurements for gravitational pretensing
-        self.fabric.update_group_strains(&mut self.symmetric_groups);
-        self.grav_loop.reset();
-
-        self.log_event(ExecutionEvent::PhysicsChanged {
-            iteration: self.current_iteration,
-            description: "GRAV_PRETENSING".to_string(),
-        });
-
-        self.stage = ExecutorStage::GravPretensing;
-    }
-
-    fn complete_grav_pretense(&mut self) {
-        self.log_event(ExecutionEvent::Completed {
-            iteration: self.current_iteration,
-        });
-
-        self.fabric.zero_velocities();
-        self.settler = None;
-        self.stage = ExecutorStage::Complete;
-    }
-
     pub fn is_complete(&self) -> bool {
         self.stage == ExecutorStage::Complete
     }
@@ -763,51 +546,10 @@ impl FabricPlanExecutor {
         }
     }
 
-    pub fn pretense_status(&self) -> String {
-        self.format_pretense_status(
-            &self.zero_g_loop,
-            self.plan.zero_g_pretense_phase.min_push_strain,
-        )
-    }
-
-    pub fn grav_pretense_status(&self) -> String {
-        let min_push_strain = self
-            .plan
-            .grav_pretense_phase
-            .as_ref()
-            .map(|p| p.min_push_strain)
-            .unwrap_or(0.0);
-        self.format_pretense_status(&self.grav_loop, min_push_strain)
-    }
-
-    fn format_pretense_status(&self, loop_state: &PretenseLoop, min_push_strain: f32) -> String {
-        let stage_name = match loop_state.stage {
-            PretenseStage::Measuring => "Measuring",
-            PretenseStage::Extending => "Extending",
-        };
-        let satisfied = self
-            .symmetric_groups
-            .iter()
-            .filter(|g| !g.intervals.is_empty() && g.avg_strain <= -min_push_strain)
-            .count();
-        let total = self
-            .symmetric_groups
-            .iter()
-            .filter(|g| !g.intervals.is_empty())
-            .count();
-        format!("{} ({}/{})", stage_name, satisfied, total)
-    }
-
     pub fn start_pretension(&mut self) {
         if self.stage == ExecutorStage::Building {
             self.transition_to_pretense();
         }
     }
 
-    pub fn extension_counts(&self) -> (usize, usize) {
-        (
-            self.zero_g_loop.extension_count,
-            self.grav_loop.extension_count,
-        )
-    }
 }
