@@ -9,7 +9,7 @@ The structure is designed and simulated in [tensegrity-lab](https://github.com/e
 1. **Builds** the structure from a DSL definition (`fabric_library.rs` → `OpenClaw`)
 2. **Pretensions** cables in zero gravity, then drops with real gravity
 3. **Settles** to final shape with frozen surface (joints that touch ground lock in place)
-4. **Exports CSV** with all interval coordinates, lengths, strains, and hinge geometry
+4. **Exports CSV** with all interval coordinates, lengths, strains, and connector geometry
 
 Running `cargo test --release --lib test_open_claw_threefold_symmetry`
 produces `OpenClaw-<date>.csv` — the input to the engineer's FEA workflow —

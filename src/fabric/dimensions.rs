@@ -1,4 +1,4 @@
-//! Fabric and hinge dimensions, plus the geometry helpers that turn a strut
+//! Fabric and connector dimensions, plus the geometry helpers that turn a strut
 //! endpoint and a cable direction into 3D positions.
 
 use crate::fabric::physics::Physics;
@@ -7,16 +7,16 @@ use crate::fabric::{attachment, bend_optimizer};
 use crate::units::{Degrees, Grams, GramsPerMeter, Meters, Unit};
 use glam::Vec3;
 
-/// Hinge geometry dimensions for physical construction.
+/// Connector dimensions for physical construction.
 #[derive(Clone, Debug)]
-pub struct HingeDimensions {
+pub struct ConnectorDimensions {
     pub push_radius: Meters,
     pub push_radius_margin: Meters,
     pub disc_thickness: Meters,
     pub disc_separator_thickness: Meters,
     pub cap_thickness: Meters,
-    pub hinge_extension: Meters,
-    pub hinge_hole_diameter: Meters,
+    pub tab_extension: Meters,
+    pub tab_hole_diameter: Meters,
     pub bend_count: usize,
     /// Empty = no snap (use continuous ideal). Populated by `Fabric::recompute_bend_magnitudes`.
     pub bend_magnitudes: Vec<f32>,
@@ -26,7 +26,7 @@ pub struct HingeDimensions {
     pub bend_magnitudes_locked: bool,
 }
 
-impl Default for HingeDimensions {
+impl Default for ConnectorDimensions {
     fn default() -> Self {
         Self {
             push_radius: Meters(0.02),
@@ -34,8 +34,8 @@ impl Default for HingeDimensions {
             disc_thickness: Meters(0.005),
             disc_separator_thickness: Meters(0.002),
             cap_thickness: Meters(0.005),
-            hinge_extension: Meters(0.030),
-            hinge_hole_diameter: Meters(0.014),
+            tab_extension: Meters(0.030),
+            tab_hole_diameter: Meters(0.014),
             bend_count: 4,
             bend_magnitudes: Vec::new(),
             bend_magnitudes_locked: false,
@@ -43,13 +43,13 @@ impl Default for HingeDimensions {
     }
 }
 
-impl HingeDimensions {
+impl ConnectorDimensions {
     pub fn offset(&self) -> Meters {
         self.push_radius + self.push_radius_margin + self.disc_thickness / 2.0
     }
 
     pub fn length(&self) -> Meters {
-        self.disc_thickness / 2.0 + self.hinge_extension + self.hinge_hole_diameter
+        self.disc_thickness / 2.0 + self.tab_extension + self.tab_hole_diameter
     }
 
     /// Axial offset (strut end → disc centre) for 0-indexed `slot`.
@@ -64,7 +64,7 @@ impl HingeDimensions {
 const NEAR_PARALLEL_THRESHOLD: f32 = 1e-10;
 const AXIS_ALIGNMENT_THRESHOLD: f32 = 0.9;
 
-pub fn hinge_angle(push_axis: Vec3, pull_direction: Vec3) -> Degrees {
+pub fn tab_angle(push_axis: Vec3, pull_direction: Vec3) -> Degrees {
     let sin_angle = pull_direction.dot(push_axis);
     Degrees(sin_angle.asin().to_degrees())
 }
@@ -91,7 +91,7 @@ pub struct FabricDimensions {
     pub altitude: Meters,
     pub scale: Meters,
     pub pull_radius: Meters,
-    pub hinge: HingeDimensions,
+    pub connector: ConnectorDimensions,
     /// Head + per-joint hardware share. Back-calibrated to total mass; refine when the full parts list lands.
     pub joint_mass: Grams,
     pub push_density: GramsPerMeter,
@@ -107,7 +107,7 @@ impl Default for FabricDimensions {
             altitude: Meters(7.5),
             scale: Meters(1.0),
             pull_radius: Meters(0.007),
-            hinge: HingeDimensions::default(),
+            connector: ConnectorDimensions::default(),
             joint_mass: Grams(1800.0),
             push_density: GramsPerMeter(800.0),
             inner_push_density: GramsPerMeter(560.0),
@@ -142,9 +142,9 @@ impl FabricDimensions {
     /// for snapping at every CSV export. Values are whole non-negative degrees, sorted
     /// ascending; the optimiser's normal output respects the same shape.
     pub fn with_locked_bend_magnitudes(mut self, magnitudes: Vec<f32>) -> Self {
-        self.hinge.bend_count = magnitudes.len();
-        self.hinge.bend_magnitudes = magnitudes;
-        self.hinge.bend_magnitudes_locked = true;
+        self.connector.bend_count = magnitudes.len();
+        self.connector.bend_magnitudes = magnitudes;
+        self.connector.bend_magnitudes_locked = true;
         self
     }
 
@@ -158,50 +158,50 @@ impl FabricDimensions {
     }
 
     pub fn ring_center(&self, push_end: Vec3, push_axis: Vec3, slot: usize) -> Vec3 {
-        push_end + push_axis * self.hinge.disc_center_offset(slot).f32()
+        push_end + push_axis * self.connector.disc_center_offset(slot).f32()
     }
 
-    pub fn hinge_position(
+    pub fn tab_position(
         &self,
         push_end: Vec3,
         push_axis: Vec3,
         slot: usize,
         pull_other_end: Vec3,
     ) -> Vec3 {
-        let (hinge_pos, _, _, _) = self.hinge_geometry(push_end, push_axis, slot, pull_other_end);
-        hinge_pos
+        let (tab_pos, _, _, _) = self.tab_geometry(push_end, push_axis, slot, pull_other_end);
+        tab_pos
     }
 
-    /// `(hinge_pos, hinge_bend, pull_end_pos, ideal_deg)`. `hinge_bend` is snapped when
+    /// `(tab_pos, tab_bend, pull_end_pos, ideal_deg)`. `tab_bend` is snapped when
     /// `bend_magnitudes` is populated, else equals `ideal_deg`.
-    pub fn hinge_geometry(
+    pub fn tab_geometry(
         &self,
         push_end: Vec3,
         push_axis: Vec3,
         slot: usize,
         pull_other_end: Vec3,
-    ) -> (Vec3, attachment::HingeBend, Vec3, f32) {
+    ) -> (Vec3, attachment::TabBend, Vec3, f32) {
         let ring_center = self.ring_center(push_end, push_axis, slot);
         let to_pull = pull_other_end - ring_center;
         let radial_unit = radial_unit_from_axis(push_axis, to_pull);
 
-        let hinge_pos = ring_center + radial_unit * self.hinge.offset().f32();
+        let tab_pos = ring_center + radial_unit * self.connector.offset().f32();
 
-        let pull_direction = (pull_other_end - hinge_pos).normalize();
+        let pull_direction = (pull_other_end - tab_pos).normalize();
         let sin_angle = pull_direction.dot(push_axis);
         let ideal_deg = sin_angle.asin().to_degrees();
 
-        let snapped_deg = if self.hinge.bend_magnitudes.is_empty() {
+        let snapped_deg = if self.connector.bend_magnitudes.is_empty() {
             ideal_deg
         } else {
-            bend_optimizer::snap_to_magnitudes(ideal_deg, &self.hinge.bend_magnitudes).0
+            bend_optimizer::snap_to_magnitudes(ideal_deg, &self.connector.bend_magnitudes).0
         };
-        let hinge_bend = attachment::HingeBend(snapped_deg);
+        let tab_bend = attachment::TabBend(snapped_deg);
 
         let pull_end_pos =
-            hinge_bend.endpoint(hinge_pos, push_axis, radial_unit, self.hinge.length().f32());
+            tab_bend.endpoint(tab_pos, push_axis, radial_unit, self.connector.length().f32());
 
-        (hinge_pos, hinge_bend, pull_end_pos, ideal_deg)
+        (tab_pos, tab_bend, pull_end_pos, ideal_deg)
     }
 
 }

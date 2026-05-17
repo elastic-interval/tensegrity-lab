@@ -27,7 +27,7 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::path::Path;
 
-use crate::fabric::attachment::{HingeBend, PullConnection, ATTACHMENT_POINTS};
+use crate::fabric::attachment::{TabBend, PullConnection, ATTACHMENT_POINTS};
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, FabricDimensions, IntervalEnd, IntervalKey, JointKey};
 use crate::units::{Unit, MM_PER_METER};
@@ -340,10 +340,10 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
     file.write_all(clearance_summary.as_bytes())?;
     writeln!(file, "Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaJoint,AlphaSlot,AlphaAngle,OmegaX,OmegaY,OmegaZ,OmegaJoint,OmegaSlot,OmegaAngle")?;
 
-    // (pull_interval_key, end, slot) -> (pull_end_pos, hinge_pos, joint_key, slot, hinge_bend, ideal_deg)
-    let mut pull_hinge_info: BTreeMap<
+    // (pull_interval_key, end, slot) -> (pull_end_pos, tab_pos, joint_key, slot, tab_bend, ideal_deg)
+    let mut pull_bend_info: BTreeMap<
         (IntervalKey, IntervalEnd, usize),
-        (Vec3, Vec3, JointKey, usize, HingeBend, f32),
+        (Vec3, Vec3, JointKey, usize, TabBend, f32),
     > = BTreeMap::new();
 
     for (_key, push_interval) in fabric.intervals.iter() {
@@ -368,8 +368,8 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
                                 fabric.joints[pull_interval.alpha_key].location
                             };
 
-                        let (hinge_pos, hinge_bend, pull_end_pos, ideal_deg) =
-                            dimensions.hinge_geometry(
+                        let (tab_pos, tab_bend, pull_end_pos, ideal_deg) =
+                            dimensions.tab_geometry(
                                 alpha_pos,
                                 -push_dir,
                                 slot_idx,
@@ -381,14 +381,14 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
                         } else {
                             IntervalEnd::Omega
                         };
-                        pull_hinge_info.insert(
+                        pull_bend_info.insert(
                             (connection.pull_interval_key, pull_end, slot_idx + 1),
                             (
                                 pull_end_pos,
-                                hinge_pos,
+                                tab_pos,
                                 push_interval.alpha_key,
                                 slot_idx + 1,
-                                hinge_bend,
+                                tab_bend,
                                 ideal_deg,
                             ),
                         );
@@ -410,8 +410,8 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
                                 fabric.joints[pull_interval.alpha_key].location
                             };
 
-                        let (hinge_pos, hinge_bend, pull_end_pos, ideal_deg) =
-                            dimensions.hinge_geometry(
+                        let (tab_pos, tab_bend, pull_end_pos, ideal_deg) =
+                            dimensions.tab_geometry(
                                 omega_pos,
                                 push_dir,
                                 slot_idx,
@@ -423,14 +423,14 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
                         } else {
                             IntervalEnd::Omega
                         };
-                        pull_hinge_info.insert(
+                        pull_bend_info.insert(
                             (connection.pull_interval_key, pull_end, slot_idx + 1),
                             (
                                 pull_end_pos,
-                                hinge_pos,
+                                tab_pos,
                                 push_interval.omega_key,
                                 slot_idx + 1,
-                                hinge_bend,
+                                tab_bend,
                                 ideal_deg,
                             ),
                         );
@@ -479,7 +479,7 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
     let displayed_length = build_group_mean_lengths(fabric, &interval_infos);
 
     let mut highest_slot_per_joint: BTreeMap<JointKey, usize> = BTreeMap::new();
-    for ((_, _, slot), (_, _, joint_key, _, _, _)) in &pull_hinge_info {
+    for ((_, _, slot), (_, _, joint_key, _, _, _)) in &pull_bend_info {
         let entry = highest_slot_per_joint.entry(*joint_key).or_insert(0);
         if *slot > *entry {
             *entry = *slot;
@@ -530,13 +530,13 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
                 omega.x, omega.y, omega.z, omega_label,
             )?;
         } else {
-            let alpha_info = pull_hinge_info
+            let alpha_info = pull_bend_info
                 .iter()
                 .find(|((pull_id, end, _), _)| {
                     *pull_id == info.key && *end == IntervalEnd::Alpha
                 })
                 .map(|(_, data)| data);
-            let omega_info = pull_hinge_info
+            let omega_info = pull_bend_info
                 .iter()
                 .find(|((pull_id, end, _), _)| {
                     *pull_id == info.key && *end == IntervalEnd::Omega
@@ -673,11 +673,11 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
     for info in interval_infos.iter().filter(|i| !i.is_push) {
         let interval = fabric.intervals.get(info.key).unwrap();
 
-        let alpha_info = pull_hinge_info
+        let alpha_info = pull_bend_info
             .iter()
             .find(|((pull_id, end, _), _)| *pull_id == info.key && *end == IntervalEnd::Alpha)
             .map(|((_, _, _slot), (_, _, joint_key, _, _, _))| *joint_key);
-        let omega_info = pull_hinge_info
+        let omega_info = pull_bend_info
             .iter()
             .find(|((pull_id, end, _), _)| *pull_id == info.key && *end == IntervalEnd::Omega)
             .map(|((_, _, _slot), (_, _, joint_key, _, _, _))| *joint_key);
@@ -764,14 +764,14 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
         )?;
     }
 
-    // Connector link rows: joint → ring center → hinge → pull-end.
+    // Connector link rows: joint → ring center → tab → pull-end.
     let mut push_end_connections: BTreeMap<JointKey, Vec<(usize, Vec3, Vec3)>> = BTreeMap::new();
 
-    for (_, (pull_end_pos, hinge_pos, joint_key, slot, _, _)) in &pull_hinge_info {
+    for (_, (pull_end_pos, tab_pos, joint_key, slot, _, _)) in &pull_bend_info {
         push_end_connections.entry(*joint_key).or_default().push((
             *slot,
             *pull_end_pos,
-            *hinge_pos,
+            *tab_pos,
         ));
     }
 
@@ -806,7 +806,7 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
         let mut prev_slot = 0usize;
 
         let joint_label = fabric.joint_label(joint_key);
-        for (slot, pull_end_pos, hinge_pos) in &connections {
+        for (slot, pull_end_pos, tab_pos) in &connections {
             let ring_center = dimensions.ring_center(joint_pos, push_axis, *slot - 1);
 
             link_index += 1;
@@ -822,24 +822,24 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
             )?;
 
             link_index += 1;
-            let hinge_mm = to_csv * (*hinge_pos * MM_PER_METER);
-            let radial_length = (*hinge_pos - ring_center).length();
+            let tab_mm = to_csv * (*tab_pos * MM_PER_METER);
+            let radial_length = (*tab_pos - ring_center).length();
             writeln!(
                 file,
                 "{},radial,{:.3},0.000e0,{:.3},{:.3},{:.3},{},{},0.000,{:.3},{:.3},{:.3},{},{},0.000",
                 link_index, radial_length,
                 ring_mm.x, ring_mm.y, ring_mm.z, joint_label, slot,
-                hinge_mm.x, hinge_mm.y, hinge_mm.z, joint_label, slot,
+                tab_mm.x, tab_mm.y, tab_mm.z, joint_label, slot,
             )?;
 
             link_index += 1;
             let pull_end_mm = to_csv * (*pull_end_pos * MM_PER_METER);
-            let hinge_link_length = (*pull_end_pos - *hinge_pos).length();
+            let tab_link_length = (*pull_end_pos - *tab_pos).length();
             writeln!(
                 file,
-                "{},hinge,{:.3},0.000e0,{:.3},{:.3},{:.3},{},{},0.000,{:.3},{:.3},{:.3},{},{},0.000",
-                link_index, hinge_link_length,
-                hinge_mm.x, hinge_mm.y, hinge_mm.z, joint_label, slot,
+                "{},tab,{:.3},0.000e0,{:.3},{:.3},{:.3},{},{},0.000,{:.3},{:.3},{:.3},{},{},0.000",
+                link_index, tab_link_length,
+                tab_mm.x, tab_mm.y, tab_mm.z, joint_label, slot,
                 pull_end_mm.x, pull_end_mm.y, pull_end_mm.z, joint_label, slot,
             )?;
 
@@ -875,10 +875,10 @@ fn build_bend_summary(fabric: &Fabric) -> String {
     use std::fmt::Write;
 
     let mut s = String::new();
-    let h = &fabric.dimensions.hinge;
+    let h = &fabric.dimensions.connector;
     let ideals = fabric.collect_ideal_bend_angles();
 
-    writeln!(s, "# === Hinge bend snap quality ===").ok();
+    writeln!(s, "# === Bend snap quality ===").ok();
     writeln!(s, "# Bend count (K):       {}", h.bend_count).ok();
     if h.bend_magnitudes_locked {
         writeln!(s, "# Magnitude source:     LOCKED to factory inventory (no per-export reoptimisation)").ok();
@@ -1007,13 +1007,13 @@ fn build_clearance_summary(fabric: &Fabric) -> String {
                 } else {
                     fabric.joints[pull_interval.alpha_key].location
                 };
-                let (hinge_pos, _bend, pull_end_pos, _ideal) = fabric.dimensions.hinge_geometry(
+                let (tab_pos, _bend, pull_end_pos, _ideal) = fabric.dimensions.tab_geometry(
                     end_pos,
                     axis_dir,
                     slot_idx,
                     pull_other_end,
                 );
-                segs.push((hinge_pos, pull_end_pos));
+                segs.push((tab_pos, pull_end_pos));
             }
 
             if segs.len() >= 2 {
@@ -1029,10 +1029,10 @@ fn build_clearance_summary(fabric: &Fabric) -> String {
         }
     }
 
-    writeln!(s, "# === Hinge arm clearance ===").ok();
+    writeln!(s, "# === Tab arm clearance ===").ok();
     writeln!(
         s,
-        "# Per joint-end, minimum 3D distance between any two arm segments (hinge_pos -> pull_end_pos)."
+        "# Per joint-end, minimum 3D distance between any two arm segments (tab_pos -> pull_end_pos)."
     )
     .ok();
     if pair_distances.is_empty() {
@@ -1071,8 +1071,8 @@ struct IntervalInfo {
 /// values across every triple instead of straddling rounding boundaries.
 ///
 /// For pushes the length is alpha-to-omega joint distance (already in
-/// `info.length`). For pulls it's the *shortened* length (hinge-end to
-/// hinge-end), recomputed here from each pull's connection geometry.
+/// `info.length`). For pulls it's the *shortened* length (tab-end to
+/// tab-end), recomputed here from each pull's connection geometry.
 ///
 /// Triples touching the central apex joints `YZ0` / `YZ1` are deliberately
 /// excluded: the three rotational copies converging there land on three
@@ -1137,7 +1137,7 @@ fn is_apex_axis_label(label: &str) -> bool {
     label == "YZ0" || label == "YZ1"
 }
 
-/// Recompute a pull's "shortened" length — hinge-endpoint to hinge-endpoint
+/// Recompute a pull's "shortened" length — tab-endpoint to tab-endpoint
 /// — matching exactly how the CSV row computes it from positions. Falls back
 /// to joint-to-joint distance when the pull isn't attached to any push end.
 fn pull_shortened_length(fabric: &Fabric, key: IntervalKey) -> f32 {
@@ -1148,7 +1148,7 @@ fn pull_shortened_length(fabric: &Fabric, key: IntervalKey) -> f32 {
 }
 
 /// Walks the push intervals to find where this pull's `near` end is attached
-/// and returns the hinge endpoint (shortened position). If unattached, the
+/// and returns the tab endpoint (shortened position). If unattached, the
 /// joint location itself.
 fn pull_endpoint_position(fabric: &Fabric, pull_key: IntervalKey, near: JointKey) -> Vec3 {
     for (_pk, push) in fabric.intervals.iter() {
@@ -1182,8 +1182,8 @@ fn pull_endpoint_position(fabric: &Fabric, pull_key: IntervalKey, near: JointKey
                 } else {
                     fabric.joints[pull.alpha_key].location
                 };
-                let (_hinge_pos, _bend, pull_end_pos, _ideal) =
-                    fabric.dimensions.hinge_geometry(end_pos, axis_dir, slot_idx, other);
+                let (_tab_pos, _bend, pull_end_pos, _ideal) =
+                    fabric.dimensions.tab_geometry(end_pos, axis_dir, slot_idx, other);
                 return pull_end_pos;
             }
         }
@@ -1192,23 +1192,23 @@ fn pull_endpoint_position(fabric: &Fabric, pull_key: IntervalKey, near: JointKey
 }
 
 fn write_dimensions_comments(file: &mut File, dims: &FabricDimensions) -> io::Result<()> {
-    let h = &dims.hinge;
+    let h = &dims.connector;
     let mm = |m: f32| m * 1000.0;
     let a = h.push_radius.f32();
     let b = h.push_radius_margin.f32();
     let t1 = h.disc_thickness.f32();
     let t2 = h.disc_separator_thickness.f32();
     let c = t1 / 2.0;
-    let d = h.hinge_extension.f32();
-    let e = h.hinge_hole_diameter.f32();
+    let d = h.tab_extension.f32();
+    let e = h.tab_hole_diameter.f32();
     let cap = h.cap_thickness.f32();
     writeln!(file, "#")?;
-    writeln!(file, "# === Hinge parameters (see diagram) ===")?;
+    writeln!(file, "# === Connector parameters (see diagram) ===")?;
     writeln!(file, "# A  radius van de buis (push_radius):        {:.1}mm  ({:.5}m)", mm(a), a)?;
     writeln!(file, "# B  marge (push_radius_margin):              {:.1}mm  ({:.5}m)", mm(b), b)?;
     writeln!(file, "# C  offset door radius (= t1/2):             {:.1}mm  ({:.5}m)", mm(c), c)?;
-    writeln!(file, "# D  randafstand (hinge_extension):           {:.1}mm  ({:.5}m)", mm(d), d)?;
-    writeln!(file, "# E  diameter gat (hinge_hole_diameter):      {:.1}mm  ({:.5}m)", mm(e), e)?;
+    writeln!(file, "# D  randafstand (tab_extension):           {:.1}mm  ({:.5}m)", mm(d), d)?;
+    writeln!(file, "# E  diameter gat (tab_hole_diameter):      {:.1}mm  ({:.5}m)", mm(e), e)?;
     writeln!(file, "# t1 dikte staal (disc_thickness):             {:.1}mm  ({:.5}m)", mm(t1), t1)?;
     writeln!(file, "# t2 dikte POM (disc_separator):              {:.1}mm  ({:.5}m)", mm(t2), t2)?;
     writeln!(file, "#    cap_thickness:                           {:.1}mm  ({:.5}m)", mm(cap), cap)?;
@@ -1216,7 +1216,7 @@ fn write_dimensions_comments(file: &mut File, dims: &FabricDimensions) -> io::Re
     writeln!(file, "#")?;
     writeln!(file, "# === Afgeleide waarden ===")?;
     writeln!(file, "#    A + B + C  = {:.1}mm  (halve breedte schijf)", mm(a + b + c))?;
-    writeln!(file, "#    C + D + E  = {:.1}mm  (scharnier lengte)", mm(c + d + e))?;
+    writeln!(file, "#    C + D + E  = {:.1}mm  (tab lengte)", mm(c + d + e))?;
     writeln!(file, "#    t1 + t2    = {:.1}mm  (schijf + separator)", mm(t1 + t2))?;
     writeln!(
         file,

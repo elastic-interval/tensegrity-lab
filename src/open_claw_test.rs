@@ -93,7 +93,7 @@ mod tests {
         find_scale_for_6m_base(FabricName::OpenClaw);
     }
 
-    /// Lock the per-magnitude hinge-bend count distribution to the inventory
+    /// Lock the per-magnitude tab-bend count distribution to the inventory
     /// already ordered from the factory. Source of truth: the CSV at
     /// `docs/open-claw-2026-05-14b.csv` reported
     /// `Bend counts (per magnitude): 12°×80  30°×100  49°×120  68°×60`.
@@ -129,7 +129,7 @@ mod tests {
         executor.fabric.recompute_bend_magnitudes();
 
         let fabric = &executor.fabric;
-        let mags = &fabric.dimensions.hinge.bend_magnitudes;
+        let mags = &fabric.dimensions.connector.bend_magnitudes;
         assert_eq!(
             mags.as_slice(),
             &[12.0, 30.0, 49.0, 68.0],

@@ -8,7 +8,7 @@ use crate::{Appearance, AppearanceMode, IntervalDetails, JointDetails, RenderSty
 
 fn physical_radius(role: Role, dims: &FabricDimensions) -> f32 {
     use Role::*;
-    let push = dims.hinge.push_radius.f32();
+    let push = dims.connector.push_radius.f32();
     let pull = dims.pull_radius.f32();
     match role {
         Pushing => push,
@@ -232,8 +232,8 @@ impl CylinderRenderer {
             let mut modified_start = start;
             let mut modified_end = end;
 
-            // For pull-like intervals, connect them to hinge positions on push intervals
-            // only when attachment points are visible (hinges mode)
+            // For pull-like intervals, connect them to tab positions on push intervals
+            // only when attachment points are visible (connector mode)
             if interval.role.is_pull_like() && show_attachment_points {
                 // Use the current index as the pull interval ID
                 let pull_key = interval_key;
@@ -287,9 +287,9 @@ impl CylinderRenderer {
                                                     }
                                                 };
 
-                                                // Use hinge_geometry to get snapped endpoint
-                                                let (_hinge_pos, _hinge_bend, pull_end_pos, _ideal) =
-                                                    dimensions.hinge_geometry(
+                                                // Use tab_geometry to get snapped endpoint
+                                                let (_tab_pos, _tab_bend, pull_end_pos, _ideal) =
+                                                    dimensions.tab_geometry(
                                                         push_end_pos,
                                                         push_axis,
                                                         pull_conn.attachment_index,

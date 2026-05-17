@@ -21,7 +21,7 @@ use crate::{LabEvent, Radio};
 pub mod cylinder;
 pub mod cylinder_renderer;
 pub mod fabric_renderer;
-pub mod hinge_renderer;
+pub mod connector_renderer;
 pub mod sky_renderer;
 pub mod surface_renderer;
 pub mod surface_vertex;
@@ -264,7 +264,7 @@ impl Wgpu {
 
     /// Build a render pipeline that draws unit cylinders with one set of
     /// per-instance attributes against the shared fabric shader.
-    /// Used by the cylinder and hinge renderers; their pipelines differ only
+    /// Used by the cylinder and connector renderers; their pipelines differ only
     /// in label and instance-buffer layout.
     pub fn create_fabric_pipeline(
         &self,

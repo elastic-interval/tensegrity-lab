@@ -34,14 +34,14 @@ from pathlib import Path
 
 
 @dataclass
-class HingeDimensions:
-    """Hinge geometry parsed from the CSV header (all values in millimetres)."""
+class ConnectorDimensions:
+    """Connector geometry parsed from the CSV header (all values in millimetres)."""
 
     push_radius: float           # A
     push_radius_margin: float    # B
     offset_through_radius: float # C (= t1/2)
-    hinge_extension: float       # D
-    hinge_hole_diameter: float   # E
+    tab_extension: float       # D
+    tab_hole_diameter: float   # E
     disc_thickness: float        # t1
     disc_separator: float        # t2
     cap_thickness: float
@@ -112,7 +112,7 @@ class ManualData:
     height_mm: float
     created: str
     csv_path: Path
-    hinge: HingeDimensions
+    connector: ConnectorDimensions
     magnitudes: list
     magnitudes_locked: bool
     bend_counts_signed: str
@@ -126,8 +126,8 @@ class ManualData:
 
 
 _HEADER_TITLE = re.compile(r"^# (.*?), Phase:\s*(\S+),\s*Height:\s*([\d.]+)mm,\s*Created:\s*(.+)$")
-_HINGE_PARAM = re.compile(r"^#\s+(?:[A-E]\s+)?\S.*?\(([a-z_]+)\):\s*([\d.]+)mm")
-_HINGE_PARAM_PLAIN = re.compile(r"^#\s+([a-z_]+):\s*([\d.]+)mm")
+_CONN_PARAM = re.compile(r"^#\s+(?:[A-E]\s+)?\S.*?\(([a-z_]+)\):\s*([\d.]+)mm")
+_CONN_PARAM_PLAIN = re.compile(r"^#\s+([a-z_]+):\s*([\d.]+)mm")
 _OPTIMAL_MAGS = re.compile(r"^#\s+Optimal magnitudes:\s*\[(.+)\]")
 _LOCKED = re.compile(r"^#\s+Magnitude source:.*LOCKED")
 _BEND_COUNTS_SIGNED = re.compile(r"^#\s+Bend counts \(signed\):\s+(.+)$")
@@ -153,31 +153,31 @@ def parse_csv(path: Path) -> ManualData:
         raise SystemExit("CSV missing title line")
     fabric_name, phase, height_mm_str, created = title.groups()
 
-    hinge_values: dict[str, float] = {}
+    connector_values: dict[str, float] = {}
     for line in header_lines:
-        m = _HINGE_PARAM.match(line) or _HINGE_PARAM_PLAIN.match(line)
+        m = _CONN_PARAM.match(line) or _CONN_PARAM_PLAIN.match(line)
         if m:
-            hinge_values[m.group(1)] = float(m.group(2))
+            connector_values[m.group(1)] = float(m.group(2))
 
     needed = [
-        "push_radius", "push_radius_margin", "hinge_extension",
-        "hinge_hole_diameter", "disc_thickness", "disc_separator",
+        "push_radius", "push_radius_margin", "tab_extension",
+        "tab_hole_diameter", "disc_thickness", "disc_separator",
         "cap_thickness", "pull_radius",
     ]
-    missing = [k for k in needed if k not in hinge_values]
+    missing = [k for k in needed if k not in connector_values]
     if missing:
-        raise SystemExit(f"CSV header missing hinge parameter(s): {missing}")
+        raise SystemExit(f"CSV header missing connector parameter(s): {missing}")
 
-    hinge = HingeDimensions(
-        push_radius=hinge_values["push_radius"],
-        push_radius_margin=hinge_values["push_radius_margin"],
-        offset_through_radius=hinge_values["disc_thickness"] / 2.0,
-        hinge_extension=hinge_values["hinge_extension"],
-        hinge_hole_diameter=hinge_values["hinge_hole_diameter"],
-        disc_thickness=hinge_values["disc_thickness"],
-        disc_separator=hinge_values["disc_separator"],
-        cap_thickness=hinge_values["cap_thickness"],
-        pull_radius=hinge_values["pull_radius"],
+    connector = ConnectorDimensions(
+        push_radius=connector_values["push_radius"],
+        push_radius_margin=connector_values["push_radius_margin"],
+        offset_through_radius=connector_values["disc_thickness"] / 2.0,
+        tab_extension=connector_values["tab_extension"],
+        tab_hole_diameter=connector_values["tab_hole_diameter"],
+        disc_thickness=connector_values["disc_thickness"],
+        disc_separator=connector_values["disc_separator"],
+        cap_thickness=connector_values["cap_thickness"],
+        pull_radius=connector_values["pull_radius"],
     )
 
     mags_match = next((m for m in (_OPTIMAL_MAGS.match(l) for l in header_lines) if m), None)
@@ -291,7 +291,7 @@ def parse_csv(path: Path) -> ManualData:
     return ManualData(
         fabric_name=fabric_name, phase=phase,
         height_mm=float(height_mm_str), created=created,
-        csv_path=path, hinge=hinge,
+        csv_path=path, connector=connector,
         magnitudes=magnitudes, magnitudes_locked=locked,
         bend_counts_signed=bend_signed,
         bend_counts_per_magnitude=bend_counts_per_magnitude,

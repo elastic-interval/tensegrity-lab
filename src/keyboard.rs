@@ -140,11 +140,14 @@ impl Keyboard {
             UpdateState(StateChange::ToggleColorByRole),
             Box::new(|state| matches!(state, PhysicsTesting)),
         );
-        // Hinges are only available when not in model-scale mode
+        // Connectors are only available when not in model-scale mode.
+        // C is reused here: the Color binding above is only active in
+        // PhysicsTesting; this one is only active in Viewing/Showing* —
+        // disjoint states, so the same key safely serves both.
         if model_scale.is_none() {
             self.key_lab_event(
-                KeyCode::KeyH,
-                "Hinges",
+                KeyCode::KeyC,
+                "Connector",
                 UpdateState(StateChange::ToggleAttachmentPoints),
                 Box::new(|state| {
                     matches!(state, Viewing { .. } | ShowingJoint(_) | ShowingInterval(_))

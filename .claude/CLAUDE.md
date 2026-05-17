@@ -91,12 +91,12 @@ elements (cables) that maintain shape through balanced push-pull forces.
 `Fabric::iterate(...)` is the per-tick physics step (Verlet). Use it; don't
 reinvent.
 
-### FabricDimensions and HingeDimensions
+### FabricDimensions and ConnectorDimensions
 
 `src/fabric/dimensions.rs` defines both. `FabricDimensions` carries scale,
-altitude, pull-radius, hinge geometry, joint mass, push density. `HingeDimensions`
-is a sub-struct for the physical hinge mechanism (push radius, disc/cap
-thicknesses, hinge hole, bend-magnitude inventory). Defaults are in their
+altitude, pull-radius, connector geometry, joint mass, push density. `ConnectorDimensions`
+is a sub-struct for the physical connector (push radius, disc/cap
+thicknesses, tab hole, bend-magnitude inventory). Defaults are in their
 `Default::default()` impls and are the source of truth.
 
 ### Time
@@ -115,7 +115,7 @@ thicknesses, hinge hole, bend-magnitude inventory). Defaults are in their
 - `Animating(Animator)` — runs DSL-defined actuators.
 - `PhysicsTesting(PhysicsTester)` — real-time gravity test.
 
-Transitions go through `finalize_to_viewing()` which also recomputes hinge bend
+Transitions go through `finalize_to_viewing()` which also recomputes tab bend
 magnitudes (see `Fabric::recompute_bend_magnitudes`).
 
 ### Build pipeline
@@ -153,8 +153,8 @@ need to adjust mass or rigidity multipliers at runtime.
 `src/wgpu/`:
 - `cylinder_renderer.rs` — push/pull intervals as cylinders.
   - The "fabric pipeline" boilerplate is centralised in
-    `Wgpu::create_fabric_pipeline`; cylinder and hinge renderers both use it.
-- `hinge_renderer.rs` — connector geometry when attachment points visible.
+    `Wgpu::create_fabric_pipeline`; cylinder and connector renderers both use it.
+- `connector_renderer.rs` — connector geometry when attachment points visible.
 - `sphere_renderer.rs` — joints.
 - `sky_renderer.rs`, `surface_renderer.rs`, `text_renderer.rs` — chrome.
 - `shader.wgsl` — shared WGSL for fabric pipelines.
@@ -194,13 +194,13 @@ src/
 │
 ├── fabric/
 │   ├── mod.rs          # Fabric struct + main impl
-│   ├── dimensions.rs   # FabricDimensions, HingeDimensions, hinge_geometry
+│   ├── dimensions.rs   # FabricDimensions, ConnectorDimensions, tab_geometry
 │   ├── interval.rs     # Interval, Role, Span
 │   ├── joint.rs, joint_path.rs
 │   ├── face.rs, brick.rs, material.rs
 │   ├── physics.rs      # Physics struct, presets
 │   ├── physics_tester.rs
-│   ├── attachment.rs   # PullConnections, HingeBend, attachment points
+│   ├── attachment.rs   # PullConnections, TabBend, attachment points
 │   ├── bend_optimizer.rs  # K-center optimiser for bend magnitudes
 │   ├── vulcanize.rs
 │   └── fabric_sampler.rs
@@ -234,7 +234,7 @@ Important integration tests:
 - `src/open_claw_test.rs` — `test_open_claw_base_triangle`,
   `test_open_claw_foot_positions`, `test_open_claw_bend_counts_match_factory_inventory`.
 - `src/physics_gpu/parity_test.rs` — CPU vs GPU numeric parity.
-- `src/fabric/hinge_geometry_tests` (inline in `mod.rs`) — derived dimension formulas.
+- `src/fabric/connector_geometry_tests` (inline in `mod.rs`) — derived dimension formulas.
 - `src/fabric/bend_optimizer.rs` (inline tests) — k-center DP correctness.
 
 ## Entry Points
@@ -255,7 +255,7 @@ trunk serve
 1. **Iterations per frame is computed, not constant.** Don't hardcode iteration
    counts; let the outer loop do `time_scale × iterations_per_second / fps`.
 
-2. **Convergence is build, not testing.** Hinge bend magnitudes are recomputed
+2. **Convergence is build, not testing.** Tab bend magnitudes are recomputed
    on entering Viewing (`Crucible::finalize_to_viewing`). Don't trigger that
    from elsewhere.
 

@@ -1,5 +1,5 @@
 //! 1D k-center on |bend angles|: pick K manufactured magnitudes that minimise
-//! the worst-case snap error. Hinges are flippable, so signed candidates ±m
+//! the worst-case snap error. Tabs are flippable, so signed candidates ±m
 //! both come from the same physical part — we only store magnitudes ≥ 0.
 
 /// Whole-degree magnitudes (sorted, ≥ 0) minimising max ||x_i| − nearest m_j|.

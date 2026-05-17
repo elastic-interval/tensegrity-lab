@@ -30,7 +30,7 @@ pub struct LinkInstance {
     color: [f32; 4],
 }
 
-pub struct HingeRenderer {
+pub struct ConnectorRenderer {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     instance_buffer: Option<wgpu::Buffer>,
@@ -39,7 +39,7 @@ pub struct HingeRenderer {
     num_instances: u32,
 }
 
-impl HingeRenderer {
+impl ConnectorRenderer {
     pub fn new(wgpu: &Wgpu) -> Self {
         let (vertex_buffer, index_buffer, num_indices) = wgpu.create_cylinder();
 
@@ -81,9 +81,9 @@ impl HingeRenderer {
             ],
         };
 
-        let render_pipeline = wgpu.create_fabric_pipeline("Hinge Pipeline", instance_layout);
+        let render_pipeline = wgpu.create_fabric_pipeline("Connector Pipeline", instance_layout);
 
-        HingeRenderer {
+        ConnectorRenderer {
             vertex_buffer,
             index_buffer,
             instance_buffer: None,
@@ -188,11 +188,11 @@ impl HingeRenderer {
                         fabric.joints[pull_interval.alpha_key].location
                     };
 
-                    // Use hinge_geometry to get snapped positions
-                    let (hinge_pos, _hinge_bend, pull_end_pos, _ideal) =
-                        dimensions.hinge_geometry(joint_pos, push_axis, slot_idx, pull_other_end);
+                    // Use tab_geometry to get snapped positions
+                    let (tab_pos, _tab_bend, pull_end_pos, _ideal) =
+                        dimensions.tab_geometry(joint_pos, push_axis, slot_idx, pull_other_end);
 
-                    slot_connections.push((slot_idx, hinge_pos, pull_end_pos));
+                    slot_connections.push((slot_idx, tab_pos, pull_end_pos));
                 }
             }
         }
@@ -204,10 +204,10 @@ impl HingeRenderer {
         // Sort by slot
         slot_connections.sort_by_key(|(slot, _, _)| *slot);
 
-        // Generate axial chain and radial/hinge links
+        // Generate axial chain and radial/tab links
         let mut prev_pos = joint_pos;
 
-        for (slot, hinge_pos, pull_end_pos) in &slot_connections {
+        for (slot, tab_pos, pull_end_pos) in &slot_connections {
             let ring_center = dimensions.ring_center(joint_pos, push_axis, *slot);
 
             // Axial link: previous position → ring center
@@ -219,18 +219,18 @@ impl HingeRenderer {
                 color: AXIAL_COLOR,
             });
 
-            // Radial link: ring center → hinge
+            // Radial link: ring center → tab
             instances.push(LinkInstance {
                 start: [ring_center.x, ring_center.y, ring_center.z],
                 radius: link_radius,
-                end: [hinge_pos.x, hinge_pos.y, hinge_pos.z],
+                end: [tab_pos.x, tab_pos.y, tab_pos.z],
                 _padding: 0,
                 color: RADIAL_COLOR,
             });
 
-            // Hinge link: hinge → pull_end
+            // Tab link: tab → pull_end
             instances.push(LinkInstance {
-                start: [hinge_pos.x, hinge_pos.y, hinge_pos.z],
+                start: [tab_pos.x, tab_pos.y, tab_pos.z],
                 radius: link_radius,
                 end: [pull_end_pos.x, pull_end_pos.y, pull_end_pos.z],
                 _padding: 0,

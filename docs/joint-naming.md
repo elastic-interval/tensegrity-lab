@@ -180,6 +180,6 @@ a `BA`/`BO`/`TA`/`TO` prefix, and its leg letter (`A`/`B`/`C`) lines up with
 the leg letter at the destination end. Cable triples for the order list are
 identifiable purely by rotating leg letters.
 
-The rendering rows (`axial`, `radial`, `hinge`) still describe a single
+The rendering rows (`axial`, `radial`, `tab`) still describe a single
 joint at both ends; the symbolic name appears in both columns identically
 when the link is within a seed-joint's stack.

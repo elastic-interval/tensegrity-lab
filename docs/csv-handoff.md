@@ -74,30 +74,30 @@ are unfortunately not symmetric between push and pull rows:
   manufactured to, including end-cap allowances.
 - `AlphaXYZ`, `OmegaXYZ` — the **joint locations** in CSV coordinates (mm,
   Z-up). The Euclidean distance between them equals `Length(m)` × 1000.
-- `AlphaSlot`, `OmegaSlot` — always `0` for push rows (push intervals are
-  not on a hinge).
-- `AlphaAngle`, `OmegaAngle` — always `90` (axial; no hinge bend).
+- `AlphaSlot`, `OmegaSlot` — always `0` for push rows (push intervals carry
+  no tab).
+- `AlphaAngle`, `OmegaAngle` — always `90` (axial; no tab bend).
 
 ### Pull rows (`Role = pull`)
 
-- `Length(m)` — the **distance between the two hinge endpoints**
+- `Length(m)` — the **distance between the two tab endpoints**
   (`pull_end_pos`), *not* the joint-to-joint distance. It is the length the
   cable's tensioned segment would have if it spanned exactly between the
-  bolt-and-disc terminations on each side, with the hinge mechanism's
+  bolt-and-disc terminations on each side, with the tab mechanism's
   `length()` (≈ `t1/2 + D + E`) accounted for at each end. **This is the
   closest thing in the CSV to "what the cable should be manufactured to."**
-- `AlphaXYZ`, `OmegaXYZ` — the **hinge endpoint** at each end (i.e. the
+- `AlphaXYZ`, `OmegaXYZ` — the **tab endpoint** at each end (i.e. the
   point on the bolt-and-disc termination where the cable attaches), *not*
   the joint location. Distance between them equals `Length(m)`. The actual
   joints are inset toward the strut centre by `length()` along the bend
   direction; the joint coordinates can be recovered from the corresponding
   push row at the same `AlphaJoint` / `OmegaJoint`.
-- `AlphaSlot`, `OmegaSlot` — `1`-indexed slot at each end's hinge stack.
+- `AlphaSlot`, `OmegaSlot` — `1`-indexed slot at each end's connector stack.
   The axial position of slot `k` along the strut, measured from the strut
-  end, is `disc_center_offset(k - 1)` in `HingeDimensions`. **This depends
+  end, is `disc_center_offset(k - 1)` in `ConnectorDimensions`. **This depends
   on `cap_thickness`, `disc_thickness`, `disc_separator_thickness`, all of
   which have changed in recent iterations** — see Ongoing changes below.
-- `AlphaAngle`, `OmegaAngle` — the **snapped hinge bend** at each end, in
+- `AlphaAngle`, `OmegaAngle` — the **snapped tab bend** at each end, in
   whole degrees. `+30` and `-30` are the same physical part installed in
   opposite orientations.
 
@@ -115,13 +115,13 @@ Send to the factory:
 - For each strut: a length, a tube diameter, and end-cap details. The length
   must come from the **push row's `Length(m)`** column, not from the
   Euclidean distance between joint coordinates.
-- For each cable: a length (the pull row's `Length(m)`, hinge-endpoint to
-  hinge-endpoint, plus the hinge-mechanism portion at each end if the
-  manufactured cable should also span that), the hinge bend angles at each
+- For each cable: a length (the pull row's `Length(m)`, tab-endpoint to
+  tab-endpoint, plus the tab-mechanism portion at each end if the
+  manufactured cable should also span that), the tab bend angles at each
   end, and the slot assignments. If a single authoritative cable length is
   needed for fabrication, derive it in the FEA from the deployed
   equilibrium geometry rather than the CSV.
-- For each hinge mechanism: `cap_thickness`, `disc_thickness`,
+- For each connector: `cap_thickness`, `disc_thickness`,
   `disc_separator_thickness`, the bend magnitudes set, and the slot
   inventory. All of this lives in the header parameters block and the
   bend-quality summary; it does **not** appear in the data rows.
@@ -130,15 +130,15 @@ Common pitfalls:
 
 - **Computing element lengths from joint-to-joint Euclidean distance.** This
   is wrong for both pushes (snap drift) and especially pulls (the AlphaXYZ /
-  OmegaXYZ are *hinge endpoints*, not joints, on pull rows).
+  OmegaXYZ are *tab endpoints*, not joints, on pull rows).
 - **Reading the AlphaSlot column as if it were a node index.** It's a slot
-  number on the hinge stack at that joint.
+  number on the connector stack at that joint.
 - **Reusing factory drawings across simulation iterations.** If
-  `cap_thickness` or any other hinge dimension changed between runs, slot
+  `cap_thickness` or any other connector dimension changed between runs, slot
   axial positions shifted, and the manufactured strut endcaps no longer
   match the cable attachment positions. The CSV's `Created:` timestamp is
   the version marker.
-- **Manufacturing a hinge inventory at iteration N's optimised
+- **Manufacturing a tab inventory at iteration N's optimised
   magnitudes, then running iteration N+1.** The optimiser is currently
   free to pick fresh magnitudes per fabric. Once parts are made, the
   intended set should be locked in (a "freeze magnitudes" mode is
@@ -150,12 +150,12 @@ Common pitfalls:
 ```
 # OpenClaw, Phase: <moment>, Height: ...mm, Created: <timestamp>
 #
-# === Hinge parameters (see diagram) ===
+# === Connector parameters (see diagram) ===
 # A  push_radius
 # B  push_radius_margin
 # C  offset (= t1/2)
-# D  hinge_extension
-# E  hinge_hole_diameter
+# D  tab_extension
+# E  tab_hole_diameter
 # t1 disc_thickness
 # t2 disc_separator_thickness
 #    cap_thickness
@@ -163,7 +163,7 @@ Common pitfalls:
 #
 # === Afgeleide waarden ===
 #    A + B + C  (halve breedte schijf)
-#    C + D + E  (scharnier lengte)
+#    C + D + E  (tab lengte)
 #    t1 + t2    (schijf + separator)
 #    disc_center_offset(0)
 #
@@ -171,7 +171,7 @@ Common pitfalls:
 # Lowest[1..3]: joint=...
 # Highest:      joint=...
 #
-# === Hinge bend snap quality ===
+# === Bend snap quality ===
 # Bend count (K):       4
 # Optimal magnitudes:   [...]
 # Effective signed set: [...]
@@ -184,7 +184,7 @@ Index,Role,Length(m),Strain,AlphaX,...,AlphaAngle,OmegaX,...,OmegaAngle
 <rows>
 ```
 
-The hinge parameters block sits early on purpose: a downstream Grasshopper
+The connector parameters block sits early on purpose: a downstream Grasshopper
 "Overview of design parameters" panel shows roughly the first 12 lines of the
 CSV. With the parameters block in lines 2–11, all of A–E plus t1 and t2 are
 visible without resizing the panel.
@@ -196,16 +196,16 @@ runs in Y-up. The transform is `Mat3::from_rotation_x(π/2)` applied to every
 exported position: sim (x, y, z) → csv (x, z, −y). See
 `open_claw_symmetry::sim_to_csv`.
 
-## Hinge bend angles (per cable end)
+## Tab bend angles (per cable end)
 
-The `AlphaAngle` and `OmegaAngle` columns hold the snapped hinge bend angle
+The `AlphaAngle` and `OmegaAngle` columns hold the snapped tab bend angle
 at each cable end. Snapping uses the optimised magnitudes computed by
 `Fabric::recompute_bend_magnitudes` (1D k-center on the ideal-angle
 distribution), called by the symmetry test before CSV write and also at the
 Building → Viewing transition for live inspection. Number of distinct
-magnitudes is configured by `HingeDimensions::bend_count` (currently 4).
+magnitudes is configured by `ConnectorDimensions::bend_count` (currently 4).
 
-For push rows, both columns are `90` (no hinge — the push tube is
+For push rows, both columns are `90` (no tab — the push tube is
 axial). For pull rows, the values are the snapped angles in degrees, e.g.
 `+31`, `-49`, `0`. The `# Bend counts` lines in the header give a histogram
 so the engineer can see how many of each manufactured angle to produce.

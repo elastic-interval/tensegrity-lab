@@ -72,9 +72,9 @@ pub mod vulcanize;
 
 pub mod physics_tester;
 
-// Re-export so `crate::fabric::HingeDimensions` and `crate::fabric::FabricDimensions`
+// Re-export so `crate::fabric::ConnectorDimensions` and `crate::fabric::FabricDimensions`
 // keep working from outside this module.
-pub use dimensions::{hinge_angle, FabricDimensions, HingeDimensions};
+pub use dimensions::{tab_angle, FabricDimensions, ConnectorDimensions};
 
 // Type aliases for SlotMap containers
 pub type Joints = SlotMap<JointKey, Joint>;
@@ -241,13 +241,13 @@ impl Fabric {
         self.dimensions.joint_mass
     }
 
-    /// Update `self.dimensions.hinge.bend_magnitudes` with the K-center
+    /// Update `self.dimensions.connector.bend_magnitudes` with the K-center
     /// optimal set for this fabric's cable ends. No-op when locked, K=0, or no pulls.
     pub fn recompute_bend_magnitudes(&mut self) {
-        if self.dimensions.hinge.bend_magnitudes_locked {
+        if self.dimensions.connector.bend_magnitudes_locked {
             return;
         }
-        let k = self.dimensions.hinge.bend_count;
+        let k = self.dimensions.connector.bend_count;
         if k == 0 {
             return;
         }
@@ -255,7 +255,7 @@ impl Fabric {
         if ideals.is_empty() {
             return;
         }
-        self.dimensions.hinge.bend_magnitudes =
+        self.dimensions.connector.bend_magnitudes =
             bend_optimizer::optimize_magnitudes(&ideals, k);
     }
 
@@ -289,7 +289,7 @@ impl Fabric {
                     } else {
                         self.joints[pull_interval.alpha_key].location
                     };
-                    let (_, _, _, ideal_deg) = self.dimensions.hinge_geometry(
+                    let (_, _, _, ideal_deg) = self.dimensions.tab_geometry(
                         end_pos,
                         axis_dir,
                         slot_idx,
@@ -779,7 +779,7 @@ impl Fabric {
 }
 
 #[cfg(test)]
-mod hinge_geometry_tests {
+mod tab_geometry_tests {
     use super::*;
     use glam::Vec3;
 
@@ -796,24 +796,24 @@ mod hinge_geometry_tests {
         );
     }
 
-    /// Test that HingeDimensions formulas produce the correct derived values.
+    /// Test that ConnectorDimensions formulas produce the correct derived values.
     /// These are the numbers shown in the CSV header as "Afgeleide waarden".
     #[test]
-    fn hinge_dimension_formulas() {
-        let h = HingeDimensions::default();
+    fn connector_dimension_formulas() {
+        let h = ConnectorDimensions::default();
         let a = h.push_radius.f32();      // 25mm
         let b = h.push_radius_margin.f32(); // 2mm
         let t1 = h.disc_thickness.f32();   // 6mm
         let t2 = h.disc_separator_thickness.f32(); // 1mm
         let cap = h.cap_thickness.f32();   // 6mm
-        let d = h.hinge_extension.f32();   // 14mm
-        let e = h.hinge_hole_diameter.f32(); // 12mm
+        let d = h.tab_extension.f32();   // 14mm
+        let e = h.tab_hole_diameter.f32(); // 12mm
         let c = t1 / 2.0;                 // 3mm
 
-        // offset() = A + B + C (radial distance from tube axis to hinge bolt)
+        // offset() = A + B + C (radial distance from tube axis to tab pin)
         assert_mm("offset = A+B+C", h.offset().f32(), (a + b + c) * MM);
 
-        // length() = C + D + E (hinge length from disc center to cable endpoint)
+        // length() = C + D + E (tab length from disc center to cable endpoint)
         assert_mm("length = C+D+E", h.length().f32(), (c + d + e) * MM);
 
         // disc_center_offset(0) = cap + t2 + t1/2
@@ -831,11 +831,11 @@ mod hinge_geometry_tests {
         );
 
         // Print summary for engineer verification
-        println!("\n=== Hinge dimension check (mm) ===");
+        println!("\n=== Connector dimension check (mm) ===");
         println!("A  (push_radius):       {:.1}", a * MM);
         println!("B  (margin):            {:.1}", b * MM);
         println!("C  (t1/2):              {:.1}", c * MM);
-        println!("D  (hinge_extension):   {:.1}", d * MM);
+        println!("D  (tab_extension):   {:.1}", d * MM);
         println!("E  (hole_diameter):     {:.1}", e * MM);
         println!("t1 (disc_thickness):    {:.1}", t1 * MM);
         println!("t2 (disc_separator):    {:.1}", t2 * MM);
@@ -848,12 +848,12 @@ mod hinge_geometry_tests {
         println!("disc_center_offset(1):          {:.1}", h.disc_center_offset(1).f32() * MM);
     }
 
-    /// Test that the 3D positions produced by ring_center / hinge_geometry
+    /// Test that the 3D positions produced by ring_center / tab_geometry
     /// have the exact distances the engineer expects to measure between them.
     #[test]
-    fn hinge_geometry_distances() {
+    fn tab_geometry_distances() {
         let dims = FabricDimensions::default();
-        let h = &dims.hinge;
+        let h = &dims.connector;
 
         // Synthetic push interval along +Z axis
         let push_end = Vec3::ZERO;
@@ -880,26 +880,26 @@ mod hinge_geometry_tests {
         assert_mm("ring_center(1) → ring_center(2) = t1+t2", disc_step_2,
                   (h.disc_thickness.f32() + h.disc_separator_thickness.f32()) * MM);
 
-        // --- Radial distance (ring center to hinge bolt) ---
+        // --- Radial distance (ring center to tab pin) ---
 
-        let (hinge_pos, _bend, pull_end_pos, _ideal) =
-            dims.hinge_geometry(push_end, push_axis, 0, pull_other_end);
+        let (tab_pos, _bend, pull_end_pos, _ideal) =
+            dims.tab_geometry(push_end, push_axis, 0, pull_other_end);
 
-        let radial_dist = (hinge_pos - rc0).length();
-        assert_mm("ring_center → hinge_pos = offset() = A+B+C", radial_dist,
+        let radial_dist = (tab_pos - rc0).length();
+        assert_mm("ring_center → tab_pos = offset() = A+B+C", radial_dist,
                   h.offset().f32() * MM);
 
-        // --- Hinge length (hinge bolt to cable endpoint) = C + D + E ---
+        // --- Tab length (tab pin to cable endpoint) = C + D + E ---
 
-        let hinge_len = (pull_end_pos - hinge_pos).length();
-        assert_mm("hinge_pos → pull_end_pos = length() = C+D+E", hinge_len,
+        let tab_len = (pull_end_pos - tab_pos).length();
+        assert_mm("tab_pos → pull_end_pos = length() = C+D+E", tab_len,
                   h.length().f32() * MM);
 
         // Print summary for engineer
         println!("\n=== Geometry distance check (mm) ===");
         println!("push_end → ring_center(0):     {:.3}", axial_0 * MM);
         println!("ring_center(0) → ring_center(1): {:.3} (= t1+t2)", disc_step * MM);
-        println!("ring_center → hinge_pos:       {:.3} (= A+B+C = offset)", radial_dist * MM);
-        println!("hinge_pos → pull_end_pos:      {:.3} (= C+D+E = length)", hinge_len * MM);
+        println!("ring_center → tab_pos:       {:.3} (= A+B+C = offset)", radial_dist * MM);
+        println!("tab_pos → pull_end_pos:      {:.3} (= C+D+E = length)", tab_len * MM);
     }
 }

@@ -8,14 +8,14 @@ The physical connector assembly at a strut end consists of:
 
 1. **Cap** — A fixed end-cap on the strut tube
 2. **Discs** — Rotating ring-shaped connectors stacked along the strut axis, separated by thin spacers
-3. **Hinges** — Arms that extend radially outward from each disc, with a hole at the tip where the cable attaches
+3. **Clevis tabs** — Arms that extend radially outward from each disc, with a hole at the tip where a clevis at the cable end fastens
 4. **Separators** — Thin spacers between cap and first disc, and between adjacent discs
 
-Each disc can rotate freely around the strut axis, allowing its hinge to point in any radial direction. This means the cable naturally finds its preferred angle around the strut.
+Each disc can rotate freely around the strut axis, allowing its tab to point in any radial direction. This means the cable naturally finds its preferred angle around the strut.
 
 ## Geometry and Dimensions
 
-All physical dimensions are defined in `HingeDimensions` (`src/fabric/dimensions.rs`).
+All physical dimensions are defined in `ConnectorDimensions` (`src/fabric/dimensions.rs`).
 Defaults reflect the values in `Default::default()` and are the source of truth;
 this table is informational and can drift between code edits and doc updates.
 
@@ -26,19 +26,19 @@ this table is informational and can drift between code edits and doc updates.
 | `disc_thickness` | 5 mm | Thickness of each connector disc (t1) |
 | `disc_separator_thickness` | 1 mm | Spacer between cap/disc and adjacent discs (t2) |
 | `cap_thickness` | 5 mm | Thickness of the end-cap closing the strut tube |
-| `hinge_extension` | 14 mm | Length of the hinge arm beyond the disc edge (D) |
-| `hinge_hole_diameter` | 12 mm | Diameter of the hole at the hinge tip (E) |
+| `tab_extension` | 14 mm | Length of the tab arm beyond the disc edge (D) |
+| `tab_hole_diameter` | 12 mm | Diameter of the pin hole at the tab tip (E) |
 | `bend_count` | 4 | Number of distinct manufactured bend magnitudes |
 | `bend_magnitudes` | `Vec::new()` initially | Set by `Fabric::recompute_bend_magnitudes` once the fabric reaches Viewing |
 
 Derived values (with the defaults above):
-- **Hinge offset** = `A + B + t1/2` = 24.5 mm (radial distance from strut axis to hinge center)
-- **Hinge length** = `t1/2 + D + E` = 28.5 mm (from hinge center to cable attachment point)
+- **Tab offset** = `A + B + t1/2` = 24.5 mm (radial distance from strut axis to tab pin)
+- **Tab length** = `t1/2 + D + E` = 28.5 mm (from tab pin to cable attachment point)
 - **Disc step** = `t1 + t2` = 6 mm
 
 ## Slot Positioning Along the Strut Axis
 
-Slots are numbered starting from 0 (code-internal) or 1 (display/CSV). The position of each slot's disc center along the strut axis, measured from the strut endpoint, is calculated by `HingeDimensions::disc_center_offset()`:
+Slots are numbered starting from 0 (code-internal) or 1 (display/CSV). The position of each slot's disc center along the strut axis, measured from the strut endpoint, is calculated by `ConnectorDimensions::disc_center_offset()`:
 
 ```
 offset = cap_thickness + separator + disc_thickness/2 + slot * (disc_thickness + separator)
@@ -57,7 +57,7 @@ For 0-indexed slots with the current defaults (cap=5 mm, t1=5 mm, t2=1 mm):
 
 Both attachment points and ring centers use the same `disc_center_offset()` formula to position along the strut axis:
 
-1. **Ring centers** — Used by `hinge_geometry()` for rendering and CSV export. Represent the axial center of each disc at slots 0, 1, 2.
+1. **Ring centers** — Used by `tab_geometry()` for rendering and CSV export. Represent the axial center of each disc at slots 0, 1, 2.
 
 2. **Attachment points** — Used by the moment optimization algorithm in `generate_attachment_points()` (`src/fabric/attachment.rs`). There are 10 of these per end (constant `ATTACHMENT_POINTS = 10`), representing candidate positions for cable assignment. The first 3 match the ring center positions exactly.
 
@@ -86,20 +86,20 @@ total_moment = sum of (moment_arm x force) for each cable
 ```
 where `moment_arm` is the vector from the pivot (slot 0) to the attachment point, and `force` is `strain * pull_direction`.
 
-## Hinge Geometry: How Cable Endpoints are Positioned
+## Tab Geometry: How Cable Endpoints are Positioned
 
 Once a cable is assigned to a slot, its exact 3D attachment position is
-calculated by `FabricDimensions::hinge_geometry()` (`src/fabric/dimensions.rs`). The
-function returns `(hinge_pos, hinge_bend, pull_end_pos, ideal_deg)`:
+calculated by `FabricDimensions::tab_geometry()` (`src/fabric/dimensions.rs`). The
+function returns `(tab_pos, tab_bend, pull_end_pos, ideal_deg)`:
 
 1. **Ring center**: Position along the strut axis at this slot
 2. **Radial direction**: Perpendicular to the strut axis, pointing toward the cable's far end
-3. **Hinge position**: Ring center + radial direction × hinge offset (radial distance from axis to bolt)
+3. **Tab pin position**: Ring center + radial direction × tab offset (radial distance from axis to pin)
 4. **Ideal angle** (`ideal_deg`): Continuous angle between the pull direction and the strut axis, computed as `asin(pull_direction · push_axis)` measured from the radial-perpendicular plane
-5. **Snapped angle** (`hinge_bend`): If `bend_magnitudes` is empty (build/converge phases), equals the ideal angle. Otherwise, the ideal is snapped to the nearest signed candidate from `±m` for each `m` in `bend_magnitudes`.
-6. **Cable endpoint** (`pull_end_pos`): Hinge position + hinge arm rotated by `hinge_bend`
+5. **Snapped angle** (`tab_bend`): If `bend_magnitudes` is empty (build/converge phases), equals the ideal angle. Otherwise, the ideal is snapped to the nearest signed candidate from `±m` for each `m` in `bend_magnitudes`.
+6. **Cable endpoint** (`pull_end_pos`): Tab pin + tab arm rotated by `tab_bend`
 
-`HingeBend` is `pub struct HingeBend(pub f32)` — a thin wrapper around the
+`TabBend` is `pub struct TabBend(pub f32)` — a thin wrapper around the
 signed angle in degrees (`src/fabric/attachment.rs`).
 
 ### How `bend_magnitudes` is chosen
@@ -122,13 +122,13 @@ signed set, the count distribution, and snap-error statistics.
 
 ## Rendering
 
-The connector assembly is rendered by `HingeRenderer` (`src/wgpu/hinge_renderer.rs`) as three types of colored links:
+The connector assembly is rendered by `ConnectorRenderer` (`src/wgpu/connector_renderer.rs`) as three types of colored links:
 
 | Link Type | Color | Connects |
 |-----------|-------|----------|
 | **Axial** | Yellow | Previous ring center (or strut end) to current ring center |
-| **Radial** | Orange | Ring center to hinge position |
-| **Hinge** | Red | Hinge position to cable endpoint |
+| **Radial** | Orange | Ring center to tab pin |
+| **Tab** | Red | Tab pin to cable endpoint |
 
 Rendering is only visible when `show_attachment_points()` is enabled in the render style.
 
@@ -136,8 +136,8 @@ Rendering is only visible when `show_attachment_points()` is enabled in the rend
 
 The CSV export (`src/open_claw_symmetry.rs`) includes connector data:
 
-- **Pull intervals**: Exported with slot number (1-indexed) and hinge bend angle at each end
-- **Link intervals**: Axial, radial, and hinge links exported as separate rows for structural analysis
+- **Pull intervals**: Exported with slot number (1-indexed) and tab bend angle at each end
+- **Link intervals**: Axial, radial, and tab links exported as separate rows for structural analysis
 - **FEA intervals**: Simplified push/pull elements where all connections at a joint converge at the highest ring center (for finite element analysis)
 
 Format: `Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaJoint,AlphaSlot,AlphaAngle,OmegaX,...`
@@ -146,15 +146,15 @@ Format: `Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaJoint,AlphaSlot,A
 
 When attachment points are visible, picking a cable shows its slot assignments:
 - Example: `"Cable 152:3-48:5"` means the cable connects to slot 3 of strut 152's end and slot 5 of strut 48's end
-- Hinge angles are also displayed when available
+- Tab bend angles are also displayed when available
 
 ## Key Source Files
 
 | File | Purpose |
 |------|---------|
-| `src/fabric/dimensions.rs` | `HingeDimensions`, `FabricDimensions`, `disc_center_offset()`, `ring_center()`, `hinge_geometry()` |
+| `src/fabric/dimensions.rs` | `ConnectorDimensions`, `FabricDimensions`, `disc_center_offset()`, `ring_center()`, `tab_geometry()` |
 | `src/fabric/attachment.rs` | `PullConnections`, attachment points, moment optimization |
 | `src/fabric/interval.rs:490-683` | Interval's connection storage and attachment point access |
-| `src/wgpu/hinge_renderer.rs` | 3D rendering of connector links |
+| `src/wgpu/connector_renderer.rs` | 3D rendering of connector links |
 | `src/open_claw_symmetry.rs` | OpenClaw threefold-symmetry enforcement + CSV export |
 | `src/camera.rs:550-702` | Picking logic for slot and angle display |

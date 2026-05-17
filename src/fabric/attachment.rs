@@ -15,9 +15,9 @@ pub const ATTACHMENT_POINTS: usize = 10;
 /// Signed bend angle (degrees) at a cable end. Continuous ideal during
 /// build, snapped to the optimised magnitude set after Viewing.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct HingeBend(pub f32);
+pub struct TabBend(pub f32);
 
-impl HingeBend {
+impl TabBend {
     pub fn degrees(&self) -> f32 {
         self.0
     }
@@ -25,21 +25,21 @@ impl HingeBend {
     /// 0° = radial; +angle tilts toward push_axis (outward), −angle inward.
     pub fn endpoint(
         &self,
-        hinge_pos: Vec3,
+        tab_pos: Vec3,
         push_axis: Vec3,
         radial_direction: Vec3,
-        hinge_length: f32,
+        tab_length: f32,
     ) -> Vec3 {
         let angle_rad = self.degrees().to_radians();
         let cos_a = angle_rad.cos();
         let sin_a = angle_rad.sin();
 
-        let hinge_direction = radial_direction * cos_a + push_axis * sin_a;
-        hinge_pos + hinge_direction * hinge_length
+        let tab_direction = radial_direction * cos_a + push_axis * sin_a;
+        tab_pos + tab_direction * tab_length
     }
 }
 
-impl fmt::Display for HingeBend {
+impl fmt::Display for TabBend {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let deg = self.0;
         if deg.abs() < 0.05 {
@@ -100,7 +100,7 @@ impl PullConnections {
     ///   - Hard rule: an outward-pulling cable may not occupy the topmost slot
     ///     (the final nut at the strut tip would otherwise carry the full axial load).
     ///   - Soft objective: among permutations satisfying the hard rule, pick the one
-    ///     that maximises the minimum 3D distance between any pair of bent hinge arms.
+    ///     that maximises the minimum 3D distance between any pair of bent tab arms.
     ///   - Tie-break: rotational moment about slot 0, as before.
     pub fn reorder_connections(
         &mut self,
@@ -379,7 +379,7 @@ fn calculate_rotational_moment(
 ///
 /// Soft rules (preferred over clearance), in priority order:
 ///   1. Lid choice: when the joint-end has any outward-pulling cable, the
-///      cable whose hinge-arm radial direction is most opposite (around the
+///      cable whose tab-arm radial direction is most opposite (around the
 ///      strut axis) to the outward cable's should sit directly above it.
 ///      Their arms project on opposite sides of the strut, so the cover
 ///      disc never fouls the outward arm.
@@ -389,8 +389,8 @@ fn calculate_rotational_moment(
 ///
 /// Soft objective:
 ///   Among permutations satisfying the above, pick the one that maximises
-///   the minimum 3D distance between any pair of bent hinge arms (modelled
-///   as line segments from `hinge_pos` to `pull_end_pos`).
+///   the minimum 3D distance between any pair of bent tab arms (modelled
+///   as line segments from `tab_pos` to `pull_end_pos`).
 ///
 /// Tie-break:
 ///   Rotational moment about the slot-0 ring centre, as before.
@@ -457,16 +457,16 @@ fn find_optimal_assignment(
         .collect();
     let any_outward = is_outward.iter().any(|&o| o);
 
-    // Precompute arm segments (hinge_pos, pull_end_pos) per (cable, slot).
+    // Precompute arm segments (tab_pos, pull_end_pos) per (cable, slot).
     // Bend angle and ring centre both depend on slot, so we recompute per slot.
     // We only need slots 0..n (one slot per cable).
     let mut segments: Vec<Vec<(Vec3, Vec3)>> = Vec::with_capacity(n);
     for c in 0..n {
         let mut row = Vec::with_capacity(n);
         for k in 0..n {
-            let (hinge_pos, _bend, pull_end_pos, _ideal) =
-                dimensions.hinge_geometry(push_end, push_axis, k, other_ends[c]);
-            row.push((hinge_pos, pull_end_pos));
+            let (tab_pos, _bend, pull_end_pos, _ideal) =
+                dimensions.tab_geometry(push_end, push_axis, k, other_ends[c]);
+            row.push((tab_pos, pull_end_pos));
         }
         segments.push(row);
     }
@@ -656,7 +656,7 @@ pub fn generate_attachment_points(
     // Generate attachment points extending outwards along the axis
     // Each point represents the center of a ring at that slot
     for i in 0..ATTACHMENT_POINTS {
-        let distance = dimensions.hinge.disc_center_offset(i).f32();
+        let distance = dimensions.connector.disc_center_offset(i).f32();
 
         // Set the position and index
         points[i] = AttachmentPoint {
