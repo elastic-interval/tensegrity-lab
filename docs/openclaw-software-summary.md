@@ -11,9 +11,10 @@ The structure is designed and simulated in [tensegrity-lab](https://github.com/e
 3. **Settles** to final shape with frozen surface (joints that touch ground lock in place)
 4. **Exports CSV** with all interval coordinates, lengths, strains, and hinge geometry
 
-A run with `--snapshot` produces a single `OpenClaw-slack.csv` — the input to
-the engineer's FEA workflow. See [docs/csv-handoff.md](csv-handoff.md) for the
-full handoff format.
+Running `cargo test --release --lib test_open_claw_threefold_symmetry`
+produces `OpenClaw-<date>.csv` — the input to the engineer's FEA workflow —
+and asserts that every rotational triple is symmetric before writing. See
+[docs/csv-handoff.md](csv-handoff.md) for the full handoff format.
 
 ## OpenClaw Definition Parameters
 
@@ -89,7 +90,7 @@ DSL definition (fabric_library.rs)
 | `src/build/dsl/fabric_library.rs:34–72` | OpenClaw definition |
 | `src/build/dsl/plan_runner_test.rs` | Base triangle test |
 | `src/build/dsl/fabric_plan_executor.rs` | Execution engine |
-| `src/fabric/csv_export.rs` | CSV export for ENS |
+| `src/open_claw_symmetry.rs` | Threefold-symmetry enforcement + CSV export |
 | `docs/csv-handoff.md` | CSV format + engineer's FEA workflow |
 
 ## ENS Iteration Loop

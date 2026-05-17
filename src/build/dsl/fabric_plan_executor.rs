@@ -6,8 +6,6 @@ use crate::fabric::physics::Physics;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::fabric::Fabric;
 use crate::units::{Seconds, Unit};
-use crate::LabEvent;
-use crate::Radio;
 
 #[derive(Debug, PartialEq)]
 pub enum IterateResult {
@@ -138,23 +136,12 @@ pub struct FabricPlanExecutor {
     execution_log: Vec<ExecutionEvent>,
     stored_surface_character: Option<SurfaceCharacter>,
     stored_scale: f32,
-    radio: Option<Radio>,
     fall_start_age: Option<crate::Age>,
     settle_phase_start_age: Option<crate::Age>,
 }
 
 impl FabricPlanExecutor {
-    pub fn new(plan: FabricPlan, radio: Radio) -> Self {
-        Self::new_internal(plan, Some(radio))
-    }
-
-    /// Creates an executor without a radio - for tests only
-    #[cfg(test)]
-    pub fn new_for_test(plan: FabricPlan) -> Self {
-        Self::new_internal(plan, None)
-    }
-
-    fn new_internal(plan: FabricPlan, radio: Option<Radio>) -> Self {
+    pub fn new(plan: FabricPlan) -> Self {
         let fabric = Fabric::new(plan.name.to_string()).with_dimensions(plan.dimensions.clone());
         let plan_runner = PlanRunner::new(plan.clone());
         let physics = CONSTRUCTION;
@@ -170,7 +157,6 @@ impl FabricPlanExecutor {
             execution_log: Vec::new(),
             stored_surface_character: None,
             stored_scale: 1.0,
-            radio,
             fall_start_age: None,
             settle_phase_start_age: None,
         };
@@ -402,11 +388,6 @@ impl FabricPlanExecutor {
         });
 
         self.fabric.slacken();
-
-        // Broadcast slackened moment before pretensing begins
-        if let Some(radio) = &self.radio {
-            LabEvent::SnapshotReached.send(radio);
-        }
 
         // Start the percentage-based pretensing: push rest lengths approach
         // `length × (1 + pretenst)` over the phase's configured duration.

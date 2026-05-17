@@ -51,9 +51,6 @@ struct Args {
     #[arg(long, default_value_t = 1.0)]
     time_scale: f32,
 
-    #[arg(long)]
-    snapshot: bool,
-
     /// Display dimensions at model scale (e.g., 18.5 for 18.5:1 scale)
     /// Only affects displayed measurements, not simulation
     #[arg(long)]
@@ -86,7 +83,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             fabric_name,
             record: record_duration,
             export_fps: args.fps,
-            snapshot: args.snapshot,
         }
     } else {
         // Default: OpenClaw
@@ -94,7 +90,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             fabric_name: FabricName::OpenClaw,
             record: None,
             export_fps: 100.0,
-            snapshot: false,
         }
     };
 
@@ -130,7 +125,6 @@ pub fn run() {
             fabric_name: FabricName::OpenClaw,
             record: None,
             export_fps: 100.0,
-            snapshot: false,
         },
         1.0,
         None, // No model scale for WASM

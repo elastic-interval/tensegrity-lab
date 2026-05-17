@@ -122,7 +122,6 @@ pub enum LabEvent {
     UpdateState(StateChange),
     RebuildFabric,
     NextBrick,
-    DumpCSV,
     RequestRedraw,
     PointerChanged(PointerChange),
     AdjustTimeScale(f32),
@@ -133,7 +132,6 @@ pub enum LabEvent {
     ToggleAnimationExport,
     #[cfg(not(target_arch = "wasm32"))]
     ExportSnapshot,
-    SnapshotReached,
 }
 
 pub type Radio = winit::event_loop::EventLoopProxy<LabEvent>;

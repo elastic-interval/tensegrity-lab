@@ -22,6 +22,7 @@ pub mod units;
 pub mod wgpu;
 
 #[cfg(test)]
+mod open_claw_symmetry;
 mod open_claw_test;
 
 // Re-export every public name from `control` and `events` at the crate root
@@ -104,8 +105,6 @@ pub enum RunStyle {
         record: Option<units::Seconds>,
         /// FPS for animation export (default 100)
         export_fps: f64,
-        /// Export the slack CSV when the fabric reaches that moment.
-        snapshot: bool,
     },
     /// Algorithmic tensegrity sphere (geodesic)
     Sphere {

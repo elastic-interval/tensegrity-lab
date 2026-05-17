@@ -106,7 +106,8 @@ signed angle in degrees (`src/fabric/attachment.rs`).
 
 `Fabric::recompute_bend_magnitudes` runs at two points:
 - When the fabric transitions to Viewing (in `Crucible::finalize_to_viewing`)
-- At the start of every CSV export (in `snapshot_csv_with_phase`)
+- Inside `test_open_claw_threefold_symmetry`, after symmetry has been enforced
+  and before the CSV is written
 
 It collects every cable end's continuous ideal angle, takes absolute values
 (the part can be flipped, so signs come for free), and runs 1D k-center DP
@@ -133,7 +134,7 @@ Rendering is only visible when `show_attachment_points()` is enabled in the rend
 
 ## CSV Export
 
-The CSV export (`src/fabric/csv_export.rs`) includes connector data:
+The CSV export (`src/open_claw_symmetry.rs`) includes connector data:
 
 - **Pull intervals**: Exported with slot number (1-indexed) and hinge bend angle at each end
 - **Link intervals**: Axial, radial, and hinge links exported as separate rows for structural analysis
@@ -155,5 +156,5 @@ When attachment points are visible, picking a cable shows its slot assignments:
 | `src/fabric/attachment.rs` | `PullConnections`, attachment points, moment optimization |
 | `src/fabric/interval.rs:490-683` | Interval's connection storage and attachment point access |
 | `src/wgpu/hinge_renderer.rs` | 3D rendering of connector links |
-| `src/fabric/csv_export.rs` | CSV export with hinge positions and angles |
+| `src/open_claw_symmetry.rs` | OpenClaw threefold-symmetry enforcement + CSV export |
 | `src/camera.rs:550-702` | Picking logic for slot and angle display |

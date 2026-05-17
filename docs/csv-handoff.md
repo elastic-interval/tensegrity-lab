@@ -1,15 +1,26 @@
 # CSV Handoff to Engineer
 
 How the CSV export is structured and what the engineer's workflow with it
-looks like. Source of truth for the format is `src/fabric/csv_export.rs`; the
-single `Slack` broadcast lives in `src/build/dsl/fabric_plan_executor.rs`.
+looks like. Source of truth for the format and emission is
+`src/open_claw_symmetry.rs` — the entire CSV mechanism lives there, alongside
+the threefold-symmetry enforcement that produces a manufacturable file. The
+slack moment itself is the end of the Building stage in
+`src/build/dsl/fabric_plan_executor.rs`.
 
 ## One CSV: `slack`
 
 The simulation exports exactly one CSV, captured right after slackening (end
-of Building, before zero-G pretensing begins). Run with `--snapshot` on the
-CLI and the file is written as `<FabricName>-slack.csv` (e.g.
-`OpenClaw-slack.csv`).
+of Building, before zero-G pretensing begins). The export is driven by the
+test `test_open_claw_threefold_symmetry`:
+
+```
+cargo test --release --lib test_open_claw_threefold_symmetry
+```
+
+It writes `OpenClaw-<date>.csv` (e.g. `OpenClaw-2026-05-17.csv`) into the
+working directory and asserts that every rotational triple has identical
+length, slot, and bend at each cable end — i.e. the engineer's CSV is
+guaranteed symmetric before it ships.
 
 Physical state at this moment: pulls have been given extra rest length
 (slack); pushes have been snapped to discrete lengths. Joint positions are
@@ -183,16 +194,16 @@ visible without resizing the panel.
 The CSV is written in **Z-up** (Rhino/RFEM convention) while the simulation
 runs in Y-up. The transform is `Mat3::from_rotation_x(π/2)` applied to every
 exported position: sim (x, y, z) → csv (x, z, −y). See
-`csv_export.rs::sim_to_csv`.
+`open_claw_symmetry::sim_to_csv`.
 
 ## Hinge bend angles (per cable end)
 
 The `AlphaAngle` and `OmegaAngle` columns hold the snapped hinge bend angle
 at each cable end. Snapping uses the optimised magnitudes computed by
 `Fabric::recompute_bend_magnitudes` (1D k-center on the ideal-angle
-distribution), called automatically when the fabric reaches Viewing and at
-the start of CSV export. Number of distinct magnitudes is configured by
-`HingeDimensions::bend_count` (currently 4).
+distribution), called by the symmetry test before CSV write and also at the
+Building → Viewing transition for live inspection. Number of distinct
+magnitudes is configured by `HingeDimensions::bend_count` (currently 4).
 
 For push rows, both columns are `90` (no hinge — the push tube is
 axial). For pull rows, the values are the snapped angles in degrees, e.g.

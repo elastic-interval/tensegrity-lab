@@ -54,7 +54,6 @@ pub struct Application {
     pointer_handler: PointerHandler,
     time_scale: f32,
     model_scale: Option<f32>,
-    snapshot_pending: bool,
     #[cfg(not(target_arch = "wasm32"))]
     native: NativeState,
 }
@@ -88,7 +87,6 @@ impl Application {
             control_state: ControlState::Waiting,
             time_scale,
             model_scale: model_scale.map(|n| 1.0 / n),
-            snapshot_pending: false,
             #[cfg(not(target_arch = "wasm32"))]
             native: NativeState::default(),
         }
@@ -245,7 +243,6 @@ impl ApplicationHandler<LabEvent> for Application {
                         record,
                         #[cfg(not(target_arch = "wasm32"))]
                         export_fps,
-                        snapshot,
                         ..
                     } => {
                         #[cfg(not(target_arch = "wasm32"))]
@@ -256,7 +253,6 @@ impl ApplicationHandler<LabEvent> for Application {
                             exporter.start();
                             self.native.animation_exporter = Some(exporter);
                         }
-                        self.snapshot_pending = *snapshot;
                         let fabric_plan = fabric_library::get_fabric_plan(*fabric_name);
                         CrucibleAction::BuildFabric(fabric_plan).send(&self.radio);
                     }
@@ -501,15 +497,6 @@ impl ApplicationHandler<LabEvent> for Application {
                     }
                 }
             }
-            DumpCSV => {
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    let name = format!("{}.csv", self.crucible.fabric.name.replace(' ', ""));
-                    if let Err(e) = self.crucible.fabric.snapshot_csv(&name) {
-                        eprintln!("Failed to export CSV: {}", e);
-                    }
-                }
-            }
             RequestRedraw => {
                 // Force a redraw to update the visualization immediately
                 if let Some(_) = &self.scene {
@@ -641,23 +628,6 @@ impl ApplicationHandler<LabEvent> for Application {
                         self.native.gpu_batch = Some(batch);
                         StateChange::SetStageLabel("GPU Physics".to_string()).send(&self.radio);
                     }
-                }
-            }
-            SnapshotReached => {
-                if self.snapshot_pending {
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        let date = chrono::Local::now().format("%Y-%m-%d");
-                        let filename = format!(
-                            "{}-{}.csv",
-                            self.crucible.fabric.name.replace(' ', ""),
-                            date,
-                        );
-                        if let Err(e) = self.crucible.fabric.snapshot_csv(&filename) {
-                            eprintln!("Failed to export snapshot {}: {}", filename, e);
-                        }
-                    }
-                    self.snapshot_pending = false;
                 }
             }
         }

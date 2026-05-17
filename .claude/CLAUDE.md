@@ -130,9 +130,11 @@ DSL in `src/build/dsl/`:
   stage advances when no intervals are still approaching.
 - `plan_runner.rs` — drives Initialize → Build → Shape inside the executor.
 
-Snapshot: a single `slack`-moment CSV is exported on `--snapshot`. The
-`SnapshotMoment` marker in `src/events.rs` is broadcast once, when Building
-ends; see `docs/csv-handoff.md`.
+Engineering CSV: the slack-moment CSV is produced exclusively by
+`test_open_claw_threefold_symmetry` in `src/open_claw_symmetry.rs` — that
+test builds OpenClaw to the end of Building, enforces threefold symmetry,
+writes the CSV, and asserts the result is symmetric. There is no CLI flag
+or runtime hook for it; see `docs/csv-handoff.md`.
 
 ### Physics presets
 
@@ -201,7 +203,6 @@ src/
 │   ├── attachment.rs   # PullConnections, HingeBend, attachment points
 │   ├── bend_optimizer.rs  # K-center optimiser for bend magnitudes
 │   ├── vulcanize.rs
-│   ├── csv_export.rs   # Engineering CSV format
 │   └── fabric_sampler.rs
 │
 ├── build/
@@ -212,6 +213,8 @@ src/
 │   ├── evo/            # Evolution
 │   └── dsl/            # Tenscript DSL builders + executors
 │
+├── open_claw_symmetry.rs # OpenClaw threefold-symmetry enforcement + CSV export
+├── open_claw_test.rs   # OpenClaw build/geometry tests (base triangle, feet, bend counts)
 ├── wgpu/               # Rendering (see Rendering section)
 └── physics_gpu/        # GPU compute (native; see docs/gpu-compute-backend.md)
 ```
@@ -225,8 +228,11 @@ cargo test --release
 ```
 
 Important integration tests:
-- `src/build/dsl/plan_runner_test.rs` — `test_open_claw_base_triangle`,
-  `test_open_claw_foot_positions`, `test_triped_*`.
+- `src/open_claw_symmetry.rs` — `test_open_claw_threefold_symmetry` (writes
+  the engineering CSV and asserts every rotational triple is symmetric in
+  length, slot, and bend) and `test_open_claw_cable_triples`.
+- `src/open_claw_test.rs` — `test_open_claw_base_triangle`,
+  `test_open_claw_foot_positions`, `test_open_claw_bend_counts_match_factory_inventory`.
 - `src/physics_gpu/parity_test.rs` — CPU vs GPU numeric parity.
 - `src/fabric/hinge_geometry_tests` (inline in `mod.rs`) — derived dimension formulas.
 - `src/fabric/bend_optimizer.rs` (inline tests) — k-center DP correctness.
@@ -236,7 +242,9 @@ Important integration tests:
 ```bash
 # Native:
 cargo run --release -- --fabric "Halo by Crane"
-cargo run --release -- --fabric "Open Claw" --snapshot
+
+# Engineering CSV for Open Claw (writes OpenClaw-<date>.csv, headless):
+cargo test --release --lib test_open_claw_threefold_symmetry
 
 # Web:
 trunk serve
@@ -252,8 +260,8 @@ trunk serve
    from elsewhere.
 
 3. **Coordinate systems.** Simulation is Y-up. CSV export converts to Z-up via
-   `sim_to_csv()` in `csv_export.rs`. The Blender import pipeline expects
-   meters; see `scripts/tensegrity_fast_import.py`.
+   `sim_to_csv()` in `open_claw_symmetry.rs`. The Blender import pipeline
+   expects meters; see `scripts/tensegrity_fast_import.py`.
 
 4. **Units.** Joint locations are stored in meters. The `units` newtypes
    (`Meters`, `Seconds`, `Grams`, …) catch mismatches at compile time — use

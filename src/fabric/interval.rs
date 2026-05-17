@@ -78,28 +78,22 @@ impl Fabric {
         }
     }
 
-    /// Update attachment connections for all push intervals in the fabric
-    /// This is typically called at the end of the pretenst phase
+    /// Update attachment connections for all push intervals in the fabric.
+    /// Each push is processed independently, using the slot-assignment
+    /// algorithm in `attachment.rs`. Callers that need additional
+    /// post-processing (e.g., enforcing rotational symmetry for a particular
+    /// fabric) should run that step after this one.
     pub fn update_all_attachment_connections(&mut self) {
-        // Skip if there are no joints
         if self.joints.is_empty() {
             return;
         }
 
-        // Find all push interval keys
         let push_interval_keys: Vec<IntervalKey> = self
             .intervals
             .iter()
-            .filter_map(|(key, interval)| {
-                if interval.has_role(Pushing) {
-                    Some(key)
-                } else {
-                    None
-                }
-            })
+            .filter_map(|(key, interval)| interval.has_role(Pushing).then_some(key))
             .collect();
 
-        // Update connections for each push interval
         for push_key in push_interval_keys {
             self.update_interval_attachment_connections(push_key);
         }

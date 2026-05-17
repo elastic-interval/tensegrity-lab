@@ -103,7 +103,6 @@ impl Crucible {
             use crate::build::dsl::fabric_plan_executor::IterateResult;
 
             for _ in 0..iterations_per_frame {
-                let was_building = matches!(executor.stage(), ExecutorStage::Building);
                 match executor.iterate() {
                     IterateResult::Complete => {
                         // Sync fabric and physics from executor
@@ -117,19 +116,7 @@ impl Crucible {
                         self.finalize_to_viewing();
                         return;
                     }
-                    IterateResult::Continue => {
-                        // If Building just ended, the executor broadcast
-                        // `SnapshotReached`. Stop iterating for this frame so
-                        // the snapshot handler sees the fabric in the exact
-                        // post-slacken state with zero pretensing ticks
-                        // applied. Otherwise downstream CSVs would be
-                        // sensitive to iterations_per_frame.
-                        let still_building =
-                            matches!(executor.stage(), ExecutorStage::Building);
-                        if was_building && !still_building {
-                            break;
-                        }
-                    }
+                    IterateResult::Continue => {}
                 }
             }
 
@@ -261,7 +248,7 @@ impl Crucible {
             let rigidity_multiplier = self.physics.rigidity_multiplier();
 
             let name = fabric_plan.name.clone();
-            let mut executor = FabricPlanExecutor::new(fabric_plan.clone(), self.radio.clone());
+            let mut executor = FabricPlanExecutor::new(fabric_plan.clone());
 
             // Store the fabric_plan for later use (animate, settle, etc.)
             self.fabric_plan = Some(fabric_plan);

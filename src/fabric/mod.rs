@@ -70,7 +70,6 @@ pub mod material;
 pub mod physics;
 pub mod vulcanize;
 
-pub mod csv_export;
 pub mod physics_tester;
 
 // Re-export so `crate::fabric::HingeDimensions` and `crate::fabric::FabricDimensions`
