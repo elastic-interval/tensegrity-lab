@@ -129,18 +129,34 @@ def main() -> None:
             rows.append({"length": mean, "qty": len(members), "members": members})
     rows.sort(key=lambda r: r["length"])
 
+    # Fold rows that round to the same integer mm: physically distinct
+    # triples (or apex singletons) that share a length get combined into a
+    # single order line with summed quantity. The engineer manufactures
+    # cables by length, so merging two 500mm rows into one 500mm × 6 row
+    # matches how the order is fulfilled.
+    merged = []
+    for r in rows:
+        rounded = round(r["length"])
+        if merged and merged[-1]["rounded"] == rounded:
+            merged[-1]["qty"] += r["qty"]
+            merged[-1]["members"].extend(r["members"])
+        else:
+            merged.append({"rounded": rounded, "qty": r["qty"], "members": list(r["members"])})
+
     out_path = args.source.with_name(f"{args.source.stem}-cable-order.csv")
     with out_path.open("w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["GroupID", "Length(mm)", "Quantity", "Members"])
-        for i, r in enumerate(rows, start=1):
+        for i, r in enumerate(merged, start=1):
             members_str = " | ".join(f"{c.alpha}↔{c.omega}" for c in r["members"])
-            w.writerow([i, round(r["length"]), r["qty"], members_str])
+            w.writerow([i, r["rounded"], r["qty"], members_str])
 
-    total_cables = sum(r["qty"] for r in rows)
+    total_cables = sum(r["qty"] for r in merged)
     print(f"Wrote {out_path}", file=sys.stderr)
     print(f"  Cables ordered:  {total_cables}", file=sys.stderr)
-    print(f"  Rows:            {len(rows)}", file=sys.stderr)
+    print(f"  Rows:            {len(merged)}", file=sys.stderr)
+    if len(merged) < len(rows):
+        print(f"  Merged {len(rows) - len(merged)} duplicate-length rows", file=sys.stderr)
 
 
 if __name__ == "__main__":
