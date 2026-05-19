@@ -338,6 +338,7 @@ impl Crucible {
                 let translation = context.fabric.centralize_translation(altitude_f32);
                 context.fabric.apply_translation(translation);
                 context.fabric.zero_velocities();
+                context.fabric.unfreeze();
             }
             ClearSelection => {
                 // Clear UI selection without changing crucible stage
@@ -402,6 +403,10 @@ impl Crucible {
                         .and_then(|p| p.animate_phase.as_ref())
                         .cloned()
                     {
+                        // The fabric may have been auto-frozen after sitting
+                        // in Viewing past the quiet threshold — wake it up
+                        // so actuator-driven motion can start.
+                        context.fabric.unfreeze();
                         // Create animator and transition to Animating stage
                         let animator = Animator::new(animate_phase, &mut context);
                         self.stage = Animating(animator);
@@ -418,6 +423,9 @@ impl Crucible {
             }
             ToPhysicsTesting => {
                 if let Viewing = &mut self.stage {
+                    // Wake the fabric in case the quiet-time auto-freeze has
+                    // kicked in — the tester needs the physics step running.
+                    context.fabric.unfreeze();
                     let tester = PhysicsTester::new(
                         context.fabric.clone(),
                         tester_physics,

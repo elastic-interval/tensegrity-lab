@@ -197,6 +197,12 @@ pub struct Fabric {
 
     cached_bounding_radius: f32,
     approaching_count: usize,
+    /// Age at which the fabric's max velocity first fell below the
+    /// quiet-freeze threshold. Reset to `None` whenever motion exceeds the
+    /// threshold or any interval is still approaching its target length.
+    /// When the elapsed time since this anchor reaches
+    /// `QUIET_FREEZE_DURATION_SECS`, the fabric is auto-frozen.
+    quiet_since: Option<Age>,
 }
 
 impl Fabric {
@@ -213,6 +219,7 @@ impl Fabric {
             dimensions: FabricDimensions::default(),
             labeller: None,
             approaching_count: 0,
+            quiet_since: None,
         }
     }
 
@@ -373,6 +380,15 @@ impl Fabric {
         Mat4::from_quat(Quat::from_rotation_arc(down, -Vec3::Y))
     }
 
+    /// Allow iterations to resume after the fabric was frozen — either by
+    /// the excessive-speed guard or by the quiet-time auto-freeze. Call this
+    /// when transitioning into a state that needs the physics step to run
+    /// again (animation, physics testing, jump-style relocations).
+    pub fn unfreeze(&mut self) {
+        self.frozen = false;
+        self.quiet_since = None;
+    }
+
     /// Zero out all joint velocities and forces
     /// Useful when freezing the fabric to prevent accumulated velocity artifacts
     pub fn zero_velocities(&mut self) {
@@ -523,6 +539,33 @@ impl Fabric {
             self.zero_velocities();
             self.frozen = true;
             return 0.0;
+        }
+
+        // Auto-freeze when the structure has been quiet for a sustained span
+        // of fabric time, so background simulation in Viewing (etc.) doesn't
+        // keep grinding once equilibrium is reached. `Approaching` intervals
+        // are still progressing toward their target length, so we hold off
+        // while any of those are in flight. The 50 mm/s threshold is chosen
+        // above the residual max-velocity floor a meter-scale OpenClaw
+        // exhibits in Viewing physics (~20-35 mm/s of joint jitter from
+        // imperfectly cancelled interval forces); see commit notes.
+        const QUIET_MAX_SPEED_SQ: f32 = 2.5e-3; // (5e-2 m/s)² = (50 mm/s)²
+        const QUIET_FREEZE_DURATION_SECS: f32 = 10.0;
+        if self.approaching_count > 0 || max_speed_squared > QUIET_MAX_SPEED_SQ {
+            self.quiet_since = None;
+        } else {
+            match self.quiet_since {
+                None => self.quiet_since = Some(self.age),
+                Some(start) => {
+                    if self.age.elapsed_since(start).0 >= QUIET_FREEZE_DURATION_SECS {
+                        eprintln!(
+                            "Fabric quiet for {}s of fabric time — freezing iterations",
+                            QUIET_FREEZE_DURATION_SECS as u32
+                        );
+                        self.frozen = true;
+                    }
+                }
+            }
         }
 
         elapsed.as_micros() as f32

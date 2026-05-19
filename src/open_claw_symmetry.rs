@@ -1248,18 +1248,31 @@ mod tests {
         executor
     }
 
-    /// Drive the full slack-CSV pipeline:
-    ///   1. Per-push slot assignment (generic).
-    ///   2. Enforce 3-fold symmetry (OpenClaw-specific).
-    ///   3. Recompute bend magnitudes (generic).
-    ///   4. Write the engineering CSV.
-    ///   5. Assert: every rotational triple of intervals has identical
-    ///      length, slot, and bend angle at each end.
-    ///
-    /// The CSV path is `OpenClaw-<date>.csv` in the working directory — the
-    /// same file the manufacturing pipeline reads.
+    /// Asserts the symmetry invariant — every rotational triple agrees on
+    /// length, slot, and bend at each end — without writing anything to disk.
+    /// Runs on every `cargo test`.
     #[test]
     fn test_open_claw_threefold_symmetry() {
+        let mut executor = build_to_slack();
+
+        executor.fabric.update_all_attachment_connections();
+        apply_threefold_symmetry(&mut executor.fabric);
+        executor.fabric.recompute_bend_magnitudes();
+
+        verify_threefold_symmetry(&executor.fabric);
+    }
+
+    /// Writes the engineering CSV (`OpenClaw-<date>.csv`) to the working
+    /// directory, *and* re-asserts symmetry so the file you ship is also the
+    /// file the symmetry guarantee covers. Marked `#[ignore]` so it runs
+    /// only on demand:
+    ///
+    /// ```
+    /// cargo test --release --lib export_open_claw_csv -- --ignored
+    /// ```
+    #[test]
+    #[ignore]
+    fn export_open_claw_csv() {
         let mut executor = build_to_slack();
 
         executor.fabric.update_all_attachment_connections();
