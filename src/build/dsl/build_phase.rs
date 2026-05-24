@@ -296,13 +296,13 @@ impl BuildPhase {
                 let (base_face, effective_scale) = if let Some(fk) = launch_face {
                     (BaseFace::ExistingFace(fk), scale.as_factor())
                 } else {
-                    // First (root) Hub is the seed — install the DSL's joint
-                    // labeller so seed-joint names render symbolically.
+                    // First (root) Hub is the seed — install the orbit-based
+                    // labeller so every joint gets a symmetry-revealing name.
                     fabric.labeller = Some(std::sync::Arc::new(
-                        crate::build::dsl::labelling::OmniSeedLabeller {
-                            brick_name: *brick_name,
-                            brick_role: *brick_role,
-                        },
+                        crate::build::dsl::labelling::SymmetricOrbitLabeller::new(
+                            *brick_name,
+                            *brick_role,
+                        ),
                     ));
                     (
                         BaseFace::Seeded {

@@ -7,7 +7,7 @@ Usage:
 
 Most cables fall into rotational triples (one per leg) with identical length
 — those become one row per triple, Quantity=3. The two triples whose cables
-all attach to the apex strut `YZ0↔YZ1` are an exception: they share that
+all attach to the apex strut `Z1:Z2` are an exception: they share that
 single central-axis push, so their three rotational copies have to occupy
 three different slots and therefore have three different lengths. Each
 member of these apex triples gets its own row, Quantity=1.
@@ -16,7 +16,9 @@ Output columns (next to the input, suffix `-cable-order.csv`):
 
     GroupID, Length(mm), Quantity, Members
 
-For the symbolic naming scheme this depends on, see docs/joint-naming.md.
+Member endpoints are formatted as `<joint>.<slot>` — the cable-end label that
+gets engraved on the physical part. For the symbolic naming scheme this
+depends on, see docs/joint-naming.md.
 """
 
 from __future__ import annotations
@@ -31,15 +33,14 @@ from pathlib import Path
 
 # ── Joint-label rotation ────────────────────────────────────────────────────
 # Under 120° rotation about the central axis, leg letters cycle A→B→C→A.
-# The leg letter sits at:
-#   - the FIRST character for path joints (AX4YZ1, BX1Z4, CX2YZ0, …)
-#   - the LAST character for seed joints (BAA, TOC, …) — the leading 2 chars
-#     are a category code (BA/BO/TA/TO)
-#   - nowhere for apex prism joints (YZ0, YZ1) — those are on the central
-#     axis and don't rotate.
+# Under the orbit-naming scheme (see docs/joint-naming.md):
+#   - Off-axis joints look like `<leg><n>` (e.g. A12, B30, C5). Rotation
+#     cycles the leading leg letter only; the index is preserved.
+#   - Axis singletons look like `Z<n>` (e.g. Z1, Z2). They sit on the
+#     rotation axis and map to themselves under 120°.
 
-_SEED_JOINT = re.compile(r"^[BT][AO][ABC]$")
-_PATH_JOINT_LEAD = re.compile(r"^[ABC]")
+_LEG_JOINT = re.compile(r"^([ABC])(\d+)$")
+_AXIS_JOINT = re.compile(r"^Z(\d+)$")
 
 
 def _rotate_letter(c: str) -> str:
@@ -47,11 +48,10 @@ def _rotate_letter(c: str) -> str:
 
 
 def rotate_label(label: str) -> str:
-    if _SEED_JOINT.match(label):
-        return label[:2] + _rotate_letter(label[2])
-    if _PATH_JOINT_LEAD.match(label):
-        return _rotate_letter(label[0]) + label[1:]
-    return label  # apex prism etc.
+    m = _LEG_JOINT.match(label)
+    if m:
+        return _rotate_letter(m.group(1)) + m.group(2)
+    return label  # axis singleton (Z<n>) or unrecognised shape — unchanged
 
 
 def canonical_key(a: str, b: str) -> tuple[str, str]:
@@ -71,7 +71,19 @@ def canonical_key(a: str, b: str) -> tuple[str, str]:
 class Cable:
     alpha: str
     omega: str
+    alpha_slot: int
+    omega_slot: int
     length_mm: float
+
+    @property
+    def alpha_end(self) -> str:
+        """Engraved label for the alpha end of this cable: `<joint>.<slot>`."""
+        return f"{self.alpha}.{self.alpha_slot}"
+
+    @property
+    def omega_end(self) -> str:
+        """Engraved label for the omega end of this cable: `<joint>.<slot>`."""
+        return f"{self.omega}.{self.omega_slot}"
 
 
 def parse_pulls(path: Path) -> list[Cable]:
@@ -90,6 +102,8 @@ def parse_pulls(path: Path) -> list[Cable]:
             cables.append(Cable(
                 alpha=row[7],
                 omega=row[13],
+                alpha_slot=int(row[8]),
+                omega_slot=int(row[14]),
                 length_mm=float(row[2]) * 1000.0,
             ))
     return cables
@@ -98,10 +112,10 @@ def parse_pulls(path: Path) -> list[Cable]:
 # ── Grouping + summary ──────────────────────────────────────────────────────
 
 def _touches_apex(key: tuple[str, str]) -> bool:
-    """Cables touching the central-axis apex push `YZ0↔YZ1` can't have
-    rotationally-equal lengths — their three copies share that single push
-    at three different slots."""
-    return "YZ0" in key or "YZ1" in key
+    """Cables touching an axis singleton (label shape `Z<n>`) can't have
+    rotationally-equal lengths — their three copies share that single
+    central-axis push end at three different slots."""
+    return any(_AXIS_JOINT.match(label) for label in key)
 
 
 def main() -> None:
@@ -148,7 +162,9 @@ def main() -> None:
         w = csv.writer(f)
         w.writerow(["GroupID", "Length(mm)", "Quantity", "Members"])
         for i, r in enumerate(merged, start=1):
-            members_str = " | ".join(f"{c.alpha}↔{c.omega}" for c in r["members"])
+            members_str = " | ".join(
+                f"{c.alpha_end}:{c.omega_end}" for c in r["members"]
+            )
             w.writerow([i, r["rounded"], r["qty"], members_str])
 
     total_cables = sum(r["qty"] for r in merged)

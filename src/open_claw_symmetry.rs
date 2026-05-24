@@ -7,8 +7,8 @@
 //!
 //! What this module provides:
 //!   - Rotation helpers for the joint-label scheme established by
-//!     [`crate::build::dsl::labelling::OmniSeedLabeller`] — A→B→C leg
-//!     cycling for path joints, the analogous cycle for seed joints.
+//!     [`crate::build::dsl::labelling::SymmetricOrbitLabeller`] — A→B→C leg
+//!     cycling on the orbit-indexed names (`A12` → `B12` → `C12`).
 //!   - [`apply_threefold_symmetry`] — copies one representative's slot
 //!     assignments to its rotational partners after the generic per-push
 //!     algorithm has run, so floating-point ε doesn't flip cables between
@@ -38,36 +38,33 @@ use crate::units::{Unit, MM_PER_METER};
 
 /// Rotate a joint label by 120° about the central axis (A→B→C).
 ///
-/// Three label shapes participate:
-///   - Path joints (start with A/B/C):   `AX4YZ1` → `BX4YZ1`
-///   - Seed joints (`[BT][AO][ABC]`):    `BAA`    → `BAB`
-///   - Everything else (apex `YZ0`, off-axis paths starting with D/E/…): unchanged.
+/// Two label shapes participate under the orbit naming scheme:
+///   - Off-axis (`<leg><index>`): `A12` → `B12` → `C12` → `A12`. Leg letter
+///     is one of `A`/`B`/`C`; the trailing index is an integer. Rotating
+///     cycles the leg letter forwards.
+///   - On-axis singleton (`Z<index>`): unchanged — these joints lie on the
+///     rotation axis and map to themselves under the 120° rotation.
+///
+/// Any other shape (a `JointPath` fallback string, an empty label, etc.) is
+/// returned unchanged.
 fn rotate_label_once(label: &str) -> String {
     let bytes = label.as_bytes();
-    let n = bytes.len();
-    if n == 3
-        && matches!(bytes[0], b'B' | b'T')
-        && matches!(bytes[1], b'A' | b'O')
-        && matches!(bytes[2], b'A' | b'B' | b'C')
-    {
-        let next = match bytes[2] {
-            b'A' => 'B',
-            b'B' => 'C',
-            b'C' => 'A',
-            _ => unreachable!(),
-        };
-        return format!("{}{}{}", bytes[0] as char, bytes[1] as char, next);
+    if bytes.len() < 2 {
+        return label.to_string();
     }
-    if n > 0 && matches!(bytes[0], b'A' | b'B' | b'C') {
-        let next = match bytes[0] {
-            b'A' => 'B',
-            b'B' => 'C',
-            b'C' => 'A',
-            _ => unreachable!(),
-        };
-        return format!("{}{}", next, &label[1..]);
+    let next_leg = match bytes[0] {
+        b'A' => b'B',
+        b'B' => b'C',
+        b'C' => b'A',
+        _ => return label.to_string(),
+    };
+    if !bytes[1..].iter().all(|b| b.is_ascii_digit()) {
+        return label.to_string();
     }
-    label.to_string()
+    let mut out = Vec::with_capacity(bytes.len());
+    out.push(next_leg);
+    out.extend_from_slice(&bytes[1..]);
+    String::from_utf8(out).expect("ascii in -> ascii out")
 }
 
 /// Canonical key for an unordered pair of joint labels (a push or cable):
@@ -1129,12 +1126,13 @@ fn build_group_mean_lengths(
     out
 }
 
-/// `YZ0` / `YZ1` are the only joints on Open Claw's central rotational axis
-/// and don't rotate; cables landing there share a single push end at three
-/// different slots. They are the sole source of legitimate within-triple
-/// length spread.
+/// Axis-singleton labels (shape `Z<n>`) name joints that sit on Open Claw's
+/// central rotational axis and don't rotate; cables landing on the same axis
+/// push end share three different slots. They are the sole source of
+/// legitimate within-triple length spread.
 fn is_apex_axis_label(label: &str) -> bool {
-    label == "YZ0" || label == "YZ1"
+    let bytes = label.as_bytes();
+    bytes.len() >= 2 && bytes[0] == b'Z' && bytes[1..].iter().all(|b| b.is_ascii_digit())
 }
 
 /// Recompute a pull's "shortened" length — tab-endpoint to tab-endpoint
@@ -1346,12 +1344,12 @@ mod tests {
                 eprintln!("  {key}: {:.2}/{:.2}/{:.2}mm  (Δ={:.2}mm)", a, b, c, c - a);
             }
         }
-        // Apex-attached cables are geometrically forced apart (the 2 triples
-        // touching YZ0/YZ1 land on three slots of the single apex push).
-        // Everything else should be sub-mm.
+        // Apex-attached cables are geometrically forced apart (the triples
+        // touching the axis singletons `Z<n>` land on three slots of the
+        // single apex push). Everything else should be sub-mm.
         let apex_triples = worst
             .iter()
-            .filter(|(key, _, _, _)| key.contains("YZ0") || key.contains("YZ1"))
+            .filter(|(key, _, _, _)| key.contains("(Z") || key.contains(", Z"))
             .count();
         let non_apex_outliers = worst.len() - apex_triples;
         assert_eq!(
