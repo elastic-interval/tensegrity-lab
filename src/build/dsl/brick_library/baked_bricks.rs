@@ -22,7 +22,7 @@ use crate::build::dsl::brick::BakedBrick;
 use crate::build::dsl::brick_dsl::{
     BrickName, BrickParams, OmniParams, SingleParams, TorqueParams,
 };
-use crate::build::oven::bake_brick_to_baked;
+use crate::build::dsl::brick_library::equilibrium::bake_brick_pure;
 use glam::Vec3;
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -53,7 +53,7 @@ fn populate_cache() -> HashMap<BrickName, BakedBrick> {
         SingleTwistLeft,
         TorqueSymmetrical,
     ] {
-        let baked = bake_brick_to_baked(
+        let baked = bake_brick_pure(
             brick_name,
             initial_scale(brick_name),
             brick_params(brick_name),

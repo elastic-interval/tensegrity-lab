@@ -1,4 +1,5 @@
 pub mod baked_bricks;
+pub mod equilibrium;
 mod omni;
 mod single;
 #[cfg(test)]
