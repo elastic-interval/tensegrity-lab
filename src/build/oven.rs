@@ -12,38 +12,24 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use strum::IntoEnumIterator;
 
-/// Role under which Omni- and Single-shaped bricks declare 3-fold cyclic
-/// symmetry — `down_rotation(THREEFOLD_ROLE)` aligns the brick's
-/// body-diagonal 3-fold axis with world +Y. See `symmetrize_brick_3fold`.
+/// Role for the 3-fold cyclic symmetry of Omni / Single bricks.
 const THREEFOLD_ROLE: BrickRole = BrickRole::Seed(1);
 
-/// Safety cap on bake duration. Reached only if the system never settles
-/// (which shouldn't happen with the BAKING preset's strong damping).
-/// In practice the convergence check below kicks in well before this.
 const BAKED_DURATION: Duration = Duration::from_secs(2);
-
-/// Reorient the brick at this time so user can see it
 const REORIENT_DURATION: Duration = Duration::from_millis(500);
 
-/// Stop the second physics burst once max joint speed drops below this
-/// (m/s). 1 cm/s — well below any meaningful joint motion at our scale,
-/// reached in ~1 s fabric time on both Omni and Single bricks (~half the
-/// safety cap). The post-bake `symmetrize_brick_3fold` projection cleans
-/// up the residual sub-mm motion anyway.
+/// Stop the second physics burst once `max_speed` drops below this.
 const CONVERGENCE_SPEED_M_PER_S: f32 = 1.0e-2;
 
-/// Run physics for at least this long after reorientation before checking
-/// the convergence criterion — otherwise we'd catch the freshly-zeroed
-/// velocities and stop immediately.
+/// Floor on post-reorient physics time before convergence checks fire.
 const MIN_PHYSICS_AFTER_REORIENT: Duration = Duration::from_millis(150);
 
-/// Tolerance for face strain convergence
 const STRAIN_TOLERANCE: f32 = 0.001;
 
 struct TuningState {
     scale: f32,
-    low_scale: Option<f32>,  // Scale that gave strain < target
-    high_scale: Option<f32>, // Scale that gave strain > target
+    low_scale: Option<f32>,
+    high_scale: Option<f32>,
     iteration: usize,
 }
 
@@ -187,10 +173,7 @@ impl Oven {
             self.reoriented = true;
         }
 
-        // Stop early if the system has effectively settled — max joint
-        // speed below threshold AND we've had enough time post-reorient
-        // for the system to actually pick up speed first. Falls back on
-        // the BAKED_DURATION safety cap.
+        // Stop on settled OR timed out.
         let age = context.fabric.age.as_duration();
         let post_reorient = age.saturating_sub(REORIENT_DURATION);
         let settled = self.reoriented
@@ -231,11 +214,6 @@ impl Oven {
             }
 
             let brick_name = self.current_brick_name();
-            // Snap onto the brick's 3-fold-symmetric manifold before
-            // snapshotting. Drops residual asymmetry from physics drift
-            // (~4 μm for Omni, ~25 μm for Single) to canonicalisation
-            // noise (~1e-7 m), so the baked literals are truly symmetric.
-            // No-op for bricks without 3-fold cyclic symmetry declared.
             symmetrize_brick_3fold(&mut context.fabric, brick_name);
             let code = self.generate_baked_code(&context.fabric, final_scale);
             self.baked_fabrics[self.current_index] = Some(context.fabric.clone());
@@ -260,19 +238,16 @@ impl Oven {
 
     fn generate_baked_code(&self, fabric: &Fabric, scale: f32) -> String {
         let mut oriented = fabric.clone();
-        // The fabric is already rotated during the baking display phase.
-        // Just move centroid to origin - baked bricks must have centroid at origin.
+        // `attach_brick` asserts centroid at origin.
         let centroid = oriented.centroid();
         oriented.apply_translation(-centroid);
 
-        // Get face center joints to exclude them
         let face_joints: Vec<JointKey> = oriented
             .faces
             .values()
             .map(|face| face.middle_joint(&oriented))
             .collect();
 
-        // Build mapping from fabric joint key to baked joint index
         let mut fabric_to_baked: HashMap<JointKey, usize> = HashMap::new();
         let mut baked_index = 0;
         for (key, _joint) in oriented.joints.iter() {
@@ -282,10 +257,7 @@ impl Oven {
             }
         }
 
-        // Build joints using helper function format. {:.7} preserves
-        // f32's ~7 significant digits — together with the
-        // `symmetrize_brick_3fold` projection above, this lets the baked
-        // literals carry symmetric positions to ε.
+        // {:.7} preserves f32's ~7 significant digits.
         let joints_str: Vec<String> = oriented
             .joints
             .iter()
@@ -299,7 +271,6 @@ impl Oven {
             })
             .collect();
 
-        // Build pushes and pulls using helper function format
         let mut pushes: Vec<String> = Vec::new();
         let mut pulls: Vec<String> = Vec::new();
 
@@ -351,14 +322,6 @@ impl Oven {
     fn export_brick(&self, _brick_name: BrickName, _baked_code: &str) {}
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Bake helpers (free functions, shared between Oven::iterate and the
-// headless `bake_brick` startup-regen path)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Multiply every push and pull rest length by `scale`. Used to find the
-/// scale at which the brick's average face strain matches
-/// `BakedBrick::TARGET_FACE_STRAIN`.
 fn scale_prototype(proto: &BrickPrototype, scale: f32) -> BrickPrototype {
     let mut scaled = proto.clone();
     for push in &mut scaled.pushes {
@@ -370,15 +333,11 @@ fn scale_prototype(proto: &BrickPrototype, scale: f32) -> BrickPrototype {
     scaled
 }
 
-/// Mean face strain across all faces — the bisection target.
 fn average_face_strain(fabric: &Fabric) -> f32 {
     let strain_sum: f32 = fabric.faces.values().map(|face| face.strain(fabric)).sum();
     strain_sum / fabric.faces.len() as f32
 }
 
-/// Pick the next scale given the current strain. Bisects once both
-/// bounds are known; otherwise damps proportionally to find the missing
-/// bound. Identical logic to what Oven::compute_new_scale used.
 fn next_scale(tuning: &mut TuningState, current_strain: f32) -> f32 {
     let target = BakedBrick::TARGET_FACE_STRAIN;
     if current_strain < target {
@@ -394,18 +353,12 @@ fn next_scale(tuning: &mut TuningState, current_strain: f32) -> f32 {
     (tuning.scale * damped).clamp(0.1, 10.0)
 }
 
-/// Run a single bake pass (first physics burst → reorientation →
-/// second physics burst with convergence-stop). Reused by both the live
-/// UI bake and the headless startup-regen bake.
+/// First physics burst → reorientation → second physics burst with
+/// convergence-stop. Shared by the live Oven and `bake_brick`.
 fn run_bake_pass(fabric: &mut Fabric, proto: &BrickPrototype) {
-    // First physics burst — let the brick approach its rough shape from
-    // the prototype's slack intervals.
     while fabric.age.as_duration() < REORIENT_DURATION {
         fabric.iterate(&BAKING);
     }
-    // Reorientation: centre, align "down" to world -Y, then sit the
-    // bottom at y=0. Matches the Oven's interactive path so the headless
-    // bake produces the same geometry.
     let centroid = fabric.centroid();
     fabric.apply_translation(-centroid);
     let rotation = fabric.down_rotation(proto.max_seed());
@@ -414,8 +367,6 @@ fn run_bake_pass(fabric: &mut Fabric, proto: &BrickPrototype) {
     fabric.apply_translation(translation);
     fabric.zero_velocities();
 
-    // Second physics burst — settle to equilibrium. Stops as soon as
-    // motion has died down, with a hard cap at BAKED_DURATION.
     loop {
         for _ in 0..60 {
             fabric.iterate(&BAKING);
@@ -431,28 +382,15 @@ fn run_bake_pass(fabric: &mut Fabric, proto: &BrickPrototype) {
     }
 }
 
-/// Bake one brick headlessly — no `Radio`, no UI hooks. Repeats the
-/// physics + reorientation pass with adjusted scales until the average
-/// face strain matches the target tolerance, then projects onto the
-/// 3-fold-symmetric manifold. Pure function of `brick_name` plus the
-/// initial scale estimate (`initial_scale`).
-///
-/// Called from the brick-library's startup regeneration path. The live
-/// Oven still uses its UI-driven `iterate()` loop, but shares all the
-/// helpers above so the two paths produce identical output.
-/// Convenience: bake a brick and convert the resulting fabric directly
-/// to the in-memory `BakedBrick` form used by `attach_brick`. Mirrors
-/// `generate_baked_code` but returns a struct rather than emitting
-/// source text. Used by `baked_bricks.rs` for startup regeneration.
+/// Verlet bake + convert to `BakedBrick`. Used as the comparison
+/// baseline for `bake_brick_pure`.
 pub fn bake_brick_to_baked(
     brick_name: BrickName,
     initial_scale: f32,
     params: BrickParams,
 ) -> BakedBrick {
     let (mut fabric, scale) = bake_brick(brick_name, initial_scale);
-    // Re-centre on origin — baked bricks must have centroid at origin
-    // (asserted in `brick_library::get_brick`). `bake_brick` leaves the
-    // fabric with its bottom at y=0 from `centralize_translation`.
+    // `attach_brick` asserts centroid at origin.
     let centroid = fabric.centroid();
     fabric.apply_translation(-centroid);
     let face_middles: HashMap<JointKey, ()> = fabric
@@ -527,20 +465,11 @@ pub fn bake_brick(brick_name: BrickName, initial_scale: f32) -> (Fabric, f32) {
     }
 }
 
-/// Snap a brick's structural joint positions (and the matching push/pull
-/// strains) onto the 3-fold-symmetric manifold. Orbit-averages each group
-/// of three rotational siblings, so the resulting baked literals are
-/// symmetric to within f32 ε (~1e-7 m) rather than the ε·√N physics-drift
-/// floor (~4–25 μm).
-///
-/// No-op for bricks whose prototype doesn't declare a 3-fold cyclic axis
-/// at `THREEFOLD_ROLE` (e.g. `TorqueSymmetrical`, which is only 2-fold
-/// symmetric).
+/// Orbit-average structural joint positions onto the 3-fold-symmetric
+/// manifold. No-op for bricks without a 3-fold cyclic symmetry under
+/// `THREEFOLD_ROLE`.
 pub fn symmetrize_brick_3fold(fabric: &mut Fabric, brick_name: BrickName) {
     let proto = brick_library::get_prototype(brick_name);
-    // Only act on bricks that declare 3-fold cyclic symmetry under
-    // THREEFOLD_ROLE. `cyclic_axes_for` returns the axis order; len()==3
-    // means a 3-fold rotation about the body diagonal.
     let Some(axes) = proto.cyclic_axes_for(THREEFOLD_ROLE) else {
         return;
     };
@@ -548,14 +477,9 @@ pub fn symmetrize_brick_3fold(fabric: &mut Fabric, brick_name: BrickName) {
         return;
     }
 
-    // 1. Canonicalise: rotate brick so its 3-fold axis aligns with world
-    //    +Y, computed fresh from current face normals so this works
-    //    regardless of any rotation the bake has already applied.
     let to_canonical = fabric.down_rotation(THREEFOLD_ROLE);
     let from_canonical = to_canonical.inverse();
 
-    // 2. Identify structural joints (push endpoints; face midpoints are
-    //    not written to baked literals so we don't touch them).
     let face_middles: HashSet<JointKey> = fabric
         .faces
         .values()
@@ -570,8 +494,6 @@ pub fn symmetrize_brick_3fold(fabric: &mut Fabric, brick_name: BrickName) {
         return;
     }
 
-    // 3. Bring positions into canonical frame, centred on their centroid
-    //    so the 120°-Y rotation acts about the brick centre.
     let positions: HashMap<JointKey, Vec3> = structural
         .iter()
         .map(|&k| (k, to_canonical.transform_point3(fabric.joints[k].location)))
@@ -583,11 +505,6 @@ pub fn symmetrize_brick_3fold(fabric: &mut Fabric, brick_name: BrickName) {
         .map(|(k, p)| (*k, *p - centre))
         .collect();
 
-    // 4. For each joint find the joint nearest to its 120°-Y image.
-    //    A clean 3-cycle (k → k_b → k_c → k) is a 3-orbit; we average
-    //    the three positions in a common frame, then write back the
-    //    symmetric replacements. Joints that don't form clean cycles
-    //    (axis singletons, malformed) keep their canonical positions.
     let rotation = Quat::from_axis_angle(Vec3::Y, std::f32::consts::TAU / 3.0);
     let rot_inv = rotation.inverse();
 
@@ -613,19 +530,13 @@ pub fn symmetrize_brick_3fold(fabric: &mut Fabric, brick_name: BrickName) {
         }
         let k_b = nearest[&k];
         let k_c = nearest[&k_b];
-        // Must form a closed 3-cycle. If not (e.g. axis singleton), leave
-        // the joint where physics put it.
+        // Axis singletons / malformed cycles: leave alone.
         if nearest[&k_c] != k || k_b == k || k_c == k {
             seen.insert(k);
             sym_positions.insert(k, centred[&k]);
             continue;
         }
-        // Orbit mean expressed in A's frame: average of p_a, R^-1·p_b,
-        // R^-2·p_c. Then rotate to get B's and C's symmetric positions.
-        let p_a = centred[&k];
-        let p_b = centred[&k_b];
-        let p_c = centred[&k_c];
-        let mean_a = (p_a + rot_inv * p_b + rot_inv * rot_inv * p_c) / 3.0;
+        let mean_a = (centred[&k] + rot_inv * centred[&k_b] + rot_inv * rot_inv * centred[&k_c]) / 3.0;
         sym_positions.insert(k, mean_a);
         sym_positions.insert(k_b, rotation * mean_a);
         sym_positions.insert(k_c, rotation * rotation * mean_a);
@@ -638,16 +549,11 @@ pub fn symmetrize_brick_3fold(fabric: &mut Fabric, brick_name: BrickName) {
         seen.insert(k_c);
     }
 
-    // 5. Write symmetrised positions back to fabric, undoing centring +
-    //    canonicalisation.
     for (k, p) in &sym_positions {
-        let world_p = from_canonical.transform_point3(*p + centre);
-        fabric.joints[*k].location = world_p;
+        fabric.joints[*k].location = from_canonical.transform_point3(*p + centre);
     }
 
-    // 6. Average strain within each interval orbit. Two intervals are in
-    //    the same orbit when their endpoints sit in the same pair of
-    //    joint orbits (using the orbit ids we just assigned).
+    // Average strain across each rotational triple of non-radial intervals.
     let mut interval_orbits: HashMap<(usize, usize), Vec<IntervalKey>> = HashMap::new();
     for (key, interval) in fabric.intervals.iter() {
         if interval.role == Role::FaceRadial {
@@ -659,7 +565,6 @@ pub fn symmetrize_brick_3fold(fabric: &mut Fabric, brick_name: BrickName) {
         ) else {
             continue;
         };
-        // Canonicalise the orbit pair so (A, B) and (B, A) merge.
         let key_pair = if a_orbit <= o_orbit {
             (a_orbit, o_orbit)
         } else {

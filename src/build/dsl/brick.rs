@@ -27,6 +27,36 @@ impl Axis {
             omega,
         }
     }
+
+    /// Unit vector along this axis (in brick frame).
+    pub fn vector(self) -> Vec3 {
+        match self {
+            Axis::X => Vec3::X,
+            Axis::Y => Vec3::Y,
+            Axis::Z => Vec3::Z,
+        }
+    }
+}
+
+/// A brick's rotational symmetry in its own frame.
+#[derive(Clone, Debug)]
+pub struct BrickSymmetry {
+    /// Unit vector along the rotation axis (brick frame).
+    pub axis: Vec3,
+    /// Number of rotations to return to identity.
+    pub order: u32,
+    /// How the brick's principal axes cycle under one rotation.
+    pub axis_permutation: [Axis; 3],
+}
+
+impl BrickSymmetry {
+    pub fn angle(&self) -> f32 {
+        std::f32::consts::TAU / self.order as f32
+    }
+
+    pub fn quat(&self) -> Quat {
+        Quat::from_axis_angle(self.axis, self.angle())
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -93,6 +123,22 @@ impl BrickPrototype {
             .iter()
             .find(|(r, _)| *r == role)
             .map(|(_, axes)| axes.as_slice())
+    }
+
+    /// Derive a `BrickSymmetry` from `cyclic_axes_for(role)`. `None` if
+    /// the role declares no symmetry or the cyclic-axes list isn't of
+    /// length 3.
+    pub fn symmetry(&self, role: BrickRole) -> Option<BrickSymmetry> {
+        let axes = self.cyclic_axes_for(role)?;
+        if axes.len() != 3 {
+            return None;
+        }
+        let axis = (axes[0].vector() + axes[1].vector() + axes[2].vector()).normalize();
+        Some(BrickSymmetry {
+            axis,
+            order: 3,
+            axis_permutation: [axes[0], axes[1], axes[2]],
+        })
     }
 }
 

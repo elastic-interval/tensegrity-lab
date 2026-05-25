@@ -1,79 +1,43 @@
-//! Fabric-free brick baking via static-equilibrium minimisation.
+//! Brick baking as a static-equilibrium minimisation.
 //!
-//! The bake problem is fundamentally a small static optimisation: find
-//! joint positions where the elastic energy
-//!
-//! ```text
-//! E(x) = Σ ½ kᵢ (Lᵢ(x) - L₀ᵢ)²    (slack terms drop to zero)
-//! ```
-//!
-//! is at a minimum. For an OmniSymmetrical brick that's 60 unknowns
-//! (12 structural joints + 8 face midpoints, × 3 coords) and ~30
-//! intervals — a problem L-BFGS solves in ~20 iterations of pure linear
-//! algebra. No time-stepping, no Verlet, no `Fabric`. Just positions in,
-//! positions out.
-//!
-//! This module owns its own minimal representation (`Bake` struct) and
-//! produces a `BakedBrick` directly. The Verlet bake in `oven.rs`
-//! remains for the GUI Oven path, but `baked_bricks.rs` calls
-//! `bake_brick_pure` here for startup regeneration.
+//! Minimises `E(x) = Σ ½ kᵢ (Lᵢ - L₀ᵢ)²` (slack drops to zero) via L-BFGS
+//! on a `Bake` struct that holds positions and springs directly — no
+//! `Fabric`, no time-stepping. Output is a `BakedBrick`.
 
 use glam::{Mat4, Quat, Vec3};
 use std::collections::HashMap;
 
-use crate::build::dsl::brick::{Axis, BakedBrick, BakedInterval, BakedJoint, BrickPrototype};
+use crate::build::dsl::brick::{
+    Axis, BakedBrick, BakedInterval, BakedJoint, BrickPrototype, BrickSymmetry,
+};
 use crate::build::dsl::brick_dsl::{BrickName, BrickParams, BrickRole, JointName};
 use crate::build::dsl::brick_library;
 use crate::fabric::interval::Role;
 use crate::fabric::physics::presets::BAKING;
 use crate::units::Unit;
 
-/// Role under which Omni- and Single-shaped bricks declare 3-fold cyclic
-/// symmetry — `Seed(1)`. The bake works in this orientation, where the
-/// brick's body-diagonal 3-fold axis aligns with world +Y.
+/// Role under which Omni and Single declare their 3-fold cyclic symmetry.
 const THREEFOLD_ROLE: BrickRole = BrickRole::Seed(1);
 
-/// Bisection tolerance on the average face strain (matches oven.rs).
+/// Tolerance for `verify_symmetry`. Pure solver lands at ~1e-7 m.
+const SYMMETRY_VERIFICATION_TOLERANCE: f32 = 1.0e-5;
+
 const STRAIN_TOLERANCE: f32 = 0.001;
-
-/// L-BFGS convergence tolerance on the gradient norm (Newtons-ish — see
-/// `compute_energy_and_gradient`). 1e-3 is below sub-mm joint motion.
 const GRAD_TOL: f32 = 1.0e-3;
-
-/// L-BFGS memory size — number of past (s, y) pairs to keep.
 const LBFGS_MEMORY: usize = 5;
-
-/// Hard cap on L-BFGS iterations per equilibrium solve.
 const MAX_LBFGS_ITERS: usize = 200;
-
-/// Outer-loop cap on strain-bisection rounds before we give up.
 const MAX_BISECTION_ROUNDS: usize = 20;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Minimal bake representation (positions + intervals, no Fabric)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// One spring in the bake — `alpha` and `omega` are indices into the
-/// position vector. `k` is the effective spring constant (Newtons per
-/// metre of extension) at this rest length.
 #[derive(Clone, Copy, Debug)]
 struct Spring {
     alpha: usize,
     omega: usize,
     rest_length: f32,
     k: f32,
-    /// `true` if this is a push (slack when extended past rest);
-    /// `false` for pulls/face radials (slack when compressed).
+    /// Push: slack when stretched. Pull/radial: slack when compressed.
     is_push: bool,
 }
 
-/// Per-face bookkeeping needed to compute face strain (for outer
-/// bisection) and to drive `down_rotation`. `vertices` are indices
-/// into the position vector at the face's three corner joints;
-/// `midpoint` is the index of the face-midpoint joint. `downward_roles`
-/// is the list of roles under which the face is marked downward —
-/// queried by `down_rotation(role)` to assemble the per-role down
-/// vector.
 #[derive(Clone, Debug)]
 struct FaceInfo {
     vertices: [usize; 3],
@@ -82,42 +46,22 @@ struct FaceInfo {
     downward_roles: Vec<BrickRole>,
 }
 
-/// The full bake state — positions for every joint plus the spring and
-/// face geometry that defines the problem.
 struct Bake {
     positions: Vec<Vec3>,
     springs: Vec<Spring>,
     faces: Vec<FaceInfo>,
-    /// Number of structural joints (excludes face midpoints). The first
-    /// `structural` entries of `positions` are the joints written to the
-    /// `BakedBrick.joints` output.
+    /// First `structural` positions become BakedJoints; the rest are face midpoints.
     structural: usize,
 }
 
 impl Bake {
-    /// Build the initial bake representation from a brick prototype at
-    /// a given scale. Mirrors what `BrickPrototype::to_fabric` does but
-    /// without the Fabric machinery — joints get initial positions,
-    /// intervals turn into `Spring`s at their target rest lengths.
+    /// Build the initial bake from a prototype: explicit joints first,
+    /// then push endpoints at `±vector·ideal/2`, then a midpoint per face.
+    /// Springs cover pushes, pulls, and face radials.
     fn build_from_prototype(
         proto: &BrickPrototype,
         scale: f32,
     ) -> (Self, Vec<JointName>) {
-        let face_scale_factor = match proto
-            .scale_modes
-            .iter()
-            .find(|m| matches!(m, crate::build::dsl::ScaleMode::Tetrahedral))
-        {
-            // Match Fabric's logic: face scaling factor is configured per
-            // brick. For now we use 1.0 (== "None") — same as the Oven
-            // does for non-Tetrahedral bricks — and override below for
-            // Tetrahedral via `brick_name.face_scaling()`.
-            _ => 1.0,
-        };
-        let _ = face_scale_factor; // (face_scale comes in per-face below)
-
-        // 1. Structural joints from the prototype's explicit joints (if any)
-        //    and from each push's (alpha, omega) endpoints.
         let mut joint_name_to_idx: HashMap<JointName, usize> = HashMap::new();
         let mut positions: Vec<Vec3> = Vec::new();
         let mut joint_names: Vec<JointName> = Vec::new();
@@ -141,22 +85,13 @@ impl Bake {
         }
         let structural = positions.len();
 
-        // 2. Spring list: pushes first (at scaled rest length), then
-        //    pulls (at scaled rest length). Stiffness is the same
-        //    formula Fabric uses: k_at_1m / max(L₀, 0.001).
         let mut springs: Vec<Spring> = Vec::new();
         for push in &proto.pushes {
             let alpha = joint_name_to_idx[&push.alpha];
             let omega = joint_name_to_idx[&push.omega];
             let rest = push.ideal * scale;
             let k = spring_k(Role::Pushing, rest);
-            springs.push(Spring {
-                alpha,
-                omega,
-                rest_length: rest,
-                k,
-                is_push: true,
-            });
+            springs.push(Spring { alpha, omega, rest_length: rest, k, is_push: true });
         }
         for pull in &proto.pulls {
             let alpha = joint_name_to_idx[&pull.alpha];
@@ -164,37 +99,20 @@ impl Bake {
             let rest = pull.ideal * scale;
             let role = Role::from_label(&pull.material).unwrap_or(Role::Pulling);
             let k = spring_k(role, rest);
-            springs.push(Spring {
-                alpha,
-                omega,
-                rest_length: rest,
-                k,
-                is_push: false,
-            });
+            springs.push(Spring { alpha, omega, rest_length: rest, k, is_push: false });
         }
 
-        // 3. Face midpoints + face-radial springs. Each face contributes
-        //    a midpoint joint at the centroid of its three vertices,
-        //    plus three radial springs from midpoint to each vertex with
-        //    rest length = face_scale.
         let face_scaling = crate::build::dsl::ScaleMode::None;
-        // Actually: derive face scale from each face's scale_overrides via the
-        // brick's face_scaling preference. We pass `face_scaling` per brick
-        // from the caller via `face_scaling_for(brick_name)`.
         let mut faces: Vec<FaceInfo> = Vec::new();
         for face_def in &proto.faces {
-            let vertices = face_def
-                .joints
-                .map(|name| joint_name_to_idx[&name]);
-            // Initial midpoint at the geometric centroid of the three
-            // current vertex positions.
+            let vertices = face_def.joints.map(|name| joint_name_to_idx[&name]);
             let centroid = (positions[vertices[0]]
                 + positions[vertices[1]]
                 + positions[vertices[2]])
                 / 3.0;
             let midpoint = positions.len();
             positions.push(centroid);
-            joint_names.push(JointName::AlphaX); // placeholder — face midpoints aren't named
+            joint_names.push(JointName::AlphaX);
             let face_scale = face_def.scale_for(face_scaling);
             let k = spring_k(Role::FaceRadial, face_scale.max(0.001));
             for &v in &vertices {
@@ -206,8 +124,6 @@ impl Bake {
                     is_push: false,
                 });
             }
-            // Roles under which this face is marked downward — queried
-            // later by `down_rotation(role)`.
             let downward_roles: Vec<BrickRole> = face_def
                 .aliases
                 .iter()
@@ -238,9 +154,7 @@ impl Bake {
         )
     }
 
-    /// Compute the total elastic energy and per-joint gradient.
-    /// Slack springs contribute nothing. The gradient is the standard
-    /// `-force` for spring potentials.
+    /// Total elastic energy and per-joint gradient (= −force).
     fn energy_and_gradient(&self) -> (f32, Vec<Vec3>) {
         let n = self.positions.len();
         let mut e = 0.0_f32;
@@ -252,14 +166,10 @@ impl Bake {
                 continue;
             }
             let dl = l - s.rest_length;
-            // Slack: push doesn't resist extension; pull doesn't resist
-            // compression. Zero force, zero energy.
             if (s.is_push && dl > 0.0) || (!s.is_push && dl < 0.0) {
                 continue;
             }
             e += 0.5 * s.k * dl * dl;
-            // gradient on alpha = -k·dl·(d/L)  (pulls alpha toward omega
-            // when dl > 0, which reduces L)
             let g_alpha = (-s.k * dl / l) * d;
             g[s.alpha] += g_alpha;
             g[s.omega] -= g_alpha;
@@ -267,9 +177,7 @@ impl Bake {
         (e, g)
     }
 
-    /// Mean face strain — what the outer bisection drives toward
-    /// `BakedBrick::TARGET_FACE_STRAIN`. Computed as the average over
-    /// all face-radial springs of `(L - L₀) / L₀`.
+    /// Mean face strain — the outer bisection's target.
     fn mean_face_strain(&self) -> f32 {
         let mut total = 0.0_f32;
         let mut count = 0;
@@ -277,41 +185,31 @@ impl Bake {
             let m = self.positions[face.midpoint];
             for &v in &face.vertices {
                 let l = (self.positions[v] - m).length();
-                let strain = (l - face.rest_radial) / face.rest_radial;
-                total += strain;
+                total += (l - face.rest_radial) / face.rest_radial;
                 count += 1;
             }
         }
-        if count == 0 {
-            return 0.0;
-        }
-        total / count as f32
+        if count == 0 { 0.0 } else { total / count as f32 }
     }
 
-    /// Apply a rigid transform to all joint positions.
     fn apply_matrix(&mut self, m: Mat4) {
         for p in &mut self.positions {
             *p = m.transform_point3(*p);
         }
     }
 
-    /// Translate all joint positions by `t`.
     fn translate(&mut self, t: Vec3) {
         for p in &mut self.positions {
             *p += t;
         }
     }
 
-    /// Centroid of *all* joints (matches Fabric::centroid).
     fn centroid(&self) -> Vec3 {
         self.positions.iter().copied().sum::<Vec3>() / self.positions.len() as f32
     }
 
-    /// Compute the rotation that aligns the average of `role`'s
-    /// downward-face normals with world `-Y`. Equivalent to
-    /// `Fabric::down_rotation(role)` but computed from this bake's
-    /// state directly. Returns identity if no faces are marked downward
-    /// under `role`.
+    /// Rotation aligning the average of `role`'s downward face normals
+    /// with world `-Y`. Identity if no face is marked downward under `role`.
     fn down_rotation(&self, role: BrickRole) -> Mat4 {
         let normals: Vec<Vec3> = self
             .faces
@@ -321,19 +219,9 @@ impl Bake {
                 let p0 = self.positions[f.vertices[0]];
                 let p1 = self.positions[f.vertices[1]];
                 let p2 = self.positions[f.vertices[2]];
-                // Spin convention is determined by the brick prototype;
-                // for our purposes (averaging into a "down" direction)
-                // either cross-product orientation works since we sum
-                // and normalise.
                 let n = (p1 - p0).cross(p2 - p0).normalize();
-                // Make sure it points away from the brick centre — if
-                // not, flip. This handles spin variation across faces.
                 let face_centre = (p0 + p1 + p2) / 3.0;
-                if n.dot(face_centre - self.centroid()) < 0.0 {
-                    -n
-                } else {
-                    n
-                }
+                if n.dot(face_centre - self.centroid()) < 0.0 { -n } else { n }
             })
             .collect();
         if normals.is_empty() {
@@ -352,18 +240,11 @@ fn axis_vec(axis: Axis) -> Vec3 {
     }
 }
 
-/// Spring constant matching Fabric's formula: `k_at_1m / max(L₀, 0.001)
-/// × rigidity_multiplier`. For the BAKING preset, `rigidity_multiplier`
-/// is 1.0, so we don't multiply.
+/// Spring constant: `k_at_1m / max(L₀, 0.001)` — same formula as Fabric.
 fn spring_k(role: Role, rest_length: f32) -> f32 {
-    let material = role.material();
-    let k_at_1m = material.spring_constant_at_1m().f32();
+    let k_at_1m = role.material().spring_constant_at_1m().f32();
     k_at_1m / rest_length.max(0.001) * BAKING.rigidity_multiplier()
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// L-BFGS minimiser
-// ─────────────────────────────────────────────────────────────────────────────
 
 fn dot_v(a: &[Vec3], b: &[Vec3]) -> f32 {
     a.iter().zip(b.iter()).map(|(x, y)| x.dot(*y)).sum()
@@ -373,8 +254,7 @@ fn norm_v(a: &[Vec3]) -> f32 {
     a.iter().map(|v| v.length_squared()).sum::<f32>().sqrt()
 }
 
-/// Minimise the bake's elastic energy in place via L-BFGS with
-/// backtracking line search. Returns `(iterations, final_grad_norm)`.
+/// L-BFGS with backtracking line search. Returns `(iterations, final ‖∇‖)`.
 fn lbfgs(bake: &mut Bake) -> (usize, f32) {
     let (mut e, mut g) = bake.energy_and_gradient();
     let n = bake.positions.len();
@@ -389,7 +269,7 @@ fn lbfgs(bake: &mut Bake) -> (usize, f32) {
             return (iter, g_norm);
         }
 
-        // Two-loop recursion: compute search direction d = -H⁻¹·g.
+        // Two-loop recursion → search direction d = -H⁻¹·g.
         let mut q = g.clone();
         let mut alphas: Vec<f32> = Vec::with_capacity(s_hist.len());
         for i in (0..s_hist.len()).rev() {
@@ -400,15 +280,10 @@ fn lbfgs(bake: &mut Bake) -> (usize, f32) {
             alphas.push(alpha);
         }
         alphas.reverse();
-        // Initial Hessian-inverse scaling γ. First iteration: identity.
         let gamma = match (s_hist.last(), y_hist.last()) {
             (Some(s), Some(y)) => {
                 let yy = dot_v(y, y);
-                if yy > 0.0 {
-                    dot_v(s, y) / yy
-                } else {
-                    1.0
-                }
+                if yy > 0.0 { dot_v(s, y) / yy } else { 1.0 }
             }
             _ => 1.0,
         };
@@ -421,11 +296,9 @@ fn lbfgs(bake: &mut Bake) -> (usize, f32) {
         }
         let direction: Vec<Vec3> = r.iter().map(|v| -*v).collect();
 
-        // Backtracking line search (Armijo sufficient-decrease).
         let dphi0 = dot_v(&g, &direction);
         if dphi0 >= 0.0 {
-            // Direction isn't a descent direction — reset history and
-            // fall back to steepest descent for one step.
+            // Not a descent direction; reset history and try again.
             s_hist.clear();
             y_hist.clear();
             rho_hist.clear();
@@ -440,16 +313,12 @@ fn lbfgs(bake: &mut Bake) -> (usize, f32) {
             let saved = std::mem::replace(&mut bake.positions, new_positions.clone());
             let (e2, g2) = bake.energy_and_gradient();
             bake.positions = saved;
-            if e2 <= e + 1.0e-4 * step * dphi0 {
+            if e2 <= e + 1.0e-4 * step * dphi0 || step < 1.0e-10 {
                 break (e2, g2);
             }
             step *= 0.5;
-            if step < 1.0e-10 {
-                break (e2, g2);
-            }
         };
 
-        // Commit step and update L-BFGS history.
         let s_k: Vec<Vec3> = (0..n)
             .map(|i| new_positions[i] - bake.positions[i])
             .collect();
@@ -472,10 +341,6 @@ fn lbfgs(bake: &mut Bake) -> (usize, f32) {
     (MAX_LBFGS_ITERS, norm_v(&g))
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Outer scale bisection + final assembly
-// ─────────────────────────────────────────────────────────────────────────────
-
 struct ScaleBisector {
     scale: f32,
     low: Option<f32>,
@@ -484,19 +349,12 @@ struct ScaleBisector {
 
 impl ScaleBisector {
     fn new(initial: f32) -> Self {
-        Self {
-            scale: initial,
-            low: None,
-            high: None,
-        }
+        Self { scale: initial, low: None, high: None }
     }
     fn next_scale(&mut self, strain: f32) -> f32 {
         let target = BakedBrick::TARGET_FACE_STRAIN;
-        if strain < target {
-            self.low = Some(self.scale);
-        } else {
-            self.high = Some(self.scale);
-        }
+        if strain < target { self.low = Some(self.scale); }
+        else { self.high = Some(self.scale); }
         if let (Some(lo), Some(hi)) = (self.low, self.high) {
             return (lo + hi) / 2.0;
         }
@@ -506,8 +364,8 @@ impl ScaleBisector {
     }
 }
 
-/// Bake a brick by direct equilibrium minimisation — no Verlet, no
-/// `Fabric`. Returns a fully-formed `BakedBrick`.
+/// Bake a brick by direct equilibrium minimisation. Output is a fully-
+/// formed `BakedBrick` ready for runtime use.
 pub fn bake_brick_pure(
     brick_name: BrickName,
     initial_scale: f32,
@@ -520,29 +378,23 @@ pub fn bake_brick_pure(
         let (mut bake, _names) = Bake::build_from_prototype(&proto, bisector.scale);
         lbfgs(&mut bake);
         let strain = bake.mean_face_strain();
-        let error = (strain - BakedBrick::TARGET_FACE_STRAIN).abs();
-        if error <= STRAIN_TOLERANCE {
+        if (strain - BakedBrick::TARGET_FACE_STRAIN).abs() <= STRAIN_TOLERANCE {
             break (bake, bisector.scale);
         }
         let next = bisector.next_scale(strain);
         if (next - bisector.scale).abs() < 1.0e-9
-            || bisector.low.is_some() && bisector.high.is_some()
-                && (bisector.high.unwrap() - bisector.low.unwrap()).abs() < 1.0e-6
+            || (bisector.low.is_some() && bisector.high.is_some()
+                && (bisector.high.unwrap() - bisector.low.unwrap()).abs() < 1.0e-6)
         {
             break (bake, bisector.scale);
         }
         bisector.scale = next;
-        if bisector.high.is_some() && bisector.low.is_some() {
-            // Safety: bound the outer loop.
-            let _ = MAX_BISECTION_ROUNDS;
-        }
+        let _ = MAX_BISECTION_ROUNDS;
     };
     let (mut bake, scale) = final_bake;
 
-    // Reorient to match what the Oven does: use the brick's `max_seed`
-    // role so the final orientation agrees with the Verlet bake. For
-    // OmniSymmetrical that's `Seed(4)`; for SingleTwistLeft it's
-    // `Seed(1)` (same as THREEFOLD_ROLE).
+    // Reorient on the brick's max_seed role (matches the Oven's
+    // visual-orientation choice).
     let centroid = bake.centroid();
     bake.translate(-centroid);
     let reorient = bake.down_rotation(proto.max_seed());
@@ -550,27 +402,23 @@ pub fn bake_brick_pure(
     let centroid = bake.centroid();
     bake.translate(-centroid);
 
-    symmetrize_3fold(&mut bake);
+    if let Some(symmetry) = proto.symmetry(THREEFOLD_ROLE) {
+        symmetrize(&mut bake, &symmetry, reorient);
+        verify_symmetry(&bake, &symmetry, reorient, brick_name);
+    }
 
-    // Emit BakedBrick: structural joints become BakedJoints, springs
-    // (except face radials) become BakedIntervals with their final strain.
     let joints: Vec<BakedJoint> = bake.positions[..bake.structural]
         .iter()
         .map(|p| BakedJoint { location: *p })
         .collect();
     let mut intervals: Vec<BakedInterval> = Vec::new();
     for s in &bake.springs {
-        // Skip face radials — same as oven.rs's generate_baked_code does.
+        // Face radials never enter the baked output.
         if s.alpha >= bake.structural || s.omega >= bake.structural {
             continue;
         }
-        let d = bake.positions[s.omega] - bake.positions[s.alpha];
-        let l = d.length();
-        let strain = if l > 0.0 {
-            (l - s.rest_length) / s.rest_length
-        } else {
-            0.0
-        };
+        let l = (bake.positions[s.omega] - bake.positions[s.alpha]).length();
+        let strain = if l > 0.0 { (l - s.rest_length) / s.rest_length } else { 0.0 };
         let material_name = if s.is_push { "push" } else { "pull" }.to_string();
         intervals.push(BakedInterval {
             alpha_index: s.alpha,
@@ -589,38 +437,40 @@ pub fn bake_brick_pure(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3-fold orbit symmetrisation (works on the structural-only sub-vector)
-// ─────────────────────────────────────────────────────────────────────────────
+/// The declared symmetry's rotation axis transformed into world space
+/// via the rigid `reorient` the bake just applied.
+fn world_symmetry_quat(symmetry: &BrickSymmetry, reorient: Mat4) -> Quat {
+    let axis_world = reorient.transform_vector3(symmetry.axis).normalize();
+    Quat::from_axis_angle(axis_world, symmetry.angle())
+}
 
-fn symmetrize_3fold(bake: &mut Bake) {
-    // Bricks may be in their `max_seed` orientation (which differs from
-    // the 3-fold-axis-at-Y orientation for Omni). Canonicalise into the
-    // Y-aligned frame first via `down_rotation(THREEFOLD_ROLE)`, do
-    // orbit-averaging about Y there, then rotate back.
+/// Orbit-average structural joints onto the symmetric manifold.
+/// Currently handles 3-fold cyclic only.
+fn symmetrize(bake: &mut Bake, symmetry: &BrickSymmetry, reorient: Mat4) {
+    if symmetry.order != 3 {
+        return;
+    }
     let n_struct = bake.structural;
     if n_struct == 0 {
         return;
     }
-    let to_canonical = bake.down_rotation(THREEFOLD_ROLE);
-    let from_canonical = to_canonical.inverse();
     let centre: Vec3 =
         bake.positions[..n_struct].iter().copied().sum::<Vec3>() / n_struct as f32;
-    let canonical_centred: Vec<Vec3> = bake.positions[..n_struct]
+    let centred: Vec<Vec3> = bake.positions[..n_struct]
         .iter()
-        .map(|p| to_canonical.transform_point3(*p - centre))
+        .map(|p| *p - centre)
         .collect();
 
-    let rotation = Quat::from_axis_angle(Vec3::Y, std::f32::consts::TAU / 3.0);
+    let rotation = world_symmetry_quat(symmetry, reorient);
     let rot_inv = rotation.inverse();
 
     let mut nearest: Vec<usize> = vec![0; n_struct];
     for i in 0..n_struct {
-        let target = rotation * canonical_centred[i];
+        let target = rotation * centred[i];
         let mut best = 0usize;
         let mut best_d = f32::INFINITY;
         for j in 0..n_struct {
-            let d = (canonical_centred[j] - target).length_squared();
+            let d = (centred[j] - target).length_squared();
             if d < best_d {
                 best_d = d;
                 best = j;
@@ -630,21 +480,16 @@ fn symmetrize_3fold(bake: &mut Bake) {
     }
 
     let mut seen = vec![false; n_struct];
-    let mut sym = canonical_centred.clone();
+    let mut sym = centred.clone();
     for i in 0..n_struct {
-        if seen[i] {
-            continue;
-        }
+        if seen[i] { continue; }
         let i_b = nearest[i];
         let i_c = nearest[i_b];
         if nearest[i_c] != i || i_b == i || i_c == i {
             seen[i] = true;
             continue;
         }
-        let p_a = canonical_centred[i];
-        let p_b = canonical_centred[i_b];
-        let p_c = canonical_centred[i_c];
-        let mean_a = (p_a + rot_inv * p_b + rot_inv * rot_inv * p_c) / 3.0;
+        let mean_a = (centred[i] + rot_inv * centred[i_b] + rot_inv * rot_inv * centred[i_c]) / 3.0;
         sym[i] = mean_a;
         sym[i_b] = rotation * mean_a;
         sym[i_c] = rotation * rotation * mean_a;
@@ -654,14 +499,45 @@ fn symmetrize_3fold(bake: &mut Bake) {
     }
 
     for i in 0..n_struct {
-        bake.positions[i] = from_canonical.transform_point3(sym[i]) + centre;
+        bake.positions[i] = sym[i] + centre;
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Tests — compare pure-solver output against the Verlet bake to catch
-// regressions. Joint positions should match to within physics noise.
-// ─────────────────────────────────────────────────────────────────────────────
+/// Loud-fail if the baked joints aren't invariant under the declared
+/// symmetry within tolerance.
+fn verify_symmetry(
+    bake: &Bake,
+    symmetry: &BrickSymmetry,
+    reorient: Mat4,
+    brick_name: BrickName,
+) {
+    let n_struct = bake.structural;
+    if n_struct == 0 {
+        return;
+    }
+    let centre: Vec3 =
+        bake.positions[..n_struct].iter().copied().sum::<Vec3>() / n_struct as f32;
+    let centred: Vec<Vec3> = bake.positions[..n_struct]
+        .iter()
+        .map(|p| *p - centre)
+        .collect();
+    let rotation = world_symmetry_quat(symmetry, reorient);
+    let mut worst: f32 = 0.0;
+    for p in &centred {
+        let target = rotation * *p;
+        let mut nearest = f32::INFINITY;
+        for q in &centred {
+            let d = (target - *q).length();
+            if d < nearest { nearest = d; }
+        }
+        if nearest > worst { worst = nearest; }
+    }
+    assert!(
+        worst < SYMMETRY_VERIFICATION_TOLERANCE,
+        "{brick_name}: baked brick not invariant under declared symmetry — \
+         residual {worst:.2e} m > tolerance {SYMMETRY_VERIFICATION_TOLERANCE:.0e}"
+    );
+}
 
 #[cfg(test)]
 mod tests {
@@ -672,12 +548,10 @@ mod tests {
     use std::time::Instant;
 
     fn compare_bakes(brick_name: BrickName, initial_scale: f32, params: BrickParams) {
-        // Pure solver
         let t0 = Instant::now();
         let pure = bake_brick_pure(brick_name, initial_scale, params.clone());
         let pure_ms = t0.elapsed().as_secs_f64() * 1000.0;
 
-        // Verlet reference
         let t0 = Instant::now();
         let verlet = bake_brick_to_baked(brick_name, initial_scale, params);
         let verlet_ms = t0.elapsed().as_secs_f64() * 1000.0;
@@ -688,21 +562,11 @@ mod tests {
             verlet_ms / pure_ms.max(1.0e-6)
         );
 
-        assert_eq!(
-            pure.joints.len(),
-            verlet.joints.len(),
-            "joint count mismatch"
-        );
-        assert_eq!(
-            pure.intervals.len(),
-            verlet.intervals.len(),
-            "interval count mismatch"
-        );
+        assert_eq!(pure.joints.len(), verlet.joints.len(), "joint count mismatch");
+        assert_eq!(pure.intervals.len(), verlet.intervals.len(), "interval count mismatch");
 
-        // Permutation-aware comparison: pure solver and Verlet may emit
-        // joints in different orders (different traversal). For each
-        // pure joint, find the closest Verlet joint and report worst
-        // residual.
+        // Pure and Verlet may emit joints in different orders; match by
+        // nearest neighbour.
         let mut worst_dist: f32 = 0.0;
         let mut worst_idx = 0;
         for (i, j_pure) in pure.joints.iter().enumerate() {
@@ -723,9 +587,6 @@ mod tests {
             worst_dist, worst_idx, pure.scale, verlet.scale
         );
 
-        // Loose tolerance for first pass — we expect agreement to within
-        // physics noise (~1e-4 m) since the two methods produce different
-        // equilibrium-search trajectories.
         assert!(
             worst_dist < 1.0e-2,
             "pure-solver joint at idx {worst_idx} differs from Verlet by {worst_dist:.2e} m"
