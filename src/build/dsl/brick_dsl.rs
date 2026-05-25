@@ -261,6 +261,16 @@ pub enum FaceName {
     RightBackBottom,
     LeftBackBottom,
 
+    // Two-down (edge-tilted) faces
+    LowerLeft,
+    LowerRight,
+    UpperLeft,
+    UpperRight,
+    ForeLeft,
+    ForeRight,
+    AftLeft,
+    AftRight,
+
     // Torque attach faces (first is Attach())
     NearA,
     NearB,
