@@ -22,6 +22,8 @@ pub mod units;
 pub mod wgpu;
 
 #[cfg(test)]
+mod fabric_smoke_test;
+#[cfg(test)]
 mod open_claw_symmetry;
 mod open_claw_test;
 

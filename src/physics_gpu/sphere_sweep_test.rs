@@ -137,6 +137,7 @@ fn run_single_sphere_on_gpu(
 }
 
 #[test]
+#[ignore = "exploratory scaling-law printf scan; run with --ignored"]
 fn sphere_gpu_sweep_scaling_law() {
     let Some((device, queue)) = create_headless_device("physics_gpu sphere sweep") else {
         eprintln!("skipping: no GPU adapter");
@@ -188,6 +189,7 @@ fn sphere_gpu_sweep_scaling_law() {
 /// high-frequency point. Prints which one best holds the bounding radius
 /// near the original geometric radius.
 #[test]
+#[ignore = "exploratory scaling-law printf scan; run with --ignored"]
 fn sphere_gpu_strain_exponent_probe() {
     let Some((device, queue)) = create_headless_device("physics_gpu sphere sweep") else {
         eprintln!("skipping: no GPU adapter");

@@ -120,7 +120,7 @@ pub enum MarkName {
     RingX,
     RingY,
     RingZ,
-    Legs,
+    Feet,
     Chest1,
     Chest2,
     Hands,

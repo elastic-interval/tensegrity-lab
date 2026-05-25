@@ -131,50 +131,49 @@ impl FabricName {
                         .with_altitude(M(2.0))
                         .with_scale(M(1.0)),
                 )
-                .seed(OmniSymmetrical, Seed(4))
+                .seed(OmniSymmetrical, Seed(2))
                 .faces([
                     on(LeftBackBottom)
                         .column(4)
-                        .chiral()
                         .shrink_by(Pct(8.0))
-                        .then(column(1).then(column(2).chiral().mark(Legs))),
+                        .then(column(1).then(column(2).mark(Feet))),
                     on(RightBackBottom)
                         .column(4)
-                        .chiral()
                         .shrink_by(Pct(8.0))
-                        .then(column(1).then(column(2).chiral().mark(Legs))),
+                        .then(column(1).then(column(2).mark(Feet))),
                     on(LeftFrontTop).column(2).shrink_by(Pct(10.0)).then(
-                        hub(OmniSymmetrical, OnSpinRight).faces([
+                        hub(OmniSymmetrical, OnSpinLeft).faces([
                             on(OmniTopZ).mark(Chest1),
                             on(OmniBotX).mark(Chest2),
                             on(OmniBotY)
                                 .column(3)
-                                .chiral()
                                 .shrink_by(Pct(10.0))
-                                .then(column(1).then(column(2).chiral().mark(Hands)))
+                                .then(column(1).then(column(2).mark(Hands)))
                                 .into(),
                         ]),
                     ),
                     on(RightFrontTop).column(2).shrink_by(Pct(10.0)).then(
-                        hub(OmniSymmetrical, OnSpinLeft).faces([
+                        hub(OmniSymmetrical, OnSpinRight).faces([
                             on(OmniTopY).mark(Chest1),
                             on(OmniBotZ).mark(Chest2),
                             on(OmniBotX)
                                 .column(3)
-                                .chiral()
                                 .shrink_by(Pct(10.0))
-                                .then(column(1).then(column(2).chiral().mark(Hands)))
+                                .then(column(1).then(column(2).mark(Hands)))
                                 .into(),
                         ]),
                     ),
                 ])
-                .space(Sec(2.0), Legs, Pct(40.0))
+                .space(Sec(2.0), Feet, Pct(40.0))
                 .space(Sec(2.0), Hands, Pct(20.0))
                 .space(Sec(2.0), Chest2, Pct(40.0))
                 .vulcanize(Sec(6.0))
+                .down(Sec(1.0), Feet)
                 .centralize_at(Sec(1.0), M(1.0))
-                .pretense(Sec(0.02), Pct(1.0))
-                .surface_frozen(),
+                .pretense(Sec(3.0), Pct(1.0))
+                .surface_frozen()
+                .fall(Sec(1.5))
+                .settle(Sec(1.5)),
         }
     }
 }

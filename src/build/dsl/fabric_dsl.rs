@@ -1,5 +1,5 @@
 /// Type-safe DSL for defining fabric plans with a fluent API.
-use crate::build::dsl::build_phase::{BuildNode, BuildPhase, Chirality, ColumnStyle};
+use crate::build::dsl::build_phase::{BuildNode, BuildPhase};
 use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::fall_phase::FallPhase;
@@ -221,7 +221,7 @@ impl FaceBuilder {
         FaceColumnBuilder {
             face_name: self.face_name,
             column: ColumnBuilder {
-                style: ColumnStyle::alternating(0),
+                count: 0,
                 scale: Percent(100.0),
                 post_column_nodes: vec![BuildNode::RadialsOnly],
             },
@@ -232,7 +232,7 @@ impl FaceBuilder {
         FaceColumnBuilder {
             face_name: self.face_name,
             column: ColumnBuilder {
-                style: ColumnStyle::alternating(0),
+                count: 0,
                 scale: Percent(100.0),
                 post_column_nodes: vec![BuildNode::Open],
             },
@@ -243,7 +243,7 @@ impl FaceBuilder {
         FaceColumnBuilder {
             face_name: self.face_name,
             column: ColumnBuilder {
-                style: ColumnStyle::alternating(0),
+                count: 0,
                 scale: Percent(100.0),
                 post_column_nodes: vec![BuildNode::Prism { outer_percent }],
             },
@@ -258,11 +258,6 @@ pub struct FaceColumnBuilder {
 }
 
 impl FaceColumnBuilder {
-    pub fn chiral(mut self) -> Self {
-        self.column = self.column.chiral();
-        self
-    }
-
     pub fn shrink_by(mut self, percent: Percent) -> Self {
         self.column = self.column.shrink_by(percent);
         self
@@ -401,10 +396,10 @@ impl SeedChain {
     }
 }
 
-/// Create a column node (extends a column of bricks, defaults to alternating chirality)
+/// Create a column node (extends a column of bricks).
 pub fn column(count: usize) -> ColumnBuilder {
     ColumnBuilder {
-        style: ColumnStyle::alternating(count),
+        count,
         scale: Percent(100.0),
         post_column_nodes: Vec::new(),
     }
@@ -416,17 +411,12 @@ pub fn mark(mark_name: MarkName) -> BuildNode {
 }
 
 pub struct ColumnBuilder {
-    style: ColumnStyle,
+    count: usize,
     scale: Percent,
     post_column_nodes: Vec<BuildNode>,
 }
 
 impl ColumnBuilder {
-    pub fn chiral(mut self) -> Self {
-        self.style.chirality = Chirality::Chiral;
-        self
-    }
-
     /// Shrink each successive brick by the given percentage (e.g., Pct(10.0) means 90% scale per brick)
     pub fn shrink_by(mut self, percent: Percent) -> Self {
         self.scale = Percent(100.0 - percent.0);
@@ -475,7 +465,7 @@ impl ColumnBuilder {
 impl From<ColumnBuilder> for BuildNode {
     fn from(builder: ColumnBuilder) -> BuildNode {
         BuildNode::Column {
-            style: builder.style,
+            count: builder.count,
             scale: builder.scale,
             post_column_nodes: builder.post_column_nodes,
         }

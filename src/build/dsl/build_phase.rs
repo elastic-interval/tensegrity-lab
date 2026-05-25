@@ -10,57 +10,10 @@ use crate::fabric::{Fabric, FaceKey};
 use crate::units::{Percent, Unit};
 use std::convert::Into;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Chirality {
-    Chiral,
-    Alternating,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ColumnStyle {
-    pub count: usize,
-    pub chirality: Chirality,
-}
-
-impl ColumnStyle {
-    pub fn new(count: usize, chirality: Chirality) -> Self {
-        Self { count, chirality }
-    }
-
-    pub fn alternating(count: usize) -> Self {
-        Self {
-            count,
-            chirality: Chirality::Alternating,
-        }
-    }
-
-    pub fn chiral(count: usize) -> Self {
-        Self {
-            count,
-            chirality: Chirality::Chiral,
-        }
-    }
-
-    pub fn is_alternating(&self) -> bool {
-        self.chirality == Chirality::Alternating
-    }
-
-    pub fn decrement(&self) -> Option<ColumnStyle> {
-        if self.count > 1 {
-            Some(ColumnStyle {
-                count: self.count - 1,
-                chirality: self.chirality,
-            })
-        } else {
-            None
-        }
-    }
-}
-
 #[derive(Debug, Default, Clone)]
 pub struct Bud {
     face_key: FaceKey,
-    column_style: Option<ColumnStyle>,
+    column_count: usize,
     scale: Percent,
     nodes: Vec<BuildNode>,
     branch_path: JointPath,
@@ -73,7 +26,7 @@ pub enum BuildNode {
         node: Box<BuildNode>,
     },
     Column {
-        style: ColumnStyle,
+        count: usize,
         scale: Percent,
         post_column_nodes: Vec<BuildNode>,
     },
@@ -177,21 +130,16 @@ impl BuildPhase {
         fabric: &mut Fabric,
         Bud {
             face_key,
-            column_style,
+            column_count,
             scale,
             nodes,
             branch_path,
         }: Bud,
     ) -> (Vec<Bud>, Vec<FaceMark>) {
         let (mut buds, mut marks) = (vec![], vec![]);
-        if let Some(style) = column_style.filter(|s| s.count > 0) {
+        if column_count > 0 {
             let face = fabric.expect_face(face_key);
-            let spin = if style.is_alternating() {
-                face.spin.mirror()
-            } else {
-                face.spin
-            };
-            let (brick_name, brick_role) = match spin {
+            let (brick_name, brick_role) = match face.spin.mirror() {
                 Spin::Left => (BrickName::SingleTwistLeft, BrickRole::OnSpinLeft),
                 Spin::Right => (BrickName::SingleTwistRight, BrickRole::OnSpinRight),
             };
@@ -220,7 +168,7 @@ impl BuildPhase {
                 .expect(format!("Brick {}: next face not found", brick_name).as_str());
             buds.push(Bud {
                 face_key: next_face_key,
-                column_style: style.decrement(),
+                column_count: column_count - 1,
                 scale,
                 nodes,
                 branch_path: next_path,
@@ -269,7 +217,7 @@ impl BuildPhase {
                 );
             }
             Column {
-                style,
+                count,
                 scale,
                 post_column_nodes,
                 ..
@@ -278,7 +226,7 @@ impl BuildPhase {
                     Self::find_launch_face(&launch, &faces, fabric).expect("No launch face");
                 buds.push(Bud {
                     face_key,
-                    column_style: Some(*style),
+                    column_count: *count,
                     scale: *scale,
                     nodes: post_column_nodes.clone(),
                     branch_path,

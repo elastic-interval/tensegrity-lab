@@ -13,7 +13,7 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
 
     proto_scaled(
         OmniSymmetrical,
-        [OnSpinLeft, Seed(4), Seed(1)],
+        [OnSpinLeft, Seed(4), Seed(2), Seed(1)],
         [Tetrahedral],
     )
     .pushes_x(
@@ -34,6 +34,7 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         [
             OnSpinLeft.calls_it(Attach(Spin::Right)),
             Seed(4).calls_it(RightFrontTop),
+            Seed(2).calls_it(RightFrontTop),
             Seed(1).calls_it(OmniTop),
         ],
         [Tetrahedral.large()],
@@ -45,6 +46,7 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
             OnSpinLeft.calls_it(OmniBotX),
             Seed(4).calls_it(RightFrontBottom),
             Seed(4).downwards(),
+            Seed(2).calls_it(RightFrontBottom),
             Seed(1).calls_it(OmniTopX),
         ],
         [Tetrahedral.small()],
@@ -55,6 +57,7 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         [
             OnSpinLeft.calls_it(OmniBotY),
             Seed(4).calls_it(RightBackTop),
+            Seed(2).calls_it(RightBackTop),
             Seed(1).calls_it(OmniTopY),
         ],
         [Tetrahedral.small()],
@@ -65,6 +68,7 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         [
             OnSpinLeft.calls_it(OmniBotZ),
             Seed(4).calls_it(LeftFrontTop),
+            Seed(2).calls_it(LeftFrontTop),
             Seed(1).calls_it(OmniTopZ),
         ],
         [Tetrahedral.small()],
@@ -76,6 +80,8 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
             OnSpinLeft.calls_it(OmniTopZ),
             Seed(4).calls_it(RightBackBottom),
             Seed(4).downwards(),
+            Seed(2).calls_it(RightBackBottom),
+            Seed(2).downwards(),
             Seed(1).calls_it(OmniBotZ),
         ],
         [Tetrahedral.large()],
@@ -87,6 +93,7 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
             OnSpinLeft.calls_it(OmniTopY),
             Seed(4).calls_it(LeftFrontBottom),
             Seed(4).downwards(),
+            Seed(2).calls_it(LeftFrontBottom),
             Seed(1).calls_it(OmniBotY),
         ],
         [Tetrahedral.large()],
@@ -97,6 +104,7 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
         [
             OnSpinLeft.calls_it(OmniTopX),
             Seed(4).calls_it(LeftBackTop),
+            Seed(2).calls_it(LeftBackTop),
             Seed(1).calls_it(OmniBotX),
         ],
         [Tetrahedral.large()],
@@ -108,6 +116,8 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
             OnSpinLeft.calls_it(OmniBot),
             Seed(4).calls_it(LeftBackBottom),
             Seed(4).downwards(),
+            Seed(2).calls_it(LeftBackBottom),
+            Seed(2).downwards(),
             Seed(1).calls_it(OmniBot),
             Seed(1).downwards(),
         ],

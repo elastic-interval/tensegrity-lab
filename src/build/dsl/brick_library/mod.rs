@@ -2,8 +2,6 @@ pub mod baked_bricks;
 pub mod equilibrium;
 mod omni;
 mod single;
-#[cfg(test)]
-mod symmetry_audit;
 mod torque;
 
 pub use omni::omni;
