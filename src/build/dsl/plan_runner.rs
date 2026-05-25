@@ -111,7 +111,8 @@ impl PlanRunner {
                     self.build_phase.build_step(fabric);
                     (BuildApproach, MOMENT)
                 } else if self.shape_phase.needs_shaping() {
-                    self.shape_phase.marks = self.build_phase.marks.split_off(0);
+                    let bindings = self.build_phase.labels.split_off(0);
+                    self.shape_phase.install_labels(&bindings);
                     entered_shaping = true;
                     (Shaping, IMMEDIATE)
                 } else {

@@ -110,21 +110,29 @@ impl BrickRole {
     }
 }
 
-/// Mark names used in fabric definitions
+/// Unique labels for individual faces in fabric definitions. Each label
+/// must be assigned to at most one face — checked at build time. Shape
+/// operations (`space`, `join`, `down`) reference faces by label.
 #[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
-pub enum MarkName {
-    End,
-    HaloEnd,
-    RingA,
-    RingB,
-    RingX,
-    RingY,
-    RingZ,
-    Feet,
-    Chest1,
-    Chest2,
-    Hands,
-    Loose,
+pub enum FaceLabel {
+    // OpenClaw: 3 leg ends (3-fold symmetric)
+    LegEndA,
+    LegEndB,
+    LegEndC,
+
+    // HaloByCrane: 2 halo endpoints joined together
+    HaloEndA,
+    HaloEndB,
+
+    // HeadlessHug: feet, hands, chest hubs (left/right mirror pairs)
+    LeftFoot,
+    RightFoot,
+    LeftHand,
+    RightHand,
+    LeftChestUpper,
+    RightChestUpper,
+    LeftChestLower,
+    RightChestLower,
 }
 
 /// Unified joint names for all bricks

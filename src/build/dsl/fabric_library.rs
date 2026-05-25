@@ -1,4 +1,4 @@
-use crate::build::dsl::brick_dsl::{BrickName::*, BrickRole::*, FaceName::*, MarkName::*};
+use crate::build::dsl::brick_dsl::{BrickName::*, BrickRole::*, FaceLabel::*, FaceName::*};
 use crate::build::dsl::fabric_dsl::{on, *};
 use crate::build::dsl::fabric_plan::FabricPlan;
 use std::sync::OnceLock;
@@ -38,9 +38,9 @@ impl FabricName {
                 )
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([
-                    on(OmniBotX).column(4).mark(End).prism(Pct(200.0)),
-                    on(OmniBotY).column(4).mark(End).prism(Pct(200.0)),
-                    on(OmniBotZ).column(4).mark(End).prism(Pct(200.0)),
+                    on(OmniBotX).column(4).label(LegEndA).prism(Pct(200.0)),
+                    on(OmniBotY).column(4).label(LegEndB).prism(Pct(200.0)),
+                    on(OmniBotZ).column(4).label(LegEndC).prism(Pct(200.0)),
                     on(OmniTop).prism(Pct(200.0)),
                     on(OmniBot).open(),
                 ])
@@ -53,7 +53,7 @@ impl FabricName {
                     ("Z10", "Z7"),
                 ])
                 .prepare_vulcanize(0.5, VulcanizeMode::Linear)
-                .space(Sec(2.8), End, Pct(46.0))
+                .space(Sec(2.8), [LegEndA, LegEndB, LegEndC], Pct(46.0))
                 .vulcanize(Sec(1.0))
                 .pretense(Sec(3.0), Pct(1.0))
                 .surface_frozen()
@@ -92,11 +92,11 @@ impl FabricName {
                 .seed(SingleTwistLeft, Seed(1))
                 .faces([on(SingleTop).column(4).shrink_by(Pct(8.0)).then(
                     hub(OmniSymmetrical, OnSpinLeft).faces([
-                        on(OmniTopX).column(12).shrink_by(Pct(8.0)).mark(HaloEnd),
-                        on(OmniTopY).column(11).shrink_by(Pct(8.0)).mark(HaloEnd),
+                        on(OmniTopX).column(12).shrink_by(Pct(8.0)).label(HaloEndA),
+                        on(OmniTopY).column(11).shrink_by(Pct(8.0)).label(HaloEndB),
                     ]),
                 )])
-                .join(Sec(10.0), HaloEnd)
+                .join(Sec(10.0), HaloEndA, HaloEndB)
                 .vulcanize(Sec(5.0))
                 .pretense(Sec(0.02), Pct(1.0))
                 .surface_frozen(),
@@ -136,39 +136,39 @@ impl FabricName {
                     on(LowerLeft)
                         .column(4)
                         .shrink_by(Pct(8.0))
-                        .then(column(1).then(column(2).mark(Feet))),
+                        .then(column(1).then(column(2).label(LeftFoot))),
                     on(LowerRight)
                         .column(4)
                         .shrink_by(Pct(8.0))
-                        .then(column(1).then(column(2).mark(Feet))),
+                        .then(column(1).then(column(2).label(RightFoot))),
                     on(UpperLeft).column(2).shrink_by(Pct(10.0)).then(
                         hub(OmniSymmetrical, OnSpinLeft).faces([
-                            on(OmniTopZ).mark(Chest1),
-                            on(OmniBotX).mark(Chest2),
+                            on(OmniTopZ).label(LeftChestUpper),
+                            on(OmniBotX).label(LeftChestLower),
                             on(OmniBotY)
                                 .column(3)
                                 .shrink_by(Pct(10.0))
-                                .then(column(1).then(column(2).mark(Hands)))
+                                .then(column(1).then(column(2).label(LeftHand)))
                                 .into(),
                         ]),
                     ),
                     on(UpperRight).column(2).shrink_by(Pct(10.0)).then(
                         hub(OmniSymmetrical, OnSpinRight).faces([
-                            on(OmniTopY).mark(Chest1),
-                            on(OmniBotZ).mark(Chest2),
+                            on(OmniTopY).label(RightChestUpper),
+                            on(OmniBotZ).label(RightChestLower),
                             on(OmniBotX)
                                 .column(3)
                                 .shrink_by(Pct(10.0))
-                                .then(column(1).then(column(2).mark(Hands)))
+                                .then(column(1).then(column(2).label(RightHand)))
                                 .into(),
                         ]),
                     ),
                 ])
-                .space(Sec(2.0), Feet, Pct(30.0))
-                .space(Sec(2.0), Hands, Pct(20.0))
-                .space(Sec(2.0), Chest2, Pct(40.0))
+                .space(Sec(2.0), [LeftFoot, RightFoot], Pct(30.0))
+                .space(Sec(2.0), [LeftHand, RightHand], Pct(20.0))
+                .space(Sec(2.0), [LeftChestLower, RightChestLower], Pct(40.0))
                 .vulcanize(Sec(2.0))
-                .down(Sec(1.0), Feet)
+                .down(Sec(1.0), [LeftFoot, RightFoot])
                 .pretense(Sec(1.0), Pct(1.0))
                 .surface_frozen()
                 .fall(Sec(1.5))

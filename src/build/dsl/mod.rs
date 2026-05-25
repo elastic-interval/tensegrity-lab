@@ -4,7 +4,7 @@ pub use fabric_plan::FabricPlan;
 use std::fmt::{Display, Formatter};
 use strum::Display;
 
-use crate::build::dsl::brick_dsl::{BrickRole, FaceName, MarkName};
+use crate::build::dsl::brick_dsl::{BrickRole, FaceLabel, FaceName};
 use crate::fabric::{Fabric, FaceKey};
 
 pub mod animate_phase;
@@ -101,9 +101,9 @@ impl Spin {
 }
 
 #[derive(Debug, Clone)]
-pub struct FaceMark {
-    face_key: FaceKey,
-    mark_name: MarkName,
+pub struct FaceLabelBinding {
+    pub face_key: FaceKey,
+    pub face_label: FaceLabel,
 }
 
 pub fn into_atom(name: String) -> String {

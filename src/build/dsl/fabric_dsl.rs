@@ -11,7 +11,7 @@ use crate::units::{Meters, Percent, Seconds, Unit};
 
 pub use crate::build::dsl::animate_phase::{phase, Actuator, Waveform};
 pub use crate::build::dsl::brick_dsl::{
-    BrickName, BrickOrientation, BrickRole, FaceName, MarkName,
+    BrickName, BrickOrientation, BrickRole, FaceLabel, FaceName,
 };
 pub use crate::build::dsl::build_phase::BuildNode as Node;
 pub use crate::fabric::vulcanize::VulcanizeMode;
@@ -53,22 +53,27 @@ impl FabricBuilder {
         }
     }
 
-    // Shape operations - each starts or continues the shape chain
-    pub fn space(mut self, seconds: Seconds, mark_name: MarkName, distance: Percent) -> Self {
+    // Shape operations - each starts or continues the shape chain.
+    // `space()` adds intervals over all pairs of the given labeled faces.
+    // A pair pushes apart when the target distance is greater than the
+    // current, otherwise pulls together.
+    pub fn space<const N: usize>(
+        mut self,
+        seconds: Seconds,
+        labels: [FaceLabel; N],
+        distance: Percent,
+    ) -> Self {
         self.shape.push(ShapeStep {
             seconds,
-            action: ShapeAction::Spacer {
-                mark_name,
-                distance,
-            },
+            action: ShapeAction::Spacer { labels: labels.to_vec(), distance },
         });
         self
     }
 
-    pub fn join(mut self, seconds: Seconds, mark_name: MarkName) -> Self {
+    pub fn join(mut self, seconds: Seconds, alpha: FaceLabel, omega: FaceLabel) -> Self {
         self.shape.push(ShapeStep {
             seconds,
-            action: ShapeAction::Joiner { mark_name },
+            action: ShapeAction::Joiner { alpha, omega },
         });
         self
     }
@@ -89,10 +94,10 @@ impl FabricBuilder {
         self
     }
 
-    pub fn down(mut self, seconds: Seconds, mark_name: MarkName) -> Self {
+    pub fn down<const N: usize>(mut self, seconds: Seconds, labels: [FaceLabel; N]) -> Self {
         self.shape.push(ShapeStep {
             seconds,
-            action: ShapeAction::PointDownwards { mark_name },
+            action: ShapeAction::PointDownwards { labels: labels.to_vec() },
         });
         self
     }
@@ -209,11 +214,11 @@ impl FaceBuilder {
         }
     }
 
-    /// Just mark this face
-    pub fn mark(self, mark_name: MarkName) -> Face {
+    /// Just label this face (unique per fabric — checked at build time).
+    pub fn label(self, face_label: FaceLabel) -> Face {
         Face {
             face_name: self.face_name,
-            node: mark(mark_name),
+            node: label(face_label),
         }
     }
 
@@ -268,8 +273,8 @@ impl FaceColumnBuilder {
         self
     }
 
-    pub fn mark(mut self, mark_name: MarkName) -> Self {
-        self.column = self.column.mark(mark_name);
+    pub fn label(mut self, face_label: FaceLabel) -> Self {
+        self.column = self.column.label(face_label);
         self
     }
 
@@ -355,12 +360,17 @@ impl SeedChain {
     }
 
     // Shape operations
-    pub fn space(self, seconds: Seconds, mark_name: MarkName, distance: Percent) -> FabricBuilder {
-        self.finalize_build().space(seconds, mark_name, distance)
+    pub fn space<const N: usize>(
+        self,
+        seconds: Seconds,
+        labels: [FaceLabel; N],
+        distance: Percent,
+    ) -> FabricBuilder {
+        self.finalize_build().space(seconds, labels, distance)
     }
 
-    pub fn join(self, seconds: Seconds, mark_name: MarkName) -> FabricBuilder {
-        self.finalize_build().join(seconds, mark_name)
+    pub fn join(self, seconds: Seconds, alpha: FaceLabel, omega: FaceLabel) -> FabricBuilder {
+        self.finalize_build().join(seconds, alpha, omega)
     }
 
     pub fn prepare_vulcanize(self, contraction: f32, mode: VulcanizeMode) -> FabricBuilder {
@@ -371,8 +381,8 @@ impl SeedChain {
         self.finalize_build().vulcanize(seconds)
     }
 
-    pub fn down(self, seconds: Seconds, mark_name: MarkName) -> FabricBuilder {
-        self.finalize_build().down(seconds, mark_name)
+    pub fn down<const N: usize>(self, seconds: Seconds, labels: [FaceLabel; N]) -> FabricBuilder {
+        self.finalize_build().down(seconds, labels)
     }
 
     pub fn centralize(self, seconds: Seconds) -> FabricBuilder {
@@ -405,9 +415,9 @@ pub fn column(count: usize) -> ColumnBuilder {
     }
 }
 
-/// Create a BuildNode that just marks a location (no column)
-pub fn mark(mark_name: MarkName) -> BuildNode {
-    BuildNode::Mark { mark_name }
+/// Create a BuildNode that just labels a face (no column)
+pub fn label(face_label: FaceLabel) -> BuildNode {
+    BuildNode::Label { face_label }
 }
 
 pub struct ColumnBuilder {
@@ -429,8 +439,8 @@ impl ColumnBuilder {
         self
     }
 
-    pub fn mark(mut self, mark_name: MarkName) -> Self {
-        self.post_column_nodes.push(BuildNode::Mark { mark_name });
+    pub fn label(mut self, face_label: FaceLabel) -> Self {
+        self.post_column_nodes.push(BuildNode::Label { face_label });
         self
     }
 
@@ -503,7 +513,7 @@ impl PretenseChain {
             ),
             shape_phase: crate::build::dsl::shape_phase::ShapePhase {
                 steps: self.fabric.shape,
-                marks: Vec::new(),
+                labels: std::collections::HashMap::new(),
                 spacers: Vec::new(),
                 joiners: Vec::new(),
                 anchors: Vec::new(),

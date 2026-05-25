@@ -1,8 +1,8 @@
 use crate::build::dsl::brick_dsl::FaceName::AttachNext;
-use crate::build::dsl::brick_dsl::{BrickName, BrickRole, MarkName};
+use crate::build::dsl::brick_dsl::{BrickName, BrickRole, FaceLabel};
 use crate::build::dsl::build_phase::BuildNode::*;
 use crate::build::dsl::build_phase::Launch::*;
-use crate::build::dsl::{brick_library, FaceAlias, FaceMark, Spin};
+use crate::build::dsl::{brick_library, FaceAlias, FaceLabelBinding, Spin};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::FaceRotation;
 use crate::fabric::joint_path::{JointPath, COLUMN_MARKER};
@@ -30,8 +30,8 @@ pub enum BuildNode {
         scale: Percent,
         post_column_nodes: Vec<BuildNode>,
     },
-    Mark {
-        mark_name: MarkName,
+    Label {
+        face_label: FaceLabel,
     },
     Hub {
         brick_name: BrickName,
@@ -49,7 +49,7 @@ impl BuildNode {
     pub fn traverse(&self, f: &mut impl FnMut(&Self)) {
         f(self);
         match self {
-            Mark { .. } | Prism { .. } | RadialsOnly | Open => {}
+            Label { .. } | Prism { .. } | RadialsOnly | Open => {}
             Face { node, .. } => {
                 node.traverse(f);
             }
@@ -80,7 +80,7 @@ enum Launch {
 pub struct BuildPhase {
     pub root: BuildNode,
     pub buds: Vec<Bud>,
-    pub marks: Vec<FaceMark>,
+    pub labels: Vec<FaceLabelBinding>,
     pub seed_altitude: f32,
 }
 
@@ -89,7 +89,7 @@ impl BuildPhase {
         Self {
             root,
             buds: Vec::new(),
-            marks: Vec::new(),
+            labels: Vec::new(),
             seed_altitude,
         }
     }
@@ -98,7 +98,7 @@ impl BuildPhase {
 impl BuildPhase {
     pub fn init(&mut self, fabric: &mut Fabric) {
         let build_scale = fabric.dimensions.scale.f32();
-        let (buds, marks) = Self::execute_node(
+        let (buds, labels) = Self::execute_node(
             fabric,
             Scratch,
             &self.root,
@@ -108,7 +108,7 @@ impl BuildPhase {
             JointPath::default(),
         );
         self.buds = buds;
-        self.marks = marks;
+        self.labels = labels;
     }
 
     pub fn is_building(&self) -> bool {
@@ -119,9 +119,9 @@ impl BuildPhase {
         let buds = self.buds.clone();
         self.buds.clear();
         for bud in buds {
-            let (new_buds, new_marks) = self.execute_bud(fabric, bud);
+            let (new_buds, new_labels) = self.execute_bud(fabric, bud);
             self.buds.extend(new_buds);
-            self.marks.extend(new_marks);
+            self.labels.extend(new_labels);
         }
     }
 
@@ -135,8 +135,8 @@ impl BuildPhase {
             nodes,
             branch_path,
         }: Bud,
-    ) -> (Vec<Bud>, Vec<FaceMark>) {
-        let (mut buds, mut marks) = (vec![], vec![]);
+    ) -> (Vec<Bud>, Vec<FaceLabelBinding>) {
+        let (mut buds, mut labels) = (vec![], vec![]);
         if column_count > 0 {
             let face = fabric.expect_face(face_key);
             let (brick_name, brick_role) = match face.spin.mirror() {
@@ -176,7 +176,7 @@ impl BuildPhase {
         } else if !nodes.is_empty() {
             for (branch_index, child_node) in nodes.iter().enumerate() {
                 let child_path = branch_path.extend(branch_index as u8);
-                let (node_buds, node_marks) = Self::execute_node(
+                let (node_buds, node_labels) = Self::execute_node(
                     fabric,
                     IdentifiedFace(face_key),
                     child_node,
@@ -186,10 +186,10 @@ impl BuildPhase {
                     child_path,
                 );
                 buds.extend(node_buds);
-                marks.extend(node_marks);
+                labels.extend(node_labels);
             }
         };
-        (buds, marks)
+        (buds, labels)
     }
 
     fn execute_node(
@@ -200,9 +200,9 @@ impl BuildPhase {
         seed_altitude: f32,
         build_scale: f32,
         branch_path: JointPath,
-    ) -> (Vec<Bud>, Vec<FaceMark>) {
+    ) -> (Vec<Bud>, Vec<FaceLabelBinding>) {
         let mut buds: Vec<Bud> = vec![];
-        let mut marks: Vec<FaceMark> = vec![];
+        let mut labels: Vec<FaceLabelBinding> = vec![];
         match node {
             Face { alias, node } => {
                 let build_node = node.as_ref();
@@ -282,7 +282,7 @@ impl BuildPhase {
                     Self::hub_pairs(face_nodes).into_iter().enumerate()
                 {
                     let child_path = branch_path.extend(branch_index as u8);
-                    let (new_buds, new_marks) = Self::execute_node(
+                    let (new_buds, new_labels) = Self::execute_node(
                         fabric,
                         NamedFace(hub_face_alias),
                         hub_node,
@@ -292,15 +292,15 @@ impl BuildPhase {
                         child_path,
                     );
                     buds.extend(new_buds);
-                    marks.extend(new_marks);
+                    labels.extend(new_labels);
                 }
             }
-            Mark { mark_name } => {
+            Label { face_label } => {
                 let face_key = Self::find_launch_face(&launch, &faces, fabric)
-                    .expect(&format!("Unable to find face for mark: {}", mark_name));
-                marks.push(FaceMark {
+                    .expect(&format!("Unable to find face for label: {}", face_label));
+                labels.push(FaceLabelBinding {
                     face_key,
-                    mark_name: *mark_name,
+                    face_label: *face_label,
                 });
             }
             Prism { outer_percent } => {
@@ -319,7 +319,7 @@ impl BuildPhase {
                 fabric.set_face_open(face_key);
             }
         };
-        (buds, marks)
+        (buds, labels)
     }
 
     fn find_launch_face(launch: &Launch, faces: &[FaceKey], fabric: &Fabric) -> Option<FaceKey> {
