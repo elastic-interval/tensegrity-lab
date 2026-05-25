@@ -1,4 +1,4 @@
-use crate::build::dsl::brick::BrickPrototype;
+use crate::build::dsl::brick::{Axis, BrickPrototype};
 use crate::build::dsl::brick_dsl::*;
 use crate::build::dsl::Spin;
 
@@ -38,5 +38,11 @@ pub fn single_left(params: &SingleParams) -> BrickPrototype {
             ],
             [],
         )
+        // Under Seed(1) the brick has 3-fold cyclic symmetry over its
+        // three push axes (X → Y → Z) — the three pulls (AlphaX:OmegaY,
+        // AlphaY:OmegaZ, AlphaZ:OmegaX) cycle accordingly. The Oven's
+        // `symmetrize_brick_3fold` uses this declaration to know it can
+        // orbit-average the joint positions.
+        .cyclic_axes_for(Seed(1), [Axis::X, Axis::Y, Axis::Z])
         .build()
 }
