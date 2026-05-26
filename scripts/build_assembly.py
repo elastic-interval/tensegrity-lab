@@ -1,16 +1,23 @@
 #!/usr/bin/env python3
-"""Build the per-strut assembly pages (46 pages, one per strut) as a single HTML
-file ready for weasyprint.
+"""Build the full assembly PDF for an OpenClaw build.
+
+Contains, in order:
+  1. A cables-by-length table — every cable to be labelled, grouped by
+     length, with its engrave-ready `<joint>.<slot>` endpoint labels. This
+     is the worksheet for taking unlabelled cables off the factory pallet
+     and turning them into labelled stock.
+  2. One A4 page per strut (46 for OpenClaw) — the connector-stack assembly
+     guide for each push interval, with disc-slot rotations, bend angles
+     and cable targets.
 
 Usage:
-    python3 build_strut_pages.py source.csv
-    weasyprint OpenClaw-2026-05-16-strut-pages.html OpenClaw-2026-05-16-strut-pages.pdf
+    python3 build_assembly.py source.csv
+    # Produces source-assembly.pdf alongside the input.
 
-Adds, on top of CSV ingestion:
-  - Twist-number derivation from joint naming (e.g. AX3Z4 → leg A, twist 3)
-  - Categorisation: twist / vertical bottom / hub / apex
-  - "Up" / "down" end labels (compare alpha_z vs omega_z)
-  - One A4 page per strut, page-break-after each
+The cable-grouping logic (canonical rotation key + length merging) is shared
+with `build_cable_order.py` — both views see the same 60 groups; the
+cable-order CSV is the order placed at the factory (length only), and this
+PDF is the labelling worksheet you use after the cables arrive.
 
 For joint-naming details see docs/joint-naming.md.
 """
@@ -103,6 +110,16 @@ class Cable:
     omega_slot: int
     alpha_angle: int
     omega_angle: int
+
+    @property
+    def alpha_end(self) -> str:
+        """`<joint>.<slot>` engrave-ready label for the alpha end."""
+        return f"{self.alpha_joint}.{self.alpha_slot}"
+
+    @property
+    def omega_end(self) -> str:
+        """`<joint>.<slot>` engrave-ready label for the omega end."""
+        return f"{self.omega_joint}.{self.omega_slot}"
 
 
 @dataclass
@@ -212,13 +229,11 @@ def parse_csv(path: Path) -> ManualData:
         elif role == "pull":
             pulls_raw.append(row)
 
-    # Classify a joint by its label's first character (see docs/joint-naming.md):
-    #   path joints AX..., BX..., CX...  → leg 'A', 'B', 'C'
-    #   seed joints BAA, BOB, TAC, ...   → hub 'H' (start with B or T but only
-    #                                             two letters long before leg)
-    #   apex prism YZ0, YZ1              → hub 'H'
+    # Classify a joint by its label shape (see docs/joint-naming.md):
+    #   leg joints  A<n>, B<n>, C<n>  → leg 'A', 'B', 'C'
+    #   axis joints Z<n>              → 'H' (apex / on-axis)
     def classify(joint: str) -> str:
-        if len(joint) >= 2 and joint[0] in ("A", "B", "C") and joint[1] == "X":
+        if len(joint) >= 2 and joint[0] in ("A", "B", "C") and joint[1:].isdigit():
             return joint[0]
         return "H"
 
@@ -367,31 +382,151 @@ def rotational_angle(strut: Strut, is_alpha: bool, disc: Disc,
     return int(round(angle)) % 360
 
 
-# Joint-name patterns
-_LEG_JOINT  = re.compile(r"^([ABC])X(\d+)(Y?)Z\d+$")    # e.g. AX3Z4 or AX4YZ0
-_APEX_JOINT = re.compile(r"^YZ\d+$")                    # e.g. YZ0
-_HUB_JOINT  = re.compile(r"^[BT][AO][ABC]$")            # e.g. BAA, BOC, TAA, TOC
+# Joint-name patterns (see docs/joint-naming.md):
+#   - leg joints:   <leg><brick><position>  e.g. A04 (seed pos 4), A14
+#                   (column 1 pos 4), A52 (leg-prism pos 2)
+#   - axis joints:  Z<n>                    e.g. Z1, Z2 (apex)
+_LEG_JOINT  = re.compile(r"^([ABC])(\d)(\d+)$")   # leg, brick, position
+_AXIS_JOINT = re.compile(r"^Z(\d+)$")
 
 
-def categorise_strut(s: Strut) -> dict:
-    """Classify a strut by parsing its joint name.
+def _parse_label(joint: str) -> tuple[str, int, int] | None:
+    """Return ('A'|'B'|'C', brick, position) for a leg label,
+    ('Z', singleton_idx, 0) for an axis singleton, or None."""
+    m = _LEG_JOINT.match(joint)
+    if m:
+        return (m.group(1), int(m.group(2)), int(m.group(3)))
+    m = _AXIS_JOINT.match(joint)
+    if m:
+        return ("Z", int(m.group(1)), 0)
+    return None
+
+
+# ── Cable grouping (kept in sync with scripts/build_cable_order.py) ──────────
+# Both views — the cable-order CSV and the assembly PDF's cables table — see
+# the same 60 cable groups, derived the same way: rotate-canonical key, then
+# merge groups whose mm-rounded lengths collide. The two scripts intentionally
+# duplicate this small helper rather than couple to each other.
+
+
+def _rotate_letter(c: str) -> str:
+    return {"A": "B", "B": "C", "C": "A"}.get(c, c)
+
+
+def _rotate_label(label: str) -> str:
+    """Cycle the leg letter A→B→C→A. Axis singletons (`Z<n>`) are unchanged."""
+    m = _LEG_JOINT.match(label)
+    if m:
+        return _rotate_letter(m.group(1)) + m.group(2) + m.group(3)
+    return label
+
+
+def _canonical_pair(a: str, b: str) -> tuple[str, str]:
+    """Lex-smallest of the six rotation × end-swap variants of (a, b).
+    Two cable endpoints share this key iff one is a rotational image of the
+    other."""
+    aa, bb = a, b
+    best = min((aa, bb), (bb, aa))
+    for _ in range(2):
+        aa, bb = _rotate_label(aa), _rotate_label(bb)
+        for pair in ((aa, bb), (bb, aa)):
+            if pair < best:
+                best = pair
+    return best
+
+
+def _touches_axis_singleton(key: tuple[str, str]) -> bool:
+    """Cables landing on an axis singleton (`Z<n>`) can't have
+    rotationally-equal lengths — they share the central push end at three
+    different slots. Such triples are listed one row per cable in the
+    cables-by-length table, like in the cable-order CSV."""
+    return any(_AXIS_JOINT.match(label) for label in key)
+
+
+def group_cables_by_length(cables: list) -> list[dict]:
+    """Group `Cable` objects into the same shape the cable-order CSV uses,
+    sorted by length ascending. Each row is `{rounded, qty, members}` where
+    `members` is a list of `Cable` objects whose two ends will share the
+    rounded-mm length."""
+    groups: dict[tuple[str, str], list] = defaultdict(list)
+    for c in cables:
+        groups[_canonical_pair(c.alpha_joint, c.omega_joint)].append(c)
+
+    rows = []
+    for key, members in groups.items():
+        if _touches_axis_singleton(key):
+            for c in members:
+                rows.append({"length": c.length_mm, "qty": 1, "members": [c]})
+        else:
+            mean = sum(c.length_mm for c in members) / len(members)
+            rows.append({"length": mean, "qty": len(members), "members": members})
+    rows.sort(key=lambda r: r["length"])
+
+    # Fold rows that round to the same mm — physically interchangeable
+    # cables (until labelled) get one combined row.
+    merged: list[dict] = []
+    for r in rows:
+        rounded = round(r["length"])
+        if merged and merged[-1]["rounded"] == rounded:
+            merged[-1]["qty"] += r["qty"]
+            merged[-1]["members"].extend(r["members"])
+        else:
+            merged.append({
+                "rounded": rounded,
+                "qty": r["qty"],
+                "members": list(r["members"]),
+            })
+    return merged
+
+
+def _count_pushes_per_brick(struts: list) -> dict[int, int]:
+    """For each non-zero brick digit, count how many push intervals it has
+    *per leg* (i.e. divide the total by 3 since rotational symmetry duplicates
+    each push across legs A/B/C). A single-twist brick contributes 3 pushes
+    per leg; a prism contributes 1. The result lets us distinguish
+    column-bricks from end-of-leg prisms without hardcoding any depth."""
+    per_brick: dict[int, int] = defaultdict(int)
+    for s in struts:
+        a = _parse_label(s.alpha_joint)
+        b = _parse_label(s.omega_joint)
+        if a is None or b is None:
+            continue
+        leg_a, brick_a, _ = a
+        leg_b, brick_b, _ = b
+        if leg_a in ("A", "B", "C") and leg_a == leg_b and brick_a == brick_b and brick_a > 0:
+            per_brick[brick_a] += 1
+    return {brick: count // 3 for brick, count in per_brick.items()}
+
+
+def categorise_strut(s: Strut, pushes_per_brick: dict[int, int]) -> dict:
+    """Classify a strut by parsing its joint names.
+
+    The middle digit of a leg label gives the brick number directly. To tell
+    a column-twist brick (3 pushes) from a leg-end prism (1 push), we look
+    up the per-leg push count for that brick.
 
     Returns a dict with:
       - category: 'twist' | 'vertical_bottom' | 'hub' | 'apex' | 'unknown'
-      - twist:    int (1..4) for 'twist' category, else None
+      - twist:    int (1..N) for 'twist' category, else None
       - leg:      'A' | 'B' | 'C' | 'H'
     """
-    m = _LEG_JOINT.match(s.alpha_joint)
-    if m:
-        leg, twist, has_y = m.group(1), int(m.group(2)), bool(m.group(3))
-        if has_y:
-            return {"category": "vertical_bottom", "twist": None, "leg": leg}
-        return {"category": "twist", "twist": twist, "leg": leg}
-    if _APEX_JOINT.match(s.alpha_joint):
+    a = _parse_label(s.alpha_joint)
+    b = _parse_label(s.omega_joint)
+    if a is None or b is None:
+        return {"category": "unknown", "twist": None, "leg": "?"}
+    leg_a, brick_a, _ = a
+    leg_b, brick_b, _ = b
+    if leg_a == "Z" and leg_b == "Z":
         return {"category": "apex", "twist": None, "leg": "H"}
-    if _HUB_JOINT.match(s.alpha_joint):
-        return {"category": "hub", "twist": None, "leg": "H"}
-    return {"category": "unknown", "twist": None, "leg": "?"}
+    if leg_a == "Z" or leg_b == "Z" or leg_a != leg_b or brick_a != brick_b:
+        return {"category": "unknown", "twist": None, "leg": "?"}
+    leg = leg_a
+    brick = brick_a
+    if brick == 0:
+        return {"category": "hub", "twist": None, "leg": leg}
+    if pushes_per_brick.get(brick, 0) <= 1:
+        return {"category": "vertical_bottom", "twist": None, "leg": leg}
+    return {"category": "twist", "twist": brick, "leg": leg}
 
 
 def up_down_ends(s: Strut) -> tuple[str, str]:
@@ -405,26 +540,29 @@ def fmt_signed(n: int) -> str:
     return f"{n:+d}°" if n != 0 else "0°"
 
 
-def twist_mates(target: Strut, all_struts: list, cat: dict) -> list[str]:
+def twist_mates(target: Strut, all_struts: list, cat: dict,
+                pushes_per_brick: dict[int, int]) -> list[str]:
     """The other two struts in the same (leg, twist) group.
-    Returns a list of `"<alpha>↔<omega>"` descriptors (sorted)."""
+    Returns a list of `"<alpha>:<omega>"` descriptors (sorted)."""
     if cat["category"] != "twist":
         return []
     mates = []
     for s in all_struts:
         if s.alpha_joint == target.alpha_joint:
             continue
-        other_cat = categorise_strut(s)
+        other_cat = categorise_strut(s, pushes_per_brick)
         if (other_cat["category"] == "twist"
             and other_cat["leg"] == cat["leg"]
             and other_cat["twist"] == cat["twist"]):
-            mates.append(f"{s.alpha_joint}↔{s.omega_joint}")
+            mates.append(f"{s.alpha_joint}:{s.omega_joint}")
     return sorted(mates)
 
 
 def disc_target_label(disc: Disc) -> str:
-    """Cable target shown next to a disc: '<other_joint> sN'."""
-    return f"{disc.other_joint} s{disc.other_slot}"
+    """Cable target shown next to a disc: '<other_joint>.<slot>'. This is
+    the cable-end label that gets engraved on the physical part — the same
+    shape used in the cable-order CSV's `Members` column."""
+    return f"{disc.other_joint}.{disc.other_slot}"
 
 
 CSS = """
@@ -479,8 +617,12 @@ h1 {
   display: flex;
   gap: 6mm;
 }
+.endpoint-col {
+  flex: 1 1 0;
+  min-width: 0;
+}
 .endpoint-table {
-  flex: 1;
+  width: 100%;
   border-collapse: collapse;
   font-size: 10pt;
 }
@@ -513,21 +655,97 @@ h1 {
   margin-top: 8mm;
 }
 .rotation-clocks .clock {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   text-align: center;
 }
 .rotation-clocks .clock svg {
   width: 100%;
-  max-width: 70mm;
   height: auto;
   display: block;
-  margin: 0 auto;
 }
-.id { font-family: 'Menlo', 'Consolas', 'Courier New', monospace; }
+.id { font-family: 'Menlo', 'Consolas', 'Courier New', monospace; font-weight: 600; }
 .pos { color: #1d7a3e; font-weight: 600; }
 .neg { color: #b32626; font-weight: 600; }
 .ud-top    { color: #1d7a3e; font-weight: 700; font-size: 11pt; margin-left: 4mm; }
 .ud-bottom { color: #b32626; font-weight: 700; font-size: 11pt; margin-left: 4mm; }
+
+/* Opening title page. */
+.title-page { page-break-after: always; padding-top: 10mm; }
+.title-page h1 {
+  margin: 0 0 8mm 0;
+  font-size: 32pt;
+  font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
+  letter-spacing: 0.03em;
+}
+.title-page .diagram-wrap {
+  text-align: center;
+  margin: 0 0 8mm 0;
+}
+.title-page .diagram-wrap img {
+  max-width: 110mm;
+  max-height: 110mm;
+  height: auto;
+  width: auto;
+}
+.title-page .contents { border-top: 2px solid #1a1a1a; padding-top: 6mm; }
+.title-page .section {
+  margin-bottom: 12mm;
+}
+.title-page .section h2 {
+  margin: 0 0 3mm 0;
+  font-size: 16pt;
+  font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
+  font-weight: 700;
+}
+.title-page .section p {
+  margin: 0;
+  font-size: 11pt;
+  color: #1a1a1a;
+  line-height: 1.5;
+  max-width: 150mm;
+}
+.title-page .section code {
+  font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
+  font-size: 10pt;
+  background: #f4f4f4;
+  padding: 0 2pt;
+  border-radius: 2pt;
+}
+
+/* Cables-by-length section (the labelling worksheet — header lives on the
+   title page; this section is just the table). */
+.cables-section { page-break-after: always; }
+.cables-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+.cables-table thead th {
+  background: #f4f4f4;
+  font-weight: 600;
+  font-size: 9pt;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 2px solid #1a1a1a;
+  padding: 2mm 2.5mm;
+  text-align: left;
+}
+.cables-table tbody td {
+  border-bottom: 1px solid #ddd;
+  padding: 1.8mm 2.5mm;
+  vertical-align: top;
+}
+.cables-table tr { page-break-inside: avoid; }
+.cables-table .col-length { font-family: 'Menlo', 'Consolas', 'Courier New', monospace; font-weight: 700; font-size: 13pt; text-align: right; white-space: nowrap; }
+.cables-table .col-qty    { font-family: 'Menlo', 'Consolas', 'Courier New', monospace; text-align: right; }
+.cables-table .col-members{ font-family: 'Menlo', 'Consolas', 'Courier New', monospace; }
+.cables-table .member {
+  display: inline-block;
+  margin-right: 4mm;
+  white-space: nowrap;
+  font-size: 11pt;
+  font-weight: 700;
+}
+.cables-table .apex-row .col-qty,
+.cables-table .apex-row .col-length { color: #b32626; }
 """
 
 
@@ -550,13 +768,16 @@ def render_subtitle(s: Strut, cat: dict, mates: list[str]) -> str:
 def render_disc_label(disc: Disc, side: str, rot: int) -> str:
     """Build the disc fan-line label.
 
-    Format: 'slot 1 ↻ 045° · +30° → AX1Z3 s2'
-    where ↻ NNN° is the rotational angle around the strut axis.
+    Format: 'slot 1 ↻ 045° · +30° :A14.2'
+    where ↻ NNN° is the rotational angle around the strut axis, and the
+    suffix `:<joint>.<slot>` is the cable-end label of the cable's other
+    end.
     """
-    arrow = "→" if side == "omega" else "←"
+    _ = side  # left/right cue is encoded by the fan-line geometry; the
+    # label text uses the same `:` separator at both ends.
     return (
         f"slot {disc.slot} ↻ {rot:03d}° · "
-        f"{fmt_signed(disc.angle)} {arrow} {disc.other_joint} s{disc.other_slot}"
+        f"{fmt_signed(disc.angle)}:{disc.other_joint}.{disc.other_slot}"
     )
 
 
@@ -632,7 +853,7 @@ def render_endpoint_table(s: Strut, is_alpha: bool, data: ManualData,
     for d, rot in rows_data:
         cls = "pos" if d.angle > 0 else ("neg" if d.angle < 0 else "")
         rows.append(
-            f'<tr><td>{d.slot}</td>'
+            f'<tr><td class="id">{joint}.{d.slot}</td>'
             f'<td class="{cls}">{fmt_signed(d.angle)}</td>'
             f'<td class="id">{rot:03d}°</td>'
             f'<td class="id">{disc_target_label(d)}</td></tr>'
@@ -643,7 +864,7 @@ def render_endpoint_table(s: Strut, is_alpha: bool, data: ManualData,
     return (
         f'<table class="endpoint-table">'
         f'<caption>Joint {joint} <span class="{ud_class}">{ud_text}</span></caption>'
-        f'<thead><tr><th>Slot</th><th>Bend</th><th>Rot</th><th>Connects to</th></tr></thead>'
+        f'<thead><tr><th>Here</th><th>Bend</th><th>Rot</th><th>There</th></tr></thead>'
         f'<tbody>{rows_html}</tbody>'
         f'</table>'
     )
@@ -715,9 +936,11 @@ def render_rotation_clock(s: Strut, is_alpha: bool, data: ManualData,
             f'<text x="{x:.1f}" y="{y + 4:.1f}" font-size="12" font-weight="bold" '
             f'text-anchor="middle" fill="{color}" font-family="Menlo,monospace">{d.slot}</text>'
         )
-        # Small rotation-angle label outside the marker
-        x_lbl = cx + (r + 14) * math.sin(a)
-        y_lbl = cy - (r + 14) * math.cos(a)
+        # Small rotation-angle label outside the marker. Marker has
+        # radius 11, so the marker's outer edge is at r+11 — keep the
+        # label clear of that.
+        x_lbl = cx + (r + 22) * math.sin(a)
+        y_lbl = cy - (r + 22) * math.cos(a)
         # Skip if it would collide with cardinal labels (near 0/90/180/270)
         near_cardinal = any(abs(((rot - c) % 360 + 180) % 360 - 180) < 12 for c in (0, 90, 180, 270))
         if not near_cardinal:
@@ -733,11 +956,12 @@ def render_rotation_clock(s: Strut, is_alpha: bool, data: ManualData,
     return "\n".join(parts)
 
 
-def render_strut_page(s: Strut, data: ManualData, all_struts: list, joint_xyz: dict) -> str:
-    cat = categorise_strut(s)
+def render_strut_page(s: Strut, data: ManualData, all_struts: list, joint_xyz: dict,
+                      pushes_per_brick: dict[int, int]) -> str:
+    cat = categorise_strut(s, pushes_per_brick)
     up_end, _ = up_down_ends(s)         # 'A' or 'B' — alpha-end up or omega-end up
     up_is_alpha = (up_end == "A")
-    mates = twist_mates(s, all_struts, cat)
+    mates = twist_mates(s, all_struts, cat, pushes_per_brick)
 
     subtitle = render_subtitle(s, cat, mates)
     diagram = render_strut_diagram(s, data, up_is_alpha, joint_xyz)
@@ -746,7 +970,7 @@ def render_strut_page(s: Strut, data: ManualData, all_struts: list, joint_xyz: d
     clock_a = render_rotation_clock(s, True,  data, joint_xyz, is_top=up_is_alpha)
     clock_b = render_rotation_clock(s, False, data, joint_xyz, is_top=not up_is_alpha)
 
-    title = f"{s.alpha_joint} ↔ {s.omega_joint}"
+    title = f"{s.alpha_joint}:{s.omega_joint}"
     return (
         f'<div class="strut-page">'
         f'<header>'
@@ -754,7 +978,10 @@ def render_strut_page(s: Strut, data: ManualData, all_struts: list, joint_xyz: d
         f'</header>'
         f'<div class="subtitle">{subtitle}</div>'
         f'<div class="diagram">{diagram}</div>'
-        f'<div class="endpoint-tables">{table_a}{table_b}</div>'
+        f'<div class="endpoint-tables">'
+        f'<div class="endpoint-col">{table_a}</div>'
+        f'<div class="endpoint-col">{table_b}</div>'
+        f'</div>'
         f'<div class="rotation-clocks">'
         f'<div class="clock">{clock_a}</div>'
         f'<div class="clock">{clock_b}</div>'
@@ -763,18 +990,105 @@ def render_strut_page(s: Strut, data: ManualData, all_struts: list, joint_xyz: d
     )
 
 
+def render_title_page(data: ManualData, cable_groups: list[dict]) -> str:
+    """The opening page: title, the dimensional diagram, and a short
+    paragraph describing each of the two sections that follow."""
+    total_cables = sum(g["qty"] for g in cable_groups)
+    diagram_path = Path(__file__).resolve().parent.parent / "docs" / "diagram.jpg"
+    diagram_html = (
+        f'<div class="diagram-wrap"><img src="{diagram_path.as_uri()}" '
+        f'alt="{data.fabric_name} dimensional diagram"></div>'
+        if diagram_path.is_file()
+        else ""
+    )
+    return (
+        '<div class="title-page">'
+        f'<h1>{data.fabric_name} — Assembly</h1>'
+        + diagram_html +
+        '<div class="contents">'
+        '<div class="section">'
+        f'<h2>Cables · {total_cables} total, {len(cable_groups)} length groups</h2>'
+        f'<p>Sort the unlabelled cables off the factory pallet by length, '
+        f'then engrave the listed <code>&lt;joint&gt;.&lt;slot&gt;</code> '
+        f'labels onto each cable\'s two ends. Each row gives one length and '
+        f'the cable-end label pairs you stamp onto the cables of that '
+        f'length. Apex-attached cables (red rows) are unique singletons — '
+        f'one cable per row, no triple compression.</p>'
+        '</div>'
+        '<div class="section">'
+        f'<h2>Struts · {len(data.struts)} pages, one per push interval</h2>'
+        f'<p>One A4 page per push strut, in length order. Each page shows '
+        f'the strut with its two end joints, an exploded diagram of the '
+        f'connector-disc stack at each end (slot numbers, rotational '
+        f'angles, signed bend angles), and the '
+        f'<code>&lt;joint&gt;.&lt;slot&gt;</code> cable target every disc '
+        f'connects to. Use these once the cables are labelled, when you '
+        f'thread each end through the connector slots.</p>'
+        '</div>'
+        '</div>'
+        '</div>'
+    )
+
+
+def render_cables_section(cable_groups: list[dict]) -> str:
+    """The cables-by-length table — pure data, no header text (the
+    description lives on the title page)."""
+    rows = []
+    for g in cable_groups:
+        is_apex = any(
+            _AXIS_JOINT.match(c.alpha_joint) or _AXIS_JOINT.match(c.omega_joint)
+            for c in g["members"]
+        )
+        members_html = "".join(
+            f'<span class="member">{c.alpha_end}:{c.omega_end}</span>'
+            for c in g["members"]
+        )
+        row_cls = ' class="apex-row"' if is_apex else ""
+        rows.append(
+            f'<tr{row_cls}>'
+            f'<td class="col-length">{g["rounded"]}</td>'
+            f'<td class="col-qty">{g["qty"]}</td>'
+            f'<td class="col-members">{members_html}</td>'
+            f'</tr>'
+        )
+
+    return (
+        '<div class="cables-section">'
+        '<table class="cables-table">'
+        '<thead><tr>'
+        '<th class="col-length" style="text-align:right">Length (mm)</th>'
+        '<th class="col-qty" style="text-align:right">Qty</th>'
+        '<th class="col-members">Cable ends (engrave these)</th>'
+        '</tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody>'
+        '</table>'
+        '</div>'
+    )
+
+
 def render_html(data: ManualData) -> str:
     joint_xyz = build_joint_xyz_map(data.struts)
-    pages = [render_strut_page(s, data, data.struts, joint_xyz) for s in data.struts]
+    pushes_per_brick = _count_pushes_per_brick(data.struts)
+    cable_groups = group_cables_by_length(data.cables)
+    title_page = render_title_page(data, cable_groups)
+    cables_section = render_cables_section(cable_groups)
+    strut_pages = [
+        render_strut_page(s, data, data.struts, joint_xyz, pushes_per_brick)
+        for s in data.struts
+    ]
     return (
         '<!DOCTYPE html>\n'
         '<html lang="en">\n'
         '<head>\n'
         '<meta charset="utf-8">\n'
-        f'<title>{data.fabric_name} — Strut Pages</title>\n'
+        f'<title>{data.fabric_name} — Assembly</title>\n'
         f'<style>{CSS}</style>\n'
         '</head>\n'
-        '<body>\n' + "\n".join(pages) + '\n</body>\n</html>\n'
+        '<body>\n'
+        + title_page + '\n'
+        + cables_section + '\n'
+        + "\n".join(strut_pages) + '\n'
+        + '</body>\n</html>\n'
     )
 
 
@@ -782,7 +1096,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("csv", type=Path, help="Path to an OpenClaw-*.csv export")
     parser.add_argument("--out", type=Path, default=None,
-                        help="Output PDF path (default: <csv-basename>-strut-pages.pdf alongside the input)")
+                        help="Output PDF path (default: <csv-basename>-assembly.pdf alongside the input)")
     parser.add_argument("--keep-html", action="store_true",
                         help="Keep the intermediate HTML alongside the PDF (default: delete it)")
     args = parser.parse_args()
@@ -793,7 +1107,7 @@ def main() -> None:
     data = parse_csv(args.csv)
     html = render_html(data)
 
-    pdf_path = args.out or args.csv.with_name(args.csv.stem + "-strut-pages.pdf")
+    pdf_path = args.out or args.csv.with_name(args.csv.stem + "-assembly.pdf")
     html_path = pdf_path.with_suffix(".html")
     html_path.write_text(html, encoding="utf-8")
 
@@ -812,8 +1126,11 @@ def main() -> None:
     if not args.keep_html:
         html_path.unlink()
 
+    cable_groups = group_cables_by_length(data.cables)
+    total_cables = sum(g["qty"] for g in cable_groups)
     print(f"Wrote {pdf_path}")
-    print(f"  {len(data.struts)} struts → {len(data.struts)} pages")
+    print(f"  {total_cables} cables in {len(cable_groups)} length groups + "
+          f"{len(data.struts)} strut pages")
 
 
 if __name__ == "__main__":
