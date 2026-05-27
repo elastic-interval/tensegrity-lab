@@ -1,4 +1,4 @@
-use crate::build::dsl::build_phase::BuildPhase;
+use crate::build::dsl::build_phase::{assign_axial_labels, BuildPhase};
 use crate::build::dsl::plan_context::PlanContext;
 use crate::build::dsl::plan_runner::Stage::*;
 use crate::build::dsl::pretense_phase::PretensePhase;
@@ -7,6 +7,7 @@ use crate::build::dsl::FabricPlan;
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::physics::presets::CONSTRUCTION;
 use crate::fabric::physics::Physics;
+use crate::fabric::Fabric;
 use crate::units::{Meters, Seconds, Unit, IMMEDIATE, MOMENT};
 use crate::{Age, LabEvent, StateChange};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -96,7 +97,7 @@ impl PlanRunner {
     /// Pure stage transition logic. Returns `(stage_changed, entered_shaping)`
     /// — `entered_shaping` is true only when this call moved from `BuildStep`
     /// to `Shaping`, so the UI caller knows to emit a label event.
-    fn advance_stage(&mut self, fabric: &mut crate::fabric::Fabric) -> (bool, bool) {
+    fn advance_stage(&mut self, fabric: &mut Fabric) -> (bool, bool) {
         if !(self.stage_elapsed(fabric.age) && self.disabled.is_none()) {
             return (false, false);
         }
@@ -113,9 +114,11 @@ impl PlanRunner {
                 } else if self.shape_phase.needs_shaping() {
                     let bindings = self.build_phase.labels.split_off(0);
                     self.shape_phase.install_labels(&bindings);
+                    assign_axial_labels(fabric);
                     entered_shaping = true;
                     (Shaping, IMMEDIATE)
                 } else {
+                    assign_axial_labels(fabric);
                     (Completed, IMMEDIATE)
                 }
             }

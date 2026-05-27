@@ -127,5 +127,15 @@ pub fn omni(params: &OmniParams) -> BrickPrototype {
     // axes in the order X → Y → Z. Seed joints with axis X, Y, Z get symbolic
     // letters A, B, C respectively in their display names.
     .cyclic_axes_for(Seed(1), [Axis::X, Axis::Y, Axis::Z])
+    // Per-face twist (0/1/2 of a 3-fold cycle) declares the rotational
+    // offset of bricks attached off each labeled "right" face relative
+    // to its mirror-paired "left" face. Lets the labeller produce
+    // mirror-partner joint labels that share their numeric suffix.
+    // Empirically determined to make HeadlessHug's mirror partners line
+    // up; left faces stay at twist 0 by default.
+    .face_twist(LowerRight, 2)
+    .face_twist(UpperRight, 1)
+    .face_twist(ForeRight, 1)
+    .face_twist(AftRight, 2)
     .build()
 }

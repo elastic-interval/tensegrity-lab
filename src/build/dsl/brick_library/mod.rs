@@ -59,10 +59,12 @@ pub fn get_scale(brick_name: BrickName) -> f32 {
 }
 
 pub fn get_brick(brick_name: BrickName, brick_role: BrickRole) -> BakedBrick {
-    // For OnSpinRight on role-mirrored bricks, mirror the OnSpinLeft version.
-    // Single bricks handle chirality via separate Left/Right name variants.
-    let needs_mirror = brick_role == BrickRole::OnSpinRight && brick_name.mirrors_for_role();
-    let mut baked = if needs_mirror {
+    // OnSpinRight on a role-mirrored brick (Omni, Torque) mirrors the
+    // OnSpinLeft baked brick at the role level. Single bricks handle
+    // chirality via separate Left/Right name variants instead.
+    let needs_role_mirror =
+        brick_role == BrickRole::OnSpinRight && brick_name.mirrors_for_role();
+    let mut baked = if needs_role_mirror {
         baked_bricks::get_baked_brick(brick_name).mirror()
     } else {
         baked_bricks::get_baked_brick(brick_name)
@@ -70,7 +72,6 @@ pub fn get_brick(brick_name: BrickName, brick_role: BrickRole) -> BakedBrick {
     for face in &mut baked.faces {
         face.aliases.retain(|alias| alias.brick_role == brick_role);
     }
-    // Verify brick is centered at origin (baked bricks should already be centered)
     let centroid = baked.centroid();
     assert!(
         centroid.length() < 0.01,

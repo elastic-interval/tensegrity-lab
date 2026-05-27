@@ -58,7 +58,7 @@ fn rotate_label_once(label: &str) -> String {
         b'C' => b'A',
         _ => return label.to_string(),
     };
-    if !bytes[1..].iter().all(|b| b.is_ascii_digit()) {
+    if !bytes[1..].iter().all(|b| b.is_ascii_digit() || *b == b'.') {
         return label.to_string();
     }
     let mut out = Vec::with_capacity(bytes.len());
@@ -1314,7 +1314,6 @@ mod tests {
                 .or_default()
                 .push(cable.clone());
         }
-
         let wrong_sized: Vec<_> = groups.iter().filter(|(_, v)| v.len() != 3).collect();
         assert!(
             wrong_sized.is_empty(),

@@ -45,12 +45,12 @@ impl FabricName {
                     on(OmniBot).open(),
                 ])
                 .omit([
-                    ("Z6", "Z9"),
-                    ("Z6", "Z3"),
-                    ("Z2", "Z11"),
-                    ("Z2", "Z5"),
-                    ("Z1", "Z10"),
-                    ("Z10", "Z7"),
+                    ("B00.2", "C00.3"),
+                    ("B00.2", "A00.1"),
+                    ("A00.2", "C00.1"),
+                    ("A00.2", "B00.3"),
+                    ("A00.3", "C00.2"),
+                    ("C00.2", "B00.1"),
                 ])
                 .prepare_vulcanize(0.5, VulcanizeMode::Linear)
                 .space(Sec(2.8), [LegEndA, LegEndB, LegEndC], Pct(46.0))
@@ -146,7 +146,7 @@ impl FabricName {
                             on(OmniTopZ).label(LeftChestUpper),
                             on(OmniBotX).label(LeftChestLower),
                             on(OmniBotY)
-                                .column(5)
+                                .column(6)
                                 .shrink_by(Pct(10.0))
                                 .label(LeftHand)
                                 .into(),
@@ -175,6 +175,7 @@ impl FabricName {
                     spacer([LeftChestLower, RightChestLower], Pct(50.0)),
                 ])
                 .vulcanize(Sec(2.0))
+                .add(Sec(1.0), [("C03.10", "D03.10", Pct(90.0))])
                 .down(Sec(1.0), [LeftFoot, RightFoot])
                 .pretense(Sec(1.0), Pct(1.0))
                 .surface_frozen()

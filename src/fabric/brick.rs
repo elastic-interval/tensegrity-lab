@@ -24,7 +24,7 @@ impl Fabric {
         scale_factor: f32,
         base_face: BaseFace,
         base_path: &JointPath,
-    ) -> (FaceKey, Vec<FaceKey>) {
+    ) -> AttachedBrick {
         let (base_scale, spin, matrix) = match base_face {
             BaseFace::ExistingFace(id) => {
                 let face = self.face(id);
@@ -40,7 +40,7 @@ impl Fabric {
             }
         };
         let brick = baked_brick.clone();
-        let joint_keys: Vec<JointKey> = brick
+        let structural_joints: Vec<JointKey> = brick
             .joints
             .into_iter()
             .enumerate()
@@ -56,7 +56,7 @@ impl Fabric {
             strain,
         } in brick.intervals
         {
-            let (alpha_key, omega_key) = (joint_keys[alpha_index], joint_keys[omega_index]);
+            let (alpha_key, omega_key) = (structural_joints[alpha_index], structural_joints[omega_index]);
             let role =
                 Role::from_label(&material_name).expect(&format!("Material: {}", material_name));
             self.create_strained_interval(alpha_key, omega_key, role, strain);
@@ -87,7 +87,7 @@ impl Fabric {
                     }
 
                     let midpoint = brick_joints
-                        .map(|index| self.joints[joint_keys[index]].location)
+                        .map(|index| self.joints[structural_joints[index]].location)
                         .into_iter()
                         .sum::<Vec3>()
                         / 3.0;
@@ -97,7 +97,7 @@ impl Fabric {
                     let midpoint_path = base_path.with_local_index(midpoint_local);
                     let alpha_key = self.create_joint_with_path(midpoint, midpoint_path);
                     let radial_intervals = brick_joints.map(|omega| {
-                        let omega_key = joint_keys[omega];
+                        let omega_key = structural_joints[omega];
                         self.create_strained_interval(
                             alpha_key,
                             omega_key,
@@ -130,6 +130,13 @@ impl Fabric {
                 .copied()
                 .expect("missing attach face after creating brick")
         };
-        (base_face, brick_faces)
+        AttachedBrick { base_face, brick_faces, structural_joints }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct AttachedBrick {
+    pub base_face: FaceKey,
+    pub brick_faces: Vec<FaceKey>,
+    pub structural_joints: Vec<JointKey>,
 }

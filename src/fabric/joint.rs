@@ -8,6 +8,26 @@ use crate::fabric::physics::{Physics, SurfaceInteraction};
 use crate::fabric::{Fabric, JointKey};
 use crate::units::{Grams, Meters, Unit};
 use glam::Vec3;
+use std::fmt::{self, Display, Formatter};
+
+/// Engraver-friendly joint label. `OffAxis` reads as `<letter><brick>.<position>`
+/// (limb joints); `Axial` reads as `Z<index>` (apex / on-mirror / unsymmetric).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum JointLabel {
+    OffAxis { letter: char, brick: u8, position: u8 },
+    Axial { index: u16 },
+}
+
+impl Display for JointLabel {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            JointLabel::OffAxis { letter, brick, position } => {
+                write!(f, "{letter}{brick:02}.{position}")
+            }
+            JointLabel::Axial { index } => write!(f, "Z{index}"),
+        }
+    }
+}
 
 impl Fabric {
     /// Create a joint with a specific path (for structured brick creation)
@@ -55,6 +75,14 @@ impl Fabric {
             .find(|(_, joint)| &joint.path == path)
             .map(|(key, _)| key)
     }
+
+    /// Find a joint by its engraver label (e.g. `"C03.10"`, `"Z6"`).
+    pub fn joint_key_by_label(&self, label: &str) -> Option<JointKey> {
+        self.joints
+            .iter()
+            .find(|(k, _)| self.joint_label(*k) == label)
+            .map(|(key, _)| key)
+    }
 }
 
 pub const AMBIENT_MASS: Grams = Grams(100.0);
@@ -62,6 +90,7 @@ pub const AMBIENT_MASS: Grams = Grams(100.0);
 #[derive(Clone, Debug)]
 pub struct Joint {
     pub path: JointPath,
+    pub label: Option<JointLabel>,
     pub location: Vec3,
     pub force: Vec3,
     pub velocity: Vec3,
@@ -72,6 +101,7 @@ impl Joint {
     pub fn new(location: Vec3, path: JointPath) -> Joint {
         Joint {
             path,
+            label: None,
             location,
             force: Vec3::ZERO,
             velocity: Vec3::ZERO,

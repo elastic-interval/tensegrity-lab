@@ -2,15 +2,15 @@ use std::collections::HashMap;
 
 use glam::{Mat3, Mat4, Quat, Vec3};
 
-use crate::build::dsl::brick_dsl::FaceName::Downwards;
-use crate::build::dsl::brick_dsl::{BrickName, BrickParams, BrickRole, JointName};
+use FaceName::Downwards;
+use crate::build::dsl::brick_dsl::{BrickName, BrickParams, BrickRole, FaceName, JointName};
 use crate::build::dsl::Spin::{Left, Right};
 use crate::build::dsl::{FaceAlias, ScaleMode, Spin};
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, JointKey};
 use crate::units::{Meters, Seconds};
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Axis {
     X,
     Y,
@@ -114,6 +114,11 @@ pub struct BrickPrototype {
     /// fabric assigns to seed joints. (How a downstream plan *uses* those
     /// letters — e.g. as leg identifiers — is not the brick's concern.)
     pub cyclic_axes: Vec<(BrickRole, Vec<Axis>)>,
+    /// Per-FaceName rotational twist (0/1/2 of a 3-fold cycle) telling
+    /// the labeller how a brick attached off this brick face is rotated
+    /// relative to its mirror-partner face's attach. Used to derive
+    /// label permutations that align mirror-partner joint suffixes.
+    pub face_twists: Vec<(FaceName, u8)>,
 }
 
 impl BrickPrototype {
@@ -123,6 +128,16 @@ impl BrickPrototype {
             .iter()
             .find(|(r, _)| *r == role)
             .map(|(_, axes)| axes.as_slice())
+    }
+
+    /// Look up the twist (0/1/2 in 3-fold cycle units) declared on a
+    /// brick FaceName, if any. Returns 0 (identity) when unset.
+    pub fn face_twist(&self, face_name: FaceName) -> u8 {
+        self.face_twists
+            .iter()
+            .find(|(n, _)| *n == face_name)
+            .map(|(_, t)| *t)
+            .unwrap_or(0)
     }
 
     /// Derive a `BrickSymmetry` from `cyclic_axes_for(role)`. `None` if

@@ -297,6 +297,19 @@ impl FaceName {
             _ => self,
         }
     }
+
+    /// Brick-local axis for axis-bearing FaceNames (Omni Top/Bot X/Y/Z).
+    /// Used by the labeller to align seed-joint letters with limb letters
+    /// via the seed's face declaration order.
+    pub fn axis(self) -> Option<Axis> {
+        use FaceName::*;
+        match self {
+            OmniTopX | OmniBotX => Some(Axis::X),
+            OmniTopY | OmniBotY => Some(Axis::Y),
+            OmniTopZ | OmniBotZ => Some(Axis::Z),
+            _ => None,
+        }
+    }
 }
 
 pub struct ProtoBuilder {
@@ -308,6 +321,7 @@ pub struct ProtoBuilder {
     pulls: Vec<PullDef>,
     faces: Vec<FaceDef>,
     cyclic_axes: Vec<(BrickRole, Vec<Axis>)>,
+    face_twists: Vec<(FaceName, u8)>,
 }
 
 impl ProtoBuilder {
@@ -325,7 +339,17 @@ impl ProtoBuilder {
             pulls: vec![],
             faces: vec![],
             cyclic_axes: vec![],
+            face_twists: vec![],
         }
+    }
+
+    /// Declare the rotational twist (0/1/2 of a 3-fold cycle) of bricks
+    /// attached off a brick face, relative to bricks attached off its
+    /// mirror partner face. Used to compute label permutations so
+    /// mirror-partner joint labels share their suffix.
+    pub fn face_twist(mut self, face_name: FaceName, twist: u8) -> Self {
+        self.face_twists.push((face_name, twist));
+        self
     }
 
     /// Declare the cyclic 3-fold axis order under a given orientation role.
@@ -450,6 +474,7 @@ impl ProtoBuilder {
             pulls: self.pulls,
             faces: self.faces,
             cyclic_axes: self.cyclic_axes,
+            face_twists: self.face_twists,
         }
     }
 }

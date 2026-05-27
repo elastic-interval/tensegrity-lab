@@ -3,9 +3,8 @@ use crate::build::dsl::build_phase::{BuildNode, BuildPhase};
 use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::fall_phase::FallPhase;
-use crate::build::dsl::pretense_phase::PretensePhase;
+use crate::build::dsl::pretense_phase::{AddSpec, PretensePhase};
 use crate::build::dsl::shape_phase::{ShapeAction, ShapeStep, SpacerSpec};
-use crate::fabric::joint_path::JointPath;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Meters, Percent, Seconds, Unit};
 
@@ -27,6 +26,7 @@ impl FabricName {
             build: None,
             shape: Vec::new(),
             omit_pairs: Vec::new(),
+            add_specs: Vec::new(),
         }
     }
 }
@@ -36,7 +36,8 @@ pub struct FabricBuilder {
     dimensions: FabricDimensions,
     build: Option<BuildNode>,
     shape: Vec<ShapeStep>,
-    omit_pairs: Vec<(JointPath, JointPath)>,
+    omit_pairs: Vec<(String, String)>,
+    add_specs: Vec<AddSpec>,
 }
 
 impl FabricBuilder {
@@ -135,7 +136,22 @@ impl FabricBuilder {
 
     pub fn omit<const N: usize>(mut self, pairs: [(&str, &str); N]) -> Self {
         self.omit_pairs
-            .extend(pairs.iter().map(|(a, b)| ((*a).into(), (*b).into())));
+            .extend(pairs.iter().map(|(a, b)| (a.to_string(), b.to_string())));
+        self
+    }
+
+    /// Mirror of omit: new pulls (Pct<100) or pushes (Pct>100) added in pretense.
+    pub fn add<const N: usize>(
+        mut self,
+        seconds: Seconds,
+        specs: [(&str, &str, Percent); N],
+    ) -> Self {
+        self.add_specs.extend(specs.iter().map(|(a, b, pct)| AddSpec {
+            alpha: a.to_string(),
+            omega: b.to_string(),
+            target: *pct,
+            approach: seconds,
+        }));
         self
     }
 
@@ -420,6 +436,14 @@ impl SeedChain {
         self.finalize_build().omit(pairs)
     }
 
+    pub fn add<const N: usize>(
+        self,
+        seconds: Seconds,
+        specs: [(&str, &str, Percent); N],
+    ) -> FabricBuilder {
+        self.finalize_build().add(seconds, specs)
+    }
+
     pub fn pretense(
         self,
         seconds: Seconds,
@@ -531,6 +555,7 @@ impl PretenseChain {
             seconds: self.seconds,
             rigidity: self.rigidity,
             omit_pairs: self.fabric.omit_pairs,
+            add_specs: self.fabric.add_specs,
             pretenst: self.pretenst,
         };
         FabricPlan {

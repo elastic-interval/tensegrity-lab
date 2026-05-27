@@ -3,6 +3,7 @@ use crate::build::dsl::FabricPlan;
 use crate::build::settler::Settler;
 use crate::fabric::physics::presets::{CONSTRUCTION, PRETENSING};
 use crate::fabric::physics::Physics;
+use crate::fabric::interval::Role;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::fabric::Fabric;
 use crate::units::{Seconds, Unit};
@@ -141,6 +142,7 @@ pub struct FabricPlanExecutor {
 }
 
 impl FabricPlanExecutor {
+
     pub fn new(plan: FabricPlan) -> Self {
         let fabric = Fabric::new(plan.name.to_string()).with_dimensions(plan.dimensions.clone());
         let plan_runner = PlanRunner::new(plan.clone());
@@ -358,9 +360,9 @@ impl FabricPlanExecutor {
         }
 
         // Omit triangle intervals after faces are converted
-        for (alpha_path, omega_path) in &self.plan.pretense_phase.omit_pairs {
-            let alpha_key = self.fabric.joint_key_by_path(alpha_path);
-            let omega_key = self.fabric.joint_key_by_path(omega_path);
+        for (alpha_label, omega_label) in &self.plan.pretense_phase.omit_pairs {
+            let alpha_key = self.fabric.joint_key_by_label(alpha_label);
+            let omega_key = self.fabric.joint_key_by_label(omega_label);
             match (alpha_key, omega_key) {
                 (Some(a), Some(o)) => {
                     if let Some(key) = self.fabric.joining((a, o)) {
@@ -368,14 +370,34 @@ impl FabricPlanExecutor {
                     } else {
                         eprintln!(
                             "WARNING: No interval found between joints ({}, {})",
-                            alpha_path, omega_path
+                            alpha_label, omega_label
                         );
                     }
                 }
                 _ => {
                     eprintln!(
                         "WARNING: Could not find joints for omit pair ({}, {})",
-                        alpha_path, omega_path
+                        alpha_label, omega_label
+                    );
+                }
+            }
+        }
+
+        // Add new permanent intervals: Pct<100 → pull, Pct>100 → push.
+        for spec in &self.plan.pretense_phase.add_specs {
+            let alpha_key = self.fabric.joint_key_by_label(&spec.alpha);
+            let omega_key = self.fabric.joint_key_by_label(&spec.omega);
+            match (alpha_key, omega_key) {
+                (Some(a), Some(o)) => {
+                    let current = self.fabric.distance(a, o);
+                    let target = current * spec.target.as_factor();
+                    let role = if target.f32() > current.f32() { Role::Pushing } else { Role::Pulling };
+                    self.fabric.create_approaching_interval(a, o, target, role, spec.approach);
+                }
+                _ => {
+                    eprintln!(
+                        "WARNING: Could not find joints for add pair ({}, {})",
+                        spec.alpha, spec.omega
                     );
                 }
             }
