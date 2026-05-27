@@ -128,45 +128,52 @@ impl FabricName {
             HeadlessHug => self
                 .build(
                     FabricDimensions::default()
-                        .with_altitude(M(9.0))
+                        .with_altitude(M(12.0))
                         .with_scale(M(1.0)),
                 )
                 .seed(OmniSymmetrical, Seed(2))
                 .faces([
                     on(LowerLeft)
-                        .column(4)
-                        .shrink_by(Pct(8.0))
-                        .then(column(1).then(column(2).label(LeftFoot))),
+                        .column(6)
+                        .shrink_by(Pct(12.0))
+                        .label(LeftFoot),
                     on(LowerRight)
-                        .column(4)
-                        .shrink_by(Pct(8.0))
-                        .then(column(1).then(column(2).label(RightFoot))),
-                    on(UpperLeft).column(2).shrink_by(Pct(10.0)).then(
+                        .column(6)
+                        .shrink_by(Pct(12.0))
+                        .label(RightFoot),
+                    on(UpperLeft).column(2).shrink_by(Pct(15.0)).then(
                         hub(OmniSymmetrical, OnSpinLeft).faces([
                             on(OmniTopZ).label(LeftChestUpper),
                             on(OmniBotX).label(LeftChestLower),
                             on(OmniBotY)
-                                .column(3)
+                                .column(5)
                                 .shrink_by(Pct(10.0))
-                                .then(column(1).then(column(2).label(LeftHand)))
+                                .label(LeftHand)
                                 .into(),
                         ]),
                     ),
-                    on(UpperRight).column(2).shrink_by(Pct(10.0)).then(
+                    on(UpperRight).column(2).shrink_by(Pct(15.0)).then(
                         hub(OmniSymmetrical, OnSpinRight).faces([
                             on(OmniTopY).label(RightChestUpper),
                             on(OmniBotZ).label(RightChestLower),
                             on(OmniBotX)
-                                .column(3)
+                                .column(6)
                                 .shrink_by(Pct(10.0))
-                                .then(column(1).then(column(2).label(RightHand)))
+                                .label(RightHand)
                                 .into(),
                         ]),
                     ),
                 ])
-                .space(Sec(2.0), [LeftFoot, RightFoot], Pct(30.0))
-                .space(Sec(2.0), [LeftHand, RightHand], Pct(20.0))
-                .space(Sec(2.0), [LeftChestLower, RightChestLower], Pct(40.0))
+                .prepare_vulcanize(0.5, VulcanizeMode::Linear)
+                .space_parallel(Sec(8.0), [
+                    spacer([LeftFoot, LeftHand], Pct(100.0)),
+                    spacer([RightFoot, RightHand], Pct(100.0)),
+                    spacer([LeftFoot, RightHand], Pct(102.0)),
+                    spacer([RightFoot, LeftHand], Pct(102.0)),
+                    spacer([LeftFoot, RightFoot], Pct(30.0)),
+                    spacer([LeftHand, RightHand], Pct(20.0)),
+                    spacer([LeftChestLower, RightChestLower], Pct(50.0)),
+                ])
                 .vulcanize(Sec(2.0))
                 .down(Sec(1.0), [LeftFoot, RightFoot])
                 .pretense(Sec(1.0), Pct(1.0))

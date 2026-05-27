@@ -4,7 +4,7 @@ use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::fall_phase::FallPhase;
 use crate::build::dsl::pretense_phase::PretensePhase;
-use crate::build::dsl::shape_phase::{ShapeAction, ShapeStep};
+use crate::build::dsl::shape_phase::{ShapeAction, ShapeStep, SpacerSpec};
 use crate::fabric::joint_path::JointPath;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Meters, Percent, Seconds, Unit};
@@ -66,6 +66,21 @@ impl FabricBuilder {
         self.shape.push(ShapeStep {
             seconds,
             action: ShapeAction::Spacer { labels: labels.to_vec(), distance },
+        });
+        self
+    }
+
+    /// Run multiple spacer groups concurrently in a single time window —
+    /// all intervals are created together, then driven to completion in
+    /// `seconds`. Build each spec with the free-standing `spacer(...)`.
+    pub fn space_parallel<const N: usize>(
+        mut self,
+        seconds: Seconds,
+        specs: [SpacerSpec; N],
+    ) -> Self {
+        self.shape.push(ShapeStep {
+            seconds,
+            action: ShapeAction::ParallelSpacers { specs: specs.to_vec() },
         });
         self
     }
@@ -369,6 +384,14 @@ impl SeedChain {
         self.finalize_build().space(seconds, labels, distance)
     }
 
+    pub fn space_parallel<const N: usize>(
+        self,
+        seconds: Seconds,
+        specs: [SpacerSpec; N],
+    ) -> FabricBuilder {
+        self.finalize_build().space_parallel(seconds, specs)
+    }
+
     pub fn join(self, seconds: Seconds, alpha: FaceLabel, omega: FaceLabel) -> FabricBuilder {
         self.finalize_build().join(seconds, alpha, omega)
     }
@@ -418,6 +441,11 @@ pub fn column(count: usize) -> ColumnBuilder {
 /// Create a BuildNode that just labels a face (no column)
 pub fn label(face_label: FaceLabel) -> BuildNode {
     BuildNode::Label { face_label }
+}
+
+/// Build one spacer spec for use inside `space_parallel(...)`.
+pub fn spacer<const N: usize>(labels: [FaceLabel; N], distance: Percent) -> SpacerSpec {
+    SpacerSpec { labels: labels.to_vec(), distance }
 }
 
 pub struct ColumnBuilder {
