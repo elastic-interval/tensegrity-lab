@@ -4,7 +4,8 @@ use crate::build::dsl::fabric_plan::FabricPlan;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
-static PLANS: [OnceLock<FabricPlan>; 6] = [
+static PLANS: [OnceLock<FabricPlan>; 7] = [
+    OnceLock::new(),
     OnceLock::new(),
     OnceLock::new(),
     OnceLock::new(),
@@ -24,6 +25,7 @@ pub enum FabricName {
     HaloByCrane,
     #[strum(serialize = "Headless Hug")]
     HeadlessHug,
+    Diamond,
 }
 
 impl FabricName {
@@ -181,6 +183,75 @@ impl FabricName {
                 .surface_frozen()
                 .fall(Sec(1.5))
                 .settle(Sec(1.5)),
+
+            Diamond => {
+                // Port of the pretenst Diamond (see ../pretenst/.../bootstrap.ts).
+                // Recursive tree: seed has 4 branches (a, b, c, d). Branch 'a'
+                // is the bottom apex, branches 'b/c/d' are top-sides. Each branch
+                // is a column of 5 ending in a hub that branches again into 'b/c'
+                // (Diamond's letters) for 2 more levels. Twelve leaves total,
+                // labelled Mark1..Mark6 in pairs that pretenst's `join` markDef
+                // brings together. PHASE 1: only growth — the join step is not
+                // yet implemented, so the leaves stay free.
+                // column-4 (even length) preserves tip spin, so a Spin::Left
+                // source face ends Spin::Left and needs an OnSpinLeft hub
+                // (Attach(Right) matches). All hubs in Diamond end up OnSpinLeft.
+                // `hub_role`/`inner_role` are still parameters so we can flip
+                // if we change column parity later.
+                fn mark_end(face: FaceName, mark: FaceLabel) -> FaceColumnBuilder {
+                    on(face).column(1).label(mark)
+                }
+                fn split_to_pair(
+                    face: FaceName,
+                    hub_role: BrickRole,
+                    mark_b: FaceLabel,
+                    mark_c: FaceLabel,
+                ) -> FaceColumnBuilder {
+                    on(face).column(4).then(
+                        hub(OmniSymmetrical, hub_role).faces([
+                            mark_end(OmniBotX, mark_b),
+                            mark_end(OmniBotY, mark_c),
+                        ]),
+                    )
+                }
+                fn split_to_triple(
+                    face: FaceName,
+                    hub_role: BrickRole,
+                    inner_role: BrickRole,
+                    m_bb: FaceLabel,
+                    m_bc: FaceLabel,
+                    m_cb: FaceLabel,
+                    m_cc: FaceLabel,
+                    m_db: FaceLabel,
+                    m_dc: FaceLabel,
+                ) -> FaceColumnBuilder {
+                    on(face).column(4).then(
+                        hub(OmniSymmetrical, hub_role).faces([
+                            split_to_pair(OmniBotX, inner_role, m_bb, m_bc),
+                            split_to_pair(OmniBotY, inner_role, m_cb, m_cc),
+                            split_to_pair(OmniBotZ, inner_role, m_db, m_dc),
+                        ]),
+                    )
+                }
+                self.build(FabricDimensions::default())
+                    .seed(OmniSymmetrical, Seed(1))
+                    .faces([
+                        // a(5, b(5,b(2,MA3)),c(5,c(2,MA4)), ... )
+                        // 'a' is on the seed's Spin::Left bottom-apex; col-5 tip
+                        // needs OnSpinRight hub; that hub's child faces (Right)
+                        // need OnSpinLeft inner hubs.
+                        split_to_triple(
+                            OmniBot, OnSpinLeft, OnSpinLeft,
+                            Mark3, Mark4, Mark1, Mark5, Mark6, Mark2,
+                        ),
+                        // b/c/d on the seed's three Spin::Left top-side faces.
+                        split_to_pair(OmniTopX, OnSpinLeft, Mark5, Mark3),
+                        split_to_pair(OmniTopY, OnSpinLeft, Mark2, Mark1),
+                        split_to_pair(OmniTopZ, OnSpinLeft, Mark4, Mark6),
+                    ])
+                    .pretense(Sec(1.0), Pct(1.0))
+                    .floating()
+            }
         }
     }
 }

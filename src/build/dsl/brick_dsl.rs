@@ -133,6 +133,14 @@ pub enum FaceLabel {
     RightChestUpper,
     LeftChestLower,
     RightChestLower,
+
+    // Diamond: six pairs of free end faces that get joined together.
+    Mark1,
+    Mark2,
+    Mark3,
+    Mark4,
+    Mark5,
+    Mark6,
 }
 
 /// Unified joint names for all bricks
