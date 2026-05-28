@@ -219,23 +219,19 @@ The fabric plan is automatically completed when you call a surface method (`.sur
 Bricks are defined using a fluent builder API in `src/build/dsl/brick_library.rs`:
 
 ```rust
-proto(SingleRightBrick, [Seed, OnSpinRight])
+proto(SingleTwistLeft, [Seed(1), OnSpin(Spin::Left)])
     .pushes(3.204, [(AlphaX, OmegaX), (AlphaY, OmegaY), (AlphaZ, OmegaZ)])
     .pulls(2.0, [(AlphaX, OmegaZ), (AlphaY, OmegaX), (AlphaZ, OmegaY)])
-    .face(Spin::Right, [AlphaZ, AlphaY, AlphaX], [
-        OnSpinRight.calls_it(Attach(Spin::Right)),
-        Seed.calls_it(SingleBot),
-        Seed.calls_it(Downwards),
+    .face(Spin::Left, [AlphaX, AlphaY, AlphaZ], [
+        OnSpin(Spin::Left).calls_it(Attach(Spin::Left)),
+        Seed(1).calls_it(SingleBot),
+        Seed(1).downwards(),
     ])
-    .face(Spin::Right, [OmegaX, OmegaY, OmegaZ], [
-        OnSpinRight.calls_it(SingleTop),
-        OnSpinRight.calls_it(AttachNext),
-        Seed.calls_it(SingleTop),
+    .face(Spin::Left, [OmegaZ, OmegaY, OmegaX], [
+        OnSpin(Spin::Left).calls_it(SingleTop),
+        OnSpin(Spin::Left).calls_it(AttachNext),
+        Seed(1).calls_it(SingleTop),
     ])
-    .baked()
-    .joints([...])
-    .pushes([...])
-    .pulls([...])
     .build()
 ```
 
@@ -256,15 +252,19 @@ proto(SingleRightBrick, [Seed, OnSpinRight])
 ### Face Aliases
 
 Faces have multiple names depending on the brick's **role** in the construction:
-- `Seed` - When this brick is the first/base brick
-- `OnSpinLeft`/`OnSpinRight` - When attaching to a left/right chirality face
-- `SeedFourDown`/`SeedFaceDown` - Different seed orientations
+- `Seed(n)` — when this brick is the seed; `n` is how many faces point
+  downward in that orientation (e.g. `Seed(1)`, `Seed(2)`, `Seed(4)`).
+- `OnSpin(spin)` — when attaching the brick to a parent face. By
+  convention the `spin` in the role equals the spin of the brick's
+  `Attach` face. The hub auto-derives this role from the parent face's
+  spin at attach time (see `hub(brick)` in `fabric_dsl.rs`), so you
+  rarely write `OnSpin(_)` outside brick prototype definitions.
 
 Each face can have multiple aliases for different roles:
 ```rust
-OnSpinRight.calls_it(Attach(Spin::Right)),  // Where other bricks attach
-Seed.calls_it(SingleBot),                    // Bottom face when seed
-Seed.calls_it(Downwards),                    // Orientation marker
+OnSpin(Spin::Right).calls_it(Attach(Spin::Right)),  // hub attach point
+Seed(1).calls_it(SingleBot),                        // bottom face when seed
+Seed(1).downwards(),                                // orientation marker
 ```
 
 ## Baking Process

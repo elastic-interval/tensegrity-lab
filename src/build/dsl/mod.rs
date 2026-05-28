@@ -69,7 +69,7 @@ pub struct FaceAlias {
 }
 
 impl FaceAlias {
-    /// Mirror this alias (swap OnSpinLeft↔OnSpinRight and spin in Attach)
+    /// Mirror this alias (flip the Spin in `OnSpin(_)` and in `Attach(_)`).
     pub fn mirror(&self) -> FaceAlias {
         FaceAlias {
             brick_role: self.brick_role.mirror(),

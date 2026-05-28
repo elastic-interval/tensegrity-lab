@@ -10,6 +10,7 @@ pub use torque::torque;
 
 use crate::build::dsl::brick::{BakedBrick, BrickPrototype};
 use crate::build::dsl::brick_dsl::*;
+use crate::build::dsl::Spin;
 use glam::Vec3;
 use std::sync::OnceLock;
 
@@ -17,17 +18,8 @@ static SINGLE_LEFT_PROTO: OnceLock<BrickPrototype> = OnceLock::new();
 static OMNI_PROTO: OnceLock<BrickPrototype> = OnceLock::new();
 static TORQUE_PROTO: OnceLock<BrickPrototype> = OnceLock::new();
 
-/// Returns true if this brick is derived from another (via mirror, etc.)
-/// Derived bricks should not be baked directly.
-pub fn is_derived(brick_name: BrickName) -> bool {
-    matches!(brick_name, BrickName::SingleTwistRight)
-}
-
 pub fn get_prototype(brick_name: BrickName) -> BrickPrototype {
     match brick_name {
-        BrickName::SingleTwistRight => {
-            panic!("SingleTwistRight is derived via mirror() - use SingleTwistLeft prototype")
-        }
         BrickName::SingleTwistLeft => SINGLE_LEFT_PROTO
             .get_or_init(|| {
                 single_left(&SingleParams {
@@ -59,16 +51,19 @@ pub fn get_scale(brick_name: BrickName) -> f32 {
 }
 
 pub fn get_brick(brick_name: BrickName, brick_role: BrickRole) -> BakedBrick {
-    // OnSpinRight on a role-mirrored brick (Omni, Torque) mirrors the
-    // OnSpinLeft baked brick at the role level. Single bricks handle
-    // chirality via separate Left/Right name variants instead.
-    let needs_role_mirror =
-        brick_role == BrickRole::OnSpinRight && brick_name.mirrors_for_role();
-    let mut baked = if needs_role_mirror {
-        baked_bricks::get_baked_brick(brick_name).mirror()
-    } else {
-        baked_bricks::get_baked_brick(brick_name)
-    };
+    // Mirror if the requested role's Attach face isn't present in the
+    // direct baked brick. After `BakedBrick::mirror()` the alias roles
+    // flip too, so the mirrored brick will have the requested role's
+    // Attach face. Seeds bypass: their attach is the down-rotation, not
+    // an Attach face alias.
+    let direct = baked_bricks::get_baked_brick(brick_name);
+    let needs_mirror = matches!(brick_role, BrickRole::OnSpin(_))
+        && !direct.faces.iter().any(|f| {
+            f.aliases.iter().any(|a| {
+                a.brick_role == brick_role && matches!(a.face_name, FaceName::Attach(_))
+            })
+        });
+    let mut baked = if needs_mirror { direct.mirror() } else { direct };
     for face in &mut baked.faces {
         face.aliases.retain(|alias| alias.brick_role == brick_role);
     }
@@ -81,7 +76,7 @@ pub fn get_brick(brick_name: BrickName, brick_role: BrickRole) -> BakedBrick {
     );
     let space = match brick_role {
         BrickRole::Seed(_) => baked.down_rotation(brick_role),
-        BrickRole::OnSpinLeft | BrickRole::OnSpinRight => {
+        BrickRole::OnSpin(Spin::Left) | BrickRole::OnSpin(Spin::Right) => {
             let face = baked
                 .faces
                 .iter()

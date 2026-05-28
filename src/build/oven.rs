@@ -54,10 +54,7 @@ pub struct Oven {
 
 impl Oven {
     pub fn new(radio: Radio) -> Self {
-        // Only include non-derived bricks
-        let brick_names: Vec<BrickName> = BrickName::iter()
-            .filter(|name| !brick_library::is_derived(*name))
-            .collect();
+        let brick_names: Vec<BrickName> = BrickName::iter().collect();
         let baked_fabrics = vec![None; brick_names.len()];
         let initial_scale = brick_library::get_scale(brick_names[0]);
 

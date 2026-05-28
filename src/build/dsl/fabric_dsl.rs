@@ -5,6 +5,7 @@ use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::fall_phase::FallPhase;
 use crate::build::dsl::pretense_phase::{AddSpec, PretensePhase};
 use crate::build::dsl::shape_phase::{ShapeAction, ShapeStep, SpacerSpec};
+use crate::build::dsl::Spin;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Meters, Percent, Seconds, Unit};
 
@@ -44,13 +45,10 @@ impl FabricBuilder {
     pub fn seed(self, brick_name: BrickName, brick_role: BrickRole) -> SeedChain {
         SeedChain {
             fabric: self,
-            hub: HubBuilder {
-                brick_name,
-                brick_role,
-                rotation: 0,
-                scale: Percent(100.0),
-                face_nodes: Vec::new(),
-            },
+            brick_name,
+            brick_role,
+            scale: Percent(100.0),
+            face_nodes: Vec::new(),
         }
     }
 
@@ -170,12 +168,31 @@ impl FabricBuilder {
     }
 }
 
-/// Create a hub node (places a brick with multiple faces)
-pub fn hub(brick_name: BrickName, brick_role: BrickRole) -> HubBuilder {
+/// 120° rotation step about an attach-face normal. Lives in the DSL
+/// so library files don't reach into `fabric::face`. Default is `Zero`.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum Rotation {
+    #[default]
+    Zero,
+    OneThird,
+    TwoThirds,
+}
+
+impl From<Rotation> for crate::fabric::face::FaceRotation {
+    fn from(r: Rotation) -> Self {
+        match r {
+            Rotation::Zero => Self::Zero,
+            Rotation::OneThird => Self::OneThird,
+            Rotation::TwoThirds => Self::TwoThirds,
+        }
+    }
+}
+
+/// Create a hub node. The brick role (`OnSpin(spin)`) is auto-derived
+/// from the parent face's spin at attach time.
+pub fn hub(brick_name: BrickName) -> HubBuilder {
     HubBuilder {
         brick_name,
-        brick_role,
-        rotation: 0,
         scale: Percent(100.0),
         face_nodes: Vec::new(),
     }
@@ -183,8 +200,6 @@ pub fn hub(brick_name: BrickName, brick_role: BrickRole) -> HubBuilder {
 
 pub struct HubBuilder {
     brick_name: BrickName,
-    brick_role: BrickRole,
-    rotation: usize,
     scale: Percent,
     face_nodes: Vec<BuildNode>,
 }
@@ -202,17 +217,15 @@ impl HubBuilder {
         self
     }
 
-    pub fn rotate(mut self) -> Self {
-        self.rotation += 1;
-        self
-    }
-
     /// Add faces to this hub
     pub fn faces<const N: usize>(mut self, faces: [impl Into<Face>; N]) -> Self {
+        // The role is resolved at attach time, but the alias needs a
+        // role here. `OnSpin(Left)` is a placeholder; execute_node
+        // rewrites it to the resolved role before matching.
         for face in faces {
             let face = face.into();
             self.face_nodes.push(BuildNode::Face {
-                alias: self.brick_role.calls_it(face.face_name),
+                alias: BrickRole::OnSpin(Spin::Left).calls_it(face.face_name),
                 node: Box::new(face.node),
             });
         }
@@ -228,20 +241,35 @@ pub struct Face {
 
 /// Start defining a face (for use in .faces([...]))
 pub fn on(face_name: FaceName) -> FaceBuilder {
-    FaceBuilder { face_name }
+    FaceBuilder { face_name, rotation: Rotation::Zero }
 }
 
 /// Builder for face content
 pub struct FaceBuilder {
     face_name: FaceName,
+    rotation: Rotation,
 }
 
 impl FaceBuilder {
+    /// Rotate the brick that attaches to this face around the face's
+    /// own normal. Has no visible effect on bricks with 3-fold
+    /// rotational symmetry about the attach normal — for those, prefer
+    /// picking a different child `on(...)` face name.
+    pub fn rotate(mut self, rotation: Rotation) -> Self {
+        self.rotation = rotation;
+        self
+    }
+
     /// Start with a column on this face
     pub fn column(self, count: usize) -> FaceColumnBuilder {
         FaceColumnBuilder {
             face_name: self.face_name,
-            column: column(count),
+            column: ColumnBuilder {
+                count,
+                scale: Percent(100.0),
+                rotation: self.rotation,
+                post_column_nodes: Vec::new(),
+            },
         }
     }
 
@@ -259,6 +287,7 @@ impl FaceBuilder {
             column: ColumnBuilder {
                 count: 0,
                 scale: Percent(100.0),
+                rotation: self.rotation,
                 post_column_nodes: vec![BuildNode::RadialsOnly],
             },
         }
@@ -270,6 +299,7 @@ impl FaceBuilder {
             column: ColumnBuilder {
                 count: 0,
                 scale: Percent(100.0),
+                rotation: self.rotation,
                 post_column_nodes: vec![BuildNode::Open],
             },
         }
@@ -281,6 +311,7 @@ impl FaceBuilder {
             column: ColumnBuilder {
                 count: 0,
                 scale: Percent(100.0),
+                rotation: self.rotation,
                 post_column_nodes: vec![BuildNode::Prism { outer_percent }],
             },
         }
@@ -341,35 +372,35 @@ impl From<FaceColumnBuilder> for Face {
 
 impl From<HubBuilder> for BuildNode {
     fn from(builder: HubBuilder) -> BuildNode {
+        // Hub attaches always auto-derive — role is None.
         BuildNode::Hub {
             brick_name: builder.brick_name,
-            brick_role: builder.brick_role,
-            rotation: builder.rotation,
+            brick_role: None,
             scale: builder.scale,
             face_nodes: builder.face_nodes,
         }
     }
 }
 
-/// Chain for seed configuration that transitions to FabricBuilder
+/// Chain for seed configuration that transitions to FabricBuilder.
+/// Seeds carry their role explicitly (Seed(1)/Seed(2)/Seed(4)) — that
+/// role determines the brick's orientation and isn't auto-derivable.
 pub struct SeedChain {
     fabric: FabricBuilder,
-    hub: HubBuilder,
+    brick_name: BrickName,
+    brick_role: BrickRole,
+    scale: Percent,
+    face_nodes: Vec<BuildNode>,
 }
 
 impl SeedChain {
     pub fn shrink_by(mut self, percent: Percent) -> Self {
-        self.hub = self.hub.shrink_by(percent);
+        self.scale = Percent(100.0 - percent.0);
         self
     }
 
     pub fn grow_by(mut self, percent: Percent) -> Self {
-        self.hub = self.hub.grow_by(percent);
-        self
-    }
-
-    pub fn rotate(mut self) -> Self {
-        self.hub = self.hub.rotate();
+        self.scale = Percent(100.0 + percent.0);
         self
     }
 
@@ -377,8 +408,8 @@ impl SeedChain {
     pub fn faces<const N: usize>(mut self, faces: [impl Into<Face>; N]) -> Self {
         for face in faces {
             let face = face.into();
-            self.hub.face_nodes.push(BuildNode::Face {
-                alias: self.hub.brick_role.calls_it(face.face_name),
+            self.face_nodes.push(BuildNode::Face {
+                alias: self.brick_role.calls_it(face.face_name),
                 node: Box::new(face.node),
             });
         }
@@ -386,7 +417,12 @@ impl SeedChain {
     }
 
     fn finalize_build(mut self) -> FabricBuilder {
-        self.fabric.build = Some(self.hub.into());
+        self.fabric.build = Some(BuildNode::Hub {
+            brick_name: self.brick_name,
+            brick_role: Some(self.brick_role),
+            scale: self.scale,
+            face_nodes: self.face_nodes,
+        });
         self.fabric
     }
 
@@ -458,6 +494,7 @@ pub fn column(count: usize) -> ColumnBuilder {
     ColumnBuilder {
         count,
         scale: Percent(100.0),
+        rotation: Rotation::Zero,
         post_column_nodes: Vec::new(),
     }
 }
@@ -475,6 +512,7 @@ pub fn spacer<const N: usize>(labels: [FaceLabel; N], distance: Percent) -> Spac
 pub struct ColumnBuilder {
     count: usize,
     scale: Percent,
+    rotation: Rotation,
     post_column_nodes: Vec<BuildNode>,
 }
 
@@ -522,6 +560,7 @@ impl ColumnBuilder {
         self.post_column_nodes.push(node.into());
         self
     }
+
 }
 
 impl From<ColumnBuilder> for BuildNode {
@@ -529,6 +568,7 @@ impl From<ColumnBuilder> for BuildNode {
         BuildNode::Column {
             count: builder.count,
             scale: builder.scale,
+            rotation: builder.rotation,
             post_column_nodes: builder.post_column_nodes,
         }
     }

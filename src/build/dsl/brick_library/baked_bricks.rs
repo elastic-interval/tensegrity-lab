@@ -1,6 +1,7 @@
-//! Bricks regenerated at startup. Each non-derived brick is baked once
-//! on first access (a few ms) and cached. `SingleTwistRight` is mirrored
-//! from `SingleTwistLeft`.
+//! Bricks regenerated at startup. Each brick is baked once on first
+//! access (a few ms) and cached. Mirroring (when needed for an
+//! `OnSpin(Right)` attach onto a Left-native brick like SingleTwist,
+//! or vice versa) happens in `get_brick` via `BakedBrick::mirror`.
 
 use crate::build::dsl::brick::BakedBrick;
 use crate::build::dsl::brick_dsl::{
@@ -14,10 +15,6 @@ use std::sync::OnceLock;
 static BAKED_CACHE: OnceLock<HashMap<BrickName, BakedBrick>> = OnceLock::new();
 
 pub fn get_baked_brick(brick_name: BrickName) -> BakedBrick {
-    use BrickName::*;
-    if brick_name == SingleTwistRight {
-        return get_baked_brick(SingleTwistLeft).mirror();
-    }
     BAKED_CACHE
         .get_or_init(populate_cache)
         .get(&brick_name)
@@ -52,7 +49,6 @@ fn initial_scale(brick_name: BrickName) -> f32 {
         OmniTetrahedral => 1.22593,
         SingleTwistLeft => 0.90909,
         TorqueSymmetrical => 1.02172,
-        SingleTwistRight => unreachable!("derived"),
     }
 }
 
@@ -70,6 +66,5 @@ fn brick_params(brick_name: BrickName) -> BrickParams {
             push_lengths: Vec3::new(3.0, 3.0, 6.0),
             pull_length: 1.86,
         }),
-        SingleTwistRight => unreachable!("derived"),
     }
 }

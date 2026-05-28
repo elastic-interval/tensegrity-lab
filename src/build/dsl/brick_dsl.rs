@@ -42,7 +42,6 @@ pub fn material_name(material: Material) -> &'static str {
 #[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash, clap::ValueEnum, strum::EnumIter)]
 pub enum BrickName {
     SingleTwistLeft,
-    SingleTwistRight,
     OmniSymmetrical,
     OmniTetrahedral,
     TorqueSymmetrical,
@@ -55,30 +54,15 @@ impl BrickName {
             _ => ScaleMode::None,
         }
     }
-
-    /// Returns true if chirality is determined by BrickRole (OnSpinLeft/OnSpinRight).
-    /// These bricks are defined once (left-handed) and mirrored at runtime for OnSpinRight.
-    /// Returns false if chirality is encoded in the BrickName itself (e.g., SingleTwistLeft/Right).
-    pub fn mirrors_for_role(&self) -> bool {
-        matches!(
-            self,
-            BrickName::OmniSymmetrical | BrickName::OmniTetrahedral | BrickName::TorqueSymmetrical
-        )
-    }
-
-    /// Returns true if this brick is derived from another via mirror().
-    /// These bricks don't have their own prototype - use the canonical variant instead.
-    pub fn is_mirror_derived(&self) -> bool {
-        matches!(self, BrickName::SingleTwistRight)
-    }
 }
 
-/// Context in which a brick face is being used
+/// Context in which a brick face is being used.
+/// `OnSpin(s)` means "this brick is being attached such that its Attach
+/// face has spin `s`." The parent face's spin (mirrored) determines `s`.
 #[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
 pub enum BrickRole {
     Seed(usize), // how many faces down
-    OnSpinLeft,
-    OnSpinRight,
+    OnSpin(Spin),
 }
 
 impl BrickRole {
@@ -100,11 +84,10 @@ impl BrickRole {
         }
     }
 
-    /// Mirror this role (swap OnSpinLeft ↔ OnSpinRight, Seed stays same)
+    /// Mirror this role (swap OnSpin(Left) ↔ OnSpin(Right), Seed stays).
     pub fn mirror(self) -> BrickRole {
         match self {
-            BrickRole::OnSpinLeft => BrickRole::OnSpinRight,
-            BrickRole::OnSpinRight => BrickRole::OnSpinLeft,
+            BrickRole::OnSpin(s) => BrickRole::OnSpin(s.mirror()),
             BrickRole::Seed(n) => BrickRole::Seed(n),
         }
     }

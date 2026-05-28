@@ -3,7 +3,8 @@ use crate::build::dsl::brick_dsl::FaceName::AttachNext;
 use crate::build::dsl::brick_dsl::{BrickName, BrickRole, FaceLabel, JointName, OmniCategory};
 use crate::build::dsl::build_phase::BuildNode::*;
 use crate::build::dsl::build_phase::Launch::*;
-use crate::build::dsl::{brick_library, FaceAlias, FaceLabelBinding, Spin};
+use crate::build::dsl::fabric_dsl::Rotation;
+use crate::build::dsl::{brick_library, FaceAlias, FaceLabelBinding};
 use crate::fabric::brick::BaseFace;
 use crate::fabric::face::FaceRotation;
 use crate::fabric::joint::JointLabel;
@@ -28,6 +29,10 @@ pub struct Bud {
     nodes: Vec<BuildNode>,
     branch_path: JointPath,
     label_context: LabelContext,
+    /// Rotation for the first column-brick attach of this bud. Set by
+    /// `.rotate(...)` on the FaceColumnBuilder; consumed by the first
+    /// brick then reset to `Zero` for subsequent depths.
+    rotation: Rotation,
 }
 
 #[derive(Debug, Clone)]
@@ -39,6 +44,10 @@ pub enum BuildNode {
     Column {
         count: usize,
         scale: Percent,
+        /// Rotation (about the attach-face normal) applied to the FIRST
+        /// brick of the column. Subsequent bricks extend off AttachNext
+        /// with no extra rotation.
+        rotation: Rotation,
         post_column_nodes: Vec<BuildNode>,
     },
     Label {
@@ -46,8 +55,9 @@ pub enum BuildNode {
     },
     Hub {
         brick_name: BrickName,
-        brick_role: BrickRole,
-        rotation: usize,
+        /// `None` = auto-pick from the parent face spin at attach time.
+        /// `Some(role)` = explicit override (or seed orientation).
+        brick_role: Option<BrickRole>,
         scale: Percent,
         face_nodes: Vec<BuildNode>,
     },
@@ -147,21 +157,20 @@ impl BuildPhase {
             nodes,
             branch_path,
             label_context,
+            rotation,
         }: Bud,
     ) -> (Vec<Bud>, Vec<FaceLabelBinding>) {
         let (mut buds, mut labels) = (vec![], vec![]);
         if column_count > 0 {
             let face = fabric.expect_face(face_key);
-            let (brick_name, brick_role) = match face.spin.mirror() {
-                Spin::Left => (BrickName::SingleTwistLeft, BrickRole::OnSpinLeft),
-                Spin::Right => (BrickName::SingleTwistRight, BrickRole::OnSpinRight),
-            };
+            let brick_name = BrickName::SingleTwistLeft;
+            let brick_role = BrickRole::OnSpin(face.spin.mirror());
             let brick = brick_library::get_brick(brick_name, brick_role);
             let next_path = branch_path.extend(COLUMN_MARKER);
             let attached = fabric.attach_brick(
                 &brick,
                 brick_role,
-                FaceRotation::Zero,
+                rotation.into(),
                 scale.as_factor(),
                 BaseFace::ExistingFace(face_key),
                 &next_path,
@@ -201,6 +210,9 @@ impl BuildPhase {
                     brick_depth: label_context.brick_depth + 1,
                     twist: (3 - label_context.twist) % 3,
                 },
+                // First-brick rotation is consumed; the rest of the
+                // column extends off AttachNext with no extra twist.
+                rotation: Rotation::Zero,
             });
         } else if !nodes.is_empty() {
             for (branch_index, child_node) in nodes.iter().enumerate() {
@@ -251,8 +263,8 @@ impl BuildPhase {
             Column {
                 count,
                 scale,
+                rotation,
                 post_column_nodes,
-                ..
             } => {
                 let face_key =
                     Self::find_launch_face(&launch, &faces, fabric).expect("No launch face");
@@ -263,19 +275,31 @@ impl BuildPhase {
                     nodes: post_column_nodes.clone(),
                     branch_path,
                     label_context,
+                    rotation: *rotation,
                 })
             }
             Hub {
                 brick_name,
                 brick_role,
                 face_nodes,
-                rotation,
                 scale,
             } => {
-                let brick = brick_library::get_brick(*brick_name, *brick_role);
                 let proto = brick_library::get_prototype(*brick_name);
                 let launch_face = Self::find_launch_face(&launch, &faces, fabric);
                 let is_seed = launch_face.is_none();
+                // Resolve role: explicit override → that. Otherwise it's
+                // `OnSpin(parent_face.spin.mirror())` — the spin the brick's
+                // Attach face must show to match the parent. Seeds must
+                // always be explicit.
+                let resolved_role = match brick_role {
+                    Some(r) => *r,
+                    None => {
+                        let parent_face = launch_face
+                            .expect("hub(...) without role must have a parent face");
+                        BrickRole::OnSpin(fabric.face(parent_face).spin.mirror())
+                    }
+                };
+                let brick = brick_library::get_brick(*brick_name, resolved_role);
                 let (base_face, effective_scale) = if let Some(fk) = launch_face {
                     (BaseFace::ExistingFace(fk), scale.as_factor())
                 } else {
@@ -291,8 +315,8 @@ impl BuildPhase {
                 };
                 let attached = fabric.attach_brick(
                     &brick,
-                    *brick_role,
-                    rotation.into(),
+                    resolved_role,
+                    FaceRotation::Zero,
                     effective_scale,
                     base_face,
                     &branch_path,
@@ -354,9 +378,13 @@ impl BuildPhase {
                     attached.brick_faces.clone()
                 };
                 let child_brick_depth = if is_seed { 1 } else { label_context.brick_depth + 1 };
-                for (branch_index, (hub_face_alias, hub_node)) in
+                for (branch_index, (mut hub_face_alias, hub_node)) in
                     Self::hub_pairs(face_nodes).into_iter().enumerate()
                 {
+                    // The DSL stamps face aliases at construction time with
+                    // a placeholder role; rewrite to the role we actually
+                    // resolved so find_launch_face matches.
+                    hub_face_alias.brick_role = resolved_role;
                     let child_path = branch_path.extend(branch_index as u8);
                     let child_label_context = LabelContext {
                         letter: face_letters.get(branch_index).copied().flatten(),

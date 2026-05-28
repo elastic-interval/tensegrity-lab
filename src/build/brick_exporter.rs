@@ -16,7 +16,6 @@ pub fn export(brick_name: BrickName, baked_code: &str) {
 fn function_name(brick_name: BrickName) -> &'static str {
     match brick_name {
         BrickName::SingleTwistLeft => "single_twist_left_baked",
-        BrickName::SingleTwistRight => "single_twist_right_baked",
         BrickName::OmniSymmetrical => "omni_symmetrical_baked",
         BrickName::OmniTetrahedral => "omni_tetrahedral_baked",
         BrickName::TorqueSymmetrical => "torque_symmetrical_baked",

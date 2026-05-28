@@ -27,6 +27,36 @@ mod tests {
         }
     }
 
+    /// Diagnostic: print the position of each Mark-labelled joint set.
+    #[test]
+    #[ignore]
+    fn dump_diamond_marks() {
+        let plan = fabric_library::get_fabric_plan(FabricName::Diamond);
+        let mut executor = FabricPlanExecutor::new(plan);
+        while *executor.stage() == ExecutorStage::Building {
+            let _ = executor.iterate();
+        }
+        let fabric = &executor.fabric;
+        let mut rows: Vec<(String, Vec3)> = fabric
+            .joints
+            .iter()
+            .filter_map(|(k, j)| {
+                let label = fabric.joint_label(k);
+                if label.starts_with('A') || label.starts_with('B') ||
+                   label.starts_with('C') || label.starts_with('D') {
+                    None
+                } else {
+                    Some((label, j.location))
+                }
+            })
+            .collect();
+        rows.sort_by(|a, b| a.0.cmp(&b.0));
+        eprintln!("=== Diamond mark joints ===");
+        for (l, p) in rows.iter().take(20) {
+            eprintln!("  {:>10}  ({:>7.3}, {:>7.3}, {:>7.3})", l, p.x, p.y, p.z);
+        }
+    }
+
     /// Diagnostic: size and labelled endpoints of the ported Diamond.
     /// 12 leaves expected (each Mark1..Mark6 appears twice — pretenst
     /// joins those pairs, which is Phase 2 work).
@@ -236,19 +266,19 @@ mod tests {
         eprintln!("All {step} build steps preserved label partnership.");
     }
 
-    /// Verify SingleTwistLeft and SingleTwistRight (the mirror-derived
-    /// partner) are TRUE mirror images of each other after the per-spin
-    /// rotation. For every local_index i, left.joint[i] and right.joint[i]
-    /// should sit at mirror-image positions across some plane (X=0, Y=0,
-    /// or Z=0). If this fails, the SingleTwist mirroring is broken at the
-    /// brick level (independent of any seed-face issues).
+    /// Verify the two SingleTwist orientations — `OnSpin(Left)` (direct)
+    /// and `OnSpin(Right)` (mirrored via `BakedBrick::mirror`) — are TRUE
+    /// mirror images at each local_index, across some axis-plane (X=0,
+    /// Y=0, or Z=0). If this fails, SingleTwist's mirror is broken at
+    /// the brick level (independent of any seed-face issues).
     #[test]
     fn test_single_twist_mirror_preserves_local_index_partnership() {
         use crate::build::dsl::brick_dsl::{BrickName, BrickRole};
         use crate::build::dsl::brick_library::get_brick;
+        use crate::build::dsl::Spin;
 
-        let left = get_brick(BrickName::SingleTwistLeft, BrickRole::OnSpinLeft);
-        let right = get_brick(BrickName::SingleTwistRight, BrickRole::OnSpinRight);
+        let left = get_brick(BrickName::SingleTwistLeft, BrickRole::OnSpin(Spin::Left));
+        let right = get_brick(BrickName::SingleTwistLeft, BrickRole::OnSpin(Spin::Right));
         assert_eq!(
             left.joints.len(),
             right.joints.len(),
