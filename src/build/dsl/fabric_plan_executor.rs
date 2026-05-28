@@ -268,7 +268,15 @@ impl FabricPlanExecutor {
             }
             ExecutorStage::Pretensing => {
                 if !self.fabric.has_approaching_intervals() {
-                    self.transition_to_fall();
+                    // Floating fabrics have no surface to fall onto — skip
+                    // straight to settle or complete.
+                    if self.stored_surface_character.is_some() {
+                        self.transition_to_fall();
+                    } else if self.plan.settle_phase.is_some() {
+                        self.transition_to_settle();
+                    } else {
+                        self.complete();
+                    }
                 }
             }
             ExecutorStage::Falling => {

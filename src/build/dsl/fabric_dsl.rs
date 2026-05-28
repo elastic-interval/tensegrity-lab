@@ -92,14 +92,14 @@ impl FabricBuilder {
         self
     }
 
-    pub fn join_parallel<const N: usize>(
+    pub fn join_parallel(
         mut self,
         seconds: Seconds,
-        pairs: [(FaceLabel, FaceLabel); N],
+        pairs: impl IntoIterator<Item = (FaceLabel, FaceLabel)>,
     ) -> Self {
         self.shape.push(ShapeStep {
             seconds,
-            action: ShapeAction::ParallelJoiners { pairs: pairs.to_vec() },
+            action: ShapeAction::ParallelJoiners { pairs: pairs.into_iter().collect() },
         });
         self
     }
@@ -293,6 +293,12 @@ impl FaceBuilder {
         }
     }
 
+    /// Shorthand for `.label(Tip(face_name))` using this face's name.
+    pub fn tip_label(self) -> Face {
+        let face_name = self.face_name;
+        self.label(FaceLabel::Tip(face_name))
+    }
+
     pub fn radials_only(self) -> FaceColumnBuilder {
         FaceColumnBuilder {
             face_name: self.face_name,
@@ -350,6 +356,12 @@ impl FaceColumnBuilder {
     pub fn label(mut self, face_label: FaceLabel) -> Self {
         self.column = self.column.label(face_label);
         self
+    }
+
+    /// Shorthand for `.label(Tip(face_name))` using this face's name.
+    pub fn tip_label(self) -> Self {
+        let face_name = self.face_name;
+        self.label(FaceLabel::Tip(face_name))
     }
 
     pub fn prism(mut self, outer_percent: Percent) -> Self {
@@ -460,10 +472,10 @@ impl SeedChain {
         self.finalize_build().join(seconds, alpha, omega)
     }
 
-    pub fn join_parallel<const N: usize>(
+    pub fn join_parallel(
         self,
         seconds: Seconds,
-        pairs: [(FaceLabel, FaceLabel); N],
+        pairs: impl IntoIterator<Item = (FaceLabel, FaceLabel)>,
     ) -> FabricBuilder {
         self.finalize_build().join_parallel(seconds, pairs)
     }
@@ -527,6 +539,14 @@ pub fn label(face_label: FaceLabel) -> BuildNode {
 /// Build one spacer spec for use inside `space_parallel(...)`.
 pub fn spacer<const N: usize>(labels: [FaceLabel; N], distance: Percent) -> SpacerSpec {
     SpacerSpec { labels: labels.to_vec(), distance }
+}
+
+/// Lift pairs of `FaceName` into pairs of `FaceLabel::Tip(...)`, for use
+/// inside `join_parallel(...)`.
+pub fn tips(
+    pairs: impl IntoIterator<Item = (FaceName, FaceName)>,
+) -> impl Iterator<Item = (FaceLabel, FaceLabel)> {
+    pairs.into_iter().map(|(a, b)| (FaceLabel::Tip(a), FaceLabel::Tip(b)))
 }
 
 pub struct ColumnBuilder {

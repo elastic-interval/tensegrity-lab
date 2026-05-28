@@ -279,9 +279,13 @@ impl Fabric {
     }
 
     pub fn remove_interval(&mut self, key: IntervalKey) -> Interval {
-        self.intervals
+        let interval = self.intervals
             .remove(key)
-            .expect("Removing nonexistent interval")
+            .expect("Removing nonexistent interval");
+        if matches!(interval.span, Approaching { .. }) {
+            self.approaching_count = self.approaching_count.saturating_sub(1);
+        }
+        interval
     }
 
     pub fn find_push_at(&self, joint_key: JointKey) -> Option<IntervalKey> {

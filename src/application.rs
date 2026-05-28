@@ -20,6 +20,7 @@ use winit::window::{WindowAttributes, WindowId};
 
 #[cfg(not(target_arch = "wasm32"))]
 use crate::animation_export::AnimationExporter;
+use crate::build::dsl::fabric_library::FabricName;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::physics_gpu::GpuBatch;
 #[cfg(not(target_arch = "wasm32"))]
@@ -35,6 +36,20 @@ struct NativeState {
     record_until: Option<Seconds>,
     gpu_batch: Option<GpuBatch>,
 }
+
+/// Cycle/kiosk mode state: walk through every named fabric, pause
+/// `CYCLE_DWELL` after each one completes (`FabricBuilt`), then move to
+/// the next. Used by the native `--cycle` flag and the WASM `?cycle` URL
+/// param.
+struct CycleState {
+    names: Vec<FabricName>,
+    index: usize,
+    advance_at: Option<Instant>,
+}
+
+/// Wall-clock time each fabric stays visible in cycle/kiosk mode before
+/// advancing to the next.
+const CYCLE_DWELL: Duration = Duration::from_secs(5);
 
 pub struct Application {
     run_style: RunStyle,
@@ -54,6 +69,7 @@ pub struct Application {
     pointer_handler: PointerHandler,
     time_scale: f32,
     model_scale: Option<f32>,
+    cycle: Option<CycleState>,
     #[cfg(not(target_arch = "wasm32"))]
     native: NativeState,
 }
@@ -87,6 +103,7 @@ impl Application {
             control_state: ControlState::Waiting,
             time_scale,
             model_scale: model_scale.map(|n| 1.0 / n),
+            cycle: None,
             #[cfg(not(target_arch = "wasm32"))]
             native: NativeState::default(),
         }
@@ -95,6 +112,17 @@ impl Application {
     /// Adjust time scale by a factor
     pub fn adjust_time_scale(&mut self, factor: f32) {
         self.time_scale = (self.time_scale * factor).clamp(0.1, 100.0);
+    }
+
+    /// Enable cycle/kiosk mode: after each fabric finishes, wait
+    /// `CYCLE_DWELL` and advance to the next one (loops forever). Used by
+    /// the native `--cycle` flag and the WASM `?cycle` URL param.
+    pub fn set_cycle(&mut self, names: Vec<FabricName>) {
+        self.cycle = Some(CycleState {
+            names,
+            index: 0,
+            advance_at: None,
+        });
     }
 
     //==================================================
@@ -227,6 +255,9 @@ impl ApplicationHandler<LabEvent> for Application {
                 // available. Sphere is GPU-only and cannot run otherwise.
                 if let RunStyle::Sphere { .. } = &self.run_style {
                     LabEvent::Run(self.run_style.clone()).send(&self.radio);
+                }
+                if self.cycle.is_some() {
+                    StateChange::SetKioskMode(true).send(&self.radio);
                 }
             }
             Run(run_style) => {
@@ -480,6 +511,9 @@ impl ApplicationHandler<LabEvent> for Application {
                 } else {
                     self.crucible.viewing_state().send(&self.radio);
                 }
+                if let Some(cycle) = &mut self.cycle {
+                    cycle.advance_at = Some(Instant::now() + CYCLE_DWELL);
+                }
             }
             Crucible(crucible_action) => {
                 self.crucible.action(crucible_action);
@@ -648,6 +682,12 @@ impl ApplicationHandler<LabEvent> for Application {
             WindowEvent::KeyboardInput {
                 event: key_event, ..
             } => {
+                // In cycle/kiosk mode the bottom legend is hidden, so we
+                // suppress all key bindings too — only window-level keys
+                // (e.g. CloseRequested via Cmd+W / Alt+F4) still work.
+                if self.cycle.is_some() {
+                    return;
+                }
                 self.keyboard
                     .handle_key_event(key_event, &self.control_state);
                 return;
@@ -716,6 +756,21 @@ impl ApplicationHandler<LabEvent> for Application {
             // Reset counters
             self.frames_count = 0;
             self.fps_timer = now;
+        }
+
+        // Cycle/kiosk: when the dwell timer fires, send Run() for the next fabric.
+        if let Some(cycle) = &mut self.cycle {
+            if cycle.advance_at.map_or(false, |when| now >= when) {
+                cycle.advance_at = None;
+                cycle.index = (cycle.index + 1) % cycle.names.len();
+                let next = cycle.names[cycle.index];
+                LabEvent::Run(RunStyle::Fabric {
+                    fabric_name: next,
+                    record: None,
+                    export_fps: 100.0,
+                })
+                .send(&self.radio);
+            }
         }
 
         // Handle elapsed time since last update

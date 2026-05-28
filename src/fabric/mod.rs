@@ -402,13 +402,19 @@ impl Fabric {
     /// (zero strain everywhere) and clear all joint forces/velocities. The
     /// subsequent `set_pretenst` call grows push rest-lengths from here.
     pub fn slacken(&mut self) {
+        use crate::fabric::interval::Span;
+        let mut still_approaching = 0usize;
         for interval in self.intervals.values_mut() {
             if !interval.has_role(Role::Support) {
+                if matches!(interval.span, Span::Approaching { .. }) {
+                    still_approaching += 1;
+                }
                 interval.span = Fixed {
                     length: Meters(interval.fast_length(&self.joints)),
                 };
             }
         }
+        self.approaching_count = self.approaching_count.saturating_sub(still_approaching);
         for joint in self.joints.values_mut() {
             joint.force = Vec3::ZERO;
             joint.velocity = Vec3::ZERO;

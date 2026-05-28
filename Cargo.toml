@@ -45,6 +45,7 @@ web-sys = { version = "=0.3.83", features = [
     "KeyboardEvent",
     "KeyboardEventInit",
     "EventTarget",
+    "Location",
 ] }
 
 [profile.release]

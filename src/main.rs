@@ -3,6 +3,7 @@ use getrandom;
 use std::error::Error;
 
 use clap::Parser;
+use strum::IntoEnumIterator;
 use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
 
@@ -55,11 +56,21 @@ struct Args {
     /// Only affects displayed measurements, not simulation
     #[arg(long)]
     model_scale: Option<f32>,
+
+    /// Cycle through every named fabric, pausing briefly after each one
+    /// finishes. Loops forever; Ctrl+C to exit. Overrides `--fabric`
+    /// (selects the first fabric for you).
+    #[arg(long)]
+    cycle: bool,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
     let record_duration = args.record.map(Seconds);
+
+    let cycle_names: Option<Vec<FabricName>> = args
+        .cycle
+        .then(|| FabricName::iter().collect());
 
     let run_style = if let Some(frequency) = args.sphere {
         RunStyle::Sphere {
@@ -78,6 +89,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         RunStyle::BakeBricks
     } else if let Some(seed) = args.evolve {
         RunStyle::Evolution(seed)
+    } else if let Some(names) = &cycle_names {
+        RunStyle::Fabric {
+            fabric_name: names[0],
+            record: None,
+            export_fps: 100.0,
+        }
     } else if let Some(fabric_name) = args.fabric {
         RunStyle::Fabric {
             fabric_name,
@@ -95,13 +112,14 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let model_scale = args.model_scale;
 
-    run_with(run_style, args.time_scale, model_scale)
+    run_with(run_style, args.time_scale, model_scale, cycle_names)
 }
 
 fn run_with(
     run_style: RunStyle,
     time_scale: f32,
     model_scale: Option<f32>,
+    cycle: Option<Vec<FabricName>>,
 ) -> Result<(), Box<dyn Error>> {
     let mut builder = EventLoop::<LabEvent>::with_user_event();
     let event_loop: EventLoop<LabEvent> = builder.build()?;
@@ -113,6 +131,9 @@ fn run_with(
     let window_attributes = create_window_attributes();
     let mut application =
         Application::new(window_attributes, radio.clone(), time_scale, model_scale);
+    if let Some(names) = cycle {
+        application.set_cycle(names);
+    }
     LabEvent::Run(run_style).send(&radio);
     event_loop.run_app(&mut application)?;
     Ok(())
@@ -120,16 +141,41 @@ fn run_with(
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(start))]
 pub fn run() {
+    // WASM cycle/kiosk mode is opt-in via URL query string `?cycle`.
+    #[cfg(target_arch = "wasm32")]
+    let cycle: Option<Vec<FabricName>> = wasm_cycle_requested()
+        .then(|| FabricName::iter().collect());
+    #[cfg(not(target_arch = "wasm32"))]
+    let cycle: Option<Vec<FabricName>> = None;
+
+    let initial_fabric = cycle
+        .as_ref()
+        .map(|names| names[0])
+        .unwrap_or(FabricName::OpenClaw);
+
     run_with(
         RunStyle::Fabric {
-            fabric_name: FabricName::OpenClaw,
+            fabric_name: initial_fabric,
             record: None,
             export_fps: 100.0,
         },
         1.0,
         None, // No model scale for WASM
+        cycle,
     )
     .unwrap();
+}
+
+#[cfg(target_arch = "wasm32")]
+fn wasm_cycle_requested() -> bool {
+    let Some(window) = web_sys::window() else { return false; };
+    let Ok(search) = window.location().search() else { return false; };
+    // search looks like "?cycle" or "?foo=bar&cycle" or "" — match a
+    // bare `cycle` token (no value expected).
+    search
+        .trim_start_matches('?')
+        .split('&')
+        .any(|kv| kv.split_once('=').map(|(k, _)| k).unwrap_or(kv) == "cycle")
 }
 
 #[cfg(not(target_arch = "wasm32"))]

@@ -93,44 +93,39 @@ impl BrickRole {
     }
 }
 
+/// Left / right body side, used in mirror-paired labels.
+#[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
+pub enum Side {
+    Left,
+    Right,
+}
+
 /// Unique labels for individual faces in fabric definitions. Each label
 /// must be assigned to at most one face — checked at build time. Shape
 /// operations (`space`, `join`, `down`) reference faces by label.
 #[derive(Copy, Clone, Debug, Display, PartialEq, Eq, Hash)]
 pub enum FaceLabel {
-    // OpenClaw: 3 leg ends (3-fold symmetric)
-    LegEndA,
-    LegEndB,
-    LegEndC,
+    // HeadlessHug: feet, hands, chest hubs — left/right mirror pairs.
+    #[strum(to_string = "Foot({0})")]
+    Foot(Side),
+    #[strum(to_string = "Hand({0})")]
+    Hand(Side),
+    #[strum(to_string = "ChestUpper({0})")]
+    ChestUpper(Side),
+    #[strum(to_string = "ChestLower({0})")]
+    ChestLower(Side),
 
-    // HaloByCrane: 2 halo endpoints joined together
-    HaloEndA,
-    HaloEndB,
+    // Diamond: leaves in the 'a' subtree are `Bottom(n)`, leaves in the
+    // b/c/d branches are `Top(n)`. Join pairs share `n` after the
+    // empirical close-pair permutation.
+    #[strum(to_string = "Bottom({0})")]
+    Bottom(u8),
+    #[strum(to_string = "Top({0})")]
+    Top(u8),
 
-    // HeadlessHug: feet, hands, chest hubs (left/right mirror pairs)
-    LeftFoot,
-    RightFoot,
-    LeftHand,
-    RightHand,
-    LeftChestUpper,
-    RightChestUpper,
-    LeftChestLower,
-    RightChestLower,
-
-    // Diamond: six pairs of free end faces that get joined together.
-    // `<n>A` lives in the 'a' subtree, `<n>B` in the b/c/d branches.
-    Mark1A,
-    Mark1B,
-    Mark2A,
-    Mark2B,
-    Mark3A,
-    Mark3B,
-    Mark4A,
-    Mark4B,
-    Mark5A,
-    Mark5B,
-    Mark6A,
-    Mark6B,
+    // The tip of a branch, identified by the seed face it grew from.
+    #[strum(to_string = "Tip({0})")]
+    Tip(FaceName),
 }
 
 /// Unified joint names for all bricks

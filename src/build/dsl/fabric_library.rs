@@ -1,4 +1,4 @@
-use crate::build::dsl::brick_dsl::{BrickName::*, BrickRole::*, FaceLabel::*, FaceName::*};
+use crate::build::dsl::brick_dsl::{BrickName::*, BrickRole::*, FaceLabel::*, FaceName::*, Side};
 use crate::build::dsl::fabric_dsl::{on, *};
 use crate::build::dsl::fabric_plan::FabricPlan;
 use std::sync::OnceLock;
@@ -19,16 +19,16 @@ static PLANS: [OnceLock<FabricPlan>; 8] = [
 pub enum FabricName {
     #[strum(serialize = "Open Claw")]
     OpenClaw,
-    Mockup,
-    Vertebra,
     Flagellum,
     #[strum(serialize = "Halo by Crane")]
     HaloByCrane,
     #[strum(serialize = "Headless Hug")]
     HeadlessHug,
     Diamond,
-    #[strum(serialize = "Propeller Tree")]
-    PropellerTree,
+    Propeller,
+    Infinity,
+    #[strum(serialize = "Twisted Infinity")]
+    TwistedInfinity,
 }
 
 impl FabricName {
@@ -43,9 +43,9 @@ impl FabricName {
                 )
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([
-                    on(OmniBotX).column(4).label(LegEndA).prism(Pct(200.0)),
-                    on(OmniBotY).column(4).label(LegEndB).prism(Pct(200.0)),
-                    on(OmniBotZ).column(4).label(LegEndC).prism(Pct(200.0)),
+                    on(OmniBotX).column(4).tip_label().prism(Pct(200.0)),
+                    on(OmniBotY).column(4).tip_label().prism(Pct(200.0)),
+                    on(OmniBotZ).column(4).tip_label().prism(Pct(200.0)),
                     on(OmniTop).prism(Pct(200.0)),
                     on(OmniBot).open(),
                 ])
@@ -58,7 +58,11 @@ impl FabricName {
                     ("C00.2", "B00.1"),
                 ])
                 .prepare_vulcanize(0.5, VulcanizeMode::Linear)
-                .space(Sec(2.8), [LegEndA, LegEndB, LegEndC], Pct(46.0))
+                .space(
+                    Sec(2.8),
+                    [Tip(OmniBotX), Tip(OmniBotY), Tip(OmniBotZ)],
+                    Pct(46.0),
+                )
                 .vulcanize(Sec(1.0))
                 .pretense(Sec(3.0), Pct(1.0))
                 .surface_frozen()
@@ -74,20 +78,6 @@ impl FabricName {
                     phase(Pct(0.0)).between("AX2Z4", "CX4Z5"),
                     phase(Pct(0.0)).between("BX2Z4", "AX4Z5"),
                 ]),
-            Mockup => self
-                .build(
-                    FabricDimensions::default()
-                        .with_altitude(M(2.0))
-                        .with_scale(M(0.59)),
-                )
-                .seed(SingleTwistLeft, Seed(1))
-                .faces([on(SingleTop).column(2).shrink_by(Pct(12.0))])
-                .vulcanize(Sec(2.0))
-                .pretense(Sec(0.02), Pct(1.0))
-                .surface_frozen()
-                .fall(Sec(3.0))
-                .settle(Sec(4.0)),
-
             HaloByCrane => self
                 .build(
                     FabricDimensions::default()
@@ -97,26 +87,14 @@ impl FabricName {
                 .seed(SingleTwistLeft, Seed(1))
                 .faces([on(SingleTop).column(4).shrink_by(Pct(8.0)).then(
                     hub(OmniSymmetrical).faces([
-                        on(OmniTopX).column(12).shrink_by(Pct(8.0)).label(HaloEndA),
-                        on(OmniTopY).column(11).shrink_by(Pct(8.0)).label(HaloEndB),
+                        on(OmniTopX).column(12).shrink_by(Pct(8.0)).tip_label(),
+                        on(OmniTopY).column(11).shrink_by(Pct(8.0)).tip_label(),
                     ]),
                 )])
-                .join(Sec(10.0), HaloEndA, HaloEndB)
-                .vulcanize(Sec(5.0))
+                .join(Sec(3.0), Tip(OmniTopX), Tip(OmniTopY))
+                .vulcanize(Sec(1.0))
                 .pretense(Sec(0.02), Pct(1.0))
                 .surface_frozen(),
-
-            Vertebra => self
-                .build(
-                    FabricDimensions::default()
-                        .with_altitude(M(0.5))
-                        .with_scale(M(0.0746)),
-                )
-                .seed(SingleTwistLeft, Seed(1))
-                .faces([on(SingleTop).column(1)])
-                .centralize_at(Sec(1.0), M(0.075))
-                .pretense(Sec(0.02), Pct(1.0))
-                .floating(),
 
             Flagellum => self
                 .build(
@@ -138,30 +116,33 @@ impl FabricName {
                 )
                 .seed(OmniSymmetrical, Seed(2))
                 .faces([
-                    on(LowerLeft).column(6).shrink_by(Pct(12.0)).label(LeftFoot),
+                    on(LowerLeft)
+                        .column(6)
+                        .shrink_by(Pct(12.0))
+                        .label(Foot(Side::Left)),
                     on(LowerRight)
                         .column(6)
                         .shrink_by(Pct(12.0))
-                        .label(RightFoot),
+                        .label(Foot(Side::Right)),
                     on(UpperLeft).column(2).shrink_by(Pct(15.0)).then(
                         hub(OmniSymmetrical).faces([
-                            on(OmniTopZ).label(LeftChestUpper),
-                            on(OmniBotX).label(LeftChestLower),
+                            on(OmniTopZ).label(ChestUpper(Side::Left)),
+                            on(OmniBotX).label(ChestLower(Side::Left)),
                             on(OmniBotY)
                                 .column(6)
                                 .shrink_by(Pct(10.0))
-                                .label(LeftHand)
+                                .label(Hand(Side::Left))
                                 .into(),
                         ]),
                     ),
                     on(UpperRight).column(2).shrink_by(Pct(15.0)).then(
                         hub(OmniSymmetrical).faces([
-                            on(OmniTopY).label(RightChestUpper),
-                            on(OmniBotZ).label(RightChestLower),
+                            on(OmniTopY).label(ChestUpper(Side::Right)),
+                            on(OmniBotZ).label(ChestLower(Side::Right)),
                             on(OmniBotX)
                                 .column(6)
                                 .shrink_by(Pct(10.0))
-                                .label(RightHand)
+                                .label(Hand(Side::Right))
                                 .into(),
                         ]),
                     ),
@@ -170,125 +151,177 @@ impl FabricName {
                 .space_parallel(
                     Sec(8.0),
                     [
-                        spacer([LeftFoot, LeftHand], Pct(100.0)),
-                        spacer([RightFoot, RightHand], Pct(100.0)),
-                        spacer([LeftFoot, RightHand], Pct(102.0)),
-                        spacer([RightFoot, LeftHand], Pct(102.0)),
-                        spacer([LeftFoot, RightFoot], Pct(30.0)),
-                        spacer([LeftHand, RightHand], Pct(20.0)),
-                        spacer([LeftChestLower, RightChestLower], Pct(50.0)),
+                        spacer([Foot(Side::Left), Hand(Side::Left)], Pct(100.0)),
+                        spacer([Foot(Side::Right), Hand(Side::Right)], Pct(100.0)),
+                        spacer([Foot(Side::Left), Hand(Side::Right)], Pct(102.0)),
+                        spacer([Foot(Side::Right), Hand(Side::Left)], Pct(102.0)),
+                        spacer([Foot(Side::Left), Foot(Side::Right)], Pct(30.0)),
+                        spacer([Hand(Side::Left), Hand(Side::Right)], Pct(20.0)),
+                        spacer([ChestLower(Side::Left), ChestLower(Side::Right)], Pct(50.0)),
                     ],
                 )
                 .vulcanize(Sec(2.0))
                 .add(Sec(1.0), [("C03.10", "D03.10", Pct(90.0))])
-                .down(Sec(1.0), [LeftFoot, RightFoot])
+                .down(Sec(1.0), [Foot(Side::Left), Foot(Side::Right)])
                 .pretense(Sec(1.0), Pct(1.0))
                 .surface_frozen()
                 .fall(Sec(1.5))
                 .settle(Sec(1.5)),
 
             Diamond => self
-                // Port of pretenst Diamond (../pretenst/.../bootstrap.ts).
-                // Seed has 4 branches: 'a' through the bottom-apex, 'b/c/d'
-                // through three top-side faces. Each branch is col-4 into a
-                // hub. The 'a' branch's hub splits into 3 sub-branches
-                // (each col-4 → hub → 2 leaves); the 'b/c/d' branches split
-                // into 2 leaves directly. 12 leaves total, labelled
-                // Mark1..Mark6 in pairs (each label appears twice — the
-                // pairs are what pretenst's `join` would bring together).
-                // Hub roles auto-derive from parent face spin; child face
-                // names are picked so leaf positions match the original.
                 .build(FabricDimensions::default())
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([
-                    on(OmniBot).column(4).then(hub(OmniSymmetrical).faces([
-                        on(OmniTopX).column(4).then(hub(OmniSymmetrical).faces([
-                            on(OmniTopZ).column(4).then(hub(OmniSymmetrical).faces([
-                                on(OmniTopZ).column(2).label(Mark3A),
-                            ])),
-                            on(OmniTopX).column(4).then(hub(OmniSymmetrical).faces([
-                                on(OmniTopX).column(2).label(Mark4A),
-                            ])),
-                        ])),
-                        on(OmniTopY).column(4).then(hub(OmniSymmetrical).faces([
-                            on(OmniTopZ).column(4).then(hub(OmniSymmetrical).faces([
-                                on(OmniTopZ).column(2).label(Mark1A),
-                            ])),
-                            on(OmniTopX).column(4).then(hub(OmniSymmetrical).faces([
-                                on(OmniTopX).column(2).label(Mark5A),
-                            ])),
-                        ])),
-                        on(OmniTopZ).column(4).then(hub(OmniSymmetrical).faces([
-                            on(OmniTopZ).column(4).then(hub(OmniSymmetrical).faces([
-                                on(OmniTopZ).column(2).label(Mark6A),
-                            ])),
-                            on(OmniTopX).column(4).then(hub(OmniSymmetrical).faces([
-                                on(OmniTopX).column(2).label(Mark2A),
-                            ])),
-                        ])),
-                    ])),
+                    on(OmniBot).column(4).then(
+                        hub(OmniSymmetrical).faces([
+                            on(OmniTopX).column(4).then(
+                                hub(OmniSymmetrical).faces([
+                                    on(OmniTopZ).column(4).then(
+                                        hub(OmniSymmetrical)
+                                            .faces([on(OmniTopZ).column(2).label(Bottom(3))]),
+                                    ),
+                                    on(OmniTopX).column(4).then(
+                                        hub(OmniSymmetrical)
+                                            .faces([on(OmniTopX).column(2).label(Bottom(4))]),
+                                    ),
+                                ]),
+                            ),
+                            on(OmniTopY).column(4).then(
+                                hub(OmniSymmetrical).faces([
+                                    on(OmniTopZ).column(4).then(
+                                        hub(OmniSymmetrical)
+                                            .faces([on(OmniTopZ).column(2).label(Bottom(1))]),
+                                    ),
+                                    on(OmniTopX).column(4).then(
+                                        hub(OmniSymmetrical)
+                                            .faces([on(OmniTopX).column(2).label(Bottom(5))]),
+                                    ),
+                                ]),
+                            ),
+                            on(OmniTopZ).column(4).then(
+                                hub(OmniSymmetrical).faces([
+                                    on(OmniTopZ).column(4).then(
+                                        hub(OmniSymmetrical)
+                                            .faces([on(OmniTopZ).column(2).label(Bottom(6))]),
+                                    ),
+                                    on(OmniTopX).column(4).then(
+                                        hub(OmniSymmetrical)
+                                            .faces([on(OmniTopX).column(2).label(Bottom(2))]),
+                                    ),
+                                ]),
+                            ),
+                        ]),
+                    ),
                     on(OmniTopX).column(4).then(hub(OmniSymmetrical).faces([
-                        on(OmniTopZ).column(4).then(hub(OmniSymmetrical).faces([
-                            on(OmniTopZ).column(2).label(Mark5B),
-                        ])),
-                        on(OmniTopX).column(4).then(hub(OmniSymmetrical).faces([
-                            on(OmniTopX).column(2).label(Mark3B),
-                        ])),
+                        on(OmniTopZ).column(4).then(
+                            hub(OmniSymmetrical).faces([on(OmniTopZ).column(2).label(Top(4))]),
+                        ),
+                        on(OmniTopX).column(4).then(
+                            hub(OmniSymmetrical).faces([on(OmniTopX).column(2).label(Top(6))]),
+                        ),
                     ])),
                     on(OmniTopY).column(4).then(hub(OmniSymmetrical).faces([
-                        on(OmniTopZ).column(4).then(hub(OmniSymmetrical).faces([
-                            on(OmniTopZ).column(2).label(Mark2B),
-                        ])),
-                        on(OmniTopX).column(4).then(hub(OmniSymmetrical).faces([
-                            on(OmniTopX).column(2).label(Mark1B),
-                        ])),
+                        on(OmniTopZ).column(4).then(
+                            hub(OmniSymmetrical).faces([on(OmniTopZ).column(2).label(Top(5))]),
+                        ),
+                        on(OmniTopX).column(4).then(
+                            hub(OmniSymmetrical).faces([on(OmniTopX).column(2).label(Top(3))]),
+                        ),
                     ])),
                     on(OmniTopZ).column(4).then(hub(OmniSymmetrical).faces([
-                        on(OmniTopZ).column(4).then(hub(OmniSymmetrical).faces([
-                            on(OmniTopZ).column(2).label(Mark4B),
-                        ])),
-                        on(OmniTopX).column(4).then(hub(OmniSymmetrical).faces([
-                            on(OmniTopX).column(2).label(Mark6B),
-                        ])),
+                        on(OmniTopZ).column(4).then(
+                            hub(OmniSymmetrical).faces([on(OmniTopZ).column(2).label(Top(2))]),
+                        ),
+                        on(OmniTopX).column(4).then(
+                            hub(OmniSymmetrical).faces([on(OmniTopX).column(2).label(Top(1))]),
+                        ),
                     ])),
                 ])
-                .join_parallel(Sec(2.0), [
-                    (Mark1A, Mark6B),
-                    (Mark2A, Mark4B),
-                    (Mark3A, Mark1B),
-                    (Mark4A, Mark5B),
-                    (Mark5A, Mark2B),
-                    (Mark6A, Mark3B),
-                ])
+                .join_parallel(Sec(2.0), (1..=6).map(|n| (Bottom(n), Top(n))))
                 .pretense(Sec(1.0), Pct(1.0))
                 .floating(),
 
-            PropellerTree => self
-                // Port of pretenst Propeller Tree (../pretenst/.../bootstrap.ts):
-                //   ( a(5,S110), B(11,S90,MA3), b(11,S90,MA1),
-                //                C(11,S90,MA2), c(11,S90,MA3),
-                //                D(11,S90,MA1), d(11,S90,MA2) )
-                // 'a' is a thick trunk down through the bottom apex. The
-                // six side branches B/b/C/c/D/d are slimmer columns; each
-                // ends in a mark. Three mark pairs join uppercase (bot-side
-                // = OmniBot*) with lowercase (top-side = OmniTop*) on
-                // opposite axes, forming three closed loops — the propellor.
+            Propeller => self
                 .build(FabricDimensions::default())
-                .seed(OmniSymmetrical, Seed(1))
+                .seed(OmniSymmetrical, Seed(4))
                 .faces([
-                    on(OmniBot).column(5).grow_by(Pct(10.0)).into(),
-                    on(OmniBotX).column(11).shrink_by(Pct(10.0)).label(Mark3A),
-                    on(OmniTopX).column(11).shrink_by(Pct(10.0)).label(Mark1B),
-                    on(OmniBotY).column(11).shrink_by(Pct(10.0)).label(Mark2A),
-                    on(OmniTopY).column(11).shrink_by(Pct(10.0)).label(Mark3B),
-                    on(OmniBotZ).column(11).shrink_by(Pct(10.0)).label(Mark1A),
-                    on(OmniTopZ).column(11).shrink_by(Pct(10.0)).label(Mark2B),
+                    on(RightFrontBottom)
+                        .column(11)
+                        .shrink_by(Pct(10.0))
+                        .tip_label(),
+                    on(RightBackBottom)
+                        .column(11)
+                        .shrink_by(Pct(10.0))
+                        .tip_label(),
+                    on(LeftFrontTop).column(11).shrink_by(Pct(10.0)).tip_label(),
+                    on(LeftFrontBottom)
+                        .column(11)
+                        .shrink_by(Pct(10.0))
+                        .tip_label(),
+                    on(RightBackTop).column(11).shrink_by(Pct(10.0)).tip_label(),
+                    on(LeftBackTop).column(11).shrink_by(Pct(10.0)).tip_label(),
                 ])
-                .join_parallel(Sec(2.0), [
-                    (Mark1A, Mark1B),
-                    (Mark2A, Mark2B),
-                    (Mark3A, Mark3B),
+                .join_parallel(
+                    Sec(2.0),
+                    tips([
+                        (RightFrontBottom, RightBackBottom),
+                        (LeftFrontTop, LeftFrontBottom),
+                        (LeftBackTop, RightBackTop),
+                    ]),
+                )
+                .pretense(Sec(1.0), Pct(1.0))
+                .floating(),
+
+            Infinity => self
+                .build(FabricDimensions::default())
+                .seed(OmniSymmetrical, Seed(4))
+                .faces([
+                    on(RightFrontTop)
+                        .column(11)
+                        .shrink_by(Pct(12.0))
+                        .tip_label(),
+                    on(RightFrontBottom)
+                        .column(11)
+                        .shrink_by(Pct(12.0))
+                        .tip_label(),
+                    on(LeftBackTop).column(11).shrink_by(Pct(12.0)).tip_label(),
+                    on(LeftBackBottom)
+                        .column(11)
+                        .shrink_by(Pct(12.0))
+                        .tip_label(),
                 ])
+                .join_parallel(
+                    Sec(2.0),
+                    tips([
+                        (RightFrontTop, RightFrontBottom),
+                        (LeftBackTop, LeftBackBottom),
+                    ]),
+                )
+                .pretense(Sec(1.0), Pct(1.0))
+                .floating(),
+
+            TwistedInfinity => self
+                .build(FabricDimensions::default())
+                .seed(OmniSymmetrical, Seed(4))
+                .faces([
+                    on(RightFrontTop).column(6).shrink_by(Pct(17.0)).tip_label(),
+                    on(RightBackBottom)
+                        .column(5)
+                        .shrink_by(Pct(17.0))
+                        .tip_label(),
+                    on(LeftBackTop).column(6).shrink_by(Pct(17.0)).tip_label(),
+                    on(LeftFrontBottom)
+                        .column(5)
+                        .shrink_by(Pct(17.0))
+                        .tip_label(),
+                ])
+                .join_parallel(
+                    Sec(2.0),
+                    tips([
+                        (RightFrontTop, RightBackBottom),
+                        (LeftBackTop, LeftFrontBottom),
+                    ]),
+                )
                 .pretense(Sec(1.0), Pct(1.0))
                 .floating(),
         }

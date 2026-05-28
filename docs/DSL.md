@@ -1,32 +1,38 @@
 # Tensegrity DSL
 
-The Tensegrity DSL is a Rust-embedded domain-specific language for defining tensegrity bricks and fabrics. It replaces the older S-expression-based Tenscript language.
+The Tensegrity DSL is a Rust-embedded domain-specific language for defining
+tensegrity bricks and fabrics. It replaces the older S-expression-based
+Tenscript language.
 
 ## Fabric Definitions
 
-Fabrics are defined in `src/build/dsl/fabric_library.rs` using a fluent builder API:
+Fabrics are defined in `src/build/dsl/fabric_library.rs` using a fluent
+builder API:
 
 ```rust
 OpenClaw
-    .scale(M(0.80))
-    .with_locked_bend_magnitudes(vec![12.0, 30.0, 49.0, 68.0])
+    .build(
+        FabricDimensions::default()
+            .with_scale(M(0.80))
+            .with_locked_bend_magnitudes(vec![12.0, 30.0, 49.0, 68.0]),
+    )
     .seed(OmniSymmetrical, Seed(1))
     .faces([
-        on(OmniBotX).column(4).mark(End).prism(Pct(200.0)),
-        on(OmniBotY).column(4).mark(End).prism(Pct(200.0)),
-        on(OmniBotZ).column(4).mark(End).prism(Pct(200.0)),
+        on(OmniBotX).column(4).tip_label().prism(Pct(200.0)),
+        on(OmniBotY).column(4).tip_label().prism(Pct(200.0)),
+        on(OmniBotZ).column(4).tip_label().prism(Pct(200.0)),
         on(OmniTop).prism(Pct(200.0)),
         on(OmniBot).open(),
     ])
     .prepare_vulcanize(0.5, VulcanizeMode::Linear)
-    .space(Sec(2.8), End, Pct(46.0))
+    .space(Sec(2.8), [Tip(OmniBotX), Tip(OmniBotY), Tip(OmniBotZ)], Pct(46.0))
     .vulcanize(Sec(1.0))
     .pretense(Sec(3.0), Pct(1.0))
     .surface_frozen()
     .fall(Sec(1.5))
     .settle(Sec(1.5))
     .animate()
-    .actuator_frequency(Hz(1.94))
+    .actuator_frequency(Hz(3.0))
     .amplitude(Pct(3.0))
     .stiffness(Pct(1.0))
     .sine()
@@ -39,106 +45,151 @@ OpenClaw
 
 ## Execution Phases
 
-A fabric plan consists of sequential phases:
+A fabric plan consists of sequential phases.
 
 ### 1. BUILD Phase
 
 Construct the structure using hubs and columns (no gravity).
 
 **Starting a fabric:**
+
 ```rust
 FabricName
-    .altitude(M(7.5))    // Initial altitude in meters
-    .scale(M(1.03))      // Real-world scale in meters
+    .build(FabricDimensions::default()
+        .with_altitude(M(7.5))   // optional, default 0
+        .with_scale(M(1.03)))    // optional, default 1
     .seed(BrickName, BrickRole)
 ```
 
-The typestate pattern enforces that `altitude()` and `scale()` must be called before `seed()`.
+`FabricDimensions::default()` is the source of truth for altitude, scale,
+joint mass, pull radius, push density, and connector geometry — see
+`src/fabric/dimensions.rs`.
 
 The seed brick's orientation also drives **joint naming** — see
 [joint-naming.md](joint-naming.md) for how seed joints become labels like
-`BAA` / `TOC` and how that reveals the 3-fold symmetry of the structure.
+`BAA` / `TOC`.
 
-**Seed (starting hub at root):**
+**Seed (root hub):**
+
 ```rust
 .seed(BrickName, BrickRole)
-    .shrink_by(Pct(10.0))    // Optional: shrink by 10% (90% scale)
-    .grow_by(Pct(10.0))      // Optional: grow by 10% (110% scale)
-    .rotate()                // Optional rotation
-    .faces([...])            // Define content for faces
+    .shrink_by(Pct(10.0))    // optional, 90% scale
+    .grow_by(Pct(10.0))      // optional, 110% scale
+    .faces([...])            // define content for output faces
 ```
 
 **Face array syntax:**
+
 ```rust
 .seed(OmniSymmetrical, Seed(1))
 .faces([
-    on(OmniBotX).column(8).shrink_by(Pct(10.0)).mark(End).prism(Pct(100.0)),
-    on(OmniBotY).column(8).shrink_by(Pct(10.0)).mark(End).prism(Pct(100.0)),
+    on(OmniBotX).column(8).shrink_by(Pct(10.0)).tip_label().prism(Pct(100.0)),
+    on(OmniBotY).column(8).shrink_by(Pct(10.0)).tip_label().prism(Pct(100.0)),
     on(OmniTop).column(1),
 ])
-.space(Sec(3.0), End, Pct(38.0))
 ```
 
-The `.faces([...])` method takes an array of face definitions created with `on(FaceName)`. This makes the parallel nature of face construction explicit.
+`on(FaceName)` starts a face entry. Method chains build a `Face`; the array
+is parallel — order in the array does not imply ordering at runtime.
 
-**Hub (placing a multi-face brick):**
+**Hub (multi-face brick attached to a parent face):**
+
 ```rust
-hub(BrickName, BrickRole)    // Place a brick with multiple output faces
-    .shrink_by(Pct(10.0))    // Optional: shrink by 10% (90% scale)
-    .grow_by(Pct(10.0))      // Optional: grow by 10% (110% scale)
-    .rotate()                // Optional rotation
+hub(BrickName)               // role auto-derived from parent face spin
+    .shrink_by(Pct(10.0))
+    .grow_by(Pct(10.0))
     .faces([
         on(FaceName).column(n),
-        on(FaceName).mark(Name),
+        on(FaceName).tip_label(),
     ])
 ```
 
-**Column (extending a column of bricks):**
+The `BrickRole` for a hub is always `OnSpin(spin)` where `spin` matches the
+parent face's spin (mirrored); `hub(brick)` derives this automatically at
+attach time. Write `OnSpin(_)` explicitly only in brick prototype
+definitions.
+
+**Column (extending a chain of bricks):**
+
 ```rust
-column(count)                // Build n bricks in a column
-    .shrink_by(Pct(10.0))    // Shrink each successive brick by 10% (90% scale per brick)
-    .grow_by(Pct(10.0))      // Grow each successive brick by 10% (110% scale per brick)
-    .chiral()                // Same chirality (vs alternating default)
-    .mark(MarkName)          // Tag the end face for later operations
-    .prism(Pct(100.0))           // Add prism: Pct(100) = symmetric, Pct(200) = outer extends 2×
-    .then(node)              // Continue with nested structure at the end
+column(count)                // build `count` bricks in a chain
+    .shrink_by(Pct(10.0))    // 90% scale per successive brick
+    .grow_by(Pct(10.0))      // 110% scale per successive brick
+    .rotate(Rotation::OneThird)  // optional 120° rotation step
+    .tip_label()             // label the final face as Tip(start-face-name)
+    .label(FaceLabel)        // or explicit label
+    .prism(Pct(100.0))       // Pct(100) symmetric, Pct(200) outer extends 2×
+    .then(node)              // continue with nested hub/column at the end
 ```
 
-**Chaining columns:**
+`.rotate(Rotation)` is only available on the per-face/column entry; the
+enum is `Zero` (default), `OneThird`, `TwoThirds`. Chaining columns:
+
 ```rust
-column(4).chiral().shrink_by(Pct(8.0)).then(
-    column(1).then(column(2).chiral().mark(Legs))
+on(OmniTop).column(4).then(
+    hub(OmniSymmetrical).faces([
+        on(OmniTopX).column(12).shrink_by(Pct(8.0)).tip_label(),
+        on(OmniTopY).column(11).shrink_by(Pct(8.0)).tip_label(),
+    ]),
 )
 ```
 
-Both `hub()` and `column()` implement `Into<BuildNode>`, so no `.build()` call is needed.
+Both `hub(...)` and `column(...)` (and `on(...).column(...)`) implement
+`Into<BuildNode>`, so `.build()` is unnecessary on them.
 
-**Marking without building:**
-```rust
-mark(MarkName)               // Just mark a location, no column
-```
+### Face Labels
+
+`FaceLabel` is a rich enum that uniquely names a face for later shape
+operations. Variants:
+
+- `Tip(FaceName)` — a column's terminal face, named by the face it grew
+  from. `.tip_label()` is shorthand for `.label(Tip(start_face))`.
+- `Top(u8)`, `Bottom(u8)` — small integer-indexed pairs (used by Diamond).
+- `Foot(Side)`, `Hand(Side)`, `ChestUpper(Side)`, `ChestLower(Side)` —
+  body-side mirror pairs (used by HeadlessHug). `Side` is `Left | Right`.
+
+Each label must be unique within a fabric — duplicates panic at build
+time.
 
 ### 2. SHAPE Phase
 
-Manipulate the structure while still in construction physics. Each shape operation includes its duration as the first argument:
-
-```rust
-.space(Sec(3.0), End, Pct(38.0))
-.vulcanize(Sec(1.0))
-.join(Sec(10.0), HaloEnd)
-.centralize_at(Sec(1.0), M(0.075))
-```
-
-**Shape Operations:**
+Adjust the structure under construction physics. Each shape op takes its
+duration as the first argument:
 
 | Operation | Description |
 |-----------|-------------|
-| `.space(Sec, mark, Pct)` | Adjust spacing at marked faces |
-| `.join(Sec, mark)` | Connect faces with the same mark together |
-| `.vulcanize(Sec)` | Add reinforcing intervals to strengthen the structure |
-| `.down(Sec, mark)` | Point marked faces downward |
-| `.centralize(Sec)` | Center the structure horizontally |
-| `.centralize_at(Sec, M)` | Center at specific altitude in meters |
+| `.space(Sec, [FaceLabel; N], Pct)` | Spacer intervals between every pair of labeled faces |
+| `.space_parallel(Sec, [spacer(...); N])` | Multiple `space` specs run together |
+| `.join(Sec, alpha, omega)` | Join two faces into one |
+| `.join_parallel(Sec, iter_of_pairs)` | Multiple joins run together |
+| `.vulcanize(Sec)` | Add reinforcing bow-tie intervals |
+| `.prepare_vulcanize(contraction, mode)` | Set per-bow-tie target before `vulcanize` |
+| `.down(Sec, [FaceLabel; N])` | Rotate so the average normal of these faces points down |
+| `.centralize(Sec)` | Center horizontally |
+| `.centralize_at(Sec, M)` | Center at the given altitude |
+| `.omit([(name, name); N])` | Remove specific intervals by joint-label pair |
+| `.add(Sec, [(name, name, Pct); N])` | Add an interval; Pct<100 → pull, Pct>100 → push |
+
+**Parallel join with `tips(...)` helper:**
+
+```rust
+.join_parallel(Sec(2.0), tips([
+    (RightFrontTop, RightFrontBottom),
+    (LeftBackTop,   LeftBackBottom),
+]))
+```
+
+`tips([...])` lifts pairs of `FaceName` into pairs of `FaceLabel::Tip(...)`,
+saving the wrapper repetition.
+
+**Parallel spacers:**
+
+```rust
+.space_parallel(Sec(8.0), [
+    spacer([Foot(Side::Left),  Hand(Side::Left)],  Pct(100.0)),
+    spacer([Foot(Side::Right), Hand(Side::Right)], Pct(100.0)),
+])
+```
 
 ### 3. PRETENSE Phase
 
@@ -149,74 +200,71 @@ tension up.
 
 ```rust
 .pretense(Sec(0.1), Pct(1.0))           // duration, percent push lengthening
-    .rigidity(Pct(100.0))               // optional rigidity
-    .surface_frozen()                   // required: specify surface interaction
+    .rigidity(Pct(100.0))               // optional rigidity multiplier
+    .surface_frozen()                   // required: pick one surface mode
 ```
 
-**Surface choices (required - one must be called to complete the plan):**
-- `.surface_frozen()` - Joints touching surface lock in place
-- `.surface_bouncy()` - Joints bounce off surface
-- `.floating()` - No surface interaction, fabric floats in space
+**Surface modes (one required to complete the plan):**
 
-### 4. FALL Phase
+- `.surface_frozen()` — joints touching surface lock in place
+- `.surface_bouncy()` — joints bounce off the surface
+- `.surface_slippery()` — joints slide along the surface
+- `.floating()` — no surface interaction
 
-Drop the structure with gravity enabled (minimal damping).
+### 4. FALL Phase (optional)
+
+Drop the structure with gravity enabled.
 
 ```rust
-.fall(Sec(duration))         // Duration for free fall
+.fall(Sec(duration))
 ```
 
-### 5. SETTLE Phase (Optional)
+### 5. SETTLE Phase (optional)
 
 Calm the structure with progressive damping until stable.
 
 ```rust
-.settle(Sec(duration))       // Duration for settling
+.settle(Sec(duration))
 ```
 
-### 6. ANIMATE Phase (Optional)
+### 6. ANIMATE Phase (optional)
 
 Add actuators that rhythmically contract to animate the structure.
 
-At runtime the frequency can be tuned interactively with the `F` / `f` keys
-(raise / lower) while in the Animating state. The crucible logs each new value
-in `actuator_frequency(Hz(...))` form, ready to paste back into the DSL.
-
 ```rust
 .animate()
-    .actuator_frequency(Hz(1.21))   // Cycle frequency in Hz (≡ 0.8266 s period)
-    .amplitude(Pct(1.0))            // Contraction amplitude
-    .stiffness(Pct(10.0))           // Actuator stiffness
-    .pulse(Pct(10.0))               // Square wave with 10% duty cycle (or .sine())
-    .actuators(&[
-        phase(Pct(0.0)).between(151, 48),
-        phase(Pct(0.0)).between(157, 36),
-        phase(Pct(50.0)).between(145, 42),
+    .actuator_frequency(Hz(1.21))   // cycle frequency
+    .amplitude(Pct(1.0))            // contraction amplitude
+    .stiffness(Pct(10.0))           // actuator stiffness
+    .pulse(Pct(10.0))               // square wave with 10% duty (or .sine())
+    .actuators([
+        phase(Pct(0.0)).between("joint-a", "joint-b"),
+        phase(Pct(50.0)).between("joint-c", "joint-d"),
     ])
 ```
 
-**Actuator Phase:**
+At runtime, `F` / `f` keys raise / lower the frequency while Animating;
+each new value is logged in `actuator_frequency(Hz(...))` form ready to
+paste back into the DSL.
 
-Actuators are created with `phase(Pct(offset))` where offset is a percentage of the cycle:
-- `Pct(0.0)` - Contracts at start of cycle
-- `Pct(50.0)` - Contracts at half cycle (opposite phase)
-- `Pct(33.3)` - Contracts at one-third of cycle
+**Phase offset** in `phase(Pct(offset))`: `Pct(0.0)` contracts at cycle
+start, `Pct(50.0)` is opposite-phase.
 
-**Actuator Attachments:**
-- `.between(joint_a, joint_b)` - Actuator between two joints in the fabric
-- `.surface(joint, (x, z))` - Actuator anchored to a surface point
+**Attachments:** `.between(joint_a, joint_b)` or
+`.surface(joint, (x, z))` (anchored to a ground point).
 
-**Waveforms:**
-- `.sine()` - Smooth sinusoidal contraction (default)
-- `.pulse(Pct(duty))` - Square wave, instantly on/off
+**Waveforms:** `.sine()` (default) or `.pulse(Pct(duty))`.
 
 ### Completing the Plan
 
-The fabric plan is automatically completed when you call a surface method (`.surface_frozen()`, `.surface_bouncy()`, or `.floating()`). After that, optional `.fall()`, `.settle()`, and `.animate()` can be chained to configure those phases. If using `.animate()`, the terminal `.actuators(&[...])` method completes the plan.
+The plan is complete once a surface method is called. After that,
+`.fall()`, `.settle()`, and `.animate()` are all optional chains. When
+using `.animate()`, the terminal `.actuators([...])` closes the plan.
 
 ## Brick Definitions
 
-Bricks are defined using a fluent builder API in `src/build/dsl/brick_library.rs`:
+Bricks are defined using a fluent builder API in
+`src/build/dsl/brick_library/`:
 
 ```rust
 proto(SingleTwistLeft, [Seed(1), OnSpin(Spin::Left)])
@@ -238,29 +286,37 @@ proto(SingleTwistLeft, [Seed(1), OnSpin(Spin::Left)])
 ### Brick Building Phases
 
 **Prototype Phase:**
-- `.proto(name, roles)` - Define brick name and roles it can be used in
-- `.pushes(ideal, pairs)` - Grouped compression elements with shared ideal length
-- `.pulls(ideal, pairs)` - Grouped tension elements with shared ideal length
-- `.face(spin, joints, aliases)` - Define triangular faces with their chirality and role-based names
+
+- `.proto(name, roles)` — name and roles this brick can be used in
+- `.pushes(ideal, pairs)` — grouped compression intervals with shared
+  ideal length
+- `.pulls(ideal, pairs)` — grouped tension intervals with shared ideal
+  length
+- `.face(spin, joints, aliases)` — triangular face with chirality and
+  role-based names
 
 **Baked Phase:**
-- `.baked()` - Switch to defining the settled geometry
-- `.joints([...])` - Final 3D positions after physics simulation
-- `.pushes([...])` / `.pulls([...])` - Final interval strains
-- `.build()` - Construct the complete Brick
+
+- `.baked()` — switch to defining the settled geometry
+- `.joints([...])` — final 3D positions after physics
+- `.pushes([...])` / `.pulls([...])` — final interval strains
+- `.build()` — construct the complete `Brick`
 
 ### Face Aliases
 
-Faces have multiple names depending on the brick's **role** in the construction:
+Faces have multiple names depending on the brick's **role** in the
+construction. `BrickRole` has two variants:
+
 - `Seed(n)` — when this brick is the seed; `n` is how many faces point
   downward in that orientation (e.g. `Seed(1)`, `Seed(2)`, `Seed(4)`).
 - `OnSpin(spin)` — when attaching the brick to a parent face. By
   convention the `spin` in the role equals the spin of the brick's
   `Attach` face. The hub auto-derives this role from the parent face's
-  spin at attach time (see `hub(brick)` in `fabric_dsl.rs`), so you
-  rarely write `OnSpin(_)` outside brick prototype definitions.
+  spin at attach time, so you rarely write `OnSpin(_)` outside brick
+  prototype definitions.
 
 Each face can have multiple aliases for different roles:
+
 ```rust
 OnSpin(Spin::Right).calls_it(Attach(Spin::Right)),  // hub attach point
 Seed(1).calls_it(SingleBot),                        // bottom face when seed
@@ -269,35 +325,44 @@ Seed(1).downwards(),                                // orientation marker
 
 ## Baking Process
 
-The "baking" process converts a logical `Prototype` into a physical `BakedBrick`:
+The "baking" process converts a logical `Prototype` into a physical
+`BakedBrick`:
 
-1. **Prototype -> Fabric** - Create a physics simulation with joints at origin
-2. **Physics Iteration** - Let forces settle the structure into equilibrium
-3. **Fabric -> BakedBrick** - Extract final geometry and strains
-4. **Validation** - Check face intervals have proper strain (~0.1)
+1. **Prototype → Fabric** — create a physics simulation with joints at
+   origin
+2. **Physics iteration** — let forces settle the structure into
+   equilibrium
+3. **Fabric → BakedBrick** — extract final geometry and strains
+4. **Validation** — face intervals must reach the target strain (~0.1)
 
-The `Oven` (in `src/build/oven.rs`) manages this process, running physics until `max_velocity < 3e-6`.
+The `Oven` (in `src/build/oven.rs`) manages this process, running physics
+until `max_velocity < 3e-6`.
 
 ## Type Safety
 
 The DSL is fully type-checked by Rust:
-- `FabricName` enum - All fabric types (entry point for fabric definitions)
-- `BrickName` enum - All brick types
-- `BrickRole` enum - All usage contexts
-- `FaceName` enum - All face aliases
-- `MarkName` enum - All mark identifiers
-- `JointName` enum - All joint identifiers
-- `Spin` enum - Left/Right chirality
 
-This catches errors at compile time that would be runtime errors in Tenscript.
+- `FabricName` — all fabric types (entry point for fabric definitions)
+- `BrickName` — all brick types
+- `BrickRole` — `Seed(usize)` or `OnSpin(Spin)`
+- `FaceName` — face aliases inside a brick
+- `FaceLabel` — uniquely named faces inside a fabric (rich enum, see
+  *Face Labels* above)
+- `JointName` — joints inside a brick
+- `Spin` — `Left | Right` chirality
+- `Side` — `Left | Right`, used inside body-pair `FaceLabel` variants
+- `Rotation` — `Zero | OneThird | TwoThirds` (120° steps)
+
+This catches errors at compile time that would be runtime errors in
+Tenscript.
 
 ## Unit Types
 
 The DSL uses type-safe units:
-- `M(value)` - Length in meters
-- `Sec(value)` - Time in seconds
-- `Pct(value)` - Percentage (scale, spacing, amplitude, stiffness, etc.)
 
----
-
-*The Rust DSL provides better tooling, type safety, and performance than the older S-expression approach.*
+- `M(value)` — length in meters
+- `Sec(value)` — time in seconds
+- `Pct(value)` — percentage (scale, spacing, amplitude, stiffness, etc.)
+- `Hz(value)` — frequency in cycles per second
+- `Gm(value)` — mass in grams
+- `GpmM(value)` — linear density (grams per meter)

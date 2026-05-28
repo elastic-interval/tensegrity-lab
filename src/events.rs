@@ -76,6 +76,9 @@ pub enum StateChange {
     ToggleAttachmentPoints,
     /// Show movement analysis overlay (None to hide)
     ShowMovementAnalysis(Option<String>),
+    /// Hide left/right text overlays and the bottom keyboard legend (for
+    /// `--cycle` kiosk mode).
+    SetKioskMode(bool),
 }
 
 impl Debug for StateChange {
@@ -99,6 +102,7 @@ impl Debug for StateChange {
             StateChange::ToggleAttachmentPoints => "ToggleAttachmentPoints",
             StateChange::ToggleColorByRole => "ToggleColorByRole",
             StateChange::ShowMovementAnalysis(_) => "ShowMovementAnalysis()",
+            StateChange::SetKioskMode(_) => "SetKioskMode()",
         };
         write!(f, "StateChange::{name}")
     }

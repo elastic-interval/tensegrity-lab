@@ -5,110 +5,34 @@ mod tests {
     use glam::Vec3;
     use strum::IntoEnumIterator;
 
-    /// Every named fabric should build to completion. Catches regressions
-    /// in brick attachment, hub composition, and shape-step execution.
+    /// Every named fabric should build to completion AND run all configured
+    /// shape, pretense, fall, settle phases through to Complete. The cap is
+    /// generous (5M iterations ≈ 250s fabric time); anything slower than that
+    /// almost certainly indicates a stuck phase (e.g. stale approaching count).
     #[test]
     fn test_all_fabrics_build() {
+        use crate::build::dsl::fabric_plan_executor::IterateResult;
+        const MAX_ITERS: u64 = 5_000_000;
         for fabric_name in FabricName::iter() {
             let plan = fabric_library::get_fabric_plan(fabric_name);
             let mut executor = FabricPlanExecutor::new(plan);
-            while *executor.stage() == ExecutorStage::Building {
-                let _ = executor.iterate();
+            let mut completed = false;
+            for _ in 0..MAX_ITERS {
+                if matches!(executor.iterate(), IterateResult::Complete) {
+                    completed = true;
+                    break;
+                }
             }
             let fabric = &executor.fabric;
-            assert!(
-                !fabric.joints.is_empty(),
-                "{fabric_name}: built with zero joints"
-            );
-            assert!(
-                !fabric.intervals.is_empty(),
-                "{fabric_name}: built with zero intervals"
-            );
+            assert!(!fabric.joints.is_empty(), "{fabric_name}: built with zero joints");
+            assert!(!fabric.intervals.is_empty(), "{fabric_name}: built with zero intervals");
+            assert!(completed,
+                "{fabric_name}: plan did not reach Complete within {MAX_ITERS} iterations (stuck at {:?})",
+                executor.stage());
         }
     }
 
-    /// Diagnostic: print the position of each Mark-labelled joint set.
-    #[test]
-    #[ignore]
-    fn dump_diamond_marks() {
-        let plan = fabric_library::get_fabric_plan(FabricName::Diamond);
-        let mut executor = FabricPlanExecutor::new(plan);
-        while *executor.stage() == ExecutorStage::Building {
-            let _ = executor.iterate();
-        }
-        let fabric = &executor.fabric;
-        let mut rows: Vec<(String, Vec3)> = fabric
-            .joints
-            .iter()
-            .filter_map(|(k, j)| {
-                let label = fabric.joint_label(k);
-                if label.starts_with('A') || label.starts_with('B') ||
-                   label.starts_with('C') || label.starts_with('D') {
-                    None
-                } else {
-                    Some((label, j.location))
-                }
-            })
-            .collect();
-        rows.sort_by(|a, b| a.0.cmp(&b.0));
-        eprintln!("=== Diamond mark joints ===");
-        for (l, p) in rows.iter().take(20) {
-            eprintln!("  {:>10}  ({:>7.3}, {:>7.3}, {:>7.3})", l, p.x, p.y, p.z);
-        }
-    }
-
-/// Diagnostic: size and labelled endpoints of the ported Diamond.
-    /// 12 leaves expected (each Mark1..Mark6 appears twice — pretenst
-    /// joins those pairs, which is Phase 2 work).
-    #[test]
-    #[ignore]
-    fn dump_propeller_stats() {
-        let plan = fabric_library::get_fabric_plan(FabricName::PropellerTree);
-        let mut executor = FabricPlanExecutor::new(plan);
-        while *executor.stage() == ExecutorStage::Building {
-            let _ = executor.iterate();
-        }
-        let fabric = &executor.fabric;
-        let labelled: usize = fabric.joints.values().filter(|j| j.label.is_some()).count();
-        eprintln!(
-            "Propeller Tree built: {} joints, {} intervals, {} faces, {} labelled joints",
-            fabric.joints.len(),
-            fabric.intervals.len(),
-            fabric.faces.len(),
-            labelled,
-        );
-        let (min_y, max_y) = fabric.altitude_range();
-        eprintln!(
-            "  altitude {:.2}m .. {:.2}m  (range {:.2}m), bounding radius {:.2}m",
-            min_y, max_y, max_y - min_y, fabric.bounding_radius(),
-        );
-    }
-
-    #[test]
-    #[ignore]
-    fn dump_diamond_stats() {
-        let plan = fabric_library::get_fabric_plan(FabricName::Diamond);
-        let mut executor = FabricPlanExecutor::new(plan);
-        while *executor.stage() == ExecutorStage::Building {
-            let _ = executor.iterate();
-        }
-        let fabric = &executor.fabric;
-        let labelled: usize = fabric.joints.values().filter(|j| j.label.is_some()).count();
-        eprintln!(
-            "Diamond built: {} joints, {} intervals, {} faces, {} labelled joints",
-            fabric.joints.len(),
-            fabric.intervals.len(),
-            fabric.faces.len(),
-            labelled,
-        );
-        let (min_y, max_y) = fabric.altitude_range();
-        eprintln!(
-            "  altitude {:.2}m .. {:.2}m  (range {:.2}m), bounding radius {:.2}m",
-            min_y, max_y, max_y - min_y, fabric.bounding_radius(),
-        );
-    }
-
-    /// Per-step full symmetry check: at every build step (starting from
+/// Per-step full symmetry check: at every build step (starting from
     /// the seed alone), verify that the joints in the fabric form a
     /// mirror-symmetric set — for every joint off the mirror plane,
     /// there should exist another joint at the mirror-image position.
@@ -340,102 +264,6 @@ mod tests {
         assert_eq!(matched, n, "only {matched}/{n} joint pairs are mirror-related under {axis_name}");
     }
 
-    /// Diagnostic: print the JointKey index for each labeled joint so
-    /// we can identify specific joints (e.g. D03.6 and C03.10) by stable
-    /// keys rather than by their current labels.
-    #[test]
-    #[ignore]
-    fn dump_headless_hug_joint_keys() {
-        use slotmap::Key;
-        let plan = fabric_library::get_fabric_plan(FabricName::HeadlessHug);
-        let mut executor = FabricPlanExecutor::new(plan);
-        while *executor.stage() == ExecutorStage::Building {
-            let _ = executor.iterate();
-        }
-        let fabric = &executor.fabric;
-        let mut labeled: Vec<(String, u64)> = fabric
-            .joints
-            .iter()
-            .filter_map(|(k, j)| j.label.map(|_| (fabric.joint_label(k), k.data().as_ffi())))
-            .collect();
-        labeled.sort_by(|a, b| a.0.cmp(&b.0));
-        eprintln!("=== HeadlessHug labels → JointKey.as_ffi() ===");
-        for (l, kd) in &labeled {
-            eprintln!("  {:>8}  {}", l, kd);
-        }
-    }
-
-    /// Two pairs of joints identified by stable JointKey FFIs (from
-    /// `dump_headless_hug_joint_keys`) that are physical mirror partners
-    /// in HeadlessHug. Their labels must share the tail (everything
-    /// after the first character) — that's the visible LEFT/RIGHT
-    /// partnership the labeller is supposed to surface.
-    #[test]
-    fn test_mirror_partner_joints_share_label_tail() {
-        use slotmap::KeyData;
-
-        // Stable JointKey FFIs captured by `dump_headless_hug_joint_keys`.
-        // Each pair: (left-side key, right-side key, descriptive name).
-        // With the twist-aware labeller both pairs share their tail
-        // (currently `C03.10 ↔ D03.10` and `A01.6 ↔ B01.6`).
-        const PAIRS: &[(u64, u64, &str)] = &[
-            (90 + (1u64 << 32),  104 + (1u64 << 32), "C-hub vs D-hub"),
-            (26 + (1u64 << 32),  27 + (3u64 << 32),  "A-leg vs B-leg"),
-        ];
-
-        let plan = fabric_library::get_fabric_plan(FabricName::HeadlessHug);
-        let mut executor = FabricPlanExecutor::new(plan);
-        while *executor.stage() == ExecutorStage::Building {
-            let _ = executor.iterate();
-        }
-        let fabric = &executor.fabric;
-
-        let mut failures: Vec<String> = Vec::new();
-        for &(left_ffi, right_ffi, name) in PAIRS {
-            let left = crate::fabric::JointKey::from(KeyData::from_ffi(left_ffi));
-            let right = crate::fabric::JointKey::from(KeyData::from_ffi(right_ffi));
-            let l = fabric.joint_label(left);
-            let r = fabric.joint_label(right);
-            eprintln!("{name}: {l} ↔ {r}");
-            if l.len() < 2 || r.len() < 2 {
-                failures.push(format!("{name}: labels too short {l}/{r}"));
-                continue;
-            }
-            let (lt, rt) = (&l[1..], &r[1..]);
-            if lt != rt {
-                failures.push(format!(
-                    "{name}: tails differ — {l} ({lt}) vs {r} ({rt})"
-                ));
-            }
-        }
-        assert!(failures.is_empty(), "{} mirror-partner label-tail mismatch(es):\n{}",
-            failures.len(), failures.join("\n"));
-    }
-
-    /// Diagnostic dump of HeadlessHug labels & positions. Helps see the
-    /// structure's symmetry plane and which joints partner with which.
-    /// Marked `#[ignore]` — run with `--ignored` to inspect.
-    #[test]
-    #[ignore]
-    fn dump_headless_hug_labels() {
-        let plan = fabric_library::get_fabric_plan(FabricName::HeadlessHug);
-        let mut executor = FabricPlanExecutor::new(plan);
-        while *executor.stage() == ExecutorStage::Building {
-            let _ = executor.iterate();
-        }
-        let fabric = &executor.fabric;
-        let mut labeled: Vec<(String, Vec3)> = fabric
-            .joints
-            .iter()
-            .filter_map(|(k, j)| j.label.map(|_| (fabric.joint_label(k), j.location)))
-            .collect();
-        labeled.sort_by(|a, b| a.0.cmp(&b.0));
-        eprintln!("=== HeadlessHug labeled joints ({}): ===", labeled.len());
-        for (l, p) in &labeled {
-            eprintln!("  {:>8}  ({:>7.3}, {:>7.3}, {:>7.3})", l, p.x, p.y, p.z);
-        }
-    }
-
 /// HeadlessHug should label its 4 limbs as A, B, C, D such that
     /// A↔B and C↔D are mirror pairs of joints. For every label of letter
     /// A, the SAME suffix should also appear with letter B (and likewise
@@ -522,4 +350,5 @@ mod tests {
             );
         }
     }
+
 }
