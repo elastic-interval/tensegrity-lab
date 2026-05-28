@@ -4,7 +4,8 @@ use crate::build::dsl::fabric_plan::FabricPlan;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
-static PLANS: [OnceLock<FabricPlan>; 7] = [
+static PLANS: [OnceLock<FabricPlan>; 8] = [
+    OnceLock::new(),
     OnceLock::new(),
     OnceLock::new(),
     OnceLock::new(),
@@ -26,6 +27,8 @@ pub enum FabricName {
     #[strum(serialize = "Headless Hug")]
     HeadlessHug,
     Diamond,
+    #[strum(serialize = "Propeller Tree")]
+    PropellerTree,
 }
 
 impl FabricName {
@@ -256,6 +259,35 @@ impl FabricName {
                     (Mark4A, Mark5B),
                     (Mark5A, Mark2B),
                     (Mark6A, Mark3B),
+                ])
+                .pretense(Sec(1.0), Pct(1.0))
+                .floating(),
+
+            PropellerTree => self
+                // Port of pretenst Propeller Tree (../pretenst/.../bootstrap.ts):
+                //   ( a(5,S110), B(11,S90,MA3), b(11,S90,MA1),
+                //                C(11,S90,MA2), c(11,S90,MA3),
+                //                D(11,S90,MA1), d(11,S90,MA2) )
+                // 'a' is a thick trunk down through the bottom apex. The
+                // six side branches B/b/C/c/D/d are slimmer columns; each
+                // ends in a mark. Three mark pairs join uppercase (bot-side
+                // = OmniBot*) with lowercase (top-side = OmniTop*) on
+                // opposite axes, forming three closed loops — the propellor.
+                .build(FabricDimensions::default())
+                .seed(OmniSymmetrical, Seed(1))
+                .faces([
+                    on(OmniBot).column(5).grow_by(Pct(10.0)).into(),
+                    on(OmniBotX).column(11).shrink_by(Pct(10.0)).label(Mark3A),
+                    on(OmniTopX).column(11).shrink_by(Pct(10.0)).label(Mark1B),
+                    on(OmniBotY).column(11).shrink_by(Pct(10.0)).label(Mark2A),
+                    on(OmniTopY).column(11).shrink_by(Pct(10.0)).label(Mark3B),
+                    on(OmniBotZ).column(11).shrink_by(Pct(10.0)).label(Mark1A),
+                    on(OmniTopZ).column(11).shrink_by(Pct(10.0)).label(Mark2B),
+                ])
+                .join_parallel(Sec(2.0), [
+                    (Mark1A, Mark1B),
+                    (Mark2A, Mark2B),
+                    (Mark3A, Mark3B),
                 ])
                 .pretense(Sec(1.0), Pct(1.0))
                 .floating(),

@@ -62,6 +62,30 @@ mod tests {
     /// joins those pairs, which is Phase 2 work).
     #[test]
     #[ignore]
+    fn dump_propeller_stats() {
+        let plan = fabric_library::get_fabric_plan(FabricName::PropellerTree);
+        let mut executor = FabricPlanExecutor::new(plan);
+        while *executor.stage() == ExecutorStage::Building {
+            let _ = executor.iterate();
+        }
+        let fabric = &executor.fabric;
+        let labelled: usize = fabric.joints.values().filter(|j| j.label.is_some()).count();
+        eprintln!(
+            "Propeller Tree built: {} joints, {} intervals, {} faces, {} labelled joints",
+            fabric.joints.len(),
+            fabric.intervals.len(),
+            fabric.faces.len(),
+            labelled,
+        );
+        let (min_y, max_y) = fabric.altitude_range();
+        eprintln!(
+            "  altitude {:.2}m .. {:.2}m  (range {:.2}m), bounding radius {:.2}m",
+            min_y, max_y, max_y - min_y, fabric.bounding_radius(),
+        );
+    }
+
+    #[test]
+    #[ignore]
     fn dump_diamond_stats() {
         let plan = fabric_library::get_fabric_plan(FabricName::Diamond);
         let mut executor = FabricPlanExecutor::new(plan);
