@@ -292,8 +292,19 @@ impl Scene {
         self.camera.jump_to_fabric(fabric);
     }
 
+    /// Refit camera radius to the new fabric while keeping the current
+    /// orbit angle (Show mode).
+    pub fn refit_camera_to_fabric(&mut self, fabric: &Fabric) {
+        self.camera.refit_to_fabric(fabric);
+    }
+
     pub fn restart_approach(&mut self) {
         self.camera.restart_approach();
+    }
+
+    /// Slowly rotate the camera around the vertical axis (Show mode).
+    pub fn orbit_camera_y(&mut self, angle_rad: f32) {
+        self.camera.orbit_around_y(angle_rad);
     }
 
     /// Check if camera needs initialization

@@ -141,13 +141,9 @@ fn run_with(
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(start))]
 pub fn run() {
-    // WASM cycle/kiosk mode is opt-in via URL query string `?cycle`.
-    #[cfg(target_arch = "wasm32")]
-    let cycle: Option<Vec<FabricName>> = wasm_cycle_requested()
-        .then(|| FabricName::iter().collect());
-    #[cfg(not(target_arch = "wasm32"))]
-    let cycle: Option<Vec<FabricName>> = None;
-
+    // WASM always runs in Show mode — there's no CLI, so this is the
+    // standard public experience.
+    let cycle: Option<Vec<FabricName>> = Some(FabricName::iter().collect());
     let initial_fabric = cycle
         .as_ref()
         .map(|names| names[0])
@@ -164,18 +160,6 @@ pub fn run() {
         cycle,
     )
     .unwrap();
-}
-
-#[cfg(target_arch = "wasm32")]
-fn wasm_cycle_requested() -> bool {
-    let Some(window) = web_sys::window() else { return false; };
-    let Ok(search) = window.location().search() else { return false; };
-    // search looks like "?cycle" or "?foo=bar&cycle" or "" — match a
-    // bare `cycle` token (no value expected).
-    search
-        .trim_start_matches('?')
-        .split('&')
-        .any(|kv| kv.split_once('=').map(|(k, _)| k).unwrap_or(kv) == "cycle")
 }
 
 #[cfg(not(target_arch = "wasm32"))]

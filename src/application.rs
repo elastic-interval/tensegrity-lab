@@ -37,17 +37,16 @@ struct NativeState {
     gpu_batch: Option<GpuBatch>,
 }
 
-/// Cycle/kiosk mode state: walk through every named fabric, pause
+/// Show-mode state (cycle): walk through every named fabric, pause
 /// `CYCLE_DWELL` after each one completes (`FabricBuilt`), then move to
-/// the next. Used by the native `--cycle` flag and the WASM `?cycle` URL
-/// param.
+/// the next. Triggered by the native `--cycle` flag; always on in WASM.
 struct CycleState {
     names: Vec<FabricName>,
     index: usize,
     advance_at: Option<Instant>,
 }
 
-/// Wall-clock time each fabric stays visible in cycle/kiosk mode before
+/// Wall-clock time each fabric stays visible in Show mode before
 /// advancing to the next.
 const CYCLE_DWELL: Duration = Duration::from_secs(5);
 
@@ -114,9 +113,9 @@ impl Application {
         self.time_scale = (self.time_scale * factor).clamp(0.1, 100.0);
     }
 
-    /// Enable cycle/kiosk mode: after each fabric finishes, wait
-    /// `CYCLE_DWELL` and advance to the next one (loops forever). Used by
-    /// the native `--cycle` flag and the WASM `?cycle` URL param.
+    /// Enable Show mode: after each fabric finishes, wait `CYCLE_DWELL`
+    /// and advance to the next one (loops forever). Triggered by the
+    /// native `--cycle` flag; always on in WASM.
     pub fn set_cycle(&mut self, names: Vec<FabricName>) {
         self.cycle = Some(CycleState {
             names,
@@ -257,7 +256,7 @@ impl ApplicationHandler<LabEvent> for Application {
                     LabEvent::Run(self.run_style.clone()).send(&self.radio);
                 }
                 if self.cycle.is_some() {
-                    StateChange::SetKioskMode(true).send(&self.radio);
+                    StateChange::SetShowMode(true).send(&self.radio);
                 }
             }
             Run(run_style) => {
@@ -513,6 +512,8 @@ impl ApplicationHandler<LabEvent> for Application {
                 }
                 if let Some(cycle) = &mut self.cycle {
                     cycle.advance_at = Some(Instant::now() + CYCLE_DWELL);
+                    // No explicit refit needed — about_to_wait re-tends
+                    // the camera every frame to the current fabric.
                 }
             }
             Crucible(crucible_action) => {
@@ -544,6 +545,14 @@ impl ApplicationHandler<LabEvent> for Application {
                 self.time_scale = scale.clamp(0.1, 100.0);
             }
             UpdateState(app_change) => {
+                // In Show mode, ignore RestartApproach so the crucible's
+                // mid-construction stage transitions (Pretensing/Falling)
+                // don't yank the orbiting camera back to the default angle.
+                if self.cycle.is_some()
+                    && matches!(app_change, StateChange::RestartApproach)
+                {
+                    return;
+                }
                 match &app_change {
                     StateChange::SetControlState(control_state) => {
                         self.control_state = control_state.clone();
@@ -682,7 +691,7 @@ impl ApplicationHandler<LabEvent> for Application {
             WindowEvent::KeyboardInput {
                 event: key_event, ..
             } => {
-                // In cycle/kiosk mode the bottom legend is hidden, so we
+                // In Show mode the bottom legend is hidden, so we
                 // suppress all key bindings too — only window-level keys
                 // (e.g. CloseRequested via Cmd+W / Alt+F4) still work.
                 if self.cycle.is_some() {
@@ -758,8 +767,18 @@ impl ApplicationHandler<LabEvent> for Application {
             self.fps_timer = now;
         }
 
-        // Cycle/kiosk: when the dwell timer fires, send Run() for the next fabric.
+        // Show mode: continuously re-tend the camera so it tracks the
+        // bounding sphere as the structure grows during Build/Pretense,
+        // rotate it slowly around the vertical, and when the dwell
+        // timer fires, send Run() for the next fabric.
         if let Some(cycle) = &mut self.cycle {
+            let elapsed = now.duration_since(self.last_update).as_secs_f32();
+            // 2 rpm = 2 * 2π rad / 60 s = π / 15 rad/s.
+            let rate = std::f32::consts::TAU * 2.0 / 60.0;
+            if let Some(scene) = &mut self.scene {
+                scene.refit_camera_to_fabric(&self.crucible.fabric);
+                scene.orbit_camera_y(rate * elapsed);
+            }
             if cycle.advance_at.map_or(false, |when| now >= when) {
                 cycle.advance_at = None;
                 cycle.index = (cycle.index + 1) % cycle.names.len();

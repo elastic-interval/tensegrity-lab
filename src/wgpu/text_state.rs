@@ -40,7 +40,7 @@ pub struct TextState {
     frames_per_second: f32,
     age: Age,
     time_scale: f32,
-    kiosk: bool,
+    show_mode: bool,
 }
 
 enum TextInstance {
@@ -78,7 +78,7 @@ impl TextState {
             frames_per_second: 0.0,
             age: Age::default(),
             time_scale: 1.0,
-            kiosk: false,
+            show_mode: false,
         };
         fresh.update_sections();
         fresh
@@ -124,8 +124,8 @@ impl TextState {
             ShowMovementAnalysis(text) => {
                 self.movement_analysis = text.clone();
             }
-            SetKioskMode(on) => {
-                self.kiosk = *on;
+            SetShowMode(on) => {
+                self.show_mode = *on;
             }
             _ => {}
         }
@@ -168,8 +168,8 @@ impl TextState {
 
         self.update_section(SectionName::BottomLeft, Normal(bottom_left_text));
 
-        if self.kiosk {
-            // Cycle/kiosk mode: hide stats, controls, hints; keep only the
+        if self.show_mode {
+            // Show mode (cycle): hide stats, controls, hints; keep only the
             // title, subtitle, and the bottom-left fps/age strip.
             self.update_section(SectionName::Left, Nothing);
             self.update_section(SectionName::Right, Nothing);

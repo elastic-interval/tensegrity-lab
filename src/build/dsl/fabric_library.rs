@@ -238,37 +238,30 @@ impl FabricName {
                     ])),
                 ])
                 .join_parallel(Sec(2.0), (1..=6).map(|n| (Bottom(n), Top(n))))
+                .vulcanize(Sec(1.0))
                 .pretense(Sec(1.0), Pct(1.0))
                 .floating(),
 
             Propeller => self
                 .build(FabricDimensions::default())
-                .seed(OmniSymmetrical, Seed(4))
+                .seed(OmniSymmetrical, Seed(1))
                 .faces([
-                    on(RightFrontBottom)
-                        .column(11)
-                        .shrink_by(Pct(10.0))
-                        .tip_label(),
-                    on(RightBackBottom)
-                        .column(11)
-                        .shrink_by(Pct(10.0))
-                        .tip_label(),
-                    on(LeftFrontTop).column(11).shrink_by(Pct(10.0)).tip_label(),
-                    on(LeftFrontBottom)
-                        .column(11)
-                        .shrink_by(Pct(10.0))
-                        .tip_label(),
-                    on(RightBackTop).column(11).shrink_by(Pct(10.0)).tip_label(),
-                    on(LeftBackTop).column(11).shrink_by(Pct(10.0)).tip_label(),
+                    on(OmniBotX).column(11).shrink_by(Pct(10.0)).tip_label(),
+                    on(OmniBotY).column(11).shrink_by(Pct(10.0)).tip_label(),
+                    on(OmniBotZ).column(11).shrink_by(Pct(10.0)).tip_label(),
+                    on(OmniTopX).column(11).shrink_by(Pct(10.0)).tip_label(),
+                    on(OmniTopY).column(11).shrink_by(Pct(10.0)).tip_label(),
+                    on(OmniTopZ).column(11).shrink_by(Pct(10.0)).tip_label(),
                 ])
                 .join_parallel(
                     Sec(2.0),
                     tips([
-                        (RightFrontBottom, RightBackBottom),
-                        (LeftFrontTop, LeftFrontBottom),
-                        (LeftBackTop, RightBackTop),
+                        (OmniBotX, OmniTopZ),
+                        (OmniBotY, OmniTopX),
+                        (OmniBotZ, OmniTopY),
                     ]),
                 )
+                .vulcanize(Sec(1.0))
                 .pretense(Sec(1.0), Pct(1.0))
                 .floating(),
 
@@ -297,6 +290,7 @@ impl FabricName {
                         (LeftBackTop, LeftBackBottom),
                     ]),
                 )
+                .vulcanize(Sec(1.0))
                 .pretense(Sec(1.0), Pct(1.0))
                 .floating(),
 
@@ -322,6 +316,7 @@ impl FabricName {
                         (LeftBackTop, LeftFrontBottom),
                     ]),
                 )
+                .vulcanize(Sec(1.0))
                 .pretense(Sec(1.0), Pct(1.0))
                 .floating(),
         }

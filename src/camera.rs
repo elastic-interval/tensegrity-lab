@@ -22,6 +22,15 @@ const CAMERA_MOVE_SPEED: f32 = 0.6;
 const ZOOM_SPEED: f32 = 1.5;
 const ZOOM_DURATION: f32 = 3.0;
 
+/// Exponential damping rate for `tend_toward`: each second the camera
+/// closes ~`1 - exp(-TENDENCY_RATE)` of the remaining distance to its
+/// goal. 0.8 ≈ 55% per second — gentle enough to interrupt with a drag.
+const TENDENCY_RATE: f32 = 0.8;
+
+/// Once `(pos - goal)² + (look_at - goal)² < this`, the tendency is
+/// considered satisfied and cleared.
+const TENDENCY_DONE_SQ: f32 = 1e-4;
+
 // Thread-local storage for camera approach state
 // This is shared between target_approach() and reset() to track animation progress
 thread_local! {
@@ -67,6 +76,9 @@ pub struct Camera {
     projection_type: ProjectionType,
     last_ray_origin: Vec3,
     initialized: bool,
+    /// A goal (position, look_at) the camera is gently drifting toward.
+    /// Cancelled by any user drag. See `pursue_tendency`.
+    tendency: Option<(Vec3, Vec3)>,
 }
 
 impl Camera {
@@ -86,6 +98,7 @@ impl Camera {
             projection_type: ProjectionType::Perspective,
             last_ray_origin: Vec3::ZERO,
             initialized: false,
+            tendency: None,
         }
     }
 
@@ -250,6 +263,19 @@ impl Camera {
         self.initialized = true;
     }
 
+    /// Rotate the camera position around the vertical (Y) axis through
+    /// the current `look_at` point. Used by Show mode for the slow
+    /// turntable orbit. If a tendency goal is in flight, rotate that
+    /// too so the orbit doesn't get absorbed by `pursue_tendency`.
+    pub fn orbit_around_y(&mut self, angle_rad: f32) {
+        let rot = glam::Mat3::from_rotation_y(angle_rad);
+        self.position = self.look_at + rot * (self.position - self.look_at);
+        self.last_ray_origin = self.position;
+        if let Some((goal_pos, goal_look_at)) = &mut self.tendency {
+            *goal_pos = *goal_look_at + rot * (*goal_pos - *goal_look_at);
+        }
+    }
+
     /// Set camera position and prevent the approach animation from
     /// overriding it. Used for scripted camera placements like the
     /// sphere drop view.
@@ -260,21 +286,85 @@ impl Camera {
         CAMERA_APPROACHING.with(|state| *state.borrow_mut() = false);
     }
 
-    /// Jump camera to ideal viewing position for the given fabric
+    /// Position the camera for the given fabric. The first call (when
+    /// the camera is uninitialized) snaps directly; subsequent calls
+    /// set a gentle tendency so the camera drifts to the new framing
+    /// without a shock. Camera Y is matched to the centroid so the
+    /// camera stays "across from" the structure.
     pub fn jump_to_fabric(&mut self, fabric: &Fabric) {
         self.current_pick = Pick::Nothing;
         self.set_target(Target::FabricMidpoint);
+        let (goal_pos, goal_look_at) = self.framing_for(fabric, /*preserve_angle*/ false);
+        if self.initialized {
+            self.tendency = Some((goal_pos, goal_look_at));
+        } else {
+            self.position = goal_pos;
+            self.look_at = goal_look_at;
+            self.last_ray_origin = self.position;
+            self.initialized = true;
+            self.tendency = None;
+        }
+    }
 
-        // Calculate ideal position based on fabric
+    /// Refit the camera to a new fabric while preserving the orbit
+    /// angle: keep the horizontal direction from centroid → camera,
+    /// rescale to the new bounding sphere, level the camera with the
+    /// centroid. Always gentle — never snaps.
+    pub fn refit_to_fabric(&mut self, fabric: &Fabric) {
+        self.current_pick = Pick::Nothing;
+        self.set_target(Target::FabricMidpoint);
+        let (goal_pos, goal_look_at) = self.framing_for(fabric, /*preserve_angle*/ true);
+        self.tendency = Some((goal_pos, goal_look_at));
+        self.initialized = true;
+    }
+
+    /// Compute the "ideal" framing (position, look_at) for a fabric.
+    /// look_at is the centroid; position sits at `ideal_distance` from
+    /// it on the horizontal plane through the centroid. When
+    /// `preserve_angle` is true the horizontal direction from camera to
+    /// centroid is kept (used for Show-mode refits); otherwise a default
+    /// (X+Z) octant is used.
+    fn framing_for(&self, fabric: &Fabric, preserve_angle: bool) -> (Vec3, Vec3) {
         let centroid = fabric.centroid();
         let ideal_distance = self.target.ideal_distance(fabric);
+        let raw_dir = if preserve_angle {
+            self.position - centroid
+        } else {
+            Vec3::ZERO
+        };
+        // Flatten to the horizontal plane so the camera is "across
+        // from" the structure rather than above or below it.
+        let horizontal = Vec3::new(raw_dir.x, 0.0, raw_dir.z);
+        let dir = if horizontal.length_squared() > 1e-6 {
+            horizontal.normalize()
+        } else {
+            Vec3::new(1.0, 0.0, 1.0).normalize()
+        };
+        (centroid + dir * ideal_distance, centroid)
+    }
 
-        // Position camera at ideal viewing distance
-        let offset = Vec3::new(1.0, 0.0, 1.0).normalize() * ideal_distance;
-        self.position = centroid + offset;
-        self.look_at = centroid;
+    /// Drift the camera toward its current tendency over `dt` seconds,
+    /// using frame-rate-independent exponential damping. Clears the
+    /// tendency once close enough.
+    pub fn pursue_tendency(&mut self, dt: f32) {
+        let Some((goal_pos, goal_look_at)) = self.tendency else { return };
+        let alpha = 1.0 - (-TENDENCY_RATE * dt).exp();
+        self.position += (goal_pos - self.position) * alpha;
+        self.look_at += (goal_look_at - self.look_at) * alpha;
         self.last_ray_origin = self.position;
-        self.initialized = true;
+        let remaining = (goal_pos - self.position).length_squared()
+            + (goal_look_at - self.look_at).length_squared();
+        if remaining < TENDENCY_DONE_SQ {
+            self.tendency = None;
+        }
+    }
+
+    /// Drop any in-flight tendency and stop the joint/interval zoom
+    /// approach — used the moment the user begins a drag, so they
+    /// never feel the camera fighting them.
+    pub fn cancel_drift(&mut self) {
+        self.tendency = None;
+        CAMERA_APPROACHING.with(|state| *state.borrow_mut() = false);
     }
 
     pub fn pointer_changed(&mut self, pointer_change: PointerChange, fabric: &Fabric) {
@@ -288,6 +378,9 @@ impl Camera {
                         (mouse_now.y - mouse_follower.y) as f32,
                     );
                     if let Some(rotation) = self.rotation(diff) {
+                        // User is actively dragging — drop any in-flight
+                        // tendency/approach so they don't feel resistance.
+                        self.cancel_drift();
                         self.position =
                             self.look_at - rotation.transform_vector3(self.look_at - self.position);
                     }
@@ -295,6 +388,7 @@ impl Camera {
                 }
             }
             PointerChange::Zoomed(delta) => {
+                self.cancel_drift();
                 let gaze = self.look_at - self.position;
                 // Allow zooming as long as we don't get too close (minimum 0.1 distance)
                 if gaze.length() - delta > 0.1 {
@@ -303,11 +397,13 @@ impl Camera {
             }
             PointerChange::Pressed => {
                 // For mouse events, set the follower to the current position
+                self.cancel_drift();
                 self.mouse_follower = self.mouse_now;
                 self.mouse_click = self.mouse_now;
             }
             PointerChange::TouchPressed(touch_position) => {
                 // For touch events, explicitly set both the current and follower positions
+                self.cancel_drift();
                 self.mouse_now = Some(touch_position);
                 self.mouse_follower = Some(touch_position);
                 self.mouse_click = Some(touch_position);
@@ -396,6 +492,10 @@ impl Camera {
 
         // Cap delta time to avoid large jumps if the app was in background
         let capped_delta_time = f32::min(delta_time, 0.1); // Max 100ms
+
+        // Gentle drift toward whatever framing the rest of the app has
+        // asked for. Cancelled by any user drag.
+        self.pursue_tendency(capped_delta_time);
 
         // Calculate target position
         let look_at = self.target.look_at(fabric);
@@ -498,13 +598,11 @@ impl Camera {
             let view_vector = self.look_at - self.position;
             let current_distance = view_vector.length();
 
-            // For fabric midpoint, also adjust altitude to mid-height
+            // For fabric midpoint, gently bring the camera back to the
+            // same altitude as the look_at point so it sits "across
+            // from" the structure.
             if matches!(self.target, Target::FabricMidpoint) {
-                let (min_y, max_y) = fabric.altitude_range();
-                let mid_altitude = (min_y + max_y) / 2.0;
-                let altitude_diff = self.position.y - mid_altitude;
-
-                // Adjust altitude if not at mid-height (scaled threshold)
+                let altitude_diff = self.position.y - self.look_at.y;
                 let altitude_threshold = ideal_distance * 0.03;
                 if altitude_diff.abs() > altitude_threshold {
                     let altitude_adjustment = altitude_diff * ZOOM_SPEED * capped_delta_time;
