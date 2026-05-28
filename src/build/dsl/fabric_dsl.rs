@@ -92,6 +92,18 @@ impl FabricBuilder {
         self
     }
 
+    pub fn join_parallel<const N: usize>(
+        mut self,
+        seconds: Seconds,
+        pairs: [(FaceLabel, FaceLabel); N],
+    ) -> Self {
+        self.shape.push(ShapeStep {
+            seconds,
+            action: ShapeAction::ParallelJoiners { pairs: pairs.to_vec() },
+        });
+        self
+    }
+
     pub fn prepare_vulcanize(mut self, contraction: f32, mode: VulcanizeMode) -> Self {
         self.shape.push(ShapeStep {
             seconds: Seconds(0.0),
@@ -446,6 +458,14 @@ impl SeedChain {
 
     pub fn join(self, seconds: Seconds, alpha: FaceLabel, omega: FaceLabel) -> FabricBuilder {
         self.finalize_build().join(seconds, alpha, omega)
+    }
+
+    pub fn join_parallel<const N: usize>(
+        self,
+        seconds: Seconds,
+        pairs: [(FaceLabel, FaceLabel); N],
+    ) -> FabricBuilder {
+        self.finalize_build().join_parallel(seconds, pairs)
     }
 
     pub fn prepare_vulcanize(self, contraction: f32, mode: VulcanizeMode) -> FabricBuilder {

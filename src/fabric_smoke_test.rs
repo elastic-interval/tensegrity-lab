@@ -57,7 +57,7 @@ mod tests {
         }
     }
 
-    /// Diagnostic: size and labelled endpoints of the ported Diamond.
+/// Diagnostic: size and labelled endpoints of the ported Diamond.
     /// 12 leaves expected (each Mark1..Mark6 appears twice — pretenst
     /// joins those pairs, which is Phase 2 work).
     #[test]

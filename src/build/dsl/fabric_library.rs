@@ -200,30 +200,62 @@ impl FabricName {
                 .faces([
                     on(OmniBot).column(4).then(hub(OmniSymmetrical).faces([
                         on(OmniTopX).column(4).then(hub(OmniSymmetrical).faces([
-                            on(OmniTopZ).column(2).label(Mark3),
-                            on(OmniTopX).column(2).label(Mark4),
+                            on(OmniTopZ).column(4).then(hub(OmniSymmetrical).faces([
+                                on(OmniTopZ).column(2).label(Mark3A),
+                            ])),
+                            on(OmniTopX).column(4).then(hub(OmniSymmetrical).faces([
+                                on(OmniTopX).column(2).label(Mark4A),
+                            ])),
                         ])),
                         on(OmniTopY).column(4).then(hub(OmniSymmetrical).faces([
-                            on(OmniTopZ).column(2).label(Mark1),
-                            on(OmniTopX).column(2).label(Mark5),
+                            on(OmniTopZ).column(4).then(hub(OmniSymmetrical).faces([
+                                on(OmniTopZ).column(2).label(Mark1A),
+                            ])),
+                            on(OmniTopX).column(4).then(hub(OmniSymmetrical).faces([
+                                on(OmniTopX).column(2).label(Mark5A),
+                            ])),
                         ])),
                         on(OmniTopZ).column(4).then(hub(OmniSymmetrical).faces([
-                            on(OmniTopZ).column(2).label(Mark6),
-                            on(OmniTopX).column(2).label(Mark2),
+                            on(OmniTopZ).column(4).then(hub(OmniSymmetrical).faces([
+                                on(OmniTopZ).column(2).label(Mark6A),
+                            ])),
+                            on(OmniTopX).column(4).then(hub(OmniSymmetrical).faces([
+                                on(OmniTopX).column(2).label(Mark2A),
+                            ])),
                         ])),
                     ])),
                     on(OmniTopX).column(4).then(hub(OmniSymmetrical).faces([
-                        on(OmniTopZ).column(2).label(Mark5),
-                        on(OmniTopX).column(2).label(Mark3),
+                        on(OmniTopZ).column(4).then(hub(OmniSymmetrical).faces([
+                            on(OmniTopZ).column(2).label(Mark5B),
+                        ])),
+                        on(OmniTopX).column(4).then(hub(OmniSymmetrical).faces([
+                            on(OmniTopX).column(2).label(Mark3B),
+                        ])),
                     ])),
                     on(OmniTopY).column(4).then(hub(OmniSymmetrical).faces([
-                        on(OmniTopZ).column(2).label(Mark2),
-                        on(OmniTopX).column(2).label(Mark1),
+                        on(OmniTopZ).column(4).then(hub(OmniSymmetrical).faces([
+                            on(OmniTopZ).column(2).label(Mark2B),
+                        ])),
+                        on(OmniTopX).column(4).then(hub(OmniSymmetrical).faces([
+                            on(OmniTopX).column(2).label(Mark1B),
+                        ])),
                     ])),
                     on(OmniTopZ).column(4).then(hub(OmniSymmetrical).faces([
-                        on(OmniTopZ).column(2).label(Mark4),
-                        on(OmniTopX).column(2).label(Mark6),
+                        on(OmniTopZ).column(4).then(hub(OmniSymmetrical).faces([
+                            on(OmniTopZ).column(2).label(Mark4B),
+                        ])),
+                        on(OmniTopX).column(4).then(hub(OmniSymmetrical).faces([
+                            on(OmniTopX).column(2).label(Mark6B),
+                        ])),
                     ])),
+                ])
+                .join_parallel(Sec(2.0), [
+                    (Mark1A, Mark6B),
+                    (Mark2A, Mark4B),
+                    (Mark3A, Mark1B),
+                    (Mark4A, Mark5B),
+                    (Mark5A, Mark2B),
+                    (Mark6A, Mark3B),
                 ])
                 .pretense(Sec(1.0), Pct(1.0))
                 .floating(),

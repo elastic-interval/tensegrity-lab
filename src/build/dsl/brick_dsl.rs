@@ -118,12 +118,19 @@ pub enum FaceLabel {
     RightChestLower,
 
     // Diamond: six pairs of free end faces that get joined together.
-    Mark1,
-    Mark2,
-    Mark3,
-    Mark4,
-    Mark5,
-    Mark6,
+    // `<n>A` lives in the 'a' subtree, `<n>B` in the b/c/d branches.
+    Mark1A,
+    Mark1B,
+    Mark2A,
+    Mark2B,
+    Mark3A,
+    Mark3B,
+    Mark4A,
+    Mark4B,
+    Mark5A,
+    Mark5B,
+    Mark6A,
+    Mark6B,
 }
 
 /// Unified joint names for all bricks

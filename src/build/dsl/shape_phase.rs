@@ -46,10 +46,11 @@ pub enum ShapeAction {
         labels: Vec<FaceLabel>,
         distance: Percent,
     },
-    /// Multiple spacer groups in one window — all intervals created
-    /// together so their Approaching spans interpolate concurrently.
     ParallelSpacers {
         specs: Vec<SpacerSpec>,
+    },
+    ParallelJoiners {
+        pairs: Vec<(FaceLabel, FaceLabel)>,
     },
     Anchor {
         joint_path: JointPath,
@@ -210,6 +211,27 @@ impl ShapePhase {
                     for j in (i + 1)..joints.len() {
                         self.create_spacer(fabric, joints[i], joints[j], distance, seconds);
                     }
+                }
+                StartProgress(seconds)
+            }
+            ShapeAction::ParallelJoiners { pairs } => {
+                for (alpha, omega) in pairs {
+                    let alpha_face = self.labeled_face(alpha);
+                    let omega_face = self.labeled_face(omega);
+                    let alpha_joint = fabric.face(alpha_face).middle_joint(fabric);
+                    let omega_joint = fabric.face(omega_face).middle_joint(fabric);
+                    let interval = fabric.create_approaching_interval(
+                        alpha_joint,
+                        omega_joint,
+                        Meters(0.01),
+                        Role::Pulling,
+                        seconds,
+                    );
+                    self.joiners.push(Joiner {
+                        interval,
+                        alpha_face,
+                        omega_face,
+                    });
                 }
                 StartProgress(seconds)
             }
