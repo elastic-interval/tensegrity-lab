@@ -104,11 +104,14 @@ fn export(fabric: &Fabric, out_path: &PathBuf) -> std::io::Result<()> {
             }
             // seed-brick pushes (empty branches) are part of the geometry but
             // not the camera path — the bezier between blades handles the centre.
-        } else if interval.has_role(Role::Pulling) {
+        } else if !interval.has_role(Role::Support) {
+            // Every cable-like role: Pulling, BowTie (vulcanize),
+            // Circumference (face-triangle perimeters), FaceRadial,
+            // Springy, PrismPull. Support is anchors to the ground —
+            // floating fabrics like Propeller have none, but skip them
+            // either way.
             pulls.push((a, o));
         }
-        // BowTies & Supports skipped — visual clutter, not part of the
-        // primary tensegrity.
     }
 
     // Collapse brick sums into one centroid per (face, depth).
@@ -211,6 +214,7 @@ Conventions:
 
 import bpy
 import math
+import os
 import mathutils
 from mathutils import Vector
 
@@ -223,12 +227,19 @@ TOTAL_FRAMES = int(FPS * LAP_SECONDS)
 # dimensions (in metres). Tweak the multipliers if you want fatter
 # struts for stylised renders.
 PUSH_RADIUS_SCALE = 1.0
-PULL_RADIUS_SCALE = 1.0
+PULL_RADIUS_SCALE = 0.25  # quarter of the physical cable thickness — these
+                          # are tension lines and read best thin.
 BANK_GAIN = 0.6               # how much to tilt into corners (radians per
                               # unit curvature); 0 = no banking
 
 # Look-ahead for the camera target, as a fraction of the loop.
 LOOKAHEAD_FRACTION = 0.04
+
+# Evening-scene knobs. Coloured spots are placed at this distance from
+# the centroid (as a multiple of the bounding radius), and the world
+# HDRI is dimmed by HDRI_STRENGTH.
+LIGHT_DISTANCE_FACTOR = 1.6
+HDRI_STRENGTH = 0.08
 "#;
 
 /// Python body: builders for geometry, the spline, banking, and camera.
@@ -246,14 +257,57 @@ def clear_scene():
                 coll.remove(item)
 
 
-def make_material(name, rgba):
+def make_material(name, rgba, metallic=0.0, roughness=0.5):
+    """Principled BSDF — same shader the rest of the project's Blender
+    scripts use, so the propeller responds properly to the evening lights."""
     mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    if bsdf:
+        bsdf.inputs["Base Color"].default_value = rgba
+        bsdf.inputs["Metallic"].default_value = metallic
+        bsdf.inputs["Roughness"].default_value = roughness
+    # Viewport solid-mode colour falls back to this:
     mat.diffuse_color = rgba
     return mat
 
 
-def cylinder_between(p1, p2, radius, material, name):
-    """Create a cylinder primitive between two points."""
+# ── Scripts directory + HDRI ────────────────────────────────────────────────
+
+def _find_scripts_dir():
+    """Same logic as scripts/create-environment.py — `__file__` is
+    unreliable in Blender's text editor, so try a few likely homes."""
+    candidates = []
+    try:
+        candidates.append(os.path.dirname(os.path.abspath(__file__)))
+    except (NameError, OSError):
+        pass
+    if bpy.data.filepath:
+        blend_dir = os.path.dirname(bpy.data.filepath)
+        candidates.append(os.path.join(blend_dir, "scripts"))
+        candidates.append(os.path.join(blend_dir, "..", "scripts"))
+    candidates.append(os.path.expanduser("~/RustroverProjects/tensegrity-lab/scripts"))
+    for d in candidates:
+        if os.path.isdir(d):
+            return os.path.abspath(d)
+    return "."
+
+
+SCRIPT_DIR = _find_scripts_dir()
+HDRI_TEXTURE = os.path.join(SCRIPT_DIR, "moonless_golf_4k.exr")
+
+
+def sim_to_world(p):
+    """Sim is Y-up; PropellerRoot rotates by +90° around X to make it
+    Z-up. The world-coords version of a sim point (x, y, z) is (x, -z, y)."""
+    x, y, z = p
+    return (x, -z, y)
+
+
+def cylinder_between(p1, p2, radius, material, name, end_fill="NGON"):
+    """Create a cylinder primitive between two points. `end_fill` can be
+    "NGON" (default — flat cap) or "NOTHING" (no end geometry; only safe
+    when something else is going to cover the ends)."""
     a = Vector(p1)
     b = Vector(p2)
     vec = b - a
@@ -262,7 +316,7 @@ def cylinder_between(p1, p2, radius, material, name):
         return None
     midpoint = (a + b) * 0.5
     bpy.ops.mesh.primitive_cylinder_add(
-        radius=radius, depth=length, location=midpoint
+        radius=radius, depth=length, location=midpoint, end_fill_type=end_fill,
     )
     obj = bpy.context.active_object
     obj.name = name
@@ -283,14 +337,36 @@ def cylinder_between(p1, p2, radius, material, name):
 
 
 def build_geometry():
-    push_mat = make_material("Push", (0.85, 0.85, 0.88, 1.0))
-    pull_mat = make_material("Pull", (0.95, 0.6, 0.2, 1.0))
+    # Brushed-aluminium struts, warm dielectric cables, joint-balls
+    # using the same metal as the struts so they read as natural caps.
+    push_mat = make_material("Push", (0.78, 0.78, 0.82, 1.0),
+                              metallic=1.0, roughness=0.22)
+    pull_mat = make_material("Pull", (0.95, 0.95, 0.95, 1.0),
+                              metallic=0.0, roughness=0.4)
+    joint_mat = make_material("Joint", (0.72, 0.72, 0.76, 1.0),
+                               metallic=1.0, roughness=0.28)
     push_r = PUSH_RADIUS * PUSH_RADIUS_SCALE
     pull_r = PULL_RADIUS * PULL_RADIUS_SCALE
     for i, (a, o) in enumerate(PUSHES):
         cylinder_between(JOINTS[a], JOINTS[o], push_r, push_mat, f"Push.{i:03d}")
+    # Pull ends sit inside the joint spheres, so they don't need caps.
     for i, (a, o) in enumerate(PULLS):
-        cylinder_between(JOINTS[a], JOINTS[o], pull_r, pull_mat, f"Pull.{i:03d}")
+        cylinder_between(JOINTS[a], JOINTS[o], pull_r, pull_mat,
+                         f"Pull.{i:03d}", end_fill="NOTHING")
+    # One sphere per joint, sized to the push radius — covers every
+    # cylinder end (both push and pull) where it meets the joint, so
+    # the flat cylinder caps and the pull-cable end-disc artefacts
+    # disappear behind a clean hemispherical cap.
+    for i, p in enumerate(JOINTS):
+        bpy.ops.mesh.primitive_uv_sphere_add(
+            radius=push_r, segments=16, ring_count=10, location=p,
+        )
+        obj = bpy.context.active_object
+        obj.name = f"Joint.{i:03d}"
+        # Smooth shading so the spheres don't show facets.
+        for poly in obj.data.polygons:
+            poly.use_smooth = True
+        obj.data.materials.append(joint_mat)
 
 
 # ── Camera path ──────────────────────────────────────────────────────────────
@@ -405,17 +481,100 @@ def setup_camera(curve_obj):
     bpy.context.scene.camera = cam_obj
 
 
+# ── Evening world + lighting ────────────────────────────────────────────────
+
+def setup_evening_world():
+    """World background: night-sky HDRI dimmed for an evening feel, with
+    a flat dark-blue fallback if the HDRI file isn't found alongside the
+    script."""
+    world = bpy.context.scene.world
+    if world is None:
+        world = bpy.data.worlds.new("World")
+        bpy.context.scene.world = world
+    world.use_nodes = True
+    nodes = world.node_tree.nodes
+    links = world.node_tree.links
+    nodes.clear()
+
+    output = nodes.new("ShaderNodeOutputWorld")
+    output.location = (300, 0)
+    background = nodes.new("ShaderNodeBackground")
+    background.location = (0, 0)
+    background.inputs["Strength"].default_value = HDRI_STRENGTH
+    links.new(background.outputs["Background"], output.inputs["Surface"])
+
+    if os.path.exists(HDRI_TEXTURE):
+        env_tex = nodes.new("ShaderNodeTexEnvironment")
+        env_tex.location = (-300, 0)
+        env_tex.image = bpy.data.images.load(HDRI_TEXTURE)
+        links.new(env_tex.outputs["Color"], background.inputs["Color"])
+        print(f"Loaded HDRI: {HDRI_TEXTURE}")
+    else:
+        background.inputs["Color"].default_value = (0.02, 0.03, 0.07, 1.0)
+        print(f"NOTE: HDRI not found at {HDRI_TEXTURE} — using flat evening blue.")
+
+
+def build_lighting():
+    """Three coloured spotlights at 120° intervals around the propeller's
+    bounding sphere (in world coords — these are NOT parented to the
+    rotating PropellerRoot, so they stay put while the structure spins
+    relative to them), plus a soft moonlight fill from above."""
+    cx, cy, cz = sim_to_world(CENTROID)
+    distance = BOUNDING_RADIUS * LIGHT_DISTANCE_FACTOR
+
+    colors = [
+        ((1.0, 0.18, 0.12), "Red"),
+        ((0.12, 1.0, 0.18), "Green"),
+        ((0.18, 0.22, 1.0), "Blue"),
+    ]
+    for i, (color, name) in enumerate(colors):
+        angle = i * 2 * math.pi / 3
+        pos = Vector((
+            cx + math.cos(angle) * distance,
+            cy + math.sin(angle) * distance,
+            cz,
+        ))
+        target = Vector((cx, cy, cz))
+        direction = target - pos
+        rot_quat = direction.to_track_quat("-Z", "Y")
+
+        spot_data = bpy.data.lights.new(f"Spot_{name}", "SPOT")
+        spot_data.energy = 8000.0
+        spot_data.color = color
+        spot_data.spot_size = math.radians(100)
+        spot_data.spot_blend = 0.6
+        spot_data.shadow_soft_size = 1.5
+        spot_obj = bpy.data.objects.new(f"Spot_{name}", spot_data)
+        spot_obj.location = pos
+        spot_obj.rotation_euler = rot_quat.to_euler()
+        bpy.context.collection.objects.link(spot_obj)
+
+    # Soft moonlight fill from above (world Z+).
+    sun_data = bpy.data.lights.new("Moonlight", "SUN")
+    sun_data.energy = 1.0
+    sun_data.color = (0.7, 0.78, 1.0)
+    sun_data.angle = math.radians(12)
+    sun_obj = bpy.data.objects.new("Moonlight", sun_data)
+    sun_obj.location = (cx, cy, cz + distance)
+    sun_obj.rotation_euler = (math.radians(15), math.radians(20), 0.0)
+    bpy.context.collection.objects.link(sun_obj)
+
+
 # ── World orientation ────────────────────────────────────────────────────────
 
 def orient_world():
-    """Sim is Y-up; Blender's world is Z-up. Wrap everything in an Empty
-    and rotate so the propeller stands the right way."""
+    """Sim is Y-up; Blender's world is Z-up. Wrap the propeller geometry
+    in an Empty rotated 90° around X so it stands the right way.
+    Lights live in world coords (placed by build_lighting using
+    sim_to_world) and stay put when the structure spins around them."""
     parent = bpy.data.objects.new("PropellerRoot", None)
     parent.empty_display_type = "PLAIN_AXES"
     bpy.context.collection.objects.link(parent)
     parent.rotation_euler = (math.pi / 2.0, 0.0, 0.0)
     for obj in list(bpy.context.scene.objects):
         if obj is parent:
+            continue
+        if obj.type in {"LIGHT"}:
             continue
         if obj.parent is None:
             obj.parent = parent
@@ -432,7 +591,15 @@ def main():
     build_geometry()
     curve = build_camera_curve()
     setup_camera(curve)
+    build_lighting()
+    setup_evening_world()
     orient_world()
+
+    # Eevee bloom looks nice on the spot beams. (Cycles renders them too;
+    # this is a no-op there.)
+    eevee = getattr(bpy.context.scene, "eevee", None)
+    if eevee is not None and hasattr(eevee, "use_bloom"):
+        eevee.use_bloom = True
 
     print(f"Propeller built — {len(PUSHES)} pushes, {len(PULLS)} pulls, "
           f"{len(CAMERA_PATH)} path waypoints, {TOTAL_FRAMES} frames "
@@ -459,13 +626,16 @@ mod tests {
         export(&fabric, &out_path).expect("write propeller_blender.py");
 
         let n_pushes = fabric.intervals.values().filter(|i| i.has_role(Role::Pushing)).count();
-        let n_pulls = fabric.intervals.values().filter(|i| i.has_role(Role::Pulling)).count();
+        // Cables = everything except pushes and ground anchors.
+        let n_cables = fabric.intervals.values()
+            .filter(|i| !i.has_role(Role::Pushing) && !i.has_role(Role::Support))
+            .count();
         eprintln!(
-            "wrote {} — {} joints, {} pushes, {} pulls",
+            "wrote {} — {} joints, {} pushes, {} cables",
             out_path.display(),
             fabric.joints.len(),
             n_pushes,
-            n_pulls,
+            n_cables,
         );
     }
 }

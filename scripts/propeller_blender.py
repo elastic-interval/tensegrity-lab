@@ -19,6 +19,7 @@ Conventions:
 
 import bpy
 import math
+import os
 import mathutils
 from mathutils import Vector
 
@@ -31,12 +32,19 @@ TOTAL_FRAMES = int(FPS * LAP_SECONDS)
 # dimensions (in metres). Tweak the multipliers if you want fatter
 # struts for stylised renders.
 PUSH_RADIUS_SCALE = 1.0
-PULL_RADIUS_SCALE = 1.0
+PULL_RADIUS_SCALE = 0.25  # quarter of the physical cable thickness — these
+                          # are tension lines and read best thin.
 BANK_GAIN = 0.6               # how much to tilt into corners (radians per
                               # unit curvature); 0 = no banking
 
 # Look-ahead for the camera target, as a fraction of the loop.
 LOOKAHEAD_FRACTION = 0.04
+
+# Evening-scene knobs. Coloured spots are placed at this distance from
+# the centroid (as a multiple of the bounding radius), and the world
+# HDRI is dimmed by HDRI_STRENGTH.
+LIGHT_DISTANCE_FACTOR = 1.6
+HDRI_STRENGTH = 0.08
 
 CENTROID = (0.00005, 7.45240, -0.00009)
 BOUNDING_RADIUS = 11.01629
@@ -671,198 +679,828 @@ PULLS = [
     (20, 284),
     (18, 21),
     (283, 19),
+    (12, 0),
+    (12, 5),
+    (14, 5),
+    (14, 10),
+    (16, 10),
+    (16, 0),
     (24, 286),
     (22, 25),
     (282, 23),
+    (283, 4),
+    (283, 9),
+    (18, 9),
+    (18, 2),
+    (20, 2),
+    (20, 4),
     (28, 288),
     (26, 29),
     (281, 27),
+    (282, 8),
+    (282, 1),
+    (22, 1),
+    (22, 6),
+    (24, 6),
+    (24, 8),
     (32, 290),
     (30, 33),
     (278, 31),
+    (281, 3),
+    (281, 6),
+    (26, 6),
+    (26, 9),
+    (28, 9),
+    (28, 3),
     (36, 292),
     (34, 37),
     (279, 35),
+    (278, 7),
+    (278, 10),
+    (30, 10),
+    (30, 1),
+    (32, 1),
+    (32, 7),
     (40, 294),
     (38, 41),
     (280, 39),
+    (279, 11),
+    (279, 2),
+    (34, 2),
+    (34, 5),
+    (36, 5),
+    (36, 11),
     (44, 296),
     (42, 45),
     (285, 43),
+    (280, 17),
+    (280, 15),
+    (38, 15),
+    (38, 13),
+    (40, 13),
+    (40, 17),
     (48, 298),
     (46, 49),
     (287, 47),
+    (285, 21),
+    (285, 19),
+    (42, 19),
+    (42, 284),
+    (44, 284),
+    (44, 21),
     (52, 300),
     (50, 53),
     (289, 51),
+    (287, 25),
+    (287, 23),
+    (46, 23),
+    (46, 286),
+    (48, 286),
+    (48, 25),
     (56, 302),
     (54, 57),
     (291, 55),
+    (289, 29),
+    (289, 27),
+    (50, 27),
+    (50, 288),
+    (52, 288),
+    (52, 29),
     (60, 304),
     (58, 61),
     (293, 59),
+    (291, 33),
+    (291, 31),
+    (54, 31),
+    (54, 290),
+    (56, 290),
+    (56, 33),
     (64, 306),
     (62, 65),
     (295, 63),
+    (293, 37),
+    (293, 35),
+    (58, 35),
+    (58, 292),
+    (60, 292),
+    (60, 37),
     (68, 308),
     (66, 69),
     (297, 67),
+    (295, 41),
+    (295, 39),
+    (62, 39),
+    (62, 294),
+    (64, 294),
+    (64, 41),
     (72, 310),
     (70, 73),
     (299, 71),
+    (297, 45),
+    (297, 43),
+    (66, 43),
+    (66, 296),
+    (68, 296),
+    (68, 45),
     (76, 312),
     (74, 77),
     (301, 75),
+    (299, 49),
+    (299, 47),
+    (70, 47),
+    (70, 298),
+    (72, 298),
+    (72, 49),
     (80, 314),
     (78, 81),
     (303, 79),
+    (301, 53),
+    (301, 51),
+    (74, 51),
+    (74, 300),
+    (76, 300),
+    (76, 53),
     (84, 316),
     (82, 85),
     (305, 83),
+    (303, 57),
+    (303, 55),
+    (78, 55),
+    (78, 302),
+    (80, 302),
+    (80, 57),
     (88, 318),
     (86, 89),
     (307, 87),
+    (305, 61),
+    (305, 59),
+    (82, 59),
+    (82, 304),
+    (84, 304),
+    (84, 61),
     (92, 320),
     (90, 93),
     (309, 91),
+    (307, 65),
+    (307, 63),
+    (86, 63),
+    (86, 306),
+    (88, 306),
+    (88, 65),
     (96, 322),
     (94, 97),
     (311, 95),
+    (309, 69),
+    (309, 67),
+    (90, 67),
+    (90, 308),
+    (92, 308),
+    (92, 69),
     (100, 324),
     (98, 101),
     (313, 99),
+    (311, 73),
+    (311, 71),
+    (94, 71),
+    (94, 310),
+    (96, 310),
+    (96, 73),
     (104, 326),
     (102, 105),
     (315, 103),
+    (313, 77),
+    (313, 75),
+    (98, 75),
+    (98, 312),
+    (100, 312),
+    (100, 77),
     (108, 328),
     (106, 109),
     (317, 107),
+    (315, 81),
+    (315, 79),
+    (102, 79),
+    (102, 314),
+    (104, 314),
+    (104, 81),
     (112, 330),
     (110, 113),
     (319, 111),
+    (317, 85),
+    (317, 83),
+    (106, 83),
+    (106, 316),
+    (108, 316),
+    (108, 85),
     (116, 332),
     (114, 117),
     (321, 115),
+    (319, 89),
+    (319, 87),
+    (110, 87),
+    (110, 318),
+    (112, 318),
+    (112, 89),
     (120, 334),
     (118, 121),
     (323, 119),
+    (321, 93),
+    (321, 91),
+    (114, 91),
+    (114, 320),
+    (116, 320),
+    (116, 93),
     (124, 336),
     (122, 125),
     (325, 123),
+    (323, 97),
+    (323, 95),
+    (118, 95),
+    (118, 322),
+    (120, 322),
+    (120, 97),
     (128, 338),
     (126, 129),
     (327, 127),
+    (325, 101),
+    (325, 99),
+    (122, 99),
+    (122, 324),
+    (124, 324),
+    (124, 101),
     (132, 340),
     (130, 133),
     (329, 131),
+    (327, 105),
+    (327, 103),
+    (126, 103),
+    (126, 326),
+    (128, 326),
+    (128, 105),
     (136, 342),
     (134, 137),
     (331, 135),
+    (329, 109),
+    (329, 107),
+    (130, 107),
+    (130, 328),
+    (132, 328),
+    (132, 109),
     (140, 344),
     (138, 141),
     (333, 139),
+    (331, 113),
+    (331, 111),
+    (134, 111),
+    (134, 330),
+    (136, 330),
+    (136, 113),
     (144, 346),
     (142, 145),
     (335, 143),
+    (333, 117),
+    (333, 115),
+    (138, 115),
+    (138, 332),
+    (140, 332),
+    (140, 117),
     (148, 348),
     (146, 149),
     (337, 147),
+    (335, 121),
+    (335, 119),
+    (142, 119),
+    (142, 334),
+    (144, 334),
+    (144, 121),
     (152, 350),
     (150, 153),
     (339, 151),
+    (337, 125),
+    (337, 123),
+    (146, 123),
+    (146, 336),
+    (148, 336),
+    (148, 125),
     (156, 352),
     (154, 157),
     (341, 155),
+    (339, 129),
+    (339, 127),
+    (150, 127),
+    (150, 338),
+    (152, 338),
+    (152, 129),
     (160, 354),
     (158, 161),
     (343, 159),
+    (341, 133),
+    (341, 131),
+    (154, 131),
+    (154, 340),
+    (156, 340),
+    (156, 133),
     (164, 356),
     (162, 165),
     (345, 163),
+    (343, 137),
+    (343, 135),
+    (158, 135),
+    (158, 342),
+    (160, 342),
+    (160, 137),
     (168, 358),
     (166, 169),
     (347, 167),
+    (345, 141),
+    (345, 139),
+    (162, 139),
+    (162, 344),
+    (164, 344),
+    (164, 141),
     (172, 360),
     (170, 173),
     (349, 171),
+    (347, 145),
+    (347, 143),
+    (166, 143),
+    (166, 346),
+    (168, 346),
+    (168, 145),
     (176, 362),
     (174, 177),
     (351, 175),
+    (349, 149),
+    (349, 147),
+    (170, 147),
+    (170, 348),
+    (172, 348),
+    (172, 149),
     (180, 364),
     (178, 181),
     (353, 179),
+    (351, 153),
+    (351, 151),
+    (174, 151),
+    (174, 350),
+    (176, 350),
+    (176, 153),
     (184, 366),
     (182, 185),
     (355, 183),
+    (353, 157),
+    (353, 155),
+    (178, 155),
+    (178, 352),
+    (180, 352),
+    (180, 157),
     (188, 368),
     (186, 189),
     (357, 187),
+    (355, 161),
+    (355, 159),
+    (182, 159),
+    (182, 354),
+    (184, 354),
+    (184, 161),
     (192, 370),
     (190, 193),
     (359, 191),
+    (357, 165),
+    (357, 163),
+    (186, 163),
+    (186, 356),
+    (188, 356),
+    (188, 165),
     (196, 372),
     (194, 197),
     (361, 195),
+    (359, 169),
+    (359, 167),
+    (190, 167),
+    (190, 358),
+    (192, 358),
+    (192, 169),
     (200, 374),
     (198, 201),
     (363, 199),
+    (361, 173),
+    (361, 171),
+    (194, 171),
+    (194, 360),
+    (196, 360),
+    (196, 173),
     (204, 376),
     (202, 205),
     (365, 203),
+    (363, 177),
+    (363, 175),
+    (198, 175),
+    (198, 362),
+    (200, 362),
+    (200, 177),
     (208, 378),
     (206, 209),
     (367, 207),
+    (365, 181),
+    (365, 179),
+    (202, 179),
+    (202, 364),
+    (204, 364),
+    (204, 181),
     (212, 380),
     (210, 213),
     (369, 211),
+    (367, 185),
+    (367, 183),
+    (206, 183),
+    (206, 366),
+    (208, 366),
+    (208, 185),
     (216, 382),
     (214, 217),
     (371, 215),
+    (369, 189),
+    (369, 187),
+    (210, 187),
+    (210, 368),
+    (212, 368),
+    (212, 189),
     (220, 384),
     (218, 221),
     (373, 219),
+    (371, 193),
+    (371, 191),
+    (214, 191),
+    (214, 370),
+    (216, 370),
+    (216, 193),
     (224, 386),
     (222, 225),
     (375, 223),
+    (373, 197),
+    (373, 195),
+    (218, 195),
+    (218, 372),
+    (220, 372),
+    (220, 197),
     (228, 388),
     (226, 229),
     (377, 227),
+    (375, 201),
+    (375, 199),
+    (222, 199),
+    (222, 374),
+    (224, 374),
+    (224, 201),
     (232, 390),
     (230, 233),
     (379, 231),
+    (377, 205),
+    (377, 203),
+    (226, 203),
+    (226, 376),
+    (228, 376),
+    (228, 205),
     (236, 392),
     (234, 237),
     (381, 235),
+    (379, 209),
+    (379, 207),
+    (230, 207),
+    (230, 378),
+    (232, 378),
+    (232, 209),
     (240, 394),
     (238, 241),
     (383, 239),
+    (381, 213),
+    (381, 211),
+    (234, 211),
+    (234, 380),
+    (236, 380),
+    (236, 213),
     (244, 396),
     (242, 245),
     (385, 243),
+    (383, 217),
+    (383, 215),
+    (238, 215),
+    (238, 382),
+    (240, 382),
+    (240, 217),
     (248, 398),
     (246, 249),
     (387, 247),
+    (385, 221),
+    (385, 219),
+    (242, 219),
+    (242, 384),
+    (244, 384),
+    (244, 221),
     (252, 400),
     (250, 253),
     (389, 251),
+    (387, 225),
+    (387, 223),
+    (246, 223),
+    (246, 386),
+    (248, 386),
+    (248, 225),
     (256, 402),
     (254, 257),
     (391, 255),
+    (404, 273),
+    (403, 269),
+    (402, 277),
+    (389, 229),
+    (389, 227),
+    (250, 227),
+    (250, 388),
+    (252, 388),
+    (252, 229),
     (260, 403),
     (258, 261),
     (393, 259),
+    (2, 293),
+    (259, 269),
+    (259, 405),
+    (391, 233),
+    (391, 231),
+    (254, 231),
+    (254, 390),
+    (256, 390),
+    (256, 233),
     (264, 404),
     (262, 265),
     (395, 263),
+    (2, 12),
+    (263, 273),
+    (263, 406),
+    (393, 237),
+    (393, 235),
+    (258, 235),
+    (258, 392),
+    (260, 392),
+    (260, 237),
     (268, 405),
     (266, 269),
     (397, 267),
+    (1, 56),
+    (1, 287),
+    (1, 281),
+    (395, 241),
+    (395, 239),
+    (262, 239),
+    (262, 394),
+    (264, 394),
+    (264, 241),
     (272, 406),
     (270, 273),
     (399, 271),
+    (265, 406),
+    (265, 271),
+    (404, 271),
+    (397, 245),
+    (397, 243),
+    (266, 243),
+    (266, 396),
+    (268, 396),
+    (268, 245),
     (276, 407),
     (274, 277),
     (401, 275),
+    (0, 38),
+    (0, 34),
+    (0, 20),
+    (399, 249),
+    (399, 247),
+    (270, 247),
+    (270, 398),
+    (272, 398),
+    (272, 249),
+    (257, 407),
+    (257, 275),
+    (402, 275),
+    (261, 405),
+    (261, 267),
+    (403, 267),
+    (401, 253),
+    (401, 251),
+    (274, 251),
+    (274, 400),
+    (276, 400),
+    (276, 253),
+    (255, 407),
+    (255, 277),
+    (2, 44),
+    (3, 22),
+    (3, 32),
+    (3, 50),
+    (4, 24),
+    (4, 26),
+    (4, 42),
+    (5, 278),
+    (5, 280),
+    (5, 60),
+    (6, 283),
+    (6, 289),
+    (6, 48),
+    (7, 14),
+    (7, 36),
+    (7, 54),
+    (8, 16),
+    (8, 30),
+    (8, 46),
+    (9, 279),
+    (9, 285),
+    (9, 52),
+    (10, 282),
+    (10, 291),
+    (10, 40),
+    (11, 18),
+    (11, 28),
+    (11, 58),
+    (13, 64),
+    (15, 295),
+    (17, 62),
+    (284, 68),
+    (19, 297),
+    (21, 66),
+    (286, 72),
+    (23, 299),
+    (25, 70),
+    (288, 76),
+    (27, 301),
+    (29, 74),
+    (290, 80),
+    (31, 303),
+    (33, 78),
+    (292, 84),
+    (35, 305),
+    (37, 82),
+    (294, 88),
+    (39, 307),
+    (41, 86),
+    (296, 92),
+    (43, 309),
+    (45, 90),
+    (298, 96),
+    (47, 311),
+    (49, 94),
+    (300, 100),
+    (51, 313),
+    (53, 98),
+    (302, 104),
+    (55, 315),
+    (57, 102),
+    (304, 108),
+    (59, 317),
+    (61, 106),
+    (306, 112),
+    (63, 319),
+    (65, 110),
+    (308, 116),
+    (67, 321),
+    (69, 114),
+    (310, 120),
+    (71, 323),
+    (73, 118),
+    (312, 124),
+    (75, 325),
+    (77, 122),
+    (314, 128),
+    (79, 327),
+    (81, 126),
+    (316, 132),
+    (83, 329),
+    (85, 130),
+    (318, 136),
+    (87, 331),
+    (89, 134),
+    (320, 140),
+    (91, 333),
+    (93, 138),
+    (322, 144),
+    (95, 335),
+    (97, 142),
+    (324, 148),
+    (99, 337),
+    (101, 146),
+    (326, 152),
+    (103, 339),
+    (105, 150),
+    (328, 156),
+    (107, 341),
+    (109, 154),
+    (330, 160),
+    (111, 343),
+    (113, 158),
+    (332, 164),
+    (115, 345),
+    (117, 162),
+    (334, 168),
+    (119, 347),
+    (121, 166),
+    (336, 172),
+    (123, 349),
+    (125, 170),
+    (338, 176),
+    (127, 351),
+    (129, 174),
+    (340, 180),
+    (131, 353),
+    (133, 178),
+    (342, 184),
+    (135, 355),
+    (137, 182),
+    (344, 188),
+    (139, 357),
+    (141, 186),
+    (346, 192),
+    (143, 359),
+    (145, 190),
+    (348, 196),
+    (147, 361),
+    (149, 194),
+    (350, 200),
+    (151, 363),
+    (153, 198),
+    (352, 204),
+    (155, 365),
+    (157, 202),
+    (354, 208),
+    (159, 367),
+    (161, 206),
+    (356, 212),
+    (163, 369),
+    (165, 210),
+    (358, 216),
+    (167, 371),
+    (169, 214),
+    (360, 220),
+    (171, 373),
+    (173, 218),
+    (362, 224),
+    (175, 375),
+    (177, 222),
+    (364, 228),
+    (179, 377),
+    (181, 226),
+    (366, 232),
+    (183, 379),
+    (185, 230),
+    (368, 236),
+    (187, 381),
+    (189, 234),
+    (370, 240),
+    (191, 383),
+    (193, 238),
+    (372, 244),
+    (195, 385),
+    (197, 242),
+    (374, 248),
+    (199, 387),
+    (201, 246),
+    (376, 252),
+    (203, 389),
+    (205, 250),
+    (378, 256),
+    (207, 391),
+    (209, 254),
+    (380, 260),
+    (211, 393),
+    (213, 258),
+    (382, 264),
+    (215, 395),
+    (217, 262),
+    (384, 268),
+    (219, 397),
+    (221, 266),
+    (386, 272),
+    (223, 399),
+    (225, 270),
+    (388, 276),
+    (227, 401),
+    (229, 274),
+    (390, 275),
+    (231, 407),
+    (233, 277),
+    (392, 267),
+    (235, 405),
+    (237, 269),
+    (394, 271),
+    (239, 406),
+    (241, 273),
+    (396, 259),
+    (243, 403),
+    (245, 261),
+    (398, 263),
+    (247, 404),
+    (249, 265),
+    (400, 255),
+    (251, 402),
+    (253, 257),
     (3, 7),
     (7, 11),
     (11, 3),
@@ -954,14 +1592,57 @@ def clear_scene():
                 coll.remove(item)
 
 
-def make_material(name, rgba):
+def make_material(name, rgba, metallic=0.0, roughness=0.5):
+    """Principled BSDF — same shader the rest of the project's Blender
+    scripts use, so the propeller responds properly to the evening lights."""
     mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    if bsdf:
+        bsdf.inputs["Base Color"].default_value = rgba
+        bsdf.inputs["Metallic"].default_value = metallic
+        bsdf.inputs["Roughness"].default_value = roughness
+    # Viewport solid-mode colour falls back to this:
     mat.diffuse_color = rgba
     return mat
 
 
-def cylinder_between(p1, p2, radius, material, name):
-    """Create a cylinder primitive between two points."""
+# ── Scripts directory + HDRI ────────────────────────────────────────────────
+
+def _find_scripts_dir():
+    """Same logic as scripts/create-environment.py — `__file__` is
+    unreliable in Blender's text editor, so try a few likely homes."""
+    candidates = []
+    try:
+        candidates.append(os.path.dirname(os.path.abspath(__file__)))
+    except (NameError, OSError):
+        pass
+    if bpy.data.filepath:
+        blend_dir = os.path.dirname(bpy.data.filepath)
+        candidates.append(os.path.join(blend_dir, "scripts"))
+        candidates.append(os.path.join(blend_dir, "..", "scripts"))
+    candidates.append(os.path.expanduser("~/RustroverProjects/tensegrity-lab/scripts"))
+    for d in candidates:
+        if os.path.isdir(d):
+            return os.path.abspath(d)
+    return "."
+
+
+SCRIPT_DIR = _find_scripts_dir()
+HDRI_TEXTURE = os.path.join(SCRIPT_DIR, "moonless_golf_4k.exr")
+
+
+def sim_to_world(p):
+    """Sim is Y-up; PropellerRoot rotates by +90° around X to make it
+    Z-up. The world-coords version of a sim point (x, y, z) is (x, -z, y)."""
+    x, y, z = p
+    return (x, -z, y)
+
+
+def cylinder_between(p1, p2, radius, material, name, end_fill="NGON"):
+    """Create a cylinder primitive between two points. `end_fill` can be
+    "NGON" (default — flat cap) or "NOTHING" (no end geometry; only safe
+    when something else is going to cover the ends)."""
     a = Vector(p1)
     b = Vector(p2)
     vec = b - a
@@ -970,7 +1651,7 @@ def cylinder_between(p1, p2, radius, material, name):
         return None
     midpoint = (a + b) * 0.5
     bpy.ops.mesh.primitive_cylinder_add(
-        radius=radius, depth=length, location=midpoint
+        radius=radius, depth=length, location=midpoint, end_fill_type=end_fill,
     )
     obj = bpy.context.active_object
     obj.name = name
@@ -991,14 +1672,36 @@ def cylinder_between(p1, p2, radius, material, name):
 
 
 def build_geometry():
-    push_mat = make_material("Push", (0.85, 0.85, 0.88, 1.0))
-    pull_mat = make_material("Pull", (0.95, 0.6, 0.2, 1.0))
+    # Brushed-aluminium struts, warm dielectric cables, joint-balls
+    # using the same metal as the struts so they read as natural caps.
+    push_mat = make_material("Push", (0.78, 0.78, 0.82, 1.0),
+                              metallic=1.0, roughness=0.22)
+    pull_mat = make_material("Pull", (0.95, 0.95, 0.95, 1.0),
+                              metallic=0.0, roughness=0.4)
+    joint_mat = make_material("Joint", (0.72, 0.72, 0.76, 1.0),
+                               metallic=1.0, roughness=0.28)
     push_r = PUSH_RADIUS * PUSH_RADIUS_SCALE
     pull_r = PULL_RADIUS * PULL_RADIUS_SCALE
     for i, (a, o) in enumerate(PUSHES):
         cylinder_between(JOINTS[a], JOINTS[o], push_r, push_mat, f"Push.{i:03d}")
+    # Pull ends sit inside the joint spheres, so they don't need caps.
     for i, (a, o) in enumerate(PULLS):
-        cylinder_between(JOINTS[a], JOINTS[o], pull_r, pull_mat, f"Pull.{i:03d}")
+        cylinder_between(JOINTS[a], JOINTS[o], pull_r, pull_mat,
+                         f"Pull.{i:03d}", end_fill="NOTHING")
+    # One sphere per joint, sized to the push radius — covers every
+    # cylinder end (both push and pull) where it meets the joint, so
+    # the flat cylinder caps and the pull-cable end-disc artefacts
+    # disappear behind a clean hemispherical cap.
+    for i, p in enumerate(JOINTS):
+        bpy.ops.mesh.primitive_uv_sphere_add(
+            radius=push_r, segments=16, ring_count=10, location=p,
+        )
+        obj = bpy.context.active_object
+        obj.name = f"Joint.{i:03d}"
+        # Smooth shading so the spheres don't show facets.
+        for poly in obj.data.polygons:
+            poly.use_smooth = True
+        obj.data.materials.append(joint_mat)
 
 
 # ── Camera path ──────────────────────────────────────────────────────────────
@@ -1113,17 +1816,100 @@ def setup_camera(curve_obj):
     bpy.context.scene.camera = cam_obj
 
 
+# ── Evening world + lighting ────────────────────────────────────────────────
+
+def setup_evening_world():
+    """World background: night-sky HDRI dimmed for an evening feel, with
+    a flat dark-blue fallback if the HDRI file isn't found alongside the
+    script."""
+    world = bpy.context.scene.world
+    if world is None:
+        world = bpy.data.worlds.new("World")
+        bpy.context.scene.world = world
+    world.use_nodes = True
+    nodes = world.node_tree.nodes
+    links = world.node_tree.links
+    nodes.clear()
+
+    output = nodes.new("ShaderNodeOutputWorld")
+    output.location = (300, 0)
+    background = nodes.new("ShaderNodeBackground")
+    background.location = (0, 0)
+    background.inputs["Strength"].default_value = HDRI_STRENGTH
+    links.new(background.outputs["Background"], output.inputs["Surface"])
+
+    if os.path.exists(HDRI_TEXTURE):
+        env_tex = nodes.new("ShaderNodeTexEnvironment")
+        env_tex.location = (-300, 0)
+        env_tex.image = bpy.data.images.load(HDRI_TEXTURE)
+        links.new(env_tex.outputs["Color"], background.inputs["Color"])
+        print(f"Loaded HDRI: {HDRI_TEXTURE}")
+    else:
+        background.inputs["Color"].default_value = (0.02, 0.03, 0.07, 1.0)
+        print(f"NOTE: HDRI not found at {HDRI_TEXTURE} — using flat evening blue.")
+
+
+def build_lighting():
+    """Three coloured spotlights at 120° intervals around the propeller's
+    bounding sphere (in world coords — these are NOT parented to the
+    rotating PropellerRoot, so they stay put while the structure spins
+    relative to them), plus a soft moonlight fill from above."""
+    cx, cy, cz = sim_to_world(CENTROID)
+    distance = BOUNDING_RADIUS * LIGHT_DISTANCE_FACTOR
+
+    colors = [
+        ((1.0, 0.18, 0.12), "Red"),
+        ((0.12, 1.0, 0.18), "Green"),
+        ((0.18, 0.22, 1.0), "Blue"),
+    ]
+    for i, (color, name) in enumerate(colors):
+        angle = i * 2 * math.pi / 3
+        pos = Vector((
+            cx + math.cos(angle) * distance,
+            cy + math.sin(angle) * distance,
+            cz,
+        ))
+        target = Vector((cx, cy, cz))
+        direction = target - pos
+        rot_quat = direction.to_track_quat("-Z", "Y")
+
+        spot_data = bpy.data.lights.new(f"Spot_{name}", "SPOT")
+        spot_data.energy = 8000.0
+        spot_data.color = color
+        spot_data.spot_size = math.radians(100)
+        spot_data.spot_blend = 0.6
+        spot_data.shadow_soft_size = 1.5
+        spot_obj = bpy.data.objects.new(f"Spot_{name}", spot_data)
+        spot_obj.location = pos
+        spot_obj.rotation_euler = rot_quat.to_euler()
+        bpy.context.collection.objects.link(spot_obj)
+
+    # Soft moonlight fill from above (world Z+).
+    sun_data = bpy.data.lights.new("Moonlight", "SUN")
+    sun_data.energy = 1.0
+    sun_data.color = (0.7, 0.78, 1.0)
+    sun_data.angle = math.radians(12)
+    sun_obj = bpy.data.objects.new("Moonlight", sun_data)
+    sun_obj.location = (cx, cy, cz + distance)
+    sun_obj.rotation_euler = (math.radians(15), math.radians(20), 0.0)
+    bpy.context.collection.objects.link(sun_obj)
+
+
 # ── World orientation ────────────────────────────────────────────────────────
 
 def orient_world():
-    """Sim is Y-up; Blender's world is Z-up. Wrap everything in an Empty
-    and rotate so the propeller stands the right way."""
+    """Sim is Y-up; Blender's world is Z-up. Wrap the propeller geometry
+    in an Empty rotated 90° around X so it stands the right way.
+    Lights live in world coords (placed by build_lighting using
+    sim_to_world) and stay put when the structure spins around them."""
     parent = bpy.data.objects.new("PropellerRoot", None)
     parent.empty_display_type = "PLAIN_AXES"
     bpy.context.collection.objects.link(parent)
     parent.rotation_euler = (math.pi / 2.0, 0.0, 0.0)
     for obj in list(bpy.context.scene.objects):
         if obj is parent:
+            continue
+        if obj.type in {"LIGHT"}:
             continue
         if obj.parent is None:
             obj.parent = parent
@@ -1140,7 +1926,15 @@ def main():
     build_geometry()
     curve = build_camera_curve()
     setup_camera(curve)
+    build_lighting()
+    setup_evening_world()
     orient_world()
+
+    # Eevee bloom looks nice on the spot beams. (Cycles renders them too;
+    # this is a no-op there.)
+    eevee = getattr(bpy.context.scene, "eevee", None)
+    if eevee is not None and hasattr(eevee, "use_bloom"):
+        eevee.use_bloom = True
 
     print(f"Propeller built — {len(PUSHES)} pushes, {len(PULLS)} pulls, "
           f"{len(CAMERA_PATH)} path waypoints, {TOTAL_FRAMES} frames "
