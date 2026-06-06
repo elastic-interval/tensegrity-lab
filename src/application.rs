@@ -300,6 +300,9 @@ impl ApplicationHandler<LabEvent> for Application {
                     RunStyle::Evolution(seed) => {
                         self.crucible.action(CrucibleAction::ToEvolving(*seed));
                     }
+                    RunStyle::ArticulationEvolution(seed) => {
+                        self.crucible.action(CrucibleAction::ToArticulating(*seed));
+                    }
                     #[cfg(target_arch = "wasm32")]
                     RunStyle::Sphere { .. } => {
                         StateChange::SetStageLabel(

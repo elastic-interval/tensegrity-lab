@@ -24,6 +24,11 @@ struct Args {
     #[arg(long)]
     evolve: Option<u64>,
 
+    /// Run articulation evolution (sine-wave muscles on small bricks).
+    /// Value is the RNG seed.
+    #[arg(long)]
+    evolve_articulation: Option<u64>,
+
     /// Generate an algorithmic tensegrity sphere with given frequency (1, 2, or 3+)
     #[arg(long)]
     sphere: Option<usize>,
@@ -89,6 +94,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         RunStyle::BakeBricks
     } else if let Some(seed) = args.evolve {
         RunStyle::Evolution(seed)
+    } else if let Some(seed) = args.evolve_articulation {
+        RunStyle::ArticulationEvolution(seed)
     } else if let Some(names) = &cycle_names {
         RunStyle::Fabric {
             fabric_name: names[0],

@@ -127,4 +127,7 @@ pub enum RunStyle {
     },
     BakeBricks,
     Evolution(u64),
+    /// Evolve articulating bricks driven by a sine-wave muscle. See
+    /// `docs/articulation-evolution.md`.
+    ArticulationEvolution(u64),
 }

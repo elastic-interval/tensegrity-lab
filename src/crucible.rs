@@ -1,6 +1,7 @@
 use crate::build::animator::Animator;
 use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
 use crate::build::dsl::FabricPlan;
+use crate::build::evo::articulation::ArticulationVisualRunner;
 use crate::build::evo::visual_runner::VisualEvolutionRunner;
 use crate::build::oven::Oven;
 use crate::crucible::Stage::*;
@@ -21,6 +22,7 @@ pub enum Stage {
     PhysicsTesting(PhysicsTester),
     BakingBrick(Oven),
     Evolving(VisualEvolutionRunner),
+    Articulating(ArticulationVisualRunner),
 }
 
 pub struct Crucible {
@@ -230,6 +232,16 @@ impl Crucible {
                 runner.iterate(&mut context);
 
                 // Check if evolution should terminate
+                if runner.should_terminate() {
+                    self.finalize_to_viewing();
+                } else if let Some(new_stage) = context.apply_changes() {
+                    self.stage = new_stage;
+                }
+            }
+            Articulating(runner) => {
+                let mut context =
+                    CrucibleContext::new(&mut self.fabric, &mut self.physics, &self.radio);
+                runner.iterate(&mut context);
                 if runner.should_terminate() {
                     self.finalize_to_viewing();
                 } else if let Some(new_stage) = context.apply_changes() {
@@ -464,6 +476,14 @@ impl Crucible {
                 SetStageLabel("Evolving...".to_string()).send(&self.radio);
 
                 context.transition_to(Evolving(runner));
+            }
+            ToArticulating(seed) => {
+                let runner = ArticulationVisualRunner::new(seed);
+                context.replace_fabric(runner.fabric.clone());
+                runner.adopt_physics(&mut context);
+                SetFabricName(format!("Articulation {}", seed)).send(&self.radio);
+                SetStageLabel("Articulating...".to_string()).send(&self.radio);
+                context.transition_to(Articulating(runner));
             }
         }
 

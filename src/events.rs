@@ -33,6 +33,7 @@ pub enum CrucibleAction {
     ToAnimating,
     ToPhysicsTesting,
     ToEvolving(u64),
+    ToArticulating(u64),
     TesterDo(TesterAction),
 }
 

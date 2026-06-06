@@ -1,3 +1,4 @@
+pub mod articulation;
 pub mod engine;
 pub mod growth;
 pub mod simple_population;
