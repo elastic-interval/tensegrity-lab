@@ -1,58 +1,65 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Background circle -->
-  <circle cx="256" cy="256" r="256" fill="#000000"/>
-  
-  <!-- Six-strut tensegrity icosahedron - Scaled to fit safely in maskable area -->
-  <g transform="translate(256 256) scale(0.6) translate(-256 -256)">
-    <!-- Compression elements (6 struts) -->
-    <path d="M200 120 L312 390" stroke="white" stroke-width="18" stroke-linecap="round"/>
-    <path d="M145 190 L367 320" stroke="white" stroke-width="18" stroke-linecap="round"/>
-    <path d="M145 320 L367 190" stroke="white" stroke-width="18" stroke-linecap="round"/>
-    <path d="M200 390 L312 120" stroke="white" stroke-width="18" stroke-linecap="round"/>
-    <path d="M120 256 L394 256" stroke="white" stroke-width="18" stroke-linecap="round"/>
-    <path d="M256 120 L256 392" stroke="white" stroke-width="18" stroke-linecap="round"/>
-    
-    <!-- Connection nodes -->
-    <circle cx="200" cy="120" r="12" fill="white"/>
-    <circle cx="312" cy="390" r="12" fill="white"/>
-    <circle cx="145" cy="190" r="12" fill="white"/>
-    <circle cx="367" cy="320" r="12" fill="white"/>
-    <circle cx="145" cy="320" r="12" fill="white"/>
-    <circle cx="367" cy="190" r="12" fill="white"/>
-    <circle cx="200" cy="390" r="12" fill="white"/>
-    <circle cx="312" cy="120" r="12" fill="white"/>
-    <circle cx="120" cy="256" r="12" fill="white"/>
-    <circle cx="394" cy="256" r="12" fill="white"/>
-    <circle cx="256" cy="120" r="12" fill="white"/>
-    <circle cx="256" cy="392" r="12" fill="white"/>
-    
-    <!-- Tension elements (30 cables) - Simplified representation -->
-    <!-- Horizontal ring top -->
-    <path d="M200 120 L256 120" stroke="white" stroke-width="4" fill="none"/>
-    <path d="M256 120 L312 120" stroke="white" stroke-width="4" fill="none"/>
-    <path d="M200 120 L145 190" stroke="white" stroke-width="4" fill="none"/>
-    <path d="M312 120 L367 190" stroke="white" stroke-width="4" fill="none"/>
-    
-    <!-- Horizontal ring middle -->
-    <path d="M145 190 L120 256" stroke="white" stroke-width="4" fill="none"/>
-    <path d="M120 256 L145 320" stroke="white" stroke-width="4" fill="none"/>
-    <path d="M367 190 L394 256" stroke="white" stroke-width="4" fill="none"/>
-    <path d="M394 256 L367 320" stroke="white" stroke-width="4" fill="none"/>
-    
-    <!-- Horizontal ring bottom -->
-    <path d="M200 390 L256 392" stroke="white" stroke-width="4" fill="none"/>
-    <path d="M256 392 L312 390" stroke="white" stroke-width="4" fill="none"/>
-    <path d="M145 320 L200 390" stroke="white" stroke-width="4" fill="none"/>
-    <path d="M367 320 L312 390" stroke="white" stroke-width="4" fill="none"/>
-    
-    <!-- Vertical connections -->
-    <path d="M200 120 L120 256" stroke="white" stroke-width="4" fill="none"/>
-    <path d="M312 120 L394 256" stroke="white" stroke-width="4" fill="none"/>
-    <path d="M145 320 L120 256" stroke="white" stroke-width="4" fill="none"/>
-    <path d="M367 320 L394 256" stroke="white" stroke-width="4" fill="none"/>
-    <path d="M145 190 L256 120" stroke="white" stroke-width="4" fill="none"/>
-    <path d="M367 190 L256 120" stroke="white" stroke-width="4" fill="none"/>
-    <path d="M200 390 L145 190" stroke="white" stroke-width="4" fill="none"/>
-    <path d="M312 390 L367 190" stroke="white" stroke-width="4" fill="none"/>
+  <!-- Open Claw, maskable: full-bleed background, art kept inside the
+       central safe zone so launchers can crop to any shape. -->
+  <defs>
+    <linearGradient id="spectrum" x1="116" y1="0" x2="396" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0"    stop-color="#3aa0ff"/>
+      <stop offset="0.25" stop-color="#46d6e0"/>
+      <stop offset="0.46" stop-color="#5cf08a"/>
+      <stop offset="0.62" stop-color="#d8f06a"/>
+      <stop offset="0.80" stop-color="#ff9a4d"/>
+      <stop offset="1"    stop-color="#ff5470"/>
+    </linearGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0"   stop-color="#0a0c18"/>
+      <stop offset="0.6" stop-color="#0d0f1a"/>
+      <stop offset="1"   stop-color="#1c160f"/>
+    </linearGradient>
+    <radialGradient id="warm" cx="256" cy="456" r="180" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8a5e28" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#8a5e28" stop-opacity="0"/>
+    </radialGradient>
+    <g id="canopy" fill="none" stroke-linecap="round">
+      <path d="M256 50 L210 118"/><path d="M210 118 L148 196"/>
+      <path d="M148 196 L116 280"/><path d="M116 280 L150 336"/>
+      <path d="M256 50 L302 118"/><path d="M302 118 L364 196"/>
+      <path d="M364 196 L396 280"/><path d="M396 280 L362 336"/>
+      <path d="M256 50 L256 130"/><path d="M256 130 L256 350"/>
+      <path d="M210 118 L256 130"/><path d="M302 118 L256 130"/>
+      <path d="M210 118 L212 210"/><path d="M302 118 L300 210"/>
+      <path d="M256 130 L212 210"/><path d="M256 130 L300 210"/>
+      <path d="M212 210 L300 210"/>
+      <path d="M148 196 L256 130"/><path d="M364 196 L256 130"/>
+      <path d="M148 196 L212 210"/><path d="M364 196 L300 210"/>
+      <path d="M212 210 L116 280"/><path d="M300 210 L396 280"/>
+      <path d="M212 210 L256 350"/><path d="M300 210 L256 350"/>
+      <path d="M212 210 L150 336"/><path d="M300 210 L362 336"/>
+      <path d="M116 280 L256 350"/><path d="M396 280 L256 350"/>
+    </g>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#sky)"/>
+
+  <g transform="translate(256 256) scale(0.8) translate(-256 -256)">
+    <ellipse cx="256" cy="456" rx="180" ry="64" fill="url(#warm)"/>
+    <use href="#canopy" stroke="url(#spectrum)" stroke-width="11" opacity="0.30"/>
+    <use href="#canopy" stroke="url(#spectrum)" stroke-width="4"/>
+    <g fill="none" stroke-linecap="round">
+      <g stroke="#d6dce6" stroke-width="5">
+        <path d="M138 336 L138 436"/><path d="M162 336 L162 436"/>
+        <path d="M244 352 L244 446"/><path d="M268 352 L268 446"/>
+        <path d="M350 336 L350 436"/><path d="M374 336 L374 436"/>
+      </g>
+      <g stroke="#8a929e" stroke-width="3">
+        <path d="M138 336 L162 362 L138 388 L162 414 L138 436"/>
+        <path d="M244 352 L268 378 L244 404 L268 430 L244 446"/>
+        <path d="M374 336 L350 362 L374 388 L350 414 L374 436"/>
+      </g>
+    </g>
+    <g fill="#c2c8d2">
+      <rect x="124" y="436" width="52" height="26" rx="3"/>
+      <rect x="230" y="446" width="52" height="26" rx="3"/>
+      <rect x="336" y="436" width="52" height="26" rx="3"/>
+    </g>
   </g>
 </svg>
