@@ -12,6 +12,11 @@
 //!     cargo test --release --lib test_propeller_blender_export -- --nocapture
 //! mirroring the engineering-CSV pattern in `open_claw_symmetry.rs`.
 
+// Self-contained Blender-export dev tool. Its entry point is the
+// `test_propeller_blender_export` test below (run via `cargo test`), so in a
+// normal build everything here reads as dead code — intentionally so.
+#![allow(dead_code)]
+
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
