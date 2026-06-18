@@ -1,6 +1,7 @@
 use crate::build::dsl::brick_dsl::{BrickName::*, BrickRole::*, FaceName::*, MarkName::*};
 use crate::build::dsl::fabric_dsl::{on, *};
 use crate::build::dsl::fabric_plan::FabricPlan;
+use crate::units::Grams;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
@@ -34,6 +35,7 @@ impl FabricName {
                 .build(
                     FabricDimensions::default()
                         .with_scale(M(0.80))
+                        .with_strut_mass(Grams(2770.0))
                         .with_locked_bend_magnitudes(vec![12.0, 30.0, 49.0, 68.0]),
                 )
                 .seed(OmniSymmetrical, Seed(1))
@@ -55,8 +57,11 @@ impl FabricName {
                 .prepare_vulcanize(0.5, VulcanizeMode::Linear)
                 .space(Sec(2.8), End, Pct(46.0))
                 .vulcanize(Sec(1.0))
-                .pretense(Sec(3.0), Pct(1.0))
-                .surface_frozen()
+                .pretense(Sec(3.0), Pct(0.05))
+                // Feet rest on truss-tower tops, free to find their position — a
+                // frozen surface would pin them and force them apart with loads
+                // the structure isn't designed for. Slippery lets them slide.
+                .surface_slippery()
                 .fall(Sec(1.5))
                 .settle(Sec(1.5))
                 .animate()

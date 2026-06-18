@@ -4,6 +4,9 @@ use crate::fabric::physics::Physics;
 use crate::fabric::Fabric;
 use crate::{Radio, StateChange, TesterAction};
 
+/// Refresh the strut-force readout every this many frames (~0.5 s at 60fps).
+const FORCE_READOUT_FRAMES: usize = 30;
+
 pub struct PhysicsTester {
     pub fabric: Fabric,
     pub physics: Physics,
@@ -66,8 +69,21 @@ impl PhysicsTester {
             }
         }
 
-        // Track iterations for stats updates (count frames, not iterations)
+        // Live strut-force readout, unless the movement sampler owns the overlay.
         self.iterations_since_stats_update += 1;
+        if self.fabric_sampler.is_none()
+            && !self.showing_analysis
+            && self.iterations_since_stats_update >= FORCE_READOUT_FRAMES
+        {
+            self.iterations_since_stats_update = 0;
+            let stats = self.fabric.push_force_stats();
+            let text = format!(
+                "Strut force (kN)\nmax {:.1}  median {:.1}  avg {:.1}\nn={}",
+                stats.max_kn, stats.median_kn, stats.mean_kn, stats.count
+            );
+            StateChange::ShowMovementAnalysis(Some(text)).send(&self.radio);
+        }
+
         context.replace_fabric(self.fabric.clone());
         *context.physics = self.physics.clone();
     }
@@ -80,6 +96,20 @@ impl PhysicsTester {
             }
             DumpPhysics => {
                 println!("{:?}", self.physics);
+            }
+            Reorient => {
+                use glam::Mat4;
+                // Quarter-turn onto its side, then drop from a little height so it
+                // falls and topples onto a stable rest (e.g. two legs) instead of
+                // being set down perched on one — a frictionless floor gives a
+                // balanced, at-rest structure no sideways nudge to slide off.
+                self.fabric
+                    .apply_matrix4(Mat4::from_rotation_x(std::f32::consts::FRAC_PI_2));
+                let (min_y, max_y) = self.fabric.altitude_range();
+                let drop_height = 0.25 * (max_y - min_y);
+                let translation = self.fabric.centralize_translation(Some(drop_height));
+                self.fabric.apply_translation(translation);
+                self.fabric.zero_velocities();
             }
             ToggleMovementSampler => {
                 if self.showing_analysis {

@@ -129,6 +129,12 @@ impl Keyboard {
             Box::new(|state| matches!(state, PhysicsTesting)),
         );
         self.key_lab_event(
+            KeyCode::KeyO,
+            "Tip over",
+            Crucible(TesterDo(TesterAction::Reorient)),
+            Box::new(|state| matches!(state, PhysicsTesting)),
+        );
+        self.key_lab_event(
             KeyCode::KeyJ,
             "Jump",
             Crucible(CrucibleAction::CentralizeFabric(Some(Meters(1.0)))),

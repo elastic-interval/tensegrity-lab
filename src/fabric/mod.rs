@@ -183,6 +183,16 @@ pub struct FabricStats {
     pub slack_pull_count: usize,
 }
 
+/// Axial compression force across the struts (push intervals), in kN.
+/// Forces use the realistic material spring constant, matching `max_pull_force_kn`.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct PushForceStats {
+    pub max_kn: f32,
+    pub median_kn: f32,
+    pub mean_kn: f32,
+    pub count: usize,
+}
+
 #[derive(Clone, Debug)]
 pub struct Fabric {
     pub name: String,
@@ -699,6 +709,36 @@ impl Fabric {
         }
     }
 
+    /// Max / median / mean axial compression force across the struts, in kN.
+    /// Uses the realistic spring constant: force = real_spring_constant_at_1m × strain
+    /// (the length terms in k(L) and the extension cancel). Same convention as the
+    /// cable force in `fabric_stats`.
+    pub fn push_force_stats(&self) -> PushForceStats {
+        let mut forces_kn: Vec<f32> = self
+            .intervals
+            .values()
+            .filter(|interval| interval.role == Role::Pushing)
+            .map(|interval| {
+                let k_real = interval.material.real_spring_constant_at_1m();
+                k_real.0 * interval.strain.abs() / 1000.0
+            })
+            .collect();
+        if forces_kn.is_empty() {
+            return PushForceStats::default();
+        }
+        forces_kn.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let count = forces_kn.len();
+        let max_kn = forces_kn[count - 1];
+        let median_kn = forces_kn[count / 2];
+        let mean_kn = forces_kn.iter().sum::<f32>() / count as f32;
+        PushForceStats {
+            max_kn,
+            median_kn,
+            mean_kn,
+            count,
+        }
+    }
+
     /// Calculate total mass from intervals using current physics
     /// This is done on-demand rather than cached, so it always reflects current physics.mass_scale
     fn calculate_total_mass(&self, physics: &Physics) -> Grams {
@@ -712,14 +752,21 @@ impl Fabric {
             let alpha = &self.joints[interval.alpha_key];
             let omega = &self.joints[interval.omega_key];
             let real_length = Meters((omega.location - alpha.location).length());
-            total_mass +=
-                self.dimensions.linear_density(interval.material, physics) * real_length;
 
-            // Telescoping inner tubes inside each push strut: total length
-            // ≈ one full outer-tube length per strut. Reported here (not
-            // included in the integrator's per-interval mass).
-            if interval.role == Role::Pushing {
-                total_mass += self.dimensions.inner_push_density * real_length;
+            match self.dimensions.strut_mass {
+                // Identical telescoping struts: one constant mass each (outer + inners).
+                Some(strut_mass) if interval.role == Role::Pushing => {
+                    total_mass += strut_mass;
+                }
+                _ => {
+                    total_mass +=
+                        self.dimensions.linear_density(interval.material, physics) * real_length;
+                    // Telescoping inner tubes inside each push strut: total length
+                    // ≈ one full outer-tube length per strut.
+                    if interval.role == Role::Pushing {
+                        total_mass += self.dimensions.inner_push_density * real_length;
+                    }
+                }
             }
             if interval.role == Role::Pulling {
                 pulling_count += 1;

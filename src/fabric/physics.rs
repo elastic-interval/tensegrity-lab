@@ -118,22 +118,20 @@ impl Surface {
                     velocity.y += antigravity * s.dt;
                 }
                 SurfaceCharacter::Slippery => {
-                    clamp_y = Some(0.0);
-                    velocity.y = 0.0;
-
-                    let speed_horizontal =
-                        (velocity.x * velocity.x + velocity.z * velocity.z).sqrt();
-
-                    const SURFACE_DAMPING: f32 = 50.0;
-                    let linear_friction = 1.0
-                        - ((SURFACE_DAMPING + s.drag) * s.dt
-                            + SURFACE_DAMPING * s.viscosity * speed_horizontal * s.dt);
-                    let quadratic_damping =
-                        1.0 - (2.0 * speed_horizontal * speed_horizontal * s.dt);
-                    let total_friction = (linear_friction * quadratic_damping.max(0.0)).max(0.0);
-
-                    velocity.x *= total_friction;
-                    velocity.z *= total_friction;
+                    // Ice: frictionless and non-capturing. Only push a joint out
+                    // when it is actually penetrating, and never pin it to the
+                    // plane — a contact foot can lift off freely, so a tipped
+                    // structure rocks and topples onto a stable rest (two legs)
+                    // instead of staying perched on one. Horizontal motion sees
+                    // only the ambient drag, so feet still slide freely.
+                    if s.altitude < 0.0 {
+                        clamp_y = Some(0.0);
+                        if velocity.y < 0.0 {
+                            velocity.y = 0.0;
+                        }
+                    }
+                    velocity.x *= 1.0 - s.drag * s.dt;
+                    velocity.z *= 1.0 - s.drag * s.dt;
                 }
             }
         }

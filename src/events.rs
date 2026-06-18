@@ -17,6 +17,9 @@ pub enum TesterAction {
     SetTweakParameter(TweakParameter),
     DumpPhysics,
     ToggleMovementSampler,
+    /// Tip the structure a quarter-turn onto a different resting face, then let
+    /// gravity re-settle it — used to compare strut forces lying vs raised.
+    Reorient,
 }
 
 #[derive(Debug, Clone)]
