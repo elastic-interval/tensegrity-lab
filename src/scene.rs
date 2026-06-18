@@ -100,6 +100,12 @@ impl Scene {
                         function: Rc::new(|_| None),
                     }
                 }
+                Disassembling => {
+                    self.reset();
+                    self.render_style = WithAppearanceFunction {
+                        function: Rc::new(|_| None),
+                    }
+                }
             },
             SetAnimating(_) => {}
             ResetView => {

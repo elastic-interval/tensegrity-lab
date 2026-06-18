@@ -1,4 +1,5 @@
 use crate::build::animator::Animator;
+use crate::build::disassembler::Disassembler;
 use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
 use crate::build::dsl::FabricPlan;
 use crate::build::evo::visual_runner::VisualEvolutionRunner;
@@ -19,6 +20,7 @@ pub enum Stage {
     Viewing,
     Animating(Animator),
     PhysicsTesting(PhysicsTester),
+    Disassembling(Disassembler),
     BakingBrick(Oven),
     Evolving(VisualEvolutionRunner),
 }
@@ -214,6 +216,15 @@ impl Crucible {
                     self.stage = new_stage;
                 }
             }
+            Disassembling(disassembler) => {
+                let mut context =
+                    CrucibleContext::new(&mut self.fabric, &mut self.physics, &self.radio);
+                disassembler.iterate(&mut context, iterations_per_frame);
+
+                if let Some(new_stage) = context.apply_changes() {
+                    self.stage = new_stage;
+                }
+            }
             BakingBrick(oven) => {
                 // Create a context for oven
                 let mut context =
@@ -383,7 +394,7 @@ impl Crucible {
                     self.physics = self.viewing_physics();
                     return;
                 }
-                PhysicsTesting(_) => {
+                PhysicsTesting(_) | Disassembling(_) => {
                     context.fabric.zero_velocities();
                     self.stage = Viewing;
                     context.send_event(LabEvent::UpdateState(SetControlState(
@@ -431,6 +442,24 @@ impl Crucible {
                     )));
                     context.send_event(LabEvent::UpdateState(SetStageLabel(
                         "Testing Physics".to_string(),
+                    )));
+                }
+            }
+            ToDisassembling => {
+                if let Viewing = &mut self.stage {
+                    let disassembler = Disassembler::new(
+                        context.fabric.clone(),
+                        tester_physics,
+                        self.radio.clone(),
+                    );
+                    context.replace_fabric(disassembler.fabric.clone());
+                    disassembler.copy_physics_into(&mut context);
+                    context.transition_to(Disassembling(disassembler));
+                    context.send_event(LabEvent::UpdateState(SetControlState(
+                        ControlState::Disassembling,
+                    )));
+                    context.send_event(LabEvent::UpdateState(SetStageLabel(
+                        "Disassembling".to_string(),
                     )));
                 }
             }
