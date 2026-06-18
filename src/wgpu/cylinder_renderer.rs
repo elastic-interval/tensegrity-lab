@@ -1,16 +1,21 @@
 use crate::camera::Pick;
-use crate::fabric::interval::{Role, Span};
+use crate::fabric::interval::{Interval, Role, Span};
 use crate::fabric::material::Material;
-use crate::fabric::{Fabric, FabricDimensions, IntervalEnd};
+use crate::fabric::{Fabric, FabricDimensions, IntervalEnd, Level};
 use crate::units::Unit;
 use crate::wgpu::Wgpu;
 use crate::{Appearance, AppearanceMode, IntervalDetails, JointDetails, RenderStyle};
 
-fn physical_radius(role: Role, dims: &FabricDimensions) -> f32 {
+fn physical_radius(interval: &Interval, dims: &FabricDimensions) -> f32 {
     use Role::*;
     let push = dims.connector.push_radius.f32();
     let pull = dims.pull_radius.f32();
-    match role {
+    // Bendable-cable elements (including the bracing pushes) are drawn as thin
+    // cable, not as thick struts.
+    if interval.level == Level::Cable {
+        return pull;
+    }
+    match interval.role {
         Pushing => push,
         Pulling | BowTie | Support | GuyLine | PrismPull => pull,
         Springy => push * 7.0 / 12.0,
@@ -339,7 +344,7 @@ impl CylinderRenderer {
                 appearance.color
             };
 
-            let phys_radius = physical_radius(interval.role, &fabric.dimensions);
+            let phys_radius = physical_radius(interval, &fabric.dimensions);
             let multiplier = appearance.radius / interval.role.radius();
             instances.push(CylinderInstance {
                 start: [modified_start.x, modified_start.y, modified_start.z],

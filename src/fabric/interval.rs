@@ -15,8 +15,8 @@ use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
 use crate::fabric::vulcanize::VulcanizeMode;
 use crate::fabric::FabricDimensions;
-use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointKey, Joints};
-use crate::units::{Meters, NewtonsPerMeter, Percent, Seconds, Unit};
+use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointKey, Joints, Level};
+use crate::units::{Grams, Meters, NewtonsPerMeter, Percent, Seconds, Unit};
 use crate::Age;
 use crate::Appearance;
 use glam::Vec3;
@@ -486,6 +486,8 @@ pub struct Interval {
     pub strain: f32,
     pub stiffness: Percent,
     pub connections: Option<Box<PullConnections>>,
+    /// Normal structure, or a (massless) element inside a bendable cable.
+    pub level: Level,
 }
 
 impl Interval {
@@ -508,6 +510,7 @@ impl Interval {
             strain: 0.0,
             stiffness: Percent(100.0),
             connections,
+            level: Level::Structural,
         }
     }
 
@@ -802,11 +805,16 @@ impl Interval {
         joints[alpha_key].force += force_vector;
         joints[omega_key].force -= force_vector;
 
-        // Strut mass: a constant per identical telescoping strut when declared,
-        // otherwise the legacy length-proportional density.
-        let interval_mass = match dimensions.strut_mass {
-            Some(strut_mass) if self.role == Pushing => strut_mass,
-            _ => dimensions.linear_density(self.material, physics) * actual_length,
+        // Cable-chain elements are massless bracing — the cable's steel mass is
+        // carried by its joints (`point_mass`). Otherwise: a constant per identical
+        // telescoping strut when declared, else the length-proportional density.
+        let interval_mass = if self.level == Level::Cable {
+            Grams(0.0)
+        } else {
+            match dimensions.strut_mass {
+                Some(strut_mass) if self.role == Pushing => strut_mass,
+                _ => dimensions.linear_density(self.material, physics) * actual_length,
+            }
         };
         let half_mass = interval_mass / 2.0;
         joints[alpha_key].accumulated_mass += half_mass;

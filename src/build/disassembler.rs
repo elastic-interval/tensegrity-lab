@@ -11,13 +11,25 @@
 use crate::crucible_context::CrucibleContext;
 use crate::fabric::interval::Role;
 use crate::fabric::physics::Physics;
-use crate::fabric::{Fabric, JointKey};
+use crate::fabric::{Fabric, JointKey, Level};
 use crate::units::{Meters, Seconds, Unit};
 use crate::{Age, Radio, StateChange};
 use glam::Vec3;
 
 /// How long to hold still and let the structure settle after each strut removal.
-const SETTLE_SECONDS: Seconds = Seconds(3.0);
+const SETTLE_SECONDS: Seconds = Seconds(1.0);
+
+/// Give up lowering a strut to the ground after this long and remove it anyway,
+/// so a strut resting on the draped pile can't stall the teardown.
+const LOWER_TIMEOUT: Seconds = Seconds(5.0);
+
+/// Segment spacing when converting cables to bendable chains (≈20 cm pushes).
+const CABLE_SEGMENT_LENGTH: Meters = Meters(0.10);
+
+/// Moderate damping so the soft, light cable chains drape calmly without ringing,
+/// while the stiff structure still moves naturally (not honey).
+const DISASSEMBLY_DRAG: f32 = 0.5;
+const DISASSEMBLY_VISCOSITY: f32 = 10.0;
 
 /// Top descent speed (metres per simulated second) while bringing the next strut
 /// down — eased to a much slower touchdown near the ground (see `SLOWDOWN_HEIGHT`).
@@ -32,7 +44,7 @@ const GROUND_TOUCH: Meters = Meters(0.05);
 
 /// Once all struts are gone, lift the cable-and-cap form until its lowest joint
 /// clears this height off the ground.
-const LIFT_CLEARANCE: Meters = Meters(1.0);
+const LIFT_CLEARANCE: Meters = Meters(0.10);
 
 /// Hook rise during the final lift, in metres per simulated second.
 const LIFT_SPEED: f32 = 1.0;
@@ -64,6 +76,14 @@ pub struct Disassembler {
 
 impl Disassembler {
     pub fn new(fabric: Fabric, physics: Physics, radio: Radio) -> Self {
+        // Cables are converted to bendable chains lazily, as they go slack during
+        // teardown (see iterate) — taut cables stay stiff and hold the shape.
+
+        // Moderate damping keeps the light cable joints calm (no jitter/ringing).
+        let mut physics = physics;
+        physics.drag = DISASSEMBLY_DRAG;
+        physics.viscosity = DISASSEMBLY_VISCOSITY;
+
         // The crane hooks the topmost joint.
         let anchor = fabric
             .joints
@@ -91,6 +111,10 @@ impl Disassembler {
 
     pub fn iterate(&mut self, context: &mut CrucibleContext, iterations_per_frame: usize) {
         self.fabric = context.fabric.clone();
+        // A transient spike (e.g. a heavy cap snapping a slack cable taut) can trip
+        // the fabric's safety freeze, which would otherwise halt the teardown for
+        // good. The freeze already zeroed velocities, so just clear it and resume.
+        self.fabric.frozen = false;
 
         let struts = Self::struts_in(&self.fabric);
         let frame_seconds = iterations_per_frame as f32 * Age::iteration_duration();
@@ -132,11 +156,18 @@ impl Disassembler {
             }
         }
 
-        // Once lowered onto the ground, remove the strut and go back to settling.
-        if struts > 0
-            && self.phase == Phase::Lowering
-            && self.lowest_strut_gap() <= GROUND_TOUCH.f32()
-        {
+        // Cables freed by strut removal slacken — convert those to bendable chains
+        // so they drape, leaving the still-loaded cables stiff.
+        self.fabric.make_slack_cables_bendable(CABLE_SEGMENT_LENGTH);
+
+        // Remove the strut once it's lowered onto the ground — or after a timeout,
+        // so a strut that can't reach the ground (resting on the draped pile)
+        // doesn't stall the teardown. Then go back to settling.
+        let lowering_time = self.fabric.age.elapsed_since(self.last_removal_age).f32()
+            - SETTLE_SECONDS.f32();
+        let touched = self.lowest_strut_gap() <= GROUND_TOUCH.f32();
+        let timed_out = lowering_time >= LOWER_TIMEOUT.f32();
+        if struts > 0 && self.phase == Phase::Lowering && (touched || timed_out) {
             self.remove_lowest_strut();
             self.last_removal_age = self.fabric.age;
             self.phase = Phase::Settling;
@@ -150,11 +181,13 @@ impl Disassembler {
         *context.physics = self.physics.clone();
     }
 
+    /// Count real load-bearing struts — excluding the cables' bracing pushes,
+    /// which are also `Role::Pushing` but `Level::Cable`.
     fn struts_in(fabric: &Fabric) -> usize {
         fabric
             .intervals
             .values()
-            .filter(|iv| iv.role == Role::Pushing)
+            .filter(|iv| iv.role == Role::Pushing && iv.level == Level::Structural)
             .count()
     }
 
@@ -165,7 +198,7 @@ impl Disassembler {
             .fabric
             .intervals
             .values()
-            .filter(|iv| iv.role == Role::Pushing)
+            .filter(|iv| iv.role == Role::Pushing && iv.level == Level::Structural)
             .map(|iv| {
                 joints[iv.alpha_key]
                     .location
@@ -187,7 +220,7 @@ impl Disassembler {
             .fabric
             .intervals
             .iter()
-            .filter(|(_, iv)| iv.role == Role::Pushing)
+            .filter(|(_, iv)| iv.role == Role::Pushing && iv.level == Level::Structural)
             .min_by(|(_, a), (_, b)| {
                 let ay = joints[a.alpha_key]
                     .location

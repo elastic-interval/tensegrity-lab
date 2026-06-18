@@ -9,6 +9,8 @@ use crate::fabric::interval::Span::Fixed;
 use crate::fabric::interval::SpanTransition;
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::Joint;
+use crate::fabric::joint_path::JointPath;
+use crate::fabric::material::Material;
 use crate::fabric::physics::Physics;
 use crate::units::{Grams, Meters, Percent, Seconds, Unit};
 use crate::Age;
@@ -192,6 +194,32 @@ pub struct PushForceStats {
     pub mean_kn: f32,
     pub count: usize,
 }
+
+/// Whether a joint or interval is part of the normal structure or plays a role
+/// inside a bendable multi-element cable (which is treated as massless bracing —
+/// the cable's steel mass lives on its joints as `point_mass`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum Level {
+    #[default]
+    Structural,
+    Cable,
+}
+
+/// Stiffness of the cable segments. Kept low: the cable joints are very light
+/// (~13 g), so full stiffness would make the spring frequency far too high for
+/// the timestep and the fabric would explode. This is soft enough to stay stable
+/// yet stiff enough that the cable barely stretches under the light loads here.
+const CABLE_PULL_STIFFNESS: Percent = Percent(0.02);
+
+/// Stiffness of the bracing pushes that resist kinking — softer than the segments
+/// so the cable bends more easily than it stretches. Main knob for bendiness
+/// (smaller = floppier, larger = more rod-like).
+const CABLE_BRACE_STIFFNESS: Percent = Percent(0.001);
+
+/// A cable is converted to a bendable chain once it slackens to this fraction of
+/// its rest length — i.e. when it stops carrying load (its struts are gone).
+/// Taut, load-bearing cables stay stiff so they hold the structure's shape.
+const CABLE_SLACK_THRESHOLD: f32 = 0.95;
 
 #[derive(Clone, Debug)]
 pub struct Fabric {
@@ -576,16 +604,20 @@ impl Fabric {
     }
 
     pub fn centroid(&self) -> Vec3 {
+        // Use only structural joints (real hubs/caps), not the many interpolated
+        // points inside bendable cables, which would drag the centroid down.
         let mut centroid: Vec3 = Vec3::ZERO;
+        let mut count = 0usize;
         for joint in self.joints.values() {
-            centroid += joint.location;
+            if joint.point_mass.is_none() {
+                centroid += joint.location;
+                count += 1;
+            }
         }
-        let denominator = if self.joints.is_empty() {
-            1
-        } else {
-            self.joints.len()
-        } as f32;
-        centroid / denominator
+        if count == 0 {
+            return Vec3::ZERO;
+        }
+        centroid / count as f32
     }
 
     /// Returns the cached bounding radius (updated periodically during construction)
@@ -739,16 +771,99 @@ impl Fabric {
         }
     }
 
+    /// Convert any cable that has gone slack (stopped carrying load) into a
+    /// bendable chain so it drapes. Taut, load-bearing cables are left stiff so
+    /// they keep holding the structure's shape. Called continuously during
+    /// disassembly: as struts are removed, the freed cables slacken and convert.
+    ///
+    /// Each chain: joints interpolated ~`segment_length` apart, adjacent joints
+    /// tied by cable pulls (the steel path), every-other joint braced by pushes
+    /// that resist kinking. The chain elements are massless; the cable's 6 mm
+    /// stainless mass (length-based) is shared across the chain's joints.
+    pub fn make_slack_cables_bendable(&mut self, segment_length: Meters) {
+        let slack: Vec<IntervalKey> = self
+            .intervals
+            .iter()
+            .filter(|(_, interval)| {
+                interval.role.is_pull_like()
+                    && interval.level == Level::Structural
+                    && interval.length(&self.joints)
+                        < interval.ideal().f32() * CABLE_SLACK_THRESHOLD
+            })
+            .map(|(key, _)| key)
+            .collect();
+        for key in slack {
+            self.make_cable_bendable(key, segment_length);
+        }
+    }
+
+    fn make_cable_bendable(&mut self, cable_key: IntervalKey, segment_length: Meters) {
+        let interval = &self.intervals[cable_key];
+        let (alpha, omega) = (interval.alpha_key, interval.omega_key);
+        let (pa, pb) = (self.location(alpha), self.location(omega));
+        let length = pa.distance(pb);
+        let segments = ((length / segment_length.f32()).round() as usize).max(2);
+        self.remove_interval(cable_key);
+
+        // 6 mm stainless steel mass (length-based), shared across the chain's joints
+        // — one share per push element (interior joint count == push count).
+        let steel_grams = Material::Pull.base_linear_density().f32() * length;
+        let point_mass = Grams(steel_grams / (segments - 1) as f32);
+
+        let mut chain = Vec::with_capacity(segments + 1);
+        chain.push(alpha);
+        for i in 1..segments {
+            let t = i as f32 / segments as f32;
+            chain.push(self.add_cable_joint(pa.lerp(pb, t), point_mass));
+        }
+        chain.push(omega);
+
+        // Cable segments (the steel path) hold consecutive joints together.
+        for pair in chain.windows(2) {
+            self.add_cable_interval(pair[0], pair[1], Role::Pulling, CABLE_PULL_STIFFNESS);
+        }
+        // Overlapping pushes brace every-other joint, resisting kinks.
+        for triple in chain.windows(3) {
+            self.add_cable_interval(triple[0], triple[2], Role::Pushing, CABLE_BRACE_STIFFNESS);
+        }
+    }
+
+    fn add_cable_joint(&mut self, location: Vec3, point_mass: Grams) -> JointKey {
+        let mut joint = Joint::new(location, JointPath::default());
+        joint.point_mass = Some(point_mass);
+        self.joints.insert(joint)
+    }
+
+    fn add_cable_interval(
+        &mut self,
+        alpha: JointKey,
+        omega: JointKey,
+        role: Role,
+        stiffness: Percent,
+    ) -> IntervalKey {
+        let length = self.distance(alpha, omega);
+        let mut interval = Interval::new(alpha, omega, role, Fixed { length });
+        interval.level = Level::Cable;
+        interval.stiffness = stiffness;
+        self.intervals.insert(interval)
+    }
+
     /// Calculate total mass from intervals using current physics
     /// This is done on-demand rather than cached, so it always reflects current physics.mass_scale
     fn calculate_total_mass(&self, physics: &Physics) -> Grams {
         let mut total_mass = Grams(0.0);
 
-        // Connector head + per-joint hardware share, once per joint.
-        total_mass += self.dimensions.joint_mass * self.joints.len() as f32;
+        // Per-joint base mass: connector hub by default, or a cable point's own mass.
+        for joint in self.joints.values() {
+            total_mass += joint.point_mass.unwrap_or(self.dimensions.joint_mass);
+        }
 
         let mut pulling_count: usize = 0;
         for interval in self.intervals.values() {
+            // Cable-chain elements are massless bracing; their steel mass is on the joints.
+            if interval.level == Level::Cable {
+                continue;
+            }
             let alpha = &self.joints[interval.alpha_key];
             let omega = &self.joints[interval.omega_key];
             let real_length = Meters((omega.location - alpha.location).length());
