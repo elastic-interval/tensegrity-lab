@@ -213,9 +213,11 @@ const CABLE_PULL_STIFFNESS: Percent = Percent(0.03);
 
 /// Stiffness of the bracing pushes — the main knob for how readily a cable bends.
 /// Raised well up (still under the light-joint stability ceiling) so the chains
-/// bend less readily, like real 6 mm steel, and hold their shape during rebuild
-/// instead of hanging limp. Smaller = floppier, larger = more rod-like.
-const CABLE_BRACE_STIFFNESS: Percent = Percent(0.02);
+/// bend less readily, like real 6 mm steel: a smooth whip / fishing-rod curve
+/// rather than slack kinks. Smaller = floppier, larger = more rod-like. (The
+/// braces span two segments, so they have more stability headroom than the pulls
+/// and can carry the bending stiffness.)
+const CABLE_BRACE_STIFFNESS: Percent = Percent(0.06);
 
 /// A cable that was turned into a bendable chain, holding everything needed to
 /// revive it to its original stiff form once its struts are back (reassembly).
@@ -787,10 +789,12 @@ impl Fabric {
     /// that resist kinking. The chain elements are massless; the cable's 6 mm
     /// stainless mass (length-based) is shared across the chain's joints.
     /// Keep cable state derivative of strut presence — a "law of nature": a cable
-    /// is a stiff cable only while BOTH its caps still hold a strut; if either end
-    /// loses its strut it becomes a bendable chain, and when both struts return it
-    /// reverts (eased to rest over `revive_duration`). `chains` tracks the active
-    /// chains. Call every frame; struts drive everything, cables just follow.
+    /// is stiff as long as EITHER of its caps holds a strut; only when neither end
+    /// has a strut does it become a bendable chain, and as soon as a strut returns
+    /// to either end it reverts (eased to rest over `revive_duration`). Reviving on
+    /// the first strut makes the structure tighten up earlier during the rebuild.
+    /// `chains` tracks the active chains. Call every frame; struts drive
+    /// everything, cables just follow.
     pub fn reconcile_cables(
         &mut self,
         chains: &mut Vec<BendableCable>,
@@ -806,14 +810,15 @@ impl Fabric {
             }
         }
 
-        // Stiff cables that have lost a strut at either end become bendable chains.
+        // Stiff cables become bendable chains only once NEITHER end holds a strut.
         let to_convert: Vec<IntervalKey> = self
             .intervals
             .iter()
             .filter(|(_, iv)| {
                 iv.role.is_pull_like()
                     && iv.level == Level::Structural
-                    && !(strutted.contains(&iv.alpha_key) && strutted.contains(&iv.omega_key))
+                    && !strutted.contains(&iv.alpha_key)
+                    && !strutted.contains(&iv.omega_key)
             })
             .map(|(key, _)| key)
             .collect();
@@ -821,10 +826,11 @@ impl Fabric {
             chains.push(self.make_cable_bendable(key, segment_length));
         }
 
-        // Chains whose ends both hold struts again revert to stiff cables.
+        // Chains revert to stiff cables as soon as EITHER end holds a strut, so the
+        // structure tightens up earlier during the rebuild (closer to real life).
         let mut i = 0;
         while i < chains.len() {
-            if strutted.contains(&chains[i].cap_a) && strutted.contains(&chains[i].cap_b) {
+            if strutted.contains(&chains[i].cap_a) || strutted.contains(&chains[i].cap_b) {
                 let cable = chains.swap_remove(i);
                 self.revive_cable(&cable, revive_duration);
             } else {

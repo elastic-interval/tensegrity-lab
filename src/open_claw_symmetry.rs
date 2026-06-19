@@ -14,8 +14,11 @@
 //!     algorithm has run, so floating-point ε doesn't flip cables between
 //!     adjacent slots within a triple.
 //!   - A private `write_csv` that emits the slack-moment CSV.
-//!   - [`test_open_claw_threefold_symmetry`] — exports the CSV (headless)
-//!     and asserts every rotational triple agrees on length, slot, and bend.
+//!   - [`test_open_claw_threefold_symmetry`] — asserts every rotational triple
+//!     agrees on length, slot, and bend (runs every time, no file output).
+//!   - `write_open_claw_csv` — `#[ignore]`d; writes the engineering CSV only
+//!     when run explicitly (`cargo test write_open_claw_csv -- --ignored`),
+//!     since the project is built on a stored CSV.
 //!   - [`test_open_claw_cable_triples`] — companion test focused on cable
 //!     lengths alone (kept here because it's the same symmetry property
 //!     viewed from a different angle).
@@ -1246,28 +1249,42 @@ mod tests {
         executor
     }
 
-    /// Drive the full slack-CSV pipeline:
+    /// Build to slack and run the full slack-CSV prep — the state both the
+    /// symmetry guard and the CSV export work from:
     ///   1. Per-push slot assignment (generic).
     ///   2. Enforce 3-fold symmetry (OpenClaw-specific).
     ///   3. Recompute bend magnitudes (generic).
-    ///   4. Write the engineering CSV.
-    ///   5. Assert: every rotational triple of intervals has identical
-    ///      length, slot, and bend angle at each end.
-    ///
-    /// The CSV path is `OpenClaw-<date>.csv` in the working directory — the
-    /// same file the manufacturing pipeline reads.
-    #[test]
-    fn test_open_claw_threefold_symmetry() {
+    fn build_symmetric_slack() -> FabricPlanExecutor {
         let mut executor = build_to_slack();
-
         executor.fabric.update_all_attachment_connections();
         apply_threefold_symmetry(&mut executor.fabric);
         executor.fabric.recompute_bend_magnitudes();
+        executor
+    }
 
+    /// Assert: every rotational triple of intervals has identical length, slot,
+    /// and bend angle at each end. Runs every time (cheap symmetry guard); does
+    /// NOT write the CSV — see [`write_open_claw_csv`].
+    #[test]
+    fn test_open_claw_threefold_symmetry() {
+        let executor = build_symmetric_slack();
+        verify_threefold_symmetry(&executor.fabric);
+    }
+
+    /// Write the engineering slack-moment CSV (`OpenClaw-<date>.csv` in the
+    /// working directory — the same file the manufacturing pipeline reads).
+    ///
+    /// Ignored by default: the project is built on a stored CSV, so the file is
+    /// regenerated only on demand. Run it explicitly when you actually want a
+    /// fresh CSV:
+    ///   `cargo test --release --lib write_open_claw_csv -- --ignored`
+    #[test]
+    #[ignore]
+    fn write_open_claw_csv() {
+        let executor = build_symmetric_slack();
         let date = chrono::Local::now().format("%Y-%m-%d");
         let filename = format!("OpenClaw-{}.csv", date);
         write_csv(&executor.fabric, &filename).expect("CSV write failed");
-
         verify_threefold_symmetry(&executor.fabric);
     }
 

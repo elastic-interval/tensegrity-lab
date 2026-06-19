@@ -1,6 +1,10 @@
 use crate::fabric::FabricStats;
 use crate::{Age, ControlState, StateChange};
 use std::default::Default;
+
+/// Show the left-hand statistics panel. Off for now (cleaner view); the panel
+/// formatting is kept below so it can be switched back on.
+const SHOW_STATS: bool = false;
 use wgpu_text::glyph_brush::{
     BuiltInLineBreaker, HorizontalAlign, Layout, OwnedSection, OwnedText, VerticalAlign,
 };
@@ -47,6 +51,8 @@ enum TextInstance {
     Nothing,
     Normal(String),
     Large(String),
+    /// Oversized — for labels that must be read across a build site.
+    Huge(String),
 }
 
 impl TextInstance {
@@ -55,6 +61,7 @@ impl TextInstance {
             TextInstance::Nothing => 10.0,
             TextInstance::Normal(_) => 30.0,
             TextInstance::Large(_) => 60.0,
+            TextInstance::Huge(_) => 220.0,
         }
     }
 }
@@ -171,32 +178,34 @@ impl TextState {
         if !self.mobile_device {
             self.update_section(
                 SectionName::Bottom,
-                match &self.keyboard_legend {
-                    Some(legend) => Normal(legend.clone()),
-                    None => Nothing,
+                if matches!(control_state, Packing) {
+                    // During packing: the busy strut's name in giant letters across
+                    // the bottom — no keyboard legend.
+                    match &self.action_label {
+                        Some(label) => Huge(label.clone()),
+                        None => Nothing,
+                    }
+                } else {
+                    match &self.keyboard_legend {
+                        Some(legend) => Normal(legend.clone()),
+                        None => Nothing,
+                    }
                 },
             );
             let scale = self.model_scale.unwrap_or(1.0);
             self.update_section(
                 SectionName::Right,
-                match &self.action_label {
-                    // A current action (e.g. the strut being removed/added) takes
-                    // the right in large letters.
-                    Some(label) => Large(label.clone()),
-                    None => match control_state {
-                        Viewing { .. } => Large("Click to select".to_string()),
-                        ShowingJoint(joint_details) => {
-                            Large(joint_details.format_with_scale(scale))
-                        }
-                        ShowingInterval(interval_details) => {
-                            Large(interval_details.format_with_scale(scale))
-                        }
-                        PhysicsTesting => match &self.movement_analysis {
-                            Some(text) => Normal(text.clone()),
-                            None => Nothing,
-                        },
-                        _ => Nothing,
+                match control_state {
+                    Viewing { .. } => Large("Click to select".to_string()),
+                    ShowingJoint(joint_details) => Large(joint_details.format_with_scale(scale)),
+                    ShowingInterval(interval_details) => {
+                        Large(interval_details.format_with_scale(scale))
+                    }
+                    PhysicsTesting => match &self.movement_analysis {
+                        Some(text) => Normal(text.clone()),
+                        None => Nothing,
                     },
+                    _ => Nothing,
                 },
             );
         } else {
@@ -212,6 +221,8 @@ impl TextState {
         self.update_section(
             SectionName::Left,
             match &self.fabric_stats {
+                // Stats panel removed from view for now (see `SHOW_STATS`).
+                _ if !SHOW_STATS => Nothing,
                 None => Nothing,
                 Some(fabric_stats) => {
                     let FabricStats {
@@ -298,7 +309,7 @@ impl TextState {
         let scale_factor = text_instance.scale_factor();
         self.sections[section_name as usize] = Some(match text_instance {
             Nothing => section,
-            Normal(text) | Large(text) => section.add_text(
+            Normal(text) | Large(text) | Huge(text) => section.add_text(
                 OwnedText::new(text)
                     .with_color([0.8, 0.8, 0.8, 1.0])
                     .with_scale(scale_factor),
