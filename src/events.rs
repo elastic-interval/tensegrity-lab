@@ -35,7 +35,7 @@ pub enum CrucibleAction {
     ToViewing,
     ToAnimating,
     ToPhysicsTesting,
-    ToDisassembling,
+    ToPacking,
     ToEvolving(u64),
     TesterDo(TesterAction),
 }
@@ -80,6 +80,9 @@ pub enum StateChange {
     ToggleAttachmentPoints,
     /// Show movement analysis overlay (None to hide)
     ShowMovementAnalysis(Option<String>),
+    /// Large label at the bottom for the current action, e.g. the strut being
+    /// removed or re-inserted during packing (None to clear).
+    ShowActionLabel(Option<String>),
 }
 
 impl Debug for StateChange {
@@ -103,6 +106,7 @@ impl Debug for StateChange {
             StateChange::ToggleAttachmentPoints => "ToggleAttachmentPoints",
             StateChange::ToggleColorByRole => "ToggleColorByRole",
             StateChange::ShowMovementAnalysis(_) => "ShowMovementAnalysis()",
+            StateChange::ShowActionLabel(_) => "ShowActionLabel()",
         };
         write!(f, "StateChange::{name}")
     }

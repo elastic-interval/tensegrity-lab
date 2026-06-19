@@ -1,5 +1,5 @@
 use crate::build::animator::Animator;
-use crate::build::disassembler::Disassembler;
+use crate::build::packer::Packer;
 use crate::build::dsl::fabric_plan_executor::{ExecutorStage, FabricPlanExecutor};
 use crate::build::dsl::FabricPlan;
 use crate::build::evo::visual_runner::VisualEvolutionRunner;
@@ -20,7 +20,7 @@ pub enum Stage {
     Viewing,
     Animating(Animator),
     PhysicsTesting(PhysicsTester),
-    Disassembling(Disassembler),
+    Packing(Packer),
     BakingBrick(Oven),
     Evolving(VisualEvolutionRunner),
 }
@@ -216,12 +216,18 @@ impl Crucible {
                     self.stage = new_stage;
                 }
             }
-            Disassembling(disassembler) => {
+            Packing(packer) => {
                 let mut context =
                     CrucibleContext::new(&mut self.fabric, &mut self.physics, &self.radio);
-                disassembler.iterate(&mut context, iterations_per_frame);
+                packer.iterate(&mut context, iterations_per_frame);
 
-                if let Some(new_stage) = context.apply_changes() {
+                if packer.is_complete() {
+                    // Rebuilt and settled on the surface: return to viewing.
+                    self.finalize_to_viewing();
+                    let viewing_state = self.viewing_state();
+                    SetControlState(viewing_state).send(&self.radio);
+                    SetStageLabel("Viewing".to_string()).send(&self.radio);
+                } else if let Some(new_stage) = context.apply_changes() {
                     self.stage = new_stage;
                 }
             }
@@ -394,7 +400,7 @@ impl Crucible {
                     self.physics = self.viewing_physics();
                     return;
                 }
-                PhysicsTesting(_) | Disassembling(_) => {
+                PhysicsTesting(_) | Packing(_) => {
                     context.fabric.zero_velocities();
                     self.stage = Viewing;
                     context.send_event(LabEvent::UpdateState(SetControlState(
@@ -445,21 +451,21 @@ impl Crucible {
                     )));
                 }
             }
-            ToDisassembling => {
+            ToPacking => {
                 if let Viewing = &mut self.stage {
-                    let disassembler = Disassembler::new(
+                    let packer = Packer::new(
                         context.fabric.clone(),
                         tester_physics,
                         self.radio.clone(),
                     );
-                    context.replace_fabric(disassembler.fabric.clone());
-                    disassembler.copy_physics_into(&mut context);
-                    context.transition_to(Disassembling(disassembler));
+                    context.replace_fabric(packer.fabric.clone());
+                    packer.copy_physics_into(&mut context);
+                    context.transition_to(Packing(packer));
                     context.send_event(LabEvent::UpdateState(SetControlState(
-                        ControlState::Disassembling,
+                        ControlState::Packing,
                     )));
                     context.send_event(LabEvent::UpdateState(SetStageLabel(
-                        "Disassembling".to_string(),
+                        "Packing".to_string(),
                     )));
                 }
             }

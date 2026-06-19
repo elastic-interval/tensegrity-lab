@@ -34,6 +34,7 @@ pub struct TextState {
     stage_label: String,
     fabric_stats: Option<FabricStats>,
     movement_analysis: Option<String>,
+    action_label: Option<String>,
     sections: [Option<OwnedSection>; SectionName::count()],
     keyboard_legend: Option<String>,
     animating: bool,
@@ -72,6 +73,7 @@ impl TextState {
             stage_label: "Waiting".to_string(),
             fabric_stats: None,
             movement_analysis: None,
+            action_label: None,
             keyboard_legend: None,
             sections: Default::default(),
             frames_per_second: 0.0,
@@ -121,6 +123,9 @@ impl TextState {
             }
             ShowMovementAnalysis(text) => {
                 self.movement_analysis = text.clone();
+            }
+            ShowActionLabel(label) => {
+                self.action_label = label.clone();
             }
             _ => {}
         }
@@ -174,17 +179,24 @@ impl TextState {
             let scale = self.model_scale.unwrap_or(1.0);
             self.update_section(
                 SectionName::Right,
-                match control_state {
-                    Viewing { .. } => Large("Click to select".to_string()),
-                    ShowingJoint(joint_details) => Large(joint_details.format_with_scale(scale)),
-                    ShowingInterval(interval_details) => {
-                        Large(interval_details.format_with_scale(scale))
-                    }
-                    PhysicsTesting => match &self.movement_analysis {
-                        Some(text) => Normal(text.clone()),
-                        None => Nothing,
+                match &self.action_label {
+                    // A current action (e.g. the strut being removed/added) takes
+                    // the right in large letters.
+                    Some(label) => Large(label.clone()),
+                    None => match control_state {
+                        Viewing { .. } => Large("Click to select".to_string()),
+                        ShowingJoint(joint_details) => {
+                            Large(joint_details.format_with_scale(scale))
+                        }
+                        ShowingInterval(interval_details) => {
+                            Large(interval_details.format_with_scale(scale))
+                        }
+                        PhysicsTesting => match &self.movement_analysis {
+                            Some(text) => Normal(text.clone()),
+                            None => Nothing,
+                        },
+                        _ => Nothing,
                     },
-                    _ => Nothing,
                 },
             );
         } else {

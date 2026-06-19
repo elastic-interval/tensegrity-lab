@@ -23,6 +23,9 @@ pub struct Scene {
     show_attachment_points: bool,
     pick_allowed: bool,
     model_scale: Option<f32>,
+    /// During packing (disassembly + reassembly), only struts (not cables) are
+    /// highlighted while approaching, so the cable revival isn't advertised.
+    packing: bool,
 }
 
 impl Scene {
@@ -48,6 +51,7 @@ impl Scene {
             show_attachment_points: false,
             pick_allowed: false,
             model_scale,
+            packing: false,
         }
     }
 
@@ -73,7 +77,9 @@ impl Scene {
                     self.toggle_attachment_points();
                 }
             }
-            SetControlState(control_state) => match control_state {
+            SetControlState(control_state) => {
+                self.packing = matches!(control_state, Packing);
+                match control_state {
                 Waiting | Building => self.reset(),
                 Animating => {
                     self.reset();
@@ -100,13 +106,14 @@ impl Scene {
                         function: Rc::new(|_| None),
                     }
                 }
-                Disassembling => {
+                Packing => {
                     self.reset();
                     self.render_style = WithAppearanceFunction {
                         function: Rc::new(|_| None),
                     }
                 }
-            },
+                }
+            }
             SetAnimating(_) => {}
             ResetView => {
                 self.render_style = Normal;
@@ -248,6 +255,7 @@ impl Scene {
             &self.camera.current_pick(),
             &self.render_style,
             self.show_attachment_points,
+            !self.packing,
         );
         // Update surface size based on fabric bounding radius
         if has_surface {

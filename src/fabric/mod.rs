@@ -205,21 +205,27 @@ pub enum Level {
     Cable,
 }
 
-/// Stiffness of the cable segments. Kept low: the cable joints are very light
-/// (~13 g), so full stiffness would make the spring frequency far too high for
-/// the timestep and the fabric would explode. This is soft enough to stay stable
-/// yet stiff enough that the cable barely stretches under the light loads here.
-const CABLE_PULL_STIFFNESS: Percent = Percent(0.02);
+/// Stiffness of the cable segments. Capped by stability: the cable joints are
+/// very light (~13 g), so `k/m` above ~2e7 N/m makes the spring frequency too
+/// high for the timestep and the fabric explodes. Already effectively
+/// inextensible at these values; kept near the stable ceiling for firmer tension.
+const CABLE_PULL_STIFFNESS: Percent = Percent(0.03);
 
-/// Stiffness of the bracing pushes that resist kinking — softer than the segments
-/// so the cable bends more easily than it stretches. Main knob for bendiness
-/// (smaller = floppier, larger = more rod-like).
-const CABLE_BRACE_STIFFNESS: Percent = Percent(0.001);
+/// Stiffness of the bracing pushes — the main knob for how readily a cable bends.
+/// Raised well up (still under the light-joint stability ceiling) so the chains
+/// bend less readily, like real 6 mm steel, and hold their shape during rebuild
+/// instead of hanging limp. Smaller = floppier, larger = more rod-like.
+const CABLE_BRACE_STIFFNESS: Percent = Percent(0.02);
 
-/// A cable is converted to a bendable chain once it slackens to this fraction of
-/// its rest length — i.e. when it stops carrying load (its struts are gone).
-/// Taut, load-bearing cables stay stiff so they hold the structure's shape.
-const CABLE_SLACK_THRESHOLD: f32 = 0.95;
+/// A cable that was turned into a bendable chain, holding everything needed to
+/// revive it to its original stiff form once its struts are back (reassembly).
+pub struct BendableCable {
+    original: Interval,
+    cap_a: JointKey,
+    cap_b: JointKey,
+    interior_joints: Vec<JointKey>,
+    chain_intervals: Vec<IntervalKey>,
+}
 
 #[derive(Clone, Debug)]
 pub struct Fabric {
@@ -780,26 +786,60 @@ impl Fabric {
     /// tied by cable pulls (the steel path), every-other joint braced by pushes
     /// that resist kinking. The chain elements are massless; the cable's 6 mm
     /// stainless mass (length-based) is shared across the chain's joints.
-    pub fn make_slack_cables_bendable(&mut self, segment_length: Meters) {
-        let slack: Vec<IntervalKey> = self
+    /// Keep cable state derivative of strut presence — a "law of nature": a cable
+    /// is a stiff cable only while BOTH its caps still hold a strut; if either end
+    /// loses its strut it becomes a bendable chain, and when both struts return it
+    /// reverts (eased to rest over `revive_duration`). `chains` tracks the active
+    /// chains. Call every frame; struts drive everything, cables just follow.
+    pub fn reconcile_cables(
+        &mut self,
+        chains: &mut Vec<BendableCable>,
+        segment_length: Meters,
+        revive_duration: Seconds,
+    ) {
+        use std::collections::HashSet;
+        let mut strutted: HashSet<JointKey> = HashSet::new();
+        for interval in self.intervals.values() {
+            if interval.role == Role::Pushing && interval.level == Level::Structural {
+                strutted.insert(interval.alpha_key);
+                strutted.insert(interval.omega_key);
+            }
+        }
+
+        // Stiff cables that have lost a strut at either end become bendable chains.
+        let to_convert: Vec<IntervalKey> = self
             .intervals
             .iter()
-            .filter(|(_, interval)| {
-                interval.role.is_pull_like()
-                    && interval.level == Level::Structural
-                    && interval.length(&self.joints)
-                        < interval.ideal().f32() * CABLE_SLACK_THRESHOLD
+            .filter(|(_, iv)| {
+                iv.role.is_pull_like()
+                    && iv.level == Level::Structural
+                    && !(strutted.contains(&iv.alpha_key) && strutted.contains(&iv.omega_key))
             })
             .map(|(key, _)| key)
             .collect();
-        for key in slack {
-            self.make_cable_bendable(key, segment_length);
+        for key in to_convert {
+            chains.push(self.make_cable_bendable(key, segment_length));
+        }
+
+        // Chains whose ends both hold struts again revert to stiff cables.
+        let mut i = 0;
+        while i < chains.len() {
+            if strutted.contains(&chains[i].cap_a) && strutted.contains(&chains[i].cap_b) {
+                let cable = chains.swap_remove(i);
+                self.revive_cable(&cable, revive_duration);
+            } else {
+                i += 1;
+            }
         }
     }
 
-    fn make_cable_bendable(&mut self, cable_key: IntervalKey, segment_length: Meters) {
-        let interval = &self.intervals[cable_key];
-        let (alpha, omega) = (interval.alpha_key, interval.omega_key);
+    fn make_cable_bendable(
+        &mut self,
+        cable_key: IntervalKey,
+        segment_length: Meters,
+    ) -> BendableCable {
+        let original = self.intervals[cable_key].clone();
+        let (alpha, omega) = (original.alpha_key, original.omega_key);
         let (pa, pb) = (self.location(alpha), self.location(omega));
         let length = pa.distance(pb);
         let segments = ((length / segment_length.f32()).round() as usize).max(2);
@@ -810,22 +850,67 @@ impl Fabric {
         let steel_grams = Material::Pull.base_linear_density().f32() * length;
         let point_mass = Grams(steel_grams / (segments - 1) as f32);
 
+        let mut interior_joints = Vec::new();
         let mut chain = Vec::with_capacity(segments + 1);
         chain.push(alpha);
         for i in 1..segments {
             let t = i as f32 / segments as f32;
-            chain.push(self.add_cable_joint(pa.lerp(pb, t), point_mass));
+            let joint = self.add_cable_joint(pa.lerp(pb, t), point_mass);
+            interior_joints.push(joint);
+            chain.push(joint);
         }
         chain.push(omega);
 
+        let mut chain_intervals = Vec::new();
         // Cable segments (the steel path) hold consecutive joints together.
         for pair in chain.windows(2) {
-            self.add_cable_interval(pair[0], pair[1], Role::Pulling, CABLE_PULL_STIFFNESS);
+            chain_intervals.push(self.add_cable_interval(
+                pair[0],
+                pair[1],
+                Role::Pulling,
+                CABLE_PULL_STIFFNESS,
+            ));
         }
         // Overlapping pushes brace every-other joint, resisting kinks.
         for triple in chain.windows(3) {
-            self.add_cable_interval(triple[0], triple[2], Role::Pushing, CABLE_BRACE_STIFFNESS);
+            chain_intervals.push(self.add_cable_interval(
+                triple[0],
+                triple[2],
+                Role::Pushing,
+                CABLE_BRACE_STIFFNESS,
+            ));
         }
+
+        BendableCable {
+            original,
+            cap_a: alpha,
+            cap_b: omega,
+            interior_joints,
+            chain_intervals,
+        }
+    }
+
+    /// Revive each bendable cable whose both caps once again carry a strut (i.e.
+    /// the structure has re-formed around it): remove its chain and restore the
+    /// original stiff cable, so the tensegrity re-tautens as struts return.
+    /// Revived cables are dropped from `cables`.
+    /// Revive a bendable cable: delete its chain (interior joints + chain
+    /// intervals) and re-create the original cable, easing from its current span
+    /// to rest length over `duration` so it tautens calmly instead of snapping.
+    pub fn revive_cable(&mut self, cable: &BendableCable, duration: Seconds) {
+        for &key in &cable.chain_intervals {
+            self.intervals.remove(key);
+        }
+        for &joint in &cable.interior_joints {
+            self.joints.remove(joint);
+        }
+        self.create_approaching_interval(
+            cable.cap_a,
+            cable.cap_b,
+            cable.original.ideal(),
+            cable.original.role,
+            duration,
+        );
     }
 
     fn add_cable_joint(&mut self, location: Vec3, point_mass: Grams) -> JointKey {

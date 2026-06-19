@@ -28,9 +28,16 @@ impl FabricRenderer {
         pick: &Pick,
         render_style: &RenderStyle,
         show_attachment_points: bool,
+        color_approaching_cables: bool,
     ) {
-        self.cylinder_renderer
-            .update(wgpu, fabric, pick, render_style, show_attachment_points);
+        self.cylinder_renderer.update(
+            wgpu,
+            fabric,
+            pick,
+            render_style,
+            show_attachment_points,
+            color_approaching_cables,
+        );
 
         if show_attachment_points {
             self.connector_renderer.update(wgpu, fabric, pick);

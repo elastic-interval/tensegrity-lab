@@ -108,9 +108,15 @@ impl CylinderRenderer {
         pick: &Pick,
         render_style: &RenderStyle,
         show_attachment_points: bool,
+        color_approaching_cables: bool,
     ) {
-        let instances =
-            self.create_instances_from_fabric(fabric, pick, render_style, show_attachment_points);
+        let instances = self.create_instances_from_fabric(
+            fabric,
+            pick,
+            render_style,
+            show_attachment_points,
+            color_approaching_cables,
+        );
         self.num_instances = instances.len() as u32;
         // Update instance buffer if there are instances to render
         if self.num_instances > 0 {
@@ -131,6 +137,7 @@ impl CylinderRenderer {
         pick: &Pick,
         render_style: &RenderStyle,
         show_attachment_points: bool,
+        color_approaching_cables: bool,
     ) -> Vec<CylinderInstance> {
         use RenderStyle::*;
         let mut instances = Vec::with_capacity(fabric.intervals.len());
@@ -337,9 +344,15 @@ impl CylinderRenderer {
                 }
             }
 
-            // Override color for intervals that are approaching (being lengthened)
-            let color = if matches!(interval.span, Span::Approaching { .. }) {
-                [1.0, 0.0, 0.0, 1.0] // Red for approaching intervals
+            // Override color for intervals that are approaching (being lengthened).
+            // When suppressing cables (the disassembly/reassembly animation), only
+            // real struts are highlighted — in reality cables don't change length,
+            // only struts do, so the cable revival should not be advertised.
+            let strut = push && interval.level == Level::Structural;
+            let highlight = matches!(interval.span, Span::Approaching { .. })
+                && (color_approaching_cables || strut);
+            let color = if highlight {
+                [0.0, 1.0, 0.0, 1.0] // Bright green for approaching intervals
             } else {
                 appearance.color
             };

@@ -307,7 +307,7 @@ pub enum ControlState {
     ShowingJoint(JointDetails),
     ShowingInterval(IntervalDetails),
     PhysicsTesting,
-    Disassembling,
+    Packing,
     Baking,
 }
 

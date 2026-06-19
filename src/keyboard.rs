@@ -62,12 +62,12 @@ impl Keyboard {
             KeyCode::Escape,
             "Exit",
             Crucible(ToViewing),
-            Box::new(|state| matches!(state, PhysicsTesting | Disassembling)),
+            Box::new(|state| matches!(state, PhysicsTesting | Packing)),
         );
         self.key_lab_event(
             KeyCode::KeyD,
-            "Disassemble",
-            Crucible(ToDisassembling),
+            "Pack for transport",
+            Crucible(ToPacking),
             Box::new(|state| matches!(state, Viewing { .. })),
         );
         self.key_lab_event(
