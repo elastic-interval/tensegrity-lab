@@ -36,6 +36,14 @@ struct NativeState {
     gpu_batch: Option<GpuBatch>,
 }
 
+/// True when compiled for the web. The web build is pure mouse-driven (no
+/// keyboard, no selection) and auto-starts packing after an idle spell in Viewing.
+const WEB: bool = cfg!(target_arch = "wasm32");
+
+/// How long the web build sits in Viewing (fabric time, no mouse interaction)
+/// before it spontaneously starts packing.
+const WEB_IDLE_TO_PACK: f32 = 10.0;
+
 pub struct Application {
     run_style: RunStyle,
     mobile_device: bool,
@@ -54,6 +62,9 @@ pub struct Application {
     pointer_handler: PointerHandler,
     time_scale: f32,
     model_scale: Option<f32>,
+    /// Web only: fabric age at the last mouse interaction (or entry to Viewing);
+    /// used to auto-start packing after `WEB_IDLE_TO_PACK` of idle viewing.
+    idle_ref_age: Age,
     #[cfg(not(target_arch = "wasm32"))]
     native: NativeState,
 }
@@ -87,6 +98,7 @@ impl Application {
             control_state: ControlState::Waiting,
             time_scale,
             model_scale: model_scale.map(|n| 1.0 / n),
+            idle_ref_age: Age::default(),
             #[cfg(not(target_arch = "wasm32"))]
             native: NativeState::default(),
         }
@@ -513,10 +525,17 @@ impl ApplicationHandler<LabEvent> for Application {
                 match &app_change {
                     StateChange::SetControlState(control_state) => {
                         self.control_state = control_state.clone();
-                        StateChange::SetKeyboardLegend(
-                            self.keyboard.legend(control_state).join(", "),
-                        )
-                        .send(&self.radio);
+                        // Web: start the idle-to-pack timer fresh on entering Viewing.
+                        if matches!(control_state, ControlState::Viewing { .. }) {
+                            self.idle_ref_age = self.crucible.fabric.age;
+                        }
+                        // The web build has no keyboard, so no legend.
+                        if !WEB {
+                            StateChange::SetKeyboardLegend(
+                                self.keyboard.legend(control_state).join(", "),
+                            )
+                            .send(&self.radio);
+                        }
                     }
                     StateChange::SetTweakParameter(parameter) => {
                         self.keyboard.set_tweak_parameter(parameter);
@@ -565,6 +584,8 @@ impl ApplicationHandler<LabEvent> for Application {
                 }
             }
             PointerChanged(pointer_change) => {
+                // Any mouse interaction resets the web idle-to-pack timer.
+                self.idle_ref_age = self.crucible.fabric.age;
                 if let Some(scene) = &mut self.scene {
                     scene.pointer_changed(pointer_change, &self.crucible.fabric);
                 }
@@ -648,8 +669,11 @@ impl ApplicationHandler<LabEvent> for Application {
             WindowEvent::KeyboardInput {
                 event: key_event, ..
             } => {
-                self.keyboard
-                    .handle_key_event(key_event, &self.control_state);
+                // The web build is pure mouse-driven — ignore all keyboard input.
+                if !WEB {
+                    self.keyboard
+                        .handle_key_event(key_event, &self.control_state);
+                }
                 return;
             }
             _ => {}
@@ -836,6 +860,24 @@ impl ApplicationHandler<LabEvent> for Application {
                     exporter.tick(&self.crucible.fabric, iterations_per_frame);
                 }
             }
+        }
+
+        // Web kiosk: after sitting in Viewing with no mouse interaction for
+        // WEB_IDLE_TO_PACK (fabric time), spontaneously start packing. The timer is
+        // reset on every pointer event and on each entry to Viewing, so the demo
+        // loops (view → pack → unpack → view → …).
+        if WEB
+            && matches!(self.control_state, ControlState::Viewing { .. })
+            && self
+                .crucible
+                .fabric
+                .age
+                .elapsed_since(self.idle_ref_age)
+                .0
+                >= WEB_IDLE_TO_PACK
+        {
+            self.idle_ref_age = self.crucible.fabric.age;
+            CrucibleAction::ToPacking.send(&self.radio);
         }
 
         if updates_this_frame > 0 {

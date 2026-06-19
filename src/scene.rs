@@ -273,8 +273,10 @@ impl Scene {
     }
 
     pub fn pointer_changed(&mut self, pointer_changed: PointerChange, fabric: &Fabric) {
-        // When picking is not allowed, convert pick intents to Reset (release without picking)
-        let pointer_changed = if !self.pick_allowed {
+        // When picking is not allowed (or always on the web — pure mouse-driven, no
+        // selection), convert pick intents to Reset (release without picking). Camera
+        // orbit/zoom (Moved/Pressed/Zoomed) still pass through.
+        let pointer_changed = if !self.pick_allowed || cfg!(target_arch = "wasm32") {
             match pointer_changed {
                 PointerChange::Released(_) => PointerChange::Released(PickIntent::Reset),
                 PointerChange::TouchReleased(_) => PointerChange::TouchReleased(PickIntent::Reset),
