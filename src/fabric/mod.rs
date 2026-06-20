@@ -612,20 +612,32 @@ impl Fabric {
     }
 
     pub fn centroid(&self) -> Vec3 {
-        // Use only structural joints (real hubs/caps), not the many interpolated
-        // points inside bendable cables, which would drag the centroid down.
-        let mut centroid: Vec3 = Vec3::ZERO;
-        let mut count = 0usize;
-        for joint in self.joints.values() {
-            if joint.point_mass.is_none() {
-                centroid += joint.location;
-                count += 1;
+        // Average only the "occupied" joints — those carrying a strut (endpoints of
+        // a structural push) — so the camera stays centred on the strutted core
+        // during pack/unpack rather than being dragged by the draping/splayed
+        // cables. With no struts left, average all joints instead.
+        use std::collections::HashSet;
+        let mut strutted: HashSet<JointKey> = HashSet::new();
+        for interval in self.intervals.values() {
+            if interval.role == Role::Pushing && interval.level == Level::Structural {
+                strutted.insert(interval.alpha_key);
+                strutted.insert(interval.omega_key);
             }
         }
-        if count == 0 {
+        if !strutted.is_empty() {
+            let sum: Vec3 = strutted
+                .iter()
+                .fold(Vec3::ZERO, |acc, key| acc + self.joints[*key].location);
+            return sum / strutted.len() as f32;
+        }
+        if self.joints.is_empty() {
             return Vec3::ZERO;
         }
-        centroid / count as f32
+        let sum: Vec3 = self
+            .joints
+            .values()
+            .fold(Vec3::ZERO, |acc, joint| acc + joint.location);
+        sum / self.joints.len() as f32
     }
 
     /// Returns the cached bounding radius (updated periodically during construction)
