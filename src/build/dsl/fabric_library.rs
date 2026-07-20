@@ -4,7 +4,8 @@ use crate::build::dsl::fabric_plan::FabricPlan;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
-static PLANS: [OnceLock<FabricPlan>; 8] = [
+static PLANS: [OnceLock<FabricPlan>; 9] = [
+    OnceLock::new(),
     OnceLock::new(),
     OnceLock::new(),
     OnceLock::new(),
@@ -24,6 +25,8 @@ pub enum FabricName {
     HaloByCrane,
     #[strum(serialize = "Headless Hug")]
     HeadlessHug,
+    #[strum(serialize = "Minimal Man")]
+    MinimalMan,
     Diamond,
     Propeller,
     Infinity,
@@ -163,6 +166,53 @@ impl FabricName {
                 .vulcanize(Sec(2.0))
                 .add(Sec(1.0), [("C03.10", "D03.10", Pct(90.0))])
                 .down(Sec(1.0), [Foot(Side::Left), Foot(Side::Right)])
+                .pretense(Sec(1.0), Pct(1.0))
+                .surface_frozen()
+                .fall(Sec(1.5))
+                .settle(Sec(1.5)),
+
+            MinimalMan => self
+                .build(
+                    FabricDimensions::default()
+                        .with_altitude(M(12.0))
+                        .with_scale(M(1.0)),
+                )
+                .seed(OmniSymmetrical, Seed(2))
+                .faces([
+                    on(LowerLeft)
+                        .column(4)
+                        .shrink_by(Pct(20.0))
+                        .prism(Pct(200.0))
+                        .label(Foot(Side::Left)),
+                    on(LowerRight)
+                        .column(4)
+                        .shrink_by(Pct(20.0))
+                        .prism(Pct(200.0))
+                        .label(Foot(Side::Right)),
+                    on(UpperLeft).column(1).shrink_by(Pct(40.0)).then(
+                        hub(OmniSymmetrical).faces([on(OmniTopZ)
+                            .column(3)
+                            .label(Hand(Side::Left))]),
+                    ),
+                    on(UpperRight).column(1).shrink_by(Pct(40.0)).then(
+                        hub(OmniSymmetrical).faces([on(OmniTopX)
+                            .column(3)
+                            .label(Hand(Side::Right))]),
+                    ),
+                ])
+                .prepare_vulcanize(0.5, VulcanizeMode::Linear)
+                .space_parallel(
+                    Sec(8.0),
+                    [
+                        spacer([Foot(Side::Left), Hand(Side::Left)], Pct(80.0)),
+                        spacer([Foot(Side::Right), Hand(Side::Right)], Pct(80.0)),
+                        spacer([Foot(Side::Left), Hand(Side::Right)], Pct(102.0)),
+                        spacer([Foot(Side::Right), Hand(Side::Left)], Pct(102.0)),
+                        spacer([Foot(Side::Left), Foot(Side::Right)], Pct(40.0)),
+                        spacer([Hand(Side::Left), Hand(Side::Right)], Pct(40.0)),
+                    ],
+                )
+                .vulcanize(Sec(2.0))                .down(Sec(1.0), [Foot(Side::Left), Foot(Side::Right)])
                 .pretense(Sec(1.0), Pct(1.0))
                 .surface_frozen()
                 .fall(Sec(1.5))
