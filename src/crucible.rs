@@ -65,6 +65,7 @@ impl Crucible {
 impl Crucible {
     fn finalize_to_viewing(&mut self) {
         self.fabric.zero_velocities();
+        self.fabric.update_all_attachment_connections();
         self.fabric.recompute_bend_magnitudes();
         self.physics = self.viewing_physics();
         self.stage = Viewing;
@@ -283,6 +284,7 @@ impl Crucible {
             let name = algo_fabric.name.clone();
             self.fabric = algo_fabric;
             self.fabric_plan = None; // No DSL plan for algorithmic fabrics
+            self.fabric.update_all_attachment_connections();
             self.fabric.recompute_bend_magnitudes();
             self.physics = VIEWING;
             self.stage = Viewing;

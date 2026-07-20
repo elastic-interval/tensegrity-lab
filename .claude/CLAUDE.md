@@ -87,17 +87,36 @@ elements (cables) that maintain shape through balanced push-pull forces.
 - `faces` (SlotMap): triangular surfaces.
 - `age`: simulated time (one tick = 50 µs).
 - `dimensions: FabricDimensions` (see `src/fabric/dimensions.rs`).
+- `connector: Option<ConnectorSystem>` — physical connector plugin (see below).
 
 `Fabric::iterate(...)` is the per-tick physics step (Verlet). Use it; don't
 reinvent.
 
-### FabricDimensions and ConnectorDimensions
+### FabricDimensions
 
-`src/fabric/dimensions.rs` defines both. `FabricDimensions` carries scale,
-altitude, pull-radius, connector geometry, joint mass, push density. `ConnectorDimensions`
-is a sub-struct for the physical connector (push radius, disc/cap
-thicknesses, tab hole, bend-magnitude inventory). Defaults are in their
-`Default::default()` impls and are the source of truth.
+`src/fabric/dimensions.rs`. Carries scale, altitude, push/pull radii, joint
+mass, push density, and the optional plan-level connector config. Defaults are
+in `Default::default()` and are the source of truth.
+
+### Connector (optional plugin) — `src/connector/`
+
+All physical-connector code lives in `src/connector/`, adjacent to the
+simulation — nothing there participates in the physics tick:
+- `dimensions.rs` — `ConnectorDimensions` (disc/cap thicknesses, tab hole,
+  bend-magnitude inventory) plus tab/ring geometry (`tab_geometry`,
+  `ring_center`), with the inline `tab_geometry_tests`.
+- `attachment.rs` — `PullConnections`, `TabBend`, slot-assignment optimiser.
+- `bend_optimizer.rs` — K-center optimiser for bend magnitudes.
+- `system.rs` — `ConnectorSystem`: owns `ConnectorDimensions` and a
+  `SecondaryMap<IntervalKey, PullConnections>` of slot assignments.
+
+Fabrics opt in per plan via `FabricDimensions::with_connector()` (or
+implicitly via `with_locked_bend_magnitudes`); the config becomes
+`Fabric::connector` at construction. `None` (the default) means connectors
+play no role anywhere: no slot assignment, no bend recompute, no rendering,
+and the C-key toggle is inert. Slot assignments are rebuilt on demand
+(Viewing entry, attachment-point toggle-ON, CSV export) — not incrementally
+during build.
 
 ### Time
 
@@ -192,16 +211,20 @@ src/
 ├── units.rs            # Meters/Seconds/Grams etc. newtypes
 ├── animation_export.rs # JSON export for Blender (native only)
 │
+├── connector/          # Physical connector plugin (optional per fabric)
+│   ├── dimensions.rs   # ConnectorDimensions, tab_geometry, tab_geometry_tests
+│   ├── attachment.rs   # PullConnections, TabBend, slot assignment
+│   ├── bend_optimizer.rs  # K-center optimiser for bend magnitudes
+│   └── system.rs       # ConnectorSystem (dims + per-push slot assignments)
+│
 ├── fabric/
 │   ├── mod.rs          # Fabric struct + main impl
-│   ├── dimensions.rs   # FabricDimensions, ConnectorDimensions, tab_geometry
+│   ├── dimensions.rs   # FabricDimensions (incl. optional connector config)
 │   ├── interval.rs     # Interval, Role, Span
 │   ├── joint.rs, joint_path.rs
 │   ├── face.rs, brick.rs, material.rs
 │   ├── physics.rs      # Physics struct, presets
 │   ├── physics_tester.rs
-│   ├── attachment.rs   # PullConnections, TabBend, attachment points
-│   ├── bend_optimizer.rs  # K-center optimiser for bend magnitudes
 │   ├── vulcanize.rs
 │   └── fabric_sampler.rs
 │
@@ -234,8 +257,8 @@ Important integration tests:
 - `src/open_claw_test.rs` — `test_open_claw_base_triangle`,
   `test_open_claw_foot_positions`, `test_open_claw_bend_counts_match_factory_inventory`.
 - `src/physics_gpu/parity_test.rs` — CPU vs GPU numeric parity.
-- `src/fabric/connector_geometry_tests` (inline in `mod.rs`) — derived dimension formulas.
-- `src/fabric/bend_optimizer.rs` (inline tests) — k-center DP correctness.
+- `src/connector/dimensions.rs` (inline `tab_geometry_tests`) — derived dimension formulas.
+- `src/connector/bend_optimizer.rs` (inline tests) — k-center DP correctness.
 
 ## Entry Points
 

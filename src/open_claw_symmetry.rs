@@ -29,7 +29,7 @@ use std::path::Path;
 
 use crate::fabric::attachment::{TabBend, PullConnection, ATTACHMENT_POINTS};
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, FabricDimensions, IntervalEnd, IntervalKey, JointKey};
+use crate::fabric::{ConnectorDimensions, Fabric, FabricDimensions, IntervalEnd, IntervalKey, JointKey};
 use crate::units::{Unit, MM_PER_METER};
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -194,8 +194,8 @@ fn copy_symmetric_attachments(
     let Some(omega_pulls) = translate_assignments(fabric, &omega_src, k, mem_b_key, &label_to_key)
     else { return };
 
-    let Some(push) = fabric.intervals.get_mut(member_key) else { return };
-    let Some(connections) = &mut push.connections else { return };
+    let Some(connector) = fabric.connector.as_mut() else { return };
+    let Some(connections) = connector.connections_mut(member_key) else { return };
     connections.alpha = [None; ATTACHMENT_POINTS];
     connections.omega = [None; ATTACHMENT_POINTS];
     for (pull_key, slot) in alpha_pulls {
@@ -223,8 +223,13 @@ fn read_end_assignments(
     near_joint_key: JointKey,
 ) -> Vec<(usize, String)> {
     let mut out = Vec::new();
-    let Some(push) = fabric.intervals.get(push_key) else { return out };
-    let Some(connections) = push.connections(end) else { return out };
+    let Some(connections) = fabric
+        .connector
+        .as_ref()
+        .and_then(|connector| connector.connections(push_key, end))
+    else {
+        return out;
+    };
     for (slot, opt) in connections.iter().enumerate() {
         let Some(pc) = opt else { continue };
         let Some(pull) = fabric.intervals.get(pc.pull_interval_key) else { continue };
@@ -287,7 +292,10 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
     let path = Path::new(filename);
     let mut file = File::create(path)?;
 
-    let dimensions = &fabric.dimensions;
+    let connector = fabric
+        .connector
+        .as_ref()
+        .expect("CSV export requires a fabric with a connector");
     let to_csv = sim_to_csv();
     let height_mm = fabric
         .joints
@@ -313,7 +321,7 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
         "# {}, Phase: {}, Height: {:.1}mm, Created: {}",
         fabric.name, phase_str, height_mm, now
     )?;
-    write_dimensions_comments(&mut file, &fabric.dimensions)?;
+    write_dimensions_comments(&mut file, &fabric.dimensions, &connector.dimensions)?;
     writeln!(
         file,
         "# Orientation check (CSV coords, mm, Z-up): ground plane at Z=0, apex at Z={:.1}",
@@ -343,7 +351,7 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
         (Vec3, Vec3, JointKey, usize, TabBend, f32),
     > = BTreeMap::new();
 
-    for (_key, push_interval) in fabric.intervals.iter() {
+    for (key, push_interval) in fabric.intervals.iter() {
         if !push_interval.has_role(Role::Pushing) {
             continue;
         }
@@ -352,7 +360,7 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
         let omega_pos = fabric.joints[push_interval.omega_key].location;
         let push_dir = (omega_pos - alpha_pos).normalize();
 
-        if let Some(connections) = push_interval.connections(IntervalEnd::Alpha) {
+        if let Some(connections) = connector.connections(key, IntervalEnd::Alpha) {
             for (slot_idx, conn_opt) in connections.iter().enumerate() {
                 if let Some(connection) = conn_opt {
                     if let Some(pull_interval) =
@@ -366,7 +374,8 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
                             };
 
                         let (tab_pos, tab_bend, pull_end_pos, ideal_deg) =
-                            dimensions.tab_geometry(
+                            connector.tab_geometry(
+                                &fabric.dimensions,
                                 alpha_pos,
                                 -push_dir,
                                 slot_idx,
@@ -394,7 +403,7 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
             }
         }
 
-        if let Some(connections) = push_interval.connections(IntervalEnd::Omega) {
+        if let Some(connections) = connector.connections(key, IntervalEnd::Omega) {
             for (slot_idx, conn_opt) in connections.iter().enumerate() {
                 if let Some(connection) = conn_opt {
                     if let Some(pull_interval) =
@@ -408,7 +417,8 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
                             };
 
                         let (tab_pos, tab_bend, pull_end_pos, ideal_deg) =
-                            dimensions.tab_geometry(
+                            connector.tab_geometry(
+                                &fabric.dimensions,
                                 omega_pos,
                                 push_dir,
                                 slot_idx,
@@ -495,9 +505,9 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
 
         for slot_0 in 0..3 {
             let slot_1 = slot_0 + 1;
-            let alpha_ring = dimensions.ring_center(alpha_pos, -push_dir, slot_0);
+            let alpha_ring = connector.ring_center(alpha_pos, -push_dir, slot_0);
             ring_centers.insert((push_interval.alpha_key, slot_1), alpha_ring);
-            let omega_ring = dimensions.ring_center(omega_pos, push_dir, slot_0);
+            let omega_ring = connector.ring_center(omega_pos, push_dir, slot_0);
             ring_centers.insert((push_interval.omega_key, slot_1), omega_ring);
         }
     }
@@ -804,7 +814,7 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
 
         let joint_label = fabric.joint_label(joint_key);
         for (slot, pull_end_pos, tab_pos) in &connections {
-            let ring_center = dimensions.ring_center(joint_pos, push_axis, *slot - 1);
+            let ring_center = connector.ring_center(joint_pos, push_axis, *slot - 1);
 
             link_index += 1;
             let prev_mm = to_csv * (prev_pos * MM_PER_METER);
@@ -872,7 +882,11 @@ fn build_bend_summary(fabric: &Fabric) -> String {
     use std::fmt::Write;
 
     let mut s = String::new();
-    let h = &fabric.dimensions.connector;
+    let h = &fabric
+        .connector
+        .as_ref()
+        .expect("bend summary requires a fabric with a connector")
+        .dimensions;
     let ideals = fabric.collect_ideal_bend_angles();
 
     writeln!(s, "# === Bend snap quality ===").ok();
@@ -974,8 +988,11 @@ fn build_clearance_summary(fabric: &Fabric) -> String {
     let mut s = String::new();
     let mut pair_distances: Vec<f32> = Vec::new();
     let mut ends_measured: usize = 0;
+    let Some(connector) = fabric.connector.as_ref() else {
+        return s;
+    };
 
-    for (_key, push_interval) in fabric.intervals.iter() {
+    for (key, push_interval) in fabric.intervals.iter() {
         if !push_interval.has_role(Role::Pushing) {
             continue;
         }
@@ -988,7 +1005,7 @@ fn build_clearance_summary(fabric: &Fabric) -> String {
                 IntervalEnd::Alpha => (alpha_pos, -push_dir, push_interval.alpha_key),
                 IntervalEnd::Omega => (omega_pos, push_dir, push_interval.omega_key),
             };
-            let Some(connections) = push_interval.connections(interval_end) else {
+            let Some(connections) = connector.connections(key, interval_end) else {
                 continue;
             };
 
@@ -1004,7 +1021,8 @@ fn build_clearance_summary(fabric: &Fabric) -> String {
                 } else {
                     fabric.joints[pull_interval.alpha_key].location
                 };
-                let (tab_pos, _bend, pull_end_pos, _ideal) = fabric.dimensions.tab_geometry(
+                let (tab_pos, _bend, pull_end_pos, _ideal) = connector.tab_geometry(
+                    &fabric.dimensions,
                     end_pos,
                     axis_dir,
                     slot_idx,
@@ -1149,7 +1167,10 @@ fn pull_shortened_length(fabric: &Fabric, key: IntervalKey) -> f32 {
 /// and returns the tab endpoint (shortened position). If unattached, the
 /// joint location itself.
 fn pull_endpoint_position(fabric: &Fabric, pull_key: IntervalKey, near: JointKey) -> Vec3 {
-    for (_pk, push) in fabric.intervals.iter() {
+    let Some(connector) = fabric.connector.as_ref() else {
+        return fabric.joints[near].location;
+    };
+    for (pk, push) in fabric.intervals.iter() {
         if !push.has_role(Role::Pushing) {
             continue;
         }
@@ -1161,7 +1182,7 @@ fn pull_endpoint_position(fabric: &Fabric, pull_key: IntervalKey, near: JointKey
             if end_joint != near {
                 continue;
             }
-            let Some(conns) = push.connections(end) else { continue };
+            let Some(conns) = connector.connections(pk, end) else { continue };
             for (slot_idx, conn_opt) in conns.iter().enumerate() {
                 let Some(conn) = conn_opt else { continue };
                 if conn.pull_interval_key != pull_key {
@@ -1180,8 +1201,13 @@ fn pull_endpoint_position(fabric: &Fabric, pull_key: IntervalKey, near: JointKey
                 } else {
                     fabric.joints[pull.alpha_key].location
                 };
-                let (_tab_pos, _bend, pull_end_pos, _ideal) =
-                    fabric.dimensions.tab_geometry(end_pos, axis_dir, slot_idx, other);
+                let (_tab_pos, _bend, pull_end_pos, _ideal) = connector.tab_geometry(
+                    &fabric.dimensions,
+                    end_pos,
+                    axis_dir,
+                    slot_idx,
+                    other,
+                );
                 return pull_end_pos;
             }
         }
@@ -1189,10 +1215,13 @@ fn pull_endpoint_position(fabric: &Fabric, pull_key: IntervalKey, near: JointKey
     fabric.joints[near].location
 }
 
-fn write_dimensions_comments(file: &mut File, dims: &FabricDimensions) -> io::Result<()> {
-    let h = &dims.connector;
+fn write_dimensions_comments(
+    file: &mut File,
+    dims: &FabricDimensions,
+    h: &ConnectorDimensions,
+) -> io::Result<()> {
     let mm = |m: f32| m * 1000.0;
-    let a = h.push_radius.f32();
+    let a = dims.push_radius.f32();
     let b = h.push_radius_margin.f32();
     let t1 = h.disc_thickness.f32();
     let t2 = h.disc_separator_thickness.f32();
@@ -1407,7 +1436,11 @@ mod tests {
                     IntervalEnd::Omega => push.omega_key,
                 };
                 let mut v: Vec<(String, usize)> = Vec::new();
-                if let Some(conns) = push.connections(end) {
+                let conns_opt = fabric
+                    .connector
+                    .as_ref()
+                    .and_then(|connector| connector.connections(push_key, end));
+                if let Some(conns) = conns_opt {
                     for (slot, opt) in conns.iter().enumerate() {
                         let Some(pc) = opt else { continue };
                         let pull = &fabric.intervals[pc.pull_interval_key];

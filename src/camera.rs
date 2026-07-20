@@ -672,11 +672,12 @@ impl Camera {
             if interval.has_role(Role::Pulling) {
                 // Helper function to find slot index for a joint
                 let find_slot = |joint_key: JointKey| -> Option<usize> {
+                    let connector = fabric.connector.as_ref()?;
                     fabric
                         .intervals
-                        .values()
-                        .filter(|int| int.has_role(Role::Pushing) && int.touches(joint_key))
-                        .find_map(|push_interval| {
+                        .iter()
+                        .filter(|(_, int)| int.has_role(Role::Pushing) && int.touches(joint_key))
+                        .find_map(|(push_key, push_interval)| {
                             // Determine which end of the push interval is connected to this joint
                             let end = if push_interval.alpha_key == joint_key {
                                 IntervalEnd::Alpha
@@ -685,10 +686,7 @@ impl Camera {
                             };
 
                             // Get the connections for this end
-                            let connections_array = match push_interval.connections.as_ref() {
-                                Some(connections) => connections.connections(end),
-                                None => return None,
-                            };
+                            let connections_array = connector.connections(push_key, end)?;
 
                             // Look for a connection to this pull interval
                             for (idx, conn_opt) in connections_array.iter().enumerate() {
@@ -753,11 +751,12 @@ impl Camera {
         fabric: &Fabric,
     ) -> Option<Degrees> {
         // Find the push interval connected to this joint
+        let connector = fabric.connector.as_ref()?;
         fabric
             .intervals
-            .values()
-            .filter(|int| int.has_role(Role::Pushing) && int.touches(joint_key))
-            .find_map(|push_interval| {
+            .iter()
+            .filter(|(_, int)| int.has_role(Role::Pushing) && int.touches(joint_key))
+            .find_map(|(push_key, push_interval)| {
                 // Determine which end of the push interval is connected to this joint
                 let end = if push_interval.alpha_key == joint_key {
                     IntervalEnd::Alpha
@@ -766,7 +765,7 @@ impl Camera {
                 };
 
                 // Check if this pull interval is connected here
-                let connections_array = push_interval.connections.as_ref()?.connections(end);
+                let connections_array = connector.connections(push_key, end)?;
                 let is_connected = connections_array.iter().any(|conn_opt| {
                     conn_opt
                         .as_ref()

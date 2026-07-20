@@ -274,7 +274,7 @@ impl AnimationExporter {
             return;
         }
 
-        self.push_radius = fabric.dimensions.connector.push_radius.f32();
+        self.push_radius = fabric.dimensions.push_radius.f32();
         self.pull_radius = fabric.dimensions.pull_radius.f32();
 
         let prev_frame = self.iteration_count / self.iterations_per_frame;
@@ -340,7 +340,7 @@ impl AnimationExporter {
     }
 
     pub fn snapshot(&mut self, fabric: &Fabric) -> io::Result<PathBuf> {
-        self.push_radius = fabric.dimensions.connector.push_radius.f32();
+        self.push_radius = fabric.dimensions.push_radius.f32();
         self.pull_radius = fabric.dimensions.pull_radius.f32();
         self.frames.clear();
         self.frame_count = 0;

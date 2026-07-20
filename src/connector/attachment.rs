@@ -3,9 +3,9 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use crate::fabric::dimensions::radial_unit_from_axis;
-use crate::fabric::{FabricDimensions, IntervalEnd, IntervalKey, JointKey, Joints};
-use crate::units::Unit;
+use crate::connector::{radial_unit_from_axis, ConnectorDimensions};
+use crate::fabric::{IntervalEnd, IntervalKey, JointKey, Joints};
+use crate::units::{Meters, Unit};
 use glam::Vec3;
 use std::fmt;
 
@@ -111,7 +111,8 @@ impl PullConnections {
         pull_data: &[PullIntervalData],
         push_alpha_key: JointKey,
         push_omega_key: JointKey,
-        dimensions: &FabricDimensions,
+        connector: &ConnectorDimensions,
+        push_radius: Meters,
     ) {
         // Step 1: Collect all connections that need to be made
         let connections_to_make =
@@ -149,7 +150,8 @@ impl PullConnections {
             push_alpha_key,
             alpha_pos,
             -push_direction, // Outward from alpha end
-            dimensions,
+            connector,
+            push_radius,
         );
 
         // Omega end: push axis points outward (same as push direction)
@@ -161,7 +163,8 @@ impl PullConnections {
             push_omega_key,
             omega_pos,
             push_direction, // Outward from omega end
-            dimensions,
+            connector,
+            push_radius,
         );
 
         // Step 5: Assign connections using optimized order
@@ -402,7 +405,8 @@ fn find_optimal_assignment(
     push_joint_key: JointKey,
     push_end: Vec3,
     push_axis: Vec3,
-    dimensions: &FabricDimensions,
+    connector: &ConnectorDimensions,
+    push_radius: Meters,
 ) -> Vec<(IntervalEnd, IntervalKey, JointKey)> {
     if pulls.is_empty() {
         return Vec::new();
@@ -465,7 +469,7 @@ fn find_optimal_assignment(
         let mut row = Vec::with_capacity(n);
         for k in 0..n {
             let (tab_pos, _bend, pull_end_pos, _ideal) =
-                dimensions.tab_geometry(push_end, push_axis, k, other_ends[c]);
+                connector.tab_geometry(push_radius, push_end, push_axis, k, other_ends[c]);
             row.push((tab_pos, pull_end_pos));
         }
         segments.push(row);
@@ -642,7 +646,7 @@ pub(crate) fn segment_segment_distance(p1: Vec3, p2: Vec3, p3: Vec3, p4: Vec3) -
 pub fn generate_attachment_points(
     end_position: Vec3,
     direction: Vec3,
-    dimensions: &FabricDimensions,
+    connector: &ConnectorDimensions,
 ) -> [AttachmentPoint; ATTACHMENT_POINTS] {
     // Normalize the direction vector to get the axis
     let axis = direction.normalize();
@@ -656,7 +660,7 @@ pub fn generate_attachment_points(
     // Generate attachment points extending outwards along the axis
     // Each point represents the center of a ring at that slot
     for i in 0..ATTACHMENT_POINTS {
-        let distance = dimensions.connector.disc_center_offset(i).f32();
+        let distance = connector.disc_center_offset(i).f32();
 
         // Set the position and index
         points[i] = AttachmentPoint {
@@ -672,7 +676,7 @@ pub fn generate_attachment_points(
 pub fn calculate_interval_attachment_points(
     start: Vec3,
     end: Vec3,
-    dimensions: &FabricDimensions,
+    connector: &ConnectorDimensions,
 ) -> (
     [AttachmentPoint; ATTACHMENT_POINTS],
     [AttachmentPoint; ATTACHMENT_POINTS],
@@ -684,7 +688,7 @@ pub fn calculate_interval_attachment_points(
     // Alpha end: points extend outward from start (opposite to interval direction)
     // Omega end: points extend outward from end (in interval direction)
     (
-        generate_attachment_points(start, -direction, dimensions),
-        generate_attachment_points(end, direction, dimensions),
+        generate_attachment_points(start, -direction, connector),
+        generate_attachment_points(end, direction, connector),
     )
 }

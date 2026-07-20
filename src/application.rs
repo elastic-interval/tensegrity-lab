@@ -586,23 +586,26 @@ impl ApplicationHandler<LabEvent> for Application {
                         scene.jump_to_fabric(&self.crucible.fabric);
                     }
                 } else if let StateChange::ToggleAttachmentPoints = &app_change {
-                    // First toggle the state
-                    self.with_scene(|scene| {
-                        scene.update_state(app_change.clone());
-                    });
+                    // Connector-less fabrics have no attachment points to show
+                    if self.crucible.fabric.connector.is_some() {
+                        // First toggle the state
+                        self.with_scene(|scene| {
+                            scene.update_state(app_change.clone());
+                        });
 
-                    // Then check if we toggled ON (not OFF)
-                    let is_now_on = self
-                        .with_scene(|scene| scene.render_style_shows_attachment_points())
-                        .unwrap_or(false);
+                        // Then check if we toggled ON (not OFF)
+                        let is_now_on = self
+                            .with_scene(|scene| scene.render_style_shows_attachment_points())
+                            .unwrap_or(false);
 
-                    // Always recalculate attachment connections when toggling ON
-                    // because the structure may have deformed since last time
-                    if is_now_on {
-                        self.crucible.update_attachment_connections();
+                        // Always recalculate attachment connections when toggling ON
+                        // because the structure may have deformed since last time
+                        if is_now_on {
+                            self.crucible.update_attachment_connections();
+                        }
+
+                        RequestRedraw.send(&self.radio);
                     }
-
-                    RequestRedraw.send(&self.radio);
                 } else {
                     self.with_scene(|scene| scene.update_state(app_change.clone()));
                 }

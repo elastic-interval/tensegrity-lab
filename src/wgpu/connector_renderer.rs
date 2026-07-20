@@ -4,9 +4,9 @@
  */
 
 use crate::camera::Pick;
+use crate::connector::ConnectorSystem;
 use crate::fabric::interval::Role;
-use crate::fabric::FabricDimensions;
-use crate::fabric::{Fabric, IntervalEnd};
+use crate::fabric::{Fabric, IntervalEnd, IntervalKey};
 use crate::units::Unit;
 use crate::wgpu::Wgpu;
 use bytemuck::{Pod, Zeroable};
@@ -111,13 +111,15 @@ impl ConnectorRenderer {
     fn create_instances(&self, fabric: &Fabric) -> Vec<LinkInstance> {
         let mut instances = Vec::new();
 
-        let dimensions = &fabric.dimensions;
+        let Some(connector) = fabric.connector.as_ref() else {
+            return instances;
+        };
         // Render the connector links at the cable thickness, matching the
         // cylinder_renderer's physical_radius() for pulls.
-        let link_radius = dimensions.pull_radius.f32();
+        let link_radius = fabric.dimensions.pull_radius.f32();
 
         // Iterate through all push intervals to find their connections
-        for (_key, interval) in fabric.intervals.iter() {
+        for (key, interval) in fabric.intervals.iter() {
             if !interval.has_role(Role::Pushing) {
                 continue;
             }
@@ -131,11 +133,12 @@ impl ConnectorRenderer {
             self.add_links_for_end(
                 &mut instances,
                 fabric,
+                key,
                 interval,
                 IntervalEnd::Alpha,
                 alpha_pos,
                 -push_dir, // outward axis
-                &dimensions,
+                connector,
                 link_radius,
             );
 
@@ -143,11 +146,12 @@ impl ConnectorRenderer {
             self.add_links_for_end(
                 &mut instances,
                 fabric,
+                key,
                 interval,
                 IntervalEnd::Omega,
                 omega_pos,
                 push_dir, // outward axis
-                &dimensions,
+                connector,
                 link_radius,
             );
         }
@@ -159,14 +163,15 @@ impl ConnectorRenderer {
         &self,
         instances: &mut Vec<LinkInstance>,
         fabric: &Fabric,
+        push_key: IntervalKey,
         push_interval: &crate::fabric::interval::Interval,
         end: IntervalEnd,
         joint_pos: Vec3,
         push_axis: Vec3,
-        dimensions: &FabricDimensions,
+        connector: &ConnectorSystem,
         link_radius: f32,
     ) {
-        let connections = match push_interval.connections(end) {
+        let connections = match connector.connections(push_key, end) {
             Some(c) => c,
             None => return,
         };
@@ -189,8 +194,13 @@ impl ConnectorRenderer {
                     };
 
                     // Use tab_geometry to get snapped positions
-                    let (tab_pos, _tab_bend, pull_end_pos, _ideal) =
-                        dimensions.tab_geometry(joint_pos, push_axis, slot_idx, pull_other_end);
+                    let (tab_pos, _tab_bend, pull_end_pos, _ideal) = connector.tab_geometry(
+                        &fabric.dimensions,
+                        joint_pos,
+                        push_axis,
+                        slot_idx,
+                        pull_other_end,
+                    );
 
                     slot_connections.push((slot_idx, tab_pos, pull_end_pos));
                 }
@@ -208,7 +218,7 @@ impl ConnectorRenderer {
         let mut prev_pos = joint_pos;
 
         for (slot, tab_pos, pull_end_pos) in &slot_connections {
-            let ring_center = dimensions.ring_center(joint_pos, push_axis, *slot);
+            let ring_center = connector.ring_center(joint_pos, push_axis, *slot);
 
             // Axial link: previous position → ring center
             instances.push(LinkInstance {

@@ -56,8 +56,6 @@ new_key_type! {
     pub struct FaceKey;
 }
 
-pub mod attachment;
-pub mod bend_optimizer;
 pub mod brick;
 pub mod dimensions;
 pub mod error;
@@ -73,8 +71,11 @@ pub mod vulcanize;
 pub mod physics_tester;
 
 // Re-export so `crate::fabric::ConnectorDimensions` and `crate::fabric::FabricDimensions`
-// keep working from outside this module.
-pub use dimensions::{tab_angle, FabricDimensions, ConnectorDimensions};
+// keep working from outside this module. Connector code lives in `crate::connector`.
+pub use crate::connector::{
+    attachment, bend_optimizer, tab_angle, ConnectorDimensions, ConnectorSystem,
+};
+pub use dimensions::FabricDimensions;
 
 // Type aliases for SlotMap containers
 pub type Joints = SlotMap<JointKey, Joint>;
@@ -193,6 +194,9 @@ pub struct Fabric {
     pub frozen: bool,
     pub stats: IterationStats,
     pub dimensions: FabricDimensions,
+    /// Physical connector hardware, present only when a large-scale build is
+    /// intended. `None` means connectors play no role anywhere.
+    pub connector: Option<ConnectorSystem>,
     pub labeller: Option<Arc<dyn JointLabeller>>,
 
     cached_bounding_radius: f32,
@@ -207,6 +211,8 @@ pub struct Fabric {
 
 impl Fabric {
     pub fn new(name: String) -> Self {
+        let mut dimensions = FabricDimensions::default();
+        let connector = dimensions.connector.take().map(ConnectorSystem::new);
         Self {
             name,
             age: Age::default(),
@@ -216,14 +222,16 @@ impl Fabric {
             frozen: false,
             stats: IterationStats::default(),
             cached_bounding_radius: 0.0,
-            dimensions: FabricDimensions::default(),
+            dimensions,
+            connector,
             labeller: None,
             approaching_count: 0,
             quiet_since: None,
         }
     }
 
-    pub fn with_dimensions(mut self, dimensions: FabricDimensions) -> Self {
+    pub fn with_dimensions(mut self, mut dimensions: FabricDimensions) -> Self {
+        self.connector = dimensions.connector.take().map(ConnectorSystem::new);
         self.dimensions = dimensions;
         self
     }
@@ -248,65 +256,34 @@ impl Fabric {
         self.dimensions.joint_mass
     }
 
-    /// Update `self.dimensions.connector.bend_magnitudes` with the K-center
-    /// optimal set for this fabric's cable ends. No-op when locked, K=0, or no pulls.
+    /// Update the connector's bend magnitudes with the K-center optimal set
+    /// for this fabric's cable ends. No-op without a connector, when locked,
+    /// K=0, or no pulls.
     pub fn recompute_bend_magnitudes(&mut self) {
-        if self.dimensions.connector.bend_magnitudes_locked {
+        let Some(mut connector) = self.connector.take() else {
             return;
-        }
-        let k = self.dimensions.connector.bend_count;
-        if k == 0 {
+        };
+        connector.recompute_bend_magnitudes(self);
+        self.connector = Some(connector);
+    }
+
+    /// Rebuild the connector's slot assignments for every push interval from
+    /// current geometry. No-op without a connector.
+    pub fn update_all_attachment_connections(&mut self) {
+        let Some(mut connector) = self.connector.take() else {
             return;
-        }
-        let ideals = self.collect_ideal_bend_angles();
-        if ideals.is_empty() {
-            return;
-        }
-        self.dimensions.connector.bend_magnitudes =
-            bend_optimizer::optimize_magnitudes(&ideals, k);
+        };
+        connector.update_all_connections(self);
+        self.connector = Some(connector);
     }
 
     /// Continuous ideal bend angle (degrees) at every cable end.
+    /// Empty without a connector.
     pub fn collect_ideal_bend_angles(&self) -> Vec<f32> {
-        let mut ideals = Vec::new();
-        for (_key, push_interval) in self.intervals.iter() {
-            if !push_interval.has_role(Role::Pushing) {
-                continue;
-            }
-            let alpha_pos = self.joints[push_interval.alpha_key].location;
-            let omega_pos = self.joints[push_interval.omega_key].location;
-            let push_dir = (omega_pos - alpha_pos).normalize();
-
-            for interval_end in [IntervalEnd::Alpha, IntervalEnd::Omega] {
-                let (end_pos, axis_dir, end_key) = match interval_end {
-                    IntervalEnd::Alpha => (alpha_pos, -push_dir, push_interval.alpha_key),
-                    IntervalEnd::Omega => (omega_pos, push_dir, push_interval.omega_key),
-                };
-                let Some(connections) = push_interval.connections(interval_end) else {
-                    continue;
-                };
-                for (slot_idx, conn_opt) in connections.iter().enumerate() {
-                    let Some(connection) = conn_opt else { continue };
-                    let Some(pull_interval) = self.intervals.get(connection.pull_interval_key)
-                    else {
-                        continue;
-                    };
-                    let pull_other_end = if pull_interval.alpha_key == end_key {
-                        self.joints[pull_interval.omega_key].location
-                    } else {
-                        self.joints[pull_interval.alpha_key].location
-                    };
-                    let (_, _, _, ideal_deg) = self.dimensions.tab_geometry(
-                        end_pos,
-                        axis_dir,
-                        slot_idx,
-                        pull_other_end,
-                    );
-                    ideals.push(ideal_deg);
-                }
-            }
-        }
-        ideals
+        self.connector
+            .as_ref()
+            .map(|connector| connector.collect_ideal_bend_angles(self))
+            .unwrap_or_default()
     }
 
     pub fn apply_matrix4(&mut self, matrix: Mat4) {
@@ -824,131 +801,5 @@ impl Fabric {
             omega_position: omega.location,
             omega_velocity: omega.velocity,
         })
-    }
-}
-
-#[cfg(test)]
-mod tab_geometry_tests {
-    use super::*;
-    use glam::Vec3;
-
-    const MM: f32 = 1000.0;
-    const TOL: f32 = 0.001; // 1 micron tolerance
-
-    fn assert_mm(label: &str, actual_m: f32, expected_mm: f32) {
-        let actual_mm = actual_m * MM;
-        let diff = (actual_mm - expected_mm).abs();
-        assert!(
-            diff < TOL * MM,
-            "{}: expected {:.3}mm, got {:.3}mm (diff {:.4}mm)",
-            label, expected_mm, actual_mm, diff
-        );
-    }
-
-    /// Test that ConnectorDimensions formulas produce the correct derived values.
-    /// These are the numbers shown in the CSV header as "Afgeleide waarden".
-    #[test]
-    fn connector_dimension_formulas() {
-        let h = ConnectorDimensions::default();
-        let a = h.push_radius.f32();      // 25mm
-        let b = h.push_radius_margin.f32(); // 2mm
-        let t1 = h.disc_thickness.f32();   // 6mm
-        let t2 = h.disc_separator_thickness.f32(); // 1mm
-        let cap = h.cap_thickness.f32();   // 6mm
-        let d = h.tab_extension.f32();   // 14mm
-        let e = h.tab_hole_diameter.f32(); // 12mm
-        let c = t1 / 2.0;                 // 3mm
-
-        // offset() = A + B + C (radial distance from tube axis to tab pin)
-        assert_mm("offset = A+B+C", h.offset().f32(), (a + b + c) * MM);
-
-        // length() = C + D + E (tab length from disc center to cable endpoint)
-        assert_mm("length = C+D+E", h.length().f32(), (c + d + e) * MM);
-
-        // disc_center_offset(0) = cap + t2 + t1/2
-        assert_mm(
-            "disc_center_offset(0) = cap+t2+t1/2",
-            h.disc_center_offset(0).f32(),
-            (cap + t2 + c) * MM,
-        );
-
-        // disc_center_offset(1) = disc_center_offset(0) + t1 + t2
-        assert_mm(
-            "disc_center_offset(1) - offset(0) = t1+t2",
-            h.disc_center_offset(1).f32() - h.disc_center_offset(0).f32(),
-            (t1 + t2) * MM,
-        );
-
-        // Print summary for engineer verification
-        println!("\n=== Connector dimension check (mm) ===");
-        println!("A  (push_radius):       {:.1}", a * MM);
-        println!("B  (margin):            {:.1}", b * MM);
-        println!("C  (t1/2):              {:.1}", c * MM);
-        println!("D  (tab_extension):   {:.1}", d * MM);
-        println!("E  (hole_diameter):     {:.1}", e * MM);
-        println!("t1 (disc_thickness):    {:.1}", t1 * MM);
-        println!("t2 (disc_separator):    {:.1}", t2 * MM);
-        println!("cap_thickness:          {:.1}", cap * MM);
-        println!();
-        println!("A + B + C = offset():           {:.1}", h.offset().f32() * MM);
-        println!("C + D + E = length():           {:.1}", h.length().f32() * MM);
-        println!("t1 + t2:                        {:.1}", (t1 + t2) * MM);
-        println!("disc_center_offset(0):          {:.1}", h.disc_center_offset(0).f32() * MM);
-        println!("disc_center_offset(1):          {:.1}", h.disc_center_offset(1).f32() * MM);
-    }
-
-    /// Test that the 3D positions produced by ring_center / tab_geometry
-    /// have the exact distances the engineer expects to measure between them.
-    #[test]
-    fn tab_geometry_distances() {
-        let dims = FabricDimensions::default();
-        let h = &dims.connector;
-
-        // Synthetic push interval along +Z axis
-        let push_end = Vec3::ZERO;
-        let push_axis = Vec3::Z;
-        // Pull cable going roughly radially outward in +X
-        let pull_other_end = Vec3::new(1.0, 0.0, 0.2);
-
-        // --- Axial distances (along push axis) ---
-
-        let rc0 = dims.ring_center(push_end, push_axis, 0);
-        let rc1 = dims.ring_center(push_end, push_axis, 1);
-        let rc2 = dims.ring_center(push_end, push_axis, 2);
-
-        // Push end to first disc center
-        let axial_0 = (rc0 - push_end).length();
-        assert_mm("push_end → ring_center(0)", axial_0, h.disc_center_offset(0).f32() * MM);
-
-        // Between consecutive disc centers = t1 + t2
-        let disc_step = (rc1 - rc0).length();
-        assert_mm("ring_center(0) → ring_center(1) = t1+t2", disc_step,
-                  (h.disc_thickness.f32() + h.disc_separator_thickness.f32()) * MM);
-
-        let disc_step_2 = (rc2 - rc1).length();
-        assert_mm("ring_center(1) → ring_center(2) = t1+t2", disc_step_2,
-                  (h.disc_thickness.f32() + h.disc_separator_thickness.f32()) * MM);
-
-        // --- Radial distance (ring center to tab pin) ---
-
-        let (tab_pos, _bend, pull_end_pos, _ideal) =
-            dims.tab_geometry(push_end, push_axis, 0, pull_other_end);
-
-        let radial_dist = (tab_pos - rc0).length();
-        assert_mm("ring_center → tab_pos = offset() = A+B+C", radial_dist,
-                  h.offset().f32() * MM);
-
-        // --- Tab length (tab pin to cable endpoint) = C + D + E ---
-
-        let tab_len = (pull_end_pos - tab_pos).length();
-        assert_mm("tab_pos → pull_end_pos = length() = C+D+E", tab_len,
-                  h.length().f32() * MM);
-
-        // Print summary for engineer
-        println!("\n=== Geometry distance check (mm) ===");
-        println!("push_end → ring_center(0):     {:.3}", axial_0 * MM);
-        println!("ring_center(0) → ring_center(1): {:.3} (= t1+t2)", disc_step * MM);
-        println!("ring_center → tab_pos:       {:.3} (= A+B+C = offset)", radial_dist * MM);
-        println!("tab_pos → pull_end_pos:      {:.3} (= C+D+E = length)", tab_len * MM);
     }
 }

@@ -158,7 +158,7 @@ fn export(fabric: &Fabric, out_path: &PathBuf) -> std::io::Result<()> {
     // and dimensions both use metres at scale 1.0). `centroid` was already
     // captured above for use in the camera path.
     let bounding_radius = fabric.bounding_radius().max(fabric.scale());
-    let push_radius = fabric.dimensions.connector.push_radius.f32();
+    let push_radius = fabric.dimensions.push_radius.f32();
     let pull_radius = fabric.dimensions.pull_radius.f32();
 
     // Emit Python.

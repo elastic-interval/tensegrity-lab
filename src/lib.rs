@@ -8,6 +8,7 @@ pub mod application;
 pub mod build;
 pub mod caliper;
 pub mod camera;
+pub mod connector;
 pub mod control;
 pub mod crucible;
 pub mod crucible_context;

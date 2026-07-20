@@ -8,7 +8,7 @@ use crate::{Appearance, AppearanceMode, IntervalDetails, JointDetails, RenderSty
 
 fn physical_radius(role: Role, dims: &FabricDimensions) -> f32 {
     use Role::*;
-    let push = dims.connector.push_radius.f32();
+    let push = dims.push_radius.f32();
     let pull = dims.pull_radius.f32();
     match role {
         Pushing => push,
@@ -235,100 +235,102 @@ impl CylinderRenderer {
             // For pull-like intervals, connect them to tab positions on push intervals
             // only when attachment points are visible (connector mode)
             if interval.role.is_pull_like() && show_attachment_points {
-                // Use the current index as the pull interval ID
-                let pull_key = interval_key;
-                let dimensions = &fabric.dimensions;
+                if let Some(connector) = fabric.connector.as_ref() {
+                    // Use the current index as the pull interval ID
+                    let pull_key = interval_key;
 
-                // Process both ends of the pull interval
-                let joint_keys = [interval.alpha_key, interval.omega_key];
-                let other_joint_keys = [interval.omega_key, interval.alpha_key];
-                let modified_points = [&mut modified_start, &mut modified_end];
+                    // Process both ends of the pull interval
+                    let joint_keys = [interval.alpha_key, interval.omega_key];
+                    let other_joint_keys = [interval.omega_key, interval.alpha_key];
+                    let modified_points = [&mut modified_start, &mut modified_end];
 
-                // For each end of the pull interval
-                for (i, joint_key) in joint_keys.iter().enumerate() {
-                    let other_joint_pos = fabric.joints[other_joint_keys[i]].location;
+                    // For each end of the pull interval
+                    for (i, joint_key) in joint_keys.iter().enumerate() {
+                        let other_joint_pos = fabric.joints[other_joint_keys[i]].location;
 
-                    // Find all push intervals connected to this joint
-                    for (_push_key, push_interval) in fabric.intervals.iter() {
-                        // Only consider push intervals
-                        if push_interval.has_role(Role::Pushing) {
-                            // Check if this push interval is connected to the current joint
-                            if push_interval.touches(*joint_key) {
-                                // Determine which end of the push interval is connected to the joint
-                                let push_end = if push_interval.alpha_key == *joint_key {
-                                    IntervalEnd::Alpha
-                                } else {
-                                    IntervalEnd::Omega
-                                };
+                        // Find all push intervals connected to this joint
+                        for (push_key, push_interval) in fabric.intervals.iter() {
+                            // Only consider push intervals
+                            if push_interval.has_role(Role::Pushing) {
+                                // Check if this push interval is connected to the current joint
+                                if push_interval.touches(*joint_key) {
+                                    // Determine which end of the push interval is connected to the joint
+                                    let push_end = if push_interval.alpha_key == *joint_key {
+                                        IntervalEnd::Alpha
+                                    } else {
+                                        IntervalEnd::Omega
+                                    };
 
-                                // Get the connection data for this end
-                                if let Some(connections) = push_interval.connections(push_end) {
-                                    // Look for a connection to this pull interval
-                                    for conn in connections.iter() {
-                                        if let Some(pull_conn) = conn {
-                                            if pull_conn.pull_interval_key == pull_key {
-                                                // Found the connection - calculate carabiner position
-                                                let push_alpha_pos =
-                                                    fabric.joints[push_interval.alpha_key].location;
-                                                let push_omega_pos =
-                                                    fabric.joints[push_interval.omega_key].location;
+                                    // Get the connection data for this end
+                                    if let Some(connections) = connector.connections(push_key, push_end) {
+                                        // Look for a connection to this pull interval
+                                        for conn in connections.iter() {
+                                            if let Some(pull_conn) = conn {
+                                                if pull_conn.pull_interval_key == pull_key {
+                                                    // Found the connection - calculate carabiner position
+                                                    let push_alpha_pos =
+                                                        fabric.joints[push_interval.alpha_key].location;
+                                                    let push_omega_pos =
+                                                        fabric.joints[push_interval.omega_key].location;
 
-                                                // Push end position and outward axis
-                                                let (push_end_pos, push_axis) = match push_end {
-                                                    IntervalEnd::Alpha => {
-                                                        let dir = (push_omega_pos - push_alpha_pos)
-                                                            .normalize();
-                                                        (push_alpha_pos, -dir) // Outward from alpha
-                                                    }
-                                                    IntervalEnd::Omega => {
-                                                        let dir = (push_omega_pos - push_alpha_pos)
-                                                            .normalize();
-                                                        (push_omega_pos, dir) // Outward from omega
-                                                    }
-                                                };
+                                                    // Push end position and outward axis
+                                                    let (push_end_pos, push_axis) = match push_end {
+                                                        IntervalEnd::Alpha => {
+                                                            let dir = (push_omega_pos - push_alpha_pos)
+                                                                .normalize();
+                                                            (push_alpha_pos, -dir) // Outward from alpha
+                                                        }
+                                                        IntervalEnd::Omega => {
+                                                            let dir = (push_omega_pos - push_alpha_pos)
+                                                                .normalize();
+                                                            (push_omega_pos, dir) // Outward from omega
+                                                        }
+                                                    };
 
-                                                // Use tab_geometry to get snapped endpoint
-                                                let (_tab_pos, _tab_bend, pull_end_pos, _ideal) =
-                                                    dimensions.tab_geometry(
-                                                        push_end_pos,
-                                                        push_axis,
-                                                        pull_conn.attachment_index,
-                                                        other_joint_pos,
-                                                    );
+                                                    // Use tab_geometry to get snapped endpoint
+                                                    let (_tab_pos, _tab_bend, pull_end_pos, _ideal) =
+                                                        connector.tab_geometry(
+                                                            &fabric.dimensions,
+                                                            push_end_pos,
+                                                            push_axis,
+                                                            pull_conn.attachment_index,
+                                                            other_joint_pos,
+                                                        );
 
-                                                *modified_points[i] = pull_end_pos;
+                                                    *modified_points[i] = pull_end_pos;
 
-                                                // We found the connection, no need to check others
-                                                break;
+                                                    // We found the connection, no need to check others
+                                                    break;
+                                                }
                                             }
                                         }
                                     }
+
+                                    // We found a push interval for this joint, no need to check others
+                                    break;
                                 }
-
-                                // We found a push interval for this joint, no need to check others
-                                break;
                             }
                         }
                     }
-                }
 
-                // Additional processing for selected elements
-                match pick {
-                    // If a push interval is selected, we want to ensure that pull intervals
-                    // connected to it are properly visualized
-                    Pick::Interval(IntervalDetails {
-                        key: picked_key, ..
-                    }) => {
-                        if let Some(push_interval) = fabric.intervals.get(*picked_key) {
-                            if push_interval.has_role(Role::Pushing) {
-                                // We've already handled the basic case above, but we might need
-                                // additional logic for selected push intervals if needed
+                    // Additional processing for selected elements
+                    match pick {
+                        // If a push interval is selected, we want to ensure that pull intervals
+                        // connected to it are properly visualized
+                        Pick::Interval(IntervalDetails {
+                            key: picked_key, ..
+                        }) => {
+                            if let Some(push_interval) = fabric.intervals.get(*picked_key) {
+                                if push_interval.has_role(Role::Pushing) {
+                                    // We've already handled the basic case above, but we might need
+                                    // additional logic for selected push intervals if needed
+                                }
                             }
                         }
+                        // If a joint is selected, we've already handled it in the general case above
+                        Pick::Joint(_) => {}
+                        _ => {}
                     }
-                    // If a joint is selected, we've already handled it in the general case above
-                    Pick::Joint(_) => {}
-                    _ => {}
                 }
             }
 

@@ -175,7 +175,8 @@ impl FabricName {
                 .build(
                     FabricDimensions::default()
                         .with_altitude(M(12.0))
-                        .with_scale(M(1.0)),
+                        .with_scale(M(1.0))
+                        .with_connector(),
                 )
                 .seed(OmniSymmetrical, Seed(2))
                 .faces([
