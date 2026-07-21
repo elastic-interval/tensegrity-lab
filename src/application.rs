@@ -37,6 +37,10 @@ struct NativeState {
     gpu_batch: Option<GpuBatch>,
 }
 
+/// True when compiled for the web. The web build is pure mouse-driven: no
+/// keyboard, no selection.
+const WEB: bool = cfg!(target_arch = "wasm32");
+
 /// Show-mode state (cycle): walk through every named fabric, pause
 /// `CYCLE_DWELL` after each one completes (`FabricBuilt`), then move to
 /// the next. Triggered by the native `--cycle` flag; always on in WASM.
@@ -139,9 +143,11 @@ impl Application {
     }
 
     fn redraw(&mut self) {
-        // Update keyboard legend
-        StateChange::SetKeyboardLegend(self.keyboard.legend(&self.control_state).join(", "))
-            .send(&self.radio);
+        // Update keyboard legend (the web build has no keyboard, so no legend)
+        if !WEB {
+            StateChange::SetKeyboardLegend(self.keyboard.legend(&self.control_state).join(", "))
+                .send(&self.radio);
+        }
 
         let has_surface = self.crucible.physics.surface.is_some();
         let delta = self.last_frame_secs;
@@ -556,10 +562,13 @@ impl ApplicationHandler<LabEvent> for Application {
                 match &app_change {
                     StateChange::SetControlState(control_state) => {
                         self.control_state = control_state.clone();
-                        StateChange::SetKeyboardLegend(
-                            self.keyboard.legend(control_state).join(", "),
-                        )
-                        .send(&self.radio);
+                        // The web build has no keyboard, so no legend.
+                        if !WEB {
+                            StateChange::SetKeyboardLegend(
+                                self.keyboard.legend(control_state).join(", "),
+                            )
+                            .send(&self.radio);
+                        }
                     }
                     StateChange::SetTweakParameter(parameter) => {
                         self.keyboard.set_tweak_parameter(parameter);
@@ -574,10 +583,12 @@ impl ApplicationHandler<LabEvent> for Application {
                             parameter.clone(),
                         ))
                         .send(&self.radio);
-                        StateChange::SetKeyboardLegend(
-                            self.keyboard.legend(&self.control_state).join(", "),
-                        )
-                        .send(&self.radio);
+                        if !WEB {
+                            StateChange::SetKeyboardLegend(
+                                self.keyboard.legend(&self.control_state).join(", "),
+                            )
+                            .send(&self.radio);
+                        }
                     }
                     _ => {}
                 }
@@ -694,6 +705,10 @@ impl ApplicationHandler<LabEvent> for Application {
             WindowEvent::KeyboardInput {
                 event: key_event, ..
             } => {
+                // The web build is pure mouse-driven — ignore all keyboard input.
+                if WEB {
+                    return;
+                }
                 // In Show mode the bottom legend is hidden, so we
                 // suppress all key bindings too — only window-level keys
                 // (e.g. CloseRequested via Cmd+W / Alt+F4) still work.

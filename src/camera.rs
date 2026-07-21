@@ -21,6 +21,9 @@ const TARGET_APPROACH_THRESHOLD: f32 = 0.001;
 const CAMERA_MOVE_SPEED: f32 = 0.6;
 const ZOOM_SPEED: f32 = 1.5;
 const ZOOM_DURATION: f32 = 3.0;
+/// Per-second response of the smoothed wheel zoom: a wheel notch's distance is
+/// eased in over a few frames rather than applied in one jerky jump.
+const ZOOM_SMOOTHING: f32 = 12.0;
 
 /// Exponential damping rate for `tend_toward`: each second the camera
 /// closes ~`1 - exp(-TENDENCY_RATE)` of the remaining distance to its
@@ -79,6 +82,8 @@ pub struct Camera {
     /// A goal (position, look_at) the camera is gently drifting toward.
     /// Cancelled by any user drag. See `pursue_tendency`.
     tendency: Option<(Vec3, Vec3)>,
+    /// Outstanding wheel-zoom distance still to be eased in (smooth zoom).
+    zoom_momentum: f32,
 }
 
 impl Camera {
@@ -99,6 +104,7 @@ impl Camera {
             last_ray_origin: Vec3::ZERO,
             initialized: false,
             tendency: None,
+            zoom_momentum: 0.0,
         }
     }
 
@@ -389,11 +395,9 @@ impl Camera {
             }
             PointerChange::Zoomed(delta) => {
                 self.cancel_drift();
-                let gaze = self.look_at - self.position;
-                // Allow zooming as long as we don't get too close (minimum 0.1 distance)
-                if gaze.length() - delta > 0.1 {
-                    self.position += gaze.normalize() * delta;
-                }
+                // Accumulate the notch; `target_approach` eases it in over a few
+                // frames each tick, so the zoom glides instead of jumping.
+                self.zoom_momentum += delta;
             }
             PointerChange::Pressed => {
                 // For mouse events, set the follower to the current position
@@ -630,6 +634,24 @@ impl Camera {
                 // We're still working if we need to adjust zoom
                 working = true;
             }
+        }
+
+        // Smooth wheel zoom: ease in a fraction of the outstanding momentum each
+        // frame (frame-rate independent) so the move glides instead of jumping.
+        if self.zoom_momentum.abs() > 1e-4 {
+            let fraction = (ZOOM_SMOOTHING * capped_delta_time).min(1.0);
+            let step = self.zoom_momentum * fraction;
+            let gaze = self.look_at - self.position;
+            // Don't zoom in past a minimum distance.
+            if gaze.length() - step > 0.1 {
+                self.position += gaze.normalize() * step;
+                self.zoom_momentum -= step;
+            } else {
+                self.zoom_momentum = 0.0;
+            }
+            working = true;
+        } else {
+            self.zoom_momentum = 0.0;
         }
 
         // Handle camera orientation limits (allow viewing from ~18° from vertical)

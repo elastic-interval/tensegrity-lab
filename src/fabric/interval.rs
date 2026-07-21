@@ -544,11 +544,21 @@ impl Interval {
         joints[alpha_key].force += force_vector;
         joints[omega_key].force -= force_vector;
 
-        // Mass from linear density × length
-        let interval_mass = dimensions.linear_density(self.material, physics) * actual_length;
+        // Mass: a constant per identical telescoping strut when declared, else the
+        // length-proportional density.
+        let interval_mass = match dimensions.strut_mass {
+            Some(strut_mass) if self.role == Pushing => strut_mass,
+            _ => dimensions.linear_density(self.material, physics) * actual_length,
+        };
         let half_mass = interval_mass / 2.0;
         joints[alpha_key].accumulated_mass += half_mass;
         joints[omega_key].accumulated_mass += half_mass;
+
+        // Cable-end fork terminals as node point masses (real self-weight model only).
+        if dimensions.strut_mass.is_some() && self.role == Pulling {
+            joints[alpha_key].accumulated_mass += dimensions.pull_end_mass;
+            joints[omega_key].accumulated_mass += dimensions.pull_end_mass;
+        }
 
         transition
     }

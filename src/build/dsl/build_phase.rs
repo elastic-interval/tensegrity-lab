@@ -1,6 +1,7 @@
 use crate::build::dsl::brick::{Axis, BrickPrototype};
 use crate::build::dsl::brick_dsl::FaceName::AttachNext;
-use crate::build::dsl::brick_dsl::{BrickName, BrickRole, FaceLabel, JointName, OmniCategory};
+use crate::build::dsl::brick_dsl::{BrickName, BrickRole, FaceLabel, JointName, OmniCategory, Side};
+use crate::build::dsl::labelling::LabelSymmetry;
 use crate::build::dsl::build_phase::BuildNode::*;
 use crate::build::dsl::build_phase::Launch::*;
 use crate::build::dsl::fabric_dsl::Rotation;
@@ -11,7 +12,7 @@ use crate::fabric::joint::JointLabel;
 use crate::fabric::joint_path::{JointPath, COLUMN_MARKER, PRISM_MARKER};
 use crate::fabric::{Fabric, FaceKey, JointKey};
 use crate::units::{Percent, Unit};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::Into;
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -356,6 +357,8 @@ impl BuildPhase {
                         &joint_names,
                         &axis_to_letter,
                     );
+                    fabric.label_symmetry =
+                        Self::seed_label_symmetry(face_nodes, &face_letters, &proto, resolved_role);
                 } else {
                     label_off_axis_joints(
                         fabric,
@@ -523,6 +526,91 @@ impl BuildPhase {
             }
         }
         map
+    }
+
+    /// Derive the fabric's label-level symmetry from the seed: `Cyclic` when
+    /// the seed brick's `cyclic_axes` declaration maps one-to-one onto the
+    /// lettered seed faces (letter order follows the axis cycle), else
+    /// `Mirror` when the lettered faces pair up under `Side::Left ↔ Right`
+    /// in their subtree face labels, else `None`.
+    fn seed_label_symmetry(
+        face_nodes: &[BuildNode],
+        face_letters: &[Option<char>],
+        proto: &BrickPrototype,
+        role: BrickRole,
+    ) -> Option<LabelSymmetry> {
+        let lettered: Vec<(usize, char)> = face_letters
+            .iter()
+            .enumerate()
+            .filter_map(|(index, letter)| letter.map(|c| (index, c)))
+            .collect();
+        if lettered.len() < 2 {
+            return None;
+        }
+
+        // Cyclic: the declared axis cycle maps one-to-one onto the lettered faces.
+        if let Some(axes) = proto.cyclic_axes_for(role) {
+            if lettered.len() == axes.len() {
+                let axis_to_letter = Self::seed_axis_to_letter(face_nodes, face_letters);
+                let letters: Option<Vec<char>> = axes
+                    .iter()
+                    .map(|axis| axis_to_letter.get(axis).copied())
+                    .collect();
+                if let Some(letters) = letters {
+                    return Some(LabelSymmetry::Cyclic { letters });
+                }
+            }
+        }
+
+        // Mirror: every lettered face must have a distinct partner whose
+        // subtree face labels are the same with Side flipped.
+        let sets: Vec<(char, HashSet<FaceLabel>)> = lettered
+            .iter()
+            .map(|&(index, letter)| (letter, Self::face_label_set(&face_nodes[index])))
+            .collect();
+        let mut pairs = Vec::new();
+        let mut used = vec![false; sets.len()];
+        for i in 0..sets.len() {
+            if used[i] {
+                continue;
+            }
+            let mirrored: Option<HashSet<FaceLabel>> =
+                sets[i].1.iter().map(|&label| mirrored_face_label(label)).collect();
+            let mirrored = mirrored?;
+            let j = (i + 1..sets.len()).find(|&j| !used[j] && sets[j].1 == mirrored)?;
+            used[i] = true;
+            used[j] = true;
+            pairs.push((sets[i].0, sets[j].0));
+        }
+        Some(LabelSymmetry::Mirror { pairs })
+    }
+
+    /// All `FaceLabel`s appearing anywhere in a face node's subtree.
+    fn face_label_set(face_node: &BuildNode) -> HashSet<FaceLabel> {
+        let mut set = HashSet::new();
+        face_node.traverse(&mut |n| {
+            if let Label { face_label } = n {
+                set.insert(*face_label);
+            }
+        });
+        set
+    }
+}
+
+/// The `Side`-flipped counterpart of a face label, `None` for labels that
+/// carry no side (they cannot participate in a mirror pairing).
+fn mirrored_face_label(label: FaceLabel) -> Option<FaceLabel> {
+    use FaceLabel::*;
+    let flip = |side: Side| match side {
+        Side::Left => Side::Right,
+        Side::Right => Side::Left,
+    };
+    match label {
+        Foot(side) => Some(Foot(flip(side))),
+        Hand(side) => Some(Hand(flip(side))),
+        ChestUpper(side) => Some(ChestUpper(flip(side))),
+        ChestLower(side) => Some(ChestLower(flip(side))),
+        Bottom(_) | Top(_) | Tip(_) => None,
     }
 }
 

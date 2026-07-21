@@ -4,6 +4,7 @@
  */
 
 use crate::build::dsl::brick_dsl::{BrickRole, FaceName};
+use crate::build::dsl::labelling::LabelSymmetry;
 use crate::fabric::face::Face;
 use crate::fabric::interval::Span::Fixed;
 use crate::fabric::interval::SpanTransition;
@@ -198,6 +199,9 @@ pub struct Fabric {
     /// intended. `None` means connectors play no role anywhere.
     pub connector: Option<ConnectorSystem>,
     pub labeller: Option<Arc<dyn JointLabeller>>,
+    /// Label-level symmetry group derived from the seed at build time
+    /// (letter permutation on `JointLabel`); `None` for asymmetric fabrics.
+    pub label_symmetry: Option<LabelSymmetry>,
 
     cached_bounding_radius: f32,
     approaching_count: usize,
@@ -225,6 +229,7 @@ impl Fabric {
             dimensions,
             connector,
             labeller: None,
+            label_symmetry: None,
             approaching_count: 0,
             quiet_since: None,
         }
@@ -730,22 +735,34 @@ impl Fabric {
     fn calculate_total_mass(&self, physics: &Physics) -> Grams {
         let mut total_mass = Grams(0.0);
 
-        // Connector head + per-joint hardware share, once per joint.
-        total_mass += self.dimensions.joint_mass * self.joints.len() as f32;
+        // Connector head + per-joint hardware share, once per joint —
+        // unless the joint carries its own point mass.
+        for joint in self.joints.values() {
+            total_mass += joint.point_mass.unwrap_or(self.dimensions.joint_mass);
+        }
 
         let mut pulling_count: usize = 0;
         for interval in self.intervals.values() {
             let alpha = &self.joints[interval.alpha_key];
             let omega = &self.joints[interval.omega_key];
             let real_length = Meters((omega.location - alpha.location).length());
-            total_mass +=
-                self.dimensions.linear_density(interval.material, physics) * real_length;
+            match self.dimensions.strut_mass {
+                // Real self-weight model: each strut is the same telescoping
+                // unit (outer + inner tubes) regardless of assembled length.
+                Some(strut_mass) if interval.role == Role::Pushing => {
+                    total_mass += strut_mass;
+                }
+                _ => {
+                    total_mass +=
+                        self.dimensions.linear_density(interval.material, physics) * real_length;
 
-            // Telescoping inner tubes inside each push strut: total length
-            // ≈ one full outer-tube length per strut. Reported here (not
-            // included in the integrator's per-interval mass).
-            if interval.role == Role::Pushing {
-                total_mass += self.dimensions.inner_push_density * real_length;
+                    // Telescoping inner tubes inside each push strut: total length
+                    // ≈ one full outer-tube length per strut. Reported here (not
+                    // included in the integrator's per-interval mass).
+                    if interval.role == Role::Pushing {
+                        total_mass += self.dimensions.inner_push_density * real_length;
+                    }
+                }
             }
             if interval.role == Role::Pulling {
                 pulling_count += 1;

@@ -12,7 +12,9 @@ use std::fmt::{self, Display, Formatter};
 
 /// Engraver-friendly joint label. `OffAxis` reads as `<letter><brick>.<position>`
 /// (limb joints); `Axial` reads as `Z<index>` (apex / on-mirror / unsymmetric).
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+/// Ordering is derived (OffAxis before Axial, then by letter/brick/position),
+/// giving `LabelSymmetry::orbit_key` its canonical minimum.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum JointLabel {
     OffAxis { letter: char, brick: u8, position: u8 },
     Axial { index: u16 },
@@ -95,6 +97,9 @@ pub struct Joint {
     pub force: Vec3,
     pub velocity: Vec3,
     pub accumulated_mass: Grams,
+    /// Own base mass when this joint isn't a normal connector hub (e.g. a point
+    /// along a bendable cable). `None` means use the fabric's `joint_mass`.
+    pub point_mass: Option<Grams>,
 }
 
 impl Joint {
@@ -106,17 +111,18 @@ impl Joint {
             force: Vec3::ZERO,
             velocity: Vec3::ZERO,
             accumulated_mass: AMBIENT_MASS,
+            point_mass: None,
         }
     }
 
     pub fn reset(&mut self) {
         self.force = Vec3::ZERO;
-        self.accumulated_mass = AMBIENT_MASS;
+        self.accumulated_mass = self.point_mass.unwrap_or(AMBIENT_MASS);
     }
 
     pub fn reset_with_mass(&mut self, ambient_mass: Grams) {
         self.force = Vec3::ZERO;
-        self.accumulated_mass = ambient_mass;
+        self.accumulated_mass = self.point_mass.unwrap_or(ambient_mass);
     }
 
     /// Half-kick: update velocity by half timestep using current force
