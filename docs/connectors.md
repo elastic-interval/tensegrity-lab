@@ -40,7 +40,7 @@ t_boss   = 5.0     # boss thickness along the ring axis (flush with the ring)
 # ---- Cross-tube (welded to the flat; axis perpendicular to the ring axis) ----
 D_tube   = 20.0    # tube outer diameter (4 mm wall around the 12 mm bore)
 d_tube   = 12.0    # tube bore diameter (takes a 10 mm pin, +2 clearance to pivot)
-L_tube   = 6.0     # tube length along its own axis (fits between a fork's jaws)
+L_tube   = 10.0    # tube length along its own axis (fills a fork's jaws; estimated from site photo, verify with caliper)
 seat     = 2.0     # depth the flat cuts into the tube wall (½ of the 4 mm wall) → flat weld land
 
 # ---- Derived ----
@@ -61,7 +61,7 @@ The simulation's `ConnectorDimensions` carries the subset it needs: `ring_thickn
 1. **Ring** — solid cylinder, diameter `D_ring` (40), height `t_ring` (5), axis along Z, centred at the origin.
 2. **Boss** — rectangular block spanning **x ∈ [0, R_flat] = [0, 24]**, **y ∈ [−w_boss/2, +w_boss/2] = [−6, +6]**, **z ∈ [−t_boss/2, +t_boss/2] = [−2.5, +2.5]**. **Union** with the ring. Its outer face is the flat at **x = R_flat = 24**.
 3. **Central hole** — subtract a cylinder of diameter `d_bore` (13), axis along Z, passing fully through the body.
-4. **Cross-tube** — build a cylinder of outer diameter `D_tube` (20), length `L_tube` (6), **axis along Y**, centred at **(x, y, z) = (R_tube, 0, 0) = (32, 0, 0)**; subtract its bore of diameter `d_tube` (12) along the same Y axis. **Union** with the body. The tube is **seated `seat` = 2 mm into the flat** (its outer wall reaches x = 22, so the flat at x = 24 cuts a flat land into the wall), leaving 2 mm of wall to the bore — a flat weld land ~12 mm wide (chord z = ±6) instead of a tangent line.
+4. **Cross-tube** — build a cylinder of outer diameter `D_tube` (20), length `L_tube` (10), **axis along Y**, centred at **(x, y, z) = (R_tube, 0, 0) = (32, 0, 0)**; subtract its bore of diameter `d_tube` (12) along the same Y axis. **Union** with the body. The tube is **seated `seat` = 2 mm into the flat** (its outer wall reaches x = 22, so the flat at x = 24 cuts a flat land into the wall), leaving 2 mm of wall to the bore — a flat weld land ~12 mm wide (chord z = ±6) running the tube's full 10 mm length, instead of a tangent line. The boss flat (`w_boss` = 12 along Y) is wide enough to back the whole 10 mm tube.
 5. **Result** — one solid with exactly two openings: the Ø13 central hole (axis Z) and the Ø12 tube bore (axis Y).
 
 Optional for a display model: add a fillet weld bead around the land where the tube meets the flat (around x ≈ 24, over the boss height z ∈ [−2.5, +2.5]).
@@ -88,7 +88,7 @@ w_boss  = 12.0     # boss width (tangential)
 t_boss  = 5.0      # boss thickness (along axis)
 D_tube  = 20.0     # tube outer diameter (4 mm wall)
 d_tube  = 12.0     # tube bore (takes a 10 mm pin)
-L_tube  = 6.0      # tube length
+L_tube  = 10.0     # tube length
 seat    = 2.0      # flat cuts 2 mm into the tube wall (weld land)
 R_tube  = R_flat + D_tube/2.0 - seat   # = 32.0
 SEG     = 96       # cylinder smoothness
@@ -217,7 +217,7 @@ print("Connector built + scene ready. Press F12 to render.")
 
 ### Background (not part of the spec — how the numbers were chosen)
 
-`d_bore` 13 = an M12 bolt + clearance · `t_ring` 5 = the existing steel plate thickness · `d_tube` 12 = the 10 mm clevis pin + 2 mm play · `D_ring` 40 = the existing cap-plate diameter · `L_tube` 6, `t_boss` 5, `t_tube_wall` 4 (→ `D_tube` 20), `e_boss` 4, `seat` 2 are working design choices.
+`d_bore` 13 = an M12 bolt + clearance · `t_ring` 5 = the existing steel plate thickness · `d_tube` 12 = the 10 mm clevis pin + 2 mm play · `D_ring` 40 = the existing cap-plate diameter · `L_tube` 10 ≈ the fork's inner jaw gap, estimated from a site photo of the old tab-in-fork connection (5 mm tab + ~2.5 mm shim washer each side) · `t_boss` 5, `t_tube_wall` 4 (→ `D_tube` 20), `e_boss` 4, `seat` 2 are working design choices.
 
 **Weld seat:** the tube is set `seat` = 2 mm into the flat (½ the 4 mm wall), giving a flat land ~12 mm wide for a flat-on-flat weld instead of a tangent line, while keeping 2 mm of wall to the bore.
 
@@ -276,14 +276,15 @@ The elevation is purely informational — nothing is manufactured to an angle; i
 
 ## Rendering
 
-The connector assembly is rendered by `ConnectorRenderer` (`src/wgpu/connector_renderer.rs`) as two types of colored links:
+The connector assembly is rendered by `ConnectorRenderer` (`src/wgpu/connector_renderer.rs`) as symbolic solid steel parts:
 
-| Link Type | Color | Connects |
-|-----------|-------|----------|
-| **Axial** | Yellow | Previous ring center (or strut end) to current ring center |
-| **Radial** | Orange | Ring center to pivot pin |
+| Part | Shape | Dimensions |
+|------|-------|------------|
+| **Cap** | Flush cylindrical continuation of the strut tube | `cap_thickness` long, strut radius |
+| **Ring + boss** | One flat plate per occupied slot: a disc with the boss as part of its outline, aimed at the cable | `ring_thickness` thick, disc radius = strut radius (D_ring/2), boss to R_flat |
+| **Cross-tube** | Stubby cylinder along the tangent at the pivot | D_tube/2 × L_tube |
 
-The cable itself (drawn by `cylinder_renderer.rs`) ends at the pivot pin. Rendering is only visible when `show_attachment_points()` is enabled in the render style.
+The plate uses its own mesh and pipeline (`create_connector_plate`, `plate_vertex` in `shader.wgsl`) because its instances need a full orientation — the boss must point toward the cable, whereas a plain cylinder instance leaves the azimuth arbitrary. Washer gaps are left as empty space, so the stack reads as separate rings. The cable itself (drawn by `cylinder_renderer.rs`, at the true 6 mm cable diameter via `pull_radius`) ends at the pivot pin and disappears inside the cross-tube, so the attachment reads as a solid connection. Rendering is only visible when `show_attachment_points()` is enabled in the render style.
 
 ## CSV Export
 

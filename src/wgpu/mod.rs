@@ -271,6 +271,26 @@ impl Wgpu {
         label: &str,
         instance_buffer_layout: wgpu::VertexBufferLayout<'_>,
     ) -> wgpu::RenderPipeline {
+        self.create_instanced_pipeline(label, instance_buffer_layout, "fabric_vertex")
+    }
+
+    /// Same as `create_fabric_pipeline` but for the connector plate mesh,
+    /// whose instances carry a full orientation (the boss must point at the
+    /// cable, so the azimuth can't be left to the cylinder matrix).
+    pub fn create_plate_pipeline(
+        &self,
+        label: &str,
+        instance_buffer_layout: wgpu::VertexBufferLayout<'_>,
+    ) -> wgpu::RenderPipeline {
+        self.create_instanced_pipeline(label, instance_buffer_layout, "plate_vertex")
+    }
+
+    fn create_instanced_pipeline(
+        &self,
+        label: &str,
+        instance_buffer_layout: wgpu::VertexBufferLayout<'_>,
+        vertex_entry: &str,
+    ) -> wgpu::RenderPipeline {
         let pipeline_layout = self
             .device
             .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -286,7 +306,7 @@ impl Wgpu {
                 vertex: wgpu::VertexState {
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                     module: &self.shader,
-                    entry_point: Some("fabric_vertex"),
+                    entry_point: Some(vertex_entry),
                     buffers: &[Self::cylinder_vertex_layout(), instance_buffer_layout],
                 },
                 fragment: Some(wgpu::FragmentState {

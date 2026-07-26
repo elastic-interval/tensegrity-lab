@@ -77,6 +77,53 @@ fn build_cylinder_matrix(start: vec3<f32>, end: vec3<f32>, radius_factor: f32) -
     );
 }
 
+// Connector plate (ring + boss) instance: full orientation is needed because
+// the boss must point toward the cable, unlike a cylinder whose azimuth is free.
+struct PlateInput {
+    @location(0) position: vec3<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+
+    // Instance attributes
+    @location(3) center_radius: vec4<f32>,   // ring centre + ring radius
+    @location(4) axis_thickness: vec4<f32>,  // unit strut axis + plate thickness
+    @location(5) boss_dir: vec4<f32>,        // unit radial (boss) direction + unused
+    @location(6) color: vec4<f32>,
+};
+
+@vertex
+fn plate_vertex(in: PlateInput) -> VertexOutput {
+    let center = in.center_radius.xyz;
+    let radius = in.center_radius.w;
+    let y_axis = normalize(in.axis_thickness.xyz);
+    let thickness = in.axis_thickness.w;
+    let x_axis = normalize(in.boss_dir.xyz);
+    let z_axis = cross(x_axis, y_axis);
+
+    let model_matrix = mat4x4<f32>(
+        vec4<f32>(x_axis * radius, 0.0),
+        vec4<f32>(y_axis * thickness, 0.0),
+        vec4<f32>(z_axis * radius, 0.0),
+        vec4<f32>(center, 1.0)
+    );
+
+    let world_position = model_matrix * vec4<f32>(in.position, 1.0);
+    let normal_matrix = mat3x3<f32>(
+        normalize(model_matrix[0].xyz),
+        normalize(model_matrix[1].xyz),
+        normalize(model_matrix[2].xyz)
+    );
+
+    var out: VertexOutput;
+    out.clip_position = uniforms.mvp_matrix * world_position;
+    out.world_position = world_position.xyz;
+    out.world_normal = normalize(normal_matrix * in.normal);
+    out.uv = in.uv;
+    out.color = in.color;
+    out.material_type = 0u;
+    return out;
+}
+
 @vertex
 fn fabric_vertex(in: VertexInput) -> VertexOutput {
     // Build model matrix on the GPU

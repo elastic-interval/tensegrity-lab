@@ -44,7 +44,7 @@ pub struct CylinderRenderer {
 
 impl CylinderRenderer {
     pub fn new(wgpu: &Wgpu) -> Self {
-        let (vertex_buffer, index_buffer, num_indices) = wgpu.create_cylinder();
+        let (vertex_buffer, index_buffer, num_indices) = wgpu.create_cylinder(12);
 
         let instance_layout = wgpu::VertexBufferLayout {
             array_stride: size_of::<CylinderInstance>() as wgpu::BufferAddress,

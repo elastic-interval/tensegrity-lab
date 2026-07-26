@@ -38,7 +38,8 @@ impl Default for FabricDimensions {
             altitude: Meters(7.5),
             scale: Meters(1.0),
             push_radius: Meters(0.02),
-            pull_radius: Meters(0.007),
+            // Real cables are 6 mm; render them true to size.
+            pull_radius: Meters(0.003),
             connector: None,
             joint_mass: Grams(1800.0),
             push_density: GramsPerMeter(800.0),
