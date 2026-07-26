@@ -73,9 +73,7 @@ pub mod physics_tester;
 
 // Re-export so `crate::fabric::ConnectorDimensions` and `crate::fabric::FabricDimensions`
 // keep working from outside this module. Connector code lives in `crate::connector`.
-pub use crate::connector::{
-    attachment, bend_optimizer, tab_angle, ConnectorDimensions, ConnectorSystem,
-};
+pub use crate::connector::{attachment, pivot_angle, ConnectorDimensions, ConnectorSystem};
 pub use dimensions::FabricDimensions;
 
 // Type aliases for SlotMap containers
@@ -261,17 +259,6 @@ impl Fabric {
         self.dimensions.joint_mass
     }
 
-    /// Update the connector's bend magnitudes with the K-center optimal set
-    /// for this fabric's cable ends. No-op without a connector, when locked,
-    /// K=0, or no pulls.
-    pub fn recompute_bend_magnitudes(&mut self) {
-        let Some(mut connector) = self.connector.take() else {
-            return;
-        };
-        connector.recompute_bend_magnitudes(self);
-        self.connector = Some(connector);
-    }
-
     /// Rebuild the connector's slot assignments for every push interval from
     /// current geometry. No-op without a connector.
     pub fn update_all_attachment_connections(&mut self) {
@@ -282,12 +269,12 @@ impl Fabric {
         self.connector = Some(connector);
     }
 
-    /// Continuous ideal bend angle (degrees) at every cable end.
+    /// Free pivot elevation angle (degrees) at every cable end.
     /// Empty without a connector.
-    pub fn collect_ideal_bend_angles(&self) -> Vec<f32> {
+    pub fn collect_pivot_angles(&self) -> Vec<f32> {
         self.connector
             .as_ref()
-            .map(|connector| connector.collect_ideal_bend_angles(self))
+            .map(|connector| connector.collect_pivot_angles(self))
             .unwrap_or_default()
     }
 

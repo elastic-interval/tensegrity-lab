@@ -42,7 +42,7 @@ impl FabricName {
                 .build(
                     FabricDimensions::default()
                         .with_scale(M(0.80))
-                        .with_locked_bend_magnitudes(vec![12.0, 30.0, 49.0, 68.0]),
+                        .with_connector(),
                 )
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([

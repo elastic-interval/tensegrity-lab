@@ -101,22 +101,25 @@ in `Default::default()` and are the source of truth.
 ### Connector (optional plugin) — `src/connector/`
 
 All physical-connector code lives in `src/connector/`, adjacent to the
-simulation — nothing there participates in the physics tick:
-- `dimensions.rs` — `ConnectorDimensions` (disc/cap thicknesses, tab hole,
-  bend-magnitude inventory) plus tab/ring geometry (`tab_geometry`,
-  `ring_center`), with the inline `tab_geometry_tests`.
-- `attachment.rs` — `PullConnections`, `TabBend`, slot-assignment optimiser.
-- `bend_optimizer.rs` — K-center optimiser for bend magnitudes.
+simulation — nothing there participates in the physics tick. The part itself
+(spec in `docs/connectors.md`) is a flat ring turning on an axial bolt with a radial
+boss ending in a cross-tube; the cable's fork pivots on a pin through that
+tube. Azimuth (ring on bolt) and elevation (fork on pin) are both free, so
+every connector is geometrically identical — there are no manufactured bend
+angles or per-position variants:
+- `dimensions.rs` — `ConnectorDimensions` (ring/washer/cap thickness, pivot
+  radius) plus ring/pivot geometry (`pivot_geometry`, `ring_center`), with
+  the inline `pivot_geometry_tests`.
+- `attachment.rs` — `PullConnections`, slot-assignment optimiser.
 - `system.rs` — `ConnectorSystem`: owns `ConnectorDimensions` and a
   `SecondaryMap<IntervalKey, PullConnections>` of slot assignments.
 
-Fabrics opt in per plan via `FabricDimensions::with_connector()` (or
-implicitly via `with_locked_bend_magnitudes`); the config becomes
-`Fabric::connector` at construction. `None` (the default) means connectors
-play no role anywhere: no slot assignment, no bend recompute, no rendering,
-and the C-key toggle is inert. Slot assignments are rebuilt on demand
-(Viewing entry, attachment-point toggle-ON, CSV export) — not incrementally
-during build.
+Fabrics opt in per plan via `FabricDimensions::with_connector()`; the config
+becomes `Fabric::connector` at construction. `None` (the default) means
+connectors play no role anywhere: no slot assignment, no rendering, and the
+C-key toggle is inert. Slot assignments are rebuilt on demand (Viewing
+entry, attachment-point toggle-ON, CSV export) — not incrementally during
+build.
 
 ### Time
 
@@ -134,8 +137,8 @@ during build.
 - `Animating(Animator)` — runs DSL-defined actuators.
 - `PhysicsTesting(PhysicsTester)` — real-time gravity test.
 
-Transitions go through `finalize_to_viewing()` which also recomputes tab bend
-magnitudes (see `Fabric::recompute_bend_magnitudes`).
+Transitions go through `finalize_to_viewing()` which also rebuilds the
+connector slot assignments (`Fabric::update_all_attachment_connections`).
 
 ### Build pipeline
 
@@ -212,9 +215,8 @@ src/
 ├── animation_export.rs # JSON export for Blender (native only)
 │
 ├── connector/          # Physical connector plugin (optional per fabric)
-│   ├── dimensions.rs   # ConnectorDimensions, tab_geometry, tab_geometry_tests
-│   ├── attachment.rs   # PullConnections, TabBend, slot assignment
-│   ├── bend_optimizer.rs  # K-center optimiser for bend magnitudes
+│   ├── dimensions.rs   # ConnectorDimensions, pivot_geometry, pivot_geometry_tests
+│   ├── attachment.rs   # PullConnections, slot assignment
 │   └── system.rs       # ConnectorSystem (dims + per-push slot assignments)
 │
 ├── fabric/
@@ -237,7 +239,7 @@ src/
 │   └── dsl/            # Tenscript DSL builders + executors
 │
 ├── open_claw_symmetry.rs # OpenClaw threefold-symmetry enforcement + CSV export
-├── open_claw_test.rs   # OpenClaw build/geometry tests (base triangle, feet, bend counts)
+├── open_claw_test.rs   # OpenClaw build/geometry tests (base triangle, feet)
 ├── wgpu/               # Rendering (see Rendering section)
 └── physics_gpu/        # GPU compute (native; see docs/gpu-compute-backend.md)
 ```
@@ -253,12 +255,11 @@ cargo test --release
 Important integration tests:
 - `src/open_claw_symmetry.rs` — `test_open_claw_threefold_symmetry` (writes
   the engineering CSV and asserts every rotational triple is symmetric in
-  length, slot, and bend) and `test_open_claw_cable_triples`.
+  length and slot) and `test_open_claw_cable_triples`.
 - `src/open_claw_test.rs` — `test_open_claw_base_triangle`,
-  `test_open_claw_foot_positions`, `test_open_claw_bend_counts_match_factory_inventory`.
+  `test_open_claw_foot_positions`.
 - `src/physics_gpu/parity_test.rs` — CPU vs GPU numeric parity.
-- `src/connector/dimensions.rs` (inline `tab_geometry_tests`) — derived dimension formulas.
-- `src/connector/bend_optimizer.rs` (inline tests) — k-center DP correctness.
+- `src/connector/dimensions.rs` (inline `pivot_geometry_tests`) — derived dimension formulas.
 
 ## Entry Points
 
@@ -278,9 +279,10 @@ trunk serve
 1. **Iterations per frame is computed, not constant.** Don't hardcode iteration
    counts; let the outer loop do `time_scale × iterations_per_second / fps`.
 
-2. **Convergence is build, not testing.** Tab bend magnitudes are recomputed
-   on entering Viewing (`Crucible::finalize_to_viewing`). Don't trigger that
-   from elsewhere.
+2. **Slot assignment is rebuilt, not incremental.** Connector slot
+   assignments are recomputed on entering Viewing
+   (`Crucible::finalize_to_viewing`), attachment-point toggle-ON, and CSV
+   export. Don't trigger rebuilds from elsewhere.
 
 3. **Coordinate systems.** Simulation is Y-up. CSV export converts to Z-up via
    `sim_to_csv()` in `open_claw_symmetry.rs`. The Blender import pipeline

@@ -15,7 +15,7 @@
 //!     adjacent slots within a triple.
 //!   - A private `write_csv` that emits the slack-moment CSV.
 //!   - [`test_open_claw_threefold_symmetry`] — exports the CSV (headless)
-//!     and asserts every rotational triple agrees on length, slot, and bend.
+//!     and asserts every rotational triple agrees on length and slot.
 //!   - [`test_open_claw_cable_triples`] — companion test focused on cable
 //!     lengths alone (kept here because it's the same symmetry property
 //!     viewed from a different angle).
@@ -27,7 +27,7 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::path::Path;
 
-use crate::fabric::attachment::{TabBend, PullConnection, ATTACHMENT_POINTS};
+use crate::fabric::attachment::{PullConnection, ATTACHMENT_POINTS};
 use crate::fabric::interval::Role;
 use crate::fabric::{ConnectorDimensions, Fabric, FabricDimensions, IntervalEnd, IntervalKey, JointKey};
 use crate::units::{Unit, MM_PER_METER};
@@ -286,8 +286,7 @@ fn sim_to_csv() -> Mat3 {
 }
 
 /// Write the slack-moment engineering CSV. Caller is responsible for having
-/// run `update_all_attachment_connections`, `apply_threefold_symmetry`, and
-/// `recompute_bend_magnitudes` in that order.
+/// run `update_all_attachment_connections` then `apply_threefold_symmetry`.
 fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
     let path = Path::new(filename);
     let mut file = File::create(path)?;
@@ -339,16 +338,16 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
         "# Highest:   joint={} X={:.1} Y={:.1} Z={:.1}",
         highest_one.0, highest_one.1.x, highest_one.1.y, highest_one.1.z
     )?;
-    let bend_summary = build_bend_summary(fabric);
-    file.write_all(bend_summary.as_bytes())?;
+    let pivot_summary = build_pivot_summary(fabric);
+    file.write_all(pivot_summary.as_bytes())?;
     let clearance_summary = build_clearance_summary(fabric);
     file.write_all(clearance_summary.as_bytes())?;
     writeln!(file, "Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaJoint,AlphaSlot,AlphaAngle,OmegaX,OmegaY,OmegaZ,OmegaJoint,OmegaSlot,OmegaAngle")?;
 
-    // (pull_interval_key, end, slot) -> (pull_end_pos, tab_pos, joint_key, slot, tab_bend, ideal_deg)
-    let mut pull_bend_info: BTreeMap<
+    // (pull_interval_key, end, slot) -> (pivot_pos, joint_key, slot, elevation_deg)
+    let mut pull_pivot_info: BTreeMap<
         (IntervalKey, IntervalEnd, usize),
-        (Vec3, Vec3, JointKey, usize, TabBend, f32),
+        (Vec3, JointKey, usize, f32),
     > = BTreeMap::new();
 
     for (key, push_interval) in fabric.intervals.iter() {
@@ -373,29 +372,25 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
                                 fabric.joints[pull_interval.alpha_key].location
                             };
 
-                        let (tab_pos, tab_bend, pull_end_pos, ideal_deg) =
-                            connector.tab_geometry(
-                                &fabric.dimensions,
-                                alpha_pos,
-                                -push_dir,
-                                slot_idx,
-                                pull_other_end,
-                            );
+                        let (pivot_pos, elevation_deg) = connector.pivot_geometry(
+                            alpha_pos,
+                            -push_dir,
+                            slot_idx,
+                            pull_other_end,
+                        );
 
                         let pull_end = if pull_interval.alpha_key == push_interval.alpha_key {
                             IntervalEnd::Alpha
                         } else {
                             IntervalEnd::Omega
                         };
-                        pull_bend_info.insert(
+                        pull_pivot_info.insert(
                             (connection.pull_interval_key, pull_end, slot_idx + 1),
                             (
-                                pull_end_pos,
-                                tab_pos,
+                                pivot_pos,
                                 push_interval.alpha_key,
                                 slot_idx + 1,
-                                tab_bend,
-                                ideal_deg,
+                                elevation_deg,
                             ),
                         );
                     }
@@ -416,29 +411,25 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
                                 fabric.joints[pull_interval.alpha_key].location
                             };
 
-                        let (tab_pos, tab_bend, pull_end_pos, ideal_deg) =
-                            connector.tab_geometry(
-                                &fabric.dimensions,
-                                omega_pos,
-                                push_dir,
-                                slot_idx,
-                                pull_other_end,
-                            );
+                        let (pivot_pos, elevation_deg) = connector.pivot_geometry(
+                            omega_pos,
+                            push_dir,
+                            slot_idx,
+                            pull_other_end,
+                        );
 
                         let pull_end = if pull_interval.alpha_key == push_interval.omega_key {
                             IntervalEnd::Alpha
                         } else {
                             IntervalEnd::Omega
                         };
-                        pull_bend_info.insert(
+                        pull_pivot_info.insert(
                             (connection.pull_interval_key, pull_end, slot_idx + 1),
                             (
-                                pull_end_pos,
-                                tab_pos,
+                                pivot_pos,
                                 push_interval.omega_key,
                                 slot_idx + 1,
-                                tab_bend,
-                                ideal_deg,
+                                elevation_deg,
                             ),
                         );
                     }
@@ -486,7 +477,7 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
     let displayed_length = build_group_mean_lengths(fabric, &interval_infos);
 
     let mut highest_slot_per_joint: BTreeMap<JointKey, usize> = BTreeMap::new();
-    for ((_, _, slot), (_, _, joint_key, _, _, _)) in &pull_bend_info {
+    for ((_, _, slot), (_, joint_key, _, _)) in &pull_pivot_info {
         let entry = highest_slot_per_joint.entry(*joint_key).or_insert(0);
         if *slot > *entry {
             *entry = *slot;
@@ -537,26 +528,26 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
                 omega.x, omega.y, omega.z, omega_label,
             )?;
         } else {
-            let alpha_info = pull_bend_info
+            let alpha_info = pull_pivot_info
                 .iter()
                 .find(|((pull_id, end, _), _)| {
                     *pull_id == info.key && *end == IntervalEnd::Alpha
                 })
                 .map(|(_, data)| data);
-            let omega_info = pull_bend_info
+            let omega_info = pull_pivot_info
                 .iter()
                 .find(|((pull_id, end, _), _)| {
                     *pull_id == info.key && *end == IntervalEnd::Omega
                 })
                 .map(|(_, data)| data);
 
-            let (alpha_pos, alpha_joint_label, alpha_slot, alpha_bend) =
-                if let Some((pull_end_pos, _, joint_key, slot, bend, _)) = alpha_info {
+            let (alpha_pos, alpha_joint_label, alpha_slot, alpha_angle) =
+                if let Some((pivot_pos, joint_key, slot, elevation)) = alpha_info {
                     (
-                        to_csv * (*pull_end_pos * MM_PER_METER),
+                        to_csv * (*pivot_pos * MM_PER_METER),
                         fabric.joint_label(*joint_key),
                         *slot,
-                        Some(*bend),
+                        Some(*elevation),
                     )
                 } else {
                     let joint = &fabric.joints[interval.alpha_key];
@@ -568,13 +559,13 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
                     )
                 };
 
-            let (omega_pos, omega_joint_label, omega_slot, omega_bend) =
-                if let Some((pull_end_pos, _, joint_key, slot, bend, _)) = omega_info {
+            let (omega_pos, omega_joint_label, omega_slot, omega_angle) =
+                if let Some((pivot_pos, joint_key, slot, elevation)) = omega_info {
                     (
-                        to_csv * (*pull_end_pos * MM_PER_METER),
+                        to_csv * (*pivot_pos * MM_PER_METER),
                         fabric.joint_label(*joint_key),
                         *slot,
-                        Some(*bend),
+                        Some(*elevation),
                     )
                 } else {
                     let joint = &fabric.joints[interval.omega_key];
@@ -588,8 +579,8 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
 
             let geom_length = (omega_pos - alpha_pos).length() / MM_PER_METER;
             let shortened_length = displayed_length.get(&info.key).copied().unwrap_or(geom_length);
-            let alpha_bend_str = alpha_bend.map_or(String::new(), |b| b.to_string());
-            let omega_bend_str = omega_bend.map_or(String::new(), |b| b.to_string());
+            let alpha_angle_str = alpha_angle.map_or(String::new(), format_csv_angle);
+            let omega_angle_str = omega_angle.map_or(String::new(), format_csv_angle);
 
             writeln!(
                 file,
@@ -603,13 +594,13 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
                 alpha_pos.z,
                 alpha_joint_label,
                 alpha_slot,
-                alpha_bend_str,
+                alpha_angle_str,
                 omega_pos.x,
                 omega_pos.y,
                 omega_pos.z,
                 omega_joint_label,
                 omega_slot,
-                omega_bend_str,
+                omega_angle_str,
             )?;
         }
     }
@@ -680,14 +671,14 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
     for info in interval_infos.iter().filter(|i| !i.is_push) {
         let interval = fabric.intervals.get(info.key).unwrap();
 
-        let alpha_info = pull_bend_info
+        let alpha_info = pull_pivot_info
             .iter()
             .find(|((pull_id, end, _), _)| *pull_id == info.key && *end == IntervalEnd::Alpha)
-            .map(|((_, _, _slot), (_, _, joint_key, _, _, _))| *joint_key);
-        let omega_info = pull_bend_info
+            .map(|((_, _, _slot), (_, joint_key, _, _))| *joint_key);
+        let omega_info = pull_pivot_info
             .iter()
             .find(|((pull_id, end, _), _)| *pull_id == info.key && *end == IntervalEnd::Omega)
-            .map(|((_, _, _slot), (_, _, joint_key, _, _, _))| *joint_key);
+            .map(|((_, _, _slot), (_, joint_key, _, _))| *joint_key);
 
         let (alpha_fea, alpha_joint_label, alpha_slot) = if let Some(joint_key) = alpha_info {
             let highest_slot = highest_slot_per_joint.get(&joint_key).copied().unwrap_or(0);
@@ -771,21 +762,20 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
         )?;
     }
 
-    // Connector link rows: joint → ring center → tab → pull-end.
-    let mut push_end_connections: BTreeMap<JointKey, Vec<(usize, Vec3, Vec3)>> = BTreeMap::new();
+    // Connector link rows: joint → ring center → pivot pin.
+    let mut push_end_connections: BTreeMap<JointKey, Vec<(usize, Vec3)>> = BTreeMap::new();
 
-    for (_, (pull_end_pos, tab_pos, joint_key, slot, _, _)) in &pull_bend_info {
+    for (_, (pivot_pos, joint_key, slot, _)) in &pull_pivot_info {
         push_end_connections.entry(*joint_key).or_default().push((
             *slot,
-            *pull_end_pos,
-            *tab_pos,
+            *pivot_pos,
         ));
     }
 
     let mut link_index = current_index;
 
     for (joint_key, mut connections) in push_end_connections {
-        connections.sort_by_key(|(slot, _, _)| *slot);
+        connections.sort_by_key(|(slot, _)| *slot);
 
         let joint = &fabric.joints[joint_key];
         let joint_pos = joint.location;
@@ -813,7 +803,7 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
         let mut prev_slot = 0usize;
 
         let joint_label = fabric.joint_label(joint_key);
-        for (slot, pull_end_pos, tab_pos) in &connections {
+        for (slot, pivot_pos) in &connections {
             let ring_center = connector.ring_center(joint_pos, push_axis, *slot - 1);
 
             link_index += 1;
@@ -829,25 +819,14 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
             )?;
 
             link_index += 1;
-            let tab_mm = to_csv * (*tab_pos * MM_PER_METER);
-            let radial_length = (*tab_pos - ring_center).length();
+            let pivot_mm = to_csv * (*pivot_pos * MM_PER_METER);
+            let radial_length = (*pivot_pos - ring_center).length();
             writeln!(
                 file,
                 "{},radial,{:.3},0.000e0,{:.3},{:.3},{:.3},{},{},0.000,{:.3},{:.3},{:.3},{},{},0.000",
                 link_index, radial_length,
                 ring_mm.x, ring_mm.y, ring_mm.z, joint_label, slot,
-                tab_mm.x, tab_mm.y, tab_mm.z, joint_label, slot,
-            )?;
-
-            link_index += 1;
-            let pull_end_mm = to_csv * (*pull_end_pos * MM_PER_METER);
-            let tab_link_length = (*pull_end_pos - *tab_pos).length();
-            writeln!(
-                file,
-                "{},tab,{:.3},0.000e0,{:.3},{:.3},{:.3},{},{},0.000,{:.3},{:.3},{:.3},{},{},0.000",
-                link_index, tab_link_length,
-                tab_mm.x, tab_mm.y, tab_mm.z, joint_label, slot,
-                pull_end_mm.x, pull_end_mm.y, pull_end_mm.z, joint_label, slot,
+                pivot_mm.x, pivot_mm.y, pivot_mm.z, joint_label, slot,
             )?;
 
             prev_pos = ring_center;
@@ -857,14 +836,6 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
 
     println!("Exported {} to {}", fabric.name, filename);
     Ok(())
-}
-
-fn format_unsigned_angle(deg: f32) -> String {
-    if (deg - deg.round()).abs() < 0.05 {
-        format!("{}°", deg.round() as i32)
-    } else {
-        format!("{:.1}°", deg)
-    }
 }
 
 fn format_signed_angle(deg: f32) -> String {
@@ -877,104 +848,49 @@ fn format_signed_angle(deg: f32) -> String {
     }
 }
 
-fn build_bend_summary(fabric: &Fabric) -> String {
-    use crate::fabric::bend_optimizer::snap_to_magnitudes;
+/// Signed angle for a CSV cell (no degree sign): "0", "+12", "-30.5".
+fn format_csv_angle(deg: f32) -> String {
+    if deg.abs() < 0.05 {
+        "0".to_string()
+    } else if (deg - deg.round()).abs() < 0.05 {
+        format!("{:+}", deg.round() as i32)
+    } else {
+        format!("{:+.1}", deg)
+    }
+}
+
+/// Every connector is identical and the fork pivots freely on its pin, so
+/// there is nothing to manufacture per angle — this summary only reports the
+/// elevation range the pivots will take, for checking articulation limits.
+fn build_pivot_summary(fabric: &Fabric) -> String {
     use std::fmt::Write;
 
     let mut s = String::new();
-    let h = &fabric
-        .connector
-        .as_ref()
-        .expect("bend summary requires a fabric with a connector")
-        .dimensions;
-    let ideals = fabric.collect_ideal_bend_angles();
+    let angles = fabric.collect_pivot_angles();
 
-    writeln!(s, "# === Bend snap quality ===").ok();
-    writeln!(s, "# Bend count (K):       {}", h.bend_count).ok();
-    if h.bend_magnitudes_locked {
-        writeln!(s, "# Magnitude source:     LOCKED to factory inventory (no per-export reoptimisation)").ok();
-    } else {
-        writeln!(s, "# Magnitude source:     k-center optimiser, recomputed per export").ok();
-    }
-
-    if h.bend_count == 0 {
-        writeln!(s, "# Snapping disabled (K = 0); CSV uses continuous ideal angles.").ok();
-        writeln!(s, "# Cable ends measured: {}", ideals.len()).ok();
-        writeln!(s, "#").ok();
-        return s;
-    }
-    if ideals.is_empty() {
-        writeln!(s, "# Cable ends measured: 0  (no pull connections)").ok();
+    writeln!(s, "# === Pivot elevation angles ===").ok();
+    writeln!(
+        s,
+        "# Free fork pivot per cable end (0° = radial, + tilts outward along the strut axis)."
+    )
+    .ok();
+    if angles.is_empty() {
+        writeln!(s, "# Cable ends measured:  0  (no pull connections)").ok();
         writeln!(s, "#").ok();
         return s;
     }
 
-    let mags = &h.bend_magnitudes;
-    let mag_str: Vec<String> = mags.iter().map(|m| format_unsigned_angle(*m)).collect();
-    writeln!(s, "# Optimal magnitudes:   [{}]", mag_str.join(", ")).ok();
-
-    let mut signed: Vec<f32> = Vec::with_capacity(mags.len() * 2);
-    for &m in mags.iter().rev() {
-        if m != 0.0 {
-            signed.push(-m);
-        }
-    }
-    for &m in mags {
-        signed.push(m);
-    }
-    let signed_str: Vec<String> = signed.iter().map(|m| format_signed_angle(*m)).collect();
-    writeln!(s, "# Effective signed set: [{}]", signed_str.join(", ")).ok();
-
-    let n = ideals.len();
-    let snapped: Vec<(f32, f32)> = ideals
-        .iter()
-        .map(|&x| snap_to_magnitudes(x, mags))
-        .collect();
-
-    let signed_counts: Vec<usize> = signed
-        .iter()
-        .map(|&candidate| {
-            snapped
-                .iter()
-                .filter(|(snap, _)| (snap - candidate).abs() < 0.5)
-                .count()
-        })
-        .collect();
-    let mag_counts: Vec<usize> = mags
-        .iter()
-        .map(|&m| {
-            snapped
-                .iter()
-                .filter(|(snap, _)| (snap.abs() - m).abs() < 0.5)
-                .count()
-        })
-        .collect();
-
-    let counts_line = signed_counts
-        .iter()
-        .zip(signed.iter())
-        .map(|(c, m)| format!("{}×{}", format_signed_angle(*m), c))
-        .collect::<Vec<_>>()
-        .join("  ");
-    writeln!(s, "# Bend counts (signed): {}", counts_line).ok();
-
-    let mag_counts_line = mag_counts
-        .iter()
-        .zip(mags.iter())
-        .map(|(c, m)| format!("{}×{}", format_unsigned_angle(*m), c))
-        .collect::<Vec<_>>()
-        .join("  ");
-    writeln!(s, "# Bend counts (per magnitude): {}", mag_counts_line).ok();
-
-    let errors: Vec<f32> = snapped.iter().map(|(_, e)| *e).collect();
-    let mean = errors.iter().sum::<f32>() / n as f32;
-    let max = errors.iter().fold(0.0_f32, |a, &b| a.max(b));
-    let rms = (errors.iter().map(|e| e * e).sum::<f32>() / n as f32).sqrt();
+    let n = angles.len();
+    let min = angles.iter().copied().fold(f32::INFINITY, f32::min);
+    let max = angles.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    let mean_abs = angles.iter().map(|a| a.abs()).sum::<f32>() / n as f32;
     writeln!(s, "# Cable ends measured:  {}", n).ok();
     writeln!(
         s,
-        "# Snap error:           mean |Δ|={:.2}°  max |Δ|={:.2}°  RMS={:.2}°",
-        mean, max, rms
+        "# Elevation:            min={}  mean |a|={:.1}°  max={}",
+        format_signed_angle(min),
+        mean_abs,
+        format_signed_angle(max),
     )
     .ok();
     writeln!(s, "#").ok();
@@ -1021,14 +937,10 @@ fn build_clearance_summary(fabric: &Fabric) -> String {
                 } else {
                     fabric.joints[pull_interval.alpha_key].location
                 };
-                let (tab_pos, _bend, pull_end_pos, _ideal) = connector.tab_geometry(
-                    &fabric.dimensions,
-                    end_pos,
-                    axis_dir,
-                    slot_idx,
-                    pull_other_end,
-                );
-                segs.push((tab_pos, pull_end_pos));
+                let ring_center = connector.ring_center(end_pos, axis_dir, slot_idx);
+                let (pivot_pos, _elevation) =
+                    connector.pivot_geometry(end_pos, axis_dir, slot_idx, pull_other_end);
+                segs.push((ring_center, pivot_pos));
             }
 
             if segs.len() >= 2 {
@@ -1044,10 +956,10 @@ fn build_clearance_summary(fabric: &Fabric) -> String {
         }
     }
 
-    writeln!(s, "# === Tab arm clearance ===").ok();
+    writeln!(s, "# === Connector arm clearance ===").ok();
     writeln!(
         s,
-        "# Per joint-end, minimum 3D distance between any two arm segments (tab_pos -> pull_end_pos)."
+        "# Per joint-end, minimum 3D distance between any two arm segments (ring center -> pivot pin)."
     )
     .ok();
     if pair_distances.is_empty() {
@@ -1086,8 +998,8 @@ struct IntervalInfo {
 /// values across every triple instead of straddling rounding boundaries.
 ///
 /// For pushes the length is alpha-to-omega joint distance (already in
-/// `info.length`). For pulls it's the *shortened* length (tab-end to
-/// tab-end), recomputed here from each pull's connection geometry.
+/// `info.length`). For pulls it's the *shortened* length (pivot pin to
+/// pivot pin), recomputed here from each pull's connection geometry.
 ///
 /// Triples touching the central apex joints `YZ0` / `YZ1` are deliberately
 /// excluded: the three rotational copies converging there land on three
@@ -1153,8 +1065,8 @@ fn is_apex_axis_label(label: &str) -> bool {
     bytes.len() >= 2 && bytes[0] == b'Z' && bytes[1..].iter().all(|b| b.is_ascii_digit())
 }
 
-/// Recompute a pull's "shortened" length — tab-endpoint to tab-endpoint
-/// — matching exactly how the CSV row computes it from positions. Falls back
+/// Recompute a pull's "shortened" length — pivot pin to pivot pin —
+/// matching exactly how the CSV row computes it from positions. Falls back
 /// to joint-to-joint distance when the pull isn't attached to any push end.
 fn pull_shortened_length(fabric: &Fabric, key: IntervalKey) -> f32 {
     let pull = &fabric.intervals[key];
@@ -1164,8 +1076,8 @@ fn pull_shortened_length(fabric: &Fabric, key: IntervalKey) -> f32 {
 }
 
 /// Walks the push intervals to find where this pull's `near` end is attached
-/// and returns the tab endpoint (shortened position). If unattached, the
-/// joint location itself.
+/// and returns the pivot pin position (shortened position). If unattached,
+/// the joint location itself.
 fn pull_endpoint_position(fabric: &Fabric, pull_key: IntervalKey, near: JointKey) -> Vec3 {
     let Some(connector) = fabric.connector.as_ref() else {
         return fabric.joints[near].location;
@@ -1201,14 +1113,9 @@ fn pull_endpoint_position(fabric: &Fabric, pull_key: IntervalKey, near: JointKey
                 } else {
                     fabric.joints[pull.alpha_key].location
                 };
-                let (_tab_pos, _bend, pull_end_pos, _ideal) = connector.tab_geometry(
-                    &fabric.dimensions,
-                    end_pos,
-                    axis_dir,
-                    slot_idx,
-                    other,
-                );
-                return pull_end_pos;
+                let (pivot_pos, _elevation) =
+                    connector.pivot_geometry(end_pos, axis_dir, slot_idx, other);
+                return pivot_pos;
             }
         }
     }
@@ -1221,35 +1128,26 @@ fn write_dimensions_comments(
     h: &ConnectorDimensions,
 ) -> io::Result<()> {
     let mm = |m: f32| m * 1000.0;
-    let a = dims.push_radius.f32();
-    let b = h.push_radius_margin.f32();
-    let t1 = h.disc_thickness.f32();
-    let t2 = h.disc_separator_thickness.f32();
-    let c = t1 / 2.0;
-    let d = h.tab_extension.f32();
-    let e = h.tab_hole_diameter.f32();
+    let t_ring = h.ring_thickness.f32();
+    let washer = h.washer_thickness.f32();
     let cap = h.cap_thickness.f32();
+    let r_pivot = h.pivot_radius.f32();
     writeln!(file, "#")?;
-    writeln!(file, "# === Connector parameters (see diagram) ===")?;
-    writeln!(file, "# A  radius van de buis (push_radius):        {:.1}mm  ({:.5}m)", mm(a), a)?;
-    writeln!(file, "# B  marge (push_radius_margin):              {:.1}mm  ({:.5}m)", mm(b), b)?;
-    writeln!(file, "# C  offset door radius (= t1/2):             {:.1}mm  ({:.5}m)", mm(c), c)?;
-    writeln!(file, "# D  randafstand (tab_extension):           {:.1}mm  ({:.5}m)", mm(d), d)?;
-    writeln!(file, "# E  diameter gat (tab_hole_diameter):      {:.1}mm  ({:.5}m)", mm(e), e)?;
-    writeln!(file, "# t1 dikte staal (disc_thickness):             {:.1}mm  ({:.5}m)", mm(t1), t1)?;
-    writeln!(file, "# t2 dikte POM (disc_separator):              {:.1}mm  ({:.5}m)", mm(t2), t2)?;
-    writeln!(file, "#    cap_thickness:                           {:.1}mm  ({:.5}m)", mm(cap), cap)?;
-    writeln!(file, "#    pull_radius:                             {:.1}mm  ({:.5}m)", mm(dims.pull_radius.f32()), dims.pull_radius.f32())?;
+    writeln!(file, "# === Connector parameters (see docs/connectors.md) ===")?;
+    writeln!(file, "# t_ring  dikte ring (ring_thickness):        {:.1}mm  ({:.5}m)", mm(t_ring), t_ring)?;
+    writeln!(file, "# t_w     dikte sluitring (washer_thickness): {:.1}mm  ({:.5}m)", mm(washer), washer)?;
+    writeln!(file, "#         cap_thickness:                      {:.1}mm  ({:.5}m)", mm(cap), cap)?;
+    writeln!(file, "# R_tube  momentarm kabel (pivot_radius):     {:.1}mm  ({:.5}m)", mm(r_pivot), r_pivot)?;
+    writeln!(file, "#         push_radius:                        {:.1}mm  ({:.5}m)", mm(dims.push_radius.f32()), dims.push_radius.f32())?;
+    writeln!(file, "#         pull_radius:                        {:.1}mm  ({:.5}m)", mm(dims.pull_radius.f32()), dims.pull_radius.f32())?;
     writeln!(file, "#")?;
     writeln!(file, "# === Afgeleide waarden ===")?;
-    writeln!(file, "#    A + B + C  = {:.1}mm  (halve breedte schijf)", mm(a + b + c))?;
-    writeln!(file, "#    C + D + E  = {:.1}mm  (tab lengte)", mm(c + d + e))?;
-    writeln!(file, "#    t1 + t2    = {:.1}mm  (schijf + separator)", mm(t1 + t2))?;
     writeln!(
         file,
-        "#    disc_center_offset(0) = {:.1}mm  (as-afstand tot centrum eerste schijf)",
-        mm(h.disc_center_offset(0).f32()),
+        "#    ring_center_offset(0) = {:.1}mm  (as-afstand tot centrum eerste ring)",
+        mm(h.ring_center_offset(0).f32()),
     )?;
+    writeln!(file, "#    ring stap             = {:.1}mm  (= t_ring + sluitring)", mm(t_ring + washer))?;
     writeln!(file, "#")?;
     Ok(())
 }
@@ -1284,7 +1182,6 @@ mod tests {
 
         executor.fabric.update_all_attachment_connections();
         apply_threefold_symmetry(&mut executor.fabric);
-        executor.fabric.recompute_bend_magnitudes();
 
         verify_threefold_symmetry(&executor.fabric);
     }
@@ -1304,7 +1201,6 @@ mod tests {
 
         executor.fabric.update_all_attachment_connections();
         apply_threefold_symmetry(&mut executor.fabric);
-        executor.fabric.recompute_bend_magnitudes();
 
         let date = chrono::Local::now().format("%Y-%m-%d");
         let filename = format!("OpenClaw-{}.csv", date);
@@ -1317,7 +1213,7 @@ mod tests {
     /// within-triple length spreads under 1 mm. (Apex-attached cables are
     /// allowed a small budget — three rotational copies converging on the
     /// single apex push must occupy three different slots, so their lengths
-    /// differ by the disc step.)
+    /// differ by the ring step.)
     #[test]
     fn test_open_claw_cable_triples() {
         let mut executor = build_to_slack();
@@ -1388,8 +1284,8 @@ mod tests {
     }
 
     /// For each push group (rotationally-equivalent triple), assert that all
-    /// three members agree on length and on the slot/bend assignment at
-    /// every cable end. Tolerance is 0.1 mm / 0.5° to allow tiny f32 drift.
+    /// three members agree on length and on the slot assignment at every
+    /// cable end. Tolerance is 0.1 mm to allow tiny f32 drift.
     fn verify_threefold_symmetry(fabric: &Fabric) {
         // Group pushes.
         let mut push_groups: BTreeMap<(String, String), Vec<IntervalKey>> = BTreeMap::new();

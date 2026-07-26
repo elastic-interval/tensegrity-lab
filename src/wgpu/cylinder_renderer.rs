@@ -287,17 +287,16 @@ impl CylinderRenderer {
                                                         }
                                                     };
 
-                                                    // Use tab_geometry to get snapped endpoint
-                                                    let (_tab_pos, _tab_bend, pull_end_pos, _ideal) =
-                                                        connector.tab_geometry(
-                                                            &fabric.dimensions,
+                                                    // The cable ends at the pivot pin
+                                                    let (pivot_pos, _elevation) =
+                                                        connector.pivot_geometry(
                                                             push_end_pos,
                                                             push_axis,
                                                             pull_conn.attachment_index,
                                                             other_joint_pos,
                                                         );
 
-                                                    *modified_points[i] = pull_end_pos;
+                                                    *modified_points[i] = pivot_pos;
 
                                                     // We found the connection, no need to check others
                                                     break;

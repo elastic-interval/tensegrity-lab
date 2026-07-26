@@ -14,10 +14,9 @@ use glam::Vec3;
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
 
-// Pastel colors for the three link types
+// Pastel colors for the two link types
 const AXIAL_COLOR: [f32; 4] = [1.0, 1.0, 0.6, 1.0]; // Pastel yellow
 const RADIAL_COLOR: [f32; 4] = [1.0, 0.8, 0.5, 1.0]; // Pastel orange
-const HINGE_COLOR: [f32; 4] = [1.0, 0.6, 0.6, 1.0]; // Pastel red
 
 /// Instance data for a cylinder link
 #[repr(C)]
@@ -177,7 +176,7 @@ impl ConnectorRenderer {
         };
 
         // Collect connections with their slot indices
-        let mut slot_connections: Vec<(usize, Vec3, Vec3)> = Vec::new();
+        let mut slot_connections: Vec<(usize, Vec3)> = Vec::new();
 
         for (slot_idx, conn_opt) in connections.iter().enumerate() {
             if let Some(connection) = conn_opt {
@@ -193,16 +192,14 @@ impl ConnectorRenderer {
                         fabric.joints[pull_interval.alpha_key].location
                     };
 
-                    // Use tab_geometry to get snapped positions
-                    let (tab_pos, _tab_bend, pull_end_pos, _ideal) = connector.tab_geometry(
-                        &fabric.dimensions,
+                    let (pivot_pos, _elevation) = connector.pivot_geometry(
                         joint_pos,
                         push_axis,
                         slot_idx,
                         pull_other_end,
                     );
 
-                    slot_connections.push((slot_idx, tab_pos, pull_end_pos));
+                    slot_connections.push((slot_idx, pivot_pos));
                 }
             }
         }
@@ -212,12 +209,13 @@ impl ConnectorRenderer {
         }
 
         // Sort by slot
-        slot_connections.sort_by_key(|(slot, _, _)| *slot);
+        slot_connections.sort_by_key(|(slot, _)| *slot);
 
-        // Generate axial chain and radial/tab links
+        // Generate axial chain and radial arm links; the cable itself
+        // continues from the pivot pin (see cylinder_renderer).
         let mut prev_pos = joint_pos;
 
-        for (slot, tab_pos, pull_end_pos) in &slot_connections {
+        for (slot, pivot_pos) in &slot_connections {
             let ring_center = connector.ring_center(joint_pos, push_axis, *slot);
 
             // Axial link: previous position → ring center
@@ -229,22 +227,13 @@ impl ConnectorRenderer {
                 color: AXIAL_COLOR,
             });
 
-            // Radial link: ring center → tab
+            // Radial arm: ring center → pivot pin
             instances.push(LinkInstance {
                 start: [ring_center.x, ring_center.y, ring_center.z],
                 radius: link_radius,
-                end: [tab_pos.x, tab_pos.y, tab_pos.z],
+                end: [pivot_pos.x, pivot_pos.y, pivot_pos.z],
                 _padding: 0,
                 color: RADIAL_COLOR,
-            });
-
-            // Tab link: tab → pull_end
-            instances.push(LinkInstance {
-                start: [tab_pos.x, tab_pos.y, tab_pos.z],
-                radius: link_radius,
-                end: [pull_end_pos.x, pull_end_pos.y, pull_end_pos.z],
-                _padding: 0,
-                color: HINGE_COLOR,
             });
 
             prev_pos = ring_center;

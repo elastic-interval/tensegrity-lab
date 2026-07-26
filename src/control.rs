@@ -66,8 +66,8 @@ pub struct IntervalDetails {
     pub far_slot: Option<usize>,
     pub far_joint: JointKey,
     pub far_joint_label: String,
-    pub alpha_tab_angle: Option<Degrees>,
-    pub omega_tab_angle: Option<Degrees>,
+    pub alpha_pivot_angle: Option<Degrees>,
+    pub omega_pivot_angle: Option<Degrees>,
     pub length: Meters,
     pub strain: f32,
     pub distance: Meters,
@@ -92,23 +92,23 @@ impl Display for IntervalDetails {
         // Get the current attachment point visibility from thread-local storage
         let show_attachment_points = SHOW_ATTACHMENT_POINTS.with(|cell| *cell.borrow());
 
-        // Build tab bend angle info if attachments are visible and we have angles
-        let bend_info = if show_attachment_points {
-            let alpha_bend = self
-                .alpha_tab_angle
+        // Build pivot angle info if attachments are visible and we have angles
+        let angle_info = if show_attachment_points {
+            let alpha_angle = self
+                .alpha_pivot_angle
                 .map(|a| format!("α: {}", a))
                 .unwrap_or_default();
-            let omega_bend = self
-                .omega_tab_angle
+            let omega_angle = self
+                .omega_pivot_angle
                 .map(|a| format!("ω: {}", a))
                 .unwrap_or_default();
-            if !alpha_bend.is_empty() || !omega_bend.is_empty() {
-                let separator = if !alpha_bend.is_empty() && !omega_bend.is_empty() {
+            if !alpha_angle.is_empty() || !omega_angle.is_empty() {
+                let separator = if !alpha_angle.is_empty() && !omega_angle.is_empty() {
                     ", "
                 } else {
                     ""
                 };
-                format!("\nTab: {}{}{}", alpha_bend, separator, omega_bend)
+                format!("\nPivot: {}{}{}", alpha_angle, separator, omega_angle)
             } else {
                 String::new()
             }
@@ -124,7 +124,7 @@ impl Display for IntervalDetails {
             self.far_joint_text(show_attachment_points),
             self.distance_mm(),
             self.strain_percent(),
-            bend_info
+            angle_info
         )
     }
 }
@@ -188,22 +188,22 @@ impl IntervalDetails {
 
         let show_attachment_points = SHOW_ATTACHMENT_POINTS.with(|cell| *cell.borrow());
 
-        let bend_info = if show_attachment_points {
-            let alpha_bend = self
-                .alpha_tab_angle
+        let angle_info = if show_attachment_points {
+            let alpha_angle = self
+                .alpha_pivot_angle
                 .map(|a| format!("α: {}", a))
                 .unwrap_or_default();
-            let omega_bend = self
-                .omega_tab_angle
+            let omega_angle = self
+                .omega_pivot_angle
                 .map(|a| format!("ω: {}", a))
                 .unwrap_or_default();
-            if !alpha_bend.is_empty() || !omega_bend.is_empty() {
-                let separator = if !alpha_bend.is_empty() && !omega_bend.is_empty() {
+            if !alpha_angle.is_empty() || !omega_angle.is_empty() {
+                let separator = if !alpha_angle.is_empty() && !omega_angle.is_empty() {
                     ", "
                 } else {
                     ""
                 };
-                format!("\nTab: {}{}{}", alpha_bend, separator, omega_bend)
+                format!("\nPivot: {}{}{}", alpha_angle, separator, omega_angle)
             } else {
                 String::new()
             }
@@ -228,7 +228,7 @@ impl IntervalDetails {
             self.far_joint_text(show_attachment_points),
             scaled_distance_mm,
             self.strain_percent(),
-            bend_info,
+            angle_info,
             caliper_info
         )
     }

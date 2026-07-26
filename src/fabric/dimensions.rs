@@ -14,9 +14,8 @@ pub struct FabricDimensions {
     pub pull_radius: Meters,
     /// Plan-level connector configuration; `None` (the default) means the
     /// fabric has no physical connectors and they play no role anywhere.
-    /// Opt in via `with_connector` or `with_locked_bend_magnitudes`. Moved
-    /// into `Fabric::connector` (as a `ConnectorSystem`) at fabric
-    /// construction; `None` afterwards.
+    /// Opt in via `with_connector`. Moved into `Fabric::connector` (as a
+    /// `ConnectorSystem`) at fabric construction; `None` afterwards.
     pub connector: Option<ConnectorDimensions>,
     /// Head + per-joint hardware share. Back-calibrated to total mass; refine when the full parts list lands.
     pub joint_mass: Grams,
@@ -79,21 +78,9 @@ impl FabricDimensions {
     }
 
     /// Equip the fabric with physical connector hardware (default dimensions),
-    /// enabling attachment points, bend optimisation, and connector rendering.
+    /// enabling attachment points, slot assignment, and connector rendering.
     pub fn with_connector(mut self) -> Self {
         self.connector = Some(ConnectorDimensions::default());
-        self
-    }
-
-    /// Lock the snap magnitudes to a fixed inventory (e.g. parts already in production).
-    /// `Fabric::recompute_bend_magnitudes` becomes a no-op and these values are used
-    /// for snapping at every CSV export. Values are whole non-negative degrees, sorted
-    /// ascending; the optimiser's normal output respects the same shape.
-    pub fn with_locked_bend_magnitudes(mut self, magnitudes: Vec<f32>) -> Self {
-        let connector = self.connector.get_or_insert_with(ConnectorDimensions::default);
-        connector.bend_count = magnitudes.len();
-        connector.bend_magnitudes = magnitudes;
-        connector.bend_magnitudes_locked = true;
         self
     }
 

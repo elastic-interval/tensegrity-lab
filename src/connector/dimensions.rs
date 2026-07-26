@@ -1,105 +1,82 @@
 //! Connector dimensions and the pure geometry helpers shared by attachment
 //! assignment, rendering, and CSV export.
+//!
+//! The connector (see `docs/connectors.md`) is a flat steel ring that turns on
+//! an axial bolt at the strut end, carrying a radial boss that ends in a
+//! cross-tube. The cable's fork pivots on a pin through that tube, so a cable
+//! can take any orientation: azimuth from the ring turning on the bolt,
+//! elevation from the fork pivoting on the pin. Every connector is
+//! geometrically identical — there are no per-position variants.
 
-use crate::connector::{attachment, bend_optimizer};
 use crate::units::{Degrees, Meters, Unit};
 use glam::Vec3;
 
 /// Connector dimensions for physical construction.
 #[derive(Clone, Debug)]
 pub struct ConnectorDimensions {
-    pub push_radius_margin: Meters,
-    pub disc_thickness: Meters,
-    pub disc_separator_thickness: Meters,
+    /// Ring thickness along the bolt axis (t_ring).
+    pub ring_thickness: Meters,
+    /// Divider washer between cap and first ring and between adjacent rings,
+    /// so steel never bears on steel. Slot step = t_ring + washer.
+    pub washer_thickness: Meters,
+    /// Strut end-cap the bolt passes through; the first ring sits beyond it.
     pub cap_thickness: Meters,
-    pub tab_extension: Meters,
-    pub tab_hole_diameter: Meters,
-    pub bend_count: usize,
-    /// Empty = no snap (use continuous ideal). Populated by `Fabric::recompute_bend_magnitudes`.
-    pub bend_magnitudes: Vec<f32>,
-    /// When true, `Fabric::recompute_bend_magnitudes` is a no-op and `bend_magnitudes`
-    /// is taken as authoritative (e.g. matching a factory plate inventory already in
-    /// production). Set via `FabricDimensions::with_locked_bend_magnitudes`.
-    pub bend_magnitudes_locked: bool,
+    /// Radial distance from the strut/bolt axis to the cross-tube (pin) axis
+    /// where the cable attaches (R_tube — the cable's moment arm).
+    pub pivot_radius: Meters,
 }
 
 impl Default for ConnectorDimensions {
     fn default() -> Self {
         Self {
-            push_radius_margin: Meters(0.001),
-            disc_thickness: Meters(0.005),
-            disc_separator_thickness: Meters(0.002),
+            ring_thickness: Meters(0.005),
+            washer_thickness: Meters(0.001),
             cap_thickness: Meters(0.005),
-            tab_extension: Meters(0.030),
-            tab_hole_diameter: Meters(0.014),
-            bend_count: 4,
-            bend_magnitudes: Vec::new(),
-            bend_magnitudes_locked: false,
+            pivot_radius: Meters(0.032),
         }
     }
 }
 
 impl ConnectorDimensions {
-    /// Radial distance from tube axis to tab pin. The strut tube radius is a
-    /// fabric-level dimension (it exists without connectors), so it is passed in.
-    pub fn offset(&self, push_radius: Meters) -> Meters {
-        push_radius + self.push_radius_margin + self.disc_thickness / 2.0
-    }
-
-    pub fn length(&self) -> Meters {
-        self.disc_thickness / 2.0 + self.tab_extension + self.tab_hole_diameter
-    }
-
-    /// Axial offset (strut end → disc centre) for 0-indexed `slot`.
-    /// = cap + separator + t1/2 + slot × (t1 + separator).
-    pub fn disc_center_offset(&self, slot: usize) -> Meters {
-        let step = self.disc_thickness + self.disc_separator_thickness;
-        self.cap_thickness + self.disc_separator_thickness + self.disc_thickness / 2.0
+    /// Axial offset (strut end → ring centre) for 0-indexed `slot`.
+    /// = cap + washer + t_ring/2 + slot × (t_ring + washer).
+    pub fn ring_center_offset(&self, slot: usize) -> Meters {
+        let step = self.ring_thickness + self.washer_thickness;
+        self.cap_thickness + self.washer_thickness + self.ring_thickness / 2.0
             + step * slot as f32
     }
 
     pub fn ring_center(&self, push_end: Vec3, push_axis: Vec3, slot: usize) -> Vec3 {
-        push_end + push_axis * self.disc_center_offset(slot).f32()
+        push_end + push_axis * self.ring_center_offset(slot).f32()
     }
 
-    /// `(tab_pos, tab_bend, pull_end_pos, ideal_deg)`. `tab_bend` is snapped when
-    /// `bend_magnitudes` is populated, else equals `ideal_deg`.
-    pub fn tab_geometry(
+    /// `(pivot_pos, elevation_deg)`: the pin position where the cable's fork
+    /// pivots, and the free elevation angle the fork takes toward the cable's
+    /// far end (0° = radial, positive tilts outward along the strut axis).
+    pub fn pivot_geometry(
         &self,
-        push_radius: Meters,
         push_end: Vec3,
         push_axis: Vec3,
         slot: usize,
         pull_other_end: Vec3,
-    ) -> (Vec3, attachment::TabBend, Vec3, f32) {
+    ) -> (Vec3, f32) {
         let ring_center = self.ring_center(push_end, push_axis, slot);
         let to_pull = pull_other_end - ring_center;
         let radial_unit = radial_unit_from_axis(push_axis, to_pull);
 
-        let tab_pos = ring_center + radial_unit * self.offset(push_radius).f32();
+        let pivot_pos = ring_center + radial_unit * self.pivot_radius.f32();
 
-        let pull_direction = (pull_other_end - tab_pos).normalize();
-        let sin_angle = pull_direction.dot(push_axis);
-        let ideal_deg = sin_angle.asin().to_degrees();
+        let pull_direction = (pull_other_end - pivot_pos).normalize();
+        let elevation_deg = pull_direction.dot(push_axis).asin().to_degrees();
 
-        let snapped_deg = if self.bend_magnitudes.is_empty() {
-            ideal_deg
-        } else {
-            bend_optimizer::snap_to_magnitudes(ideal_deg, &self.bend_magnitudes).0
-        };
-        let tab_bend = attachment::TabBend(snapped_deg);
-
-        let pull_end_pos =
-            tab_bend.endpoint(tab_pos, push_axis, radial_unit, self.length().f32());
-
-        (tab_pos, tab_bend, pull_end_pos, ideal_deg)
+        (pivot_pos, elevation_deg)
     }
 }
 
 const NEAR_PARALLEL_THRESHOLD: f32 = 1e-10;
 const AXIS_ALIGNMENT_THRESHOLD: f32 = 0.9;
 
-pub fn tab_angle(push_axis: Vec3, pull_direction: Vec3) -> Degrees {
+pub fn pivot_angle(push_axis: Vec3, pull_direction: Vec3) -> Degrees {
     let sin_angle = pull_direction.dot(push_axis);
     Degrees(sin_angle.asin().to_degrees())
 }
@@ -121,9 +98,8 @@ pub(crate) fn radial_unit_from_axis(push_axis: Vec3, direction: Vec3) -> Vec3 {
 }
 
 #[cfg(test)]
-mod tab_geometry_tests {
+mod pivot_geometry_tests {
     use super::*;
-    use crate::fabric::FabricDimensions;
     use glam::Vec3;
 
     const MM: f32 = 1000.0;
@@ -143,60 +119,41 @@ mod tab_geometry_tests {
     /// These are the numbers shown in the CSV header as "Afgeleide waarden".
     #[test]
     fn connector_dimension_formulas() {
-        let dims = FabricDimensions::default();
         let h = ConnectorDimensions::default();
-        let a = dims.push_radius.f32();   // 25mm
-        let b = h.push_radius_margin.f32(); // 2mm
-        let t1 = h.disc_thickness.f32();   // 6mm
-        let t2 = h.disc_separator_thickness.f32(); // 1mm
-        let cap = h.cap_thickness.f32();   // 6mm
-        let d = h.tab_extension.f32();   // 14mm
-        let e = h.tab_hole_diameter.f32(); // 12mm
-        let c = t1 / 2.0;                 // 3mm
+        let t_ring = h.ring_thickness.f32(); // 5mm
+        let washer = h.washer_thickness.f32(); // 1mm
+        let cap = h.cap_thickness.f32(); // 5mm
+        let r_pivot = h.pivot_radius.f32(); // 32mm
 
-        // offset() = A + B + C (radial distance from tube axis to tab pin)
-        assert_mm("offset = A+B+C", h.offset(dims.push_radius).f32(), (a + b + c) * MM);
-
-        // length() = C + D + E (tab length from disc center to cable endpoint)
-        assert_mm("length = C+D+E", h.length().f32(), (c + d + e) * MM);
-
-        // disc_center_offset(0) = cap + t2 + t1/2
+        // ring_center_offset(0) = cap + washer + t_ring/2
         assert_mm(
-            "disc_center_offset(0) = cap+t2+t1/2",
-            h.disc_center_offset(0).f32(),
-            (cap + t2 + c) * MM,
+            "ring_center_offset(0) = cap + washer + t_ring/2",
+            h.ring_center_offset(0).f32(),
+            (cap + washer + t_ring / 2.0) * MM,
         );
 
-        // disc_center_offset(1) = disc_center_offset(0) + t1 + t2
+        // ring_center_offset(1) - ring_center_offset(0) = t_ring + washer
         assert_mm(
-            "disc_center_offset(1) - offset(0) = t1+t2",
-            h.disc_center_offset(1).f32() - h.disc_center_offset(0).f32(),
-            (t1 + t2) * MM,
+            "ring_center_offset(1) - offset(0) = t_ring + washer",
+            h.ring_center_offset(1).f32() - h.ring_center_offset(0).f32(),
+            (t_ring + washer) * MM,
         );
 
         // Print summary for engineer verification
         println!("\n=== Connector dimension check (mm) ===");
-        println!("A  (push_radius):       {:.1}", a * MM);
-        println!("B  (margin):            {:.1}", b * MM);
-        println!("C  (t1/2):              {:.1}", c * MM);
-        println!("D  (tab_extension):   {:.1}", d * MM);
-        println!("E  (hole_diameter):     {:.1}", e * MM);
-        println!("t1 (disc_thickness):    {:.1}", t1 * MM);
-        println!("t2 (disc_separator):    {:.1}", t2 * MM);
-        println!("cap_thickness:          {:.1}", cap * MM);
+        println!("t_ring (ring_thickness):   {:.1}", t_ring * MM);
+        println!("washer (washer_thickness): {:.1}", washer * MM);
+        println!("cap_thickness:             {:.1}", cap * MM);
+        println!("pivot_radius (R_tube):     {:.1}", r_pivot * MM);
         println!();
-        println!("A + B + C = offset():           {:.1}", h.offset(dims.push_radius).f32() * MM);
-        println!("C + D + E = length():           {:.1}", h.length().f32() * MM);
-        println!("t1 + t2:                        {:.1}", (t1 + t2) * MM);
-        println!("disc_center_offset(0):          {:.1}", h.disc_center_offset(0).f32() * MM);
-        println!("disc_center_offset(1):          {:.1}", h.disc_center_offset(1).f32() * MM);
+        println!("ring_center_offset(0):     {:.1}", h.ring_center_offset(0).f32() * MM);
+        println!("ring_center_offset(1):     {:.1}", h.ring_center_offset(1).f32() * MM);
     }
 
-    /// Test that the 3D positions produced by ring_center / tab_geometry
+    /// Test that the 3D positions produced by ring_center / pivot_geometry
     /// have the exact distances the engineer expects to measure between them.
     #[test]
-    fn tab_geometry_distances() {
-        let dims = FabricDimensions::default();
+    fn pivot_geometry_distances() {
         let h = ConnectorDimensions::default();
 
         // Synthetic push interval along +Z axis
@@ -211,39 +168,42 @@ mod tab_geometry_tests {
         let rc1 = h.ring_center(push_end, push_axis, 1);
         let rc2 = h.ring_center(push_end, push_axis, 2);
 
-        // Push end to first disc center
+        // Push end to first ring center
         let axial_0 = (rc0 - push_end).length();
-        assert_mm("push_end → ring_center(0)", axial_0, h.disc_center_offset(0).f32() * MM);
+        assert_mm("push_end → ring_center(0)", axial_0, h.ring_center_offset(0).f32() * MM);
 
-        // Between consecutive disc centers = t1 + t2
-        let disc_step = (rc1 - rc0).length();
-        assert_mm("ring_center(0) → ring_center(1) = t1+t2", disc_step,
-                  (h.disc_thickness.f32() + h.disc_separator_thickness.f32()) * MM);
+        // Between consecutive ring centers = t_ring + washer
+        let step = (h.ring_thickness.f32() + h.washer_thickness.f32()) * MM;
+        let ring_step = (rc1 - rc0).length();
+        assert_mm("ring_center(0) → ring_center(1) = t_ring + washer", ring_step, step);
 
-        let disc_step_2 = (rc2 - rc1).length();
-        assert_mm("ring_center(1) → ring_center(2) = t1+t2", disc_step_2,
-                  (h.disc_thickness.f32() + h.disc_separator_thickness.f32()) * MM);
+        let ring_step_2 = (rc2 - rc1).length();
+        assert_mm("ring_center(1) → ring_center(2) = t_ring + washer", ring_step_2, step);
 
-        // --- Radial distance (ring center to tab pin) ---
+        // --- Radial distance (ring center to pivot pin) = pivot_radius ---
 
-        let (tab_pos, _bend, pull_end_pos, _ideal) =
-            h.tab_geometry(dims.push_radius, push_end, push_axis, 0, pull_other_end);
+        let (pivot_pos, elevation_deg) =
+            h.pivot_geometry(push_end, push_axis, 0, pull_other_end);
 
-        let radial_dist = (tab_pos - rc0).length();
-        assert_mm("ring_center → tab_pos = offset() = A+B+C", radial_dist,
-                  h.offset(dims.push_radius).f32() * MM);
+        let radial_dist = (pivot_pos - rc0).length();
+        assert_mm("ring_center → pivot_pos = pivot_radius", radial_dist,
+                  h.pivot_radius.f32() * MM);
 
-        // --- Tab length (tab pin to cable endpoint) = C + D + E ---
-
-        let tab_len = (pull_end_pos - tab_pos).length();
-        assert_mm("tab_pos → pull_end_pos = length() = C+D+E", tab_len,
-                  h.length().f32() * MM);
+        // The fork pivots freely, so the reported elevation must equal the
+        // actual angle between the cable direction and the radial plane.
+        let pull_direction = (pull_other_end - pivot_pos).normalize();
+        let expected_deg = pull_direction.dot(push_axis).asin().to_degrees();
+        assert!(
+            (elevation_deg - expected_deg).abs() < 1e-4,
+            "elevation: expected {:.4}°, got {:.4}°",
+            expected_deg, elevation_deg
+        );
 
         // Print summary for engineer
         println!("\n=== Geometry distance check (mm) ===");
-        println!("push_end → ring_center(0):     {:.3}", axial_0 * MM);
-        println!("ring_center(0) → ring_center(1): {:.3} (= t1+t2)", disc_step * MM);
-        println!("ring_center → tab_pos:       {:.3} (= A+B+C = offset)", radial_dist * MM);
-        println!("tab_pos → pull_end_pos:      {:.3} (= C+D+E = length)", tab_len * MM);
+        println!("push_end → ring_center(0):       {:.3}", axial_0 * MM);
+        println!("ring_center(0) → ring_center(1): {:.3} (= t_ring + washer)", ring_step * MM);
+        println!("ring_center → pivot_pos:         {:.3} (= pivot_radius)", radial_dist * MM);
+        println!("elevation at pivot:              {:.2}°", elevation_deg);
     }
 }

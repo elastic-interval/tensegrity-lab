@@ -4,11 +4,11 @@
 
 use crate::connector::attachment::{
     calculate_interval_attachment_points, PullConnection, PullConnections, PullIntervalData,
-    TabBend, ATTACHMENT_POINTS,
+    ATTACHMENT_POINTS,
 };
-use crate::connector::{bend_optimizer, ConnectorDimensions};
+use crate::connector::ConnectorDimensions;
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, FabricDimensions, IntervalEnd, IntervalKey};
+use crate::fabric::{Fabric, IntervalEnd, IntervalKey};
 use glam::Vec3;
 use slotmap::SecondaryMap;
 
@@ -44,22 +44,16 @@ impl ConnectorSystem {
         self.dimensions.ring_center(push_end, push_axis, slot)
     }
 
-    /// `(tab_pos, tab_bend, pull_end_pos, ideal_deg)` — see `ConnectorDimensions::tab_geometry`.
-    pub fn tab_geometry(
+    /// `(pivot_pos, elevation_deg)` — see `ConnectorDimensions::pivot_geometry`.
+    pub fn pivot_geometry(
         &self,
-        fabric_dimensions: &FabricDimensions,
         push_end: Vec3,
         push_axis: Vec3,
         slot: usize,
         pull_other_end: Vec3,
-    ) -> (Vec3, TabBend, Vec3, f32) {
-        self.dimensions.tab_geometry(
-            fabric_dimensions.push_radius,
-            push_end,
-            push_axis,
-            slot,
-            pull_other_end,
-        )
+    ) -> (Vec3, f32) {
+        self.dimensions
+            .pivot_geometry(push_end, push_axis, slot, pull_other_end)
     }
 
     /// Rebuild slot assignments for every push interval from current geometry.
@@ -129,31 +123,13 @@ impl ConnectorSystem {
             push_alpha,
             push_omega,
             &self.dimensions,
-            fabric.dimensions.push_radius,
         );
         self.connections.insert(push_key, connections);
     }
 
-    /// Update `self.dimensions.bend_magnitudes` with the K-center optimal set
-    /// for this fabric's cable ends. No-op when locked, K=0, or no pulls.
-    pub fn recompute_bend_magnitudes(&mut self, fabric: &Fabric) {
-        if self.dimensions.bend_magnitudes_locked {
-            return;
-        }
-        let k = self.dimensions.bend_count;
-        if k == 0 {
-            return;
-        }
-        let ideals = self.collect_ideal_bend_angles(fabric);
-        if ideals.is_empty() {
-            return;
-        }
-        self.dimensions.bend_magnitudes = bend_optimizer::optimize_magnitudes(&ideals, k);
-    }
-
-    /// Continuous ideal bend angle (degrees) at every cable end.
-    pub fn collect_ideal_bend_angles(&self, fabric: &Fabric) -> Vec<f32> {
-        let mut ideals = Vec::new();
+    /// Free pivot elevation angle (degrees) at every cable end.
+    pub fn collect_pivot_angles(&self, fabric: &Fabric) -> Vec<f32> {
+        let mut angles = Vec::new();
         for (push_key, push_interval) in fabric.intervals.iter() {
             if !push_interval.has_role(Role::Pushing) {
                 continue;
@@ -181,17 +157,12 @@ impl ConnectorSystem {
                     } else {
                         fabric.joints[pull_interval.alpha_key].location
                     };
-                    let (_, _, _, ideal_deg) = self.tab_geometry(
-                        &fabric.dimensions,
-                        end_pos,
-                        axis_dir,
-                        slot_idx,
-                        pull_other_end,
-                    );
-                    ideals.push(ideal_deg);
+                    let (_, elevation_deg) =
+                        self.pivot_geometry(end_pos, axis_dir, slot_idx, pull_other_end);
+                    angles.push(elevation_deg);
                 }
             }
         }
-        ideals
+        angles
     }
 }

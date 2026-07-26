@@ -5,52 +5,11 @@
 
 use crate::connector::{radial_unit_from_axis, ConnectorDimensions};
 use crate::fabric::{IntervalEnd, IntervalKey, JointKey, Joints};
-use crate::units::{Meters, Unit};
+use crate::units::Unit;
 use glam::Vec3;
-use std::fmt;
 
 /// Number of attachment points at each end of a push interval
 pub const ATTACHMENT_POINTS: usize = 10;
-
-/// Signed bend angle (degrees) at a cable end. Continuous ideal during
-/// build, snapped to the optimised magnitude set after Viewing.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct TabBend(pub f32);
-
-impl TabBend {
-    pub fn degrees(&self) -> f32 {
-        self.0
-    }
-
-    /// 0° = radial; +angle tilts toward push_axis (outward), −angle inward.
-    pub fn endpoint(
-        &self,
-        tab_pos: Vec3,
-        push_axis: Vec3,
-        radial_direction: Vec3,
-        tab_length: f32,
-    ) -> Vec3 {
-        let angle_rad = self.degrees().to_radians();
-        let cos_a = angle_rad.cos();
-        let sin_a = angle_rad.sin();
-
-        let tab_direction = radial_direction * cos_a + push_axis * sin_a;
-        tab_pos + tab_direction * tab_length
-    }
-}
-
-impl fmt::Display for TabBend {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let deg = self.0;
-        if deg.abs() < 0.05 {
-            write!(f, "0")
-        } else if (deg - deg.round()).abs() < 0.05 {
-            write!(f, "{:+}", deg.round() as i32)
-        } else {
-            write!(f, "{:+.1}", deg)
-        }
-    }
-}
 
 /// Represents an attachment point on a push interval
 #[derive(Clone, Copy, Debug)]
@@ -100,7 +59,7 @@ impl PullConnections {
     ///   - Hard rule: an outward-pulling cable may not occupy the topmost slot
     ///     (the final nut at the strut tip would otherwise carry the full axial load).
     ///   - Soft objective: among permutations satisfying the hard rule, pick the one
-    ///     that maximises the minimum 3D distance between any pair of bent tab arms.
+    ///     that maximises the minimum 3D distance between any pair of connector arms.
     ///   - Tie-break: rotational moment about slot 0, as before.
     pub fn reorder_connections(
         &mut self,
@@ -112,7 +71,6 @@ impl PullConnections {
         push_alpha_key: JointKey,
         push_omega_key: JointKey,
         connector: &ConnectorDimensions,
-        push_radius: Meters,
     ) {
         // Step 1: Collect all connections that need to be made
         let connections_to_make =
@@ -151,7 +109,6 @@ impl PullConnections {
             alpha_pos,
             -push_direction, // Outward from alpha end
             connector,
-            push_radius,
         );
 
         // Omega end: push axis points outward (same as push direction)
@@ -164,7 +121,6 @@ impl PullConnections {
             omega_pos,
             push_direction, // Outward from omega end
             connector,
-            push_radius,
         );
 
         // Step 5: Assign connections using optimized order
@@ -382,18 +338,19 @@ fn calculate_rotational_moment(
 ///
 /// Soft rules (preferred over clearance), in priority order:
 ///   1. Lid choice: when the joint-end has any outward-pulling cable, the
-///      cable whose tab-arm radial direction is most opposite (around the
+///      cable whose arm radial direction is most opposite (around the
 ///      strut axis) to the outward cable's should sit directly above it.
-///      Their arms project on opposite sides of the strut, so the cover
-///      disc never fouls the outward arm.
+///      Their arms project on opposite sides of the strut, so the ring
+///      above never fouls the outward cable as it tilts along the axis.
 ///   2. Outward placement: the topmost outward-pulling cable should sit at
-///      slot n−2 (second from the top), leaving only the lid above it. This
-///      keeps the outward arm's axial reach clear of the rest of the stack.
+///      slot n−2 (second from the top), leaving only the lid ring above it.
+///      This keeps the outward cable's axial reach clear of the rest of the
+///      stack.
 ///
 /// Soft objective:
 ///   Among permutations satisfying the above, pick the one that maximises
-///   the minimum 3D distance between any pair of bent tab arms (modelled
-///   as line segments from `tab_pos` to `pull_end_pos`).
+///   the minimum 3D distance between any pair of connector arms (modelled
+///   as line segments from the ring centre to the pivot pin).
 ///
 /// Tie-break:
 ///   Rotational moment about the slot-0 ring centre, as before.
@@ -406,7 +363,6 @@ fn find_optimal_assignment(
     push_end: Vec3,
     push_axis: Vec3,
     connector: &ConnectorDimensions,
-    push_radius: Meters,
 ) -> Vec<(IntervalEnd, IntervalKey, JointKey)> {
     if pulls.is_empty() {
         return Vec::new();
@@ -461,16 +417,17 @@ fn find_optimal_assignment(
         .collect();
     let any_outward = is_outward.iter().any(|&o| o);
 
-    // Precompute arm segments (tab_pos, pull_end_pos) per (cable, slot).
-    // Bend angle and ring centre both depend on slot, so we recompute per slot.
-    // We only need slots 0..n (one slot per cable).
+    // Precompute arm segments (ring_center, pivot_pos) per (cable, slot).
+    // The pivot azimuth and ring centre both depend on slot, so we recompute
+    // per slot. We only need slots 0..n (one slot per cable).
     let mut segments: Vec<Vec<(Vec3, Vec3)>> = Vec::with_capacity(n);
     for c in 0..n {
         let mut row = Vec::with_capacity(n);
         for k in 0..n {
-            let (tab_pos, _bend, pull_end_pos, _ideal) =
-                connector.tab_geometry(push_radius, push_end, push_axis, k, other_ends[c]);
-            row.push((tab_pos, pull_end_pos));
+            let ring_center = connector.ring_center(push_end, push_axis, k);
+            let (pivot_pos, _elevation) =
+                connector.pivot_geometry(push_end, push_axis, k, other_ends[c]);
+            row.push((ring_center, pivot_pos));
         }
         segments.push(row);
     }
@@ -529,7 +486,7 @@ fn find_optimal_assignment(
             _ => 1,
         };
 
-        // Minimum 3D distance between any pair of bent arms.
+        // Minimum 3D distance between any pair of connector arms.
         let mut min_clearance = f32::INFINITY;
         for i in 0..n {
             let (h_i, e_i) = segments[perm[i]][i];
@@ -660,7 +617,7 @@ pub fn generate_attachment_points(
     // Generate attachment points extending outwards along the axis
     // Each point represents the center of a ring at that slot
     for i in 0..ATTACHMENT_POINTS {
-        let distance = connector.disc_center_offset(i).f32();
+        let distance = connector.ring_center_offset(i).f32();
 
         // Set the position and index
         points[i] = AttachmentPoint {

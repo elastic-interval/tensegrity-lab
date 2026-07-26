@@ -688,9 +688,9 @@ impl Camera {
     ) -> IntervalDetails {
         let far_joint = interval.other_joint(near_joint);
 
-        // Calculate slot indices and tab bend angles for pull intervals
-        // Note: near/far slots depend on click position, but tab bend angles use alpha/omega (structural)
-        let (near_slot, far_slot, alpha_tab_angle, omega_tab_angle) =
+        // Calculate slot indices and pivot angles for pull intervals
+        // Note: near/far slots depend on click position, but pivot angles use alpha/omega (structural)
+        let (near_slot, far_slot, alpha_pivot_angle, omega_pivot_angle) =
             if interval.has_role(Role::Pulling) {
                 // Helper function to find slot index for a joint
                 let find_slot = |joint_key: JointKey| -> Option<usize> {
@@ -727,21 +727,21 @@ impl Camera {
                 let near_slot = find_slot(near_joint);
                 let far_slot = find_slot(far_joint);
 
-                // Calculate tab bend angles for alpha/omega ends (structural, not click-dependent)
-                let alpha_bend = self.calculate_tab_angle_for_joint(
+                // Calculate pivot angles for alpha/omega ends (structural, not click-dependent)
+                let alpha_angle = self.calculate_pivot_angle_for_joint(
                     interval.alpha_key,
                     interval.omega_key,
                     key,
                     fabric,
                 );
-                let omega_bend = self.calculate_tab_angle_for_joint(
+                let omega_angle = self.calculate_pivot_angle_for_joint(
                     interval.omega_key,
                     interval.alpha_key,
                     key,
                     fabric,
                 );
 
-                (near_slot, far_slot, alpha_bend, omega_bend)
+                (near_slot, far_slot, alpha_angle, omega_angle)
             } else {
                 (None, None, None, None)
             };
@@ -754,8 +754,8 @@ impl Camera {
             far_slot,
             far_joint,
             far_joint_label: fabric.joint_label(far_joint),
-            alpha_tab_angle,
-            omega_tab_angle,
+            alpha_pivot_angle,
+            omega_pivot_angle,
             length: interval.ideal(),
             strain: interval.strain,
             distance: fabric.distance(near_joint, far_joint),
@@ -764,8 +764,8 @@ impl Camera {
         }
     }
 
-    /// Calculate the tab bend angle for a pull interval at a specific joint
-    fn calculate_tab_angle_for_joint(
+    /// Calculate the pivot angle for a pull interval at a specific joint
+    fn calculate_pivot_angle_for_joint(
         &self,
         joint_key: JointKey,
         other_joint_key: JointKey,
@@ -795,7 +795,7 @@ impl Camera {
                 });
 
                 if is_connected {
-                    self.calculate_tab_angle(
+                    self.calculate_pivot_angle(
                         push_interval,
                         end,
                         joint_key,
@@ -808,8 +808,8 @@ impl Camera {
             })
     }
 
-    /// Calculate the tab bend angle for a pull interval at a push interval connection
-    fn calculate_tab_angle(
+    /// Calculate the pivot angle for a pull interval at a push interval connection
+    fn calculate_pivot_angle(
         &self,
         push_interval: &Interval,
         end: IntervalEnd,
@@ -835,7 +835,7 @@ impl Camera {
         // Pull direction: from this joint toward the other end of the pull interval
         let pull_direction = (other_joint_pos - this_joint_pos).normalize();
 
-        Some(crate::fabric::tab_angle(push_axis, pull_direction))
+        Some(crate::fabric::pivot_angle(push_axis, pull_direction))
     }
 
     fn view_matrix(&self) -> Mat4 {
