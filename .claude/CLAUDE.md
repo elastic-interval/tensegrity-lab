@@ -111,8 +111,12 @@ angles or per-position variants:
   radius) plus ring/pivot geometry (`pivot_geometry`, `ring_center`), with
   the inline `pivot_geometry_tests`.
 - `attachment.rs` — `PullConnections`, slot-assignment optimiser.
-- `system.rs` — `ConnectorSystem`: owns `ConnectorDimensions` and a
-  `SecondaryMap<IntervalKey, PullConnections>` of slot assignments.
+- `fork.rs` — cable-end fork terminal (clevis) estimates + capsule model
+  for collision culprit marking.
+- `system.rs` — `ConnectorSystem`: owns `ConnectorDimensions`, a
+  `SecondaryMap<IntervalKey, PullConnections>` of slot assignments, and
+  `culprits` (cable ends whose assemblies physically collide, marked once
+  per assignment rebuild and rendered red).
 
 Fabrics opt in per plan via `FabricDimensions::with_connector()`; the config
 becomes `Fabric::connector` at construction. `None` (the default) means

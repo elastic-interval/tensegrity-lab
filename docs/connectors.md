@@ -287,7 +287,11 @@ The connector assembly is rendered by `ConnectorRenderer` (`src/wgpu/connector_r
 | **Clevis pin** | Cylinder along the tangent through tube and jaws, protruding past each jaw | ⌀10 mm |
 | **Swage shank** | Cylinder along the cable beyond the jaws; the cable disappears into it | ⌀12 mm × 45 mm |
 
-The plate uses its own mesh and pipeline (`create_connector_plate`, `plate_vertex` in `shader.wgsl`) because its instances need a full orientation — the boss must point toward the cable, whereas a plain cylinder instance leaves the azimuth arbitrary. Washer gaps are left as empty space, so the stack reads as separate rings. The cable itself (drawn by `cylinder_renderer.rs`, at the true 6 mm cable diameter via `pull_radius`) ends at the pivot pin and disappears inside the cross-tube, so the attachment reads as a solid connection. Rendering is only visible when `show_attachment_points()` is enabled in the render style.
+The plate uses its own mesh and pipeline (`create_connector_plate`, `plate_vertex` in `shader.wgsl`) because its instances need a full orientation — the boss must point toward the cable, whereas a plain cylinder instance leaves the azimuth arbitrary. Washer gaps are left as empty space, so the stack reads as separate rings. The cable itself (drawn by `cylinder_renderer.rs`, at the true 6 mm cable diameter via `pull_radius`) ends buried inside its fork's swage shank. Both renderers aim each cable end at the far end's *pivot* (not the far joint), keeping fork and cable collinear even on short cables. Rendering is only visible when `show_attachment_points()` is enabled in the render style.
+
+### Collision culprits
+
+The fork/tube dimensions and a capsule model of each assembled cable end live in `src/connector/fork.rs`. `ConnectorSystem::mark_culprits` (run once per slot-assignment rebuild, not per frame) does a pairwise capsule scan and records every cable end whose assembly would physically intersect another in `ConnectorSystem::culprits`. The renderer paints all parts of a culprit assembly red — these are real construction issues to resolve, not rendering artifacts.
 
 ## CSV Export
 

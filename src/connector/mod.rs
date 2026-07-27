@@ -4,6 +4,7 @@
 
 pub mod attachment;
 pub mod dimensions;
+pub mod fork;
 pub mod system;
 
 pub use dimensions::{pivot_angle, ConnectorDimensions};

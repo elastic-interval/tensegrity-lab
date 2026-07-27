@@ -4,9 +4,12 @@
  */
 
 use crate::camera::Pick;
-use crate::connector::ConnectorSystem;
+use crate::connector::fork::{
+    JAW_CLEARANCE, JAW_NOSE_RADIUS, JAW_REACH_UNITS, JAW_THICKNESS, PIN_PROTRUSION, PIN_RADIUS,
+    SHANK_LENGTH, SHANK_RADIUS, SHANK_START, TUBE_LENGTH, TUBE_RADIUS,
+};
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, IntervalEnd, IntervalKey};
+use crate::fabric::{Fabric, IntervalEnd};
 use crate::units::Unit;
 use crate::wgpu::Wgpu;
 use bytemuck::{Pod, Zeroable};
@@ -14,43 +17,21 @@ use glam::Vec3;
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
 
-// Fabricated-part dimensions used only for rendering — see docs/connectors.md,
-// "The Fabricated Part".
+// Ring plate proportions, used only for rendering — see docs/connectors.md,
+// "The Fabricated Part". Fork and tube dimensions come from `connector::fork`,
+// the shared model that also drives culprit marking.
 const BOSS_REACH: f32 = 1.2; // R_flat / (D_ring/2) = 24/20, in ring radii
 const BOSS_HALF_WIDTH: f32 = 0.3; // (w_boss/2) / (D_ring/2) = 6/20, in ring radii
-const TUBE_RADIUS: f32 = 0.010; // D_tube / 2, metres
-const TUBE_LENGTH: f32 = 0.010; // L_tube, metres — wider than the 6 mm cables from every angle
-
-// Fork terminal (clevis) at each cable end — estimated from the site photo
-// and catalog swage forks for 6 mm wire at the 8–9 kN load class; exact
-// dimensions await Peter's terminal drawings.
-const JAW_THICKNESS: f32 = 0.0045;
-const JAW_CLEARANCE: f32 = 0.001; // air between each jaw and the tube end — the pivot's slack
-const JAW_NOSE_RADIUS: f32 = 0.0095; // jaw outline radius around the pin
-const JAW_REACH_UNITS: f32 = 2.2; // jaw length behind the pin, in nose radii
-const PIN_RADIUS: f32 = 0.005; // the 10 mm clevis pin
-const PIN_PROTRUSION: f32 = 0.0025; // pin visible past each jaw face
-const SHANK_RADIUS: f32 = 0.006; // swage shank crimped onto the 6 mm cable
-const SHANK_LENGTH: f32 = 0.045;
-// The shank starts embedded in the jaw plates so fork and shank read as one
-// body instead of just touching.
-const SHANK_START: f32 = JAW_NOSE_RADIUS * JAW_REACH_UNITS - 0.006;
-
-/// Where the rendered cable should terminate: buried inside the swage shank,
-/// so the cable visibly ends at its terminal rather than running on into the
-/// connector's cross-tube. Shared with `cylinder_renderer`.
-pub(crate) fn cable_termination(pivot: Vec3, pull_other_end: Vec3) -> Vec3 {
-    let dir = (pull_other_end - pivot).normalize();
-    pivot + dir * (SHANK_START + SHANK_LENGTH * 0.5)
-}
 
 // Steel tones: rings/cap slightly lighter than the cross-tube and pin;
-// the stainless fork brighter than both.
+// the stainless fork brighter than both. Connector assemblies marked as
+// collision culprits are painted red instead.
 const RING_COLOR: [f32; 4] = [0.66, 0.68, 0.72, 1.0];
 const ARM_COLOR: [f32; 4] = [0.52, 0.54, 0.58, 1.0];
 const FORK_COLOR: [f32; 4] = [0.78, 0.80, 0.83, 1.0];
+const OVERLAP_COLOR: [f32; 4] = [0.90, 0.12, 0.12, 1.0];
 
-/// Instance data for a cylinder (cap, cross-tube)
+/// Instance data for a cylinder (cap, cross-tube, pin, shank)
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct LinkInstance {
@@ -61,15 +42,28 @@ pub struct LinkInstance {
     color: [f32; 4],
 }
 
-/// Instance data for a ring+boss plate: full orientation, because the boss
-/// must point toward the cable.
+/// Instance data for an extruded plate: full orientation, because the boss
+/// (or jaw) must point toward the cable.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct PlateInstance {
-    center_radius: [f32; 4],  // ring centre + ring radius
-    axis_thickness: [f32; 4], // unit strut axis + plate thickness
-    boss_dir: [f32; 4],       // unit radial (boss) direction + unused
+    center_radius: [f32; 4],  // centre + x/z scale
+    axis_thickness: [f32; 4], // unit thickness axis + thickness
+    boss_dir: [f32; 4],       // unit long-axis direction + unused
     color: [f32; 4],
+}
+
+/// Everything needed to draw one cable-end connector: the ring with its
+/// boss, cross-tube, fork jaws, body, pin, and shank. `culprit` comes from
+/// `ConnectorSystem::culprits`, marked once per slot-assignment rebuild.
+struct EndConnector {
+    ring_center: Vec3,
+    pivot: Vec3,
+    push_axis: Vec3,
+    radial: Vec3,
+    tangent: Vec3,
+    cable_dir: Vec3,
+    culprit: bool,
 }
 
 pub struct ConnectorRenderer {
@@ -276,103 +270,9 @@ impl ConnectorRenderer {
             return (cylinders, plates, jaws, bodies);
         };
 
-        // Iterate through all push intervals to find their connections
-        for (key, interval) in fabric.intervals.iter() {
-            if !interval.has_role(Role::Pushing) {
-                continue;
-            }
-
-            // Get joint positions
-            let alpha_pos = fabric.joints[interval.alpha_key].location;
-            let omega_pos = fabric.joints[interval.omega_key].location;
-            let push_dir = (omega_pos - alpha_pos).normalize();
-
-            for (end, joint_pos, push_axis) in [
-                (IntervalEnd::Alpha, alpha_pos, -push_dir),
-                (IntervalEnd::Omega, omega_pos, push_dir),
-            ] {
-                self.add_connectors_for_end(
-                    &mut cylinders,
-                    &mut plates,
-                    &mut jaws,
-                    &mut bodies,
-                    fabric,
-                    key,
-                    interval,
-                    end,
-                    joint_pos,
-                    push_axis,
-                    connector,
-                );
-            }
-        }
-
-        (cylinders, plates, jaws, bodies)
-    }
-
-    /// One symbolic connector per occupied slot: the flat ring and its boss
-    /// as a single plate, the cross-tube as a stubby cylinder along the
-    /// tangent, and the cable's fork terminal — two jaws astride the tube,
-    /// the clevis pin through them, and the swage shank the cable disappears
-    /// into. Washers are left as empty space, so the stack reads as separate
-    /// rings; the cap extends the strut tube flush before the first gap.
-    fn add_connectors_for_end(
-        &self,
-        cylinders: &mut Vec<LinkInstance>,
-        plates: &mut Vec<PlateInstance>,
-        jaws: &mut Vec<PlateInstance>,
-        bodies: &mut Vec<PlateInstance>,
-        fabric: &Fabric,
-        push_key: IntervalKey,
-        push_interval: &crate::fabric::interval::Interval,
-        end: IntervalEnd,
-        joint_pos: Vec3,
-        push_axis: Vec3,
-        connector: &ConnectorSystem,
-    ) {
-        let connections = match connector.connections(push_key, end) {
-            Some(c) => c,
-            None => return,
-        };
-
-        // Collect connections: (slot, pivot position, cable aim point). The
-        // aim is the far end's pivot when attached (not the far joint) — on
-        // short cables the two differ by several degrees, and the fork must
-        // stay collinear with the cable it holds.
-        let mut slot_connections: Vec<(usize, Vec3, Vec3)> = Vec::new();
-
-        for (slot_idx, conn_opt) in connections.iter().enumerate() {
-            if let Some(connection) = conn_opt {
-                if let Some(pull_interval) = fabric.intervals.get(connection.pull_interval_key) {
-                    let pull_joint_key = match end {
-                        IntervalEnd::Alpha => push_interval.alpha_key,
-                        IntervalEnd::Omega => push_interval.omega_key,
-                    };
-
-                    let far_joint_key = if pull_interval.alpha_key == pull_joint_key {
-                        pull_interval.omega_key
-                    } else {
-                        pull_interval.alpha_key
-                    };
-
-                    let aim = connector
-                        .pull_end_pivot(fabric, connection.pull_interval_key, far_joint_key)
-                        .unwrap_or(fabric.joints[far_joint_key].location);
-
-                    let (pivot_pos, _elevation) =
-                        connector.pivot_geometry(joint_pos, push_axis, slot_idx, aim);
-
-                    slot_connections.push((slot_idx, pivot_pos, aim));
-                }
-            }
-        }
-
-        if slot_connections.is_empty() {
-            return;
-        }
-
         let dims = &connector.dimensions;
         let ring_radius = fabric.dimensions.push_radius.f32(); // D_ring/2 = cap-plate radius
+        let ring_thickness = dims.ring_thickness.f32();
 
         let cylinder = |start: Vec3, end: Vec3, radius: f32, color: [f32; 4]| LinkInstance {
             start: [start.x, start.y, start.z],
@@ -382,35 +282,101 @@ impl ConnectorRenderer {
             color,
         };
 
-        // Cap: flush continuation of the strut tube, before the first washer gap.
-        let cap_end = joint_pos + push_axis * dims.cap_thickness.f32();
-        cylinders.push(cylinder(joint_pos, cap_end, ring_radius, RING_COLOR));
+        // Pass 1: collect every cable-end connector, and the strut-end caps.
+        let mut ends: Vec<EndConnector> = Vec::new();
 
-        for (slot, pivot_pos, aim) in &slot_connections {
-            let ring_center = connector.ring_center(joint_pos, push_axis, *slot);
-            let radial = (*pivot_pos - ring_center).normalize();
-            let tangent = push_axis.cross(radial).normalize();
-            // Direction the cable leaves the pin — always perpendicular to
-            // the tangent, so it serves as the fork's long axis.
-            let cable_dir = (*aim - *pivot_pos).normalize();
+        for (key, interval) in fabric.intervals.iter() {
+            if !interval.has_role(Role::Pushing) {
+                continue;
+            }
+            let alpha_pos = fabric.joints[interval.alpha_key].location;
+            let omega_pos = fabric.joints[interval.omega_key].location;
+            let push_dir = (omega_pos - alpha_pos).normalize();
+
+            for (end, joint_pos, push_axis) in [
+                (IntervalEnd::Alpha, alpha_pos, -push_dir),
+                (IntervalEnd::Omega, omega_pos, push_dir),
+            ] {
+                let Some(connections) = connector.connections(key, end) else {
+                    continue;
+                };
+                let mut occupied = false;
+
+                for (slot_idx, conn_opt) in connections.iter().enumerate() {
+                    let Some(connection) = conn_opt else { continue };
+                    let Some(pull_interval) = fabric.intervals.get(connection.pull_interval_key)
+                    else {
+                        continue;
+                    };
+                    let pull_joint_key = match end {
+                        IntervalEnd::Alpha => interval.alpha_key,
+                        IntervalEnd::Omega => interval.omega_key,
+                    };
+                    let far_joint_key = if pull_interval.alpha_key == pull_joint_key {
+                        pull_interval.omega_key
+                    } else {
+                        pull_interval.alpha_key
+                    };
+
+                    // Aim at the far end's pivot when attached (not the far
+                    // joint) — on short cables the two differ by several
+                    // degrees, and the fork must stay collinear with the
+                    // cable it holds.
+                    let aim = connector
+                        .pull_end_pivot(fabric, connection.pull_interval_key, far_joint_key)
+                        .unwrap_or(fabric.joints[far_joint_key].location);
+
+                    let (pivot, _elevation) =
+                        connector.pivot_geometry(joint_pos, push_axis, slot_idx, aim);
+                    let ring_center = connector.ring_center(joint_pos, push_axis, slot_idx);
+                    let radial = (pivot - ring_center).normalize();
+                    let tangent = push_axis.cross(radial).normalize();
+                    let cable_dir = (aim - pivot).normalize();
+
+                    ends.push(EndConnector {
+                        ring_center,
+                        pivot,
+                        push_axis,
+                        radial,
+                        tangent,
+                        cable_dir,
+                        culprit: connector
+                            .culprits
+                            .contains(&(connection.pull_interval_key, pull_joint_key)),
+                    });
+                    occupied = true;
+                }
+
+                if occupied {
+                    // Cap: flush continuation of the strut tube, before the
+                    // first washer gap.
+                    let cap_end = joint_pos + push_axis * dims.cap_thickness.f32();
+                    cylinders.push(cylinder(joint_pos, cap_end, ring_radius, RING_COLOR));
+                }
+            }
+        }
+
+        // Pass 2: emit every part of every connector, red for the culprits
+        // that `ConnectorSystem::mark_culprits` flagged at rebuild time.
+        for e in &ends {
+            let (ring_color, arm_color, fork_color) = if e.culprit {
+                (OVERLAP_COLOR, OVERLAP_COLOR, OVERLAP_COLOR)
+            } else {
+                (RING_COLOR, ARM_COLOR, FORK_COLOR)
+            };
 
             // The flat ring with its boss, aimed at the cable
             plates.push(PlateInstance {
-                center_radius: [ring_center.x, ring_center.y, ring_center.z, ring_radius],
-                axis_thickness: [
-                    push_axis.x,
-                    push_axis.y,
-                    push_axis.z,
-                    dims.ring_thickness.f32(),
-                ],
-                boss_dir: [radial.x, radial.y, radial.z, 0.0],
-                color: RING_COLOR,
+                center_radius: [e.ring_center.x, e.ring_center.y, e.ring_center.z, ring_radius],
+                axis_thickness: [e.push_axis.x, e.push_axis.y, e.push_axis.z, ring_thickness],
+                boss_dir: [e.radial.x, e.radial.y, e.radial.z, 0.0],
+                color: ring_color,
             });
 
             // Cross-tube along the tangent, filling the fork's jaw gap
-            let tube_start = *pivot_pos - tangent * (TUBE_LENGTH / 2.0);
-            let tube_end = *pivot_pos + tangent * (TUBE_LENGTH / 2.0);
-            cylinders.push(cylinder(tube_start, tube_end, TUBE_RADIUS, ARM_COLOR));
+            let tube_start = e.pivot - e.tangent * (TUBE_LENGTH / 2.0);
+            let tube_end = e.pivot + e.tangent * (TUBE_LENGTH / 2.0);
+            cylinders.push(cylinder(tube_start, tube_end, TUBE_RADIUS, arm_color));
 
             // Fork jaws: rounded-nose plates astride the tube with a little
             // air between jaw and tube end (the pivot's slack — no washer),
@@ -419,17 +385,12 @@ impl ConnectorRenderer {
             // both the ring's azimuth and the fork's free pivot elevation.
             let jaw_offset = TUBE_LENGTH / 2.0 + JAW_CLEARANCE + JAW_THICKNESS / 2.0;
             for side in [-1.0f32, 1.0] {
-                let jaw_center = *pivot_pos + tangent * (side * jaw_offset);
+                let jaw_center = e.pivot + e.tangent * (side * jaw_offset);
                 jaws.push(PlateInstance {
-                    center_radius: [
-                        jaw_center.x,
-                        jaw_center.y,
-                        jaw_center.z,
-                        JAW_NOSE_RADIUS,
-                    ],
-                    axis_thickness: [tangent.x, tangent.y, tangent.z, JAW_THICKNESS],
-                    boss_dir: [cable_dir.x, cable_dir.y, cable_dir.z, 0.0],
-                    color: FORK_COLOR,
+                    center_radius: [jaw_center.x, jaw_center.y, jaw_center.z, JAW_NOSE_RADIUS],
+                    axis_thickness: [e.tangent.x, e.tangent.y, e.tangent.z, JAW_THICKNESS],
+                    boss_dir: [e.cable_dir.x, e.cable_dir.y, e.cable_dir.z, 0.0],
+                    color: fork_color,
                 });
             }
 
@@ -437,34 +398,35 @@ impl ConnectorRenderer {
             // with the jaws' outer faces and edges, so the clevis reads as
             // one forged object. Ends flush with the jaw tails; the shank
             // emerges from it.
-            let body_center = *pivot_pos
-                + cable_dir * (JAW_NOSE_RADIUS * (JAW_REACH_UNITS - 0.5));
+            let body_center = e.pivot + e.cable_dir * (JAW_NOSE_RADIUS * (JAW_REACH_UNITS - 0.5));
             bodies.push(PlateInstance {
                 center_radius: [body_center.x, body_center.y, body_center.z, JAW_NOSE_RADIUS],
                 axis_thickness: [
-                    tangent.x,
-                    tangent.y,
-                    tangent.z,
+                    e.tangent.x,
+                    e.tangent.y,
+                    e.tangent.z,
                     2.0 * jaw_offset + JAW_THICKNESS,
                 ],
-                boss_dir: [cable_dir.x, cable_dir.y, cable_dir.z, 0.0],
-                color: FORK_COLOR,
+                boss_dir: [e.cable_dir.x, e.cable_dir.y, e.cable_dir.z, 0.0],
+                color: fork_color,
             });
 
             // Clevis pin through jaws and tube, protruding past each jaw
             let half_pin = jaw_offset + JAW_THICKNESS / 2.0 + PIN_PROTRUSION;
             cylinders.push(cylinder(
-                *pivot_pos - tangent * half_pin,
-                *pivot_pos + tangent * half_pin,
+                e.pivot - e.tangent * half_pin,
+                e.pivot + e.tangent * half_pin,
                 PIN_RADIUS,
-                ARM_COLOR,
+                arm_color,
             ));
 
             // Swage shank: the cable disappears into it beyond the jaws
-            let shank_start = *pivot_pos + cable_dir * SHANK_START;
-            let shank_end = shank_start + cable_dir * SHANK_LENGTH;
-            cylinders.push(cylinder(shank_start, shank_end, SHANK_RADIUS, FORK_COLOR));
+            let shank_start = e.pivot + e.cable_dir * SHANK_START;
+            let shank_end = shank_start + e.cable_dir * SHANK_LENGTH;
+            cylinders.push(cylinder(shank_start, shank_end, SHANK_RADIUS, fork_color));
         }
+
+        (cylinders, plates, jaws, bodies)
     }
 
     pub fn render<'a>(
@@ -478,9 +440,15 @@ impl ConnectorRenderer {
                 render_pass.set_bind_group(0, bind_group, &[]);
                 render_pass.set_vertex_buffer(0, self.cylinder_vertex_buffer.slice(..));
                 render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
-                render_pass
-                    .set_index_buffer(self.cylinder_index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                render_pass.draw_indexed(0..self.cylinder_num_indices, 0, 0..self.num_cylinder_instances);
+                render_pass.set_index_buffer(
+                    self.cylinder_index_buffer.slice(..),
+                    wgpu::IndexFormat::Uint32,
+                );
+                render_pass.draw_indexed(
+                    0..self.cylinder_num_indices,
+                    0,
+                    0..self.num_cylinder_instances,
+                );
             }
         }
         if let Some(instance_buffer) = &self.plate_instance_buffer {

@@ -6,11 +6,12 @@ use crate::connector::attachment::{
     calculate_interval_attachment_points, PullConnection, PullConnections, PullIntervalData,
     ATTACHMENT_POINTS,
 };
-use crate::connector::ConnectorDimensions;
+use crate::connector::{fork, ConnectorDimensions};
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointKey};
 use glam::Vec3;
 use slotmap::SecondaryMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Debug)]
 pub struct ConnectorSystem {
@@ -18,6 +19,11 @@ pub struct ConnectorSystem {
     /// Slot assignments per push interval, rebuilt on demand from current
     /// geometry (`update_all_connections`) — never during the physics tick.
     pub connections: SecondaryMap<IntervalKey, PullConnections>,
+    /// Cable ends `(pull key, near joint)` whose assembled connectors would
+    /// physically collide with another assembly — real construction issues.
+    /// Marked once per `update_all_connections`, so the renderer never has
+    /// to run the pairwise scan per frame.
+    pub culprits: HashSet<(IntervalKey, JointKey)>,
 }
 
 impl ConnectorSystem {
@@ -25,6 +31,7 @@ impl ConnectorSystem {
         Self {
             dimensions,
             connections: SecondaryMap::new(),
+            culprits: HashSet::new(),
         }
     }
 
@@ -69,6 +76,98 @@ impl ConnectorSystem {
             .collect();
         for push_key in push_keys {
             self.update_push_connections(fabric, push_key);
+        }
+        self.mark_culprits(fabric);
+    }
+
+    /// Rebuild `culprits`: the O(n²) capsule scan over all assembled cable
+    /// ends, run once per assignment rebuild rather than per frame.
+    fn mark_culprits(&mut self, fabric: &Fabric) {
+        self.culprits.clear();
+
+        struct Entry {
+            pull: IntervalKey,
+            near: JointKey,
+            far: JointKey,
+            end_pos: Vec3,
+            axis: Vec3,
+            slot: usize,
+        }
+        let mut entries: Vec<Entry> = Vec::new();
+
+        for (push_key, push) in fabric.intervals.iter() {
+            if !push.has_role(Role::Pushing) {
+                continue;
+            }
+            let alpha_pos = fabric.joints[push.alpha_key].location;
+            let omega_pos = fabric.joints[push.omega_key].location;
+            let push_dir = (omega_pos - alpha_pos).normalize();
+
+            for (end, end_pos, axis, near) in [
+                (IntervalEnd::Alpha, alpha_pos, -push_dir, push.alpha_key),
+                (IntervalEnd::Omega, omega_pos, push_dir, push.omega_key),
+            ] {
+                let Some(conns) = self.connections(push_key, end) else {
+                    continue;
+                };
+                for (slot, conn_opt) in conns.iter().enumerate() {
+                    let Some(conn) = conn_opt else { continue };
+                    let Some(pull) = fabric.intervals.get(conn.pull_interval_key) else {
+                        continue;
+                    };
+                    let far = if pull.alpha_key == near {
+                        pull.omega_key
+                    } else {
+                        pull.alpha_key
+                    };
+                    entries.push(Entry {
+                        pull: conn.pull_interval_key,
+                        near,
+                        far,
+                        end_pos,
+                        axis,
+                        slot,
+                    });
+                }
+            }
+        }
+
+        // First pass: pivots aimed at far joints.
+        let mut first_pivot: HashMap<(IntervalKey, JointKey), Vec3> = HashMap::new();
+        for e in &entries {
+            let (pivot, _) =
+                self.pivot_geometry(e.end_pos, e.axis, e.slot, fabric.joints[e.far].location);
+            first_pivot.insert((e.pull, e.near), pivot);
+        }
+
+        // Second pass: final assembly frames aimed at the far end's pivot —
+        // the same aiming the renderers use.
+        let frames: Vec<((IntervalKey, JointKey), Vec3, [(Vec3, Vec3, f32); 3])> = entries
+            .iter()
+            .map(|e| {
+                let aim = first_pivot
+                    .get(&(e.pull, e.far))
+                    .copied()
+                    .unwrap_or(fabric.joints[e.far].location);
+                let (pivot, _) = self.pivot_geometry(e.end_pos, e.axis, e.slot, aim);
+                let ring_center = self.ring_center(e.end_pos, e.axis, e.slot);
+                let radial = (pivot - ring_center).normalize();
+                let tangent = e.axis.cross(radial).normalize();
+                let cable_dir = (aim - pivot).normalize();
+                ((e.pull, e.near), pivot, fork::capsules(pivot, tangent, cable_dir))
+            })
+            .collect();
+
+        for i in 0..frames.len() {
+            for j in (i + 1)..frames.len() {
+                if frames[i].1.distance(frames[j].1) > fork::OVERLAP_PREFILTER {
+                    continue;
+                }
+                if fork::assemblies_collide(&frames[i].2, &frames[j].2) {
+                    self.culprits.insert(frames[i].0);
+                    self.culprits.insert(frames[j].0);
+                }
+            }
         }
     }
 

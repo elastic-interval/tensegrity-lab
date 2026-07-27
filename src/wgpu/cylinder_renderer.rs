@@ -307,7 +307,7 @@ impl CylinderRenderer {
                                                         );
 
                                                     *modified_points[i] =
-                                                        crate::wgpu::connector_renderer::cable_termination(
+                                                        crate::connector::fork::cable_termination(
                                                             pivot_pos,
                                                             aim,
                                                         );
