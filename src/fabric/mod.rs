@@ -269,6 +269,17 @@ impl Fabric {
         self.connector = Some(connector);
     }
 
+    /// Re-run connector collision marking against current geometry and slot
+    /// assignments. No-op without a connector. Needed after code that edits
+    /// slot assignments directly (e.g. threefold-symmetry enforcement).
+    pub fn mark_connector_culprits(&mut self) {
+        let Some(mut connector) = self.connector.take() else {
+            return;
+        };
+        connector.mark_culprits(self);
+        self.connector = Some(connector);
+    }
+
     /// Free pivot elevation angle (degrees) at every cable end.
     /// Empty without a connector.
     pub fn collect_pivot_angles(&self) -> Vec<f32> {

@@ -81,8 +81,9 @@ impl ConnectorSystem {
     }
 
     /// Rebuild `culprits`: the O(n²) capsule scan over all assembled cable
-    /// ends, run once per assignment rebuild rather than per frame.
-    fn mark_culprits(&mut self, fabric: &Fabric) {
+    /// ends, run once per assignment rebuild rather than per frame. Public
+    /// so symmetry enforcement can re-mark after it rewrites assignments.
+    pub fn mark_culprits(&mut self, fabric: &Fabric) {
         self.culprits.clear();
 
         struct Entry {

@@ -72,6 +72,26 @@ Optional for a display model: add a fillet weld bead around the land where the t
 - A fork end pinned through the tube bore **pivots on the pin** about Y → swings in the X–Z plane (elevation).
 - The two together let a cable attach at any orientation, so **every connector is geometrically identical** — no per-position variants.
 
+### Materials
+
+Real materials, for accurate rendering (and fabrication). **In hand / real (bought):** the fork terminal, its clevis pin, and the cable. **Connector itself:** not yet built, so its material is a choice — **default = hot-dip galvanized steel** (as the existing caps); stainless or aluminium if the redesign chases weight (see Alternative construction below).
+
+Render values are approximate PBR — **linear base-colour RGB · metallic · roughness** — enough for believable metal, not measured data.
+
+| Part | Real material | Look | RGB · metallic · roughness |
+|---|---|---|---|
+| **Connector — default** | Hot-dip **galvanized steel** (S235/S420) | matte cool grey, faint spangle | (0.60, 0.62, 0.64) · 1.0 · **0.55** |
+| Connector — alt. stainless | AISI-316 | brighter satin | (0.56, 0.57, 0.58) · 1.0 · 0.30 |
+| Connector — alt. aluminium | marine Al (5052 / 6082) | light matte grey | (0.62, 0.62, 0.63) · 1.0 · 0.40 |
+| **Clevis pin** (in the bore) — *real* | AISI-316 stainless | bright satin | (0.56, 0.57, 0.58) · 1.0 · 0.28 |
+| **Fork terminal** (mates on the pin) — *real* | AISI-316 stainless | bright satin | (0.56, 0.57, 0.58) · 1.0 · 0.28 |
+| **Cable** — *real* | Galvanized steel, 7×19 | matte grey, stranded | (0.42, 0.44, 0.46) · 1.0 · 0.60 |
+
+- **Galvanized ≠ chrome** — render it matte (roughness ~0.55), cool grey, or it reads as polished steel.
+- The stainless fork + pin are **brighter/shinier** than the galvanized connector — a real, visible material contrast worth showing if you render the joint.
+- Going stainless or aluminium for the connector just swaps its row.
+- The in-app WGPU renderer is diffuse-only, so it approximates this contrast by lifting the stainless base colour above the galvanized one (`connector_renderer.rs`); the PBR values above are for Blender/Cycles renders.
+
 ### Blender script
 
 Paste into Blender's **Scripting** workspace and Run (▶). It **clears the scene**, builds the connector as one solid named `Connector`, gives it a steel material, and sets up floor + lighting + camera + Cycles — so you can just press **F12** to render. Re-run any time; it wipes and rebuilds. (Unit block only affects on-screen measurement.)
@@ -143,14 +163,15 @@ try:
 except Exception:
     pass
 
-# ---- steel material ----
-steel = bpy.data.materials.new("Steel")
+# ---- material: hot-dip galvanized steel (the default build — see the Materials table) ----
+steel = bpy.data.materials.new("Galvanized steel")
 steel.use_nodes = True
 b = steel.node_tree.nodes["Principled BSDF"]
-b.inputs["Base Color"].default_value = (0.56, 0.58, 0.60, 1.0)
+b.inputs["Base Color"].default_value = (0.60, 0.62, 0.64, 1.0)
 b.inputs["Metallic"].default_value  = 1.0
-b.inputs["Roughness"].default_value = 0.40   # slight satin finish reads the form better
+b.inputs["Roughness"].default_value = 0.55   # galvanized is matte, not chrome
 part.data.materials.append(steel)
+# swaps: stainless -> Roughness 0.30 ; aluminium -> Base Color (0.62,0.62,0.63,1), Roughness 0.40
 
 # ---- floor ----
 bpy.ops.mesh.primitive_plane_add(size=1000, location=(0, 0, -D_tube/2.0))
@@ -224,6 +245,29 @@ print("Connector built + scene ready. Press F12 to render.")
 **Minimising the moment arm:** the cable acts at `R_tube` = 32 from the strut axis (ring radius 20 + boss 4 + tube radius 10, less the 2 mm seat). The boss is already minimal; the arm is dominated by the **ring radius** — shrink `D_ring` to reduce it further. Limited by ring strength around the bolt and how it seats on the cap.
 
 Design load ≈ 8–9 kN per cable end (Peter's `Controle lip`/`Controle pen`). Verify with a caliper on a fork terminal: the **jaw inner gap → `L_tube`**. Source data: the Engineering notes, and the terminal + pin drawings in `ENS/Bouwboek Open Claw v20260421.zip`.
+
+### Alternative construction — single-piece formed eye (no weld)
+
+*The spec above — laser-cut disc-with-boss + a separately **welded** steel tube — stays the **default**. This is an alternative to weigh with Peter / a fabricator.*
+
+**The idea (ring–bridge–ring).** Laser-cut one flat blank — **ring — bridge — ring**, each ring at **half thickness** (~2.5 mm). Curl the bridge ~360° around a ~12 mm mandrel so the two rings fold into coincidence and restack to the full ring; the curled bridge becomes the pin eye, replacing the welded tube. One continuous bent piece — **no weld**. It's the same forming used for **hinge knuckles / rolled eyes**.
+
+**Why consider it:** no welding (labour, distortion, and the weld-as-strength-limiter all gone); better fatigue life for a touring piece (continuous parent metal, no weld toe); at ~360 identical parts a forming die likely beats welding on cost; and it opens up materials (below).
+
+**Make-or-break — the seam.** An unwelded curl can spring *open* under load. Keep it shut by (a) orienting the eye so the cable pull **closes** the seam, and (b) letting the **central M12 bolt clamp the two coincident rings** so the curl can't unroll. A single tack weld is cheap insurance. Without reliable closure it's much weaker than a closed tube — this is the crux, not the wall thickness.
+
+**Materials it opens up** (forming isn't limited to weldable steel, and skips galvanizing):
+- **Stainless 316/304** — very formable, steel-class strength, **no galvanizing step** (and matches the AISI-316 fork terminals). Cleanest swap.
+- **Aluminium (marine 5052 / 6082)** — the **weight** option (~⅓ the density of steel). The ring/boss is low-stress, so it takes the density saving nearly for free; press a **stainless bushing** into the eye for pin bearing + galvanic isolation. Rough order **~15–20 kg** off the whole structure across ~360 parts (Peter to confirm). **Best if weight is the goal.**
+- **Titanium** — light + strong + no coating, but cost likely rules it out at this quantity.
+- *(Not the load path: nylon/POM would creep under the sustained cable pretension.)*
+- Connectors bolt on independently, so they need **not** match the galvanized-steel caps — a drop-in material swap on just this one part. Shrinking the ring OD (Ø40 is oversized) trims weight **and** the moment arm in any material.
+
+**How to order it — two routes:**
+1. **Turnkey formed parts** — a sheet-metal-forming / hinge specialist builds a die from your flat-blank drawing + final bent geometry + tolerances and delivers finished parts. Best at full quantity; they own the springback and roundness.
+2. **Flat "ring-bridge-ring" blanks, bend in-house** — order just the laser-cut flats (cheap, same route as the current discs) and curl them yourself over a 12 mm mandrel in a simple jig. Lowest outlay, ideal for prototyping; the catch is repeatable closure/roundness without a proper die, so the jig must **over-bend** to land the two rings coincident.
+
+**Verify before committing:** min bend radius vs grade + thickness (cracking); springback → jig or die; eye roundness for the pin fit; and the eye's capacity at the **~8–9 kN** load (thinner wall than the welded tube). Prototype one and load-test it.
 
 ## Geometry and Dimensions
 

@@ -23,12 +23,14 @@ use wgpu::util::DeviceExt;
 const BOSS_REACH: f32 = 1.2; // R_flat / (D_ring/2) = 24/20, in ring radii
 const BOSS_HALF_WIDTH: f32 = 0.3; // (w_boss/2) / (D_ring/2) = 6/20, in ring radii
 
-// Steel tones: rings/cap slightly lighter than the cross-tube and pin;
-// the stainless fork brighter than both. Connector assemblies marked as
-// collision culprits are painted red instead.
-const RING_COLOR: [f32; 4] = [0.66, 0.68, 0.72, 1.0];
-const ARM_COLOR: [f32; 4] = [0.52, 0.54, 0.58, 1.0];
-const FORK_COLOR: [f32; 4] = [0.78, 0.80, 0.83, 1.0];
+// Materials (docs/connectors.md, "Materials"): the connector itself — ring,
+// boss, cross-tube, cap — is hot-dip galvanized steel; the fork terminal and
+// clevis pin are real, bought AISI-316 stainless. Our shader is diffuse-only,
+// so the stainless base colour is lifted above the table's PBR value to stand
+// in for its shine — the real contrast is roughness, not brightness.
+// Connector assemblies marked as collision culprits are painted red instead.
+const GALVANIZED_COLOR: [f32; 4] = [0.60, 0.62, 0.64, 1.0];
+const STAINLESS_COLOR: [f32; 4] = [0.72, 0.73, 0.75, 1.0];
 const OVERLAP_COLOR: [f32; 4] = [0.90, 0.12, 0.12, 1.0];
 
 /// Instance data for a cylinder (cap, cross-tube, pin, shank)
@@ -351,18 +353,20 @@ impl ConnectorRenderer {
                     // Cap: flush continuation of the strut tube, before the
                     // first washer gap.
                     let cap_end = joint_pos + push_axis * dims.cap_thickness.f32();
-                    cylinders.push(cylinder(joint_pos, cap_end, ring_radius, RING_COLOR));
+                    cylinders.push(cylinder(joint_pos, cap_end, ring_radius, GALVANIZED_COLOR));
                 }
             }
         }
 
         // Pass 2: emit every part of every connector, red for the culprits
         // that `ConnectorSystem::mark_culprits` flagged at rebuild time.
+        // The connector (ring, boss, tube) is galvanized; the fork terminal
+        // and its pin are stainless.
         for e in &ends {
-            let (ring_color, arm_color, fork_color) = if e.culprit {
-                (OVERLAP_COLOR, OVERLAP_COLOR, OVERLAP_COLOR)
+            let (connector_color, fork_color) = if e.culprit {
+                (OVERLAP_COLOR, OVERLAP_COLOR)
             } else {
-                (RING_COLOR, ARM_COLOR, FORK_COLOR)
+                (GALVANIZED_COLOR, STAINLESS_COLOR)
             };
 
             // The flat ring with its boss, aimed at the cable
@@ -370,13 +374,13 @@ impl ConnectorRenderer {
                 center_radius: [e.ring_center.x, e.ring_center.y, e.ring_center.z, ring_radius],
                 axis_thickness: [e.push_axis.x, e.push_axis.y, e.push_axis.z, ring_thickness],
                 boss_dir: [e.radial.x, e.radial.y, e.radial.z, 0.0],
-                color: ring_color,
+                color: connector_color,
             });
 
             // Cross-tube along the tangent, filling the fork's jaw gap
             let tube_start = e.pivot - e.tangent * (TUBE_LENGTH / 2.0);
             let tube_end = e.pivot + e.tangent * (TUBE_LENGTH / 2.0);
-            cylinders.push(cylinder(tube_start, tube_end, TUBE_RADIUS, arm_color));
+            cylinders.push(cylinder(tube_start, tube_end, TUBE_RADIUS, connector_color));
 
             // Fork jaws: rounded-nose plates astride the tube with a little
             // air between jaw and tube end (the pivot's slack — no washer),
@@ -417,7 +421,7 @@ impl ConnectorRenderer {
                 e.pivot - e.tangent * half_pin,
                 e.pivot + e.tangent * half_pin,
                 PIN_RADIUS,
-                arm_color,
+                fork_color,
             ));
 
             // Swage shank: the cable disappears into it beyond the jaws

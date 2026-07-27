@@ -134,6 +134,9 @@ pub fn apply_threefold_symmetry(fabric: &mut Fabric) {
             copy_symmetric_attachments(fabric, rep, member);
         }
     }
+
+    // Slot assignments changed; the collision culprits must reflect them.
+    fabric.mark_connector_culprits();
 }
 
 /// Copy `rep`'s slot assignment to `member` via label rotation. Silently
@@ -321,6 +324,14 @@ fn write_csv(fabric: &Fabric, filename: &str) -> io::Result<()> {
         fabric.name, phase_str, height_mm, now
     )?;
     write_dimensions_comments(&mut file, &fabric.dimensions, &connector.dimensions)?;
+    let collision_summary = build_collision_summary(fabric);
+    file.write_all(collision_summary.as_bytes())?;
+    if !connector.culprits.is_empty() {
+        eprintln!(
+            "⚠ {} cable-end connector assemblies collide — resolve before building; see the CSV header.",
+            connector.culprits.len()
+        );
+    }
     writeln!(
         file,
         "# Orientation check (CSV coords, mm, Z-up): ground plane at Z=0, apex at Z={:.1}",
@@ -859,6 +870,70 @@ fn format_csv_angle(deg: f32) -> String {
     }
 }
 
+/// Connector assemblies that would physically collide with a neighbour —
+/// real construction issues that must be resolved before building. The
+/// culprit set is marked by `ConnectorSystem::mark_culprits` (re-run after
+/// symmetry enforcement) and rendered red in the app's connector view.
+fn build_collision_summary(fabric: &Fabric) -> String {
+    use std::fmt::Write;
+    let mut s = String::new();
+    let Some(connector) = fabric.connector.as_ref() else {
+        return s;
+    };
+    writeln!(s, "# === Connector botsingen / collisions ===").ok();
+    if connector.culprits.is_empty() {
+        writeln!(s, "# Geen botsingen: alle connector-samenstellingen hebben vrije ruimte.").ok();
+        writeln!(s, "#").ok();
+        return s;
+    }
+
+    let mut lines: Vec<String> = Vec::new();
+    for (push_key, push) in fabric.intervals.iter() {
+        if !push.has_role(Role::Pushing) {
+            continue;
+        }
+        for end in [IntervalEnd::Alpha, IntervalEnd::Omega] {
+            let near = match end {
+                IntervalEnd::Alpha => push.alpha_key,
+                IntervalEnd::Omega => push.omega_key,
+            };
+            let Some(conns) = connector.connections(push_key, end) else {
+                continue;
+            };
+            for (slot, conn_opt) in conns.iter().enumerate() {
+                let Some(conn) = conn_opt else { continue };
+                if !connector.culprits.contains(&(conn.pull_interval_key, near)) {
+                    continue;
+                }
+                let pull = &fabric.intervals[conn.pull_interval_key];
+                let far = if pull.alpha_key == near {
+                    pull.omega_key
+                } else {
+                    pull.alpha_key
+                };
+                lines.push(format!(
+                    "#   {} slot {}  (kabel naar {})",
+                    fabric.joint_label(near),
+                    slot + 1,
+                    fabric.joint_label(far),
+                ));
+            }
+        }
+    }
+    lines.sort();
+    writeln!(
+        s,
+        "# LET OP — OPLOSSEN VOOR BOUW: {} kabeleinden botsen met een buur:",
+        lines.len()
+    )
+    .ok();
+    for line in &lines {
+        writeln!(s, "{}", line).ok();
+    }
+    writeln!(s, "#").ok();
+    s
+}
+
 /// Every connector is identical and the fork pivots freely on its pin, so
 /// there is nothing to manufacture per angle — this summary only reports the
 /// elevation range the pivots will take, for checking articulation limits.
@@ -1170,6 +1245,33 @@ mod tests {
         write_csv(&executor.fabric, &filename).expect("CSV write failed");
 
         verify_threefold_symmetry(&executor.fabric);
+    }
+
+    /// The capsule model currently finds 24 colliding cable-end assemblies
+    /// (8 per leg, threefold-symmetric) — real construction issues, listed
+    /// in the CSV header and shown red in the app's connector view (C key).
+    /// This test pins that number so any change — improvement, regression,
+    /// or geometry drift — must come to our attention before building.
+    #[test]
+    fn test_open_claw_connector_collisions() {
+        let mut executor = build_to_slack();
+        executor.fabric.update_all_attachment_connections();
+        apply_threefold_symmetry(&mut executor.fabric);
+
+        let culprits = executor
+            .fabric
+            .connector
+            .as_ref()
+            .map(|connector| connector.culprits.len())
+            .unwrap_or(0);
+        assert_eq!(
+            culprits, 24,
+            "connector collision culprits changed (now {}): inspect in the app \
+             (C toggles the connector view; culprits are red), then either fix \
+             the slot assignment/hardware and update this baseline, or \
+             investigate the geometry drift",
+            culprits
+        );
     }
 
     /// All 180 cables should group into 60 triples by 3-fold symmetry, with
