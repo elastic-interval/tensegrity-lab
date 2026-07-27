@@ -283,6 +283,9 @@ The connector assembly is rendered by `ConnectorRenderer` (`src/wgpu/connector_r
 | **Cap** | Flush cylindrical continuation of the strut tube | `cap_thickness` long, strut radius |
 | **Ring + boss** | One flat plate per occupied slot: a disc with the boss as part of its outline, aimed at the cable | `ring_thickness` thick, disc radius = strut radius (D_ring/2), boss to R_flat |
 | **Cross-tube** | Stubby cylinder along the tangent at the pivot | D_tube/2 × L_tube |
+| **Fork jaws** | Two rounded-nose plates astride the tube (same stadium outline family as the ring+boss, rendered by the plate pipeline), long axis along the cable — so forks visibly articulate with the free pivot | ~4.5 mm thick, ~9.5 mm nose radius (estimated; awaits terminal drawings) |
+| **Clevis pin** | Cylinder along the tangent through tube and jaws, protruding past each jaw | ⌀10 mm |
+| **Swage shank** | Cylinder along the cable beyond the jaws; the cable disappears into it | ⌀12 mm × 45 mm |
 
 The plate uses its own mesh and pipeline (`create_connector_plate`, `plate_vertex` in `shader.wgsl`) because its instances need a full orientation — the boss must point toward the cable, whereas a plain cylinder instance leaves the azimuth arbitrary. Washer gaps are left as empty space, so the stack reads as separate rings. The cable itself (drawn by `cylinder_renderer.rs`, at the true 6 mm cable diameter via `pull_radius`) ends at the pivot pin and disappears inside the cross-tube, so the attachment reads as a solid connection. Rendering is only visible when `show_attachment_points()` is enabled in the render style.
 

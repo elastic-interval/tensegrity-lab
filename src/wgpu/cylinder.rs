@@ -287,6 +287,100 @@ impl Wgpu {
         (vertex_buffer, index_buffer, indices.len() as u32)
     }
 
+    /// Unit rectangular plate: x ∈ [−0.5, +0.5], z ∈ [−1, +1], extruded over
+    /// y ∈ [−0.5, +0.5], flat normals all round. Instanced by `plate_vertex`
+    /// like the other profiles: x/z scale by the instance radius, y by the
+    /// instance thickness.
+    pub fn create_box_plate(&self) -> (wgpu::Buffer, wgpu::Buffer, u32) {
+        use bytemuck::cast_slice;
+        #[repr(C)]
+        #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+        struct PlateVertex {
+            position: [f32; 3],
+            normal: [f32; 3],
+            uv: [f32; 2],
+        }
+
+        const HALF_HEIGHT: f32 = 0.5;
+        let outline: [[f32; 2]; 4] = [[-0.5, 1.0], [-0.5, -1.0], [0.5, -1.0], [0.5, 1.0]];
+        let n = outline.len();
+
+        let mut vertices: Vec<PlateVertex> = Vec::new();
+        let mut indices: Vec<u32> = Vec::new();
+
+        // Side walls: flat outward normal per edge, (dz, −dx) for this winding.
+        for i in 0..n {
+            let [px, pz] = outline[i];
+            let [qx, qz] = outline[(i + 1) % n];
+            let (dx, dz) = (qx - px, qz - pz);
+            let len = (dx * dx + dz * dz).sqrt();
+            let normal = [dz / len, 0.0, -dx / len];
+
+            let base = vertices.len() as u32;
+            for (x, z) in [(px, pz), (qx, qz)] {
+                vertices.push(PlateVertex {
+                    position: [x, HALF_HEIGHT, z],
+                    normal,
+                    uv: [0.0, 0.0],
+                });
+                vertices.push(PlateVertex {
+                    position: [x, -HALF_HEIGHT, z],
+                    normal,
+                    uv: [0.0, 1.0],
+                });
+            }
+            let (p_top, p_bot, q_top, q_bot) = (base, base + 1, base + 2, base + 3);
+            indices.extend([p_top, q_top, p_bot, p_bot, q_top, q_bot]);
+        }
+
+        // Top and bottom faces, fanned from the centroid.
+        for (y, normal, flip) in [
+            (HALF_HEIGHT, [0.0, 1.0, 0.0], false),
+            (-HALF_HEIGHT, [0.0, -1.0, 0.0], true),
+        ] {
+            let center = vertices.len() as u32;
+            vertices.push(PlateVertex {
+                position: [0.0, y, 0.0],
+                normal,
+                uv: [0.5, 0.5],
+            });
+            let ring_start = vertices.len() as u32;
+            for [x, z] in &outline {
+                vertices.push(PlateVertex {
+                    position: [*x, y, *z],
+                    normal,
+                    uv: [0.5 + 0.5 * x, 0.5 + 0.5 * z],
+                });
+            }
+            for i in 0..n as u32 {
+                let current = ring_start + i;
+                let next = ring_start + (i + 1) % n as u32;
+                if flip {
+                    indices.extend([center, current, next]);
+                } else {
+                    indices.extend([center, next, current]);
+                }
+            }
+        }
+
+        let vertex_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Box Plate Vertex Buffer"),
+                contents: cast_slice(&vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+        let index_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Box Plate Index Buffer"),
+                contents: cast_slice(&indices),
+                usage: wgpu::BufferUsages::INDEX,
+            });
+
+        (vertex_buffer, index_buffer, indices.len() as u32)
+    }
+
     pub fn cylinder_vertex_layout<'a>() -> wgpu::VertexBufferLayout<'a> {
         use std::mem::size_of;
 

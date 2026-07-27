@@ -287,16 +287,30 @@ impl CylinderRenderer {
                                                         }
                                                     };
 
-                                                    // The cable ends at the pivot pin
+                                                    // The cable ends inside its fork's swage
+                                                    // shank, aimed at the far end's pivot (not
+                                                    // the far joint) so it stays collinear with
+                                                    // the fork even on short cables.
+                                                    let aim = connector
+                                                        .pull_end_pivot(
+                                                            fabric,
+                                                            pull_key,
+                                                            other_joint_keys[i],
+                                                        )
+                                                        .unwrap_or(other_joint_pos);
                                                     let (pivot_pos, _elevation) =
                                                         connector.pivot_geometry(
                                                             push_end_pos,
                                                             push_axis,
                                                             pull_conn.attachment_index,
-                                                            other_joint_pos,
+                                                            aim,
                                                         );
 
-                                                    *modified_points[i] = pivot_pos;
+                                                    *modified_points[i] =
+                                                        crate::wgpu::connector_renderer::cable_termination(
+                                                            pivot_pos,
+                                                            aim,
+                                                        );
 
                                                     // We found the connection, no need to check others
                                                     break;

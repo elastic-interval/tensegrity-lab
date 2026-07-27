@@ -8,7 +8,7 @@ use crate::connector::attachment::{
 };
 use crate::connector::ConnectorDimensions;
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, IntervalEnd, IntervalKey};
+use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointKey};
 use glam::Vec3;
 use slotmap::SecondaryMap;
 
@@ -125,6 +125,59 @@ impl ConnectorSystem {
             &self.dimensions,
         );
         self.connections.insert(push_key, connections);
+    }
+
+    /// Pivot pin position for the given pull's end at joint `near`, aimed at
+    /// the pull's far joint. `None` when that end isn't attached to any push.
+    /// Aiming at the far pivot instead of the far joint is a second pass over
+    /// this: see the renderers, which use it to keep forks collinear with
+    /// their cables on short spans.
+    pub fn pull_end_pivot(
+        &self,
+        fabric: &Fabric,
+        pull_key: IntervalKey,
+        near: JointKey,
+    ) -> Option<Vec3> {
+        for (push_key, push) in fabric.intervals.iter() {
+            if !push.has_role(Role::Pushing) {
+                continue;
+            }
+            for end in [IntervalEnd::Alpha, IntervalEnd::Omega] {
+                let end_joint = match end {
+                    IntervalEnd::Alpha => push.alpha_key,
+                    IntervalEnd::Omega => push.omega_key,
+                };
+                if end_joint != near {
+                    continue;
+                }
+                let Some(conns) = self.connections(push_key, end) else {
+                    continue;
+                };
+                for (slot_idx, conn_opt) in conns.iter().enumerate() {
+                    let Some(conn) = conn_opt else { continue };
+                    if conn.pull_interval_key != pull_key {
+                        continue;
+                    }
+                    let alpha_pos = fabric.joints[push.alpha_key].location;
+                    let omega_pos = fabric.joints[push.omega_key].location;
+                    let push_dir = (omega_pos - alpha_pos).normalize();
+                    let (end_pos, axis_dir) = match end {
+                        IntervalEnd::Alpha => (alpha_pos, -push_dir),
+                        IntervalEnd::Omega => (omega_pos, push_dir),
+                    };
+                    let pull = &fabric.intervals[pull_key];
+                    let other = if pull.alpha_key == near {
+                        fabric.joints[pull.omega_key].location
+                    } else {
+                        fabric.joints[pull.alpha_key].location
+                    };
+                    let (pivot_pos, _elevation) =
+                        self.pivot_geometry(end_pos, axis_dir, slot_idx, other);
+                    return Some(pivot_pos);
+                }
+            }
+        }
+        None
     }
 
     /// Free pivot elevation angle (degrees) at every cable end.

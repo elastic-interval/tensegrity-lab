@@ -1075,51 +1075,14 @@ fn pull_shortened_length(fabric: &Fabric, key: IntervalKey) -> f32 {
     (omega_pos - alpha_pos).length()
 }
 
-/// Walks the push intervals to find where this pull's `near` end is attached
-/// and returns the pivot pin position (shortened position). If unattached,
-/// the joint location itself.
+/// Where this pull's `near` end attaches: the pivot pin position, or the
+/// joint location itself when unattached.
 fn pull_endpoint_position(fabric: &Fabric, pull_key: IntervalKey, near: JointKey) -> Vec3 {
-    let Some(connector) = fabric.connector.as_ref() else {
-        return fabric.joints[near].location;
-    };
-    for (pk, push) in fabric.intervals.iter() {
-        if !push.has_role(Role::Pushing) {
-            continue;
-        }
-        for end in [IntervalEnd::Alpha, IntervalEnd::Omega] {
-            let end_joint = match end {
-                IntervalEnd::Alpha => push.alpha_key,
-                IntervalEnd::Omega => push.omega_key,
-            };
-            if end_joint != near {
-                continue;
-            }
-            let Some(conns) = connector.connections(pk, end) else { continue };
-            for (slot_idx, conn_opt) in conns.iter().enumerate() {
-                let Some(conn) = conn_opt else { continue };
-                if conn.pull_interval_key != pull_key {
-                    continue;
-                }
-                let alpha_pos = fabric.joints[push.alpha_key].location;
-                let omega_pos = fabric.joints[push.omega_key].location;
-                let push_dir = (omega_pos - alpha_pos).normalize();
-                let (end_pos, axis_dir) = match end {
-                    IntervalEnd::Alpha => (alpha_pos, -push_dir),
-                    IntervalEnd::Omega => (omega_pos, push_dir),
-                };
-                let pull = &fabric.intervals[pull_key];
-                let other = if pull.alpha_key == near {
-                    fabric.joints[pull.omega_key].location
-                } else {
-                    fabric.joints[pull.alpha_key].location
-                };
-                let (pivot_pos, _elevation) =
-                    connector.pivot_geometry(end_pos, axis_dir, slot_idx, other);
-                return pivot_pos;
-            }
-        }
-    }
-    fabric.joints[near].location
+    fabric
+        .connector
+        .as_ref()
+        .and_then(|connector| connector.pull_end_pivot(fabric, pull_key, near))
+        .unwrap_or(fabric.joints[near].location)
 }
 
 fn write_dimensions_comments(
