@@ -147,6 +147,10 @@ connector slot assignments (`Fabric::update_all_attachment_connections`).
 ### Build pipeline
 
 DSL in `src/build/dsl/`:
+- `brick_library/` — brick prototypes, baked at startup by `equilibrium.rs`:
+  form-finding (L-BFGS, face-anchored scale) → shrink-wrap pretension (every
+  pull +5%, every push −5%) → solid-tensegrity validation (panics on slack
+  members). See `docs/brick-baking.md`; `--bake-bricks` is the visual mode.
 - `fabric_library.rs` — named fabrics (`OpenClaw`, `Halo by Crane`, …).
 - `fabric_plan.rs` + `fabric_plan_executor.rs` — phased execution
   (`Building → Pretensing → Falling → Settling → Complete`).
@@ -264,6 +268,10 @@ Important integration tests:
   `test_open_claw_foot_positions`.
 - `src/physics_gpu/parity_test.rs` — CPU vs GPU numeric parity.
 - `src/connector/dimensions.rs` (inline `pivot_geometry_tests`) — derived dimension formulas.
+- `src/build/dsl/brick_library/equilibrium.rs` — `all_bricks_are_solid_tensegrities`
+  (every baked brick: pushes compressed, pulls tensioned; see docs/brick-baking.md).
+- `src/fabric_smoke_test.rs` — `test_minimal_man_mirror_symmetry` (whole-fabric
+  mirror guard for the Torque-seeded MinimalMan).
 
 ## Entry Points
 

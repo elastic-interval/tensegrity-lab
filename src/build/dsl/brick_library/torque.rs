@@ -45,6 +45,22 @@ pub fn torque(params: &TorqueParams) -> BrickPrototype {
                 (MiddleBack, BackRightTop),
             ],
         )
+        // Tension rectangles tying the four Y-strut ends together on both
+        // sides of the group — without them the 2×2 strut cluster has no
+        // lateral connection between its ends.
+        .pulls(
+            params.pull_length,
+            [
+                (FrontLeftBottom, FrontRightBottom),
+                (FrontRightBottom, BackRightBottom),
+                (BackRightBottom, BackLeftBottom),
+                (BackLeftBottom, FrontLeftBottom),
+                (FrontLeftTop, FrontRightTop),
+                (FrontRightTop, BackRightTop),
+                (BackRightTop, BackLeftTop),
+                (BackLeftTop, FrontLeftTop),
+            ],
+        )
         .face(
             Spin::Left,
             [BottomLeft, LeftFront, FrontLeftBottom],

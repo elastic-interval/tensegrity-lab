@@ -5,7 +5,7 @@
 
 use crate::build::dsl::brick::BakedBrick;
 use crate::build::dsl::brick_dsl::{
-    BrickName, BrickParams, OmniParams, SingleParams, TorqueParams,
+    BrickName, BrickParams, OmniParams, SingleParams, TorqueParams, PHI,
 };
 use crate::build::dsl::brick_library::equilibrium::bake_brick_pure;
 use glam::Vec3;
@@ -46,9 +46,9 @@ fn initial_scale(brick_name: BrickName) -> f32 {
     use BrickName::*;
     match brick_name {
         OmniSymmetrical => 0.96720,
-        OmniTetrahedral => 1.22593,
+        OmniTetrahedral => 1.26953,
         SingleTwistLeft => 0.90909,
-        TorqueSymmetrical => 1.02172,
+        TorqueSymmetrical => 0.97848,
     }
 }
 
@@ -63,7 +63,14 @@ fn brick_params(brick_name: BrickName) -> BrickParams {
             pull_length: 2.0,
         }),
         TorqueSymmetrical => BrickParams::Torque(TorqueParams {
-            push_lengths: Vec3::new(3.0, 3.0, 6.0),
+            // Strut lengths relate by the golden mean: unit struts (at the
+            // 3.0 base the face-radial rest lengths anchor) and a φ pair —
+            // the z pair (TopLeft-TopRight / BottomLeft-BottomRight), down
+            // from the original 2× that dominated the brick. NB the base is
+            // NOT arbitrary: face radials have fixed absolute rests, and
+            // push rests far below the face-anchored size leave every strut
+            // slack (a degenerate bake that ignores these numbers entirely).
+            push_lengths: Vec3::new(3.0, 3.0, 3.0 * PHI),
             pull_length: 1.86,
         }),
     }

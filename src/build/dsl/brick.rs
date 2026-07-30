@@ -209,10 +209,24 @@ impl BrickPrototype {
 impl BrickPrototype {
     /// Convert prototype to fabric for baking, applying face scaling
     pub fn to_fabric(&self, face_scaling: ScaleMode) -> Fabric {
+        // Same-axis push endpoints all start at ±axis·ideal/2, so without a
+        // nudge they coincide exactly — and an interval between coincident
+        // joints has no direction for the physics to push along (NaN). A
+        // tiny deterministic offset per joint separates them; the settle to
+        // equilibrium erases it. (The pure solver guards zero-length springs
+        // instead; time-stepped physics cannot.)
+        let nudge = |index: usize| -> Vec3 {
+            let i = index as f32;
+            Vec3::new(
+                (i * 1.7 + 0.3).sin(),
+                (i * 2.9 + 1.1).sin(),
+                (i * 4.3 + 2.2).sin(),
+            ) * 0.001
+        };
         let mut fabric = Fabric::new("prototype".to_string());
         let mut joints_by_name: HashMap<JointName, JointKey> = HashMap::new();
         for name in &self.joints {
-            let joint_key = fabric.create_joint(Vec3::ZERO);
+            let joint_key = fabric.create_joint(nudge(joints_by_name.len()));
             if joints_by_name.insert(*name, joint_key).is_some() {
                 panic!("joint with that name already exists")
             }
@@ -229,7 +243,7 @@ impl BrickPrototype {
                 (push.omega, vector * ideal / 2.0),
             ];
             let [alpha_key, omega_key] = ends.map(|(name, loc)| {
-                let joint_key = fabric.create_joint(loc);
+                let joint_key = fabric.create_joint(loc + nudge(joints_by_name.len()));
                 if joints_by_name.insert(name, joint_key).is_some() {
                     panic!("joint with that name already exists")
                 }

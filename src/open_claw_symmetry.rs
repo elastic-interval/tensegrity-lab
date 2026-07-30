@@ -1247,11 +1247,15 @@ mod tests {
         verify_threefold_symmetry(&executor.fabric);
     }
 
-    /// The capsule model currently finds 24 colliding cable-end assemblies
-    /// (8 per leg, threefold-symmetric) — real construction issues, listed
+    /// The capsule model currently finds 36 colliding cable-end assemblies
+    /// (12 per leg, threefold-symmetric) — real construction issues, listed
     /// in the CSV header and shown red in the app's connector view (C key).
     /// This test pins that number so any change — improvement, regression,
     /// or geometry drift — must come to our attention before building.
+    ///
+    /// History: 24 before the brick pretension overhaul (2026-07-28, the
+    /// shrink-wrap pass in `equilibrium.rs`), which grew OpenClaw ~4.4%
+    /// and shifted strut-end crowding.
     #[test]
     fn test_open_claw_connector_collisions() {
         let mut executor = build_to_slack();
@@ -1265,7 +1269,7 @@ mod tests {
             .map(|connector| connector.culprits.len())
             .unwrap_or(0);
         assert_eq!(
-            culprits, 24,
+            culprits, 36,
             "connector collision culprits changed (now {}): inspect in the app \
              (C toggles the connector view; culprits are red), then either fix \
              the slot assignment/hardware and update this baseline, or \

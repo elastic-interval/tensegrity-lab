@@ -32,7 +32,73 @@ mod tests {
         }
     }
 
-/// Per-step full symmetry check: at every build step (starting from
+/// Minimal Man must be left/right mirror-symmetric: with the Torque seed,
+    /// `LowerLeft`/`LowerRight` and `UpperLeft`/`UpperRight` are mirror face
+    /// pairs, and the hand-hub face choice must preserve that. This checks
+    /// every joint has a mirror partner at the end of Building.
+    #[test]
+    fn test_minimal_man_mirror_symmetry() {
+        let plan = fabric_library::get_fabric_plan(FabricName::MinimalMan);
+        let mut executor = FabricPlanExecutor::new(plan);
+        while *executor.stage() == ExecutorStage::Building {
+            let _ = executor.iterate();
+        }
+
+        let pts: Vec<Vec3> = executor.fabric.joints.values().map(|j| j.location).collect();
+        assert!(!pts.is_empty());
+        let centroid = pts.iter().copied().sum::<Vec3>() / pts.len() as f32;
+
+        // The mirror plane is vertical through the centroid, but its azimuth
+        // is set by the seed's orientation, not by the world axes. For a
+        // mirror-symmetric set the horizontal covariance eigenvectors are
+        // parallel/perpendicular to the plane — both are candidate normals.
+        let (mut cxx, mut cxz, mut czz) = (0.0f32, 0.0f32, 0.0f32);
+        for p in &pts {
+            let d = *p - centroid;
+            cxx += d.x * d.x;
+            cxz += d.x * d.z;
+            czz += d.z * d.z;
+        }
+        let theta = 0.5 * (2.0 * cxz).atan2(cxx - czz);
+        let normals = [
+            Vec3::new(theta.cos(), 0.0, theta.sin()),
+            Vec3::new(-theta.sin(), 0.0, theta.cos()),
+        ];
+
+        let tol = 0.05;
+        let unmatched_for = |n: Vec3| -> Vec<Vec3> {
+            pts.iter()
+                .copied()
+                .filter(|p| {
+                    let d = *p - centroid;
+                    let target = centroid + d - n * (2.0 * d.dot(n));
+                    (*p - target).length() > tol
+                        && !pts.iter().any(|q| (*q - target).length() < tol)
+                })
+                .collect()
+        };
+        let (normal, unmatched) = normals
+            .iter()
+            .map(|n| (*n, unmatched_for(*n)))
+            .min_by_key(|(_, u)| u.len())
+            .unwrap();
+
+        if !unmatched.is_empty() {
+            for p in unmatched.iter().take(8) {
+                eprintln!("  ✗ ({:+.3}, {:+.3}, {:+.3}) has no mirror partner", p.x, p.y, p.z);
+            }
+            panic!(
+                "MinimalMan: {} of {} joints lack a mirror partner (best plane normal ({:+.2}, 0, {:+.2}))",
+                unmatched.len(),
+                pts.len(),
+                normal.x,
+                normal.z
+            );
+        }
+
+    }
+
+    /// Per-step full symmetry check: at every build step (starting from
     /// the seed alone), verify that the joints in the fabric form a
     /// mirror-symmetric set — for every joint off the mirror plane,
     /// there should exist another joint at the mirror-image position.

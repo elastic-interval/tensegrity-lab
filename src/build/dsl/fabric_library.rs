@@ -178,27 +178,25 @@ impl FabricName {
                         .with_scale(M(1.0))
                         .with_connector(),
                 )
-                .seed(OmniSymmetrical, Seed(2))
+                .seed(TorqueSymmetrical, Seed(2))
                 .faces([
                     on(LowerLeft)
                         .column(4)
-                        .shrink_by(Pct(20.0))
+                        .shrink_by(Pct(2.0))
                         .prism(Pct(200.0))
                         .label(Foot(Side::Left)),
                     on(LowerRight)
                         .column(4)
-                        .shrink_by(Pct(20.0))
+                        .shrink_by(Pct(2.0))
                         .prism(Pct(200.0))
                         .label(Foot(Side::Right)),
-                    on(UpperLeft).column(1).shrink_by(Pct(40.0)).then(
-                        hub(OmniSymmetrical).faces([on(OmniTopZ)
-                            .column(3)
-                            .label(Hand(Side::Left))]),
+                    on(UpperLeft).column(1).shrink_by(Pct(2.0)).then(
+                        hub(OmniSymmetrical)
+                            .faces([on(OmniTopZ).column(3).label(Hand(Side::Left))]),
                     ),
-                    on(UpperRight).column(1).shrink_by(Pct(40.0)).then(
-                        hub(OmniSymmetrical).faces([on(OmniTopX)
-                            .column(3)
-                            .label(Hand(Side::Right))]),
+                    on(UpperRight).column(1).shrink_by(Pct(2.0)).then(
+                        hub(OmniSymmetrical)
+                            .faces([on(OmniTopZ).column(3).label(Hand(Side::Right))]),
                     ),
                 ])
                 .prepare_vulcanize(0.5, VulcanizeMode::Linear)
@@ -213,7 +211,8 @@ impl FabricName {
                         spacer([Hand(Side::Left), Hand(Side::Right)], Pct(40.0)),
                     ],
                 )
-                .vulcanize(Sec(2.0))                .down(Sec(1.0), [Foot(Side::Left), Foot(Side::Right)])
+                .vulcanize(Sec(2.0))
+                .down(Sec(1.0), [Foot(Side::Left), Foot(Side::Right)])
                 .pretense(Sec(1.0), Pct(1.0))
                 .surface_frozen()
                 .fall(Sec(1.5))
@@ -293,28 +292,31 @@ impl FabricName {
                 .pretense(Sec(1.0), Pct(1.0))
                 .floating(),
 
-            Propeller => self
-                .build(FabricDimensions::default())
-                .seed(OmniSymmetrical, Seed(1))
-                .faces([
-                    on(OmniBotX).column(11).shrink_by(Pct(10.0)).tip_label(),
-                    on(OmniBotY).column(11).shrink_by(Pct(10.0)).tip_label(),
-                    on(OmniBotZ).column(11).shrink_by(Pct(10.0)).tip_label(),
-                    on(OmniTopX).column(11).shrink_by(Pct(10.0)).tip_label(),
-                    on(OmniTopY).column(11).shrink_by(Pct(10.0)).tip_label(),
-                    on(OmniTopZ).column(11).shrink_by(Pct(10.0)).tip_label(),
-                ])
-                .join_parallel(
-                    Sec(2.0),
-                    tips([
-                        (OmniBotX, OmniTopZ),
-                        (OmniBotY, OmniTopX),
-                        (OmniBotZ, OmniTopY),
-                    ]),
-                )
-                .vulcanize(Sec(1.0))
-                .pretense(Sec(1.0), Pct(1.0))
-                .floating(),
+            Propeller => {
+                let length = 4;
+                self
+                    .build(FabricDimensions::default().with_connector())
+                    .seed(OmniSymmetrical, Seed(1))
+                    .faces([
+                        on(OmniBotX).column(length).shrink_by(Pct(10.0)).tip_label(),
+                        on(OmniBotY).column(length).shrink_by(Pct(10.0)).tip_label(),
+                        on(OmniBotZ).column(length).shrink_by(Pct(10.0)).tip_label(),
+                        on(OmniTopX).column(length).shrink_by(Pct(10.0)).tip_label(),
+                        on(OmniTopY).column(length).shrink_by(Pct(10.0)).tip_label(),
+                        on(OmniTopZ).column(length).shrink_by(Pct(10.0)).tip_label(),
+                    ])
+                    .join_parallel(
+                        Sec(2.0),
+                        tips([
+                            (OmniBotX, OmniTopZ),
+                            (OmniBotY, OmniTopX),
+                            (OmniBotZ, OmniTopY),
+                        ]),
+                    )
+                    .vulcanize(Sec(1.0))
+                    .pretense(Sec(1.0), Pct(1.0))
+                    .floating()
+            },
 
             Infinity => self
                 .build(FabricDimensions::default())

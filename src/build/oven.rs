@@ -14,7 +14,7 @@ use strum::IntoEnumIterator;
 /// Role for the 3-fold cyclic symmetry of Omni / Single bricks.
 const THREEFOLD_ROLE: BrickRole = BrickRole::Seed(1);
 
-const BAKED_DURATION: Duration = Duration::from_secs(2);
+const BAKED_DURATION: Duration = Duration::from_secs(6);
 const REORIENT_DURATION: Duration = Duration::from_millis(500);
 
 /// Stop the second physics burst once `max_speed` drops below this.
@@ -169,10 +169,19 @@ impl Oven {
             self.reoriented = true;
         }
 
-        // Stop on settled OR timed out.
+        // Stop on settled OR timed out. Never measure while pulls are still
+        // Approaching their rest lengths — the fabric can be momentarily
+        // slow mid-approach (especially OmniTetrahedral's 3× face
+        // compression), and a strain read then sends the bisection chasing
+        // noise.
         let age = context.fabric.age.as_duration();
         let post_reorient = age.saturating_sub(REORIENT_DURATION);
+        let approaching = context
+            .fabric
+            .interval_values()
+            .any(|interval| matches!(interval.span, crate::fabric::interval::Span::Approaching { .. }));
         let settled = self.reoriented
+            && !approaching
             && post_reorient >= MIN_PHYSICS_AFTER_REORIENT
             && context.fabric.stats.max_speed < CONVERGENCE_SPEED_M_PER_S;
         let timed_out = age >= BAKED_DURATION;
@@ -199,21 +208,18 @@ impl Oven {
             }
 
             let final_scale = self.tuning.scale;
-            if self.tuning.iteration > 0 {
-                println!(
-                    "Tuned {} in {} iterations: scale={:.4}, strain={:.4}",
-                    self.current_brick_name(),
-                    self.tuning.iteration,
-                    final_scale,
-                    current_strain
-                );
-            }
+            println!(
+                "Baked {} in {} iterations: scale={:.5}, strain={:.4}  \
+                 (update initial_scale() in baked_bricks.rs if this drifted)",
+                self.current_brick_name(),
+                self.tuning.iteration,
+                final_scale,
+                current_strain
+            );
 
             let brick_name = self.current_brick_name();
             symmetrize_brick_3fold(&mut context.fabric, brick_name);
-            let code = self.generate_baked_code(&context.fabric, final_scale);
             self.baked_fabrics[self.current_index] = Some(context.fabric.clone());
-            self.export_brick(brick_name, &code);
 
             if let Some(next_index) = self.next_unbaked_index() {
                 self.current_index = next_index;
@@ -232,90 +238,6 @@ impl Oven {
         None
     }
 
-    fn generate_baked_code(&self, fabric: &Fabric, scale: f32) -> String {
-        let mut oriented = fabric.clone();
-        // `attach_brick` asserts centroid at origin.
-        let centroid = oriented.centroid();
-        oriented.apply_translation(-centroid);
-
-        let face_joints: Vec<JointKey> = oriented
-            .faces
-            .values()
-            .map(|face| face.middle_joint(&oriented))
-            .collect();
-
-        let mut fabric_to_baked: HashMap<JointKey, usize> = HashMap::new();
-        let mut baked_index = 0;
-        for (key, _joint) in oriented.joints.iter() {
-            if !face_joints.contains(&key) {
-                fabric_to_baked.insert(key, baked_index);
-                baked_index += 1;
-            }
-        }
-
-        // {:.7} preserves f32's ~7 significant digits.
-        let joints_str: Vec<String> = oriented
-            .joints
-            .iter()
-            .filter(|(key, _)| !face_joints.contains(key))
-            .map(|(_, joint)| {
-                let loc = joint.location;
-                format!(
-                    "            joint({:.7}, {:.7}, {:.7}),",
-                    loc.x, loc.y, loc.z
-                )
-            })
-            .collect();
-
-        let mut pushes: Vec<String> = Vec::new();
-        let mut pulls: Vec<String> = Vec::new();
-
-        for interval in oriented.interval_values() {
-            if interval.role == Role::FaceRadial {
-                continue;
-            }
-            let alpha = fabric_to_baked.get(&interval.alpha_key);
-            let omega = fabric_to_baked.get(&interval.omega_key);
-            if let (Some(&a), Some(&o)) = (alpha, omega) {
-                if interval.role == Role::Pushing {
-                    pushes.push(format!(
-                        "            push({}, {}, {:.7}),",
-                        a, o, interval.strain
-                    ));
-                } else {
-                    pulls.push(format!(
-                        "            pull({}, {}, {:.7}),",
-                        a, o, interval.strain
-                    ));
-                }
-            }
-        }
-
-        // Combine intervals
-        let mut intervals: Vec<String> = pushes;
-        intervals.extend(pulls);
-
-        format!(
-            "        scale: {:.7},
-        joints: vec![
-{}
-        ],
-        intervals: vec![
-{}
-        ],",
-            scale,
-            joints_str.join("\n"),
-            intervals.join("\n"),
-        )
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn export_brick(&self, brick_name: BrickName, baked_code: &str) {
-        crate::build::brick_exporter::export(brick_name, baked_code);
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn export_brick(&self, _brick_name: BrickName, _baked_code: &str) {}
 }
 
 fn scale_prototype(proto: &BrickPrototype, scale: f32) -> BrickPrototype {

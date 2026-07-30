@@ -5,6 +5,12 @@ pub use crate::fabric::material::Material;
 use glam::Vec3;
 use strum::Display;
 
+/// The golden mean. When a brick mixes strut lengths, they relate by powers
+/// of φ: the default strut is 1, the next longest φ, then φ², etc. Absolute
+/// scale is set by the strain-target bisection, so these ratios are the
+/// entire description.
+pub const PHI: f32 = 1.618_034;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct OmniParams {
     pub push_lengths: Vec3,

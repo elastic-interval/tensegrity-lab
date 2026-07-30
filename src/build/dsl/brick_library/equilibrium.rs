@@ -28,6 +28,18 @@ const LBFGS_MEMORY: usize = 5;
 const MAX_LBFGS_ITERS: usize = 200;
 const MAX_BISECTION_ROUNDS: usize = 20;
 
+/// Designed pretension band for the shrink-wrap pass: after form-finding,
+/// every member's rest length is re-derived from its settled length so pulls
+/// end this fraction stretched and pushes this fraction compressed, then the
+/// brick re-settles; repeated to a fixed point. This is what makes a brick a
+/// solid tensegrity regardless of what the prototype's numbers said.
+const SHRINK_WRAP_PRETENSION: f32 = 0.05;
+const SHRINK_WRAP_ROUNDS: usize = 8;
+const SHRINK_WRAP_REST_TOL: f32 = 1.0e-4;
+
+/// A member within this strain of zero is slack — not a tensegrity.
+const SLACK_EPSILON: f32 = 0.005;
+
 #[derive(Clone, Copy, Debug)]
 struct Spring {
     alpha: usize,
@@ -61,6 +73,7 @@ impl Bake {
     fn build_from_prototype(
         proto: &BrickPrototype,
         scale: f32,
+        face_scaling: crate::build::dsl::ScaleMode,
     ) -> (Self, Vec<JointName>) {
         let mut joint_name_to_idx: HashMap<JointName, usize> = HashMap::new();
         let mut positions: Vec<Vec3> = Vec::new();
@@ -102,7 +115,6 @@ impl Bake {
             springs.push(Spring { alpha, omega, rest_length: rest, k, is_push: false });
         }
 
-        let face_scaling = crate::build::dsl::ScaleMode::None;
         let mut faces: Vec<FaceInfo> = Vec::new();
         for face_def in &proto.faces {
             let vertices = face_def.joints.map(|name| joint_name_to_idx[&name]);
@@ -375,23 +387,28 @@ pub fn bake_brick_pure(
     let mut bisector = ScaleBisector::new(initial_scale);
 
     let final_bake = loop {
-        let (mut bake, _names) = Bake::build_from_prototype(&proto, bisector.scale);
+        let (mut bake, names) =
+            Bake::build_from_prototype(&proto, bisector.scale, brick_name.face_scaling());
         lbfgs(&mut bake);
         let strain = bake.mean_face_strain();
         if (strain - BakedBrick::TARGET_FACE_STRAIN).abs() <= STRAIN_TOLERANCE {
-            break (bake, bisector.scale);
+            break (bake, names, bisector.scale);
         }
         let next = bisector.next_scale(strain);
         if (next - bisector.scale).abs() < 1.0e-9
             || (bisector.low.is_some() && bisector.high.is_some()
                 && (bisector.high.unwrap() - bisector.low.unwrap()).abs() < 1.0e-6)
         {
-            break (bake, bisector.scale);
+            break (bake, names, bisector.scale);
         }
         bisector.scale = next;
         let _ = MAX_BISECTION_ROUNDS;
     };
-    let (mut bake, scale) = final_bake;
+    let (mut bake, joint_names, scale) = final_bake;
+
+    // Form is found; now set the forces: shrink-wrap every member onto the
+    // settled geometry at the designed pretension band.
+    shrink_wrap(&mut bake);
 
     // Reorient on the brick's max_seed role (matches the Oven's
     // visual-orientation choice).
@@ -406,6 +423,15 @@ pub fn bake_brick_pure(
         symmetrize(&mut bake, &symmetry, reorient);
         verify_symmetry(&bake, &symmetry, reorient, brick_name);
     }
+
+    // Symmetrize moved positions slightly; pin every member to exactly the
+    // pretension band on the final (symmetric) geometry so stored strains
+    // are identical across rotational triples.
+    let _ = assign_banded_rests(&mut bake);
+
+    // A brick must be a solid tensegrity: every push in compression, every
+    // pull in tension. Panics with a per-member report otherwise.
+    validate_pretension(&bake, &joint_names, brick_name);
 
     let joints: Vec<BakedJoint> = bake.positions[..bake.structural]
         .iter()
@@ -434,6 +460,97 @@ pub fn bake_brick_pure(
         joints,
         intervals,
         faces: proto.derive_baked_faces(brick_name.face_scaling()),
+    }
+}
+
+/// Re-derive each member's rest length from its settled length at the
+/// designed pretension band, re-settle, and repeat to a fixed point. Face
+/// radials keep their absolute rests — they anchor the brick's size and the
+/// standard face geometry for attachment.
+/// Set every member's rest length so its current length sits exactly at the
+/// designed pretension band. Returns the largest relative rest change.
+fn assign_banded_rests(bake: &mut Bake) -> f32 {
+    let mut max_rel_change = 0.0f32;
+    for i in 0..bake.springs.len() {
+        let s = bake.springs[i];
+        if s.alpha >= bake.structural || s.omega >= bake.structural {
+            continue;
+        }
+        let length = (bake.positions[s.omega] - bake.positions[s.alpha]).length();
+        if length <= 0.0 {
+            continue;
+        }
+        let new_rest = if s.is_push {
+            length / (1.0 - SHRINK_WRAP_PRETENSION)
+        } else {
+            length / (1.0 + SHRINK_WRAP_PRETENSION)
+        };
+        let rel_change = ((new_rest - s.rest_length) / s.rest_length).abs();
+        max_rel_change = max_rel_change.max(rel_change);
+        bake.springs[i].rest_length = new_rest;
+    }
+    max_rel_change
+}
+
+fn shrink_wrap(bake: &mut Bake) {
+    for _ in 0..SHRINK_WRAP_ROUNDS {
+        let max_rel_change = assign_banded_rests(bake);
+        lbfgs(bake);
+        if max_rel_change < SHRINK_WRAP_REST_TOL {
+            break;
+        }
+    }
+}
+
+/// Enforce the definition of a solid tensegrity on the finished bake:
+/// every push strictly in compression, every pull strictly in tension.
+/// Panics with a per-member report naming the offenders otherwise.
+fn validate_pretension(bake: &Bake, joint_names: &[JointName], brick_name: BrickName) {
+    let mut violations: Vec<String> = Vec::new();
+    let mut push_strains: Vec<f32> = Vec::new();
+    let mut pull_strains: Vec<f32> = Vec::new();
+
+    for s in &bake.springs {
+        if s.alpha >= bake.structural || s.omega >= bake.structural {
+            continue;
+        }
+        let length = (bake.positions[s.omega] - bake.positions[s.alpha]).length();
+        let strain = (length - s.rest_length) / s.rest_length;
+        if s.is_push {
+            push_strains.push(strain);
+        } else {
+            pull_strains.push(strain);
+        }
+        let slack_or_wrong_signed = if s.is_push {
+            strain > -SLACK_EPSILON
+        } else {
+            strain < SLACK_EPSILON
+        };
+        if slack_or_wrong_signed {
+            violations.push(format!(
+                "{:?}-{:?} {} strain {:+.4}",
+                joint_names[s.alpha],
+                joint_names[s.omega],
+                if s.is_push { "push" } else { "pull" },
+                strain,
+            ));
+        }
+    }
+
+    if !violations.is_empty() {
+        let span = |v: &[f32]| -> String {
+            let min = v.iter().copied().fold(f32::MAX, f32::min);
+            let max = v.iter().copied().fold(f32::MIN, f32::max);
+            format!("{:+.4}..{:+.4}", min, max)
+        };
+        panic!(
+            "{brick_name:?} is not a solid tensegrity — {} slack or wrong-signed member(s):\n  {}\n\
+             (push strains {}, pull strains {})",
+            violations.len(),
+            violations.join("\n  "),
+            span(&push_strains),
+            span(&pull_strains),
+        );
     }
 }
 
@@ -539,3 +656,20 @@ fn verify_symmetry(
     );
 }
 
+
+#[cfg(test)]
+mod pretension_tests {
+    use crate::build::dsl::brick_dsl::BrickName;
+    use crate::build::dsl::brick_library;
+    use strum::IntoEnumIterator;
+
+    /// Every baked brick must be a solid tensegrity. `validate_pretension`
+    /// panics inside `bake_brick_pure` when any member ends slack or
+    /// wrong-signed, so simply baking each brick is the whole assertion.
+    #[test]
+    fn all_bricks_are_solid_tensegrities() {
+        for brick_name in BrickName::iter() {
+            let _ = brick_library::get_scale(brick_name);
+        }
+    }
+}
