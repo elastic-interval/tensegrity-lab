@@ -3,6 +3,7 @@ use crate::build::dsl::fabric_dsl::{on, *};
 use crate::build::dsl::fabric_plan::FabricPlan;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
+use crate::build::dsl::fabric_dsl::Rotation::OneThird;
 
 static PLANS: [OnceLock<FabricPlan>; 9] = [
     OnceLock::new(),
@@ -178,7 +179,7 @@ impl FabricName {
                         .with_scale(M(1.0))
                         .with_connector(),
                 )
-                .seed(OmniSymmetrical, Seed(2))
+                .seed(TorqueSymmetrical, Seed(2))
                 .faces([
                     on(LowerLeft)
                         .column(4)
@@ -195,7 +196,7 @@ impl FabricName {
                             .column(3)
                             .label(Hand(Side::Left))]),
                     ),
-                    on(UpperRight).column(1).shrink_by(Pct(40.0)).then(
+                    on(UpperRight).rotate(OneThird).column(1).shrink_by(Pct(40.0)).then(
                         hub(OmniSymmetrical).faces([on(OmniTopX)
                             .column(3)
                             .label(Hand(Side::Right))]),
