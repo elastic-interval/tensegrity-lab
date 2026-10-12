@@ -121,30 +121,30 @@ impl FabricName {
                 .seed(OmniSymmetrical, Seed(2))
                 .faces([
                     on(LowerLeft)
-                        .column(6)
+                        .column(4)
                         .shrink_by(Pct(12.0))
                         .label(Foot(Side::Left)),
                     on(LowerRight)
-                        .column(6)
+                        .column(4)
                         .shrink_by(Pct(12.0))
                         .label(Foot(Side::Right)),
-                    on(UpperLeft).column(2).shrink_by(Pct(15.0)).then(
+                    on(UpperLeft).column(1).shrink_by(Pct(15.0)).then(
                         hub(OmniSymmetrical).faces([
-                            on(OmniTopZ).label(ChestUpper(Side::Left)),
-                            on(OmniBotX).label(ChestLower(Side::Left)),
-                            on(OmniBotY)
-                                .column(6)
+                            on(OmniTopY).label(ChestUpper(Side::Left)),
+                            on(OmniBotZ).label(ChestLower(Side::Left)),
+                            on(OmniBotX)
+                                .column(3)
                                 .shrink_by(Pct(10.0))
                                 .label(Hand(Side::Left))
                                 .into(),
                         ]),
                     ),
-                    on(UpperRight).column(2).shrink_by(Pct(15.0)).then(
+                    on(UpperRight).column(1).shrink_by(Pct(15.0)).then(
                         hub(OmniSymmetrical).faces([
-                            on(OmniTopY).label(ChestUpper(Side::Right)),
-                            on(OmniBotZ).label(ChestLower(Side::Right)),
-                            on(OmniBotX)
-                                .column(6)
+                            on(OmniTopZ).label(ChestUpper(Side::Right)),
+                            on(OmniBotX).label(ChestLower(Side::Right)),
+                            on(OmniBotY)
+                                .column(3)
                                 .shrink_by(Pct(10.0))
                                 .label(Hand(Side::Right))
                                 .into(),
@@ -160,7 +160,7 @@ impl FabricName {
                         spacer([Foot(Side::Left), Hand(Side::Right)], Pct(102.0)),
                         spacer([Foot(Side::Right), Hand(Side::Left)], Pct(102.0)),
                         spacer([Foot(Side::Left), Foot(Side::Right)], Pct(30.0)),
-                        spacer([Hand(Side::Left), Hand(Side::Right)], Pct(20.0)),
+                        spacer([Hand(Side::Left), Hand(Side::Right)], Pct(50.0)),
                         spacer([ChestLower(Side::Left), ChestLower(Side::Right)], Pct(50.0)),
                     ],
                 )
