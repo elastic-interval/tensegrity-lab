@@ -11,6 +11,9 @@ pub struct PretensePhase {
     /// interval should be removed at pretense time.
     pub omit_pairs: Vec<(String, String)>,
     pub add_specs: Vec<AddSpec>,
+    /// Joint label pairs whose struts are joined where they cross, just
+    /// before slackening.
+    pub hinge_pairs: Vec<(String, String)>,
     /// Percentage by which each push interval's rest length grows during the
     /// pretensing phase. The same factor is applied to every push; pulls
     /// absorb the displacement and gain tension.

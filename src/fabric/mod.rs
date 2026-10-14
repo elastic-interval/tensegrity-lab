@@ -10,7 +10,7 @@ use crate::fabric::interval::Span::Fixed;
 use crate::fabric::interval::SpanTransition;
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::Joint;
-use crate::fabric::physics::Physics;
+use crate::fabric::physics::{Physics, SurfaceCharacter};
 use crate::units::{Grams, Meters, Percent, Seconds, Unit};
 use crate::Age;
 use glam::{Mat4, Quat, Vec3};
@@ -459,14 +459,23 @@ impl Fabric {
         let dt = Age::iteration_duration();
         let has_gravity = physics.surface.is_some();
 
+        // A joint resting on a frozen surface stays put. Otherwise the first
+        // half-kick lets it drift a little each tick before the surface zeroes
+        // its velocity, so a steady sideways pull (a guy line) drags it along.
+        let frozen_tolerance = physics
+            .surface
+            .filter(|surface| surface.character == SurfaceCharacter::Frozen)
+            .map(|surface| 0.01 * surface.scale);
+        let resting = |joint: &Joint| frozen_tolerance.is_some_and(|t| joint.location.y <= t);
+
         // 1. First half-kick: v += 0.5 * a * dt (using forces from previous iteration)
         //    Note: On first iteration, forces are zero, so this is a no-op
-        for joint in self.joints.values_mut() {
+        for joint in self.joints.values_mut().filter(|joint| !resting(joint)) {
             joint.half_kick(dt);
         }
 
         // 2. Drift: x += v * dt (position update)
-        for joint in self.joints.values_mut() {
+        for joint in self.joints.values_mut().filter(|joint| !resting(joint)) {
             joint.drift(dt);
         }
 

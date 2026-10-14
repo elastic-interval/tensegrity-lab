@@ -170,14 +170,20 @@ impl FabricName {
                 )
                 .vulcanize(Sec(1.0))
                 .add(Sec(1.0), [("C03.10", "D03.10", Pct(90.0))])
+                .hinge([
+                    ("A01.3", "B01.3"),
+                    ("C01.5", "D01.5"),
+                    ("C01.6", "C03.5"),
+                    ("D01.6", "D03.5"),
+                ])
                 .down(Sec(1.0), [Foot(Side::Left), Foot(Side::Right)])
                 .pretense(Sec(0.3), Pct(1.0))
                 .surface_frozen()
                 .fall(Sec(1.5))
                 .settle(Sec(1.5))
                 .guy_lines([
-                    guy_line("Z10", (M(0.0), M(8.0)), Pct(100.0)),
-                    guy_line("Z11", (M(0.0), M(-5.6)), Pct(100.0)),
+                    guy_line("Z13", (M(0.0), M(5.5)), Pct(100.0)),
+                    guy_line("Z14", (M(0.0), M(-8.0)), Pct(100.0)),
                 ]),
 
             MinimalMan => self

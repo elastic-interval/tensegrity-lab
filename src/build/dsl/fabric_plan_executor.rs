@@ -411,6 +411,13 @@ impl FabricPlanExecutor {
             }
         }
 
+        for (keep, merge) in &self.plan.pretense_phase.hinge_pairs {
+            match (self.fabric.joint_key_by_label(keep), self.fabric.joint_key_by_label(merge)) {
+                (Some(k), Some(m)) => self.fabric.hinge(k, m),
+                _ => eprintln!("WARNING: Could not find joints for hinge ({keep}, {merge})"),
+            }
+        }
+
         self.log_event(ExecutionEvent::FacesRemoved {
             iteration: self.current_iteration,
             removed_count: face_count_before,
@@ -522,6 +529,7 @@ impl FabricPlanExecutor {
             let ground = self
                 .fabric
                 .create_joint(glam::Vec3::new(landed.x + dx.f32(), 0.0, landed.z + dz.f32()));
+            self.fabric.joints[ground].label = Some(self.fabric.next_axial_label());
             let length = self.fabric.distance(joint, ground) * guy_line.length.as_factor();
             self.fabric.create_fixed_interval(joint, ground, Role::GuyLine, length);
         }

@@ -29,6 +29,7 @@ impl FabricName {
             shape: Vec::new(),
             omit_pairs: Vec::new(),
             add_specs: Vec::new(),
+            hinge_pairs: Vec::new(),
         }
     }
 }
@@ -40,6 +41,7 @@ pub struct FabricBuilder {
     shape: Vec<ShapeStep>,
     omit_pairs: Vec<(String, String)>,
     add_specs: Vec<AddSpec>,
+    hinge_pairs: Vec<(String, String)>,
 }
 
 impl FabricBuilder {
@@ -163,6 +165,13 @@ impl FabricBuilder {
             target: *pct,
             approach: seconds,
         }));
+        self
+    }
+
+    /// Join the struts ending at each joint pair where they cross, just before slackening.
+    pub fn hinge<const N: usize>(mut self, pairs: [(&str, &str); N]) -> Self {
+        self.hinge_pairs
+            .extend(pairs.iter().map(|(a, b)| (a.to_string(), b.to_string())));
         self
     }
 
@@ -647,6 +656,7 @@ impl PretenseChain {
             rigidity: self.rigidity,
             omit_pairs: self.fabric.omit_pairs,
             add_specs: self.fabric.add_specs,
+            hinge_pairs: self.fabric.hinge_pairs,
             pretenst: self.pretenst,
         };
         FabricPlan {

@@ -81,6 +81,9 @@ fn half_kick_and_drift(@builtin(global_invocation_id) id: vec3<u32>) {
     if local >= params.max_joints || slot_frozen(slot) { return; }
     let gj = slot * params.max_joints + local;
 
+    // A joint resting on a frozen surface stays put. Mirrors Fabric::iterate.
+    if params.surface_character == 2u && positions[gj].y <= 0.01 * params.surface_scale { return; }
+
     let fx = f32(atomicLoad(&force_x[gj])) / params.force_scale;
     let fy = f32(atomicLoad(&force_y[gj])) / params.force_scale;
     let fz = f32(atomicLoad(&force_z[gj])) / params.force_scale;

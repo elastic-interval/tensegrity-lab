@@ -3,6 +3,7 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
+use crate::fabric::interval::Role;
 use crate::fabric::joint_path::JointPath;
 use crate::fabric::physics::{Physics, SurfaceInteraction};
 use crate::fabric::{Fabric, JointKey};
@@ -66,6 +67,76 @@ impl Fabric {
         self.joints.remove(key);
     }
 
+    /// Join the struts ending at `keep` and `merge` where they cross: both are
+    /// cut back to the crossing and `merge` folds into `keep`, which becomes the
+    /// hinge. Intervals between the two vanish; where both reached the same
+    /// joint only one remains (a non-bow-tie wins). Rebuilt intervals start
+    /// unstrained at their new length. Merging a symmetric pair (each other's
+    /// image) puts the hinge on the symmetry axis, so it takes the next axial
+    /// label (`Z<n>`); otherwise it keeps `keep`'s label.
+    pub fn hinge(&mut self, keep: JointKey, merge: JointKey) {
+        let strut_far_end = |end: JointKey| {
+            self.intervals
+                .values()
+                .find(|i| i.role == Role::Pushing && i.touches(end))
+                .expect("hinge joint without a strut")
+                .other_joint(end)
+        };
+        let (keep_far, merge_far) = (strut_far_end(keep), strut_far_end(merge));
+        let on_axis = match (&self.label_symmetry, self.joints[keep].label, self.joints[merge].label) {
+            (Some(symmetry), Some(keep_label), Some(merge_label)) => {
+                symmetry.orbit(keep_label).contains(&merge_label)
+            }
+            _ => false,
+        };
+        let crossing = crossing_point(
+            (self.location(keep), self.location(keep_far)),
+            (self.location(merge), self.location(merge_far)),
+        );
+        let touching: Vec<_> = self
+            .intervals
+            .iter()
+            .filter(|(_, i)| i.touches(keep) || i.touches(merge))
+            .map(|(key, _)| key)
+            .collect();
+        let mut rebuilt: Vec<(JointKey, Role)> = Vec::new();
+        for key in touching {
+            let interval = self.remove_interval(key);
+            let end = if interval.touches(keep) { keep } else { merge };
+            let other = interval.other_joint(end);
+            if other == keep || other == merge {
+                continue;
+            }
+            match rebuilt.iter_mut().find(|(joint, _)| *joint == other) {
+                Some((_, role)) if *role == Role::BowTie => *role = interval.role,
+                Some(_) => {}
+                None => rebuilt.push((other, interval.role)),
+            }
+        }
+        self.joints.remove(merge);
+        if on_axis {
+            self.joints[keep].label = Some(self.next_axial_label());
+        }
+        self.joints[keep].location = crossing;
+        for (other, role) in rebuilt {
+            self.create_strained_interval(keep, other, role, 0.0);
+        }
+    }
+
+    /// The first unused `Z<n>` label, for joints added on the mirror plane.
+    pub fn next_axial_label(&self) -> JointLabel {
+        let highest = self
+            .joints
+            .values()
+            .filter_map(|joint| match joint.label {
+                Some(JointLabel::Axial { index }) => Some(index),
+                _ => None,
+            })
+            .max()
+            .unwrap_or(0);
+        JointLabel::Axial { index: highest + 1 }
+    }
+
     pub fn distance(&self, alpha_key: JointKey, omega_key: JointKey) -> Meters {
         Meters(self.location(alpha_key).distance(self.location(omega_key)))
     }
@@ -85,6 +156,17 @@ impl Fabric {
             .find(|(k, _)| self.joint_label(*k) == label)
             .map(|(key, _)| key)
     }
+}
+
+/// Midpoint of the closest approach between two (non-parallel) lines.
+fn crossing_point((p0, p1): (Vec3, Vec3), (q0, q1): (Vec3, Vec3)) -> Vec3 {
+    let (d1, d2, r) = (p1 - p0, q1 - q0, p0 - q0);
+    let (a, b, c) = (d1.dot(d1), d1.dot(d2), d2.dot(d2));
+    let (d, e) = (d1.dot(r), d2.dot(r));
+    let denom = a * c - b * b;
+    let s = (b * e - c * d) / denom;
+    let t = (a * e - b * d) / denom;
+    (p0 + d1 * s + q0 + d2 * t) / 2.0
 }
 
 pub const AMBIENT_MASS: Grams = Grams(100.0);
