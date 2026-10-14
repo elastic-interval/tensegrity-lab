@@ -511,6 +511,21 @@ impl FabricPlanExecutor {
             description: "SETTLING".to_string(),
         });
 
+        let guy_lines = self.plan.settle_phase.as_ref().map(|p| p.guy_lines.clone()).unwrap_or_default();
+        for guy_line in guy_lines {
+            let Some(joint) = self.fabric.joint_key_by_label(&guy_line.joint) else {
+                eprintln!("WARNING: Could not find joint for guy line ({})", guy_line.joint);
+                continue;
+            };
+            let landed = self.fabric.location(joint);
+            let (dx, dz) = guy_line.ground_offset;
+            let ground = self
+                .fabric
+                .create_joint(glam::Vec3::new(landed.x + dx.f32(), 0.0, landed.z + dz.f32()));
+            let length = self.fabric.distance(joint, ground) * guy_line.length.as_factor();
+            self.fabric.create_fixed_interval(joint, ground, Role::GuyLine, length);
+        }
+
         self.settle_phase_start_age = Some(self.fabric.age);
         self.stage = ExecutorStage::Settling;
     }

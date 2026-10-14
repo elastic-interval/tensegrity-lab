@@ -5,7 +5,7 @@ use crate::build::dsl::build_phase::BuildPhase;
 use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::fall_phase::FallPhase;
 use crate::build::dsl::pretense_phase::PretensePhase;
-use crate::build::dsl::settle_phase::SettlePhase;
+use crate::build::dsl::settle_phase::{GuyLine, SettlePhase};
 use crate::build::dsl::shape_phase::ShapePhase;
 use crate::fabric::FabricDimensions;
 
@@ -30,7 +30,16 @@ impl FabricPlan {
     }
 
     pub fn settle(mut self, seconds: Seconds) -> Self {
-        self.settle_phase = Some(SettlePhase { seconds });
+        self.settle_phase = Some(SettlePhase { seconds, guy_lines: Vec::new() });
+        self
+    }
+
+    /// Guy lines are created on landing, so they need a settle phase.
+    pub fn guy_lines<const N: usize>(mut self, guy_lines: [GuyLine; N]) -> Self {
+        self.settle_phase
+            .as_mut()
+            .expect("guy_lines requires settle()")
+            .guy_lines = guy_lines.to_vec();
         self
     }
 

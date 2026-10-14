@@ -4,6 +4,7 @@ use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::fall_phase::FallPhase;
 use crate::build::dsl::pretense_phase::{AddSpec, PretensePhase};
+use crate::build::dsl::settle_phase::GuyLine;
 use crate::build::dsl::shape_phase::{ShapeAction, ShapeStep, SpacerSpec};
 use crate::build::dsl::Spin;
 use crate::fabric::physics::SurfaceCharacter;
@@ -539,6 +540,16 @@ pub fn label(face_label: FaceLabel) -> BuildNode {
 /// Build one spacer spec for use inside `space_parallel(...)`.
 pub fn spacer<const N: usize>(labels: [FaceLabel; N], distance: Percent) -> SpacerSpec {
     SpacerSpec { labels: labels.to_vec(), distance }
+}
+
+/// Build one guy line for use inside `guy_lines(...)`: from the labelled joint
+/// to the ground at a horizontal (x, z) offset from where the joint lands.
+pub fn guy_line(joint: &str, ground_offset: (Meters, Meters), length: Percent) -> GuyLine {
+    GuyLine {
+        joint: joint.to_string(),
+        ground_offset,
+        length,
+    }
 }
 
 /// Lift pairs of `FaceName` into pairs of `FaceLabel::Tip(...)`, for use

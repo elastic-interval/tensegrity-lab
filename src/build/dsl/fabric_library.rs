@@ -174,7 +174,11 @@ impl FabricName {
                 .pretense(Sec(0.3), Pct(1.0))
                 .surface_frozen()
                 .fall(Sec(1.5))
-                .settle(Sec(1.5)),
+                .settle(Sec(1.5))
+                .guy_lines([
+                    guy_line("Z10", (M(0.0), M(8.0)), Pct(100.0)),
+                    guy_line("Z11", (M(0.0), M(-5.6)), Pct(100.0)),
+                ]),
 
             MinimalMan => self
                 .build(
