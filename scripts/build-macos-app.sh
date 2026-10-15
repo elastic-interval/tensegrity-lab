@@ -1,23 +1,24 @@
 #!/usr/bin/env bash
 #
-# Build a standalone macOS .app for the Open Claw.
+# Build a standalone macOS .app for Headless Hug.
 #
-# The native binary compiles all its assets in (include_bytes!) and
-# defaults to FabricName::OpenClaw when launched with no arguments, so the
-# bundle is fully self-contained: double-clicking it opens straight into
-# the Open Claw. Re-run this script only when you want to rebuild (e.g.
-# after a source or macOS change).
+# The native binary compiles all its assets in (include_bytes!), so the
+# bundle is fully self-contained. A small launcher passes --fabric, so
+# double-clicking it opens straight into Headless Hug. Re-run this script
+# only when you want to rebuild (e.g. after a source or macOS change).
 #
 # Uses only macOS built-ins: cargo, qlmanage, sips, iconutil, codesign.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-APP_NAME="Open Claw"
+APP_NAME="Headless Hug"
+FABRIC="Headless Hug"
 BIN_NAME="tensegrity_lab"
-IDENTIFIER="com.pretenst.open-claw"
+LAUNCHER="launch"
+IDENTIFIER="com.pretenst.headless-hug"
 VERSION="0.1.0"
-ICON_SVG="assets/open-claw-icon.svg"
+ICON_SVG="assets/icon.svg"
 
 STAGE="target/macos"
 APP="$STAGE/$APP_NAME.app"
@@ -44,6 +45,11 @@ rm -rf "$APP"
 mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources"
 cp "target/release/$BIN_NAME" "$CONTENTS/MacOS/$BIN_NAME"
 chmod +x "$CONTENTS/MacOS/$BIN_NAME"
+cat > "$CONTENTS/MacOS/$LAUNCHER" <<LAUNCH
+#!/bin/sh
+exec "\$(dirname "\$0")/$BIN_NAME" --fabric "$FABRIC"
+LAUNCH
+chmod +x "$CONTENTS/MacOS/$LAUNCHER"
 cp "$ICON_TMP/AppIcon.icns" "$CONTENTS/Resources/AppIcon.icns"
 
 cat > "$CONTENTS/Info.plist" <<PLIST
@@ -53,7 +59,7 @@ cat > "$CONTENTS/Info.plist" <<PLIST
 <dict>
     <key>CFBundleName</key>            <string>$APP_NAME</string>
     <key>CFBundleDisplayName</key>     <string>$APP_NAME</string>
-    <key>CFBundleExecutable</key>      <string>$BIN_NAME</string>
+    <key>CFBundleExecutable</key>      <string>$LAUNCHER</string>
     <key>CFBundleIdentifier</key>      <string>$IDENTIFIER</string>
     <key>CFBundleVersion</key>         <string>$VERSION</string>
     <key>CFBundleShortVersionString</key><string>$VERSION</string>
