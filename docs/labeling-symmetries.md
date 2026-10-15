@@ -67,10 +67,10 @@ Derivation rules (in order):
   through, correctly: its symmetry is richer than a single letter cycle.)
 - **Mirror** when every lettered seed face has a distinct partner whose
   subtree `FaceLabel` set is identical with `Side` flipped
-  (HeadlessHug/MinimalMan: `(A,B)` feet, `(C,D)` upper hubs).
+  (HeadlessHug: `(A,B)` feet, `(C,D)` upper hubs).
   `mirrored_face_label` must be extended when new `Side`-carrying
   `FaceLabel` variants are added.
-- **None** otherwise (HaloByCrane, Flagellum, Diamond, …) — absence means
+- **None** otherwise (HaloByCrane, Diamond, …) — absence means
   no symmetry machinery runs anywhere.
 
 ## Future Packer sketch (not implemented)

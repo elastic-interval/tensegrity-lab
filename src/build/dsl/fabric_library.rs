@@ -3,12 +3,8 @@ use crate::build::dsl::fabric_dsl::{on, *};
 use crate::build::dsl::fabric_plan::FabricPlan;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
-use crate::build::dsl::fabric_dsl::Rotation::OneThird;
 
-static PLANS: [OnceLock<FabricPlan>; 9] = [
-    OnceLock::new(),
-    OnceLock::new(),
-    OnceLock::new(),
+static PLANS: [OnceLock<FabricPlan>; 6] = [
     OnceLock::new(),
     OnceLock::new(),
     OnceLock::new(),
@@ -19,20 +15,16 @@ static PLANS: [OnceLock<FabricPlan>; 9] = [
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, EnumString, EnumIter)]
 pub enum FabricName {
-    #[strum(serialize = "Open Claw")]
-    OpenClaw,
-    Flagellum,
-    #[strum(serialize = "Halo by Crane")]
-    HaloByCrane,
     #[strum(serialize = "Headless Hug")]
     HeadlessHug,
-    #[strum(serialize = "Minimal Man")]
-    MinimalMan,
-    Diamond,
-    Propeller,
-    Infinity,
+    #[strum(serialize = "Open Claw")]
+    OpenClaw,
+    #[strum(serialize = "Halo by Crane")]
+    HaloByCrane,
     #[strum(serialize = "Twisted Infinity")]
     TwistedInfinity,
+    Propeller,
+    Diamond,
 }
 
 impl FabricName {
@@ -96,18 +88,6 @@ impl FabricName {
                     ]),
                 )])
                 .join(Sec(3.0), Tip(OmniTopX), Tip(OmniTopY))
-                .vulcanize(Sec(1.0))
-                .pretense(Sec(0.02), Pct(1.0))
-                .surface_frozen(),
-
-            Flagellum => self
-                .build(
-                    FabricDimensions::default()
-                        .with_altitude(M(2.0))
-                        .with_scale(M(1.0)),
-                )
-                .seed(SingleTwistLeft, Seed(1))
-                .faces([on(SingleTop).column(20).shrink_by(Pct(5.0))])
                 .vulcanize(Sec(1.0))
                 .pretense(Sec(0.02), Pct(1.0))
                 .surface_frozen(),
@@ -192,54 +172,6 @@ impl FabricName {
                     phase(Pct(0.0)).interval("Z13", "Z15"),
                     phase(Pct(50.0)).interval("Z13", "Z16"),
                 ]),
-
-            MinimalMan => self
-                .build(
-                    FabricDimensions::default()
-                        .with_altitude(M(12.0))
-                        .with_scale(M(1.0))
-                        .with_connector(),
-                )
-                .seed(TorqueSymmetrical, Seed(2))
-                .faces([
-                    on(LowerLeft)
-                        .column(4)
-                        .shrink_by(Pct(20.0))
-                        .prism(Pct(200.0))
-                        .label(Foot(Side::Left)),
-                    on(LowerRight)
-                        .column(4)
-                        .shrink_by(Pct(20.0))
-                        .prism(Pct(200.0))
-                        .label(Foot(Side::Right)),
-                    on(UpperLeft).column(1).shrink_by(Pct(40.0)).then(
-                        hub(OmniSymmetrical).faces([on(OmniTopZ)
-                            .column(3)
-                            .label(Hand(Side::Left))]),
-                    ),
-                    on(UpperRight).rotate(OneThird).column(1).shrink_by(Pct(40.0)).then(
-                        hub(OmniSymmetrical).faces([on(OmniTopX)
-                            .column(3)
-                            .label(Hand(Side::Right))]),
-                    ),
-                ])
-                .prepare_vulcanize(0.5, VulcanizeMode::Linear)
-                .space_parallel(
-                    Sec(8.0),
-                    [
-                        spacer([Foot(Side::Left), Hand(Side::Left)], Pct(80.0)),
-                        spacer([Foot(Side::Right), Hand(Side::Right)], Pct(80.0)),
-                        spacer([Foot(Side::Left), Hand(Side::Right)], Pct(102.0)),
-                        spacer([Foot(Side::Right), Hand(Side::Left)], Pct(102.0)),
-                        spacer([Foot(Side::Left), Foot(Side::Right)], Pct(40.0)),
-                        spacer([Hand(Side::Left), Hand(Side::Right)], Pct(40.0)),
-                    ],
-                )
-                .vulcanize(Sec(2.0))                .down(Sec(1.0), [Foot(Side::Left), Foot(Side::Right)])
-                .pretense(Sec(1.0), Pct(1.0))
-                .surface_frozen()
-                .fall(Sec(1.5))
-                .settle(Sec(1.5)),
 
             Diamond => self
                 .build(FabricDimensions::default())
@@ -332,35 +264,6 @@ impl FabricName {
                         (OmniBotX, OmniTopZ),
                         (OmniBotY, OmniTopX),
                         (OmniBotZ, OmniTopY),
-                    ]),
-                )
-                .vulcanize(Sec(1.0))
-                .pretense(Sec(1.0), Pct(1.0))
-                .floating(),
-
-            Infinity => self
-                .build(FabricDimensions::default())
-                .seed(OmniSymmetrical, Seed(4))
-                .faces([
-                    on(RightFrontTop)
-                        .column(11)
-                        .shrink_by(Pct(12.0))
-                        .tip_label(),
-                    on(RightFrontBottom)
-                        .column(11)
-                        .shrink_by(Pct(12.0))
-                        .tip_label(),
-                    on(LeftBackTop).column(11).shrink_by(Pct(12.0)).tip_label(),
-                    on(LeftBackBottom)
-                        .column(11)
-                        .shrink_by(Pct(12.0))
-                        .tip_label(),
-                ])
-                .join_parallel(
-                    Sec(2.0),
-                    tips([
-                        (RightFrontTop, RightFrontBottom),
-                        (LeftBackTop, LeftBackBottom),
                     ]),
                 )
                 .vulcanize(Sec(1.0))
