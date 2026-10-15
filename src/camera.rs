@@ -346,11 +346,15 @@ impl Camera {
     /// rescale to the new bounding sphere, level the camera with the
     /// centroid. Always gentle — never snaps.
     pub fn refit_to_fabric(&mut self, fabric: &Fabric) {
+        // Leave the first placement to jump_to_fabric; drifting from the
+        // uninitialized position would start the camera at the origin.
+        if !self.initialized {
+            return;
+        }
         self.current_pick = Pick::Nothing;
         self.set_target(Target::FabricMidpoint);
         let (goal_pos, goal_look_at) = self.framing_for(fabric, /*preserve_angle*/ true, 0.0);
         self.tendency = Some((goal_pos, goal_look_at));
-        self.initialized = true;
     }
 
     /// Keep a fabric under construction framed, keeping the orbit angle and
