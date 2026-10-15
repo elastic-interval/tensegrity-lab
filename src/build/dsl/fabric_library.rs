@@ -81,14 +81,30 @@ impl FabricName {
                         .with_scale(M(1.0)),
                 )
                 .seed(SingleTwistLeft, Seed(1))
-                .faces([on(SingleTop).column(4).shrink_by(Pct(8.0)).then(
-                    hub(OmniSymmetrical).faces([
-                        on(OmniTopX).column(12).shrink_by(Pct(8.0)).tip_label(),
-                        on(OmniTopY).column(11).shrink_by(Pct(8.0)).tip_label(),
-                    ]),
-                )])
+                .faces([
+                    on(SingleTop)
+                        .column(3)
+                        .shrink_by(Pct(8.0))
+                        .then(hub(OmniSymmetrical).faces([
+                            on(OmniTopX).column(9).shrink_by(Pct(8.0)).tip_label(),
+                            on(OmniTopY).column(8).shrink_by(Pct(8.0)).tip_label(),
+                        ]))
+                        .into(),
+                    on(SingleBot).tip_label(),
+                ])
                 .join(Sec(3.0), Tip(OmniTopX), Tip(OmniTopY))
+                .add(
+                    Sec(3.0),
+                    [
+                        ("A01.1", "A02.1", Pct(60.0)),
+                        ("A02.1", "A03.1", Pct(60.0)),
+                        ("A01.4", "A02.6", Pct(66.0)),
+                        ("A02.6", "A03.4", Pct(66.0)),
+                    ],
+                )
                 .vulcanize(Sec(1.0))
+                .down(Sec(1.0), [Tip(SingleBot)])
+                .down(Sec(0.1), [Tip(SingleBot)])
                 .pretense(Sec(0.02), Pct(1.0))
                 .surface_frozen(),
 
