@@ -1,4 +1,4 @@
-use crate::camera::{Camera, Pick};
+use crate::camera::{Camera, Framing, Pick};
 use crate::fabric::Fabric;
 use crate::wgpu::fabric_renderer::FabricRenderer;
 use crate::wgpu::sky_renderer::SkyRenderer;
@@ -23,11 +23,12 @@ pub struct Scene {
     show_attachment_points: bool,
     pick_allowed: bool,
     model_scale: Option<f32>,
+    radio: Radio,
 }
 
 impl Scene {
     pub fn new(mobile_device: bool, wgpu: Wgpu, radio: Radio, model_scale: Option<f32>) -> Self {
-        let camera = wgpu.create_camera(radio);
+        let camera = wgpu.create_camera();
         let sky_renderer = wgpu.create_sky_renderer();
         let fabric_renderer = wgpu.create_fabric_renderer();
         let surface_renderer = wgpu.create_surface_renderer();
@@ -48,6 +49,7 @@ impl Scene {
             show_attachment_points: false,
             pick_allowed: false,
             model_scale,
+            radio,
         }
     }
 
@@ -272,11 +274,13 @@ impl Scene {
             pointer_changed
         };
 
-        self.camera.pointer_changed(pointer_changed, fabric);
+        if let Some(control_state) = self.camera.pointer_changed(pointer_changed, fabric) {
+            control_state.send(&self.radio);
+        }
     }
 
-    pub fn animate(&mut self, fabric: &Fabric) -> bool {
-        self.camera.target_approach(fabric) || matches!(self.camera.current_pick(), Pick::Nothing)
+    pub fn update_camera(&mut self, dt: f32, fabric: &Fabric, framing: Framing) -> bool {
+        self.camera.update(dt, fabric, framing) || matches!(self.camera.current_pick(), Pick::Nothing)
     }
 
     pub fn normal_rendering(&mut self) {
@@ -294,45 +298,12 @@ impl Scene {
         self.camera.jump_to_fabric(fabric);
     }
 
-    pub fn jump_to_fabric_under_construction(&mut self, fabric: &Fabric) {
-        self.camera.jump_to_fabric_under_construction(fabric);
-    }
-
-    /// Refit camera radius to the new fabric while keeping the current
-    /// orbit angle (Show mode).
-    pub fn refit_camera_to_fabric(&mut self, fabric: &Fabric) {
-        self.camera.refit_to_fabric(fabric);
-    }
-
-    /// Keep a fabric under construction framed, unless the user has taken
-    /// the camera or it has no real framing yet.
-    pub fn follow_fabric(&mut self, fabric: &Fabric, building: bool) {
-        if self.camera.is_initialized() && !self.camera.is_steered() {
-            self.camera.follow_construction(fabric, building);
-        }
-    }
-
     pub fn resume_camera_following(&mut self) {
         self.camera.resume_following();
     }
 
     pub fn restart_approach(&mut self) {
         self.camera.restart_approach();
-    }
-
-    /// Slowly rotate the camera around the vertical axis (Show mode).
-    pub fn orbit_camera_y(&mut self, angle_rad: f32) {
-        self.camera.orbit_around_y(angle_rad);
-    }
-
-    /// Check if camera needs initialization
-    pub fn needs_camera_init(&self) -> bool {
-        !self.camera.is_initialized()
-    }
-
-    /// The user has dragged or zoomed since the current run started.
-    pub fn camera_steered(&self) -> bool {
-        self.camera.is_steered()
     }
 
     /// A drag is in progress (pointer or touch held down).

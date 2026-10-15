@@ -250,11 +250,10 @@ impl Wgpu {
             .write_buffer(&self.uniform_buffer, 0, cast_slice(&mvp_ref));
     }
 
-    pub fn create_camera(&self, radio: Radio) -> Camera {
+    pub fn create_camera(&self) -> Camera {
         Camera::new(
             self.surface_configuration.width as f32,
             self.surface_configuration.height as f32,
-            radio,
         )
     }
 

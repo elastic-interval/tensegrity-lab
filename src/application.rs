@@ -4,6 +4,7 @@ use crate::build::algo::mobius::generate_mobius;
 use crate::build::algo::tensegrity_sphere::generate_sphere;
 use crate::build::dsl::fabric_library;
 use crate::build::dsl::fabric_plan_executor::ExecutorStage;
+use crate::camera::Framing;
 use crate::crucible::Crucible;
 use crate::keyboard::Keyboard;
 use crate::pointer::PointerHandler;
@@ -154,13 +155,6 @@ impl Application {
         let has_surface = self.crucible.physics.surface.is_some();
         let delta = self.last_frame_secs;
         if let Some(scene) = &mut self.scene {
-            if scene.needs_camera_init() {
-                if matches!(self.crucible.stage, crate::crucible::Stage::RunningPlan(_)) {
-                    scene.jump_to_fabric_under_construction(&self.crucible.fabric);
-                } else {
-                    scene.jump_to_fabric(&self.crucible.fabric);
-                }
-            }
             if let Err(error) = scene.redraw(&self.crucible.fabric, has_surface, delta) {
                 eprintln!("Error redrawing scene: {:?}", error);
             }
@@ -806,25 +800,34 @@ impl ApplicationHandler<LabEvent> for Application {
             self.fps_timer = now;
         }
 
-        // Show mode: continuously re-tend the camera so it tracks the
-        // bounding sphere as the structure grows during Build/Pretense,
-        // rotate it slowly around the vertical, and when the dwell
-        // timer fires, send Run() for the next fabric. Once the user
-        // turns or zooms the view, the camera is theirs until the next
-        // fabric, and the dwell only counts down after they let go.
+        // The camera's one step per frame. Show mode keeps the growing
+        // structure framed while orbiting it; a plan run follows the build.
+        // Once the user turns or zooms the view, the camera is theirs until
+        // the next run.
+        let running_plan = match &self.crucible.stage {
+            crate::crucible::Stage::RunningPlan(executor) => Some(executor.stage()),
+            _ => None,
+        };
+        let framing = if self.cycle.is_some() {
+            Framing::Show { constructing: running_plan.is_some() }
+        } else if let Some(stage) = running_plan {
+            Framing::Construction { building: *stage == ExecutorStage::Building }
+        } else {
+            Framing::Still
+        };
+        let frame_secs = now.duration_since(self.last_update).as_secs_f32();
+        let camera_animating = self
+            .scene
+            .as_mut()
+            .map(|scene| scene.update_camera(frame_secs, &self.crucible.fabric, framing))
+            .unwrap_or(false);
+
+        // Show mode: when the dwell timer fires, send Run() for the next
+        // fabric. The dwell only counts down after the user lets go.
         if let Some(cycle) = &mut self.cycle {
-            let elapsed = now.duration_since(self.last_update).as_secs_f32();
-            // 2 rpm = 2 * 2π rad / 60 s = π / 15 rad/s.
-            let rate = std::f32::consts::TAU * 2.0 / 60.0;
-            if let Some(scene) = &mut self.scene {
-                if !scene.camera_steered() {
-                    scene.refit_camera_to_fabric(&self.crucible.fabric);
-                    scene.orbit_camera_y(rate * elapsed);
-                }
-                if scene.camera_dragging() {
-                    if let Some(when) = &mut cycle.advance_at {
-                        *when = now + CYCLE_DWELL;
-                    }
+            if self.scene.as_ref().is_some_and(|scene| scene.camera_dragging()) {
+                if let Some(when) = &mut cycle.advance_at {
+                    *when = now + CYCLE_DWELL;
                 }
             }
             if cycle.advance_at.map_or(false, |when| now >= when) {
@@ -837,11 +840,6 @@ impl ApplicationHandler<LabEvent> for Application {
                     export_fps: 100.0,
                 })
                 .send(&self.radio);
-            }
-        } else if let crate::crucible::Stage::RunningPlan(executor) = &self.crucible.stage {
-            let building = *executor.stage() == ExecutorStage::Building;
-            if let Some(scene) = &mut self.scene {
-                scene.follow_fabric(&self.crucible.fabric, building);
             }
         }
 
@@ -872,12 +870,6 @@ impl ApplicationHandler<LabEvent> for Application {
         let update_interval = Duration::from_millis(10);
 
         // Check if animation/physics should be active
-        // Always call scene.animate() to update camera, then check if physics should run
-        let camera_animating = self
-            .scene
-            .as_mut()
-            .map(|scene| scene.animate(&self.crucible.fabric))
-            .unwrap_or(false);
         let animate = !matches!(
             self.control_state,
             ControlState::Waiting | ControlState::Baking

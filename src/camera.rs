@@ -8,7 +8,7 @@ use crate::fabric::IntervalKey;
 use crate::fabric::JointKey;
 use crate::fabric::interval::Role;
 use crate::units::Degrees;
-use crate::{ControlState, IntervalDetails, JointDetails, PickIntent, PointerChange, Radio};
+use crate::{ControlState, IntervalDetails, JointDetails, PickIntent, PointerChange};
 
 #[derive(Debug, Clone)]
 pub enum Pick {
@@ -39,15 +39,44 @@ const MIN_BUILD_DISTANCE: f32 = 25.0;
 /// considered satisfied and cleared.
 const TENDENCY_DONE_SQ: f32 = 1e-4;
 
-// Thread-local storage for camera approach state
-// This is shared between target_approach() and reset() to track animation progress
-thread_local! {
-    static CAMERA_LAST_UPDATE: std::cell::RefCell<Option<instant::Instant>> = std::cell::RefCell::new(None);
-    static CAMERA_APPROACHING: std::cell::RefCell<bool> = std::cell::RefCell::new(true);
-    static CAMERA_APPROACH_ELAPSED: std::cell::RefCell<f32> = std::cell::RefCell::new(0.0);
-    static CAMERA_LAST_TARGET: std::cell::RefCell<Option<Target>> = std::cell::RefCell::new(None);
-    static CAMERA_START_POSITION: std::cell::RefCell<Option<Vec3>> = std::cell::RefCell::new(None);
-    static CAMERA_INITIAL_DISTANCE: std::cell::RefCell<f32> = std::cell::RefCell::new(0.0);
+/// Show-mode turntable: 2 rpm = 2 * 2π rad / 60 s.
+const SHOW_ORBIT_RATE: f32 = std::f32::consts::TAU * 2.0 / 60.0;
+
+/// Longest step the drift and approach take in one frame, so a stall
+/// (backgrounded tab, slow frame) doesn't make the camera jump.
+const MAX_STEP_SECS: f32 = 0.1;
+
+/// Who moves the camera.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Control {
+    /// Nothing framed yet; the first fabric with joints gets a snap placement.
+    Unplaced,
+    /// The app frames the fabric according to the frame's `Framing`.
+    Automatic,
+    /// The user dragged, zoomed or tapped: no automatic framing until
+    /// `resume_following` (the next run).
+    Steered,
+}
+
+/// What the app wants the camera to do with the fabric this frame.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Framing {
+    /// Leave the framing to explicit jumps and the target approach.
+    Still,
+    /// A plan is running: follow the growing fabric, no closer than the
+    /// build minimum while `building`.
+    Construction { building: bool },
+    /// Show mode: keep the whole fabric framed while orbiting it.
+    /// `constructing` only sets the first placement's distance.
+    Show { constructing: bool },
+}
+
+/// Progress of the zoom toward the current `Target` (see `target_approach`).
+struct Approach {
+    active: bool,
+    elapsed: f32,
+    target: Option<Target>,
+    initial_distance: f32,
 }
 
 /// Ease-in-out cubic function for smooth camera movement
@@ -80,23 +109,19 @@ pub struct Camera {
     mouse_follower: Option<PhysicalPosition<f64>>,
     mouse_click: Option<PhysicalPosition<f64>>,
     current_pick: Pick,
-    radio: Radio,
     projection_type: ProjectionType,
     last_ray_origin: Vec3,
-    initialized: bool,
+    control: Control,
+    approach: Approach,
     /// A goal (position, look_at) the camera is gently drifting toward.
     /// Cancelled by any user drag. See `pursue_tendency`.
     tendency: Option<(Vec3, Vec3)>,
     /// Outstanding wheel-zoom distance still to be eased in (smooth zoom).
     zoom_momentum: f32,
-    /// Set once the user drags or zooms; from then on the camera no longer
-    /// follows a fabric under construction until the next run.
-    steered: bool,
 }
 
 impl Camera {
-    pub fn new(width: f32, height: f32, radio: Radio) -> Self {
-        // Uninitialized - call jump_to_fabric() to position for a specific fabric
+    pub fn new(width: f32, height: f32) -> Self {
         Self {
             position: Vec3::ZERO,
             target: Target::default(),
@@ -107,13 +132,17 @@ impl Camera {
             mouse_follower: None,
             mouse_click: None,
             current_pick: Pick::Nothing,
-            radio,
             projection_type: ProjectionType::Perspective,
             last_ray_origin: Vec3::ZERO,
-            initialized: false,
+            control: Control::Unplaced,
+            approach: Approach {
+                active: true,
+                elapsed: 0.0,
+                target: None,
+                initial_distance: 0.0,
+            },
             tendency: None,
             zoom_momentum: 0.0,
-            steered: false,
         }
     }
 
@@ -121,13 +150,8 @@ impl Camera {
         self.target = target
     }
 
-    /// Check if camera has been initialized with a fabric position
-    pub fn is_initialized(&self) -> bool {
-        self.initialized
-    }
-
-    pub fn is_steered(&self) -> bool {
-        self.steered
+    fn is_placed(&self) -> bool {
+        self.control != Control::Unplaced
     }
 
     pub fn is_dragging(&self) -> bool {
@@ -135,7 +159,9 @@ impl Camera {
     }
 
     pub fn resume_following(&mut self) {
-        self.steered = false;
+        if self.control == Control::Steered {
+            self.control = Control::Automatic;
+        }
     }
 
     /// Get camera position and look-at target for export
@@ -275,26 +301,53 @@ impl Camera {
     }
 
     pub fn restart_approach(&mut self) {
-        CAMERA_APPROACHING.with(|state| {
-            *state.borrow_mut() = true;
-        });
-        CAMERA_APPROACH_ELAPSED.with(|elapsed| {
-            *elapsed.borrow_mut() = 0.0;
-        });
+        self.approach.active = true;
+        self.approach.elapsed = 0.0;
     }
 
     pub fn set_position(&mut self, position: Vec3, look_at: Vec3) {
         self.position = position;
         self.look_at = look_at;
         self.last_ray_origin = position;
-        self.initialized = true;
+        if self.control == Control::Unplaced {
+            self.control = Control::Automatic;
+        }
+    }
+
+    /// The camera's one per-frame step: place it on the first fabric with
+    /// joints, apply this frame's automatic `framing` unless the user has
+    /// steered, then drift and approach. Returns whether it is still moving.
+    pub fn update(&mut self, dt: f32, fabric: &Fabric, framing: Framing) -> bool {
+        if !self.is_placed() {
+            let min_distance = match framing {
+                Framing::Construction { .. } | Framing::Show { constructing: true } => {
+                    MIN_BUILD_DISTANCE * fabric.scale()
+                }
+                Framing::Still | Framing::Show { constructing: false } => 0.0,
+            };
+            self.jump_to_fabric_at_least(fabric, min_distance);
+            if !self.is_placed() {
+                return false;
+            }
+        }
+        if self.control == Control::Automatic {
+            match framing {
+                Framing::Still => {}
+                Framing::Construction { building } => self.follow_construction(fabric, building),
+                Framing::Show { .. } => {
+                    self.refit_to_fabric(fabric);
+                    self.orbit_around_y(SHOW_ORBIT_RATE * dt);
+                }
+            }
+        }
+        self.target_approach(dt.min(MAX_STEP_SECS), fabric)
     }
 
     /// Rotate the camera position around the vertical (Y) axis through
     /// the current `look_at` point. Used by Show mode for the slow
     /// turntable orbit. If a tendency goal is in flight, rotate that
     /// too so the orbit doesn't get absorbed by `pursue_tendency`.
-    pub fn orbit_around_y(&mut self, angle_rad: f32) {
+    fn orbit_around_y(&mut self, angle_rad: f32) {
         let rot = glam::Mat3::from_rotation_y(angle_rad);
         self.position = self.look_at + rot * (self.position - self.look_at);
         self.last_ray_origin = self.position;
@@ -309,12 +362,12 @@ impl Camera {
     pub fn set_position_and_hold(&mut self, position: Vec3, look_at: Vec3) {
         self.set_position(position, look_at);
         self.set_target(Target::FabricMidpoint);
-        // Mark approach as complete so animate() doesn't move us.
-        CAMERA_APPROACHING.with(|state| *state.borrow_mut() = false);
+        // Mark approach as complete so the approach doesn't move us.
+        self.approach.active = false;
     }
 
     /// Position the camera for the given fabric. The first call (when
-    /// the camera is uninitialized) snaps directly; subsequent calls
+    /// the camera is unplaced) snaps directly; subsequent calls
     /// set a gentle tendency so the camera drifts to the new framing
     /// without a shock. Camera Y is matched to the centroid so the
     /// camera stays "across from" the structure.
@@ -322,17 +375,12 @@ impl Camera {
         self.jump_to_fabric_at_least(fabric, 0.0);
     }
 
-    /// First placement for a fabric that is about to be built and followed.
-    pub fn jump_to_fabric_under_construction(&mut self, fabric: &Fabric) {
-        self.jump_to_fabric_at_least(fabric, MIN_BUILD_DISTANCE * fabric.scale());
-    }
-
     fn jump_to_fabric_at_least(&mut self, fabric: &Fabric, min_distance: f32) {
         self.current_pick = Pick::Nothing;
         self.set_target(Target::FabricMidpoint);
         let (goal_pos, goal_look_at) =
             self.framing_for(fabric, /*preserve_angle*/ false, min_distance);
-        if self.initialized {
+        if self.is_placed() {
             self.tendency = Some((goal_pos, goal_look_at));
         } else {
             self.position = goal_pos;
@@ -340,7 +388,9 @@ impl Camera {
             self.last_ray_origin = self.position;
             // An empty fabric (before the seed exists) only gives a fallback
             // framing at the origin; snap again once there are joints.
-            self.initialized = !fabric.joints.is_empty();
+            if !fabric.joints.is_empty() {
+                self.control = Control::Automatic;
+            }
             self.tendency = None;
         }
     }
@@ -349,12 +399,7 @@ impl Camera {
     /// angle: keep the horizontal direction from centroid → camera,
     /// rescale to the new bounding sphere, level the camera with the
     /// centroid. Always gentle — never snaps.
-    pub fn refit_to_fabric(&mut self, fabric: &Fabric) {
-        // Leave the first placement to jump_to_fabric; drifting from the
-        // uninitialized position would start the camera at the origin.
-        if !self.initialized {
-            return;
-        }
+    fn refit_to_fabric(&mut self, fabric: &Fabric) {
         self.current_pick = Pick::Nothing;
         self.set_target(Target::FabricMidpoint);
         let (goal_pos, goal_look_at) = self.framing_for(fabric, /*preserve_angle*/ true, 0.0);
@@ -364,8 +409,8 @@ impl Camera {
     /// Keep a fabric under construction framed, keeping the orbit angle and
     /// no closer than the build minimum while `building`. Takes over distance
     /// and altitude from the approach zoom, which would pull toward the seed.
-    pub fn follow_construction(&mut self, fabric: &Fabric, building: bool) {
-        CAMERA_APPROACHING.with(|state| *state.borrow_mut() = false);
+    fn follow_construction(&mut self, fabric: &Fabric, building: bool) {
+        self.approach.active = false;
         let min_distance = if building { MIN_BUILD_DISTANCE * fabric.scale() } else { 0.0 };
         let (goal_pos, goal_look_at) =
             self.framing_for(fabric, /*preserve_angle*/ true, min_distance);
@@ -400,7 +445,7 @@ impl Camera {
     /// Drift the camera toward its current tendency over `dt` seconds,
     /// using frame-rate-independent exponential damping. Clears the
     /// tendency once close enough.
-    pub fn pursue_tendency(&mut self, dt: f32) {
+    fn pursue_tendency(&mut self, dt: f32) {
         let Some((goal_pos, goal_look_at)) = self.tendency else { return };
         let alpha = 1.0 - (-TENDENCY_RATE * dt).exp();
         self.position += (goal_pos - self.position) * alpha;
@@ -413,16 +458,23 @@ impl Camera {
         }
     }
 
-    /// Drop any in-flight tendency and stop the joint/interval zoom
-    /// approach — used the moment the user begins a drag, so they
-    /// never feel the camera fighting them.
-    pub fn cancel_drift(&mut self) {
-        self.steered = true;
+    /// Hand the camera to the user: drop any in-flight tendency and stop
+    /// the joint/interval zoom approach the moment they begin a drag, so
+    /// they never feel the camera fighting them.
+    fn cancel_drift(&mut self) {
+        if self.is_placed() {
+            self.control = Control::Steered;
+        }
         self.tendency = None;
-        CAMERA_APPROACHING.with(|state| *state.borrow_mut() = false);
+        self.approach.active = false;
     }
 
-    pub fn pointer_changed(&mut self, pointer_change: PointerChange, fabric: &Fabric) {
+    /// Returns the state to announce when a click or tap picked something.
+    pub fn pointer_changed(
+        &mut self,
+        pointer_change: PointerChange,
+        fabric: &Fabric,
+    ) -> Option<ControlState> {
         match pointer_change {
             PointerChange::NoChange => {}
             PointerChange::Moved(mouse_now) => {
@@ -473,25 +525,27 @@ impl Camera {
                     );
                     if dx * dx + dy * dy > 32.0 {
                         // they're dragging
-                        return;
+                        return None;
                     }
                     self.mouse_click = None;
                     let PhysicalPosition { x, y } = mouse_now;
                     let pick = self.pick_ray((x as f32, y as f32), pick_intent, fabric);
-                    match &pick {
+                    let announce = match &pick {
                         Pick::Nothing => {
                             self.set_target(Target::FabricMidpoint);
+                            None
                         }
                         Pick::Joint(details) => {
                             self.set_target(Target::AroundJoint(details.key));
-                            ControlState::ShowingJoint(details.clone()).send(&self.radio);
+                            Some(ControlState::ShowingJoint(details.clone()))
                         }
                         Pick::Interval(details) => {
                             self.set_target(Target::AroundInterval(details.key));
-                            ControlState::ShowingInterval(details.clone()).send(&self.radio);
+                            Some(ControlState::ShowingInterval(details.clone()))
                         }
-                    }
+                    };
                     self.current_pick = pick;
+                    return announce;
                 }
             }
             PointerChange::TouchReleased(pick_intent) => {
@@ -506,46 +560,34 @@ impl Camera {
                     );
                     if dx * dx + dy * dy > 32.0 {
                         // they're dragging
-                        return;
+                        return None;
                     }
                     self.mouse_click = None;
                     let PhysicalPosition { x, y } = mouse_now;
                     let pick = self.pick_ray((x as f32, y as f32), pick_intent, fabric);
-                    match &pick {
+                    let announce = match &pick {
                         Pick::Nothing => {
                             self.set_target(Target::FabricMidpoint);
+                            None
                         }
                         Pick::Joint(details) => {
                             self.set_target(Target::AroundJoint(details.key));
-                            ControlState::ShowingJoint(details.clone()).send(&self.radio);
+                            Some(ControlState::ShowingJoint(details.clone()))
                         }
                         Pick::Interval(details) => {
                             self.set_target(Target::AroundInterval(details.key));
-                            ControlState::ShowingInterval(details.clone()).send(&self.radio);
+                            Some(ControlState::ShowingInterval(details.clone()))
                         }
-                    }
+                    };
                     self.current_pick = pick;
+                    return announce;
                 }
             }
         }
+        None
     }
 
-    pub fn target_approach(&mut self, fabric: &Fabric) -> bool {
-        // Get the current time and calculate elapsed time since last update
-        let now = instant::Instant::now();
-        let delta_time = CAMERA_LAST_UPDATE.with(|last| {
-            let mut last_update = last.borrow_mut();
-            let dt = match *last_update {
-                Some(time) => now.duration_since(time).as_secs_f32(),
-                None => 0.016, // Default to 16ms (60 FPS) on first call
-            };
-            *last_update = Some(now);
-            dt
-        });
-
-        // Cap delta time to avoid large jumps if the app was in background
-        let capped_delta_time = f32::min(delta_time, 0.1); // Max 100ms
-
+    fn target_approach(&mut self, capped_delta_time: f32, fabric: &Fabric) -> bool {
         // Gentle drift toward whatever framing the rest of the app has
         // asked for. Cancelled by any user drag.
         self.pursue_tendency(capped_delta_time);
@@ -556,56 +598,27 @@ impl Camera {
         // Calculate distance to target position
         let position_distance = (look_at - self.look_at).length();
 
-        // Check if target has changed and reset state if needed
-        CAMERA_LAST_TARGET.with(|last_target| {
-            let mut last = last_target.borrow_mut();
+        // If the target has changed, reset the approach
+        if self.approach.target != Some(self.target) {
+            self.approach.target = Some(self.target);
+            // Store the initial distance for progress calculation
+            self.approach.initial_distance = position_distance;
+            // Camera will zoom to ideal distance for target.
+            // Note: We recalculate ideal_distance each frame while approaching
+            // because fabric may still be growing during pretensing.
+            self.approach.active = true;
+            self.approach.elapsed = 0.0;
+        }
 
-            // If the target has changed, reset everything
-            if last.as_ref() != Some(&self.target) {
-                *last = Some(self.target.clone());
-
-                // Store the starting position for smooth interpolation
-                CAMERA_START_POSITION.with(|start_pos| {
-                    *start_pos.borrow_mut() = Some(self.look_at);
-                });
-
-                // Store the initial distance for progress calculation
-                CAMERA_INITIAL_DISTANCE.with(|init_dist| {
-                    *init_dist.borrow_mut() = position_distance;
-                });
-
-                // Reset approach state - camera will zoom to ideal distance for target
-                // Note: We recalculate ideal_distance each frame while approaching
-                // because fabric may still be growing during pretensing.
-                CAMERA_APPROACHING.with(|state| {
-                    *state.borrow_mut() = true;
-                });
-
-                CAMERA_APPROACH_ELAPSED.with(|elapsed| {
-                    *elapsed.borrow_mut() = 0.0;
-                });
+        // Only update time if we're still approaching
+        if self.approach.active {
+            self.approach.elapsed += capped_delta_time;
+            // If we've been zooming for the fixed duration, release control
+            if self.approach.elapsed >= ZOOM_DURATION {
+                self.approach.active = false;
             }
-        });
-
-        // Update approach elapsed time and check if we're still approaching the target
-        let approaching = CAMERA_APPROACHING.with(|state| {
-            let mut approaching = state.borrow_mut();
-
-            // Only update time if we're still approaching
-            if *approaching {
-                CAMERA_APPROACH_ELAPSED.with(|elapsed| {
-                    let mut elapsed_time = elapsed.borrow_mut();
-                    *elapsed_time += capped_delta_time;
-
-                    // If we've been zooming for the fixed duration, release control
-                    if *elapsed_time >= ZOOM_DURATION {
-                        *approaching = false;
-                    }
-                });
-            }
-
-            *approaching
-        });
+        }
+        let approaching = self.approach.active;
 
         // Track if we're still working on approaching
         let mut working = position_distance > TARGET_APPROACH_THRESHOLD;
@@ -614,7 +627,7 @@ impl Camera {
         if position_distance > TARGET_APPROACH_THRESHOLD {
             // Handle position approach with smooth easing during initial approach
             // Get the initial distance to calculate progress
-            let initial_distance = CAMERA_INITIAL_DISTANCE.with(|dist| *dist.borrow());
+            let initial_distance = self.approach.initial_distance;
 
             // Calculate progress (0.0 to 1.0) based on distance traveled
             let progress = if initial_distance > 0.0 {
@@ -721,7 +734,7 @@ impl Camera {
     }
 
     pub fn mvp_matrix(&self) -> Mat4 {
-        if !self.initialized {
+        if !self.is_placed() {
             return Mat4::IDENTITY;
         }
         self.projection_matrix() * self.view_matrix()
@@ -915,8 +928,8 @@ impl Camera {
     }
 
     fn rotation(&self, diff: (f32, f32)) -> Option<Mat4> {
-        // Don't allow rotation if not initialized (would produce NaN)
-        if !self.initialized {
+        // Don't allow rotation if not placed (would produce NaN)
+        if !self.is_placed() {
             return None;
         }
 
@@ -1056,5 +1069,99 @@ impl Target {
                 radius * 1.0
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const FRAME: f32 = 1.0 / 60.0;
+
+    fn fabric_away_from_origin() -> Fabric {
+        let mut fabric = Fabric::new("camera test".to_string());
+        for offset in [Vec3::X, -Vec3::X, Vec3::Z, -Vec3::Z, Vec3::Y] {
+            fabric.create_joint(Vec3::new(10.0, 3.0, -4.0) + offset);
+        }
+        fabric
+    }
+
+    fn placed(framing: Framing) -> (Camera, Fabric) {
+        let fabric = fabric_away_from_origin();
+        let mut camera = Camera::new(800.0, 600.0);
+        camera.update(FRAME, &fabric, framing);
+        assert!(camera.is_placed());
+        (camera, fabric)
+    }
+
+    #[test]
+    fn first_placement_waits_for_joints() {
+        let empty = Fabric::new("empty".to_string());
+        let mut camera = Camera::new(800.0, 600.0);
+        for _ in 0..3 {
+            camera.update(FRAME, &empty, Framing::Show { constructing: true });
+        }
+        assert!(!camera.is_placed());
+        assert_eq!(camera.mvp_matrix(), Mat4::IDENTITY);
+
+        let fabric = fabric_away_from_origin();
+        camera.update(FRAME, &fabric, Framing::Still);
+        assert!(camera.is_placed());
+        assert!(camera.look_at.distance(fabric.centroid()) < 1e-3);
+        let distance = camera.position.distance(fabric.centroid());
+        let ideal = Target::FabricMidpoint.ideal_distance(&fabric);
+        assert!((distance - ideal).abs() < 0.05 * ideal, "{distance} vs {ideal}");
+    }
+
+    #[test]
+    fn show_refit_before_placement_does_not_start_at_origin() {
+        let fabric = fabric_away_from_origin();
+        let mut camera = Camera::new(800.0, 600.0);
+        camera.update(FRAME, &fabric, Framing::Show { constructing: true });
+        let centroid = fabric.centroid();
+        assert!(camera.look_at.distance(centroid) < 1e-3);
+        assert!((camera.position.y - centroid.y).abs() < 1e-3, "camera level with the fabric");
+        let distance = camera.position.distance(centroid);
+        let build_distance = MIN_BUILD_DISTANCE * fabric.scale();
+        assert!(distance > 0.9 * build_distance, "{distance} vs {build_distance}");
+    }
+
+    #[test]
+    fn steered_camera_ignores_automatic_framing() {
+        let (mut camera, mut fabric) = placed(Framing::Still);
+        camera.pointer_changed(PointerChange::Pressed, &fabric);
+        let position = camera.position;
+        for framing in [
+            Framing::Show { constructing: false },
+            Framing::Construction { building: true },
+            Framing::Construction { building: false },
+        ] {
+            for _ in 0..30 {
+                camera.update(FRAME, &fabric, framing);
+            }
+        }
+        assert!(camera.tendency.is_none());
+        assert!(camera.position.distance(position) < 1e-4, "{:?} moved to {:?}", position, camera.position);
+
+        let key = fabric.joints.keys().next().unwrap();
+        fabric.joints[key].location += Vec3::new(0.0, 0.0, 30.0);
+        camera.update(FRAME, &fabric, Framing::Construction { building: true });
+        assert!(camera.tendency.is_none(), "steered camera does not follow the build");
+    }
+
+    #[test]
+    fn resume_following_reenables_automatic_framing() {
+        let (mut camera, fabric) = placed(Framing::Still);
+        camera.pointer_changed(PointerChange::Pressed, &fabric);
+        camera.resume_following();
+        let position = camera.position;
+        camera.update(FRAME, &fabric, Framing::Show { constructing: false });
+        assert!(camera.position.distance(position) > 1e-3, "orbit resumes");
+
+        let (mut camera, fabric) = placed(Framing::Still);
+        camera.pointer_changed(PointerChange::Zoomed(1.0), &fabric);
+        camera.resume_following();
+        camera.update(FRAME, &fabric, Framing::Construction { building: true });
+        assert!(camera.tendency.is_some(), "construction follow resumes");
     }
 }
