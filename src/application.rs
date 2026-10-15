@@ -10,7 +10,8 @@ use crate::pointer::PointerHandler;
 use crate::scene::Scene;
 use crate::wgpu::Wgpu;
 use crate::{
-    Age, ControlState, CrucibleAction, LabEvent, Radio, RunStyle, StateChange, TesterAction,
+    Age, ControlState, CrucibleAction, LabEvent, PointerChange, Radio, RunStyle, StateChange,
+    TesterAction,
 };
 use instant::{Duration, Instant};
 use std::sync::Arc;
@@ -633,6 +634,15 @@ impl ApplicationHandler<LabEvent> for Application {
                 }
             }
             PointerChanged(pointer_change) => {
+                // Presses, releases and zooms restart the Show-mode dwell;
+                // a held drag is covered in about_to_wait.
+                let interaction =
+                    !matches!(pointer_change, PointerChange::NoChange | PointerChange::Moved(_));
+                if interaction {
+                    if let Some(when) = self.cycle.as_mut().and_then(|c| c.advance_at.as_mut()) {
+                        *when = Instant::now() + CYCLE_DWELL;
+                    }
+                }
                 if let Some(scene) = &mut self.scene {
                     scene.pointer_changed(pointer_change, &self.crucible.fabric);
                 }
@@ -799,14 +809,23 @@ impl ApplicationHandler<LabEvent> for Application {
         // Show mode: continuously re-tend the camera so it tracks the
         // bounding sphere as the structure grows during Build/Pretense,
         // rotate it slowly around the vertical, and when the dwell
-        // timer fires, send Run() for the next fabric.
+        // timer fires, send Run() for the next fabric. Once the user
+        // turns or zooms the view, the camera is theirs until the next
+        // fabric, and the dwell only counts down after they let go.
         if let Some(cycle) = &mut self.cycle {
             let elapsed = now.duration_since(self.last_update).as_secs_f32();
             // 2 rpm = 2 * 2π rad / 60 s = π / 15 rad/s.
             let rate = std::f32::consts::TAU * 2.0 / 60.0;
             if let Some(scene) = &mut self.scene {
-                scene.refit_camera_to_fabric(&self.crucible.fabric);
-                scene.orbit_camera_y(rate * elapsed);
+                if !scene.camera_steered() {
+                    scene.refit_camera_to_fabric(&self.crucible.fabric);
+                    scene.orbit_camera_y(rate * elapsed);
+                }
+                if scene.camera_dragging() {
+                    if let Some(when) = &mut cycle.advance_at {
+                        *when = now + CYCLE_DWELL;
+                    }
+                }
             }
             if cycle.advance_at.map_or(false, |when| now >= when) {
                 cycle.advance_at = None;

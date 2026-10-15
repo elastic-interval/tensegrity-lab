@@ -130,6 +130,10 @@ impl Camera {
         self.steered
     }
 
+    pub fn is_dragging(&self) -> bool {
+        self.mouse_follower.is_some()
+    }
+
     pub fn resume_following(&mut self) {
         self.steered = false;
     }

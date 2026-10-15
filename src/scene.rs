@@ -330,6 +330,16 @@ impl Scene {
         !self.camera.is_initialized()
     }
 
+    /// The user has dragged or zoomed since the current run started.
+    pub fn camera_steered(&self) -> bool {
+        self.camera.is_steered()
+    }
+
+    /// A drag is in progress (pointer or touch held down).
+    pub fn camera_dragging(&self) -> bool {
+        self.camera.is_dragging()
+    }
+
     /// Position camera for watching a sphere drop. Places the camera
     /// at ground level, far enough back to see the full drop.
     pub fn position_camera_for_drop(&mut self, radius: f32) {
