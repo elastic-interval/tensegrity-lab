@@ -294,10 +294,26 @@ impl Scene {
         self.camera.jump_to_fabric(fabric);
     }
 
+    pub fn jump_to_fabric_under_construction(&mut self, fabric: &Fabric) {
+        self.camera.jump_to_fabric_under_construction(fabric);
+    }
+
     /// Refit camera radius to the new fabric while keeping the current
     /// orbit angle (Show mode).
     pub fn refit_camera_to_fabric(&mut self, fabric: &Fabric) {
         self.camera.refit_to_fabric(fabric);
+    }
+
+    /// Keep a fabric under construction framed, unless the user has taken
+    /// the camera or it has no real framing yet.
+    pub fn follow_fabric(&mut self, fabric: &Fabric, building: bool) {
+        if self.camera.is_initialized() && !self.camera.is_steered() {
+            self.camera.follow_construction(fabric, building);
+        }
+    }
+
+    pub fn resume_camera_following(&mut self) {
+        self.camera.resume_following();
     }
 
     pub fn restart_approach(&mut self) {

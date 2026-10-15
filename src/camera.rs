@@ -30,6 +30,11 @@ const ZOOM_SMOOTHING: f32 = 12.0;
 /// goal. 0.8 ≈ 55% per second — gentle enough to interrupt with a drag.
 const TENDENCY_RATE: f32 = 0.8;
 
+/// Closest the camera follows a fabric while it is being built, in fabric
+/// scales: it watches the structure grow out of the seed instead of starting
+/// at the seed and racing back as the bricks appear.
+const MIN_BUILD_DISTANCE: f32 = 25.0;
+
 /// Once `(pos - goal)² + (look_at - goal)² < this`, the tendency is
 /// considered satisfied and cleared.
 const TENDENCY_DONE_SQ: f32 = 1e-4;
@@ -84,6 +89,9 @@ pub struct Camera {
     tendency: Option<(Vec3, Vec3)>,
     /// Outstanding wheel-zoom distance still to be eased in (smooth zoom).
     zoom_momentum: f32,
+    /// Set once the user drags or zooms; from then on the camera no longer
+    /// follows a fabric under construction until the next run.
+    steered: bool,
 }
 
 impl Camera {
@@ -105,6 +113,7 @@ impl Camera {
             initialized: false,
             tendency: None,
             zoom_momentum: 0.0,
+            steered: false,
         }
     }
 
@@ -115,6 +124,14 @@ impl Camera {
     /// Check if camera has been initialized with a fabric position
     pub fn is_initialized(&self) -> bool {
         self.initialized
+    }
+
+    pub fn is_steered(&self) -> bool {
+        self.steered
+    }
+
+    pub fn resume_following(&mut self) {
+        self.steered = false;
     }
 
     /// Get camera position and look-at target for export
@@ -298,16 +315,28 @@ impl Camera {
     /// without a shock. Camera Y is matched to the centroid so the
     /// camera stays "across from" the structure.
     pub fn jump_to_fabric(&mut self, fabric: &Fabric) {
+        self.jump_to_fabric_at_least(fabric, 0.0);
+    }
+
+    /// First placement for a fabric that is about to be built and followed.
+    pub fn jump_to_fabric_under_construction(&mut self, fabric: &Fabric) {
+        self.jump_to_fabric_at_least(fabric, MIN_BUILD_DISTANCE * fabric.scale());
+    }
+
+    fn jump_to_fabric_at_least(&mut self, fabric: &Fabric, min_distance: f32) {
         self.current_pick = Pick::Nothing;
         self.set_target(Target::FabricMidpoint);
-        let (goal_pos, goal_look_at) = self.framing_for(fabric, /*preserve_angle*/ false);
+        let (goal_pos, goal_look_at) =
+            self.framing_for(fabric, /*preserve_angle*/ false, min_distance);
         if self.initialized {
             self.tendency = Some((goal_pos, goal_look_at));
         } else {
             self.position = goal_pos;
             self.look_at = goal_look_at;
             self.last_ray_origin = self.position;
-            self.initialized = true;
+            // An empty fabric (before the seed exists) only gives a fallback
+            // framing at the origin; snap again once there are joints.
+            self.initialized = !fabric.joints.is_empty();
             self.tendency = None;
         }
     }
@@ -319,9 +348,20 @@ impl Camera {
     pub fn refit_to_fabric(&mut self, fabric: &Fabric) {
         self.current_pick = Pick::Nothing;
         self.set_target(Target::FabricMidpoint);
-        let (goal_pos, goal_look_at) = self.framing_for(fabric, /*preserve_angle*/ true);
+        let (goal_pos, goal_look_at) = self.framing_for(fabric, /*preserve_angle*/ true, 0.0);
         self.tendency = Some((goal_pos, goal_look_at));
         self.initialized = true;
+    }
+
+    /// Keep a fabric under construction framed, keeping the orbit angle and
+    /// no closer than the build minimum while `building`. Takes over distance
+    /// and altitude from the approach zoom, which would pull toward the seed.
+    pub fn follow_construction(&mut self, fabric: &Fabric, building: bool) {
+        CAMERA_APPROACHING.with(|state| *state.borrow_mut() = false);
+        let min_distance = if building { MIN_BUILD_DISTANCE * fabric.scale() } else { 0.0 };
+        let (goal_pos, goal_look_at) =
+            self.framing_for(fabric, /*preserve_angle*/ true, min_distance);
+        self.tendency = Some((goal_pos, goal_look_at));
     }
 
     /// Compute the "ideal" framing (position, look_at) for a fabric.
@@ -330,9 +370,9 @@ impl Camera {
     /// `preserve_angle` is true the horizontal direction from camera to
     /// centroid is kept (used for Show-mode refits); otherwise a default
     /// (X+Z) octant is used.
-    fn framing_for(&self, fabric: &Fabric, preserve_angle: bool) -> (Vec3, Vec3) {
+    fn framing_for(&self, fabric: &Fabric, preserve_angle: bool, min_distance: f32) -> (Vec3, Vec3) {
         let centroid = fabric.centroid();
-        let ideal_distance = self.target.ideal_distance(fabric);
+        let ideal_distance = self.target.ideal_distance(fabric).max(min_distance);
         let raw_dir = if preserve_angle {
             self.position - centroid
         } else {
@@ -369,6 +409,7 @@ impl Camera {
     /// approach — used the moment the user begins a drag, so they
     /// never feel the camera fighting them.
     pub fn cancel_drift(&mut self) {
+        self.steered = true;
         self.tendency = None;
         CAMERA_APPROACHING.with(|state| *state.borrow_mut() = false);
     }

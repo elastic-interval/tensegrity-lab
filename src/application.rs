@@ -3,6 +3,7 @@ use crate::build::algo::mobius::generate_mobius;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::build::algo::tensegrity_sphere::generate_sphere;
 use crate::build::dsl::fabric_library;
+use crate::build::dsl::fabric_plan_executor::ExecutorStage;
 use crate::crucible::Crucible;
 use crate::keyboard::Keyboard;
 use crate::pointer::PointerHandler;
@@ -153,7 +154,11 @@ impl Application {
         let delta = self.last_frame_secs;
         if let Some(scene) = &mut self.scene {
             if scene.needs_camera_init() {
-                scene.jump_to_fabric(&self.crucible.fabric);
+                if matches!(self.crucible.stage, crate::crucible::Stage::RunningPlan(_)) {
+                    scene.jump_to_fabric_under_construction(&self.crucible.fabric);
+                } else {
+                    scene.jump_to_fabric(&self.crucible.fabric);
+                }
             }
             if let Err(error) = scene.redraw(&self.crucible.fabric, has_surface, delta) {
                 eprintln!("Error redrawing scene: {:?}", error);
@@ -268,7 +273,10 @@ impl ApplicationHandler<LabEvent> for Application {
             Run(run_style) => {
                 self.run_style = run_style;
                 // Use the new with_scene method to handle the scene existence check
-                self.with_scene(|scene| scene.normal_rendering());
+                self.with_scene(|scene| {
+                    scene.normal_rendering();
+                    scene.resume_camera_following();
+                });
                 match &self.run_style {
                     RunStyle::Unknown => {
                         unreachable!()
@@ -810,6 +818,11 @@ impl ApplicationHandler<LabEvent> for Application {
                     export_fps: 100.0,
                 })
                 .send(&self.radio);
+            }
+        } else if let crate::crucible::Stage::RunningPlan(executor) = &self.crucible.stage {
+            let building = *executor.stage() == ExecutorStage::Building;
+            if let Some(scene) = &mut self.scene {
+                scene.follow_fabric(&self.crucible.fabric, building);
             }
         }
 
