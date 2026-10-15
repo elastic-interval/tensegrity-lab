@@ -59,6 +59,8 @@ struct ActuatorInterval {
     contracted_length: Meters,
     phase_offset: f32,
     anchor_joint: Option<JointKey>,
+    /// Span to restore for an interval that existed before the animation.
+    original_span: Option<Span>,
 }
 
 pub struct Animator {
@@ -127,6 +129,27 @@ impl Animator {
                         contracted_length: rest_length * contraction_factor,
                         phase_offset,
                         anchor_joint: None,
+                        original_span: None,
+                    });
+                }
+                ActuatorAttachment::Existing { alpha, omega } => {
+                    let joint = |label: &str| {
+                        fabric
+                            .joint_key_by_label(label)
+                            .unwrap_or_else(|| panic!("actuator joint not found: {label}"))
+                    };
+                    let id = fabric
+                        .joining((joint(alpha), joint(omega)))
+                        .unwrap_or_else(|| panic!("no interval between {alpha} and {omega}"));
+                    let interval = &fabric.intervals[id];
+                    let rest_length = interval.ideal();
+                    result.push(ActuatorInterval {
+                        id,
+                        rest_length,
+                        contracted_length: rest_length * contraction_factor,
+                        phase_offset,
+                        anchor_joint: None,
+                        original_span: Some(interval.span),
                     });
                 }
                 ActuatorAttachment::ToSurface { joint, point } => {
@@ -146,6 +169,7 @@ impl Animator {
                         contracted_length: rest_length * contraction_factor,
                         phase_offset,
                         anchor_joint: Some(anchor_key),
+                        original_span: None,
                     });
                 }
             }
@@ -155,9 +179,14 @@ impl Animator {
     }
 
     pub fn remove_actuators(&self, context: &mut CrucibleContext) {
-        // First remove intervals, then anchor joints
+        // First restore or remove intervals, then anchor joints
         for actuator in &self.actuators {
-            context.fabric.remove_interval(actuator.id);
+            match actuator.original_span {
+                Some(span) => context.fabric.intervals[actuator.id].span = span,
+                None => {
+                    context.fabric.remove_interval(actuator.id);
+                }
+            }
         }
         // Remove anchor joints (with SlotMap, order doesn't matter)
         for anchor_key in self.actuators.iter().filter_map(|a| a.anchor_joint) {

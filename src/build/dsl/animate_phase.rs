@@ -33,6 +33,18 @@ impl PhaseBuilder {
         }
     }
 
+    /// Drive the interval already joining two labelled joints (e.g. a guy line);
+    /// it is restored when the animation stops.
+    pub fn interval(self, alpha: &str, omega: &str) -> Actuator {
+        Actuator {
+            phase_offset: self.phase_offset,
+            attachment: ActuatorAttachment::Existing {
+                alpha: alpha.to_string(),
+                omega: omega.to_string(),
+            },
+        }
+    }
+
     /// Create an actuator from a joint to a surface point (accepts &str or JointPath)
     pub fn surface(self, joint: impl Into<JointPath>, point: (f32, f32)) -> Actuator {
         Actuator {
@@ -61,6 +73,10 @@ pub enum ActuatorAttachment {
     Between {
         joint_a: JointPath,
         joint_b: JointPath,
+    },
+    Existing {
+        alpha: String,
+        omega: String,
     },
 }
 

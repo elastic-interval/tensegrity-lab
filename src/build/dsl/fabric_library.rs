@@ -183,6 +183,14 @@ impl FabricName {
                 .guy_lines([
                     guy_line("Z13", (M(0.0), M(5.5)), Pct(100.0)),
                     guy_line("Z13", (M(0.0), M(-5.5)), Pct(100.0)),
+                ])
+                .animate()
+                .actuator_frequency(Hz(1.2))
+                .amplitude(Pct(0.75))
+                .sine()
+                .actuators([
+                    phase(Pct(0.0)).interval("Z13", "Z15"),
+                    phase(Pct(50.0)).interval("Z13", "Z16"),
                 ]),
 
             MinimalMan => self
