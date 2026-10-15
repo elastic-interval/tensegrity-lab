@@ -169,7 +169,6 @@ impl FabricName {
                     ],
                 )
                 .vulcanize(Sec(1.0))
-                .add(Sec(1.0), [("C03.10", "D03.10", Pct(90.0))])
                 .hinge([
                     ("A01.3", "B01.3"),
                     ("C01.5", "D01.5"),
@@ -183,7 +182,7 @@ impl FabricName {
                 .settle(Sec(1.5))
                 .guy_lines([
                     guy_line("Z13", (M(0.0), M(5.5)), Pct(100.0)),
-                    guy_line("Z14", (M(0.0), M(-8.0)), Pct(100.0)),
+                    guy_line("Z13", (M(0.0), M(-5.5)), Pct(100.0)),
                 ]),
 
             MinimalMan => self

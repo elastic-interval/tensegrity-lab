@@ -10,7 +10,6 @@ pub struct PretensePhase {
     /// Joint label pairs (e.g. `("B00.2", "C00.3")`) whose connecting
     /// interval should be removed at pretense time.
     pub omit_pairs: Vec<(String, String)>,
-    pub add_specs: Vec<AddSpec>,
     /// Joint label pairs whose struts are joined where they cross, just
     /// before slackening.
     pub hinge_pairs: Vec<(String, String)>,
@@ -26,11 +25,3 @@ impl PretensePhase {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct AddSpec {
-    /// Joint label (e.g. `"C03.10"`).
-    pub alpha: String,
-    pub omega: String,
-    pub target: Percent,
-    pub approach: Seconds,
-}

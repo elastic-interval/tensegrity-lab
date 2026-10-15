@@ -71,9 +71,7 @@ pub enum ShapeAction {
         omega_path: JointPath,
     },
     Add {
-        alpha_path: JointPath,
-        omega_path: JointPath,
-        length_factor: f32,
+        specs: Vec<AddSpec>,
     },
 }
 
@@ -82,6 +80,16 @@ pub struct Joiner {
     interval: IntervalKey,
     alpha_face: FaceKey,
     omega_face: FaceKey,
+}
+
+/// A new interval between two labelled joints that approaches `target` of
+/// their current distance during its shaping step: below 100% a pull, above
+/// 100% a push.
+#[derive(Debug, Clone)]
+pub struct AddSpec {
+    pub alpha: String,
+    pub omega: String,
+    pub target: Percent,
 }
 
 #[derive(Debug, Clone)]
@@ -271,23 +279,22 @@ impl ShapePhase {
                 }
                 StartProgress(seconds)
             }
-            ShapeAction::Add {
-                alpha_path,
-                omega_path,
-                length_factor,
-            } => {
-                if let (Some(alpha_key), Some(omega_key)) = (
-                    fabric.joint_key_by_path(&alpha_path),
-                    fabric.joint_key_by_path(&omega_path),
-                ) {
-                    let ideal = fabric.distance(alpha_key, omega_key) * length_factor;
-                    fabric.create_approaching_interval(
-                        alpha_key,
-                        omega_key,
-                        ideal,
-                        Role::Pulling,
-                        seconds,
-                    );
+            ShapeAction::Add { specs } => {
+                for AddSpec { alpha, omega, target } in specs {
+                    match (fabric.joint_key_by_label(&alpha), fabric.joint_key_by_label(&omega)) {
+                        (Some(alpha_key), Some(omega_key)) => {
+                            let current = fabric.distance(alpha_key, omega_key);
+                            let role = if target.0 > 100.0 { Role::Pushing } else { Role::Pulling };
+                            fabric.create_approaching_interval(
+                                alpha_key,
+                                omega_key,
+                                current * target.as_factor(),
+                                role,
+                                seconds,
+                            );
+                        }
+                        _ => eprintln!("WARNING: Could not find joints for add pair ({alpha}, {omega})"),
+                    }
                 }
                 StartProgress(seconds)
             }

@@ -391,26 +391,6 @@ impl FabricPlanExecutor {
             }
         }
 
-        // Add new permanent intervals: Pct<100 → pull, Pct>100 → push.
-        for spec in &self.plan.pretense_phase.add_specs {
-            let alpha_key = self.fabric.joint_key_by_label(&spec.alpha);
-            let omega_key = self.fabric.joint_key_by_label(&spec.omega);
-            match (alpha_key, omega_key) {
-                (Some(a), Some(o)) => {
-                    let current = self.fabric.distance(a, o);
-                    let target = current * spec.target.as_factor();
-                    let role = if target.f32() > current.f32() { Role::Pushing } else { Role::Pulling };
-                    self.fabric.create_approaching_interval(a, o, target, role, spec.approach);
-                }
-                _ => {
-                    eprintln!(
-                        "WARNING: Could not find joints for add pair ({}, {})",
-                        spec.alpha, spec.omega
-                    );
-                }
-            }
-        }
-
         for (keep, merge) in &self.plan.pretense_phase.hinge_pairs {
             match (self.fabric.joint_key_by_label(keep), self.fabric.joint_key_by_label(merge)) {
                 (Some(k), Some(m)) => self.fabric.hinge(k, m),

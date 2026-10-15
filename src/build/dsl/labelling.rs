@@ -172,10 +172,10 @@ mod tests {
         );
         assert_eq!(symmetry.order(), 2);
 
-        // The C03.10 ↔ D03.10 pair that the fabric plan itself relies on
-        // (the added chest cable in fabric_library.rs).
-        let orbit = symmetry.orbit(off_axis('C', 3, 10));
-        assert_eq!(orbit, vec![off_axis('C', 3, 10), off_axis('D', 3, 10)]);
+        // The C01.6 ↔ D01.6 pair that the fabric plan itself relies on
+        // (the armpit hinges in fabric_library.rs).
+        let orbit = symmetry.orbit(off_axis('C', 1, 6));
+        assert_eq!(orbit, vec![off_axis('C', 1, 6), off_axis('D', 1, 6)]);
         for label in &orbit {
             assert!(
                 fabric.joint_key_by_label(&label.to_string()).is_some(),

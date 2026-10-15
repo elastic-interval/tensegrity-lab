@@ -3,9 +3,9 @@ use crate::build::dsl::build_phase::{BuildNode, BuildPhase};
 use crate::build::dsl::fabric_library::FabricName;
 use crate::build::dsl::fabric_plan::FabricPlan;
 use crate::build::dsl::fall_phase::FallPhase;
-use crate::build::dsl::pretense_phase::{AddSpec, PretensePhase};
+use crate::build::dsl::pretense_phase::PretensePhase;
 use crate::build::dsl::settle_phase::GuyLine;
-use crate::build::dsl::shape_phase::{ShapeAction, ShapeStep, SpacerSpec};
+use crate::build::dsl::shape_phase::{AddSpec, ShapeAction, ShapeStep, SpacerSpec};
 use crate::build::dsl::Spin;
 use crate::fabric::physics::SurfaceCharacter;
 use crate::units::{Meters, Percent, Seconds, Unit};
@@ -28,7 +28,6 @@ impl FabricName {
             build: None,
             shape: Vec::new(),
             omit_pairs: Vec::new(),
-            add_specs: Vec::new(),
             hinge_pairs: Vec::new(),
         }
     }
@@ -40,7 +39,6 @@ pub struct FabricBuilder {
     build: Option<BuildNode>,
     shape: Vec<ShapeStep>,
     omit_pairs: Vec<(String, String)>,
-    add_specs: Vec<AddSpec>,
     hinge_pairs: Vec<(String, String)>,
 }
 
@@ -153,18 +151,25 @@ impl FabricBuilder {
         self
     }
 
-    /// Mirror of omit: new pulls (Pct<100) or pushes (Pct>100) added in pretense.
+    /// A shaping step adding intervals between labelled joints, each approaching
+    /// the given percentage of its current distance: Pct<100 → pull, Pct>100 → push.
     pub fn add<const N: usize>(
         mut self,
         seconds: Seconds,
         specs: [(&str, &str, Percent); N],
     ) -> Self {
-        self.add_specs.extend(specs.iter().map(|(a, b, pct)| AddSpec {
-            alpha: a.to_string(),
-            omega: b.to_string(),
-            target: *pct,
-            approach: seconds,
-        }));
+        let specs = specs
+            .iter()
+            .map(|(a, b, pct)| AddSpec {
+                alpha: a.to_string(),
+                omega: b.to_string(),
+                target: *pct,
+            })
+            .collect();
+        self.shape.push(ShapeStep {
+            seconds,
+            action: ShapeAction::Add { specs },
+        });
         self
     }
 
@@ -655,7 +660,6 @@ impl PretenseChain {
             seconds: self.seconds,
             rigidity: self.rigidity,
             omit_pairs: self.fabric.omit_pairs,
-            add_specs: self.fabric.add_specs,
             hinge_pairs: self.fabric.hinge_pairs,
             pretenst: self.pretenst,
         };
