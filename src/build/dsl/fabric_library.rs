@@ -181,8 +181,8 @@ impl FabricName {
                 .fall(Sec(1.5))
                 .settle(Sec(1.5))
                 .guy_lines([
-                    guy_line("Z13", (M(0.0), M(5.5)), Pct(100.0)),
-                    guy_line("Z13", (M(0.0), M(-5.5)), Pct(100.0)),
+                    guy_line("Z13", (M(0.0), M(5.5)), Pct(97.0)),
+                    guy_line("Z13", (M(0.0), M(-5.5)), Pct(102.7)),
                 ])
                 .animate()
                 .actuator_frequency(Hz(1.2))
