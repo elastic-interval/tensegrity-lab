@@ -137,7 +137,7 @@ impl FabricName {
                 ])
                 .prepare_vulcanize(0.5, VulcanizeMode::Linear)
                 .space_parallel(
-                    Sec(8.0),
+                    Sec(2.8),
                     [
                         spacer([Foot(Side::Left), Hand(Side::Left)], Pct(100.0)),
                         spacer([Foot(Side::Right), Hand(Side::Right)], Pct(100.0)),
@@ -148,7 +148,7 @@ impl FabricName {
                         spacer([ChestLower(Side::Left), ChestLower(Side::Right)], Pct(80.0)),
                     ],
                 )
-                .vulcanize(Sec(1.0))
+                .vulcanize(Sec(2.1))
                 .hinge([
                     ("A01.3", "B01.3"),
                     ("C01.5", "D01.5"),
