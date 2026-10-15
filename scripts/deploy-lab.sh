@@ -6,7 +6,8 @@
 # GitHub Pages publishes.
 #
 # Does nothing if the lab is already deployed from the current commit, or if
-# a fresh build is identical to what is deployed.
+# a fresh build is identical to what is deployed; then it reports whether that
+# deployment succeeded: the GitHub Pages run and what the live site serves.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -14,6 +15,22 @@ cd "$(dirname "$0")/.."
 FLUXE_ART="${FLUXE_ART:-../fluxe_art}"
 LAB="$FLUXE_ART/lab"
 DIST="target/lab-dist"
+
+report_status() {
+  local commit run wasm url
+  commit="$(git -C "$FLUXE_ART" rev-parse HEAD)"
+  run="$(cd "$FLUXE_ART" && gh run list --commit "$commit" --json status,conclusion,url \
+    -q '.[0] | "\(.status) \(.conclusion) \(.url)"' || true)"
+  echo "GitHub Pages run for fluxe_art ${commit:0:7}: ${run:-not found}"
+  wasm="$(basename "$LAB"/*.wasm)"
+  url="https://$(cat "$FLUXE_ART/CNAME")/lab/"
+  if curl -fsL -H 'Cache-Control: no-cache' "$url" | grep -q "$wasm"; then
+    echo "Live: $url serves $wasm."
+  else
+    echo "Not live: $url does not refer to $wasm." >&2
+    return 1
+  fi
+}
 
 if [ -n "$(git status --porcelain)" ]; then
   echo "tensegrity-lab has uncommitted changes; commit them first so the deployment matches a commit." >&2
@@ -34,6 +51,7 @@ fi
 
 if git -C "$FLUXE_ART" log -1 --format=%s -- lab | grep -q "tensegrity-lab $SHA"; then
   echo "Already deployed: fluxe.art/lab is built from tensegrity-lab $SHA."
+  report_status
   exit 0
 fi
 
@@ -53,6 +71,7 @@ same_build() {
 
 if same_build; then
   echo "Already deployed: a fresh build of $SHA is identical to fluxe.art/lab."
+  report_status
   exit 0
 fi
 
@@ -63,4 +82,4 @@ git -C "$FLUXE_ART" status --short -- lab
 
 git -C "$FLUXE_ART" commit -q -m "Lab: tensegrity-lab $SHA ($SUBJECT)"
 git -C "$FLUXE_ART" push -q origin main
-echo "==> Deployed tensegrity-lab $SHA to fluxe.art/lab (GitHub Pages publishes it shortly)."
+echo "==> Deployed tensegrity-lab $SHA to fluxe.art/lab (GitHub Pages publishes it shortly; rerun this script to check)."
