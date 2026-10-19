@@ -12,6 +12,7 @@ pub mod connector;
 pub mod control;
 pub mod crucible;
 pub mod crucible_context;
+pub mod engineering_csv;
 pub mod events;
 pub mod fabric;
 pub mod keyboard;

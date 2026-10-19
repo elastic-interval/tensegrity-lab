@@ -160,7 +160,9 @@ Engineering CSV: the slack-moment CSV is produced exclusively by
 `test_open_claw_threefold_symmetry` in `src/open_claw_symmetry.rs` — that
 test builds OpenClaw to the end of Building, enforces threefold symmetry,
 writes the CSV, and asserts the result is symmetric. There is no CLI flag
-or runtime hook for it; see `docs/csv-handoff.md`.
+or runtime hook for it; see `docs/csv-handoff.md`. Headless Hug has a
+geometry-only CSV (no connector columns) from `src/engineering_csv.rs`,
+written by the ignored test `export_headless_hug_csv`.
 
 ### Physics presets
 
@@ -273,6 +275,9 @@ cargo run --release -- --fabric "Halo by Crane"
 
 # Engineering CSV for Open Claw (writes OpenClaw-<date>.csv, headless):
 cargo test --release --lib test_open_claw_threefold_symmetry
+
+# Geometry-only CSV for Headless Hug (writes HeadlessHug-<date>.csv):
+cargo test --release --lib export_headless_hug_csv -- --ignored
 
 # Web:
 trunk serve

@@ -7,6 +7,31 @@ the threefold-symmetry enforcement that produces a manufacturable file. The
 slack moment itself is the end of the Building stage in
 `src/build/dsl/fabric_plan_executor.rs`.
 
+## Geometry-only CSV (Headless Hug)
+
+Fabrics whose joint hardware is still being designed get a reduced CSV from
+`src/engineering_csv.rs`, with no connector output: no slot, pivot-pin, FEA
+or link rows, and no connector header block. Headless Hug's is written by
+
+```
+cargo test --release --lib export_headless_hug_csv -- --ignored
+```
+
+into `HeadlessHug-<date>.csv`. It is the same slack moment, rotated to Z-up
+the same way, and additionally dropped so the lowest joint sits at Z=0
+(Headless Hug is still at its build altitude at that moment). Rows are
+
+```
+Index, Role, Length(m), Strain, AlphaX, AlphaY, AlphaZ, AlphaJoint, OmegaX, OmegaY, OmegaZ, OmegaJoint
+```
+
+with joint coordinates at both ends for every row, pushes and pulls alike,
+and `Length(m)` the joint-to-joint distance. Strain is measured against the
+slack rest length, so it is 0 throughout. Guy lines are created only on
+landing, so they are listed in the header (joint, anchor offset in CSV X/Y,
+length percentage) rather than as rows. Everything below describes the Open
+Claw CSV with connectors.
+
 ## One CSV: `slack`
 
 The simulation exports exactly one CSV, captured right after slackening (end
