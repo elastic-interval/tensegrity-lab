@@ -12,6 +12,7 @@ use crate::fabric::joint::JointLabel;
 use crate::fabric::joint_path::{JointPath, COLUMN_MARKER, PRISM_MARKER};
 use crate::fabric::{Fabric, FaceKey, JointKey};
 use crate::units::{Percent, Unit};
+use glam::Vec3;
 use std::collections::{HashMap, HashSet};
 use std::convert::Into;
 
@@ -359,6 +360,8 @@ impl BuildPhase {
                     );
                     fabric.label_symmetry =
                         Self::seed_label_symmetry(face_nodes, &face_letters, &proto, resolved_role);
+                    fabric.limb_names =
+                        Self::limb_names(face_nodes, &face_letters, fabric.label_symmetry.as_ref());
                 } else {
                     label_off_axis_joints(
                         fabric,
@@ -585,6 +588,49 @@ impl BuildPhase {
         Some(LabelSymmetry::Mirror { pairs })
     }
 
+    /// Each limb letter's role and member (see `docs/joint-naming.md`). Under
+    /// a cyclic symmetry the limbs are legs; their members are settled by
+    /// `name_limbs` once the legs exist. Under a mirror symmetry the role comes from the limb's face
+    /// labels (a hand makes an arm, a foot a leg) and the member from their
+    /// side: the figure's own left or right. Empty without a symmetry.
+    fn limb_names(
+        face_nodes: &[BuildNode],
+        face_letters: &[Option<char>],
+        symmetry: Option<&LabelSymmetry>,
+    ) -> HashMap<char, (char, char)> {
+        let lettered = face_letters
+            .iter()
+            .enumerate()
+            .filter_map(|(index, letter)| letter.map(|c| (index, c)));
+        match symmetry {
+            Some(LabelSymmetry::Cyclic { letters }) => letters.iter().map(|&l| (l, ('L', l))).collect(),
+            Some(LabelSymmetry::Mirror { .. }) => lettered
+                .filter_map(|(index, letter)| {
+                    let labels = Self::face_label_set(&face_nodes[index]);
+                    let role = if labels.iter().any(|l| matches!(l, FaceLabel::Hand(_))) {
+                        'A'
+                    } else if labels.iter().any(|l| matches!(l, FaceLabel::Foot(_))) {
+                        'L'
+                    } else {
+                        return None;
+                    };
+                    let member = labels.iter().find_map(|label| match label {
+                        FaceLabel::Foot(side)
+                        | FaceLabel::Hand(side)
+                        | FaceLabel::ChestUpper(side)
+                        | FaceLabel::ChestLower(side) => Some(match side {
+                            Side::Left => 'L',
+                            Side::Right => 'R',
+                        }),
+                        _ => None,
+                    })?;
+                    Some((letter, (role, member)))
+                })
+                .collect(),
+            None => HashMap::new(),
+        }
+    }
+
     /// All `FaceLabel`s appearing anywhere in a face node's subtree.
     fn face_label_set(face_node: &BuildNode) -> HashSet<FaceLabel> {
         let mut set = HashSet::new();
@@ -630,6 +676,7 @@ fn label_off_axis_joints(
     for (local_index, &key) in joint_keys.iter().enumerate() {
         let position = ((local_index + shift) % n) as u8 + 1;
         fabric.joints[key].label = Some(JointLabel::OffAxis {
+            role: None,
             letter,
             brick,
             position,
@@ -649,6 +696,7 @@ fn label_seed_joints(
             .and_then(|name| name.omni_decode())
             .and_then(|(category, axis)| {
                 axis_to_letter.get(&axis).map(|&letter| JointLabel::OffAxis {
+                    role: None,
                     letter,
                     brick: 0,
                     position: omni_category_position(category),
@@ -676,6 +724,164 @@ pub fn assign_axial_labels(fabric: &mut Fabric) {
         }
         fabric.joints[key].label = Some(JointLabel::Axial { index: counter });
         counter += 1;
+    }
+    pair_mirrored_axial_labels(fabric);
+    name_limbs(fabric);
+}
+
+/// Turn each limb letter into its role and member (`Fabric::limb_names`):
+/// `C02.4` becomes `LL02.4`. Brick 0 is the torso whatever its limb. The
+/// symmetry is rewritten to permute members, so `AL02.3` ↔ `AR02.3`.
+fn name_limbs(fabric: &mut Fabric) {
+    if fabric.limb_names.is_empty() {
+        return;
+    }
+    if let Some(LabelSymmetry::Cyclic { letters }) = &fabric.label_symmetry {
+        let members = clockwise_members(fabric, letters);
+        for (letter, member) in members {
+            fabric.limb_names.insert(letter, ('L', member));
+        }
+    }
+    let names = fabric.limb_names.clone();
+    for joint in fabric.joints.values_mut() {
+        if let Some(JointLabel::OffAxis { role: None, letter, brick, position }) = joint.label {
+            if let Some(&(role, member)) = names.get(&letter) {
+                let role = if brick == 0 { 'T' } else { role };
+                joint.label = Some(JointLabel::OffAxis { role: Some(role), letter: member, brick, position });
+            }
+        }
+    }
+    let member = |letter: char| names.get(&letter).map_or(letter, |&(_, member)| member);
+    fabric.label_symmetry = match fabric.label_symmetry.take() {
+        // Members run clockwise, so the generator steps A → B → C.
+        Some(LabelSymmetry::Cyclic { letters }) => {
+            let mut members: Vec<char> = letters.into_iter().map(member).collect();
+            members.sort();
+            Some(LabelSymmetry::Cyclic { letters: members })
+        }
+        Some(LabelSymmetry::Mirror { pairs }) => {
+            let mut members: Vec<(char, char)> = pairs.into_iter().map(|(a, b)| (member(a), member(b))).collect();
+            members.sort();
+            members.dedup();
+            Some(LabelSymmetry::Mirror { pairs: members })
+        }
+        None => None,
+    };
+}
+
+/// Members A, B, C… for a cyclic fabric's legs, clockwise seen from above
+/// and starting with the first leg letter, from where each leg's joints
+/// lie around the vertical. Legs already named keep their members.
+fn clockwise_members(fabric: &Fabric, letters: &[char]) -> Vec<(char, char)> {
+    let leg = |letter: char| {
+        let joints: Vec<Vec3> = fabric
+            .joints
+            .values()
+            .filter(|joint| matches!(joint.label, Some(JointLabel::OffAxis { role: None, letter: l, .. }) if l == letter))
+            .map(|joint| joint.location)
+            .collect();
+        (!joints.is_empty()).then(|| joints.iter().sum::<Vec3>() / joints.len() as f32)
+    };
+    let Some(centres) = letters.iter().map(|&letter| leg(letter)).collect::<Option<Vec<Vec3>>>() else {
+        return Vec::new();
+    };
+    let middle = centres.iter().sum::<Vec3>() / centres.len() as f32;
+    // With y up, clockwise seen from above is increasing atan2(z, x).
+    let angle = |at: Vec3| {
+        let from = at - middle;
+        let start = centres[0] - middle;
+        (from.z.atan2(from.x) - start.z.atan2(start.x)).rem_euclid(std::f32::consts::TAU)
+    };
+    let mut order: Vec<(f32, char)> = centres.iter().zip(letters).map(|(&at, &letter)| (angle(at), letter)).collect();
+    order.sort_by(|a, b| a.0.total_cmp(&b.0));
+    order.iter().zip('A'..).map(|(&(_, letter), member)| (letter, member)).collect()
+}
+
+/// Number the joints on the mirror plane or rotation axis bottom to top by
+/// height: `Z1` is the lowest. Run once the fabric stands, before the plan
+/// refers to any `Z` name.
+pub fn number_axial_by_height(fabric: &mut Fabric) {
+    let mut axial: Vec<(f32, JointKey)> = fabric
+        .joints
+        .iter()
+        .filter(|(_, joint)| matches!(joint.label, Some(JointLabel::Axial { .. })))
+        .map(|(key, joint)| (joint.location.y, key))
+        .collect();
+    axial.sort_by(|a, b| a.0.total_cmp(&b.0));
+    for (index, (_, key)) in axial.into_iter().enumerate() {
+        fabric.joints[key].label = Some(JointLabel::Axial { index: index as u16 + 1 });
+    }
+}
+
+/// Under mirror symmetry, Axial joints that are each other's mirror image —
+/// not on the mirror plane — are torso joints: they become `TL00.n` /
+/// `TR00.n` on the same sides as the limbs, numbered after any torso labels
+/// already there, so a repeated call adds rather than renames. Joints on the
+/// plane stay `Z<n>`.
+fn pair_mirrored_axial_labels(fabric: &mut Fabric) {
+    // Built geometry is symmetric to well within this.
+    const TOLERANCE: f32 = 0.01;
+    let Some(LabelSymmetry::Mirror { pairs }) = &fabric.label_symmetry else {
+        return;
+    };
+    let Some(&(left, right)) = pairs.first() else {
+        return;
+    };
+    // Before `name_limbs` the pairs are limb letters, after it members.
+    let member = |letter: char| fabric.limb_names.get(&letter).map_or(letter, |&(_, member)| member);
+    let (member_left, member_right) = (member(left), member(right));
+    // The mirror plane, from a joint of the first pair and its partner.
+    let location = |label: JointLabel| {
+        fabric.joints.values().find(|joint| joint.label == Some(label)).map(|joint| joint.location)
+    };
+    let Some((on_left, on_right)) = fabric.joints.values().find_map(|joint| match joint.label {
+        Some(JointLabel::OffAxis { role, letter, brick, position }) if letter == left => {
+            let partner = location(JointLabel::OffAxis { role, letter: right, brick, position })?;
+            Some((joint.location, partner))
+        }
+        _ => None,
+    }) else {
+        return;
+    };
+    let middle = (on_left + on_right) / 2.0;
+    let normal = (on_left - on_right).normalize();
+    let side = |key: JointKey| (fabric.joints[key].location - middle).dot(normal);
+
+    let mut axial: Vec<(u16, JointKey)> = fabric
+        .joints
+        .iter()
+        .filter_map(|(key, joint)| match joint.label {
+            Some(JointLabel::Axial { index }) => Some((index, key)),
+            _ => None,
+        })
+        .collect();
+    axial.sort();
+    let mut paired: Vec<(JointKey, JointKey)> = Vec::new();
+    for &(_, key) in &axial {
+        if paired.iter().any(|&(a, b)| a == key || b == key) {
+            continue;
+        }
+        let at = fabric.joints[key].location;
+        let reflected = at - normal * (2.0 * (at - middle).dot(normal));
+        let image = axial
+            .iter()
+            .map(|&(_, other)| other)
+            .filter(|&other| other != key)
+            .find(|&other| fabric.joints[other].location.distance(reflected) < TOLERANCE);
+        if let Some(image) = image {
+            paired.push(if side(key) > 0.0 { (key, image) } else { (image, key) });
+        }
+    }
+    let torso = |letter: char, position: u8| JointLabel::OffAxis { role: Some('T'), letter, brick: 0, position };
+    let already = fabric
+        .joints
+        .values()
+        .filter(|joint| matches!(joint.label, Some(JointLabel::OffAxis { role: Some('T'), letter, .. }) if letter == member_left))
+        .count();
+    for (index, &(on_left, on_right)) in paired.iter().enumerate() {
+        let position = (already + index) as u8 + 1;
+        fabric.joints[on_left].label = Some(torso(member_left, position));
+        fabric.joints[on_right].label = Some(torso(member_right, position));
     }
 }
 

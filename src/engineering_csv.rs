@@ -228,7 +228,7 @@ mod tests {
             .count();
         assert_eq!(rows.len(), expected);
         assert!(
-            text.contains("# Guy line: joint=Z13"),
+            text.contains("# Guy line: joint=Z2"),
             "guy lines missing from the header"
         );
         for row in rows.iter().filter(|row| row[1] == "push") {

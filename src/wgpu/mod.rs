@@ -18,6 +18,7 @@ use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
 use crate::{LabEvent, Radio};
 
+pub mod part_meshes;
 pub mod cylinder;
 pub mod cylinder_renderer;
 pub mod fabric_renderer;

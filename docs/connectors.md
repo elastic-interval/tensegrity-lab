@@ -1,5 +1,14 @@
 # Connectors: How Cables Attach to Struts
 
+> **2026-10: prototype dimensions in code.** The part described below (32 mm
+> moment arm, 20 mm tube, 10 mm pin, 1 mm washers) is the first design and is
+> now out of date. The code uses the Headless Hug prototype: POM washers
+> 2 mm, pivot radius `R_tube` 30 mm (cap OD 40/2 + 1 clearance + tube 18/2),
+> cross-tube 18 × 2.5 mm precision tube 13.5 mm long, 12 mm clevis pin in a
+> 13 mm bore, jaw clearance 0.25 mm (jaw gap 14 mm). See
+> `src/connector/dimensions.rs` and `src/connector/fork.rs`. Open Claw's
+> connector is frozen on its own branch.
+
 ## Physical Reality
 
 In a tensegrity structure, every cable (pull interval) terminates at the end of a strut (push interval). The physical connection hardware at each strut end is called a **connector**. Each strut end can have multiple cables attached, each at a distinct **slot** along the strut axis.
@@ -301,9 +310,9 @@ For 0-indexed slots with the current defaults (cap=5 mm, t_ring=5 mm, washer=1 m
 
 When the fabric is built and settled, each push interval determines which cables connect to it and at which slot (`ConnectorSystem::update_all_connections`, rebuilt on demand — Viewing entry, attachment-point toggle-ON, CSV export). The optimiser (`find_optimal_assignment`, `src/connector/attachment.rs`) works per push end:
 
-- **Hard rule**: an outward-pulling cable may not occupy the topmost slot — the retaining nut would otherwise carry the full axial load.
-- **Soft rules**: the cable whose arm points most opposite the outward cable sits directly above it (the "lid"), and the topmost outward cable sits second from the top.
-- **Soft objective**: among permutations satisfying the above, maximise the minimum 3D distance between any pair of connector arms (segments from ring center to pivot pin).
+- **No ordering rules**: every permutation of the cables over the slots is tried, and any cable may take any slot. (An earlier hard rule kept outward-pulling cables off the topmost slot, so the retaining nut would not carry their full axial load; it was dropped to clear collisions, so that nut load needs checking.)
+- **Objective**: fewest pairs of forks whose capsule models collide — the same test that marks culprits.
+- **Then**: maximise the minimum 3D distance between any pair of connector arms (segments from ring center to pivot pin).
 - **Tie-break**: minimum rotational moment about the slot-0 ring center.
 
 ## Pivot Geometry: How Cable Endpoints are Positioned

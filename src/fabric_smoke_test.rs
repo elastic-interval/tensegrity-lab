@@ -170,36 +170,22 @@ mod tests {
                 .filter_map(|(k, j)| j.label.map(|_| (fabric.joint_label(k), j.location)))
                 .collect();
 
-            // For each labeled joint with first char in {A,B,C,D}, the same
-            // suffix should exist with the paired letter (A↔B, C↔D).
-            let partner_letter = |c: char| match c {
-                'A' => Some('B'), 'B' => Some('A'),
-                'C' => Some('D'), 'D' => Some('C'),
-                _ => None,
-            };
-
+            // Every left label (`<role>L…`) should have the same name with
+            // the member flipped to R; a letter label not yet named counts
+            // as unpartnered too.
             for (label, _loc) in &labeled {
-                let Some(first) = label.chars().next() else { continue };
-                let Some(other_first) = partner_letter(first) else { continue };
-                // Iterate only A→ and C→ to avoid double reporting
-                if !(first == 'A' || first == 'C') {
+                if label.starts_with('Z') || label.chars().nth(1) != Some('L') {
                     continue;
                 }
-                let partner_label = format!("{other_first}{}", &label[1..]);
+                let partner_label = format!("{}R{}", &label[..1], &label[2..]);
                 let has_partner = labeled.iter().any(|(l, _)| l == &partner_label);
                 if !has_partner {
-                    let total_a_or_c = labeled
-                        .iter()
-                        .filter(|(l, _)| l.starts_with(first))
-                        .count();
-                    let total_partner = labeled
-                        .iter()
-                        .filter(|(l, _)| l.starts_with(other_first))
-                        .count();
+                    let lefts = labeled.iter().filter(|(l, _)| l.chars().nth(1) == Some('L')).count();
+                    let rights = labeled.iter().filter(|(l, _)| l.chars().nth(1) == Some('R')).count();
                     panic!(
                         "Step {step}: label {label} has no partner {partner_label}.\n\
-                         Labels with '{first}' so far: {total_a_or_c}\n\
-                         Labels with '{other_first}' so far: {total_partner}\n\
+                         Left labels so far: {lefts}\n\
+                         Right labels so far: {rights}\n\
                          (label generation is asymmetric at this build step)"
                     );
                 }
@@ -264,14 +250,11 @@ mod tests {
         assert_eq!(matched, n, "only {matched}/{n} joint pairs are mirror-related under {axis_name}");
     }
 
-/// HeadlessHug should label its 4 limbs as A, B, C, D such that
-    /// A↔B and C↔D are mirror pairs of joints. For every label of letter
-    /// A, the SAME suffix should also appear with letter B (and likewise
-    /// C↔D). This is the visible "partner" relationship the user is
-    /// driving toward — labels of partner joints differ ONLY in the
-    /// first character.
+/// HeadlessHug's mirror twins differ only in their member letter: every
+    /// left label (`AL02.3`) has a right partner (`AR02.3`). This is the
+    /// visible "partner" relationship of the naming scheme.
     ///
-    /// The test grounds this in geometry: each (A, B-suffix) pair must
+    /// The test grounds this in geometry: each left/right pair must
     /// also correspond to two joints at mirror-image positions in the
     /// fabric. If the labels exist but the positions aren't mirror-related,
     /// the labelling is incorrectly pairing them.
@@ -290,26 +273,18 @@ mod tests {
             .filter_map(|(k, j)| j.label.map(|_| (fabric.joint_label(k), j.location)))
             .collect();
 
-        // For every label with first char in {A,B,C,D}, the same suffix
-        // should exist with the paired letter (A↔B, C↔D), and the two
-        // joints should be at fabric mirror-image positions.
-        let partner_letter = |c: char| match c {
-            'A' => Some('B'), 'B' => Some('A'),
-            'C' => Some('D'), 'D' => Some('C'),
-            _ => None,
-        };
+        // For every left label (`<role>L…`) the same name with the member
+        // flipped to R should exist, and the two joints should be at fabric
+        // mirror-image positions.
         let mut missing: Vec<String> = Vec::new();
         let mut non_mirror: Vec<String> = Vec::new();
         let pos_tol = 0.05;
 
         for (label, loc) in &labeled {
-            let Some(first) = label.chars().next() else { continue };
-            let Some(other_first) = partner_letter(first) else { continue };
-            // Only iterate one direction (A → B, C → D) to avoid duplicate reports
-            if !(first == 'A' || first == 'C') {
+            if label.starts_with('Z') || label.chars().nth(1) != Some('L') {
                 continue;
             }
-            let partner_label = format!("{other_first}{}", &label[1..]);
+            let partner_label = format!("{}R{}", &label[..1], &label[2..]);
             let partner = labeled.iter().find(|(l, _)| l == &partner_label);
             match partner {
                 Some((_, partner_loc)) => {

@@ -29,6 +29,7 @@ impl FabricName {
             shape: Vec::new(),
             omit_pairs: Vec::new(),
             hinge_pairs: Vec::new(),
+            bridles: Vec::new(),
         }
     }
 }
@@ -40,6 +41,7 @@ pub struct FabricBuilder {
     shape: Vec<ShapeStep>,
     omit_pairs: Vec<(String, String)>,
     hinge_pairs: Vec<(String, String)>,
+    bridles: Vec<(String, String, String)>,
 }
 
 impl FabricBuilder {
@@ -177,6 +179,17 @@ impl FabricBuilder {
     pub fn hinge<const N: usize>(mut self, pairs: [(&str, &str); N]) -> Self {
         self.hinge_pairs
             .extend(pairs.iter().map(|(a, b)| (a.to_string(), b.to_string())));
+        self
+    }
+
+    /// Take each `(joint, a, b)`'s cables joint–a and joint–b off through a
+    /// bridle node (see `Fabric::bridle`), after hinging.
+    pub fn bridle<const N: usize>(mut self, triples: [(&str, &str, &str); N]) -> Self {
+        self.bridles.extend(
+            triples
+                .iter()
+                .map(|(j, a, b)| (j.to_string(), a.to_string(), b.to_string())),
+        );
         self
     }
 
@@ -661,6 +674,7 @@ impl PretenseChain {
             rigidity: self.rigidity,
             omit_pairs: self.fabric.omit_pairs,
             hinge_pairs: self.fabric.hinge_pairs,
+            bridles: self.fabric.bridles,
             pretenst: self.pretenst,
         };
         FabricPlan {

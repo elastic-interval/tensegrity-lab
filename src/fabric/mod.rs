@@ -15,6 +15,7 @@ use crate::units::{Grams, Meters, Percent, Seconds, Unit};
 use crate::Age;
 use glam::{Mat4, Quat, Vec3};
 use slotmap::{new_key_type, SlotMap};
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -58,6 +59,7 @@ new_key_type! {
 }
 
 pub mod brick;
+pub mod bridle;
 pub mod dimensions;
 pub mod error;
 pub mod fabric_sampler;
@@ -67,6 +69,7 @@ pub mod joint;
 pub mod joint_path;
 pub mod material;
 pub mod physics;
+pub mod symmetrize;
 pub mod vulcanize;
 
 pub mod physics_tester;
@@ -200,6 +203,17 @@ pub struct Fabric {
     /// Label-level symmetry group derived from the seed at build time
     /// (letter permutation on `JointLabel`); `None` for asymmetric fabrics.
     pub label_symmetry: Option<LabelSymmetry>,
+    /// At a hinge, two struts end at one pin joint, each with its own stack
+    /// of discs: for every cable at a pin, `(cable, pin)` gives the strut
+    /// whose stack carries it. Filled by `hinge`.
+    pub hinge_strut: HashMap<(IntervalKey, JointKey), IntervalKey>,
+    /// Each limb letter's role and member, `(role, member)`, from the seed's
+    /// face labels; applied to the labels at the end of the build (see
+    /// `docs/joint-naming.md`). Empty for fabrics without a symmetry.
+    pub limb_names: HashMap<char, (char, char)>,
+    /// Free nodes made by `bridle`, each a link plate joining three cables,
+    /// with the link that hangs it from its strut end.
+    pub bridle_nodes: HashMap<JointKey, IntervalKey>,
 
     cached_bounding_radius: f32,
     approaching_count: usize,
@@ -228,6 +242,9 @@ impl Fabric {
             connector,
             labeller: None,
             label_symmetry: None,
+            hinge_strut: HashMap::new(),
+            bridle_nodes: HashMap::new(),
+            limb_names: HashMap::new(),
             approaching_count: 0,
             quiet_since: None,
         }
@@ -260,8 +277,13 @@ impl Fabric {
     }
 
     /// Rebuild the connector's slot assignments for every push interval from
-    /// current geometry. No-op without a connector.
+    /// current geometry, made exactly mirror-symmetric first as the real
+    /// build will be (see `symmetrize_mirror`). No-op without a connector.
     pub fn update_all_attachment_connections(&mut self) {
+        if self.connector.is_none() {
+            return;
+        }
+        self.symmetrize_mirror();
         let Some(mut connector) = self.connector.take() else {
             return;
         };

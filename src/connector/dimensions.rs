@@ -24,15 +24,19 @@ pub struct ConnectorDimensions {
     /// Radial distance from the strut/bolt axis to the cross-tube (pin) axis
     /// where the cable attaches (R_tube — the cable's moment arm).
     pub pivot_radius: Meters,
+    /// At a hinge the strut ends at the hinge pin and its stack sits below
+    /// it: the gap from the top of the highest occupied ring to the pin.
+    pub hinge_clearance: Meters,
 }
 
 impl Default for ConnectorDimensions {
     fn default() -> Self {
         Self {
             ring_thickness: Meters(0.005),
-            washer_thickness: Meters(0.001),
+            washer_thickness: Meters(0.002), // POM
             cap_thickness: Meters(0.005),
-            pivot_radius: Meters(0.032),
+            pivot_radius: Meters(0.030), // cap OD 40/2 + 1 clearance + tube 18/2
+            hinge_clearance: Meters(0.020),
         }
     }
 }
@@ -60,11 +64,29 @@ impl ConnectorDimensions {
         slot: usize,
         pull_other_end: Vec3,
     ) -> (Vec3, f32) {
+        self.pivot_geometry_reaching(push_end, push_axis, slot, pull_other_end, self.pivot_radius)
+    }
+
+    /// `pivot_geometry` for a boss reaching `reach` from the axis instead of
+    /// the standard ring's `pivot_radius`.
+    pub fn pivot_geometry_reaching(
+        &self,
+        push_end: Vec3,
+        push_axis: Vec3,
+        slot: usize,
+        pull_other_end: Vec3,
+        reach: Meters,
+    ) -> (Vec3, f32) {
         let ring_center = self.ring_center(push_end, push_axis, slot);
+        Self::pivot_from_center(ring_center, push_axis, pull_other_end, reach)
+    }
+
+    /// `pivot_geometry` for a ring already placed at `ring_center`.
+    pub fn pivot_from_center(ring_center: Vec3, push_axis: Vec3, pull_other_end: Vec3, reach: Meters) -> (Vec3, f32) {
         let to_pull = pull_other_end - ring_center;
         let radial_unit = radial_unit_from_axis(push_axis, to_pull);
 
-        let pivot_pos = ring_center + radial_unit * self.pivot_radius.f32();
+        let pivot_pos = ring_center + radial_unit * reach.f32();
 
         let pull_direction = (pull_other_end - pivot_pos).normalize();
         let elevation_deg = pull_direction.dot(push_axis).asin().to_degrees();
@@ -121,7 +143,7 @@ mod pivot_geometry_tests {
     fn connector_dimension_formulas() {
         let h = ConnectorDimensions::default();
         let t_ring = h.ring_thickness.f32(); // 5mm
-        let washer = h.washer_thickness.f32(); // 1mm
+        let washer = h.washer_thickness.f32(); // 2mm
         let cap = h.cap_thickness.f32(); // 5mm
         let r_pivot = h.pivot_radius.f32(); // 32mm
 

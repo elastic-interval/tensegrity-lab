@@ -111,8 +111,14 @@ angles or per-position variants:
   radius) plus ring/pivot geometry (`pivot_geometry`, `ring_center`), with
   the inline `pivot_geometry_tests`.
 - `attachment.rs` — `PullConnections`, slot-assignment optimiser.
+- `parts.rs` — the parts list: `Part` (each distinct physical part, its
+  material and frame) and `placements(fabric)` (every copy, placed);
+  `parts_list` counts them as a bill of materials.
 - `fork.rs` — cable-end fork terminal (clevis) estimates + capsule model
   for collision culprit marking.
+- `bridle_clamp.rs` — `BridleClamp`: a clamp gripping one continuous cable
+  over a saddle, hung on a shackle from a strut end (`Fabric::bridle`,
+  DSL `.bridle(...)`), taking two cables off a crowded stack.
 - `system.rs` — `ConnectorSystem`: owns `ConnectorDimensions`, a
   `SecondaryMap<IntervalKey, PullConnections>` of slot assignments, and
   `culprits` (cable ends whose assemblies physically collide, marked once
@@ -181,8 +187,11 @@ need to adjust mass or rigidity multipliers at runtime.
 `src/wgpu/`:
 - `cylinder_renderer.rs` — push/pull intervals as cylinders.
   - The "fabric pipeline" boilerplate is centralised in
-    `Wgpu::create_fabric_pipeline`; cylinder and connector renderers both use it.
-- `connector_renderer.rs` — connector geometry when attachment points visible.
+    `Wgpu::create_fabric_pipeline`.
+- `connector_renderer.rs` — connector hardware when attachment points are
+  visible, drawn from the parts list (`connector::parts`): one mesh per
+  `Part` (`part_meshes.rs`, metres, in the part's own frame), instanced at
+  every `Placement`. A new kind of hardware is a new `Part` variant.
 - `sphere_renderer.rs` — joints.
 - `sky_renderer.rs`, `surface_renderer.rs`, `text_renderer.rs` — chrome.
 - `shader.wgsl` — shared WGSL for fabric pipelines.

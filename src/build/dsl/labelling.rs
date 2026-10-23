@@ -59,20 +59,33 @@ impl LabelSymmetry {
         }
     }
 
-    /// One generator step on a label. `OffAxis` letters permute; `Axial`
-    /// labels are fixed points.
+    /// One generator step on a label. `OffAxis` letters permute (bridle
+    /// labels with their host's); `Axial` labels are fixed points.
     pub fn map_label(&self, label: JointLabel) -> JointLabel {
         match label {
             JointLabel::OffAxis {
+                role,
                 letter,
                 brick,
                 position,
             } => JointLabel::OffAxis {
+                role,
                 letter: self.map_letter(letter),
                 brick,
                 position,
             },
-            axial @ JointLabel::Axial { .. } => axial,
+            JointLabel::BridleOffAxis {
+                role,
+                letter,
+                brick,
+                position,
+            } => JointLabel::BridleOffAxis {
+                role,
+                letter: self.map_letter(letter),
+                brick,
+                position,
+            },
+            axial @ (JointLabel::Axial { .. } | JointLabel::BridleAxial { .. }) => axial,
         }
     }
 
@@ -112,8 +125,9 @@ mod tests {
         executor.fabric
     }
 
-    fn off_axis(letter: char, brick: u8, position: u8) -> JointLabel {
+    fn off_axis(role: char, letter: char, brick: u8, position: u8) -> JointLabel {
         JointLabel::OffAxis {
+            role: Some(role),
             letter,
             brick,
             position,
@@ -135,12 +149,12 @@ mod tests {
         );
         assert_eq!(symmetry.order(), 3);
 
-        // The orbit of a real seed joint visits all three legs, and every
-        // member exists on the built fabric.
-        let orbit = symmetry.orbit(off_axis('A', 0, 2));
+        // The orbit of a real torso joint visits all three sectors, and
+        // every member exists on the built fabric.
+        let orbit = symmetry.orbit(off_axis('T', 'A', 0, 2));
         assert_eq!(
             orbit,
-            vec![off_axis('A', 0, 2), off_axis('B', 0, 2), off_axis('C', 0, 2)]
+            vec![off_axis('T', 'A', 0, 2), off_axis('T', 'B', 0, 2), off_axis('T', 'C', 0, 2)]
         );
         for label in &orbit {
             assert!(
@@ -150,7 +164,7 @@ mod tests {
         }
         // Every member keys to the same canonical representative.
         for label in &orbit {
-            assert_eq!(symmetry.orbit_key(*label), off_axis('A', 0, 2));
+            assert_eq!(symmetry.orbit_key(*label), off_axis('T', 'A', 0, 2));
         }
         // Axial labels are fixed points.
         let axial = JointLabel::Axial { index: 1 };
@@ -167,15 +181,15 @@ mod tests {
         assert_eq!(
             *symmetry,
             LabelSymmetry::Mirror {
-                pairs: vec![('A', 'B'), ('C', 'D')]
+                pairs: vec![('L', 'R')]
             }
         );
         assert_eq!(symmetry.order(), 2);
 
-        // The C01.6 ↔ D01.6 pair that the fabric plan itself relies on
+        // The AL01.6 ↔ AR01.6 pair that the fabric plan itself relies on
         // (the armpit hinges in fabric_library.rs).
-        let orbit = symmetry.orbit(off_axis('C', 1, 6));
-        assert_eq!(orbit, vec![off_axis('C', 1, 6), off_axis('D', 1, 6)]);
+        let orbit = symmetry.orbit(off_axis('A', 'L', 1, 6));
+        assert_eq!(orbit, vec![off_axis('A', 'L', 1, 6), off_axis('A', 'R', 1, 6)]);
         for label in &orbit {
             assert!(
                 fabric.joint_key_by_label(&label.to_string()).is_some(),

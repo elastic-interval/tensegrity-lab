@@ -4,30 +4,57 @@
  */
 
 use crate::fabric::interval::Role;
+use crate::fabric::interval::Span::{Approaching, Fixed};
 use crate::fabric::joint_path::JointPath;
 use crate::fabric::physics::{Physics, SurfaceInteraction};
-use crate::fabric::{Fabric, JointKey};
+use crate::fabric::{Fabric, IntervalKey, JointKey};
 use crate::units::{Grams, Meters, Unit};
 use glam::Vec3;
 use std::fmt::{self, Display, Formatter};
 
-/// Engraver-friendly joint label. `OffAxis` reads as `<letter><brick>.<position>`
-/// (limb joints); `Axial` reads as `Z<index>` (apex / on-mirror / unsymmetric).
-/// Ordering is derived (OffAxis before Axial, then by letter/brick/position),
-/// giving `LabelSymmetry::orbit_key` its canonical minimum.
+/// Engraver-friendly joint label (see `docs/joint-naming.md`). `OffAxis`
+/// reads as `<role><letter><brick>.<position>`: the limb's role (A arm, L leg,
+/// T torso) and the member letter telling symmetric copies apart (L/R, or
+/// A/B/C), e.g. `AL02.3`. Fabrics without a symmetry have no role and keep
+/// one letter per limb (`A01.1`). `Axial` reads as `Z<index>`, for joints on
+/// the mirror plane or rotation axis. A bridle node takes its host joint's
+/// label with a `b` suffix (`LL02.4b`, `Z9b`). Ordering is derived (OffAxis
+/// before Axial, then by field), giving `LabelSymmetry::orbit_key` its
+/// canonical minimum.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum JointLabel {
-    OffAxis { letter: char, brick: u8, position: u8 },
+    OffAxis { role: Option<char>, letter: char, brick: u8, position: u8 },
     Axial { index: u16 },
+    BridleOffAxis { role: Option<char>, letter: char, brick: u8, position: u8 },
+    BridleAxial { index: u16 },
+}
+
+impl JointLabel {
+    /// The label of a bridle node hanging from a joint with this label.
+    pub fn bridle(self) -> JointLabel {
+        match self {
+            JointLabel::OffAxis { role, letter, brick, position } => {
+                JointLabel::BridleOffAxis { role, letter, brick, position }
+            }
+            JointLabel::Axial { index } => JointLabel::BridleAxial { index },
+            bridle => bridle,
+        }
+    }
 }
 
 impl Display for JointLabel {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            JointLabel::OffAxis { letter, brick, position } => {
-                write!(f, "{letter}{brick:02}.{position}")
+            JointLabel::OffAxis { role, letter, brick, position } => {
+                let role = role.map(String::from).unwrap_or_default();
+                write!(f, "{role}{letter}{brick:02}.{position}")
             }
             JointLabel::Axial { index } => write!(f, "Z{index}"),
+            JointLabel::BridleOffAxis { role, letter, brick, position } => {
+                let role = role.map(String::from).unwrap_or_default();
+                write!(f, "{role}{letter}{brick:02}.{position}b")
+            }
+            JointLabel::BridleAxial { index } => write!(f, "Z{index}b"),
         }
     }
 }
@@ -67,22 +94,25 @@ impl Fabric {
         self.joints.remove(key);
     }
 
-    /// Join the struts ending at `keep` and `merge` where they cross: both are
-    /// cut back to the crossing and `merge` folds into `keep`, which becomes the
-    /// hinge. Intervals between the two vanish; where both reached the same
-    /// joint only one remains (a non-bow-tie wins). Rebuilt intervals start
-    /// unstrained at their new length. Merging a symmetric pair (each other's
+    /// Pin the struts ending at `keep` and `merge` together where their axes
+    /// cross, like a clevis: `merge` folds into `keep`, which moves to the
+    /// crossing and becomes the hinge pin. Each strut keeps its own stack of
+    /// discs below the pin, so every cable at either end is recorded in
+    /// `hinge_strut` as belonging to the strut it was attached to. Intervals at
+    /// `merge` are reattached to `keep` in place (keeping their keys), every
+    /// moved interval restarts unstrained at its new length, and intervals
+    /// between the two ends vanish. Merging a symmetric pair (each other's
     /// image) puts the hinge on the symmetry axis, so it takes the next axial
     /// label (`Z<n>`); otherwise it keeps `keep`'s label.
     pub fn hinge(&mut self, keep: JointKey, merge: JointKey) {
-        let strut_far_end = |end: JointKey| {
+        let strut_at = |end: JointKey| {
             self.intervals
-                .values()
-                .find(|i| i.role == Role::Pushing && i.touches(end))
+                .iter()
+                .find(|(_, i)| i.role == Role::Pushing && i.touches(end))
+                .map(|(key, i)| (key, i.other_joint(end)))
                 .expect("hinge joint without a strut")
-                .other_joint(end)
         };
-        let (keep_far, merge_far) = (strut_far_end(keep), strut_far_end(merge));
+        let ((keep_strut, keep_far), (merge_strut, merge_far)) = (strut_at(keep), strut_at(merge));
         let on_axis = match (&self.label_symmetry, self.joints[keep].label, self.joints[merge].label) {
             (Some(symmetry), Some(keep_label), Some(merge_label)) => {
                 symmetry.orbit(keep_label).contains(&merge_label)
@@ -99,27 +129,93 @@ impl Fabric {
             .filter(|(_, i)| i.touches(keep) || i.touches(merge))
             .map(|(key, _)| key)
             .collect();
-        let mut rebuilt: Vec<(JointKey, Role)> = Vec::new();
+        // An earlier hinge's record at `merge` now lives at `keep`.
+        let moved: Vec<_> = self.hinge_strut.keys().filter(|(_, pin)| *pin == merge).copied().collect();
+        for (cable, pin) in moved {
+            let strut = self.hinge_strut.remove(&(cable, pin)).unwrap();
+            self.hinge_strut.insert((cable, keep), strut);
+        }
+        self.joints[keep].location = crossing;
         for key in touching {
-            let interval = self.remove_interval(key);
-            let end = if interval.touches(keep) { keep } else { merge };
-            let other = interval.other_joint(end);
-            if other == keep || other == merge {
+            let interval = &self.intervals[key];
+            if interval.touches(keep) && interval.touches(merge) {
+                self.remove_interval(key);
                 continue;
             }
-            match rebuilt.iter_mut().find(|(joint, _)| *joint == other) {
-                Some((_, role)) if *role == Role::BowTie => *role = interval.role,
-                Some(_) => {}
-                None => rebuilt.push((other, interval.role)),
+            if interval.role.is_pull_like() {
+                let strut = if interval.touches(keep) { keep_strut } else { merge_strut };
+                self.hinge_strut.insert((key, keep), strut);
             }
+            let interval = &mut self.intervals[key];
+            if interval.alpha_key == merge {
+                interval.alpha_key = keep;
+            }
+            if interval.omega_key == merge {
+                interval.omega_key = keep;
+            }
+            if matches!(interval.span, Approaching { .. }) {
+                self.approaching_count = self.approaching_count.saturating_sub(1);
+            }
+            let length = self.distance(self.intervals[key].alpha_key, self.intervals[key].omega_key);
+            let interval = &mut self.intervals[key];
+            interval.span = Fixed { length };
+            interval.strain = 0.0;
         }
         self.joints.remove(merge);
+        self.remove_hinge_duplicates(keep, on_axis);
         if on_axis {
             self.joints[keep].label = Some(self.next_axial_label());
         }
-        self.joints[keep].location = crossing;
-        for (other, role) in rebuilt {
-            self.create_strained_interval(keep, other, role, 0.0);
+    }
+
+    /// After `hinge`, each strut at `pin` may have its own cable to the same
+    /// far joint; one of each such pair is redundant and the two would cross.
+    /// A bow-tie gives way to the other cable. Otherwise the cable from the
+    /// stack nearer the far joint stays, except at a hinge on the symmetry axis
+    /// with a far joint also on it: the two are each other's mirror image, so
+    /// one stays, attached to the pin itself on neither stack.
+    fn remove_hinge_duplicates(&mut self, pin: JointKey, on_axis: bool) {
+        let cables: Vec<_> = self
+            .intervals
+            .iter()
+            .filter(|(_, i)| i.role.is_pull_like() && i.touches(pin))
+            .map(|(key, i)| (key, i.other_joint(pin), i.role))
+            .collect();
+        for (index, &(first, far, first_role)) in cables.iter().enumerate() {
+            let Some(&(second, _, second_role)) = cables[index + 1..]
+                .iter()
+                .find(|(_, other_far, _)| *other_far == far)
+            else {
+                continue;
+            };
+            let on_mirror = |joint: JointKey| match (&self.label_symmetry, self.joints[joint].label) {
+                (Some(symmetry), Some(label)) => symmetry.orbit(label).len() == 1,
+                _ => false,
+            };
+            let removed = if first_role == Role::BowTie && second_role != Role::BowTie {
+                first
+            } else if second_role == Role::BowTie && first_role != Role::BowTie {
+                second
+            } else if on_axis && on_mirror(far) {
+                self.hinge_strut.remove(&(first, pin));
+                second
+            } else {
+                // The stack sits just inside the pin along its strut.
+                let stack_distance = |cable: IntervalKey| {
+                    let strut = self.hinge_strut[&(cable, pin)];
+                    let toward = (self.location(self.intervals[strut].other_joint(pin))
+                        - self.location(pin))
+                    .normalize();
+                    (self.location(pin) + toward * 0.05).distance(self.location(far))
+                };
+                if stack_distance(first) > stack_distance(second) {
+                    first
+                } else {
+                    second
+                }
+            };
+            self.remove_interval(removed);
+            self.hinge_strut.remove(&(removed, pin));
         }
     }
 

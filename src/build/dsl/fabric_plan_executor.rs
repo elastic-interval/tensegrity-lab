@@ -1,3 +1,4 @@
+use crate::build::dsl::build_phase::number_axial_by_height;
 use crate::build::dsl::plan_runner::PlanRunner;
 use crate::build::dsl::FabricPlan;
 use crate::build::settler::Settler;
@@ -367,6 +368,17 @@ impl FabricPlanExecutor {
             self.fabric.remove_face(face_key);
         }
 
+        for (keep, merge) in &self.plan.pretense_phase.hinge_pairs {
+            match (self.fabric.joint_key_by_label(keep), self.fabric.joint_key_by_label(merge)) {
+                (Some(k), Some(m)) => self.fabric.hinge(k, m),
+                _ => eprintln!("WARNING: Could not find joints for hinge ({keep}, {merge})"),
+            }
+        }
+
+        // Every Z exists now and the fabric stands: number them bottom to
+        // top before any plan step names one.
+        number_axial_by_height(&mut self.fabric);
+
         // Omit triangle intervals after faces are converted
         for (alpha_label, omega_label) in &self.plan.pretense_phase.omit_pairs {
             let alpha_key = self.fabric.joint_key_by_label(alpha_label);
@@ -391,10 +403,14 @@ impl FabricPlanExecutor {
             }
         }
 
-        for (keep, merge) in &self.plan.pretense_phase.hinge_pairs {
-            match (self.fabric.joint_key_by_label(keep), self.fabric.joint_key_by_label(merge)) {
-                (Some(k), Some(m)) => self.fabric.hinge(k, m),
-                _ => eprintln!("WARNING: Could not find joints for hinge ({keep}, {merge})"),
+        for (joint, a, b) in &self.plan.pretense_phase.bridles {
+            let key = |label: &str| self.fabric.joint_key_by_label(label);
+            let bridled = match (key(joint), key(a), key(b)) {
+                (Some(j), Some(a), Some(b)) => self.fabric.bridle(j, a, b),
+                _ => None,
+            };
+            if bridled.is_none() {
+                eprintln!("WARNING: Could not bridle ({joint}: {a}, {b})");
             }
         }
 

@@ -1,211 +1,156 @@
 # Joint Naming
 
-Every joint in a 3-fold-symmetric fabric — and every joint in the engineer's
-CSV — gets a short, self-describing label. The labels are optimised for
-engraving onto physical parts: three characters in the common case, every
-character carries information, and three rotational copies of a joint
-differ only in the leg letter.
+Names exist to make the physical build understandable. Someone holding a
+strut, a cable or a disc should be able to tell from its name what it is,
+roughly where it goes, and which other parts are its twins. Names are cheap
+to change; a confusing name costs time on site. So the scheme follows the
+structure's symmetry, and is free to change when the structure teaches us
+something.
 
-This is the canonical reference for joint identifiers. See
-`src/build/dsl/labelling.rs` (`SymmetricOrbitLabeller`) for the
-implementation and `docs/csv-handoff.md` for the broader CSV format.
+This document describes the general naming process, for bilateral fabrics
+(Headless Hug: mirror symmetry) and trilateral ones (Open Claw: threefold
+rotation) alike, then how far the code has got toward it.
 
-## The two label shapes
+## The idea: one symmetry, two parts to every name
 
-| Shape                  | Meaning                                              | Examples              |
-|------------------------|------------------------------------------------------|-----------------------|
-| `<leg><brick><pos>`    | Off-axis joint. `leg ∈ {A, B, C}`; `brick` and `pos` are integers. | `A04`, `A14`, `C52`   |
-| `Z<n>`                 | On-axis singleton. `n` is an integer.                | `Z1`, `Z2`            |
+Every symmetric fabric has a symmetry group G acting on its joints: a
+reflection for a bilateral fabric, a 120° turn for a trilateral one. G
+sorts the joints into orbits, sets of joints that are copies of each
+other. A name therefore has two jobs:
 
-The two shapes share no overlap; you can tell at a glance which is which.
+- **Which kind of joint**: the orbit, the same for all copies.
+- **Which copy**: the member, which differs between copies.
 
-## Off-axis labels (`<leg><brick><pos>`)
+Twins share everything except the member, so you can spot them at a
+glance, cut cables in sets, and check one side against the other. A joint
+that G maps onto itself (on the mirror plane, or on the rotation axis) is
+an orbit of one and has no member.
 
-Three components, each one character in the common case:
+## The process
 
-- **`leg`** ∈ `{A, B, C}`. Distinguishes the three rotational copies of a
-  joint. Assigned topologically:
-    - For seed joints (path with empty branches), the leg letter is the
-      seed brick's cyclic axis the joint sits on — mapped via the brick's
-      `cyclic_axes` declaration (axis 0 → A, axis 1 → B, axis 2 → C).
-    - For leg joints (`branches[0] ∈ {0, 1, 2}`), the leg letter is
-      `branches[0]` mapped to A/B/C. *This convention requires the DSL
-      author to list the three cyclic faces first in `.faces([...])`, in
-      the same order as `cyclic_axes`.*
-- **`brick`** is a digit naming which sub-brick of the leg the joint sits
-  in:
-    - `0` = the seed brick (the root hub everything grows from).
-    - `1..N` = column-bricks along the leg, with `1` being the column-brick
-      closest to the seed and `N` the furthest along the column.
-    - `N+1` = the leg-end prism if any (in OpenClaw built with
-      `column(4).prism(...)`, this is brick `5`).
-  Computed from the path: count of `COLUMN_MARKER` + `PRISM_MARKER` in the
-  branches past the leg letter.
-- **`pos`** is the 1-indexed within-brick position of the joint:
-    - For seed joints, this is the `OmniCategory` altitude rank:
-      `1 = TopOmega`, `2 = BotOmega`, `3 = TopAlpha`, `4 = BotAlpha` (under
-      Seed(1) orientation; both `Omega` ends sit above both `Alpha` ends
-      after `down_rotation`).
-    - For column-brick and prism joints, this is `local_index + 1`
-      (the prototype's oven-creation order within the brick).
+### 1. The seed fixes the symmetry and the members
 
-The result: rotational triples are visually obvious. The three rotational
-copies of a cable from a `<leg>14` joint (column-brick 1, position 4) to a
-`<leg>35` joint (column-brick 3, position 5) read:
+The seed brick and its orientation determine G and its generator. The
+face labels in the plan (`Hand(Left)`, `Foot(Right)`, the cyclic faces
+listed first) tell which faces map to which. From that orientation:
 
-```
-A14:A35
-B14:B35
-C14:C35
-```
+- **Bilateral:** members are **L** and **R**: the figure's own left and
+  right, as the sculpture itself would say it, not as a viewer facing it
+  sees it.
+- **Trilateral:** members are **A**, **B**, **C**, clockwise seen from
+  above, starting with the leg that is A today.
 
-For three identical cables, the engineer cuts three of one length and
-engraves each with a different leg letter — `brick` and `pos` are
-identical.
+Which way the figure faces is recorded once per fabric in its plan.
 
-### Reading a label at a glance
+### 2. Orbits come from the brick tree, not from positions
 
-- `A04` = leg A, **seed brick** (`brick=0`), position 4 → `BotAlpha`.
-- `A11` = leg A, **column-brick 1**, position 1.
-- `A35` = leg A, **column-brick 3**, position 5.
-- `A52` = leg A, **leg-end prism** (`brick=5` for OpenClaw), position 2 →
-  the foot of leg A.
+G maps limbs onto limbs (whole subtrees of bricks) and, within a brick,
+joint positions onto joint positions. The existing twist shift already
+lines up twin joints' positions. So every joint's orbit and member follow
+from its place in the build tree: no measuring, no tolerances, the same
+result every run.
 
-## Cable-end labels (`<joint>.<slot>`)
+### 3. A joint's address within its orbit
 
-A cable has two ends; each end is engraved with a label of the form
-`<joint>.<slot>` — the joint it terminates at, dot, the slot on that
-joint's connector stack. Examples: `A04.2`, `B15.3`, `Z1.1`. Apex
-singletons get cable ends with slots `1`/`2`/`3` (three slots on the
-single apex push), so the three rotational copies of an apex-attached
-cable get distinct labels like `Z2.1:B01.1`, `Z2.2:A01.1`, `Z2.3:C01.1`.
+- **Role:** what the limb is, as a body word: **A** arm, **L** leg,
+  **T** torso for the seed brick itself. Open Claw's three limbs are legs,
+  so leg is L in both fabrics.
+- **Depth:** which brick along the limb, 00 for the seed, counting
+  outward.
+- **Position:** which joint within the brick. Twins get the same number.
 
-This is the form the engineer engraves on each of the 360 cable ends
-(180 cables × 2 ends). It appears in the cable-order CSV's `Members`
-column, in the cables-by-length labelling worksheet at the start of the
-assembly PDF, and as the cable target shown next to each disc on the
-per-strut pages of the assembly PDF.
+### 4. The name
 
-## On-axis labels (`Z<n>`)
+`<role><member><depth>.<position>`, for example:
 
-Joints built off an axis-fixed face (e.g. OpenClaw's apex prism on the
-`OmniTop` face) are singletons under the 120° rotation — they map to
-themselves. Each gets the prefix `Z` and an integer index. For OpenClaw
-there are exactly two: `Z1` (the topmost apex joint) and `Z2` (directly
-below it). These are the endpoints of the central apex push.
+| Fabric | Name | Reads as |
+|---|---|---|
+| Headless Hug | `AL02.3` / `AR02.3` | arm, left / right, brick 2, joint 3 |
+| Headless Hug | `LL01.4` / `LR01.4` | leg, left / right, brick 1, joint 4 |
+| Headless Hug | `TL00.2` / `TR00.2` | torso, left / right, joint 2 |
+| Open Claw | `LA02.3` / `LB02.3` / `LC02.3` | leg, sectors A / B / C, brick 2, joint 3 |
+| Open Claw | `TA00.1` / `TB00.1` / `TC00.1` | torso, sectors A / B / C, joint 1 |
 
-Cables landing on a `Z<n>` joint don't form clean rotational triples by
-length: three rotational copies converge on the same push end and therefore
-occupy three different connector slots, so their lengths differ by the disc
-step. The CSV doesn't try to enforce mean-length collapse on apex-attached
-triples (see `is_apex_axis_label` in `src/open_claw_symmetry.rs`).
+The full name is also what gets engraved: one name for a part
+everywhere, on the steel, in the CSV and in the app.
 
-## Non-structural joints (fallback)
+### 5. Joints the symmetry fixes are Z, numbered bottom to top
 
-A few joints in the fabric aren't endpoints of any push interval — face
-midpoints that exist only to define a face's centre. They get no orbit
-label; `joint_label` falls back to the raw `JointPath::Display`. These
-joints never appear in the engineer's CSV, so the fallback shape is
-internal-only.
+A joint on the mirror plane or the rotation axis is `Z<n>`, numbered by
+height from the ground up, measured on the finished, standing fabric. A Z
+name says "on the centre line" and roughly how high. Torso joints that
+lie on the centre line are Z, not T.
 
-For fabrics with no installed labeller (algorithmic fabrics — sphere,
-klein, mobius), every joint uses the `JointPath::Display` fallback. The
-orbit labeller is only installed when the build path uses a seed brick.
+### 6. Everything derived inherits from its joint
 
-## Why this scheme
+| Thing | Name | Example |
+|---|---|---|
+| Cable end | `<joint>.<slot>`: the joint, then its connector slot | `AL02.3.2` |
+| Cable | its two ends, smaller name first | `AL02.3:LL01.4` |
+| Cable through clamps | its two ends, via the clamps in order | `AL02.3:TL00.2b:LL01.4` |
+| Bridle clamp | `<host>b`, the joint it hangs from | `LL02.4b` |
+| Custom disc | named for its host joint | disc at `Z9` |
+| Hinge | the smaller of its two names, or Z if it lands on the centre line | `Z13` |
 
-Three constraints from the OpenClaw build:
+Because every derived name contains a joint name, symmetry carries over:
+the mirror of `LL02.4b` is `LR02.4b`.
 
-1. **Engraving cost.** Doubling label length doubles engraving time per
-   part. Most labels are 3 chars (2 chars for axis singletons), the same
-   length as the previous orbit-numbered scheme they replaced — but more
-   informative.
-2. **Symmetry-aware fabrication.** Cables are cut in triples. The leg-letter
-   pattern (`A` ↔ `B` ↔ `C`, same `brick` and `pos`) lets the engineer
-   visually pattern-match triples in the CSV.
-3. **Self-describing for downstream tools.** The middle digit tells any
-   reader (and the assembly PDF generator) which brick a joint lives in,
-   without needing an external "orbit-index range" table. Twist mates are
-   simply joints with the same `(leg, brick)` modulo the leg letter.
+### 7. Members can be physical markers
 
-The earlier short-orbit scheme (`A1`, `A12`, `Z1`) was the most compact but
-ambiguous — `A12` could be in any brick, and the assembly script had to
-hard-code orbit-index ranges (5-28 = columns, 29-30 = prism) to recover the
-brick. The brick digit restores that information without adding character
-cost in the common case.
+The member letter can double as a colour tag or paint mark per side or
+sector. Sorting parts for assembly is then a matter of matching letters
+and colours.
 
-## How brick and position are assigned
+## How the code does it
 
-The `SymmetricOrbitLabeller` is installed on the fabric when the root seed
-brick is attached (see `src/build/dsl/build_phase.rs`). The whole scheme is
-**topological** — joint positions are never read. The label is a
-deterministic function of the joint's `JointPath` plus the seed brick's
-prototype declarations.
+Headless Hug and Open Claw are named this way. Fabrics without a symmetry
+(Halo by Crane, the algorithmic fabrics) keep one letter per limb
+(`A01.1`) or fall back to the raw `JointPath`.
 
-On the first label request:
+1. **During the build** each limb is labelled with a working letter, one
+   per seed face, plus brick depth and position (`label_seed_joints`,
+   `label_off_axis_joints` in `src/build/dsl/build_phase.rs`). The seed
+   records each letter's role and member in `Fabric::limb_names`: under a
+   mirror symmetry from the face labels (`Hand` → arm, `Foot` → leg, and
+   their `Side`); under a cyclic one every limb is a leg.
+2. **At the end of the build** (`assign_axial_labels`):
+   - Leftover joints with a strut become `Z<n>`.
+   - Under mirror symmetry, Z joints that are each other's reflection are
+     torso joints, `TL00.n` / `TR00.n` (`pair_mirrored_axial_labels`).
+   - `name_limbs` turns working letters into role and member: brick 0 is
+     torso, other bricks take their limb's role. For a cyclic fabric the
+     sectors are assigned clockwise seen from above, starting with the
+     first leg letter. `LabelSymmetry` is rewritten to permute members:
+     `[('L', 'R')]` for Headless Hug, `A → B → C` for Open Claw.
+3. **When the pretense phase starts**, the fabric stands. The plan's hinges
+   run first, then every `Z` is renumbered bottom to top by height
+   (`number_axial_by_height`), and only then do the plan's omits and
+   bridles run. So plans name `Z` joints by their final numbers.
+4. **Afterwards**, joints added later take the next free `Z` number:
+   Headless Hug's two guy-line anchors on the ground are `Z7` and `Z8`,
+   above the structure's `Z1`–`Z6`.
 
-1. Collect all joints that are endpoints of any `Pushing` interval (face
-   midpoints are filtered out).
-2. Classify each joint:
-    - **Empty branches**: seed joint. Decode `local_index → JointName` via
-      the brick prototype's `joints` and `pushes`, then
-      `JointName::omni_decode()` → `(OmniCategory, Axis)`. Brick = 0;
-      position = altitude rank of the category; leg letter from
-      `cyclic_axes.position(axis)`.
-    - **`branches[0] ∈ {0, 1, 2}`**: leg joint. Leg letter from
-      `branches[0]`; brick = count of `COLUMN_MARKER` + `PRISM_MARKER` in
-      the rest of the branches; position = `local_index + 1`.
-    - **`branches[0] ≥ 3` or `branches[0] == PRISM_MARKER`**: axis
-      singleton. Gets a `Z<n>` label.
-3. For axis singletons, sort by `(branches lex, ¬local_index)` — the
-   bit-not on `local_index` puts an upward-facing prism's outer end (omega,
-   local 1) at `Z1`. Assign `Z1`, `Z2`, … in order.
-4. For leg labels, format `<leg><brick><pos>` directly from the orbit info
-   — no global counter needed.
+Clamps (`<host>b`) and cable ends (`<joint>.<slot>`) follow their joint.
+Everything downstream reads names through `Fabric::joint_label`, and the
+connector code finds mirror images through `LabelSymmetry`. Code that
+parses names by shape: `rotate_label_once` in `src/open_claw_symmetry.rs`
+cycles the sector (second character), as do `scripts/build_cable_order.py`
+and `scripts/build_assembly.py`.
 
-The result is cached and reused; the cache invalidates only when the
-fabric's joint or interval count changes (so labels stay stable for the
-entire CSV export pass even though physics may shift joint positions).
+## Decisions
 
-## Symmetry rotation in code
+Settled 2026-10-22:
 
-`src/open_claw_symmetry.rs` defines `rotate_label_once(label)` and
-`canonical_push_key(a, b)` against this scheme:
+- **Role letters:** **A** arm, **L** leg, **T** torso (the seed brick).
+  Body words, and leg reads the same in both fabrics.
+- **Front:** L/R are the figure's own left and right. Open Claw's
+  sectors start with today's leg A and run clockwise seen from above.
+- **Z numbering:** bottom to top by height on the finished, standing
+  fabric.
+- **Engraving:** the full name, e.g. `AL02.3`, and `AL02.3.2` for a cable
+  end. One name for a part everywhere; the three-character form Open Claw
+  once used is retired.
 
-- `rotate_label_once("A14") == "B14"`
-- `rotate_label_once("B14") == "C14"`
-- `rotate_label_once("C14") == "A14"`
-- `rotate_label_once("Z1")  == "Z1"` (axis singletons are fixed points)
-
-These power `apply_threefold_symmetry()` (the slot-assignment paste step
-applied after the generic per-push algorithm) and the
-`canonical_push_key()`-based grouping that drives both the symmetry
-assertions and the CSV's group-mean length collapse.
-
-## What the engineer sees in the CSV
-
-The `AlphaJoint` and `OmegaJoint` columns of the engineering CSV quote the
-joint labels directly. With the new scheme:
-
-```
-A14:A35     leg A, column 1 pos 4 → column 3 pos 5
-B14:B35     leg B, same triple
-C14:C35     leg C, same triple
-```
-
-The three rows for one cable triple are spaced apart in the CSV (rows
-sorted by length, then by index), but the eye picks them out easily: same
-brick digits, same position digits, only the leg letter cycles. For a
-fabricator preparing 60 cable triples, that's three identical cuts per
-brick+position.
-
-## Downstream scripts
-
-- `scripts/build_cable_order.py` rotates the leg letter only; `brick` and
-  `pos` are unchanged under rotation.
-- `scripts/build_assembly.py` reads the brick digit to classify each
-  strut: `brick == 0` is hub, `brick > 0` is column-twist or leg-prism
-  (distinguished by counting push intervals per brick: 3 = column, 1 =
-  prism). Twist mates are struts sharing the same `(leg, brick)`. The
-  same script also emits the cables-by-length labelling worksheet at the
-  start of the assembly PDF.
+Which way each figure faces: Headless Hug's plan labels faces with
+`Side::Left` / `Side::Right`, and these are the figure's own left and
+right.

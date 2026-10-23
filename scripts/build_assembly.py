@@ -230,12 +230,11 @@ def parse_csv(path: Path) -> ManualData:
             pulls_raw.append(row)
 
     # Classify a joint by its label shape (see docs/joint-naming.md):
-    #   leg joints  A<n>, B<n>, C<n>  → leg 'A', 'B', 'C'
-    #   axis joints Z<n>              → 'H' (apex / on-axis)
+    #   sector joints <role><A|B|C><brick>.<pos> → sector 'A', 'B', 'C'
+    #   axis joints   Z<n>                       → 'H' (apex / on-axis)
     def classify(joint: str) -> str:
-        if len(joint) >= 2 and joint[0] in ("A", "B", "C") and joint[1:].isdigit():
-            return joint[0]
-        return "H"
+        m = _LEG_JOINT.match(joint)
+        return m.group(2) if m else "H"
 
     leg_counters: dict[str, int] = {"A": 0, "B": 0, "C": 0, "H": 0}
     struts: list[Strut] = []
@@ -383,19 +382,19 @@ def rotational_angle(strut: Strut, is_alpha: bool, disc: Disc,
 
 
 # Joint-name patterns (see docs/joint-naming.md):
-#   - leg joints:   <leg><brick><position>  e.g. A04 (seed pos 4), A14
-#                   (column 1 pos 4), A52 (leg-prism pos 2)
-#   - axis joints:  Z<n>                    e.g. Z1, Z2 (apex)
-_LEG_JOINT  = re.compile(r"^([ABC])(\d)(\d+)$")   # leg, brick, position
+#   - sector joints: <role><sector><brick>.<position>  e.g. TA00.4 (torso
+#                    pos 4), LA01.4 (column 1 pos 4), LA05.2 (leg-prism pos 2)
+#   - axis joints:   Z<n>                               e.g. Z1, Z2 (apex)
+_LEG_JOINT  = re.compile(r"^([A-Z])([ABC])(\d\d)\.(\d+)$")   # role, sector, brick, position
 _AXIS_JOINT = re.compile(r"^Z(\d+)$")
 
 
 def _parse_label(joint: str) -> tuple[str, int, int] | None:
-    """Return ('A'|'B'|'C', brick, position) for a leg label,
+    """Return ('A'|'B'|'C', brick, position) for a sector label,
     ('Z', singleton_idx, 0) for an axis singleton, or None."""
     m = _LEG_JOINT.match(joint)
     if m:
-        return (m.group(1), int(m.group(2)), int(m.group(3)))
+        return (m.group(2), int(m.group(3)), int(m.group(4)))
     m = _AXIS_JOINT.match(joint)
     if m:
         return ("Z", int(m.group(1)), 0)
@@ -414,10 +413,10 @@ def _rotate_letter(c: str) -> str:
 
 
 def _rotate_label(label: str) -> str:
-    """Cycle the leg letter A→B→C→A. Axis singletons (`Z<n>`) are unchanged."""
+    """Cycle the sector letter A→B→C→A. Axis singletons (`Z<n>`) are unchanged."""
     m = _LEG_JOINT.match(label)
     if m:
-        return _rotate_letter(m.group(1)) + m.group(2) + m.group(3)
+        return m.group(1) + _rotate_letter(m.group(2)) + m.group(3) + "." + m.group(4)
     return label
 
 

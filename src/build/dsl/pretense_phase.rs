@@ -13,6 +13,9 @@ pub struct PretensePhase {
     /// Joint label pairs whose struts are joined where they cross, just
     /// before slackening.
     pub hinge_pairs: Vec<(String, String)>,
+    /// Joint label triples `(joint, a, b)` whose cables joint–a and joint–b
+    /// are taken off through a bridle node, after hinging.
+    pub bridles: Vec<(String, String, String)>,
     /// Percentage by which each push interval's rest length grows during the
     /// pretensing phase. The same factor is applied to every push; pulls
     /// absorb the displacement and gain tension.

@@ -28,6 +28,8 @@ mod fabric_smoke_test;
 #[cfg(test)]
 mod open_claw_symmetry;
 mod open_claw_test;
+mod hinge_probe;
+mod omission_scan;
 mod propeller_blender_export;
 
 // Re-export every public name from `control` and `events` at the crate root

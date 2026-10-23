@@ -6,9 +6,9 @@
 //! oblivious to leg-letters, seed-joint shapes, and CSV output.
 //!
 //! What this module provides:
-//!   - Rotation helpers for the joint-label scheme established by
-//!     [`crate::build::dsl::labelling::SymmetricOrbitLabeller`] — A→B→C leg
-//!     cycling on the orbit-indexed names (`A12` → `B12` → `C12`).
+//!   - Rotation helpers for the joint-label scheme (`docs/joint-naming.md`)
+//!     — A→B→C sector cycling on the member letter (`LA02.3` → `LB02.3` →
+//!     `LC02.3`).
 //!   - [`apply_threefold_symmetry`] — copies one representative's slot
 //!     assignments to its rotational partners after the generic per-push
 //!     algorithm has run, so floating-point ε doesn't flip cables between
@@ -38,10 +38,11 @@ use crate::units::{Unit, MM_PER_METER};
 
 /// Rotate a joint label by 120° about the central axis (A→B→C).
 ///
-/// Two label shapes participate under the orbit naming scheme:
-///   - Off-axis (`<leg><index>`): `A12` → `B12` → `C12` → `A12`. Leg letter
-///     is one of `A`/`B`/`C`; the trailing index is an integer. Rotating
-///     cycles the leg letter forwards.
+/// Two label shapes participate (see `docs/joint-naming.md`):
+///   - Off-axis (`<role><sector><brick>.<position>`): `LA02.3` → `LB02.3` →
+///     `LC02.3` → `LA02.3`. The role (L leg, T torso) stays; the sector
+///     letter, one of `A`/`B`/`C`, cycles forwards. A cable end's slot
+///     suffix (`LA02.3.2`) rides along.
 ///   - On-axis singleton (`Z<index>`): unchanged — these joints lie on the
 ///     rotation axis and map to themselves under the 120° rotation.
 ///
@@ -49,21 +50,21 @@ use crate::units::{Unit, MM_PER_METER};
 /// returned unchanged.
 fn rotate_label_once(label: &str) -> String {
     let bytes = label.as_bytes();
-    if bytes.len() < 2 {
+    if bytes.len() < 3 || !bytes[0].is_ascii_uppercase() {
         return label.to_string();
     }
-    let next_leg = match bytes[0] {
+    let next_sector = match bytes[1] {
         b'A' => b'B',
         b'B' => b'C',
         b'C' => b'A',
         _ => return label.to_string(),
     };
-    if !bytes[1..].iter().all(|b| b.is_ascii_digit() || *b == b'.') {
+    if !bytes[2..].iter().all(|b| b.is_ascii_digit() || *b == b'.') {
         return label.to_string();
     }
     let mut out = Vec::with_capacity(bytes.len());
-    out.push(next_leg);
-    out.extend_from_slice(&bytes[1..]);
+    out.extend_from_slice(&[bytes[0], next_sector]);
+    out.extend_from_slice(&bytes[2..]);
     String::from_utf8(out).expect("ascii in -> ascii out")
 }
 
@@ -206,6 +207,8 @@ fn copy_symmetric_attachments(
             connections.alpha[slot] = Some(PullConnection {
                 pull_interval_key: pull_key,
                 attachment_index: slot,
+                reach: None,
+                lift: 0,
             });
         }
     }
@@ -214,6 +217,8 @@ fn copy_symmetric_attachments(
             connections.omega[slot] = Some(PullConnection {
                 pull_interval_key: pull_key,
                 attachment_index: slot,
+                reach: None,
+                lift: 0,
             });
         }
     }
@@ -1247,8 +1252,10 @@ mod tests {
         verify_threefold_symmetry(&executor.fabric);
     }
 
-    /// The capsule model currently finds 24 colliding cable-end assemblies
-    /// (8 per leg, threefold-symmetric) — real construction issues, listed
+    /// With the prototype connector (washer 2 mm, pivot radius 30 mm, 18 mm
+    /// tube, 12 mm pin), slots ordered for fewest colliding forks and the
+    /// boss arms in the capsule model, it finds 18 colliding cable-end
+    /// assemblies (6 per leg, threefold-symmetric) — construction issues, listed
     /// in the CSV header and shown red in the app's connector view (C key).
     /// This test pins that number so any change — improvement, regression,
     /// or geometry drift — must come to our attention before building.
@@ -1265,7 +1272,7 @@ mod tests {
             .map(|connector| connector.culprits.len())
             .unwrap_or(0);
         assert_eq!(
-            culprits, 24,
+            culprits, 18,
             "connector collision culprits changed (now {}): inspect in the app \
              (C toggles the connector view; culprits are red), then either fix \
              the slot assignment/hardware and update this baseline, or \

@@ -1,4 +1,5 @@
 use crate::camera::Pick;
+use crate::connector::fork;
 use crate::fabric::interval::{Role, Span};
 use crate::fabric::material::Material;
 use crate::fabric::{Fabric, FabricDimensions, IntervalEnd};
@@ -21,6 +22,10 @@ fn physical_radius(role: Role, dims: &FabricDimensions) -> f32 {
 use bytemuck::{Pod, Zeroable};
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
+
+// Cables too short to build as cables (`ConnectorSystem::short_cables`):
+// they need solid links instead, and must never slip through unnoticed.
+const SHORT_CABLE_COLOR: [f32; 4] = [1.0, 0.0, 1.0, 1.0];
 
 // Instance data for cylinders - to be transformed by the GPU
 #[repr(C)]
@@ -137,6 +142,10 @@ impl CylinderRenderer {
                 WithPushMap { .. } if !push => continue,
                 _ => {}
             }
+            // In the connector view a bridle's link is its shackle, a part.
+            if show_attachment_points && fabric.bridle_nodes.values().any(|link| *link == interval_key) {
+                continue;
+            }
             let (alpha, omega) = (interval.alpha_key, interval.omega_key);
             let start = fabric.joints[alpha].location;
             let end = fabric.joints[omega].location;
@@ -248,6 +257,15 @@ impl CylinderRenderer {
                     for (i, joint_key) in joint_keys.iter().enumerate() {
                         let other_joint_pos = fabric.joints[other_joint_keys[i]].location;
 
+                        // The cable leaves its bridle clamp's saddle on a
+                        // tangent; the saddle and cheeks show the bend.
+                        if fabric.bridle_nodes.contains_key(joint_key) {
+                            if let Some(tangent) = connector.bridle_clamp(fabric, *joint_key).tangent(pull_key) {
+                                *modified_points[i] = tangent;
+                            }
+                            continue;
+                        }
+
                         // Find all push intervals connected to this joint
                         for (push_key, push_interval) in fabric.intervals.iter() {
                             // Only consider push intervals
@@ -268,23 +286,12 @@ impl CylinderRenderer {
                                             if let Some(pull_conn) = conn {
                                                 if pull_conn.pull_interval_key == pull_key {
                                                     // Found the connection - calculate carabiner position
-                                                    let push_alpha_pos =
-                                                        fabric.joints[push_interval.alpha_key].location;
-                                                    let push_omega_pos =
-                                                        fabric.joints[push_interval.omega_key].location;
-
-                                                    // Push end position and outward axis
+                                                    // Where this end's stack starts, and its outward axis
+                                                    let [alpha_stack, omega_stack] =
+                                                        connector.stack_ends(fabric, push_key);
                                                     let (push_end_pos, push_axis) = match push_end {
-                                                        IntervalEnd::Alpha => {
-                                                            let dir = (push_omega_pos - push_alpha_pos)
-                                                                .normalize();
-                                                            (push_alpha_pos, -dir) // Outward from alpha
-                                                        }
-                                                        IntervalEnd::Omega => {
-                                                            let dir = (push_omega_pos - push_alpha_pos)
-                                                                .normalize();
-                                                            (push_omega_pos, dir) // Outward from omega
-                                                        }
+                                                        IntervalEnd::Alpha => alpha_stack,
+                                                        IntervalEnd::Omega => omega_stack,
                                                     };
 
                                                     // The cable ends inside its fork's swage
@@ -299,18 +306,15 @@ impl CylinderRenderer {
                                                         )
                                                         .unwrap_or(other_joint_pos);
                                                     let (pivot_pos, _elevation) =
-                                                        connector.pivot_geometry(
+                                                        connector.connection_pivot(
                                                             push_end_pos,
                                                             push_axis,
-                                                            pull_conn.attachment_index,
+                                                            pull_conn,
                                                             aim,
                                                         );
 
                                                     *modified_points[i] =
-                                                        crate::connector::fork::cable_termination(
-                                                            pivot_pos,
-                                                            aim,
-                                                        );
+                                                        fork::cable_termination(pivot_pos, aim);
 
                                                     // We found the connection, no need to check others
                                                     break;
@@ -319,8 +323,8 @@ impl CylinderRenderer {
                                         }
                                     }
 
-                                    // We found a push interval for this joint, no need to check others
-                                    break;
+                                    // Keep looking: at a hinge pin two struts end here,
+                                    // and the cable may be on the other one's stack.
                                 }
                             }
                         }
@@ -347,8 +351,14 @@ impl CylinderRenderer {
                 }
             }
 
+            let too_short = fabric
+                .connector
+                .as_ref()
+                .is_some_and(|connector| connector.short_cables.contains(&interval_key));
             // Override color for intervals that are approaching (being lengthened)
-            let color = if matches!(interval.span, Span::Approaching { .. }) {
+            let color = if too_short {
+                SHORT_CABLE_COLOR
+            } else if matches!(interval.span, Span::Approaching { .. }) {
                 [1.0, 0.0, 0.0, 1.0] // Red for approaching intervals
             } else {
                 appearance.color
@@ -356,6 +366,8 @@ impl CylinderRenderer {
 
             let phys_radius = physical_radius(interval.role, &fabric.dimensions);
             let multiplier = appearance.radius / interval.role.radius();
+            // Thick enough to spot from across the whole structure.
+            let multiplier = if too_short { multiplier * 3.0 } else { multiplier };
             instances.push(CylinderInstance {
                 start: [modified_start.x, modified_start.y, modified_start.z],
                 radius_factor: phys_radius * multiplier,

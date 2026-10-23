@@ -3,9 +3,9 @@
  * Licensed under GNU GENERAL PUBLIC LICENSE Version 3.
  */
 
-use crate::connector::{radial_unit_from_axis, ConnectorDimensions};
+use crate::connector::{fork, ConnectorDimensions};
 use crate::fabric::{IntervalEnd, IntervalKey, JointKey, Joints};
-use crate::units::Unit;
+use crate::units::{Meters, Unit};
 use glam::Vec3;
 
 /// Number of attachment points at each end of a push interval
@@ -29,6 +29,14 @@ pub struct PullConnection {
 
     /// The attachment point index where the pull interval is connected
     pub attachment_index: usize,
+
+    /// How far this cable's boss reaches from the strut axis when it is on a
+    /// custom disc; `None` for a standard ring.
+    pub reach: Option<Meters>,
+
+    /// Extra washers stacked below this cable's ring, counting every gap
+    /// below it, beyond the one washer each gap has.
+    pub lift: u8,
 }
 
 /// Encapsulates the array of connections between intervals
@@ -55,12 +63,9 @@ impl PullConnections {
         }
     }
 
-    /// Reorders connections so each pull interval lands on the best slot:
-    ///   - Hard rule: an outward-pulling cable may not occupy the topmost slot
-    ///     (the final nut at the strut tip would otherwise carry the full axial load).
-    ///   - Soft objective: among permutations satisfying the hard rule, pick the one
-    ///     that maximises the minimum 3D distance between any pair of connector arms.
-    ///   - Tie-break: rotational moment about slot 0, as before.
+    /// Reorders connections so each pull interval lands on the best slot (see
+    /// `find_optimal_assignment`): fewest colliding forks, then most arm
+    /// clearance, then least rotational moment.
     pub fn reorder_connections(
         &mut self,
         alpha_attachment_points: &[AttachmentPoint],
@@ -70,7 +75,9 @@ impl PullConnections {
         pull_data: &[PullIntervalData],
         push_alpha_key: JointKey,
         push_omega_key: JointKey,
+        (alpha_pos, omega_pos): (Vec3, Vec3), // where the two stacks start
         connector: &ConnectorDimensions,
+        ring_radius: f32,
     ) {
         // Step 1: Collect all connections that need to be made
         let connections_to_make =
@@ -94,8 +101,6 @@ impl PullConnections {
             .collect();
 
         // Calculate push axis: direction from alpha to omega
-        let alpha_pos = joints[push_alpha_key].location;
-        let omega_pos = joints[push_omega_key].location;
         let push_direction = (omega_pos - alpha_pos).normalize();
 
         // Step 4: Find optimal assignment for each end.
@@ -109,6 +114,7 @@ impl PullConnections {
             alpha_pos,
             -push_direction, // Outward from alpha end
             connector,
+            ring_radius,
         );
 
         // Omega end: push axis points outward (same as push direction)
@@ -121,6 +127,7 @@ impl PullConnections {
             omega_pos,
             push_direction, // Outward from omega end
             connector,
+            ring_radius,
         );
 
         // Step 5: Assign connections using optimized order
@@ -129,6 +136,8 @@ impl PullConnections {
                 let connection = PullConnection {
                     pull_interval_key: *pull_id,
                     attachment_index: attach_idx,
+                    reach: None,
+                    lift: 0,
                 };
                 match end {
                     IntervalEnd::Alpha => self.alpha[attach_idx] = Some(connection),
@@ -142,6 +151,8 @@ impl PullConnections {
                 let connection = PullConnection {
                     pull_interval_key: *pull_id,
                     attachment_index: attach_idx,
+                    reach: None,
+                    lift: 0,
                 };
                 match end {
                     IntervalEnd::Alpha => self.alpha[attach_idx] = Some(connection),
@@ -329,31 +340,20 @@ fn calculate_rotational_moment(
     total_moment.length()
 }
 
-/// Finds the optimal assignment of pull intervals to attachment points.
+/// Finds the optimal assignment of pull intervals to attachment points,
+/// trying every order of the cables on the stack. There are no ordering
+/// rules: any cable may take any slot.
 ///
-/// Hard rule:
-///   An outward-pulling cable (positive dot with the outward strut axis) may
-///   not occupy the topmost (highest-index) slot. If the only feasible
-///   arrangement violates this, a warning is logged.
+/// Objective:
+///   Fewest pairs of forks whose capsule models (`connector::fork`) collide
+///   — the same test that marks culprits.
 ///
-/// Soft rules (preferred over clearance), in priority order:
-///   1. Lid choice: when the joint-end has any outward-pulling cable, the
-///      cable whose arm radial direction is most opposite (around the
-///      strut axis) to the outward cable's should sit directly above it.
-///      Their arms project on opposite sides of the strut, so the ring
-///      above never fouls the outward cable as it tilts along the axis.
-///   2. Outward placement: the topmost outward-pulling cable should sit at
-///      slot n−2 (second from the top), leaving only the lid ring above it.
-///      This keeps the outward cable's axial reach clear of the rest of the
-///      stack.
-///
-/// Soft objective:
-///   Among permutations satisfying the above, pick the one that maximises
-///   the minimum 3D distance between any pair of connector arms (modelled
-///   as line segments from the ring centre to the pivot pin).
+/// Then:
+///   Maximise the minimum 3D distance between any pair of connector arms
+///   (modelled as line segments from the ring centre to the pivot pin).
 ///
 /// Tie-break:
-///   Rotational moment about the slot-0 ring centre, as before.
+///   Rotational moment about the slot-0 ring centre.
 fn find_optimal_assignment(
     pulls: &[(IntervalEnd, IntervalKey, JointKey)], // (end, pull_id, joint_key)
     attachment_points: &[AttachmentPoint],
@@ -363,6 +363,7 @@ fn find_optimal_assignment(
     push_end: Vec3,
     push_axis: Vec3,
     connector: &ConnectorDimensions,
+    ring_radius: f32,
 ) -> Vec<(IntervalEnd, IntervalKey, JointKey)> {
     if pulls.is_empty() {
         return Vec::new();
@@ -373,49 +374,21 @@ fn find_optimal_assignment(
 
     let n = pulls.len();
 
-    // Per-cable metadata: far-end position, is_outward, and the radial unit
-    // vector around the strut axis (slot-independent — only the radial
-    // component of (far_end - ring_centre) determines it).
-    let push_pos = joints[push_joint_key].location;
-    let mut other_ends: Vec<Vec3> = Vec::with_capacity(n);
-    let mut is_outward: Vec<bool> = Vec::with_capacity(n);
-    let mut radials: Vec<Vec3> = Vec::with_capacity(n);
-    for pull in pulls {
-        if let Some(data) = pull_data.iter().find(|d| d.key == pull.1) {
-            let other_key = if data.alpha_key == push_joint_key {
-                data.omega_key
-            } else {
-                data.alpha_key
-            };
-            let other_pos = joints[other_key].location;
-            let axial = (other_pos - push_pos).normalize().dot(push_axis);
-            other_ends.push(other_pos);
-            is_outward.push(axial > 0.0);
-            radials.push(radial_unit_from_axis(push_axis, other_pos - push_pos));
-        } else {
-            other_ends.push(Vec3::ZERO);
-            is_outward.push(false);
-            radials.push(Vec3::ZERO);
-        }
-    }
-
-    // For each potential outward cable o, the best "lid" is the cable whose
-    // radial direction is most opposite to o's (smallest dot product). The
-    // lookup is per-cable because the outward cable's identity depends on
-    // the permutation we're scoring.
-    let best_lid_for: Vec<usize> = (0..n)
-        .map(|o| {
-            (0..n)
-                .filter(|&c| c != o)
-                .min_by(|&a, &b| {
-                    let da = radials[a].dot(radials[o]);
-                    let db = radials[b].dot(radials[o]);
-                    da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
-                })
-                .unwrap_or(o)
+    // Each cable's far-end position.
+    let other_ends: Vec<Vec3> = pulls
+        .iter()
+        .map(|pull| match pull_data.iter().find(|d| d.key == pull.1) {
+            Some(data) => {
+                let other_key = if data.alpha_key == push_joint_key {
+                    data.omega_key
+                } else {
+                    data.alpha_key
+                };
+                joints[other_key].location
+            }
+            None => Vec3::ZERO,
         })
         .collect();
-    let any_outward = is_outward.iter().any(|&o| o);
 
     // Precompute arm segments (ring_center, pivot_pos) per (cable, slot).
     // The pivot azimuth and ring centre both depend on slot, so we recompute
@@ -431,11 +404,21 @@ fn find_optimal_assignment(
         }
         segments.push(row);
     }
+    let capsules: Vec<Vec<_>> = (0..n)
+        .map(|c| {
+            segments[c]
+                .iter()
+                .map(|&(ring_center, pivot)| {
+                    let tangent = push_axis.cross((pivot - ring_center).normalize()).normalize();
+                    fork::capsules(pivot, tangent, (other_ends[c] - pivot).normalize())
+                        .with_arm(ring_center, pivot, ring_radius)
+                })
+                .collect()
+        })
+        .collect();
 
-    // Score: (outward_at_top, lid_miss, outward_low_miss, -min_clearance, moment).
-    let mut best_outward_top: u32 = u32::MAX;
-    let mut best_lid_miss: u32 = u32::MAX;
-    let mut best_outward_low_miss: u32 = u32::MAX;
+    // Score: (collisions, -min_clearance, moment).
+    let mut best_collisions: u32 = u32::MAX;
     let mut best_neg_clearance: f32 = f32::MAX;
     let mut best_moment: f32 = f32::MAX;
     let mut best_order: Vec<usize> = (0..n).collect();
@@ -463,28 +446,14 @@ fn find_optimal_assignment(
     }
 
     heap_permute(n, &mut indices, &mut |perm| {
-        // Hard rule: outward cable at topmost slot.
-        let outward_at_top: u32 = if is_outward[perm[n - 1]] { 1 } else { 0 };
-
-        let top_outward_slot: Option<usize> =
-            if any_outward { (0..n).rev().find(|&s| is_outward[perm[s]]) } else { None };
-
-        // Soft rule 1: the cable whose radial direction is most opposite the
-        // topmost outward cable's should sit directly above it.
-        let lid_miss: u32 = match top_outward_slot {
-            Some(s) if s + 1 < n => {
-                let outward_cable = perm[s];
-                if perm[s + 1] == best_lid_for[outward_cable] { 0 } else { 1 }
+        let mut collisions: u32 = 0;
+        for i in 0..n {
+            for j in (i + 1)..n {
+                if fork::assemblies_collide(&capsules[perm[i]][i], &capsules[perm[j]][j]) {
+                    collisions += 1;
+                }
             }
-            _ => 0, // None, or outward at top (latter caught by outward_at_top)
-        };
-
-        // Soft rule 2: the topmost outward cable should sit at slot n-2.
-        let outward_low_miss: u32 = match top_outward_slot {
-            Some(s) if s == n - 2 => 0,
-            None => 0,
-            _ => 1,
-        };
+        }
 
         // Minimum 3D distance between any pair of connector arms.
         let mut min_clearance = f32::INFINITY;
@@ -514,13 +483,9 @@ fn find_optimal_assignment(
             push_joint_key,
         );
 
-        // Lex comparison: (outward_at_top, lid_miss, outward_low_miss, -clearance, moment)
-        let better = if outward_at_top != best_outward_top {
-            outward_at_top < best_outward_top
-        } else if lid_miss != best_lid_miss {
-            lid_miss < best_lid_miss
-        } else if outward_low_miss != best_outward_low_miss {
-            outward_low_miss < best_outward_low_miss
+        // Lex comparison: (collisions, -clearance, moment)
+        let better = if collisions != best_collisions {
+            collisions < best_collisions
         } else if neg_clearance != best_neg_clearance {
             neg_clearance < best_neg_clearance
         } else {
@@ -528,23 +493,13 @@ fn find_optimal_assignment(
         };
 
         if better {
-            best_outward_top = outward_at_top;
-            best_lid_miss = lid_miss;
-            best_outward_low_miss = outward_low_miss;
+            best_collisions = collisions;
             best_neg_clearance = neg_clearance;
             best_moment = moment;
             best_order.clear();
             best_order.extend_from_slice(perm);
         }
     });
-
-    if best_outward_top > 0 {
-        eprintln!(
-            "warning: disc-ordering at push joint {:?}: outward-pulling cable forced \
-             to topmost slot (no other arrangement available).",
-            push_joint_key
-        );
-    }
 
     best_order.into_iter().map(|i| pulls[i]).collect()
 }

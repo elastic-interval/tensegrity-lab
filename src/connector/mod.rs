@@ -3,10 +3,11 @@
 //! nothing here participates in the physics tick.
 
 pub mod attachment;
+pub mod bridle_clamp;
 pub mod dimensions;
 pub mod fork;
+pub mod parts;
 pub mod system;
 
 pub use dimensions::{pivot_angle, ConnectorDimensions};
 pub use system::ConnectorSystem;
-pub(crate) use dimensions::radial_unit_from_axis;
