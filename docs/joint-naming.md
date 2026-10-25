@@ -88,7 +88,7 @@ lie on the centre line are Z, not T.
 | Cable end | `<joint>.<slot>`: the joint, then its connector slot | `AL02.3.2` |
 | Cable | its two ends, smaller name first | `AL02.3:LL01.4` |
 | Cable through clamps | its two ends, via the clamps in order | `AL02.3:TL00.2b:LL01.4` |
-| Bridle clamp | `<host>b`, the joint it hangs from | `LL02.4b` |
+| Bridle node (plate or clamp) | `<host>b`, the joint its shackle hangs from | `LL02.4b` |
 | Custom disc | named for its host joint | disc at `Z9` |
 | Hinge | the smaller of its two names, or Z if it lands on the centre line | `Z13` |
 
@@ -130,7 +130,7 @@ Headless Hug and Open Claw are named this way. Fabrics without a symmetry
    Headless Hug's two guy-line anchors on the ground are `Z7` and `Z8`,
    above the structure's `Z1`–`Z6`.
 
-Clamps (`<host>b`) and cable ends (`<joint>.<slot>`) follow their joint.
+Node plates and clamps (`<host>b`) and cable ends (`<joint>.<slot>`) follow their joint.
 Everything downstream reads names through `Fabric::joint_label`, and the
 connector code finds mirror images through `LabelSymmetry`. Code that
 parses names by shape: `rotate_label_once` in `src/open_claw_symmetry.rs`

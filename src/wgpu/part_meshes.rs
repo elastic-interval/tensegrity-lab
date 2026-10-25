@@ -3,8 +3,9 @@
 //! instanced at every placement.
 
 use crate::connector::fork::{
-    ClevisDimensions, BRIDLE_LINK, CHEEK_GAP, CHEEK_RADIUS, CHEEK_THICKNESS, CLEVIS, EYE_OFFSET,
-    EYE_RADIUS, SADDLE_RADIUS, TUBE_LENGTH, TUBE_RADIUS, WIRE_RADIUS,
+    ClevisDimensions, CHEEK_GAP, CHEEK_RADIUS, CHEEK_THICKNESS, CLEVIS, EYE_OFFSET, EYE_RADIUS,
+    PLATE_CORNER_RADIUS, PLATE_THICKNESS, SADDLE_RADIUS, SHACKLE_LENGTH, TUBE_LENGTH, WIRE_RADIUS,
+    TUBE_RADIUS,
 };
 use crate::connector::parts::Part;
 use crate::units::Unit;
@@ -25,6 +26,15 @@ const BOSS_HALF_WIDTH: f32 = 0.3; // (w_boss/2) / (D_ring/2) = 6/20
 const RING_ARC_SEGMENTS: usize = 48;
 // The shackle is drawn as a rod; its collision envelope is `fork::SHACKLE_RADIUS`.
 const SHACKLE_ROD_RADIUS: f32 = 0.005;
+
+/// A part's mesh on the GPU, with the sphere bounding it in its own frame.
+pub struct PartMesh {
+    pub vertices: wgpu::Buffer,
+    pub indices: wgpu::Buffer,
+    pub index_count: u32,
+    pub center: Vec3,
+    pub radius: f32,
+}
 
 /// The sizes connector parts take from the fabric they're built for.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -51,6 +61,18 @@ struct Mesh {
 }
 
 impl Mesh {
+    /// The centre of the mesh's bounding box and the distance from it to the
+    /// farthest vertex.
+    fn bounds(&self) -> (Vec3, f32) {
+        let points = self.vertices.iter().map(|vertex| Vec3::from(vertex.position));
+        let (min, max) = points
+            .clone()
+            .fold((Vec3::MAX, Vec3::MIN), |(min, max), p| (min.min(p), max.max(p)));
+        let center = (min + max) / 2.0;
+        let radius = points.map(|p| p.distance(center)).fold(0.0, f32::max);
+        (center, radius)
+    }
+
     fn vertex(&mut self, position: Vec3, normal: Vec3) -> u32 {
         self.vertices.push(Vertex {
             position: position.into(),
@@ -198,7 +220,7 @@ impl Mesh {
 impl Wgpu {
     /// A part's mesh, in metres in its own frame (see `Part`), drawn by
     /// `plate_vertex` at unit scale.
-    pub fn create_part(&self, part: Part, sizes: PartSizes) -> (wgpu::Buffer, wgpu::Buffer, u32) {
+    pub fn create_part(&self, part: Part, sizes: PartSizes) -> PartMesh {
         let mut mesh = Mesh::default();
         match part {
             Part::Cap => mesh.lathe(Vec3::Y, &[(0.0, sizes.ring_radius), (sizes.cap_thickness, sizes.ring_radius)]),
@@ -225,10 +247,24 @@ impl Wgpu {
                 mesh.lathe(Vec3::Y, &[(-half, TUBE_RADIUS), (half, TUBE_RADIUS)]);
             }
             Part::Clevis => clevis(&mut mesh, &CLEVIS),
-            Part::Shackle => mesh.lathe(Vec3::X, &[(0.0, SHACKLE_ROD_RADIUS), (BRIDLE_LINK.f32(), SHACKLE_ROD_RADIUS)]),
+            Part::Shackle => mesh.lathe(Vec3::X, &[(0.0, SHACKLE_ROD_RADIUS), (SHACKLE_LENGTH.f32(), SHACKLE_ROD_RADIUS)]),
             Part::Clamp => clamp(&mut mesh),
+            Part::NodePlate(shape) => {
+                let corners: Vec<(Vec2, f32)> = shape
+                    .holes
+                    .iter()
+                    .map(|&(degrees, mm)| {
+                        let toward = Vec2::from_angle((degrees as f32).to_radians());
+                        (toward * (mm as f32 / 1000.0), PLATE_CORNER_RADIUS.f32())
+                    })
+                    .collect();
+                let half = PLATE_THICKNESS.f32() / 2.0;
+                mesh.extrude(&hull_of_circles(&corners), -half, half);
+            }
         }
-        self.mesh_buffers(&part.name(), &mesh)
+        let (vertices, indices, index_count) = self.mesh_buffers(&part.name(), &mesh);
+        let (center, radius) = mesh.bounds();
+        PartMesh { vertices, indices, index_count, center, radius }
     }
 
     fn mesh_buffers(&self, name: &str, mesh: &Mesh) -> (wgpu::Buffer, wgpu::Buffer, u32) {
@@ -282,7 +318,10 @@ fn clamp(mesh: &mut Mesh) {
     let gap = CHEEK_GAP.f32() / 2.0;
     let outer = gap + CHEEK_THICKNESS.f32();
     let eye = EYE_OFFSET.f32();
-    let cheek = cheek_outline(CHEEK_RADIUS.f32(), eye, EYE_RADIUS.f32());
+    let cheek = hull_of_circles(&[
+        (Vec2::ZERO, CHEEK_RADIUS.f32()),
+        (Vec2::new(eye, 0.0), EYE_RADIUS.f32()),
+    ]);
     mesh.extrude(&cheek, gap, outer);
     mesh.extrude(&cheek, -outer, -gap);
 
@@ -310,14 +349,14 @@ fn clamp(mesh: &mut Mesh) {
     mesh.lathe_at(Vec3::new(eye, 0.0, 0.0), Vec3::Y, &[(-through, 0.005), (through, 0.005)]);
 }
 
-/// The convex outline round a disc of `radius` at the origin and a lobe
-/// of `lobe` round a point `reach` along +x, in the x/z plane.
-fn cheek_outline(radius: f32, reach: f32, lobe: f32) -> Vec<Vec2> {
-    let circle = |center: Vec2, r: f32, n: usize| {
-        (0..n).map(move |k| center + Vec2::from_angle(TAU * k as f32 / n as f32) * r)
-    };
-    let mut points: Vec<Vec2> = circle(Vec2::ZERO, radius, RING_ARC_SEGMENTS)
-        .chain(circle(Vec2::new(reach, 0.0), lobe, ROUND_SEGMENTS))
+/// The convex outline round discs given as (centre, radius), in the x/z
+/// plane.
+fn hull_of_circles(circles: &[(Vec2, f32)]) -> Vec<Vec2> {
+    let mut points: Vec<Vec2> = circles
+        .iter()
+        .flat_map(|&(center, radius)| {
+            (0..ROUND_SEGMENTS).map(move |k| center + Vec2::from_angle(TAU * k as f32 / ROUND_SEGMENTS as f32) * radius)
+        })
         .collect();
     // Convex hull by monotone chain, counter-clockwise.
     points.sort_by(|a, b| a.x.total_cmp(&b.x).then(a.y.total_cmp(&b.y)));

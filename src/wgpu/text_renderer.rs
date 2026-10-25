@@ -32,6 +32,10 @@ impl TextRenderer {
         self.text_state.update_state(state_change);
     }
 
+    pub fn set_parts_panel(&mut self, rows: Vec<(String, [f32; 2])>) {
+        self.text_state.set_parts_panel(rows);
+    }
+
     pub fn render<'a>(&'a mut self, render_pass: &mut RenderPass<'a>, wgpu: &Wgpu) {
         self.brush
             .queue(

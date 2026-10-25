@@ -6,11 +6,13 @@
 //! is a new `Part` variant with its mesh, and the compiler finds every place
 //! that must learn about it.
 
+use crate::connector::node_plate::NodePlate;
+use crate::connector::system::is_shackle;
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, IntervalEnd, IntervalKey};
+use crate::fabric::{Fabric, IntervalEnd};
 use crate::units::Unit;
 use glam::Vec3;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 
 /// A part's frame: `x` and `y` are orthogonal unit vectors, `z = x × y`.
 /// Each variant says how its shape sits in that frame.
@@ -36,14 +38,27 @@ pub enum Part {
     /// Jaw terminal with pin and split ring: pin centre at the origin, barrel
     /// along `x`, pin along `y` (see `connector::fork::ClevisDimensions`).
     Clevis,
-    /// Shackle hanging a bridle clamp from a cross-tube: from the pivot
-    /// (origin) along `x` to the clamp's eye.
+    /// Shackle hanging a node plate or clamp from a cross-tube: from the
+    /// pivot (origin) along `x` to the plate's hole or the clamp's eye.
     Shackle,
     /// Bridle clamp, a cheek block round a grooved saddle the cable wraps
     /// (see `connector::bridle_clamp`): the saddle's centre at the origin,
     /// `x` toward the eye and the strut it hangs from, `y` through the
     /// cheeks.
     Clamp,
+    /// Triangular node plate at a bridle node, cut to suit its three cables
+    /// (see `connector::node_plate`): centred at the origin, `y` square to
+    /// the plate, its holes at the angles of its `PlateShape`, measured from
+    /// `x`. Each distinct shape is a part of its own.
+    NodePlate(PlateShape),
+}
+
+/// A node plate's three holes as (angle from `x` in degrees, distance from
+/// the centre in millimetres), ascending by angle, the first at 0. Rounded,
+/// so plates that match to the degree and millimetre are the same part.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct PlateShape {
+    pub holes: [(i16, u16); 3],
 }
 
 /// Most bosses one custom disc carries.
@@ -84,6 +99,10 @@ impl Part {
                 format!("custom disc {}", bosses.join(" "))
             }
             Part::Spacer { washers } => format!("spacer of {washers} washers"),
+            Part::NodePlate(shape) => {
+                let holes: Vec<String> = shape.holes.iter().map(|(degrees, mm)| format!("{degrees}°/{mm}mm")).collect();
+                format!("node plate {}", holes.join(" "))
+            }
             part => part.base_name().to_string(),
         }
     }
@@ -98,12 +117,15 @@ impl Part {
             Part::Clevis => "jaw terminal",
             Part::Shackle => "bridle shackle",
             Part::Clamp => "bridle clamp",
+            Part::NodePlate(_) => "node plate",
         }
     }
 
     pub fn material(self) -> Material {
         match self {
-            Part::Cap | Part::Ring | Part::CustomDisc(_) | Part::CrossTube => Material::Galvanized,
+            Part::Cap | Part::Ring | Part::CustomDisc(_) | Part::CrossTube | Part::NodePlate(_) => {
+                Material::Galvanized
+            }
             Part::Clevis | Part::Shackle | Part::Clamp => Material::Stainless,
             Part::Spacer { .. } => Material::Pom,
         }
@@ -129,7 +151,6 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
     let Some(connector) = fabric.connector.as_ref() else {
         return placed;
     };
-    let links: HashSet<IntervalKey> = fabric.bridle_nodes.values().copied().collect();
     let mut place = |part: Part, origin: Vec3, x: Vec3, y: Vec3, culprit: bool| {
         placed.push(Placement { part, origin, x, y, culprit });
     };
@@ -173,13 +194,11 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
                 disc.1.push((radial, connection.reach.map(|reach| reach.f32())));
                 disc.2 |= culprit;
                 place(Part::CrossTube, pivot, radial, tangent, culprit);
-                if links.contains(&cable) {
-                    let eye = connector.bridle_clamp(fabric, far).eye;
-                    let toward = (eye - pivot).normalize();
-                    place(Part::Shackle, pivot, toward, toward.any_orthonormal_vector(), culprit);
+                let cable_dir = (aim - pivot).normalize();
+                if is_shackle(fabric, cable) {
+                    place(Part::Shackle, pivot, cable_dir, cable_dir.any_orthonormal_vector(), culprit);
                 } else {
                     // Pin square to the cable, so the frame is rigid.
-                    let cable_dir = (aim - pivot).normalize();
                     let pin_axis = tangent.reject_from(cable_dir).normalize();
                     place(Part::Clevis, pivot, cable_dir, pin_axis, culprit);
                 }
@@ -212,9 +231,28 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
     }
 
     for (&node, &link) in &fabric.bridle_nodes {
-        let clamp = connector.bridle_clamp(fabric, node);
-        let culprit = connector.culprits.contains(&(link, node)) || connector.over_bent.contains(&node);
-        place(Part::Clamp, clamp.saddle, clamp.toward_link, clamp.normal, culprit);
+        if let Some(clamp) = connector.bridle_clamp(node) {
+            let culprit = connector.culprits.contains(&(link, node)) || connector.over_bent.contains(&node);
+            place(Part::Clamp, clamp.saddle, clamp.toward_link, clamp.normal, culprit);
+            continue;
+        }
+        let Some(plate) = connector.node_plate(node) else {
+            continue;
+        };
+        for (cable, hole) in plate.holes {
+            if is_shackle(fabric, cable) {
+                continue;
+            }
+            let far = fabric.intervals[cable].other_joint(node);
+            let aim = connector.pull_end_pivot(fabric, cable, far).unwrap_or(fabric.joints[far].location);
+            let cable_dir = (aim - hole).normalize();
+            let pin_axis = plate.normal.reject_from(cable_dir).normalize_or(plate.normal);
+            let culprit = connector.culprits.contains(&(cable, node));
+            place(Part::Clevis, hole, cable_dir, pin_axis, culprit);
+        }
+        let (x, y, shape) = plate_shape(&plate);
+        let culprit = connector.culprits.contains(&(link, node));
+        place(Part::NodePlate(shape), plate.center, x, y, culprit);
     }
     placed
 }
@@ -253,6 +291,30 @@ fn disc_shape(bosses: &[(Vec3, Option<f32>)], axis: Vec3, standard_reach: f32) -
     (x, shape)
 }
 
+/// A node plate's frame and its shape: each hole's angle from `x` about
+/// `y`. A plate turned over or started from another hole is the same part,
+/// so of all three starting holes and both faces the frame giving the
+/// smallest angles is taken: mirror-image plates then share one shape.
+fn plate_shape(plate: &NodePlate) -> (Vec3, Vec3, PlateShape) {
+    let toward: Vec<Vec3> = plate.holes.iter().map(|(_, hole)| *hole - plate.center).collect();
+    let frames = toward
+        .iter()
+        .flat_map(|first| [plate.normal, -plate.normal].map(|y| (first.normalize(), y)));
+    frames
+        .map(|(x, y)| {
+            let z = x.cross(y);
+            let mut holes = [(0i16, 0u16); 3];
+            for ((angle, mm), hole) in holes.iter_mut().zip(&toward) {
+                *angle = (hole.dot(z).atan2(hole.dot(x)).to_degrees().round() as i16).rem_euclid(360);
+                *mm = (hole.length() * 1000.0).round() as u16;
+            }
+            holes.sort();
+            (x, y, PlateShape { holes })
+        })
+        .min_by_key(|(_, _, shape)| *shape)
+        .expect("a plate has holes")
+}
+
 /// How many of each part the placements use.
 pub fn parts_list(placements: &[Placement]) -> BTreeMap<Part, usize> {
     let mut counts = BTreeMap::new();
@@ -262,6 +324,37 @@ pub fn parts_list(placements: &[Placement]) -> BTreeMap<Part, usize> {
     counts
 }
 
+/// One kind of part as the parts panel lists it: how many copies in all,
+/// in how many distinct shapes, and its most numerous shape, to show.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct KindSummary {
+    pub name: &'static str,
+    pub count: usize,
+    pub shapes: usize,
+    pub sample: Part,
+}
+
+/// The parts list by kind of part, in parts-list order. Each distinct shape
+/// stays its own line of the parts list, as a cutting order needs; this
+/// only groups them for display. The list is sorted by part, so each kind's
+/// shapes lie together.
+pub fn kinds(list: &BTreeMap<Part, usize>) -> Vec<KindSummary> {
+    let mut kinds: Vec<KindSummary> = Vec::new();
+    for (&part, &count) in list {
+        match kinds.last_mut() {
+            Some(kind) if kind.name == part.base_name() => {
+                kind.count += count;
+                kind.shapes += 1;
+                if count > list[&kind.sample] {
+                    kind.sample = part;
+                }
+            }
+            _ => kinds.push(KindSummary { name: part.base_name(), count, shapes: 1, sample: part }),
+        }
+    }
+    kinds
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -269,8 +362,9 @@ mod tests {
     use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
 
     /// Headless Hug's parts list adds up: every boss (one per ring, several
-    /// per custom disc) carries one cross-tube and either a jaw terminal or a
-    /// bridle's shackle, and every shackle hangs one clamp.
+    /// per custom disc) carries one cross-tube and a jaw terminal or a
+    /// shackle, and every bridle node has a plate with a terminal for each
+    /// of its cables but the one on a shackle, or a clamp.
     #[test]
     fn headless_hug_parts_list() {
         let mut executor = FabricPlanExecutor::new(fabric_library::get_fabric_plan(FabricName::HeadlessHug));
@@ -278,7 +372,8 @@ mod tests {
             let _ = executor.iterate();
         }
         executor.fabric.update_all_attachment_connections();
-        let list = parts_list(&placements(&executor.fabric));
+        let placed = placements(&executor.fabric);
+        let list = parts_list(&placed);
         for (part, count) in &list {
             eprintln!("{:>5} × {}", count, part.name());
         }
@@ -290,10 +385,19 @@ mod tests {
                 _ => None,
             })
             .sum();
+        let plates: usize = list
+            .iter()
+            .filter_map(|(part, n)| matches!(part, Part::NodePlate(_)).then_some(*n))
+            .sum();
         let bosses = count(Part::Ring) + disc_bosses;
         assert_eq!(bosses, count(Part::CrossTube));
-        assert_eq!(bosses, count(Part::Clevis) + count(Part::Shackle));
-        assert_eq!(count(Part::Shackle), count(Part::Clamp));
-        assert_eq!(count(Part::Clamp), executor.fabric.bridle_nodes.len());
+        assert_eq!(plates + count(Part::Clamp), executor.fabric.bridle_nodes.len());
+        assert_eq!(bosses + 2 * plates, count(Part::Clevis) + count(Part::Shackle));
+        let kinds = kinds(&list);
+        assert_eq!(kinds.iter().map(|kind| kind.count).sum::<usize>(), placed.len());
+        assert_eq!(kinds.iter().map(|kind| kind.shapes).sum::<usize>(), list.len());
+        for kind in &kinds {
+            eprintln!("{:>5} × {} in {} shapes, showing {}", kind.count, kind.name, kind.shapes, kind.sample.name());
+        }
     }
 }

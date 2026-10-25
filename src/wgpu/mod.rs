@@ -19,6 +19,7 @@ use crate::wgpu::text_renderer::TextRenderer;
 use crate::{LabEvent, Radio};
 
 pub mod part_meshes;
+pub mod parts_panel;
 pub mod cylinder;
 pub mod cylinder_renderer;
 pub mod fabric_renderer;
@@ -249,6 +250,11 @@ impl Wgpu {
         let mvp_ref: [f32; 16] = matrix.to_cols_array();
         self.queue
             .write_buffer(&self.uniform_buffer, 0, cast_slice(&mvp_ref));
+    }
+
+    /// The window's drawable size in physical pixels.
+    pub fn size(&self) -> (f32, f32) {
+        (self.surface_configuration.width as f32, self.surface_configuration.height as f32)
     }
 
     pub fn create_camera(&self) -> Camera {

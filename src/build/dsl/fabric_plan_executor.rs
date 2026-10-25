@@ -421,6 +421,7 @@ impl FabricPlanExecutor {
         });
 
         self.fabric.slacken();
+        self.fabric.tighten_bridles();
 
         // Start the percentage-based pretensing: push rest lengths approach
         // `length × (1 + pretenst)` over the phase's configured duration.
@@ -460,6 +461,7 @@ impl FabricPlanExecutor {
         });
 
         self.fabric.update_bounding_radius();
+        self.fabric.hang_clamps();
 
         let mass_multiplier = self.physics.mass_multiplier();
         let rigidity_multiplier = self.physics.rigidity_multiplier();
@@ -530,6 +532,7 @@ impl FabricPlanExecutor {
             self.fabric.create_fixed_interval(joint, ground, Role::GuyLine, length);
         }
 
+        self.fabric.hang_clamps();
         self.settle_phase_start_age = Some(self.fabric.age);
         self.stage = ExecutorStage::Settling;
     }

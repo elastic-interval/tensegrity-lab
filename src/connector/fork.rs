@@ -76,9 +76,34 @@ impl ClevisDimensions {
 /// of a terminal reaches further from its pin than the barrel end.
 pub const OVERLAP_PREFILTER: f32 = 2.0 * CLEVIS.overall_length.0;
 
-/// From a strut's connector pivot to the centre of a bridle clamp: the
+/// A bridle's node plate, the triangular steel plate its three cables'
+/// forks pin to (see `connector::node_plate`). ESTIMATES until it is drawn.
+/// From the plate's centre, where the cables' lines meet, to a hole: each
+/// hole sits as close in as its terminal allows (`NodePlate::new`), between
+/// these.
+pub const PLATE_HOLE_MIN_RADIUS: Meters = Meters(0.025);
+pub const PLATE_HOLE_MAX_RADIUS: Meters = Meters(0.070);
+/// What a cable gives up to its plate when a node is placed: a typical hole.
+pub const PLATE_HOLE_ALLOWANCE: Meters = Meters(0.040);
+/// Steel round each hole: the radius of the plate's rounded corners.
+pub const PLATE_CORNER_RADIUS: Meters = Meters(0.016);
+/// Thick enough to bear the pins, thin enough for the forks' 14 mm jaw gap.
+pub const PLATE_THICKNESS: Meters = Meters(0.012);
+
+/// A bridle shackle, pin to pin: from the strut end's cross-tube to its node
+/// plate's hole. ESTIMATE.
+pub const SHACKLE_LENGTH: Meters = Meters(0.040);
+/// Where a bridle node whose plate hangs on a shackle starts, from its strut
+/// end: room for the cross-tube's reach, the shackle and a small plate's
+/// hole. ESTIMATE.
+pub const BRIDLE_LINK: Meters = Meters(0.100);
+/// Half the width of a bridle shackle, whose ears straddle the connector's
+/// cross-tube. ESTIMATE.
+pub const SHACKLE_RADIUS: Meters = Meters(0.012);
+
+/// Where a bridle node that is a clamp starts, from its strut end: the
 /// shackle on the cross-tube plus the clamp's eye. ESTIMATE.
-pub const BRIDLE_LINK: Meters = Meters(0.090);
+pub const CLAMP_LINK: Meters = Meters(0.090);
 /// Bridle clamp, a cheek block round a fixed grooved saddle. ESTIMATES
 /// until it is drawn. The cable's centreline wraps the saddle at this
 /// radius: about eight wire diameters, gentle enough for 6 mm wire.
@@ -98,18 +123,14 @@ pub const EYE_RADIUS: Meters = Meters(0.012);
 /// The sharpest bend the clamp's saddle lets the cable take. ESTIMATE.
 pub const MAX_SADDLE_BEND: Degrees = Degrees(110.0);
 
-/// Half the width of a bridle link's shackle, whose ears straddle the
-/// connector's cross-tube. ESTIMATE.
-pub const SHACKLE_RADIUS: Meters = Meters(0.012);
-
 /// Half the width of a ring's boss, the arm out to the cross-tube.
 pub const BOSS_ARM_RADIUS: Meters = Meters(0.006);
 
 /// `(segment start, segment end, radius)`.
 pub type Capsule = (Vec3, Vec3, f32);
 
-/// One assembled cable end for collision testing: its body (fork, shackle
-/// or clamp) and, where it hangs on a ring, that ring's boss arm.
+/// One assembled cable end for collision testing: its body (fork, shackle,
+/// clamp or node plate) and, where it hangs on a ring, that ring's boss arm.
 #[derive(Clone, Copy, Debug)]
 pub struct Assembly {
     pub body: [Capsule; 3],
@@ -129,11 +150,11 @@ impl Assembly {
     }
 }
 
-/// A bridle link for collision testing: its shackle from the connector
-/// pivot to the clamp.
-pub fn shackle_capsules(pivot: Vec3, clamp: Vec3) -> Assembly {
+/// A bridle shackle for collision testing: from the connector pivot to the
+/// plate's hole.
+pub fn shackle_capsules(pivot: Vec3, hole: Vec3) -> Assembly {
     Assembly {
-        body: [(pivot, clamp, SHACKLE_RADIUS.f32()); 3],
+        body: [(pivot, hole, SHACKLE_RADIUS.f32()); 3],
         arm: None,
     }
 }
@@ -159,6 +180,20 @@ pub fn clamp_capsules(saddle: Vec3, toward_link: Vec3, normal: Vec3) -> Assembly
 /// a cable needs.
 pub fn min_clamp_side() -> f32 {
     CLEVIS.overall_length.f32() + MIN_FREE_WIRE.f32() / 2.0
+}
+
+/// A node plate for collision testing: its three edges, hole to hole,
+/// as thick as its rounded corners.
+pub fn plate_capsules(holes: [Vec3; 3]) -> Assembly {
+    let corner = PLATE_CORNER_RADIUS.f32();
+    Assembly {
+        body: [
+            (holes[0], holes[1], corner),
+            (holes[1], holes[2], corner),
+            (holes[2], holes[0], corner),
+        ],
+        arm: None,
+    }
 }
 
 /// Bare wire a cable needs between its two barrels to be made at all.

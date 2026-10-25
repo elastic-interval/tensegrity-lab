@@ -6,6 +6,7 @@ pub mod attachment;
 pub mod bridle_clamp;
 pub mod dimensions;
 pub mod fork;
+pub mod node_plate;
 pub mod parts;
 pub mod system;
 

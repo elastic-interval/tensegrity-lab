@@ -1,4 +1,6 @@
 use crate::camera::Pick;
+use crate::connector::parts::KindSummary;
+use crate::wgpu::parts_panel::PanelRow;
 use crate::fabric::Fabric;
 use crate::wgpu::cylinder_renderer::CylinderRenderer;
 use crate::wgpu::connector_renderer::ConnectorRenderer;
@@ -35,6 +37,15 @@ impl FabricRenderer {
         if show_attachment_points {
             self.connector_renderer.update(wgpu, fabric, pick);
         }
+    }
+
+    /// The parts list by kind, as of the last connector update.
+    pub fn kinds(&self) -> &[KindSummary] {
+        self.connector_renderer.kinds()
+    }
+
+    pub fn render_thumbnails<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, rows: &[PanelRow]) {
+        self.connector_renderer.render_thumbnails(render_pass, rows);
     }
 
     pub fn render<'a>(

@@ -116,9 +116,12 @@ angles or per-position variants:
   `parts_list` counts them as a bill of materials.
 - `fork.rs` — cable-end fork terminal (clevis) estimates + capsule model
   for collision culprit marking.
-- `bridle_clamp.rs` — `BridleClamp`: a clamp gripping one continuous cable
-  over a saddle, hung on a shackle from a strut end (`Fabric::bridle`,
-  DSL `.bridle(...)`), taking two cables off a crowded stack.
+- `node_plate.rs` — `NodePlate`: a triangular plate at a bridle node
+  (`Fabric::bridle`, DSL `.bridle(...)`) hung on a shackle, which two whole
+  cables' terminals pin to, taking two cables off a crowded stack.
+- `bridle_clamp.rs` — `BridleClamp`: the bridle node where a plate would
+  leave a cable too short: a clamp gripping one continuous cable over a
+  saddle, on a shackle.
 - `system.rs` — `ConnectorSystem`: owns `ConnectorDimensions`, a
   `SecondaryMap<IntervalKey, PullConnections>` of slot assignments, and
   `culprits` (cable ends whose assemblies physically collide, marked once
@@ -192,6 +195,9 @@ need to adjust mass or rigidity multipliers at runtime.
   visible, drawn from the parts list (`connector::parts`): one mesh per
   `Part` (`part_meshes.rs`, metres, in the part's own frame), instanced at
   every `Placement`. A new kind of hardware is a new `Part` variant.
+- `parts_panel.rs` — in the connector view the left side lists the parts by
+  kind (`connector::parts::kinds`), each beside a turning rendering drawn in
+  its own fixed viewport (`ConnectorRenderer::render_thumbnails`).
 - `sphere_renderer.rs` — joints.
 - `sky_renderer.rs`, `surface_renderer.rs`, `text_renderer.rs` — chrome.
 - `shader.wgsl` — shared WGSL for fabric pipelines.

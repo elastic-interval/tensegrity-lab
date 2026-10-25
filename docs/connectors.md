@@ -9,6 +9,54 @@
 > `src/connector/dimensions.rs` and `src/connector/fork.rs`. Open Claw's
 > connector is frozen on its own branch.
 
+## Bridle Nodes: Node Plates and Shackles
+
+Where a strut end would carry too many cables, or two cables leave it in
+nearly the same direction, a **bridle** (`Fabric::bridle`, DSL `.bridle`)
+takes two of them off: cables J–A and J–B become a link J–N and two cables
+N–A and N–B, meeting at a free node N. Three tension lines meet at N.
+
+- **Node plate** (`src/connector/node_plate.rs`) — a triangular steel plate
+  at N with a hole for each of its three cables. Three forces holding a point
+  are coplanar, so the plate lies square to its cables, each hole on its
+  cable's line through N. Each cable is a whole cable with a jaw terminal at
+  both ends; at N its terminal straddles the plate and pins through its hole.
+- **Irregular and small.** Each hole sits as close to the centre as it can
+  (`PLATE_HOLE_MIN_RADIUS`, 25 mm), moving out only until its terminal clears
+  the plate's others (at most `PLATE_HOLE_MAX_RADIUS`, 70 mm), with
+  `PLATE_CORNER_RADIUS` (16 mm) of steel round each hole and
+  `PLATE_THICKNESS` (12 mm) fitting the terminals' 14 mm jaw gap. Every plate
+  is therefore cut to its own shape; the parts list names a shape by each
+  hole's angle and distance from the centre, rounded to the degree and
+  millimetre, and treats a plate turned over or started from another hole as
+  the same part — so mirror-image plates share one shape.
+- **Always hung on a shackle** (`SHACKLE_LENGTH`, 40 mm pin to pin) from
+  J's cross-tube, close to J, so the bridle keeps the forces much as the two
+  cables it replaces had them. (Setting nodes out on cable pendants instead
+  made the arms sag 1.5 m and left a dozen cables slack.)
+  `Fabric::bridle_shackles` records the shackles.
+- **Plate or clamp.** The node is a plate, starting `BRIDLE_LINK` (100 mm)
+  from J, wherever both its outer cables can be made from there; the
+  shackle's hole is wherever the shackle reaches, and a plate it can't reach
+  without jamming is flagged. Where a plate would leave a cable too short,
+  the node is a **bridle clamp** instead (`src/connector/bridle_clamp.rs`),
+  `CLAMP_LINK` (90 mm) from J: one continuous cable A → N → B over a grooved
+  saddle held between cheek plates, so each side needs only one terminal,
+  and the saddle limits how sharply it bends (`MAX_SADDLE_BEND`).
+  Every clamp is the same part: it turns about its saddle to face its
+  shackle, and its link is shortened as the shape falls and settles
+  (`Fabric::hang_clamps`) until its eye hangs a shackle's length from the
+  pivot; the last few millimetres it slides along the shackle.
+  `Fabric::bridle_clamps` records the clamps.
+- **Pretensioned** (`Fabric::tighten_bridles`, after `slacken`), as the
+  struts are, so a free node can't drift until one of its cables hangs
+  slack.
+- **Checked like any connector**: every cable pin to pin against the
+  minimum length, every terminal, plate and clamp against collisions.
+
+All plate, shackle and placement dimensions are estimates, in
+`src/connector/fork.rs`.
+
 ## Physical Reality
 
 In a tensegrity structure, every cable (pull interval) terminates at the end of a strut (push interval). The physical connection hardware at each strut end is called a **connector**. Each strut end can have multiple cables attached, each at a distinct **slot** along the strut axis.
@@ -370,7 +418,10 @@ When attachment points are visible, picking a cable shows its slot assignments:
 |------|---------|
 | `src/connector/dimensions.rs` | `ConnectorDimensions`, `ring_center_offset()`, `ring_center()`, `pivot_geometry()` |
 | `src/connector/attachment.rs` | `PullConnections`, attachment points, slot-assignment optimiser |
-| `src/connector/system.rs` | `ConnectorSystem` (dims + per-push slot assignments) |
+| `src/connector/system.rs` | `ConnectorSystem` (dims + per-push slot assignments, node plates) |
+| `src/connector/node_plate.rs` | `NodePlate`: a bridle node's plate and its holes |
+| `src/connector/bridle_clamp.rs` | `BridleClamp`: a bridle node's clamp, where a plate would leave a cable short |
+| `src/connector/parts.rs` | The parts list: every distinct part and where each copy sits |
 | `src/wgpu/connector_renderer.rs` | 3D rendering of connector links |
 | `src/open_claw_symmetry.rs` | OpenClaw threefold-symmetry enforcement + CSV export |
 | `src/camera.rs` | Picking logic for slot and angle display |

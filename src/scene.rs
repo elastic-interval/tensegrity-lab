@@ -1,6 +1,7 @@
 use crate::camera::{Camera, Framing, Pick};
 use crate::fabric::Fabric;
 use crate::wgpu::fabric_renderer::FabricRenderer;
+use crate::wgpu::parts_panel::{panel_rows, PanelRow};
 use crate::wgpu::sky_renderer::SkyRenderer;
 use crate::wgpu::surface_renderer::SurfaceRenderer;
 use crate::wgpu::text_renderer::TextRenderer;
@@ -21,6 +22,8 @@ pub struct Scene {
     text_renderer: TextRenderer,
     render_style: RenderStyle,
     show_attachment_points: bool,
+    /// The parts panel's rows while the connector view shows it.
+    panel_rows: Vec<PanelRow>,
     pick_allowed: bool,
     model_scale: Option<f32>,
     radio: Radio,
@@ -47,6 +50,7 @@ impl Scene {
             text_renderer,
             render_style,
             show_attachment_points: false,
+            panel_rows: Vec::new(),
             pick_allowed: false,
             model_scale,
             radio,
@@ -224,6 +228,35 @@ impl Scene {
         }
         self.text_renderer.render(&mut render_pass, &self.wgpu);
         drop(render_pass);
+
+        // Third pass: the parts panel's renderings, over the scene in their
+        // own squares, so depth starts afresh.
+        if !self.panel_rows.is_empty() {
+            let mut panel_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Parts Panel Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                multiview_mask: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            self.fabric_renderer.render_thumbnails(&mut panel_pass, &self.panel_rows);
+        }
         self.wgpu.queue.submit(std::iter::once(encoder.finish()));
         surface_texture.present();
         Ok(())
@@ -245,6 +278,7 @@ impl Scene {
             &self.render_style,
             self.show_attachment_points,
         );
+        self.update_parts_panel();
         // Update surface size based on fabric bounding radius
         if has_surface {
             self.surface_renderer
@@ -252,6 +286,27 @@ impl Scene {
         }
         self.render(has_surface)?;
         Ok(())
+    }
+
+    /// In the connector view the left side lists the parts by kind, each
+    /// beside its turning rendering; otherwise it shows the usual stats.
+    fn update_parts_panel(&mut self) {
+        let kinds = if self.show_attachment_points { self.fabric_renderer.kinds() } else { &[] };
+        let (width, height) = self.wgpu.size();
+        self.panel_rows = panel_rows(width, height, kinds.len());
+        let texts = kinds
+            .iter()
+            .zip(&self.panel_rows)
+            .map(|(kind, row)| {
+                let text = if kind.shapes > 1 {
+                    format!("{} × {}\n{} shapes", kind.count, kind.name, kind.shapes)
+                } else {
+                    format!("{} × {}", kind.count, kind.name)
+                };
+                (text, row.text_at)
+            })
+            .collect();
+        self.text_renderer.set_parts_panel(texts);
     }
 
     pub fn resize(&mut self, PhysicalSize { width, height }: PhysicalSize<u32>) {

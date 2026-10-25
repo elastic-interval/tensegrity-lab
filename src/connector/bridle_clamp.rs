@@ -7,15 +7,19 @@
 //!
 //! The simulation knows the clamp only as the joint where the cable's two
 //! straight legs meet. The saddle sits inside the angle between them, so
-//! both legs leave it on tangents.
+//! both legs leave it on tangents. The simulation fits the clamp's link
+//! to within a few millimetres of its shackle (`Fabric::hang_clamps`); the
+//! clamp is then slid the rest of the way.
 
-use crate::connector::fork::{EYE_OFFSET, SADDLE_RADIUS};
+use crate::connector::fork::{EYE_OFFSET, SADDLE_RADIUS, SHACKLE_LENGTH};
 use crate::fabric::IntervalKey;
 use crate::units::Unit;
 use glam::Vec3;
 
+#[derive(Clone, Debug)]
 pub struct BridleClamp {
-    /// Where the cable's straight legs meet: the simulated joint.
+    /// Where the cable's straight legs meet: the simulated joint, slid
+    /// along the shackle to hang its eye a shackle's length from the pivot.
     pub corner: Vec3,
     /// Centre of the saddle: the part's origin.
     pub saddle: Vec3,
@@ -33,7 +37,11 @@ pub struct BridleClamp {
 }
 
 impl BridleClamp {
-    pub fn new(corner: Vec3, sides: [(IntervalKey, Vec3); 2]) -> BridleClamp {
+    /// The clamp at `corner`, its cable's sides aimed as given. Gripped by
+    /// its keeper, the clamp may turn about its saddle in the plane of the
+    /// cable, so it faces the pivot it `hangs` from, where that is known,
+    /// and hangs a shackle's length from it.
+    pub fn new(corner: Vec3, sides: [(IntervalKey, Vec3); 2], hangs: Option<Vec3>) -> BridleClamp {
         let [a, b] = sides.map(|(_, aim)| (aim - corner).normalize());
         let between = a.angle_between(b).max(1e-3);
         let inward = (a + b).normalize_or(a.any_orthonormal_vector());
@@ -41,13 +49,21 @@ impl BridleClamp {
         let saddle = corner + inward * (radius / (between / 2.0).sin());
         let to_tangent = radius / (between / 2.0).tan();
         let normal = a.cross(b).normalize_or(inward.any_orthonormal_vector());
-        let toward_link = -inward;
+        let toward_link = hangs
+            .map(|pivot| (pivot - saddle).reject_from(normal).normalize_or(-inward))
+            .unwrap_or(-inward);
+        let eye = saddle + toward_link * EYE_OFFSET.f32();
+        let slide = hangs.map_or(Vec3::ZERO, |pivot| {
+            let reach = pivot - eye;
+            reach - reach.normalize_or_zero() * SHACKLE_LENGTH.f32()
+        });
+        let corner = corner + slide;
         BridleClamp {
             corner,
-            saddle,
+            saddle: saddle + slide,
             toward_link,
             normal,
-            eye: saddle + toward_link * EYE_OFFSET.f32(),
+            eye: eye + slide,
             bend: 180.0 - between.to_degrees(),
             sides: [
                 (sides[0].0, sides[0].1, corner + a * to_tangent),

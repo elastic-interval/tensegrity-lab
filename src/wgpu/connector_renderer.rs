@@ -4,18 +4,21 @@
  */
 
 use crate::camera::Pick;
-use crate::connector::parts::{placements, Material, Part, Placement};
+use crate::connector::parts::{kinds, parts_list, placements, KindSummary, Material, Part, Placement};
 use crate::fabric::Fabric;
 use crate::units::Unit;
-use crate::wgpu::part_meshes::PartSizes;
+use crate::wgpu::part_meshes::{PartMesh, PartSizes};
+use crate::wgpu::parts_panel::PanelRow;
 use crate::wgpu::Wgpu;
 use bytemuck::{Pod, Zeroable};
+use glam::{Mat4, Vec3};
+use instant::Instant;
 use std::collections::BTreeMap;
 use std::mem::size_of;
 use wgpu::util::DeviceExt;
 
 // Materials (docs/connectors.md, "Materials"): the fabricated connector is
-// hot-dip galvanized steel; terminals, shackles and clamps are bought
+// hot-dip galvanized steel, node plates too; terminals are bought
 // AISI-316 stainless. Our shader is diffuse-only, so the stainless base
 // colour is lifted above the table's PBR value to stand in for its shine —
 // the real contrast is roughness, not brightness. Parts of assemblies with
@@ -24,6 +27,18 @@ const GALVANIZED_COLOR: [f32; 4] = [0.60, 0.62, 0.64, 1.0];
 const STAINLESS_COLOR: [f32; 4] = [0.72, 0.73, 0.75, 1.0];
 const OVERLAP_COLOR: [f32; 4] = [0.90, 0.12, 0.12, 1.0];
 const POM_COLOR: [f32; 4] = [0.93, 0.92, 0.88, 1.0];
+// The parts panel's renderings turn this fast, in radians per second.
+const THUMBNAIL_TURN_RATE: f32 = 0.5;
+// How much of its square a part's bounding sphere fills.
+const THUMBNAIL_FILL: f32 = 0.85;
+
+fn material_color(material: Material) -> [f32; 4] {
+    match material {
+        Material::Galvanized => GALVANIZED_COLOR,
+        Material::Stainless => STAINLESS_COLOR,
+        Material::Pom => POM_COLOR,
+    }
+}
 
 /// One copy of a part on the plate pipeline at unit scale: its frame's
 /// origin, `y` axis and `x` axis (see `Part`).
@@ -42,11 +57,7 @@ impl PartInstance {
         let color = if placement.culprit {
             OVERLAP_COLOR
         } else {
-            match placement.part.material() {
-                Material::Galvanized => GALVANIZED_COLOR,
-                Material::Stainless => STAINLESS_COLOR,
-                Material::Pom => POM_COLOR,
-            }
+            material_color(placement.part.material())
         };
         PartInstance {
             center_radius: [o.x, o.y, o.z, 1.0],
@@ -55,13 +66,28 @@ impl PartInstance {
             color,
         }
     }
+
+    /// `part` turned by `angle` about the vertical, its bounding sphere
+    /// centred at the origin and scaled to fill a panel square.
+    fn thumbnail(part: Part, mesh: &PartMesh, angle: f32) -> Self {
+        let x = Vec3::new(angle.cos(), 0.0, -angle.sin());
+        let y = Vec3::Y;
+        let z = x.cross(y);
+        let scale = THUMBNAIL_FILL / mesh.radius.max(1e-6);
+        let c = mesh.center;
+        let o = -(x * c.x + y * c.y + z * c.z) * scale;
+        PartInstance {
+            center_radius: [o.x, o.y, o.z, scale],
+            axis_thickness: [y.x, y.y, y.z, scale],
+            boss_dir: [x.x, x.y, x.z, 0.0],
+            color: material_color(part.material()),
+        }
+    }
 }
 
 /// A part's mesh and the copies of it to draw.
 struct PartBuffers {
-    vertices: wgpu::Buffer,
-    indices: wgpu::Buffer,
-    index_count: u32,
+    mesh: PartMesh,
     instances: Option<wgpu::Buffer>,
     instance_count: u32,
 }
@@ -73,6 +99,13 @@ pub struct ConnectorRenderer {
     // Meshes are rebuilt when the fabric's ring or cap sizes change.
     sizes: Option<PartSizes>,
     parts: BTreeMap<Part, PartBuffers>,
+    /// The parts list by kind, as of the last update.
+    kinds: Vec<KindSummary>,
+    /// The parts panel's renderings: a fixed camera of their own, and one
+    /// turning instance per kind.
+    thumbnail_bind_group: wgpu::BindGroup,
+    thumbnail_instances: Option<wgpu::Buffer>,
+    started: Instant,
 }
 
 impl ConnectorRenderer {
@@ -103,10 +136,31 @@ impl ConnectorRenderer {
                 },
             ],
         };
+        // Looking down a little at the origin, the unit sphere filling the
+        // view: each part sits there, scaled to fit, in its own viewport.
+        let view = Mat4::look_at_rh(Vec3::new(0.0, 1.2, 2.6), Vec3::ZERO, Vec3::Y);
+        let projection = Mat4::orthographic_rh(-1.0, 1.0, -1.0, 1.0, 0.1, 10.0);
+        let thumbnail_camera = wgpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Parts Panel Camera"),
+            contents: bytemuck::cast_slice(&(projection * view).to_cols_array()),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+        let thumbnail_bind_group = wgpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Parts Panel Bind Group"),
+            layout: &wgpu.uniform_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: thumbnail_camera.as_entire_binding(),
+            }],
+        });
         ConnectorRenderer {
             pipeline: wgpu.create_plate_pipeline("Connector Part Pipeline", instance_layout),
             sizes: None,
             parts: BTreeMap::new(),
+            kinds: Vec::new(),
+            thumbnail_bind_group,
+            thumbnail_instances: None,
+            started: Instant::now(),
         }
     }
 
@@ -127,21 +181,18 @@ impl ConnectorRenderer {
             self.parts.clear();
         }
 
+        let placed = placements(fabric);
+        self.kinds = kinds(&parts_list(&placed));
         let mut instances: BTreeMap<Part, Vec<PartInstance>> = BTreeMap::new();
-        for placement in placements(fabric) {
-            instances.entry(placement.part).or_default().push(PartInstance::new(&placement));
+        for placement in &placed {
+            instances.entry(placement.part).or_default().push(PartInstance::new(placement));
         }
         // A part's mesh is built the first time a placement needs it.
         for &part in instances.keys() {
-            self.parts.entry(part).or_insert_with(|| {
-                let (vertices, indices, index_count) = wgpu.create_part(part, sizes);
-                PartBuffers {
-                    vertices,
-                    indices,
-                    index_count,
-                    instances: None,
-                    instance_count: 0,
-                }
+            self.parts.entry(part).or_insert_with(|| PartBuffers {
+                mesh: wgpu.create_part(part, sizes),
+                instances: None,
+                instance_count: 0,
             });
         }
         for (part, buffers) in &mut self.parts {
@@ -156,6 +207,19 @@ impl ConnectorRenderer {
                     })
             });
         }
+        let angle = self.started.elapsed().as_secs_f32() * THUMBNAIL_TURN_RATE;
+        let thumbnails: Vec<PartInstance> = self
+            .kinds
+            .iter()
+            .map(|kind| PartInstance::thumbnail(kind.sample, &self.parts[&kind.sample].mesh, angle))
+            .collect();
+        self.thumbnail_instances = (!thumbnails.is_empty()).then(|| {
+            wgpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Parts Panel Instances"),
+                contents: bytemuck::cast_slice(&thumbnails),
+                usage: wgpu::BufferUsages::VERTEX,
+            })
+        });
     }
 
     pub fn render<'a>(
@@ -169,10 +233,34 @@ impl ConnectorRenderer {
             };
             render_pass.set_pipeline(&self.pipeline);
             render_pass.set_bind_group(0, bind_group, &[]);
-            render_pass.set_vertex_buffer(0, buffers.vertices.slice(..));
+            render_pass.set_vertex_buffer(0, buffers.mesh.vertices.slice(..));
             render_pass.set_vertex_buffer(1, instances.slice(..));
-            render_pass.set_index_buffer(buffers.indices.slice(..), wgpu::IndexFormat::Uint32);
-            render_pass.draw_indexed(0..buffers.index_count, 0, 0..buffers.instance_count);
+            render_pass.set_index_buffer(buffers.mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+            render_pass.draw_indexed(0..buffers.mesh.index_count, 0, 0..buffers.instance_count);
+        }
+    }
+
+    /// The parts list by kind, as of the last update.
+    pub fn kinds(&self) -> &[KindSummary] {
+        &self.kinds
+    }
+
+    /// Each kind's rendering in its panel row's square.
+    pub fn render_thumbnails<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, rows: &[PanelRow]) {
+        let Some(instances) = &self.thumbnail_instances else {
+            return;
+        };
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_bind_group(0, &self.thumbnail_bind_group, &[]);
+        render_pass.set_vertex_buffer(1, instances.slice(..));
+        for (index, (kind, row)) in self.kinds.iter().zip(rows).enumerate() {
+            let mesh = &self.parts[&kind.sample].mesh;
+            let [left, top, side] = row.thumbnail;
+            render_pass.set_viewport(left, top, side, side, 0.0, 1.0);
+            render_pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+            render_pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+            let instance = index as u32;
+            render_pass.draw_indexed(0..mesh.index_count, 0, instance..instance + 1);
         }
     }
 }

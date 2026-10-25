@@ -190,8 +190,11 @@ impl Crucible {
             RunningPlan(_) => {} // Already handled above
             Viewing => {
                 // Run physics at real-time speed in viewing mode
-                for _ in 0..iterations_per_frame {
-                    self.fabric.iterate(&self.physics);
+                if !self.fabric.frozen {
+                    for _ in 0..iterations_per_frame {
+                        self.fabric.iterate(&self.physics);
+                    }
+                    self.fabric.refresh_bridle_nodes();
                 }
             }
             Animating(animator) => {
@@ -199,6 +202,7 @@ impl Crucible {
                 let mut context =
                     CrucibleContext::new(&mut self.fabric, &mut self.physics, &self.radio);
                 animator.iterate(&mut context, iterations_per_frame);
+                context.fabric.refresh_bridle_nodes();
 
                 // Apply any stage transition
                 if let Some(new_stage) = context.apply_changes() {

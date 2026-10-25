@@ -22,6 +22,7 @@ mod tests {
     use crate::build::dsl::fabric_dsl::Pct;
     use crate::build::dsl::fabric_library::{self, headless_hug_plan, FabricName, HeadlessHugShape};
     use crate::connector::parts::{placements, Part};
+    use crate::connector::system::is_shackle;
     use crate::fabric::interval::Role;
     use crate::fabric::joint::JointLabel;
     use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
@@ -36,7 +37,7 @@ mod tests {
         short_cables: usize,
         over_bent: usize,
         /// Cables as built: a cable bent through a bridle clamp is one, and
-        /// a clamp's link is a shackle, not a cable.
+        /// a bridle's shackle isn't a cable.
         cables: usize,
         height: f32,
         finite: bool,
@@ -72,8 +73,12 @@ mod tests {
             culprits: connector.culprits.len(),
             short_cables: connector.short_cables.len(),
             over_bent: connector.over_bent.len(),
-            cables: fabric.intervals.values().filter(|i| i.role.is_pull_like()).count()
-                - 2 * fabric.bridle_nodes.len(),
+            cables: fabric
+                .intervals
+                .iter()
+                .filter(|(key, i)| i.role.is_pull_like() && !is_shackle(&fabric, *key))
+                .count()
+                - fabric.bridle_clamps.len(),
             height: high - low,
             finite: fabric.joints.values().all(|joint| joint.location.is_finite()),
         };
@@ -253,8 +258,8 @@ mod tests {
 
     /// Bridles for the colliding fork pairs that share a joint, and for
     /// each too-short cable together with each other cable at either of its
-    /// ends, so the short one becomes part of a longer cable through the
-    /// clamp. A cable may pass through two clamps. Only symmetric candidates
+    /// ends, so the short one is replaced by cables to a node plate set out
+    /// at a buildable length. A cable may run between two nodes. Only symmetric candidates
     /// count: each comes with its mirror image (by label symmetry), and on
     /// the mirror plane a candidate must be its own image. Pairs involving a
     /// bridle's link are left out.
@@ -467,7 +472,7 @@ mod tests {
         let height = high - low;
         let special_parts = placements(fabric)
             .iter()
-            .filter(|p| matches!(p.part, Part::CustomDisc(_) | Part::Spacer { .. } | Part::Clamp | Part::Shackle))
+            .filter(|p| matches!(p.part, Part::CustomDisc(_) | Part::Spacer { .. } | Part::NodePlate(_) | Part::Shackle | Part::Clamp))
             .count();
         Verdict {
             culprits: connector.culprits.len(),

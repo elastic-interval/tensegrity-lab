@@ -15,7 +15,7 @@ use crate::units::{Grams, Meters, Percent, Seconds, Unit};
 use crate::Age;
 use glam::{Mat4, Quat, Vec3};
 use slotmap::{new_key_type, SlotMap};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -211,9 +211,15 @@ pub struct Fabric {
     /// face labels; applied to the labels at the end of the build (see
     /// `docs/joint-naming.md`). Empty for fabrics without a symmetry.
     pub limb_names: HashMap<char, (char, char)>,
-    /// Free nodes made by `bridle`, each a link plate joining three cables,
-    /// with the link that hangs it from its strut end.
+    /// Free nodes made by `bridle`, each a node plate joining three cables,
+    /// with the link from its strut end.
     pub bridle_nodes: HashMap<JointKey, IntervalKey>,
+    /// The bridle links that are shackles, not cables: their node plate or
+    /// clamp hangs close to the strut end.
+    pub bridle_shackles: HashSet<IntervalKey>,
+    /// The bridle nodes that are clamps gripping one continuous cable, not
+    /// node plates: where a plate would leave a cable too short to make.
+    pub bridle_clamps: HashSet<JointKey>,
 
     cached_bounding_radius: f32,
     approaching_count: usize,
@@ -244,6 +250,8 @@ impl Fabric {
             label_symmetry: None,
             hinge_strut: HashMap::new(),
             bridle_nodes: HashMap::new(),
+            bridle_shackles: HashSet::new(),
+            bridle_clamps: HashSet::new(),
             limb_names: HashMap::new(),
             approaching_count: 0,
             quiet_since: None,
@@ -288,6 +296,18 @@ impl Fabric {
             return;
         };
         connector.update_all_connections(self);
+        self.connector = Some(connector);
+    }
+
+    /// Move the bridle nodes' plates and clamps along with their joints.
+    pub fn refresh_bridle_nodes(&mut self) {
+        if self.bridle_nodes.is_empty() {
+            return;
+        }
+        let Some(mut connector) = self.connector.take() else {
+            return;
+        };
+        connector.refresh_nodes(self);
         self.connector = Some(connector);
     }
 
