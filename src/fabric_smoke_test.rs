@@ -29,7 +29,22 @@ mod tests {
             assert!(completed,
                 "{fabric_name}: plan did not reach Complete within {MAX_ITERS} iterations (stuck at {:?})",
                 executor.stage());
+            assert!(executor.plan_failures().is_empty(),
+                "{fabric_name}: plan steps failed to apply: {:?}", executor.plan_failures());
         }
+    }
+
+    /// A plan step naming a cable the fabric doesn't have is reported, not
+    /// skipped in silence.
+    #[test]
+    fn test_failed_plan_step_is_reported() {
+        let mut plan = fabric_library::get_fabric_plan(FabricName::HeadlessHug);
+        plan.pretense_phase.omit_pairs.push(("L1".into(), "R62".into()));
+        let mut executor = FabricPlanExecutor::new(plan);
+        while *executor.stage() == crate::build::dsl::fabric_plan_executor::ExecutorStage::Building {
+            let _ = executor.iterate();
+        }
+        assert_eq!(executor.plan_failures(), ["no interval to omit (L1, R62)"]);
     }
 
 /// Per-step full symmetry check: at every build step (starting from

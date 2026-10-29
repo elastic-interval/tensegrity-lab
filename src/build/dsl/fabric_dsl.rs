@@ -691,6 +691,7 @@ impl PretenseChain {
                 anchors: Vec::new(),
                 step_index: 0,
                 scale: dims.scale,
+                failures: Vec::new(),
             },
             pretense_phase,
             fall_phase: FallPhase {

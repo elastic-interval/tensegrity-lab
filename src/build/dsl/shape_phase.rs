@@ -107,6 +107,8 @@ pub struct ShapePhase {
     pub anchors: Vec<IntervalKey>,
     pub(crate) step_index: usize,
     pub(crate) scale: Meters,
+    /// Steps that named joints the fabric doesn't have.
+    pub failures: Vec<String>,
 }
 
 impl ShapePhase {
@@ -293,7 +295,7 @@ impl ShapePhase {
                                 seconds,
                             );
                         }
-                        _ => eprintln!("WARNING: Could not find joints for add pair ({alpha}, {omega})"),
+                        _ => self.failures.push(format!("no joints for add pair ({alpha}, {omega})")),
                     }
                 }
                 StartProgress(seconds)

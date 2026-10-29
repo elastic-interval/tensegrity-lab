@@ -76,6 +76,11 @@ impl PlanRunner {
     }
 
     /// Headless stage advance (used by `FabricPlanExecutor`, no events emitted).
+    /// Shape steps that named joints the fabric doesn't have.
+    pub fn plan_failures(&self) -> &[String] {
+        &self.shape_phase.failures
+    }
+
     pub fn check_and_advance_stage_simple(&mut self, context: &mut PlanContext) -> bool {
         let (stage_changed, _entered_shaping) = self.advance_stage(context.fabric);
         stage_changed

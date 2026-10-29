@@ -58,6 +58,8 @@ pub enum ExecutionEvent {
         iteration: usize,
         description: String,
     },
+    /// A plan step named joints or an interval the fabric doesn't have
+    PlanStepFailed { iteration: usize, step: String },
     /// Construction completed
     Completed { iteration: usize },
 }
@@ -72,6 +74,7 @@ impl ExecutionEvent {
             ExecutionEvent::FacesRemoved { iteration, .. } => *iteration,
             ExecutionEvent::PretensionApplied { iteration, .. } => *iteration,
             ExecutionEvent::PhysicsChanged { iteration, .. } => *iteration,
+            ExecutionEvent::PlanStepFailed { iteration, .. } => *iteration,
             ExecutionEvent::Completed { iteration } => *iteration,
         }
     }
@@ -119,6 +122,9 @@ impl std::fmt::Display for ExecutionEvent {
             }
             ExecutionEvent::PhysicsChanged { description, .. } => {
                 write!(f, "[{} | {}] Physics: {}", time, iter, description)
+            }
+            ExecutionEvent::PlanStepFailed { step, .. } => {
+                write!(f, "[{} | {}] Plan step failed: {}", time, iter, step)
             }
             ExecutionEvent::Completed { .. } => {
                 write!(f, "[{} | {}] Construction completed", time, iter)
@@ -170,6 +176,28 @@ impl FabricPlanExecutor {
 
     fn log_event(&mut self, event: ExecutionEvent) {
         self.execution_log.push(event);
+    }
+
+    /// Record a plan step that couldn't be applied: it names joints or an
+    /// interval the fabric doesn't have, so the plan is out of date.
+    fn plan_step_failed(&mut self, step: String) {
+        eprintln!("WARNING: plan step failed: {step}");
+        self.log_event(ExecutionEvent::PlanStepFailed {
+            iteration: self.current_iteration,
+            step,
+        });
+    }
+
+    /// Every plan step that couldn't be applied so far. A plan that applies
+    /// cleanly has none.
+    pub fn plan_failures(&self) -> Vec<&str> {
+        self.execution_log
+            .iter()
+            .filter_map(|event| match event {
+                ExecutionEvent::PlanStepFailed { step, .. } => Some(step.as_str()),
+                _ => None,
+            })
+            .collect()
     }
 
     /// Get the execution log
@@ -372,10 +400,15 @@ impl FabricPlanExecutor {
         // step names one.
         number_twins_by_height(&mut self.fabric);
 
-        for (keep, merge) in &self.plan.pretense_phase.hinge_pairs {
-            match (self.fabric.joint_key_by_label(keep), self.fabric.joint_key_by_label(merge)) {
+        let shape_failures = self.plan_runner.as_ref().map(|runner| runner.plan_failures().to_vec()).unwrap_or_default();
+        for failure in shape_failures {
+            self.plan_step_failed(failure);
+        }
+
+        for (keep, merge) in self.plan.pretense_phase.hinge_pairs.clone() {
+            match (self.fabric.joint_key_by_label(&keep), self.fabric.joint_key_by_label(&merge)) {
                 (Some(k), Some(m)) => self.fabric.hinge(k, m),
-                _ => eprintln!("WARNING: Could not find joints for hinge ({keep}, {merge})"),
+                _ => self.plan_step_failed(format!("no joints for hinge ({keep}, {merge})")),
             }
         }
 
@@ -384,37 +417,28 @@ impl FabricPlanExecutor {
         number_axial_by_height(&mut self.fabric);
 
         // Omit triangle intervals after faces are converted
-        for (alpha_label, omega_label) in &self.plan.pretense_phase.omit_pairs {
-            let alpha_key = self.fabric.joint_key_by_label(alpha_label);
-            let omega_key = self.fabric.joint_key_by_label(omega_label);
+        for (alpha_label, omega_label) in self.plan.pretense_phase.omit_pairs.clone() {
+            let alpha_key = self.fabric.joint_key_by_label(&alpha_label);
+            let omega_key = self.fabric.joint_key_by_label(&omega_label);
             match (alpha_key, omega_key) {
-                (Some(a), Some(o)) => {
-                    if let Some(key) = self.fabric.joining((a, o)) {
+                (Some(a), Some(o)) => match self.fabric.joining((a, o)) {
+                    Some(key) => {
                         self.fabric.remove_interval(key);
-                    } else {
-                        eprintln!(
-                            "WARNING: No interval found between joints ({}, {})",
-                            alpha_label, omega_label
-                        );
                     }
-                }
-                _ => {
-                    eprintln!(
-                        "WARNING: Could not find joints for omit pair ({}, {})",
-                        alpha_label, omega_label
-                    );
-                }
+                    None => self.plan_step_failed(format!("no interval to omit ({alpha_label}, {omega_label})")),
+                },
+                _ => self.plan_step_failed(format!("no joints for omit ({alpha_label}, {omega_label})")),
             }
         }
 
-        for (joint, a, b) in &self.plan.pretense_phase.bridles {
+        for (joint, a, b) in self.plan.pretense_phase.bridles.clone() {
             let key = |label: &str| self.fabric.joint_key_by_label(label);
-            let bridled = match (key(joint), key(a), key(b)) {
+            let bridled = match (key(&joint), key(&a), key(&b)) {
                 (Some(j), Some(a), Some(b)) => self.fabric.bridle(j, a, b),
                 _ => None,
             };
             if bridled.is_none() {
-                eprintln!("WARNING: Could not bridle ({joint}: {a}, {b})");
+                self.plan_step_failed(format!("could not bridle ({joint}: {a}, {b})"));
             }
         }
 
@@ -523,7 +547,7 @@ impl FabricPlanExecutor {
         let guy_lines = self.plan.settle_phase.as_ref().map(|p| p.guy_lines.clone()).unwrap_or_default();
         for guy_line in guy_lines {
             let Some(joint) = self.fabric.joint_key_by_label(&guy_line.joint) else {
-                eprintln!("WARNING: Could not find joint for guy line ({})", guy_line.joint);
+                self.plan_step_failed(format!("no joint for guy line ({})", guy_line.joint));
                 continue;
             };
             let landed = self.fabric.location(joint);
