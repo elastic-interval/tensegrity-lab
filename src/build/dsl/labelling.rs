@@ -85,6 +85,14 @@ impl LabelSymmetry {
                 brick,
                 position,
             },
+            JointLabel::Twin { letter, number } => JointLabel::Twin {
+                letter: self.map_letter(letter),
+                number,
+            },
+            JointLabel::BridleTwin { letter, number } => JointLabel::BridleTwin {
+                letter: self.map_letter(letter),
+                number,
+            },
             axial @ (JointLabel::Axial { .. } | JointLabel::BridleAxial { .. }) => axial,
         }
     }
@@ -125,13 +133,8 @@ mod tests {
         executor.fabric
     }
 
-    fn off_axis(role: char, letter: char, brick: u8, position: u8) -> JointLabel {
-        JointLabel::OffAxis {
-            role: Some(role),
-            letter,
-            brick,
-            position,
-        }
+    fn twin(letter: char, number: u16) -> JointLabel {
+        JointLabel::Twin { letter, number }
     }
 
     #[test]
@@ -149,13 +152,10 @@ mod tests {
         );
         assert_eq!(symmetry.order(), 3);
 
-        // The orbit of a real torso joint visits all three sectors, and
-        // every member exists on the built fabric.
-        let orbit = symmetry.orbit(off_axis('T', 'A', 0, 2));
-        assert_eq!(
-            orbit,
-            vec![off_axis('T', 'A', 0, 2), off_axis('T', 'B', 0, 2), off_axis('T', 'C', 0, 2)]
-        );
+        // The orbit of the lowest set of twins visits all three sectors,
+        // and every member exists on the built fabric.
+        let orbit = symmetry.orbit(twin('A', 1));
+        assert_eq!(orbit, vec![twin('A', 1), twin('B', 1), twin('C', 1)]);
         for label in &orbit {
             assert!(
                 fabric.joint_key_by_label(&label.to_string()).is_some(),
@@ -164,7 +164,7 @@ mod tests {
         }
         // Every member keys to the same canonical representative.
         for label in &orbit {
-            assert_eq!(symmetry.orbit_key(*label), off_axis('T', 'A', 0, 2));
+            assert_eq!(symmetry.orbit_key(*label), twin('A', 1));
         }
         // Axial labels are fixed points.
         let axial = JointLabel::Axial { index: 1 };
@@ -186,10 +186,10 @@ mod tests {
         );
         assert_eq!(symmetry.order(), 2);
 
-        // The AL01.6 ↔ AR01.6 pair that the fabric plan itself relies on
-        // (the armpit hinges in fabric_library.rs).
-        let orbit = symmetry.orbit(off_axis('A', 'L', 1, 6));
-        assert_eq!(orbit, vec![off_axis('A', 'L', 1, 6), off_axis('A', 'R', 1, 6)]);
+        // The L31 ↔ R31 pair that the fabric plan itself relies on (the
+        // armpit hinges in fabric_library.rs).
+        let orbit = symmetry.orbit(twin('L', 31));
+        assert_eq!(orbit, vec![twin('L', 31), twin('R', 31)]);
         for label in &orbit {
             assert!(
                 fabric.joint_key_by_label(&label.to_string()).is_some(),

@@ -6,9 +6,9 @@ use crate::connector::attachment::{
     calculate_interval_attachment_points, PullConnection, PullConnections, PullIntervalData,
     ATTACHMENT_POINTS,
 };
-use crate::connector::bridle_clamp::BridleClamp;
 use crate::connector::fork::Assembly;
 use crate::connector::node_plate::NodePlate;
+use crate::connector::parts::Part;
 use crate::connector::{fork, ConnectorDimensions};
 use crate::build::dsl::labelling::LabelSymmetry;
 use crate::fabric::interval::Role;
@@ -36,12 +36,17 @@ pub struct ConnectorSystem {
     /// plus the minimum free wire — they can't be built as cables at all.
     /// Marked alongside `culprits`.
     pub short_cables: HashSet<IntervalKey>,
-    /// Bridle clamps whose cable bends more sharply than the saddle allows.
-    pub over_bent: HashSet<JointKey>,
-    /// Each bridle node's plate or clamp, built with the slot assignments:
+    /// Cables from a node plate too short to make as cables, built as swivel
+    /// links instead: each with its pin-to-pin length when the hardware was
+    /// committed (`update_all_connections`).
+    links: HashMap<IntervalKey, f32>,
+    /// Each bridle node's plate, built with the slot assignments:
     /// they aim at the pivots the assignments put the far ends at.
     plates: HashMap<JointKey, NodePlate>,
-    clamps: HashMap<JointKey, BridleClamp>,
+    /// Every placement's part as the parts list stood at the last rebuild,
+    /// in placement order (see `parts::placements`): shaped parts keep
+    /// these shapes until the next rebuild.
+    pub frozen_parts: Vec<Part>,
 }
 
 impl ConnectorSystem {
@@ -52,9 +57,9 @@ impl ConnectorSystem {
             culprits: HashSet::new(),
             collisions: Vec::new(),
             short_cables: HashSet::new(),
-            over_bent: HashSet::new(),
+            links: HashMap::new(),
             plates: HashMap::new(),
-            clamps: HashMap::new(),
+            frozen_parts: Vec::new(),
         }
     }
 
@@ -161,7 +166,8 @@ impl ConnectorSystem {
     pub fn update_all_connections(&mut self, fabric: &Fabric) {
         self.connections.clear();
         self.plates.clear();
-        self.clamps.clear();
+        self.links.clear();
+        self.frozen_parts.clear();
         if fabric.joints.is_empty() {
             return;
         }
@@ -181,17 +187,21 @@ impl ConnectorSystem {
             self.plane_assignments(fabric);
             self.build_nodes(fabric);
         }
-        self.mark_culprits(fabric);
+        self.mark(fabric, true);
     }
 
     /// Rebuild `culprits` and `short_cables`: the O(n²) capsule scan over all assembled cable
     /// ends, run once per assignment rebuild rather than per frame. Public
     /// so symmetry enforcement can re-mark after it rewrites assignments.
     pub fn mark_culprits(&mut self, fabric: &Fabric) {
+        self.mark(fabric, false);
+    }
+
+    /// As `mark_culprits`, first `choosing` which plate cables are links.
+    fn mark(&mut self, fabric: &Fabric, choosing: bool) {
         self.culprits.clear();
         self.collisions.clear();
         self.short_cables.clear();
-        self.over_bent.clear();
 
         struct Entry {
             connection: PullConnection,
@@ -247,15 +257,9 @@ impl ConnectorSystem {
 
         // Second pass: final assembly frames aimed at the far end's pivot —
         // the same aiming the renderers use. A cable to a bridle node aims at
-        // its hole in the node plate, a shackle at its clamp's eye.
+        // its hole in the node plate.
         let plates = std::mem::take(&mut self.plates);
-        let clamps = std::mem::take(&mut self.clamps);
-        let node_aim = |cable: IntervalKey, node: JointKey| {
-            plates.get(&node).and_then(|plate| plate.hole(cable)).or_else(|| {
-                let link = fabric.bridle_nodes.get(&node) == Some(&cable);
-                clamps.get(&node).filter(|_| link).map(|clamp| clamp.eye)
-            })
-        };
+        let node_aim = |cable: IntervalKey, node: JointKey| plates.get(&node).and_then(|plate| plate.hole(cable));
         let ring_radius = fabric.dimensions.push_radius.f32();
         let mut frames: Vec<((IntervalKey, JointKey), Vec3, Assembly)> = entries
             .iter()
@@ -265,8 +269,8 @@ impl ConnectorSystem {
                     .unwrap_or(fabric.joints[e.far].location);
                 let (pivot, _) = self.connection_pivot(e.end_pos, e.axis, &e.connection, aim);
                 let ring_center = self.connection_ring_center(e.end_pos, e.axis, &e.connection);
-                let body = if is_shackle(fabric, e.pull) {
-                    fork::shackle_capsules(pivot, aim)
+                let body = if is_swivel(fabric, e.pull) {
+                    fork::swivel_capsules(pivot, aim)
                 } else {
                     let radial = (pivot - ring_center).normalize();
                     fork::capsules(pivot, e.axis.cross(radial).normalize(), (aim - pivot).normalize())
@@ -276,12 +280,12 @@ impl ConnectorSystem {
             .collect();
 
         // Each node plate's terminals, pinned through its holes square to the
-        // plate, aimed at their cables' far ends; a shackle pins straight on.
+        // plate, aimed at their cables' far ends; a swivel pins straight on.
         let stack_pivots: HashMap<(IntervalKey, JointKey), Vec3> =
             frames.iter().map(|(end, pivot, _)| (*end, *pivot)).collect();
         for (&node, plate) in &plates {
             for (cable, hole) in plate.holes {
-                if is_shackle(fabric, cable) {
+                if is_swivel(fabric, cable) {
                     continue;
                 }
                 let far = fabric.intervals[cable].other_joint(node);
@@ -296,52 +300,31 @@ impl ConnectorSystem {
             }
         }
 
-        // Each clamp's cheek block, keyed by its link at the clamp. Its cable
-        // needs room for a terminal and wire on both sides, measured from
-        // where it leaves the saddle, and the saddle limits how sharply it
-        // bends.
-        for (&node, clamp) in &clamps {
-            frames.push((
-                (fabric.bridle_nodes[&node], node),
-                clamp.saddle,
-                fork::clamp_capsules(clamp.saddle, clamp.toward_link, clamp.normal),
-            ));
-            for (side, aim, tangent) in clamp.sides {
-                let far = fabric.intervals[side].other_joint(node);
-                let length = match clamps.get(&far) {
-                    // Between two clamps the cable has no terminal at all:
-                    // it only has to leave one saddle before the next.
-                    Some(other) => {
-                        let reach = other.tangent(side).unwrap_or(aim);
-                        if (reach - tangent).dot(aim - clamp.corner) > 0.0 {
-                            f32::INFINITY
-                        } else {
-                            0.0
-                        }
-                    }
-                    None => aim.distance(tangent),
-                };
-                if length < fork::min_clamp_side() {
-                    self.short_cables.insert(side);
-                }
-            }
-            if clamp.bend > fork::MAX_SADDLE_BEND.f32() {
-                self.over_bent.insert(node);
-            }
-        }
-
-        // Every cable needs room for a terminal at each end plus free wire.
+        // Every cable needs room for a terminal at each end plus free wire;
+        // one from a node plate without it is a swivel link instead, if it
+        // has room for a swivel.
         let pivots: HashMap<(IntervalKey, JointKey), Vec3> =
             frames.iter().map(|(end, pivot, _)| (*end, *pivot)).collect();
         for (key, cable) in fabric.intervals.iter() {
-            if !cable.role.is_pull_like() || is_shackle(fabric, key) {
+            if !cable.role.is_pull_like() || is_swivel(fabric, key) {
                 continue;
             }
             let ends = (pivots.get(&(key, cable.alpha_key)), pivots.get(&(key, cable.omega_key)));
             if let (Some(alpha), Some(omega)) = ends {
-                if alpha.distance(*omega) < fork::min_cable_length() {
+                let span = alpha.distance(*omega);
+                let at_plate = [cable.alpha_key, cable.omega_key].iter().any(|joint| plates.contains_key(joint));
+                if choosing && at_plate && (fork::SWIVEL_LENGTH.f32()..fork::min_cable_length()).contains(&span) {
+                    self.links.insert(key, span);
+                }
+                if !self.links.contains_key(&key) && span < fork::min_cable_length() {
                     self.short_cables.insert(key);
                 }
+            }
+        }
+        for ((key, near), pivot, assembly) in &mut frames {
+            if self.links.contains_key(key) {
+                let far = pivots[&(*key, fabric.intervals[*key].other_joint(*near))];
+                assembly.body = fork::link_capsules(*pivot, far).body;
             }
         }
 
@@ -363,14 +346,14 @@ impl ConnectorSystem {
             }
         }
 
-        // A plate whose shackle can't reach jams against its strut end.
+        // A plate with no equilateral fit to its cables.
         for (&node, plate) in &plates {
             if plate.jammed {
                 self.culprits.insert((fabric.bridle_nodes[&node], node));
             }
         }
 
-        // A plate against any terminal or shackle but its own, and against
+        // A plate against any terminal or swivel but its own, and against
         // other plates. Its collisions are marked on the node's link.
         let plate_bodies: Vec<((IntervalKey, JointKey), Assembly)> = plates
             .iter()
@@ -396,7 +379,6 @@ impl ConnectorSystem {
             }
         }
         self.plates = plates;
-        self.clamps = clamps;
     }
 
     /// A bridle node's plate, as last built with the slot assignments.
@@ -404,12 +386,12 @@ impl ConnectorSystem {
         self.plates.get(&node)
     }
 
-    /// A bridle node's clamp, as last built with the slot assignments.
-    pub fn bridle_clamp(&self, node: JointKey) -> Option<&BridleClamp> {
-        self.clamps.get(&node)
+    /// The pin-to-pin length of `cable` if it is a swivel link.
+    pub fn link_length(&self, cable: IntervalKey) -> Option<f32> {
+        self.links.get(&cable).copied()
     }
 
-    /// Rebuild the bridle nodes' plates and clamps where the joints are now,
+    /// Rebuild the bridle nodes' plates where the joints are now,
     /// keeping the slot assignments: unlike the forks on the stacks, they
     /// are kept in place, not worked out as they are drawn.
     pub fn refresh_nodes(&mut self, fabric: &Fabric) {
@@ -418,45 +400,17 @@ impl ConnectorSystem {
         }
     }
 
-    /// Plates first: a clamp's cable may aim at a plate's hole.
     fn build_nodes(&mut self, fabric: &Fabric) {
         self.plates = fabric
             .bridle_nodes
             .keys()
-            .filter(|node| !fabric.bridle_clamps.contains(node))
             .map(|&node| (node, self.build_plate(fabric, node)))
             .collect();
-        self.clamps = fabric
-            .bridle_clamps
-            .iter()
-            .map(|&node| (node, self.build_clamp(fabric, node)))
-            .collect();
-    }
-
-    /// A bridle node's clamp, with its cable's two sides aimed at their far
-    /// pivots (see `BridleClamp`).
-    fn build_clamp(&self, fabric: &Fabric, node: JointKey) -> BridleClamp {
-        let link = fabric.bridle_nodes[&node];
-        let sides: Vec<(IntervalKey, Vec3)> = fabric
-            .intervals
-            .iter()
-            .filter(|(key, i)| *key != link && i.role.is_pull_like() && i.touches(node))
-            .map(|(key, i)| {
-                let far = i.other_joint(node);
-                let aim = self
-                    .pull_end_pivot(fabric, key, far)
-                    .unwrap_or(fabric.joints[far].location);
-                (key, aim)
-            })
-            .collect();
-        let host = fabric.intervals[link].other_joint(node);
-        let hangs = self.pull_end_pivot(fabric, link, host);
-        BridleClamp::new(fabric.joints[node].location, [sides[0], sides[1]], hangs)
     }
 
     /// A bridle node's plate, each of its three cables aimed at its far end:
     /// the far pivot on a strut's stack, or the far joint itself where that
-    /// is another node. A shackle aims at the pivot it hangs from.
+    /// is another node. A swivel aims at the pivot it hangs from.
     fn build_plate(&self, fabric: &Fabric, node: JointKey) -> NodePlate {
         let cables: Vec<(IntervalKey, Vec3, bool)> = fabric
             .intervals
@@ -470,7 +424,7 @@ impl ConnectorSystem {
                 } else {
                     self.pull_end_pivot(fabric, key, far).unwrap_or(at_far)
                 };
-                (key, aim, is_shackle(fabric, key))
+                (key, aim, is_swivel(fabric, key))
             })
             .collect();
         NodePlate::new(fabric.joints[node].location, [cables[0], cables[1], cables[2]])
@@ -629,8 +583,8 @@ impl ConnectorSystem {
             .map(|&(cable, aim, slot, reach, lift)| {
                 let ring_center = self.lifted_ring_center(end_pos, axis, slot, lift);
                 let (pivot, _) = ConnectorDimensions::pivot_from_center(ring_center, axis, aim, reach);
-                let body = if is_shackle(fabric, cable) {
-                    fork::shackle_capsules(pivot, aim)
+                let body = if is_swivel(fabric, cable) {
+                    fork::swivel_capsules(pivot, aim)
                 } else {
                     let radial = (pivot - ring_center).normalize();
                     fork::capsules(pivot, axis.cross(radial).normalize(), (aim - pivot).normalize())
@@ -820,11 +774,7 @@ impl ConnectorSystem {
         near: JointKey,
     ) -> Option<Vec3> {
         if fabric.bridle_nodes.contains_key(&near) {
-            if let Some(plate) = self.plates.get(&near) {
-                return plate.hole(pull_key);
-            }
-            let link = fabric.bridle_nodes.get(&near) == Some(&pull_key);
-            return self.clamps.get(&near).filter(|_| link).map(|clamp| clamp.eye);
+            return self.plates.get(&near).and_then(|plate| plate.hole(pull_key));
         }
         for (push_key, push) in fabric.intervals.iter() {
             if !push.has_role(Role::Pushing) {
@@ -902,10 +852,10 @@ impl ConnectorSystem {
     }
 }
 
-/// Whether `cable` is a bridle's link that is a shackle, its node plate
+/// Whether `cable` is a bridle's link that is a swivel, its node plate
 /// hanging close to the strut end.
-pub fn is_shackle(fabric: &Fabric, cable: IntervalKey) -> bool {
-    fabric.bridle_shackles.contains(&cable)
+pub fn is_swivel(fabric: &Fabric, cable: IntervalKey) -> bool {
+    fabric.bridle_swivels.contains(&cable)
 }
 
 /// A hinge pin: the joint where two struts end.

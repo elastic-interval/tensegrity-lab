@@ -3,7 +3,6 @@
 //! nothing here participates in the physics tick.
 
 pub mod attachment;
-pub mod bridle_clamp;
 pub mod dimensions;
 pub mod fork;
 pub mod node_plate;

@@ -13,7 +13,7 @@ use crate::fabric::joint_path::{JointPath, COLUMN_MARKER, PRISM_MARKER};
 use crate::fabric::{Fabric, FaceKey, JointKey};
 use crate::units::{Percent, Unit};
 use glam::Vec3;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::convert::Into;
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -795,6 +795,34 @@ fn clockwise_members(fabric: &Fabric, letters: &[char]) -> Vec<(char, char)> {
     let mut order: Vec<(f32, char)> = centres.iter().zip(letters).map(|(&at, &letter)| (angle(at), letter)).collect();
     order.sort_by(|a, b| a.0.total_cmp(&b.0));
     order.iter().zip('A'..).map(|(&(_, letter), member)| (letter, member)).collect()
+}
+
+/// Give each set of twins one short name, `<member><n>` (`L12` / `R12`, or
+/// `A12` / `B12` / `C12`), numbered bottom to top by the set's mean height,
+/// so every member gets the same number however its own height rounds. Sets
+/// at equal heights keep their build order. Run once the fabric stands,
+/// before the plan refers to any twin. No-op without a symmetry.
+pub fn number_twins_by_height(fabric: &mut Fabric) {
+    let Some(symmetry) = fabric.label_symmetry.clone() else {
+        return;
+    };
+    let mut sets: BTreeMap<JointLabel, Vec<(JointKey, char, f32)>> = BTreeMap::new();
+    for (key, joint) in fabric.joints.iter() {
+        if let Some(label @ JointLabel::OffAxis { letter, .. }) = joint.label {
+            sets.entry(symmetry.orbit_key(label)).or_default().push((key, letter, joint.location.y));
+        }
+    }
+    let mut ordered: Vec<(f32, Vec<(JointKey, char, f32)>)> = sets
+        .into_values()
+        .filter(|set| set.len() == symmetry.order())
+        .map(|set| (set.iter().map(|&(_, _, y)| y).sum::<f32>() / set.len() as f32, set))
+        .collect();
+    ordered.sort_by(|a, b| a.0.total_cmp(&b.0));
+    for (index, (_, set)) in ordered.into_iter().enumerate() {
+        for (key, letter, _) in set {
+            fabric.joints[key].label = Some(JointLabel::Twin { letter, number: index as u16 + 1 });
+        }
+    }
 }
 
 /// Number the joints on the mirror plane or rotation axis bottom to top by

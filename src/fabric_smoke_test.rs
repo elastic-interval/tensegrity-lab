@@ -251,7 +251,7 @@ mod tests {
     }
 
 /// HeadlessHug's mirror twins differ only in their member letter: every
-    /// left label (`AL02.3`) has a right partner (`AR02.3`). This is the
+    /// left label (`L12`) has a right partner (`R12`). This is the
     /// visible "partner" relationship of the naming scheme.
     ///
     /// The test grounds this in geometry: each left/right pair must
@@ -273,18 +273,17 @@ mod tests {
             .filter_map(|(k, j)| j.label.map(|_| (fabric.joint_label(k), j.location)))
             .collect();
 
-        // For every left label (`<role>L…`) the same name with the member
-        // flipped to R should exist, and the two joints should be at fabric
-        // mirror-image positions.
+        // For every left label (`L12`) the right twin (`R12`) should exist,
+        // and the two joints should be at fabric mirror-image positions.
         let mut missing: Vec<String> = Vec::new();
         let mut non_mirror: Vec<String> = Vec::new();
         let pos_tol = 0.05;
 
         for (label, loc) in &labeled {
-            if label.starts_with('Z') || label.chars().nth(1) != Some('L') {
+            let Some(number) = label.strip_prefix('L') else {
                 continue;
-            }
-            let partner_label = format!("{}R{}", &label[..1], &label[2..]);
+            };
+            let partner_label = format!("R{number}");
             let partner = labeled.iter().find(|(l, _)| l == &partner_label);
             match partner {
                 Some((_, partner_loc)) => {

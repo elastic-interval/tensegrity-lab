@@ -7,7 +7,7 @@ use crate::build::dsl::labelling::LabelSymmetry;
 use crate::fabric::joint::JointLabel;
 use crate::fabric::{Fabric, JointKey};
 use glam::Vec3;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 impl Fabric {
     /// Move each mirror pair of joints (by label) to the mean of one and the
@@ -18,7 +18,7 @@ impl Fabric {
         let Some(symmetry @ LabelSymmetry::Mirror { .. }) = self.label_symmetry.clone() else {
             return;
         };
-        let by_label: HashMap<JointLabel, JointKey> = self
+        let by_label: BTreeMap<JointLabel, JointKey> = self
             .joints
             .iter()
             .filter_map(|(key, joint)| joint.label.map(|label| (label, key)))

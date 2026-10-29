@@ -615,10 +615,10 @@ impl ApplicationHandler<LabEvent> for Application {
                             .with_scene(|scene| scene.render_style_shows_attachment_points())
                             .unwrap_or(false);
 
-                        // Always recalculate attachment connections when toggling ON
-                        // because the structure may have deformed since last time
+                        // The hardware was committed when the build ended;
+                        // only its collisions depend on the current pose.
                         if is_now_on {
-                            self.crucible.update_attachment_connections();
+                            self.crucible.fabric.mark_connector_culprits();
                         }
 
                         RequestRedraw.send(&self.radio);

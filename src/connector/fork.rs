@@ -8,7 +8,7 @@
 //! highlighted by the renderer.
 
 use crate::connector::attachment::segment_segment_distance;
-use crate::units::{Degrees, Meters, Unit};
+use crate::units::{Meters, Unit};
 use glam::Vec3;
 
 // Cross-tube of the connector part (see docs/connectors.md).
@@ -78,50 +78,34 @@ pub const OVERLAP_PREFILTER: f32 = 2.0 * CLEVIS.overall_length.0;
 
 /// A bridle's node plate, the triangular steel plate its three cables'
 /// forks pin to (see `connector::node_plate`). ESTIMATES until it is drawn.
-/// From the plate's centre, where the cables' lines meet, to a hole: each
-/// hole sits as close in as its terminal allows (`NodePlate::new`), between
-/// these.
-pub const PLATE_HOLE_MIN_RADIUS: Meters = Meters(0.025);
-pub const PLATE_HOLE_MAX_RADIUS: Meters = Meters(0.070);
-/// What a cable gives up to its plate when a node is placed: a typical hole.
-pub const PLATE_HOLE_ALLOWANCE: Meters = Meters(0.040);
+/// Every plate is equilateral, this far hole to hole.
+pub const PLATE_SIDE: Meters = Meters(0.060);
 /// Steel round each hole: the radius of the plate's rounded corners.
 pub const PLATE_CORNER_RADIUS: Meters = Meters(0.016);
 /// Thick enough to bear the pins, thin enough for the forks' 14 mm jaw gap.
 pub const PLATE_THICKNESS: Meters = Meters(0.012);
 
-/// A bridle shackle, pin to pin: from the strut end's cross-tube to its node
-/// plate's hole. ESTIMATE.
-pub const SHACKLE_LENGTH: Meters = Meters(0.040);
-/// Where a bridle node whose plate hangs on a shackle starts, from its strut
-/// end: room for the cross-tube's reach, the shackle and a small plate's
-/// hole. ESTIMATE.
+/// A bridle's jaw–jaw swivel: a jaw like the jaw terminal's at each end,
+/// one pinned through the strut end's cross-tube and one through its node
+/// plate's hole, joined by a bearing so either turns freely about the
+/// link. ESTIMATES: confirm against a catalogue swivel for 6 mm.
+/// From a pin to the end of its jaw's block.
+pub const SWIVEL_JAW_LENGTH: Meters = Meters(0.031);
+/// The bearing between the two jaw blocks.
+pub const SWIVEL_BEARING_LENGTH: Meters = Meters(0.020);
+pub const SWIVEL_BEARING_RADIUS: Meters = Meters(0.009);
+/// Pin to pin.
+pub const SWIVEL_LENGTH: Meters = Meters(2.0 * SWIVEL_JAW_LENGTH.0 + SWIVEL_BEARING_LENGTH.0);
+/// Where a bridle node whose plate hangs on a swivel starts, from its strut
+/// end, before `Fabric::hang_bridles` fits its link to the swivel. Where
+/// nodes start tips Headless Hug's borderline collisions either way.
 pub const BRIDLE_LINK: Meters = Meters(0.100);
-/// Half the width of a bridle shackle, whose ears straddle the connector's
-/// cross-tube. ESTIMATE.
-pub const SHACKLE_RADIUS: Meters = Meters(0.012);
-
-/// Where a bridle node that is a clamp starts, from its strut end: the
-/// shackle on the cross-tube plus the clamp's eye. ESTIMATE.
-pub const CLAMP_LINK: Meters = Meters(0.090);
-/// Bridle clamp, a cheek block round a fixed grooved saddle. ESTIMATES
-/// until it is drawn. The cable's centreline wraps the saddle at this
-/// radius: about eight wire diameters, gentle enough for 6 mm wire.
-pub const SADDLE_RADIUS: Meters = Meters(0.025);
-/// The 6 mm wire's radius.
-pub const WIRE_RADIUS: Meters = Meters(0.003);
-/// Cheek plates: round the saddle, laser cut from stainless plate.
-pub const CHEEK_RADIUS: Meters = Meters(0.034);
-pub const CHEEK_THICKNESS: Meters = Meters(0.006);
-/// Between the cheeks: the wire and its clearance.
-pub const CHEEK_GAP: Meters = Meters(0.008);
-/// From the saddle's centre to the shackle pin through the cheeks' eye,
-/// clear of the wire on the saddle.
-pub const EYE_OFFSET: Meters = Meters(0.044);
-/// Metal round the eye.
-pub const EYE_RADIUS: Meters = Meters(0.012);
-/// The sharpest bend the clamp's saddle lets the cable take. ESTIMATE.
-pub const MAX_SADDLE_BEND: Degrees = Degrees(110.0);
+/// Half the width of a bridle swivel's jaws, for collision testing.
+/// ESTIMATE.
+pub const SWIVEL_RADIUS: Meters = Meters(0.012);
+/// A swivel link, where a cable from a node plate would be too short to
+/// make: a swivel stretched by a solid round bar, cut to length. ESTIMATE.
+pub const LINK_ROD_RADIUS: Meters = Meters(0.005);
 
 /// Half the width of a ring's boss, the arm out to the cross-tube.
 pub const BOSS_ARM_RADIUS: Meters = Meters(0.006);
@@ -129,7 +113,7 @@ pub const BOSS_ARM_RADIUS: Meters = Meters(0.006);
 /// `(segment start, segment end, radius)`.
 pub type Capsule = (Vec3, Vec3, f32);
 
-/// One assembled cable end for collision testing: its body (fork, shackle,
+/// One assembled cable end for collision testing: its body (fork, swivel,
 /// clamp or node plate) and, where it hangs on a ring, that ring's boss arm.
 #[derive(Clone, Copy, Debug)]
 pub struct Assembly {
@@ -150,36 +134,27 @@ impl Assembly {
     }
 }
 
-/// A bridle shackle for collision testing: from the connector pivot to the
+/// A bridle swivel for collision testing: from the connector pivot to the
 /// plate's hole.
-pub fn shackle_capsules(pivot: Vec3, hole: Vec3) -> Assembly {
+pub fn swivel_capsules(pivot: Vec3, hole: Vec3) -> Assembly {
     Assembly {
-        body: [(pivot, hole, SHACKLE_RADIUS.f32()); 3],
+        body: [(pivot, hole, SWIVEL_RADIUS.f32()); 3],
         arm: None,
     }
 }
 
-/// A bridle clamp's cheek block for collision testing: the round cheeks
-/// across and along the link direction, the latter reaching to the eye.
-pub fn clamp_capsules(saddle: Vec3, toward_link: Vec3, normal: Vec3) -> Assembly {
-    let across = toward_link.cross(normal);
-    let thick = CHEEK_GAP.f32() / 2.0 + CHEEK_THICKNESS.f32();
-    let reach = CHEEK_RADIUS.f32() - thick;
+/// A swivel link for collision testing: a jaw at each pin, the bearing and
+/// bar between them.
+pub fn link_capsules(pivot: Vec3, far: Vec3) -> Assembly {
+    let along = (far - pivot).normalize_or_zero() * SWIVEL_JAW_LENGTH.f32();
     Assembly {
         body: [
-            (saddle - across * reach, saddle + across * reach, thick),
-            (saddle - toward_link * reach, saddle + toward_link * EYE_OFFSET.f32(), thick),
-            (saddle + toward_link * EYE_OFFSET.f32(), saddle + toward_link * EYE_OFFSET.f32(), EYE_RADIUS.f32()),
+            (pivot, pivot + along, SWIVEL_RADIUS.f32()),
+            (pivot + along, far - along, SWIVEL_BEARING_RADIUS.f32()),
+            (far - along, far, SWIVEL_RADIUS.f32()),
         ],
         arm: None,
     }
-}
-
-/// Shortest side of a cable bent through a bridle clamp, from the far
-/// pivot to where it leaves the saddle: a terminal and half the free wire
-/// a cable needs.
-pub fn min_clamp_side() -> f32 {
-    CLEVIS.overall_length.f32() + MIN_FREE_WIRE.f32() / 2.0
 }
 
 /// A node plate for collision testing: its three edges, hole to hole,

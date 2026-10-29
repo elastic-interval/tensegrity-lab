@@ -230,11 +230,11 @@ def parse_csv(path: Path) -> ManualData:
             pulls_raw.append(row)
 
     # Classify a joint by its label shape (see docs/joint-naming.md):
-    #   sector joints <role><A|B|C><brick>.<pos> → sector 'A', 'B', 'C'
-    #   axis joints   Z<n>                       → 'H' (apex / on-axis)
+    #   sector joints <A|B|C><number> → sector 'A', 'B', 'C'
+    #   axis joints   Z<n>            → 'H' (apex / on-axis)
     def classify(joint: str) -> str:
-        m = _LEG_JOINT.match(joint)
-        return m.group(2) if m else "H"
+        m = _SECTOR_JOINT.match(joint)
+        return m.group(1) if m else "H"
 
     leg_counters: dict[str, int] = {"A": 0, "B": 0, "C": 0, "H": 0}
     struts: list[Strut] = []
@@ -387,6 +387,9 @@ def rotational_angle(strut: Strut, is_alpha: bool, disc: Disc,
 #   - axis joints:   Z<n>                               e.g. Z1, Z2 (apex)
 _LEG_JOINT  = re.compile(r"^([A-Z])([ABC])(\d\d)\.(\d+)$")   # role, sector, brick, position
 _AXIS_JOINT = re.compile(r"^Z(\d+)$")
+# Short names (docs/joint-naming.md) carry no brick: `<sector><number>`.
+# TODO: strut categorisation below still expects the brick-carrying form.
+_SECTOR_JOINT = re.compile(r"^([ABC])(\d+)$")
 
 
 def _parse_label(joint: str) -> tuple[str, int, int] | None:
@@ -414,9 +417,9 @@ def _rotate_letter(c: str) -> str:
 
 def _rotate_label(label: str) -> str:
     """Cycle the sector letter A→B→C→A. Axis singletons (`Z<n>`) are unchanged."""
-    m = _LEG_JOINT.match(label)
+    m = _SECTOR_JOINT.match(label)
     if m:
-        return m.group(1) + _rotate_letter(m.group(2)) + m.group(3) + "." + m.group(4)
+        return _rotate_letter(m.group(1)) + m.group(2)
     return label
 
 

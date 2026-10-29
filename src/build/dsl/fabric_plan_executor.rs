@@ -1,4 +1,4 @@
-use crate::build::dsl::build_phase::number_axial_by_height;
+use crate::build::dsl::build_phase::{number_axial_by_height, number_twins_by_height};
 use crate::build::dsl::plan_runner::PlanRunner;
 use crate::build::dsl::FabricPlan;
 use crate::build::settler::Settler;
@@ -368,6 +368,10 @@ impl FabricPlanExecutor {
             self.fabric.remove_face(face_key);
         }
 
+        // The fabric stands: twins get their short names before any plan
+        // step names one.
+        number_twins_by_height(&mut self.fabric);
+
         for (keep, merge) in &self.plan.pretense_phase.hinge_pairs {
             match (self.fabric.joint_key_by_label(keep), self.fabric.joint_key_by_label(merge)) {
                 (Some(k), Some(m)) => self.fabric.hinge(k, m),
@@ -375,8 +379,8 @@ impl FabricPlanExecutor {
             }
         }
 
-        // Every Z exists now and the fabric stands: number them bottom to
-        // top before any plan step names one.
+        // Every Z exists now, hinge pins included: number them bottom to
+        // top before the plan's omits and bridles name one.
         number_axial_by_height(&mut self.fabric);
 
         // Omit triangle intervals after faces are converted
@@ -461,7 +465,7 @@ impl FabricPlanExecutor {
         });
 
         self.fabric.update_bounding_radius();
-        self.fabric.hang_clamps();
+        self.fabric.hang_bridles();
 
         let mass_multiplier = self.physics.mass_multiplier();
         let rigidity_multiplier = self.physics.rigidity_multiplier();
@@ -532,7 +536,7 @@ impl FabricPlanExecutor {
             self.fabric.create_fixed_interval(joint, ground, Role::GuyLine, length);
         }
 
-        self.fabric.hang_clamps();
+        self.fabric.hang_bridles();
         self.settle_phase_start_age = Some(self.fabric.age);
         self.stage = ExecutorStage::Settling;
     }

@@ -142,8 +142,10 @@ impl CylinderRenderer {
                 WithPushMap { .. } if !push => continue,
                 _ => {}
             }
-            // In the connector view a plate's shackle is a part, not a cable.
-            if show_attachment_points && crate::connector::system::is_shackle(fabric, interval_key) {
+            // In the connector view a plate's swivel or link is a part, not
+            // a cable.
+            let link = fabric.connector.as_ref().is_some_and(|c| c.link_length(interval_key).is_some());
+            if show_attachment_points && (crate::connector::system::is_swivel(fabric, interval_key) || link) {
                 continue;
             }
             let (alpha, omega) = (interval.alpha_key, interval.omega_key);
@@ -257,15 +259,10 @@ impl CylinderRenderer {
                     for (i, joint_key) in joint_keys.iter().enumerate() {
                         let other_joint_pos = fabric.joints[other_joint_keys[i]].location;
 
-                        // At a bridle node the cable leaves its clamp's
-                        // saddle on a tangent, or ends in its terminal,
+                        // At a bridle node the cable ends in its terminal,
                         // pinned through its hole in the node plate.
                         if fabric.bridle_nodes.contains_key(joint_key) {
-                            if let Some(clamp) = connector.bridle_clamp(*joint_key) {
-                                if let Some(tangent) = clamp.tangent(pull_key) {
-                                    *modified_points[i] = tangent;
-                                }
-                            } else if let Some(hole) = connector.pull_end_pivot(fabric, pull_key, *joint_key) {
+                            if let Some(hole) = connector.pull_end_pivot(fabric, pull_key, *joint_key) {
                                 let aim = connector
                                     .pull_end_pivot(fabric, pull_key, other_joint_keys[i])
                                     .unwrap_or(other_joint_pos);

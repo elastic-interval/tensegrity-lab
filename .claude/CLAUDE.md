@@ -117,11 +117,10 @@ angles or per-position variants:
 - `fork.rs` — cable-end fork terminal (clevis) estimates + capsule model
   for collision culprit marking.
 - `node_plate.rs` — `NodePlate`: a triangular plate at a bridle node
-  (`Fabric::bridle`, DSL `.bridle(...)`) hung on a shackle, which two whole
+  (`Fabric::bridle`, DSL `.bridle(...)`) hung on a swivel, which two whole
   cables' terminals pin to, taking two cables off a crowded stack.
-- `bridle_clamp.rs` — `BridleClamp`: the bridle node where a plate would
-  leave a cable too short: a clamp gripping one continuous cable over a
-  saddle, on a shackle.
+  Every plate is one equilateral part; a plate cable too short to make
+  is a swivel link (`ConnectorSystem::link_length`).
 - `system.rs` — `ConnectorSystem`: owns `ConnectorDimensions`, a
   `SecondaryMap<IntervalKey, PullConnections>` of slot assignments, and
   `culprits` (cable ends whose assemblies physically collide, marked once
@@ -130,9 +129,9 @@ angles or per-position variants:
 Fabrics opt in per plan via `FabricDimensions::with_connector()`; the config
 becomes `Fabric::connector` at construction. `None` (the default) means
 connectors play no role anywhere: no slot assignment, no rendering, and the
-C-key toggle is inert. Slot assignments are rebuilt on demand (Viewing
-entry, attachment-point toggle-ON, CSV export) — not incrementally during
-build.
+C-key toggle is inert. Slot assignments and part shapes are committed when
+the fabric enters Viewing (and for CSV export) — not incrementally during
+build, and not again afterwards: animation and the C key keep them.
 
 ### Time
 
@@ -303,10 +302,11 @@ trunk serve
 1. **Iterations per frame is computed, not constant.** Don't hardcode iteration
    counts; let the outer loop do `time_scale × iterations_per_second / fps`.
 
-2. **Slot assignment is rebuilt, not incremental.** Connector slot
-   assignments are recomputed on entering Viewing
-   (`Crucible::finalize_to_viewing`), attachment-point toggle-ON, and CSV
-   export. Don't trigger rebuilds from elsewhere.
+2. **Slot assignment is committed, not incremental.** Connector slot
+   assignments and part shapes are settled once on entering Viewing
+   (`Crucible::finalize_to_viewing`), and for CSV export. Toggling
+   attachment points ON only re-marks collisions. Don't trigger rebuilds
+   from elsewhere.
 
 3. **Coordinate systems.** Simulation is Y-up. CSV export converts to Z-up via
    `sim_to_csv()` in `open_claw_symmetry.rs`. The Blender import pipeline

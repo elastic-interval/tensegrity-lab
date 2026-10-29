@@ -12,21 +12,25 @@ use crate::units::{Grams, Meters, Unit};
 use glam::Vec3;
 use std::fmt::{self, Display, Formatter};
 
-/// Engraver-friendly joint label (see `docs/joint-naming.md`). `OffAxis`
-/// reads as `<role><letter><brick>.<position>`: the limb's role (A arm, L leg,
-/// T torso) and the member letter telling symmetric copies apart (L/R, or
-/// A/B/C), e.g. `AL02.3`. Fabrics without a symmetry have no role and keep
-/// one letter per limb (`A01.1`). `Axial` reads as `Z<index>`, for joints on
-/// the mirror plane or rotation axis. A bridle node takes its host joint's
-/// label with a `b` suffix (`LL02.4b`, `Z9b`). Ordering is derived (OffAxis
-/// before Axial, then by field), giving `LabelSymmetry::orbit_key` its
-/// canonical minimum.
+/// Engraver-friendly joint label (see `docs/joint-naming.md`). A symmetric
+/// fabric's joints end up as `Twin`, `<letter><number>`: the member letter
+/// telling symmetric copies apart (L/R, or A/B/C) and a number shared by
+/// all copies, counted bottom to top (`L12` / `R12`). `Axial` reads as
+/// `Z<index>`, for joints on the mirror plane or rotation axis, counted
+/// bottom to top on their own. `OffAxis`, `<role><letter><brick>.<position>`,
+/// is the build-time address the twins are numbered from (role A arm, L leg,
+/// T torso, e.g. `AL02.3`); fabrics without a symmetry keep it, without a
+/// role (`A01.1`). A bridle node takes its host joint's label with a `b`
+/// suffix (`L12b`, `Z3b`). Ordering is derived (by variant, then field),
+/// giving `LabelSymmetry::orbit_key` its canonical minimum.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum JointLabel {
     OffAxis { role: Option<char>, letter: char, brick: u8, position: u8 },
     Axial { index: u16 },
     BridleOffAxis { role: Option<char>, letter: char, brick: u8, position: u8 },
     BridleAxial { index: u16 },
+    Twin { letter: char, number: u16 },
+    BridleTwin { letter: char, number: u16 },
 }
 
 impl JointLabel {
@@ -37,6 +41,7 @@ impl JointLabel {
                 JointLabel::BridleOffAxis { role, letter, brick, position }
             }
             JointLabel::Axial { index } => JointLabel::BridleAxial { index },
+            JointLabel::Twin { letter, number } => JointLabel::BridleTwin { letter, number },
             bridle => bridle,
         }
     }
@@ -55,6 +60,8 @@ impl Display for JointLabel {
                 write!(f, "{role}{letter}{brick:02}.{position}b")
             }
             JointLabel::BridleAxial { index } => write!(f, "Z{index}b"),
+            JointLabel::Twin { letter, number } => write!(f, "{letter}{number}"),
+            JointLabel::BridleTwin { letter, number } => write!(f, "{letter}{number}b"),
         }
     }
 }

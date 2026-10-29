@@ -22,7 +22,7 @@ mod tests {
     use crate::build::dsl::fabric_dsl::Pct;
     use crate::build::dsl::fabric_library::{self, headless_hug_plan, FabricName, HeadlessHugShape};
     use crate::connector::parts::{placements, Part};
-    use crate::connector::system::is_shackle;
+    use crate::connector::system::is_swivel;
     use crate::fabric::interval::Role;
     use crate::fabric::joint::JointLabel;
     use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
@@ -35,9 +35,8 @@ mod tests {
         intervals: usize,
         culprits: usize,
         short_cables: usize,
-        over_bent: usize,
-        /// Cables as built: a cable bent through a bridle clamp is one, and
-        /// a bridle's shackle isn't a cable.
+        /// Cables as built: a bridle's swivel and a swivel link aren't
+        /// cables.
         cables: usize,
         height: f32,
         finite: bool,
@@ -46,7 +45,7 @@ mod tests {
     impl Outcome {
         /// Everything that stands between this fabric and a build.
         fn problems(&self) -> usize {
-            self.culprits + self.short_cables + self.over_bent
+            self.culprits + self.short_cables
         }
     }
 
@@ -72,13 +71,13 @@ mod tests {
             intervals: fabric.intervals.len(),
             culprits: connector.culprits.len(),
             short_cables: connector.short_cables.len(),
-            over_bent: connector.over_bent.len(),
             cables: fabric
                 .intervals
                 .iter()
-                .filter(|(key, i)| i.role.is_pull_like() && !is_shackle(&fabric, *key))
-                .count()
-                - fabric.bridle_clamps.len(),
+                .filter(|(key, i)| {
+                    i.role.is_pull_like() && !is_swivel(&fabric, *key) && connector.link_length(*key).is_none()
+                })
+                .count(),
             height: high - low,
             finite: fabric.joints.values().all(|joint| joint.location.is_finite()),
         };
@@ -344,7 +343,7 @@ mod tests {
 
     /// Greedily bridles: each round reruns the plan with every candidate on
     /// top of those already chosen, keeps the one leaving the fewest problems
-    /// (collisions, short cables, over-bent clamps) without moving the
+    /// (collisions, short cables) without moving the
     /// settled height by more than `HEIGHT_TOLERANCE`, and stops when none
     /// helps. Prints the `bridle` entries to paste.
     #[test]
@@ -356,11 +355,10 @@ mod tests {
         loop {
             let (fabric, current) = run_plan(name, &[], &chosen);
             eprintln!(
-                "{} problems: {} culprit ends, {} short cables, {} over-bent; {} cables, height {:.2} m, {} bridles",
+                "{} problems: {} culprit ends, {} short cables; {} cables, height {:.2} m, {} bridles",
                 current.problems(),
                 current.culprits,
                 current.short_cables,
-                current.over_bent,
                 current.cables,
                 current.height,
                 chosen.len()
@@ -393,17 +391,16 @@ mod tests {
     }
 
     /// Headless Hug must stay buildable: no colliding connectors, no cable
-    /// too short for its terminals, no clamp bending its cable past the
-    /// saddle. Collision counts are fragile — small changes to the plan
+    /// too short for its terminals. Collision counts are fragile — small changes to the plan
     /// can tip borderline cases — so any change to it must keep this green.
     #[test]
     fn headless_hug_is_buildable() {
         let (_, outcome) = run_plan(FabricName::HeadlessHug, &[], &[]);
         assert!(outcome.finite);
         assert_eq!(
-            (outcome.culprits, outcome.short_cables, outcome.over_bent),
-            (0, 0, 0),
-            "Headless Hug has build problems (culprit ends, short cables, over-bent clamps): \
+            (outcome.culprits, outcome.short_cables),
+            (0, 0),
+            "Headless Hug has build problems (culprit ends, short cables): \
              inspect in the app (C key) and rerun greedy_headless_hug_bridles"
         );
     }
@@ -472,7 +469,7 @@ mod tests {
         let height = high - low;
         let special_parts = placements(fabric)
             .iter()
-            .filter(|p| matches!(p.part, Part::CustomDisc(_) | Part::Spacer { .. } | Part::NodePlate(_) | Part::Shackle | Part::Clamp))
+            .filter(|p| matches!(p.part, Part::CustomDisc(_) | Part::Spacer { .. } | Part::NodePlate(_) | Part::Swivel | Part::Link { .. }))
             .count();
         Verdict {
             culprits: connector.culprits.len(),

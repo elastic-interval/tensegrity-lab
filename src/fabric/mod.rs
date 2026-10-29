@@ -214,12 +214,9 @@ pub struct Fabric {
     /// Free nodes made by `bridle`, each a node plate joining three cables,
     /// with the link from its strut end.
     pub bridle_nodes: HashMap<JointKey, IntervalKey>,
-    /// The bridle links that are shackles, not cables: their node plate or
-    /// clamp hangs close to the strut end.
-    pub bridle_shackles: HashSet<IntervalKey>,
-    /// The bridle nodes that are clamps gripping one continuous cable, not
-    /// node plates: where a plate would leave a cable too short to make.
-    pub bridle_clamps: HashSet<JointKey>,
+    /// The bridle links that are swivels, not cables: their node plate
+    /// hangs close to the strut end.
+    pub bridle_swivels: HashSet<IntervalKey>,
 
     cached_bounding_radius: f32,
     approaching_count: usize,
@@ -250,8 +247,7 @@ impl Fabric {
             label_symmetry: None,
             hinge_strut: HashMap::new(),
             bridle_nodes: HashMap::new(),
-            bridle_shackles: HashSet::new(),
-            bridle_clamps: HashSet::new(),
+            bridle_swivels: HashSet::new(),
             limb_names: HashMap::new(),
             approaching_count: 0,
             quiet_since: None,
@@ -297,9 +293,14 @@ impl Fabric {
         };
         connector.update_all_connections(self);
         self.connector = Some(connector);
+        // Settle each part's shape now, on the symmetric shape.
+        let parts = crate::connector::parts::placements(self).into_iter().map(|p| p.part).collect();
+        if let Some(connector) = self.connector.as_mut() {
+            connector.frozen_parts = parts;
+        }
     }
 
-    /// Move the bridle nodes' plates and clamps along with their joints.
+    /// Move the bridle nodes' plates along with their joints.
     pub fn refresh_bridle_nodes(&mut self) {
         if self.bridle_nodes.is_empty() {
             return;

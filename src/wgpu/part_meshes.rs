@@ -3,9 +3,8 @@
 //! instanced at every placement.
 
 use crate::connector::fork::{
-    ClevisDimensions, CHEEK_GAP, CHEEK_RADIUS, CHEEK_THICKNESS, CLEVIS, EYE_OFFSET, EYE_RADIUS,
-    PLATE_CORNER_RADIUS, PLATE_THICKNESS, SADDLE_RADIUS, SHACKLE_LENGTH, TUBE_LENGTH, WIRE_RADIUS,
-    TUBE_RADIUS,
+    ClevisDimensions, CLEVIS, LINK_ROD_RADIUS, PLATE_CORNER_RADIUS, PLATE_THICKNESS, SWIVEL_BEARING_LENGTH,
+    SWIVEL_BEARING_RADIUS, SWIVEL_JAW_LENGTH, SWIVEL_LENGTH, TUBE_LENGTH, TUBE_RADIUS,
 };
 use crate::connector::parts::Part;
 use crate::units::Unit;
@@ -24,8 +23,6 @@ const SMOOTH_ANGLE_COS: f32 = 0.85;
 const BOSS_REACH: f32 = 1.2; // R_flat / (D_ring/2) = 24/20
 const BOSS_HALF_WIDTH: f32 = 0.3; // (w_boss/2) / (D_ring/2) = 6/20
 const RING_ARC_SEGMENTS: usize = 48;
-// The shackle is drawn as a rod; its collision envelope is `fork::SHACKLE_RADIUS`.
-const SHACKLE_ROD_RADIUS: f32 = 0.005;
 
 /// A part's mesh on the GPU, with the sphere bounding it in its own frame.
 pub struct PartMesh {
@@ -247,8 +244,9 @@ impl Wgpu {
                 mesh.lathe(Vec3::Y, &[(-half, TUBE_RADIUS), (half, TUBE_RADIUS)]);
             }
             Part::Clevis => clevis(&mut mesh, &CLEVIS),
-            Part::Shackle => mesh.lathe(Vec3::X, &[(0.0, SHACKLE_ROD_RADIUS), (SHACKLE_LENGTH.f32(), SHACKLE_ROD_RADIUS)]),
-            Part::Clamp => clamp(&mut mesh),
+            Part::Swivel => swivel(&mut mesh, SWIVEL_LENGTH.f32()),
+            Part::Link { mm } => swivel(&mut mesh, mm as f32 / 1000.0),
+            Part::SwivelJaw => jaw(&mut mesh, &CLEVIS, SWIVEL_JAW_LENGTH.f32()),
             Part::NodePlate(shape) => {
                 let corners: Vec<(Vec2, f32)> = shape
                     .holes
@@ -309,44 +307,16 @@ fn ring(mesh: &mut Mesh, radius: f32, thickness: f32, bosses: &[(f32, f32)]) {
     mesh.extrude(&outline, -thickness / 2.0, thickness / 2.0);
 }
 
-/// The bridle clamp, saddle centre at the origin, eye along +x, cheeks
-/// square to y: two cheek plates round the saddle and the eye, the grooved
-/// saddle spool between them (drawn at the groove's floor), the keeper
-/// pressing the wire into the groove on the eye side with two bolts, and
-/// the shackle pin through the eye.
-fn clamp(mesh: &mut Mesh) {
-    let gap = CHEEK_GAP.f32() / 2.0;
-    let outer = gap + CHEEK_THICKNESS.f32();
-    let eye = EYE_OFFSET.f32();
-    let cheek = hull_of_circles(&[
-        (Vec2::ZERO, CHEEK_RADIUS.f32()),
-        (Vec2::new(eye, 0.0), EYE_RADIUS.f32()),
-    ]);
-    mesh.extrude(&cheek, gap, outer);
-    mesh.extrude(&cheek, -outer, -gap);
-
-    let groove_floor = SADDLE_RADIUS.f32() - WIRE_RADIUS.f32();
-    mesh.lathe(Vec3::Y, &[(-gap, groove_floor), (gap, groove_floor)]);
-
-    // Keeper block over the wire, between the cheeks.
-    let wire_top = SADDLE_RADIUS.f32() + WIRE_RADIUS.f32();
-    let keeper_top = (eye - EYE_RADIUS.f32() / 2.0).max(wire_top + 0.004);
-    let half_width = 0.010;
-    let keeper = [
-        Vec2::new(wire_top, -half_width),
-        Vec2::new(keeper_top, -half_width),
-        Vec2::new(keeper_top, half_width),
-        Vec2::new(wire_top, half_width),
-    ];
-    mesh.extrude(&keeper, -gap, gap);
-
-    // Keeper bolts and the shackle pin, through both cheeks.
-    let through = outer + 0.003;
-    let bolt_x = (wire_top + keeper_top) / 2.0;
-    for z in [-half_width * 0.6, half_width * 0.6] {
-        mesh.lathe_at(Vec3::new(bolt_x, 0.0, z), Vec3::Y, &[(-through, 0.003), (through, 0.003)]);
-    }
-    mesh.lathe_at(Vec3::new(eye, 0.0, 0.0), Vec3::Y, &[(-through, 0.005), (through, 0.005)]);
+/// A swivel `length` pin to pin: its near jaw pinned at the origin, the
+/// bearing along +x, then any solid bar to where the far jaw
+/// (`Part::SwivelJaw`) begins.
+fn swivel(mesh: &mut Mesh, length: f32) {
+    let jaw_length = SWIVEL_JAW_LENGTH.f32();
+    jaw(mesh, &CLEVIS, jaw_length);
+    let (bearing, rod) = (SWIVEL_BEARING_RADIUS.f32(), LINK_ROD_RADIUS.f32());
+    let bearing_end = jaw_length + SWIVEL_BEARING_LENGTH.f32();
+    let far_jaw = (length - jaw_length).max(bearing_end);
+    mesh.lathe(Vec3::X, &[(jaw_length, bearing), (bearing_end, bearing), (bearing_end, rod), (far_jaw, rod)]);
 }
 
 /// The convex outline round discs given as (centre, radius), in the x/z
@@ -379,13 +349,32 @@ fn hull_of_circles(circles: &[(Vec2, f32)]) -> Vec<Vec2> {
 /// origin, +x along the cable toward the barrel, +y along the pin toward
 /// its head.
 fn clevis(mesh: &mut Mesh, c: &ClevisDimensions) {
+    let block_end = c.jaw_block_end();
+    jaw(mesh, c, block_end);
+    let jaw_half = c.jaw_half_thickness();
+    let width_half = c.plate_width.f32() / 2.0;
+    let length = c.overall_length.f32();
+    // Neck and swaged barrel, tapering where the wire enters.
+    mesh.lathe(
+        Vec3::X,
+        &[
+            (block_end, jaw_half.min(width_half)),
+            (block_end + c.neck_length.f32(), c.barrel_radius.f32()),
+            (length - c.barrel_taper.f32(), c.barrel_radius.f32()),
+            (length, c.barrel_tip_radius.f32()),
+        ],
+    );
+}
+
+/// A jaw with its pin and split ring, as on the jaw terminal: pin centre at
+/// the origin along +y toward its head, the solid block out along +x to
+/// `block_end`.
+fn jaw(mesh: &mut Mesh, c: &ClevisDimensions, block_end: f32) {
     let gap_half = c.jaw_gap.f32() / 2.0;
     let jaw_half = c.jaw_half_thickness();
     let width_half = c.plate_width.f32() / 2.0;
     let tip = c.pin_to_tip.f32();
     let jaw_base = c.pin_to_jaw_base.f32();
-    let block_end = c.jaw_block_end();
-    let length = c.overall_length.f32();
 
     // Jaw plates: rounded tip around the pin, running back into the
     // solid block. The block between them closes the slot at the jaw base.
@@ -407,17 +396,6 @@ fn clevis(mesh: &mut Mesh, c: &ClevisDimensions) {
         Vec2::new(jaw_base, width_half),
     ];
     mesh.extrude(&block, -gap_half, gap_half);
-
-    // Neck and swaged barrel, tapering where the wire enters.
-    mesh.lathe(
-        Vec3::X,
-        &[
-            (block_end, jaw_half.min(width_half)),
-            (block_end + c.neck_length.f32(), c.barrel_radius.f32()),
-            (length - c.barrel_taper.f32(), c.barrel_radius.f32()),
-            (length, c.barrel_tip_radius.f32()),
-        ],
-    );
 
     // Headed pin, overhanging the far jaw for the split ring's cross-hole.
     let far_end = -jaw_half - c.pin_overhang.f32();

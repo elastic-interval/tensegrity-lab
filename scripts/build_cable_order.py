@@ -34,13 +34,12 @@ from pathlib import Path
 # ── Joint-label rotation ────────────────────────────────────────────────────
 # Under 120° rotation about the central axis, sector letters cycle A→B→C→A.
 # Under the naming scheme (see docs/joint-naming.md):
-#   - Off-axis joints look like `<role><sector><brick>.<position>` (e.g.
-#     LA02.3, TB00.1). Rotation cycles the sector letter only; role, brick
-#     and position are preserved.
+#   - Off-axis joints look like `<sector><number>` (e.g. A12, B12, C12).
+#     Rotation cycles the sector letter only; the number is shared.
 #   - Axis singletons look like `Z<n>` (e.g. Z1, Z2). They sit on the
 #     rotation axis and map to themselves under 120°.
 
-_LEG_JOINT = re.compile(r"^([A-Z])([ABC])(\d\d\.\d+)$")
+_LEG_JOINT = re.compile(r"^([ABC])(\d+)$")
 _AXIS_JOINT = re.compile(r"^Z(\d+)$")
 
 
@@ -51,7 +50,7 @@ def _rotate_letter(c: str) -> str:
 def rotate_label(label: str) -> str:
     m = _LEG_JOINT.match(label)
     if m:
-        return m.group(1) + _rotate_letter(m.group(2)) + m.group(3)
+        return _rotate_letter(m.group(1)) + m.group(2)
     return label  # axis singleton (Z<n>) or unrecognised shape — unchanged
 
 

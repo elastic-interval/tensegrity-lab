@@ -312,7 +312,6 @@ impl Scene {
     pub fn resize(&mut self, PhysicalSize { width, height }: PhysicalSize<u32>) {
         self.wgpu.resize((width, height));
         self.camera.set_size(width as f32, height as f32);
-        // the texture!
     }
 
     pub fn pointer_changed(&mut self, pointer_changed: PointerChange, fabric: &Fabric) {

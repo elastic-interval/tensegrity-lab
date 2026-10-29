@@ -494,8 +494,4 @@ impl Crucible {
             self.stage = new_stage;
         }
     }
-
-    pub fn update_attachment_connections(&mut self) {
-        self.fabric.update_all_attachment_connections();
-    }
 }
