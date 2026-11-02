@@ -227,6 +227,19 @@ impl Fabric {
     }
 
     /// The first unused `Z<n>` label, for joints added on the mirror plane.
+    pub fn next_twin_number(&self) -> u16 {
+        let highest = self
+            .joints
+            .values()
+            .filter_map(|joint| match joint.label {
+                Some(JointLabel::Twin { number, .. }) => Some(number),
+                _ => None,
+            })
+            .max()
+            .unwrap_or(0);
+        highest + 1
+    }
+
     pub fn next_axial_label(&self) -> JointLabel {
         let highest = self
             .joints

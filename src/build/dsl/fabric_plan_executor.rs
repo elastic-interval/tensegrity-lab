@@ -1,4 +1,6 @@
-use crate::build::dsl::build_phase::{number_axial_by_height, number_twins_by_height};
+use crate::build::dsl::build_phase::{number_axial_by_build_order, number_twins_by_build_order};
+use crate::connector::system::hinge_struts;
+use crate::fabric::joint::JointLabel;
 use crate::build::dsl::plan_runner::PlanRunner;
 use crate::build::dsl::FabricPlan;
 use crate::build::settler::Settler;
@@ -396,9 +398,8 @@ impl FabricPlanExecutor {
             self.fabric.remove_face(face_key);
         }
 
-        // The fabric stands: twins get their short names before any plan
-        // step names one.
-        number_twins_by_height(&mut self.fabric);
+        // Twins get their short names before any plan step names one.
+        number_twins_by_build_order(&mut self.fabric);
 
         let shape_failures = self.plan_runner.as_ref().map(|runner| runner.plan_failures().to_vec()).unwrap_or_default();
         for failure in shape_failures {
@@ -412,9 +413,9 @@ impl FabricPlanExecutor {
             }
         }
 
-        // Every Z exists now, hinge pins included: number them bottom to
-        // top before the plan's omits and bridles name one.
-        number_axial_by_height(&mut self.fabric);
+        // Every Z exists now, hinge pins included: number them before the
+        // plan's omits and bridles name one.
+        number_axial_by_build_order(&mut self.fabric);
 
         // Omit triangle intervals after faces are converted
         for (alpha_label, omega_label) in self.plan.pretense_phase.omit_pairs.clone() {
@@ -439,6 +440,12 @@ impl FabricPlanExecutor {
             };
             if bridled.is_none() {
                 self.plan_step_failed(format!("could not bridle ({joint}: {a}, {b})"));
+            }
+        }
+
+        if self.fabric.connector.is_some() {
+            for failure in self.fabric.split_hinge_cables() {
+                self.plan_step_failed(failure);
             }
         }
 
@@ -545,17 +552,39 @@ impl FabricPlanExecutor {
         });
 
         let guy_lines = self.plan.settle_phase.as_ref().map(|p| p.guy_lines.clone()).unwrap_or_default();
+        // Anchors of twin joints' guy lines are twins too, one number for
+        // the same line on each side.
+        let mut anchor_numbers: Vec<((u16, u32, u32), u16)> = Vec::new();
         for guy_line in guy_lines {
             let Some(joint) = self.fabric.joint_key_by_label(&guy_line.joint) else {
                 self.plan_step_failed(format!("no joint for guy line ({})", guy_line.joint));
                 continue;
             };
+            if hinge_struts(&self.fabric, joint).is_some() {
+                self.plan_step_failed(format!("guy line at hinge {}: no cable may end on a hinge", guy_line.joint));
+                continue;
+            }
             let landed = self.fabric.location(joint);
             let (dx, dz) = guy_line.ground_offset;
             let ground = self
                 .fabric
                 .create_joint(glam::Vec3::new(landed.x + dx.f32(), 0.0, landed.z + dz.f32()));
-            self.fabric.joints[ground].label = Some(self.fabric.next_axial_label());
+            let label = match self.fabric.joints[joint].label {
+                Some(JointLabel::Twin { letter, number }) => {
+                    let line = (number, dx.f32().abs().to_bits(), dz.f32().to_bits());
+                    let anchor = match anchor_numbers.iter().find(|(key, _)| *key == line) {
+                        Some(&(_, anchor)) => anchor,
+                        None => {
+                            let anchor = self.fabric.next_twin_number();
+                            anchor_numbers.push((line, anchor));
+                            anchor
+                        }
+                    };
+                    JointLabel::Twin { letter, number: anchor }
+                }
+                _ => self.fabric.next_axial_label(),
+            };
+            self.fabric.joints[ground].label = Some(label);
             let length = self.fabric.distance(joint, ground) * guy_line.length.as_factor();
             self.fabric.create_fixed_interval(joint, ground, Role::GuyLine, length);
         }

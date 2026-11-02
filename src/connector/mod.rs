@@ -4,6 +4,7 @@
 
 pub mod attachment;
 pub mod dimensions;
+pub mod dxf;
 pub mod fork;
 pub mod node_plate;
 pub mod parts;

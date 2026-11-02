@@ -167,8 +167,21 @@ duration as the first argument:
 | `.down(Sec, [FaceLabel; N])` | Rotate so the average normal of these faces points down |
 | `.centralize(Sec)` | Center horizontally |
 | `.centralize_at(Sec, M)` | Center at the given altitude |
-| `.omit([(name, name); N])` | Remove specific intervals by joint-label pair |
 | `.add(Sec, [(name, name, Pct); N])` | Add an interval; Pct<100 → pull, Pct>100 → push |
+
+**Edits by joint name.** These three are written among the shape steps but
+take effect when pretensing starts, once the joints have their final short
+names ([joint-naming.md](joint-naming.md)), in this order:
+
+| Operation | Description |
+|-----------|-------------|
+| `.hinge([(keep, merge); N])` | Pin the struts ending at two joints together where their axes cross; `merge` folds into `keep` (a mirror pair becomes a new `Z`) |
+| `.omit([(name, name); N])` | Remove the interval between each pair of joints |
+| `.bridle([(joint, a, b); N])` | Take the cables `joint`–`a` and `joint`–`b` off through a node plate on a fork rod from `joint` (named `<joint>b`); see [connectors.md](connectors.md) |
+
+A step naming a joint or cable the fabric doesn't have is reported as a
+failed plan step (`FabricPlanExecutor::plan_failures`), and the tests
+require every plan to apply cleanly.
 
 **Parallel join with `tips(...)` helper:**
 
@@ -225,7 +238,17 @@ Calm the structure with progressive damping until stable.
 
 ```rust
 .settle(Sec(duration))
+    .guy_lines([                        // optional, created on landing
+        guy_line("L14", (M(0.0), M(5.5)), Pct(97.0)),
+    ])
 ```
+
+`guy_line(joint, (x, z), length)` runs from the joint to the ground at a
+horizontal offset from where the joint lands, at a percentage of that
+distance. It can't start at a hinge, where no cable may end. The ground
+anchors are new joints: from a twin joint, a twin with
+the next free number, shared with the same line on the other side; from a
+`Z` joint, the next free `Z`.
 
 ### 6. ANIMATE Phase (optional)
 
@@ -250,7 +273,9 @@ paste back into the DSL.
 **Phase offset** in `phase(Pct(offset))`: `Pct(0.0)` contracts at cycle
 start, `Pct(50.0)` is opposite-phase.
 
-**Attachments:** `.between(joint_a, joint_b)` or
+**Attachments:** `.between(joint_a, joint_b)` (a new actuator interval),
+`.interval(alpha, omega)` (drive the interval already joining two
+labelled joints, such as a guy line; restored when the animation stops), or
 `.surface(joint, (x, z))` (anchored to a ground point).
 
 **Waveforms:** `.sine()` (default) or `.pulse(Pct(duty))`.

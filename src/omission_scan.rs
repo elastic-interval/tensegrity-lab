@@ -22,7 +22,7 @@ mod tests {
     use crate::build::dsl::fabric_dsl::Pct;
     use crate::build::dsl::fabric_library::{self, headless_hug_plan, FabricName, HeadlessHugShape};
     use crate::connector::parts::{placements, Part};
-    use crate::connector::system::is_swivel;
+    use crate::connector::system::is_hanger;
     use crate::fabric::interval::Role;
     use crate::fabric::joint::JointLabel;
     use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
@@ -35,7 +35,7 @@ mod tests {
         intervals: usize,
         culprits: usize,
         short_cables: usize,
-        /// Cables as built: a bridle's swivel and a swivel link aren't
+        /// Cables as built: a bridle's hanger and a fork rod aren't
         /// cables.
         cables: usize,
         height: f32,
@@ -75,7 +75,7 @@ mod tests {
                 .intervals
                 .iter()
                 .filter(|(key, i)| {
-                    i.role.is_pull_like() && !is_swivel(&fabric, *key) && connector.link_length(*key).is_none()
+                    i.role.is_pull_like() && !is_hanger(&fabric, *key) && connector.link_length(*key).is_none()
                 })
                 .count(),
             height: high - low,
@@ -469,7 +469,7 @@ mod tests {
         let height = high - low;
         let special_parts = placements(fabric)
             .iter()
-            .filter(|p| matches!(p.part, Part::CustomDisc(_) | Part::Spacer { .. } | Part::NodePlate(_) | Part::Swivel | Part::Link { .. }))
+            .filter(|p| matches!(p.part, Part::CustomDisc(_) | Part::Spacer { washers: 2.. } | Part::NodePlate(_) | Part::RodFork))
             .count();
         Verdict {
             culprits: connector.culprits.len(),

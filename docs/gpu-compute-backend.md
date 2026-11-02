@@ -31,15 +31,15 @@ tensegrity-lab/src/
 ├── fabric/               # unchanged — CPU authority for building
 ├── build/                # unchanged — DSL, oven, plan executor
 ├── wgpu/                 # unchanged — rendering only
-└── physics_gpu/          # NEW — frozen fabrics + parallel batches
-    ├── mod.rs            # GpuPhysics facade
+└── physics_gpu/          # frozen fabrics + parallel batches
+    ├── mod.rs            # re-exports GpuBatch, SlotFacts, run_generation, params
     ├── shaders/
     │   └── physics.wgsl
-    ├── frozen.rs         # FrozenFabric — immutable snapshot of one built fabric
-    ├── batch.rs          # GpuBatch — collection of N independent FrozenFabrics on GPU
-    ├── params.rs         # PhysicsParams uniform struct
-    ├── readback.rs       # GPU → host: per-fabric positions, per-fabric fitness scalars
-    └── parity_test.rs    # CPU vs GPU numeric parity (single fabric)
+    ├── batch.rs          # GpuBatch — converts N fabrics, owns buffers and pipelines, reads back
+    ├── params.rs         # GpuPhysicsConfig, PhysicsParams uniform struct
+    ├── parity_test.rs    # CPU vs GPU numeric parity (single fabric)
+    ├── smoke_test.rs
+    └── sphere_sweep_test.rs
 ```
 
 The data flow:
@@ -47,24 +47,24 @@ The data flow:
 ```
 DSL or algorithm → Vec<Fabric>           (CPU build, oven, pretense, converge — and any
                                           mutation/variation done in familiar CPU code)
-                   ↓ GpuBatch::from_fabrics(&gpu, &fabrics)
+                   ↓ GpuBatch::parallelize(&device, &queue, &fabrics, &physics)
                  GpuBatch                 (per-fabric topology + state slots, padded to max)
                    ↓ step(iterations)
                  GPU compute pipeline    (Verlet: half-kick / drift / forces /
                                            second-half-kick / ground, run on every slot)
-                   ↓ readback()
-                 host: per-fabric positions, per-fabric fitness scalars
+                   ↓ read_all_positions() / read_facts() / read_frozen()
+                 host: per-fabric positions, per-fabric facts (SlotFacts)
 ```
 
 Nothing outside `physics_gpu/` imports from it except the eventual evolution driver. No call site inside `Fabric`, the oven, or the build phases ever touches the GPU module. That isolation is the regression firewall.
 
 ## 4. The freeze step
 
-`Fabric::freeze() -> FrozenFabric` is a pure conversion applied to a single fabric. After freezing:
+`GpuBatch::parallelize` converts each fabric as it uploads it; there is no separate frozen type. After conversion:
 
-- **Joint set is fixed.** No additions or removals. Joints get a dense `u32` index in iteration order; the SlotMap key → index map is stored on the FrozenFabric for any later host-side lookups.
+- **Joint set is fixed.** No additions or removals. Joints get a dense `u32` index in iteration order; positions read back in the same order.
 - **Interval set is fixed.** Partitioned into `push` and `elastic` buckets per the role mapping in §6.
-- **All spans are concrete `f32` lengths.** `Span::Approaching` and `Span::Measuring` are resolved to their current ideal length at freeze time. No interpolation runs on the GPU. Asserting this during freeze catches misuse.
+- **All spans are concrete `f32` lengths.** `Span::Approaching` is resolved to its current length at upload (`update_ideals` can refresh the ideals later); `Span::Measuring` is refused with a panic. No interpolation runs on the GPU.
 - **Per-interval `k` is precomputed.** Material stiffness × geometric factors are folded into a single scalar per interval, so the shader's Hooke law is correct for each role without knowing about materials.
 - **Per-interval `half_mass` is precomputed.** Linear density × length / 2, written once.
 - **Initial joint positions and velocities are captured.** This is the seed state the batch copy of this fabric starts from.
@@ -73,13 +73,13 @@ The freeze is destructive only in the sense that you should not keep mutating th
 
 ## 5. The collection step
 
-`GpuBatch::from_fabrics(&gpu, &[Fabric]) -> GpuBatch` accepts an arbitrary slice of CPU-side fabrics and uploads them as a single batch. They can be:
+`GpuBatch::parallelize(device, queue, &[&Fabric], &Physics) -> GpuBatch` accepts an arbitrary slice of CPU-side fabrics and uploads them as a single batch. They can be:
 
 - **N copies of one fabric.** Identical topology, identical state. Trivial special case — the GPU treats them like any other batch. If you want them to diverge, perturb something on the CPU first.
 - **N mutated variants of one parent.** Produced by familiar CPU code: cable shortening, strut swapping, role changes, structural edits, joint additions/removals — anything the existing `Fabric` API can do. Each variant is just a regular `Fabric` after the edit; the GPU never sees that it was a variant.
 - **N entirely unrelated fabrics.** Different topologies, different sizes, different histories. Also fine. The GPU stepper doesn't know or care.
 
-Internally, `from_fabrics` calls `Fabric::freeze()` on each entry and uploads all of them into a flat per-fabric layout. **Each fabric carries its own topology** — there is no shared-topology optimization, because mutations are expected to change connectivity in the general case (see §13).
+Internally, `parallelize` converts each entry and uploads all of them into a flat per-fabric layout. **Each fabric carries its own topology** — there is no shared-topology optimization, because mutations are expected to change connectivity in the general case (see §13).
 
 **Buffer layout (pad to max):**
 - **Per-fabric topology slot:** dense joint indices for each interval, role bucket, ideal length, `k`, `half_mass`. Sized to the largest fabric in the batch; smaller fabrics leave the tail unused.
@@ -190,7 +190,7 @@ Two earlier shapes of this design were tried and discarded:
 1. **Incremental GPU building** — `append_joints` mid-run, dense-index map
    maintenance, per-frame `Span::Approaching` interpolation. Unnecessary
    complexity when building is finished before upload.
-2. **Shared-topology batch** — N parallel copies of one `FrozenFabric` over
+2. **Shared-topology batch** — N parallel copies of one frozen fabric over
    shared topology buffers, perturbed by a `Mutator` API. Discarded because
    mutations routinely change interval structure, so shared topology is unsafe
    in the general case.

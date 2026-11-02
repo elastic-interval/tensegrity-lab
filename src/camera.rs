@@ -191,7 +191,7 @@ impl Camera {
         match pick_intent {
             PickIntent::Reset => Pick::Nothing,
             PickIntent::Select => self.select(ray_direction, fabric),
-            PickIntent::Traverse => self.traverse_interval(fabric),
+            PickIntent::Traverse => self.traverse(ray_direction, fabric),
         }
     }
 
@@ -278,9 +278,21 @@ impl Camera {
         }
     }
 
-    fn traverse_interval(&self, fabric: &Fabric) -> Pick {
+    /// Right-click: from an interval, step to its other end; from a joint
+    /// alone, pick whichever joint is under the pointer, so nearby joints
+    /// can be visited without zooming out.
+    fn traverse(&self, ray: Vec3, fabric: &Fabric) -> Pick {
         match self.current_pick() {
-            Pick::Nothing | Pick::Joint(_) => Pick::Nothing,
+            Pick::Nothing => Pick::Nothing,
+            Pick::Joint(_) => match self.find_best_by_dot(fabric, None, ray) {
+                Some(key) => Pick::Joint(JointDetails {
+                    key,
+                    path: fabric.joint_label(key),
+                    location: fabric.location(key),
+                    selected_push: fabric.push_at(key),
+                }),
+                None => Pick::Nothing,
+            },
             Pick::Interval(old) => {
                 let mut new = old.clone();
                 new.near_joint = old.far_joint;

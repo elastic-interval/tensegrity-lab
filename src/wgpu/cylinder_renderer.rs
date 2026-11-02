@@ -1,5 +1,4 @@
 use crate::camera::Pick;
-use crate::connector::fork;
 use crate::fabric::interval::{Role, Span};
 use crate::fabric::material::Material;
 use crate::fabric::{Fabric, FabricDimensions, IntervalEnd};
@@ -142,12 +141,6 @@ impl CylinderRenderer {
                 WithPushMap { .. } if !push => continue,
                 _ => {}
             }
-            // In the connector view a plate's swivel or link is a part, not
-            // a cable.
-            let link = fabric.connector.as_ref().is_some_and(|c| c.link_length(interval_key).is_some());
-            if show_attachment_points && (crate::connector::system::is_swivel(fabric, interval_key) || link) {
-                continue;
-            }
             let (alpha, omega) = (interval.alpha_key, interval.omega_key);
             let start = fabric.joints[alpha].location;
             let end = fabric.joints[omega].location;
@@ -266,7 +259,7 @@ impl CylinderRenderer {
                                 let aim = connector
                                     .pull_end_pivot(fabric, pull_key, other_joint_keys[i])
                                     .unwrap_or(other_joint_pos);
-                                *modified_points[i] = crate::connector::fork::cable_termination(hole, aim);
+                                *modified_points[i] = connector.termination(fabric, pull_key, hole, aim);
                             }
                             continue;
                         }
@@ -319,7 +312,7 @@ impl CylinderRenderer {
                                                         );
 
                                                     *modified_points[i] =
-                                                        fork::cable_termination(pivot_pos, aim);
+                                                        connector.termination(fabric, pull_key, pivot_pos, aim);
 
                                                     // We found the connection, no need to check others
                                                     break;
@@ -353,6 +346,16 @@ impl CylinderRenderer {
                         Pick::Joint(_) => {}
                         _ => {}
                     }
+                }
+            }
+
+            // At a hinge the strut's tube ends below its stack; only the stud
+            // and the hinge fitting go on to the pin.
+            if interval.has_role(Role::Pushing) && show_attachment_points {
+                if let Some(connector) = fabric.connector.as_ref() {
+                    let [(alpha_end, _), (omega_end, _)] = connector.stack_ends(fabric, interval_key);
+                    modified_start = alpha_end;
+                    modified_end = omega_end;
                 }
             }
 

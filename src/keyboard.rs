@@ -142,15 +142,15 @@ impl Keyboard {
         );
         // Connectors are only available when not in model-scale mode.
         // C is reused here: the Color binding above is only active in
-        // PhysicsTesting; this one is only active in Viewing/Showing* —
-        // disjoint states, so the same key safely serves both.
+        // PhysicsTesting; this one is only active in Viewing, Animating and
+        // Showing* — disjoint states, so the same key safely serves both.
         if model_scale.is_none() {
             self.key_lab_event(
                 KeyCode::KeyC,
                 "Connector",
                 UpdateState(StateChange::ToggleAttachmentPoints),
                 Box::new(|state| {
-                    matches!(state, Viewing { .. } | ShowingJoint(_) | ShowingInterval(_))
+                    matches!(state, Viewing { .. } | Animating | ShowingJoint(_) | ShowingInterval(_))
                 }),
             );
         }

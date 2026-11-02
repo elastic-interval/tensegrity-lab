@@ -6,10 +6,10 @@
 //! is a new `Part` variant with its mesh, and the compiler finds every place
 //! that must learn about it.
 
-use crate::connector::fork::{PLATE_SIDE, SWIVEL_LENGTH};
-use crate::connector::system::{is_swivel, ConnectorSystem};
+use crate::connector::fork::{PLATE_SIDE, HANGER_LENGTH};
+use crate::connector::system::{hinge_pin_axis, hinge_struts, is_hanger};
 use crate::fabric::interval::Role;
-use crate::fabric::{Fabric, IntervalEnd, IntervalKey, JointKey};
+use crate::fabric::{Fabric, IntervalEnd, IntervalKey};
 use crate::units::Unit;
 use glam::Vec3;
 use std::cell::Cell;
@@ -19,40 +19,41 @@ use std::collections::BTreeMap;
 /// Each variant says how its shape sits in that frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Part {
-    /// Strut end-cap the stack bolts onto: a disc from the strut end
-    /// (origin) outward along `y`.
-    Cap,
     /// Flat ring turning on the bolt, centred at the origin with `y` along
-    /// the bolt; its boss reaches out along `x` toward the cable.
+    /// the bolt; its boss reaches out along `x` toward the cable, ending in
+    /// the cross-tube welded across it at the pivot.
     Ring,
     /// Laser-cut disc made to suit one joint, carrying several cables at one
     /// height: centred at the origin, `y` along the bolt, its bosses at the
-    /// angles and reaches of its `DiscShape`, measured from `x`. Each
-    /// distinct shape is a part of its own.
+    /// angles and reaches of its `DiscShape`, measured from `x`, each
+    /// ending in its welded cross-tube. Each distinct shape is a part of its
+    /// own.
     CustomDisc(DiscShape),
-    /// Washers filling a gap that was lifted to clear the forks: `washers`
-    /// thick, from the top of the ring below (origin) up along `y`.
+    /// POM washers under a ring, keeping steel off steel: `washers` thick,
+    /// from what the ring stacks on (origin) up along `y`. One is the normal
+    /// divider; more make a spacer, lifting the ring to clear the forks.
     Spacer { washers: u8 },
-    /// Cross-tube at the end of the boss: centred on the pivot (origin),
-    /// along `y`.
-    CrossTube,
     /// Jaw terminal with pin and split ring: pin centre at the origin, barrel
     /// along `x`, pin along `y` (see `connector::fork::ClevisDimensions`).
     Clevis,
-    /// Jaw–jaw swivel hanging a node plate from a cross-tube (see
-    /// `connector::fork::SWIVEL_LENGTH`): its jaw's pin through the
-    /// cross-tube at the origin, along `y`, and its bearing along `x`
-    /// toward the far jaw.
-    Swivel,
-    /// A swivel link in place of a cable from a node plate too short to
-    /// make (see `ConnectorSystem::link_length`): a swivel stretched to
-    /// `mm` pin to pin by a solid bar, drawn as `Swivel` is.
-    Link { mm: u16 },
-    /// The far jaw of a swivel or a link, pinned through the plate's hole:
-    /// pin at the origin along `y`, the bearing or bar along `x`. It turns
-    /// on the bearing, so it is placed apart, but it is part of its swivel
-    /// or link and not on the parts list.
-    SwivelJaw,
+    /// A fork at each end of a fork rod: a hanger on a node plate or anything
+    /// from a plate too short to be a cable (see `connector::fork`). Pin at the
+    /// origin along `y`, the threaded rod through its web along `x`. The rod is
+    /// stock cut to length, drawn and reported like a cable.
+    RodFork,
+    /// A rod fork's load nut and lock nut, in the fork's frame. Stock, so not
+    /// on the parts list.
+    ForkNuts,
+    /// A hinge (see `connector::fork::HINGE_LENGTH`): the clevis on one
+    /// strut with the pin, its centre at the origin along `y`, the clevis
+    /// running down its strut along `x`. It carries only its two struts: no
+    /// cable may end on it (`Fabric::split_hinge_cables`).
+    Hinge,
+    /// A hinge's rod end on the other strut, its eye round the pin at the
+    /// origin along `y`, running down its strut along `x`. It turns on the
+    /// pin, so it is placed apart, but it is part of its `Hinge` and not on
+    /// the parts list.
+    HingeEye,
     /// Triangular node plate at a bridle node (see `connector::node_plate`):
     /// centred at the origin, `y` square to the plate, its holes at the
     /// angles of its `PlateShape`, measured from `x`.
@@ -112,8 +113,8 @@ impl Part {
                     shape.bosses().iter().map(|(degrees, reach)| format!("{degrees}°/{reach}mm")).collect();
                 format!("custom disc {}", bosses.join(" "))
             }
-            Part::Spacer { washers } => format!("spacer of {washers} washers"),
-            Part::Link { mm } => format!("swivel link {mm} mm"),
+            Part::Spacer { washers: 1 } => "POM washer".to_string(),
+            Part::Spacer { washers } => format!("spacer of {washers} POM washers"),
             Part::NodePlate(shape) => {
                 let holes: Vec<String> = shape.holes.iter().map(|(degrees, mm)| format!("{degrees}°/{mm}mm")).collect();
                 format!("node plate {}", holes.join(" "))
@@ -124,25 +125,33 @@ impl Part {
 
     fn base_name(self) -> &'static str {
         match self {
-            Part::Cap => "strut cap",
-            Part::Ring => "ring with boss",
+            Part::Hinge => "hinge (clevis, rod end, pin)",
+            Part::HingeEye => "hinge's rod end",
+            Part::Ring => "ring with boss and cross-tube",
             Part::CustomDisc(_) => "custom disc",
-            Part::Spacer { .. } => "spacer",
-            Part::CrossTube => "cross-tube",
+            Part::Spacer { .. } => "POM washer",
             Part::Clevis => "jaw terminal",
-            Part::Swivel => "bridle swivel",
-            Part::Link { .. } => "swivel link",
-            Part::SwivelJaw => "swivel's far jaw",
+            Part::RodFork => "rod fork",
+            Part::ForkNuts => "rod fork's nuts",
             Part::NodePlate(_) => "node plate",
         }
     }
 
+    /// Whether this is a part of its own on the parts list, not a half of
+    /// a hinge placed apart because it turns, or a fork's stock nuts.
+    pub fn listed(self) -> bool {
+        !matches!(self, Part::ForkNuts | Part::HingeEye)
+    }
+
     pub fn material(self) -> Material {
         match self {
-            Part::Cap | Part::Ring | Part::CustomDisc(_) | Part::CrossTube | Part::NodePlate(_) => {
+            Part::Ring | Part::CustomDisc(_) | Part::NodePlate(_) | Part::RodFork => {
                 Material::Galvanized
             }
-            Part::Clevis | Part::Swivel | Part::Link { .. } | Part::SwivelJaw => Material::Stainless,
+            Part::Clevis
+            | Part::ForkNuts
+            | Part::Hinge
+            | Part::HingeEye => Material::Stainless,
             Part::Spacer { .. } => Material::Pom,
         }
     }
@@ -190,7 +199,6 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
             let Some(connections) = connector.connections(key, end) else {
                 continue;
             };
-            let mut occupied = false;
             // A ring or custom disc per height: centre, each cable's radial
             // and custom reach, culprit.
             let mut heights: BTreeMap<usize, (Vec3, Vec<(Vec3, Option<f32>)>, bool, u8)> = BTreeMap::new();
@@ -199,7 +207,6 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
                 let Some(interval) = fabric.intervals.get(cable) else {
                     continue;
                 };
-                occupied = true;
                 let far = interval.other_joint(joint);
                 // Aim at the far end's pivot, not the far joint: on short
                 // cables the two differ by several degrees, and the fork
@@ -216,35 +223,35 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
                 let disc = heights.entry(slot).or_insert((ring_center, Vec::new(), false, connection.lift));
                 disc.1.push((radial, connection.reach.map(|reach| reach.f32())));
                 disc.2 |= culprit;
-                place(Part::CrossTube, pivot, radial, tangent, culprit);
                 let cable_dir = (aim - pivot).normalize();
-                if is_swivel(fabric, cable) {
+                if is_hanger(fabric, cable) {
                     let far_pin = connector.node_plate(far).map_or(tangent, |plate| plate.normal);
                     let near_pin = tangent.reject_from(cable_dir).normalize();
                     let far_pin = far_pin.reject_from(cable_dir).normalize_or(near_pin);
-                    let far_end = pivot + cable_dir * SWIVEL_LENGTH.f32();
-                    place(Part::Swivel, pivot, cable_dir, near_pin, culprit);
-                    place(Part::SwivelJaw, far_end, -cable_dir, far_pin, culprit);
+                    let far_end = pivot + cable_dir * HANGER_LENGTH.f32();
+                    place(Part::RodFork, pivot, cable_dir, near_pin, culprit);
+                    place(Part::ForkNuts, pivot, cable_dir, near_pin, culprit);
+                    place(Part::RodFork, far_end, -cable_dir, far_pin, culprit);
+                    place(Part::ForkNuts, far_end, -cable_dir, far_pin, culprit);
                 } else if connector.link_length(cable).is_some() {
-                    let (part, origin) = link_end(fabric, connector, cable, joint, pivot, aim);
-                    place(part, origin, cable_dir, tangent.reject_from(cable_dir).normalize(), culprit);
+                    let pin_axis = tangent.reject_from(cable_dir).normalize();
+                    place(Part::RodFork, pivot, cable_dir, pin_axis, culprit);
+                    place(Part::ForkNuts, pivot, cable_dir, pin_axis, culprit);
                 } else {
                     // Pin square to the cable, so the frame is rigid.
                     let pin_axis = tangent.reject_from(cable_dir).normalize();
                     place(Part::Clevis, pivot, cable_dir, pin_axis, culprit);
                 }
             }
-            // Lifted gaps are filled with spacers from the ring below.
+            // Under each ring, its washers, on the strut end or the ring below.
             let half_ring = axis * (connector.dimensions.ring_thickness.f32() / 2.0);
-            let mut below: Option<(Vec3, u8)> = None;
-            for (center, _, _, lift) in heights.values() {
-                if let Some((under, under_lift)) = below {
-                    if *lift > under_lift {
-                        let washers = lift - under_lift + 1;
-                        place(Part::Spacer { washers }, under + half_ring, axis.any_orthonormal_vector(), axis, false);
-                    }
-                }
-                below = Some((*center, *lift));
+            let washer = connector.dimensions.washer_thickness.f32();
+            let mut under = end_pos + axis * connector.dimensions.cap_thickness.f32();
+            for (center, ..) in heights.values() {
+                let gap = (*center - half_ring - under).dot(axis);
+                let washers = (gap / washer).round() as u8;
+                place(Part::Spacer { washers }, under, axis.any_orthonormal_vector(), axis, false);
+                under = *center + half_ring;
             }
             for (center, bosses, culprit, _) in heights.into_values() {
                 match bosses[..] {
@@ -259,9 +266,17 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
                     }
                 }
             }
-            if occupied {
-                place(Part::Cap, end_pos, axis.any_orthonormal_vector(), axis, false);
-            }
+        }
+    }
+
+    for (pin, joint) in fabric.joints.iter() {
+        let Some([clevis, rod_end]) = hinge_struts(fabric, pin) else {
+            continue;
+        };
+        let along = |strut: IntervalKey| (fabric.joints[fabric.intervals[strut].other_joint(pin)].location - joint.location).normalize();
+        let pin_axis = hinge_pin_axis(fabric, pin);
+        for (part, strut) in [(Part::Hinge, clevis), (Part::HingeEye, rod_end)] {
+            place(part, joint.location, along(strut), pin_axis, connector.culprits.contains(&(strut, pin)));
         }
     }
 
@@ -270,7 +285,7 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
             continue;
         };
         for (cable, hole) in plate.holes {
-            if is_swivel(fabric, cable) {
+            if is_hanger(fabric, cable) {
                 continue;
             }
             let far = fabric.intervals[cable].other_joint(node);
@@ -279,8 +294,8 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
             let pin_axis = plate.normal.reject_from(cable_dir).normalize_or(plate.normal);
             let culprit = connector.culprits.contains(&(cable, node));
             if connector.link_length(cable).is_some() {
-                let (part, origin) = link_end(fabric, connector, cable, node, hole, aim);
-                place(part, origin, cable_dir, pin_axis, culprit);
+                place(Part::RodFork, hole, cable_dir, pin_axis, culprit);
+                place(Part::ForkNuts, hole, cable_dir, pin_axis, culprit);
             } else {
                 place(Part::Clevis, hole, cable_dir, pin_axis, culprit);
             }
@@ -291,18 +306,6 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
         place(Part::NodePlate(PlateShape::equilateral()), middle, x, plate.normal, culprit);
     }
     placed
-}
-
-/// What a swivel link has at its end at `joint`, pinned `here`, its other
-/// end at `there`: the link itself at its cable's alpha end, its far jaw a
-/// link's length from there at the omega end.
-fn link_end(fabric: &Fabric, connector: &ConnectorSystem, cable: IntervalKey, joint: JointKey, here: Vec3, there: Vec3) -> (Part, Vec3) {
-    let length = connector.link_length(cable).unwrap_or_default();
-    if fabric.intervals[cable].alpha_key == joint {
-        (Part::Link { mm: (length * 1000.0).round() as u16 }, here)
-    } else {
-        (Part::SwivelJaw, there + (here - there).normalize() * length)
-    }
 }
 
 /// A custom disc's frame `x` and its shape: `x` along the bosses' mean
@@ -342,10 +345,24 @@ fn disc_shape(bosses: &[(Vec3, Option<f32>)], axis: Vec3, standard_reach: f32) -
 /// How many of each part the placements use.
 pub fn parts_list(placements: &[Placement]) -> BTreeMap<Part, usize> {
     let mut counts = BTreeMap::new();
-    for placement in placements.iter().filter(|placement| placement.part != Part::SwivelJaw) {
+    for placement in placements.iter().filter(|placement| placement.part.listed()) {
         *counts.entry(placement.part).or_insert(0) += 1;
     }
     counts
+}
+
+/// The list's parts with short ids for the command line: the kind's name in
+/// dashes, numbered where the kind has several shapes (`pom-washer-2`).
+pub fn part_ids(list: &BTreeMap<Part, usize>) -> Vec<(String, Part, usize)> {
+    let slug = |part: Part| part.base_name().split(" (").next().unwrap_or_default().replace(' ', "-").to_lowercase();
+    let kind_size = |part: Part| list.keys().filter(|other| other.base_name() == part.base_name()).count();
+    let mut ids: Vec<(String, Part, usize)> = Vec::new();
+    for (&part, &count) in list {
+        let earlier = ids.iter().filter(|(_, other, _)| other.base_name() == part.base_name()).count();
+        let id = if kind_size(part) > 1 { format!("{}-{}", slug(part), earlier + 1) } else { slug(part) };
+        ids.push((id, part, count));
+    }
+    ids
 }
 
 /// One kind of part as the parts panel lists it: how many copies in all,
@@ -384,11 +401,12 @@ mod tests {
     use super::*;
     use crate::build::dsl::fabric_library::{self, FabricName};
     use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
+    use crate::connector::fork::FORK_ROD_MIN_LENGTH;
 
     /// Headless Hug's parts list adds up: every boss (one per ring, several
     /// per custom disc) carries one cross-tube and a jaw terminal or a
-    /// swivel, and every bridle node has a plate with a terminal for each
-    /// of its cables but the one on a swivel, or a clamp.
+    /// rod fork, and every bridle node has a plate with a terminal or rod fork
+    /// for each of its cables but its hanger, or a clamp.
     #[test]
     fn headless_hug_parts_list() {
         let mut executor = FabricPlanExecutor::new(fabric_library::get_fabric_plan(FabricName::HeadlessHug));
@@ -414,19 +432,44 @@ mod tests {
             .filter_map(|(part, n)| matches!(part, Part::NodePlate(_)).then_some(*n))
             .sum();
         let bosses = count(Part::Ring) + disc_bosses;
-        assert_eq!(bosses, count(Part::CrossTube));
-        let links: usize = list
-            .iter()
-            .filter_map(|(part, n)| matches!(part, Part::Link { .. }).then_some(*n))
-            .sum();
+        let connector = executor.fabric.connector.as_ref().expect("fabric has connectors");
+        let rods: Vec<f32> = executor.fabric.intervals.keys().filter_map(|key| connector.link_length(key)).collect();
+        let hangers = executor.fabric.bridle_hangers.len();
+        assert_eq!((rods.len() + hangers) * 2, count(Part::RodFork));
+        assert!(rods.iter().all(|&length| length >= FORK_ROD_MIN_LENGTH.f32()));
         assert_eq!(plates, executor.fabric.bridle_nodes.len());
-        assert_eq!(bosses + 2 * plates, count(Part::Clevis) + count(Part::Swivel) + 2 * links);
+        assert_eq!(bosses + 3 * plates, count(Part::Clevis) + count(Part::RodFork));
         let kinds = kinds(&list);
-        let listed = placed.iter().filter(|placement| placement.part != Part::SwivelJaw).count();
+        let listed = placed.iter().filter(|placement| placement.part.listed()).count();
         assert_eq!(kinds.iter().map(|kind| kind.count).sum::<usize>(), listed);
         assert_eq!(kinds.iter().map(|kind| kind.shapes).sum::<usize>(), list.len());
         for kind in &kinds {
             eprintln!("{:>5} × {} in {} shapes, showing {}", kind.count, kind.name, kind.shapes, kind.sample.name());
         }
+    }
+
+    /// A hinge carries only its two struts: every cable at a hinge pin is on
+    /// one of their stacks, none on the hinge itself.
+    #[test]
+    fn no_cable_ends_on_a_hinge() {
+        let mut executor = FabricPlanExecutor::new(fabric_library::get_fabric_plan(FabricName::HeadlessHug));
+        while !executor.is_complete() {
+            let _ = executor.iterate();
+        }
+        let fabric = &executor.fabric;
+        let mut hinges = 0;
+        for pin in fabric.joints.keys() {
+            let Some(struts) = hinge_struts(fabric, pin) else {
+                continue;
+            };
+            hinges += 1;
+            for (key, interval) in fabric.intervals.iter() {
+                if interval.role.is_pull_like() && interval.touches(pin) {
+                    let strut = fabric.hinge_strut.get(&(key, pin));
+                    assert!(strut.is_some_and(|strut| struts.contains(strut)), "a cable ends on hinge {}", fabric.joint_label(pin));
+                }
+            }
+        }
+        assert_eq!(hinges, 8);
     }
 }

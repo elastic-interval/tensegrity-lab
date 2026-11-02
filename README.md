@@ -29,6 +29,17 @@ None of this is really documented well enough yet that it is easy for beginners.
 
 If you want to know more, please contact **pretenst@gmail.com**. 
 
+### Documentation
+
+* [DSL](docs/DSL.md) — defining fabrics and their build plans
+* [Elastic Interval Geometry](docs/EIG.md) — the physics
+* [Joint naming](docs/joint-naming.md) — how joints and everything attached to them are named
+* [Connectors](docs/connectors.md) — the hardware joining cables to struts, bridles and the parts list
+* [Parts](docs/parts.md) — Headless Hug's bill of materials, part designs, sourcing and ordering
+* [CSV handoff](docs/csv-handoff.md) — the engineering CSV for the structural engineer
+* [Open Claw summary](docs/openclaw-software-summary.md), [labeling symmetries](docs/labeling-symmetries.md)
+* [GPU compute backend](docs/gpu-compute-backend.md), [evolution](docs/evolution.md), [articulation evolution](docs/articulation-evolution.md), [robot notes](docs/robot.md)
+
 ### Running Tensegrity Lab
 
 First you will need Rust installed, and your copy of the source code.

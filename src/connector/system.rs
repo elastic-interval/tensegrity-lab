@@ -36,7 +36,7 @@ pub struct ConnectorSystem {
     /// plus the minimum free wire — they can't be built as cables at all.
     /// Marked alongside `culprits`.
     pub short_cables: HashSet<IntervalKey>,
-    /// Cables from a node plate too short to make as cables, built as swivel
+    /// Cables from a node plate too short to make as cables, built as fork
     /// links instead: each with its pin-to-pin length when the hardware was
     /// committed (`update_all_connections`).
     links: HashMap<IntervalKey, f32>,
@@ -79,7 +79,8 @@ impl ConnectorSystem {
     /// `[(alpha_end, alpha_axis), (omega_end, omega_axis)]`. A stack normally
     /// starts at the strut end and builds outward. At a hinge the strut ends
     /// at the hinge pin instead, so the stack is set back along the strut
-    /// until the top of its highest ring sits `hinge_clearance` below the pin.
+    /// until the top of its highest ring sits a hinge fitting's length below
+    /// the pin (`fork::HINGE_LENGTH`).
     pub fn stack_ends(&self, fabric: &Fabric, push_key: IntervalKey) -> [(Vec3, Vec3); 2] {
         let push = &fabric.intervals[push_key];
         let alpha = fabric.joints[push.alpha_key].location;
@@ -112,13 +113,13 @@ impl ConnectorSystem {
                     && stack_carries(fabric, push_key, joint, *key)
             })
             .count();
-        let Some(highest) = cables.checked_sub(1) else {
-            return location;
+        let stack = match cables.checked_sub(1) {
+            Some(highest) => {
+                self.dimensions.ring_center_offset(highest).f32() + self.dimensions.ring_thickness.f32() / 2.0
+            }
+            None => 0.0,
         };
-        let top = self.dimensions.ring_center_offset(highest).f32()
-            + self.dimensions.ring_thickness.f32() / 2.0
-            + self.dimensions.hinge_clearance.f32();
-        location - outward * top
+        location - outward * (stack + fork::HINGE_LENGTH.f32())
     }
 
     pub fn ring_center(&self, push_end: Vec3, push_axis: Vec3, slot: usize) -> Vec3 {
@@ -269,8 +270,8 @@ impl ConnectorSystem {
                     .unwrap_or(fabric.joints[e.far].location);
                 let (pivot, _) = self.connection_pivot(e.end_pos, e.axis, &e.connection, aim);
                 let ring_center = self.connection_ring_center(e.end_pos, e.axis, &e.connection);
-                let body = if is_swivel(fabric, e.pull) {
-                    fork::swivel_capsules(pivot, aim)
+                let body = if is_hanger(fabric, e.pull) {
+                    fork::fork_rod_capsules(pivot, aim)
                 } else {
                     let radial = (pivot - ring_center).normalize();
                     fork::capsules(pivot, e.axis.cross(radial).normalize(), (aim - pivot).normalize())
@@ -280,12 +281,12 @@ impl ConnectorSystem {
             .collect();
 
         // Each node plate's terminals, pinned through its holes square to the
-        // plate, aimed at their cables' far ends; a swivel pins straight on.
+        // plate, aimed at their cables' far ends; a hanger pins straight on.
         let stack_pivots: HashMap<(IntervalKey, JointKey), Vec3> =
             frames.iter().map(|(end, pivot, _)| (*end, *pivot)).collect();
         for (&node, plate) in &plates {
             for (cable, hole) in plate.holes {
-                if is_swivel(fabric, cable) {
+                if is_hanger(fabric, cable) {
                     continue;
                 }
                 let far = fabric.intervals[cable].other_joint(node);
@@ -301,19 +302,19 @@ impl ConnectorSystem {
         }
 
         // Every cable needs room for a terminal at each end plus free wire;
-        // one from a node plate without it is a swivel link instead, if it
-        // has room for a swivel.
+        // one from a node plate without it is a fork rod instead, if it has
+        // room for one.
         let pivots: HashMap<(IntervalKey, JointKey), Vec3> =
             frames.iter().map(|(end, pivot, _)| (*end, *pivot)).collect();
         for (key, cable) in fabric.intervals.iter() {
-            if !cable.role.is_pull_like() || is_swivel(fabric, key) {
+            if !cable.role.is_pull_like() || is_hanger(fabric, key) {
                 continue;
             }
             let ends = (pivots.get(&(key, cable.alpha_key)), pivots.get(&(key, cable.omega_key)));
             if let (Some(alpha), Some(omega)) = ends {
                 let span = alpha.distance(*omega);
                 let at_plate = [cable.alpha_key, cable.omega_key].iter().any(|joint| plates.contains_key(joint));
-                if choosing && at_plate && (fork::SWIVEL_LENGTH.f32()..fork::min_cable_length()).contains(&span) {
+                if choosing && at_plate && (fork::FORK_ROD_MIN_LENGTH.f32()..fork::min_cable_length()).contains(&span) {
                     self.links.insert(key, span);
                 }
                 if !self.links.contains_key(&key) && span < fork::min_cable_length() {
@@ -324,9 +325,25 @@ impl ConnectorSystem {
         for ((key, near), pivot, assembly) in &mut frames {
             if self.links.contains_key(key) {
                 let far = pivots[&(*key, fabric.intervals[*key].other_joint(*near))];
-                assembly.body = fork::link_capsules(*pivot, far).body;
+                assembly.body = fork::fork_rod_capsules(*pivot, far).body;
             }
         }
+
+        // Each hinge fitting, keyed by its strut at the pin. The two at one
+        // pin are made to fit together, so they aren't tested against each
+        // other.
+        for (pin, joint) in fabric.joints.iter() {
+            let Some(struts) = hinge_struts(fabric, pin) else {
+                continue;
+            };
+            for strut in struts {
+                let along = direction_from(fabric, strut, pin);
+                frames.push(((strut, pin), joint.location, fork::hinge_capsules(joint.location, along)));
+            }
+        }
+        let hinge_fitting = |(key, joint): (IntervalKey, JointKey)| {
+            fabric.intervals.get(key).is_some_and(|i| i.role == Role::Pushing && i.touches(joint))
+        };
 
         for i in 0..frames.len() {
             for j in (i + 1)..frames.len() {
@@ -336,6 +353,9 @@ impl ConnectorSystem {
                 // A cable's own two terminals meet only when it's too short,
                 // which `short_cables` already marks.
                 if frames[i].0 .0 == frames[j].0 .0 {
+                    continue;
+                }
+                if frames[i].0 .1 == frames[j].0 .1 && hinge_fitting(frames[i].0) && hinge_fitting(frames[j].0) {
                     continue;
                 }
                 if fork::assemblies_collide(&frames[i].2, &frames[j].2) {
@@ -353,7 +373,7 @@ impl ConnectorSystem {
             }
         }
 
-        // A plate against any terminal or swivel but its own, and against
+        // A plate against any terminal or fork but its own, and against
         // other plates. Its collisions are marked on the node's link.
         let plate_bodies: Vec<((IntervalKey, JointKey), Assembly)> = plates
             .iter()
@@ -364,10 +384,14 @@ impl ConnectorSystem {
             .collect();
         for (i, (plate_end, plate_body)) in plate_bodies.iter().enumerate() {
             let (link, node) = *plate_end;
-            let near = |pivot: Vec3| pivot.distance(fabric.joints[node].location) <= fork::OVERLAP_PREFILTER;
+            let center = plates.get(&node).map_or(fabric.joints[node].location, |plate| plate.center);
+            let near = |pivot: Vec3| pivot.distance(center) <= fork::OVERLAP_PREFILTER;
             let others = frames
                 .iter()
-                .filter(|(end, pivot, _)| end.1 != node && end.0 != link && near(*pivot))
+                .filter(|(end, pivot, _)| {
+                    let own = end.0 == link || plates.get(&node).is_some_and(|plate| plate.hole(end.0).is_some());
+                    end.1 != node && !own && near(*pivot)
+                })
                 .map(|(end, _, body)| (*end, body));
             let other_plates = plate_bodies[i + 1..].iter().map(|(end, body)| (*end, body));
             for (end, body) in others.chain(other_plates) {
@@ -386,7 +410,17 @@ impl ConnectorSystem {
         self.plates.get(&node)
     }
 
-    /// The pin-to-pin length of `cable` if it is a swivel link.
+    /// Where `cable` should be drawn to end, near the fork pinned at `pivot`:
+    /// inside its terminal's barrel, or for a fork rod inside its fork.
+    pub fn termination(&self, fabric: &Fabric, cable: IntervalKey, pivot: Vec3, other_end: Vec3) -> Vec3 {
+        if self.links.contains_key(&cable) || is_hanger(fabric, cable) {
+            fork::rod_termination(pivot, other_end)
+        } else {
+            fork::cable_termination(pivot, other_end)
+        }
+    }
+
+    /// The pin-to-pin length of `cable` if it is a fork rod.
     pub fn link_length(&self, cable: IntervalKey) -> Option<f32> {
         self.links.get(&cable).copied()
     }
@@ -401,16 +435,19 @@ impl ConnectorSystem {
     }
 
     fn build_nodes(&mut self, fabric: &Fabric) {
-        self.plates = fabric
-            .bridle_nodes
-            .keys()
-            .map(|&node| (node, self.build_plate(fabric, node)))
-            .collect();
+        // Twice: a plate aims at a hinge cable's plate where that has settled.
+        for _ in 0..2 {
+            self.plates = fabric
+                .bridle_nodes
+                .keys()
+                .map(|&node| (node, self.build_plate(fabric, node)))
+                .collect();
+        }
     }
 
     /// A bridle node's plate, each of its three cables aimed at its far end:
     /// the far pivot on a strut's stack, or the far joint itself where that
-    /// is another node. A swivel aims at the pivot it hangs from.
+    /// is another node. A hanger aims at the pivot it hangs from.
     fn build_plate(&self, fabric: &Fabric, node: JointKey) -> NodePlate {
         let cables: Vec<(IntervalKey, Vec3, bool)> = fabric
             .intervals
@@ -420,14 +457,49 @@ impl ConnectorSystem {
                 let far = i.other_joint(node);
                 let at_far = fabric.joints[far].location;
                 let aim = if fabric.bridle_nodes.contains_key(&far) {
-                    at_far
+                    self.plates.get(&far).map_or(at_far, |plate| plate.center)
                 } else {
                     self.pull_end_pivot(fabric, key, far).unwrap_or(at_far)
                 };
-                (key, aim, is_swivel(fabric, key))
+                (key, aim, is_hanger(fabric, key))
             })
             .collect();
-        NodePlate::new(fabric.joints[node].location, [cables[0], cables[1], cables[2]])
+        let cables = [cables[0], cables[1], cables[2]];
+        let center = self.split_plate_center(fabric, node, cables).unwrap_or(fabric.joints[node].location);
+        NodePlate::new(center, cables)
+    }
+
+    /// Where a hinge cable's plate (`Fabric::split_hinge_cables`) balances.
+    /// The simulation knows its legs as one strand to the pin, but in steel
+    /// they land on the two struts' stacks, so three forces hold the plate:
+    /// it lies in their plane, on the line from the far end to the midpoint
+    /// of the legs' pivots, where the far member and the mean leg come out
+    /// the same length. `None` for any other bridle node.
+    fn split_plate_center(&self, fabric: &Fabric, node: JointKey, cables: [(IntervalKey, Vec3, bool); 3]) -> Option<Vec3> {
+        let link = *fabric.bridle_nodes.get(&node)?;
+        if is_hanger(fabric, link) {
+            return None;
+        }
+        let pin = fabric.intervals[link].other_joint(node);
+        let (far, aim) = cables.iter().find(|(key, ..)| !fabric.intervals[*key].touches(pin)).map(|c| (c.0, c.1))?;
+        let legs: Vec<IntervalKey> = cables.iter().map(|c| c.0).filter(|key| *key != far).collect();
+        let pivot = |key: IntervalKey| cables.iter().find(|c| c.0 == key).map(|c| c.1);
+        let middle = (pivot(legs[0])? + pivot(legs[1])?) / 2.0;
+        let excess = |along: f32| {
+            let plate = NodePlate::new(middle.lerp(aim, along), cables);
+            let span = |key: IntervalKey| Some(plate.hole(key)?.distance(pivot(key)?));
+            Some(span(far)? - (span(legs[0])? + span(legs[1])?) / 2.0)
+        };
+        let (mut low, mut high) = (0.05, 0.95);
+        for _ in 0..20 {
+            let along = (low + high) / 2.0;
+            if excess(along)? > 0.0 {
+                low = along;
+            } else {
+                high = along;
+            }
+        }
+        Some(middle.lerp(aim, (low + high) / 2.0))
     }
 
     /// Make every stack's slot order the mirror image of its twin's, so the
@@ -487,8 +559,7 @@ impl ConnectorSystem {
                     .map(|slot| match slot {
                         None => Some(None),
                         Some(connection) => {
-                            let cable = &fabric.intervals[connection.pull_interval_key];
-                            let twin = fabric.joining((image(cable.alpha_key)?, image(cable.omega_key)?))?;
+                            let twin = mirror.twin(fabric, connection.pull_interval_key)?;
                             Some(Some(PullConnection {
                                 pull_interval_key: twin,
                                 attachment_index: connection.attachment_index,
@@ -583,8 +654,8 @@ impl ConnectorSystem {
             .map(|&(cable, aim, slot, reach, lift)| {
                 let ring_center = self.lifted_ring_center(end_pos, axis, slot, lift);
                 let (pivot, _) = ConnectorDimensions::pivot_from_center(ring_center, axis, aim, reach);
-                let body = if is_swivel(fabric, cable) {
-                    fork::swivel_capsules(pivot, aim)
+                let body = if is_hanger(fabric, cable) {
+                    fork::fork_rod_capsules(pivot, aim)
                 } else {
                     let radial = (pivot - ring_center).normalize();
                     fork::capsules(pivot, axis.cross(radial).normalize(), (aim - pivot).normalize())
@@ -852,26 +923,50 @@ impl ConnectorSystem {
     }
 }
 
-/// Whether `cable` is a bridle's link that is a swivel, its node plate
-/// hanging close to the strut end.
-pub fn is_swivel(fabric: &Fabric, cable: IntervalKey) -> bool {
-    fabric.bridle_swivels.contains(&cable)
+/// Whether `cable` is a bridle's link that is a hanger, a short fork rod with
+/// its node plate close to the strut end.
+pub fn is_hanger(fabric: &Fabric, cable: IntervalKey) -> bool {
+    fabric.bridle_hangers.contains(&cable)
 }
 
 /// A hinge pin: the joint where two struts end.
 fn is_hinge_pin(fabric: &Fabric, joint: JointKey) -> bool {
-    fabric
+    hinge_struts(fabric, joint).is_some()
+}
+
+/// A hinge's pin, square to both struts.
+pub fn hinge_pin_axis(fabric: &Fabric, pin: JointKey) -> Vec3 {
+    let Some([first, second]) = hinge_struts(fabric, pin) else {
+        return Vec3::X;
+    };
+    let (a, b) = (direction_from(fabric, first, pin), direction_from(fabric, second, pin));
+    a.cross(b).normalize_or(a.any_orthonormal_vector())
+}
+
+/// From a joint along `interval` toward its far end.
+fn direction_from(fabric: &Fabric, interval: IntervalKey, pin: JointKey) -> Vec3 {
+    let far = fabric.intervals[interval].other_joint(pin);
+    (fabric.joints[far].location - fabric.joints[pin].location).normalize()
+}
+
+/// The two struts ending at a hinge pin, the clevis's first.
+pub fn hinge_struts(fabric: &Fabric, joint: JointKey) -> Option<[IntervalKey; 2]> {
+    let struts: Vec<IntervalKey> = fabric
         .intervals
-        .values()
-        .filter(|interval| interval.role == Role::Pushing && interval.touches(joint))
-        .count()
-        > 1
+        .iter()
+        .filter(|(_, interval)| interval.role == Role::Pushing && interval.touches(joint))
+        .map(|(key, _)| key)
+        .collect();
+    match struts[..] {
+        [clevis, rod_end] => Some([clevis, rod_end]),
+        _ => None,
+    }
 }
 
 /// Whether the stack at `joint` on strut `push_key` carries cable `pull_key`.
 /// At an ordinary strut end it carries every cable there. At a hinge pin each
-/// cable belongs to the strut recorded by `hinge`, and a cable added later
-/// (a guy line) attaches to the pin itself, on neither stack.
+/// cable belongs to the strut recorded by `hinge`; none may end on the hinge
+/// itself (`Fabric::split_hinge_cables`).
 fn stack_carries(fabric: &Fabric, push_key: IntervalKey, joint: JointKey, pull_key: IntervalKey) -> bool {
     if !is_hinge_pin(fabric, joint) {
         return true;
@@ -957,6 +1052,24 @@ impl<'a> MirrorImage<'a> {
             .filter_map(|(key, joint)| joint.label.map(|label| (label, key)))
             .collect();
         Some(MirrorImage { symmetry, by_label })
+    }
+
+    /// An interval's mirror image: the interval between its ends' images, and
+    /// of a hinge cable's two parallel legs, the one on the mirror-image strut.
+    fn twin(&self, fabric: &Fabric, interval: IntervalKey) -> Option<IntervalKey> {
+        let this = &fabric.intervals[interval];
+        let (alpha, omega) = (self.image(fabric, this.alpha_key)?, self.image(fabric, this.omega_key)?);
+        let leg_at = [(this.alpha_key, alpha), (this.omega_key, omega)]
+            .into_iter()
+            .find_map(|(pin, image)| Some((*fabric.hinge_strut.get(&(interval, pin))?, image)));
+        let parallel = |key: &IntervalKey| fabric.intervals[*key].touches(alpha) && fabric.intervals[*key].touches(omega);
+        let mut twins = fabric.intervals.keys().filter(parallel);
+        let Some((strut, pin_image)) = leg_at else {
+            return twins.next();
+        };
+        let strut = &fabric.intervals[strut];
+        let strut_image = fabric.joining((self.image(fabric, strut.alpha_key)?, self.image(fabric, strut.omega_key)?))?;
+        twins.find(|key| fabric.hinge_strut.get(&(*key, pin_image)) == Some(&strut_image))
     }
 
     fn image(&self, fabric: &Fabric, joint: JointKey) -> Option<JointKey> {

@@ -3,10 +3,15 @@
 //! instanced at every placement.
 
 use crate::connector::fork::{
-    ClevisDimensions, CLEVIS, LINK_ROD_RADIUS, PLATE_CORNER_RADIUS, PLATE_THICKNESS, SWIVEL_BEARING_LENGTH,
-    SWIVEL_BEARING_RADIUS, SWIVEL_JAW_LENGTH, SWIVEL_LENGTH, TUBE_LENGTH, TUBE_RADIUS,
+    ClevisDimensions, BOSS_SHORT_OF_PIVOT, CLEVIS, HINGE_BALL_WIDTH, HINGE_EYE_RADIUS, HINGE_EYE_WIDTH, HINGE_JAW_GAP,
+    HINGE_JAW_THICKNESS, HINGE_LENGTH, HINGE_PIN_RADIUS, HINGE_SHANK_RADIUS, HINGE_THREAD_DEPTH, HINGE_THREAD_RADIUS,
+    FORK_HOLE_DIAMETER, FORK_NUT_HEIGHT, FORK_NUT_RADIUS, FORK_WEB_OUTSIDE, PLATE_CORNER_RADIUS, PLATE_HOLE_DIAMETER, PLATE_THICKNESS, RING_BORE_DIAMETER,
+    ROD_FORK, TUBE_BORE_RADIUS, TUBE_LENGTH,
+    TUBE_RADIUS,
 };
+use crate::connector::dimensions::ConnectorDimensions;
 use crate::connector::parts::Part;
+use crate::fabric::FabricDimensions;
 use crate::units::Unit;
 use crate::wgpu::Wgpu;
 use glam::{Vec2, Vec3};
@@ -20,9 +25,10 @@ const RING_WIRE_SEGMENTS: usize = 6;
 const SMOOTH_ANGLE_COS: f32 = 0.85;
 // Ring plate proportions, in ring radii — see docs/connectors.md, "The
 // Fabricated Part".
-const BOSS_REACH: f32 = 1.2; // R_flat / (D_ring/2) = 24/20
 const BOSS_HALF_WIDTH: f32 = 0.3; // (w_boss/2) / (D_ring/2) = 6/20
 const RING_ARC_SEGMENTS: usize = 48;
+// The cable's hole in a terminal's barrel, 6 mm wire.
+const BARREL_BORE_RADIUS: f32 = 0.003;
 
 /// A part's mesh on the GPU, with the sphere bounding it in its own frame.
 pub struct PartMesh {
@@ -40,7 +46,17 @@ pub struct PartSizes {
     pub pivot_radius: f32,
     pub ring_thickness: f32,
     pub washer_thickness: f32,
-    pub cap_thickness: f32,
+}
+
+impl PartSizes {
+    pub fn of(fabric: &FabricDimensions, connector: &ConnectorDimensions) -> Self {
+        PartSizes {
+            ring_radius: fabric.push_radius.f32(),
+            pivot_radius: connector.pivot_radius.f32(),
+            ring_thickness: connector.ring_thickness.f32(),
+            washer_thickness: connector.washer_thickness.f32(),
+        }
+    }
 }
 
 #[repr(C)]
@@ -102,6 +118,47 @@ impl Mesh {
     /// Prism of a convex outline in the x/z plane, from y0 to y1. Side walls
     /// meeting at a shallow angle shade smooth, sharper corners stay crisp.
     fn extrude(&mut self, outline: &[Vec2], y0: f32, y1: f32) {
+        self.extrude_sides(outline, y0, y1);
+        let n = outline.len();
+        let centroid = outline.iter().copied().sum::<Vec2>() / n as f32;
+        let at = |p: Vec2, y: f32| Vec3::new(p.x, y, p.y);
+        for (y, normal) in [(y0, -Vec3::Y), (y1, Vec3::Y)] {
+            let center = self.vertex(at(centroid, y), normal);
+            let rim: Vec<u32> = outline.iter().map(|p| self.vertex(at(*p, y), normal)).collect();
+            for i in 0..n {
+                self.triangle(center, rim[i], rim[(i + 1) % n]);
+            }
+        }
+    }
+
+    /// `extrude` with round holes through it, each (centre, radius).
+    fn extrude_with_holes(&mut self, outline: &[Vec2], holes: &[(Vec2, f32)], y0: f32, y1: f32) {
+        self.extrude_sides(outline, y0, y1);
+        let at = |p: Vec2, y: f32| Vec3::new(p.x, y, p.y);
+        let circles: Vec<Vec<Vec2>> = holes.iter().map(|&(center, radius)| circle(center, radius)).collect();
+        for (circle, &(center, _)) in circles.iter().zip(holes) {
+            for i in 0..circle.len() {
+                let (p, q) = (circle[i], circle[(i + 1) % circle.len()]);
+                let corners = [
+                    self.vertex(at(p, y0), at(center - p, 0.0)),
+                    self.vertex(at(q, y0), at(center - q, 0.0)),
+                    self.vertex(at(q, y1), at(center - q, 0.0)),
+                    self.vertex(at(p, y1), at(center - p, 0.0)),
+                ];
+                self.quad(corners[0], corners[1], corners[2], corners[3]);
+            }
+        }
+        let triangles = triangulate(outline, &circles);
+        for (y, normal) in [(y0, -Vec3::Y), (y1, Vec3::Y)] {
+            for corners in &triangles {
+                let [a, b, c] = corners.map(|p| self.vertex(at(p, y), normal));
+                self.triangle(a, b, c);
+            }
+        }
+    }
+
+    /// The side walls of `extrude`.
+    fn extrude_sides(&mut self, outline: &[Vec2], y0: f32, y1: f32) {
         let n = outline.len();
         let centroid = outline.iter().copied().sum::<Vec2>() / n as f32;
         let at = |p: Vec2, y: f32| Vec3::new(p.x, y, p.y);
@@ -134,13 +191,6 @@ impl Mesh {
             ];
             self.quad(corners[0], corners[1], corners[2], corners[3]);
         }
-        for (y, normal) in [(y0, -Vec3::Y), (y1, Vec3::Y)] {
-            let center = self.vertex(at(centroid, y), normal);
-            let rim: Vec<u32> = outline.iter().map(|p| self.vertex(at(*p, y), normal)).collect();
-            for i in 0..n {
-                self.triangle(center, rim[i], rim[(i + 1) % n]);
-            }
-        }
     }
 
     /// Surface of revolution about `axis` through the origin: `profile` is
@@ -152,6 +202,31 @@ impl Mesh {
 
     /// `lathe` about an axis through `origin`.
     fn lathe_at(&mut self, origin: Vec3, axis: Vec3, profile: &[(f32, f32)]) {
+        self.lathe_bands(origin, axis, profile);
+        let (u, v) = axis.any_orthonormal_pair();
+        let around = |k: usize| {
+            let a = TAU * k as f32 / ROUND_SEGMENTS as f32;
+            u * a.cos() + v * a.sin()
+        };
+        let ends = [(profile[0], -axis), (profile[profile.len() - 1], axis)];
+        for ((t, r), normal) in ends {
+            let center = self.vertex(origin + axis * t, normal);
+            let rim: Vec<u32> = (0..ROUND_SEGMENTS)
+                .map(|k| self.vertex(origin + axis * t + around(k) * r, normal))
+                .collect();
+            for k in 0..ROUND_SEGMENTS {
+                self.triangle(center, rim[k], rim[(k + 1) % ROUND_SEGMENTS]);
+            }
+        }
+    }
+
+    /// A tube about `axis` through `origin`, from `t0` to `t1` along it.
+    fn hollow(&mut self, origin: Vec3, axis: Vec3, t0: f32, t1: f32, outer: f32, inner: f32) {
+        self.lathe_bands(origin, axis, &[(t0, inner), (t0, outer), (t1, outer), (t1, inner), (t0, inner)]);
+    }
+
+    /// The bands of `lathe_at`, without its end caps.
+    fn lathe_bands(&mut self, origin: Vec3, axis: Vec3, profile: &[(f32, f32)]) {
         let (u, v) = axis.any_orthonormal_pair();
         let around = |k: usize| {
             let a = TAU * k as f32 / ROUND_SEGMENTS as f32;
@@ -176,15 +251,45 @@ impl Mesh {
                 self.quad(a, b, c, d);
             }
         }
-        let ends = [(profile[0], -axis), (profile[profile.len() - 1], axis)];
-        for ((t, r), normal) in ends {
-            let center = self.vertex(origin + axis * t, normal);
-            let rim: Vec<u32> = (0..ROUND_SEGMENTS)
-                .map(|k| self.vertex(origin + axis * t + around(k) * r, normal))
-                .collect();
-            for k in 0..ROUND_SEGMENTS {
-                self.triangle(center, rim[k], rim[(k + 1) % ROUND_SEGMENTS]);
+    }
+
+    /// A hex nut about the x axis from `t0` to `t1`, its flats square to y so
+    /// that it sits between a fork's jaws.
+    fn nut(&mut self, t0: f32, t1: f32) {
+        let corner = |k: usize| Vec2::from_angle(TAU * (k as f32 + 0.5) / 6.0) * FORK_NUT_RADIUS.f32();
+        let at = |t: f32, p: Vec2| Vec3::new(t, p.x, p.y);
+        for k in 0..6 {
+            let (p, q) = (corner(k), corner(k + 1));
+            let normal = at(0.0, p + q);
+            let corners = [
+                self.vertex(at(t0, p), normal),
+                self.vertex(at(t0, q), normal),
+                self.vertex(at(t1, q), normal),
+                self.vertex(at(t1, p), normal),
+            ];
+            self.quad(corners[0], corners[1], corners[2], corners[3]);
+        }
+        for (t, normal) in [(t0, -Vec3::X), (t1, Vec3::X)] {
+            let center = self.vertex(at(t, Vec2::ZERO), normal);
+            for k in 0..6 {
+                let (p, q) = (self.vertex(at(t, corner(k)), normal), self.vertex(at(t, corner(k + 1)), normal));
+                self.triangle(center, p, q);
             }
+        }
+    }
+
+    /// `other` with its x and y swapped, so an extrusion along y runs along x.
+    fn append_along_x(&mut self, other: &Mesh) {
+        let swapped = |[x, y, z]: [f32; 3]| [y, x, z];
+        let offset = self.vertices.len() as u32;
+        self.vertices.extend(other.vertices.iter().map(|vertex| Vertex {
+            position: swapped(vertex.position),
+            normal: swapped(vertex.normal),
+            uv: vertex.uv,
+        }));
+        // Swapping two axes mirrors the mesh, so each triangle turns over.
+        for triangle in other.indices.chunks(3) {
+            self.indices.extend([triangle[0] + offset, triangle[2] + offset, triangle[1] + offset]);
         }
     }
 
@@ -220,44 +325,46 @@ impl Wgpu {
     pub fn create_part(&self, part: Part, sizes: PartSizes) -> PartMesh {
         let mut mesh = Mesh::default();
         match part {
-            Part::Cap => mesh.lathe(Vec3::Y, &[(0.0, sizes.ring_radius), (sizes.cap_thickness, sizes.ring_radius)]),
             Part::Ring => {
-                let boss = BOSS_REACH * sizes.ring_radius;
+                let boss = sizes.pivot_radius - BOSS_SHORT_OF_PIVOT.f32();
                 ring(&mut mesh, sizes.ring_radius, sizes.ring_thickness, &[(0.0, boss)]);
+                cross_tube(&mut mesh, 0.0, sizes.pivot_radius);
             }
             Part::CustomDisc(shape) => {
-                // A boss ends as far short of its pivot as a standard ring's.
-                let short_of_pivot = sizes.pivot_radius - BOSS_REACH * sizes.ring_radius;
+                let short_of_pivot = BOSS_SHORT_OF_PIVOT.f32();
                 let bosses: Vec<(f32, f32)> = shape
                     .bosses()
                     .iter()
                     .map(|&(degrees, reach)| ((degrees as f32).to_radians(), reach as f32 / 1000.0 - short_of_pivot))
                     .collect();
                 ring(&mut mesh, sizes.ring_radius, sizes.ring_thickness, &bosses);
+                for &(degrees, reach) in shape.bosses() {
+                    cross_tube(&mut mesh, (degrees as f32).to_radians(), reach as f32 / 1000.0);
+                }
             }
             Part::Spacer { washers } => {
                 let height = washers as f32 * sizes.washer_thickness;
-                mesh.lathe(Vec3::Y, &[(0.0, sizes.ring_radius), (height, sizes.ring_radius)]);
-            }
-            Part::CrossTube => {
-                let half = TUBE_LENGTH / 2.0;
-                mesh.lathe(Vec3::Y, &[(-half, TUBE_RADIUS), (half, TUBE_RADIUS)]);
+                mesh.hollow(Vec3::ZERO, Vec3::Y, 0.0, height, sizes.ring_radius, RING_BORE_DIAMETER.f32() / 2.0);
             }
             Part::Clevis => clevis(&mut mesh, &CLEVIS),
-            Part::Swivel => swivel(&mut mesh, SWIVEL_LENGTH.f32()),
-            Part::Link { mm } => swivel(&mut mesh, mm as f32 / 1000.0),
-            Part::SwivelJaw => jaw(&mut mesh, &CLEVIS, SWIVEL_JAW_LENGTH.f32()),
+            Part::Hinge => hinge_clevis(&mut mesh),
+            Part::HingeEye => hinge_rod_end(&mut mesh),
+            Part::RodFork => rod_fork(&mut mesh, &ROD_FORK),
+            Part::ForkNuts => {
+                let (web, height) = (ROD_FORK.pin_to_jaw_base.f32(), FORK_NUT_HEIGHT.f32());
+                mesh.nut(web - height, web);
+                mesh.nut(FORK_WEB_OUTSIDE.f32(), FORK_WEB_OUTSIDE.f32() + height);
+            }
             Part::NodePlate(shape) => {
-                let corners: Vec<(Vec2, f32)> = shape
+                let centers: Vec<Vec2> = shape
                     .holes
                     .iter()
-                    .map(|&(degrees, mm)| {
-                        let toward = Vec2::from_angle((degrees as f32).to_radians());
-                        (toward * (mm as f32 / 1000.0), PLATE_CORNER_RADIUS.f32())
-                    })
+                    .map(|&(degrees, mm)| Vec2::from_angle((degrees as f32).to_radians()) * (mm as f32 / 1000.0))
                     .collect();
+                let corners: Vec<(Vec2, f32)> = centers.iter().map(|&c| (c, PLATE_CORNER_RADIUS.f32())).collect();
+                let holes: Vec<(Vec2, f32)> = centers.iter().map(|&c| (c, PLATE_HOLE_DIAMETER.f32() / 2.0)).collect();
                 let half = PLATE_THICKNESS.f32() / 2.0;
-                mesh.extrude(&hull_of_circles(&corners), -half, half);
+                mesh.extrude_with_holes(&hull_of_circles(&corners), &holes, -half, half);
             }
         }
         let (vertices, indices, index_count) = self.mesh_buffers(&part.name(), &mesh);
@@ -284,10 +391,25 @@ impl Wgpu {
     }
 }
 
+/// The cross-tube welded across the end of a boss at angle `at` from +x in
+/// the x/z plane, centred on the pivot `reach` out, square to the boss.
+fn cross_tube(mesh: &mut Mesh, at: f32, reach: f32) {
+    let toward = Vec3::new(at.cos(), 0.0, at.sin());
+    let along = Vec3::new(-at.sin(), 0.0, at.cos());
+    let half = TUBE_LENGTH / 2.0;
+    mesh.hollow(toward * reach, along, -half, half, TUBE_RADIUS, TUBE_BORE_RADIUS);
+}
+
 /// A flat disc with a boss at each of `bosses`: (angle from +x in the x/z
 /// plane, ascending; distance from the centre to the boss's end), with
 /// `thickness` through y.
 fn ring(mesh: &mut Mesh, radius: f32, thickness: f32, bosses: &[(f32, f32)]) {
+    let bore = [(Vec2::ZERO, RING_BORE_DIAMETER.f32() / 2.0)];
+    mesh.extrude_with_holes(&ring_outline(radius, bosses), &bore, -thickness / 2.0, thickness / 2.0);
+}
+
+/// The outline of `ring`.
+fn ring_outline(radius: f32, bosses: &[(f32, f32)]) -> Vec<Vec2> {
     let theta = BOSS_HALF_WIDTH.asin();
     let mut outline: Vec<Vec2> = Vec::new();
     for (i, &(at, end)) in bosses.iter().enumerate() {
@@ -304,19 +426,103 @@ fn ring(mesh: &mut Mesh, radius: f32, thickness: f32, bosses: &[(f32, f32)]) {
             Vec2::new(a.cos(), a.sin()) * radius
         }));
     }
-    mesh.extrude(&outline, -thickness / 2.0, thickness / 2.0);
+    outline
 }
 
-/// A swivel `length` pin to pin: its near jaw pinned at the origin, the
-/// bearing along +x, then any solid bar to where the far jaw
-/// (`Part::SwivelJaw`) begins.
-fn swivel(mesh: &mut Mesh, length: f32) {
-    let jaw_length = SWIVEL_JAW_LENGTH.f32();
-    jaw(mesh, &CLEVIS, jaw_length);
-    let (bearing, rod) = (SWIVEL_BEARING_RADIUS.f32(), LINK_ROD_RADIUS.f32());
-    let bearing_end = jaw_length + SWIVEL_BEARING_LENGTH.f32();
-    let far_jaw = (length - jaw_length).max(bearing_end);
-    mesh.lathe(Vec3::X, &[(jaw_length, bearing), (bearing_end, bearing), (bearing_end, rod), (far_jaw, rod)]);
+/// A round hole's edge, as a polygon.
+fn circle(center: Vec2, radius: f32) -> Vec<Vec2> {
+    (0..ROUND_SEGMENTS).map(|k| center + Vec2::from_angle(TAU * k as f32 / ROUND_SEGMENTS as f32) * radius).collect()
+}
+
+/// Twice a polygon's area, positive when counter-clockwise.
+fn doubled_area(polygon: &[Vec2]) -> f32 {
+    (0..polygon.len()).map(|i| polygon[i].perp_dot(polygon[(i + 1) % polygon.len()])).sum()
+}
+
+/// Triangles covering `outline` but not `holes`: each hole is joined to the
+/// outline by a bridge between their closest corners, making one polygon, whose
+/// ears are then clipped.
+fn triangulate(outline: &[Vec2], holes: &[Vec<Vec2>]) -> Vec<[Vec2; 3]> {
+    let mut polygon = outline.to_vec();
+    if doubled_area(&polygon) < 0.0 {
+        polygon.reverse();
+    }
+    for hole in holes {
+        let mut hole = hole.clone();
+        if doubled_area(&hole) > 0.0 {
+            hole.reverse();
+        }
+        let distance = |&(i, j): &(usize, usize)| polygon[i].distance_squared(hole[j]);
+        let pairs = (0..polygon.len()).flat_map(|i| (0..hole.len()).map(move |j| (i, j)));
+        let (i, j) = pairs.min_by(|a, b| distance(a).total_cmp(&distance(b))).expect("polygons have corners");
+        let bridged: Vec<Vec2> = polygon[..=i]
+            .iter()
+            .chain(&hole[j..])
+            .chain(&hole[..=j])
+            .chain(&polygon[i..])
+            .copied()
+            .collect();
+        polygon = bridged;
+    }
+    let mut triangles = Vec::new();
+    while polygon.len() >= 3 {
+        let n = polygon.len();
+        let corners = |i: usize| [polygon[(i + n - 1) % n], polygon[i], polygon[(i + 1) % n]];
+        let inside = |[a, b, c]: [Vec2; 3], p: Vec2| {
+            (b - a).perp_dot(p - a) >= 0.0 && (c - b).perp_dot(p - b) >= 0.0 && (a - c).perp_dot(p - c) >= 0.0
+        };
+        let is_ear = |i: usize| {
+            let [a, b, c] = corners(i);
+            (b - a).perp_dot(c - b) > 0.0
+                && polygon.iter().all(|&p| p == a || p == b || p == c || !inside([a, b, c], p))
+        };
+        let Some(ear) = (0..n).find(|&i| is_ear(i)) else {
+            break;
+        };
+        triangles.push(corners(ear));
+        polygon.remove(ear);
+    }
+    triangles
+}
+
+/// A hinge's clevis and pin: the pin at the origin along y, the jaws round
+/// it either side of the rod end's eye, closing into a block and the
+/// threaded body down the strut along +x to its base.
+fn hinge_clevis(mesh: &mut Mesh) {
+    let (gap, plate) = (HINGE_JAW_GAP.f32() / 2.0, HINGE_JAW_THICKNESS.f32());
+    let (eye, length) = (HINGE_EYE_RADIUS.f32(), HINGE_LENGTH.f32());
+    let block = eye + 0.004;
+    let jaw = hull_of_circles(&[(Vec2::ZERO, eye), (Vec2::new(block, 0.0), eye)]);
+    mesh.extrude(&jaw, gap, gap + plate);
+    mesh.extrude(&jaw, -gap - plate, -gap);
+    let bridge = [
+        Vec2::new(block, -eye),
+        Vec2::new(block + plate, -eye),
+        Vec2::new(block + plate, eye),
+        Vec2::new(block, eye),
+    ];
+    mesh.extrude(&bridge, -gap, gap);
+    let shank = HINGE_SHANK_RADIUS.f32();
+    threaded_body(mesh, block + plate, shank, length);
+    let through = gap + plate + 0.003;
+    mesh.lathe(Vec3::Y, &[(-through, HINGE_PIN_RADIUS.f32()), (through, HINGE_PIN_RADIUS.f32())]);
+}
+
+/// A hinge's rod end: the eye round the pin at the origin along y, its
+/// ball standing proud either side, and the threaded body down the strut
+/// along +x to its base.
+fn hinge_rod_end(mesh: &mut Mesh) {
+    let (eye, half) = (HINGE_EYE_RADIUS.f32(), HINGE_EYE_WIDTH.f32() / 2.0);
+    mesh.lathe(Vec3::Y, &[(-half, eye), (half, eye)]);
+    let ball = HINGE_BALL_WIDTH.f32() / 2.0;
+    mesh.lathe(Vec3::Y, &[(-ball, eye * 0.6), (ball, eye * 0.6)]);
+    threaded_body(mesh, eye * 0.8, HINGE_SHANK_RADIUS.f32(), HINGE_LENGTH.f32());
+}
+
+/// A hinge fitting's body along +x, its base tapped for the strut's bolt.
+fn threaded_body(mesh: &mut Mesh, start: f32, radius: f32, length: f32) {
+    let (thread, depth) = (HINGE_THREAD_RADIUS.f32(), HINGE_THREAD_DEPTH.f32());
+    mesh.lathe(Vec3::X, &[(start, radius), (length, radius), (length, thread), (length - depth, thread)]);
 }
 
 /// The convex outline round discs given as (centre, radius), in the x/z
@@ -362,33 +568,38 @@ fn clevis(mesh: &mut Mesh, c: &ClevisDimensions) {
             (block_end + c.neck_length.f32(), c.barrel_radius.f32()),
             (length - c.barrel_taper.f32(), c.barrel_radius.f32()),
             (length, c.barrel_tip_radius.f32()),
+            (length, BARREL_BORE_RADIUS),
+            (length - c.barrel_length.f32(), BARREL_BORE_RADIUS),
         ],
     );
+}
+
+/// A rod fork: a jaw with its pin and split ring, pin centre at the origin along
+/// +y toward its head, closed along +x by a web with a hole for the threaded rod.
+fn rod_fork(mesh: &mut Mesh, c: &ClevisDimensions) {
+    let web_outside = FORK_WEB_OUTSIDE.f32();
+    jaw_plates_and_pin(mesh, c, web_outside);
+    let (jaw_half, width_half) = (c.jaw_half_thickness(), c.plate_width.f32() / 2.0);
+    let outline = [
+        Vec2::new(-jaw_half, -width_half),
+        Vec2::new(jaw_half, -width_half),
+        Vec2::new(jaw_half, width_half),
+        Vec2::new(-jaw_half, width_half),
+    ];
+    let hole = [(Vec2::ZERO, FORK_HOLE_DIAMETER.f32() / 2.0)];
+    let mut web = Mesh::default();
+    web.extrude_with_holes(&outline, &hole, c.pin_to_jaw_base.f32(), web_outside);
+    mesh.append_along_x(&web);
 }
 
 /// A jaw with its pin and split ring, as on the jaw terminal: pin centre at
 /// the origin along +y toward its head, the solid block out along +x to
 /// `block_end`.
 fn jaw(mesh: &mut Mesh, c: &ClevisDimensions, block_end: f32) {
+    jaw_plates_and_pin(mesh, c, block_end);
     let gap_half = c.jaw_gap.f32() / 2.0;
-    let jaw_half = c.jaw_half_thickness();
     let width_half = c.plate_width.f32() / 2.0;
-    let tip = c.pin_to_tip.f32();
     let jaw_base = c.pin_to_jaw_base.f32();
-
-    // Jaw plates: rounded tip around the pin, running back into the
-    // solid block. The block between them closes the slot at the jaw base.
-    let flank = (width_half / tip).min(1.0).asin();
-    let mut plate: Vec<Vec2> = (0..=TIP_SEGMENTS)
-        .map(|i| {
-            let a = PI - flank + 2.0 * flank * i as f32 / TIP_SEGMENTS as f32;
-            Vec2::new(a.cos(), a.sin()) * tip
-        })
-        .collect();
-    plate.push(Vec2::new(block_end, plate[TIP_SEGMENTS].y));
-    plate.push(Vec2::new(block_end, plate[0].y));
-    mesh.extrude(&plate, gap_half, jaw_half);
-    mesh.extrude(&plate, -jaw_half, -gap_half);
     let block = [
         Vec2::new(jaw_base, -width_half),
         Vec2::new(block_end, -width_half),
@@ -396,6 +607,29 @@ fn jaw(mesh: &mut Mesh, c: &ClevisDimensions, block_end: f32) {
         Vec2::new(jaw_base, width_half),
     ];
     mesh.extrude(&block, -gap_half, gap_half);
+}
+
+/// A jaw's two plates, running out along +x to `plate_end`, with its pin and
+/// split ring.
+fn jaw_plates_and_pin(mesh: &mut Mesh, c: &ClevisDimensions, plate_end: f32) {
+    let gap_half = c.jaw_gap.f32() / 2.0;
+    let jaw_half = c.jaw_half_thickness();
+    let width_half = c.plate_width.f32() / 2.0;
+    let tip = c.pin_to_tip.f32();
+
+    // Jaw plates: rounded tip around the pin, running back to whatever closes
+    // the slot at the jaw base.
+    let flank = (width_half / tip).min(1.0).asin();
+    let mut plate: Vec<Vec2> = (0..=TIP_SEGMENTS)
+        .map(|i| {
+            let a = PI - flank + 2.0 * flank * i as f32 / TIP_SEGMENTS as f32;
+            Vec2::new(a.cos(), a.sin()) * tip
+        })
+        .collect();
+    plate.push(Vec2::new(plate_end, plate[TIP_SEGMENTS].y));
+    plate.push(Vec2::new(plate_end, plate[0].y));
+    mesh.extrude(&plate, gap_half, jaw_half);
+    mesh.extrude(&plate, -jaw_half, -gap_half);
 
     // Headed pin, overhanging the far jaw for the split ring's cross-hole.
     let far_end = -jaw_half - c.pin_overhang.f32();
@@ -417,4 +651,36 @@ fn jaw(mesh: &mut Mesh, c: &ClevisDimensions, block_end: f32) {
         ring_radius,
         c.split_ring_wire.f32(),
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn covered(triangles: &[[Vec2; 3]]) -> f32 {
+        triangles.iter().map(|corners| doubled_area(corners) / 2.0).sum()
+    }
+
+    fn assert_covers(outline: &[Vec2], holes: &[Vec<Vec2>]) {
+        let holes_area: f32 = holes.iter().map(|hole| doubled_area(hole).abs() / 2.0).sum();
+        let expected = doubled_area(outline).abs() / 2.0 - holes_area;
+        let area = covered(&triangulate(outline, holes));
+        assert!((area - expected).abs() < expected * 1e-4, "covered {area}, expected {expected}");
+    }
+
+    #[test]
+    fn ring_cap_leaves_the_bore_open() {
+        let bore = [circle(Vec2::ZERO, RING_BORE_DIAMETER.f32() / 2.0)];
+        assert_covers(&ring_outline(0.02, &[(0.0, 0.022)]), &bore);
+        let bosses = [(-2.6, 0.042), (-0.42, 0.032), (0.42, 0.032), (2.6, 0.042)];
+        assert_covers(&ring_outline(0.02, &bosses), &bore);
+    }
+
+    #[test]
+    fn plate_cap_leaves_its_three_holes_open() {
+        let centers = [0.0_f32, 120.0, 240.0].map(|degrees| Vec2::from_angle(degrees.to_radians()) * 0.035);
+        let corners = centers.map(|c| (c, PLATE_CORNER_RADIUS.f32()));
+        let holes = centers.map(|c| circle(c, PLATE_HOLE_DIAMETER.f32() / 2.0));
+        assert_covers(&hull_of_circles(&corners), &holes);
+    }
 }

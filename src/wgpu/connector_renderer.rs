@@ -11,7 +11,8 @@ use crate::wgpu::part_meshes::{PartMesh, PartSizes};
 use crate::wgpu::parts_panel::PanelRow;
 use crate::wgpu::Wgpu;
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Vec3};
+use glam::{Mat4, Quat, Vec3};
+use crate::connector::fork::HINGE_LENGTH;
 use instant::Instant;
 use std::collections::BTreeMap;
 use std::mem::size_of;
@@ -31,6 +32,8 @@ const POM_COLOR: [f32; 4] = [0.93, 0.92, 0.88, 1.0];
 const THUMBNAIL_TURN_RATE: f32 = 0.5;
 // How much of its square a part's bounding sphere fills.
 const THUMBNAIL_FILL: f32 = 0.85;
+// The parts panel shows a hinge assembled, opened this far.
+const THUMBNAIL_HINGE_OPENING: f32 = 135.0;
 
 fn material_color(material: Material) -> [f32; 4] {
     match material {
@@ -52,7 +55,16 @@ pub struct PartInstance {
 }
 
 impl PartInstance {
-    fn new(placement: &Placement) -> Self {
+    /// The same instance with its `x` turned by `angle` about its `y`, the
+    /// origin staying put.
+    fn turned(self, angle: f32) -> Self {
+        let x = Vec3::from_slice(&self.boss_dir[..3]);
+        let y = Vec3::from_slice(&self.axis_thickness[..3]);
+        let x = Quat::from_axis_angle(y, angle) * x;
+        PartInstance { boss_dir: [x.x, x.y, x.z, 0.0], ..self }
+    }
+
+    pub fn new(placement: &Placement) -> Self {
         let (o, x, y) = (placement.origin, placement.x, placement.y);
         let color = if placement.culprit {
             OVERLAP_COLOR
@@ -67,14 +79,15 @@ impl PartInstance {
         }
     }
 
-    /// `part` turned by `angle` about the vertical, its bounding sphere
-    /// centred at the origin and scaled to fill a panel square.
-    fn thumbnail(part: Part, mesh: &PartMesh, angle: f32) -> Self {
+    /// `part` turned by `angle` about the vertical, the sphere at `center`
+    /// (in the part's frame at `angle` zero) with `radius` scaled to fill
+    /// a panel square.
+    fn thumbnail(part: Part, center: Vec3, radius: f32, angle: f32) -> Self {
         let x = Vec3::new(angle.cos(), 0.0, -angle.sin());
         let y = Vec3::Y;
         let z = x.cross(y);
-        let scale = THUMBNAIL_FILL / mesh.radius.max(1e-6);
-        let c = mesh.center;
+        let scale = THUMBNAIL_FILL / radius.max(1e-6);
+        let c = center;
         let o = -(x * c.x + y * c.y + z * c.z) * scale;
         PartInstance {
             center_radius: [o.x, o.y, o.z, scale],
@@ -82,6 +95,22 @@ impl PartInstance {
             boss_dir: [x.x, x.y, x.z, 0.0],
             color: material_color(part.material()),
         }
+    }
+}
+
+const PART_INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 4] = wgpu::vertex_attr_array![
+    3 => Float32x4,
+    4 => Float32x4,
+    5 => Float32x4,
+    6 => Float32x4,
+];
+
+/// How `PartInstance`s reach the plate pipeline.
+pub fn part_instance_layout() -> wgpu::VertexBufferLayout<'static> {
+    wgpu::VertexBufferLayout {
+        array_stride: size_of::<PartInstance>() as wgpu::BufferAddress,
+        step_mode: wgpu::VertexStepMode::Instance,
+        attributes: &PART_INSTANCE_ATTRIBUTES,
     }
 }
 
@@ -105,37 +134,13 @@ pub struct ConnectorRenderer {
     /// turning instance per kind.
     thumbnail_bind_group: wgpu::BindGroup,
     thumbnail_instances: Option<wgpu::Buffer>,
+    /// For a hinge's row, the instance drawing its rod end beside the clevis.
+    thumbnail_eyes: Vec<(usize, u32)>,
     started: Instant,
 }
 
 impl ConnectorRenderer {
     pub fn new(wgpu: &Wgpu) -> Self {
-        let instance_layout = wgpu::VertexBufferLayout {
-            array_stride: size_of::<PartInstance>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 3,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: size_of::<[f32; 4]>() as wgpu::BufferAddress,
-                    shader_location: 4,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: size_of::<[f32; 8]>() as wgpu::BufferAddress,
-                    shader_location: 5,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: size_of::<[f32; 12]>() as wgpu::BufferAddress,
-                    shader_location: 6,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-            ],
-        };
         // Looking down a little at the origin, the unit sphere filling the
         // view: each part sits there, scaled to fit, in its own viewport.
         let view = Mat4::look_at_rh(Vec3::new(0.0, 1.2, 2.6), Vec3::ZERO, Vec3::Y);
@@ -154,12 +159,13 @@ impl ConnectorRenderer {
             }],
         });
         ConnectorRenderer {
-            pipeline: wgpu.create_plate_pipeline("Connector Part Pipeline", instance_layout),
+            pipeline: wgpu.create_plate_pipeline("Connector Part Pipeline", part_instance_layout()),
             sizes: None,
             parts: BTreeMap::new(),
             kinds: Vec::new(),
             thumbnail_bind_group,
             thumbnail_instances: None,
+            thumbnail_eyes: Vec::new(),
             started: Instant::now(),
         }
     }
@@ -169,13 +175,7 @@ impl ConnectorRenderer {
             self.parts.values_mut().for_each(|buffers| buffers.instance_count = 0);
             return;
         };
-        let sizes = PartSizes {
-            ring_radius: fabric.dimensions.push_radius.f32(),
-            pivot_radius: connector.dimensions.pivot_radius.f32(),
-            ring_thickness: connector.dimensions.ring_thickness.f32(),
-            washer_thickness: connector.dimensions.washer_thickness.f32(),
-            cap_thickness: connector.dimensions.cap_thickness.f32(),
-        };
+        let sizes = PartSizes::of(&fabric.dimensions, &connector.dimensions);
         if self.sizes != Some(sizes) {
             self.sizes = Some(sizes);
             self.parts.clear();
@@ -208,10 +208,28 @@ impl ConnectorRenderer {
             });
         }
         let angle = self.started.elapsed().as_secs_f32() * THUMBNAIL_TURN_RATE;
-        let thumbnails: Vec<PartInstance> = self
-            .kinds
-            .iter()
-            .map(|kind| PartInstance::thumbnail(kind.sample, &self.parts[&kind.sample].mesh, angle))
+        let mut thumbnails: Vec<PartInstance> = Vec::new();
+        let mut eyes: Vec<(usize, PartInstance)> = Vec::new();
+        for (row, kind) in self.kinds.iter().enumerate() {
+            if kind.sample == Part::Hinge {
+                // Clevis and rod end together, the rod end opened about the pin.
+                let opening = THUMBNAIL_HINGE_OPENING.to_radians();
+                let reach = HINGE_LENGTH.f32();
+                let center = Vec3::new(1.0 + opening.cos(), 0.0, -opening.sin()) * (reach / 4.0);
+                let radius = reach * 0.75;
+                thumbnails.push(PartInstance::thumbnail(kind.sample, center, radius, angle));
+                eyes.push((row, PartInstance::thumbnail(Part::HingeEye, center, radius, angle).turned(opening)));
+            } else {
+                let mesh = &self.parts[&kind.sample].mesh;
+                thumbnails.push(PartInstance::thumbnail(kind.sample, mesh.center, mesh.radius, angle));
+            }
+        }
+        self.thumbnail_eyes = eyes
+            .into_iter()
+            .map(|(row, eye)| {
+                thumbnails.push(eye);
+                (row, thumbnails.len() as u32 - 1)
+            })
             .collect();
         self.thumbnail_instances = (!thumbnails.is_empty()).then(|| {
             wgpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -261,6 +279,13 @@ impl ConnectorRenderer {
             render_pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
             let instance = index as u32;
             render_pass.draw_indexed(0..mesh.index_count, 0, instance..instance + 1);
+            let eye = self.thumbnail_eyes.iter().find(|(row, _)| *row == index);
+            if let (Some(&(_, instance)), Some(eye_part)) = (eye, self.parts.get(&Part::HingeEye)) {
+                let mesh = &eye_part.mesh;
+                render_pass.set_vertex_buffer(0, mesh.vertices.slice(..));
+                render_pass.set_index_buffer(mesh.indices.slice(..), wgpu::IndexFormat::Uint32);
+                render_pass.draw_indexed(0..mesh.index_count, 0, instance..instance + 1);
+            }
         }
     }
 }

@@ -9,7 +9,7 @@
 > `src/connector/dimensions.rs` and `src/connector/fork.rs`. Open Claw's
 > connector is frozen on its own branch.
 
-## Bridle Nodes: Node Plates and Swivels
+## Bridle Nodes: Node Plates and Hangers
 
 Where a strut end would carry too many cables, or two cables leave it in
 nearly the same direction, a **bridle** (`Fabric::bridle`, DSL `.bridle`)
@@ -26,29 +26,30 @@ N–A and N–B, meeting at a free node N. Three tension lines meet at N.
   steel round each hole and `PLATE_THICKNESS` (12 mm) fitting the
   terminals' 14 mm jaw gap. Its corners sit on the three cables' lines, so
   where the lines meet (N) is the triangle's centre only when the cables
-  are 120° apart. 60 mm is the largest side tried that leaves Headless Hug
+  are 120° apart. Two cables spreading to far struts can meet beyond the
+  plate, on the third cable's side, with N outside the triangle. 60 mm is the largest side tried that leaves Headless Hug
   no cable too short; at 65 and 70 mm two were.
-- **Always hung on a jaw–jaw swivel** (`SWIVEL_LENGTH`, 82 mm pin to pin)
-  from J's cross-tube, close to J, so the bridle keeps the forces much as
-  the two cables it replaces had them. One jaw pins through the
-  cross-tube, the other through the plate's hole, and a bearing between
-  them lets either turn about the link: the two pins sit at an angle that
-  swings as the figure moves, which a rigid shackle would have to take as
-  torque. Its jaws are the jaw terminal's; the bearing is an estimate.
-  (Setting nodes out on cable pendants instead
+- **Always hung on a hanger** (`HANGER_LENGTH`, 82 mm pin to pin), a short fork
+  rod from J's cross-tube, close to J, so the bridle keeps the forces much as
+  the two cables it replaces had them. One rod fork pins through the
+  cross-tube, the other through the plate's hole. Each is a U with the threaded
+  rod through its web, a load nut inside and a lock nut outside. The two pins
+  swing against each other by 2–7° as the figure moves, which only the play at
+  the pins takes up. It was a jaw–jaw swivel until 2026-11-02, so that all
+  tension is cable or threaded rod. (Setting nodes out on cable pendants instead
   made the arms sag 1.5 m and left a dozen cables slack.)
-  `Fabric::bridle_swivels` records the swivels.
-- **Hung a swivel's length out.** The node starts `BRIDLE_LINK` (100 mm)
-  from J; the plate moves to hang its hole a swivel's length from the
+  `Fabric::bridle_hangers` records the hangers.
+- **Hung a hanger's length out.** The node starts `BRIDLE_LINK` (100 mm)
+  from J; the plate moves to hang its hole a hanger's length from the
   pivot, and its link is shortened to match as the shape falls and
   settles (`Fabric::hang_bridles`). A plate with no equilateral fit is
   flagged.
-- **Swivel links for short cables.** A cable from a plate too short to
-  make as a cable (`min_cable_length`, 262 mm pin to pin) is a swivel
-  link instead: the swivel's jaws and bearing stretched by a solid bar cut
-  to length (`LINK_ROD_RADIUS`), one part per length. Links are chosen
-  when the hardware is committed (`ConnectorSystem::link_length`); one
-  shorter than a swivel can't be made and is flagged short. Short cables
+- **Fork rods for short cables.** A cable from a plate too short to
+  make as a cable (`min_cable_length`, 262 mm pin to pin) is a fork rod
+  instead: threaded rod cut to length between two rod forks, as for a hanger.
+  They are chosen when the hardware is committed
+  (`ConnectorSystem::link_length`); one under `FORK_ROD_MIN_LENGTH`, 81 mm,
+  can't be made and is flagged short. Short cables
   elsewhere stay flagged. (Bridle clamps, one continuous cable over a
   saddle, were tried first and dropped on 2026-10-29: on a nearly
   straight cable they couldn't line up with their swivel.)
@@ -56,10 +57,10 @@ N–A and N–B, meeting at a free node N. Three tension lines meet at N.
   struts are, so a free node can't drift until one of its cables hangs
   slack.
 - **Checked like any connector**: every cable pin to pin against the
-  minimum length, every terminal, swivel, link and plate against
+  minimum length, every terminal, fork and plate against
   collisions.
 
-All plate, swivel and placement dimensions are estimates, in
+All plate, fork and placement dimensions are estimates, in
 `src/connector/fork.rs`.
 
 ## Physical Reality
@@ -70,9 +71,9 @@ The connector part itself — specified in full under [The Fabricated Part](#the
 
 The assembly at a strut end consists of:
 
-1. **Cap** — A fixed end-cap on the strut tube; the bolt passes through it
+1. **Bolt** — Axial, anchored in the strut's end; there is no end cap (the original design had one)
 2. **Rings** — One connector per cable, stacked on the bolt and retained by a nut
-3. **Washers** — A thin divider washer between cap and first ring and between adjacent rings, so steel never bears on steel
+3. **Washers** — A thin POM divider washer between the tube end and first ring and between adjacent rings, so steel never bears on steel
 4. **Pivot pins** — The cable's fork pivots on a pin through each connector's cross-tube
 
 Two free rotations mean the cable naturally finds its exact direction:
@@ -340,9 +341,9 @@ this table is informational and can drift between code edits and doc updates.
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `ring_thickness` | 5 mm | Ring thickness along the bolt axis (t_ring) |
-| `washer_thickness` | 1 mm | Divider washer between cap/ring and between adjacent rings |
-| `cap_thickness` | 5 mm | Strut end-cap the bolt passes through |
-| `pivot_radius` | 32 mm | Radial distance from the strut/bolt axis to the pivot pin (R_tube — the cable's moment arm) |
+| `washer_thickness` | 2 mm | POM divider washer between cap/ring and between adjacent rings |
+| `cap_thickness` | 0 mm | From the strut end to the first washer: nothing, as there are no strut caps; the first washer sits on the tube end (kept because Open Claw's CSV header reports it) |
+| `pivot_radius` | 30 mm | Radial distance from the strut/bolt axis to the pivot pin (R_tube — the cable's moment arm) |
 
 ## Slot Positioning Along the Strut Axis
 
@@ -352,21 +353,73 @@ Slots are numbered starting from 0 (code-internal) or 1 (display/CSV). The posit
 offset = cap_thickness + washer + ring_thickness/2 + slot * (ring_thickness + washer)
 ```
 
-For 0-indexed slots with the current defaults (cap=5 mm, t_ring=5 mm, washer=1 mm):
-- Slot 0: 5 + 1 + 2.5 = 8.5 mm from the strut end
-- Slot 1: 14.5 mm
-- Slot 2: 20.5 mm
+For 0-indexed slots with the current defaults (cap=0, t_ring=5 mm, washer=2 mm):
+- Slot 0: 0 + 2 + 2.5 = 4.5 mm from the strut end
+- Slot 1: 11.5 mm
+- Slot 2: 18.5 mm
+
+At a **hinge** (two struts pinned where their axes cross, DSL `.hinge`) the
+strut ends at the hinge pin, so each strut's stack is set back along it
+until the top of its highest ring sits `HINGE_LENGTH` (60 mm) below the pin
+(`ConnectorSystem::stack_ends`).
+
+The **hinge** itself (`Part::Hinge`, dimensions in `fork.rs`, all estimates
+for M12 catalogue parts) is a threaded clevis on one strut and a rod end on
+the other, each screwed onto its strut's bolt above the stack as the
+stack's nut, joined by a pin square to both struts exactly where their axes
+meet. Each strut's compression runs straight down its axis into the pin,
+with no lever. Each strut spins freely about its own axis (its rings turn
+on the bolt), so the pin can always lie square to both and the hinge only
+opens and closes; the rod end's ball takes any small misalignment. On the
+parts list one hinge covers clevis, rod end and pin; the rod end is drawn
+as its own placement (`Part::HingeEye`) because it turns on the pin.
+
+**No cable ends on a hinge.** The hinge is kept pristine: it carries only
+its two struts, so no awkward forces reach the pin. A cable attached to a
+strut before the hinge stays on that strut's stack (`Fabric::hinge_strut`).
+A cable with no strut of its own there (a bridle's cable, or one that merged
+in the hinge) is split by a node plate along it, with a leg from the plate
+to the stack on each strut (`Fabric::split_hinge_cables`), so its load
+reaches both struts through their stacks. The plate lies where its three
+forces balance: in the plane of the two legs' pivots and the far end, on the
+line from the far end to the midpoint of the pivots, where its three members
+come out about the same length, pin to pin. The simulation only knows the
+legs as one strand to the pin, so this place is worked out from the stacks
+(`ConnectorSystem::split_plate_center`), not taken from the simulated node. In the simulation the legs
+are two parallel intervals from the plate's node to the pin, each recorded
+as its strut's. Legs too short to be cables are fork rods, as for any
+plate. A pin takes one such cable, as its plate is named after it (`Z5b`),
+and a guy line at a hinge is refused; both are reported as failed plan steps.
 
 `ConnectorDimensions::ring_center()` uses `ring_center_offset()` to compute the 3D position of a ring center given a strut endpoint and axis direction. `generate_attachment_points()` (`src/connector/attachment.rs`) produces `ATTACHMENT_POINTS = 10` candidate slots per end from the same formula.
 
 ## How Cables Get Assigned to Slots
 
-When the fabric is built and settled, each push interval determines which cables connect to it and at which slot (`ConnectorSystem::update_all_connections`, rebuilt on demand — Viewing entry, attachment-point toggle-ON, CSV export). The optimiser (`find_optimal_assignment`, `src/connector/attachment.rs`) works per push end:
+When the fabric is built and settled, each push interval determines which cables connect to it and at which slot (`ConnectorSystem::update_all_connections`). This is the moment the hardware is **committed**: it runs on entering Viewing and for CSV export, and the slots, part shapes and fork rods it decides then stay put while the fabric animates or the C key is pressed (which only re-checks collisions). The optimiser (`find_optimal_assignment`, `src/connector/attachment.rs`) works per push end:
 
 - **No ordering rules**: every permutation of the cables over the slots is tried, and any cable may take any slot. (An earlier hard rule kept outward-pulling cables off the topmost slot, so the retaining nut would not carry their full axial load; it was dropped to clear collisions, so that nut load needs checking.)
 - **Objective**: fewest pairs of forks whose capsule models collide — the same test that marks culprits.
 - **Then**: maximise the minimum 3D distance between any pair of connector arms (segments from ring center to pivot pin).
 - **Tie-break**: minimum rotational moment about the slot-0 ring center.
+
+For a mirror-symmetric fabric (Headless Hug) the assignment is then made
+exactly symmetric, as the real build will be:
+
+- **Symmetric shape first** — `Fabric::symmetrize_mirror` moves each pair
+  of mirror twins to the mean of one and the other's reflection, so a
+  borderline collision on one side can't pass unnoticed on the other.
+- **Mirrored stacks** (`mirror_assignments`) — every stack takes the mirror
+  image of its twin's slot order: the order with the fewest colliding forks
+  on both stacks together.
+- **Custom discs on the mirror plane** (`plane_assignments`) — a strut
+  lying in the mirror plane is its own image, so each pair of twin cables
+  shares one height on a single laser-cut **custom disc** with a boss for
+  each (`Part::CustomDisc`). Bosses may reach out past the standard pivot
+  radius (`DISC_REACHES`, 30–70 mm) to clear their forks, and a **spacer**
+  of extra washers (`GAP_WASHERS`) can lift a disc clear of the one below.
+  Order, gaps and reaches are searched together for the fewest colliding
+  forks, then the fewest washers, then the shortest bosses. Each distinct
+  disc shape is its own part.
 
 ## Pivot Geometry: How Cable Endpoints are Positioned
 
@@ -382,26 +435,35 @@ The elevation is purely informational — nothing is manufactured to an angle; i
 
 ## Rendering
 
-The connector assembly is rendered by `ConnectorRenderer` (`src/wgpu/connector_renderer.rs`) as symbolic solid steel parts:
+The hardware is drawn from the **parts list** (`src/connector/parts.rs`):
+`placements(fabric)` places every copy of every `Part` (ring with boss and
+cross-tube, custom disc, POM washer or spacer, jaw terminal, rod fork, node
+plate, hinge) in its own frame, and `parts_list` counts them as a bill of
+materials. A welded cross-tube belongs to its ring or custom disc and is
+drawn as part of it. The rod ends of hinges and rod forks' stock nuts
+are drawn on their own but left off the list (`Part::listed`). A fork rod's
+threaded rod is drawn and reported like a cable, so only its forks are parts.
+`ConnectorRenderer` (`src/wgpu/connector_renderer.rs`) builds one mesh per
+part (`src/wgpu/part_meshes.rs`, in metres) and instances it at every
+placement; a new kind of hardware is a new `Part` variant. Stainless parts
+are drawn brighter than galvanized ones, POM washers off-white, and every
+part of a colliding assembly red. The cable itself (`cylinder_renderer.rs`,
+at the true 6 mm diameter) ends buried in its terminal's barrel, aimed at
+the far end's *pivot*, so terminal and cable stay collinear; a fork rod's
+threaded rod is drawn the same way, ending inside its fork. Nothing is drawn unless the attachment
+points are shown (C key).
 
-| Part | Shape | Dimensions |
-|------|-------|------------|
-| **Cap** | Flush cylindrical continuation of the strut tube | `cap_thickness` long, strut radius |
-| **Ring + boss** | One flat plate per occupied slot: a disc with the boss as part of its outline, aimed at the cable | `ring_thickness` thick, disc radius = strut radius (D_ring/2), boss to R_flat |
-| **Cross-tube** | Stubby cylinder along the tangent at the pivot | D_tube/2 × L_tube |
-| **Fork jaws** | Two rounded-nose plates astride the tube (same stadium outline family as the ring+boss, rendered by the plate pipeline), long axis along the cable — so forks visibly articulate with the free pivot | ~4.5 mm thick, ~9.5 mm nose radius (estimated; awaits terminal drawings) |
-| **Clevis pin** | Cylinder along the tangent through tube and jaws, protruding past each jaw | ⌀10 mm |
-| **Swage shank** | Cylinder along the cable beyond the jaws; the cable disappears into it | ⌀12 mm × 45 mm |
-
-The plate uses its own mesh and pipeline (`create_connector_plate`, `plate_vertex` in `shader.wgsl`) because its instances need a full orientation — the boss must point toward the cable, whereas a plain cylinder instance leaves the azimuth arbitrary. Washer gaps are left as empty space, so the stack reads as separate rings. The cable itself (drawn by `cylinder_renderer.rs`, at the true 6 mm cable diameter via `pull_radius`) ends buried inside its fork's swage shank. Both renderers aim each cable end at the far end's *pivot* (not the far joint), keeping fork and cable collinear even on short cables. Rendering is only visible when `show_attachment_points()` is enabled in the render style.
+In the connector view the left side is a **parts panel**
+(`src/wgpu/parts_panel.rs`): the parts by kind, each with its count and
+number of distinct shapes beside a turning rendering of one of them.
 
 ### Collision culprits
 
-The fork/tube dimensions and a capsule model of each assembled cable end live in `src/connector/fork.rs`. `ConnectorSystem::mark_culprits` (run once per slot-assignment rebuild, not per frame) does a pairwise capsule scan and records every cable end whose assembly would physically intersect another in `ConnectorSystem::culprits`. The renderer paints all parts of a culprit assembly red — these are real construction issues to resolve, not rendering artifacts.
+The fork/tube dimensions and a capsule model of each assembled cable end live in `src/connector/fork.rs`. `ConnectorSystem::mark_culprits` (run when the hardware is committed and again when the C key shows it, never per frame) does a pairwise capsule scan and records every cable end whose assembly would physically intersect another in `ConnectorSystem::culprits`. The renderer paints all parts of a culprit assembly red — these are real construction issues to resolve, not rendering artifacts.
 
 ## CSV Export
 
-The CSV export (`src/open_claw_symmetry.rs`) includes connector data:
+Open Claw's CSV export (`src/open_claw_symmetry.rs`) includes connector data; Headless Hug's geometry-only CSV (`src/engineering_csv.rs`) does not (see `docs/csv-handoff.md`):
 
 - **Pull intervals**: exported with slot number (1-indexed) and free pivot elevation angle at each end; endpoints are pivot pin positions
 - **Link intervals**: axial and radial links exported as separate rows for structural analysis
@@ -413,9 +475,9 @@ Format: `Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaJoint,AlphaSlot,A
 
 ## UI Display
 
-When attachment points are visible, picking a cable shows its slot assignments:
-- Example: `"Cable 152:3-48:5"` means the cable connects to slot 3 of strut 152's end and slot 5 of strut 48's end
-- The free pivot elevation angles at each end are shown as `Pivot: α: …, ω: …`
+When attachment points are visible, picking a cable shows each end as
+`<joint>:<slot>`, e.g. `L12:2` for slot 2 of the stack at `L12`, and the
+free pivot elevation angle at each end on a `Pivot:` line.
 
 ## Key Source Files
 
@@ -423,9 +485,12 @@ When attachment points are visible, picking a cable shows its slot assignments:
 |------|---------|
 | `src/connector/dimensions.rs` | `ConnectorDimensions`, `ring_center_offset()`, `ring_center()`, `pivot_geometry()` |
 | `src/connector/attachment.rs` | `PullConnections`, attachment points, slot-assignment optimiser |
-| `src/connector/system.rs` | `ConnectorSystem` (dims + per-push slot assignments, node plates) |
-| `src/connector/node_plate.rs` | `NodePlate`: a bridle node's plate and its holes |
+| `src/connector/system.rs` | `ConnectorSystem`: slot assignments, mirrored and plane stacks, node plates, fork rods, culprits |
+| `src/connector/fork.rs` | Terminal, rod fork and plate dimensions; collision capsules |
+| `src/connector/node_plate.rs` | `NodePlate`: a bridle node's equilateral plate and its holes |
 | `src/connector/parts.rs` | The parts list: every distinct part and where each copy sits |
-| `src/wgpu/connector_renderer.rs` | 3D rendering of connector links |
+| `src/fabric/bridle.rs` | `Fabric::bridle`, `tighten_bridles`, `hang_bridles` |
+| `src/fabric/symmetrize.rs` | `Fabric::symmetrize_mirror` |
+| `src/wgpu/connector_renderer.rs`, `part_meshes.rs`, `parts_panel.rs` | Drawing the parts and the parts panel |
 | `src/open_claw_symmetry.rs` | OpenClaw threefold-symmetry enforcement + CSV export |
 | `src/camera.rs` | Picking logic for slot and angle display |

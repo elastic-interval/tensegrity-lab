@@ -214,9 +214,9 @@ pub struct Fabric {
     /// Free nodes made by `bridle`, each a node plate joining three cables,
     /// with the link from its strut end.
     pub bridle_nodes: HashMap<JointKey, IntervalKey>,
-    /// The bridle links that are swivels, not cables: their node plate
+    /// The bridle links that are hangers, short fork rods, not cables: their node plate
     /// hangs close to the strut end.
-    pub bridle_swivels: HashSet<IntervalKey>,
+    pub bridle_hangers: HashSet<IntervalKey>,
 
     cached_bounding_radius: f32,
     approaching_count: usize,
@@ -247,7 +247,7 @@ impl Fabric {
             label_symmetry: None,
             hinge_strut: HashMap::new(),
             bridle_nodes: HashMap::new(),
-            bridle_swivels: HashSet::new(),
+            bridle_hangers: HashSet::new(),
             limb_names: HashMap::new(),
             approaching_count: 0,
             quiet_since: None,

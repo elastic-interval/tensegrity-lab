@@ -8,6 +8,7 @@
 //! fabric can be exported; the fabric-specific parts (which plan, symmetry
 //! rounding, notes) are left to the caller.
 
+use crate::connector::fork::threaded_rod_length;
 use glam::{Mat3, Vec3};
 use std::f32::consts::FRAC_PI_2;
 use std::fs::File;
@@ -15,7 +16,8 @@ use std::io::{self, Write};
 
 use crate::build::dsl::settle_phase::GuyLine;
 use crate::fabric::interval::{Role, Span};
-use crate::fabric::{Fabric, IntervalKey};
+use crate::connector::system::{hinge_struts, is_hanger};
+use crate::fabric::{Fabric, IntervalKey, JointKey};
 use crate::units::{Unit, MM_PER_METER};
 
 /// Rotation from simulation space (Y-up) to CSV space (Z-up, RFEM/Rhino).
@@ -27,7 +29,8 @@ pub fn sim_to_csv() -> Mat3 {
     Mat3::from_rotation_x(FRAC_PI_2)
 }
 
-/// Write the slack-moment CSV for `fabric` to `filename`.
+/// Write the slack-moment CSV for `fabric` to `filename`. Bridle hardware is
+/// written as built, so call `Fabric::update_all_attachment_connections` first.
 ///
 /// Every interval except supports gets a row: pushes first, then pulls, each
 /// sorted by its joint-to-joint length. `notes` become header comment lines,
@@ -100,57 +103,162 @@ pub fn write_csv(fabric: &Fabric, filename: &str, notes: &[String]) -> io::Resul
         writeln!(file, "#")?;
     }
 
-    let mut rows: Vec<(IntervalKey, bool, f32)> = fabric
-        .intervals
-        .iter()
-        .filter(|(_, interval)| !interval.has_role(Role::Support))
-        .map(|(key, interval)| {
-            (
-                key,
-                interval.has_role(Role::Pushing),
-                interval.length(&fabric.joints),
-            )
-        })
-        .collect();
-    rows.sort_by(|a, b| b.1.cmp(&a.1).then(a.2.total_cmp(&b.2)));
+    let mut rows = interval_rows(fabric);
+    rows.extend(plate_rows(fabric));
+    rows.sort_by(|a, b| (b.role == "push").cmp(&(a.role == "push")).then(a.length.total_cmp(&b.length)));
+
+    if !fabric.bridle_nodes.is_empty() {
+        for note in HARDWARE_NOTES {
+            writeln!(file, "# {note}")?;
+        }
+        writeln!(file, "#")?;
+        let rods: Vec<&Row> = rows.iter().filter(|row| row.role == "rod").collect();
+        if !rods.is_empty() {
+            writeln!(file, "# === Threaded rod to cut ===")?;
+            for row in rods {
+                writeln!(
+                    file,
+                    "# {} to {}: {:.0} mm rod, {:.0} mm pin to pin",
+                    row.alpha.1,
+                    row.omega.1,
+                    threaded_rod_length(row.length) * MM_PER_METER,
+                    row.length * MM_PER_METER,
+                )?;
+            }
+            writeln!(file, "#")?;
+        }
+    }
 
     writeln!(
         file,
         "Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaJoint,OmegaX,OmegaY,OmegaZ,OmegaJoint"
     )?;
-    for (index, (key, is_push, length)) in rows.iter().enumerate() {
-        let interval = &fabric.intervals[*key];
-        // `interval.strain` is only refreshed by the next physics tick, so
-        // right after `slacken` it still holds the pre-slack value. Pushes
-        // already approach their pretensed length; strain is measured against
-        // the slack length they start from.
-        let rest_length = match interval.span {
-            Span::Approaching { start_length, .. } => start_length.f32(),
-            _ => interval.ideal().f32(),
-        };
-        let strain = (length - rest_length) / rest_length;
-        let alpha = mm(fabric.joints[interval.alpha_key].location);
-        let omega = mm(fabric.joints[interval.omega_key].location);
+    for (index, row) in rows.iter().enumerate() {
+        let (alpha, omega) = (mm(row.alpha.0), mm(row.omega.0));
         writeln!(
             file,
             "{},{},{:.3},{:.3e},{:.3},{:.3},{:.3},{},{:.3},{:.3},{:.3},{}",
             index + 1,
-            if *is_push { "push" } else { "pull" },
-            length,
-            strain,
+            row.role,
+            row.length,
+            row.strain,
             alpha.x,
             alpha.y,
             alpha.z,
-            fabric.joint_label(interval.alpha_key),
+            row.alpha.1,
             omega.x,
             omega.y,
             omega.z,
-            fabric.joint_label(interval.omega_key),
+            row.omega.1,
         )?;
     }
 
     println!("Exported {} to {}", fabric.name, filename);
     Ok(())
+}
+
+const HARDWARE_NOTES: [&str; 7] = [
+    "=== Bridle hardware (rows run pin to pin as built, at real lengths) ===",
+    "rod:    fork rod, hanging a node plate from a strut end's stack, or where a plate's cable is too short to make",
+    "plate:  an edge of a stiff triangular node plate, hole to hole",
+    "pull:   a cable; one ending at a plate's hole runs pin to pin too",
+    "<node>.<n> is hole n of the plate at that node, e.g. L48b.1",
+    "<pin>@<joint> is on the stack of the strut toward <joint> at hinge <pin>, 30 mm off its axis",
+    "No cable or rod ends on a hinge pin: the pin carries only its two struts",
+];
+
+/// One row of the CSV: its ends as (location in sim space, name).
+struct Row {
+    role: &'static str,
+    length: f32,
+    strain: f32,
+    alpha: (Vec3, String),
+    omega: (Vec3, String),
+}
+
+/// A row per non-support interval. Struts and ordinary cables run joint to
+/// joint. A member of a node plate or a cable at a hinge pin runs pin to pin,
+/// as built, since the joints there are only the simulation's.
+fn interval_rows(fabric: &Fabric) -> Vec<Row> {
+    fabric
+        .intervals
+        .iter()
+        .filter(|(_, interval)| !interval.has_role(Role::Support))
+        .map(|(key, interval)| {
+            let (alpha_key, omega_key) = (interval.alpha_key, interval.omega_key);
+            let plate_or_hinge = |joint| fabric.bridle_nodes.contains_key(&joint) || hinge_struts(fabric, joint).is_some();
+            let is_push = interval.has_role(Role::Pushing);
+            if !is_push && (plate_or_hinge(alpha_key) || plate_or_hinge(omega_key)) {
+                let (alpha, omega) = (built_end(fabric, key, alpha_key), built_end(fabric, key, omega_key));
+                let link = fabric.connector.as_ref().is_some_and(|c| c.link_length(key).is_some());
+                let role = if is_hanger(fabric, key) || link {
+                    "rod"
+                } else {
+                    "pull"
+                };
+                return Row { role, length: alpha.0.distance(omega.0), strain: 0.0, alpha, omega };
+            }
+            let length = interval.length(&fabric.joints);
+            // `interval.strain` is only refreshed by the next physics tick, so
+            // right after `slacken` it still holds the pre-slack value. Pushes
+            // already approach their pretensed length; strain is measured against
+            // the slack length they start from.
+            let rest_length = match interval.span {
+                Span::Approaching { start_length, .. } => start_length.f32(),
+                _ => interval.ideal().f32(),
+            };
+            let at = |joint: JointKey| (fabric.joints[joint].location, fabric.joint_label(joint));
+            Row {
+                role: if is_push { "push" } else { "pull" },
+                length,
+                strain: (length - rest_length) / rest_length,
+                alpha: at(alpha_key),
+                omega: at(omega_key),
+            }
+        })
+        .collect()
+}
+
+/// Where a plate member or hinge cable really ends at `joint`: a plate's hole,
+/// or the pivot on a stack.
+fn built_end(fabric: &Fabric, cable: IntervalKey, joint: JointKey) -> (Vec3, String) {
+    let label = fabric.joint_label(joint);
+    let location = fabric.joints[joint].location;
+    let Some(connector) = fabric.connector.as_ref() else {
+        return (location, label);
+    };
+    if let Some(plate) = connector.node_plate(joint) {
+        if let Some(hole) = plate.holes.iter().position(|(key, _)| *key == cable) {
+            return (plate.holes[hole].1, format!("{label}.{}", hole + 1));
+        }
+    }
+    let pivot = connector.pull_end_pivot(fabric, cable, joint).unwrap_or(location);
+    match fabric.hinge_strut.get(&(cable, joint)) {
+        Some(&strut) => (pivot, format!("{label}@{}", fabric.joint_label(fabric.intervals[strut].other_joint(joint)))),
+        None => (pivot, label),
+    }
+}
+
+/// Three rows per node plate, its edges hole to hole.
+fn plate_rows(fabric: &Fabric) -> Vec<Row> {
+    let Some(connector) = fabric.connector.as_ref() else {
+        return Vec::new();
+    };
+    let mut nodes: Vec<JointKey> = fabric.bridle_nodes.keys().copied().collect();
+    nodes.sort_by_key(|node| fabric.joint_label(*node));
+    let mut rows = Vec::new();
+    for node in nodes {
+        let Some(plate) = connector.node_plate(node) else {
+            continue;
+        };
+        let label = fabric.joint_label(node);
+        let hole = |i: usize| (plate.holes[i].1, format!("{label}.{}", i + 1));
+        for (a, b) in [(0, 1), (1, 2), (2, 0)] {
+            let (alpha, omega) = (hole(a), hole(b));
+            rows.push(Row { role: "plate", length: alpha.0.distance(omega.0), strain: 0.0, alpha, omega });
+        }
+    }
+    rows
 }
 
 /// Header notes describing guy lines, which are only created on landing and
@@ -207,7 +315,8 @@ mod tests {
     /// with each push's length equal to its joint-to-joint distance.
     #[test]
     fn test_headless_hug_csv_rows() {
-        let executor = build_to_slack(FabricName::HeadlessHug);
+        let mut executor = build_to_slack(FabricName::HeadlessHug);
+        executor.fabric.update_all_attachment_connections();
         let fabric = &executor.fabric;
         let path = std::env::temp_dir().join("tensegrity-lab-headless-hug-test.csv");
         let path = path.to_str().expect("temp path is UTF-8");
@@ -225,10 +334,25 @@ mod tests {
             .intervals
             .values()
             .filter(|interval| !interval.has_role(Role::Support))
-            .count();
+            .count()
+            + 3 * fabric.bridle_nodes.len();
         assert_eq!(rows.len(), expected);
+        // Nothing but struts ends on a hinge pin, and plates are three stiff edges.
+        let hinge_pins: Vec<String> = fabric
+            .joints
+            .keys()
+            .filter(|pin| hinge_struts(fabric, *pin).is_some())
+            .map(|pin| fabric.joint_label(pin))
+            .collect();
+        assert_eq!(hinge_pins.len(), 8);
+        for row in rows.iter().filter(|row| row[1] != "push") {
+            assert!(!hinge_pins.iter().any(|pin| pin == row[7] || pin == row[11]), "row {} ends on a hinge", row[0]);
+        }
+        assert_eq!(rows.iter().filter(|row| row[1] == "plate").count(), 3 * fabric.bridle_nodes.len());
+        let hanger = |row: &&Vec<&str>| (row[2].parse::<f32>().unwrap() - 0.082).abs() < 0.001;
+        assert_eq!(rows.iter().filter(|row| row[1] == "rod").filter(hanger).count(), 16);
         assert!(
-            text.contains("# Guy line: joint=Z2"),
+            text.contains("# Guy line: joint=L14"),
             "guy lines missing from the header"
         );
         for row in rows.iter().filter(|row| row[1] == "push") {
@@ -253,7 +377,8 @@ mod tests {
     #[test]
     #[ignore]
     fn export_headless_hug_csv() {
-        let executor = build_to_slack(FabricName::HeadlessHug);
+        let mut executor = build_to_slack(FabricName::HeadlessHug);
+        executor.fabric.update_all_attachment_connections();
         let date = chrono::Local::now().format("%Y-%m-%d");
         let filename = format!("HeadlessHug-{}.csv", date);
         write_csv(&executor.fabric, &filename, &headless_hug_notes()).expect("CSV write failed");

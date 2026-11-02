@@ -1,12 +1,12 @@
 //! A bridle takes two cables off one strut end through a free node: the
 //! cables J–A and J–B become a link J–N and cables N–A and N–B, so the stack
 //! at J carries one connector where it had two. In hardware the link is a
-//! swivel from J's cross-tube, and N is a triangular node plate the two
+//! fork rod from J's cross-tube, and N is a triangular node plate the two
 //! cables pin to (`connector::node_plate`). A cable from a plate too short
-//! to make is a swivel link instead (`ConnectorSystem::link_length`).
+//! to make is a fork rod instead (`ConnectorSystem::link_length`).
 
 use crate::connector::fork::BRIDLE_LINK;
-use crate::connector::system::ConnectorSystem;
+use crate::connector::system::{hinge_struts, ConnectorSystem};
 use crate::units::{Meters, Unit};
 use crate::fabric::interval::Role;
 use crate::fabric::interval::Span::Fixed;
@@ -18,7 +18,7 @@ const BRIDLE_PRETENSION: f32 = 0.005;
 
 impl Fabric {
     /// Replace the cables `joint`–`a` and `joint`–`b` with a bridle hung on a
-    /// swivel from `joint`, its node plate `BRIDLE_LINK` out along their
+    /// fork rod from `joint`, its node plate `BRIDLE_LINK` out along their
     /// bisector, close enough to keep the forces much as they were. The
     /// physics then finds where it settles. At a hinge pin the link stays on the stack that carried
     /// the first cable. The node is labelled after `joint` (see
@@ -54,8 +54,52 @@ impl Fabric {
             self.hinge_strut.insert((link, joint), strut);
         }
         self.bridle_nodes.insert(node, link);
-        self.bridle_swivels.insert(link);
+        self.bridle_hangers.insert(link);
         Some(node)
+    }
+
+    /// Keep every hinge clean: a hinge pin carries only its two struts, so a
+    /// cable ending at one, with no strut of its own there, is split by a
+    /// node plate, with a leg from the plate to the stack on each strut. The
+    /// node sits half-way along the cable; the plate itself lies where its
+    /// forces balance (`ConnectorSystem::build_plate`). The legs are two parallel intervals to the pin,
+    /// each recorded as its strut's (`hinge_strut`). Returns what couldn't be
+    /// split: each pin takes one, as its plate is named after it.
+    pub fn split_hinge_cables(&mut self) -> Vec<String> {
+        let mut failures = Vec::new();
+        let pins: Vec<JointKey> = self.joints.keys().collect();
+        for pin in pins {
+            let Some(struts) = hinge_struts(self, pin) else {
+                continue;
+            };
+            let cables: Vec<IntervalKey> = self
+                .intervals
+                .iter()
+                .filter(|(key, interval)| {
+                    interval.role.is_pull_like() && interval.touches(pin) && !self.hinge_strut.contains_key(&(*key, pin))
+                })
+                .map(|(key, _)| key)
+                .collect();
+            let at = self.location(pin);
+            for (index, cable) in cables.into_iter().enumerate() {
+                let far = self.intervals[cable].other_joint(pin);
+                if index > 0 {
+                    failures.push(format!("second cable at hinge {}, to {}", self.joint_label(pin), self.joint_label(far)));
+                    continue;
+                }
+                let node = self.create_joint((at + self.location(far)) / 2.0);
+                self.joints[node].label = self.joints[pin].label.map(|label| label.bridle());
+                let role = self.remove_interval(cable).role;
+                let legs = struts.map(|strut| {
+                    let leg = self.create_slack_interval(pin, node, Role::Pulling);
+                    self.hinge_strut.insert((leg, pin), strut);
+                    leg
+                });
+                self.create_slack_interval(node, far, role);
+                self.bridle_nodes.insert(node, legs[0]);
+            }
+        }
+        failures
     }
 
     /// Pretension every bridle's cables, as `set_pretenst` does the struts:
@@ -73,9 +117,9 @@ impl Fabric {
     }
 
     /// Shorten each bridle's link by as far as its plate has to slide to
-    /// hang a swivel's length from the pivot on the strut end (see
+    /// hang a hanger's length from the pivot on the strut end (see
     /// `NodePlate`): the node starts `BRIDLE_LINK` out, but where its hole
-    /// lands depends on the cables' directions and on the slot its swivel
+    /// lands depends on the cables' directions and on the slot its hanger
     /// gets, so the link is fitted once the slots are known, and again as
     /// the shape settles.
     pub fn hang_bridles(&mut self) {

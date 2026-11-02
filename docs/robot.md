@@ -22,7 +22,7 @@ non-obvious solutions.
 
 ## The mechanical hypothesis: brick-to-brick articulation
 
-The existing brick system (`src/build/dsl/brick_library.rs`) yields
+The existing brick system (`src/build/dsl/brick_library/`) yields
 internally-rigid tensegrity primitives (Single Twist, Omni, Torque, …) that
 attach face-to-face by **merging the three joints of one triangular face with
 the three joints of another**. The result is rigid: all 6 relative-pose

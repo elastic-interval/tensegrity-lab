@@ -13,6 +13,7 @@ use glam::Vec3;
 
 // Cross-tube of the connector part (see docs/connectors.md).
 pub const TUBE_RADIUS: f32 = 0.009; // D_tube / 2, metres — 18x2.5 E235+N precision tube
+pub const TUBE_BORE_RADIUS: f32 = 0.0065; // D_tube / 2 less the 2.5 mm wall
 pub const TUBE_LENGTH: f32 = 0.0135; // L_tube, metres — wider than the 6 mm cables from every angle
 
 /// A jaw terminal in its own frame: pin centre at the origin, the barrel
@@ -84,36 +85,47 @@ pub const PLATE_SIDE: Meters = Meters(0.060);
 pub const PLATE_CORNER_RADIUS: Meters = Meters(0.016);
 /// Thick enough to bear the pins, thin enough for the forks' 14 mm jaw gap.
 pub const PLATE_THICKNESS: Meters = Meters(0.012);
+/// For the terminal's 9.7 mm pin. ESTIMATE.
+pub const PLATE_HOLE_DIAMETER: Meters = Meters(0.0105);
 
-/// A bridle's jaw–jaw swivel: a jaw like the jaw terminal's at each end,
-/// one pinned through the strut end's cross-tube and one through its node
-/// plate's hole, joined by a bearing so either turns freely about the
-/// link. ESTIMATES: confirm against a catalogue swivel for 6 mm.
-/// From a pin to the end of its jaw's block.
-pub const SWIVEL_JAW_LENGTH: Meters = Meters(0.031);
-/// The bearing between the two jaw blocks.
-pub const SWIVEL_BEARING_LENGTH: Meters = Meters(0.020);
-pub const SWIVEL_BEARING_RADIUS: Meters = Meters(0.009);
-/// Pin to pin.
-pub const SWIVEL_LENGTH: Meters = Meters(2.0 * SWIVEL_JAW_LENGTH.0 + SWIVEL_BEARING_LENGTH.0);
-/// Where a bridle node whose plate hangs on a swivel starts, from its strut
-/// end, before `Fabric::hang_bridles` fits its link to the swivel. Where
+/// A fork rod is threaded rod cut to length between two rod forks. Each fork
+/// is a U: its pin through the jaws, the rod through a hole in its web, a load
+/// nut on the rod inside the U and a lock nut outside. In tension the web pulls
+/// against the load nut. ESTIMATES, none checked by the engineer; a shorter
+/// join, one load nut per fork with a separator between the webs, is in
+/// docs/parts.md.
+pub const ROD_FORK: ClevisDimensions = ClevisDimensions { pin_to_jaw_base: Meters(0.026), ..CLEVIS };
+/// From the pin's centre to the outside of the web.
+pub const FORK_WEB_OUTSIDE: Meters = Meters(0.034);
+pub const FORK_HOLE_DIAMETER: Meters = Meters(0.009);
+/// M8.
+pub const FORK_NUT_HEIGHT: Meters = Meters(0.0065);
+pub const FORK_NUT_RADIUS: Meters = Meters(0.0075);
+/// From the pin's centre to the rod's end, just past the load nut and clear of
+/// a node plate's corner.
+pub const FORK_ROD_TIP: Meters = Meters(0.0175);
+/// Half the width of a rod fork, for collision testing.
+pub const FORK_RADIUS: Meters = Meters(0.012);
+/// Shortest pin to pin, the two lock nuts touching.
+pub const FORK_ROD_MIN_LENGTH: Meters = Meters(2.0 * (FORK_WEB_OUTSIDE.0 + FORK_NUT_HEIGHT.0));
+/// The fork rod a node plate hangs on from a strut end, pin to pin.
+pub const HANGER_LENGTH: Meters = Meters(0.082);
+/// Where a bridle node whose plate hangs on a fork rod starts, from its strut
+/// end, before `Fabric::hang_bridles` fits its link to the hanger. Where
 /// nodes start tips Headless Hug's borderline collisions either way.
 pub const BRIDLE_LINK: Meters = Meters(0.100);
-/// Half the width of a bridle swivel's jaws, for collision testing.
-/// ESTIMATE.
-pub const SWIVEL_RADIUS: Meters = Meters(0.012);
-/// A swivel link, where a cable from a node plate would be too short to
-/// make: a swivel stretched by a solid round bar, cut to length. ESTIMATE.
-pub const LINK_ROD_RADIUS: Meters = Meters(0.005);
-
 /// Half the width of a ring's boss, the arm out to the cross-tube.
 pub const BOSS_ARM_RADIUS: Meters = Meters(0.006);
+/// Where a boss's flat end stops, short of the pivot: the tube's radius less
+/// a 1 mm seat into its 2.5 mm wall, so the flat stays clear of the bore.
+pub const BOSS_SHORT_OF_PIVOT: Meters = Meters(0.008);
+/// The bore on the bolt: an M12, plus clearance.
+pub const RING_BORE_DIAMETER: Meters = Meters(0.013);
 
 /// `(segment start, segment end, radius)`.
 pub type Capsule = (Vec3, Vec3, f32);
 
-/// One assembled cable end for collision testing: its body (fork, swivel,
+/// One assembled cable end for collision testing: its body (fork,
 /// clamp or node plate) and, where it hangs on a ring, that ring's boss arm.
 #[derive(Clone, Copy, Debug)]
 pub struct Assembly {
@@ -134,24 +146,50 @@ impl Assembly {
     }
 }
 
-/// A bridle swivel for collision testing: from the connector pivot to the
-/// plate's hole.
-pub fn swivel_capsules(pivot: Vec3, hole: Vec3) -> Assembly {
+/// A hinge at a hinge pin: a threaded clevis on one strut and a rod end on
+/// the other, screwed onto their struts' bolts above the stacks as their
+/// nuts, joined by a pin square to both struts where their axes cross. Each
+/// strut spins freely about its own axis, so the hinge only opens and
+/// closes; the rod end's ball takes any small misalignment. The pin is a
+/// bolt standing out either side of the clevis, so extra cables can each
+/// take a standard ring on it. ESTIMATES for M12 catalogue parts (DIN 71752
+/// clevis, ISO 12240-4 rod end).
+/// From the pin to each fitting's base on top of its stack.
+pub const HINGE_LENGTH: Meters = Meters(0.060);
+pub const HINGE_PIN_RADIUS: Meters = Meters(0.006);
+/// The clevis's jaws, either side of the rod end's eye.
+pub const HINGE_JAW_GAP: Meters = Meters(0.016);
+pub const HINGE_JAW_THICKNESS: Meters = Meters(0.006);
+/// The rod end's eye round the pin, and its ball.
+pub const HINGE_EYE_RADIUS: Meters = Meters(0.016);
+pub const HINGE_EYE_WIDTH: Meters = Meters(0.012);
+pub const HINGE_BALL_WIDTH: Meters = Meters(0.016);
+/// Each fitting's threaded body, down to its base.
+pub const HINGE_SHANK_RADIUS: Meters = Meters(0.010);
+/// The M12 hole tapped into each body for the strut's bolt.
+pub const HINGE_THREAD_RADIUS: Meters = Meters(0.006);
+pub const HINGE_THREAD_DEPTH: Meters = Meters(0.024);
+
+/// One hinge fitting for collision testing: the eye round the pin and the
+/// body down its strut to its base.
+pub fn hinge_capsules(pin: Vec3, along_strut: Vec3) -> Assembly {
+    let base = pin + along_strut * HINGE_LENGTH.f32();
+    let shank = (pin, base, HINGE_SHANK_RADIUS.f32());
     Assembly {
-        body: [(pivot, hole, SWIVEL_RADIUS.f32()); 3],
+        body: [(pin, pin, HINGE_EYE_RADIUS.f32()), shank, shank],
         arm: None,
     }
 }
 
-/// A swivel link for collision testing: a jaw at each pin, the bearing and
-/// bar between them.
-pub fn link_capsules(pivot: Vec3, far: Vec3) -> Assembly {
-    let along = (far - pivot).normalize_or_zero() * SWIVEL_JAW_LENGTH.f32();
+/// A fork rod for collision testing: a fork at each pin, the nuts and rod
+/// between them.
+pub fn fork_rod_capsules(pivot: Vec3, far: Vec3) -> Assembly {
+    let along = (far - pivot).normalize_or_zero() * FORK_WEB_OUTSIDE.f32();
     Assembly {
         body: [
-            (pivot, pivot + along, SWIVEL_RADIUS.f32()),
-            (pivot + along, far - along, SWIVEL_BEARING_RADIUS.f32()),
-            (far - along, far, SWIVEL_RADIUS.f32()),
+            (pivot, pivot + along, FORK_RADIUS.f32()),
+            (pivot + along, far - along, FORK_NUT_RADIUS.f32()),
+            (far - along, far, FORK_RADIUS.f32()),
         ],
         arm: None,
     }
@@ -176,7 +214,7 @@ pub fn plate_capsules(holes: [Vec3; 3]) -> Assembly {
 pub const MIN_FREE_WIRE: Meters = Meters(0.050);
 
 /// Shortest pivot-to-pivot span buildable as a cable: a terminal at each
-/// end plus the minimum free wire. Anything shorter needs a solid link.
+/// end plus the minimum free wire. Anything shorter needs a fork rod.
 pub fn min_cable_length() -> f32 {
     2.0 * CLEVIS.overall_length.f32() + MIN_FREE_WIRE.f32()
 }
@@ -187,6 +225,16 @@ pub fn min_cable_length() -> f32 {
 pub fn cable_termination(pivot: Vec3, pull_other_end: Vec3) -> Vec3 {
     let dir = (pull_other_end - pivot).normalize();
     pivot + dir * (CLEVIS.overall_length.f32() - CLEVIS.barrel_length.f32() / 2.0)
+}
+
+/// Where a fork rod's threaded rod ends, inside its fork.
+pub fn rod_termination(pivot: Vec3, other_end: Vec3) -> Vec3 {
+    pivot + (other_end - pivot).normalize() * FORK_ROD_TIP.f32()
+}
+
+/// The threaded rod to cut for a fork rod `pin_to_pin` long.
+pub fn threaded_rod_length(pin_to_pin: f32) -> f32 {
+    pin_to_pin - 2.0 * FORK_ROD_TIP.f32()
 }
 
 /// Capsule approximation of one assembled connector end for collision

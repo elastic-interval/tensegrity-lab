@@ -19,6 +19,8 @@ use crate::wgpu::text_renderer::TextRenderer;
 use crate::{LabEvent, Radio};
 
 pub mod part_meshes;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod part_view;
 pub mod parts_panel;
 pub mod cylinder;
 pub mod cylinder_renderer;

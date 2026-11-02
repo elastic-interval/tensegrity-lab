@@ -9,34 +9,43 @@ The structure is designed and simulated in [tensegrity-lab](https://github.com/e
 1. **Builds** the structure from a DSL definition (`fabric_library.rs` → `OpenClaw`)
 2. **Pretensions** cables in zero gravity, then drops with real gravity
 3. **Settles** to final shape with frozen surface (joints that touch ground lock in place)
-4. **Exports CSV** with all interval coordinates, lengths, strains, and connector geometry
+4. **Exports CSV** with all interval coordinates, lengths, strains, and
+   connector geometry, captured at the slack moment at the end of building
 
 Running `cargo test --release --lib test_open_claw_threefold_symmetry`
 produces `OpenClaw-<date>.csv` — the input to the engineer's FEA workflow —
 and asserts that every rotational triple is symmetric before writing. See
-[docs/csv-handoff.md](csv-handoff.md) for the full handoff format.
+[docs/csv-handoff.md](csv-handoff.md) for the full handoff format. Open
+Claw's connector design is frozen on its own branch; `dev` uses the newer
+Headless Hug prototype dimensions.
+
+Joints are named `A12` / `B12` / `C12` (the three sectors, clockwise seen
+from above) and `Z1` / `Z2` on the axis; see
+[joint-naming.md](joint-naming.md).
 
 ## OpenClaw Definition Parameters
 
 The structure is defined in `src/build/dsl/fabric_library.rs` as:
 
+- **Scale:** 0.80, with connectors
 - **Seed:** OmniSymmetrical brick (12-strut hub with 8 faces)
-- **3 legs:** columns of 4 bricks each on OmniBotX/Y/Z faces
-- **Shrink:** 20% per brick step (each brick is 80% of previous)
-- **Prisms:** 250% on leg ends, 200% on top
+- **3 legs:** columns of 4 bricks each on OmniBotX/Y/Z faces, ending in
+  200% prisms; 200% prism on top
 - **Open bottom:** OmniBot face removed
-- **Spacing:** 35% at End marks
-- **Vulcanize:** 50% linear pre-vulcanize + 1s vulcanize
+- **Omits:** six cables round the hub (`C2`–`B3`, `C2`–`A1`, …)
+- **Spacing:** the three leg tips spread to 46%
+- **Vulcanize:** 50% linear pre-vulcanize + 1 s vulcanize
+- **Pretense:** 1% over 3 s, then fall and settle on a frozen surface
 
-### Current Dimensions (scale 1.0)
+### Current Dimensions (scale 0.80)
 
 | Metric | Value |
 |--------|-------|
 | Ground contacts | 3 (equilateral triangle) |
-| Base triangle edges | ~4780mm |
-| Height | ~7739mm |
-| Struts | 46 (longest ~3070mm) |
-| Cables | 180 (range ~260–1950mm) |
+| Base triangle edges | ~6486mm |
+| Height | ~7621mm |
+| Struts | 46 (longest ~2477mm) |
+| Cables | 180 (range ~267–1663mm) |
 | Joints | 92 |
 
 ### Target Dimensions
@@ -49,37 +58,35 @@ The structure is defined in `src/build/dsl/fabric_library.rs` as:
 
 ## Achieving 6m Base
 
-Naive approach: scale from 1.0 to ~1.255 → 6m edges, but longest strut would become ~3850mm (exceeds van cargo length).
+At scale 0.80 the base comes out 8% wide. Scale multiplies everything
+linearly; the base-triangle test finds the scale that lands the base on
+6 m: **0.74**, giving 5996mm edges, a 7050mm height and a longest strut of
+2291mm, well inside the 3.6m van limit (but below the height target).
 
-Alternative approaches available in the DSL (all affect base width):
+Other levers in the DSL (all affect base width):
 
 | Parameter | Current | Effect |
 |-----------|---------|--------|
-| `scale` | 1.0 | Multiplies everything linearly |
-| `space(Sec, End, Pct)` | 35% | Pushes leg ends apart — directly widens base |
-| `shrink_by(Pct)` | 20% | Less shrink = longer legs = wider base |
-| `prism(Pct)` | 250% | Larger prisms at ends = wider footprint |
+| `scale` | 0.80 | Multiplies everything linearly |
+| `space(Sec, tips, Pct)` | 46% | Pushes leg tips apart — directly widens base |
+| `prism(Pct)` | 200% | Larger prisms at ends = wider footprint |
 | `column(n)` | 4 | More bricks = longer legs |
-
-The `space` percentage is the most direct lever for base width without proportionally increasing strut lengths. Combinations can achieve 6m base while keeping max strut under 3.6m.
 
 ## Test
 
-`test_open_claw_base_triangle` in `plan_runner_test.rs` asserts:
-1. Exactly 3 ground contacts
-2. Base triangle is equilateral (edges within 2% of each other)
-3. Average edge length is 6000mm ±2%
-
-Also reports height and max strut length for monitoring transport constraints.
+`test_open_claw_base_triangle` in `src/open_claw_test.rs` builds Open Claw,
+checks for exactly 3 ground contacts on an equilateral triangle (edges
+within 2%), and rescales until the average edge is 6000mm ±2%, reporting
+the scale, height and longest strut for each round.
+`test_open_claw_foot_positions` prints the feet for Blender.
 
 ## Build Pipeline
 
 ```
 DSL definition (fabric_library.rs)
   → FabricPlanExecutor runs: Build → Shape → Pretense → Fall → Settle
-  → Settled Fabric with final coordinates
-  → CSV export for ENS
-  → ENS structural analysis (Phase 3)
+  → CSV export for ENS (slack moment, end of Build)
+  → ENS structural analysis
   → Iterate: adjust DSL → re-export → re-analyze
 ```
 
@@ -87,8 +94,8 @@ DSL definition (fabric_library.rs)
 
 | File | Purpose |
 |------|---------|
-| `src/build/dsl/fabric_library.rs:34–72` | OpenClaw definition |
-| `src/build/dsl/plan_runner_test.rs` | Base triangle test |
+| `src/build/dsl/fabric_library.rs` | OpenClaw definition |
+| `src/open_claw_test.rs` | Base triangle and foot position tests |
 | `src/build/dsl/fabric_plan_executor.rs` | Execution engine |
 | `src/open_claw_symmetry.rs` | Threefold-symmetry enforcement + CSV export |
 | `docs/csv-handoff.md` | CSV format + engineer's FEA workflow |
@@ -99,7 +106,7 @@ The software is the starting point for the engineering iteration described in Co
 
 1. Adjust OpenClaw parameters in `fabric_library.rs`
 2. Run `test_open_claw_base_triangle` to verify 6m base + strut lengths
-3. Run application, export CSV
+3. Export the CSV with `test_open_claw_threefold_symmetry`
 4. Send CSV to the structural engineer
 5. ENS feeds back on forces/dimensioning
 6. Repeat until green-lit

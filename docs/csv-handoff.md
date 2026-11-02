@@ -10,8 +10,8 @@ slack moment itself is the end of the Building stage in
 ## Geometry-only CSV (Headless Hug)
 
 Fabrics whose joint hardware is still being designed get a reduced CSV from
-`src/engineering_csv.rs`, with no connector output: no slot, pivot-pin, FEA
-or link rows, and no connector header block. Headless Hug's is written by
+`src/engineering_csv.rs`, with no slots, FEA rows or connector header block,
+only its bridle hardware (below). Headless Hug's is written by
 
 ```
 cargo test --release --lib export_headless_hug_csv -- --ignored
@@ -29,8 +29,32 @@ with joint coordinates at both ends for every row, pushes and pulls alike,
 and `Length(m)` the joint-to-joint distance. Strain is measured against the
 slack rest length, so it is 0 throughout. Guy lines are created only on
 landing, so they are listed in the header (joint, anchor offset in CSV X/Y,
-length percentage) rather than as rows. Everything below describes the Open
-Claw CSV with connectors.
+length percentage) rather than as rows.
+
+Joint names are the short names of [joint-naming.md](joint-naming.md)
+(`L12`, `Z3`, `L48b`), which follow build order and so stay the same from
+one export to the next unless the build changes.
+
+Bridle hardware is written as it will be built, worked out on the slack
+shape (the export commits the connectors first), with these roles beside
+`push` and `pull`:
+
+- `rod` — a fork rod: 82 mm hanging a node plate from a stack, or where a plate's
+  cable is too short to make. Its length is pin to pin like a cable's; the header
+  lists the threaded rod to cut for each.
+- `plate` — one of a node plate's three stiff edges, hole to hole.
+
+Every member of a plate, and every cable at a hinge, runs pin to pin at its
+real length rather than joint to joint. A plate's hole is `<node>.<n>`
+(`L48b.1`), the same point in the member's row and the plate's. An end on a
+strut's stack at a hinge is `<pin>@<joint>` (`Z5@R14`: the stack on the strut
+toward R14 at hinge Z5), 30 mm off the strut's axis. Nothing but the two
+struts ends on a hinge pin. Ordinary cables and struts still run joint to
+joint, as this CSV has no stack hardware for them. Lengths of hardware at
+this moment are for the slack shape; they are not the lengths of the settled
+figure the app shows.
+
+Everything below describes the Open Claw CSV with connectors.
 
 ## One CSV: `slack`
 
@@ -96,10 +120,10 @@ OmegaX, OmegaY, OmegaZ, OmegaJoint, OmegaSlot, OmegaAngle
 ```
 
 `AlphaJoint` and `OmegaJoint` follow the naming scheme described in
-[joint-naming.md](joint-naming.md): path-shaped names like `AX4YZ1` for
-joints created during construction, and short 3-letter names like `BAA` /
-`TOC` for the seed joints. The seed-joint scheme is what makes the 3-fold
-symmetry of cable triples visible at a glance.
+[joint-naming.md](joint-naming.md): `A12` / `B12` / `C12` for the three
+sectors' twins, `Z1` / `Z2` on the rotation axis. Twins differ only in their
+letter, which is what makes the 3-fold symmetry of cable triples visible at
+a glance.
 
 These columns mean *different physical things* depending on `Role`. Mixing
 them up is the most likely path to a mis-fabricated part. The conventions
@@ -214,8 +238,8 @@ CSV.
 
 The CSV is written in **Z-up** (Rhino/RFEM convention) while the simulation
 runs in Y-up. The transform is `Mat3::from_rotation_x(π/2)` applied to every
-exported position: sim (x, y, z) → csv (x, z, −y). See
-`open_claw_symmetry::sim_to_csv`.
+exported position: sim (x, y, z) → csv (x, −z, y). See
+`engineering_csv::sim_to_csv` (and its copy in `open_claw_symmetry`).
 
 ## Ongoing changes worth noting
 

@@ -20,12 +20,17 @@ and the sketch of how a Packer will consume it.
 - **`face_twists`**: empirical 3-fold twist units per brick face, consumed
   by `label_off_axis_joints` so mirror-partner joints share numeric
   suffixes.
-- **Letters** (`seed_face_letters`): assigned A, B, C, … in *plan
+- **Working letters** (`seed_face_letters`): assigned A, B, C, … in *plan
   declaration order* to each seed face whose subtree contains a `Label`.
-- **HeadlessHug's mirror symmetry was emergent, not declared**: A/B
-  (feet) and C/D (upper hubs) pair up only because of declaration order
-  plus the `Side::Left`/`Side::Right` face labels — until `LabelSymmetry`,
-  the pairing was recorded nowhere.
+  They only last the build: at its end `name_limbs` turns each into a
+  role and a member (`Fabric::limb_names`) — L/R from the face labels'
+  `Side` under a mirror, A/B/C clockwise seen from above under a rotation
+  — and short names follow when pretensing starts
+  ([joint-naming.md](joint-naming.md)).
+- **HeadlessHug's mirror symmetry was emergent, not declared**: working
+  letters A/B (feet) and C/D (upper hubs) pair up only because of
+  declaration order plus the `Side::Left`/`Side::Right` face labels —
+  `LabelSymmetry` is what records the pairing.
 - **OpenClaw's rotation map** (`open_claw_symmetry.rs::rotate_label_once`)
   is a hardcoded A→B→C string substitution, local to that module.
 
@@ -47,17 +52,21 @@ Operations: `order()`, `map_letter()`, `map_label(JointLabel)`,
 
 Invariants:
 
-1. **The group acts by pure letter permutation on `JointLabel::OffAxis`.**
-   No string parsing — `JointLabel` is the substrate.
+1. **The group acts by pure letter permutation** on `JointLabel::OffAxis`
+   and, after naming, on `Twin` (`L12` ↔ `R12`) and their bridle forms.
+   No string parsing — `JointLabel` is the substrate. Once `name_limbs`
+   has run, the letters it permutes are members: `[('L', 'R')]` for
+   Headless Hug, `A → B → C` for Open Claw.
 2. **`JointLabel::Axial` (`Z<n>`) labels are fixed points** under every
    operation (apex/on-axis joints are their own orbit).
 3. **`Cyclic.letters` follows the seed brick's `cyclic_axes` order, not
    plan declaration order.** For OpenClaw these coincide (X/Y/Z → A/B/C),
    but the distinction matters: the cycle is a geometric fact of the
    brick, the declaration order an accident of the plan.
-4. **Orbit key = minimum label of the orbit** — engraving-friendly:
-   every member of {A03.2, B03.2, C03.2} keys to `A03.2` (think
-   "A03.2 ×3" on a parts list).
+4. **Orbit key = minimum label of the orbit**: every member of
+   {LA03.2, LB03.2, LC03.2} keys to `LA03.2`. The orbit is what
+   `number_twins_by_build_order` gives one number, so the three become
+   `A3`, `B3`, `C3`.
 
 Derivation rules (in order):
 
@@ -67,7 +76,7 @@ Derivation rules (in order):
   through, correctly: its symmetry is richer than a single letter cycle.)
 - **Mirror** when every lettered seed face has a distinct partner whose
   subtree `FaceLabel` set is identical with `Side` flipped
-  (HeadlessHug: `(A,B)` feet, `(C,D)` upper hubs).
+  (HeadlessHug: `(A,B)` feet, `(C,D)` upper hubs, by working letter).
   `mirrored_face_label` must be extended when new `Side`-carrying
   `FaceLabel` variants are added.
 - **None** otherwise (HaloByCrane, Diamond, …) — absence means

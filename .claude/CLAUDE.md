@@ -117,10 +117,15 @@ angles or per-position variants:
 - `fork.rs` — cable-end fork terminal (clevis) estimates + capsule model
   for collision culprit marking.
 - `node_plate.rs` — `NodePlate`: a triangular plate at a bridle node
-  (`Fabric::bridle`, DSL `.bridle(...)`) hung on a swivel, which two whole
+  (`Fabric::bridle`, DSL `.bridle(...)`) hung on a fork rod, which two whole
   cables' terminals pin to, taking two cables off a crowded stack.
   Every plate is one equilateral part; a plate cable too short to make
-  is a swivel link (`ConnectorSystem::link_length`).
+  is a fork rod (`ConnectorSystem::link_length`). At a hinge pin
+  (`.hinge`) a clevis and a rod end screw onto the two struts' bolts, pinned
+  where their axes meet. No cable may end on a hinge: one with no strut of
+  its own there is split by a plate half-way along it, a leg to each strut's
+  stack (`Fabric::split_hinge_cables`). There are no strut caps.
+- `dxf.rs` — DXF drawings of the laser-cut parts, for ordering.
 - `system.rs` — `ConnectorSystem`: owns `ConnectorDimensions`, a
   `SecondaryMap<IntervalKey, PullConnections>` of slot assignments, and
   `culprits` (cable ends whose assemblies physically collide, marked once
@@ -148,6 +153,8 @@ build, and not again afterwards: animation and the C key keep them.
 - `Viewing` — settled, idle.
 - `Animating(Animator)` — runs DSL-defined actuators.
 - `PhysicsTesting(PhysicsTester)` — real-time gravity test.
+- `BakingBrick(Oven)`, `Evolving(...)`, `Articulating(...)` — brick baking
+  and the evolution runners.
 
 Transitions go through `finalize_to_viewing()` which also rebuilds the
 connector slot assignments (`Fabric::update_all_attachment_connections`).
@@ -163,23 +170,39 @@ DSL in `src/build/dsl/`:
   rest length to `length × (1 + pretenst%)` over the configured duration; the
   stage advances when no intervals are still approaching.
 - `plan_runner.rs` — drives Initialize → Build → Shape inside the executor.
+- When pretensing starts the executor names the joints
+  (`number_twins_by_build_order`, `number_axial_by_build_order`), then runs
+  the plan's hinges, omits and bridles by those names. A step naming a
+  joint or cable the fabric doesn't have is a `PlanStepFailed` event
+  (`FabricPlanExecutor::plan_failures`); `test_all_fabrics_build` requires
+  every plan to apply cleanly.
+
+### Joint names
+
+Symmetric fabrics name joints `<member><number>`: `L12`/`R12` (mirror),
+`A12`/`B12`/`C12` (threefold), `Z<n>` on the symmetry plane or axis, and
+`<host>b` for a bridle node. Numbers follow build order, never geometry, so
+reshaping a fabric doesn't rename its joints. Full scheme and the code
+path: `docs/joint-naming.md`.
 
 Engineering CSV: the slack-moment CSV is produced exclusively by
 `test_open_claw_threefold_symmetry` in `src/open_claw_symmetry.rs` — that
 test builds OpenClaw to the end of Building, enforces threefold symmetry,
 writes the CSV, and asserts the result is symmetric. There is no CLI flag
 or runtime hook for it; see `docs/csv-handoff.md`. Headless Hug has a
-geometry-only CSV (no connector columns) from `src/engineering_csv.rs`,
-written by the ignored test `export_headless_hug_csv`.
+geometry CSV (no connector columns, but bridle hardware as built) from
+`src/engineering_csv.rs`, written by the ignored test
+`export_headless_hug_csv`.
 
 ### Physics presets
 
-`src/fabric/physics/presets.rs`:
+The `presets` module in `src/fabric/physics.rs`:
 - `CONSTRUCTION` — build/shape with damping.
 - `PRETENSING` — zero-G pretension settling.
 - `FALLING` / `SETTLING` — gravity, surface contact.
 - `VIEWING` — frozen.
-- `PHYSICS_TEST` — real-time (1:1) gravity test.
+- `ANIMATING` — actuator-driven animation.
+- `BAKING` — brick baking.
 
 Don't tweak physics in place — pick a preset, or compose with `Tweak*` if you
 need to adjust mass or rigidity multipliers at runtime.
@@ -187,6 +210,8 @@ need to adjust mass or rigidity multipliers at runtime.
 ### Rendering
 
 `src/wgpu/`:
+- `fabric_renderer.rs` — bundles the interval cylinders and the connector
+  hardware.
 - `cylinder_renderer.rs` — push/pull intervals as cylinders.
   - The "fabric pipeline" boilerplate is centralised in
     `Wgpu::create_fabric_pipeline`.
@@ -197,7 +222,8 @@ need to adjust mass or rigidity multipliers at runtime.
 - `parts_panel.rs` — in the connector view the left side lists the parts by
   kind (`connector::parts::kinds`), each beside a turning rendering drawn in
   its own fixed viewport (`ConnectorRenderer::render_thumbnails`).
-- `sphere_renderer.rs` — joints.
+- `part_view.rs` — the parts full screen, click one to see it large: the
+  `--part` command line mode, apart from the rest of the application.
 - `sky_renderer.rs`, `surface_renderer.rs`, `text_renderer.rs` — chrome.
 - `shader.wgsl` — shared WGSL for fabric pipelines.
 
@@ -205,7 +231,7 @@ UI/render state separation:
 - `src/control.rs` — UI state (`ControlState`, `RenderStyle`, `Appearance`,
   `IntervalDetails`, `JointDetails`, `PointerChange`).
 - `src/events.rs` — event types (`LabEvent`, `CrucibleAction`, `StateChange`,
-  `SnapshotMoment`, `Radio`).
+  `Radio`).
 - Both are re-exported at the crate root so `use crate::ControlState` etc.
   still work.
 
@@ -237,10 +263,15 @@ src/
 ├── connector/          # Physical connector plugin (optional per fabric)
 │   ├── dimensions.rs   # ConnectorDimensions, pivot_geometry, pivot_geometry_tests
 │   ├── attachment.rs   # PullConnections, slot assignment
-│   └── system.rs       # ConnectorSystem (dims + per-push slot assignments)
+│   ├── fork.rs         # Terminal, rod fork, plate dimensions + collision capsules
+│   ├── node_plate.rs   # NodePlate: the equilateral bridle plate
+│   ├── parts.rs        # Parts list: Part, placements, parts_list
+│   └── system.rs       # ConnectorSystem (slots, plates, links, culprits)
 │
 ├── fabric/
 │   ├── mod.rs          # Fabric struct + main impl
+│   ├── bridle.rs       # Fabric::bridle, tighten_bridles, hang_bridles
+│   ├── symmetrize.rs   # symmetrize_mirror (exact mirror shape for connectors)
 │   ├── dimensions.rs   # FabricDimensions (incl. optional connector config)
 │   ├── interval.rs     # Interval, Role, Span
 │   ├── joint.rs, joint_path.rs
@@ -258,6 +289,9 @@ src/
 │   ├── evo/            # Evolution
 │   └── dsl/            # Tenscript DSL builders + executors
 │
+├── engineering_csv.rs  # Geometry-only CSV (Headless Hug)
+├── omission_scan.rs    # Buildability test + bridle/omission search tools
+├── fabric_smoke_test.rs # Every fabric builds and its plan applies cleanly
 ├── open_claw_symmetry.rs # OpenClaw threefold-symmetry enforcement + CSV export
 ├── open_claw_test.rs   # OpenClaw build/geometry tests (base triangle, feet)
 ├── wgpu/               # Rendering (see Rendering section)
@@ -273,6 +307,11 @@ cargo test --release
 ```
 
 Important integration tests:
+- `src/fabric_smoke_test.rs` — `test_all_fabrics_build`: every fabric
+  builds to Complete and its plan applies with no failed steps.
+- `src/omission_scan.rs` — `headless_hug_is_buildable`: Headless Hug's
+  connectors have no collisions and no cable too short to make. The
+  ignored `greedy_headless_hug_bridles` searches for bridles that help.
 - `src/open_claw_symmetry.rs` — `test_open_claw_threefold_symmetry` (writes
   the engineering CSV and asserts every rotational triple is symmetric in
   length and slot) and `test_open_claw_cable_triples`.
@@ -293,6 +332,13 @@ cargo test --release --lib test_open_claw_threefold_symmetry
 # Geometry-only CSV for Headless Hug (writes HeadlessHug-<date>.csv):
 cargo test --release --lib export_headless_hug_csv -- --ignored
 
+# The parts full screen, to iterate on a design (an id starts on that part,
+# `list` prints the ids):
+cargo run --release -- --part
+
+# Laser-cutting DXFs for Headless Hug (writes HeadlessHug-parts-<date>/):
+cargo test --release --lib export_headless_hug_dxf -- --ignored
+
 # Web:
 trunk serve
 ```
@@ -309,7 +355,8 @@ trunk serve
    from elsewhere.
 
 3. **Coordinate systems.** Simulation is Y-up. CSV export converts to Z-up via
-   `sim_to_csv()` in `open_claw_symmetry.rs`. The Blender import pipeline
+   `sim_to_csv()` in `engineering_csv.rs` (Open Claw's CSV has its own copy
+   in `open_claw_symmetry.rs`). The Blender import pipeline
    expects meters; see `scripts/tensegrity_fast_import.py`.
 
 4. **Units.** Joint locations are stored in meters. The `units` newtypes
@@ -325,7 +372,13 @@ trunk serve
    Native-only state on `Application` is grouped under a single `NativeState`
    struct.
 
-7. **Re-exports at the crate root.** `lib.rs` does `pub use control::*;
+7. **Builds are deterministic; keep them so.** A settled fabric is very
+   sensitive to floating-point rounding: summing in a different order once
+   moved joints by up to 0.4 m. Anything that feeds the physics must not
+   depend on hash-map iteration order. Even renaming joints can shift the
+   settled shape slightly, since `symmetrize_mirror` visits joints by name.
+
+8. **Re-exports at the crate root.** `lib.rs` does `pub use control::*;
    pub use events::*;` and `fabric/mod.rs` does `pub use dimensions::*;`.
    External imports use the short path (`use crate::ControlState`) but the
    types live in their domain modules.

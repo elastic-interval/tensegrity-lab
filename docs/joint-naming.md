@@ -50,12 +50,14 @@ lines up twin joints' positions. So every joint's orbit and member follow
 from its place in the build tree: no measuring, no tolerances, the same
 result every run.
 
-### 3. One number per set of twins, counted bottom to top
+### 3. One number per set of twins, counted in build order
 
-Every set of twins gets one number, shared by all its members, counted from
-the ground up by the set's mean height: number 1 is the lowest set. Because
-the number belongs to the set, every member gets the same number however
-its own height rounds. Sets at equal heights keep their build order.
+Every set of twins gets one number, shared by all its members, counted in
+the order the structure grows: by brick, from the seed outward, then by
+limb and position within the brick. Number 1 is in the seed. The numbers
+come from the brick tree alone, never from where joints happen to be, so
+reshaping, pretensing or settling the fabric can't change them. They
+change only when the build itself does.
 
 ### 4. The name
 
@@ -63,22 +65,22 @@ its own height rounds. Sets at equal heights keep their build order.
 
 | Fabric | Name | Reads as |
 |---|---|---|
-| Headless Hug | `L12` / `R12` | the 12th set of twins from the ground, left / right |
-| Open Claw | `A12` / `B12` / `C12` | the 12th set from the ground, sectors A / B / C |
+| Headless Hug | `L12` / `R12` | the 12th set of twins built, left / right |
+| Open Claw | `A12` / `B12` / `C12` | the 12th set built, sectors A / B / C |
 
 That's two or three characters: Headless Hug runs to `L62`, Open Claw to
-`C30`. Arm, leg and torso aren't in the name; the number says roughly how
-high, and twins differ only in their letter. Numbers can skip: a hinge
+`C30`. Arm, leg and torso aren't in the name; a low number is near the
+seed, and twins differ only in their letter. Numbers can skip: a hinge
 merges two joints and its set's number goes with it.
 
 The full name is also what gets engraved: one name for a part
 everywhere, on the steel, in the CSV and in the app.
 
-### 5. Joints the symmetry fixes are Z, numbered bottom to top
+### 5. Joints the symmetry fixes are Z, numbered in build order
 
 A joint on the mirror plane or the rotation axis is `Z<n>`, numbered on its
-own from the ground up: `Z1` is the lowest. A Z name says "on the centre
-line" and roughly how high.
+own in the order it was labelled: at the end of the build, then any hinge
+pins. A Z name says "on the centre line".
 
 ### 6. Everything derived inherits from its joint
 
@@ -86,7 +88,7 @@ line" and roughly how high.
 |---|---|---|
 | Cable end | `<joint>.<slot>`: the joint, then its connector slot | `L12.2` |
 | Cable | its two ends, smaller name first | `L12:R30` |
-| Bridle node (plate) | `<host>b`, the joint its swivel hangs from | `L48b` |
+| Bridle node (plate) | `<host>b`, the joint its hanger hangs from | `L48b` |
 | Custom disc | named for its host joint | disc at `Z1` |
 | Hinge | the name it keeps, or a Z if it lands on the centre line | `Z2` |
 
@@ -117,22 +119,19 @@ Headless Hug and Open Claw are named this way. Fabrics without a symmetry
    `name_limbs` turns working letters into members (`AL02.3`, `TR00.2`,
    `LB05.1`). `LabelSymmetry` permutes members: `[('L', 'R')]` for Headless
    Hug, `A → B → C` for Open Claw.
-3. **When the pretense phase starts** the fabric stands, and names become
-   final:
-   - `number_twins_by_height` gives every set of twins its short name.
+3. **When the pretense phase starts** names become final:
+   - `number_twins_by_build_order` gives every set of twins its short name.
    - The plan's hinges run, by those names.
-   - `number_axial_by_height` numbers every `Z`, hinge pins included.
-   - The plan's omits and bridles run, by the final names.
-4. **Afterwards**, joints added later take the next free `Z` number:
-   Headless Hug's two guy-line anchors on the ground are `Z7` and `Z8`,
-   above the structure's `Z1`–`Z6`.
-
-Heights are measured when the fabric first stands, before pretensing,
-falling and settling. The settled shape keeps nearly the same order, but
-not exactly: in Headless Hug 18 of the consecutive twin numbers are out of
-height order on the settled shape, in Open Claw 3. Numbering after
-settling would be exact, but the plan's hinges and bridles name joints
-before then.
+   - `number_axial_by_build_order` numbers every `Z`, hinge pins included.
+   - The plan's omits and bridles run, by the final names. A step naming
+     a joint or cable the fabric doesn't have is reported
+     (`FabricPlanExecutor::plan_failures`), and the tests require every
+     plan to apply cleanly.
+4. **Afterwards**, joints added later take the next free number. A guy
+   line's ground anchor from a twin joint is a twin too, one number for the
+   same line on each side: Headless Hug's four anchors are `L63` / `R63`
+   (forward, from `L14` / `R14`) and `L64` / `R64` (backward). An anchor from
+   a `Z` joint takes the next free `Z`.
 
 Node plates (`<host>b`) and cable ends (`<joint>.<slot>`) follow
 their joint. Everything downstream reads names through
@@ -145,18 +144,21 @@ longer carry it, so that step needs another source.
 
 ## Decisions
 
-Settled 2026-10-28:
+Settled 2026-10-29:
+
+- **Numbers follow build order,** twins and `Z` alike, not height. Height
+  numbering was recounted on every build, so a change to the shape could
+  move a name onto another joint and the plan's hinges, omits and bridles
+  with it.
+
+Settled 2026-10-28 (the parts still in force):
 
 - **Short names:** `<member><number>`; the role letter is dropped.
-- **Twin numbers** follow height, counted from the ground up; **Z** is
-  numbered on its own, also from the ground up.
 
 Settled 2026-10-22 (the parts still in force):
 
 - **Front:** L/R are the figure's own left and right. Open Claw's
   sectors start with today's leg A and run clockwise seen from above.
-- **Z numbering:** bottom to top by height on the finished, standing
-  fabric.
 - **Engraving:** the full name, e.g. `L12`, and `L12.2` for a cable end.
   One name for a part everywhere.
 

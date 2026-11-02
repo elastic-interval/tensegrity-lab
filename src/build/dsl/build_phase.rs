@@ -798,46 +798,46 @@ fn clockwise_members(fabric: &Fabric, letters: &[char]) -> Vec<(char, char)> {
 }
 
 /// Give each set of twins one short name, `<member><n>` (`L12` / `R12`, or
-/// `A12` / `B12` / `C12`), numbered bottom to top by the set's mean height,
-/// so every member gets the same number however its own height rounds. Sets
-/// at equal heights keep their build order. Run once the fabric stands,
-/// before the plan refers to any twin. No-op without a symmetry.
-pub fn number_twins_by_height(fabric: &mut Fabric) {
+/// `A12` / `B12` / `C12`), numbered in build order: by brick, from the seed
+/// outward, then by limb and position within the brick. The numbers come
+/// from the brick tree alone, never from where the joints happen to be, so
+/// they change only when the build does. No-op without a symmetry.
+pub fn number_twins_by_build_order(fabric: &mut Fabric) {
     let Some(symmetry) = fabric.label_symmetry.clone() else {
         return;
     };
-    let mut sets: BTreeMap<JointLabel, Vec<(JointKey, char, f32)>> = BTreeMap::new();
+    let mut sets: BTreeMap<(u8, Option<char>, u8, char), Vec<(JointKey, char)>> = BTreeMap::new();
     for (key, joint) in fabric.joints.iter() {
         if let Some(label @ JointLabel::OffAxis { letter, .. }) = joint.label {
-            sets.entry(symmetry.orbit_key(label)).or_default().push((key, letter, joint.location.y));
+            let JointLabel::OffAxis { role, letter: canonical, brick, position } = symmetry.orbit_key(label) else {
+                continue;
+            };
+            sets.entry((brick, role, position, canonical)).or_default().push((key, letter));
         }
     }
-    let mut ordered: Vec<(f32, Vec<(JointKey, char, f32)>)> = sets
-        .into_values()
-        .filter(|set| set.len() == symmetry.order())
-        .map(|set| (set.iter().map(|&(_, _, y)| y).sum::<f32>() / set.len() as f32, set))
-        .collect();
-    ordered.sort_by(|a, b| a.0.total_cmp(&b.0));
-    for (index, (_, set)) in ordered.into_iter().enumerate() {
-        for (key, letter, _) in set {
+    let complete = sets.into_values().filter(|set| set.len() == symmetry.order());
+    for (index, set) in complete.enumerate() {
+        for (key, letter) in set {
             fabric.joints[key].label = Some(JointLabel::Twin { letter, number: index as u16 + 1 });
         }
     }
 }
 
-/// Number the joints on the mirror plane or rotation axis bottom to top by
-/// height: `Z1` is the lowest. Run once the fabric stands, before the plan
-/// refers to any `Z` name.
-pub fn number_axial_by_height(fabric: &mut Fabric) {
-    let mut axial: Vec<(f32, JointKey)> = fabric
+/// Number the joints on the mirror plane or rotation axis `Z1`, `Z2`, …
+/// in the order they were labelled: at the end of the build, then any hinge
+/// pins. Closes the gaps left where mirrored pairs became torso twins.
+pub fn number_axial_by_build_order(fabric: &mut Fabric) {
+    let mut axial: Vec<(u16, JointKey)> = fabric
         .joints
         .iter()
-        .filter(|(_, joint)| matches!(joint.label, Some(JointLabel::Axial { .. })))
-        .map(|(key, joint)| (joint.location.y, key))
+        .filter_map(|(key, joint)| match joint.label {
+            Some(JointLabel::Axial { index }) => Some((index, key)),
+            _ => None,
+        })
         .collect();
-    axial.sort_by(|a, b| a.0.total_cmp(&b.0));
-    for (index, (_, key)) in axial.into_iter().enumerate() {
-        fabric.joints[key].label = Some(JointLabel::Axial { index: index as u16 + 1 });
+    axial.sort();
+    for (number, (_, key)) in axial.into_iter().enumerate() {
+        fabric.joints[key].label = Some(JointLabel::Axial { index: number as u16 + 1 });
     }
 }
 

@@ -19,14 +19,12 @@ pub struct ConnectorDimensions {
     /// Divider washer between cap and first ring and between adjacent rings,
     /// so steel never bears on steel. Slot step = t_ring + washer.
     pub washer_thickness: Meters,
-    /// Strut end-cap the bolt passes through; the first ring sits beyond it.
+    /// From the strut end to the first washer: nothing, now the washer sits on
+    /// the tube end. Kept because Open Claw's CSV header reports it.
     pub cap_thickness: Meters,
     /// Radial distance from the strut/bolt axis to the cross-tube (pin) axis
     /// where the cable attaches (R_tube — the cable's moment arm).
     pub pivot_radius: Meters,
-    /// At a hinge the strut ends at the hinge pin and its stack sits below
-    /// it: the gap from the top of the highest occupied ring to the pin.
-    pub hinge_clearance: Meters,
 }
 
 impl Default for ConnectorDimensions {
@@ -34,9 +32,8 @@ impl Default for ConnectorDimensions {
         Self {
             ring_thickness: Meters(0.005),
             washer_thickness: Meters(0.002), // POM
-            cap_thickness: Meters(0.005),
+            cap_thickness: Meters(0.0),
             pivot_radius: Meters(0.030), // cap OD 40/2 + 1 clearance + tube 18/2
-            hinge_clearance: Meters(0.020),
         }
     }
 }
