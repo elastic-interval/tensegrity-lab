@@ -19,6 +19,7 @@ use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow};
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{WindowAttributes, WindowId};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -602,6 +603,11 @@ impl ApplicationHandler<LabEvent> for Application {
                     if let Some(scene) = &mut self.scene {
                         scene.jump_to_fabric(&self.crucible.fabric);
                     }
+                } else if let StateChange::TogglePartsView = &app_change {
+                    if let Some(scene) = &mut self.scene {
+                        scene.toggle_parts_view(&self.crucible.fabric);
+                    }
+                    RequestRedraw.send(&self.radio);
                 } else if let StateChange::ToggleAttachmentPoints = &app_change {
                     // Connector-less fabrics have no attachment points to show
                     if self.crucible.fabric.connector.is_some() {
@@ -728,6 +734,17 @@ impl ApplicationHandler<LabEvent> for Application {
                 // suppress all key bindings too — only window-level keys
                 // (e.g. CloseRequested via Cmd+W / Alt+F4) still work.
                 if self.cycle.is_some() {
+                    return;
+                }
+                // The parts view takes the keyboard too: only leaving it works.
+                if self.scene.as_ref().is_some_and(|scene| scene.parts_view_showing()) {
+                    let leave = matches!(
+                        key_event.physical_key,
+                        PhysicalKey::Code(KeyCode::Escape | KeyCode::KeyP)
+                    );
+                    if leave && key_event.state.is_pressed() && !key_event.repeat {
+                        LabEvent::UpdateState(StateChange::TogglePartsView).send(&self.radio);
+                    }
                     return;
                 }
                 self.keyboard

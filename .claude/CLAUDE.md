@@ -219,11 +219,8 @@ need to adjust mass or rigidity multipliers at runtime.
   visible, drawn from the parts list (`connector::parts`): one mesh per
   `Part` (`part_meshes.rs`, metres, in the part's own frame), instanced at
   every `Placement`. A new kind of hardware is a new `Part` variant.
-- `parts_panel.rs` — in the connector view the left side lists the parts by
-  kind (`connector::parts::kinds`), each beside a turning rendering drawn in
-  its own fixed viewport (`ConnectorRenderer::render_thumbnails`).
-- `part_view.rs` — the parts full screen, click one to see it large: the
-  `--part` command line mode, apart from the rest of the application.
+- `parts_view.rs` — the P key: the parts full screen, click one in the strip to
+  see it large. It takes the window, pointer and keyboard from the scene.
 - `sky_renderer.rs`, `surface_renderer.rs`, `text_renderer.rs` — chrome.
 - `shader.wgsl` — shared WGSL for fabric pipelines.
 
@@ -331,10 +328,6 @@ cargo test --release --lib test_open_claw_threefold_symmetry
 
 # Geometry-only CSV for Headless Hug (writes HeadlessHug-<date>.csv):
 cargo test --release --lib export_headless_hug_csv -- --ignored
-
-# The parts full screen, to iterate on a design (an id starts on that part,
-# `list` prints the ids):
-cargo run --release -- --part
 
 # Laser-cutting DXFs for Headless Hug (writes HeadlessHug-parts-<date>/):
 cargo test --release --lib export_headless_hug_dxf -- --ignored

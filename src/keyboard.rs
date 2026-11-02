@@ -153,6 +153,14 @@ impl Keyboard {
                     matches!(state, Viewing { .. } | Animating | ShowingJoint(_) | ShowingInterval(_))
                 }),
             );
+            self.key_lab_event(
+                KeyCode::KeyP,
+                "Parts",
+                UpdateState(StateChange::TogglePartsView),
+                Box::new(|state| {
+                    matches!(state, Viewing { .. } | Animating | ShowingJoint(_) | ShowingInterval(_))
+                }),
+            );
         }
         self.key_lab_event(
             KeyCode::Space,

@@ -67,22 +67,10 @@ struct Args {
     /// (selects the first fabric for you).
     #[arg(long)]
     cycle: bool,
-
-    /// Show the parts of `--fabric` or else Headless Hug, full screen, click
-    /// one to see it large. An id starts on that part; `list` prints the ids.
-    /// To iterate on a part's design.
-    #[cfg(not(target_arch = "wasm32"))]
-    #[arg(long, num_args = 0..=1, default_missing_value = "")]
-    part: Option<String>,
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
-    #[cfg(not(target_arch = "wasm32"))]
-    if let Some(part) = &args.part {
-        let fabric_name = args.fabric.unwrap_or(FabricName::HeadlessHug);
-        return tensegrity_lab::wgpu::part_view::run(fabric_name, part);
-    }
     let record_duration = args.record.map(Seconds);
 
     let cycle_names: Option<Vec<FabricName>> = args

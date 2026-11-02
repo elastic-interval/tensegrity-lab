@@ -453,9 +453,9 @@ the far end's *pivot*, so terminal and cable stay collinear; a fork rod's
 threaded rod is drawn the same way, ending inside its fork. Nothing is drawn unless the attachment
 points are shown (C key).
 
-In the connector view the left side is a **parts panel**
-(`src/wgpu/parts_panel.rs`): the parts by kind, each with its count and
-number of distinct shapes beside a turning rendering of one of them.
+The **parts view** (P key, `src/wgpu/parts_view.rs`) takes over the window: every
+distinct part with a letter and its count, turning in a strip down the left, and
+the one clicked on large beside them.
 
 ### Collision culprits
 
@@ -491,6 +491,6 @@ free pivot elevation angle at each end on a `Pivot:` line.
 | `src/connector/parts.rs` | The parts list: every distinct part and where each copy sits |
 | `src/fabric/bridle.rs` | `Fabric::bridle`, `tighten_bridles`, `hang_bridles` |
 | `src/fabric/symmetrize.rs` | `Fabric::symmetrize_mirror` |
-| `src/wgpu/connector_renderer.rs`, `part_meshes.rs`, `parts_panel.rs` | Drawing the parts and the parts panel |
+| `src/wgpu/connector_renderer.rs`, `part_meshes.rs`, `parts_view.rs` | Drawing the parts and the parts view |
 | `src/open_claw_symmetry.rs` | OpenClaw threefold-symmetry enforcement + CSV export |
 | `src/camera.rs` | Picking logic for slot and angle display |

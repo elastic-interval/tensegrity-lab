@@ -41,10 +41,6 @@ pub struct TextState {
     age: Age,
     time_scale: f32,
     show_mode: bool,
-    /// The parts panel's rows, each its text and where it starts; when any
-    /// are showing they take the left side's place.
-    parts_panel: Vec<(String, [f32; 2])>,
-    parts_panel_sections: Vec<OwnedSection>,
 }
 
 enum TextInstance {
@@ -83,8 +79,6 @@ impl TextState {
             age: Age::default(),
             time_scale: 1.0,
             show_mode: false,
-            parts_panel: Vec::new(),
-            parts_panel_sections: Vec::new(),
         };
         fresh.update_sections();
         fresh
@@ -139,26 +133,7 @@ impl TextState {
     }
 
     pub fn sections(&self) -> Vec<&OwnedSection> {
-        self.sections.iter().flatten().chain(&self.parts_panel_sections).collect()
-    }
-
-    /// Show the parts panel's rows (see `wgpu::parts_panel`), or none.
-    pub fn set_parts_panel(&mut self, rows: Vec<(String, [f32; 2])>) {
-        if rows == self.parts_panel {
-            return;
-        }
-        self.parts_panel_sections = rows
-            .iter()
-            .map(|(text, at)| {
-                OwnedSection::default()
-                    .with_layout(Layout::default().v_align(VerticalAlign::Center).h_align(HorizontalAlign::Left))
-                    .with_bounds([self.width / 2.0, self.height])
-                    .with_screen_position(*at)
-                    .add_text(OwnedText::new(text).with_color([0.8, 0.8, 0.8, 1.0]).with_scale(30.0))
-            })
-            .collect();
-        self.parts_panel = rows;
-        self.update_sections();
+        self.sections.iter().flatten().collect()
     }
 
     fn update_sections(&mut self) {
@@ -240,7 +215,6 @@ impl TextState {
         self.update_section(
             SectionName::Left,
             match &self.fabric_stats {
-                _ if !self.parts_panel.is_empty() => Nothing,
                 None => Nothing,
                 Some(fabric_stats) => {
                     let FabricStats {

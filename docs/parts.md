@@ -9,14 +9,9 @@ Nothing here is a final order. Dimensions in the code marked ESTIMATE
 **none of this has been checked by the engineer.** Supplier facts come from
 their public pages and are listed under Sources; confirm them before ordering.
 
-Look at the parts full screen: click one in the strip on the left to show it
-large, drag to orbit, wheel to zoom, Esc to quit. Rerun the command after
-changing a part. Give an id to start on that part (`--part hinge`); `list`
-prints the ids. Assembled parts show whole.
-
-```bash
-cargo run --release -- --part
-```
+To look at the parts, press P in the running application: click one in the strip
+on the left to show it large, drag to orbit, wheel to zoom, P or Esc to return.
+Assembled parts show whole.
 
 Regenerate the counts with:
 

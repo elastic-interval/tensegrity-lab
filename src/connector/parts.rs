@@ -351,51 +351,6 @@ pub fn parts_list(placements: &[Placement]) -> BTreeMap<Part, usize> {
     counts
 }
 
-/// The list's parts with short ids for the command line: the kind's name in
-/// dashes, numbered where the kind has several shapes (`pom-washer-2`).
-pub fn part_ids(list: &BTreeMap<Part, usize>) -> Vec<(String, Part, usize)> {
-    let slug = |part: Part| part.base_name().split(" (").next().unwrap_or_default().replace(' ', "-").to_lowercase();
-    let kind_size = |part: Part| list.keys().filter(|other| other.base_name() == part.base_name()).count();
-    let mut ids: Vec<(String, Part, usize)> = Vec::new();
-    for (&part, &count) in list {
-        let earlier = ids.iter().filter(|(_, other, _)| other.base_name() == part.base_name()).count();
-        let id = if kind_size(part) > 1 { format!("{}-{}", slug(part), earlier + 1) } else { slug(part) };
-        ids.push((id, part, count));
-    }
-    ids
-}
-
-/// One kind of part as the parts panel lists it: how many copies in all,
-/// in how many distinct shapes, and its most numerous shape, to show.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct KindSummary {
-    pub name: &'static str,
-    pub count: usize,
-    pub shapes: usize,
-    pub sample: Part,
-}
-
-/// The parts list by kind of part, in parts-list order. Each distinct shape
-/// stays its own line of the parts list, as a cutting order needs; this
-/// only groups them for display. The list is sorted by part, so each kind's
-/// shapes lie together.
-pub fn kinds(list: &BTreeMap<Part, usize>) -> Vec<KindSummary> {
-    let mut kinds: Vec<KindSummary> = Vec::new();
-    for (&part, &count) in list {
-        match kinds.last_mut() {
-            Some(kind) if kind.name == part.base_name() => {
-                kind.count += count;
-                kind.shapes += 1;
-                if count > list[&kind.sample] {
-                    kind.sample = part;
-                }
-            }
-            _ => kinds.push(KindSummary { name: part.base_name(), count, shapes: 1, sample: part }),
-        }
-    }
-    kinds
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -439,13 +394,6 @@ mod tests {
         assert!(rods.iter().all(|&length| length >= FORK_ROD_MIN_LENGTH.f32()));
         assert_eq!(plates, executor.fabric.bridle_nodes.len());
         assert_eq!(bosses + 3 * plates, count(Part::Clevis) + count(Part::RodFork));
-        let kinds = kinds(&list);
-        let listed = placed.iter().filter(|placement| placement.part.listed()).count();
-        assert_eq!(kinds.iter().map(|kind| kind.count).sum::<usize>(), listed);
-        assert_eq!(kinds.iter().map(|kind| kind.shapes).sum::<usize>(), list.len());
-        for kind in &kinds {
-            eprintln!("{:>5} × {} in {} shapes, showing {}", kind.count, kind.name, kind.shapes, kind.sample.name());
-        }
     }
 
     /// A hinge carries only its two struts: every cable at a hinge pin is on
