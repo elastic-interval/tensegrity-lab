@@ -978,9 +978,9 @@ fn stack_carries(fabric: &Fabric, push_key: IntervalKey, joint: JointKey, pull_k
 type Placed = (IntervalKey, Vec3, usize, Meters, u8);
 
 /// How far a custom disc's bosses may reach from the strut axis, shortest
-/// first: from the standard ring's pivot radius outward. Laser-cut steel
-/// takes any of these. ESTIMATE of what stays stiff enough.
-const DISC_REACHES: [Meters; 5] = [Meters(0.030), Meters(0.040), Meters(0.050), Meters(0.060), Meters(0.070)];
+/// first: from the standard ring's pivot radius outward. A longer boss is a
+/// long flat bar, which bends too easily along the strut (docs/parts.md).
+const DISC_REACHES: [Meters; 2] = [Meters(0.030), Meters(0.040)];
 
 /// Extra washers that may go into one gap on a mirror-plane stack.
 const GAP_WASHERS: [u8; 5] = [0, 2, 4, 6, 8];

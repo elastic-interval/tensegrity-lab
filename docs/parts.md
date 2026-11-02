@@ -85,12 +85,20 @@ Each boss is given as angle/reach from the disc's centre line:
 
 | Disc | Bosses |
 |---|---|
-| 1 | −149°/50, −24°/40, 24°/40, 149°/50 mm |
-| 2 | −144°/50, −28°/40, 28°/40, 144°/50 mm |
-| 3 | −122°/30, −35°/30, 35°/30, 122°/30 mm |
-| 4 | −112°/30, −37°/30, 37°/30, 112°/30 mm |
+| 1 | −148°/40, −24°/40, 24°/40, 148°/40 mm |
+| 2 | −145°/40, −29°/40, 29°/40, 145°/40 mm |
+| 3 | −123°/30, −35°/30, 35°/30, 123°/30 mm |
+| 4 | −113°/30, −37°/30, 37°/30, 113°/30 mm |
 
 These shift by a degree or so whenever the plan changes, so order them last.
+
+**The 40 mm bosses are a strength question.** Past the disc's 20 mm rim, a 40 mm
+reach leaves 11 mm of flat 5 × 12 mm bar before the cross-tube, and any pull along
+the strut bends it the weak way. By hand, as a simple cantilever in S235, discs 1
+and 2 start to yield at about 1.3 kN of cable tension. Reach is limited to 40 mm
+because 50 mm was about 0.7 kN; 30 mm leaves 4 cable ends colliding. A stub of the
+18 × 2.5 mm tube in place of the flat bar would resist this about 8 times better,
+and it isn't modelled yet. Needs the engineer.
 
 ### Node plate (20)
 
@@ -142,11 +150,11 @@ figures has been checked by the engineer.
 
 | Pin to pin | Rod | Qty | Twist between pins |
 |---:|---:|---:|---:|
-| 82 mm | 47 mm | 16 | 4–19° in motion |
+| 82 mm | 47 mm | 16 | 5–17° in motion |
 | 150 mm | 115 mm | 2 | 60° |
 | 172 mm | 137 mm | 2 | 4° |
 | 189 mm | 154 mm | 2 | 4° |
-| 248 mm | 213 mm | 2 | 86–90° in motion |
+| 248 mm | 213 mm | 2 | About 90° |
 
 Those lengths are from the settled shape, as the app's connector view commits
 them. The CSV is written at the slack moment and differs: 12 of the longer rods,
@@ -154,10 +162,9 @@ from 120 mm up, rather than 8. Which one rods are cut from is the
 same open question as for the cables (below).
 
 **A rigid rod replaces what was a swivel.** The swivel was there because the two
-pins swing as the figure moves. Through the animation a hanger's pins swing
-2–7° against each other, and the 248 mm rods about 4° (measured from the joints;
-I couldn't measure the other rods this way, because of how their plates connect).
-What takes that up is play: a 12 mm plate in a
+pins swing as the figure moves. With the animation at 0.8 Hz (see "Motion" below)
+a hanger's pins swing 2–9° against each other. The rods from a plate weren't
+measured at that frequency. What takes that up is play: a 12 mm plate in a
 14 mm gap, the pins in their holes, and the ring turning on its bolt. By hand
 that's roughly the same size as the swing, so it needs trying on a real part, at
 the animation's 1 Hz. A jaw gap over about 15.5 mm would let the nut turn in the
@@ -253,7 +260,33 @@ design load in [connectors.md](connectors.md) comes from Open Claw's engineer,
 not from Headless Hug. Headless Hug needs its own numbers from the engineer
 before any bought part is sized.
 
-### 3. Things in the model to check
+### 3. Motion at the animation's resonance
+
+Headless Hug's animation peaks at about 0.8 Hz, with the guy lines still driven at
+0.75%: 395 mm mean joint motion, up to 770 mm, against 60 and 165 mm at 1 Hz. The
+peak is flat from 0.78 to 0.81 Hz, then falls fast: 170 mm mean at 0.85 Hz. A
+smaller, sharper one is at about 2.3 Hz. Mass and damping are the model's own, so
+the real frequency and height will differ, and a real one needs tuning by
+experiment. Measured in steady motion, swept from rest, each joint from its mean:
+
+| | 1 Hz | 0.8 Hz |
+|---|---:|---:|
+| Cable leaving its boss's plane, disc 1 (Z1) | 1.0° | 2.0° |
+| Disc 2 (Z4) | 0.4° | 1.4° |
+| Disc 3 (Z2) | 0.8° | 2.4° |
+| Disc 4 (Z3) | 1.2° | **5.3°** |
+| Hanger pins swinging, worst (L5, R5) | 2.5° | 8.6° |
+| Hinge pin axis swinging, worst (Z5) | 4.4° | **18.7°** |
+| Hinge opening and closing, worst | 2° | 7° |
+| Cables going slack each cycle, of 272 | 2 | 11 |
+| Most-strained cable's peak over its settled strain | ×1.07 | ×1.14 |
+
+By hand the play between a jaw and a cross-tube is about 1.6°, so disc 4's boss
+to L15b and R15b, on a 331 mm cable, is the one most likely to bind. A hinge's pin
+axis can only swing that far if both struts turn on their bolts, by up to 19° each
+cycle, so those bolts and stacks need to turn freely under load.
+
+### 4. Things in the model to check
 
 - **Pin play.** The cross-tube's bore is 13 mm, but the terminal's pin in
   `fork.rs` is 9.7 mm (datasheet), while the note at the top of

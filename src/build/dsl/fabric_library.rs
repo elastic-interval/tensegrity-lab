@@ -385,7 +385,7 @@ pub fn headless_hug_plan(shape: HeadlessHugShape) -> FabricPlan {
             guy_line("R14", (M(0.0), M(-5.5)), Pct(102.7)),
         ])
         .animate()
-        .actuator_frequency(Hz(1.0))
+        .actuator_frequency(Hz(0.8))
         .amplitude(Pct(0.75))
         .sine()
         .actuators([

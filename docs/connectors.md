@@ -34,8 +34,8 @@ N–A and N–B, meeting at a free node N. Three tension lines meet at N.
   the two cables it replaces had them. One rod fork pins through the
   cross-tube, the other through the plate's hole. Each is a U with the threaded
   rod through its web, a load nut inside and a lock nut outside. The two pins
-  swing against each other by 2–7° as the figure moves, which only the play at
-  the pins takes up. It was a jaw–jaw swivel until 2026-11-02, so that all
+  swing against each other by up to 9° as the figure moves (docs/parts.md), which
+  only the play at the pins takes up. It was a jaw–jaw swivel until 2026-11-02, so that all
   tension is cable or threaded rod. (Setting nodes out on cable pendants instead
   made the arms sag 1.5 m and left a dozen cables slack.)
   `Fabric::bridle_hangers` records the hangers.
