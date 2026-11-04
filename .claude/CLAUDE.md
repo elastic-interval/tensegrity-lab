@@ -135,7 +135,9 @@ angles or per-position variants:
   per assignment rebuild and rendered red).
 
 Fabrics opt in per plan via `FabricDimensions::with_connector()`; the config
-becomes `Fabric::connector` at construction. `None` (the default) means
+becomes `Fabric::connector` at construction. Those meant to be built for real
+(Open Claw, Headless Hug) also set `with_connectors_shown()`, so they open with
+the hardware showing, as if C were pressed. `None` (the default) means
 connectors play no role anywhere: no slot assignment, no rendering, and the
 C-key toggle is inert. Slot assignments and part shapes are committed when
 the fabric enters Viewing (and for CSV export) — not incrementally during

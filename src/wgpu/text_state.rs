@@ -1,4 +1,4 @@
-use crate::fabric::FabricStats;
+use crate::fabric::{FabricMotion, FabricStats};
 use crate::{Age, ControlState, StateChange};
 use std::default::Default;
 use wgpu_text::glyph_brush::{
@@ -98,6 +98,11 @@ impl TextState {
             }
             SetFabricStats(fabric_stats) => {
                 self.fabric_stats = fabric_stats.clone();
+            }
+            SetFabricMotion(motion) => {
+                if let Some(fabric_stats) = &mut self.fabric_stats {
+                    fabric_stats.motion = motion.clone();
+                }
             }
             SetAnimating(animating) => {
                 self.animating = animating.clone();
@@ -219,7 +224,6 @@ impl TextState {
                 Some(fabric_stats) => {
                     let FabricStats {
                         joint_count,
-                        height,
                         push_count,
                         push_total,
                         push_range,
@@ -228,12 +232,17 @@ impl TextState {
                         pull_total,
                         age,
                         mass_kg,
-                        max_pull_force_kn,
-                        push_strain_range,
-                        pull_strain_range,
-                        slack_pull_count,
+                        motion,
                         ..
                     } = fabric_stats;
+                    let FabricMotion {
+                        height,
+                        max_cable_force_kn,
+                        max_strut_force_kn,
+                        cable_strain_range,
+                        strut_strain_range,
+                        slack_cable_count,
+                    } = motion;
 
                     let scale = self.model_scale.unwrap_or(1.0);
                     let scale_label = self
@@ -248,15 +257,8 @@ impl TextState {
                         })
                         .unwrap_or_default();
 
-                    let slack_warning = if *slack_pull_count > 0 {
-                        format!(" ({} SLACK)", slack_pull_count)
-                    } else {
-                        String::new()
-                    };
-
                     let text = format!(
-                        "Stats at {age}{scale_label}:\n\
-                         Height: {:.3}m\n\
+                        "Built at {age}{scale_label}:\n\
                          Joints: {:?}\n\
                          Bars: {:?}\n\
                          → {:.1}-{:.1}mm\n\
@@ -265,10 +267,14 @@ impl TextState {
                          → {:.1}-{:.1}mm\n\
                          → total {:.1}m\n\
                          Mass: {:.0}kg\n\
-                         Max pull: {:.1}kN\n\
-                         Push strain: {:.2}% to {:.2}%\n\
-                         Pull strain: {:.2}% to {:.2}%{}",
-                        height.0 * scale,
+                         \n\
+                         Each second:\n\
+                         Height: {:.3}m\n\
+                         Max cable: {:.1}kN\n\
+                         Max bar: {:.1}kN\n\
+                         Cable strain: {:.2}% to {:.2}%\n\
+                         Bar strain: {:.2}% to {:.2}%\n\
+                         Slack cables: {}",
                         joint_count,
                         push_count,
                         push_range.0.to_mm() * scale,
@@ -279,12 +285,14 @@ impl TextState {
                         pull_range.1.to_mm() * scale,
                         pull_total.0 * scale,
                         mass_kg,
-                        max_pull_force_kn,
-                        push_strain_range.0 * 100.0,
-                        push_strain_range.1 * 100.0,
-                        pull_strain_range.0 * 100.0,
-                        pull_strain_range.1 * 100.0,
-                        slack_warning,
+                        height.0 * scale,
+                        max_cable_force_kn,
+                        max_strut_force_kn,
+                        cable_strain_range.0 * 100.0,
+                        cable_strain_range.1 * 100.0,
+                        strut_strain_range.0 * 100.0,
+                        strut_strain_range.1 * 100.0,
+                        slack_cable_count,
                     );
                     Normal(text)
                 }

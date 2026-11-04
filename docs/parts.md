@@ -36,15 +36,14 @@ connector hardware. The second table adds what it doesn't track yet.
 | 464 | Ring with boss and cross-tube | Custom, welded |
 | 4 | Custom disc with cross-tubes (four different) | Custom, welded |
 | 20 | Node plate | Custom, laser cut |
-| 466 | POM washer | Custom or bought |
-| 2 | Spacer of 3 POM washers | As washers |
+| 476 | POM washer | Custom or bought |
 | 492 | Jaw terminal, on the cables | Bought, swaged on |
 | 48 | Rod fork, two per fork rod | Custom, cut and drilled, see below |
 | 8 | Hinge: M12 rod end, custom fork, bolt | See below |
 
 | Qty | Not on the app's list | Note |
 |---:|---|---|
-| 64 | Strut tube, 1291–2394 mm | Ø40 mm in the model; wall and material not settled here |
+| 64 | Strut, telescoping tubes, 1.33–2.40 m | Open Claw's 40×3 and 33×3 profiles; shorter tube sets needed below about 1.6 m |
 | 128 | M12 bolt or stud at a strut end | Length follows the stack, so several lengths |
 | 112 | M12 nut | The other 16 strut ends are held by the hinge fitting |
 | 244 | Cable, 6 mm, cut to length | Lengths come from the CSV |
@@ -80,10 +79,10 @@ Each boss is given as angle/reach from the disc's centre line:
 
 | Disc | Bosses |
 |---|---|
-| 1 | −148°/40, −24°/40, 24°/40, 148°/40 mm |
-| 2 | −145°/40, −29°/40, 29°/40, 145°/40 mm |
-| 3 | −123°/30, −35°/30, 35°/30, 123°/30 mm |
-| 4 | −113°/30, −37°/30, 37°/30, 113°/30 mm |
+| 1 | −149°/40, −24°/40, 24°/40, 149°/40 mm |
+| 2 | −145°/30, −29°/40, 29°/40, 145°/30 mm |
+| 3 | −120°/30, −33°/30, 33°/30, 120°/30 mm |
+| 4 | −107°/30, −35°/30, 35°/30, 107°/30 mm |
 
 These shift by a degree or so whenever the plan changes, so order them last.
 
@@ -106,9 +105,10 @@ Holes are Ø10.5 mm for the terminal's 9.7 mm pin (`PLATE_HOLE_DIAMETER`,
 ESTIMATE). A hole under Ø12 in 12 mm plate may need drilling or reaming rather than
 laser cutting; ask the cutter.
 
-### POM washers (466, plus 2 spacers of 3)
+### POM washers (476)
 
-Ø40 × Ø13 × 2 mm in the model, one under every ring and disc. I found no stock
+Ø40 × Ø13 × 2 mm in the model: one under every ring and disc, and 8 more stacked
+where a ring has to sit higher to clear the forks below it. I found no stock
 part. Open Claw's were a custom run: 500 for €185 from Snijlab, from a drawing
 named "Pom ring - 36 x 36 x 2", so Ø36 × 2 mm. Ask Snijlab for Ø40.
 
@@ -143,22 +143,22 @@ figures has been checked by the engineer.
 **Rod to cut:** pin to pin − 35 mm. The shortest is 81 mm pin to pin
 (`FORK_ROD_MIN_LENGTH`), with the lock nuts touching.
 
-| Pin to pin | Rod | Qty | Twist between pins |
-|---:|---:|---:|---:|
-| 82 mm | 47 mm | 16 | 4–16°, swinging up to 2.9° |
-| 150 mm | 115 mm | 2 | 60° |
-| 172 mm | 137 mm | 2 | 4° |
-| 189 mm | 154 mm | 2 | 4° |
-| 248 mm | 213 mm | 2 | About 90° |
+| Pin to pin | Rod | Qty |
+|---:|---:|---:|
+| 82 mm (hangers) | 47 mm | 16 |
+| 152 mm | 117 mm | 2 |
+| 179 mm | 144 mm | 2 |
+| 187 mm | 152 mm | 2 |
+| 198 mm | 163 mm | 2 |
 
 Those lengths are from the settled shape, as the app's connector view commits
-them. The CSV is written at the slack moment and differs: 12 of the longer rods,
-from 120 mm up, rather than 8. Which one rods are cut from is the
+them. The CSV is written at the slack moment and differs: 12 of the longer rods
+rather than 8. Which one rods are cut from is the
 same open question as for the cables (below).
 
 **A rigid rod replaces what was a swivel.** The swivel was there because the two
 pins swing as the figure moves. With the animation at its resonance (see "Motion"
-below) a hanger's pins swing up to 2.9° against each other. The rods from a plate weren't
+below) a hanger's pins swing up to 4.6° against each other. The rods from a plate weren't
 measured at that frequency. What takes that up is play: a 12 mm plate in a
 14 mm gap, the pins in their holes, and the ring turning on its bolt. By hand
 that's roughly the same size as the swing, so it needs trying on a real part, at
@@ -199,7 +199,7 @@ doesn't have the real part's dimensions yet.
 ## Mass
 
 The simulation counts Headless Hug's mass from these parts (`Hardware::OPEN_CLAW`
-in `src/fabric/dimensions.rs`), not a flat mass per joint: about 334 kg in all.
+in `src/fabric/dimensions.rs`), not a flat mass per joint: about 334 kg in all at scale 0.75.
 The parts view (P) shows each listed part's mass, worked out from its dimensions
 (`Part::mass`), and the total for the list.
 
@@ -268,51 +268,59 @@ To settle before ordering:
 
 ### 2. The forces are indicative, not design loads
 
-Headless Hug's simulation uses the real parts' stiffness (`Hardware::OPEN_CLAW`):
-6 mm 7×19 cable at EA about 1.4 MN (an estimate until a datasheet gives it) and the
-telescoping 40×3 / 33×3 tube at about 21 MN, without the locking pins' play. It is
-pretensioned by lengthening every strut 0.5%: that keeps all connectors clear, and
-when settled under gravity gives struts a median of 3.7 kN (max 8.0) and cables a
-median of 1.9 kN (max 6.7), close to Open Claw's build book. At 0.1–0.3% some cable
-ends collide; at 1% the struts reach 12 kN median.
+Headless Hug is modelled at scale 0.75: 8.4 m tall, struts 1.33–2.40 m, all within
+the length range Open Claw's struts have proven (1.83–2.42 m) or shorter. At 0.8 it
+was 9.1 m, with eight struts longer than any of Open Claw's, up to 2.54 m.
 
-Through the animation at its resonance no cable passes 7.5 kN, under a third of a
-6 mm cable's 25.5 kN breaking load. The most loaded, all over 6 kN at their peak:
+The simulation uses the real parts' stiffness (`Hardware::OPEN_CLAW`): 6 mm 7×19
+cable at EA about 1.4 MN (an estimate until a datasheet gives it) and the
+telescoping 40×3 / 33×3 tube at about 21 MN, without the locking pins' play. It is
+pretensioned by lengthening every strut 0.5%. At scale 0.75 that keeps all
+connectors clear and, settled under gravity, gives struts a median of 2.9 kN (max
+5.4) and cables at most 4.5 kN, with 2 slack. Less collides (0.2–0.4%); more
+raises the forces by half (0.6%) and tips the stance.
+
+Through the animation at its resonance no cable passes 6.3 kN, a quarter of a 6 mm
+cable's 25.5 kN breaking load. The most loaded at their peak:
 
 | Cable | Settled | Peak |
 |---|---:|---:|
-| L5–L5b, R5–R5b (hangers, M8 rod) | 5.9, 6.7 kN | 7.5, 7.4 kN |
-| L45–L30, R45–R30 | 5.8, 5.7 kN | 7.1, 7.0 kN |
-| L43–L32, R43–R32 | 5.3, 5.6 kN | 6.8, 6.8 kN |
-| L5b–Z4, R5b–Z4 | 5.7, 6.3 kN | 6.4, 6.4 kN |
-| Z5b–Z1 | 5.6 kN | 6.3 kN |
-| L5–L2, R5–R2 | 5.5, 5.4 kN | 6.2, 6.2 kN |
+| L45–L30, R45–R30 | 4.5, 4.1 kN | 6.2, 6.3 kN |
+| L43–L32, R43–R32 | 3.6, 3.8 kN | 5.9, 5.9 kN |
+| L5–L5b, R5–R5b (hangers, M8 rod) | 4.0, 3.9 kN | 5.7, 5.6 kN |
+| L32–L44, R32–R44 | 3.1, 3.1 kN | 5.1, 5.1 kN |
 
 Wind isn't modelled; Open Claw's engineer had cables reaching 4.7 kN under wind
-alone. These are the candidates for 8 mm cable, and the hangers for M10, but that's
-the engineer's call with real load cases.
+alone. 8 mm cable for any of these is the engineer's call with real load cases.
 
-### 3. Motion at the animation's resonance
+### 3. Standing upright, and motion at the animation's resonance
 
-The animation peaks at about 0.25 Hz, a period of 4 s, with the guy lines still
-driven at 0.75%: 214 mm mean joint motion, up to 413 mm. A smaller peak is at about
-1.6 Hz. Damping is the model's own, so the real height will differ, and the real
-frequency needs finding by experiment. Measured in steady motion at 0.25 Hz:
+The guy lines are set so the centre of gravity stands over the feet: anchors 5.2 m
+in front of and behind the pelvis, the front pair at 90.5% and the rear at 109% of
+their distance on landing puts it 13 mm in front of them, with both pairs lightly
+taut (about 0.5 kN each). It is very sensitive: 1% on either pair moves it 10–40
+cm, so real guy lines need fine adjustment. Tightening both pairs doesn't stand it
+up; they pull the pelvis down instead.
 
-| | At 0.25 Hz |
+Standing upright it sways freely. The animation peaks at about 0.24 Hz, a period of
+4.2 s, with the guy lines driven at 0.75%: 237 mm mean joint motion, up to 493 mm.
+Damping is the model's own, so the real height will differ, and the real
+frequency needs finding by experiment. Measured in steady motion at 0.24 Hz:
+
+| | At 0.24 Hz |
 |---|---:|
-| Cable leaving its boss's plane, disc 1 (Z1) | 0.8° |
-| Disc 2 (Z4) | 0.5° |
-| Disc 3 (Z2) | 0.8° |
-| Disc 4 (Z3) | **2.1°** |
-| Hanger pins swinging, worst (L5, R5) | 2.9° |
-| Hinge pin axis swinging, worst (Z5) | **10.5°** |
-| Hinge opening and closing, worst | 1.0° |
+| Cable leaving its boss's plane, disc 1 (Z1) | 1.3° |
+| Disc 2 (Z4) | 0.8° |
+| Disc 3 (Z2) | 1.4° |
+| Disc 4 (Z3) | **2.3°** |
+| Hanger pins swinging, worst (L5, R5) | 4.6° |
+| Hinge pin axis swinging, worst (Z5) | **11.7°** |
+| Hinge opening and closing, worst | 3.2° |
 | Cables going slack each cycle, of 272 | 6 |
 
 By hand the play between a jaw and a cross-tube is about 1.6°, so disc 4's bosses
 to L15b and R15b are the ones most likely to bind. A hinge's pin axis can only
-swing that far if both struts turn on their bolts, by up to 10° each cycle, so
+swing that far if both struts turn on their bolts, by up to 12° each cycle, so
 those bolts and stacks need to turn freely under load.
 
 ### 4. Things in the model to check

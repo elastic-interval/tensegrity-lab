@@ -6,7 +6,7 @@ use crate::control::{
     AppearanceFunction, ControlState, PointerChange, TweakParameter,
 };
 use crate::build::dsl::FabricPlan;
-use crate::fabric::{self, FabricStats, JointKey};
+use crate::fabric::{self, FabricMotion, FabricStats, JointKey};
 use crate::units::Meters;
 use crate::wgpu::Wgpu;
 use crate::{Age, RunStyle};
@@ -48,6 +48,8 @@ impl CrucibleAction {
 pub enum StateChange {
     SetFabricName(String),
     SetFabricStats(Option<FabricStats>),
+    /// The latest reading of how the fabric is moving.
+    SetFabricMotion(FabricMotion),
     SetControlState(ControlState),
     SetStageLabel(String),
     ResetView,
@@ -89,6 +91,7 @@ impl Debug for StateChange {
         let name = match self {
             StateChange::SetFabricName(_) => "SetFabricName()",
             StateChange::SetFabricStats(_) => "SetFabricStats()",
+            StateChange::SetFabricMotion(_) => "SetFabricMotion()",
             StateChange::SetControlState(_) => "SetControlState()",
             StateChange::SetStageLabel(_) => "SetStageLabel()",
             StateChange::SetAppearanceFunction(_) => "SetColorFunction()",

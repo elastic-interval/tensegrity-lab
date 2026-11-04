@@ -67,6 +67,8 @@ impl Crucible {
 impl Crucible {
     fn finalize_to_viewing(&mut self) {
         self.fabric.zero_velocities();
+        // The build's own extremes aren't motion to report.
+        self.fabric.take_motion();
         self.fabric.update_all_attachment_connections();
         self.physics = self.viewing_physics();
         self.stage = Viewing;

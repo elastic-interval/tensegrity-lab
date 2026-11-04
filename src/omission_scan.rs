@@ -467,10 +467,13 @@ mod tests {
         let connector = fabric.connector.as_ref().expect("fabric has connectors");
         let (low, high) = fabric.altitude_range();
         let height = high - low;
-        let special_parts = placements(fabric)
-            .iter()
-            .filter(|p| matches!(p.part, Part::CustomDisc(_) | Part::Spacer { washers: 2.. } | Part::NodePlate(_) | Part::RodFork))
-            .count();
+        let placed = placements(fabric);
+        let count = |matching: fn(Part) -> bool| placed.iter().filter(|p| matching(p.part)).count();
+        // Washers beyond the one under each ring or disc are spacers.
+        let spacers = count(|part| part == Part::Washer)
+            .saturating_sub(count(|part| matches!(part, Part::Ring | Part::CustomDisc(_))));
+        let special_parts =
+            spacers + count(|part| matches!(part, Part::CustomDisc(_) | Part::NodePlate(_) | Part::RodFork));
         Verdict {
             culprits: connector.culprits.len(),
             short_cables: connector.short_cables.len(),

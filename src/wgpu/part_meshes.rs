@@ -342,8 +342,8 @@ impl Wgpu {
                     cross_tube(&mut mesh, (degrees as f32).to_radians(), reach as f32 / 1000.0);
                 }
             }
-            Part::Spacer { washers } => {
-                let height = washers as f32 * sizes.washer_thickness;
+            Part::Washer => {
+                let height = sizes.washer_thickness;
                 mesh.hollow(Vec3::ZERO, Vec3::Y, 0.0, height, sizes.ring_radius, RING_BORE_DIAMETER.f32() / 2.0);
             }
             Part::Clevis => clevis(&mut mesh, &CLEVIS),

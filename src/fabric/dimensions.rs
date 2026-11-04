@@ -89,6 +89,9 @@ pub struct FabricDimensions {
     /// When set, masses come from the real parts (`Hardware`) and joints have
     /// no flat `joint_mass` of their own.
     pub hardware: Option<Hardware>,
+    /// Open the fabric with its connector hardware showing, as if C were
+    /// pressed: for the fabrics that are, or are meant to be, built for real.
+    pub connectors_shown: bool,
 }
 
 impl Default for FabricDimensions {
@@ -106,6 +109,7 @@ impl Default for FabricDimensions {
             strut_mass: None,
             pull_end_mass: Grams(160.0),
             hardware: None,
+            connectors_shown: false,
         }
     }
 }
@@ -142,6 +146,12 @@ impl FabricDimensions {
     pub fn with_hardware(mut self, hardware: Hardware) -> Self {
         self.hardware = Some(hardware);
         self.joint_mass = Grams(0.0);
+        self
+    }
+
+    /// Show the connector hardware as soon as the fabric is built.
+    pub fn with_connectors_shown(mut self) -> Self {
+        self.connectors_shown = true;
         self
     }
 

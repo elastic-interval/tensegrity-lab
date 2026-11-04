@@ -8,6 +8,7 @@ use crate::build::dsl::labelling::LabelSymmetry;
 use crate::fabric::face::Face;
 use crate::fabric::interval::Span::Fixed;
 use crate::fabric::interval::SpanTransition;
+use crate::fabric::material::Material;
 use crate::fabric::interval::{Interval, Role};
 use crate::fabric::joint::Joint;
 use crate::fabric::physics::{Physics, SurfaceCharacter};
@@ -167,12 +168,65 @@ impl IntervalEnd {
     }
 }
 
+/// The extremes the fabric reaches between readings, kept up every iteration
+/// at the cost of a few comparisons per interval and read a few times a
+/// second (`Fabric::take_motion`): forces in kN, strains as fractions.
+#[derive(Clone, Debug)]
+pub struct Peaks {
+    iterations: usize,
+    cable_force: f32,
+    strut_force: f32,
+    cable_strain: (f32, f32),
+    strut_strain: (f32, f32),
+}
+
+impl Default for Peaks {
+    fn default() -> Self {
+        Peaks {
+            iterations: 0,
+            cable_force: 0.0,
+            strut_force: 0.0,
+            cable_strain: (f32::MAX, f32::MIN),
+            strut_strain: (f32::MAX, f32::MIN),
+        }
+    }
+}
+
+impl Peaks {
+    /// Take in an interval's state, given the cables' and struts' spring
+    /// constants at 1 m in kN.
+    #[inline]
+    fn observe(&mut self, interval: &Interval, cable_kn: f32, strut_kn: f32) {
+        let strain = interval.strain;
+        let stiffness = interval.stiffness.as_factor();
+        if interval.role == Role::Pushing {
+            self.strut_force = self.strut_force.max(-strain * stiffness * strut_kn);
+            self.strut_strain = (self.strut_strain.0.min(strain), self.strut_strain.1.max(strain));
+        } else if interval.role.is_pull_like() {
+            self.cable_force = self.cable_force.max(strain * stiffness * cable_kn);
+            self.cable_strain = (self.cable_strain.0.min(strain), self.cable_strain.1.max(strain));
+        }
+    }
+}
+
+/// How the fabric is moving: the extremes since the last reading, and its
+/// height and slack cables as of now.
+#[derive(Clone, Debug)]
+pub struct FabricMotion {
+    pub height: Meters,
+    pub max_cable_force_kn: f32,
+    pub max_strut_force_kn: f32,
+    pub cable_strain_range: (f32, f32),
+    pub strut_strain_range: (f32, f32),
+    pub slack_cable_count: usize,
+}
+
+/// What stays put about a fabric once built, and how it was moving then.
 #[derive(Clone, Debug)]
 pub struct FabricStats {
     pub name: String,
     pub age: Age,
     pub joint_count: usize,
-    pub height: Meters,
     pub push_count: usize,
     pub push_range: (Meters, Meters),
     pub push_total: Meters,
@@ -180,10 +234,7 @@ pub struct FabricStats {
     pub pull_range: (Meters, Meters),
     pub pull_total: Meters,
     pub mass_kg: f32,
-    pub max_pull_force_kn: f32,
-    pub push_strain_range: (f32, f32),
-    pub pull_strain_range: (f32, f32),
-    pub slack_pull_count: usize,
+    pub motion: FabricMotion,
 }
 
 #[derive(Clone, Debug)]
@@ -195,6 +246,7 @@ pub struct Fabric {
     pub faces: SlotMap<FaceKey, Face>,
     pub frozen: bool,
     pub stats: IterationStats,
+    pub peaks: Peaks,
     pub dimensions: FabricDimensions,
     /// Physical connector hardware, present only when a large-scale build is
     /// intended. `None` means connectors play no role anywhere.
@@ -240,6 +292,7 @@ impl Fabric {
             faces: SlotMap::with_key(),
             frozen: false,
             stats: IterationStats::default(),
+            peaks: Peaks::default(),
             cached_bounding_radius: 0.0,
             dimensions,
             connector,
@@ -531,13 +584,16 @@ impl Fabric {
         // Calculate interval forces (also adds interval mass to joints)
         let age = self.age;
         let dimensions = &self.dimensions;
+        let (cable_kn, strut_kn) = self.spring_constants_kn(physics);
         for interval in self.intervals.values_mut() {
             if interval.iterate(&mut self.joints, age, physics, dimensions) == SpanTransition::ApproachCompleted
             {
                 self.approaching_count = self.approaching_count.saturating_sub(1);
             }
             self.stats.accumulate_strain(interval.strain);
+            self.peaks.observe(interval, cable_kn, strut_kn);
         }
+        self.peaks.iterations += 1;
 
         // Apply gravity force AFTER interval.iterate so accumulated_mass includes interval mass
         if has_gravity {
@@ -715,71 +771,72 @@ impl Fabric {
         let mut push_total = Meters(0.0);
         let mut pull_count = 0;
         let mut pull_total = Meters(0.0);
-        let mut push_strain_min = f32::MAX;
-        let mut push_strain_max = f32::MIN;
-        let mut pull_strain_min = f32::MAX;
-        let mut pull_strain_max = f32::MIN;
-        let mut max_pull_force_kn = 0.0f32;
-        let mut slack_pull_count = 0usize;
-
-        const SLACK_THRESHOLD: f32 = 0.0001;
+        let mut peaks = Peaks::default();
+        let (cable_kn, strut_kn) = self.spring_constants_kn(physics);
 
         for interval in self.intervals.values() {
             let length = Meters(interval.length(&self.joints));
-            if !interval.has_role(Role::Support) {
-                if interval.role == Role::Pushing {
-                    push_count += 1;
-                    push_total = push_total + length;
-                    if length < push_range.0 {
-                        push_range.0 = length;
-                    }
-                    if length > push_range.1 {
-                        push_range.1 = length;
-                    }
-                    push_strain_min = push_strain_min.min(interval.strain);
-                    push_strain_max = push_strain_max.max(interval.strain);
-                } else if interval.role.is_pull_like() {
-                    pull_count += 1;
-                    pull_total = pull_total + length;
-                    if length < pull_range.0 {
-                        pull_range.0 = length;
-                    }
-                    if length > pull_range.1 {
-                        pull_range.1 = length;
-                    }
-                    pull_strain_min = pull_strain_min.min(interval.strain);
-                    pull_strain_max = pull_strain_max.max(interval.strain);
-                    if interval.strain < SLACK_THRESHOLD {
-                        slack_pull_count += 1;
-                    }
-                    // The force the simulation itself exerts, so that cables and
-                    // struts balance: its springs are in millinewtons (grams × m/s²).
-                    let k = self.dimensions.spring_constant(interval.material, Meters(1.0), physics);
-                    let force_kn = k.0 * interval.strain.abs() / 1.0e6;
-                    max_pull_force_kn = max_pull_force_kn.max(force_kn);
-                }
+            if interval.has_role(Role::Support) {
+                continue;
+            }
+            peaks.observe(interval, cable_kn, strut_kn);
+            if interval.role == Role::Pushing {
+                push_count += 1;
+                push_total = push_total + length;
+                push_range = (Meters(push_range.0 .0.min(length.0)), Meters(push_range.1 .0.max(length.0)));
+            } else if interval.role.is_pull_like() {
+                pull_count += 1;
+                pull_total = pull_total + length;
+                pull_range = (Meters(pull_range.0 .0.min(length.0)), Meters(pull_range.1 .0.max(length.0)));
             }
         }
-        let (_, max_y) = self.altitude_range();
-        let mass_kg = self.calculate_total_mass(physics).0 / 1000.0;
-
         FabricStats {
             name: self.name.clone(),
             age: self.age,
             joint_count: self.joints.len(),
-            height: Meters(max_y),
             push_count,
             push_range,
             push_total,
             pull_count,
             pull_range,
             pull_total,
-            mass_kg,
-            max_pull_force_kn,
-            push_strain_range: (push_strain_min, push_strain_max),
-            pull_strain_range: (pull_strain_min, pull_strain_max),
-            slack_pull_count,
+            mass_kg: self.calculate_total_mass(physics).0 / 1000.0,
+            motion: self.motion(&peaks),
         }
+    }
+
+    /// How the fabric has moved since this was last called, or `None` if it
+    /// hasn't been iterated since.
+    pub fn take_motion(&mut self) -> Option<FabricMotion> {
+        if self.peaks.iterations == 0 {
+            return None;
+        }
+        let peaks = std::mem::take(&mut self.peaks);
+        Some(self.motion(&peaks))
+    }
+
+    fn motion(&self, peaks: &Peaks) -> FabricMotion {
+        const SLACK_THRESHOLD: f32 = 0.0001;
+        let slack_cable_count = self
+            .intervals
+            .values()
+            .filter(|interval| interval.role.is_pull_like() && interval.strain < SLACK_THRESHOLD)
+            .count();
+        FabricMotion {
+            height: Meters(self.altitude_range().1),
+            max_cable_force_kn: peaks.cable_force,
+            max_strut_force_kn: peaks.strut_force,
+            cable_strain_range: peaks.cable_strain,
+            strut_strain_range: peaks.strut_strain,
+            slack_cable_count,
+        }
+    }
+
+    /// The force in kN, per unit of strain, of a cable and a strut: the
+    /// simulation's own springs, in grams × m/s².
+    fn spring_constants_kn(&self, physics: &Physics) -> (f32, f32) {
+        let at_one_meter = |material| self.dimensions.spring_constant(material, Meters(1.0), physics).0 / 1.0e6;
+        (at_one_meter(Material::Pull), at_one_meter(Material::Push))
     }
 
     /// Calculate total mass from intervals using current physics

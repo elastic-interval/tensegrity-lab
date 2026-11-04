@@ -35,10 +35,10 @@ pub enum Part {
     /// ending in its welded cross-tube. Each distinct shape is a part of its
     /// own.
     CustomDisc(DiscShape),
-    /// POM washers under a ring, keeping steel off steel: `washers` thick,
-    /// from what the ring stacks on (origin) up along `y`. One is the normal
-    /// divider; more make a spacer, lifting the ring to clear the forks.
-    Spacer { washers: u8 },
+    /// A POM washer under a ring, keeping steel off steel, from what it
+    /// stacks on (origin) up along `y`. One is the normal divider; more,
+    /// stacked, lift the ring to clear the forks.
+    Washer,
     /// Jaw terminal with pin and split ring: pin centre at the origin, barrel
     /// along `x`, pin along `y` (see `connector::fork::ClevisDimensions`).
     Clevis,
@@ -125,8 +125,6 @@ impl Part {
                     shape.bosses().iter().map(|(degrees, reach)| format!("{degrees}°/{reach}mm")).collect();
                 format!("custom disc {}", bosses.join(" "))
             }
-            Part::Spacer { washers: 1 } => "POM washer".to_string(),
-            Part::Spacer { washers } => format!("spacer of {washers} POM washers"),
             Part::NodePlate(shape) => {
                 let holes: Vec<String> = shape.holes.iter().map(|(degrees, mm)| format!("{degrees}°/{mm}mm")).collect();
                 format!("node plate {}", holes.join(" "))
@@ -141,7 +139,7 @@ impl Part {
             Part::HingeEye => "hinge's rod end",
             Part::Ring => "ring with boss and cross-tube",
             Part::CustomDisc(_) => "custom disc",
-            Part::Spacer { .. } => "POM washer",
+            Part::Washer => "POM washer",
             Part::Clevis => "jaw terminal",
             Part::RodFork => "rod fork",
             Part::ForkNuts => "rod fork's nuts",
@@ -176,9 +174,7 @@ impl Part {
                 let bosses: f32 = shape.bosses().iter().map(|&(_, reach)| boss(reach as f32 / 1000.0)).sum();
                 steel((disc + bosses) * thickness) + tube * shape.bosses().len() as f32
             }
-            Part::Spacer { washers } => {
-                Grams(disc * dimensions.washer_thickness.f32() * washers as f32 * POM_DENSITY)
-            }
+            Part::Washer => Grams(disc * dimensions.washer_thickness.f32() * POM_DENSITY),
             // Louis Ruys 37260006, per the Open Claw vault.
             Part::Clevis => Grams(160.0),
             Part::RodFork => {
@@ -216,7 +212,7 @@ impl Part {
             | Part::ForkNuts
             | Part::Hinge
             | Part::HingeEye => Material::Stainless,
-            Part::Spacer { .. } => Material::Pom,
+            Part::Washer => Material::Pom,
         }
     }
 }
@@ -313,8 +309,10 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
             let mut under = end_pos + axis * connector.dimensions.cap_thickness.f32();
             for (center, ..) in heights.values() {
                 let gap = (*center - half_ring - under).dot(axis);
-                let washers = (gap / washer).round() as u8;
-                place(Part::Spacer { washers }, under, axis.any_orthonormal_vector(), axis, false);
+                let washers = (gap / washer).round() as usize;
+                for stacked in 0..washers {
+                    place(Part::Washer, under + axis * (washer * stacked as f32), axis.any_orthonormal_vector(), axis, false);
+                }
                 under = *center + half_ring;
             }
             for (center, bosses, culprit, _) in heights.into_values() {

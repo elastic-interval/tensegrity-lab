@@ -36,7 +36,8 @@ impl FabricName {
                 .build(
                     FabricDimensions::default()
                         .with_scale(M(0.80))
-                        .with_connector(),
+                        .with_connector()
+                        .with_connectors_shown(),
                 )
                 .seed(OmniSymmetrical, Seed(1))
                 .faces([
@@ -278,8 +279,9 @@ pub fn headless_hug_plan(shape: HeadlessHugShape) -> FabricPlan {
         .build(
             FabricDimensions::default()
                 .with_altitude(M(12.0))
-                .with_scale(M(0.8))
+                .with_scale(M(0.75))
                 .with_connector()
+                .with_connectors_shown()
                 .with_hardware(Hardware::OPEN_CLAW),
         )
         .seed(OmniSymmetrical, Seed(2))
@@ -379,15 +381,18 @@ pub fn headless_hug_plan(shape: HeadlessHugShape) -> FabricPlan {
         .pretense(Sec(0.3), Pct(0.5))
         .surface_frozen()
         .fall(Sec(1.5))
-        .settle(Sec(1.5))
+        // Standing upright it sways slowly, so it needs a while to come to rest.
+        .settle(Sec(6.0))
         .guy_lines([
-            guy_line("L14", (M(0.0), M(5.5)), Pct(97.0)),
-            guy_line("R14", (M(0.0), M(5.5)), Pct(97.0)),
-            guy_line("L14", (M(0.0), M(-5.5)), Pct(102.7)),
-            guy_line("R14", (M(0.0), M(-5.5)), Pct(102.7)),
+            // Lengths that stand it upright: its centre of gravity over its
+            // feet, both pairs lightly taut.
+            guy_line("L14", (M(0.0), M(5.2)), Pct(90.5)),
+            guy_line("R14", (M(0.0), M(5.2)), Pct(90.5)),
+            guy_line("L14", (M(0.0), M(-5.2)), Pct(109.0)),
+            guy_line("R14", (M(0.0), M(-5.2)), Pct(109.0)),
         ])
         .animate()
-        .actuator_frequency(Hz(0.25))
+        .actuator_frequency(Hz(0.24))
         .amplitude(Pct(0.75))
         .sine()
         .actuators([

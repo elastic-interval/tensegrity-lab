@@ -58,6 +58,10 @@ struct CycleState {
 /// advancing to the next.
 const CYCLE_DWELL: Duration = Duration::from_secs(5);
 
+/// How often the moving stats are read: each reading holds the extremes
+/// since the one before.
+const MOTION_INTERVAL: Duration = Duration::from_secs(1);
+
 pub struct Application {
     run_style: RunStyle,
     mobile_device: bool,
@@ -72,6 +76,9 @@ pub struct Application {
     fps_timer: Instant,
     current_fps: f32,
     last_frame_secs: f32,
+    /// When the moving stats were last read; they change too fast to read
+    /// any more often.
+    last_motion: Instant,
     control_state: ControlState,
     pointer_handler: PointerHandler,
     time_scale: f32,
@@ -107,6 +114,7 @@ impl Application {
             fps_timer: Instant::now(),
             current_fps: 60.0,
             last_frame_secs: 0.016,
+            last_motion: Instant::now(),
             control_state: ControlState::Waiting,
             time_scale,
             model_scale: model_scale.map(|n| 1.0 / n),
@@ -151,6 +159,13 @@ impl Application {
         if !WEB {
             StateChange::SetKeyboardLegend(self.keyboard.legend(&self.control_state).join(", "))
                 .send(&self.radio);
+        }
+
+        if self.last_motion.elapsed() >= MOTION_INTERVAL {
+            self.last_motion = Instant::now();
+            if let Some(motion) = self.crucible.fabric.take_motion() {
+                StateChange::SetFabricMotion(motion).send(&self.radio);
+            }
         }
 
         let has_surface = self.crucible.physics.surface.is_some();
@@ -517,6 +532,11 @@ impl ApplicationHandler<LabEvent> for Application {
                 StateChange::SetFabricStats(Some(fabric_stats)).send(&self.radio);
                 StateChange::SetControlState(self.crucible.viewing_state()).send(&self.radio);
                 StateChange::SetStageLabel("Viewing".to_string()).send(&self.radio);
+                let connectors_showing =
+                    self.with_scene(|scene| scene.render_style_shows_attachment_points()).unwrap_or(true);
+                if self.crucible.fabric.dimensions.connectors_shown && !connectors_showing {
+                    StateChange::ToggleAttachmentPoints.send(&self.radio);
+                }
                 if self.mobile_device && self.crucible.animation_available() {
                     // Auto-start animation on mobile devices with actuators
                     CrucibleAction::ToAnimating.send(&self.radio);

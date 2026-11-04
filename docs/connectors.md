@@ -34,7 +34,7 @@ N–A and N–B, meeting at a free node N. Three tension lines meet at N.
   the two cables it replaces had them. One rod fork pins through the
   cross-tube, the other through the plate's hole. Each is a U with the threaded
   rod through its web, a load nut inside and a lock nut outside. The two pins
-  swing against each other by up to 2.9° as the figure moves (docs/parts.md), which
+  swing against each other by up to 4.6° as the figure moves (docs/parts.md), which
   only the play at the pins takes up. It was a jaw–jaw swivel until 2026-11-02, so that all
   tension is cable or threaded rod. (Setting nodes out on cable pendants instead
   made the arms sag 1.5 m and left a dozen cables slack.)
@@ -437,7 +437,7 @@ The elevation is purely informational — nothing is manufactured to an angle; i
 
 The hardware is drawn from the **parts list** (`src/connector/parts.rs`):
 `placements(fabric)` places every copy of every `Part` (ring with boss and
-cross-tube, custom disc, POM washer or spacer, jaw terminal, rod fork, node
+cross-tube, custom disc, POM washer, jaw terminal, rod fork, node
 plate, hinge) in its own frame, and `parts_list` counts them as a bill of
 materials. A welded cross-tube belongs to its ring or custom disc and is
 drawn as part of it. The rod ends of hinges and rod forks' stock nuts
