@@ -455,6 +455,7 @@ impl FabricPlanExecutor {
             remaining_joints: self.fabric.joints.len(),
         });
 
+        self.fabric.place_hardware_masses();
         self.fabric.slacken();
         self.fabric.tighten_bridles();
 

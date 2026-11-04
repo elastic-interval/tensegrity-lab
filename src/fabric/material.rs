@@ -44,17 +44,6 @@ impl Material {
         })
     }
 
-    /// Realistic spring constant for physical force calculations
-    /// Based on actual material properties (not simulation stiffness)
-    pub fn real_spring_constant_at_1m(&self) -> NewtonsPerMeter {
-        NewtonsPerMeter(match self {
-            // 50mm aluminum tube, 2mm wall: E=70GPa, A≈300mm², k=EA/L≈2.1e7 N/m
-            Push => 2.1e7,
-            // 14mm Dyneema: E=100GPa, A≈154mm², k=EA/L≈1.5e7 N/m
-            Pull => 1.5e7,
-            Spring => 9e4,
-        })
-    }
 
     /// Spring constant for a given length (in meters)
     /// k(L) = k(1m) / L

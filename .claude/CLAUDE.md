@@ -96,7 +96,10 @@ reinvent.
 
 `src/fabric/dimensions.rs`. Carries scale, altitude, push/pull radii, joint
 mass, push density, and the optional plan-level connector config. Defaults are
-in `Default::default()` and are the source of truth.
+in `Default::default()` and are the source of truth. A fabric built from real
+parts sets `with_hardware(Hardware::OPEN_CLAW)` instead: telescoping tube mass
+per metre of strut, hardware at each strut and cable end, and point masses for
+node plates and hinges, with no flat joint mass (Headless Hug).
 
 ### Connector (optional plugin) — `src/connector/`
 
@@ -220,7 +223,8 @@ need to adjust mass or rigidity multipliers at runtime.
   `Part` (`part_meshes.rs`, metres, in the part's own frame), instanced at
   every `Placement`. A new kind of hardware is a new `Part` variant.
 - `parts_view.rs` — the P key: the parts full screen, click one in the strip to
-  see it large. It takes the window, pointer and keyboard from the scene.
+  see it large, with its mass (`Part::mass`). It takes the window, pointer and
+  keyboard from the scene.
 - `sky_renderer.rs`, `surface_renderer.rs`, `text_renderer.rs` — chrome.
 - `shader.wgsl` — shared WGSL for fabric pipelines.
 

@@ -105,6 +105,22 @@ impl Fabric {
     /// Pretension every bridle's cables, as `set_pretenst` does the struts:
     /// left exactly at span after `slacken`, they would let their free node
     /// drift until one hung slack.
+    /// Give each node plate and hinge pin the mass of its hardware, when the
+    /// fabric counts masses from its real parts.
+    pub fn place_hardware_masses(&mut self) {
+        let Some(hardware) = self.dimensions.hardware else {
+            return;
+        };
+        let nodes: Vec<JointKey> = self.bridle_nodes.keys().copied().collect();
+        for node in nodes {
+            self.joints[node].point_mass = Some(hardware.plate);
+        }
+        let pins: Vec<JointKey> = self.joints.keys().filter(|&joint| hinge_struts(self, joint).is_some()).collect();
+        for pin in pins {
+            self.joints[pin].point_mass = Some(hardware.hinge);
+        }
+    }
+
     pub fn tighten_bridles(&mut self) {
         let nodes: Vec<JointKey> = self.bridle_nodes.keys().copied().collect();
         for node in nodes {

@@ -1,6 +1,7 @@
 use crate::build::dsl::brick_dsl::{BrickName::*, BrickRole::*, FaceLabel::*, FaceName::*, Side};
 use crate::build::dsl::fabric_dsl::{on, *};
 use crate::build::dsl::fabric_plan::FabricPlan;
+use crate::fabric::dimensions::Hardware;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
 
@@ -278,7 +279,8 @@ pub fn headless_hug_plan(shape: HeadlessHugShape) -> FabricPlan {
             FabricDimensions::default()
                 .with_altitude(M(12.0))
                 .with_scale(M(0.8))
-                .with_connector(),
+                .with_connector()
+                .with_hardware(Hardware::OPEN_CLAW),
         )
         .seed(OmniSymmetrical, Seed(2))
         .faces([
@@ -374,7 +376,7 @@ pub fn headless_hug_plan(shape: HeadlessHugShape) -> FabricPlan {
             ("R33", "R12", "Z1"),
         ])
         .down(Sec(1.0), [Foot(Side::Left), Foot(Side::Right)])
-        .pretense(Sec(0.3), Pct(1.0))
+        .pretense(Sec(0.3), Pct(0.5))
         .surface_frozen()
         .fall(Sec(1.5))
         .settle(Sec(1.5))
@@ -385,7 +387,7 @@ pub fn headless_hug_plan(shape: HeadlessHugShape) -> FabricPlan {
             guy_line("R14", (M(0.0), M(-5.5)), Pct(102.7)),
         ])
         .animate()
-        .actuator_frequency(Hz(0.8))
+        .actuator_frequency(Hz(0.25))
         .amplitude(Pct(0.75))
         .sine()
         .actuators([

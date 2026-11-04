@@ -6,13 +6,19 @@
 //! is a new `Part` variant with its mesh, and the compiler finds every place
 //! that must learn about it.
 
-use crate::connector::fork::{PLATE_SIDE, HANGER_LENGTH};
+use crate::connector::dimensions::ConnectorDimensions;
+use crate::connector::fork::{
+    BOSS_SHORT_OF_PIVOT, FORK_HOLE_DIAMETER, FORK_WEB_OUTSIDE, HANGER_LENGTH, PLATE_CORNER_RADIUS,
+    PLATE_HOLE_DIAMETER, PLATE_SIDE, PLATE_THICKNESS, RING_BORE_DIAMETER, ROD_FORK, TUBE_BORE_RADIUS, TUBE_LENGTH,
+    TUBE_RADIUS,
+};
 use crate::connector::system::{hinge_pin_axis, hinge_struts, is_hanger};
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, IntervalEnd, IntervalKey};
-use crate::units::Unit;
+use crate::units::{Grams, Unit};
 use glam::Vec3;
 use std::cell::Cell;
+use std::f32::consts::PI;
 use std::collections::BTreeMap;
 
 /// A part's frame: `x` and `y` are orthogonal unit vectors, `z = x × y`.
@@ -95,6 +101,12 @@ impl DiscShape {
     }
 }
 
+// Densities in grams per cubic metre.
+const STEEL_DENSITY: f32 = 7.85e6;
+const POM_DENSITY: f32 = 1.41e6;
+// A ring's boss is this much of its radius wide (as drawn, `part_meshes`).
+const BOSS_WIDTH_OF_RADIUS: f32 = 0.6;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Material {
     /// Fabricated steel, hot-dip galvanized.
@@ -141,6 +153,58 @@ impl Part {
     /// a hinge placed apart because it turns, or a fork's stock nuts.
     pub fn listed(self) -> bool {
         !matches!(self, Part::ForkNuts | Part::HingeEye)
+    }
+
+    /// One copy's mass: worked out from its dimensions where we make it, a
+    /// supplier's or estimated figure where it's bought. Rings and discs are
+    /// `ring_radius` in radius.
+    pub fn mass(self, ring_radius: f32, dimensions: &ConnectorDimensions) -> Grams {
+        let steel = |volume: f32| Grams(volume * STEEL_DENSITY);
+        let bore = PI * (RING_BORE_DIAMETER.f32() / 2.0).powi(2);
+        let disc = PI * ring_radius.powi(2) - bore;
+        let tube = steel(PI * (TUBE_RADIUS.powi(2) - TUBE_BORE_RADIUS.powi(2)) * TUBE_LENGTH);
+        // A boss runs from the disc's rim to just short of its pivot.
+        let boss = |reach: f32| {
+            let width = BOSS_WIDTH_OF_RADIUS * ring_radius;
+            let rim = (ring_radius.powi(2) - (width / 2.0).powi(2)).sqrt();
+            width * (reach - BOSS_SHORT_OF_PIVOT.f32() - rim).max(0.0)
+        };
+        let thickness = dimensions.ring_thickness.f32();
+        match self {
+            Part::Ring => steel((disc + boss(dimensions.pivot_radius.f32())) * thickness) + tube,
+            Part::CustomDisc(shape) => {
+                let bosses: f32 = shape.bosses().iter().map(|&(_, reach)| boss(reach as f32 / 1000.0)).sum();
+                steel((disc + bosses) * thickness) + tube * shape.bosses().len() as f32
+            }
+            Part::Spacer { washers } => {
+                Grams(disc * dimensions.washer_thickness.f32() * washers as f32 * POM_DENSITY)
+            }
+            // Louis Ruys 37260006, per the Open Claw vault.
+            Part::Clevis => Grams(160.0),
+            Part::RodFork => {
+                let c = &ROD_FORK;
+                let (width, half) = (c.plate_width.f32(), c.jaw_half_thickness());
+                let cheeks = 2.0 * c.plate_thickness.f32() * width * (c.pin_to_tip.f32() + c.pin_to_jaw_base.f32());
+                let web_length = FORK_WEB_OUTSIDE.f32() - c.pin_to_jaw_base.f32();
+                let web = web_length * (width * 2.0 * half - PI * (FORK_HOLE_DIAMETER.f32() / 2.0).powi(2));
+                let pin = PI * c.pin_radius.f32().powi(2) * (2.0 * half + c.pin_overhang.f32())
+                    + PI * c.pin_head_radius.f32().powi(2) * c.pin_head_height.f32();
+                steel(cheeks + web + pin)
+            }
+            // Two M8 nuts.
+            Part::ForkNuts => Grams(10.0),
+            // The whole hinge: rod end (119 g), fork (about 250 g, ESTIMATE),
+            // pin bolt (60 g).
+            Part::Hinge => Grams(429.0),
+            Part::HingeEye => Grams(119.0),
+            Part::NodePlate(shape) => {
+                let side = shape.holes[0].1 as f32 / 1000.0 * 3f32.sqrt();
+                let corner = PLATE_CORNER_RADIUS.f32();
+                let area = 3f32.sqrt() / 4.0 * side.powi(2) + 3.0 * side * corner + PI * corner.powi(2)
+                    - 3.0 * PI * (PLATE_HOLE_DIAMETER.f32() / 2.0).powi(2);
+                steel(area * PLATE_THICKNESS.f32())
+            }
+        }
     }
 
     pub fn material(self) -> Material {

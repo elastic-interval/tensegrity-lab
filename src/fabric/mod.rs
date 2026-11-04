@@ -632,7 +632,7 @@ impl Fabric {
             .map(|interval| {
                 let strain = interval.strain;
                 let ideal = interval.ideal();
-                let k = interval.material.spring_constant(ideal, physics);
+                let k = self.dimensions.spring_constant(interval.material, ideal, physics);
                 // Extension in meters
                 let extension = Meters(strain * ideal.f32());
                 // E = 0.5 * k * x²
@@ -752,8 +752,10 @@ impl Fabric {
                     if interval.strain < SLACK_THRESHOLD {
                         slack_pull_count += 1;
                     }
-                    let k_real = interval.material.real_spring_constant_at_1m();
-                    let force_kn = k_real.0 * interval.strain.abs() / 1000.0;
+                    // The force the simulation itself exerts, so that cables and
+                    // struts balance: its springs are in millinewtons (grams × m/s²).
+                    let k = self.dimensions.spring_constant(interval.material, Meters(1.0), physics);
+                    let force_kn = k.0 * interval.strain.abs() / 1.0e6;
                     max_pull_force_kn = max_pull_force_kn.max(force_kn);
                 }
             }
@@ -789,6 +791,16 @@ impl Fabric {
         // unless the joint carries its own point mass.
         for joint in self.joints.values() {
             total_mass += joint.point_mass.unwrap_or(self.dimensions.joint_mass);
+        }
+
+        if self.dimensions.hardware.is_some() {
+            for interval in self.intervals.values() {
+                let length = interval.length(&self.joints);
+                let (mass, end_mass) =
+                    self.dimensions.interval_masses(interval.material, interval.role, Meters(length), physics);
+                total_mass += mass + end_mass * 2.0;
+            }
+            return total_mass;
         }
 
         let mut pulling_count: usize = 0;

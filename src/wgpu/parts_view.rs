@@ -8,6 +8,7 @@ use crate::fabric::Fabric;
 use crate::wgpu::connector_renderer::{part_instance_layout, PartInstance};
 use crate::wgpu::part_meshes::{PartMesh, PartSizes};
 use crate::wgpu::{default_depth_stencil_state, Wgpu};
+use crate::units::{Grams, Unit};
 use crate::PointerChange;
 use glam::{Mat4, Quat, Vec3};
 use instant::Instant;
@@ -39,6 +40,15 @@ const OTHER_TEXT: [f32; 4] = [0.45, 0.47, 0.5, 1.0];
 const BACKGROUND: wgpu::Color = wgpu::Color { r: 0.05, g: 0.06, b: 0.08, a: 1.0 };
 // A hinge in this view, its struts this far apart.
 const HINGE_OPENING: f32 = 135.0;
+
+/// A part's mass, in grams below a kilogram.
+fn weight(grams: f32) -> String {
+    if grams < 1000.0 {
+        format!("{grams:.0} g")
+    } else {
+        format!("{:.2} kg", grams / 1000.0)
+    }
+}
 
 /// What to call the part at `index` when talking about it.
 fn letter(index: usize) -> char {
@@ -89,6 +99,7 @@ fn create_camera(wgpu: &Wgpu) -> (wgpu::Buffer, wgpu::BindGroup) {
 struct ShownPart {
     part: Part,
     count: usize,
+    mass: Grams,
     pieces: Vec<(PartMesh, wgpu::Buffer)>,
     center: Vec3,
     radius: f32,
@@ -97,7 +108,7 @@ struct ShownPart {
 }
 
 impl ShownPart {
-    fn new(wgpu: &Wgpu, part: Part, count: usize, sizes: PartSizes) -> Self {
+    fn new(wgpu: &Wgpu, part: Part, count: usize, mass: Grams, sizes: PartSizes) -> Self {
         let (mut low, mut high) = (Vec3::MAX, Vec3::MIN);
         let mut pieces = Vec::new();
         for placement in assembled(part) {
@@ -116,7 +127,7 @@ impl ShownPart {
         }
         let (strip_camera, strip_bind_group) = create_camera(wgpu);
         let (center, radius) = ((low + high) / 2.0, (high - low).max_element() / 2.0);
-        ShownPart { part, count, pieces, center, radius, strip_camera, strip_bind_group }
+        ShownPart { part, count, mass, pieces, center, radius, strip_camera, strip_bind_group }
     }
 
     fn draw<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>, bind_group: &'a wgpu::BindGroup) {
@@ -171,8 +182,14 @@ impl PartsView {
         let connector = fabric.connector.as_ref()?;
         let sizes = PartSizes::of(&fabric.dimensions, &connector.dimensions);
         let list = parts_list(&placements(fabric));
-        let shown: Vec<ShownPart> =
-            list.iter().map(|(&part, &count)| ShownPart::new(wgpu, part, count, sizes)).collect();
+        let ring_radius = fabric.dimensions.push_radius.f32();
+        let shown: Vec<ShownPart> = list
+            .iter()
+            .map(|(&part, &count)| {
+                let mass = part.mass(ring_radius, &connector.dimensions);
+                ShownPart::new(wgpu, part, count, mass, sizes)
+            })
+            .collect();
         if shown.is_empty() {
             return None;
         }
@@ -233,8 +250,18 @@ impl PartsView {
         };
         let large = &self.shown[self.chosen];
         let title = format!("{}   {} × {}", letter(self.chosen), large.count, large.part.name());
+        let each = large.mass.f32();
+        let mass = format!("{} each, {:.1} kg in all", weight(each), each * large.count as f32 / 1000.0);
+        let hardware: f32 = self.shown.iter().map(|part| part.mass.f32() * part.count as f32).sum();
         self.sections = vec![
             text(title, [self.large_left, MARGIN], CHOSEN_TEXT, TITLE_SCALE),
+            text(mass, [self.large_left, MARGIN + TITLE_SCALE * 1.2], OTHER_TEXT, COUNT_SCALE),
+            text(
+                format!("All the parts on the list: {:.1} kg", hardware / 1000.0),
+                [self.large_left, height - MARGIN - COUNT_SCALE * 1.4],
+                OTHER_TEXT,
+                COUNT_SCALE,
+            ),
             text("P or Esc to return".to_string(), [self.large_left, height - MARGIN], OTHER_TEXT, COUNT_SCALE),
         ];
         for (index, (part, [left, top, side])) in self.shown.iter().zip(&self.squares).enumerate() {

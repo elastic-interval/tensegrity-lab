@@ -532,7 +532,7 @@ impl Interval {
         // Force: F = k × ΔL where ΔL = strain × L₀
         // Spring constant scales with 1/L for proper physics
         // Stiffness percentage allows softer intervals (e.g., actuators at 10%)
-        let k = self.material.spring_constant(ideal, physics);
+        let k = dimensions.spring_constant(self.material, ideal, physics);
         let k_adjusted = NewtonsPerMeter(k.f32() * self.stiffness.as_factor());
         let extension = Meters(self.strain * ideal.f32());
         let force = k_adjusted * extension;
@@ -546,13 +546,10 @@ impl Interval {
 
         // Mass: a constant per identical telescoping strut when declared, else the
         // length-proportional density.
-        let interval_mass = match dimensions.strut_mass {
-            Some(strut_mass) if self.role == Pushing => strut_mass,
-            _ => dimensions.linear_density(self.material, physics) * actual_length,
-        };
-        let half_mass = interval_mass / 2.0;
-        joints[alpha_key].accumulated_mass += half_mass;
-        joints[omega_key].accumulated_mass += half_mass;
+        let (interval_mass, end_mass) = dimensions.interval_masses(self.material, self.role, actual_length, physics);
+        let end_mass = interval_mass / 2.0 + end_mass;
+        joints[alpha_key].accumulated_mass += end_mass;
+        joints[omega_key].accumulated_mass += end_mass;
 
         // Cable-end fork terminals as node point masses (real self-weight model only).
         if dimensions.strut_mass.is_some() && self.role == Pulling {
