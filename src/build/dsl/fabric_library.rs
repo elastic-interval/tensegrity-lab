@@ -1,6 +1,7 @@
 use crate::build::dsl::brick_dsl::{BrickName::*, BrickRole::*, FaceLabel::*, FaceName::*, Side};
 use crate::build::dsl::fabric_dsl::{on, *};
 use crate::build::dsl::fabric_plan::FabricPlan;
+use crate::connector::strut::HEADLESS_HUG_TUBES;
 use crate::fabric::dimensions::Hardware;
 use std::sync::OnceLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
@@ -281,6 +282,7 @@ pub fn headless_hug_plan(shape: HeadlessHugShape) -> FabricPlan {
                 .with_altitude(M(12.0))
                 .with_scale(M(0.75))
                 .with_connector()
+                .with_tube_sets(HEADLESS_HUG_TUBES)
                 .with_connectors_shown()
                 .with_hardware(Hardware::OPEN_CLAW),
         )

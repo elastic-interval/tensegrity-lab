@@ -23,12 +23,14 @@ const GALVANIZED_COLOR: [f32; 4] = [0.60, 0.62, 0.64, 1.0];
 const STAINLESS_COLOR: [f32; 4] = [0.72, 0.73, 0.75, 1.0];
 const OVERLAP_COLOR: [f32; 4] = [0.90, 0.12, 0.12, 1.0];
 const POM_COLOR: [f32; 4] = [0.93, 0.92, 0.88, 1.0];
+const ALUMINIUM_COLOR: [f32; 4] = [0.80, 0.81, 0.83, 1.0];
 
 fn material_color(material: Material) -> [f32; 4] {
     match material {
         Material::Galvanized => GALVANIZED_COLOR,
         Material::Stainless => STAINLESS_COLOR,
         Material::Pom => POM_COLOR,
+        Material::Aluminium => ALUMINIUM_COLOR,
     }
 }
 

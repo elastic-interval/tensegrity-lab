@@ -8,6 +8,7 @@ pub mod dxf;
 pub mod fork;
 pub mod node_plate;
 pub mod parts;
+pub mod strut;
 pub mod system;
 
 pub use dimensions::{pivot_angle, ConnectorDimensions};

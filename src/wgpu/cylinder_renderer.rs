@@ -349,14 +349,9 @@ impl CylinderRenderer {
                 }
             }
 
-            // At a hinge the strut's tube ends below its stack; only the stud
-            // and the hinge fitting go on to the pin.
-            if interval.has_role(Role::Pushing) && show_attachment_points {
-                if let Some(connector) = fabric.connector.as_ref() {
-                    let [(alpha_end, _), (omega_end, _)] = connector.stack_ends(fabric, interval_key);
-                    modified_start = alpha_end;
-                    modified_end = omega_end;
-                }
+            // With the hardware showing, a strut is its tubes, drawn as parts.
+            if interval.has_role(Role::Pushing) && show_attachment_points && fabric.connector.is_some() {
+                continue;
             }
 
             let too_short = fabric

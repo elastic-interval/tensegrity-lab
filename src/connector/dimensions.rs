@@ -8,6 +8,7 @@
 //! elevation from the fork pivoting on the pin. Every connector is
 //! geometrically identical — there are no per-position variants.
 
+use crate::connector::strut::{TubeSet, OPEN_CLAW_TUBES};
 use crate::units::{Degrees, Meters, Unit};
 use glam::Vec3;
 
@@ -25,6 +26,8 @@ pub struct ConnectorDimensions {
     /// Radial distance from the strut/bolt axis to the cross-tube (pin) axis
     /// where the cable attaches (R_tube — the cable's moment arm).
     pub pivot_radius: Meters,
+    /// The tubes the struts are made from (`connector::strut`).
+    pub tube_sets: &'static [TubeSet],
 }
 
 impl Default for ConnectorDimensions {
@@ -34,6 +37,7 @@ impl Default for ConnectorDimensions {
             washer_thickness: Meters(0.002), // POM
             cap_thickness: Meters(0.0),
             pivot_radius: Meters(0.030), // cap OD 40/2 + 1 clearance + tube 18/2
+            tube_sets: OPEN_CLAW_TUBES,
         }
     }
 }

@@ -12,10 +12,11 @@ use crate::connector::fork::{
     PLATE_HOLE_DIAMETER, PLATE_SIDE, PLATE_THICKNESS, RING_BORE_DIAMETER, ROD_FORK, TUBE_BORE_RADIUS, TUBE_LENGTH,
     TUBE_RADIUS,
 };
+use crate::connector::strut::{tube_set, INNER_BORE_RADIUS, INNER_RADIUS, OUTER_BORE_RADIUS, OUTER_RADIUS};
 use crate::connector::system::{hinge_pin_axis, hinge_struts, is_hanger};
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, IntervalEnd, IntervalKey};
-use crate::units::{Grams, Unit};
+use crate::units::{Grams, Meters, Unit};
 use glam::Vec3;
 use std::cell::Cell;
 use std::f32::consts::PI;
@@ -64,6 +65,12 @@ pub enum Part {
     /// centred at the origin, `y` square to the plate, its holes at the
     /// angles of its `PlateShape`, measured from `x`.
     NodePlate(PlateShape),
+    /// A strut's outer tube (see `connector::strut`), this many millimetres
+    /// long: from the origin along `x`.
+    OuterTube(u16),
+    /// An inner tube telescoping out of the outer, this many millimetres long:
+    /// from the strut end at the origin, into the strut along `x`.
+    InnerTube(u16),
 }
 
 /// A node plate's three holes as (angle from `x` in degrees, distance from
@@ -104,6 +111,7 @@ impl DiscShape {
 // Densities in grams per cubic metre.
 const STEEL_DENSITY: f32 = 7.85e6;
 const POM_DENSITY: f32 = 1.41e6;
+const ALUMINIUM_DENSITY: f32 = 2.7e6;
 // A ring's boss is this much of its radius wide (as drawn, `part_meshes`).
 const BOSS_WIDTH_OF_RADIUS: f32 = 0.6;
 
@@ -115,6 +123,8 @@ pub enum Material {
     Stainless,
     /// POM washers between the rings.
     Pom,
+    /// The struts' EN AW-6060 tubes.
+    Aluminium,
 }
 
 impl Part {
@@ -129,6 +139,8 @@ impl Part {
                 let holes: Vec<String> = shape.holes.iter().map(|(degrees, mm)| format!("{degrees}°/{mm}mm")).collect();
                 format!("node plate {}", holes.join(" "))
             }
+            Part::OuterTube(mm) => format!("outer tube 40×3 × {mm} mm"),
+            Part::InnerTube(mm) => format!("inner tube 33×3 × {mm} mm"),
             part => part.base_name().to_string(),
         }
     }
@@ -144,6 +156,8 @@ impl Part {
             Part::RodFork => "rod fork",
             Part::ForkNuts => "rod fork's nuts",
             Part::NodePlate(_) => "node plate",
+            Part::OuterTube(_) => "outer tube",
+            Part::InnerTube(_) => "inner tube",
         }
     }
 
@@ -200,6 +214,8 @@ impl Part {
                     - 3.0 * PI * (PLATE_HOLE_DIAMETER.f32() / 2.0).powi(2);
                 steel(area * PLATE_THICKNESS.f32())
             }
+            Part::OuterTube(mm) => aluminium_tube(OUTER_RADIUS, OUTER_BORE_RADIUS, mm),
+            Part::InnerTube(mm) => aluminium_tube(INNER_RADIUS, INNER_BORE_RADIUS, mm),
         }
     }
 
@@ -213,8 +229,18 @@ impl Part {
             | Part::Hinge
             | Part::HingeEye => Material::Stainless,
             Part::Washer => Material::Pom,
+            Part::OuterTube(_) | Part::InnerTube(_) => Material::Aluminium,
         }
     }
+}
+
+fn aluminium_tube(radius: Meters, bore: Meters, mm: u16) -> Grams {
+    let area = PI * (radius.f32().powi(2) - bore.f32().powi(2));
+    Grams(area * mm as f32 / 1000.0 * ALUMINIUM_DENSITY)
+}
+
+fn millimetres(length: Meters) -> u16 {
+    (length.f32() * 1000.0).round() as u16
 }
 
 /// One copy of a part, in its frame (see `Part`). `culprit` marks a copy
@@ -367,6 +393,22 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
         let culprit = connector.culprits.contains(&(link, node));
         place(Part::NodePlate(PlateShape::equilateral()), middle, x, plate.normal, culprit);
     }
+
+    // Each strut's tubes, from stack to stack, red where no tube set fits it.
+    for (key, push) in fabric.intervals.iter() {
+        if !push.has_role(Role::Pushing) {
+            continue;
+        }
+        let [(alpha, _), (omega, _)] = connector.stack_ends(fabric, key);
+        let length = alpha.distance(omega);
+        let along = (omega - alpha) / length;
+        let (set, fits) = tube_set(connector.dimensions.tube_sets, Meters(length));
+        let square = along.any_orthonormal_vector();
+        let outer_start = (alpha + omega) / 2.0 - along * (set.outer.f32() / 2.0);
+        place(Part::OuterTube(millimetres(set.outer)), outer_start, along, square, !fits);
+        place(Part::InnerTube(millimetres(set.inner)), alpha, along, square, !fits);
+        place(Part::InnerTube(millimetres(set.inner)), omega, -along, square, !fits);
+    }
     placed
 }
 
@@ -422,8 +464,8 @@ mod tests {
 
     /// Headless Hug's parts list adds up: every boss (one per ring, several
     /// per custom disc) carries one cross-tube and a jaw terminal or a
-    /// rod fork, and every bridle node has a plate with a terminal or rod fork
-    /// for each of its cables but its hanger, or a clamp.
+    /// rod fork, every bridle node has a plate with a terminal or rod fork
+    /// for each of its cables but its hanger, and every strut is three tubes of a set it fits.
     #[test]
     fn headless_hug_parts_list() {
         let mut executor = FabricPlanExecutor::new(fabric_library::get_fabric_plan(FabricName::HeadlessHug));
@@ -456,6 +498,9 @@ mod tests {
         assert!(rods.iter().all(|&length| length >= FORK_ROD_MIN_LENGTH.f32()));
         assert_eq!(plates, executor.fabric.bridle_nodes.len());
         assert_eq!(bosses + 3 * plates, count(Part::Clevis) + count(Part::RodFork));
+        let tubes = placed.iter().filter(|placement| matches!(placement.part, Part::OuterTube(_) | Part::InnerTube(_)));
+        assert!(tubes.clone().all(|tube| !tube.culprit), "a strut fits no tube set");
+        assert_eq!(tubes.count(), 3 * executor.fabric.intervals.values().filter(|i| i.has_role(Role::Pushing)).count());
     }
 
     /// A hinge carries only its two struts: every cable at a hinge pin is on

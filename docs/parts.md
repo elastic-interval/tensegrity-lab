@@ -40,10 +40,11 @@ connector hardware. The second table adds what it doesn't track yet.
 | 492 | Jaw terminal, on the cables | Bought, swaged on |
 | 48 | Rod fork, two per fork rod | Custom, cut and drilled, see below |
 | 8 | Hinge: M12 rod end, custom fork, bolt | See below |
+| 24 | Outer tube 40×3 × 1350 mm, with 48 inner tubes 33×3 × 850 mm | Aluminium, cut; PROPOSED long set |
+| 40 | Outer tube 40×3 × 900 mm, with 80 inner tubes 33×3 × 700 mm | Aluminium, cut; PROPOSED short set |
 
 | Qty | Not on the app's list | Note |
 |---:|---|---|
-| 64 | Strut, telescoping tubes, 1.33–2.40 m | Open Claw's 40×3 and 33×3 profiles; shorter tube sets needed below about 1.6 m |
 | 128 | M12 bolt or stud at a strut end | Length follows the stack, so several lengths |
 | 112 | M12 nut | The other 16 strut ends are held by the hinge fitting |
 | 244 | Cable, 6 mm, cut to length | Lengths come from the CSV |

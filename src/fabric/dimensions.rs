@@ -1,5 +1,6 @@
 //! Fabric dimensions: structure size and interval geometry.
 
+use crate::connector::strut::TubeSet;
 use crate::connector::ConnectorDimensions;
 use crate::fabric::physics::Physics;
 use crate::fabric::interval::Role;
@@ -159,6 +160,12 @@ impl FabricDimensions {
     /// enabling attachment points, slot assignment, and connector rendering.
     pub fn with_connector(mut self) -> Self {
         self.connector = Some(ConnectorDimensions::default());
+        self
+    }
+
+    /// Make the struts from these tubes, equipping connectors if not yet.
+    pub fn with_tube_sets(mut self, tube_sets: &'static [TubeSet]) -> Self {
+        self.connector.get_or_insert_with(ConnectorDimensions::default).tube_sets = tube_sets;
         self
     }
 

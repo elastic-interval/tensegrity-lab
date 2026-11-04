@@ -11,6 +11,7 @@ use crate::connector::fork::{
 };
 use crate::connector::dimensions::ConnectorDimensions;
 use crate::connector::parts::Part;
+use crate::connector::strut::{INNER_BORE_RADIUS, INNER_RADIUS, OUTER_BORE_RADIUS, OUTER_RADIUS};
 use crate::fabric::FabricDimensions;
 use crate::units::Unit;
 use crate::wgpu::Wgpu;
@@ -365,6 +366,12 @@ impl Wgpu {
                 let holes: Vec<(Vec2, f32)> = centers.iter().map(|&c| (c, PLATE_HOLE_DIAMETER.f32() / 2.0)).collect();
                 let half = PLATE_THICKNESS.f32() / 2.0;
                 mesh.extrude_with_holes(&hull_of_circles(&corners), &holes, -half, half);
+            }
+            Part::OuterTube(mm) => {
+                mesh.hollow(Vec3::ZERO, Vec3::X, 0.0, mm as f32 / 1000.0, OUTER_RADIUS.f32(), OUTER_BORE_RADIUS.f32())
+            }
+            Part::InnerTube(mm) => {
+                mesh.hollow(Vec3::ZERO, Vec3::X, 0.0, mm as f32 / 1000.0, INNER_RADIUS.f32(), INNER_BORE_RADIUS.f32())
             }
         }
         let (vertices, indices, index_count) = self.mesh_buffers(&part.name(), &mesh);

@@ -269,6 +269,7 @@ src/
 │   ├── fork.rs         # Terminal, rod fork, plate dimensions + collision capsules
 │   ├── node_plate.rs   # NodePlate: the equilateral bridle plate
 │   ├── parts.rs        # Parts list: Part, placements, parts_list
+│   ├── strut.rs        # Telescoping tube sets each strut is made from
 │   └── system.rs       # ConnectorSystem (slots, plates, links, culprits)
 │
 ├── fabric/
