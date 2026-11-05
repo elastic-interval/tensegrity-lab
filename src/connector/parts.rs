@@ -402,7 +402,7 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
         let [(alpha, _), (omega, _)] = connector.stack_ends(fabric, key);
         let length = alpha.distance(omega);
         let along = (omega - alpha) / length;
-        let (set, fits) = tube_set(connector.dimensions.tube_sets, Meters(length));
+        let (set, _, fits) = tube_set(connector.dimensions.tube_sets, Meters(length));
         let square = along.any_orthonormal_vector();
         let outer_start = (alpha + omega) / 2.0 - along * (set.outer.f32() / 2.0);
         place(Part::OuterTube(millimetres(set.outer)), outer_start, along, square, !fits);
@@ -501,6 +501,21 @@ mod tests {
         let tubes = placed.iter().filter(|placement| matches!(placement.part, Part::OuterTube(_) | Part::InnerTube(_)));
         assert!(tubes.clone().all(|tube| !tube.culprit), "a strut fits no tube set");
         assert_eq!(tubes.count(), 3 * executor.fabric.intervals.values().filter(|i| i.has_role(Role::Pushing)).count());
+    }
+
+    /// Open Claw, as built, is all made from its own tubes.
+    #[test]
+    fn open_claw_struts_fit_its_tubes() {
+        let mut executor = FabricPlanExecutor::new(fabric_library::get_fabric_plan(FabricName::OpenClaw));
+        while !executor.is_complete() {
+            let _ = executor.iterate();
+        }
+        executor.fabric.update_all_attachment_connections();
+        let unfit: Vec<Placement> = placements(&executor.fabric)
+            .into_iter()
+            .filter(|placement| matches!(placement.part, Part::OuterTube(_)) && placement.culprit)
+            .collect();
+        assert!(unfit.is_empty(), "{} struts fit no tube set", unfit.len());
     }
 
     /// A hinge carries only its two struts: every cable at a hinge pin is on

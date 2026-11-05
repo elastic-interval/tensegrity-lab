@@ -16,9 +16,11 @@ use std::io::{self, Write};
 
 use crate::build::dsl::settle_phase::GuyLine;
 use crate::fabric::interval::{Role, Span};
+use crate::connector::strut::tube_set;
 use crate::connector::system::{hinge_struts, is_hanger};
+use crate::connector::ConnectorSystem;
 use crate::fabric::{Fabric, IntervalKey, JointKey};
-use crate::units::{Unit, MM_PER_METER};
+use crate::units::{Meters, Unit, MM_PER_METER};
 
 /// Rotation from simulation space (Y-up) to CSV space (Z-up, RFEM/Rhino).
 ///
@@ -129,6 +131,10 @@ pub fn write_csv(fabric: &Fabric, filename: &str, notes: &[String]) -> io::Resul
         }
     }
 
+    if let Some(connector) = fabric.connector.as_ref() {
+        write_strut_settings(&mut file, fabric, connector)?;
+    }
+
     writeln!(
         file,
         "Index,Role,Length(m),Strain,AlphaX,AlphaY,AlphaZ,AlphaJoint,OmegaX,OmegaY,OmegaZ,OmegaJoint"
@@ -155,6 +161,44 @@ pub fn write_csv(fabric: &Fabric, filename: &str, notes: &[String]) -> io::Resul
 
     println!("Exported {} to {}", fabric.name, filename);
     Ok(())
+}
+
+/// Each strut's tubes and pins, shortest first, for the build crew.
+fn write_strut_settings(file: &mut File, fabric: &Fabric, connector: &ConnectorSystem) -> io::Result<()> {
+    writeln!(file, "# === Strut tubes and pins ===")?;
+    writeln!(file, "# Tubes run from stack to stack. Pins at each end as <inner hole>:<outer holes>, each tube's")?;
+    writeln!(file, "# holes counted from 1 at that end: 12:3-6 is inner hole 12 in outer hole 3, inner hole 17 in outer hole 6")?;
+    let mut struts: Vec<(f32, String)> = fabric
+        .intervals
+        .iter()
+        .filter(|(_, interval)| interval.has_role(Role::Pushing))
+        .map(|(key, interval)| {
+            let [(alpha, _), (omega, _)] = connector.stack_ends(fabric, key);
+            let length = alpha.distance(omega);
+            let (set, setting, fits) = tube_set(connector.dimensions.tube_sets, Meters(length));
+            let [alpha_pins, omega_pins] = setting.ends;
+            let line = format!(
+                "# {} to {}: {:.0} mm, outer {:.0} / inner {:.0}, pins {} at {}, {} at {}, {:+.0} mm{}",
+                fabric.joint_label(interval.alpha_key),
+                fabric.joint_label(interval.omega_key),
+                length * MM_PER_METER,
+                set.outer.f32() * MM_PER_METER,
+                set.inner.f32() * MM_PER_METER,
+                alpha_pins,
+                fabric.joint_label(interval.alpha_key),
+                omega_pins,
+                fabric.joint_label(interval.omega_key),
+                setting.error.f32() * MM_PER_METER,
+                if fits { "" } else { "  NO TUBE SET FITS" },
+            );
+            (length, line)
+        })
+        .collect();
+    struts.sort_by(|a, b| a.0.total_cmp(&b.0));
+    for (_, line) in struts {
+        writeln!(file, "{line}")?;
+    }
+    writeln!(file, "#")
 }
 
 const HARDWARE_NOTES: [&str; 7] = [
@@ -351,6 +395,9 @@ mod tests {
         assert_eq!(rows.iter().filter(|row| row[1] == "plate").count(), 3 * fabric.bridle_nodes.len());
         let hanger = |row: &&Vec<&str>| (row[2].parse::<f32>().unwrap() - 0.082).abs() < 0.001;
         assert_eq!(rows.iter().filter(|row| row[1] == "rod").filter(hanger).count(), 16);
+        let struts = fabric.intervals.values().filter(|interval| interval.has_role(Role::Pushing)).count();
+        assert_eq!(text.lines().filter(|line| line.contains(", pins ")).count(), struts);
+        assert!(!text.contains("NO TUBE SET FITS"));
         assert!(
             text.contains("# Guy line: joint=L14"),
             "guy lines missing from the header"

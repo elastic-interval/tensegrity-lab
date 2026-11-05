@@ -40,8 +40,8 @@ connector hardware. The second table adds what it doesn't track yet.
 | 492 | Jaw terminal, on the cables | Bought, swaged on |
 | 48 | Rod fork, two per fork rod | Custom, cut and drilled, see below |
 | 8 | Hinge: M12 rod end, custom fork, bolt | See below |
-| 24 | Outer tube 40×3 × 1350 mm, with 48 inner tubes 33×3 × 850 mm | Aluminium, cut; PROPOSED long set |
-| 40 | Outer tube 40×3 × 900 mm, with 80 inner tubes 33×3 × 700 mm | Aluminium, cut; PROPOSED short set |
+| 32 | Outer tube 40×3 × 1471 mm, with 64 inner tubes 33×3 × 780 mm | Aluminium, Open Claw's tubes as drilled |
+| 32 | Outer tube 40×3 × 900 mm, with 64 inner tubes 33×3 × 600 mm | Aluminium, same holes; PROPOSED short set |
 
 | Qty | Not on the app's list | Note |
 |---:|---|---|
@@ -196,6 +196,24 @@ fitting base, 16 mm jaw gap, 12 mm pin.
 The intended design is the M12 rod end used on Open Claw's bottom connectors,
 with a supported bolt through its ball on a custom fork; see below. The model
 doesn't have the real part's dimensions yet.
+
+### Strut tubes (32 + 32)
+
+ENS's telescoping joint, as on Open Claw: the inner tube has a hole every 30 mm
+along its whole length, the first 60 mm from each end; the outer has six holes
+at each end, 50 mm apart, the first 25 mm from the end. Two pins 150 mm apart
+(5 × 30 = 3 × 50) always go through both tubes, so every setting carries the
+same load. Each 10 mm of extension lines up the next pair of outer holes, 1-4,
+2-5, 3-6, then 1-4 again on the next inner hole. The two inner tubes must not
+meet inside the outer. So Open Claw's tubes, outer 1471 and inner 780 mm, make
+1561–2561 mm, and the proposed short set, outer 900 and inner 600 mm drilled the
+same way, makes about 1200–1630 mm. Every strut lands within 5 mm of a setting.
+
+Each strut's tube length (stack to stack) and pin settings are in the header of
+Headless Hug's CSV, as `<inner hole>:<outer holes>` at each end, holes counted
+from 1 at that end of each tube. Source: Open Claw's Rhino model of the tubes
+(`Buizen Open Claw.stp`) and ENS's description of the joint. Holes are Ø10.5
+in the model, Ø11 in ENS's notes.
 
 ## Mass
 

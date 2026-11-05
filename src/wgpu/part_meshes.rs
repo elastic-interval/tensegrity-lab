@@ -11,7 +11,10 @@ use crate::connector::fork::{
 };
 use crate::connector::dimensions::ConnectorDimensions;
 use crate::connector::parts::Part;
-use crate::connector::strut::{INNER_BORE_RADIUS, INNER_RADIUS, OUTER_BORE_RADIUS, OUTER_RADIUS};
+use crate::connector::strut::{
+    inner_holes, outer_holes, HOLE_RADIUS, INNER_BORE_RADIUS, INNER_RADIUS, OUTER_BORE_RADIUS, OUTER_RADIUS,
+};
+use crate::units::Meters;
 use crate::fabric::FabricDimensions;
 use crate::units::Unit;
 use crate::wgpu::Wgpu;
@@ -28,6 +31,12 @@ const SMOOTH_ANGLE_COS: f32 = 0.85;
 // Fabricated Part".
 const BOSS_HALF_WIDTH: f32 = 0.3; // (w_boss/2) / (D_ring/2) = 6/20
 const RING_ARC_SEGMENTS: usize = 48;
+// A strut tube's wall round each pin hole is drawn as a patch this far along
+// the tube each side of the hole, and this many round segments each side.
+const HOLE_PATCH_HALF_LENGTH: f32 = 0.012;
+const HOLE_PATCH_STEPS: i32 = 3;
+// Points along each side of a hole's patch, between its corners.
+const HOLE_PATCH_SIDE_POINTS: usize = 3;
 // The cable's hole in a terminal's barrel, 6 mm wire.
 const BARREL_BORE_RADIUS: f32 = 0.003;
 
@@ -368,10 +377,12 @@ impl Wgpu {
                 mesh.extrude_with_holes(&hull_of_circles(&corners), &holes, -half, half);
             }
             Part::OuterTube(mm) => {
-                mesh.hollow(Vec3::ZERO, Vec3::X, 0.0, mm as f32 / 1000.0, OUTER_RADIUS.f32(), OUTER_BORE_RADIUS.f32())
+                let length = Meters(mm as f32 / 1000.0);
+                drilled_tube(&mut mesh, length.f32(), OUTER_RADIUS.f32(), OUTER_BORE_RADIUS.f32(), &outer_holes(length));
             }
             Part::InnerTube(mm) => {
-                mesh.hollow(Vec3::ZERO, Vec3::X, 0.0, mm as f32 / 1000.0, INNER_RADIUS.f32(), INNER_BORE_RADIUS.f32())
+                let length = Meters(mm as f32 / 1000.0);
+                drilled_tube(&mut mesh, length.f32(), INNER_RADIUS.f32(), INNER_BORE_RADIUS.f32(), &inner_holes(length));
             }
         }
         let (vertices, indices, index_count) = self.mesh_buffers(&part.name(), &mesh);
@@ -395,6 +406,104 @@ impl Wgpu {
                 usage: wgpu::BufferUsages::INDEX,
             });
         (vertex_buffer, index_buffer, mesh.indices.len() as u32)
+    }
+}
+
+/// A tube along x from 0 to `length`, drilled through both walls along y at
+/// each of `holes`. Away from the holes its walls are plain bands; round each
+/// hole, a patch of wall meets the hole's rim, and the hole's own wall joins
+/// the rims on the outside and in the bore.
+fn drilled_tube(mesh: &mut Mesh, length: f32, outer: f32, bore: f32, holes: &[Meters]) {
+    let step = TAU / ROUND_SEGMENTS as f32;
+    let half = HOLE_PATCH_HALF_LENGTH;
+    let at = |t: f32, theta: f32, radius: f32| Vec3::new(t, radius * theta.cos(), radius * theta.sin());
+    // Outward from the outside, inward in the bore.
+    let facing = |theta: f32, radius: f32| Vec3::new(0.0, theta.cos(), theta.sin()) * if radius == outer { 1.0 } else { -1.0 };
+    let band = |mesh: &mut Mesh, t0: f32, t1: f32, steps: std::ops::Range<i32>| {
+        for radius in [outer, bore] {
+            for k in steps.clone() {
+                let (a, b) = (k as f32 * step, (k + 1) as f32 * step);
+                let corners = [(t0, a), (t1, a), (t1, b), (t0, b)]
+                    .map(|(t, theta)| mesh.vertex(at(t, theta, radius), facing(theta, radius)));
+                mesh.quad(corners[0], corners[1], corners[2], corners[3]);
+            }
+        }
+    };
+    mesh.lathe_bands(Vec3::ZERO, Vec3::X, &[(0.0, bore), (0.0, outer)]);
+    mesh.lathe_bands(Vec3::ZERO, Vec3::X, &[(length, outer), (length, bore)]);
+    let mut centres: Vec<f32> = holes.iter().map(|hole| hole.f32()).collect();
+    centres.sort_by(f32::total_cmp);
+    let mut start = 0.0;
+    let whole = 0..ROUND_SEGMENTS as i32;
+    let quarter = ROUND_SEGMENTS as i32 / 4;
+    for &centre in &centres {
+        band(mesh, start, centre - half, whole.clone());
+        let (t0, t1) = (centre - half, centre + half);
+        band(mesh, t0, t1, HOLE_PATCH_STEPS..2 * quarter - HOLE_PATCH_STEPS);
+        band(mesh, t0, t1, 2 * quarter + HOLE_PATCH_STEPS..4 * quarter - HOLE_PATCH_STEPS);
+        for facing_angle in [0.0, PI] {
+            hole_patch(mesh, centre, facing_angle, outer, bore);
+        }
+        start = centre + half;
+    }
+    band(mesh, start, length, whole);
+}
+
+/// The walls round one hole, centred at `centre` along the tube, facing
+/// `theta` round it: the patch of outside and of bore from their band edges
+/// to the hole's rim, and the hole's wall between the rims.
+fn hole_patch(mesh: &mut Mesh, centre: f32, theta: f32, outer: f32, bore: f32) {
+    let step = TAU / ROUND_SEGMENTS as f32;
+    let half = HOLE_PATCH_HALF_LENGTH;
+    let side = HOLE_PATCH_STEPS as f32 * step;
+    let hole = HOLE_RADIUS.f32();
+    // The patch's edge as (along, angle off `theta`), round once: its ends
+    // fall on the bands' corners so the seams close.
+    let mut edge: Vec<(f32, f32)> = Vec::new();
+    for k in -HOLE_PATCH_STEPS..=HOLE_PATCH_STEPS {
+        edge.push((-half, k as f32 * step));
+    }
+    let side_point = |j: usize| -half + 2.0 * half * j as f32 / (HOLE_PATCH_SIDE_POINTS + 1) as f32;
+    edge.extend((1..=HOLE_PATCH_SIDE_POINTS).map(|j| (side_point(j), side)));
+    for k in (-HOLE_PATCH_STEPS..=HOLE_PATCH_STEPS).rev() {
+        edge.push((half, k as f32 * step));
+    }
+    edge.extend((1..=HOLE_PATCH_SIDE_POINTS).rev().map(|j| (side_point(j), -side)));
+    // The hole's rim, toward each edge point, as (along, across).
+    let rim: Vec<Vec2> = edge
+        .iter()
+        .map(|&(along, angle)| Vec2::new(along, outer * angle.sin()).normalize() * hole)
+        .collect();
+    let (pin, across) = (Vec3::new(0.0, theta.cos(), theta.sin()), Vec3::new(0.0, -theta.sin(), theta.cos()));
+    let on = |along: f32, angle: f32, radius: f32| {
+        Vec3::X * (centre + along) + (pin * angle.cos() + across * angle.sin()) * radius
+    };
+    let off = |p: Vec2, radius: f32| (p.y / radius).asin();
+    let n = edge.len();
+    for radius in [outer, bore] {
+        let sign = if radius == outer { 1.0 } else { -1.0 };
+        let normal = |angle: f32| (pin * angle.cos() + across * angle.sin()) * sign;
+        let edge_vertices: Vec<u32> =
+            edge.iter().map(|&(along, angle)| mesh.vertex(on(along, angle, radius), normal(angle))).collect();
+        let rim_vertices: Vec<u32> = rim
+            .iter()
+            .map(|&p| {
+                let angle = off(p, radius);
+                mesh.vertex(on(p.x, angle, radius), normal(angle))
+            })
+            .collect();
+        for i in 0..n {
+            let j = (i + 1) % n;
+            mesh.quad(edge_vertices[i], edge_vertices[j], rim_vertices[j], rim_vertices[i]);
+        }
+    }
+    for i in 0..n {
+        let j = (i + 1) % n;
+        let corners = [(rim[i], outer), (rim[j], outer), (rim[j], bore), (rim[i], bore)].map(|(p, radius)| {
+            let inward = -(Vec3::X * p.x + across * p.y);
+            mesh.vertex(on(p.x, off(p, radius), radius), inward)
+        });
+        mesh.quad(corners[0], corners[1], corners[2], corners[3]);
     }
 }
 
