@@ -13,7 +13,9 @@ impl Fabric {
     /// Move each mirror pair of joints (by label) to the mean of one and the
     /// other's reflection, and each joint on the mirror plane onto it. The
     /// plane runs through the pairs' midpoints, square to their averaged
-    /// separation. No-op without a mirror label symmetry.
+    /// separation, and is kept vertical: tilted to fit a fabric settled a hair
+    /// off, it would lift one side's feet and guy anchors off the ground,
+    /// where they come loose. No-op without a mirror label symmetry.
     pub fn symmetrize_mirror(&mut self) {
         let Some(symmetry @ LabelSymmetry::Mirror { .. }) = self.label_symmetry.clone() else {
             return;
@@ -51,6 +53,7 @@ impl Fabric {
                 }
             })
             .sum::<Vec3>()
+            .with_y(0.0)
             .normalize();
         let point = pairs.iter().map(|&(a, b)| (location(a) + location(b)) / 2.0).sum::<Vec3>()
             / pairs.len() as f32;
