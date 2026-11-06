@@ -503,6 +503,59 @@ mod tests {
         assert_eq!(tubes.count(), 3 * executor.fabric.intervals.values().filter(|i| i.has_role(Role::Pushing)).count());
     }
 
+    /// Headless Hug's M12 bolt lengths, one per strut end, for ordering. The
+    /// head bears under the cap's disc; above the top ring come a DIN 9021
+    /// washer (3 mm), a DIN 985 lock nut (12 mm) and two threads showing.
+    /// At a hinge the fitting screws on instead, so only the stack is given.
+    ///
+    /// ```
+    /// cargo test --release --lib headless_hug_bolt_lengths -- --ignored --nocapture
+    /// ```
+    #[test]
+    #[ignore]
+    fn headless_hug_bolt_lengths() {
+        const WASHER_AND_NUT: f32 = 0.003 + 0.012 + 0.0035;
+        let mut executor = FabricPlanExecutor::new(fabric_library::get_fabric_plan(FabricName::HeadlessHug));
+        while !executor.is_complete() {
+            let _ = executor.iterate();
+        }
+        executor.fabric.update_all_attachment_connections();
+        let fabric = &executor.fabric;
+        let connector = fabric.connector.as_ref().expect("fabric has connectors");
+        let half_ring = connector.dimensions.ring_thickness.f32() / 2.0;
+        let mut bolts: BTreeMap<u32, usize> = BTreeMap::new();
+        let mut hinge_stacks: Vec<f32> = Vec::new();
+        for (key, push) in fabric.intervals.iter().filter(|(_, push)| push.has_role(Role::Pushing)) {
+            let [(alpha_end, alpha_axis), (omega_end, omega_axis)] = connector.stack_ends(fabric, key);
+            for (end, end_pos, axis, joint) in [
+                (IntervalEnd::Alpha, alpha_end, alpha_axis, push.alpha_key),
+                (IntervalEnd::Omega, omega_end, omega_axis, push.omega_key),
+            ] {
+                let stack = connector
+                    .connections(key, end)
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .map(|connection| {
+                        (connector.connection_ring_center(end_pos, axis, connection) - end_pos).dot(axis) + half_ring
+                    })
+                    .fold(connector.dimensions.cap_thickness.f32(), f32::max);
+                if hinge_struts(fabric, joint).is_some() {
+                    hinge_stacks.push(stack * 1000.0);
+                } else {
+                    let stock = ((stack + WASHER_AND_NUT) * 1000.0 / 5.0).ceil() as u32 * 5;
+                    *bolts.entry(stock).or_insert(0) += 1;
+                }
+            }
+        }
+        for (length, count) in &bolts {
+            eprintln!("{count:>4} × M12 × {length} mm");
+        }
+        hinge_stacks.sort_by(f32::total_cmp);
+        eprintln!("hinge stacks, cap to top ring (mm): {hinge_stacks:.1?}");
+        assert_eq!(bolts.values().sum::<usize>() + hinge_stacks.len(), 128);
+    }
+
     /// Open Claw, as built, is all made from its own tubes.
     #[test]
     fn open_claw_struts_fit_its_tubes() {

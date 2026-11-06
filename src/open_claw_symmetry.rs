@@ -1251,10 +1251,10 @@ mod tests {
         verify_threefold_symmetry(&executor.fabric);
     }
 
-    /// With the prototype connector (washer 2 mm, pivot radius 30 mm, 18 mm
-    /// tube, 12 mm pin), slots ordered for fewest colliding forks and the
-    /// boss arms in the capsule model, it finds 12 colliding cable-end
-    /// assemblies (4 per leg, threefold-symmetric) — construction issues, listed
+    /// With the prototype connector (5 mm cap, washer 2 mm, pivot radius 30 mm,
+    /// 18 mm tube, 12 mm pin), slots ordered for fewest colliding forks and the
+    /// boss arms in the capsule model, it finds 18 colliding cable-end
+    /// assemblies (6 per leg, threefold-symmetric) — construction issues, listed
     /// in the CSV header and shown red in the app's connector view (C key).
     /// This test pins that number so any change — improvement, regression,
     /// or geometry drift — must come to our attention before building.
@@ -1271,7 +1271,7 @@ mod tests {
             .map(|connector| connector.culprits.len())
             .unwrap_or(0);
         assert_eq!(
-            culprits, 12,
+            culprits, 18,
             "connector collision culprits changed (now {}): inspect in the app \
              (C toggles the connector view; culprits are red), then either fix \
              the slot assignment/hardware and update this baseline, or \

@@ -127,7 +127,8 @@ angles or per-position variants:
   (`.hinge`) a clevis and a rod end screw onto the two struts' bolts, pinned
   where their axes meet. No cable may end on a hinge: one with no strut of
   its own there is split by a plate half-way along it, a leg to each strut's
-  stack (`Fabric::split_hinge_cables`). There are no strut caps.
+  stack (`Fabric::split_hinge_cables`). Each stack sits on a strut cap's
+  5 mm tapped disc and is closed by a stock washer and lock nut.
 - `dxf.rs` — DXF drawings of the laser-cut parts, for ordering.
 - `system.rs` — `ConnectorSystem`: owns `ConnectorDimensions`, a
   `SecondaryMap<IntervalKey, PullConnections>` of slot assignments, and

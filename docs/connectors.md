@@ -71,9 +71,9 @@ The connector part itself — specified in full under [The Fabricated Part](#the
 
 The assembly at a strut end consists of:
 
-1. **Bolt** — Axial, anchored in the strut's end; there is no end cap (the original design had one)
-2. **Rings** — One connector per cable, stacked on the bolt and retained by a nut
-3. **Washers** — A thin POM divider washer between the tube end and first ring and between adjacent rings, so steel never bears on steel
+1. **Cap and bolt** — The cap is a disc with a tapped hole, welded to the end of a short tube on the strut's end. The M12 bolt is turned into it from inside the tube and stands out of the disc
+2. **Rings** — One connector per cable, stacked on the bolt and retained by a stock DIN 9021 washer and a DIN 985 lock nut
+3. **Washers** — A thin POM divider washer between the cap and first ring and between adjacent rings, so steel never bears on steel
 4. **Pivot pins** — The cable's fork pivots on a pin through each connector's cross-tube
 
 Two free rotations mean the cable naturally finds its exact direction:
@@ -342,7 +342,7 @@ this table is informational and can drift between code edits and doc updates.
 |-----------|---------|-------------|
 | `ring_thickness` | 5 mm | Ring thickness along the bolt axis (t_ring) |
 | `washer_thickness` | 2 mm | POM divider washer between cap/ring and between adjacent rings |
-| `cap_thickness` | 0 mm | From the strut end to the first washer: nothing, as there are no strut caps; the first washer sits on the tube end (kept because Open Claw's CSV header reports it) |
+| `cap_thickness` | 5 mm | The cap's disc, from the strut end to the first washer |
 | `pivot_radius` | 30 mm | Radial distance from the strut/bolt axis to the pivot pin (R_tube — the cable's moment arm) |
 
 ## Slot Positioning Along the Strut Axis
@@ -353,10 +353,10 @@ Slots are numbered starting from 0 (code-internal) or 1 (display/CSV). The posit
 offset = cap_thickness + washer + ring_thickness/2 + slot * (ring_thickness + washer)
 ```
 
-For 0-indexed slots with the current defaults (cap=0, t_ring=5 mm, washer=2 mm):
-- Slot 0: 0 + 2 + 2.5 = 4.5 mm from the strut end
-- Slot 1: 11.5 mm
-- Slot 2: 18.5 mm
+For 0-indexed slots with the current defaults (cap=5 mm, t_ring=5 mm, washer=2 mm):
+- Slot 0: 5 + 2 + 2.5 = 9.5 mm from the strut end
+- Slot 1: 16.5 mm
+- Slot 2: 23.5 mm
 
 At a **hinge** (two struts pinned where their axes cross, DSL `.hinge`) the
 strut ends at the hinge pin, so each strut's stack is set back along it

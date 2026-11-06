@@ -45,8 +45,9 @@ connector hardware. The second table adds what it doesn't track yet.
 
 | Qty | Not on the app's list | Note |
 |---:|---|---|
-| 128 | M12 bolt or stud at a strut end | Length follows the stack, so several lengths |
-| 112 | M12 nut | The other 16 strut ends are held by the hinge fitting |
+| 128 | Strut cap: tapped disc welded to a short tube, as on Open Claw | Custom, welded; see below |
+| 128 | M12 bolt (DIN 933), turned into the cap from inside | Five lengths, see below |
+| 112 | M12 lock nut (DIN 985) and DIN 9021 washer | The other 16 strut ends are closed by the hinge fitting |
 | 244 | Cable, 6 mm, cut to length | Lengths come from the CSV |
 | 24 | M8 threaded rod, cut to length, with 4 nuts | Cut lengths come from the CSV's header; see below |
 | 4 | Guy line and ground anchor | Ground fixing not designed |
@@ -196,6 +197,37 @@ fitting base, 16 mm jaw gap, 12 mm pin.
 The intended design is the M12 rod end used on Open Claw's bottom connectors,
 with a supported bolt through its ball on a custom fork; see below. The model
 doesn't have the real part's dimensions yet.
+
+### Strut cap and bolt (128)
+
+As on Open Claw: a Ø36 × 5 mm disc with a tapped M12 hole, welded to the end of
+a short piece of 40×3 tube. The bolt is turned into the hole from inside the
+tube, so its head bears under the disc, and stands out of it to carry the stack:
+POM washers and rings, then a DIN 9021 washer and a DIN 985 lock nut.
+
+The cap isn't fixed to the strut. The cables always pull it inward, so it just
+presses on the tube end, and it comes off with its stack at take-down.
+
+The bolt's length follows the stack: the 5 mm disc, 7 mm for each ring and its
+washer, more where a ring is lifted, then 3 mm washer, 12 mm lock nut and two
+threads. Rounded up to stock lengths, from the committed slots:
+
+| Qty | Bolt |
+|---:|---|
+| 2 | M12 × 35 |
+| 22 | M12 × 45 |
+| 2 | M12 × 50 |
+| 84 | M12 × 55 |
+| 2 | M12 × 70 |
+
+The 16 strut ends at hinges have a 26 mm stack, cap to top ring, and the hinge
+fitting screws on above it; their bolt length waits on the rod end's thread
+depth. Open Claw used M12 × 55 throughout, which would also do for every stack
+here but the two 70s, with more thread showing on the shorter ones.
+
+```bash
+cargo test --release --lib headless_hug_bolt_lengths -- --ignored --nocapture
+```
 
 ### Strut tubes (32 + 32)
 
@@ -351,8 +383,6 @@ those bolts and stacks need to turn freely under load.
 - **Boss flat.** With the pin axis at 30 mm and an 18 × 2.5 mm tube, the bore
   starts 23.5 mm from the bolt axis. The flat is now at 22 mm, a 1 mm seat
   that stays clear of the bore. Have the welder confirm that seat.
-- **Strut end.** Without caps, what the bolt anchors into isn't designed. The
-  stack starts right at the tube end.
 - **Slack versus settled lengths.** Hardware lengths in the CSV are for the
   slack shape and differ from the settled figure (see
   [csv-handoff.md](csv-handoff.md)). Decide which one cuts are made from.
