@@ -360,18 +360,19 @@ For 0-indexed slots with the current defaults (cap=5 mm, t_ring=5 mm, washer=2 m
 
 At a **hinge** (two struts pinned where their axes cross, DSL `.hinge`) the
 strut ends at the hinge pin, so each strut's stack is set back along it
-until the top of its highest ring sits `HINGE_LENGTH` (60 mm) below the pin
-(`ConnectorSystem::stack_ends`).
+until the top of its highest ring sits its fitting's length below the pin,
+48 mm for the clevis and 43 mm for the eye (`fork::hinge_length`,
+`ConnectorSystem::stack_ends`).
 
-The **hinge** itself (`Part::Hinge`, dimensions in `fork.rs`, all estimates
-for M12 catalogue parts) is a threaded clevis on one strut and a rod end on
-the other, each screwed onto its strut's bolt above the stack as the
+The **hinge** itself (`Part::Hinge`, dimensions in `fork.rs`) is a stock
+fork joint: a Ganter GN 751-12-24-M12 clevis (DIN 71752) with its pin on one
+strut and a GN 752-12-M12 plain eye on the other, each screwed onto its strut's bolt above the stack as the
 stack's nut, joined by a pin square to both struts exactly where their axes
 meet. Each strut's compression runs straight down its axis into the pin,
 with no lever. Each strut spins freely about its own axis (its rings turn
 on the bolt), so the pin can always lie square to both and the hinge only
-opens and closes; the rod end's ball takes any small misalignment. On the
-parts list one hinge covers clevis, rod end and pin; the rod end is drawn
+opens and closes, with no ball needed. On the
+parts list one hinge covers clevis, eye and pin; the eye is drawn
 as its own placement (`Part::HingeEye`) because it turns on the pin.
 
 **No cable ends on a hinge.** The hinge is kept pristine: it carries only
@@ -440,7 +441,7 @@ The hardware is drawn from the **parts list** (`src/connector/parts.rs`):
 cross-tube, custom disc, POM washer, jaw terminal, rod fork, node
 plate, hinge) in its own frame, and `parts_list` counts them as a bill of
 materials. A welded cross-tube belongs to its ring or custom disc and is
-drawn as part of it. The rod ends of hinges and rod forks' stock nuts
+drawn as part of it. The eyes of hinges and rod forks' stock nuts
 are drawn on their own but left off the list (`Part::listed`). A fork rod's
 threaded rod is drawn and reported like a cable, so only its forks are parts.
 `ConnectorRenderer` (`src/wgpu/connector_renderer.rs`) builds one mesh per

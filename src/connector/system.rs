@@ -47,6 +47,9 @@ pub struct ConnectorSystem {
     /// in placement order (see `parts::placements`): shaped parts keep
     /// these shapes until the next rebuild.
     pub frozen_parts: Vec<Part>,
+    /// The strut ends the fabric stands on, each closed by a rod end
+    /// (`fork::FOOT_LENGTH`), found when the hardware is committed.
+    pub feet: HashSet<JointKey>,
 }
 
 impl ConnectorSystem {
@@ -60,6 +63,7 @@ impl ConnectorSystem {
             links: HashMap::new(),
             plates: HashMap::new(),
             frozen_parts: Vec::new(),
+            feet: HashSet::new(),
         }
     }
 
@@ -79,8 +83,9 @@ impl ConnectorSystem {
     /// `[(alpha_end, alpha_axis), (omega_end, omega_axis)]`. A stack normally
     /// starts at the strut end and builds outward. At a hinge the strut ends
     /// at the hinge pin instead, so the stack is set back along the strut
-    /// until the top of its highest ring sits a hinge fitting's length below
-    /// the pin (`fork::HINGE_LENGTH`).
+    /// until the top of its highest ring sits its hinge fitting's length below
+    /// the pin (`fork::hinge_length`). A foot's stack is set back the same
+    /// way for its rod end, whose pin is the joint (`fork::FOOT_LENGTH`).
     pub fn stack_ends(&self, fabric: &Fabric, push_key: IntervalKey) -> [(Vec3, Vec3); 2] {
         let push = &fabric.intervals[push_key];
         let alpha = fabric.joints[push.alpha_key].location;
@@ -100,9 +105,13 @@ impl ConnectorSystem {
         location: Vec3,
         outward: Vec3,
     ) -> Vec3 {
-        if !is_hinge_pin(fabric, joint) {
+        let fitting = if self.feet.contains(&joint) {
+            fork::FOOT_LENGTH
+        } else if let Some([clevis, _]) = hinge_struts(fabric, joint) {
+            fork::hinge_length(clevis == push_key)
+        } else {
             return location;
-        }
+        };
         // Slots fill from 0, so the highest occupied one is the cable count less one.
         let cables = fabric
             .intervals
@@ -119,7 +128,7 @@ impl ConnectorSystem {
             }
             None => 0.0,
         };
-        location - outward * (stack + fork::HINGE_LENGTH.f32())
+        location - outward * (stack + fitting.f32())
     }
 
     pub fn ring_center(&self, push_end: Vec3, push_axis: Vec3, slot: usize) -> Vec3 {
@@ -172,6 +181,7 @@ impl ConnectorSystem {
         if fabric.joints.is_empty() {
             return;
         }
+        self.feet = feet(fabric);
         let push_keys: Vec<IntervalKey> = fabric
             .intervals
             .iter()
@@ -336,10 +346,18 @@ impl ConnectorSystem {
             let Some(struts) = hinge_struts(fabric, pin) else {
                 continue;
             };
-            for strut in struts {
+            for (strut, clevis) in struts.into_iter().zip([true, false]) {
                 let along = direction_from(fabric, strut, pin);
-                frames.push(((strut, pin), joint.location, fork::hinge_capsules(joint.location, along)));
+                frames.push(((strut, pin), joint.location, fork::hinge_capsules(joint.location, along, clevis)));
             }
+        }
+        for &foot in &self.feet {
+            let Some(strut) = foot_strut(fabric, foot) else {
+                continue;
+            };
+            let location = fabric.joints[foot].location;
+            let along = direction_from(fabric, strut, foot);
+            frames.push(((strut, foot), location, fork::foot_capsules(location, along)));
         }
         let hinge_fitting = |(key, joint): (IntervalKey, JointKey)| {
             fabric.intervals.get(key).is_some_and(|i| i.role == Role::Pushing && i.touches(joint))
@@ -927,6 +945,40 @@ impl ConnectorSystem {
 /// its node plate close to the strut end.
 pub fn is_hanger(fabric: &Fabric, cable: IntervalKey) -> bool {
     fabric.bridle_hangers.contains(&cable)
+}
+
+/// The strut ends the fabric stands on: those resting on the ground, within
+/// the surface's tolerance of the lowest joint, with one strut. Guy-line
+/// anchors rest there too but end no strut.
+fn feet(fabric: &Fabric) -> HashSet<JointKey> {
+    let (lowest, _) = fabric.altitude_range();
+    let tolerance = 0.01 * fabric.dimensions.scale.f32();
+    fabric
+        .joints
+        .iter()
+        .filter(|(key, joint)| joint.location.y - lowest <= tolerance && foot_strut(fabric, *key).is_some())
+        .map(|(key, _)| key)
+        .collect()
+}
+
+/// The one strut ending at `joint`, if exactly one does.
+pub fn foot_strut(fabric: &Fabric, joint: JointKey) -> Option<IntervalKey> {
+    let mut struts = fabric
+        .intervals
+        .iter()
+        .filter(|(_, interval)| interval.role == Role::Pushing && interval.touches(joint))
+        .map(|(key, _)| key);
+    match (struts.next(), struts.next()) {
+        (Some(strut), None) => Some(strut),
+        _ => None,
+    }
+}
+
+/// A foot's rod-end pin: square to its strut and level, as a ground fork
+/// would hold it.
+pub fn foot_pin_axis(fabric: &Fabric, foot: JointKey, strut: IntervalKey) -> Vec3 {
+    let along = direction_from(fabric, strut, foot);
+    along.cross(Vec3::Y).normalize_or(Vec3::X)
 }
 
 /// A hinge pin: the joint where two struts end.

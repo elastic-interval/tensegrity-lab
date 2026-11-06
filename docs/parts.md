@@ -37,9 +37,9 @@ connector hardware. The second table adds what it doesn't track yet.
 | 4 | Custom disc with cross-tubes (four different) | Custom, welded |
 | 20 | Node plate | Custom, laser cut |
 | 476 | POM washer | Custom or bought |
-| 492 | Jaw terminal, on the cables | Bought, swaged on |
-| 48 | Rod fork, two per fork rod | Custom, cut and drilled, see below |
-| 8 | Hinge: M12 rod end, custom fork, bolt | See below |
+| 484 | Jaw terminal, on the cables | Bought, swaged on |
+| 56 | Rod fork, two per fork rod | Custom, cut and drilled, see below |
+| 8 | Hinge: Ganter GN 751-12-24-M12 clevis fork joint and GN 752-12-M12 eye | Bought, see below |
 | 32 | Outer tube 40×3 × 1471 mm, with 64 inner tubes 33×3 × 780 mm | Aluminium, Open Claw's tubes as drilled |
 | 32 | Outer tube 40×3 × 900 mm, with 64 inner tubes 33×3 × 600 mm | Aluminium, same holes; PROPOSED short set |
 
@@ -50,6 +50,7 @@ connector hardware. The second table adds what it doesn't track yet.
 | 112 | M12 lock nut (DIN 985) and DIN 9021 washer | The other 16 strut ends are closed by the hinge fitting |
 | 244 | Cable, 6 mm, cut to length | Lengths come from the CSV |
 | 24 | M8 threaded rod, cut to length, with 4 nuts | Cut lengths come from the CSV's header; see below |
+| 2 | Foot: INA GIKR12-PW rod end | Bought, see below; what it pins to on the ground isn't designed |
 | 4 | Guy line and ground anchor | Ground fixing not designed |
 
 The cross-tube has no line of its own: it is welded to its ring or disc.
@@ -117,14 +118,14 @@ where a ring has to sit higher to clear the forks below it. I found no stock
 part. Open Claw's were a custom run: 500 for €185 from Snijlab, from a drawing
 named "Pom ring - 36 x 36 x 2", so Ø36 × 2 mm. Ask Snijlab for Ø40.
 
-### Rod fork (48), making 24 fork rods
+### Rod fork (56), making 28 fork rods
 
 Every tension connection is a cable or a fork rod: threaded rod cut to length
 between two rod forks. The rod is stock like cable, so only the fork is on the
 parts list. The rod is drawn as a cable, and the CSV lists the lengths to cut.
 
 16 fork rods are hangers, 82 mm pin to pin, each hanging a node plate from a
-strut end's cross-tube. The other 8 stand in for plate cables too short to make.
+strut end's cross-tube. The other 12 stand in for plate cables too short to make.
 
 **The fork** is a U with a hole through its closed end, the web. None of these
 figures has been checked by the engineer.
@@ -151,14 +152,20 @@ figures has been checked by the engineer.
 | Pin to pin | Rod | Qty |
 |---:|---:|---:|
 | 82 mm (hangers) | 47 mm | 16 |
-| 152 mm | 117 mm | 2 |
-| 179 mm | 144 mm | 2 |
-| 187 mm | 152 mm | 2 |
-| 198 mm | 163 mm | 2 |
+| 133 mm | 98 mm | 2 |
+| 139 mm | 104 mm | 2 |
+| 174 mm | 139 mm | 2 |
+| 189 mm | 154 mm | 2 |
+| 197 mm | 162 mm | 2 |
+| 229–230 mm | 194–195 mm | 2 |
+
+The 133, 139, 174 and 229 mm rods run from a hinge strut's stack to the plate
+splitting its cable (L10b, R10b, Z6b, Z5b); with the catalogue hinge those
+stacks sit closer to their plates, too close for a cable.
 
 Those lengths are from the settled shape, as the app's connector view commits
 them. The CSV is written at the slack moment and differs: 12 of the longer rods
-rather than 8. Which one rods are cut from is the
+rather than 8, measured before the catalogue hinge. Which one rods are cut from is the
 same open question as for the cables (below).
 
 **A rigid rod replaces what was a swivel.** The swivel was there because the two
@@ -193,13 +200,59 @@ clamped against a sleeve between them.
 At L6/R6, L8/R8, L10/R10, Z5 and Z6. Two fittings screw onto the two struts'
 bolts above their stacks, acting as the stacks' nuts, joined by a pin exactly
 where the strut axes meet, square to both. Struts spin freely on their own
-axes, so the hinge only opens and closes. No cable ends on a hinge. The model
-uses a clevis on one strut and a rod end on the other, 60 mm from pin to
-fitting base, 16 mm jaw gap, 12 mm pin.
+axes, so the hinge only opens and closes, and needs no ball. No cable ends on
+a hinge.
 
-The intended design is the M12 rod end used on Open Claw's bottom connectors,
-with a supported bolt through its ball on a custom fork; see below. The model
-doesn't have the real part's dimensions yet.
+It's a stock fork joint, as the model now has it:
+
+| | Clevis, GN 751-12-24-M12 (DIN 71752) | Eye, GN 752-12-M12 |
+|---|---:|---:|
+| Pin | 12 mm, comes with the clevis | 12 mm bore |
+| Pin to base | 48 mm | 43 mm |
+| Head | 24 mm square, 12 mm gap, slot 24 mm deep | Ø27 mm, 12 mm wide |
+| Body | Ø20 mm | Ø20 mm |
+| Thread | M12, 18 mm deep | M12, at least 24 mm deep |
+| Mass | about 168 g | about 100 g |
+
+Both are steel, property class 5, zinc plated. The eye costs about $7 at JW
+Winco. To settle before ordering:
+
+- **Thread pitch.** Our bolts are coarse M12 × 1.75. DIN 71752 size 12 is also
+  sold in fine thread, and Ganter marks that with an F (`M12F`). Order plain
+  `M12`.
+- **Strength.** Neither maker publishes a load rating. A 12 mm pin in double
+  shear should be ample for the 6 kN peaks; the engineer decides.
+- **Wear.** A plain steel pin in a steel eye, greased. The hinge only opens and
+  closes about 3°. If it wears, the eye can be drilled out for a 12 × 14
+  bushing.
+- **Spin.** The struts' spin on their bolts is what lets the hinge do without a
+  ball, and a cap pressed onto its tube end by several kN may stick. A POM
+  washer under the cap at the 8 hinge struts would help.
+
+### Foot (2)
+
+At L54 and R54, the strut end each leg stands on. Here the ball's freedom is
+needed, since the ground is never flat or square: the INA GIKR12-PW rod end
+from Open Claw's bottom connectors, screwed onto the strut's bolt above its
+stack. Schaeffler's datasheet:
+
+| | |
+|---|---:|
+| Bore, thread | 12 mm H7, M12 internal, right hand, 22 mm deep |
+| Pin centre to shank end (h₁) | 50 mm |
+| Overall length (l₄) | 66 mm |
+| Eye | Ø32 mm, 12 mm wide; ball ring 16 mm wide |
+| Shank | Ø17.5, Ø22 at its end, 19 mm across flats |
+| Tilt | 13° |
+| Load rating | 20.8 kN static, 24 kN dynamic, radial |
+| Sliding surface | steel on PTFE film, brass outer ring, no maintenance |
+| Mass | 120 g |
+
+RS has the genuine part in stock (260-0263) at €55.48 each excluding VAT. Open
+Claw's cost about €3.77, which suggests an unbranded copy without these
+ratings. The model has the rod ends, their pins level and square to the strut,
+each foot's stack set back so the pin is at the foot joint. What they pin to on
+the ground isn't designed.
 
 ### Strut cap and bolt (128)
 
@@ -218,14 +271,16 @@ threads. Rounded up to stock lengths, from the committed slots:
 | Qty | Bolt |
 |---:|---|
 | 2 | M12 × 35 |
-| 22 | M12 × 45 |
+| 10 | M12 × 40 |
+| 28 | M12 × 45 |
 | 2 | M12 × 50 |
 | 84 | M12 × 55 |
 | 2 | M12 × 70 |
 
-The 16 strut ends at hinges have a 26 mm stack, cap to top ring, and the hinge
-fitting screws on above it; their bolt length waits on the rod end's thread
-depth. Open Claw used M12 × 55 throughout, which would also do for every stack
+At the 8 hinges and 2 feet the fitting screws on above the stack instead of a
+washer and lock nut, so those bolts stop 3 mm short of the bottom of its
+thread, rounded down: M12 × 40 under each clevis (18 mm thread), M12 × 45 under
+each eye (24 mm) and each foot's rod end (22 mm). Open Claw used M12 × 55 throughout, which would also do for every stack
 here but the two 70s, with more thread showing on the shorter ones.
 
 ```bash
@@ -266,7 +321,8 @@ The parts view (P) shows each listed part's mass, worked out from its dimensions
 - **Each cable end:** 230 g. Terminal (160 g), ring with cross-tube (61 g), POM
   washer and more bolt. The same figure stands in for a rod fork.
 - **Node plate:** 469 g, less what its cable ends already counted. **Hinge:**
-  about 430 g.
+  268 g: the clevis with its pin (168 g, as Festo's DIN 71752 SG-M12) and the
+  eye (about 100 g).
 
 The weighed total of Open Claw's 247TailorSteel order, 251.6 kg, matches its
 tubes, caps, tabs and base plates computed this way, so a cap is about 145 g, not
@@ -276,49 +332,12 @@ the 1.2 kg once estimated by subtraction.
 
 These came out of comparing the model with real catalogues.
 
-### 1. Hinge: Open Claw's rod end, and a fork to design
+### 1. Hinge and feet: catalogue parts
 
-Open Claw's order list (`ENS/Bestellijst Open Claw v20260527.xlsx`) has it as
-"Stangkop M12", 4 for €15.06 if that column is the line total, as it appears
-to be. The listing's name was *stangkop SIK12C / GIKR12PW / SIKB12F / PKS12ES,
-gat 12 mm × M12 inwendig schroefdraad*, from NexaParts. **That page now
-redirects away**, so it needs another source.
-
-It screws directly onto a strut's M12 bolt, and the supported bolt goes through
-its 12 mm bore. Figures for the INA part with those names, GIKR12-PW-A (also
-sold as SKF SIKB12F):
-
-| | |
-|---|---|
-| Bore, thread | 12 mm, M12 internal, right hand |
-| Ball ring width | 16 mm |
-| Housing width | 12 mm (from its PB sibling, same series) |
-| Head diameter | 34 mm listed; unconfirmed |
-| Load rating | 20.8 kN static, 24 kN dynamic |
-| Sliding surface | Steel on PTFE bronze film, no maintenance |
-| Standard | DIN ISO 12240-4, series K, type F |
-| Weight | 119 g |
-
-To settle before ordering:
-
-- **What was actually bought.** At about €3.77 each it may be an unbranded
-  equivalent, so INA's ratings may not apply. The name also lists SIK12C, which
-  from general knowledge is a different sliding surface. Check any marking on
-  the head.
-- **Measurements.** Overall length is listed as both 66 and 70 mm, and I found
-  no tilt angle for this part (13° is listed for GAKSR12-PS). Measure a real
-  one: overall length, centre to end, head diameter, thread depth, tilt.
-- **The fork's gap.** With the ball ring clamped in a 16 mm gap, the housing
-  hits the jaws at only about 7° of tilt. About 2 mm of shoulder or spacer each
-  side, a 20 mm gap, gives about 13°. The animation swings Z6's pin axis by up
-  to 7.6°, so don't rely on the 16 mm gap unless the struts' spin takes that up.
-- **The fork itself.** No stock clevis fits: an M12 DIN 71752 clevis has a
-  12 mm gap, and one with 16 mm has an M16 thread. So it's custom, laser-cut
-  plates welded to a threaded boss, sized by the engineer. I found no load
-  ratings for DIN 71752 clevises anyway.
-- **Load direction.** A rod end is rated for radial load, across its shank. How
-  much the hinges see along the pin belongs with Peter's question about
-  sideways forces.
+Settled 2026-11-06: the hinges are stock DIN 71752 fork joints and the feet are
+INA rod ends; see the designs above. What stays open is their load ratings and
+the hinge struts' spin, both for the engineer, and what the feet pin to on the
+ground.
 
 ### 2. The forces are indicative, not design loads
 
@@ -394,13 +413,14 @@ those bolts and stacks need to turn freely under load.
 |---|---|---|
 | Jaw terminal, 6 mm AISI 316 | Louis Ruys B.V. (Zwijndrecht) 37260006, the part in the code. Open Claw paid €10.74 each (360 pcs, 40% off €17.90 list) | Dimensions in code are from its datasheet |
 | Cables with terminals | Louis Ruys again: Open Claw used 36001106, galvanized 6 mm 7×19, MBL 25.5 kN. Or Mennens (NL) for AISI 316 | Quote needed for 244 made-up cables |
-| M12 rod end, internal thread | INA GIKR12-PW-A or SKF SIKB12F, e.g. from ABF (Dutch number, price on request); NexaParts supplied Open Claw's | Details above |
+| M12 rod end, internal thread (feet) | INA GIKR12-PW-A at RS Netherlands, 260-0263, €55.48 | Datasheet figures above |
+| Hinge fork joint | Ganter GN 751-12-24-M12 and GN 752-12-M12, from eHorst (DE) or JW Winco (US) | Dimensions above |
 | Tube 17.2 × 3.2 (DN10) | Any steel stockist, or cut by the laser service (below) | |
 | M12 bolts, nuts | Schroevengroothandel, as for Open Claw: M12x55 DIN 933, DIN 985 nyloc, thermally galvanized | Lengths to be worked out per stack |
 
 ## Ordering the custom steel
 
-The custom steel is about 464 rings, 4 discs, 20 node plates, plus hinge plates. It's a simple flat-part job, with
+The custom steel is about 464 rings, 4 discs, 20 node plates and 128 strut caps. It's a simple flat-part job, with
 one catch: a lot of welding.
 
 ### Who cuts it
@@ -419,7 +439,7 @@ galvanizing as one job, which suits this work well.
    and hole sizes all go into the files.
 2. **Make the files** with the export above: true size in millimetres, lines,
    arcs and circles only. It covers rings, discs and node plates; the cross-tubes
-   are welded on afterwards. Custom hinge plates aren't drawn yet.
+   are welded on afterwards. The hinges and feet are bought.
 3. **Choose the steel with the galvanizer.** S235 is the natural choice, with
    S355 if the engineer wants it. Ask the galvanizer which silicon content they
    want, since it affects the coating, and specify that when ordering.
@@ -451,6 +471,10 @@ need before choosing a workshop.
 ## Sources
 
 - Open Claw vault, ENS folder: order list, Louis Ruys quote, "Gaffelstang" drawing
+- [Schaeffler datasheet: GIKR12-PW (via RS)](https://docs.rs-online.com/526c/A700000009420247.pdf)
+- [RS Netherlands: INA GIKR12-PW-A, 260-0263](https://nl.rs-online.com/web/p/rod-ends/2600263)
+- [JW Winco: GN 752 joint pieces](https://www.jwwinco.com/en-us/products/3.6-Moving-Transferring-Connecting-with-Joints-Couplings-and-Gears/Fork-joints/GN-752-Steel-Joint-Pieces-Use-with-fork-heads-DIN-71752-and-fork-joints-GN-751)
+- [Zoro: GN 751-12-24-M12 clevis fork joint](https://www.zoro.com/jw-winco-gn751-12-24-m12-kl-clevis-fork-joint-751-12-24-m12-kl/i/G4667287/)
 - [ABF: INA GIKR12-PW-A rod end](https://www.abf.store/s/en/bearings/GIKR12-PW-A-INA/484136)
 - [Schaeffler GAKSR12-PS rod end](https://medias-at.schaeffler.com/en/product/rotary/waelz--und-gleitlager/gleitlager/gelenkkoepfe/gaksr12-ps/p/346082)
 - [INA GAKR12-PB-A rod end](https://www.acorn-ind.co.uk/p/ina/rod-ends-with-male-thread/gakr12-pb-a-ina/)

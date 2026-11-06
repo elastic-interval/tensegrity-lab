@@ -3,8 +3,10 @@
 //! instanced at every placement.
 
 use crate::connector::fork::{
-    ClevisDimensions, BOSS_SHORT_OF_PIVOT, CLEVIS, HINGE_BALL_WIDTH, HINGE_EYE_RADIUS, HINGE_EYE_WIDTH, HINGE_JAW_GAP,
-    HINGE_JAW_THICKNESS, HINGE_LENGTH, HINGE_PIN_RADIUS, HINGE_SHANK_RADIUS, HINGE_THREAD_DEPTH, HINGE_THREAD_RADIUS,
+    ClevisDimensions, BOSS_SHORT_OF_PIVOT, FOOT_BALL_WIDTH, FOOT_EYE_RADIUS, FOOT_EYE_WIDTH, FOOT_LENGTH,
+    FOOT_SHANK_RADIUS, FOOT_THREAD_DEPTH, CLEVIS, CLEVIS_LENGTH, CLEVIS_SLOT_DEPTH, CLEVIS_THREAD_DEPTH, EYE_LENGTH,
+    EYE_THREAD_DEPTH, HINGE_EYE_RADIUS, HINGE_EYE_WIDTH, HINGE_JAW_GAP, HINGE_JAW_THICKNESS, HINGE_PIN_RADIUS,
+    HINGE_SHANK_RADIUS, HINGE_THREAD_RADIUS,
     FORK_HOLE_DIAMETER, FORK_NUT_HEIGHT, FORK_NUT_RADIUS, FORK_WEB_OUTSIDE, PLATE_CORNER_RADIUS, PLATE_HOLE_DIAMETER, PLATE_THICKNESS, RING_BORE_DIAMETER,
     ROD_FORK, TUBE_BORE_RADIUS, TUBE_LENGTH,
     TUBE_RADIUS,
@@ -358,7 +360,8 @@ impl Wgpu {
             }
             Part::Clevis => clevis(&mut mesh, &CLEVIS),
             Part::Hinge => hinge_clevis(&mut mesh),
-            Part::HingeEye => hinge_rod_end(&mut mesh),
+            Part::HingeEye => hinge_eye(&mut mesh),
+            Part::FootRodEnd => foot_rod_end(&mut mesh),
             Part::RodFork => rod_fork(&mut mesh, &ROD_FORK),
             Part::ForkNuts => {
                 let (web, height) = (ROD_FORK.pin_to_jaw_base.f32(), FORK_NUT_HEIGHT.f32());
@@ -601,43 +604,45 @@ fn triangulate(outline: &[Vec2], holes: &[Vec<Vec2>]) -> Vec<[Vec2; 3]> {
     triangles
 }
 
-/// A hinge's clevis and pin: the pin at the origin along y, the jaws round
-/// it either side of the rod end's eye, closing into a block and the
-/// threaded body down the strut along +x to its base.
+/// A hinge's clevis and pin: the pin at the origin along y, the square
+/// head's jaws round it either side of the eye, closing below the slot into
+/// the round body down the strut along +x to its base.
 fn hinge_clevis(mesh: &mut Mesh) {
     let (gap, plate) = (HINGE_JAW_GAP.f32() / 2.0, HINGE_JAW_THICKNESS.f32());
-    let (eye, length) = (HINGE_EYE_RADIUS.f32(), HINGE_LENGTH.f32());
-    let block = eye + 0.004;
-    let jaw = hull_of_circles(&[(Vec2::ZERO, eye), (Vec2::new(block, 0.0), eye)]);
-    mesh.extrude(&jaw, gap, gap + plate);
-    mesh.extrude(&jaw, -gap - plate, -gap);
-    let bridge = [
-        Vec2::new(block, -eye),
-        Vec2::new(block + plate, -eye),
-        Vec2::new(block + plate, eye),
-        Vec2::new(block, eye),
-    ];
+    let half = gap + plate;
+    let (slot, head) = (CLEVIS_SLOT_DEPTH.f32(), CLEVIS_SLOT_DEPTH.f32() + plate);
+    let jaw = hull_of_circles(&[(Vec2::ZERO, half), (Vec2::new(head - half, 0.0), half)]);
+    mesh.extrude(&jaw, gap, half);
+    mesh.extrude(&jaw, -half, -gap);
+    let bridge = [Vec2::new(slot, -half), Vec2::new(head, -half), Vec2::new(head, half), Vec2::new(slot, half)];
     mesh.extrude(&bridge, -gap, gap);
-    let shank = HINGE_SHANK_RADIUS.f32();
-    threaded_body(mesh, block + plate, shank, length);
-    let through = gap + plate + 0.003;
+    threaded_body(mesh, head, HINGE_SHANK_RADIUS.f32(), CLEVIS_LENGTH.f32(), CLEVIS_THREAD_DEPTH.f32());
+    let through = half + 0.003;
     mesh.lathe(Vec3::Y, &[(-through, HINGE_PIN_RADIUS.f32()), (through, HINGE_PIN_RADIUS.f32())]);
 }
 
-/// A hinge's rod end: the eye round the pin at the origin along y, its
-/// ball standing proud either side, and the threaded body down the strut
-/// along +x to its base.
-fn hinge_rod_end(mesh: &mut Mesh) {
+/// A hinge's eye: round the pin at the origin along y, and its round body
+/// down the strut along +x to its base.
+fn hinge_eye(mesh: &mut Mesh) {
     let (eye, half) = (HINGE_EYE_RADIUS.f32(), HINGE_EYE_WIDTH.f32() / 2.0);
     mesh.lathe(Vec3::Y, &[(-half, eye), (half, eye)]);
-    let ball = HINGE_BALL_WIDTH.f32() / 2.0;
-    mesh.lathe(Vec3::Y, &[(-ball, eye * 0.6), (ball, eye * 0.6)]);
-    threaded_body(mesh, eye * 0.8, HINGE_SHANK_RADIUS.f32(), HINGE_LENGTH.f32());
+    threaded_body(mesh, eye * 0.8, HINGE_SHANK_RADIUS.f32(), EYE_LENGTH.f32(), EYE_THREAD_DEPTH.f32());
 }
 
-/// A hinge fitting's body along +x, its base tapped for the strut's bolt.
-fn threaded_body(mesh: &mut Mesh, start: f32, radius: f32, length: f32) {
-    let (thread, depth) = (HINGE_THREAD_RADIUS.f32(), HINGE_THREAD_DEPTH.f32());
+/// A foot's rod end: the eye round the pin at the origin along y, its ball
+/// standing proud either side, and its shank up the strut along +x.
+fn foot_rod_end(mesh: &mut Mesh) {
+    let (eye, half) = (FOOT_EYE_RADIUS.f32(), FOOT_EYE_WIDTH.f32() / 2.0);
+    mesh.lathe(Vec3::Y, &[(-half, eye), (half, eye)]);
+    let ball = FOOT_BALL_WIDTH.f32() / 2.0;
+    mesh.lathe(Vec3::Y, &[(-ball, eye * 0.6), (ball, eye * 0.6)]);
+    threaded_body(mesh, eye * 0.8, FOOT_SHANK_RADIUS.f32(), FOOT_LENGTH.f32(), FOOT_THREAD_DEPTH.f32());
+}
+
+/// A hinge fitting's body along +x, its base tapped `depth` for the strut's
+/// bolt.
+fn threaded_body(mesh: &mut Mesh, start: f32, radius: f32, length: f32, depth: f32) {
+    let thread = HINGE_THREAD_RADIUS.f32();
     mesh.lathe(Vec3::X, &[(start, radius), (length, radius), (length, thread), (length - depth, thread)]);
 }
 

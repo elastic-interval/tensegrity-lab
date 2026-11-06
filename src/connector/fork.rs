@@ -146,37 +146,71 @@ impl Assembly {
     }
 }
 
-/// A hinge at a hinge pin: a threaded clevis on one strut and a rod end on
-/// the other, screwed onto their struts' bolts above the stacks as their
-/// nuts, joined by a pin square to both struts where their axes cross. Each
-/// strut spins freely about its own axis, so the hinge only opens and
-/// closes; the rod end's ball takes any small misalignment. The pin is a
-/// bolt standing out either side of the clevis, so extra cables can each
-/// take a standard ring on it. ESTIMATES for M12 catalogue parts (DIN 71752
-/// clevis, ISO 12240-4 rod end).
-/// From the pin to each fitting's base on top of its stack.
-pub const HINGE_LENGTH: Meters = Meters(0.060);
+/// A hinge at a hinge pin, all catalogue parts: a Ganter GN 751-12-24-M12
+/// clevis fork joint (DIN 71752, with its pin) on one strut and a GN 752-12-M12
+/// joint piece, a plain eye, on the other. Each screws onto its strut's bolt
+/// above the stack as its nut, and the pin sits square to both struts where
+/// their axes cross. Each strut spins freely about its own axis, so the hinge
+/// only opens and closes.
 pub const HINGE_PIN_RADIUS: Meters = Meters(0.006);
-/// The clevis's jaws, either side of the rod end's eye.
-pub const HINGE_JAW_GAP: Meters = Meters(0.016);
+/// The clevis: pin to base (l2), its jaws round the eye, the slot's bottom
+/// from the pin (l1) and its tapped depth (l4).
+pub const CLEVIS_LENGTH: Meters = Meters(0.048);
+pub const HINGE_JAW_GAP: Meters = Meters(0.012);
 pub const HINGE_JAW_THICKNESS: Meters = Meters(0.006);
-/// The rod end's eye round the pin, and its ball.
-pub const HINGE_EYE_RADIUS: Meters = Meters(0.016);
+pub const CLEVIS_SLOT_DEPTH: Meters = Meters(0.024);
+pub const CLEVIS_THREAD_DEPTH: Meters = Meters(0.018);
+/// The eye: pin to base, the eye round the pin and its width, and its tapped
+/// depth.
+pub const EYE_LENGTH: Meters = Meters(0.043);
+pub const HINGE_EYE_RADIUS: Meters = Meters(0.0135);
 pub const HINGE_EYE_WIDTH: Meters = Meters(0.012);
-pub const HINGE_BALL_WIDTH: Meters = Meters(0.016);
-/// Each fitting's threaded body, down to its base.
+pub const EYE_THREAD_DEPTH: Meters = Meters(0.024);
+/// Both fittings' round bodies (d3), down to the base.
 pub const HINGE_SHANK_RADIUS: Meters = Meters(0.010);
 /// The M12 hole tapped into each body for the strut's bolt.
 pub const HINGE_THREAD_RADIUS: Meters = Meters(0.006);
-pub const HINGE_THREAD_DEPTH: Meters = Meters(0.024);
 
-/// One hinge fitting for collision testing: the eye round the pin and the
+/// From the pin to the base of the fitting on `clevis` or not.
+pub fn hinge_length(clevis: bool) -> Meters {
+    if clevis {
+        CLEVIS_LENGTH
+    } else {
+        EYE_LENGTH
+    }
+}
+
+/// A foot: the INA GIKR12-PW rod end (Schaeffler datasheet), screwed onto
+/// the strut's bolt above its stack, its ball's pin at the foot joint. Pin to
+/// shank end (h1), eye and ball ring, shank (d4) and its tapped depth (l3).
+pub const FOOT_LENGTH: Meters = Meters(0.050);
+pub const FOOT_EYE_RADIUS: Meters = Meters(0.016);
+pub const FOOT_EYE_WIDTH: Meters = Meters(0.012);
+pub const FOOT_BALL_WIDTH: Meters = Meters(0.016);
+pub const FOOT_SHANK_RADIUS: Meters = Meters(0.00875);
+pub const FOOT_THREAD_DEPTH: Meters = Meters(0.022);
+
+/// A foot's rod end for collision testing: its eye and its shank.
+pub fn foot_capsules(pin: Vec3, along_strut: Vec3) -> Assembly {
+    let shank = (pin, pin + along_strut * FOOT_LENGTH.f32(), FOOT_SHANK_RADIUS.f32());
+    Assembly {
+        body: [(pin, pin, FOOT_EYE_RADIUS.f32()), shank, shank],
+        arm: None,
+    }
+}
+
+/// One hinge fitting for collision testing: the head round the pin and the
 /// body down its strut to its base.
-pub fn hinge_capsules(pin: Vec3, along_strut: Vec3) -> Assembly {
-    let base = pin + along_strut * HINGE_LENGTH.f32();
+pub fn hinge_capsules(pin: Vec3, along_strut: Vec3, clevis: bool) -> Assembly {
+    let base = pin + along_strut * hinge_length(clevis).f32();
+    let head = if clevis {
+        (pin, pin + along_strut * CLEVIS_SLOT_DEPTH.f32(), HINGE_JAW_GAP.f32() / 2.0 + HINGE_JAW_THICKNESS.f32())
+    } else {
+        (pin, pin, HINGE_EYE_RADIUS.f32())
+    };
     let shank = (pin, base, HINGE_SHANK_RADIUS.f32());
     Assembly {
-        body: [(pin, pin, HINGE_EYE_RADIUS.f32()), shank, shank],
+        body: [head, shank, shank],
         arm: None,
     }
 }

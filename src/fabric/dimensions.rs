@@ -21,7 +21,7 @@ pub struct Hardware {
     pub cable_end: Grams,
     /// A node plate, less the rings its cable ends are counted with.
     pub plate: Grams,
-    /// A hinge's rod end, fork and pin bolt.
+    /// A hinge's clevis, pin and eye.
     pub hinge: Grams,
     /// A strut's axial stiffness, EA, in newtons.
     pub strut_stiffness: f32,
@@ -51,8 +51,9 @@ impl Hardware {
         // 12 mm equilateral plate, 60 mm hole to hole (469 g), less the three
         // rings and washers (70 g each) its cable ends were counted with.
         plate: Grams(259.0),
-        // GIKR12-PW rod end (119 g), fork (about 250 g, ESTIMATE), pin bolt (60 g).
-        hinge: Grams(429.0),
+        // Ganter GN 751-12-24-M12 clevis with its pin (168 g, as Festo's
+        // SG-M12) and GN 752-12-M12 eye (100 g, from its dimensions).
+        hinge: Grams(268.0),
         // E 69 GPa: outer tube 349 mm² (24 MN), inner 283 mm² (20 MN), about
         // half the length each. The locking pins' play isn't included.
         strut_stiffness: 2.1e7,

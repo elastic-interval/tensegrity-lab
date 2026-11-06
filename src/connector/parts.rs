@@ -13,7 +13,7 @@ use crate::connector::fork::{
     TUBE_RADIUS,
 };
 use crate::connector::strut::{tube_set, INNER_BORE_RADIUS, INNER_RADIUS, OUTER_BORE_RADIUS, OUTER_RADIUS};
-use crate::connector::system::{hinge_pin_axis, hinge_struts, is_hanger};
+use crate::connector::system::{foot_pin_axis, foot_strut, hinge_pin_axis, hinge_struts, is_hanger};
 use crate::fabric::interval::Role;
 use crate::fabric::{Fabric, IntervalEnd, IntervalKey};
 use crate::units::{Grams, Meters, Unit};
@@ -51,16 +51,19 @@ pub enum Part {
     /// A rod fork's load nut and lock nut, in the fork's frame. Stock, so not
     /// on the parts list.
     ForkNuts,
-    /// A hinge (see `connector::fork::HINGE_LENGTH`): the clevis on one
+    /// A hinge (see `connector::fork::hinge_length`): the clevis on one
     /// strut with the pin, its centre at the origin along `y`, the clevis
     /// running down its strut along `x`. It carries only its two struts: no
     /// cable may end on it (`Fabric::split_hinge_cables`).
     Hinge,
-    /// A hinge's rod end on the other strut, its eye round the pin at the
+    /// A hinge's eye on the other strut, round the pin at the
     /// origin along `y`, running down its strut along `x`. It turns on the
     /// pin, so it is placed apart, but it is part of its `Hinge` and not on
     /// the parts list.
     HingeEye,
+    /// A foot's rod end (see `connector::fork::FOOT_LENGTH`), its ball's pin
+    /// at the origin along `y`, running up its strut along `x`.
+    FootRodEnd,
     /// Triangular node plate at a bridle node (see `connector::node_plate`):
     /// centred at the origin, `y` square to the plate, its holes at the
     /// angles of its `PlateShape`, measured from `x`.
@@ -147,8 +150,9 @@ impl Part {
 
     fn base_name(self) -> &'static str {
         match self {
-            Part::Hinge => "hinge (clevis, rod end, pin)",
-            Part::HingeEye => "hinge's rod end",
+            Part::Hinge => "hinge (clevis, eye, pin)",
+            Part::HingeEye => "hinge's eye",
+            Part::FootRodEnd => "foot's rod end (INA GIKR12-PW)",
             Part::Ring => "ring with boss and cross-tube",
             Part::CustomDisc(_) => "custom disc",
             Part::Washer => "POM washer",
@@ -203,10 +207,12 @@ impl Part {
             }
             // Two M8 nuts.
             Part::ForkNuts => Grams(10.0),
-            // The whole hinge: rod end (119 g), fork (about 250 g, ESTIMATE),
-            // pin bolt (60 g).
-            Part::Hinge => Grams(429.0),
-            Part::HingeEye => Grams(119.0),
+            // The whole hinge: clevis with its pin (168 g, as Festo's SG-M12)
+            // and eye (100 g, from its dimensions). ESTIMATES until weighed.
+            Part::Hinge => Grams(268.0),
+            Part::HingeEye => Grams(100.0),
+            // Schaeffler's datasheet.
+            Part::FootRodEnd => Grams(120.0),
             Part::NodePlate(shape) => {
                 let side = shape.holes[0].1 as f32 / 1000.0 * 3f32.sqrt();
                 let corner = PLATE_CORNER_RADIUS.f32();
@@ -227,7 +233,8 @@ impl Part {
             Part::Clevis
             | Part::ForkNuts
             | Part::Hinge
-            | Part::HingeEye => Material::Stainless,
+            | Part::HingeEye
+            | Part::FootRodEnd => Material::Stainless,
             Part::Washer => Material::Pom,
             Part::OuterTube(_) | Part::InnerTube(_) => Material::Aluminium,
         }
@@ -368,6 +375,16 @@ pub fn placements(fabric: &Fabric) -> Vec<Placement> {
         }
     }
 
+    for &foot in &connector.feet {
+        let Some(strut) = foot_strut(fabric, foot) else {
+            continue;
+        };
+        let location = fabric.joints[foot].location;
+        let along = (fabric.joints[fabric.intervals[strut].other_joint(foot)].location - location).normalize();
+        let pin_axis = foot_pin_axis(fabric, foot, strut);
+        place(Part::FootRodEnd, location, along, pin_axis, connector.culprits.contains(&(strut, foot)));
+    }
+
     for (&node, &link) in &fabric.bridle_nodes {
         let Some(plate) = connector.node_plate(node) else {
             continue;
@@ -460,7 +477,7 @@ mod tests {
     use super::*;
     use crate::build::dsl::fabric_library::{self, FabricName};
     use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
-    use crate::connector::fork::FORK_ROD_MIN_LENGTH;
+    use crate::connector::fork::{self, FORK_ROD_MIN_LENGTH};
 
     /// Headless Hug's parts list adds up: every boss (one per ring, several
     /// per custom disc) carries one cross-tube and a jaw terminal or a
@@ -506,7 +523,8 @@ mod tests {
     /// Headless Hug's M12 bolt lengths, one per strut end, for ordering. The
     /// head bears under the cap's disc; above the top ring come a DIN 9021
     /// washer (3 mm), a DIN 985 lock nut (12 mm) and two threads showing.
-    /// At a hinge the fitting screws on instead, so only the stack is given.
+    /// A hinge fitting or a foot's rod end screws on instead, the bolt going
+    /// most of the way into its thread but stopping short of the bottom.
     ///
     /// ```
     /// cargo test --release --lib headless_hug_bolt_lengths -- --ignored --nocapture
@@ -515,6 +533,7 @@ mod tests {
     #[ignore]
     fn headless_hug_bolt_lengths() {
         const WASHER_AND_NUT: f32 = 0.003 + 0.012 + 0.0035;
+        const SHORT_OF_THREAD_END: f32 = 0.003;
         let mut executor = FabricPlanExecutor::new(fabric_library::get_fabric_plan(FabricName::HeadlessHug));
         while !executor.is_complete() {
             let _ = executor.iterate();
@@ -524,7 +543,10 @@ mod tests {
         let connector = fabric.connector.as_ref().expect("fabric has connectors");
         let half_ring = connector.dimensions.ring_thickness.f32() / 2.0;
         let mut bolts: BTreeMap<u32, usize> = BTreeMap::new();
-        let mut hinge_stacks: Vec<f32> = Vec::new();
+        let stock = |length: f32, round_up: bool| {
+            let fives = length * 1000.0 / 5.0;
+            (if round_up { fives.ceil() } else { fives.floor() }) as u32 * 5
+        };
         for (key, push) in fabric.intervals.iter().filter(|(_, push)| push.has_role(Role::Pushing)) {
             let [(alpha_end, alpha_axis), (omega_end, omega_axis)] = connector.stack_ends(fabric, key);
             for (end, end_pos, axis, joint) in [
@@ -540,20 +562,24 @@ mod tests {
                         (connector.connection_ring_center(end_pos, axis, connection) - end_pos).dot(axis) + half_ring
                     })
                     .fold(connector.dimensions.cap_thickness.f32(), f32::max);
-                if hinge_struts(fabric, joint).is_some() {
-                    hinge_stacks.push(stack * 1000.0);
+                let thread = if connector.feet.contains(&joint) {
+                    Some(fork::FOOT_THREAD_DEPTH)
                 } else {
-                    let stock = ((stack + WASHER_AND_NUT) * 1000.0 / 5.0).ceil() as u32 * 5;
-                    *bolts.entry(stock).or_insert(0) += 1;
-                }
+                    hinge_struts(fabric, joint).map(|[clevis, _]| {
+                        if clevis == key { fork::CLEVIS_THREAD_DEPTH } else { fork::EYE_THREAD_DEPTH }
+                    })
+                };
+                let length = match thread {
+                    Some(depth) => stock(stack + depth.f32() - SHORT_OF_THREAD_END, false),
+                    None => stock(stack + WASHER_AND_NUT, true),
+                };
+                *bolts.entry(length).or_insert(0) += 1;
             }
         }
         for (length, count) in &bolts {
             eprintln!("{count:>4} × M12 × {length} mm");
         }
-        hinge_stacks.sort_by(f32::total_cmp);
-        eprintln!("hinge stacks, cap to top ring (mm): {hinge_stacks:.1?}");
-        assert_eq!(bolts.values().sum::<usize>() + hinge_stacks.len(), 128);
+        assert_eq!(bolts.values().sum::<usize>(), 128);
     }
 
     /// Open Claw, as built, is all made from its own tubes.
