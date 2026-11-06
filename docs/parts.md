@@ -62,12 +62,15 @@ A flat ring turning on the strut's M12 bolt, with a boss ending in a welded
 cross-tube. The cable's terminal pins through the tube.
 
 - Ring: 5 mm plate, Ø40 mm, Ø13 mm bore.
-- Boss: 12 mm wide, flat end 22 mm from the bolt axis, seating the tube 1 mm
+- Boss: 12 mm wide, flat end 22.4 mm from the bolt axis, seating the tube 1 mm
   into its wall (`BOSS_SHORT_OF_PIVOT`, ESTIMATE). Pin axis 30 mm from the
   bolt axis.
-- Tube: 18 × 2.5 mm precision tube (E235+N), 13.5 mm long, axis square to the
-  bolt.
-- Roughly 60 g each, about 28 kg in all (estimate).
+- Tube: 17.2 × 3.2 mm (DN10, EN 10220), 13.5 mm long, axis square to the
+  bolt. Its 10.8 mm bore takes the terminal's 9.7 mm pin with about 0.9 mm
+  of play once galvanized; the 3.2 mm wall carries the pin's load round to
+  the weld and welds to the boss without burning through. Ring bending of
+  the tube wall needs the engineer.
+- Roughly 63 g each, about 29 kg in all (estimate).
 
 The original drawing and the Blender script in
 [connectors.md](connectors.md) show the older 32 mm version; its construction
@@ -93,7 +96,7 @@ reach leaves 11 mm of flat 5 × 12 mm bar before the cross-tube, and any pull al
 the strut bends it the weak way. By hand, as a simple cantilever in S235, discs 1
 and 2 start to yield at about 1.3 kN of cable tension. Reach is limited to 40 mm
 because 50 mm was about 0.7 kN; 30 mm leaves 4 cable ends colliding. A stub of the
-18 × 2.5 mm tube in place of the flat bar would resist this about 8 times better,
+17.2 × 3.2 mm tube in place of the flat bar would resist this about 8 times better,
 and it isn't modelled yet. Needs the engineer.
 
 ### Node plate (20)
@@ -376,12 +379,10 @@ those bolts and stacks need to turn freely under load.
 
 ### 4. Things in the model to check
 
-- **Pin play.** The cross-tube's bore is 13 mm, but the terminal's pin in
-  `fork.rs` is 9.7 mm (datasheet), while the note at the top of
-  [connectors.md](connectors.md) says a 12 mm pin. That's 1 or 3.3 mm of play;
-  settle which pin it is.
-- **Boss flat.** With the pin axis at 30 mm and an 18 × 2.5 mm tube, the bore
-  starts 23.5 mm from the bolt axis. The flat is now at 22 mm, a 1 mm seat
+- **Pin diameter.** The cross-tube is sized for the terminal's 9.7 mm pin,
+  a datasheet figure. Measure one of Open Claw's terminals to confirm it.
+- **Boss flat.** With the pin axis at 30 mm and a 17.2 × 3.2 mm tube, the bore
+  starts 24.6 mm from the bolt axis. The flat is at 22.4 mm, a 1 mm seat
   that stays clear of the bore. Have the welder confirm that seat.
 - **Slack versus settled lengths.** Hardware lengths in the CSV are for the
   slack shape and differ from the settled figure (see
@@ -394,7 +395,7 @@ those bolts and stacks need to turn freely under load.
 | Jaw terminal, 6 mm AISI 316 | Louis Ruys B.V. (Zwijndrecht) 37260006, the part in the code. Open Claw paid €10.74 each (360 pcs, 40% off €17.90 list) | Dimensions in code are from its datasheet |
 | Cables with terminals | Louis Ruys again: Open Claw used 36001106, galvanized 6 mm 7×19, MBL 25.5 kN. Or Mennens (NL) for AISI 316 | Quote needed for 244 made-up cables |
 | M12 rod end, internal thread | INA GIKR12-PW-A or SKF SIKB12F, e.g. from ABF (Dutch number, price on request); NexaParts supplied Open Claw's | Details above |
-| Precision tube 18 × 2.5 | Any steel stockist, or cut by the laser service (below) | |
+| Tube 17.2 × 3.2 (DN10) | Any steel stockist, or cut by the laser service (below) | |
 | M12 bolts, nuts | Schroevengroothandel, as for Open Claw: M12x55 DIN 933, DIN 985 nyloc, thermally galvanized | Lengths to be worked out per stack |
 
 ## Ordering the custom steel

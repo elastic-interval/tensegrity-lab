@@ -36,7 +36,7 @@ impl Default for ConnectorDimensions {
             ring_thickness: Meters(0.005),
             washer_thickness: Meters(0.002), // POM
             cap_thickness: Meters(0.005),
-            pivot_radius: Meters(0.030), // cap OD 40/2 + 1 clearance + tube 18/2
+            pivot_radius: Meters(0.030), // ring OD 40/2 + 1.4 clearance + tube 17.2/2
             tube_sets: OPEN_CLAW_TUBES,
         }
     }

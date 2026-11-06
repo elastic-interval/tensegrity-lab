@@ -3,9 +3,9 @@
 > **2026-10: prototype dimensions in code.** The part described below (32 mm
 > moment arm, 20 mm tube, 10 mm pin, 1 mm washers) is the first design and is
 > now out of date. The code uses the Headless Hug prototype: POM washers
-> 2 mm, pivot radius `R_tube` 30 mm (cap OD 40/2 + 1 clearance + tube 18/2),
-> cross-tube 18 × 2.5 mm precision tube 13.5 mm long, 12 mm clevis pin in a
-> 13 mm bore, jaw clearance 0.25 mm (jaw gap 14 mm). See
+> 2 mm, pivot radius `R_tube` 30 mm (ring OD 40/2 + 1.4 clearance + tube 17.2/2),
+> cross-tube 17.2 × 3.2 mm (DN10) 13.5 mm long, the terminal's 9.7 mm pin in a
+> 10.8 mm bore, jaw clearance 0.25 mm (jaw gap 14 mm). See
 > `src/connector/dimensions.rs` and `src/connector/fork.rs`. Open Claw's
 > connector is frozen on its own branch.
 

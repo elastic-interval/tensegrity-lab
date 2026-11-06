@@ -12,8 +12,8 @@ use crate::units::{Meters, Unit};
 use glam::Vec3;
 
 // Cross-tube of the connector part (see docs/connectors.md).
-pub const TUBE_RADIUS: f32 = 0.009; // D_tube / 2, metres — 18x2.5 E235+N precision tube
-pub const TUBE_BORE_RADIUS: f32 = 0.0065; // D_tube / 2 less the 2.5 mm wall
+pub const TUBE_RADIUS: f32 = 0.0086; // D_tube / 2, metres — 17.2x3.2 tube (DN10, EN 10220)
+pub const TUBE_BORE_RADIUS: f32 = 0.0054; // 10.8 mm bore: the terminal's 9.7 mm pin, clear after galvanizing
 pub const TUBE_LENGTH: f32 = 0.0135; // L_tube, metres — wider than the 6 mm cables from every angle
 
 /// A jaw terminal in its own frame: pin centre at the origin, the barrel
@@ -117,8 +117,8 @@ pub const BRIDLE_LINK: Meters = Meters(0.100);
 /// Half the width of a ring's boss, the arm out to the cross-tube.
 pub const BOSS_ARM_RADIUS: Meters = Meters(0.006);
 /// Where a boss's flat end stops, short of the pivot: the tube's radius less
-/// a 1 mm seat into its 2.5 mm wall, so the flat stays clear of the bore.
-pub const BOSS_SHORT_OF_PIVOT: Meters = Meters(0.008);
+/// a 1 mm seat into its 3.2 mm wall, so the flat stays clear of the bore.
+pub const BOSS_SHORT_OF_PIVOT: Meters = Meters(0.0076);
 /// The bore on the bolt: an M12, plus clearance.
 pub const RING_BORE_DIAMETER: Meters = Meters(0.013);
 
