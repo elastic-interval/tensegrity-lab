@@ -383,15 +383,17 @@ pub fn headless_hug_plan(shape: HeadlessHugShape) -> FabricPlan {
         .pretense(Sec(0.3), Pct(0.5))
         .surface_frozen()
         .fall(Sec(1.5))
-        // Standing upright it sways slowly, so it needs a while to come to rest.
-        .settle(Sec(6.0))
+        // Standing upright it sways slowly, every 4 s or so: it needs 30 s to
+        // come fully to rest, so what's exported has stopped moving.
+        .settle(Sec(30.0))
         .guy_lines([
             // Lengths that stand it upright: its centre of gravity over its
             // feet, both pairs lightly taut.
-            guy_line("L14", (M(0.0), M(5.2)), Pct(90.5)),
-            guy_line("R14", (M(0.0), M(5.2)), Pct(90.5)),
-            guy_line("L14", (M(0.0), M(-5.2)), Pct(109.0)),
-            guy_line("R14", (M(0.0), M(-5.2)), Pct(109.0)),
+            // Tuned with `search_headless_hug_guy_lines`.
+            guy_line("L14", (M(0.0), M(5.2)), Pct(90.75)),
+            guy_line("R14", (M(0.0), M(5.2)), Pct(90.75)),
+            guy_line("L14", (M(0.0), M(-5.2)), Pct(108.75)),
+            guy_line("R14", (M(0.0), M(-5.2)), Pct(108.75)),
         ])
         .animate()
         .actuator_frequency(Hz(0.24))

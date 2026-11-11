@@ -317,6 +317,9 @@ Important integration tests:
 - `src/omission_scan.rs` — `headless_hug_is_buildable`: Headless Hug's
   connectors have no collisions and no cable too short to make. The
   ignored `greedy_headless_hug_bridles` searches for bridles that help.
+  `headless_hug_stands_upright`: its centre of gravity within 20 mm of the
+  line between its feet, every guy line taut, and at rest when the settle
+  ends. The ignored `search_headless_hug_guy_lines` retunes the guy lines.
 - `src/open_claw_symmetry.rs` — `test_open_claw_threefold_symmetry` (asserts
   every rotational triple is symmetric in length and slot) and
   `test_open_claw_cable_triples`.

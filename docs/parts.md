@@ -85,17 +85,18 @@ Each boss is given as angle/reach from the disc's centre line:
 
 | Disc | Bosses |
 |---|---|
-| 1 | −149°/40, −24°/40, 24°/40, 149°/40 mm |
-| 2 | −145°/30, −29°/40, 29°/40, 145°/30 mm |
+| 1 | −150°/40, −24°/40, 24°/40, 150°/40 mm |
+| 2 | −145°/40, −29°/40, 29°/40, 145°/40 mm |
 | 3 | −120°/30, −33°/30, 33°/30, 120°/30 mm |
-| 4 | −107°/30, −35°/30, 35°/30, 107°/30 mm |
+| 4 | −110°/30, −36°/30, 36°/30, 110°/30 mm |
 
 These shift by a degree or so whenever the plan changes, so order them last.
 
 **The 40 mm bosses are a strength question.** Past the disc's 20 mm rim, a 40 mm
 reach leaves 11 mm of flat 5 × 12 mm bar before the cross-tube, and any pull along
 the strut bends it the weak way. By hand, as a simple cantilever in S235, discs 1
-and 2 start to yield at about 1.3 kN of cable tension. Reach is limited to 40 mm
+and 2, all four of their bosses at 40 mm, start to yield at about 1.3 kN of cable
+tension. Reach is limited to 40 mm
 because 50 mm was about 0.7 kN; 30 mm leaves 4 cable ends colliding. A stub of the
 17.2 × 3.2 mm tube in place of the flat bar would resist this about 8 times better,
 and it isn't modelled yet. Needs the engineer.
@@ -152,15 +153,15 @@ figures has been checked by the engineer.
 | Pin to pin | Rod | Qty |
 |---:|---:|---:|
 | 82 mm (hangers) | 47 mm | 16 |
-| 133 mm | 98 mm | 2 |
+| 132 mm | 97 mm | 2 |
 | 139 mm | 104 mm | 2 |
-| 174 mm | 139 mm | 2 |
-| 189 mm | 154 mm | 2 |
-| 197 mm | 162 mm | 2 |
-| 229–230 mm | 194–195 mm | 2 |
+| 198–199 mm | 163–164 mm | 2 |
+| 206 mm | 171 mm | 2 |
+| 230–231 mm | 195–196 mm | 2 |
+| 235 mm | 200 mm | 2 |
 
-The 133, 139, 174 and 229 mm rods run from a hinge strut's stack to the plate
-splitting its cable (L10b, R10b, Z6b, Z5b); with the catalogue hinge those
+The 132, 139, 230 and 235 mm rods run from a hinge strut's stack to the plate
+splitting its cable (L10b, R10b, Z5b, Z6b); with the catalogue hinge those
 stacks sit closer to their plates, too close for a cable.
 
 Those lengths are from the settled shape, as the app's connector view commits
@@ -348,8 +349,8 @@ The simulation uses the real parts' stiffness (`Hardware::OPEN_CLAW`): 6 mm 7×1
 cable at EA about 1.4 MN (an estimate until a datasheet gives it) and the
 telescoping 40×3 / 33×3 tube at about 21 MN, without the locking pins' play. It is
 pretensioned by lengthening every strut 0.5%. At scale 0.75 that keeps all
-connectors clear and, settled under gravity, gives struts a median of 3.4 kN (max
-6.5) and cables at most 5.3 kN, none slack (2026-11-11, as in the JSON's
+connectors clear and, settled under gravity, gives struts a median of 3.7 kN (max
+6.4) and cables at most 5.2 kN, none slack (2026-11-11, as in the JSON's
 `force`). Less collides (0.2–0.4%); more raises the forces by half (0.6%) and
 tips the stance.
 
@@ -357,19 +358,17 @@ The most loaded, settled:
 
 | Cable | Settled |
 |---|---:|
-| L45–L30, R45–R30 | 5.3, 5.2 kN |
-| L5–L5b, R5–R5b (hangers, M8 rod) | 5.0, 5.0 kN |
-| L5b–Z4, R5b–Z4 | 4.5, 4.8 kN |
-| L43–L32 | 4.5 kN |
-| Z5b–Z1 | 4.4 kN |
-| R15–R15b (hanger) | 4.4 kN |
+| L5–L5b, R5–R5b (hangers, M8 rod) | 5.1, 5.2 kN |
+| L45–L30, R45–R30 | 5.1, 5.1 kN |
+| L5b–Z4, R5b–Z4 | 4.6, 4.7 kN |
+| L43–L32, R43–R32 | 4.5, 4.5 kN |
 
 These move by up to 1 kN with the stance, which isn't pinned down: a change in
 floating-point rounding alone (the order of a multiplication in the physics)
 leans the settled figure by about 1° (14 cm at its 8.4 m apex), changing the
-forces with it. The real stance is set
-by the guy lines; see the next section. The settle also ends before the figure
-is fully at rest: it moves another 40 mm or so at the apex over the next 15 s.
+forces with it. The real stance is set by the guy lines; see the next section.
+The settle runs 30 s, long enough for the sway to die away: afterwards nothing
+moves more than 7 mm (`headless_hug_stands_upright` checks it).
 
 Through the animation at its resonance, measured on 2026-11-04 when these were
 about 1 kN lower settled, no cable passed 6.3 kN, a quarter of a 6 mm cable's
@@ -382,10 +381,12 @@ alone. 8 mm cable for any of these is the engineer's call with real load cases.
 ### 3. Standing upright, and motion at the animation's resonance
 
 The guy lines are set so the centre of gravity stands over the feet: anchors 5.2 m
-in front of and behind the pelvis, the front pair at 90.5% and the rear at 109% of
-their distance on landing puts it 13 mm in front of them, with both pairs lightly
-taut (0.4–0.5 kN each). It is very sensitive: 1% on either pair moves it 10–40
-cm, so real guy lines need fine adjustment. Tightening both pairs doesn't stand it
+in front of and behind the pelvis, the front pair at 90.75% and the rear at 108.75%
+of their distance on landing puts it 2 mm behind the line between them, with all
+four lightly taut (0.33–0.40 kN). It is very sensitive: moving 0.5% from the rear
+pair to the front moves it about 80 mm, so real guy lines need fine adjustment.
+`headless_hug_stands_upright` holds it within 20 mm, and
+`search_headless_hug_guy_lines` retunes it after a change. Tightening both pairs doesn't stand it
 up; they pull the pelvis down instead.
 
 Standing upright it sways freely. The animation peaks at about 0.24 Hz, a period of

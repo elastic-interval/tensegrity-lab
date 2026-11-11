@@ -27,7 +27,9 @@ mod tests {
     use crate::fabric::joint::JointLabel;
     use crate::build::dsl::fabric_plan_executor::FabricPlanExecutor;
     use crate::fabric::{Fabric, IntervalKey, JointKey};
-    use crate::units::Unit;
+    use crate::units::{Meters, Percent, Seconds, Unit};
+    use crate::Age;
+    use glam::Vec3;
     use std::collections::HashSet;
 
     type Candidate = (Vec<(String, String)>, String, f32, f32);
@@ -568,5 +570,105 @@ mod tests {
         eprintln!("best: {}", verdict.describe());
         eprintln!("shape: {:?}", best.shape);
         eprintln!("omissions kept: {:?}", best.omits);
+    }
+
+    /// Headless Hug standing, its guy lines' lengths set `front` and `rear`:
+    /// the pairs anchored ahead of it and behind.
+    fn standing(front: Percent, rear: Percent) -> FabricPlanExecutor {
+        let mut plan = headless_hug_plan(HeadlessHugShape::default());
+        let settle = plan.settle_phase.as_mut().expect("Headless Hug settles");
+        for guy in settle.guy_lines.iter_mut() {
+            guy.length = if guy.ground_offset.1.f32() > 0.0 { front } else { rear };
+        }
+        let mut executor = FabricPlanExecutor::new(plan);
+        while !executor.is_complete() {
+            let _ = executor.iterate();
+        }
+        executor
+    }
+
+    fn location(fabric: &Fabric, name: &str) -> Vec3 {
+        let joint = fabric.joints.keys().find(|&joint| fabric.joint_label(joint) == name).expect("joint by name");
+        fabric.joints[joint].location
+    }
+
+    /// How far the centre of gravity stands ahead of the line between the
+    /// feet, positive toward the front anchors.
+    fn lean(fabric: &Fabric) -> Meters {
+        let (left, right) = (location(fabric, "L54"), location(fabric, "R54"));
+        let mass: f32 = fabric.joints.values().map(|joint| joint.accumulated_mass.f32()).sum();
+        let gravity = fabric.joints.values().map(|joint| joint.location * joint.accumulated_mass.f32()).sum::<Vec3>() / mass;
+        let along = Vec3::new(right.x - left.x, 0.0, right.z - left.z).normalize();
+        let ahead = Vec3::new(-along.z, 0.0, along.x);
+        let ahead = if ahead.z < 0.0 { -ahead } else { ahead };
+        Meters((gravity - left).dot(ahead))
+    }
+
+    /// How far any joint moves in `seconds` more of settling.
+    fn still_moving(executor: &mut FabricPlanExecutor, seconds: Seconds) -> Meters {
+        let before: Vec<Vec3> = executor.fabric.joints.values().map(|joint| joint.location).collect();
+        let physics = executor.physics.clone();
+        for _ in 0..(seconds / Age::iteration_duration()) as usize {
+            executor.fabric.iterate(&physics);
+        }
+        let after = executor.fabric.joints.values().map(|joint| joint.location);
+        Meters(before.iter().zip(after).map(|(a, b)| a.distance(b)).fold(0.0, f32::max))
+    }
+
+    fn guy_forces(fabric: &Fabric) -> Vec<f32> {
+        let stiffness = fabric.dimensions.hardware.expect("real parts").cable_stiffness;
+        fabric
+            .intervals
+            .values()
+            .filter(|interval| interval.has_role(Role::GuyLine))
+            .map(|interval| stiffness.to_kilonewtons() * interval.strain)
+            .collect()
+    }
+
+    /// The plan's guy line lengths, `(front, rear)`.
+    fn planned_guy_lines() -> (Percent, Percent) {
+        let plan = headless_hug_plan(HeadlessHugShape::default());
+        let guys = &plan.settle_phase.as_ref().expect("Headless Hug settles").guy_lines;
+        let length = |front: bool| guys.iter().find(|guy| (guy.ground_offset.1.f32() > 0.0) == front).unwrap().length;
+        (length(true), length(false))
+    }
+
+    /// Headless Hug stands upright, its centre of gravity over its feet with
+    /// every guy line taut, and has come to rest by the end of its settle.
+    #[test]
+    fn headless_hug_stands_upright() {
+        let (front, rear) = planned_guy_lines();
+        let mut executor = standing(front, rear);
+        let lean = lean(&executor.fabric);
+        assert!(lean.f32().abs() < 0.02, "centre of gravity {:.0} mm off the feet", lean.to_mm());
+        assert!(guy_forces(&executor.fabric).iter().all(|&force| force > 0.1), "a guy line hangs slack");
+        let moved = still_moving(&mut executor, Seconds(10.0));
+        assert!(moved.f32() < 0.01, "still moving {:.1} mm", moved.to_mm());
+    }
+
+    /// Guy line lengths around the plan's, front shortened as rear is
+    /// lengthened: how far each leans the centre of gravity from the feet.
+    /// Each 0.5 % moves it about 80 mm.
+    ///
+    /// ```
+    /// cargo test --release --lib search_headless_hug_guy_lines -- --ignored --nocapture
+    /// ```
+    #[test]
+    #[ignore]
+    fn search_headless_hug_guy_lines() {
+        let (front, rear) = planned_guy_lines();
+        for step in [-0.5, -0.25, -0.1, 0.0, 0.1, 0.25, 0.5] {
+            let (front, rear) = (front.0 + step, rear.0 - step);
+            let mut executor = standing(Percent(front), Percent(rear));
+            let lean = lean(&executor.fabric);
+            let forces: Vec<String> = guy_forces(&executor.fabric).iter().map(|f| format!("{f:.2}")).collect();
+            let moved = still_moving(&mut executor, Seconds(10.0));
+            eprintln!(
+                "front {front}% rear {rear}%: lean {:+.0} mm, guys {} kN, moves {:.1} mm more",
+                lean.to_mm(),
+                forces.join(" "),
+                moved.to_mm()
+            );
+        }
     }
 }

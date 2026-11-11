@@ -14,3 +14,6 @@ dist/
 
 baked*
 *.zip
+
+# Headless Hug exports, written to the repository root
+/HeadlessHug-*
