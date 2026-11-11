@@ -57,8 +57,8 @@ struct Args {
     #[arg(long, default_value_t = 1.0)]
     time_scale: f32,
 
-    /// Display dimensions at model scale (e.g., 18.5 for 18.5:1 scale)
-    /// Only affects displayed measurements, not simulation
+    /// Display dimensions at model scale, as a multiplier: 0.1 for a 1:10
+    /// model. Only affects displayed measurements, not simulation
     #[arg(long)]
     model_scale: Option<f32>,
 
